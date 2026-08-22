@@ -1,0 +1,158 @@
+import type { Goal, Task } from '@ai-engine/core';
+import { listTasks, getTask, getGoal } from '@ai-engine/core';
+import { maxAttemptsFor, runAttempt } from './attempt-loop.ts';
+import { budgetStatus } from './budget.ts';
+import type { Engine } from './engine.ts';
+import { raiseEscalation } from './escalation.ts';
+import { headRef } from './git/git.ts';
+import { integrateTask } from './merge.ts';
+import { dropTaskWorkspace, ensureGoalWorkspace, ensureTaskWorkspace, goalWorkspacePath } from './workspace.ts';
+
+/**
+ * One scheduling pass for a running goal. Idempotent; called after every event.
+ */
+export async function schedule(engine: Engine, goal: Goal): Promise<void> {
+  const { store } = engine;
+  let tasks = listTasks(store.db, goal.id);
+
+  // 1. cascade failures: a pending task whose dependency failed can never run
+  for (const t of tasks) {
+    if (t.state === 'pending' && t.dependsOn.some((d) => tasks.find((x) => x.id === d)?.state === 'failed')) {
+      store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: t.id, from: 'pending', to: 'failed', reason: 'dependency failed' } });
+    }
+  }
+  tasks = listTasks(store.db, goal.id);
+
+  // 2. promote pending → ready (a skipped dependency counts as satisfied: the human chose to move on)
+  const satisfied = (s: Task['state'] | undefined) => s === 'done' || s === 'skipped';
+  for (const t of tasks) {
+    if (t.state === 'pending' && t.dependsOn.every((d) => satisfied(tasks.find((x) => x.id === d)?.state))) {
+      store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: t.id, from: 'pending', to: 'ready', reason: 'dependencies done' } });
+    }
+  }
+  tasks = listTasks(store.db, goal.id);
+
+  // 3. all terminal?
+  if (tasks.length && tasks.every((t) => t.state === 'done' || t.state === 'failed' || t.state === 'skipped')) {
+    if (tasks.some((t) => t.state === 'failed')) {
+      store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'running', to: 'failed', reason: `${tasks.filter((t) => t.state === 'failed').length} task(s) failed` } });
+    } else {
+      const skipped = tasks.filter((t) => t.state === 'skipped').length;
+      store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'running', to: 'goal_review', reason: skipped ? `all tasks done (${skipped} skipped by you)` : 'all tasks done' } });
+    }
+    return;
+  }
+
+  // 4. budget
+  const b = budgetStatus(goal);
+  if (b.exceeded) {
+    raiseEscalation(engine, {
+      goal,
+      trigger: 'budget_exceeded',
+      message: b.exceeded === 'cost' ? `Cost $${b.costUsd.toFixed(2)} reached the budget of $${(b.maxCostUsd ?? 0).toFixed(2)}.` : `Elapsed ${b.elapsedMin.toFixed(0)} min reached the limit of ${b.maxDurationMin} min.`,
+      payload: { ...b },
+      blockGoal: true,
+    });
+    return;
+  }
+
+  // 5. start ready tasks within capacity
+  const inFlight = engine.inFlightForGoal(goal.id);
+  let capacity = Math.max(0, goal.budgets.maxConcurrent - inFlight.length);
+  const ready = tasks.filter((t) => t.state === 'ready' && !engine.isInFlight(t.id));
+  const goalWsBusy = tasks.some((t) => engine.isInFlight(t.id) && !t.worktreePath);
+  for (const t of ready) {
+    if (capacity <= 0) break;
+    // Workspace policy: a task runs in the goal workspace only if it is the sole active task;
+    // otherwise it gets its own worktree (sticky for the task's lifetime).
+    const others = tasks.filter((x) => x.id !== t.id && (engine.isInFlight(x.id) || (x.state === 'ready' && x.parallelizable)));
+    const useOwnWorktree = t.worktreePath != null || goalWsBusy || (t.parallelizable && others.length > 0);
+    if (!t.parallelizable && inFlight.length > 0) continue; // serial task waits for quiet
+    if (!useOwnWorktree && inFlight.length > 0) continue; // goal workspace in use
+    capacity--;
+    void startTask(engine, goal, t, useOwnWorktree);
+  }
+}
+
+async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: boolean): Promise<void> {
+  const { store, config } = engine;
+  engine.reserve(task.id);
+  try {
+    let cwd = await ensureGoalWorkspace(config.dataDir, goal);
+    // project skills (autoskills) are installed into the goal workspace right after approval; give them a moment
+    await engine.awaitAutoskills(goal.id);
+    // optional: when nothing else is running, bring a moved base branch in before this task starts
+    if (!engine.inFlightForGoal(goal.id).some((id) => id !== task.id)) await engine.refreshBase(getGoal(store.db, goal.id)!).catch((err) => config.log(`[sync] refresh failed: ${err}`));
+    // the goal-branch commit the task starts from: its attempts are squashed onto it when the task completes
+    if (!task.baseRef) store.append({ type: 'task.base_ref', goalId: goal.id, payload: { taskId: task.id, ref: await headRef(cwd) } });
+    if (ownWorktree) {
+      if (!task.worktreePath) {
+        const ws = await ensureTaskWorkspace(config.dataDir, goal, task);
+        store.append({ type: 'task.workspace_assigned', goalId: goal.id, payload: { taskId: task.id, branch: ws.branch, worktreePath: ws.path } });
+        cwd = ws.path;
+      } else cwd = task.worktreePath;
+    }
+    task = getTask(store.db, task.id)!;
+    const attemptsSoFar = engine.attemptCount(task.id);
+    if (attemptsSoFar >= maxAttemptsFor(task)) {
+      raiseEscalation(engine, { goal, task, trigger: 'retries_exhausted', message: `Task "${task.title}" used ${attemptsSoFar} attempts without passing its Must checks.`, payload: { attempts: attemptsSoFar } });
+      return;
+    }
+    store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'ready', to: 'running', reason: `attempt ${attemptsSoFar + 1}` } });
+
+    const outcome = await runAttempt(engine, getGoal(store.db, goal.id)!, task, cwd);
+    const fresh = getTask(store.db, task.id)!;
+    if (fresh.state !== 'running') return; // cancelled / aborted meanwhile
+    store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'running', to: 'observing', reason: 'attempt finished' } });
+
+    if (outcome.passed) {
+      // every finished task becomes one Conventional Commit on the goal branch (squash merge / squashed snapshots)
+      store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'observing', to: 'merging', reason: 'checks passed' } });
+      const merged = await integrateTask(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!);
+      if (merged) {
+        if (fresh.worktreePath) await dropTaskWorkspace(goal, getTask(store.db, task.id)!).catch(() => {});
+        const t = getTask(store.db, task.id)!;
+        store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'merging', to: 'done', reason: t.commitRef ? `committed ${t.commitRef.slice(0, 7)} on goal branch` : 'no changes to commit' } });
+      }
+      return;
+    }
+
+    const used = engine.attemptCount(task.id);
+    const max = maxAttemptsFor(fresh);
+    if (outcome.nonBoundaryDenials.length && used >= max) {
+      raiseEscalation(engine, {
+        goal,
+        task: fresh,
+        attemptId: outcome.attempt.id,
+        trigger: 'permission_denial',
+        message: `Task "${task.title}" failed and Claude was denied: ${outcome.nonBoundaryDenials.map((d) => d.tool_name).join(', ')}.`,
+        payload: { denials: outcome.nonBoundaryDenials },
+      });
+      return;
+    }
+    if (used < max) {
+      store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'observing', to: 'ready', reason: `retry ${used + 1}/${max}` } });
+    } else {
+      raiseEscalation(engine, {
+        goal,
+        task: fresh,
+        attemptId: outcome.attempt.id,
+        trigger: 'retries_exhausted',
+        message: `Task "${task.title}" used ${used}/${max} attempts; Must checks still failing.\n\n${outcome.report.summary.slice(0, 1200)}`,
+        payload: { attempts: used, lastAttemptId: outcome.attempt.id },
+      });
+    }
+  } catch (err) {
+    store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'error', message: `task ${task.id} crashed in engine: ${String((err as Error)?.stack ?? err)}` } });
+    const t = getTask(store.db, task.id);
+    if (t && (t.state === 'running' || t.state === 'observing' || t.state === 'merging')) {
+      store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: t.state, to: 'blocked', reason: 'engine error' } });
+      raiseEscalation(engine, { goal, task: t, trigger: 'retries_exhausted', message: `Engine error while running "${task.title}": ${String(err)}`, payload: {} });
+    }
+  } finally {
+    engine.release(task.id);
+    engine.tick(goal.id);
+  }
+}
+
+export { goalWorkspacePath };

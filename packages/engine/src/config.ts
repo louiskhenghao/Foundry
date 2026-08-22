@@ -1,0 +1,89 @@
+import { homedir } from 'node:os';
+import { join, resolve } from 'node:path';
+
+export interface EngineConfig {
+  /** Where engine.db, transcripts, worktrees, check outputs live. */
+  dataDir: string;
+  /** Claude Code home (~/.claude). Tests point this at a temp dir. */
+  claudeHome: string;
+  /** Path to catalog/skills.json */
+  catalogPath: string;
+  /** Directory with roles/*.md */
+  rolesDir: string;
+  /** Directory with boundary-guard.sh / canary.sh */
+  hooksDir: string;
+  port: number;
+  host: string;
+  claudeBin?: string;
+  /** Global cap on concurrent claude processes. */
+  maxConcurrent: number;
+  /** `--setting-sources`; undefined = inherit everything (user skills included). */
+  settingSources?: string[];
+  models: { strong: string; cheap: string; worker: string };
+  /** tried in order when a session's model turns out to be unavailable (deprecated alias, retired id) */
+  modelFallbacks: string[];
+  attemptTimeoutMs: number;
+  attemptMaxTurns: number;
+  /** Per-attempt cost cap passed as --max-budget-usd (also bounded by goal remaining budget). */
+  attemptMaxCostUsd: number;
+  /** Extra ERE patterns for the boundary guard, '|'-separated. */
+  extraBoundaryPatterns?: string;
+  /** Use graphify for relevant-file discovery when available. */
+  useGraphify: boolean;
+  /** Run the lightweight task reviewer even when the task has no explicit reviewer check. */
+  alwaysReviewTasks: boolean;
+  /** Max goal-level review → fix-task cycles before escalating. */
+  maxFixCycles: number;
+  /** Default delivery policy for new goals (env AI_ENGINE_DELIVERY_MODE). */
+  defaultDelivery?: { mode?: 'local' | 'push' | 'pr' | 'pr-automerge'; remote?: string; unit?: 'goal' | 'task' };
+  /** which design skill set UI tasks use (catalog entries with pack "design"); 'none' = no design skill is mandated */
+  designPack: string;
+  /** run `npx autoskills` in each goal's workspace so the repository's stack gets matching project skills */
+  autoskills: boolean;
+  /** fetch the base branch before a goal starts; start the goal branch from the remote tip when local is behind; re-fetch between tasks */
+  sync: { fetchBeforeGoal: boolean; startFrom: 'auto' | 'local'; refreshBetweenTasks: boolean };
+  /** Delivery pipeline timings (tests shrink these). */
+  delivery: { pollMs: number; noChecksGraceMs: number; checksTimeoutMs: number; automergeWaitMs: number };
+  /** Roots the folder browser may enter (default: home, /Volumes). */
+  allowedRoots?: string[];
+  /**
+   * `mattpocock` (default): roles are told which workflow skills they MUST / should invoke (catalog `workflow` rules)
+   * and the engine records which skills each session used. `plain`: only the one-line "installed skills" hint.
+   */
+  workflowProfile: 'mattpocock' | 'plain';
+  /** markitdown binary override (env AI_ENGINE_MARKITDOWN); auto-detected on PATH and ~/.local/bin otherwise */
+  markitdownBin?: string;
+  log: (msg: string) => void;
+}
+
+export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {}): EngineConfig {
+  return {
+    dataDir: resolve(root, 'data'),
+    claudeHome: process.env.AI_ENGINE_CLAUDE_HOME ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'),
+    catalogPath: resolve(root, 'catalog/skills.json'),
+    rolesDir: resolve(root, 'roles'),
+    hooksDir: resolve(root, 'packages/runner/hooks'),
+    port: Number(process.env.AI_ENGINE_PORT ?? 4111),
+    host: process.env.AI_ENGINE_HOST ?? '127.0.0.1',
+    maxConcurrent: Number(process.env.AI_ENGINE_MAX_CONCURRENT ?? 3),
+    models: { strong: process.env.AI_ENGINE_MODEL_STRONG ?? 'opus', cheap: process.env.AI_ENGINE_MODEL_CHEAP ?? 'haiku', worker: process.env.AI_ENGINE_MODEL_WORKER ?? 'opus' },
+    modelFallbacks: (process.env.AI_ENGINE_MODEL_FALLBACKS ?? 'opus,sonnet,haiku').split(',').map((s) => s.trim()).filter(Boolean),
+    attemptTimeoutMs: 20 * 60_000,
+    // the cost cap is the real guard; turns only stop runaway loops
+    attemptMaxTurns: Number(process.env.AI_ENGINE_ATTEMPT_MAX_TURNS ?? 150),
+    // per-session cap; a strong model on a real task often needs $3–8, and a session killed mid-work wastes what it spent
+    attemptMaxCostUsd: Number(process.env.AI_ENGINE_ATTEMPT_MAX_COST ?? 10),
+    useGraphify: true,
+    alwaysReviewTasks: true,
+    maxFixCycles: 1,
+    defaultDelivery: { unit: 'task', ...(process.env.AI_ENGINE_DELIVERY_MODE ? { mode: process.env.AI_ENGINE_DELIVERY_MODE as any } : {}) },
+    designPack: process.env.AI_ENGINE_DESIGN_PACK ?? 'ui-ux-pro-max',
+    autoskills: process.env.AI_ENGINE_AUTOSKILLS ? !/^(0|false|off|no)$/i.test(process.env.AI_ENGINE_AUTOSKILLS) : true,
+    sync: { fetchBeforeGoal: process.env.AI_ENGINE_SYNC_FETCH ? !/^(0|false|off|no)$/i.test(process.env.AI_ENGINE_SYNC_FETCH) : true, startFrom: process.env.AI_ENGINE_SYNC_START === 'local' ? 'local' : 'auto', refreshBetweenTasks: /^(1|true|on|yes)$/i.test(process.env.AI_ENGINE_SYNC_REFRESH ?? '') },
+    delivery: { pollMs: 30_000, noChecksGraceMs: 90_000, checksTimeoutMs: 30 * 60_000, automergeWaitMs: 10 * 60_000 },
+    workflowProfile: process.env.AI_ENGINE_WORKFLOW === 'plain' ? 'plain' : 'mattpocock',
+    markitdownBin: process.env.AI_ENGINE_MARKITDOWN,
+    log: (m) => console.log(m),
+    ...overrides,
+  };
+}

@@ -1,0 +1,129 @@
+# ai-engine — Domain Context
+
+This file is a glossary. It defines the language used across the codebase, the UI and conversations. It deliberately contains no implementation detail.
+
+## Core concepts
+
+**Goal**
+A user-set objective stated in natural language against a repository. A Goal is finished when all of its Must Checks pass; it is *over-delivered* when its Stretch Checks pass as well. A Goal's output is a local branch. Nothing leaves the machine unless the user chose a Delivery Policy — and then it is the *engine*, never the model, that pushes, opens or merges exactly what the policy says.
+
+**Task**
+The smallest unit of work carved out of a Goal during Clarify. Tasks form a DAG through `dependsOn` edges. A Task with no unfinished dependencies is *ready*. Fan-out, fan-in and pipeline are not separate concepts — they are shapes of the DAG.
+
+**Attempt**
+One Plan → Act → Observe pass at a Task, performed in a fresh Claude session. A *retry* is simply the next Attempt, fed with the previous Attempt's Observation Report. A **Merge Attempt** is an Attempt whose only job is to resolve a merge conflict between two Tasks.
+
+**Check**
+A decidable acceptance item. Every Check belongs to a *tier*:
+- **Must** — something the user explicitly asked for. All Must Checks passing means the Goal (or Task) is *done*.
+- **Stretch** — something the system proposed during Clarify and the user confirmed. Stretch Checks passing on top of Must Checks means *over-delivered*.
+
+The system never invents scope on its own: a Stretch Check exists only because the user accepted it in the Brief.
+
+**Observation**
+The evidence gathered after an Attempt acts: the results of the Task's Checks, the reviewer's verdict, and the list of changed files. The distilled form handed to the next Attempt is the **Observation Report**.
+
+**Reviewer**
+A Claude session that reads a diff and judges it. The *Task reviewer* is lightweight and reports blockers only; the *Goal reviewer* judges the whole Goal diff against the Must and Stretch Checks. Reviewer verdicts never override objective Check results.
+
+## Clarify
+
+**Clarify**
+The phase between a Goal being created and work starting. The system explores the repository on its own and produces a Brief; the user reviews it once. While the Brief awaits approval it can be *re-run*: the Workspace is rebuilt from a fresh fetch and a new Brief replaces the old one.
+
+**Brief**
+The single document the user approves before automation begins. It holds the system's understanding, its Assumptions, the proposed Must and Stretch Checks, the proposed Task DAG, a cost estimate, any Questions, and a one-line Conventional Commits title for the whole Goal that becomes the pull request title.
+
+**Assumption**
+A statement in the Brief the system is proceeding on unless the user overrides it. Assumptions are accepted by default — leaving one untouched means agreeing with it.
+
+**Question**
+Something the system could not safely assume. A *blocking* Question must be answered before the Brief can be approved.
+
+## Human involvement
+
+**Escalation**
+The only way the system ever asks a human for anything after the Brief is approved. There are exactly five triggers, and nothing else interrupts the user:
+1. a blocking Question in the Brief;
+2. a Task exhausted its retry budget with Must Checks still failing;
+3. an action that would leave the local workspace (push, pull request, deploy, shared database, paid service);
+4. the Goal's cost or time budget was exceeded;
+5. the Claude runtime refused a tool call.
+
+**Boundary**
+The line between the local workspace and the outside world. Crossing it is always an Escalation.
+
+**Budget**
+The limits a Goal runs within: estimated cost, elapsed time, concurrent sessions, and Attempts per Task. Exceeding one is an Escalation, not a failure. Cost and time limits may be *unlimited*.
+
+**Budget Preset**
+How a Goal's Budget was chosen: *Auto* (no cap while clarifying; the Brief's estimate proposes the budget and the user confirms or edits it when approving), *Quick*, *Thorough*, *Unlimited*, or *Custom*. Auto is the default because most people cannot say in advance what a goal should cost — the estimate is the model's job.
+
+**Attachment**
+Something the user hands to a Goal that cannot be said in the prompt: a file (screenshot, PDF, document) kept by the system, or a link. Every session of the Goal receives the Attachments as read-only references; they are never part of the repository.
+
+**Markdown rendition**
+The markdown version of an Attachment the system produces ahead of time (documents converted with markitdown, links fetched as a snapshot). Sessions are pointed at the rendition first and at the original only as a fallback; images keep no rendition because the model reads them directly. A rendition can be *ready*, *failed*, *pending* or *skipped*.
+
+## Delivery
+
+**Delivery Policy**
+The standing choice the user makes for a Goal about what may happen to its branch once the Goal is finished: *local* (nothing), *push* (the branch is pushed to the remote), *PR* (a pull request is opened), or *PR + auto-merge* (the pull request is merged once its checks pass). Its *unit* says how finely: *goal* (one branch, one pull request) or *task* (one per Task, as a PR Stack). Choosing a policy is the user's authorisation; it replaces neither the Boundary nor Escalation for anything the policy does not cover.
+
+**Task Commit**
+The single commit a finished Task becomes on the Goal branch. Whatever a Task's Attempts did, the engine squashes it into one commit whose message follows Conventional Commits — the type from the Task Kind (feature → `feat`, bug → `fix`, …), the scope and subject from the Brief. Every commit the engine makes, including sync merges, follows the same standard; the model never commits.
+
+**PR Stack**
+A *task*-unit Delivery: the Task Commits are re-applied one by one on top of the remote base branch, each step becoming a branch and a pull request based on the one below it, titled with the Task Commit's header. The stack is merged bottom-up; a Task Commit that cannot be re-applied makes the engine fall back to one pull request for the whole Goal and say so.
+
+**Delivery**
+The engine carrying out a Delivery Policy after a Goal is finished: syncing the Goal branch with the base branch (conflicts are resolved by a Merge Attempt), pushing, opening the pull request, waiting for its checks, fixing them a bounded number of times, merging, and tidying the remote branch. Every remote action is recorded with the exact command. A Delivery can be *delivered*, *failed* (and re-run), or cancelled; it never force-pushes and never pushes to the base branch.
+
+## Workspace
+
+**Base Sync**
+What the engine does about the user's checkout being behind the remote: before a Goal explores the repository it fetches the base branch (remote-tracking refs only — the checkout itself is never changed) and starts the Goal branch from the remote tip when the local branch is strictly behind it. The user can fast-forward their own checkout with one explicit click; nothing else ever moves it. Optionally the base is fetched and merged in again between Tasks.
+
+**Workspace**
+The isolated checkout a Goal or Task works in. A Goal has its own workspace on a Goal branch; Tasks that run in parallel each get their own workspace on a Task branch and are merged back into the Goal workspace when their Checks pass. The user's own checkout is never touched.
+
+**Role**
+A named set of instructions given to a Claude session: Clarifier, Planner, Worker, Task Reviewer, Goal Reviewer, Merger. Roles are versioned text, not code.
+
+**Context Provider**
+A source the system consults to decide which parts of a repository are relevant to a Task, so that sessions are given only what they need.
+
+## Skills
+
+**Skill**
+A packaged instruction set Claude Code can load (a `SKILL.md` directory). ai-engine does not define skills; it sees the ones installed on the host, installs curated ones from its Catalog, and tells its Roles which to use.
+
+**Skill Source**
+Where an installed Skill comes from and who updates it: a GitHub repository managed by ai-engine, by the community `skills` CLI, or by a Claude Code plugin; a gstack clone; a project directory; or a hand-installed copy whose origin is inferred by matching its contents against known sources. Skills of the same Source are updated together; a Skill whose bytes match an older version of its Source is *outdated*, one that matches no version is *modified*.
+
+**Shadow copy**
+A user-level Skill that has the same name as a Skill provided by a plugin. Both load; prompts use the plugin's copy because it is the one that gets updated. Shadow copies are reported and can be moved to the trash in one click.
+
+**Workflow Skill**
+A Skill a Role is told to invoke for a kind of work — *must* or *prefer* — because the engine follows Matt Pocock's engineering workflow: `tdd` for features and refactors, `diagnosing-bugs` for bugs, `resolving-merge-conflicts` for the Merger, `code-review` for the Goal Reviewer. The engine records which Skills each session actually invoked; a missing mandated invocation is a note for the next Attempt, never a failure on its own.
+
+**Task Kind**
+The nature of a Task — feature, bug, refactor, research or chore — set in the Brief. It selects the Workflow Skills the Worker is asked to follow.
+
+**Scenario**
+The area a Task works in — frontend, backend, fullstack, data, mobile, infra, docs or general — set in the Brief. A Goal's scenario is the one most of its Tasks share. Scenario-bound Skills (the Design Pack, presentation skills…) are shown to a session only when the scenario matches.
+
+**Design Pack**
+The one design skill set the engine hands to UI work (frontend / fullstack Scenarios): ui-ux-pro-max, Anthropic's frontend-design, impeccable, bencium or garden — or none. Packs are mutually exclusive: the Worker gets the chosen pack as a MUST and the Goal Reviewer its review counterpart; the others stay invisible even when installed.
+
+**Project Skills**
+Skills matched to a repository's own stack (React, Tailwind, Supabase…) that autoskills installs into a Goal's workspace after the Brief is approved. They live in the workspace's `.claude/skills`, are git-excluded so they never reach a commit, and are listed to every Worker of that Goal.
+
+**Model Registry**
+What this machine has learned about model names: which id a requested name (`fable`, `opus`, a pinned id) resolved to, and when it last worked or failed. Learned from sessions, never hard-coded; a new model family is listed once it has been used (or tested) here.
+
+**Fallback**
+What the engine does when a session's model is unavailable: re-run the same session with the next model of the configured chain and record the swap on the Goal, so later sessions use the replacement; only when the whole chain fails does the Goal escalate.
+
+**Settings**
+The engine's user-editable configuration: concurrency, models, session caps, workflow profile, Design Pack, autoskills, review and delivery defaults, tools, safety limits. A saved value beats an environment variable, which beats the default; most changes apply immediately, a few only after the engine restarts.

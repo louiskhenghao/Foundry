@@ -1,0 +1,624 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "graphify",
+      "name": "graphify",
+      "summary": "Turns a repository into a queryable code/knowledge graph.",
+      "why": "ai-engine's context provider uses the graphify CLI to hand workers only the relevant files and symbols instead of whole files — the single biggest token saver during Clarify and each Attempt.",
+      "tier": "required",
+      "source": {
+        "type": "cli",
+        "detect": "graphify",
+        "install": "uv tool install graphifyy && graphify install --platform claude",
+        "docs": "https://github.com/safishamsi/graphify"
+      },
+      "roles": [
+        "clarifier"
+      ],
+      "tags": [
+        "context",
+        "graph"
+      ],
+      "homepage": "https://github.com/safishamsi/graphify"
+    },
+    {
+      "id": "tdd",
+      "name": "tdd",
+      "summary": "Red → green → refactor discipline with deep-module guidance.",
+      "why": "Workers that write the failing test first produce changes the engine's command checks can verify, and far fewer 'fix the test instead of the bug' attempts.",
+      "tier": "recommended",
+      "source": {
+        "type": "git",
+        "repo": "mattpocock/skills",
+        "path": "skills/engineering/tdd"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "testing"
+      ],
+      "homepage": "https://github.com/mattpocock/skills",
+      "bundle": "mattpocock",
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "feature",
+          "instruction": "Before writing implementation code, invoke it and follow red → green → refactor through public interfaces; keep the failing test in the diff and run single test files often, the full suite once at the end."
+        },
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "refactor",
+          "instruction": "Invoke it first: pin the current behaviour with tests through public interfaces, then restructure in small green steps."
+        }
+      ]
+    },
+    {
+      "id": "diagnosing-bugs",
+      "name": "diagnosing-bugs",
+      "summary": "Systematic root-cause diagnosis instead of guess-and-patch.",
+      "why": "Retry attempts receive a failure report; this skill makes the worker reproduce and localise before editing, which is what turns attempt #2 into a pass.",
+      "tier": "recommended",
+      "source": {
+        "type": "git",
+        "repo": "mattpocock/skills",
+        "path": "skills/engineering/diagnosing-bugs"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "debugging"
+      ],
+      "homepage": "https://github.com/mattpocock/skills",
+      "bundle": "mattpocock",
+      "aliases": [
+        "diagnose"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "bug",
+          "instruction": "Invoke it before editing: reproduce → minimise → hypothesise → instrument → fix → add a regression test. Report the reproduction you built."
+        }
+      ]
+    },
+    {
+      "id": "code-review",
+      "name": "code-review",
+      "summary": "Structured review checklist focused on correctness and design.",
+      "why": "Gives the task and goal reviewers a consistent rubric, so blockers are real blockers and style nits stay out.",
+      "tier": "recommended",
+      "source": {
+        "type": "git",
+        "repo": "mattpocock/skills",
+        "path": "skills/engineering/code-review"
+      },
+      "roles": [
+        "reviewer-task",
+        "reviewer-goal"
+      ],
+      "tags": [
+        "review"
+      ],
+      "homepage": "https://github.com/mattpocock/skills",
+      "bundle": "mattpocock",
+      "workflow": [
+        {
+          "role": "reviewer-goal",
+          "mandate": "prefer",
+          "when": "any",
+          "instruction": "Use its two axes (Standards and Spec) on the whole diff; the base branch named under \"Fixed point\" is your fixed point."
+        }
+      ]
+    },
+    {
+      "id": "grilling",
+      "name": "grilling",
+      "summary": "Relentless clarifying interview technique for plans.",
+      "why": "The Clarifier gets one shot at the Brief; this skill sharpens how it turns ambiguity into explicit assumptions and the few questions that are truly blocking.",
+      "tier": "recommended",
+      "source": {
+        "type": "git",
+        "repo": "mattpocock/skills",
+        "path": "skills/productivity/grilling"
+      },
+      "roles": [
+        "clarifier"
+      ],
+      "tags": [
+        "planning"
+      ],
+      "homepage": "https://github.com/mattpocock/skills",
+      "bundle": "mattpocock",
+      "aliases": [
+        "grill-me"
+      ]
+    },
+    {
+      "id": "domain-modeling",
+      "name": "domain-modeling",
+      "summary": "Name the concepts precisely before designing code.",
+      "why": "Better task specs: the Planner splits work along real domain boundaries instead of file counts, which is what makes parallel tasks merge cleanly.",
+      "tier": "recommended",
+      "source": {
+        "type": "git",
+        "repo": "mattpocock/skills",
+        "path": "skills/engineering/domain-modeling"
+      },
+      "roles": [
+        "clarifier",
+        "planner"
+      ],
+      "tags": [
+        "design"
+      ],
+      "homepage": "https://github.com/mattpocock/skills",
+      "bundle": "mattpocock",
+      "workflow": [
+        {
+          "role": "clarifier",
+          "mandate": "prefer",
+          "when": "any",
+          "instruction": "Read it for vocabulary discipline only — you are read-only: do not write CONTEXT.md or ADRs."
+        }
+      ]
+    },
+    {
+      "id": "resolving-merge-conflicts",
+      "name": "resolving-merge-conflicts",
+      "summary": "Intent-preserving conflict resolution procedure.",
+      "why": "The Merger role exists only to resolve conflicts between parallel tasks; this skill is its playbook.",
+      "tier": "recommended",
+      "source": {
+        "type": "git",
+        "repo": "mattpocock/skills",
+        "path": "skills/engineering/resolving-merge-conflicts"
+      },
+      "roles": [
+        "merger"
+      ],
+      "tags": [
+        "git"
+      ],
+      "homepage": "https://github.com/mattpocock/skills",
+      "bundle": "mattpocock",
+      "workflow": [
+        {
+          "role": "merger",
+          "mandate": "must",
+          "when": "any",
+          "instruction": "Invoke it and resolve hunk by hunk; never abort the merge."
+        }
+      ]
+    },
+    {
+      "id": "codebase-design",
+      "name": "codebase-design",
+      "summary": "Deep modules, simple interfaces, code an AI can navigate.",
+      "why": "Keeps workers from scattering a feature across many shallow files — fewer files touched means fewer merge conflicts and cheaper reviews.",
+      "tier": "recommended",
+      "source": {
+        "type": "git",
+        "repo": "mattpocock/skills",
+        "path": "skills/engineering/codebase-design"
+      },
+      "roles": [
+        "planner",
+        "worker"
+      ],
+      "tags": [
+        "design"
+      ],
+      "homepage": "https://github.com/mattpocock/skills",
+      "bundle": "mattpocock",
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "feature",
+          "instruction": "Invoke it when you introduce or reshape a module: prefer deep modules with small interfaces."
+        },
+        {
+          "role": "planner",
+          "mandate": "prefer",
+          "when": "any",
+          "instruction": "Use its deep-module vocabulary when carving tasks."
+        }
+      ]
+    },
+    {
+      "id": "webapp-testing",
+      "name": "webapp-testing",
+      "summary": "Anthropic's skill for driving and testing local web apps with Playwright.",
+      "why": "Lets a worker actually exercise a UI change end-to-end instead of declaring victory after unit tests.",
+      "tier": "recommended",
+      "source": {
+        "type": "git",
+        "repo": "anthropics/skills",
+        "path": "skills/webapp-testing"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "testing",
+        "web"
+      ],
+      "homepage": "https://github.com/anthropics/skills"
+    },
+    {
+      "id": "frontend-design",
+      "name": "frontend-design",
+      "summary": "Anthropic's guidance for producing distinctive, production-grade frontends.",
+      "why": "Useful when goals include UI work; not needed for backend-only repositories.",
+      "tier": "optional",
+      "source": {
+        "type": "git",
+        "repo": "anthropics/skills",
+        "path": "skills/frontend-design"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "web",
+        "design"
+      ],
+      "homepage": "https://github.com/anthropics/skills",
+      "pack": "design",
+      "packOption": "frontend-design",
+      "scenarios": ["frontend", "fullstack"],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "any",
+          "scenarios": ["frontend", "fullstack"],
+          "instruction": "Read it before writing any markup or styles; choose a deliberate aesthetic direction for this product and apply it consistently instead of templated defaults."
+        }
+      ]
+    },
+    {
+      "id": "ui-ux-pro-max",
+      "name": "ui-ux-pro-max",
+      "summary": "Searchable design databases: styles, palettes, font pairings, product types, UX guidelines, icons, motion presets.",
+      "why": "Gives UI work a concrete, researched direction (style, palette, typography) before the first line of CSS.",
+      "tier": "optional",
+      "source": {
+        "type": "plugin",
+        "marketplace": "nextlevelbuilder/ui-ux-pro-max-skill",
+        "marketplaceId": "ui-ux-pro-max-skill",
+        "plugin": "ui-ux-pro-max",
+        "docs": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill"
+      },
+      "invoke": "/ui-ux-pro-max:ui-ux-pro-max",
+      "roles": ["worker", "reviewer-goal"],
+      "tags": ["web", "design", "ux"],
+      "homepage": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill",
+      "pack": "design",
+      "packOption": "ui-ux-pro-max",
+      "scenarios": ["frontend", "fullstack"],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "any",
+          "scenarios": ["frontend", "fullstack"],
+          "instruction": "Invoke it first with the product type and audience to get a style, palette, font pairing and UX guidelines; build the UI on that recommendation and say which one you followed."
+        },
+        {
+          "role": "reviewer-goal",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": ["frontend", "fullstack"],
+          "instruction": "Check the delivered UI against its UX guidelines (hierarchy, spacing, contrast, states) and name concrete violations."
+        }
+      ]
+    },
+    {
+      "id": "impeccable",
+      "name": "impeccable",
+      "summary": "/impeccable: craft, polish, critique, audit and 19 more sub-commands for intentional, non-generic frontends.",
+      "why": "One command family for building UI and for reviewing it; its critique doubles as a design review.",
+      "tier": "optional",
+      "source": {
+        "type": "git",
+        "repo": "pbakaus/impeccable",
+        "path": "skill"
+      },
+      "roles": ["worker", "reviewer-goal"],
+      "tags": ["web", "design"],
+      "homepage": "https://github.com/pbakaus/impeccable",
+      "pack": "design",
+      "packOption": "impeccable",
+      "scenarios": ["frontend", "fullstack"],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "any",
+          "scenarios": ["frontend", "fullstack"],
+          "instruction": "Run `/impeccable craft` for new UI or `/impeccable polish` for existing UI before you consider the task done; never ship the generic defaults it warns about."
+        },
+        {
+          "role": "reviewer-goal",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": ["frontend", "fullstack"],
+          "instruction": "Run `/impeccable critique` on the delivered UI and turn its findings into concrete pass/fail notes."
+        }
+      ]
+    },
+    {
+      "id": "bencium-impact-designer",
+      "name": "bencium-impact-designer",
+      "summary": "Bencium's impact designer: distinctive production UI that avoids the generic AI aesthetic.",
+      "why": "Opinionated direction for UI tasks, built on Anthropic's frontend-design guidance.",
+      "tier": "optional",
+      "bundle": "bencium",
+      "source": {
+        "type": "git",
+        "repo": "bencium/bencium-marketplace",
+        "path": "bencium-impact-designer/skills/bencium-impact-designer"
+      },
+      "roles": ["worker"],
+      "tags": ["web", "design"],
+      "homepage": "https://github.com/bencium/bencium-marketplace",
+      "pack": "design",
+      "packOption": "bencium",
+      "scenarios": ["frontend", "fullstack"],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "any",
+          "scenarios": ["frontend", "fullstack"],
+          "instruction": "Invoke it before building UI and follow its direction for layout, colour and type; avoid the patterns it lists as generic."
+        }
+      ]
+    },
+    {
+      "id": "design-audit",
+      "name": "design-audit",
+      "summary": "Systematic visual audit that ends in a phased implementation plan.",
+      "why": "Gives the goal reviewer a structured way to judge UI quality.",
+      "tier": "optional",
+      "bundle": "bencium",
+      "source": {
+        "type": "git",
+        "repo": "bencium/bencium-marketplace",
+        "path": "design-audit/skills/design-audit"
+      },
+      "roles": ["reviewer-goal"],
+      "tags": ["web", "design", "review"],
+      "homepage": "https://github.com/bencium/bencium-marketplace",
+      "pack": "design",
+      "packOption": "bencium",
+      "scenarios": ["frontend", "fullstack"],
+      "workflow": [
+        {
+          "role": "reviewer-goal",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": ["frontend", "fullstack"],
+          "instruction": "Audit the delivered UI with it and report only concrete defects that a fix task could act on."
+        }
+      ]
+    },
+    {
+      "id": "typography",
+      "name": "typography",
+      "summary": "Typography rules: quotes, dashes, spacing, hierarchy.",
+      "why": "Small, mechanical wins on every text-heavy UI.",
+      "tier": "optional",
+      "bundle": "bencium",
+      "source": {
+        "type": "git",
+        "repo": "bencium/bencium-marketplace",
+        "path": "typography/skills/typography"
+      },
+      "roles": ["worker"],
+      "tags": ["web", "design"],
+      "homepage": "https://github.com/bencium/bencium-marketplace",
+      "pack": "design",
+      "packOption": "bencium",
+      "scenarios": ["frontend", "fullstack", "docs"],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": ["frontend", "fullstack"],
+          "instruction": "Apply its rules to headings and body copy you write or touch."
+        }
+      ]
+    },
+    {
+      "id": "web-design-engineer",
+      "name": "web-design-engineer",
+      "summary": "ConardLi's web-design-engineer: pages, landing pages, dashboards and prototypes from 25 design recipes.",
+      "why": "Recipe-driven UI construction with a strong visual baseline.",
+      "tier": "optional",
+      "bundle": "garden",
+      "source": {
+        "type": "git",
+        "repo": "ConardLi/garden-skills",
+        "path": "skills/web-design-engineer"
+      },
+      "roles": ["worker"],
+      "tags": ["web", "design"],
+      "homepage": "https://github.com/ConardLi/garden-skills",
+      "pack": "design",
+      "packOption": "garden",
+      "scenarios": ["frontend", "fullstack"],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "any",
+          "scenarios": ["frontend", "fullstack"],
+          "instruction": "Pick the recipe that matches the page type before building, and follow it for structure, spacing and colour."
+        }
+      ]
+    },
+    {
+      "id": "web-video-presentation",
+      "name": "web-video-presentation",
+      "summary": "Turns scripts or articles into click-driven 16:9 web presentations (23 themes).",
+      "why": "For goals whose output is a presentation rather than an app.",
+      "tier": "optional",
+      "bundle": "garden",
+      "source": {
+        "type": "git",
+        "repo": "ConardLi/garden-skills",
+        "path": "skills/web-video-presentation"
+      },
+      "roles": ["worker"],
+      "tags": ["web", "presentation"],
+      "homepage": "https://github.com/ConardLi/garden-skills",
+      "scenarios": ["docs", "frontend"],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": ["docs"],
+          "instruction": "When the task asks for a presentation or slide deck as a web page, build it with this skill."
+        }
+      ]
+    },
+    {
+      "id": "autoskills",
+      "name": "autoskills",
+      "summary": "Detects the repository's stack (package.json, Gradle, …) and installs matching skills into its .claude/skills.",
+      "why": "Workers get framework-specific house rules for the exact stack they are editing; ai-engine runs it per goal in the goal workspace.",
+      "tier": "optional",
+      "source": {
+        "type": "cli",
+        "detect": "node",
+        "install": "npx -y autoskills@latest --dry-run   # needs Node >= 22; ai-engine runs it for you in each goal workspace",
+        "docs": "https://www.autoskills.sh/"
+      },
+      "roles": [],
+      "tags": ["stack", "project"],
+      "homepage": "https://github.com/midudev/autoskills"
+    },
+    {
+      "id": "claude-api",
+      "name": "claude-api",
+      "summary": "Reference for building on the Claude API / Anthropic SDK.",
+      "why": "Only relevant when the goal itself builds an LLM feature; keeps model ids, pricing and tool-use patterns accurate.",
+      "tier": "optional",
+      "source": {
+        "type": "git",
+        "repo": "anthropics/skills",
+        "path": "skills/claude-api"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "llm"
+      ],
+      "homepage": "https://github.com/anthropics/skills"
+    },
+    {
+      "id": "skill-creator",
+      "name": "skill-creator",
+      "summary": "Anthropic's skill for writing new skills well.",
+      "why": "For people who want to add their own entries to this catalog.",
+      "tier": "optional",
+      "source": {
+        "type": "git",
+        "repo": "anthropics/skills",
+        "path": "skills/skill-creator"
+      },
+      "roles": [],
+      "tags": [
+        "meta"
+      ],
+      "homepage": "https://github.com/anthropics/skills"
+    },
+    {
+      "id": "gstack",
+      "name": "gstack",
+      "summary": "Garry Tan's large skill suite (review, QA, ship, design…).",
+      "why": "Powerful but heavyweight: it is a git clone that flattens ~60 skills into ~/.claude/skills and installs its own hooks, so it must be installed and upgraded with its own tooling, not copied by ai-engine.",
+      "tier": "optional",
+      "source": {
+        "type": "manual",
+        "install": "git clone https://github.com/garrytan/gstack ~/.claude/skills/gstack && ~/.claude/skills/gstack/setup",
+        "docs": "https://github.com/garrytan/gstack",
+        "detectDir": "gstack"
+      },
+      "roles": [],
+      "tags": [
+        "suite"
+      ],
+      "homepage": "https://github.com/garrytan/gstack"
+    },
+    {
+      "id": "prototype",
+      "name": "prototype",
+      "summary": "Throwaway code that answers one question: a terminal app for logic, or several radically different UI variants.",
+      "why": "Research tasks should produce knowledge, not production code; the prototype discipline keeps spikes cheap and disposable.",
+      "tier": "recommended",
+      "bundle": "mattpocock",
+      "source": {
+        "type": "git",
+        "repo": "mattpocock/skills",
+        "path": "skills/engineering/prototype"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "spike",
+        "research"
+      ],
+      "homepage": "https://github.com/mattpocock/skills",
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "research",
+          "instruction": "Invoke it: build the smallest throwaway that answers the question, write the answer down, and do not polish."
+        }
+      ]
+    },
+    {
+      "id": "research",
+      "name": "research",
+      "summary": "Primary-source research that ends in cited Markdown.",
+      "why": "When a goal points at external docs or links, a disciplined research pass beats guessing.",
+      "tier": "optional",
+      "bundle": "mattpocock",
+      "source": {
+        "type": "git",
+        "repo": "mattpocock/skills",
+        "path": "skills/engineering/research"
+      },
+      "roles": [
+        "clarifier",
+        "worker"
+      ],
+      "tags": [
+        "research"
+      ],
+      "homepage": "https://github.com/mattpocock/skills",
+      "workflow": [
+        {
+          "role": "clarifier",
+          "mandate": "prefer",
+          "when": "any",
+          "instruction": "When the goal or its attachments point at external documentation, invoke it to ground the Brief in primary sources."
+        }
+      ]
+    }
+  ]
+}

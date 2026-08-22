@@ -1,0 +1,380 @@
+import type { Settings, SettingsView } from '@ai-engine/core/browser';
+import { RotateCcw } from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { api, type ModelRecordView } from '../api.ts';
+import { DesignPacks } from '../components/DesignPacks.tsx';
+import { Button, Card, CopyButton, Empty, Field, Input, Select, cn } from '../ui.tsx';
+
+type Section = keyof Settings;
+type Leaf = `${Section}.${string}`;
+
+/** fallback list until /api/models answers: aliases Claude Code resolves to the latest model of each family */
+const SEED_MODELS: { id: string; label: string }[] = [
+  { id: 'fable', label: 'Fable 5 — most capable (Mythos-class)' },
+  { id: 'opus', label: 'Opus — strong, default' },
+  { id: 'sonnet', label: 'Sonnet — fast, good for routine tasks' },
+  { id: 'haiku', label: 'Haiku — cheapest' },
+];
+const get = (o: any, path: string) => path.split('.').reduce((x, k) => (x == null ? undefined : x[k]), o);
+
+function SourceBadge({ view, path }: { view: SettingsView; path: string }) {
+  const m = view.meta[path];
+  if (!m) return null;
+  const label = m.source === 'file' ? 'saved' : m.source === 'env' ? 'env' : 'default';
+  const title = m.source === 'env' ? `from ${m.env}` : m.env ? `set ${m.env} to seed this value (default ${JSON.stringify(m.default)})` : `default ${JSON.stringify(m.default)}`;
+  return (
+    <span className={cn('text-[10px] uppercase tracking-wide rounded px-1 py-px border', m.source === 'file' ? 'text-emerald-300 border-emerald-500/40' : m.source === 'env' ? 'text-sky-300 border-sky-500/40' : 'text-zinc-500 border-zinc-800')} title={title}>
+      {label}
+    </span>
+  );
+}
+
+export function SettingsPage() {
+  const [view, setView] = useState<SettingsView | null>(null);
+  const [draft, setDraft] = useState<Settings | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [known, setKnown] = useState<ModelRecordView[] | null>(null);
+  const [probe, setProbe] = useState<Record<string, string>>({});
+  const load = () =>
+    api
+      .settings()
+      .then((v) => {
+        setView(v);
+        setDraft(structuredClone(v.values));
+      })
+      .catch((e) => setErr(e.message));
+  const loadModels = () => api.models().then((m) => setKnown(m.models)).catch(() => setKnown([]));
+  useEffect(() => {
+    load();
+    loadModels();
+  }, []);
+  const testModel = async (name: string) => {
+    setProbe((p) => ({ ...p, [name]: 'testing…' }));
+    try {
+      const r = await api.probeModel(name);
+      setProbe((p) => ({ ...p, [name]: r.ok ? `→ ${r.resolvedId ?? 'ok'} · $${r.costUsd.toFixed(2)}` : `✘ ${r.error ?? 'failed'}` }));
+      loadModels();
+    } catch (e: any) {
+      setProbe((p) => ({ ...p, [name]: `✘ ${e.message}` }));
+    }
+  };
+
+  const changed = useMemo(() => {
+    if (!view || !draft) return [] as Leaf[];
+    return (Object.keys(view.meta) as Leaf[]).filter((p) => JSON.stringify(get(draft, p)) !== JSON.stringify(get(view.values, p)));
+  }, [view, draft]);
+
+  if (err && !view) return <Empty>{err}</Empty>;
+  if (!view || !draft) return <Empty>Loading settings…</Empty>;
+
+  const set = (path: Leaf, value: unknown) => {
+    const next = structuredClone(draft);
+    const [s, k] = path.split('.') as [Section, string];
+    (next[s] as any)[k] = value;
+    setDraft(next);
+  };
+  const save = async () => {
+    setBusy(true);
+    setErr(null);
+    setMsg(null);
+    try {
+      const patch: any = {};
+      for (const p of changed) {
+        const [s, k] = p.split('.') as [Section, string];
+        (patch[s] ??= {})[k] = get(draft, p);
+      }
+      const v = await api.updateSettings(patch);
+      setView(v);
+      setDraft(structuredClone(v.values));
+      setMsg(`Saved ${changed.length} setting${changed.length === 1 ? '' : 's'}${v.restartNeeded.length ? ` — restart the engine to apply ${v.restartNeeded.join(', ')}` : ' — applied immediately'}.`);
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const reset = async (path: Leaf) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const v = await api.resetSetting(path);
+      setView(v);
+      setDraft(structuredClone(v.values));
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const aside = (path: Leaf) => (
+    <>
+      <SourceBadge view={view} path={path} />
+      {view.meta[path]?.restart && (
+        <span className="text-[10px] uppercase tracking-wide rounded px-1 py-px border text-amber-300 border-amber-500/40" title="takes effect after the engine restarts">
+          restart
+        </span>
+      )}
+      {view.meta[path]?.source === 'file' && (
+        <button type="button" className="text-zinc-500 hover:text-zinc-200" title="forget the saved value (back to env / default)" disabled={busy} onClick={() => reset(path)}>
+          <RotateCcw size={11} />
+        </button>
+      )}
+    </>
+  );
+  const num = (path: Leaf, props: { min?: number; max?: number; step?: number } = {}) => <Input type="number" {...props} value={String(get(draft, path) ?? '')} onChange={(e) => set(path, e.target.value === '' ? get(view.values, path) : Number(e.target.value))} />;
+  const text = (path: Leaf, placeholder?: string, nullable = false) => <Input value={(get(draft, path) as string | null) ?? ''} placeholder={placeholder} onChange={(e) => set(path, nullable && e.target.value === '' ? null : e.target.value)} />;
+  const bool = (path: Leaf, label: string, help: string) => (
+    <label className="flex items-start gap-2 cursor-pointer">
+      <input type="checkbox" className="mt-0.5 accent-emerald-500" checked={!!get(draft, path)} onChange={(e) => set(path, e.target.checked)} />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2">
+          <span className="text-xs text-zinc-200">{label}</span>
+          <span className="ml-auto flex items-center gap-1.5">{aside(path)}</span>
+        </span>
+        <span className="block text-[11px] text-zinc-500">{help}</span>
+      </span>
+    </label>
+  );
+  const model = (path: Leaf) => {
+    const v = get(draft, path) as string;
+    const options: { id: string; label: string }[] = known?.length
+      ? known.map((m) => ({ id: m.name, label: `${m.label ?? m.name}${m.note ? ` — ${m.note}` : ''}${m.resolvedId ? ` (→ ${m.resolvedId})` : ''}${m.lastFailAt && (!m.lastOkAt || m.lastFailAt > m.lastOkAt) ? ' ⚠ last failed' : ''}` }))
+      : SEED_MODELS;
+    const custom = !options.some((m) => m.id === v);
+    const rec = known?.find((m) => m.name === v);
+    const warn = rec?.lastFailAt && (!rec.lastOkAt || rec.lastFailAt > rec.lastOkAt) ? `last failed: ${rec.lastError ?? 'model unavailable'}` : rec && !rec.seed && !rec.resolvedId && !rec.lastOkAt ? 'never seen resolving on this machine — Test it' : null;
+    return (
+      <div className="space-y-1">
+        <div className="flex gap-1">
+          <Select value={custom ? 'custom' : v} onChange={(e) => set(path, e.target.value === 'custom' ? '' : e.target.value)}>
+            {options.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+            <option value="custom">custom alias / full id…</option>
+          </Select>
+          {custom && <Input className="mono" value={v} placeholder="claude-… or a new alias" onChange={(e) => set(path, e.target.value)} />}
+          <Button size="sm" variant="ghost" className="shrink-0" disabled={!v || probe[v] === 'testing…'} onClick={() => testModel(v)} title="One short session with this model: learns what it resolves to (costs one tiny call)">
+            Test
+          </Button>
+        </div>
+        {(probe[v] || warn) && <div className={cn('text-[11px]', probe[v]?.startsWith('✘') || (!probe[v] && warn) ? 'text-amber-300' : 'text-zinc-400')}>{probe[v] ?? warn}</div>}
+      </div>
+    );
+  };
+  const list = (path: Leaf, placeholder: string) => <Input className="mono" value={((get(draft, path) as string[] | null) ?? []).join(', ')} placeholder={placeholder} onChange={(e) => set(path, e.target.value.trim() ? e.target.value.split(',').map((s) => s.trim()).filter(Boolean) : null)} />;
+
+  const grid = (children: ReactNode) => <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">{children}</div>;
+
+  return (
+    <div className="max-w-4xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
+      <div className="flex items-start gap-3 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-lg font-semibold">Settings</h1>
+          <p className="text-sm text-zinc-400 mt-1">
+            Saved to <span className="mono">{view.file}</span>. Precedence: saved value › environment variable › default. Most settings apply immediately; the ones marked <span className="text-amber-300">restart</span> after the engine restarts.
+          </p>
+        </div>
+        <div className="sticky top-14 z-10 flex items-center gap-2 rounded-md border border-zinc-800 bg-zinc-950/90 backdrop-blur px-3 py-2">
+          <span className="text-xs text-zinc-400">{changed.length ? `${changed.length} unsaved` : 'no changes'}</span>
+          <Button size="sm" variant="ghost" disabled={!changed.length || busy} onClick={() => setDraft(structuredClone(view.values))}>
+            Discard
+          </Button>
+          <Button size="sm" variant="primary" disabled={!changed.length || busy} onClick={save}>
+            {busy ? 'Saving…' : 'Save'}
+          </Button>
+        </div>
+      </div>
+      {view.restartNeeded.length > 0 && (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
+          Restart the engine to apply: <span className="mono">{view.restartNeeded.join(', ')}</span> — stop it (Ctrl-C) and run <span className="mono">bun run serve</span> <CopyButton text="bun run serve" />
+        </div>
+      )}
+      {msg && <div className="rounded-md border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-200">{msg}</div>}
+      {err && <div className="rounded-md border border-rose-500/40 bg-rose-500/5 px-3 py-2 text-xs text-rose-300">{err}</div>}
+
+      <Card title="Engine">
+        {grid(
+          <>
+            <Field label="Port" aside={aside('engine.port')} help="HTTP port of the local server and of the boundary hook callback.">
+              {num('engine.port', { min: 1, max: 65535 })}
+            </Field>
+            <Field label="Host" aside={aside('engine.host')} help="Bind address; keep 127.0.0.1 unless you know why.">
+              {text('engine.host')}
+            </Field>
+            <Field label="Concurrent Claude sessions" aside={aside('engine.maxConcurrent')} help="Global cap across all goals (workers, reviewers, clarify). Applies immediately.">
+              {num('engine.maxConcurrent', { min: 1, max: 16 })}
+            </Field>
+            <Field label="claude binary" aside={aside('engine.claudeBin')} help="Path to the Claude Code CLI; empty = first `claude` on PATH.">
+              {text('engine.claudeBin', 'claude', true)}
+            </Field>
+            <Field label="Claude Code home" aside={aside('engine.claudeHome')} help="Where skills, plugins and settings.json live; empty = ~/.claude (or CLAUDE_CONFIG_DIR).">
+              {text('engine.claudeHome', '~/.claude', true)}
+            </Field>
+          </>,
+        )}
+      </Card>
+
+      <Card title="Models">
+        {grid(
+          <>
+            <Field label="Strong" aside={aside('models.strong')} help="Drives Clarify (understanding the goal, writing the Brief), the Planner (task DAG), the Goal reviewer and Merge Attempts — the stages where judgement matters most and tokens are few. Fable pays off here first.">
+              {model('models.strong')}
+            </Field>
+            <Field label="Worker" aside={aside('models.worker')} help="Drives every task attempt — the bulk of the tokens. Opus for most work; Fable for hard, cross-cutting tasks; Sonnet when tasks are routine and budget matters.">
+              {model('models.worker')}
+            </Field>
+            <Field label="Cheap" aside={aside('models.cheap')} help="Drives the per-task reviewer and the engine's probes (rate-limit checks). Haiku is fine; Sonnet if task reviews feel shallow.">
+              {model('models.cheap')}
+            </Field>
+            <Field label="Fallbacks (in order)" aside={aside('models.fallbacks')} help="When a session's model is unavailable (deprecated alias, retired id, typo) the engine re-runs it with the next of these and updates the goal's model; only when all fail does it ask you.">
+              {list('models.fallbacks', 'opus, sonnet, haiku')}
+            </Field>
+          </>,
+        )}
+        <p className="text-[11px] text-zinc-500 mt-3">The list is what this machine has seen resolve (family aliases follow the latest release through Claude Code; a full model id pins a version). A new family is one custom entry away — after its first session it shows up here with its resolved id. Changes apply to goals created from now on; running goals keep the models they started with unless a fallback kicks in.</p>
+      </Card>
+
+      <Card title="Sessions">
+        {grid(
+          <>
+            <Field label="Cost cap per session (USD)" aside={aside('sessions.attemptMaxCostUsd')} help="The real guard: a worker session stops at this spend (also bounded by the goal's remaining budget).">
+              {num('sessions.attemptMaxCostUsd', { min: 0.5, max: 500, step: 0.5 })}
+            </Field>
+            <Field label="Turn cap per session" aside={aside('sessions.attemptMaxTurns')} help="Only stops runaway loops; keep it generous so a session is not cut mid-work.">
+              {num('sessions.attemptMaxTurns', { min: 10, max: 2000 })}
+            </Field>
+            <Field label="Attempt timeout (minutes)" aside={aside('sessions.attemptTimeoutMin')}>
+              {num('sessions.attemptTimeoutMin', { min: 5, max: 240 })}
+            </Field>
+          </>,
+        )}
+      </Card>
+
+      <Card title="Workflow">
+        <div className="space-y-4">
+          {grid(
+            <>
+              <Field label="Profile" aside={aside('workflow.profile')} help="mattpocock: roles are told which workflow skills to invoke (tdd, diagnosing-bugs, code-review…) and the engine records what they used. plain: a one-line hint only.">
+                <Select value={draft.workflow.profile} onChange={(e) => set('workflow.profile', e.target.value)}>
+                  <option value="mattpocock">mattpocock (mandated + observed)</option>
+                  <option value="plain">plain (hint only)</option>
+                </Select>
+              </Field>
+              <Field label="Setting sources" aside={aside('workflow.settingSources')} help="`--setting-sources` for sessions, comma-separated (user, project, local); empty = inherit everything.">
+                {list('workflow.settingSources', 'user, project')}
+              </Field>
+            </>,
+          )}
+          {bool('workflow.autoskills', 'autoskills per goal', 'After the Brief is approved, run `npx autoskills` in the goal workspace to install skills matching the repository’s stack (needs Node ≥ 22). The generated CLAUDE.md is restored and the skills are git-excluded.')}
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-xs text-zinc-300">Design skills</span>
+              <span className="ml-auto flex items-center gap-1.5">{aside('workflow.designPack')}</span>
+            </div>
+            <DesignPacks compact />
+            <p className="text-[11px] text-zinc-500 mt-1.5">Choosing a pack saves immediately; only that pack is shown to sessions working on frontend / fullstack tasks.</p>
+          </div>
+        </div>
+      </Card>
+
+      <Card title="Reviews">
+        <div className="space-y-3">
+          {bool('reviews.alwaysReviewTasks', 'Review every task', 'Run the lightweight task reviewer even when the Brief defined no reviewer check for the task.')}
+          {grid(
+            <Field label="Goal-level fix cycles" aside={aside('reviews.maxFixCycles')} help="How many review → fix-task rounds before the goal escalates to you.">
+              {num('reviews.maxFixCycles', { min: 0, max: 5 })}
+            </Field>,
+          )}
+        </div>
+      </Card>
+
+      <Card title="Delivery defaults">
+        {grid(
+          <>
+            <Field label="Mode for new goals" aside={aside('delivery.defaultMode')}>
+              <Select value={draft.delivery.defaultMode} onChange={(e) => set('delivery.defaultMode', e.target.value)}>
+                <option value="local">local only</option>
+                <option value="push">push branch</option>
+                <option value="pr">open a PR</option>
+                <option value="pr-automerge">PR + auto-merge</option>
+              </Select>
+            </Field>
+            <Field label="Granularity" aside={aside('delivery.defaultUnit')}>
+              <Select value={draft.delivery.defaultUnit} onChange={(e) => set('delivery.defaultUnit', e.target.value)}>
+                <option value="task">one PR per task (stacked)</option>
+                <option value="goal">one PR per goal</option>
+              </Select>
+            </Field>
+            <Field label="Remote" aside={aside('delivery.defaultRemote')}>
+              {text('delivery.defaultRemote', 'origin')}
+            </Field>
+          </>,
+        )}
+        <details className="mt-4">
+          <summary className="text-xs text-zinc-400 cursor-pointer">Timings (advanced)</summary>
+          <div className="mt-3">
+            {grid(
+              <>
+                <Field label="Poll interval (s)" aside={aside('delivery.pollSec')}>
+                  {num('delivery.pollSec', { min: 5, max: 600 })}
+                </Field>
+                <Field label="Grace before “no checks” (s)" aside={aside('delivery.noChecksGraceSec')}>
+                  {num('delivery.noChecksGraceSec', { min: 0, max: 3600 })}
+                </Field>
+                <Field label="Checks timeout (min)" aside={aside('delivery.checksTimeoutMin')}>
+                  {num('delivery.checksTimeoutMin', { min: 1, max: 720 })}
+                </Field>
+                <Field label="Auto-merge wait under branch protection (min)" aside={aside('delivery.automergeWaitMin')}>
+                  {num('delivery.automergeWaitMin', { min: 1, max: 720 })}
+                </Field>
+              </>,
+            )}
+          </div>
+        </details>
+      </Card>
+
+      <Card title="Sync with upstream">
+        <div className="space-y-3">
+          {bool('sync.fetchBeforeGoal', 'Fetch the base branch before a goal starts', 'Only remote-tracking refs are updated — your checkout is never touched. The Clarifier explores, and the goal branch starts from, the freshest tip.')}
+          {grid(
+            <Field label="Where the goal branch starts" aside={aside('sync.startFrom')} help="auto: from <remote>/<base> when your local base is behind it (and not ahead); local: always from your local branch.">
+              <Select value={draft.sync.startFrom} onChange={(e) => set('sync.startFrom', e.target.value)}>
+                <option value="auto">auto — remote tip when local is behind</option>
+                <option value="local">always the local branch</option>
+              </Select>
+            </Field>,
+          )}
+          {bool('sync.refreshBetweenTasks', 'Refresh between tasks', 'When nothing is running, fetch again and merge a moved base branch into the goal branch (conflicts go to a Merge Attempt). Useful for long goals on busy repositories; off by default because mid-goal merges can surprise workers.')}
+        </div>
+      </Card>
+
+      <Card title="Tools">
+        <div className="space-y-3">
+          {bool('tools.useGraphify', 'Use graphify for relevant-file discovery', 'When the graphify CLI is installed, sessions get a code-graph based context instead of grep.')}
+          {grid(
+            <Field label="markitdown binary" aside={aside('tools.markitdownBin')} help="Empty = auto-detect on PATH and ~/.local/bin.">
+              {text('tools.markitdownBin', 'markitdown', true)}
+            </Field>,
+          )}
+        </div>
+      </Card>
+
+      <Card title="Safety">
+        {grid(
+          <>
+            <Field label="Extra boundary patterns" aside={aside('safety.extraBoundaryPatterns')} help="Additional ERE patterns the boundary hook blocks, '|'-separated (e.g. `terraform apply|kubectl`).">
+              {text('safety.extraBoundaryPatterns', 'terraform apply|kubectl', true)}
+            </Field>
+            <Field label="Folder browser roots" aside={aside('safety.allowedRoots')} help="Directories the repository picker may enter, comma-separated; empty = your home and /Volumes.">
+              {list('safety.allowedRoots', '/Users/you/Projects')}
+            </Field>
+          </>,
+        )}
+      </Card>
+    </div>
+  );
+}

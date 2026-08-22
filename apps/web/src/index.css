@@ -1,0 +1,115 @@
+@import 'tailwindcss';
+
+:root {
+  color-scheme: dark;
+}
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  @apply bg-zinc-950 text-zinc-100 antialiased;
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-zinc-700 rounded;
+}
+
+/* minimal prose for model-authored markdown */
+.md {
+  @apply text-sm text-zinc-200 leading-relaxed;
+}
+.md > * + * {
+  margin-top: 0.6em;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  @apply font-semibold text-zinc-100;
+}
+.md h1 {
+  @apply text-base;
+}
+.md h2 {
+  @apply text-[15px];
+}
+.md h3,
+.md h4 {
+  @apply text-sm;
+}
+.md p {
+  @apply whitespace-pre-wrap;
+}
+.md ul {
+  @apply list-disc pl-5;
+}
+.md ol {
+  @apply list-decimal pl-5;
+}
+.md li + li {
+  margin-top: 0.15em;
+}
+.md li > input[type='checkbox'] {
+  @apply mr-1.5 align-middle;
+}
+.md code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  @apply text-[12px] bg-zinc-900 border border-zinc-800 rounded px-1 py-0.5 text-emerald-200;
+}
+.md pre {
+  @apply bg-zinc-900 border border-zinc-800 rounded-md p-3 overflow-x-auto;
+}
+.md pre code {
+  @apply bg-transparent border-0 p-0 text-zinc-200;
+}
+.md blockquote {
+  @apply border-l-2 border-zinc-700 pl-3 text-zinc-400;
+}
+.md table {
+  @apply text-xs border-collapse;
+}
+.md th,
+.md td {
+  @apply border border-zinc-800 px-2 py-1 text-left align-top;
+}
+.md th {
+  @apply bg-zinc-900 text-zinc-300;
+}
+.md a {
+  @apply underline text-sky-300;
+}
+.md hr {
+  @apply border-zinc-800;
+}
+.md img {
+  @apply max-w-full rounded;
+}
+
+/* phones: slightly larger touch targets, no horizontal page scroll */
+@media (max-width: 640px) {
+  html {
+    overflow-x: hidden;
+  }
+  .md pre {
+    @apply text-[12px];
+  }
+  button,
+  select,
+  input[type='checkbox'] {
+    min-height: 32px;
+  }
+  input[type='checkbox'] {
+    min-height: 0;
+    width: 16px;
+    height: 16px;
+  }
+}

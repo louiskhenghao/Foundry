@@ -1,0 +1,14 @@
+{
+  "name": "@ai-engine/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "ai-engine": "./src/main.ts"
+  },
+  "dependencies": {
+    "@ai-engine/core": "workspace:*",
+    "@ai-engine/engine": "workspace:*",
+    "@ai-engine/server": "workspace:*"
+  }
+}

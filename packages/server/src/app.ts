@@ -1,0 +1,565 @@
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { Brief, EscalationAnswer, getAttempt, getBrief, getGoal, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths } from '@ai-engine/core';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, InstallError, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, type Engine, type OpenTargetId } from '@ai-engine/engine';
+import { Attachment, BudgetPreset, DeliveryPolicy, SettingsPatch } from '@ai-engine/core';
+import { Hono } from 'hono';
+import { z } from 'zod';
+
+/** Errors that carry their own HTTP status (409/422…) instead of the default 400. */
+export class HttpError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly body: Record<string, unknown>,
+  ) {
+    super(String(body.error ?? 'error'));
+  }
+}
+
+/** Partial budgets; null on a limit means "no limit". */
+const BudgetsBody = z.object({
+  maxCostUsd: z.number().positive().nullable().optional(),
+  maxDurationMin: z.number().positive().nullable().optional(),
+  maxConcurrent: z.number().int().positive().optional(),
+  attemptsPerTask: z.number().int().positive().optional(),
+});
+
+const CreateGoalBody = z.object({
+  title: z.string().optional(),
+  prompt: z.string().min(1),
+  repoPath: z.string().min(1),
+  baseBranch: z.string().optional(),
+  budgets: BudgetsBody.optional(),
+  budgetPreset: BudgetPreset.optional(),
+  models: z.object({ strong: z.string().optional(), cheap: z.string().optional(), worker: z.string().optional() }).optional(),
+  autoBrief: z.object({ mustChecks: z.array(z.string()), stretchChecks: z.array(z.string()).optional() }).optional(),
+  brief: Brief.omit({ goalId: true }).optional(),
+  delivery: DeliveryPolicy.partial().optional(),
+  attachments: z.array(Attachment).optional(),
+});
+
+export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
+  const app = new Hono();
+  const db = engine.store.db;
+
+  app.onError((err, c) => {
+    if (err instanceof HttpError) return c.json(err.body, err.status as 400);
+    if (err instanceof InstallError) return c.json({ error: err.message, code: err.code, ...err.extra }, err.code === 'conflict' ? 409 : err.code === 'manual' ? 422 : err.code === 'not-found' ? 404 : 400);
+    if (err instanceof UninstallRefused) return c.json({ error: err.message, reason: err.reason }, err.reason === 'not-found' ? 404 : 409);
+    if (err instanceof UpdateBusy) return c.json({ error: err.message }, 409);
+    if (err instanceof TrashError) return c.json({ error: err.message, code: err.code }, err.code === 'not-found' ? 404 : 409);
+    return c.json({ error: String(err.message ?? err) }, 400);
+  });
+
+  app.get('/api/health', (c) => c.json({ ok: true, active: engine.runner.active(), events: engine.store.count(), pausedUntil: engine.rateLimitedUntilIso(), restartNeeded: engine.settings.restartNeeded() }));
+
+  app.get('/api/goals', (c) => {
+    const goals = listGoals(db).map((g) => {
+      const tasks = listTasks(db, g.id);
+      return { ...g, budget: budgetStatus(g), taskCounts: count(tasks.map((t) => t.state)), openEscalations: listEscalations(db, { goalId: g.id, openOnly: true }).length };
+    });
+    return c.json(goals);
+  });
+
+  app.post('/api/goals', async (c) => {
+    const body = CreateGoalBody.parse(await c.req.json());
+    const goal = await engine.createGoal(body);
+    return c.json(goal, 201);
+  });
+
+  // upstream gap of a base branch (fetches remote-tracking refs only) and the one explicit way to move the local branch
+  app.post('/api/repos/upstream', async (c) => {
+    const { repoPath, branch } = z.object({ repoPath: z.string().min(1), branch: z.string().min(1) }).parse(await c.req.json());
+    const s = await fetchBase(repoPath, branch);
+    return c.json({ ...s, start: startRef(s, engine.config.sync.startFrom), fetchBeforeGoal: engine.config.sync.fetchBeforeGoal });
+  });
+  app.post('/api/repos/pull', async (c) => {
+    const { repoPath, branch } = z.object({ repoPath: z.string().min(1), branch: z.string().min(1) }).parse(await c.req.json());
+    const r = await pullFastForward(repoPath, branch);
+    engine.store.append({ type: 'engine.note', goalId: null, payload: { level: r.ok ? 'info' : 'warn', message: `pull --ff-only ${branch} in ${repoPath}: ${r.detail}` } });
+    return c.json(r, r.ok ? 200 : 409);
+  });
+  app.post('/api/validate-repo', async (c) => {
+    const { repoPath } = z.object({ repoPath: z.string() }).parse(await c.req.json());
+    const info = await inspectRepo(repoPath);
+    const error = !info.exists ? 'path does not exist' : !info.isDir ? 'not a directory' : info.insideRepoAt ? `inside the repository at ${info.insideRepoAt}` : !info.isGitRepo ? 'not a git repository (you can initialize it)' : !info.hasCommits ? 'repository has no commits yet' : null;
+    return c.json({ ...info, ok: info.isGitRepo && info.hasCommits, branch: info.branch ?? '', error });
+  });
+  // ---- attachments ----
+  const parseUpload = async (c: any): Promise<{ files: { name: string; mime: string | null; bytes: Uint8Array }[]; link: { url: string; name?: string; note?: string } | null }> => {
+    const ct = c.req.header('content-type') ?? '';
+    if (ct.includes('multipart/form-data')) {
+      const body = await c.req.parseBody({ all: true });
+      const raw = body.file ?? body.files;
+      const list = (Array.isArray(raw) ? raw : raw ? [raw] : []).filter((f: unknown): f is File => f instanceof File);
+      const files = [];
+      for (const f of list) files.push({ name: f.name, mime: f.type || null, bytes: new Uint8Array(await f.arrayBuffer()) });
+      return { files, link: null };
+    }
+    const json = await c.req.json();
+    const link = z.object({ url: z.string().min(1), name: z.string().optional(), note: z.string().optional() }).parse(json);
+    return { files: [], link };
+  };
+  const attachmentError = (e: unknown) => {
+    if (e instanceof AttachmentError) throw new HttpError(e.code === 'too-large' ? 413 : e.code === 'not-found' ? 404 : 400, { error: e.message, code: e.code });
+    throw e;
+  };
+  /** Stage files (or register a link) before the goal exists; returns Attachment records to pass to POST /api/goals. */
+  app.post('/api/uploads', async (c) => {
+    try {
+      const { files, link } = await parseUpload(c);
+      if (link) return c.json({ attachments: [engine.stage(linkAttachment(link.url, { name: link.name, note: link.note }))] }, 201);
+      if (!files.length) throw new HttpError(400, { error: 'no file field in the form' });
+      return c.json({ attachments: files.map((f) => engine.stage(stageFile(engine.config.dataDir, f))) }, 201);
+    } catch (e) {
+      return attachmentError(e);
+    }
+  });
+  // conversion status of a staged upload (before the goal exists)
+  app.get('/api/uploads/:id', (c) => {
+    const a = engine.stagedView(c.req.param('id'));
+    if (!a) throw new HttpError(404, { error: 'not staged (claimed by a goal or expired)' });
+    return c.json(a);
+  });
+  app.post('/api/goals/:id/attachments', async (c) => {
+    try {
+      const { files, link } = await parseUpload(c);
+      // plan only; addAttachment starts the conversion after the file has moved into the goal directory
+      const staged = link ? [engine.stage(linkAttachment(link.url, { name: link.name, note: link.note }), { convert: false })] : files.map((f) => engine.stage(stageFile(engine.config.dataDir, f), { convert: false }));
+      return c.json({ attachments: staged.map((a) => engine.addAttachment(c.req.param('id'), a)) }, 201);
+    } catch (e) {
+      return attachmentError(e);
+    }
+  });
+  app.post('/api/goals/:id/attachments/:attId/convert', async (c) => c.json({ markdown: await engine.reconvertAttachment(c.req.param('id'), c.req.param('attId')) }));
+  // one-click tool installs (markitdown, catalog cli entries such as graphify) — stream to the `tool-install` live channel
+  const toolInstall = async (c: any, id: string) => {
+    const say = (line: string) => engine.broadcast({ goalId: '', taskId: null, attemptId: 'tool-install', event: { kind: 'text', text: line }, ts: new Date().toISOString() });
+    void engine.installTool(id, say).catch((e) => say(`✘ ${String(e.message ?? e)}`));
+    return c.json({ started: true, channel: 'tool-install', id }, 202);
+  };
+  app.post('/api/tools/markitdown/install', (c) => toolInstall(c, 'markitdown'));
+  app.post('/api/tools/install', async (c) => toolInstall(c, z.object({ id: z.string().min(1) }).parse(await c.req.json()).id));
+  app.delete('/api/goals/:id/attachments/:attId', (c) => {
+    engine.removeAttachment(c.req.param('id'), c.req.param('attId'));
+    return c.json({ ok: true });
+  });
+  // The markdown rendition (markitdown output / link snapshot) as text, by id only.
+  const mdResponse = (abs: string | null) => {
+    if (!abs) throw new HttpError(404, { error: 'no markdown rendition for this attachment' });
+    return new Response(Bun.file(abs), { headers: { 'content-type': 'text/markdown; charset=utf-8', 'cache-control': 'private, max-age=60', 'x-content-type-options': 'nosniff' } });
+  };
+  app.get('/api/goals/:id/attachments/:attId/markdown', (c) => {
+    const goal = getGoal(db, c.req.param('id'));
+    const att = goal?.attachments.find((a) => a.id === c.req.param('attId'));
+    if (!goal || !att) throw new HttpError(404, { error: 'attachment not found' });
+    return mdResponse(markdownAbsPath(engine.config.dataDir, goal.id, att));
+  });
+  app.get('/api/uploads/:id/markdown', (c) => {
+    const a = engine.stagedView(c.req.param('id'));
+    if (!a) throw new HttpError(404, { error: 'not staged (claimed by a goal or expired)' });
+    return mdResponse(stagedMarkdownAbsPath(engine.config.dataDir, a));
+  });
+  // Serves the file by id only; the path comes from the stored record, never from the request.
+  app.get('/api/goals/:id/attachments/:attId', (c) => {
+    const goal = getGoal(db, c.req.param('id'));
+    const att = goal?.attachments.find((a) => a.id === c.req.param('attId'));
+    if (!goal || !att) throw new HttpError(404, { error: 'attachment not found' });
+    if (att.kind === 'link') return c.redirect(att.url!, 302);
+    const abs = attachmentAbsPath(engine.config.dataDir, goal.id, att);
+    if (!abs) throw new HttpError(404, { error: 'attachment file is missing on disk' });
+    const inline = c.req.query('download') !== '1';
+    return new Response(Bun.file(abs), {
+      headers: {
+        'content-type': att.mime ?? 'application/octet-stream',
+        'content-disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(att.name)}`,
+        'cache-control': 'private, max-age=3600',
+        'x-content-type-options': 'nosniff',
+      },
+    });
+  });
+
+  // ---- open in editor / file manager / terminal (paths resolved server-side, never from the request) ----
+  app.get('/api/open/targets', (c) => c.json({ targets: detectOpenTargets() }));
+  app.post('/api/goals/:id/open', async (c) => {
+    const goal = getGoal(db, c.req.param('id'));
+    if (!goal) throw new HttpError(404, { error: 'goal not found' });
+    const body = z.object({ target: z.string(), which: z.string().default('repo') }).parse(await c.req.json());
+    let path: string | null = null;
+    if (body.which === 'repo') path = goal.repoPath;
+    else if (body.which === 'workspace') path = goalWorkspacePath(engine.config.dataDir, goal.id);
+    else if (body.which.startsWith('task:')) path = listTasks(db, goal.id).find((t) => t.id === body.which.slice(5))?.worktreePath ?? null;
+    if (!path) throw new HttpError(404, { error: `nothing to open for ${body.which}` });
+    try {
+      const r = await openPath(body.target as OpenTargetId, path);
+      engine.store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `opened ${body.which} in ${body.target}: ${r.command.join(' ')}` } });
+      return c.json({ ok: true, path, command: r.command });
+    } catch (e) {
+      if (e instanceof OpenError) throw new HttpError(e.code === 'unknown-target' || e.code === 'not-a-directory' ? 404 : 400, { error: e.message, code: e.code, path });
+      throw e;
+    }
+  });
+
+  // ---- folder browsing (read-only, confined to allowed roots) ----
+  const roots = () => engine.config.allowedRoots ?? defaultAllowedRoots();
+  app.get('/api/fs/list', (c) => {
+    const path = c.req.query('path') || homedir();
+    try {
+      return c.json(listDirs(path, { roots: roots(), showHidden: c.req.query('hidden') === '1' }));
+    } catch (e) {
+      if (e instanceof BrowseError) throw new HttpError(e.code === 'forbidden' ? 403 : 404, { error: e.message, code: e.code });
+      throw e;
+    }
+  });
+  app.get('/api/fs/recent', (c) => {
+    const seen = new Set<string>();
+    const recent = listGoals(db)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .map((g) => g.repoPath)
+      .filter((p) => !seen.has(p) && seen.add(p) && existsSync(p))
+      .slice(0, 12);
+    return c.json({ recent, roots: wellKnownRoots(), nativePicker: process.platform === 'darwin' });
+  });
+  app.post('/api/fs/pick', async (c) => {
+    if (process.platform !== 'darwin') throw new HttpError(501, { error: 'native folder picker is only available on macOS' });
+    const body = await c.req.json().catch(() => ({}));
+    const r = await pickFolder({ defaultDir: typeof body?.defaultDir === 'string' ? body.defaultDir : undefined });
+    return c.json(r);
+  });
+  app.post('/api/repos/init', async (c) => {
+    const { path, branch } = z.object({ path: z.string().min(1), branch: z.string().optional() }).parse(await c.req.json());
+    const r = await initRepo(path, { branch });
+    engine.store.append({ type: 'engine.note', goalId: null, payload: { level: 'info', message: `git init ${path} (${r.branch}, ${r.filesCommitted} files, identity ${r.identity})` } });
+    return c.json(r);
+  });
+  app.get('/api/github/status', async (c) => c.json(await engine.gh.available()));
+  app.get('/api/github/orgs', async (c) => c.json(await engine.gh.orgs()));
+  app.post('/api/github/auth/login', async (c) => {
+    const a = await engine.gh.available();
+    if (!a.installed) return c.json({ error: 'gh is not installed: brew install gh' }, 422);
+    void engine.gh.login((line) => engine.broadcast({ goalId: '', taskId: null, attemptId: 'gh-auth', event: { kind: 'text', text: line }, ts: new Date().toISOString() })).then((r) => engine.broadcast({ goalId: '', taskId: null, attemptId: 'gh-auth', event: { kind: 'text', text: r.ok ? '✔ GitHub login complete' : `✘ GitHub login failed: ${r.output.slice(-200)}` }, ts: new Date().toISOString() }));
+    return c.json({ started: true });
+  });
+
+  app.get('/api/goals/:id', (c) => {
+    const id = c.req.param('id');
+    const goal = getGoal(db, id);
+    if (!goal) return c.json({ error: 'not found' }, 404);
+    const tasks = listTasks(db, id);
+    const depth = safeDepths(tasks);
+    const ws = goalWorkspacePath(engine.config.dataDir, id);
+    return c.json({
+      goal,
+      paths: { repo: goal.repoPath, workspace: existsSync(ws) ? ws : null },
+      budget: budgetStatus(goal),
+      tasks: tasks.map((t) => ({ ...t, depth: depth.get(t.id) ?? 0 })),
+      attempts: listAttemptsByGoal(db, id),
+      checks: listChecks(db, id),
+      checkResults: listCheckResultsByGoal(db, id),
+      brief: getBrief(db, id),
+      escalations: listEscalations(db, { goalId: id }),
+      events: engine.store.listByGoal(id, 300),
+    });
+  });
+
+  app.patch('/api/goals/:id/brief', async (c) => {
+    const body = Brief.parse({ ...(await c.req.json()), goalId: c.req.param('id') });
+    return c.json(engine.editBrief(c.req.param('id'), body));
+  });
+
+  app.post('/api/goals/:id/reclarify', async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    await engine.reclarify(c.req.param('id'), typeof body?.reason === 'string' && body.reason ? body.reason : 'requested by user');
+    return c.json({ ok: true });
+  });
+  app.post('/api/goals/:id/brief/approve', async (c) => {
+    // body: the (possibly edited) Brief, optionally with `budgets` alongside (Brief.parse strips unknown keys)
+    const raw = await c.req.text();
+    const json = raw ? JSON.parse(raw) : null;
+    const brief = json && json.understanding !== undefined ? Brief.parse({ ...json, goalId: c.req.param('id') }) : undefined;
+    const budgets = json?.budgets ? BudgetsBody.parse(json.budgets) : undefined;
+    await engine.approveBrief(c.req.param('id'), brief, budgets);
+    return c.json({ ok: true });
+  });
+
+  app.post('/api/goals/:id/cancel', (c) => {
+    engine.cancelGoal(c.req.param('id'));
+    return c.json({ ok: true });
+  });
+  app.post('/api/goals/:id/restart', async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    return c.json(engine.restartGoal(c.req.param('id'), { fromTaskId: typeof body?.fromTaskId === 'string' ? body.fromTaskId : undefined }));
+  });
+  app.delete('/api/goals/:id', async (c) => c.json({ ok: true, ...(await engine.deleteGoal(c.req.param('id'), { deleteBranch: c.req.query('deleteBranch') === '1' })) }));
+
+  app.get('/api/goals/:id/diff', async (c) => {
+    const goal = getGoal(db, c.req.param('id'));
+    if (!goal) return c.json({ error: 'not found' }, 404);
+    const ws = goalWorkspacePath(engine.config.dataDir, goal.id);
+    if (!existsSync(ws)) return c.text('');
+    return c.text(await gitDiff(ws, goal.baseBranch, 'HEAD', 500_000));
+  });
+
+  app.post('/api/goals/:id/push', async (c) => {
+    // human-clicked push = delivery policy "push" (same audited helper, never force)
+    const { remote } = z.object({ remote: z.string().default('origin') }).parse(await c.req.json().catch(() => ({})));
+    const g = await engine.deliver(c.req.param('id'), { mode: 'push', remote });
+    return c.json({ ok: true, delivery: g.delivery });
+  });
+  app.post('/api/goals/:id/deliver', async (c) => {
+    const policy = DeliveryPolicy.partial().parse(await c.req.json().catch(() => ({})));
+    const g = await engine.deliver(c.req.param('id'), policy);
+    return c.json({ ok: true, delivery: g.delivery });
+  });
+  app.get('/api/goals/:id/delivery/plan', async (c) => {
+    const q = c.req.query();
+    const policy: Record<string, unknown> = {};
+    if (q.mode) policy.mode = q.mode;
+    if (q.remote) policy.remote = q.remote;
+    if (q.remoteUrl) policy.remoteUrl = q.remoteUrl;
+    if (q.owner && q.name) policy.createRepo = { owner: q.owner, name: q.name, visibility: q.visibility ?? 'private' };
+    if (q.mergeMethod) policy.mergeMethod = q.mergeMethod;
+    if (q.unit) policy.unit = q.unit;
+    return c.json(await engine.deliveryPlan(c.req.param('id'), DeliveryPolicy.partial().parse(policy)));
+  });
+  app.post('/api/goals/:id/delivery/cancel', (c) => c.json({ ok: engine.cancelDelivery(c.req.param('id')) }));
+
+  /**
+   * Decoded history of a live channel (attempt id, or pseudo ids such as clarify-<goal>, goal-review-<goal>-<n>),
+   * so the Live log survives a page refresh. Last 400 events, slimmed like the WebSocket feed.
+   */
+  app.get('/api/stream/:id/history', async (c) => {
+    const id = c.req.param('id');
+    const a = getAttempt(db, id);
+    let path = a?.transcriptPath ?? null;
+    if (!path && /^[\w.-]+$/.test(id)) path = join(engine.config.dataDir, 'transcripts', `${id}.jsonl`);
+    if (!path || !existsSync(path)) return c.json({ events: [] });
+    const text = await Bun.file(path).text();
+    const events: unknown[] = [];
+    for (const line of text.split('\n')) {
+      for (const ev of decodeLine(line)) {
+        if (ev.kind === 'unknown' || ev.kind === 'stderr') continue;
+        events.push(ev.kind === 'thinking' ? { kind: 'thinking', text: ev.text.slice(0, 300) } : ev.kind === 'tool_result' ? { ...ev, content: ev.content.slice(0, 1500) } : ev);
+      }
+    }
+    return c.json({ events: events.slice(-400) });
+  });
+  /** What the goal's work looks like right now: worktree path, branch, and how to try it. */
+  app.get('/api/goals/:id/workspace', async (c) => {
+    const goal = getGoal(db, c.req.param('id'));
+    if (!goal) throw new HttpError(404, { error: 'goal not found' });
+    const path = goalWorkspacePath(engine.config.dataDir, goal.id);
+    const exists = existsSync(path);
+    let head: string | null = null;
+    let scripts: Record<string, string> = {};
+    let pm: 'bun' | 'pnpm' | 'yarn' | 'npm' | null = null;
+    if (exists) {
+      head = (await exec(['git', 'log', '-1', '--format=%h %s'], path).catch(() => ({ code: 1, stdout: '', stderr: '' }))).stdout.trim() || null;
+      try {
+        const pkg = JSON.parse(await Bun.file(join(path, 'package.json')).text());
+        scripts = pkg.scripts ?? {};
+        pm = existsSync(join(path, 'bun.lock')) || existsSync(join(path, 'bun.lockb')) ? 'bun' : existsSync(join(path, 'pnpm-lock.yaml')) ? 'pnpm' : existsSync(join(path, 'yarn.lock')) ? 'yarn' : 'npm';
+      } catch {}
+    }
+    const run = (s: string) => (pm === 'bun' ? `bun run ${s}` : pm === 'pnpm' ? `pnpm ${s}` : pm === 'yarn' ? `yarn ${s}` : `npm run ${s}`);
+    const install = pm === 'bun' ? 'bun install' : pm === 'pnpm' ? 'pnpm install' : pm === 'yarn' ? 'yarn' : pm ? 'npm install' : null;
+    const suggested = ['dev', 'start', 'test', 'build'].filter((s) => scripts[s]).map((s) => ({ name: s, command: run(s) }));
+    // current local-vs-remote gap of the base branch without a network round trip (remote-tracking refs as last fetched)
+    const upstream = await fetchBase(goal.repoPath, goal.baseBranch, { fetch: false }).catch(() => null);
+    return c.json({ path, exists, branch: goal.branch, head, packageManager: pm, install, scripts: suggested, baseSync: goal.baseSync, upstream, tasks: listTasks(db, goal.id).filter((t) => t.worktreePath).map((t) => ({ id: t.id, title: t.title, path: t.worktreePath, branch: t.branch })) });
+  });
+  app.get('/api/attempts/:id/transcript', async (c) => {
+    const a = getAttempt(db, c.req.param('id'));
+    if (!a?.transcriptPath || !existsSync(a.transcriptPath)) return c.text('');
+    return c.text(await Bun.file(a.transcriptPath).text());
+  });
+
+  app.get('/api/attempts/:id/prompt', async (c) => {
+    const a = getAttempt(db, c.req.param('id'));
+    const p = a?.transcriptPath?.replace(/\.jsonl$/, '.prompt.md');
+    if (!p || !existsSync(p)) return c.text('');
+    return c.text(await Bun.file(p).text());
+  });
+
+  app.get('/api/escalations', (c) => c.json(listEscalations(db, { openOnly: c.req.query('open') === '1' })));
+
+  app.post('/api/escalations/:id/answer', async (c) => {
+    const answer = EscalationAnswer.parse(await c.req.json());
+    await engine.answerEscalation(c.req.param('id'), answer);
+    return c.json({ ok: true });
+  });
+
+  // ---------- skills & setup ----------
+  app.get('/api/skills', async (c) => c.json(await engine.skills.overview(c.req.query('repo') || undefined)));
+  app.get('/api/skills/trash', (c) => c.json(engine.skills.trash()));
+  // Grouped-by-source update report. ?refresh=1 starts an upstream fetch in the background and returns the
+  // current (possibly stale) report with refreshing=true; the page polls until it flips back. Fetches can take minutes.
+  app.get('/api/skills/updates', async (c) => {
+    const refresh = c.req.query('refresh') === '1';
+    const repoPath = c.req.query('repo') || undefined;
+    const meta = () => ({ updating: engine.skills.updatingSource(), refreshing: engine.skills.refreshing() });
+    if (refresh || (!engine.skills.cachedUpdates() && !engine.skills.refreshing())) {
+      void engine.skills.updates({ refresh: true, repoPath }).catch((e) => engine.config.log(`[skills] update check failed: ${e}`));
+    }
+    const cached = engine.skills.cachedUpdates();
+    if (cached) return c.json({ ...cached, ...meta() });
+    // nothing cached yet: give the offline (filesystem-only) view right away
+    const offline = await engine.skills.updates({ offline: true, repoPath });
+    return c.json({ ...offline, stale: true, ...meta() });
+  });
+  const stream = (channel: string) => (line: string) => engine.broadcast({ goalId: '', taskId: null, attemptId: channel, event: { kind: 'text', text: line }, ts: new Date().toISOString() });
+  app.post('/api/skills/sources/:id/update', async (c) => {
+    const id = decodeURIComponent(c.req.param('id'));
+    const body = await c.req.json().catch(() => ({}));
+    const names: string[] | undefined = Array.isArray(body?.names) ? body.names.map(String) : undefined;
+    if (engine.skills.updatingSource()) throw new HttpError(409, { error: `update of ${engine.skills.updatingSource()} is still running` });
+    // runs in the background; the UI follows the `skills-update` live channel and re-fetches /api/skills/updates when it ends
+    void engine.skills
+      .updateSource(id, { names, onLine: stream('skills-update') })
+      .then((run) => stream('skills-update')(run.error ? `✘ ${run.error}` : `✔ finished`))
+      .catch((e) => stream('skills-update')(`✘ ${String(e.message ?? e)}`));
+    return c.json({ started: true, channel: 'skills-update' }, 202);
+  });
+  app.post('/api/skills/adopt', async (c) => {
+    const { names } = z.object({ names: z.array(z.string()).min(1) }).parse(await c.req.json());
+    return c.json({ runs: await engine.skills.adopt(names, stream('skills-update')) });
+  });
+  app.post('/api/skills/cleanup-shadows', async (c) => {
+    const { names } = z.object({ names: z.array(z.string()).min(1) }).parse(await c.req.json());
+    return c.json(await engine.skills.cleanupShadows(names));
+  });
+  app.get('/api/skills/update-runs', (c) => c.json(engine.store.listByType('skills.update_run', 50)));
+  app.get('/api/skills/view', (c) => {
+    const v = engine.skills.viewSkill(c.req.query('dir') ?? '');
+    if (!v) throw new HttpError(404, { error: 'skill not found in the current scan' });
+    return c.json(v);
+  });
+  app.post('/api/skills/uninstall-many', async (c) => {
+    const { names, force } = z.object({ names: z.array(z.string()).min(1), force: z.boolean().optional() }).parse(await c.req.json());
+    return c.json(await engine.skills.uninstallMany(names, { force }));
+  });
+  app.post('/api/skills/install-bundle', async (c) => {
+    const { bundle } = z.object({ bundle: z.string().min(1) }).parse(await c.req.json());
+    return c.json(await engine.skills.installBundle(bundle));
+  });
+  // mutually exclusive packs (design skills): options + install status, and a streamed one-click install
+  app.get('/api/skills/packs', async (c) => {
+    const statuses = await engine.skills.status();
+    const options = DESIGN_PACK_OPTIONS.map((o) => ({
+      ...o,
+      entries: statuses.filter((s) => s.entry.pack === 'design' && s.entry.packOption === o.id).map((s) => ({ id: s.entry.id, name: s.entry.name, invoke: s.entry.invoke ?? s.installedInvoke ?? `/${s.entry.name}`, status: s.status, detail: s.detail, manual: s.manual, sourceType: s.entry.source.type })),
+    }));
+    return c.json({ design: { chosen: engine.config.designPack, options } });
+  });
+  app.post('/api/skills/install-pack', async (c) => {
+    const { pack, option } = z.object({ pack: z.string().min(1), option: z.string().min(1) }).parse(await c.req.json());
+    const channel = 'tool-install';
+    const line = (text: string) => engine.broadcast({ goalId: '', taskId: null, attemptId: channel, event: { kind: 'text', text }, ts: new Date().toISOString() });
+    void engine.skills
+      .installPack(pack, option, line)
+      .then((r) => r.results.forEach((x) => line(`${x.action}: ${x.name} — ${x.detail}`)))
+      .catch((e) => line(`error: ${String((e as Error).message ?? e)}`));
+    return c.json({ started: true, channel, pack, option });
+  });
+
+  // ---------- models ----------
+  app.get('/api/models', (c) => c.json({ models: engine.listModels(), fallbacks: engine.config.modelFallbacks, current: engine.config.models }));
+  app.post('/api/models/probe', async (c) => {
+    const { name } = z.object({ name: z.string().min(1).max(80) }).parse(await c.req.json());
+    return c.json(await engine.probeModel(name));
+  });
+
+  // ---------- settings ----------
+  app.get('/api/settings', (c) => c.json(engine.settingsView()));
+  app.put('/api/settings', async (c) => {
+    const parsed = SettingsPatch.safeParse(await c.req.json());
+    if (!parsed.success) return c.json({ error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }, 400);
+    try {
+      return c.json(engine.updateSettings(parsed.data));
+    } catch (e) {
+      if (e instanceof SettingsError) return c.json({ error: e.message }, 400);
+      throw e;
+    }
+  });
+  app.delete('/api/settings/:path', (c) => {
+    try {
+      return c.json(engine.resetSettings(c.req.param('path')));
+    } catch (e) {
+      if (e instanceof SettingsError) return c.json({ error: e.message }, 400);
+      throw e;
+    }
+  });
+  app.post('/api/settings/reset', (c) => c.json(engine.resetSettings()));
+  app.post('/api/skills/install', async (c) => {
+    const { id, force } = z.object({ id: z.string(), force: z.boolean().optional() }).parse(await c.req.json());
+    const r = await engine.skills.install(id, { force });
+    if (r.manual) return c.json({ error: r.error, manual: r.manual, id: r.id, name: r.name }, 422);
+    return c.json(r);
+  });
+  app.post('/api/skills/install-tier', async (c) => {
+    const { tiers } = z.object({ tiers: z.array(z.enum(['required', 'recommended', 'optional'])).min(1) }).parse(await c.req.json());
+    return c.json(await engine.skills.installTier(tiers));
+  });
+  app.post('/api/skills/update', async (c) => {
+    const { name } = z.object({ name: z.string().optional() }).parse(await c.req.json().catch(() => ({})));
+    return c.json(await engine.skills.update(name));
+  });
+  app.post('/api/skills/:name/uninstall', async (c) => {
+    const { force } = z.object({ force: z.boolean().optional() }).parse(await c.req.json().catch(() => ({})));
+    return c.json({ ok: true, ...(await engine.skills.uninstall(c.req.param('name'), { force })) });
+  });
+  app.post('/api/skills/:name/restore', async (c) => {
+    const { force, trashPath } = z.object({ force: z.boolean().optional(), trashPath: z.string().optional() }).parse(await c.req.json().catch(() => ({})));
+    return c.json({ ok: true, ...(await engine.skills.restore(c.req.param('name'), { force, trashPath })) });
+  });
+  app.get('/api/doctor', async (c) => c.json(await engine.doctor()));
+  // ---------- claude account ----------
+  app.get('/api/auth', async (c) => c.json({ status: await engine.auth.status(c.req.query('force') === '1'), login: engine.auth.loginSession() }));
+  app.post('/api/auth/login', async (c) => {
+    const body = z.object({ mode: z.enum(['claudeai', 'console']).optional(), email: z.string().optional() }).parse(await c.req.json().catch(() => ({})));
+    return c.json(engine.auth.startLogin(body));
+  });
+  app.get('/api/auth/login', (c) => c.json(engine.auth.loginSession()));
+  app.post('/api/auth/login/cancel', (c) => {
+    engine.auth.cancelLogin();
+    return c.json({ ok: true });
+  });
+  app.post('/api/auth/logout', async (c) => c.json(await engine.auth.logout()));
+
+  app.get('/api/usage', (c) => c.json(engine.usage()));
+  app.post('/api/usage/probe', async (c) => c.json(await engine.probeUsage()));
+
+  app.post('/internal/boundary', async (c) => {
+    const payload = await c.req.json().catch(() => ({}));
+    engine.handleBoundaryCallback(c.req.header('x-ai-engine-attempt') || null, payload);
+    return c.json({ ok: true });
+  });
+
+  // static web UI
+  const dist = opts.webDist;
+  if (dist && existsSync(dist)) {
+    app.get('*', async (c) => {
+      const p = new URL(c.req.url).pathname;
+      const file = Bun.file(join(dist, p === '/' ? 'index.html' : p));
+      if (await file.exists()) return new Response(file);
+      return new Response(Bun.file(join(dist, 'index.html')));
+    });
+  } else {
+    app.get('/', (c) => c.text('ai-engine server. Web UI not built: run `bun run web:build`. API at /api/*'));
+  }
+  return app;
+}
+
+function count(xs: string[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const x of xs) out[x] = (out[x] ?? 0) + 1;
+  return out;
+}
+function safeDepths(tasks: { id: string; dependsOn: string[] }[]) {
+  try {
+    return depths(tasks);
+  } catch {
+    return new Map<string, number>();
+  }
+}

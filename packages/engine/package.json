@@ -1,0 +1,17 @@
+{
+  "name": "@ai-engine/engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./skills-types": "./src/skills/types.ts",
+    "./usage-types": "./src/usage/types.ts"
+  },
+  "dependencies": {
+    "@ai-engine/core": "workspace:*",
+    "@ai-engine/runner": "workspace:*",
+    "zod": "^3.23.8",
+    "zod-to-json-schema": "^3.23.5"
+  }
+}

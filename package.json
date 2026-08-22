@@ -1,0 +1,20 @@
+{
+  "name": "ai-engine",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "dev": "bun --watch apps/cli/src/main.ts serve",
+    "serve": "bun apps/cli/src/main.ts serve",
+    "cli": "bun apps/cli/src/main.ts",
+    "web:dev": "cd apps/web && bun run dev",
+    "web:build": "cd apps/web && bun run build",
+    "fixture": "bun scripts/make-fixture.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "bun test packages"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.6.0"
+  }
+}

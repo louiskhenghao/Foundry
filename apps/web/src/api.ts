@@ -1,0 +1,256 @@
+import type { Attachment, Attempt, Brief, Budgets, Check, CheckResult, DeliveryPlanStep, DeliveryPolicy, DeliveryState, EngineEvent, Escalation, EscalationAnswer, Goal, SettingsPatch, SettingsView, Task } from '@ai-engine/core/browser';
+
+export interface BaseSync {
+  remote: string | null;
+  base: string;
+  localRef: string | null;
+  remoteRef: string | null;
+  ahead: number;
+  behind: number;
+  fetched: boolean;
+  error: string | null;
+}
+export interface ModelRecordView {
+  name: string;
+  resolvedId: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  lastOkAt: string | null;
+  lastFailAt: string | null;
+  lastError: string | null;
+  sessions: number;
+  seed: boolean;
+  label: string | null;
+  note: string | null;
+  pinned: boolean;
+  inUse: ('strong' | 'cheap' | 'worker')[];
+}
+export interface PackEntry {
+  id: string;
+  name: string;
+  invoke: string;
+  status: 'installed' | 'installed-unmanaged' | 'installed-via-plugin' | 'partial' | 'missing';
+  detail: string;
+  manual: { command: string; docs: string | null } | null;
+  sourceType: 'git' | 'cli' | 'manual' | 'plugin';
+}
+export interface PackOptionView {
+  id: string;
+  label: string;
+  summary: string;
+  homepage: string | null;
+  entries: PackEntry[];
+}
+export interface PacksView {
+  design: { chosen: string; options: PackOptionView[] };
+}
+
+export interface RepoInfo {
+  ok: boolean;
+  branch: string;
+  dirty: boolean;
+  error: string | null;
+  path: string;
+  exists: boolean;
+  isDir: boolean;
+  isGitRepo: boolean;
+  insideRepoAt: string | null;
+  hasCommits: boolean;
+  remotes: { name: string; url: string }[];
+  identity: { name: string; email: string } | null;
+  commitCount: number;
+  lastCommit: { sha: string; date: string; subject: string } | null;
+  dirtyCount: number;
+}
+export interface DirListing {
+  path: string;
+  parent: string | null;
+  entries: { name: string; path: string; isGitRepo: boolean }[];
+  truncated: boolean;
+}
+export interface FsRecent {
+  recent: string[];
+  roots: { label: string; path: string }[];
+  nativePicker: boolean;
+}
+import type { DoctorReport, InstallResult, SkillTier, SkillUpdateRun, SkillsOverview, SkillsUpdateReport, TrashEntry } from '@ai-engine/engine/skills-types';
+import type { UsageSummary } from '@ai-engine/engine/usage-types';
+
+export type Usage = UsageSummary & { pausedUntil: string | null };
+
+export interface ClaudeAuthStatus {
+  loggedIn: boolean;
+  authMethod: string | null;
+  apiProvider: string | null;
+  email: string | null;
+  orgName: string | null;
+  subscriptionType: string | null;
+  checkedAt: string;
+  error: string | null;
+}
+export interface LoginSession {
+  id: string;
+  mode: 'claudeai' | 'console';
+  startedAt: string;
+  url: string | null;
+  lines: string[];
+  done: boolean;
+  ok: boolean | null;
+  error: string | null;
+  finishedAt: string | null;
+}
+export interface AuthInfo {
+  status: ClaudeAuthStatus;
+  login: LoginSession | null;
+}
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly body: any,
+  ) {
+    super(message);
+  }
+}
+
+export interface BudgetStatus {
+  costUsd: number;
+  maxCostUsd: number | null;
+  elapsedMin: number;
+  maxDurationMin: number | null;
+  remainingUsd: number | null;
+  exceeded: 'cost' | 'time' | null;
+}
+export type GoalRow = Goal & { budget: BudgetStatus; taskCounts: Record<string, number>; openEscalations: number };
+export interface OpenTarget {
+  id: 'vscode' | 'cursor' | 'zed' | 'windsurf' | 'finder' | 'terminal' | 'iterm' | 'warp';
+  label: string;
+  available: boolean;
+  via: string | null;
+}
+export interface GoalDetail {
+  goal: Goal;
+  /** directories the Open menu can launch: the user's checkout and the goal branch worktree (when it exists) */
+  paths: { repo: string; workspace: string | null };
+  budget: BudgetStatus;
+  tasks: (Task & { depth: number })[];
+  attempts: Attempt[];
+  checks: Check[];
+  checkResults: CheckResult[];
+  brief: { brief: Brief; approved: boolean } | null;
+  escalations: Escalation[];
+  events: (EngineEvent & { seq: number })[];
+}
+
+async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) } });
+  const text = await res.text();
+  const body = text ? safeJson(text) : null;
+  if (!res.ok) throw new ApiError((body as any)?.error ?? text ?? res.statusText, res.status, body);
+  return body as T;
+}
+const safeJson = (t: string) => {
+  try {
+    return JSON.parse(t);
+  } catch {
+    return t;
+  }
+};
+
+export const api = {
+  goals: () => req<GoalRow[]>('/api/goals'),
+  goal: (id: string) => req<GoalDetail>(`/api/goals/${id}`),
+  createGoal: (body: unknown) => req<Goal>('/api/goals', { method: 'POST', body: JSON.stringify(body) }),
+  validateRepo: (repoPath: string) => req<RepoInfo>('/api/validate-repo', { method: 'POST', body: JSON.stringify({ repoPath }) }),
+  /** Upload one file with progress; resolves to the staged Attachment. goalId → attach directly to that goal. */
+  upload: (file: File, opts: { goalId?: string; onProgress?: (pct: number) => void } = {}) =>
+    new Promise<Attachment>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', opts.goalId ? `/api/goals/${opts.goalId}/attachments` : '/api/uploads');
+      xhr.upload.onprogress = (e) => e.lengthComputable && opts.onProgress?.(Math.round((e.loaded / e.total) * 100));
+      xhr.onload = () => {
+        try {
+          const body = JSON.parse(xhr.responseText || '{}');
+          if (xhr.status >= 200 && xhr.status < 300) resolve(body.attachments[0]);
+          else reject(new ApiError(body.error ?? `upload failed (${xhr.status})`, xhr.status, body));
+        } catch (e) {
+          reject(e);
+        }
+      };
+      xhr.onerror = () => reject(new Error('upload failed (network)'));
+      const fd = new FormData();
+      fd.append('file', file, file.name);
+      xhr.send(fd);
+    }),
+  addLink: (url: string, opts: { goalId?: string; name?: string; note?: string } = {}) => req<{ attachments: Attachment[] }>(opts.goalId ? `/api/goals/${opts.goalId}/attachments` : '/api/uploads', { method: 'POST', body: JSON.stringify({ url, name: opts.name, note: opts.note }) }).then((r) => r.attachments[0]!),
+  openTargets: () => req<{ targets: OpenTarget[] }>('/api/open/targets').then((r) => r.targets),
+  openGoal: (goalId: string, target: OpenTarget['id'], which: 'repo' | 'workspace' | `task:${string}`) => req<{ ok: true; path: string; command: string[] }>(`/api/goals/${goalId}/open`, { method: 'POST', body: JSON.stringify({ target, which }) }),
+  stagedAttachment: (attId: string) => req<Attachment>(`/api/uploads/${attId}`),
+  reconvertAttachment: (goalId: string, attId: string) => req<{ markdown: Attachment['markdown'] }>(`/api/goals/${goalId}/attachments/${attId}/convert`, { method: 'POST' }),
+  installMarkitdown: () => req<{ started: true; channel: string }>('/api/tools/markitdown/install', { method: 'POST' }),
+  removeAttachment: (goalId: string, attId: string) => req<{ ok: true }>(`/api/goals/${goalId}/attachments/${attId}`, { method: 'DELETE' }),
+  attachmentUrl: (goalId: string, attId: string, download = false) => `/api/goals/${goalId}/attachments/${attId}${download ? '?download=1' : ''}`,
+  /** the markdown rendition (markitdown / link snapshot) as text; staged uploads have no goal yet */
+  attachmentMarkdown: (goalId: string | null, attId: string) => fetch(goalId ? `/api/goals/${goalId}/attachments/${attId}/markdown` : `/api/uploads/${attId}/markdown`).then((r) => (r.ok ? r.text() : Promise.reject(new Error(`markdown not available (${r.status})`)))),
+  fsList: (path?: string, hidden = false) => req<DirListing>(`/api/fs/list?${new URLSearchParams({ ...(path ? { path } : {}), ...(hidden ? { hidden: '1' } : {}) })}`),
+  fsRecent: () => req<FsRecent>('/api/fs/recent'),
+  fsPick: (defaultDir?: string) => req<{ path: string | null; cancelled: boolean }>('/api/fs/pick', { method: 'POST', body: JSON.stringify({ defaultDir }) }),
+  repoUpstream: (repoPath: string, branch: string) => req<BaseSync & { start: { ref: string; from: 'local' | 'remote'; reason: string }; fetchBeforeGoal: boolean }>('/api/repos/upstream', { method: 'POST', body: JSON.stringify({ repoPath, branch }) }),
+  repoPull: (repoPath: string, branch: string) => req<{ ok: boolean; detail: string; before: string | null; after: string | null }>('/api/repos/pull', { method: 'POST', body: JSON.stringify({ repoPath, branch }) }),
+  initRepo: (path: string, branch?: string) => req<{ branch: string; ref: string; filesCommitted: number; identity: 'user' | 'fallback'; gitignoreWritten: boolean }>('/api/repos/init', { method: 'POST', body: JSON.stringify({ path, branch }) }),
+  githubStatus: () => req<{ installed: boolean; version: string | null; authenticated: boolean; login: string | null }>('/api/github/status'),
+  githubOrgs: () => req<string[]>('/api/github/orgs'),
+  githubLogin: () => req<{ started: boolean }>('/api/github/auth/login', { method: 'POST' }),
+  deliver: (id: string, policy: Partial<DeliveryPolicy>) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/deliver`, { method: 'POST', body: JSON.stringify(policy) }),
+  deliveryPlan: (id: string, q: Record<string, string>) => req<{ policy: DeliveryPolicy; probes: any; steps: DeliveryPlanStep[] }>(`/api/goals/${id}/delivery/plan?${new URLSearchParams(q)}`),
+  cancelDelivery: (id: string) => req<{ ok: boolean }>(`/api/goals/${id}/delivery/cancel`, { method: 'POST' }),
+  editBrief: (id: string, brief: Brief) => req<Brief>(`/api/goals/${id}/brief`, { method: 'PATCH', body: JSON.stringify(brief) }),
+  approveBrief: (id: string, brief?: Brief, budgets?: Partial<Budgets>) => req<{ ok: true }>(`/api/goals/${id}/brief/approve`, { method: 'POST', body: brief || budgets ? JSON.stringify({ ...(brief ?? {}), ...(budgets ? { budgets } : {}) }) : '' }),
+  cancelGoal: (id: string) => req<{ ok: true }>(`/api/goals/${id}/cancel`, { method: 'POST' }),
+  reclarify: (id: string, reason?: string) => req<{ ok: true }>(`/api/goals/${id}/reclarify`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  streamHistory: (id: string) => req<{ events: any[] }>(`/api/stream/${encodeURIComponent(id)}/history`),
+  workspace: (id: string) => req<{ path: string; exists: boolean; branch: string; head: string | null; packageManager: string | null; install: string | null; scripts: { name: string; command: string }[]; baseSync: Goal['baseSync']; upstream: BaseSync | null; tasks: { id: string; title: string; path: string; branch: string | null }[] }>(`/api/goals/${id}/workspace`),
+  restartGoal: (id: string, fromTaskId?: string) => req<{ restarted: string[] }>(`/api/goals/${id}/restart`, { method: 'POST', body: JSON.stringify({ fromTaskId }) }),
+  deleteGoal: (id: string, deleteBranch: boolean) => req<{ ok: true; deletedBranch: string | null }>(`/api/goals/${id}${deleteBranch ? '?deleteBranch=1' : ''}`, { method: 'DELETE' }),
+  viewSkill: (dir: string) => req<{ name: string; dir: string; invoke: string; skillMd: string | null; files: { path: string; size: number }[] }>(`/api/skills/view?dir=${encodeURIComponent(dir)}`),
+  uninstallMany: (names: string[], force = true) => req<{ results: { name: string; ok: boolean; error: string | null; note: string | null }[] }>('/api/skills/uninstall-many', { method: 'POST', body: JSON.stringify({ names, force }) }),
+  installTool: (id: string) => req<{ started: true; channel: string; id: string }>('/api/tools/install', { method: 'POST', body: JSON.stringify({ id }) }),
+  diff: (id: string) => fetch(`/api/goals/${id}/diff`).then((r) => r.text()),
+  push: (id: string, remote = 'origin') => req<{ ok: boolean; output: string }>(`/api/goals/${id}/push`, { method: 'POST', body: JSON.stringify({ remote }) }),
+  transcript: (attemptId: string) => fetch(`/api/attempts/${attemptId}/transcript`).then((r) => r.text()),
+  prompt: (attemptId: string) => fetch(`/api/attempts/${attemptId}/prompt`).then((r) => r.text()),
+  escalations: (openOnly = true) => req<Escalation[]>(`/api/escalations${openOnly ? '?open=1' : ''}`),
+  answer: (id: string, answer: EscalationAnswer) => req<{ ok: true }>(`/api/escalations/${id}/answer`, { method: 'POST', body: JSON.stringify(answer) }),
+  // skills & setup
+  skills: (repo?: string) => req<SkillsOverview>(`/api/skills${repo ? `?repo=${encodeURIComponent(repo)}` : ''}`),
+  installSkill: (id: string, force = false) => req<InstallResult>('/api/skills/install', { method: 'POST', body: JSON.stringify({ id, force }) }),
+  installTier: (tiers: SkillTier[]) => req<{ results: (InstallResult & { conflict?: boolean })[] }>('/api/skills/install-tier', { method: 'POST', body: JSON.stringify({ tiers }) }),
+  uninstallSkill: (name: string, force = false) => req<{ ok: true; trash: TrashEntry; note: string | null }>(`/api/skills/${encodeURIComponent(name)}/uninstall`, { method: 'POST', body: JSON.stringify({ force }) }),
+  restoreSkill: (name: string, trashPath?: string) => req<{ ok: true; path: string }>(`/api/skills/${encodeURIComponent(name)}/restore`, { method: 'POST', body: JSON.stringify({ trashPath }) }),
+  updateSkills: (name?: string) => req<{ updated: { name: string; from: string | null; to: string | null }[]; unchanged: string[]; errors: { name: string; error: string }[] }>('/api/skills/update', { method: 'POST', body: JSON.stringify({ name }) }),
+  trash: () => req<TrashEntry[]>('/api/skills/trash'),
+  skillsUpdates: (refresh = false, repo?: string) => req<SkillsUpdateReport & { updating: string | null; refreshing: boolean }>(`/api/skills/updates?${new URLSearchParams({ ...(refresh ? { refresh: '1' } : {}), ...(repo ? { repo } : {}) })}`),
+  updateSource: (id: string, names?: string[]) => req<{ started: true; channel: string }>(`/api/skills/sources/${encodeURIComponent(id)}/update`, { method: 'POST', body: JSON.stringify({ names }) }),
+  adoptSkills: (names: string[]) => req<{ runs: SkillUpdateRun[] }>('/api/skills/adopt', { method: 'POST', body: JSON.stringify({ names }) }),
+  cleanupShadows: (names: string[]) => req<{ trashed: TrashEntry[]; skipped: { name: string; reason: string }[] }>('/api/skills/cleanup-shadows', { method: 'POST', body: JSON.stringify({ names }) }),
+  installBundle: (bundle: string) => req<{ results: { id: string; name: string; action: 'plugin' | 'updated' | 'adopted' | 'installed' | 'kept' | 'failed'; detail: string }[] }>('/api/skills/install-bundle', { method: 'POST', body: JSON.stringify({ bundle }) }),
+  updateRuns: () => req<(EngineEvent & { seq: number })[]>('/api/skills/update-runs'),
+  doctor: () => req<DoctorReport>('/api/doctor'),
+  packs: () => req<PacksView>('/api/skills/packs'),
+  models: () => req<{ models: ModelRecordView[]; fallbacks: string[]; current: { strong: string; cheap: string; worker: string } }>('/api/models'),
+  probeModel: (name: string) => req<{ ok: boolean; name: string; resolvedId: string | null; costUsd: number; error: string | null }>('/api/models/probe', { method: 'POST', body: JSON.stringify({ name }) }),
+  installPack: (pack: string, option: string) => req<{ started: true; channel: string }>('/api/skills/install-pack', { method: 'POST', body: JSON.stringify({ pack, option }) }),
+  settings: () => req<SettingsView>('/api/settings'),
+  updateSettings: (patch: SettingsPatch) => req<SettingsView>('/api/settings', { method: 'PUT', body: JSON.stringify(patch) }),
+  resetSetting: (path: string) => req<SettingsView>(`/api/settings/${encodeURIComponent(path)}`, { method: 'DELETE' }),
+  resetSettings: () => req<SettingsView>('/api/settings/reset', { method: 'POST' }),
+  health: () => req<{ ok: boolean; active: number; events: number; pausedUntil: string | null; restartNeeded: string[] }>('/api/health'),
+  auth: (force = false) => req<AuthInfo>(`/api/auth${force ? '?force=1' : ''}`),
+  startLogin: (body: { mode?: 'claudeai' | 'console'; email?: string }) => req<LoginSession>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
+  loginSession: () => req<LoginSession | null>('/api/auth/login'),
+  cancelLogin: () => req<{ ok: true }>('/api/auth/login/cancel', { method: 'POST' }),
+  logout: () => req<ClaudeAuthStatus>('/api/auth/logout', { method: 'POST' }),
+  usage: () => req<Usage>('/api/usage'),
+  probeUsage: () => req<Usage>('/api/usage/probe', { method: 'POST' }),
+};

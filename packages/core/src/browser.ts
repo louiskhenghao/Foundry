@@ -1,0 +1,6 @@
+/** Browser-safe subset of @ai-engine/core: schemas, events, ids, DAG helpers. No sqlite. */
+export * from './schema/index.ts';
+export * from './events.ts';
+export * from './ids.ts';
+export * from './machine/transitions.ts';
+export * from './machine/dag.ts';
