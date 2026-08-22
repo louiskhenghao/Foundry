@@ -19,6 +19,8 @@ export const EscalationAction = z.enum([
   'approve',
   'deny',
   'raise_budget',
+  /** a merge conflict the human resolved by hand (answered by the engine when the manual resolution is finished) */
+  'resolve_manually',
 ]);
 export type EscalationAction = z.infer<typeof EscalationAction>;
 
@@ -50,7 +52,7 @@ export type Escalation = z.infer<typeof Escalation>;
 /** Which actions make sense for which trigger. */
 export const ACTIONS_BY_TRIGGER: Record<EscalationTrigger, EscalationAction[]> = {
   brief_question: [],
-  retries_exhausted: ['retry_with_hint', 'skip_task', 'abort_goal'],
+  retries_exhausted: ['retry_with_hint', 'skip_task', 'abort_goal', 'resolve_manually'],
   boundary_action: ['approve', 'deny'],
   budget_exceeded: ['raise_budget', 'abort_goal'],
   permission_denial: ['retry_with_hint', 'skip_task', 'abort_goal'],

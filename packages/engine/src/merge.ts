@@ -125,9 +125,11 @@ export async function resolveConflicts(engine: Engine, goal: Goal, task: Task, f
     if (op.escalate !== false) raiseEscalation(engine, { goal, task, trigger: 'retries_exhausted', message: `Could not merge ${src.label}: ${stderr.slice(0, 300)}`, payload: { kind: 'merge' } });
     return false;
   }
+  const reasons: string[] = [];
   for (let i = 1; i <= MERGE_ATTEMPT_BUDGET; i++) {
-    const ok = await runMergeAttempt(engine, goal, task, files, i, src, op);
-    if (ok) return true;
+    const r = await runMergeAttempt(engine, goal, task, files, i, src, op);
+    if (r.ok) return true;
+    reasons.push(`attempt ${i}: ${r.reason}`);
     await abortInProgress(op.cwd);
     await op.redo();
   }
@@ -137,13 +139,13 @@ export async function resolveConflicts(engine: Engine, goal: Goal, task: Task, f
     goal,
     task,
     trigger: 'retries_exhausted',
-    message: `Merging ${src.label} into ${goal.branch} conflicted in ${files.join(', ')} and ${MERGE_ATTEMPT_BUDGET} merge attempts could not resolve it.`,
-    payload: { kind: 'merge', files },
+    message: `Merging \`${src.label}\` into \`${goal.branch}\` conflicts in:\n${files.map((f) => `- \`${f}\``).join('\n')}\n\n${MERGE_ATTEMPT_BUDGET} merge attempts could not resolve it:\n${reasons.map((r) => `- ${r}`).join('\n')}\n\nYou can resolve it by hand (**Resolve manually**), let the engine try again with a hint, or skip the task.`,
+    payload: { kind: 'merge', files, reasons },
   });
   return false;
 }
 
-async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: string[], n: number, src: MergeSource, op: ConflictOp): Promise<boolean> {
+async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: string[], n: number, src: MergeSource, op: ConflictOp): Promise<{ ok: boolean; reason: string }> {
   const { store, config } = engine;
   const cwd = op.cwd;
   const index = listAttempts(store.db, task.id).length + 1;
@@ -178,10 +180,15 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
     hunks.push(`## ${f}\n\`\`\`\n${lines.slice(Math.max(0, idx - 5), idx + 200).join('\n')}\n\`\`\``);
   }
   const mergerHint = await engine.skills.hints.sectionFor('merger');
+  // what the receiving side did since the two diverged: the merger must keep that too
+  const mb = await git(['merge-base', 'HEAD', src.ref], cwd);
+  const ours = mb.code === 0 ? (await git(['log', '--no-merges', '--format=%s', `${mb.stdout.trim()}..HEAD`], cwd)).stdout.split('\n').filter(Boolean) : [];
+  const target = op.cwd === goalWorkspacePath(config.dataDir, goal.id) ? goal.branch : task.branch ?? goal.branch;
   const prompt = [
-    `# Merge conflict to resolve\n\`${src.label}\` is being merged into \`${goal.branch}\` (the goal branch with this goal's work).`,
+    `# Merge conflict to resolve\n\`${src.label}\` is being merged into \`${target}\`.`,
     mergerHint ?? '',
     `# What the incoming side (${src.label}) was doing\n${src.intent}`,
+    ours.length ? `# What the receiving side (${target}) already has since they diverged\n${ours.slice(0, 15).map((c) => `- ${c}`).join('\n')}\nKeep all of it.` : '',
     `# Goal\n${goal.prompt}`,
     task.hint ? `# Hint from the human\n${task.hint}` : '',
     op.hint ? `# Context\n${op.hint}` : '',
@@ -219,18 +226,30 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
 
   const remaining = await conflictedFiles(cwd);
   let ok = remaining.length === 0;
+  let reason = ok ? '' : `${remaining.length} file(s) still conflicted (${remaining.slice(0, 4).join(', ')})${result.subtype !== 'success' ? `; session ended with ${result.subtype}` : ''}`;
   if (ok) {
     await gitOk(['add', '-A'], cwd);
     // `git commit` concludes a merge, a squash merge and a cherry-pick alike
     const c = await git([...GIT_IDENT, 'commit', '-q', '-m', `${op.commitMessage}\n\nResolved by merge attempt ${n}`], cwd);
     ok = c.code === 0;
+    if (!ok) reason = `commit failed: ${c.stderr.slice(0, 200)}`;
   }
   if (ok && op.runChecks !== false) {
     const checks = listChecks(store.db, goal.id).filter((c) => c.spec.type === 'command' && c.tier === 'must');
+    // only regressions count: a check already red on the goal branch before this merge is not the merge's fault
+    const baseline = await engine.baseline.failing(goal, attempt.baseRef!);
+    const failed: string[] = [];
+    const preexisting: string[] = [];
     for (const c of checks) {
       const r = await runCommandCheck(c, { cwd, outputDir: join(config.dataDir, 'check-output'), attemptId: attempt.id });
       store.append({ type: 'check.finished', goalId: goal.id, payload: { result: r } });
-      if (r.status !== 'pass') ok = false;
+      if (r.status !== 'pass') (baseline.has(c.id) ? preexisting : failed).push(`${c.name} (${r.status}: ${r.summary.slice(0, 160).replace(/\s+/g, ' ')})`);
+    }
+    if (failed.length) {
+      ok = false;
+      reason = `conflicts resolved but must checks regressed — ${failed.join('; ')}${preexisting.length ? ` (ignored, already failing before the merge: ${preexisting.map((x) => x.split(' (')[0]).join(', ')})` : ''}`;
+    } else if (preexisting.length) {
+      store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `merge attempt ${n} for ${src.label}: ${preexisting.length} must check(s) fail but already failed on the goal branch before the merge — accepted` } });
     }
   }
   store.append({
@@ -238,8 +257,8 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
     goalId: goal.id,
     payload: { attemptId: attempt.id, state: 'observing', resultSubtype: result.subtype, costUsd: result.costUsd, numTurns: result.numTurns, endRef: ok ? await headRef(cwd) : null, permissionDenials: [], skillsUsed: result.skillsUsed ?? [], toolsUsed: result.toolsUsed ?? {} },
   });
-  store.append({ type: 'attempt.concluded', goalId: goal.id, payload: { attemptId: attempt.id, state: ok ? 'passed' : 'failed', reason: ok ? 'merged and checks pass' : `${remaining.length} conflicts remain or checks failed` } });
-  return ok;
+  store.append({ type: 'attempt.concluded', goalId: goal.id, payload: { attemptId: attempt.id, state: ok ? 'passed' : 'failed', reason: ok ? 'merged and checks pass' : reason } });
+  return { ok, reason };
 }
 
 export { READONLY_DISALLOWED, commitStaged };

@@ -6,6 +6,7 @@ import type { Engine } from './engine.ts';
 import { raiseEscalation } from './escalation.ts';
 import { headRef } from './git/git.ts';
 import { integrateTask } from './merge.ts';
+import { catchUp, filesOverlap } from './catchup.ts';
 import { dropTaskWorkspace, ensureGoalWorkspace, ensureTaskWorkspace, goalWorkspacePath } from './workspace.ts';
 
 /**
@@ -61,6 +62,7 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
   let capacity = Math.max(0, goal.budgets.maxConcurrent - inFlight.length);
   const ready = tasks.filter((t) => t.state === 'ready' && !engine.isInFlight(t.id));
   const goalWsBusy = tasks.some((t) => engine.isInFlight(t.id) && !t.worktreePath);
+  const started: Task[] = [];
   for (const t of ready) {
     if (capacity <= 0) break;
     // Workspace policy: a task runs in the goal workspace only if it is the sole active task;
@@ -69,7 +71,18 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
     const useOwnWorktree = t.worktreePath != null || goalWsBusy || (t.parallelizable && others.length > 0);
     if (!t.parallelizable && inFlight.length > 0) continue; // serial task waits for quiet
     if (!useOwnWorktree && inFlight.length > 0) continue; // goal workspace in use
+    // Conflict avoidance: two tasks that declare the same files do not run at the same time, whatever the Brief says
+    const active = [...tasks.filter((x) => inFlight.includes(x.id)), ...started];
+    const clash = active.find((x) => filesOverlap(t.relevantFiles, x.relevantFiles).length > 0);
+    if (clash) {
+      if (!engine.overlapNoted.has(t.id)) {
+        engine.overlapNoted.add(t.id);
+        store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `"${t.title}" waits for "${clash.title}": both touch ${filesOverlap(t.relevantFiles, clash.relevantFiles).slice(0, 3).join(', ')}` } });
+      }
+      continue;
+    }
     capacity--;
+    started.push(t);
     void startTask(engine, goal, t, useOwnWorktree);
   }
 }
@@ -100,7 +113,9 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
     }
     store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'ready', to: 'running', reason: `attempt ${attemptsSoFar + 1}` } });
 
-    const outcome = await runAttempt(engine, getGoal(store.db, goal.id)!, task, cwd);
+    // a task in its own worktree first catches up with what other tasks landed on the goal branch
+    const caught = await catchUp(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!, { escalate: false });
+    const outcome = await runAttempt(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!, cwd, { baseMoved: caught.moved ? caught : null });
     const fresh = getTask(store.db, task.id)!;
     if (fresh.state !== 'running') return; // cancelled / aborted meanwhile
     store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'running', to: 'observing', reason: 'attempt finished' } });
@@ -108,6 +123,10 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
     if (outcome.passed) {
       // every finished task becomes one Conventional Commit on the goal branch (squash merge / squashed snapshots)
       store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'observing', to: 'merging', reason: 'checks passed' } });
+      // catch up once more right before landing: the conflict (if any) is met in the task worktree, with Merge Attempts
+      // and, failing those, the human's manual resolution — the squash onto the goal branch is then conflict-free
+      const late = await catchUp(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!, { escalate: true });
+      if (late.moved && !late.merged) return;
       const merged = await integrateTask(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!);
       if (merged) {
         if (fresh.worktreePath) await dropTaskWorkspace(goal, getTask(store.db, task.id)!).catch(() => {});

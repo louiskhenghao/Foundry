@@ -6,7 +6,7 @@ import { Button, Menu, cn } from '../ui.tsx';
 let cached: OpenTarget[] | null = null;
 
 export interface OpenPlace {
-  which: 'repo' | 'workspace' | `task:${string}`;
+  which: 'repo' | 'workspace' | `task:${string}` | `resolve:${string}`;
   label: string;
   path: string;
   hint?: string;

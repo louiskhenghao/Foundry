@@ -105,6 +105,10 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('merge.started', { taskId: z.string(), into: z.string() }),
   ev('merge.conflict', { taskId: z.string(), files: z.array(z.string()) }),
   ev('merge.completed', { taskId: z.string(), ref: z.string() }),
+  /** the human took over a conflicted integration in the `_resolve` worktree */
+  ev('merge.manual_started', { taskId: z.string(), files: z.array(z.string()), path: z.string() }),
+  ev('merge.manual_finished', { taskId: z.string(), ref: z.string(), checksPassed: z.boolean(), forced: z.boolean() }),
+  ev('merge.manual_aborted', { taskId: z.string(), reason: z.string() }),
 
   ev('review.goal.finished', {
     passed: z.boolean(),

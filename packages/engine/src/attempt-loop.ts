@@ -5,6 +5,7 @@ import { IdPrefix, bumpStat, getBrief, getObservation, listAttempts, listChecks,
 import type { RunResult } from '@ai-engine/runner';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
 import { buildAttemptPrompt, summarizeReport } from './attempt-prompt.ts';
+import type { CatchUp } from './catchup.ts';
 import { budgetStatus } from './budget.ts';
 import { runCommandCheck } from './checks/command.ts';
 import { reviewTaskDiff } from './checks/reviewer.ts';
@@ -30,7 +31,7 @@ export function maxAttemptsFor(task: Task): number {
  * One Plan→Act→Observe pass. Never throws for model/tool failures; throws only on engine bugs
  * (the caller converts those into an engine.note + task retry).
  */
-export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: string): Promise<AttemptOutcome> {
+export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: string, opts: { baseMoved?: CatchUp | null } = {}): Promise<AttemptOutcome> {
   const { store, config } = engine;
   const prior = listAttempts(store.db, task.id).filter((a) => a.kind === 'work');
   const index = prior.length + 1;
@@ -85,7 +86,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   const brief = getBrief(store.db, goal.id)?.brief;
   const areaDescription = task.area ? (brief?.areas.find((a) => a.name === task.area)?.description ?? '') : '';
   const decisions = brief ? renderDecisions(brief) : '';
-  const prompt = buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription, decisions });
+  const prompt = buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription, decisions, baseMoved: opts.baseMoved ?? null });
   // the -p prompt is not echoed in stream-json; keep it next to the transcript for inspection
   mkdirSync(dirname(attempt.transcriptPath!), { recursive: true });
   writeFileSync(attempt.transcriptPath!.replace(/\.jsonl$/, '.prompt.md'), prompt);

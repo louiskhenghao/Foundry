@@ -57,6 +57,7 @@ import type { SettingsPatch, SettingsView } from '@ai-engine/core';
 import { spawnStreaming } from './skills/updaters.ts';
 import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
 import { removeWorktree } from './git/git.ts';
+import { BaselineChecks } from './checks/baseline.ts';
 import { relative, resolve } from 'node:path';
 
 export interface CreateGoalInput {
@@ -100,6 +101,10 @@ export class Engine {
   private chains = new Map<string, Promise<void>>();
   private pendingTick = new Set<string>();
   readonly clarifying = new Set<string>();
+  /** tasks already noted as waiting for an overlapping task (one note each, not one per tick) */
+  readonly overlapNoted = new Set<string>();
+  /** must checks already failing on a goal-branch commit (merges are judged on regressions only) */
+  readonly baseline = new BaselineChecks(this);
   private reviewing = new Set<string>();
   private rateLimitedUntil: number | null = null;
   private resumeTimer: ReturnType<typeof setTimeout> | null = null;

@@ -51,6 +51,8 @@ export async function answerEscalation(engine: Engine, id: string, answer: Escal
   if (!esc) throw new Error(`escalation ${id} not found`);
   if (esc.state !== 'open') throw new Error(`escalation ${id} is already ${esc.state}`);
   if (!ACTIONS_BY_TRIGGER[esc.trigger].includes(answer.action)) throw new Error(`action ${answer.action} is not valid for ${esc.trigger}`);
+  // the engine records this answer itself when a manual merge resolution is finished (merge-resolve.ts)
+  if (answer.action === 'resolve_manually') throw new Error('resolve the merge on the Resolve page; the escalation is answered when you finish');
   store.append({ type: 'escalation.answered', goalId: esc.goalId, payload: { escalationId: id, answer } });
 
   const goal = getGoal(store.db, esc.goalId)!;

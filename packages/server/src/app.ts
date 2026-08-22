@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Brief, EscalationAnswer, getAttempt, getBrief, getGoal, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths } from '@ai-engine/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, DraftRequest, InstallError, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, type Engine, type OpenTargetId } from '@ai-engine/engine';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, type Engine, type OpenTargetId } from '@ai-engine/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, SettingsPatch } from '@ai-engine/core';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -193,6 +193,10 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     let path: string | null = null;
     if (body.which === 'repo') path = goal.repoPath;
     else if (body.which === 'workspace') path = goalWorkspacePath(engine.config.dataDir, goal.id);
+    else if (body.which.startsWith('resolve:')) {
+      const p = resolveWorkspacePath(engine.config.dataDir, goal.id, body.which.slice(8));
+      path = existsSync(p) ? p : null;
+    }
     else if (body.which.startsWith('task:')) path = listTasks(db, goal.id).find((t) => t.id === body.which.slice(5))?.worktreePath ?? null;
     if (!path) throw new HttpError(404, { error: `nothing to open for ${body.which}` });
     try {
@@ -276,6 +280,52 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const parsed = DraftRequest.safeParse(await c.req.json());
     if (!parsed.success) return c.json({ error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }, 400);
     return c.json({ proposal: await engine.draftBrief(c.req.param('id'), parsed.data) });
+  });
+
+  // manual merge resolution (a task blocked on a merge conflict)
+  app.get('/api/goals/:id/tasks/:taskId/resolve', async (c) => {
+    const { id, taskId } = c.req.param();
+    const can = canResolve(engine, id, taskId);
+    let state = null;
+    try {
+      state = await describeResolution(engine, id, taskId);
+    } catch {
+      state = null;
+    }
+    return c.json({ can, state });
+  });
+  app.post('/api/goals/:id/tasks/:taskId/resolve/start', async (c) => {
+    const { id, taskId } = c.req.param();
+    const body = await c.req.json().catch(() => ({}));
+    return c.json(await startResolution(engine, id, taskId, { fresh: body?.fresh === true }));
+  });
+  app.put('/api/goals/:id/tasks/:taskId/resolve/file', async (c) => {
+    const { id, taskId } = c.req.param();
+    const body = await c.req.json();
+    if (typeof body?.path !== 'string' || typeof body?.content !== 'string') return c.json({ error: 'path and content required' }, 400);
+    return c.json(await resolveFile(engine, id, taskId, body.path, body.content));
+  });
+  app.post('/api/goals/:id/tasks/:taskId/resolve/take', async (c) => {
+    const { id, taskId } = c.req.param();
+    const body = await c.req.json();
+    if (typeof body?.path !== 'string' || !['ours', 'theirs', 'both'].includes(body?.side)) return c.json({ error: 'path and side (ours|theirs|both) required' }, 400);
+    return c.json(await takeSide(engine, id, taskId, body.path, body.side));
+  });
+  app.post('/api/goals/:id/tasks/:taskId/resolve/unresolve', async (c) => {
+    const { id, taskId } = c.req.param();
+    const body = await c.req.json();
+    if (typeof body?.path !== 'string') return c.json({ error: 'path required' }, 400);
+    return c.json(await unresolveFile(engine, id, taskId, body.path));
+  });
+  app.post('/api/goals/:id/tasks/:taskId/resolve/finish', async (c) => {
+    const { id, taskId } = c.req.param();
+    const body = await c.req.json().catch(() => ({}));
+    return c.json(await finishResolution(engine, id, taskId, { force: body?.force === true }));
+  });
+  app.post('/api/goals/:id/tasks/:taskId/resolve/abort', async (c) => {
+    const { id, taskId } = c.req.param();
+    await abortResolution(engine, id, taskId);
+    return c.json({ ok: true });
   });
 
   app.post('/api/goals/:id/reclarify', async (c) => {
@@ -392,7 +442,15 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.text(await Bun.file(p).text());
   });
 
-  app.get('/api/escalations', (c) => c.json(listEscalations(db, { openOnly: c.req.query('open') === '1' })));
+  // every escalation names its goal and task so the Inbox can say *what* needs you, not just that something does
+  app.get('/api/escalations', (c) =>
+    c.json(
+      listEscalations(db, { openOnly: c.req.query('open') === '1' }).map((e) => {
+        const t = e.taskId ? listTasks(db, e.goalId).find((x) => x.id === e.taskId) : null;
+        return { ...e, goalTitle: getGoal(db, e.goalId)?.title ?? e.goalId, taskTitle: t?.title ?? null, taskState: t?.state ?? null };
+      }),
+    ),
+  );
 
   app.post('/api/escalations/:id/answer', async (c) => {
     const answer = EscalationAnswer.parse(await c.req.json());

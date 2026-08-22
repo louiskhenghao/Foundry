@@ -5,6 +5,7 @@ import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-d
 import { api } from './api.ts';
 import { AccountMenu } from './components/AccountMenu.tsx';
 import { BriefPage } from './pages/BriefPage.tsx';
+import { MergeResolvePage } from './pages/MergeResolvePage.tsx';
 import { GoalPage } from './pages/GoalPage.tsx';
 import { GoalsPage } from './pages/GoalsPage.tsx';
 import { InboxPage } from './pages/InboxPage.tsx';
@@ -96,6 +97,7 @@ export function App() {
           <Route path="/" element={<GoalsPage />} />
           <Route path="/goals/new" element={<NewGoalPage />} />
           <Route path="/goals/:id/brief" element={<BriefPage />} />
+          <Route path="/goals/:id/resolve/:taskId" element={<MergeResolvePage />} />
           <Route path="/goals/:id" element={<GoalPage />} />
           <Route path="/inbox" element={<InboxPage />} />
           <Route path="/skills" element={<SkillsPage />} />

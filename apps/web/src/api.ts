@@ -1,5 +1,30 @@
 import type { Attachment, Attempt, Brief, BriefCheck, BriefDiff, BriefTask, Budgets, Check, CheckResult, DeliveryPlanStep, DeliveryPolicy, DeliveryState, EngineEvent, Escalation, EscalationAnswer, Goal, SettingsPatch, SettingsView, Task } from '@ai-engine/core/browser';
 
+/** Manual merge resolution (mirrors engine's merge-resolve.ts). */
+export interface ResolveFile {
+  path: string;
+  conflicted: boolean;
+  current: string;
+  ours: string | null;
+  theirs: string | null;
+  base: string | null;
+  binary: boolean;
+}
+export interface ResolveState {
+  taskId: string;
+  path: string;
+  branch: string;
+  into: string;
+  files: ResolveFile[];
+  remaining: number;
+}
+export interface FinishResult {
+  ok: boolean;
+  ref: string | null;
+  checks: { name: string; status: string; summary: string }[];
+  reason: string | null;
+}
+
 /** Draft with AI on the Brief page (mirrors engine's DraftRequest / DraftProposal). */
 export interface DraftRequest {
   mode: 'task' | 'acceptance' | 'area' | 'revise';
@@ -133,6 +158,9 @@ export class ApiError extends Error {
   }
 }
 
+/** an Escalation with the names of what it is about */
+export type EscalationRow = Escalation & { goalTitle?: string; taskTitle?: string | null; taskState?: string | null };
+
 export interface BudgetStatus {
   costUsd: number;
   maxCostUsd: number | null;
@@ -240,7 +268,16 @@ export const api = {
   push: (id: string, remote = 'origin') => req<{ ok: boolean; output: string }>(`/api/goals/${id}/push`, { method: 'POST', body: JSON.stringify({ remote }) }),
   transcript: (attemptId: string) => fetch(`/api/attempts/${attemptId}/transcript`).then((r) => r.text()),
   prompt: (attemptId: string) => fetch(`/api/attempts/${attemptId}/prompt`).then((r) => r.text()),
-  escalations: (openOnly = true) => req<Escalation[]>(`/api/escalations${openOnly ? '?open=1' : ''}`),
+  resolve: {
+    get: (goalId: string, taskId: string) => req<{ can: { ok: boolean; reason: string | null }; state: ResolveState | null }>(`/api/goals/${goalId}/tasks/${taskId}/resolve`),
+    start: (goalId: string, taskId: string, fresh = false) => req<ResolveState>(`/api/goals/${goalId}/tasks/${taskId}/resolve/start`, { method: 'POST', body: JSON.stringify({ fresh }) }),
+    file: (goalId: string, taskId: string, path: string, content: string) => req<ResolveState>(`/api/goals/${goalId}/tasks/${taskId}/resolve/file`, { method: 'PUT', body: JSON.stringify({ path, content }) }),
+    take: (goalId: string, taskId: string, path: string, side: 'ours' | 'theirs' | 'both') => req<ResolveState>(`/api/goals/${goalId}/tasks/${taskId}/resolve/take`, { method: 'POST', body: JSON.stringify({ path, side }) }),
+    unresolve: (goalId: string, taskId: string, path: string) => req<ResolveState>(`/api/goals/${goalId}/tasks/${taskId}/resolve/unresolve`, { method: 'POST', body: JSON.stringify({ path }) }),
+    finish: (goalId: string, taskId: string, force = false) => req<FinishResult>(`/api/goals/${goalId}/tasks/${taskId}/resolve/finish`, { method: 'POST', body: JSON.stringify({ force }) }),
+    abort: (goalId: string, taskId: string) => req<{ ok: true }>(`/api/goals/${goalId}/tasks/${taskId}/resolve/abort`, { method: 'POST', body: '{}' }),
+  },
+  escalations: (openOnly = true) => req<EscalationRow[]>(`/api/escalations${openOnly ? '?open=1' : ''}`),
   answer: (id: string, answer: EscalationAnswer) => req<{ ok: true }>(`/api/escalations/${id}/answer`, { method: 'POST', body: JSON.stringify(answer) }),
   // skills & setup
   skills: (repo?: string) => req<SkillsOverview>(`/api/skills${repo ? `?repo=${encodeURIComponent(repo)}` : ''}`),

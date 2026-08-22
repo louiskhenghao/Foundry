@@ -1,8 +1,8 @@
-import type { Escalation, EscalationAction } from '@ai-engine/core/browser';
+import type { EscalationAction } from '@ai-engine/core/browser';
 import { ACTIONS_BY_TRIGGER } from '@ai-engine/core/browser';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../api.ts';
+import { api, type EscalationRow } from '../api.ts';
 import { MarkdownPanel } from '../components/Markdown.tsx';
 import { useLive } from '../store.ts';
 import { Badge, Button, Empty, Input, ago } from '../ui.tsx';
@@ -21,11 +21,12 @@ const ACTION_LABEL: Record<EscalationAction, string> = {
   approve: 'Approve & run once',
   deny: 'Deny',
   raise_budget: 'Raise budget',
+  resolve_manually: 'Resolve manually',
 };
 
 export function InboxPage() {
   const version = useLive((s) => s.globalVersion);
-  const [list, setList] = useState<Escalation[] | null>(null);
+  const [list, setList] = useState<EscalationRow[] | null>(null);
   const [all, setAll] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => api.escalations(!all).then(setList).catch(() => {}), 150);
@@ -44,7 +45,8 @@ export function InboxPage() {
   );
 }
 
-export function EscalationCard({ e }: { e: Escalation }) {
+/** `embedded` = shown inside the task view: no goal/task links, tighter frame. */
+export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: boolean }) {
   const [hint, setHint] = useState('');
   const [attempts, setAttempts] = useState(1);
   const [cost, setCost] = useState('');
@@ -70,15 +72,36 @@ export function EscalationCard({ e }: { e: Escalation }) {
     }
   };
   return (
-    <div className="rounded-lg border border-orange-500/40 bg-orange-500/5 p-4">
-      <div className="flex items-center gap-2 mb-2">
+    <div className={embedded ? 'rounded-lg border border-orange-500/40 bg-orange-500/5 p-3' : 'rounded-lg border border-orange-500/40 bg-orange-500/5 p-4'}>
+      <div className="flex items-center gap-2 mb-1 flex-wrap">
         <Badge state={e.state} />
         <span className="text-sm font-medium">{TRIGGER_LABEL[e.trigger] ?? e.trigger}</span>
+        {(e.payload as { kind?: string }).kind === 'merge' && <span className="text-[10px] uppercase rounded border border-orange-500/50 text-orange-300 px-1">merge conflict</span>}
         <span className="text-xs text-zinc-500">{ago(e.createdAt)}</span>
-        <Link to={`/goals/${e.goalId}`} className="ml-auto text-xs underline text-zinc-400">
-          open goal
-        </Link>
+        {!embedded && (
+          <span className="ml-auto flex items-center gap-3 text-xs">
+            {e.taskId && (
+              <Link to={`/goals/${e.goalId}?task=${e.taskId}#tasks`} className="underline text-zinc-300">
+                open task →
+              </Link>
+            )}
+            <Link to={`/goals/${e.goalId}`} className="underline text-zinc-400">
+              open goal
+            </Link>
+          </span>
+        )}
       </div>
+      {!embedded && (
+        <div className="text-xs text-zinc-400 mb-2 min-w-0 truncate">
+          <span className="text-zinc-500">goal</span> {e.goalTitle ?? e.goalId}
+          {e.taskId && (
+            <>
+              <span className="text-zinc-600"> › </span>
+              <span className="text-zinc-500">task</span> <span className="text-zinc-200">{e.taskTitle ?? e.taskId}</span>
+            </>
+          )}
+        </div>
+      )}
       <MarkdownPanel title="details" source={e.message} maxHeight={260} />
       {e.state === 'open' ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -94,7 +117,14 @@ export function EscalationCard({ e }: { e: Escalation }) {
               <Input type="number" min={5} step={5} className="w-36" placeholder="new max min (blank = ×2)" value={minutes} onChange={(x) => setMinutes(x.target.value)} />
             </>
           )}
-          {actions.map((a) => (
+          {e.taskId && (e.payload as { kind?: string }).kind === 'merge' && (
+            <Link to={`/goals/${e.goalId}/resolve/${e.taskId}`}>
+              <Button size="sm" variant="primary" title="See the conflicted files with both sides and resolve them yourself (in the browser or your editor)">
+                Resolve manually →
+              </Button>
+            </Link>
+          )}
+          {actions.filter((a) => a !== 'resolve_manually').map((a) => (
             <Button key={a} size="sm" disabled={busy} variant={a === 'abort_goal' || a === 'deny' ? 'danger' : a === 'retry_with_hint' || a === 'approve' || a === 'raise_budget' ? 'primary' : 'default'} onClick={() => answer(a)}>
               {ACTION_LABEL[a]}
             </Button>

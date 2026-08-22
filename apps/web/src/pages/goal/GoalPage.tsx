@@ -38,6 +38,11 @@ export function GoalPage() {
     const t = setTimeout(() => api.goal(id).then(setD).catch((e) => setErr(e.message)), 200);
     return () => clearTimeout(t);
   }, [id, version]);
+  // /goals/:id?task=<taskId>#tasks (Inbox links) opens that task's view directly
+  useEffect(() => {
+    const t = new URLSearchParams(loc.search).get('task');
+    if (t) setSel(t);
+  }, [loc.search]);
 
   const dagTasks: DagTask[] = useMemo(
     () =>

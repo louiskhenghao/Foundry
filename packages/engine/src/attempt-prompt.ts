@@ -20,6 +20,8 @@ export interface AttemptPromptInput {
   areaDescription?: string;
   /** rendered `# Decisions from the human` section (see renderDecisions), or '' */
   decisions?: string;
+  /** the goal branch moved since this task's worktree was created (see catchup.ts), or null */
+  baseMoved?: { merged: boolean; commits: string[]; conflictFiles: string[] } | null;
 }
 
 export function buildAttemptPrompt(i: AttemptPromptInput): string {
@@ -39,6 +41,14 @@ export function buildAttemptPrompt(i: AttemptPromptInput): string {
     lines.push(`# Acceptance checks\nThe engine will run these after you finish. Run the command checks yourself before you stop.\n${[...must, ...stretch].map(fmt).join('\n')}`);
   }
   if (i.hint) lines.push(`# Hint from the human\n${i.hint}`);
+  if (i.baseMoved) {
+    const list = i.baseMoved.commits.slice(0, 12).map((c) => `- ${c}`).join('\n');
+    lines.push(
+      i.baseMoved.merged
+        ? `# The goal branch moved while this task was waiting\nThese commits from other tasks were merged into your worktree before you started; build on them, do not undo them:\n${list}`
+        : `# The goal branch moved and the automatic merge could not finish\nThese commits from other tasks landed on ${i.goal.branch}:\n${list}\nThe conflict is in ${i.baseMoved.conflictFiles.join(', ') || 'some files'}. Before you finish, run \`git merge ${i.goal.branch}\` in this worktree yourself and resolve it keeping both sides' intent (the goal branch's version of shared files is the current truth — add your changes on top).`,
+    );
+  }
   if (i.rolledBack) lines.push(`# Note\nThe workspace was rolled back to ${i.rolledBack.toRef.slice(0, 10)} because ${i.rolledBack.reason}. Take a different approach.`);
   if (i.prevReport) {
     lines.push(`# What happened in the previous attempt\n${i.prevReport.summary.trim()}`);

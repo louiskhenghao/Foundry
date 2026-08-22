@@ -10,6 +10,11 @@ export function goalWorkspacePath(dataDir: string, goalId: string): string {
 export function deliveryWorkspacePath(dataDir: string, goalId: string): string {
   return join(dataDir, 'worktrees', goalId, '_delivery');
 }
+
+/** detached worktree where a human resolves one task's conflicted integration by hand (one per task) */
+export function resolveWorkspacePath(dataDir: string, goalId: string, taskId: string): string {
+  return join(dataDir, 'worktrees', goalId, '_resolve', taskId);
+}
 /**
  * `goal/<id>-<n>-<slug>`: the n-th branch of a stacked delivery. A sibling of the goal branch, not a
  * child (`goal/<id>/…` cannot exist while `goal/<id>` does — git refs are files).

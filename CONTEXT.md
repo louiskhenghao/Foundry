@@ -102,6 +102,12 @@ The engine carrying out a Delivery Policy after a Goal is finished: syncing the 
 **Base Sync**
 What the engine does about the user's checkout being behind the remote: before a Goal explores the repository it fetches the base branch (remote-tracking refs only — the checkout itself is never changed) and starts the Goal branch from the remote tip when the local branch is strictly behind it. The user can fast-forward their own checkout with one explicit click; nothing else ever moves it. Optionally the base is fetched and merged in again between Tasks.
 
+**Catch-up**
+Bringing the Goal branch into a Task's own workspace before the Task is worked on or landed: whatever other Tasks merged meanwhile is merged into the Task branch first — cleanly, or through a Merge Attempt that has the Task's own context — so a retry builds on current code and the final landing cannot conflict. When even that fails, the Worker is told to merge by hand, and only at landing time does it become an Escalation.
+
+**Manual Resolution**
+The user taking over a Task whose Merge Attempts gave up: the conflict is re-created in a separate *resolve* workspace so the rest of the Goal keeps going, every conflicted file is shown with both sides, and the user resolves it file by file (take a side, edit the result, or use their own editor). Finishing turns the resolution into the Task Commit, runs the Must command checks and lands it on the Goal branch; the Escalation is answered by the act of finishing.
+
 **Workspace**
 The isolated checkout a Goal or Task works in. A Goal has its own workspace on a Goal branch; Tasks that run in parallel each get their own workspace on a Task branch and are merged back into the Goal workspace when their Checks pass. The user's own checkout is never touched.
 

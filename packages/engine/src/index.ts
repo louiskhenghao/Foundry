@@ -31,3 +31,4 @@ export * from './skills/packs.ts';
 export { goalScenario } from './skills/workflow.ts';
 export { runAutoskills, hasStackManifest } from './skills/autoskills.ts';
 export { decodeLine } from '@ai-engine/runner';
+export { canResolve, startResolution, describeResolution, resolveFile, takeSide, unresolveFile, finishResolution, abortResolution, type ResolveState, type ResolveFile, type FinishResult } from './merge-resolve.ts';
