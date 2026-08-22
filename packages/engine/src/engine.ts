@@ -263,7 +263,7 @@ export class Engine {
     const ref = `${s.remote}/${s.base}`;
     if ((await git(['merge-base', '--is-ancestor', ref, 'HEAD'], ws)).code === 0) return;
     const now = new Date().toISOString();
-    const task: Task = { id: newId(IdPrefix.task), goalId: goal.id, title: `sync ${goal.branch} with ${ref}`, spec: `${ref} moved while this goal was running. Merge it into ${goal.branch} so the remaining tasks build on the current base.`, kind: 'chore', scope: 'sync', scenario: 'general', area: null, dependsOn: [], relevantFiles: [], parallelizable: false, retryBudget: 2, origin: 'merge', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now };
+    const task: Task = { id: newId(IdPrefix.task), goalId: goal.id, title: `sync ${goal.branch} with ${ref}`, spec: `${ref} moved while this goal was running. Merge it into ${goal.branch} so the remaining tasks build on the current base.`, kind: 'chore', scope: 'sync', scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: false, retryBudget: 2, origin: 'merge', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now };
     this.store.append({ type: 'task.created', goalId: goal.id, payload: { task } });
     const ok = await mergeBranchInto(this, goal, task, { ref, label: ref, intent: `The base branch ${ref} received new commits while this goal was running. Keep their changes AND this goal's changes.` });
     const fresh = getTask(this.store.db, task.id)!;
@@ -326,17 +326,19 @@ export class Engine {
           process.kill(a.pid, 'SIGTERM');
         } catch {}
       }
-      this.store.append({ type: 'attempt.finished', goalId: a.goalId, payload: { attemptId: a.id, state: 'error', resultSubtype: 'orphaned', costUsd: a.costUsd, numTurns: a.numTurns, endRef: a.endRef, permissionDenials: [], skillsUsed: [], toolsUsed: {} } });
-      this.store.append({ type: 'attempt.concluded', goalId: a.goalId, payload: { attemptId: a.id, state: 'error', reason: 'orphaned by engine restart' } });
+      // a work attempt whose session already started is resumed later (Continuation); anything else is just over
+      const resumable = a.kind === 'work' && !!a.sessionId && a.continuations < this.config.maxContinuations;
+      this.store.append({ type: 'attempt.finished', goalId: a.goalId, payload: { attemptId: a.id, state: resumable ? 'interrupted' : 'error', resultSubtype: 'orphaned', costUsd: a.costUsd, numTurns: a.numTurns, endRef: a.endRef, permissionDenials: [], skillsUsed: [], toolsUsed: {} } });
+      this.store.append({ type: 'attempt.concluded', goalId: a.goalId, payload: { attemptId: a.id, state: resumable ? 'interrupted' : 'error', reason: resumable ? 'interrupted by engine restart — resumes next' : 'orphaned by engine restart' } });
       const t = getTask(this.store.db, a.taskId);
       if (t && (t.state === 'running' || t.state === 'observing' || t.state === 'merging')) {
         if (t.state === 'merging') this.store.append({ type: 'task.state_changed', goalId: a.goalId, payload: { taskId: t.id, from: 'merging', to: 'observing', reason: 'orphaned merge' } });
         const from = t.state === 'merging' ? 'observing' : t.state;
-        this.store.append({ type: 'task.state_changed', goalId: a.goalId, payload: { taskId: t.id, from, to: 'ready', reason: 'engine restarted; attempt orphaned' } });
-        // an orphaned attempt is not a failed one: give the budget back so a restart never exhausts a task's retries
-        if (a.kind === 'work') this.store.append({ type: 'task.hint_set', goalId: a.goalId, payload: { taskId: t.id, hint: t.hint, extraAttempts: 1 } });
+        this.store.append({ type: 'task.state_changed', goalId: a.goalId, payload: { taskId: t.id, from, to: 'ready', reason: resumable ? 'engine restarted; attempt will resume' : 'engine restarted; attempt orphaned' } });
+        // an orphaned attempt that cannot be resumed is not a failed one either: give the budget back
+        if (a.kind === 'work' && !resumable) this.store.append({ type: 'task.hint_set', goalId: a.goalId, payload: { taskId: t.id, hint: t.hint, extraAttempts: 1 } });
       }
-      this.store.append({ type: 'engine.note', goalId: a.goalId, payload: { level: 'warn', message: `attempt ${a.id} was orphaned by an engine restart` } });
+      this.store.append({ type: 'engine.note', goalId: a.goalId, payload: { level: resumable ? 'info' : 'warn', message: resumable ? `attempt ${a.id} was interrupted by an engine restart; its session will be resumed` : `attempt ${a.id} was orphaned by an engine restart` } });
     }
     for (const g of listGoals(this.store.db)) {
       if (g.delivery.status === 'running') {
@@ -1054,7 +1056,7 @@ function autoBrief(goal: Goal, must: string[], stretch: string[]): Brief {
     areas: [],
     assumptions: [],
     checks,
-    tasks: [{ key: 'T1', title: goal.title, spec: goal.prompt, kind: 'feature', scope: null, scenario: 'general', areaKey: null, dependsOnKeys: [], parallelizable: false, relevantFiles: [] }],
+    tasks: [{ key: 'T1', title: goal.title, spec: goal.prompt, kind: 'feature', scope: null, scenario: 'general', areaKey: null, tdd: 'inherit', dependsOnKeys: [], parallelizable: false, relevantFiles: [] }],
     costEstimateUsd: 1,
     timeEstimateMin: 15,
     questions: [],

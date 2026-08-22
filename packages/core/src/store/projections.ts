@@ -222,6 +222,11 @@ export function applyEvent(db: Database, e: EngineEvent): void {
       if (a) upsertAttempt(db, { ...a, state: e.payload.state, endedAt: a.endedAt ?? e.ts });
       break;
     }
+    case 'attempt.continued': {
+      const a = getAttempt(db, e.payload.attemptId);
+      if (a) upsertAttempt(db, { ...a, state: 'running', continuations: a.continuations + 1, endedAt: null, pid: null });
+      break;
+    }
     case 'check.finished':
       upsertCheckResult(db, e.payload.result);
       break;

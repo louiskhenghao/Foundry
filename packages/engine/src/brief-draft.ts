@@ -121,7 +121,7 @@ export async function runDraft(engine: Engine, goal: Goal, req: DraftRequest): P
     const tasks: BriefTask[] = out.tasks.map((t) => {
       const key = nextKey('T');
       rename.set(t.key, key);
-      return { key, title: t.title, spec: t.spec, kind: t.kind, scope: t.scope ?? null, scenario: t.scenario, areaKey: area!.key, dependsOnKeys: [], parallelizable: t.parallelizable, relevantFiles: t.relevantFiles };
+      return { key, title: t.title, spec: t.spec, kind: t.kind, scope: t.scope ?? null, scenario: t.scenario, areaKey: area!.key, tdd: 'inherit', dependsOnKeys: [], parallelizable: t.parallelizable, relevantFiles: t.relevantFiles };
     });
     const known = new Set([...brief.tasks.map((t) => t.key), ...tasks.map((t) => t.key)]);
     out.tasks.forEach((t, i) => {
@@ -173,7 +173,7 @@ function toRevisedBrief(current: Brief, out: RevisionOutput): Omit<Brief, 'goalI
     checks: out.checks
       .filter((c) => !c.taskKey || taskKeys.has(c.taskKey))
       .map((c) => ({ key: c.key, name: c.name, tier: c.tier, taskKey: c.taskKey, areaKey: c.taskKey ? null : area(c.areaKey), spec: materializeCheck(c, c.taskKey) })),
-    tasks: out.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind ?? 'feature', scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), dependsOnKeys: t.dependsOnKeys.filter((k) => taskKeys.has(k) && k !== t.key), parallelizable: t.parallelizable, relevantFiles: t.relevantFiles })),
+    tasks: out.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind ?? 'feature', scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys.filter((k) => taskKeys.has(k) && k !== t.key), parallelizable: t.parallelizable, relevantFiles: t.relevantFiles })),
     costEstimateUsd: out.costEstimateUsd,
     timeEstimateMin: out.timeEstimateMin,
     questions: [...current.questions, ...out.newQuestions.map((q) => ({ id: newId('q'), text: q.text, answer: null, blocking: false, areaKey: area(q.areaKey), applied: false }))],
@@ -209,7 +209,7 @@ function buildDraftPrompt(goal: Goal, brief: Brief, req: DraftRequest, task: Bri
       ? `# Your job\nThe Area **${area!.name}** (${area!.key}, scope \`${area!.slug}\`) — "${area!.description}" — has no tasks yet. Explore the repository (read-only) as needed and propose 1–6 tasks for this Area only (areaKey = ${area!.key}), each doable by one engineer-session, with their acceptance checks. New tasks may depend on existing task keys or on each other. Output JSON matching the schema.`
       : req.mode === 'acceptance'
         ? `# Your job\nPropose acceptance checks for task **${task!.key} — ${task!.title}** only. Leave spec null. Output JSON matching the schema.`
-        : `# Your job\nThe human added task **${task!.key} — ${task!.title}**${task!.spec.trim() ? ' and already wrote a spec (keep it; return spec null)' : ' without a spec'}. Explore the repository (read-only) as needed and draft what is missing: the spec (markdown: what to change, where, how to know it is done), kind, scenario, scope (null = Area slug), areaKey, dependsOnKeys (existing keys it must run after), relevantFiles, and its acceptance checks. Output JSON matching the schema.`;
+        : `# Your job\nThe human added task **${task!.key} — ${task!.title}**${task!.spec.trim() ? ' and already wrote a spec (keep it; return spec null)' : ' without a spec'}. Explore the repository (read-only) as needed and draft what is missing: the spec (markdown: what to change, where, how to know it is done), kind, scenario, scope (null = Area slug), areaKey, tdd: 'inherit', dependsOnKeys (existing keys it must run after), relevantFiles, and its acceptance checks. Output JSON matching the schema.`;
   return [
     `# Goal from the user\n${goal.prompt}`,
     attachments,

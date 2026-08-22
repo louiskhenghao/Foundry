@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { Brief } from '../schema/brief.ts';
 import { LARGE_BRIEF_TASKS, areaSlug, briefIsLarge, stagesOf, uncoveredAreas } from './brief-coverage.ts';
 
-const task = (key: string, areaKey: string | null, dependsOnKeys: string[] = []) => ({ key, title: key, spec: '', kind: 'feature' as const, scope: null, scenario: 'general' as const, areaKey, dependsOnKeys, parallelizable: true, relevantFiles: [] });
+const task = (key: string, areaKey: string | null, dependsOnKeys: string[] = []) => ({ key, title: key, spec: '', kind: 'feature' as const, scope: null, scenario: 'general' as const, areaKey, tdd: 'inherit' as const, dependsOnKeys, parallelizable: true, relevantFiles: [] });
 const area = (key: string, name: string) => ({ key, name, slug: areaSlug(name), description: '' });
 
 describe('brief coverage', () => {

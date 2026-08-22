@@ -118,6 +118,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
             {attempts.map((x, i) => (
               <button key={x.id} onClick={() => setAi(i)} className={cn('text-xs rounded px-2 py-1 border flex items-center gap-1', i === Math.min(Math.max(ai, 0), attempts.length - 1) ? 'border-emerald-500 text-emerald-300' : 'border-zinc-700 text-zinc-400')}>
                 #{x.index} {x.kind === 'merge' ? 'merge' : ''} <Badge state={x.state} />
+                {x.continuations > 0 && <span className="text-[10px] text-emerald-300/80" title={`${x.continuations} continuation(s): the same session was resumed instead of a fresh attempt`}>↻{x.continuations}</span>}
                 <span className="text-zinc-500 mono">{fmtUsd(x.costUsd)}</span>
               </button>
             ))}
@@ -127,7 +128,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
             <>
               <div className="text-xs text-zinc-500 mb-2 mono flex flex-wrap gap-x-3">
                 <span>{a.model}</span>
-                <span>{a.numTurns} turns</span>
+                <span>{a.numTurns} turns{a.continuations > 0 ? ` over ${a.continuations + 1} segments` : ''}</span>
                 <span>{a.resultSubtype ?? 'running'}</span>
                 <span>started {ago(a.startedAt)}</span>
                 {a.endedAt && <span>took {Math.round((Date.parse(a.endedAt) - Date.parse(a.startedAt)) / 1000)}s</span>}

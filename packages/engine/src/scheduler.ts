@@ -1,6 +1,6 @@
 import type { Goal, Task } from '@ai-engine/core';
-import { listTasks, getTask, getGoal } from '@ai-engine/core';
-import { maxAttemptsFor, runAttempt } from './attempt-loop.ts';
+import { listTasks, getTask, getGoal, listAttempts, getObservation } from '@ai-engine/core';
+import { type Continuation, continuationMessage, decideNext, maxAttemptsFor, runAttempt } from './attempt-loop.ts';
 import { budgetStatus } from './budget.ts';
 import type { Engine } from './engine.ts';
 import { raiseEscalation } from './escalation.ts';
@@ -119,20 +119,37 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
       } else cwd = task.worktreePath;
     }
     task = getTask(store.db, task.id)!;
+    // an attempt cut by an engine restart is resumed (its session keeps its context) instead of being redone
+    const last = listAttempts(store.db, task.id).filter((a) => a.kind === 'work').at(-1);
+    let resume: Continuation | null = last && last.state === 'interrupted' && last.sessionId && last.continuations < config.maxContinuations ? { attempt: last, reason: 'orphaned', message: continuationMessage('orphaned') } : null;
     const attemptsSoFar = engine.attemptCount(task.id);
-    if (attemptsSoFar >= maxAttemptsFor(task)) {
+    if (!resume && attemptsSoFar >= maxAttemptsFor(task)) {
       raiseEscalation(engine, { goal, task, trigger: 'retries_exhausted', message: `Task "${task.title}" used ${attemptsSoFar} attempts without passing its Must checks.`, payload: { attempts: attemptsSoFar } });
       return;
     }
-    store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'ready', to: 'running', reason: `attempt ${attemptsSoFar + 1}` } });
+    store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'ready', to: 'running', reason: resume ? `resuming attempt ${resume.attempt.index} after the engine restart` : `attempt ${attemptsSoFar + 1}` } });
 
     // a task in its own worktree first catches up with what other tasks landed on the goal branch
     const caught = await catchUp(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!, { escalate: false });
-    const outcome = await runAttempt(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!, cwd, { baseMoved: caught.moved ? caught : null });
+    let outcome = await runAttempt(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!, cwd, { baseMoved: caught.moved ? caught : null, resume });
     engine.engineCrashes.delete(task.id);
-    const fresh = getTask(store.db, task.id)!;
+    let fresh = getTask(store.db, task.id)!;
     if (fresh.state !== 'running') return; // cancelled / aborted meanwhile
     store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'running', to: 'observing', reason: 'attempt finished' } });
+    // Continuations: while the session was cut or is making progress, resume it rather than paying for a fresh one
+    let prevFailed: number | null = null;
+    while (!outcome.passed) {
+      const next = decideNext({ result: outcome.result, committed: outcome.committed, failedCount: outcome.report.failedCount, prevFailedCount: prevFailed, continuations: outcome.attempt.continuations, maxContinuations: config.maxContinuations, rolledBack: false, sessionId: outcome.attempt.sessionId });
+      if (next.kind !== 'continue') break;
+      if (next.reason === 'checks_failed' && outcome.nonBoundaryDenials.length) break; // a denied tool will not resolve itself
+      prevFailed = outcome.report.failedCount;
+      const message = continuationMessage(next.reason, { timeoutMin: Math.round(config.attemptTimeoutMs / 60_000), report: outcome.report.summary.slice(0, 4000) });
+      store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'observing', to: 'running', reason: `continuation ${outcome.attempt.continuations + 1}: ${next.reason.replace('_', ' ')}` } });
+      outcome = await runAttempt(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!, cwd, { resume: { attempt: outcome.attempt, reason: next.reason, message } });
+      fresh = getTask(store.db, task.id)!;
+      if (fresh.state !== 'running') return;
+      store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'running', to: 'observing', reason: 'continuation finished' } });
+    }
 
     if (outcome.passed) {
       // every finished task becomes one Conventional Commit on the goal branch (squash merge / squashed snapshots)

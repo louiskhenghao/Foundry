@@ -7,7 +7,7 @@ import { AttachmentInput } from '../components/Attachments.tsx';
 import { BudgetPicker, type BudgetDraft } from '../components/BudgetPicker.tsx';
 import { DeliveryPolicyForm, type PolicyDraft } from '../components/DeliveryPolicyForm.tsx';
 import { RepoCard } from '../components/RepoCard.tsx';
-import { Button, Card, Input, Textarea, cn } from '../ui.tsx';
+import { Button, Card, Input, Textarea, cn, Select } from '../ui.tsx';
 
 const DELIVERY_KEY = 'ai-engine.delivery';
 const BUDGET_KEY = 'ai-engine.budget';
@@ -40,6 +40,10 @@ export function NewGoalPage() {
   const [budget, setBudget] = useState<BudgetDraft>(loadBudget());
   const [auto, setAuto] = useState(false);
   const [advanced, setAdvanced] = useState(false);
+  const [mode, setMode] = useState<'simple' | 'expert'>(() => ((localStorage.getItem('ai-engine.mode') as 'simple' | 'expert' | null) ?? 'expert'));
+  const [tdd, setTdd] = useState<'required' | 'preferred' | 'off'>(() => ((localStorage.getItem('ai-engine.tdd') as 'required' | 'preferred' | 'off' | null) ?? 'required'));
+  useEffect(() => localStorage.setItem('ai-engine.mode', mode), [mode]);
+  useEffect(() => localStorage.setItem('ai-engine.tdd', tdd), [tdd]);
   const [checks, setChecks] = useState('');
   const [stretch, setStretch] = useState('');
   const [busy, setBusy] = useState(false);
@@ -77,6 +81,8 @@ export function NewGoalPage() {
         autoBrief: auto ? { mustChecks: checks.split('\n').map((s) => s.trim()).filter(Boolean), stretchChecks: stretch.split('\n').map((s) => s.trim()).filter(Boolean) } : undefined,
         delivery,
         attachments,
+        mode,
+        workflow: { tdd: mode === 'simple' ? 'preferred' : tdd },
       });
       try {
         localStorage.setItem(DELIVERY_KEY, JSON.stringify({ mode: delivery.mode, remote: delivery.remote, mergeMethod: delivery.mergeMethod, requireChecks: delivery.requireChecks, autoResolveConflicts: delivery.autoResolveConflicts, fixCiCycles: delivery.fixCiCycles, deleteRemoteBranch: delivery.deleteRemoteBranch }));
@@ -104,6 +110,35 @@ export function NewGoalPage() {
           ))}
         </ol>
       </div>
+
+      <Card title="How much do you want to see?">
+        <div className="grid sm:grid-cols-2 gap-2">
+          {(
+            [
+              { id: 'simple', label: 'Simple', text: 'You read one plain-language Brief, answer its questions, approve — the engine does the rest and only shows a progress bar and what needs you. TDD is suggested, not enforced.' },
+              { id: 'expert', label: 'Expert', text: 'Every control: Areas, task graph, acceptance checks, attempt logs, merge resolution, engineering discipline.' },
+            ] as const
+          ).map((m) => (
+            <button key={m.id} type="button" onClick={() => setMode(m.id)} className={cn('text-left rounded-lg border p-3', mode === m.id ? 'border-emerald-500 bg-emerald-500/10' : 'border-zinc-800 hover:border-zinc-600')}>
+              <div className="text-sm font-medium text-zinc-100">{m.label}</div>
+              <div className="text-[11px] text-zinc-400 mt-1 leading-snug">{m.text}</div>
+            </button>
+          ))}
+        </div>
+        {mode === 'expert' && (
+          <div className="mt-3 flex items-center gap-3 flex-wrap">
+            <span className="text-xs text-zinc-300">Engineering discipline — TDD</span>
+            <span className="w-56">
+              <Select value={tdd} onChange={(e) => setTdd(e.target.value as typeof tdd)} title="required: workers must invoke the tdd skill and the reviewer is told when they did not · preferred: suggested only · off: never mentioned">
+                <option value="required">required (must, observed)</option>
+                <option value="preferred">preferred (suggested)</option>
+                <option value="off">off</option>
+              </Select>
+            </span>
+            <span className="text-[11px] text-zinc-500">docs / infra / chore / research tasks never get a TDD mandate; a task can also switch it off in the Brief.</span>
+          </div>
+        )}
+      </Card>
 
       <Card title="1 · What do you want done?">
         <Textarea rows={6} placeholder="Describe the goal as you would to a senior engineer. The system clarifies, proposes Must / Stretch acceptance checks and a task plan for you to approve." value={prompt} onChange={(e) => setPrompt(e.target.value)} />

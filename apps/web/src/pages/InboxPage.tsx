@@ -14,6 +14,14 @@ const TRIGGER_LABEL: Record<string, string> = {
   budget_exceeded: 'Budget exceeded',
   permission_denial: 'Tool denied',
 };
+/** one plain sentence per trigger, for people who do not want to read the details */
+const PLAIN: Record<string, string> = {
+  brief_question: 'The plan has a question only you can answer.',
+  retries_exhausted: 'It tried several times and could not finish this part on its own.',
+  boundary_action: 'It wants to do something outside the workspace (push, deploy…) and needs your OK.',
+  budget_exceeded: 'It reached the money or time limit you set.',
+  permission_denial: 'Claude refused one of the tools it needed.',
+};
 const ACTION_LABEL: Record<EscalationAction, string> = {
   retry_with_hint: 'Retry with hint',
   skip_task: 'Skip task (dependents continue)',
@@ -91,6 +99,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
           </span>
         )}
       </div>
+      <div className="text-xs text-zinc-300 mb-1">{(e.payload as { kind?: string }).kind === 'merge' ? 'Two pieces of work changed the same files and the automatic merge could not combine them.' : (e.payload as { kind?: string }).kind === 'engine' ? 'The engine itself hit an error (not the model).' : PLAIN[e.trigger] ?? ''}</div>
       {!embedded && (
         <div className="text-xs text-zinc-400 mb-2 min-w-0 truncate">
           <span className="text-zinc-500">goal</span> {e.goalTitle ?? e.goalId}

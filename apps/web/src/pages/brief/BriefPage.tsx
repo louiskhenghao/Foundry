@@ -12,6 +12,7 @@ import { AreasCard } from './AreasCard.tsx';
 import { DecisionsBar } from './DecisionsBar.tsx';
 import { GoalAcceptanceCard } from './GoalAcceptanceCard.tsx';
 import { PlanSection } from './PlanSection.tsx';
+import { SimpleBrief } from './SimpleBrief.tsx';
 import { areaOf, areaStyle, checkProblem, taskProblem } from './shared.ts';
 
 export function BriefPage() {
@@ -25,6 +26,15 @@ export function BriefPage() {
   const [busy, setBusy] = useState(false);
   /** budget the human will approve with the Brief (Auto preset proposes it from the estimate) */
   const [budgetEdit, setBudgetEdit] = useState<{ maxCostUsd: number | null; maxDurationMin: number | null } | null>(null);
+  /** Simple-mode goals open the plain view; either view can be switched per goal (remembered in this browser) */
+  const [expert, setExpert] = useState<boolean | null>(() => {
+    const v = localStorage.getItem(`ai-engine.expert.${id}`);
+    return v === null ? null : v === '1';
+  });
+  const setView = (e: boolean) => {
+    setExpert(e);
+    localStorage.setItem(`ai-engine.expert.${id}`, e ? '1' : '0');
+  };
 
   useEffect(() => {
     const t = setTimeout(
@@ -121,9 +131,33 @@ export function BriefPage() {
     }
   };
 
+  const simple = (expert ?? g.mode !== 'simple') === false;
+  if (simple) {
+    return (
+      <SimpleBrief
+        brief={brief}
+        goal={g}
+        editable={editable}
+        update={update}
+        budgetDraft={budgetDraft}
+        setBudgetEdit={setBudgetEdit}
+        proposed={proposed}
+        blockers={blockers}
+        pendingDecisions={pending.length}
+        busy={busy}
+        dirty={dirty}
+        err={err}
+        onApprove={approve}
+        onSave={save}
+        onCancel={() => api.cancelGoal(id).then(() => nav('/'))}
+        onExpert={() => setView(true)}
+      />
+    );
+  }
+
   return (
     <div className="max-w-5xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
-      <Header detail={detail} />
+      <Header detail={detail} onSimple={() => setView(false)} />
       <Card title="Understanding">
         <div className="mb-3">
           <label className="text-[11px] text-zinc-500">
@@ -260,7 +294,7 @@ export function BriefPage() {
   );
 }
 
-function Header({ detail }: { detail: GoalDetail }) {
+function Header({ detail, onSimple }: { detail: GoalDetail; onSimple?: () => void }) {
   const g = detail.goal;
   const nav = useNavigate();
   const [busy, setBusy] = useState(false);
@@ -282,8 +316,13 @@ function Header({ detail }: { detail: GoalDetail }) {
       <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-lg font-semibold">{g.title}</h1>
         <Badge state={g.state} />
+        {onSimple && (
+          <Button size="sm" variant="ghost" className="ml-auto" onClick={onSimple} title="Back to the plain-language view">
+            Simple view
+          </Button>
+        )}
         {g.state === 'awaiting_brief_approval' && (
-          <Button size="sm" variant="ghost" className="ml-auto" disabled={busy} onClick={reclarify} title="Throw this Brief away, fetch the base branch again and let the Clarifier explore the fresh tip (attachments, budget and delivery policy are kept)">
+          <Button size="sm" variant="ghost" className={onSimple ? '' : 'ml-auto'} disabled={busy} onClick={reclarify} title="Throw this Brief away, fetch the base branch again and let the Clarifier explore the fresh tip (attachments, budget and delivery policy are kept)">
             <RotateCcw size={13} /> {busy ? 'Starting…' : 'Re-run Clarify'}
           </Button>
         )}

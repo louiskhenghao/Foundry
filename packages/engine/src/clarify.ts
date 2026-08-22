@@ -116,7 +116,7 @@ export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
         areas: [{ key: 'A1', name: 'General', slug: 'general', description: '' }],
         assumptions: [],
         checks: [],
-        tasks: [{ key: 'T1', title: goal.title, spec: goal.prompt, kind: 'feature', scope: null, scenario: 'general', areaKey: 'A1', dependsOnKeys: [], parallelizable: false, relevantFiles: [] }],
+        tasks: [{ key: 'T1', title: goal.title, spec: goal.prompt, kind: 'feature', scope: null, scenario: 'general', areaKey: 'A1', tdd: 'inherit', dependsOnKeys: [], parallelizable: false, relevantFiles: [] }],
         costEstimateUsd: 0,
         timeEstimateMin: 0,
         questions: [
@@ -170,7 +170,7 @@ export function toBrief(goal: Goal, o: BriefOutput, extraQuestions: Brief['quest
     areas: o.areas.map((a) => ({ key: a.key, name: a.name, slug: a.slug, description: a.description ?? '' })),
     assumptions: o.assumptions.map((text) => ({ id: newId('as'), text, accepted: true, applied: false })),
     checks: o.checks.map((c) => ({ key: c.key, name: c.name, tier: c.tier, taskKey: c.taskKey, areaKey: c.taskKey ? null : area(c.areaKey), spec: materializeCheck(c, c.taskKey) })),
-    tasks: o.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind ?? 'feature', scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), dependsOnKeys: t.dependsOnKeys, parallelizable: t.parallelizable, relevantFiles: t.relevantFiles })),
+    tasks: o.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind ?? 'feature', scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys, parallelizable: t.parallelizable, relevantFiles: t.relevantFiles })),
     costEstimateUsd: o.costEstimateUsd,
     timeEstimateMin: o.timeEstimateMin,
     questions: [...extraQuestions, ...o.questions.map((q) => ({ id: newId('q'), text: q.text, answer: null, blocking: q.blocking, areaKey: area(q.areaKey), applied: false }))],

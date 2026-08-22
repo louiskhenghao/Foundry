@@ -11,7 +11,10 @@ A user-set objective stated in natural language against a repository. A Goal is 
 The smallest unit of work carved out of a Goal during Clarify. Tasks form a DAG through `dependsOn` edges. A Task with no unfinished dependencies is *ready*. Fan-out, fan-in and pipeline are not separate concepts — they are shapes of the DAG.
 
 **Attempt**
-One Plan → Act → Observe pass at a Task, performed in a fresh Claude session. A *retry* is simply the next Attempt, fed with the previous Attempt's Observation Report. A **Merge Attempt** is an Attempt whose only job is to resolve a merge conflict between two Tasks.
+One Plan → Act → Observe pass at a Task, performed in a fresh Claude session. A *retry* is simply the next Attempt, fed with the previous Attempt's Observation Report — unless the session can simply carry on (see Continuation). A **Merge Attempt** is an Attempt whose only job is to resolve a merge conflict between two Tasks.
+
+**Continuation**
+The next segment of the same Attempt: its Claude session is resumed with everything it already knows, instead of a fresh session that must understand the Task again. The engine continues an Attempt when its session was cut (engine restart, turn or cost cap, timeout) or when the Checks still fail but the segment made progress; a Continuation consumes no retry, and an Attempt is continued at most a few times before a genuine new Attempt (fresh session, Observation Report) takes over. A Merge Attempt's second try is a Continuation of its first.
 
 **Check**
 A decidable acceptance item. Every Check belongs to a *tier*:
@@ -148,6 +151,12 @@ What this machine has learned about model names: which id a requested name (`fab
 
 **Fallback**
 What the engine does when a session's model is unavailable: re-run the same session with the next model of the configured chain and record the swap on the Goal, so later sessions use the replacement; only when the whole chain fails does the Goal escalate.
+
+**Simple mode**
+A Goal viewed by someone who does not want the machinery: one plain-language Brief (what the system understood, what it will build, the questions only they can answer, the assumptions they can veto, the price) and a progress view (how far, what it costs, what needs them). The engine underneath is the same; Expert view — every control — is one click away on any Goal, and a Goal's mode is just which view it opens in.
+
+**Discipline**
+How hard the engine pushes an engineering practice on its sessions. For TDD: *required* (the Worker must invoke the skill and the Reviewer is told when it did not), *preferred* (suggested only), or *off* (never mentioned). Set per Goal, overridable per Task; docs, infra, chore and research Tasks never carry a TDD mandate. Simple-mode Goals start with *preferred*.
 
 **Settings**
 The engine's user-editable configuration: concurrency, models, session caps, workflow profile, Design Pack, autoskills, review and delivery defaults, tools, safety limits. A saved value beats an environment variable, which beats the default; most changes apply immediately, a few only after the engine restarts.

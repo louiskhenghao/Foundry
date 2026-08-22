@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-export const AttemptState = z.enum(['created', 'running', 'observing', 'passed', 'failed', 'error', 'aborted']);
+/** `interrupted` = the session was cut (engine restart) and can be resumed as a Continuation */
+export const AttemptState = z.enum(['created', 'running', 'observing', 'passed', 'failed', 'error', 'aborted', 'interrupted']);
 export type AttemptState = z.infer<typeof AttemptState>;
 
 export const AttemptKind = z.enum(['work', 'merge']);
@@ -29,5 +30,7 @@ export const Attempt = z.object({
   endedAt: z.string().nullable(),
   /** skills the session invoked with the Skill tool (observed from the stream) */
   skillsUsed: z.array(z.string()).default([]),
+  /** how many times this attempt's session was resumed (Continuations); cost/turns are cumulative */
+  continuations: z.number().int().nonnegative().default(0),
 });
 export type Attempt = z.infer<typeof Attempt>;

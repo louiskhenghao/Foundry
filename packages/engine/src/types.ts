@@ -7,6 +7,8 @@ export interface StreamEvent {
   attemptId: string;
   event: RunnerEvent;
   ts: string;
+  /** which session produced it when several share a channel (the task reviewer streams on the attempt's channel) */
+  role?: 'worker' | 'reviewer' | 'merger' | 'clarifier' | 'goal-reviewer';
 }
 
 export type StreamListener = (s: StreamEvent) => void;

@@ -26,6 +26,8 @@ export const ModelSettings = z.object({
   fallbacks: z.array(z.string().min(1)).default(['opus', 'sonnet', 'haiku']),
 });
 export const SessionSettings = z.object({
+  /** how many times one attempt may resume its session (interrupted, capped, or checks still failing with progress) before a fresh attempt; 0 = never */
+  maxContinuations: z.number().int().min(0).max(5).default(2),
   attemptMaxTurns: z.number().int().min(10).max(2000).default(150),
   attemptMaxCostUsd: z.number().min(0.5).max(500).default(10),
   attemptTimeoutMin: z.number().int().min(5).max(240).default(20),

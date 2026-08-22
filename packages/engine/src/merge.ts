@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import type { Attempt, Goal, Task } from '@ai-engine/core';
-import { IdPrefix, listAttempts, listChecks, newId } from '@ai-engine/core';
+import { IdPrefix, getAttempt, listAttempts, listChecks, newId } from '@ai-engine/core';
 import { runCommandCheck } from './checks/command.ts';
 import type { Engine } from './engine.ts';
 import { raiseEscalation } from './escalation.ts';
@@ -126,10 +126,14 @@ export async function resolveConflicts(engine: Engine, goal: Goal, task: Task, f
     return false;
   }
   const reasons: string[] = [];
+  let previous: { attempt: Attempt; reason: string } | null = null;
   for (let i = 1; i <= MERGE_ATTEMPT_BUDGET; i++) {
-    const r = await runMergeAttempt(engine, goal, task, files, i, src, op);
+    // the second try resumes the first session (it knows the files) unless continuations are off
+    const resume = previous && previous.attempt.sessionId && engine.config.maxContinuations > 0 ? previous : null;
+    const r = await runMergeAttempt(engine, goal, task, files, i, src, op, resume);
     if (r.ok) return true;
     reasons.push(`attempt ${i}: ${r.reason}`);
+    previous = { attempt: r.attempt, reason: r.reason };
     await abortInProgress(op.cwd);
     await op.redo();
   }
@@ -145,11 +149,11 @@ export async function resolveConflicts(engine: Engine, goal: Goal, task: Task, f
   return false;
 }
 
-async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: string[], n: number, src: MergeSource, op: ConflictOp): Promise<{ ok: boolean; reason: string }> {
+async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: string[], n: number, src: MergeSource, op: ConflictOp, resume: { attempt: Attempt; reason: string } | null = null): Promise<{ ok: boolean; reason: string; attempt: Attempt }> {
   const { store, config } = engine;
   const cwd = op.cwd;
-  const index = listAttempts(store.db, task.id).length + 1;
-  const attempt: Attempt = {
+  const index = resume ? resume.attempt.index : listAttempts(store.db, task.id).length + 1;
+  const attempt: Attempt = resume ? { ...resume.attempt, state: 'running', endedAt: null } : {
     id: newId(IdPrefix.attempt),
     goalId: goal.id,
     skillsUsed: [],
@@ -169,8 +173,10 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
     transcriptPath: join(config.dataDir, 'transcripts', `merge-${task.id}-${n}.jsonl`),
     startedAt: new Date().toISOString(),
     endedAt: null,
+    continuations: 0,
   };
-  store.append({ type: 'attempt.started', goalId: goal.id, payload: { attempt } });
+  if (resume) store.append({ type: 'attempt.continued', goalId: goal.id, payload: { attemptId: attempt.id, reason: 'merge_retry', sessionId: attempt.sessionId } });
+  else store.append({ type: 'attempt.started', goalId: goal.id, payload: { attempt } });
 
   const hunks: string[] = [];
   for (const f of files.slice(0, 10)) {
@@ -184,7 +190,9 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
   const mb = await git(['merge-base', 'HEAD', src.ref], cwd);
   const ours = mb.code === 0 ? (await git(['log', '--no-merges', '--format=%s', `${mb.stdout.trim()}..HEAD`], cwd)).stdout.split('\n').filter(Boolean) : [];
   const target = op.cwd === goalWorkspacePath(config.dataDir, goal.id) ? goal.branch : task.branch ?? goal.branch;
-  const prompt = [
+  const prompt = resume
+    ? `The conflict was re-created from scratch in this worktree. Your previous resolution did not land: ${resume.reason}.\nResolve it again — you already know these files — and this time make sure the must checks pass before you stop. Edit the files, \`git add\` them, do not commit.`
+    : [
     `# Merge conflict to resolve\n\`${src.label}\` is being merged into \`${target}\`.`,
     mergerHint ?? '',
     `# What the incoming side (${src.label}) was doing\n${src.intent}`,
@@ -213,6 +221,7 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
     settingSources: config.settingSources,
     timeoutMs: 10 * 60_000,
     transcriptPath: attempt.transcriptPath!,
+    resumeSessionId: resume ? (attempt.sessionId ?? undefined) : undefined,
     env: { AI_ENGINE_ATTEMPT_ID: attempt.id },
     label: `merge ${src.label} #${n}`,
   });
@@ -255,10 +264,10 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
   store.append({
     type: 'attempt.finished',
     goalId: goal.id,
-    payload: { attemptId: attempt.id, state: 'observing', resultSubtype: result.subtype, costUsd: result.costUsd, numTurns: result.numTurns, endRef: ok ? await headRef(cwd) : null, permissionDenials: [], skillsUsed: result.skillsUsed ?? [], toolsUsed: result.toolsUsed ?? {} },
+    payload: { attemptId: attempt.id, state: 'observing', resultSubtype: result.subtype, costUsd: (resume ? resume.attempt.costUsd : 0) + result.costUsd, numTurns: (resume ? resume.attempt.numTurns : 0) + result.numTurns, endRef: ok ? await headRef(cwd) : null, permissionDenials: [], skillsUsed: result.skillsUsed ?? [], toolsUsed: result.toolsUsed ?? {} },
   });
   store.append({ type: 'attempt.concluded', goalId: goal.id, payload: { attemptId: attempt.id, state: ok ? 'passed' : 'failed', reason: ok ? 'merged and checks pass' : reason } });
-  return { ok, reason };
+  return { ok, reason, attempt: getAttempt(store.db, attempt.id) ?? attempt };
 }
 
 export { READONLY_DISALLOWED, commitStaged };

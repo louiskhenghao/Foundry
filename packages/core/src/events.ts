@@ -94,6 +94,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   }),
 
   ev('attempt.concluded', { attemptId: z.string(), state: AttemptState, reason: z.string() }),
+  /** the attempt's Claude session is resumed instead of a new attempt being started */
+  ev('attempt.continued', { attemptId: z.string(), reason: z.string(), sessionId: z.string().nullable() }),
 
   ev('check.finished', { result: CheckResult }),
   ev('review.task.finished', { attemptId: z.string(), taskId: z.string(), verdict: ReviewerVerdict }),

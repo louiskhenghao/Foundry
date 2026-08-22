@@ -40,7 +40,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
     reviewerHint ?? '',
     formatWorkflowObservation(workflow),
     `# Diff\n\`\`\`diff\n${d}\n\`\`\``,
-    `The diff is above — judge from it; open at most a few files, only when the diff cannot answer. Review it against the task on two axes — Spec (does it do what the task and rubric ask?) and Standards (does it follow this repository's conventions?). Report BLOCKERS only: correctness bugs, security issues, scope violations (changes clearly outside the task), destroyed functionality, hard-coded secrets, or rubric items not met. Style nits are not blockers. If there are no blockers, pass.`,
+    `The diff is above — judge from it; open at most a few files, only when the diff cannot answer. Review it against the task on two axes — Spec (does it do what the task and rubric ask?) and Standards (does it follow this repository's conventions?). Report BLOCKERS only: correctness bugs, security issues, scope violations (changes clearly outside the task), destroyed functionality, hard-coded secrets, or rubric items not met. Style nits are not blockers. If there are no blockers, pass.\n\nOutput: call the structured-output tool with the verdict object itself as its arguments — top-level keys \`pass\` (boolean), \`blockers\` (string[]), \`notes\` (string) and nothing else. Do NOT wrap it in a string or under a \`parameters\` key; that fails validation and costs a retry.`,
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -64,7 +64,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
     transcriptPath: join(engine.config.dataDir, 'transcripts', `${attempt.id}.review.jsonl`),
     label: `review ${task.title}`,
   });
-  for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: task.id, attemptId: attempt.id, event: ev, ts: new Date().toISOString() });
+  for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: task.id, attemptId: attempt.id, event: ev, ts: new Date().toISOString(), role: 'reviewer' });
   const r = await handle.result;
   engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: r.costUsd, source: `review-task:${attempt.id}` } });
   engine.recordSessionUsage(r, { goalId: goal.id, kind: 'review-task', model: goal.models.cheap });
@@ -89,7 +89,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
       transcriptPath: join(engine.config.dataDir, 'transcripts', `${attempt.id}.review.jsonl`),
       label: `review ${task.title} (nudge)`,
     });
-    for await (const ev of again.events) engine.broadcast({ goalId: goal.id, taskId: task.id, attemptId: attempt.id, event: ev, ts: new Date().toISOString() });
+    for await (const ev of again.events) engine.broadcast({ goalId: goal.id, taskId: task.id, attemptId: attempt.id, event: ev, ts: new Date().toISOString(), role: 'reviewer' });
     const r2 = await again.result;
     engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: r2.costUsd, source: `review-task:${attempt.id}` } });
     engine.recordSessionUsage(r2, { goalId: goal.id, kind: 'review-task', model: goal.models.cheap });

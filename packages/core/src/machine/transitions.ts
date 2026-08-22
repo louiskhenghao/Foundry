@@ -34,9 +34,11 @@ const TASK: Record<TaskState, TaskState[]> = {
 };
 
 const ATTEMPT: Record<AttemptState, AttemptState[]> = {
-  created: ['running', 'aborted', 'error'],
-  running: ['observing', 'error', 'aborted', 'failed'],
-  observing: ['passed', 'failed', 'error', 'aborted'],
+  created: ['running', 'aborted', 'error', 'interrupted'],
+  running: ['observing', 'error', 'aborted', 'failed', 'interrupted'],
+  observing: ['passed', 'failed', 'error', 'aborted', 'interrupted'],
+  // resumed as a Continuation (same attempt, same session)
+  interrupted: ['running', 'error', 'aborted'],
   passed: [],
   failed: [],
   error: [],

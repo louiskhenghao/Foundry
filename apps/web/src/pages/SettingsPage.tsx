@@ -244,6 +244,9 @@ export function SettingsPage() {
             <Field label="Cost cap per session (USD)" aside={aside('sessions.attemptMaxCostUsd')} help="The real guard: a worker session stops at this spend (also bounded by the goal's remaining budget).">
               {num('sessions.attemptMaxCostUsd', { min: 0.5, max: 500, step: 0.5 })}
             </Field>
+            <Field label="Continuations per attempt" aside={aside('sessions.maxContinuations')} help="How often one attempt may resume its own Claude session (after a restart, a turn/cost cap, a timeout, or failing checks with progress) before a fresh attempt is started. Resuming keeps the session's context — far cheaper than starting over. 0 = always start fresh.">
+              {num('sessions.maxContinuations', { min: 0, max: 5 })}
+            </Field>
             <Field label="Turn cap per session" aside={aside('sessions.attemptMaxTurns')} help="Only stops runaway loops; keep it generous so a session is not cut mid-work.">
               {num('sessions.attemptMaxTurns', { min: 10, max: 2000 })}
             </Field>
@@ -262,6 +265,19 @@ export function SettingsPage() {
                 <Select value={draft.workflow.profile} onChange={(e) => set('workflow.profile', e.target.value)}>
                   <option value="mattpocock">mattpocock (mandated + observed)</option>
                   <option value="plain">plain (hint only)</option>
+                </Select>
+              </Field>
+              <Field label="Default goal view" aside={aside('workflow.defaultMode')} help="What a new goal opens in. Simple: one plain-language Brief and a progress view; Expert: every control. Switchable per goal.">
+                <Select value={draft.workflow.defaultMode} onChange={(e) => set('workflow.defaultMode', e.target.value)}>
+                  <option value="expert">expert</option>
+                  <option value="simple">simple</option>
+                </Select>
+              </Field>
+              <Field label="TDD for new Expert goals" aside={aside('workflow.tdd')} help="required: workers must invoke tdd and the reviewer is told when they skipped it · preferred: suggested only · off: never mentioned. Simple goals start with preferred; each goal and task can override.">
+                <Select value={draft.workflow.tdd} onChange={(e) => set('workflow.tdd', e.target.value)}>
+                  <option value="required">required</option>
+                  <option value="preferred">preferred</option>
+                  <option value="off">off</option>
                 </Select>
               </Field>
               <Field label="Setting sources" aside={aside('workflow.settingSources')} help="`--setting-sources` for sessions, comma-separated (user, project, local); empty = inherit everything.">

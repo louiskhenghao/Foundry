@@ -7,6 +7,8 @@ export interface StreamItem {
   attemptId: string;
   ts: string;
   event: any;
+  /** set when another session shares the channel (e.g. the task reviewer on an attempt's log) */
+  role?: string;
 }
 
 interface LiveState {

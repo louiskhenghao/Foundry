@@ -100,14 +100,14 @@ describe('draft with AI', () => {
     const runner = new StructuredRunner((spec) => {
       if (spec.label?.startsWith('clarify')) return { ...full, tasks: [...full.tasks, task('T9', 'A2', 'placeholder')] };
       if (spec.label?.startsWith('draft area')) return { tasks: [task('N1', 'A2', 'add teacher home'), task('N2', 'A2', 'add grading view', ['N1'])], checks: [check('X1', 'N1'), check('X2', null)], rationale: 'two slices' };
-      return { spec: spec.label?.startsWith('draft acceptance') ? null : '## Do it\nbuild the page', kind: 'feature', scope: null, scenario: 'frontend', areaKey: 'A2', dependsOnKeys: ['T1', 'nope'], relevantFiles: ['README.md'], checks: [{ name: 'renders', tier: 'must', type: 'reviewer', cmd: null, rubric: 'page renders' }], rationale: 'because' };
+      return { spec: spec.label?.startsWith('draft acceptance') ? null : '## Do it\nbuild the page', kind: 'feature', scope: null, scenario: 'frontend', areaKey: 'A2', tdd: 'inherit' as const, dependsOnKeys: ['T1', 'nope'], relevantFiles: ['README.md'], checks: [{ name: 'renders', tier: 'must', type: 'reviewer', cmd: null, rubric: 'page renders' }], rationale: 'because' };
     });
     const engine = new Engine(cfg(), runner);
     const goal = await engine.createGoal({ prompt: 'portals', repoPath: repo });
     await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
     const { goalId: _g, ...brief } = getBrief(engine.store.db, goal.id)!.brief;
     // the page adds an empty task (unsaved) and asks for a draft
-    const draft = { ...brief, tasks: [...brief.tasks, { key: 'T2', title: 'add teacher home', spec: '', kind: 'feature' as const, scope: null, scenario: 'general' as const, areaKey: null, dependsOnKeys: [], parallelizable: true, relevantFiles: [] }] };
+    const draft = { ...brief, tasks: [...brief.tasks, { key: 'T2', title: 'add teacher home', spec: '', kind: 'feature' as const, scope: null, scenario: 'general' as const, areaKey: null, tdd: 'inherit' as const, dependsOnKeys: [], parallelizable: true, relevantFiles: [] }] };
     const p = await engine.draftBrief(goal.id, { mode: 'task', brief: draft, taskKey: 'T2', areaKey: null, notes: 'reuse the student layout' });
     expect(p.task).toEqual({ spec: '## Do it\nbuild the page', kind: 'feature', scenario: 'frontend', scope: null, areaKey: 'A2', dependsOnKeys: ['T1'], relevantFiles: ['README.md'] });
     expect(p.checks).toHaveLength(1);

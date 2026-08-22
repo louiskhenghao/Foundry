@@ -40,7 +40,7 @@ export function GoalsPage() {
               <Link key={g.id} to={href(g)} className="block rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 hover:border-zinc-600">
                 <div className="flex items-start justify-between gap-2">
                   <div className="text-sm text-zinc-100 leading-snug">{g.title}</div>
-                  <Badge state={g.state} />
+                  <Badge state={g.state} />{g.mode === 'simple' && <span className="text-[10px] rounded-full border border-zinc-700 text-zinc-400 px-1.5">simple</span>}
                 </div>
                 <div className="text-[11px] text-zinc-500 mono truncate mt-1">{g.repoPath}</div>
                 <div className="flex items-center gap-3 text-[11px] text-zinc-400 mt-2 flex-wrap">
@@ -77,7 +77,7 @@ export function GoalsPage() {
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
-                        <Badge state={g.state} />
+                        <Badge state={g.state} />{g.mode === 'simple' && <span className="text-[10px] rounded-full border border-zinc-700 text-zinc-400 px-1.5">simple</span>}
                         {g.openEscalations > 0 && <span className="text-orange-400 text-xs">⚠ {g.openEscalations}</span>}
                       </div>
                     </td>

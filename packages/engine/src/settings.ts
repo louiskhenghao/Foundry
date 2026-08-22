@@ -24,6 +24,7 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'models.worker': { name: 'AI_ENGINE_MODEL_WORKER', parse: str },
   'models.fallbacks': { name: 'AI_ENGINE_MODEL_FALLBACKS', parse: (v) => v.split(',').map((s) => s.trim()).filter(Boolean) },
   'sessions.attemptMaxTurns': { name: 'AI_ENGINE_ATTEMPT_MAX_TURNS', parse: num },
+  'sessions.maxContinuations': { name: 'AI_ENGINE_MAX_CONTINUATIONS', parse: num },
   'sessions.attemptMaxCostUsd': { name: 'AI_ENGINE_ATTEMPT_MAX_COST', parse: num },
   'workflow.profile': { name: 'AI_ENGINE_WORKFLOW', parse: str },
   'workflow.tdd': { name: 'AI_ENGINE_TDD', parse: str },
@@ -184,6 +185,7 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('models.worker')) config.models.worker = s.models.worker;
   if (on('models.fallbacks')) config.modelFallbacks = s.models.fallbacks;
   if (on('sessions.attemptMaxTurns')) config.attemptMaxTurns = s.sessions.attemptMaxTurns;
+  if (on('sessions.maxContinuations')) config.maxContinuations = s.sessions.maxContinuations;
   if (on('sessions.attemptMaxCostUsd')) config.attemptMaxCostUsd = s.sessions.attemptMaxCostUsd;
   if (on('sessions.attemptTimeoutMin')) config.attemptTimeoutMs = s.sessions.attemptTimeoutMin * 60_000;
   if (on('workflow.profile')) config.workflowProfile = s.workflow.profile;

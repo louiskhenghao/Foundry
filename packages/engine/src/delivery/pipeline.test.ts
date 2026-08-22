@@ -138,7 +138,7 @@ describe('delivery pipeline', () => {
   });
 
   // ---- stacked, one PR per task
-  const t = (key: string, title: string, deps: string[], kind: 'feature' | 'bug' = 'feature') => ({ key, title, spec: `write ${title}.txt`, kind, scope: null, scenario: 'general' as const, areaKey: null, dependsOnKeys: deps, parallelizable: false, relevantFiles: [] });
+  const t = (key: string, title: string, deps: string[], kind: 'feature' | 'bug' = 'feature') => ({ key, title, spec: `write ${title}.txt`, kind, scope: null, scenario: 'general' as const, areaKey: null, tdd: 'inherit' as const, dependsOnKeys: deps, parallelizable: false, relevantFiles: [] });
   const c = (key: string, taskKey: string | null, cmd: string) => ({ key, name: key, tier: 'must' as const, taskKey, areaKey: null, spec: { type: 'command' as const, cmd, timeoutMs: 60_000, expectExitCode: 0 } });
   const twoTasks = () => ({
     title: 'feat(demo): add two files',

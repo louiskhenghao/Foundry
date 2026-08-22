@@ -5,7 +5,7 @@ import { depths } from './dag.ts';
 export const LARGE_BRIEF_TASKS = 12;
 
 /** Areas that have no task yet. Coverage means every Area has at least one. */
-export function uncoveredAreas(brief: Pick<Brief, 'areas' | 'tasks'>): BriefArea[] {
+export function uncoveredAreas(brief: { areas: BriefArea[]; tasks: Pick<BriefTask, 'areaKey'>[] }): BriefArea[] {
   const used = new Set(brief.tasks.map((t) => t.areaKey));
   return brief.areas.filter((a) => !used.has(a.key));
 }

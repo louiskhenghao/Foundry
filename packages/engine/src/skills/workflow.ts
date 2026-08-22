@@ -101,6 +101,8 @@ export function formatWorkflowSection(i: WorkflowSectionInput): string | null {
   const ruleNames = new Set(rules.map((r) => r.invoke));
   const others = visible
     .filter((s) => s.entry.roles.includes(i.role) && scenarioOk(s.entry.scenarios, i.scenario))
+    // discipline off = not mentioned at all, not even as "installed"
+    .filter((s) => !(s.entry.name === 'tdd' && i.discipline?.tdd === 'off'))
     .map((s) => s.entry.invoke ?? s.installedInvoke ?? `/${s.entry.name}`)
     .filter((inv) => !ruleNames.has(inv))
     .slice(0, 8);

@@ -14,6 +14,7 @@ import { DeliveryTab } from './DeliveryTab.tsx';
 import { DiffTab } from './DiffTab.tsx';
 import { OverviewTab } from './OverviewTab.tsx';
 import { TaskDrawer } from './TaskDrawer.tsx';
+import { SimpleOverview } from './SimpleOverview.tsx';
 
 type Tab = 'overview' | 'tasks' | 'activity' | 'diff' | 'delivery';
 const TABS: Tab[] = ['overview', 'tasks', 'activity', 'diff', 'delivery'];
@@ -30,6 +31,14 @@ export function GoalPage() {
   /** false = closed; true = open (all); string = open, preselect that task */
   const [restart, setRestart] = useState<boolean | string>(false);
   const [delBranch, setDelBranch] = useState(false);
+  const [expert, setExpert] = useState<boolean | null>(() => {
+    const v = localStorage.getItem(`ai-engine.expert.${id}`);
+    return v === null ? null : v === '1';
+  });
+  const setView = (e: boolean) => {
+    setExpert(e);
+    localStorage.setItem(`ai-engine.expert.${id}`, e ? '1' : '0');
+  };
   const [deleting, setDeleting] = useState(false);
   const tab = (TABS.find((t) => `#${t}` === loc.hash) ?? 'overview') as Tab;
   const setTab = (t: Tab) => nav({ hash: t }, { replace: true });
@@ -157,6 +166,17 @@ export function GoalPage() {
         </Card>
       )}
 
+      {(expert ?? g.mode !== 'simple') === false ? (
+        <SimpleOverview d={d} onExpert={() => setView(true)} />
+      ) : (
+        <>
+      {!awaiting && (
+        <div className="text-right">
+          <Button size="sm" variant="ghost" onClick={() => setView(false)} title="Back to the plain progress view">
+            Simple view
+          </Button>
+        </div>
+      )}
       <Tabs<Tab>
         value={tab}
         onChange={setTab}
@@ -185,6 +205,8 @@ export function GoalPage() {
       {tab === 'activity' && <ActivityTab d={d} />}
       {tab === 'diff' && <DiffTab goalId={id} baseBranch={g.baseBranch} branch={g.branch} />}
       {tab === 'delivery' && <DeliveryTab d={d} />}
+        </>
+      )}
     </div>
   );
 }

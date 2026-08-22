@@ -104,3 +104,23 @@ describe('workflow observation', () => {
     expect(formatWorkflowObservation(null)).toBe('');
   });
 });
+
+describe('discipline', () => {
+  const base = { role: 'worker' as const, taskKind: 'feature' as const, profile: 'mattpocock' as const, statuses };
+  test('tdd off drops the tdd rule, preferred downgrades it, other rules untouched', () => {
+    expect(mandatedSkillsFor({ ...base }).map((m) => m.name)).toEqual(['tdd']);
+    expect(mandatedSkillsFor({ ...base, discipline: { tdd: 'required' } }).map((m) => m.name)).toEqual(['tdd']);
+    expect(mandatedSkillsFor({ ...base, discipline: { tdd: 'preferred' } })).toEqual([]);
+    expect(applicableRules({ ...base, discipline: { tdd: 'preferred' } }).map((r) => [r.name, r.mandate])).toEqual([
+      ['tdd', 'prefer'],
+      ['codebase-design', 'prefer'],
+    ]);
+    expect(applicableRules({ ...base, discipline: { tdd: 'off' } }).map((r) => r.name)).toEqual(['codebase-design']);
+    const off = formatWorkflowSection({ ...base, discipline: { tdd: 'off' } })!;
+    expect(off).not.toContain('/mattpocock-skills:tdd');
+    const pref = formatWorkflowSection({ ...base, discipline: { tdd: 'preferred' } })!;
+    expect(pref).toContain('Prefer: invoke `/mattpocock-skills:tdd`');
+    // bug tasks are unaffected
+    expect(mandatedSkillsFor({ ...base, taskKind: 'bug', discipline: { tdd: 'off' } }).map((m) => m.name)).toEqual(['diagnosing-bugs']);
+  });
+});

@@ -24,6 +24,8 @@ export interface EngineConfig {
   modelFallbacks: string[];
   attemptTimeoutMs: number;
   attemptMaxTurns: number;
+  /** continuations (session resumes) allowed per attempt before a fresh attempt; 0 = off */
+  maxContinuations: number;
   /** Per-attempt cost cap passed as --max-budget-usd (also bounded by goal remaining budget). */
   attemptMaxCostUsd: number;
   /** Extra ERE patterns for the boundary guard, '|'-separated. */
@@ -73,6 +75,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     models: { strong: process.env.AI_ENGINE_MODEL_STRONG ?? 'opus', cheap: process.env.AI_ENGINE_MODEL_CHEAP ?? 'haiku', worker: process.env.AI_ENGINE_MODEL_WORKER ?? 'opus' },
     modelFallbacks: (process.env.AI_ENGINE_MODEL_FALLBACKS ?? 'opus,sonnet,haiku').split(',').map((s) => s.trim()).filter(Boolean),
     attemptTimeoutMs: 20 * 60_000,
+    maxContinuations: process.env.AI_ENGINE_MAX_CONTINUATIONS ? Number(process.env.AI_ENGINE_MAX_CONTINUATIONS) : 2,
     // the cost cap is the real guard; turns only stop runaway loops
     attemptMaxTurns: Number(process.env.AI_ENGINE_ATTEMPT_MAX_TURNS ?? 150),
     // per-session cap; a strong model on a real task often needs $3–8, and a session killed mid-work wastes what it spent

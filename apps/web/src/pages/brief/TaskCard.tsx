@@ -96,7 +96,7 @@ export function TaskCard({ task, brief, goalId, editable, open, onToggle, edit }
 
       {open && (
         <div className="border-t border-zinc-800 p-2.5 space-y-3">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
             <label className="block">
               <span className="text-zinc-500">Area</span>
               <Select disabled={!editable} className="text-xs py-1 mt-0.5" value={task.areaKey ?? ''} onChange={(e) => change({ areaKey: e.target.value || null })}>
@@ -126,6 +126,13 @@ export function TaskCard({ task, brief, goalId, editable, open, onToggle, edit }
                     {s}
                   </option>
                 ))}
+              </Select>
+            </label>
+            <label className="block">
+              <span className="text-zinc-500">TDD</span>
+              <Select disabled={!editable} className="text-xs py-1 mt-0.5" value={task.tdd} onChange={(e) => change({ tdd: e.target.value as BriefTask['tdd'] })} title="inherit the goal's discipline, or switch TDD off for this task (docs / infra tasks are off automatically)">
+                <option value="inherit">inherit</option>
+                <option value="off">off</option>
               </Select>
             </label>
             <label className="block">
