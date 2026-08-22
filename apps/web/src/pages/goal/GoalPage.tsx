@@ -1,6 +1,6 @@
 import { Ban, Folder, GitBranch, RotateCcw, Trash2 } from 'lucide-react';
 import { RestartDialog } from '../../components/RestartDialog.tsx';
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api, type GoalDetail } from '../../api.ts';
 import { useLive } from '../../store.ts';
@@ -170,12 +170,35 @@ export function GoalPage() {
           <Card title={`Tasks (${d.tasks.length})`}>
             <DagCanvas tasks={dagTasks} selected={sel} onSelect={setSel} />
           </Card>
-          {selTask && <TaskDrawer d={d} task={selTask} onClose={() => setSel(null)} onRestart={() => setRestart(selTask.id)} />}
+          {selTask && (
+            <FullScreen onClose={() => setSel(null)}>
+              <TaskDrawer d={d} task={selTask} onClose={() => setSel(null)} onRestart={() => setRestart(selTask.id)} />
+            </FullScreen>
+          )}
         </div>
       )}
       {tab === 'activity' && <ActivityTab d={d} />}
       {tab === 'diff' && <DiffTab goalId={id} baseBranch={g.baseBranch} branch={g.branch} />}
       {tab === 'delivery' && <DeliveryTab d={d} />}
+    </div>
+  );
+}
+
+/** Full-screen overlay for the task drawer: no more scrolling past the graph; Escape or the × closes it. */
+function FullScreen({ children, onClose }: { children: ReactNode; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-50 bg-zinc-950/95 backdrop-blur-sm overflow-auto">
+      <div className="max-w-6xl mx-auto p-3 sm:p-6 min-h-full">{children}</div>
     </div>
   );
 }

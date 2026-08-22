@@ -1,4 +1,5 @@
 import type { Brief, CheckResult, DeliveryPlanStep, DeliveryPolicy, Goal, Task } from '@ai-engine/core';
+import { decisionsOf } from '@ai-engine/core';
 import { headerOf } from '../git/conventional.ts';
 
 export const needsGh = (p: DeliveryPolicy) => p.mode === 'pr' || p.mode === 'pr-automerge' || !!p.createRepo;
@@ -82,6 +83,10 @@ export function buildPrBody(goal: Goal, brief: Brief | null, review: { mustResul
   const lines: string[] = [];
   lines.push(`## Goal\n\n${goal.prompt.trim()}`);
   if (brief) lines.push(`## Understanding\n\n${brief.understanding.trim()}`);
+  if (brief) {
+    const ds = decisionsOf(brief);
+    if (ds.length) lines.push(`## Decisions\n\n${ds.map((d) => (d.kind === 'answer' ? `- **${d.text}** — ${d.answer}` : `- ~~${d.text}~~ (assumption rejected)`)).join('\n')}`);
+  }
   if (review) {
     const row = (r: CheckResult) => `| ${checkNames.get(r.checkId) ?? r.checkId} | ${r.status === 'pass' ? '✅ pass' : `❌ ${r.status}`} |`;
     lines.push(`## Acceptance\n\n| Must | result |\n|---|---|\n${review.mustResults.map(row).join('\n') || '| — | |'}`);

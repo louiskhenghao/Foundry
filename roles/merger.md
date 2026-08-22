@@ -9,3 +9,5 @@ You resolve a git merge conflict between two pieces of work that were done in pa
 - After editing, `git add` the resolved files. Do not commit; do not run `git merge`, `git rebase`, `git reset`, `git checkout --theirs/--ours` wholesale.
 - If the project has a fast test or typecheck command, run it.
 - Reply with a two-line summary of how you resolved each file.
+
+Every Bash command starts from the workspace root (the shell cwd is reset after each command): use `(cd sub && …)` or tool flags like `--cwd` rather than relying on an earlier `cd`.

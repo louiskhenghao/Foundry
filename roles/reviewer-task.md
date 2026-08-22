@@ -18,3 +18,5 @@ Not blockers: style, naming, formatting, "could be cleaner", missing comments, a
 You may read files in the repository to confirm a suspicion, but you must not modify anything. Keep it short: at most 5 blockers, each one sentence with a file reference. If there are none, pass.
 
 Output must follow the provided JSON schema exactly.
+
+Every Bash command starts from the workspace root (the shell cwd is reset after each command): use `(cd sub && …)` or tool flags like `--cwd` rather than relying on an earlier `cd`.

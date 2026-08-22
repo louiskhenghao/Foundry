@@ -132,7 +132,9 @@ export class ClaudeCliRunner implements ClaudeRunner {
       toolsUsed: { ...toolsUsed },
     });
 
-    const env = { ...process.env, ...(this.opts.env ?? {}), ...(spec.env ?? {}) } as Record<string, string>;
+    // The Bash tool keeps its cwd between calls; a second `cd apps/x && …` then fails with "(eval):cd:1: no such file".
+    // This flag returns the shell to the workspace root after every command (verified to apply to `-p` sessions).
+    const env = { CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR: '1', ...process.env, ...(this.opts.env ?? {}), ...(spec.env ?? {}) } as Record<string, string>;
     // Never inherit an API key by accident: the whole point is the host login.
     delete env.ANTHROPIC_API_KEY;
 

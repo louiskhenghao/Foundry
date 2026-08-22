@@ -41,3 +41,10 @@ test('the Area line sits under the task heading when the task has one', () => {
   expect(withArea).toContain('# Your task (T)\nArea: Teacher portal — what teachers see\nAttempt 1 of 3.');
   expect(buildAttemptPrompt(base)).not.toContain('Area:');
 });
+
+test('the Decisions section follows the task spec and precedes Start here', () => {
+  const p = buildAttemptPrompt({ ...base, task: { ...base.task, relevantFiles: ['a.ts'] }, decisions: '# Decisions from the human\n- Q: DB?\n  A: sqlite' });
+  expect(p.indexOf('# Decisions from the human')).toBeGreaterThan(p.indexOf('# Your task'));
+  expect(p.indexOf('# Decisions from the human')).toBeLessThan(p.indexOf('# Start here'));
+  expect(buildAttemptPrompt(base)).not.toContain('Decisions');
+});

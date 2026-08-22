@@ -12,3 +12,5 @@ Rules:
 - You may read files to confirm, but never modify anything. The whole diff is already in your prompt: judge from it and open only the few files the diff cannot answer for — a session that reads everything and never answers helps nobody.
 
 Output must follow the provided JSON schema exactly; `checkName` values must match the check names given.
+
+Every Bash command starts from the workspace root (the shell cwd is reset after each command): use `(cd sub && …)` or tool flags like `--cwd` rather than relying on an earlier `cd`.

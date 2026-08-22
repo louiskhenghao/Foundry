@@ -6,7 +6,10 @@ export const BriefAssumption = z.object({
   id: z.string(),
   text: z.string(),
   accepted: z.boolean().default(true),
+  /** a rejected assumption is a Decision; true once a Revise honoured it (or the human said no change was needed) */
+  applied: z.boolean().default(false),
 });
+export type BriefAssumption = z.infer<typeof BriefAssumption>;
 
 /**
  * An Area is a part of the product the goal covers (a user-facing role or app, or cross-cutting groundwork).
@@ -55,6 +58,8 @@ export const BriefQuestion = z.object({
   answer: z.string().nullable().default(null),
   blocking: z.boolean().default(true),
   areaKey: z.string().nullable().default(null),
+  /** an answered question is a Decision; true once a Revise honoured it (or the human said no change was needed) */
+  applied: z.boolean().default(false),
 });
 export type BriefQuestion = z.infer<typeof BriefQuestion>;
 
@@ -133,6 +138,18 @@ export const BriefOutput = z.object({
     .describe('Questions you could not safely assume. Prefer assumptions over questions.'),
 });
 export type BriefOutput = z.infer<typeof BriefOutput>;
+
+/**
+ * What a Revise session emits: the whole Brief again, honouring the human's Decisions. Questions stay the human's
+ * (only new, non-blocking ones may be added); keys of unchanged tasks/checks/areas must be kept so the page can diff.
+ */
+export const RevisionOutput = BriefOutput.omit({ questions: true }).extend({
+  changeSummary: z.string().describe('One to three sentences for the human: what changed because of which decision, and what was left alone.'),
+  newQuestions: z
+    .array(z.object({ text: z.string(), areaKey: z.string().nullable() }))
+    .describe('Only genuinely new, non-blocking questions raised by the decisions. Usually empty.'),
+});
+export type RevisionOutput = z.infer<typeof RevisionOutput>;
 
 /** What a Draft session emits for one task (mode `task` fills everything, mode `acceptance` only proposes checks). */
 export const TaskDraftOutput = z.object({

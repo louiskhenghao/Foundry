@@ -52,7 +52,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json({ error: String(err.message ?? err) }, 400);
   });
 
-  app.get('/api/health', (c) => c.json({ ok: true, active: engine.runner.active(), events: engine.store.count(), pausedUntil: engine.rateLimitedUntilIso(), restartNeeded: engine.settings.restartNeeded() }));
+  // `active` = everything a restart would interrupt (sessions + attempts between sessions + clarify/review/delivery); `busy` breaks it down
+  app.get('/api/health', (c) => {
+    const busy = engine.busy();
+    return c.json({ ok: true, active: busy.total, busy, events: engine.store.count(), pausedUntil: engine.rateLimitedUntilIso(), restartNeeded: engine.settings.restartNeeded() });
+  });
 
   app.get('/api/goals', (c) => {
     const goals = listGoals(db).map((g) => {
@@ -547,9 +551,10 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   if (dist && existsSync(dist)) {
     app.get('*', async (c) => {
       const p = new URL(c.req.url).pathname;
+      // hashed assets may be cached forever; index.html must be revalidated or the browser keeps an old bundle after a rebuild
       const file = Bun.file(join(dist, p === '/' ? 'index.html' : p));
-      if (await file.exists()) return new Response(file);
-      return new Response(Bun.file(join(dist, 'index.html')));
+      if (p !== '/' && (await file.exists())) return new Response(file, { headers: p.startsWith('/assets/') ? { 'Cache-Control': 'public, max-age=31536000, immutable' } : { 'Cache-Control': 'no-cache' } });
+      return new Response(Bun.file(join(dist, 'index.html')), { headers: { 'Cache-Control': 'no-cache' } });
     });
   } else {
     app.get('/', (c) => c.text('ai-engine server. Web UI not built: run `bun run web:build`. API at /api/*'));

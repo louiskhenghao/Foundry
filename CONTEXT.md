@@ -47,10 +47,16 @@ A layer of the Task DAG as shown on the Brief page: Tasks of one Stage do not de
 The user asking the system, on the Brief page, to write what is missing for one Task (its spec, attributes and Checks), to propose Checks for a Task that already has a spec, or to propose Tasks for an uncovered Area. The result is a **Proposal**: nothing enters the Brief until the user accepts it item by item, and the system never rewrites text the user wrote.
 
 **Assumption**
-A statement in the Brief the system is proceeding on unless the user overrides it. Assumptions are accepted by default — leaving one untouched means agreeing with it.
+A statement in the Brief the system is proceeding on unless the user overrides it. Assumptions are accepted by default — leaving one untouched means agreeing with it; rejecting one is a Decision.
 
 **Question**
-Something the system could not safely assume. A *blocking* Question must be answered before the Brief can be approved.
+Something the system could not safely assume. A *blocking* Question must be answered before the Brief can be approved. An answer is a Decision.
+
+**Decision**
+A choice the user made on the Brief that the system must honour: the answer to a Question, or a rejected Assumption. Decisions belong to the Goal, not to a Task — every Worker, Reviewer and the pull request receive them verbatim, and a re-run Clarify starts from them instead of asking again. A Decision is *applied* once a Revise honoured it (or the user said no change was needed); changing the answer makes it pending again.
+
+**Revise**
+The user asking the system to re-read the Brief in the light of the current Decisions: the Clarifier looks at the repository again (read-only) and proposes what the Decisions imply — changed, added or dropped Tasks, Checks and Areas, an updated understanding. The result is a Proposal accepted item by item; the Brief can still be approved with pending Decisions, it merely says so.
 
 ## Human involvement
 

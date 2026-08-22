@@ -1,8 +1,8 @@
-import type { Attachment, Attempt, Brief, BriefCheck, BriefTask, Budgets, Check, CheckResult, DeliveryPlanStep, DeliveryPolicy, DeliveryState, EngineEvent, Escalation, EscalationAnswer, Goal, SettingsPatch, SettingsView, Task } from '@ai-engine/core/browser';
+import type { Attachment, Attempt, Brief, BriefCheck, BriefDiff, BriefTask, Budgets, Check, CheckResult, DeliveryPlanStep, DeliveryPolicy, DeliveryState, EngineEvent, Escalation, EscalationAnswer, Goal, SettingsPatch, SettingsView, Task } from '@ai-engine/core/browser';
 
 /** Draft with AI on the Brief page (mirrors engine's DraftRequest / DraftProposal). */
 export interface DraftRequest {
-  mode: 'task' | 'acceptance' | 'area';
+  mode: 'task' | 'acceptance' | 'area' | 'revise';
   brief: Omit<Brief, 'goalId'>;
   taskKey?: string | null;
   areaKey?: string | null;
@@ -16,6 +16,7 @@ export interface DraftProposal {
   checks: BriefCheck[];
   rationale: string;
   costUsd: number;
+  revision?: { diff: BriefDiff; revised: Omit<Brief, 'goalId'>; changeSummary: string };
 }
 
 export interface BaseSync {

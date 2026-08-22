@@ -6,6 +6,7 @@ import {
   DeliveryPolicy,
   IDLE_DELIVERY,
   proposeBudgetFromEstimate,
+  renderDecisions,
   EventStore,
   IdPrefix,
   getAttempt,
@@ -235,7 +236,10 @@ export class Engine {
       else if (await branchExists(goal.branch, goal.repoPath).catch(() => false)) await git(['branch', '-D', goal.branch], goal.repoPath);
       rebuilt = true;
     }
-    this.store.append({ type: 'goal.reclarified', goalId, payload: { reason, workspaceRebuilt: rebuilt } });
+    // the Brief is discarded, the human's Decisions are not: the new Clarify receives them and must not ask again
+    const prior = getBrief(this.store.db, goalId)?.brief;
+    const decisions = prior ? renderDecisions(prior, '# Decisions already made by the human') : '';
+    this.store.append({ type: 'goal.reclarified', goalId, payload: { reason, workspaceRebuilt: rebuilt, decisions } });
     this.store.append({ type: 'goal.state_changed', goalId, payload: { from: 'awaiting_brief_approval', to: 'clarifying', reason: `re-run clarify: ${reason}` } });
   }
 
@@ -318,6 +322,8 @@ export class Engine {
         if (t.state === 'merging') this.store.append({ type: 'task.state_changed', goalId: a.goalId, payload: { taskId: t.id, from: 'merging', to: 'observing', reason: 'orphaned merge' } });
         const from = t.state === 'merging' ? 'observing' : t.state;
         this.store.append({ type: 'task.state_changed', goalId: a.goalId, payload: { taskId: t.id, from, to: 'ready', reason: 'engine restarted; attempt orphaned' } });
+        // an orphaned attempt is not a failed one: give the budget back so a restart never exhausts a task's retries
+        if (a.kind === 'work') this.store.append({ type: 'task.hint_set', goalId: a.goalId, payload: { taskId: t.id, hint: t.hint, extraAttempts: 1 } });
       }
       this.store.append({ type: 'engine.note', goalId: a.goalId, payload: { level: 'warn', message: `attempt ${a.id} was orphaned by an engine restart` } });
     }
@@ -518,6 +524,15 @@ export class Engine {
   }
   isInFlight(taskId: string): boolean {
     return this.inFlight.has(taskId);
+  }
+  /**
+   * Everything a restart would interrupt — not just Claude processes: an attempt between two sessions (running checks,
+   * merging, waiting for the workspace lock), a clarify, a goal review or a delivery in progress all count.
+   */
+  busy(): { sessions: number; attempts: number; clarifying: number; reviewing: number; delivering: number; total: number } {
+    const b = { sessions: this.runner.active(), attempts: this.inFlight.size, clarifying: this.clarifying.size, reviewing: this.reviewing.size, delivering: this.delivering.size, total: 0 };
+    b.total = b.sessions + b.attempts + b.clarifying + b.reviewing + b.delivering;
+    return b;
   }
   inFlightForGoal(goalId: string): string[] {
     return [...this.inFlight.entries()].filter(([, f]) => f.goalId === goalId).map(([t]) => t);

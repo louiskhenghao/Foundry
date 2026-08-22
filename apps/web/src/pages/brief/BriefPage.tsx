@@ -1,5 +1,5 @@
 import type { Brief } from '@ai-engine/core/browser';
-import { proposeBudgetFromEstimate, topoSort, uncoveredAreas } from '@ai-engine/core/browser';
+import { pendingDecisions, proposeBudgetFromEstimate, topoSort, uncoveredAreas } from '@ai-engine/core/browser';
 import { RotateCcw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -9,6 +9,7 @@ import { useLive } from '../../store.ts';
 import { Badge, Button, Card, Empty, Input, Textarea, cn, fmtLimitMin, fmtLimitUsd } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { AreasCard } from './AreasCard.tsx';
+import { DecisionsBar } from './DecisionsBar.tsx';
 import { GoalAcceptanceCard } from './GoalAcceptanceCard.tsx';
 import { PlanSection } from './PlanSection.tsx';
 import { areaOf, areaStyle, checkProblem, taskProblem } from './shared.ts';
@@ -78,6 +79,7 @@ export function BriefPage() {
   const badChecks = brief.checks.filter((c) => checkProblem(c));
   const badTasks = brief.tasks.filter((t) => taskProblem(t));
   const gaps = uncoveredAreas(brief);
+  const pending = pendingDecisions(brief);
   const blockers = [
     blockingUnanswered.length ? `${blockingUnanswered.length} blocking question${blockingUnanswered.length > 1 ? 's' : ''} unanswered` : '',
     !graph.ok ? 'task graph has a cycle' : '',
@@ -155,7 +157,7 @@ export function BriefPage() {
                     {area && <span className={cn('text-[10px] rounded-full border px-2 py-0.5', areaStyle(brief, q.areaKey).chip)}>{area.name}</span>}
                     <span>{q.text}</span>
                   </div>
-                  <Input disabled={!editable} placeholder="Your answer" value={q.answer ?? ''} onChange={(e) => update({ questions: brief.questions.map((x, j) => (j === i ? { ...x, answer: e.target.value } : x)) })} />
+                  <Input disabled={!editable} placeholder="Your answer" value={q.answer ?? ''} onChange={(e) => update({ questions: brief.questions.map((x, j) => (j === i ? { ...x, answer: e.target.value, applied: false } : x)) })} />
                 </div>
               );
             })}
@@ -168,13 +170,14 @@ export function BriefPage() {
         <div className="space-y-1.5">
           {brief.assumptions.map((a, i) => (
             <label key={a.id} className="flex items-start gap-2 text-sm">
-              <input type="checkbox" className="mt-1" disabled={!editable} checked={a.accepted} onChange={(e) => update({ assumptions: brief.assumptions.map((x, j) => (j === i ? { ...x, accepted: e.target.checked } : x)) })} />
+              <input type="checkbox" className="mt-1" disabled={!editable} checked={a.accepted} onChange={(e) => update({ assumptions: brief.assumptions.map((x, j) => (j === i ? { ...x, accepted: e.target.checked, applied: false } : x)) })} />
               <span className={cn(!a.accepted && 'line-through text-zinc-500')}>{a.text}</span>
             </label>
           ))}
         </div>
       </Card>
 
+      <DecisionsBar brief={brief} goalId={id} editable={editable} edit={edit} />
       <AreasCard brief={brief} goalId={id} editable={editable} edit={edit} />
       <PlanSection brief={brief} goalId={id} editable={editable} edit={edit} />
       <GoalAcceptanceCard brief={brief} editable={editable} edit={edit} />
@@ -231,9 +234,10 @@ export function BriefPage() {
       {err && <div className="text-sm text-rose-400">{err}</div>}
       {editable ? (
         <div className="flex items-center justify-end gap-2 flex-wrap sticky bottom-0 py-3 bg-zinc-950/90 backdrop-blur">
-          {gaps.length > 0 && (
-            <span className="text-[11px] text-amber-300 mr-auto" title="Areas without tasks will simply not be built">
-              {gaps.map((a) => a.name).join(', ')} {gaps.length > 1 ? 'have' : 'has'} no tasks
+          {(gaps.length > 0 || pending.length > 0) && (
+            <span className="text-[11px] text-amber-300 mr-auto">
+              {gaps.length > 0 && <span title="Areas without tasks will simply not be built">{gaps.map((a) => a.name).join(', ')} {gaps.length > 1 ? 'have' : 'has'} no tasks. </span>}
+              {pending.length > 0 && <span title="Workers receive your decisions, but the tasks and checks were planned before them">{pending.length} decision{pending.length > 1 ? 's' : ''} not applied to the plan — Revise, or approve anyway.</span>}
             </span>
           )}
           {blockers.length > 0 && <span className="text-[11px] text-zinc-500">{blockers.join(' · ')}</span>}

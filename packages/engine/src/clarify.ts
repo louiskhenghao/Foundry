@@ -28,6 +28,7 @@ export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
         answer: null,
         blocking: true,
         areaKey: null,
+        applied: false,
       });
     }
     // explore the goal worktree, not the user's checkout: it was just fetched and may be ahead of the local base
@@ -41,7 +42,10 @@ export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
     if (log && log.code === 0 && log.stdout.trim()) overview = `${overview ?? ''}\n\n## Recent commits\n${log.stdout.trim()}`.trim();
 
     const [clarifierHint, plannerHint] = await Promise.all([engine.skills.hints.sectionFor('clarifier'), engine.skills.hints.sectionFor('planner')]);
-    const prompt = buildClarifyPrompt(goal, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'));
+    // a re-run keeps the human's Decisions from the discarded Brief
+    const reclarified = store.listByGoal(goal.id, 5000).filter((e) => e.type === 'goal.reclarified').at(-1);
+    const decisions = reclarified ? ((reclarified.payload as { decisions?: string }).decisions ?? '') : '';
+    const prompt = buildClarifyPrompt(goal, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions);
     const addDirs = goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined;
     const schema = zodToJsonSchema(BriefOutput, { $refStrategy: 'none' });
     const transcriptPath = join(config.dataDir, 'transcripts', `clarify-${goal.id}.jsonl`);
@@ -102,7 +106,7 @@ export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
       brief = toBrief(goal, parsed.data, questions);
       // still uncovered after the repair turn: leave the gap to the human (Draft on the Brief page, or delete the Area)
       for (const a of uncoveredAreas(brief)) {
-        brief.questions.push({ id: newId('q'), text: `Area "${a.name}" has no tasks yet. Use "Draft tasks for this Area" on the Brief page, or delete the Area if this goal does not cover it.`, answer: null, blocking: false, areaKey: a.key });
+        brief.questions.push({ id: newId('q'), text: `Area "${a.name}" has no tasks yet. Use "Draft tasks for this Area" on the Brief page, or delete the Area if this goal does not cover it.`, answer: null, blocking: false, areaKey: a.key, applied: false });
       }
     } else {
       brief = {
@@ -117,7 +121,7 @@ export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
         timeEstimateMin: 0,
         questions: [
           ...questions,
-          { id: newId('q'), text: 'The clarifier could not produce a structured Brief. Edit the tasks and checks manually, then answer "ok" here.', answer: null, blocking: true, areaKey: null },
+          { id: newId('q'), text: 'The clarifier could not produce a structured Brief. Edit the tasks and checks manually, then answer "ok" here.', answer: null, blocking: true, areaKey: null, applied: false },
         ],
       };
     }
@@ -131,9 +135,10 @@ export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
   }
 }
 
-function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: string | null = null, attachments = ''): string {
+function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: string | null = null, attachments = '', decisions = ''): string {
   return [
     `# Goal from the user\n${goal.prompt}`,
+    decisions ? `${decisions}\nTreat these as settled: plan with them, record them as assumptions, and do not ask about them again.` : '',
     attachments ? `${attachments}\nWhen an attachment matters for a specific task, name it (by file name) in that task's spec.` : '',
     overview ? `# Repository overview\n${overview}` : '',
     skillsHint ?? '',
@@ -163,12 +168,12 @@ export function toBrief(goal: Goal, o: BriefOutput, extraQuestions: Brief['quest
     title: o.title?.trim() ?? '',
     understanding: o.understanding,
     areas: o.areas.map((a) => ({ key: a.key, name: a.name, slug: a.slug, description: a.description ?? '' })),
-    assumptions: o.assumptions.map((text) => ({ id: newId('as'), text, accepted: true })),
+    assumptions: o.assumptions.map((text) => ({ id: newId('as'), text, accepted: true, applied: false })),
     checks: o.checks.map((c) => ({ key: c.key, name: c.name, tier: c.tier, taskKey: c.taskKey, areaKey: c.taskKey ? null : area(c.areaKey), spec: materializeCheck(c, c.taskKey) })),
     tasks: o.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind ?? 'feature', scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), dependsOnKeys: t.dependsOnKeys, parallelizable: t.parallelizable, relevantFiles: t.relevantFiles })),
     costEstimateUsd: o.costEstimateUsd,
     timeEstimateMin: o.timeEstimateMin,
-    questions: [...extraQuestions, ...o.questions.map((q) => ({ id: newId('q'), text: q.text, answer: null, blocking: q.blocking, areaKey: area(q.areaKey) }))],
+    questions: [...extraQuestions, ...o.questions.map((q) => ({ id: newId('q'), text: q.text, answer: null, blocking: q.blocking, areaKey: area(q.areaKey), applied: false }))],
   };
 }
 

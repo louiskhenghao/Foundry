@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import type { Check, CheckResult, Goal, Task } from '@ai-engine/core';
-import { IdPrefix, getBrief, listChecks, listTasks, newId } from '@ai-engine/core';
+import { IdPrefix, getBrief, listChecks, listTasks, newId, renderDecisions } from '@ai-engine/core';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { attachmentsDir, renderAttachments } from './attachments.ts';
@@ -171,6 +171,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
     `# Goal\n${goal.title}\n\n${goal.prompt}`,
     renderAttachments(goal, engine.config.dataDir),
     brief ? `# Approved understanding\n${brief.understanding}` : '',
+    brief ? renderDecisions(brief) : '',
     reviewerHint ?? '',
     `# Fixed point\nThe base of this review is \`${goal.baseBranch}\`; everything in the diff below was added by this goal.`,
     `# Acceptance checks\nObjective command checks were already executed by the engine; their status is shown. You judge the reviewer-type checks and the overall result.\n${checks.map(fmt).join('\n')}`,

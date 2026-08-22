@@ -143,3 +143,57 @@ describe('draft with AI', () => {
     await Bun.sleep(150);
   }, 20_000);
 });
+
+describe('decisions', () => {
+  test('revise returns a keyed diff; decisions reach the worker prompt; re-run Clarify carries them', async () => {
+    const full = briefWith([task('T1', 'A1', 'add student home'), task('T2', 'A2', 'add teacher home', ['T1']), task('T3', 'A2', 'add grading', ['T2'])], [check('C1', 'T1'), check('C2', 'T2'), check('G1', null)]);
+    const runner = new StructuredRunner((spec) => {
+      if (spec.label?.startsWith('clarify')) return { ...full, questions: [{ text: 'Teachers too?', blocking: true, areaKey: 'A2' }] };
+      if (spec.label?.startsWith('draft revise')) {
+        const { questions: _q, ...rest } = full;
+        return { ...rest, understanding: 'Students only.', areas: [full.areas[0]], tasks: [task('T1', 'A1', 'add student home'), task('T4', 'A1', 'add student grades', ['T1'])], checks: [check('C1', 'T1', null), check('C9', 'T4')], changeSummary: 'Dropped the teacher tasks because the human said students only.', newQuestions: [] };
+      }
+      return null;
+    });
+    const engine = new Engine(cfg(), runner);
+    const goal = await engine.createGoal({ prompt: 'portals', repoPath: repo });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    const { goalId: _g, ...brief } = getBrief(engine.store.db, goal.id)!.brief;
+    const q = brief.questions.find((x) => x.text === 'Teachers too?')!;
+    const answered = { ...brief, questions: brief.questions.map((x) => (x.id === q.id ? { ...x, answer: 'No, students only' } : x)), assumptions: [{ id: brief.assumptions[0]!.id, text: brief.assumptions[0]!.text, accepted: false, applied: false }] };
+
+    const p = await engine.draftBrief(goal.id, { mode: 'revise', brief: answered, taskKey: null, areaKey: null, notes: '' });
+    const d = p.revision!.diff;
+    expect(d.tasks.added.map((t) => t.key)).toEqual(['T4']);
+    expect(d.tasks.removed.map((t) => t.key).sort()).toEqual(['T2', 'T3']);
+    expect(d.tasks.changed).toEqual([]);
+    expect(d.checks.removed.map((c) => c.key).sort()).toEqual(['C2', 'G1']);
+    expect(d.areas.removed.map((a) => a.key)).toEqual(['A2']);
+    expect(d.understanding?.after).toBe('Students only.');
+    expect(p.revision!.revised.questions.find((x) => x.id === q.id)?.answer).toBe('No, students only');
+    // the rejected assumption survives the revision even though the model dropped it
+    expect(p.revision!.revised.assumptions.some((a) => !a.accepted)).toBe(true);
+    const prompt = runner.calls.at(-1)!.prompt;
+    expect(prompt).toContain('## Decisions from the human');
+    expect(prompt).toContain('A: No, students only');
+    expect(prompt).toContain('Rejected assumption');
+    expect(engine.store.listByGoal(goal.id, 5000).some((e) => e.type === 'goal.cost_added' && (e.payload as { source: string }).source === 'revise')).toBe(true);
+
+    // re-run Clarify keeps the decisions
+    engine.editBrief(goal.id, { ...answered, goalId: goal.id });
+    await engine.reclarify(goal.id, 'test');
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    const clarifyPrompt = runner.calls.filter((c) => c.label?.startsWith('clarify')).at(-1)!.prompt;
+    expect(clarifyPrompt).toContain('# Decisions already made by the human');
+    expect(clarifyPrompt).toContain('A: No, students only');
+
+    // workers receive the decisions
+    const again = getBrief(engine.store.db, goal.id)!.brief;
+    engine.editBrief(goal.id, { ...again, questions: again.questions.map((x) => ({ ...x, answer: 'yes' })) });
+    await engine.approveBrief(goal.id);
+    await waitFor(() => runner.calls.some((c) => c.label?.startsWith('attempt')));
+    expect(runner.calls.find((c) => c.label?.startsWith('attempt'))!.prompt).toContain('# Decisions from the human');
+    engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
+  }, 30_000);
+});

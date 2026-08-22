@@ -4,6 +4,7 @@ export * from './ids.ts';
 export * from './machine/transitions.ts';
 export * from './machine/dag.ts';
 export * from './machine/brief-coverage.ts';
+export * from './machine/brief-decisions.ts';
 export * from './store/db.ts';
 export * from './store/event-store.ts';
 export * from './store/projections.ts';

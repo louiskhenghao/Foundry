@@ -18,6 +18,8 @@ export interface AttemptPromptInput {
   markitdownHint?: string;
   /** description of the task's Area from the Brief, or '' */
   areaDescription?: string;
+  /** rendered `# Decisions from the human` section (see renderDecisions), or '' */
+  decisions?: string;
 }
 
 export function buildAttemptPrompt(i: AttemptPromptInput): string {
@@ -25,6 +27,7 @@ export function buildAttemptPrompt(i: AttemptPromptInput): string {
   lines.push(`# Goal\n${i.goal.title}\n\n${i.goal.prompt.trim()}`);
   const area = i.task.area ? `Area: ${i.task.area}${i.areaDescription ? ` — ${i.areaDescription}` : ''}\n` : '';
   lines.push(`# Your task (${i.task.title})\n${area}Attempt ${i.attemptIndex} of ${i.maxAttempts}.\n\n${i.task.spec.trim()}`);
+  if (i.decisions) lines.push(i.decisions);
   if (i.task.relevantFiles.length) lines.push(`# Start here\n${i.task.relevantFiles.map((f) => `- ${f}`).join('\n')}`);
   if (i.attachments) lines.push(i.attachments);
   if (i.relevantContext) lines.push(`# Repository context\n${i.relevantContext}`);

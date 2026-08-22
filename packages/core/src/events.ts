@@ -52,7 +52,7 @@ export const EngineEvent = z.discriminatedUnion('type', [
   /** a session's model was unavailable and the engine fell back to another one; tier updates the goal's model snapshot */
   ev('goal.models_changed', { tier: z.enum(['strong', 'cheap', 'worker']).nullable(), from: z.string(), to: z.string(), reason: z.string() }),
   /** Clarify is being run again from scratch (fresh fetch, workspace rebuilt); the next brief.proposed replaces the Brief */
-  ev('goal.reclarified', { reason: z.string(), workspaceRebuilt: z.boolean() }),
+  ev('goal.reclarified', { reason: z.string(), workspaceRebuilt: z.boolean(), /** rendered Decisions of the discarded Brief, carried into the new Clarify */ decisions: z.string().default('') }),
   /** the base branch was fetched before the goal branch was created; says where the goal started from */
   ev('goal.base_synced', { remote: z.string().nullable(), base: z.string(), localRef: z.string().nullable(), remoteRef: z.string().nullable(), ahead: z.number().int(), behind: z.number().int(), fetched: z.boolean(), startedFrom: z.enum(['local', 'remote']), detail: z.string() }),
   /** per-goal autoskills run: project skills matched to the repository's stack, installed in the goal workspace */
