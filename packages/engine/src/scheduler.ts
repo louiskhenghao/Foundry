@@ -7,6 +7,7 @@ import { raiseEscalation } from './escalation.ts';
 import { headRef } from './git/git.ts';
 import { integrateTask } from './merge.ts';
 import { catchUp, filesOverlap } from './catchup.ts';
+import { existsSync } from 'node:fs';
 import { dropTaskWorkspace, ensureGoalWorkspace, ensureTaskWorkspace, goalWorkspacePath } from './workspace.ts';
 
 /**
@@ -69,7 +70,14 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
     // otherwise it gets its own worktree (sticky for the task's lifetime).
     const others = tasks.filter((x) => x.id !== t.id && (engine.isInFlight(x.id) || (x.state === 'ready' && x.parallelizable)));
     const useOwnWorktree = t.worktreePath != null || goalWsBusy || (t.parallelizable && others.length > 0);
-    if (!t.parallelizable && inFlight.length > 0) continue; // serial task waits for quiet
+    if (!t.parallelizable && inFlight.length > 0) {
+      // serial task waits for quiet — say so once, so "ready but not running" is not a mystery
+      if (!engine.overlapNoted.has(t.id)) {
+        engine.overlapNoted.add(t.id);
+        store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `"${t.title}" is not parallelizable; it starts when ${tasks.filter((x) => inFlight.includes(x.id)).map((x) => `"${x.title}"`).join(', ') || 'the running task'} finishes` } });
+      }
+      continue;
+    }
     if (!useOwnWorktree && inFlight.length > 0) continue; // goal workspace in use
     // Conflict avoidance: two tasks that declare the same files do not run at the same time, whatever the Brief says
     const active = [...tasks.filter((x) => inFlight.includes(x.id)), ...started];
@@ -99,6 +107,11 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
     // the goal-branch commit the task starts from: its attempts are squashed onto it when the task completes
     if (!task.baseRef) store.append({ type: 'task.base_ref', goalId: goal.id, payload: { taskId: task.id, ref: await headRef(cwd) } });
     if (ownWorktree) {
+      if (task.worktreePath && !existsSync(task.worktreePath)) {
+        // the worktree was dropped (task finished earlier, then restarted; or cleaned by hand): start over from the goal branch
+        store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `worktree of "${task.title}" is missing (${task.worktreePath}); recreating it from the goal branch` } });
+        task = { ...task, worktreePath: null, branch: null };
+      }
       if (!task.worktreePath) {
         const ws = await ensureTaskWorkspace(config.dataDir, goal, task);
         store.append({ type: 'task.workspace_assigned', goalId: goal.id, payload: { taskId: task.id, branch: ws.branch, worktreePath: ws.path } });
@@ -116,6 +129,7 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
     // a task in its own worktree first catches up with what other tasks landed on the goal branch
     const caught = await catchUp(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!, { escalate: false });
     const outcome = await runAttempt(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!, cwd, { baseMoved: caught.moved ? caught : null });
+    engine.engineCrashes.delete(task.id);
     const fresh = getTask(store.db, task.id)!;
     if (fresh.state !== 'running') return; // cancelled / aborted meanwhile
     store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'running', to: 'observing', reason: 'attempt finished' } });
@@ -165,8 +179,15 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
     store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'error', message: `task ${task.id} crashed in engine: ${String((err as Error)?.stack ?? err)}` } });
     const t = getTask(store.db, task.id);
     if (t && (t.state === 'running' || t.state === 'observing' || t.state === 'merging')) {
-      store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: t.state, to: 'blocked', reason: 'engine error' } });
-      raiseEscalation(engine, { goal, task: t, trigger: 'retries_exhausted', message: `Engine error while running "${task.title}": ${String(err)}`, payload: {} });
+      // an engine error is not the model's failure: retry a couple of times (no attempt consumed) before asking the human
+      const n = (engine.engineCrashes.get(task.id) ?? 0) + 1;
+      engine.engineCrashes.set(task.id, n);
+      if (n < 3) {
+        store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: t.state, to: 'ready', reason: `engine error (${n}/3), retrying: ${String((err as Error)?.message ?? err).slice(0, 120)}` } });
+      } else {
+        store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: t.state, to: 'blocked', reason: 'engine error' } });
+        raiseEscalation(engine, { goal, task: t, trigger: 'retries_exhausted', message: `Engine error while running "${task.title}" (3 times in a row — this is the engine's fault, not the model's):\n\n\`${String(err)}\`\n\nRetry once the cause is fixed, or skip the task.`, payload: { kind: 'engine', error: String(err) } });
+      }
     }
   } finally {
     engine.release(task.id);

@@ -6,6 +6,7 @@ import type { RunResult } from '@ai-engine/runner';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
 import { buildAttemptPrompt, summarizeReport } from './attempt-prompt.ts';
 import type { CatchUp } from './catchup.ts';
+import { resolveDiscipline } from './skills/workflow.ts';
 import { budgetStatus } from './budget.ts';
 import { runCommandCheck } from './checks/command.ts';
 import { reviewTaskDiff } from './checks/reviewer.ts';
@@ -81,8 +82,9 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   store.append({ type: 'attempt.started', goalId: goal.id, payload: { attempt } });
 
   const relevantContext = await engine.context.locate(goal, task).catch(() => null);
-  const skillsHint = await engine.skills.hints.sectionFor('worker', { taskKind: task.kind, scenario: task.scenario, projectSkills: goal.autoskills?.status === 'installed' ? goal.autoskills.skills : [] });
-  const mandated = await engine.skills.hints.mandatedFor('worker', { taskKind: task.kind, scenario: task.scenario });
+  const discipline = resolveDiscipline(goal, task);
+  const skillsHint = await engine.skills.hints.sectionFor('worker', { taskKind: task.kind, scenario: task.scenario, projectSkills: goal.autoskills?.status === 'installed' ? goal.autoskills.skills : [], discipline });
+  const mandated = await engine.skills.hints.mandatedFor('worker', { taskKind: task.kind, scenario: task.scenario, discipline });
   const brief = getBrief(store.db, goal.id)?.brief;
   const areaDescription = task.area ? (brief?.areas.find((a) => a.name === task.area)?.description ?? '') : '';
   const decisions = brief ? renderDecisions(brief) : '';

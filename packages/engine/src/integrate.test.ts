@@ -257,3 +257,32 @@ describe('conflict avoidance', () => {
     expect(notes.some((m) => m.includes('waits for') && m.includes('src/shared/schema.gql'))).toBe(true);
   }, 60_000);
 });
+
+describe('restart from a finished task', () => {
+  test('rerun after "restart from here" gets a fresh worktree instead of the dropped one', async () => {
+    const runner = worker();
+    const engine = new Engine(cfg(), runner);
+    const goal = await engine.createGoal({
+      prompt: 'parallel then restart',
+      repoPath: repo,
+      brief: { title: 'feat: two', understanding: 'u', areas: [], assumptions: [], questions: [], costEstimateUsd: 0, timeEstimateMin: 0, tasks: [t('T1', 'add alpha', [], true), t('T2', 'add beta', [], true)], checks: [c('C1', 'T1', 'test -f "add alpha.txt"'), c('C2', 'T2', 'test -f "add beta.txt"'), c('G', null, 'test -f "add alpha.txt"')] },
+    });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 40_000);
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+    const alpha = listTasks(engine.store.db, goal.id).find((x) => x.title === 'add alpha')!;
+    expect(alpha.worktreePath).toBeTruthy();
+    expect(existsSync(alpha.worktreePath!)).toBe(false); // dropped when it finished
+    const r = await engine.restartGoal(goal.id, { fromTaskId: alpha.id });
+    expect(r.restarted).toEqual([alpha.id]);
+    expect(listTasks(engine.store.db, goal.id).find((x) => x.id === alpha.id)!.worktreePath).toBeNull();
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 40_000);
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+    const ev = engine.store.listByGoal(goal.id, 5000);
+    expect(ev.filter((e) => e.type === 'task.workspace_assigned' && (e.payload as any).taskId === alpha.id).length).toBeGreaterThanOrEqual(1);
+    expect(ev.some((e) => e.type === 'engine.note' && String((e.payload as any).message).includes('crashed in engine'))).toBe(false);
+    expect(listEscalations(engine.store.db, { goalId: goal.id, openOnly: true })).toHaveLength(0);
+    const before = engine.store.snapshotReadModels();
+    engine.store.replay();
+    expect(engine.store.snapshotReadModels()).toEqual(before);
+  }, 90_000);
+});

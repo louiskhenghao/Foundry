@@ -46,6 +46,8 @@ export const BriefTask = z.object({
   scope: z.string().nullable().default(null),
   scenario: TaskScenario.default('general'),
   areaKey: z.string().nullable().default(null),
+  /** inherit the goal's TDD discipline, or off for this task (docs/infra tasks are set off automatically) */
+  tdd: z.enum(['inherit', 'off']).default('inherit'),
   dependsOnKeys: z.array(z.string()).default([]),
   parallelizable: z.boolean().default(true),
   relevantFiles: z.array(z.string()).default([]),

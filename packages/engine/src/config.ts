@@ -51,6 +51,10 @@ export interface EngineConfig {
    * and the engine records which skills each session used. `plain`: only the one-line "installed skills" hint.
    */
   workflowProfile: 'mattpocock' | 'plain';
+  /** TDD discipline new Expert-mode goals start with */
+  workflowTdd: 'required' | 'preferred' | 'off';
+  /** view new goals open in */
+  defaultGoalMode: 'simple' | 'expert';
   /** markitdown binary override (env AI_ENGINE_MARKITDOWN); auto-detected on PATH and ~/.local/bin otherwise */
   markitdownBin?: string;
   log: (msg: string) => void;
@@ -82,6 +86,8 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     sync: { fetchBeforeGoal: process.env.AI_ENGINE_SYNC_FETCH ? !/^(0|false|off|no)$/i.test(process.env.AI_ENGINE_SYNC_FETCH) : true, startFrom: process.env.AI_ENGINE_SYNC_START === 'local' ? 'local' : 'auto', refreshBetweenTasks: /^(1|true|on|yes)$/i.test(process.env.AI_ENGINE_SYNC_REFRESH ?? '') },
     delivery: { pollMs: 30_000, noChecksGraceMs: 90_000, checksTimeoutMs: 30 * 60_000, automergeWaitMs: 10 * 60_000 },
     workflowProfile: process.env.AI_ENGINE_WORKFLOW === 'plain' ? 'plain' : 'mattpocock',
+    workflowTdd: (['required', 'preferred', 'off'].includes(process.env.AI_ENGINE_TDD ?? '') ? process.env.AI_ENGINE_TDD : 'required') as 'required' | 'preferred' | 'off',
+    defaultGoalMode: process.env.AI_ENGINE_GOAL_MODE === 'simple' ? 'simple' : 'expert',
     markitdownBin: process.env.AI_ENGINE_MARKITDOWN,
     log: (m) => console.log(m),
     ...overrides,

@@ -29,6 +29,8 @@ export const Task = z.object({
   scenario: TaskScenario.default('general'),
   /** name of the Brief Area this task belongs to (display + worker prompt), or null */
   area: z.string().nullable().default(null),
+  /** per-task override of the goal's TDD discipline: off = never asked for on this task */
+  tdd: z.enum(['inherit', 'off']).default('inherit'),
   /** goal-branch ref the task started from (set once at its first attempt; cleared on restart) */
   baseRef: z.string().nullable().default(null),
   /** the single Conventional Commit the task was squashed into on the goal branch; null = not committed yet / no changes */

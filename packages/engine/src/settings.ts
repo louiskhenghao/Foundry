@@ -26,6 +26,8 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'sessions.attemptMaxTurns': { name: 'AI_ENGINE_ATTEMPT_MAX_TURNS', parse: num },
   'sessions.attemptMaxCostUsd': { name: 'AI_ENGINE_ATTEMPT_MAX_COST', parse: num },
   'workflow.profile': { name: 'AI_ENGINE_WORKFLOW', parse: str },
+  'workflow.tdd': { name: 'AI_ENGINE_TDD', parse: str },
+  'workflow.defaultMode': { name: 'AI_ENGINE_GOAL_MODE', parse: str },
   'workflow.designPack': { name: 'AI_ENGINE_DESIGN_PACK', parse: str },
   'workflow.autoskills': { name: 'AI_ENGINE_AUTOSKILLS', parse: bool },
   'delivery.defaultMode': { name: 'AI_ENGINE_DELIVERY_MODE', parse: str },
@@ -185,6 +187,8 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('sessions.attemptMaxCostUsd')) config.attemptMaxCostUsd = s.sessions.attemptMaxCostUsd;
   if (on('sessions.attemptTimeoutMin')) config.attemptTimeoutMs = s.sessions.attemptTimeoutMin * 60_000;
   if (on('workflow.profile')) config.workflowProfile = s.workflow.profile;
+  if (on('workflow.tdd')) config.workflowTdd = s.workflow.tdd;
+  if (on('workflow.defaultMode')) config.defaultGoalMode = s.workflow.defaultMode;
   if (on('workflow.designPack')) config.designPack = s.workflow.designPack;
   if (on('workflow.autoskills')) config.autoskills = s.workflow.autoskills;
   if (on('workflow.settingSources')) config.settingSources = s.workflow.settingSources ?? undefined;

@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Brief, EscalationAnswer, getAttempt, getBrief, getGoal, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths } from '@ai-engine/core';
 import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, type Engine, type OpenTargetId } from '@ai-engine/engine';
-import { Attachment, BudgetPreset, DeliveryPolicy, SettingsPatch } from '@ai-engine/core';
+import { Attachment, BudgetPreset, DeliveryPolicy, GoalMode, GoalWorkflow, SettingsPatch } from '@ai-engine/core';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
@@ -37,6 +37,8 @@ const CreateGoalBody = z.object({
   brief: Brief.omit({ goalId: true }).optional(),
   delivery: DeliveryPolicy.partial().optional(),
   attachments: z.array(Attachment).optional(),
+  mode: GoalMode.optional(),
+  workflow: GoalWorkflow.partial().optional(),
 });
 
 export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
@@ -349,7 +351,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   app.post('/api/goals/:id/restart', async (c) => {
     const body = await c.req.json().catch(() => ({}));
-    return c.json(engine.restartGoal(c.req.param('id'), { fromTaskId: typeof body?.fromTaskId === 'string' ? body.fromTaskId : undefined }));
+    return c.json(await engine.restartGoal(c.req.param('id'), { fromTaskId: typeof body?.fromTaskId === 'string' ? body.fromTaskId : undefined }));
   });
   app.delete('/api/goals/:id', async (c) => c.json({ ok: true, ...(await engine.deleteGoal(c.req.param('id'), { deleteBranch: c.req.query('deleteBranch') === '1' })) }));
 

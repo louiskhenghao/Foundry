@@ -262,7 +262,7 @@ describe('skip and restart', () => {
     await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'failed');
     pass = true;
     const first = listTasks(engine.store.db, goal.id).find((t) => t.title === 'first')!;
-    const r = engine.restartGoal(goal.id, { fromTaskId: first.id });
+    const r = await engine.restartGoal(goal.id, { fromTaskId: first.id });
     expect(r.restarted.length).toBe(2);
     await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
     expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');

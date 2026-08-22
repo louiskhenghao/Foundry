@@ -3,7 +3,7 @@
  * kind of work and scenario, with the invoke name that is actually loaded on this machine (plugin copy first).
  * Replaces the one-line hint when the workflow profile is `mattpocock`; falls back to it otherwise.
  */
-import type { Task, TaskKind, TaskScenario } from '@ai-engine/core';
+import type { Goal, Task, TaskKind, TaskScenario } from '@ai-engine/core';
 import { SATISFIED } from './catalog.ts';
 import { formatSkillsHint } from './hints.ts';
 import { packAllows } from './packs.ts';
@@ -21,6 +21,13 @@ export interface WorkflowSectionInput {
   packs?: Record<string, string | undefined>;
   /** project skills installed by autoskills for this goal's repository */
   projectSkills?: string[];
+  /** the goal's (and task's) discipline: tdd off drops the tdd rules, preferred downgrades MUST to Prefer */
+  discipline?: { tdd: 'required' | 'preferred' | 'off' };
+}
+
+/** Discipline a worker session runs under: the task may switch tdd off, otherwise the goal decides. */
+export function resolveDiscipline(goal: Pick<Goal, 'workflow'>, task: Pick<Task, 'tdd'> | null): { tdd: 'required' | 'preferred' | 'off' } {
+  return { tdd: task?.tdd === 'off' ? 'off' : goal.workflow.tdd };
 }
 
 export interface MandatedSkill {
@@ -51,7 +58,12 @@ export function applicableRules(i: WorkflowSectionInput): MandatedSkill[] {
       if (r.when !== 'any' && i.taskKind && r.when !== i.taskKind) continue;
       if (r.when !== 'any' && !i.taskKind && i.role === 'worker') continue; // unknown kind: only `any` rules
       if (!scenarioOk(r.scenarios, i.scenario)) continue;
-      out.push({ name: s.entry.name, invoke, mandate: r.mandate, instruction: r.instruction });
+      let mandate = r.mandate;
+      if (s.entry.name === 'tdd' && i.discipline) {
+        if (i.discipline.tdd === 'off') continue;
+        if (i.discipline.tdd === 'preferred') mandate = 'prefer';
+      }
+      out.push({ name: s.entry.name, invoke, mandate, instruction: r.instruction });
     }
   }
   // must before prefer, stable otherwise

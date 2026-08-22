@@ -20,6 +20,8 @@ export interface SectionOpts {
   scenario?: TaskScenario;
   /** skills autoskills installed in the goal workspace */
   projectSkills?: string[];
+  /** goal/task discipline (see resolveDiscipline) */
+  discipline?: { tdd: 'required' | 'preferred' | 'off' };
 }
 
 /** TTL-cached catalog statuses → prompt sections; the manager invalidates on install/uninstall. */
@@ -56,12 +58,12 @@ export class SkillsHints {
   async sectionFor(role: SkillRole, opts: SectionOpts = {}): Promise<string | null> {
     const s = await this.statuses();
     if (!s) return null;
-    return formatWorkflowSection({ role, taskKind: opts.taskKind, scenario: opts.scenario, projectSkills: opts.projectSkills, profile: this.opts.profile?.() ?? 'mattpocock', statuses: s, packs: this.packs() });
+    return formatWorkflowSection({ role, taskKind: opts.taskKind, scenario: opts.scenario, projectSkills: opts.projectSkills, discipline: opts.discipline, profile: this.opts.profile?.() ?? 'mattpocock', statuses: s, packs: this.packs() });
   }
   /** Skills this role MUST invoke for this task kind / scenario (for the reviewer's note). */
   async mandatedFor(role: SkillRole, opts: SectionOpts = {}): Promise<MandatedSkill[]> {
     const s = await this.statuses();
     if (!s || (this.opts.profile?.() ?? 'mattpocock') === 'plain') return [];
-    return mandatedSkillsFor({ role, taskKind: opts.taskKind, scenario: opts.scenario, profile: 'mattpocock', statuses: s, packs: this.packs() });
+    return mandatedSkillsFor({ role, taskKind: opts.taskKind, scenario: opts.scenario, discipline: opts.discipline, profile: 'mattpocock', statuses: s, packs: this.packs() });
   }
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Discipline, GoalMode } from './goal.ts';
 import { DeliveryMode, DeliveryUnit } from './delivery.ts';
 
 /**
@@ -31,6 +32,10 @@ export const SessionSettings = z.object({
 });
 export const WorkflowSettings = z.object({
   profile: z.enum(['mattpocock', 'plain']).default('mattpocock'),
+  /** TDD discipline new goals start with (Expert mode); Simple mode starts with `preferred` */
+  tdd: Discipline.default('required'),
+  /** which view new goals open in */
+  defaultMode: GoalMode.default('expert'),
   designPack: DesignPack.default('ui-ux-pro-max'),
   /** run `npx autoskills` in each goal's workspace to install skills matching the repository's stack */
   autoskills: z.boolean().default(true),

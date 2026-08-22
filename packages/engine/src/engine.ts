@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import type { Attachment, Brief, BudgetPreset, Escalation, EscalationAnswer, Goal, ModelConfig, Task, Check } from '@ai-engine/core';
+import type { Attachment, Brief, BudgetPreset, Escalation, EscalationAnswer, Goal, GoalMode, GoalWorkflow, ModelConfig, Task, Check } from '@ai-engine/core';
 import {
   BUDGET_PRESETS,
   Budgets,
@@ -46,7 +46,7 @@ import { planDelivery } from './delivery/policy.ts';
 import { usageSummary, type UsageSummary } from './usage/ledger.ts';
 import type { RunResult } from '@ai-engine/runner';
 import type { StreamEvent, StreamListener } from './types.ts';
-import { deliveryWorkspacePath, ensureGoalWorkspace, goalWorkspacePath, listStackBranches } from './workspace.ts';
+import { deliveryWorkspacePath, dropTaskWorkspace, ensureGoalWorkspace, goalWorkspacePath, listStackBranches } from './workspace.ts';
 import { attachmentDir, claimStaged, conversionTmpPath, markdownFileName, sweepStaging, trashAttachment } from './attachments.ts';
 import { Markitdown } from './convert/markitdown.ts';
 import { SettingsStore, applySettingsToConfig } from './settings.ts';
@@ -77,6 +77,10 @@ export interface CreateGoalInput {
   delivery?: Partial<DeliveryPolicy>;
   /** Staged uploads (from POST /api/uploads) and links; files are moved under the goal on creation. */
   attachments?: Attachment[];
+  /** simple = plain-language Brief and progress; default from Settings */
+  mode?: GoalMode;
+  /** engineering discipline; Simple mode defaults tdd to `preferred`, Expert to the Settings default */
+  workflow?: Partial<GoalWorkflow>;
 }
 
 interface InFlight {
@@ -103,6 +107,8 @@ export class Engine {
   readonly clarifying = new Set<string>();
   /** tasks already noted as waiting for an overlapping task (one note each, not one per tick) */
   readonly overlapNoted = new Set<string>();
+  /** consecutive engine-side crashes per task (reset when an attempt runs) */
+  readonly engineCrashes = new Map<string, number>();
   /** must checks already failing on a goal-branch commit (merges are judged on regressions only) */
   readonly baseline = new BaselineChecks(this);
   private reviewing = new Set<string>();
@@ -622,6 +628,7 @@ export class Engine {
     if (baseBranch === 'HEAD') throw new Error('repository is in detached HEAD state; pass --base <branch>');
     const now = new Date().toISOString();
     const id = newId(IdPrefix.goal);
+    const mode: GoalMode = input.mode ?? this.config.defaultGoalMode;
     const goal: Goal = {
       id,
       title: input.title?.trim() || input.prompt.trim().split('\n')[0]!.slice(0, 80),
@@ -631,6 +638,8 @@ export class Engine {
       branch: `goal/${id}`,
       budgets: Budgets.parse({ ...BUDGET_PRESETS[input.budgetPreset ?? 'custom'].budgets, ...(input.budgets ?? {}) }),
       budgetPreset: input.budgetPreset ?? 'custom',
+      mode,
+      workflow: { tdd: input.workflow?.tdd ?? (mode === 'simple' ? 'preferred' : this.config.workflowTdd) },
       models: { ...this.config.models, ...(input.models ?? {}) },
       state: 'draft',
       stateBeforeBlock: null,
@@ -846,6 +855,8 @@ export class Engine {
         scope: t.scope?.trim() || area?.slug || null,
         scenario: t.scenario ?? 'general',
         area: area?.name ?? null,
+        // docs and infra work gets no TDD mandate regardless of the goal's discipline
+        tdd: t.tdd === 'off' || t.scenario === 'docs' || t.scenario === 'infra' ? 'off' : 'inherit',
         dependsOn: t.dependsOnKeys.map((k) => idByKey.get(k)!),
         relevantFiles: t.relevantFiles,
         parallelizable: t.parallelizable,
@@ -920,7 +931,7 @@ export class Engine {
    * budget; tasks upstream keep their results. Without `fromTaskId` every task restarts. A failed / cancelled / finished
    * goal goes back to `running`; the goal branch keeps the work done so far, so restarted tasks build on it.
    */
-  restartGoal(goalId: string, opts: { fromTaskId?: string } = {}): { restarted: string[] } {
+  async restartGoal(goalId: string, opts: { fromTaskId?: string } = {}): Promise<{ restarted: string[] }> {
     const goal = this.mustGoal(goalId);
     if (!['failed', 'cancelled', 'done', 'over_delivered', 'blocked', 'running'].includes(goal.state)) throw new Error(`goal is ${goal.state}; restart applies to running or finished goals`);
     const tasks = listTasks(this.store.db, goalId);
@@ -950,6 +961,8 @@ export class Engine {
       if (targetIds.has(t.id)) continue;
       if (t.state === 'failed' || t.state === 'blocked') this.store.append({ type: 'task.state_changed', goalId, payload: { taskId: t.id, from: t.state, to: 'skipped', reason: 'human: restarted downstream — treated as skipped' } });
     }
+    // a restarted task starts over: its old worktree and branch (if still around) go, so the rerun cannot inherit stale work
+    for (const t of targets) if (t.worktreePath) await dropTaskWorkspace(goal, t).catch((err) => this.config.log(`[restart] drop worktree of ${t.id} failed: ${err}`));
     for (const t of targets) {
       const used = this.attemptCount(t.id);
       const over = Math.max(0, used - t.retryBudget - t.extraAttempts + t.retryBudget); // refresh: used attempts no longer count

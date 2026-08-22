@@ -151,7 +151,8 @@ export function applyEvent(db: Database, e: EngineEvent): void {
     }
     case 'task.restarted': {
       const t = getTask(db, e.payload.taskId);
-      if (t) upsertTask(db, { ...t, state: 'pending', extraAttempts: t.extraAttempts + e.payload.extraAttempts, baseRef: null, commitRef: null, commitMessage: null, updatedAt: e.ts });
+      // a restarted task starts over: its previous worktree/branch (dropped when it finished) must not be reused
+      if (t) upsertTask(db, { ...t, state: 'pending', extraAttempts: t.extraAttempts + e.payload.extraAttempts, baseRef: null, commitRef: null, commitMessage: null, branch: null, worktreePath: null, updatedAt: e.ts });
       break;
     }
     case 'goal.models_changed': {

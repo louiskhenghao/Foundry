@@ -56,6 +56,19 @@ export const ModelConfig = z.object({
 });
 export type ModelConfig = z.infer<typeof ModelConfig>;
 
+/** Simple = the user sees a plain-language Brief and progress; Expert = every control. Same engine underneath. */
+export const GoalMode = z.enum(['simple', 'expert']);
+export type GoalMode = z.infer<typeof GoalMode>;
+
+/** How hard the engine pushes a discipline: required = MUST + noted when skipped; preferred = suggested only; off = not mentioned. */
+export const Discipline = z.enum(['required', 'preferred', 'off']);
+export type Discipline = z.infer<typeof Discipline>;
+
+export const GoalWorkflow = z.object({
+  tdd: Discipline.default('required'),
+});
+export type GoalWorkflow = z.infer<typeof GoalWorkflow>;
+
 export const Goal = z.object({
   id: z.string(),
   title: z.string().min(1),
@@ -67,6 +80,9 @@ export const Goal = z.object({
   budgets: Budgets,
   /** default keeps pre-preset `goal.created` events replayable */
   budgetPreset: BudgetPreset.default('custom'),
+  /** defaults keep pre-mode `goal.created` events replayable */
+  mode: GoalMode.default('expert'),
+  workflow: GoalWorkflow.default(() => ({ tdd: 'required' as const })),
   models: ModelConfig,
   state: GoalState,
   /** state to return to when an escalation is answered */
