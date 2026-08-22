@@ -16,12 +16,15 @@ export interface AttemptPromptInput {
   attachments?: string;
   /** one line from markitdownHint() when the tool is installed, or '' */
   markitdownHint?: string;
+  /** description of the task's Area from the Brief, or '' */
+  areaDescription?: string;
 }
 
 export function buildAttemptPrompt(i: AttemptPromptInput): string {
   const lines: string[] = [];
   lines.push(`# Goal\n${i.goal.title}\n\n${i.goal.prompt.trim()}`);
-  lines.push(`# Your task (${i.task.title})\nAttempt ${i.attemptIndex} of ${i.maxAttempts}.\n\n${i.task.spec.trim()}`);
+  const area = i.task.area ? `Area: ${i.task.area}${i.areaDescription ? ` — ${i.areaDescription}` : ''}\n` : '';
+  lines.push(`# Your task (${i.task.title})\n${area}Attempt ${i.attemptIndex} of ${i.maxAttempts}.\n\n${i.task.spec.trim()}`);
   if (i.task.relevantFiles.length) lines.push(`# Start here\n${i.task.relevantFiles.map((f) => `- ${f}`).join('\n')}`);
   if (i.attachments) lines.push(i.attachments);
   if (i.relevantContext) lines.push(`# Repository context\n${i.relevantContext}`);

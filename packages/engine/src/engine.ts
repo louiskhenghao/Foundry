@@ -24,6 +24,7 @@ import {
 } from '@ai-engine/core';
 import { ClaudeCliRunner, type ClaudeRunner, type RunHandle } from '@ai-engine/runner';
 import { runClarify } from './clarify.ts';
+import { type DraftProposal, type DraftRequest, runDraft } from './brief-draft.ts';
 import type { EngineConfig } from './config.ts';
 import { GrepContextProvider } from './context/grep-provider.ts';
 import { GraphifyContextProvider } from './context/graphify-provider.ts';
@@ -247,7 +248,7 @@ export class Engine {
     const ref = `${s.remote}/${s.base}`;
     if ((await git(['merge-base', '--is-ancestor', ref, 'HEAD'], ws)).code === 0) return;
     const now = new Date().toISOString();
-    const task: Task = { id: newId(IdPrefix.task), goalId: goal.id, title: `sync ${goal.branch} with ${ref}`, spec: `${ref} moved while this goal was running. Merge it into ${goal.branch} so the remaining tasks build on the current base.`, kind: 'chore', scope: 'sync', scenario: 'general', dependsOn: [], relevantFiles: [], parallelizable: false, retryBudget: 2, origin: 'merge', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now };
+    const task: Task = { id: newId(IdPrefix.task), goalId: goal.id, title: `sync ${goal.branch} with ${ref}`, spec: `${ref} moved while this goal was running. Merge it into ${goal.branch} so the remaining tasks build on the current base.`, kind: 'chore', scope: 'sync', scenario: 'general', area: null, dependsOn: [], relevantFiles: [], parallelizable: false, retryBudget: 2, origin: 'merge', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now };
     this.store.append({ type: 'task.created', goalId: goal.id, payload: { task } });
     const ok = await mergeBranchInto(this, goal, task, { ref, label: ref, intent: `The base branch ${ref} received new commits while this goal was running. Keep their changes AND this goal's changes.` });
     const fresh = getTask(this.store.db, task.id)!;
@@ -776,6 +777,11 @@ export class Engine {
     this.store.append({ type: 'goal.attachment_removed', goalId, payload: { attachmentId } });
   }
 
+  /** Draft with AI on the Brief page: a read-only strong session proposes spec/checks/tasks; nothing is written to the Brief. */
+  async draftBrief(goalId: string, req: DraftRequest): Promise<DraftProposal> {
+    return runDraft(this, this.mustGoal(goalId), req);
+  }
+
   editBrief(goalId: string, brief: Brief): Brief {
     const goal = this.mustGoal(goalId);
     if (goal.state !== 'awaiting_brief_approval') throw new Error(`goal is ${goal.state}, brief cannot be edited`);
@@ -809,14 +815,17 @@ export class Engine {
     for (const t of brief.tasks) idByKey.set(t.key, newId(IdPrefix.task));
     this.store.append({ type: 'brief.approved', goalId, payload: { brief } });
     for (const t of brief.tasks) {
+      const area = brief.areas.find((a) => a.key === t.areaKey) ?? null;
       const task: Task = {
         id: idByKey.get(t.key)!,
         goalId,
         title: t.title,
         spec: t.spec,
         kind: t.kind,
-        scope: t.scope ?? null,
+        // the commit scope defaults to the Area's slug (Conventional Commits: feat(student-portal): …)
+        scope: t.scope?.trim() || area?.slug || null,
         scenario: t.scenario ?? 'general',
+        area: area?.name ?? null,
         dependsOn: t.dependsOnKeys.map((k) => idByKey.get(k)!),
         relevantFiles: t.relevantFiles,
         parallelizable: t.parallelizable,
@@ -999,19 +1008,20 @@ function isAlive(pid: number): boolean {
 function autoBrief(goal: Goal, must: string[], stretch: string[]): Brief {
   const checks: Brief['checks'] = [];
   must.forEach((cmd, i) => {
-    checks.push({ key: `M${i + 1}`, name: `must: ${cmd}`, tier: 'must', taskKey: 'T1', spec: { type: 'command', cmd, timeoutMs: 300_000, expectExitCode: 0 } });
-    checks.push({ key: `GM${i + 1}`, name: `goal must: ${cmd}`, tier: 'must', taskKey: null, spec: { type: 'command', cmd, timeoutMs: 300_000, expectExitCode: 0 } });
+    checks.push({ key: `M${i + 1}`, name: `must: ${cmd}`, tier: 'must', taskKey: 'T1', areaKey: null, spec: { type: 'command', cmd, timeoutMs: 300_000, expectExitCode: 0 } });
+    checks.push({ key: `GM${i + 1}`, name: `goal must: ${cmd}`, tier: 'must', taskKey: null, areaKey: null, spec: { type: 'command', cmd, timeoutMs: 300_000, expectExitCode: 0 } });
   });
   stretch.forEach((cmd, i) => {
-    checks.push({ key: `S${i + 1}`, name: `stretch: ${cmd}`, tier: 'stretch', taskKey: 'T1', spec: { type: 'command', cmd, timeoutMs: 300_000, expectExitCode: 0 } });
+    checks.push({ key: `S${i + 1}`, name: `stretch: ${cmd}`, tier: 'stretch', taskKey: 'T1', areaKey: null, spec: { type: 'command', cmd, timeoutMs: 300_000, expectExitCode: 0 } });
   });
   return {
     goalId: goal.id,
     title: '',
     understanding: goal.prompt,
+    areas: [],
     assumptions: [],
     checks,
-    tasks: [{ key: 'T1', title: goal.title, spec: goal.prompt, kind: 'feature', scope: null, scenario: 'general', dependsOnKeys: [], parallelizable: false, relevantFiles: [] }],
+    tasks: [{ key: 'T1', title: goal.title, spec: goal.prompt, kind: 'feature', scope: null, scenario: 'general', areaKey: null, dependsOnKeys: [], parallelizable: false, relevantFiles: [] }],
     costEstimateUsd: 1,
     timeEstimateMin: 15,
     questions: [],

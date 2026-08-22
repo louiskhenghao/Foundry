@@ -35,3 +35,9 @@ test('a full workflow section is inserted verbatim (its own heading), a bare hin
   expect(p).not.toContain('# Skills');
   expect(p.indexOf('# Workflow skills')).toBeLessThan(p.indexOf('# How to work'));
 });
+
+test('the Area line sits under the task heading when the task has one', () => {
+  const withArea = buildAttemptPrompt({ ...base, task: { ...base.task, area: 'Teacher portal' }, areaDescription: 'what teachers see' });
+  expect(withArea).toContain('# Your task (T)\nArea: Teacher portal — what teachers see\nAttempt 1 of 3.');
+  expect(buildAttemptPrompt(base)).not.toContain('Area:');
+});

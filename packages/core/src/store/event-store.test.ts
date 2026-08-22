@@ -37,6 +37,7 @@ function task(id: string, goalId: string): Task {
     kind: 'feature',
     scope: null,
     scenario: 'general',
+    area: null,
     baseRef: null,
     commitRef: null,
     commitMessage: null,

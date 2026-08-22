@@ -27,6 +27,8 @@ export const Task = z.object({
   scope: z.string().nullable().default(null),
   /** default keeps pre-scenario `task.created` events replayable */
   scenario: TaskScenario.default('general'),
+  /** name of the Brief Area this task belongs to (display + worker prompt), or null */
+  area: z.string().nullable().default(null),
   /** goal-branch ref the task started from (set once at its first attempt; cleared on restart) */
   baseRef: z.string().nullable().default(null),
   /** the single Conventional Commit the task was squashed into on the goal branch; null = not committed yet / no changes */

@@ -15,8 +15,8 @@ beforeEach(async () => {
   repo = await makeRepo();
 });
 const cfg = () => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, log: () => {} });
-const t = (key: string, title: string, deps: string[], parallel: boolean, kind: 'feature' | 'bug' = 'feature', scope: string | null = null) => ({ key, title, spec: `write ${title}.txt`, kind, scope, scenario: 'general' as const, dependsOnKeys: deps, parallelizable: parallel, relevantFiles: [] });
-const c = (key: string, taskKey: string | null, cmd: string) => ({ key, name: key, tier: 'must' as const, taskKey, spec: { type: 'command' as const, cmd, timeoutMs: 60_000, expectExitCode: 0 } });
+const t = (key: string, title: string, deps: string[], parallel: boolean, kind: 'feature' | 'bug' = 'feature', scope: string | null = null) => ({ key, title, spec: `write ${title}.txt`, kind, scope, scenario: 'general' as const, areaKey: null, dependsOnKeys: deps, parallelizable: parallel, relevantFiles: [] });
+const c = (key: string, taskKey: string | null, cmd: string) => ({ key, name: key, tier: 'must' as const, taskKey, areaKey: null, spec: { type: 'command' as const, cmd, timeoutMs: 60_000, expectExitCode: 0 } });
 // the worker writes "<title>.txt" (title comes from the attempt label "attempt <title> #n")
 const worker = () =>
   new FakeRunner((spec) => {
@@ -33,6 +33,7 @@ describe('task integration: one Conventional Commit per task', () => {
       brief: {
         title: 'feat(demo): add two files',
         understanding: 'u',
+        areas: [],
         assumptions: [],
         questions: [],
         costEstimateUsd: 0,
@@ -70,6 +71,7 @@ describe('task integration: one Conventional Commit per task', () => {
       brief: {
         title: '',
         understanding: 'u',
+        areas: [],
         assumptions: [],
         questions: [],
         costEstimateUsd: 0,

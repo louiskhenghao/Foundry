@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { Attempt, Check, CheckResult, Goal, ObservationReport, Task } from '@ai-engine/core';
-import { IdPrefix, bumpStat, getObservation, listAttempts, listChecks, newId } from '@ai-engine/core';
+import { IdPrefix, bumpStat, getBrief, getObservation, listAttempts, listChecks, newId } from '@ai-engine/core';
 import type { RunResult } from '@ai-engine/runner';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
 import { buildAttemptPrompt, summarizeReport } from './attempt-prompt.ts';
@@ -82,7 +82,8 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   const relevantContext = await engine.context.locate(goal, task).catch(() => null);
   const skillsHint = await engine.skills.hints.sectionFor('worker', { taskKind: task.kind, scenario: task.scenario, projectSkills: goal.autoskills?.status === 'installed' ? goal.autoskills.skills : [] });
   const mandated = await engine.skills.hints.mandatedFor('worker', { taskKind: task.kind, scenario: task.scenario });
-  const prompt = buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()) });
+  const areaDescription = task.area ? (getBrief(store.db, goal.id)?.brief.areas.find((a) => a.name === task.area)?.description ?? '') : '';
+  const prompt = buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription });
   // the -p prompt is not echoed in stream-json; keep it next to the transcript for inspection
   mkdirSync(dirname(attempt.transcriptPath!), { recursive: true });
   writeFileSync(attempt.transcriptPath!.replace(/\.jsonl$/, '.prompt.md'), prompt);

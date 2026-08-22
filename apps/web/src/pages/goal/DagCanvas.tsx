@@ -18,6 +18,8 @@ export interface DagTask extends Task {
   attempts: number;
   maxAttempts: number;
   lastCost: number | null;
+  /** Brief mode: no run state yet — show this chip (the Area) instead of the state badge and attempt count */
+  plain?: { label: string | null; color: string };
 }
 
 /**
@@ -103,9 +105,16 @@ function TaskNode({ t, selected, onSelect, className, style, after }: { t: DagTa
       className={cn('text-left rounded-lg border p-2.5 bg-zinc-950/80 hover:border-zinc-500 transition', selected ? 'border-emerald-500 ring-1 ring-emerald-500/40' : 'border-zinc-800', t.state === 'running' && 'ring-1 ring-blue-500/40', className)}
     >
       <div className="flex items-center justify-between gap-2">
-        <Badge state={t.state} />
+        {t.plain ? (
+          <span className="text-[10px] text-zinc-400 flex items-center gap-1.5 min-w-0">
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: t.plain.color }} />
+            <span className="truncate">{t.plain.label ?? 'unassigned'}</span>
+          </span>
+        ) : (
+          <Badge state={t.state} />
+        )}
         <span className="text-[10px] text-zinc-500 mono">
-          {t.attempts}/{t.maxAttempts}
+          {t.plain ? t.id : `${t.attempts}/${t.maxAttempts}`}
           {t.origin !== 'brief' && <span className="ml-1 text-zinc-600">{t.origin}</span>}
         </span>
       </div>

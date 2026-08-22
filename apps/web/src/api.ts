@@ -1,4 +1,22 @@
-import type { Attachment, Attempt, Brief, Budgets, Check, CheckResult, DeliveryPlanStep, DeliveryPolicy, DeliveryState, EngineEvent, Escalation, EscalationAnswer, Goal, SettingsPatch, SettingsView, Task } from '@ai-engine/core/browser';
+import type { Attachment, Attempt, Brief, BriefCheck, BriefTask, Budgets, Check, CheckResult, DeliveryPlanStep, DeliveryPolicy, DeliveryState, EngineEvent, Escalation, EscalationAnswer, Goal, SettingsPatch, SettingsView, Task } from '@ai-engine/core/browser';
+
+/** Draft with AI on the Brief page (mirrors engine's DraftRequest / DraftProposal). */
+export interface DraftRequest {
+  mode: 'task' | 'acceptance' | 'area';
+  brief: Omit<Brief, 'goalId'>;
+  taskKey?: string | null;
+  areaKey?: string | null;
+  notes?: string;
+}
+export interface DraftProposal {
+  mode: DraftRequest['mode'];
+  taskKey: string | null;
+  task: Partial<Pick<BriefTask, 'spec' | 'kind' | 'scope' | 'scenario' | 'areaKey' | 'dependsOnKeys' | 'relevantFiles'>> | null;
+  tasks: BriefTask[];
+  checks: BriefCheck[];
+  rationale: string;
+  costUsd: number;
+}
 
 export interface BaseSync {
   remote: string | null;
@@ -206,6 +224,7 @@ export const api = {
   deliveryPlan: (id: string, q: Record<string, string>) => req<{ policy: DeliveryPolicy; probes: any; steps: DeliveryPlanStep[] }>(`/api/goals/${id}/delivery/plan?${new URLSearchParams(q)}`),
   cancelDelivery: (id: string) => req<{ ok: boolean }>(`/api/goals/${id}/delivery/cancel`, { method: 'POST' }),
   editBrief: (id: string, brief: Brief) => req<Brief>(`/api/goals/${id}/brief`, { method: 'PATCH', body: JSON.stringify(brief) }),
+  draftBrief: (id: string, body: DraftRequest) => req<{ proposal: DraftProposal }>(`/api/goals/${id}/brief/draft`, { method: 'POST', body: JSON.stringify(body) }),
   approveBrief: (id: string, brief?: Brief, budgets?: Partial<Budgets>) => req<{ ok: true }>(`/api/goals/${id}/brief/approve`, { method: 'POST', body: brief || budgets ? JSON.stringify({ ...(brief ?? {}), ...(budgets ? { budgets } : {}) }) : '' }),
   cancelGoal: (id: string) => req<{ ok: true }>(`/api/goals/${id}/cancel`, { method: 'POST' }),
   reclarify: (id: string, reason?: string) => req<{ ok: true }>(`/api/goals/${id}/reclarify`, { method: 'POST', body: JSON.stringify({ reason }) }),

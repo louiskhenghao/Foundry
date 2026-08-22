@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Brief, EscalationAnswer, getAttempt, getBrief, getGoal, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths } from '@ai-engine/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, InstallError, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, type Engine, type OpenTargetId } from '@ai-engine/engine';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, DraftRequest, InstallError, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, type Engine, type OpenTargetId } from '@ai-engine/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, SettingsPatch } from '@ai-engine/core';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -266,6 +266,12 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.patch('/api/goals/:id/brief', async (c) => {
     const body = Brief.parse({ ...(await c.req.json()), goalId: c.req.param('id') });
     return c.json(engine.editBrief(c.req.param('id'), body));
+  });
+
+  app.post('/api/goals/:id/brief/draft', async (c) => {
+    const parsed = DraftRequest.safeParse(await c.req.json());
+    if (!parsed.success) return c.json({ error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }, 400);
+    return c.json({ proposal: await engine.draftBrief(c.req.param('id'), parsed.data) });
   });
 
   app.post('/api/goals/:id/reclarify', async (c) => {

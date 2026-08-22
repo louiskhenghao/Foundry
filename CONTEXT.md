@@ -32,7 +32,19 @@ A Claude session that reads a diff and judges it. The *Task reviewer* is lightwe
 The phase between a Goal being created and work starting. The system explores the repository on its own and produces a Brief; the user reviews it once. While the Brief awaits approval it can be *re-run*: the Workspace is rebuilt from a fresh fetch and a new Brief replaces the old one.
 
 **Brief**
-The single document the user approves before automation begins. It holds the system's understanding, its Assumptions, the proposed Must and Stretch Checks, the proposed Task DAG, a cost estimate, any Questions, and a one-line Conventional Commits title for the whole Goal that becomes the pull request title.
+The single document the user approves before automation begins. It holds the system's understanding, the Areas the Goal covers, its Assumptions, the proposed Must and Stretch Checks, the proposed Task DAG, a cost estimate, any Questions, and a one-line Conventional Commits title for the whole Goal that becomes the pull request title.
+
+**Area**
+A part of the product a Goal covers — a user-facing role or app (student portal, teacher portal…) or the shared groundwork they all need. The Clarifier lists the Areas from the goal and its Attachments; the user can add, rename or delete them. Every Task, every Goal-level Check and every Question belongs to one Area. A Task's commit scope defaults to its Area's slug but is a separate thing.
+
+**Coverage**
+Every Area has at least one Task. A Brief that names an Area and plans nothing for it is incomplete: the Clarifier is sent back once to fill the gap, and if it still cannot, the gap becomes a Question for the user — draft Tasks for the Area, or delete it.
+
+**Stage**
+A layer of the Task DAG as shown on the Brief page: Tasks of one Stage do not depend on each other and may run in parallel; a Stage starts when the Stages before it are done. A way of reading the DAG, not a separate concept.
+
+**Draft**
+The user asking the system, on the Brief page, to write what is missing for one Task (its spec, attributes and Checks), to propose Checks for a Task that already has a spec, or to propose Tasks for an uncovered Area. The result is a **Proposal**: nothing enters the Brief until the user accepts it item by item, and the system never rewrites text the user wrote.
 
 **Assumption**
 A statement in the Brief the system is proceeding on unless the user overrides it. Assumptions are accepted by default — leaving one untouched means agreeing with it.

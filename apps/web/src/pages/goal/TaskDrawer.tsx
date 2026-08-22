@@ -31,6 +31,11 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
           <span className="text-[10px] uppercase rounded border border-zinc-700 text-zinc-400 px-1" title="task kind (drives the workflow discipline)">
             {task.kind}
           </span>
+          {task.area && (
+            <span className="text-[10px] rounded-full border border-zinc-700 text-zinc-300 px-2" title="Area of the Brief this task belongs to">
+              {task.area}
+            </span>
+          )}
           {task.origin !== 'brief' && <span className="text-[10px] text-zinc-500">{task.origin}</span>}
           {task.commitRef && (
             <span className="text-[11px] font-normal text-zinc-500 basis-full min-w-0 truncate" title={task.commitMessage ?? undefined}>

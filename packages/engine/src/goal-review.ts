@@ -115,6 +115,7 @@ export async function runGoalReview(engine: Engine, goal: Goal): Promise<void> {
         kind: 'bug',
         scope: null,
         scenario: goalScenario(existing),
+        area: null,
         dependsOn: existing.filter((x) => x.state === 'done' || x.state === 'skipped').map((x) => x.id),
         relevantFiles: s.relevantFiles,
         parallelizable: false,

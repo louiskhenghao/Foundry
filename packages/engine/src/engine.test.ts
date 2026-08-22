@@ -215,18 +215,19 @@ describe('skip and restart', () => {
       brief: {
         title: '',
         understanding: 'u',
+        areas: [],
         assumptions: [],
         questions: [],
         costEstimateUsd: 0,
         timeEstimateMin: 0,
         tasks: [
-          { key: 'T1', title: 'first', spec: 's', kind: 'feature', scope: null, scenario: 'general', dependsOnKeys: [], parallelizable: false, relevantFiles: [] },
-          { key: 'T2', title: 'second', spec: 's', kind: 'feature', scope: null, scenario: 'general', dependsOnKeys: ['T1'], parallelizable: false, relevantFiles: [] },
+          { key: 'T1', title: 'first', spec: 's', kind: 'feature', scope: null, scenario: 'general', areaKey: null, dependsOnKeys: [], parallelizable: false, relevantFiles: [] },
+          { key: 'T2', title: 'second', spec: 's', kind: 'feature', scope: null, scenario: 'general', areaKey: null, dependsOnKeys: ['T1'], parallelizable: false, relevantFiles: [] },
         ],
         checks: [
-          { key: 'C1', name: 'never', tier: 'must', taskKey: 'T1', spec: { type: 'command', cmd: 'test -f never.txt', timeoutMs: 60_000, expectExitCode: 0 } },
-          { key: 'C2', name: 'second', tier: 'must', taskKey: 'T2', spec: { type: 'command', cmd: 'test -f second.txt', timeoutMs: 60_000, expectExitCode: 0 } },
-          { key: 'G', name: 'goal', tier: 'must', taskKey: null, spec: { type: 'command', cmd: 'test -f second.txt', timeoutMs: 60_000, expectExitCode: 0 } },
+          { key: 'C1', name: 'never', tier: 'must', taskKey: 'T1', areaKey: null, spec: { type: 'command', cmd: 'test -f never.txt', timeoutMs: 60_000, expectExitCode: 0 } },
+          { key: 'C2', name: 'second', tier: 'must', taskKey: 'T2', areaKey: null, spec: { type: 'command', cmd: 'test -f second.txt', timeoutMs: 60_000, expectExitCode: 0 } },
+          { key: 'G', name: 'goal', tier: 'must', taskKey: null, areaKey: null, spec: { type: 'command', cmd: 'test -f second.txt', timeoutMs: 60_000, expectExitCode: 0 } },
         ],
       },
     });

@@ -1,0 +1,104 @@
+import type { Brief } from '@ai-engine/core/browser';
+import { LARGE_BRIEF_TASKS, stagesOf } from '@ai-engine/core/browser';
+import { Plus } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Button, Card, cn, fmtUsd } from '../../ui.tsx';
+import { BriefDag } from './BriefDag.tsx';
+import { TaskCard } from './TaskCard.tsx';
+import { areaStyle, newTask } from './shared.ts';
+
+/**
+ * The plan: a graph of the tasks (coloured by Area) and the same tasks listed by Stage —
+ * tasks of one stage run in parallel, a stage starts when the previous one is done.
+ */
+export function PlanSection({ brief, goalId, editable, edit }: { brief: Brief; goalId: string; editable: boolean; edit: (fn: (b: Brief) => Brief) => void }) {
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const [areaFilter, setAreaFilter] = useState<string | null>(null);
+  const stages = useMemo(() => {
+    try {
+      return { ok: true as const, stages: stagesOf(brief.tasks) };
+    } catch (e: any) {
+      return { ok: false as const, error: e.message as string, stages: [brief.tasks] };
+    }
+  }, [brief.tasks]);
+  const toggle = (key: string) =>
+    setOpen((s) => {
+      const n = new Set(s);
+      n.has(key) ? n.delete(key) : n.add(key);
+      return n;
+    });
+  const select = (key: string | null) => {
+    if (!key) return;
+    setOpen((s) => new Set(s).add(key));
+    document.getElementById(`task-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+  const addTask = () => {
+    const t = newTask(brief, areaFilter);
+    edit((b) => ({ ...b, tasks: [...b.tasks, t] }));
+    setOpen((s) => new Set(s).add(t.key));
+  };
+  const large = brief.tasks.length > LARGE_BRIEF_TASKS;
+  const visible = (key: string) => !areaFilter || brief.tasks.find((t) => t.key === key)?.areaKey === areaFilter;
+
+  return (
+    <Card
+      title={`Plan (${brief.tasks.length} task${brief.tasks.length === 1 ? '' : 's'} · ${stages.stages.length} stage${stages.stages.length === 1 ? '' : 's'})`}
+      actions={
+        editable && (
+          <Button size="sm" onClick={addTask}>
+            <Plus size={13} /> Add task
+          </Button>
+        )
+      }
+    >
+      {large && (
+        <div className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-200">
+          This is a large goal: {brief.tasks.length} tasks, estimated {fmtUsd(brief.costEstimateUsd)} / {brief.timeEstimateMin} min. It will run, but consider splitting it into one goal per Area for smaller pull requests and easier review.
+        </div>
+      )}
+      {!stages.ok && <div className="text-xs text-rose-300 mb-2">Graph error: {stages.error}</div>}
+      {brief.tasks.length > 1 && (
+        <div className="mb-4">
+          <BriefDag brief={brief} selected={null} onSelect={select} />
+        </div>
+      )}
+      {brief.areas.length > 1 && (
+        <div className="flex flex-wrap gap-1.5 mb-3 text-[11px]">
+          <button onClick={() => setAreaFilter(null)} className={cn('rounded-full border px-2 py-0.5', !areaFilter ? 'border-zinc-400 text-zinc-100' : 'border-zinc-700 text-zinc-500')}>
+            all Areas
+          </button>
+          {brief.areas.map((a) => (
+            <button key={a.key} onClick={() => setAreaFilter(areaFilter === a.key ? null : a.key)} className={cn('rounded-full border px-2 py-0.5', areaStyle(brief, a.key).chip, areaFilter && areaFilter !== a.key && 'opacity-40')}>
+              {a.name} · {brief.tasks.filter((t) => t.areaKey === a.key).length}
+            </button>
+          ))}
+        </div>
+      )}
+      {brief.tasks.length === 0 && <div className="text-sm text-zinc-500">No tasks. Add one, or draft tasks for an Area above.</div>}
+      <div className="space-y-4">
+        {stages.stages.map((stage, i) => {
+          const xs = stage.filter((t) => visible(t.key));
+          if (!xs.length) return null;
+          return (
+            <div key={i}>
+              {stages.ok && (
+                <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1.5">
+                  Stage {i + 1}
+                  {stage.length > 1 ? ` · ${stage.length} in parallel` : ''}
+                  {i > 0 ? ' · after the previous stage' : ''}
+                </div>
+              )}
+              <div className="space-y-2">
+                {xs.map((t) => (
+                  <div key={t.key} id={`task-${t.key}`}>
+                    <TaskCard task={t} brief={brief} goalId={goalId} editable={editable} open={open.has(t.key)} onToggle={() => toggle(t.key)} edit={edit} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
