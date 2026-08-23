@@ -1,7 +1,7 @@
 import type { Attempt, CheckResult, Task } from '@ai-engine/core/browser';
 import { GitMerge, RotateCcw, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { api, type GoalDetail } from '../../api.ts';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { OpenMenu } from '../../components/OpenMenu.tsx';
@@ -11,6 +11,7 @@ import { EscalationCard } from '../InboxPage.tsx';
 
 export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; task: Task; onClose: () => void; onRestart?: () => void }) {
   const attempts = d.attempts.filter((a) => a.taskId === task.id);
+  const usage = d.tasks.find((t) => t.id === task.id)?.usage ?? null;
   const [ai, setAi] = useState(attempts.length - 1);
   const [view, setView] = useState<'log' | 'report' | 'prompt'>('log');
   const [prompt, setPrompt] = useState<string | null>(null);
@@ -70,6 +71,16 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
         </>
       }
     >
+      {usage && usage.attempts > 0 && (
+        <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400 rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2" title="everything this task has cost so far — all attempts, all their sessions">
+          <span className="text-zinc-500">Task total</span>
+          <span><b className="text-zinc-200">{usage.attempts}</b> attempt{usage.attempts === 1 ? '' : 's'}</span>
+          <span><b className="text-zinc-200">{fmtUsd(usage.costUsd)}</b> <span className="text-zinc-500">(worker {fmtUsd(usage.byRole.worker.costUsd)} · reviewer {fmtUsd(usage.byRole.reviewer.costUsd)}{usage.byRole.merger.sessions ? ` · merger ${fmtUsd(usage.byRole.merger.costUsd)}` : ''})</span></span>
+          <span><b className="text-zinc-200">{usage.turns}</b> turns</span>
+          <span><b className="text-zinc-200">{usage.wallMin.toFixed(0)}</b> min wall</span>
+          {usage.models.length > 0 && <span className="mono">{usage.models.join(' · ')}</span>}
+        </div>
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-1 space-y-3">
           <MarkdownPanel title="spec" source={task.spec} maxHeight={260} />
@@ -126,25 +137,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
           </div>
           {a && (
             <>
-              <div className="text-xs text-zinc-500 mb-2 mono flex flex-wrap gap-x-3">
-                <span>{a.model}</span>
-                <span>{a.numTurns} turns{a.continuations > 0 ? ` over ${a.continuations + 1} segments` : ''}</span>
-                <span>{a.resultSubtype ?? 'running'}</span>
-                <span>started {ago(a.startedAt)}</span>
-                {a.endedAt && <span>took {Math.round((Date.parse(a.endedAt) - Date.parse(a.startedAt)) / 1000)}s</span>}
-                {concluded(a.id)?.reason && <span className={cn('basis-full', concluded(a.id)?.state === 'passed' ? 'text-emerald-300/80' : 'text-orange-300/90')}>→ {concluded(a.id)!.reason}</span>}
-                {a.sessionId && <span>session {a.sessionId.slice(0, 8)}</span>}
-                {a.skillsUsed.length > 0 && (
-                  <span className="flex items-center gap-1 flex-wrap" title="skills invoked with the Skill tool during this session">
-                    skills:
-                    {a.skillsUsed.map((s) => (
-                      <span key={s} className="rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 px-1">
-                        {s}
-                      </span>
-                    ))}
-                  </span>
-                )}
-              </div>
+              <AttemptStats a={a} d={d} concluded={concluded(a.id)} />
               <div className="flex gap-1 mb-2 text-xs">
                 {(['log', 'report', 'prompt'] as const).map((v) => (
                   <button key={v} onClick={() => setView(v)} className={cn('rounded px-2 py-0.5 border', view === v ? 'border-emerald-500 text-emerald-300' : 'border-zinc-700 text-zinc-400')}>
@@ -168,5 +161,67 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
         </div>
       </div>
     </Card>
+  );
+}
+
+const fmtDur = (ms: number) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s`);
+
+/** Labelled facts about one attempt, then every session that ran for it (worker segments, reviewer, merger). */
+function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; concluded: { state?: string; reason?: string } | null }) {
+  const reviewerCost = a.sessions.filter((s) => s.role === 'reviewer').reduce((n, s) => n + s.costUsd, 0);
+  const workerModels = [...new Set(a.sessions.filter((s) => s.role === 'worker').map((s) => s.model).filter(Boolean))] as string[];
+  const fallbacks = d.events.filter((e) => e.type === 'goal.models_changed').map((e) => e.payload as { from: string; to: string });
+  const running = !a.endedAt;
+  const cell = (label: string, value: ReactNode, title?: string) => (
+    <div className="min-w-0" title={title}>
+      <div className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</div>
+      <div className="text-xs text-zinc-200 truncate">{value}</div>
+    </div>
+  );
+  return (
+    <div className="mb-3 space-y-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 rounded-md border border-zinc-800 bg-zinc-950/50 p-2.5">
+        {cell('Result', <span className="flex items-center gap-1.5"><Badge state={running ? 'running' : a.state} />{a.resultSubtype && !running ? <span className="mono text-zinc-500">{a.resultSubtype}</span> : null}</span>)}
+        {cell('Worker model', <span className="mono">{(workerModels.length ? workerModels : [a.model ?? '?']).join(' → ')}</span>, fallbacks.length ? `model fallback(s) on this goal: ${fallbacks.map((f) => `${f.from} → ${f.to}`).join(', ')}` : undefined)}
+        {cell('Turns', `${a.numTurns}${a.continuations > 0 ? ` over ${a.continuations + 1} segments` : ''}`)}
+        {cell('Cost', <>{fmtUsd(a.costUsd)} <span className="text-zinc-500">worker</span>{reviewerCost > 0 ? <> + {fmtUsd(reviewerCost)} <span className="text-zinc-500">reviewer</span></> : null}</>)}
+        {cell('Started', ago(a.startedAt))}
+        {cell('Duration', a.endedAt ? fmtDur(Date.parse(a.endedAt) - Date.parse(a.startedAt)) : 'running…')}
+        {cell('Session', a.sessionId ? <span className="mono">{a.sessionId.slice(0, 8)}</span> : '—', a.sessionId ?? undefined)}
+        {cell('Skills', a.skillsUsed.length ? a.skillsUsed.join(', ') : '—', 'skills invoked with the Skill tool')}
+      </div>
+      {!running && concluded?.reason && <div className={cn('text-xs', concluded.state === 'passed' ? 'text-emerald-300/80' : 'text-orange-300/90')}>→ {concluded.reason}</div>}
+      {a.sessions.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="text-[11px] w-full">
+            <thead className="text-zinc-500">
+              <tr className="text-left">
+                <th className="pr-3 font-normal">session</th>
+                <th className="pr-3 font-normal">model</th>
+                <th className="pr-3 font-normal text-right">turns</th>
+                <th className="pr-3 font-normal text-right">cost</th>
+                <th className="pr-3 font-normal text-right">time</th>
+                <th className="font-normal">ended</th>
+              </tr>
+            </thead>
+            <tbody className="text-zinc-300">
+              {a.sessions.map((s, i) => (
+                <tr key={i} className="border-t border-zinc-800/70">
+                  <td className="pr-3 py-0.5">
+                    <span className={cn(s.role === 'worker' ? 'text-sky-300' : s.role === 'reviewer' ? 'text-violet-300' : 'text-fuchsia-300')}>{s.role}</span>
+                    {s.role === 'worker' && s.segment > 0 && <span className="text-zinc-500"> · continuation {s.segment}</span>}
+                  </td>
+                  <td className="pr-3 mono">{s.model ?? '—'}</td>
+                  <td className="pr-3 text-right">{s.numTurns}</td>
+                  <td className="pr-3 text-right mono">{fmtUsd(s.costUsd)}</td>
+                  <td className="pr-3 text-right">{fmtDur(s.durationMs)}</td>
+                  <td className="mono text-zinc-500">{s.subtype === 'success' ? 'ok' : (s.subtype ?? '—')}{s.subtype === 'error_max_turns' || s.subtype === 'error_max_budget_usd' ? ' → continued' : ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }

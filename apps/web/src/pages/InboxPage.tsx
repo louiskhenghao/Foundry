@@ -2,6 +2,7 @@ import type { EscalationAction } from '@ai-engine/core/browser';
 import { ACTIONS_BY_TRIGGER } from '@ai-engine/core/browser';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Sparkles } from 'lucide-react';
 import { api, type EscalationRow } from '../api.ts';
 import { MarkdownPanel } from '../components/Markdown.tsx';
 import { useLive } from '../store.ts';
@@ -61,7 +62,23 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
   const [minutes, setMinutes] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [suggesting, setSuggesting] = useState<null | 'suggest' | 'apply'>(null);
+  const [suggestion, setSuggestion] = useState(e.suggestion ?? null);
   const actions = ACTIONS_BY_TRIGGER[e.trigger];
+  const canSuggest = e.taskId && (e.trigger === 'retries_exhausted' || e.trigger === 'permission_denial');
+  const suggest = async (apply: boolean) => {
+    setSuggesting(apply ? 'apply' : 'suggest');
+    setErr(null);
+    try {
+      const r = await api.suggest(e.id, apply);
+      setSuggestion(r.suggestion);
+      if (r.suggestion.action === 'retry_with_hint') setHint(r.suggestion.hint);
+    } catch (x: any) {
+      setErr(x.message);
+    } finally {
+      setSuggesting(null);
+    }
+  };
   const answer = async (action: EscalationAction) => {
     setBusy(true);
     setErr(null);
@@ -112,8 +129,34 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
         </div>
       )}
       <MarkdownPanel title="details" source={e.message} maxHeight={260} />
+      {suggestion && (
+        <div className="mt-2 rounded-md border border-sky-500/30 bg-sky-500/5 p-2.5 text-xs space-y-1">
+          <div className="flex items-center gap-2">
+            <Sparkles size={12} className="text-sky-300" />
+            <span className="text-sky-200 font-medium">AI diagnosis</span>
+            <span className="text-zinc-500">{suggestion.confidence} confidence · ${suggestion.costUsd.toFixed(2)}</span>
+            <span className="ml-auto text-zinc-400">
+              suggests: <b className="text-zinc-200">{ACTION_LABEL[suggestion.action as EscalationAction] ?? suggestion.action}</b>
+            </span>
+          </div>
+          <div className="text-zinc-300 whitespace-pre-wrap">{suggestion.diagnosis}</div>
+          {suggestion.action === 'retry_with_hint' && suggestion.hint && <div className="text-zinc-400">Hint filled in below — press <b>Retry with hint</b> to use it.</div>}
+          {suggestion.action === 'resolve_manually' && <div className="text-zinc-400">Open <b>Resolve manually</b> and settle the conflict yourself.</div>}
+          {suggestion.action === 'skip_task' && <div className="text-zinc-400">The AI thinks this part is not worth pursuing here — your call: <b>Skip task</b>.</div>}
+        </div>
+      )}
       {e.state === 'open' ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
+          {canSuggest && (
+            <>
+              <Button size="sm" disabled={busy || !!suggesting} onClick={() => suggest(false)} title="The AI reads the task, the failing checks and the last session, explains the cause and writes a hint for you (≤ $1)">
+                <Sparkles size={12} /> {suggesting === 'suggest' ? 'Analysing…' : 'Suggest a hint'}
+              </Button>
+              <Button size="sm" variant="primary" disabled={busy || !!suggesting} onClick={() => suggest(true)} title="Same analysis; when the answer is 'retry with this hint' it is applied immediately (one extra attempt). Skipping, budget and manual merges are never applied for you.">
+                <Sparkles size={12} /> {suggesting === 'apply' ? 'Analysing…' : 'Let AI handle it'}
+              </Button>
+            </>
+          )}
           {actions.includes('retry_with_hint') && (
             <>
               <Input className="flex-1 min-w-[240px]" placeholder="hint for the next attempt (optional)" value={hint} onChange={(x) => setHint(x.target.value)} />

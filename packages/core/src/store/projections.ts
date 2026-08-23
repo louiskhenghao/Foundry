@@ -222,6 +222,16 @@ export function applyEvent(db: Database, e: EngineEvent): void {
       if (a) upsertAttempt(db, { ...a, state: e.payload.state, endedAt: a.endedAt ?? e.ts });
       break;
     }
+    case 'attempt.session_finished': {
+      const a = getAttempt(db, e.payload.attemptId);
+      if (a) upsertAttempt(db, { ...a, sessions: [...a.sessions, e.payload.session] });
+      break;
+    }
+    case 'escalation.suggested': {
+      const esc = getEscalation(db, e.payload.escalationId);
+      if (esc) upsertEscalation(db, { ...esc, suggestion: e.payload.suggestion });
+      break;
+    }
     case 'attempt.continued': {
       const a = getAttempt(db, e.payload.attemptId);
       if (a) upsertAttempt(db, { ...a, state: 'running', continuations: a.continuations + 1, endedAt: null, pid: null });

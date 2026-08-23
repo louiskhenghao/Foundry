@@ -388,3 +388,66 @@ describe('continuations', () => {
     expect(runner.calls.every((c) => !c.resumeSessionId)).toBe(true);
   });
 });
+
+describe('sessions per attempt and AI suggestions', () => {
+  test('every session of an attempt is recorded (worker segments + reviewer) and the task usage sums them', async () => {
+    const runner = new FakeRunner((spec) => {
+      if (spec.label?.startsWith('attempt')) writeFileSync(join(spec.cwd, 'done.txt'), 'ok');
+    });
+    const engine = new Engine(cfg({ alwaysReviewTasks: true }), runner);
+    const goal = await engine.createGoal({ prompt: 'sessions', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] } });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state));
+    const task = listTasks(engine.store.db, goal.id)[0]!;
+    const a = listAttempts(engine.store.db, task.id)[0]!;
+    // the fake reviewer returns no JSON, so the engine nudges it once: a second reviewer session on the same attempt
+    expect(a.sessions.map((s) => s.role)).toEqual(['worker', 'reviewer', 'reviewer']);
+    expect(a.sessions[0]).toMatchObject({ segment: 0, model: 'fake', numTurns: 1, subtype: 'success' });
+    expect(a.sessions[0]!.costUsd).toBeCloseTo(0.01, 5);
+    const { taskUsage } = await import('@ai-engine/core');
+    const u = taskUsage(listAttempts(engine.store.db, task.id));
+    expect(u.attempts).toBe(1);
+    expect(u.byRole.worker.sessions).toBe(1);
+    expect(u.byRole.reviewer.sessions).toBe(2);
+    expect(u.costUsd).toBeCloseTo(0.03, 5);
+    const before = engine.store.snapshotReadModels();
+    engine.store.replay();
+    expect(engine.store.snapshotReadModels()).toEqual(before);
+  });
+
+  test('suggest: the AI diagnoses a blocked task; apply answers retry_with_hint, other actions are never applied', async () => {
+    let mode: 'retry' | 'skip' = 'retry';
+    const runner = new FakeRunner(() => {});
+    const orig = runner.run.bind(runner);
+    runner.run = async (spec) => {
+      const h = await orig(spec);
+      if (!spec.label?.startsWith('suggest')) return h;
+      const r = await h.result;
+      const structuredOutput = mode === 'retry' ? { diagnosis: 'never.txt is never created; the worker looked in the wrong folder', action: 'retry_with_hint', hint: 'Create never.txt at the repo root with `touch never.txt`.', confidence: 'high' } : { diagnosis: 'out of scope', action: 'skip_task', hint: '', confidence: 'medium' };
+      return { ...h, result: Promise.resolve({ ...r, structuredOutput }) };
+    };
+    const engine = new Engine(cfg(), runner);
+    const goal = await engine.createGoal({ prompt: 'stuck', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f never.txt'] } });
+    await waitFor(() => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).length > 0);
+    const esc = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true })[0]!;
+    const s = await engine.suggestForEscalation(esc.id);
+    expect(s.action).toBe('retry_with_hint');
+    expect(s.hint).toContain('touch never.txt');
+    const stored = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true })[0]!;
+    expect(stored.suggestion?.diagnosis).toContain('wrong folder');
+    const prompt = runner.calls.find((c) => c.label?.startsWith('suggest'))!.prompt;
+    expect(prompt).toContain('# Why it is blocked');
+    expect(prompt).toContain('never.txt');
+    expect(engine.store.listByGoal(goal.id, 5000).some((e) => e.type === 'goal.cost_added' && (e.payload as { source: string }).source === 'suggest')).toBe(true);
+    // apply = answer with the hint
+    await engine.answerEscalation(esc.id, { action: 'retry_with_hint', hint: s.hint, extraAttempts: 1 });
+    await waitFor(() => runner.calls.filter((c) => c.label?.startsWith('attempt')).length >= 2);
+    expect(runner.calls.filter((c) => c.label?.startsWith('attempt')).at(-1)!.prompt).toContain('touch never.txt');
+    // a skip suggestion is only recorded
+    mode = 'skip';
+    await waitFor(() => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).length > 0, 20_000);
+    const esc2 = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true })[0]!;
+    const s2 = await engine.suggestForEscalation(esc2.id);
+    expect(s2.action).toBe('skip_task');
+    expect(listEscalations(engine.store.db, { goalId: goal.id, openOnly: true })[0]!.state).toBe('open');
+  }, 30_000);
+});

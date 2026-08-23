@@ -132,6 +132,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
     startedAt: now,
     endedAt: null,
     continuations: 0,
+    sessions: [],
   };
   if (resume) store.append({ type: 'attempt.continued', goalId: goal.id, payload: { attemptId: attempt.id, reason: resume.reason, sessionId: attempt.sessionId } });
   else store.append({ type: 'attempt.started', goalId: goal.id, payload: { attempt } });
@@ -172,9 +173,16 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   });
   engine.registerInFlight(task.id, attempt.id, handle);
   let hookSeen = false;
+  const segmentStart = new Date().toISOString();
+  let initModel: string | null = null;
+  let initSession: string | null = null;
   try {
     for await (const ev of handle.events) {
-      if (ev.kind === 'init') store.append({ type: 'attempt.session', goalId: goal.id, payload: { attemptId: attempt.id, sessionId: ev.sessionId, model: ev.model, pid: handle.pid } });
+      if (ev.kind === 'init') {
+        initModel = ev.model;
+        initSession = ev.sessionId;
+        store.append({ type: 'attempt.session', goalId: goal.id, payload: { attemptId: attempt.id, sessionId: ev.sessionId, model: ev.model, pid: handle.pid } });
+      }
       if (ev.kind === 'hook' && ev.name.startsWith('SessionStart')) hookSeen = true;
       if (ev.kind === 'init' && !hookSeen) {
         // fail closed: settings were silently ignored, the boundary guard is not active
@@ -189,6 +197,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   const result = await handle.result;
   store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source: `attempt:${attempt.id}` } });
   engine.recordSessionUsage(result, { goalId: goal.id, kind: 'attempt', model: attempt.model });
+  store.append({ type: 'attempt.session_finished', goalId: goal.id, payload: { attemptId: attempt.id, session: { role: 'worker', segment: attempt.continuations, sessionId: initSession ?? attempt.sessionId, model: initModel ?? attempt.model, costUsd: result.costUsd, numTurns: result.numTurns, durationMs: result.durationMs, subtype: result.subtype, startedAt: segmentStart, endedAt: new Date().toISOString() } } });
 
   const commit = await commitAll(cwd, taskCommitMessage(goal, task, { attempt: index }));
   if (commit.committed) store.append({ type: 'workspace.committed', goalId: goal.id, payload: { taskId: task.id, attemptId: attempt.id, ref: commit.ref } });

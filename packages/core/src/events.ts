@@ -11,6 +11,7 @@ import {
   Check,
   CheckResult,
   Escalation,
+  EscalationSuggestion,
   EscalationAnswer,
   Goal,
   GoalState,
@@ -19,6 +20,7 @@ import {
   Task,
   TaskState,
   AttemptState,
+  AttemptSession,
 } from './schema/index.ts';
 
 const base = { id: z.string(), ts: z.string(), goalId: z.string().nullable() };
@@ -94,6 +96,10 @@ export const EngineEvent = z.discriminatedUnion('type', [
   }),
 
   ev('attempt.concluded', { attemptId: z.string(), state: AttemptState, reason: z.string() }),
+  /** one session (worker segment / reviewer / merger) of an attempt ended: model, cost, turns, duration */
+  ev('attempt.session_finished', { attemptId: z.string(), session: AttemptSession }),
+  /** the AI analysed an escalation and proposed what to do */
+  ev('escalation.suggested', { escalationId: z.string(), suggestion: EscalationSuggestion }),
   /** the attempt's Claude session is resumed instead of a new attempt being started */
   ev('attempt.continued', { attemptId: z.string(), reason: z.string(), sessionId: z.string().nullable() }),
 

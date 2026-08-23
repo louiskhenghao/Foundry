@@ -11,7 +11,7 @@ A user-set objective stated in natural language against a repository. A Goal is 
 The smallest unit of work carved out of a Goal during Clarify. Tasks form a DAG through `dependsOn` edges. A Task with no unfinished dependencies is *ready*. Fan-out, fan-in and pipeline are not separate concepts — they are shapes of the DAG.
 
 **Attempt**
-One Plan → Act → Observe pass at a Task, performed in a fresh Claude session. A *retry* is simply the next Attempt, fed with the previous Attempt's Observation Report — unless the session can simply carry on (see Continuation). A **Merge Attempt** is an Attempt whose only job is to resolve a merge conflict between two Tasks.
+One Plan → Act → Observe pass at a Task, performed in a fresh Claude session. An Attempt is made of several sessions — the Worker's segments, the Task reviewer, possibly a Merger — each recorded with its model, cost and turns. A *retry* is simply the next Attempt, fed with the previous Attempt's Observation Report — unless the session can simply carry on (see Continuation). A **Merge Attempt** is an Attempt whose only job is to resolve a merge conflict between two Tasks.
 
 **Continuation**
 The next segment of the same Attempt: its Claude session is resumed with everything it already knows, instead of a fresh session that must understand the Task again. The engine continues an Attempt when its session was cut (engine restart, turn or cost cap, timeout) or when the Checks still fail but the segment made progress; a Continuation consumes no retry, and an Attempt is continued at most a few times before a genuine new Attempt (fresh session, Observation Report) takes over. A Merge Attempt's second try is a Continuation of its first.
@@ -70,6 +70,9 @@ The only way the system ever asks a human for anything after the Brief is approv
 3. an action that would leave the local workspace (push, pull request, deploy, shared database, paid service);
 4. the Goal's cost or time budget was exceeded;
 5. the Claude runtime refused a tool call.
+
+**Suggestion**
+What the system proposes when a Task is blocked and the user asks: a plain-words diagnosis, the action it recommends (retry with a hint, skip, resolve by hand, raise the budget) and the hint itself. Only a *retry with hint* may be applied on the user's say-so in one click; every other action stays the user's.
 
 **Boundary**
 The line between the local workspace and the outside world. Crossing it is always an Escalation.

@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import type { Attachment, Brief, BudgetPreset, Escalation, EscalationAnswer, Goal, GoalMode, GoalWorkflow, ModelConfig, Task, Check } from '@ai-engine/core';
+import type { Attachment, Brief, BudgetPreset, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalWorkflow, ModelConfig, Task, Check } from '@ai-engine/core';
 import {
   BUDGET_PRESETS,
   Budgets,
@@ -26,6 +26,7 @@ import {
 import { ClaudeCliRunner, type ClaudeRunner, type RunHandle } from '@ai-engine/runner';
 import { runClarify } from './clarify.ts';
 import { type DraftProposal, type DraftRequest, runDraft } from './brief-draft.ts';
+import { runSuggest } from './escalation-suggest.ts';
 import type { EngineConfig } from './config.ts';
 import { GrepContextProvider } from './context/grep-provider.ts';
 import { GraphifyContextProvider } from './context/graphify-provider.ts';
@@ -806,6 +807,11 @@ export class Engine {
     if (!att) throw new Error(`attachment ${attachmentId} not found`);
     trashAttachment(this.config.dataDir, goalId, att);
     this.store.append({ type: 'goal.attachment_removed', goalId, payload: { attachmentId } });
+  }
+
+  /** The AI analyses a blocked task and proposes an action + hint (recorded on the escalation; nothing is applied here). */
+  async suggestForEscalation(escalationId: string): Promise<EscalationSuggestion> {
+    return runSuggest(this, escalationId);
   }
 
   /** Draft with AI on the Brief page: a read-only strong session proposes spec/checks/tasks; nothing is written to the Brief. */

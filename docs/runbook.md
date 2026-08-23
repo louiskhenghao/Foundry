@@ -18,6 +18,8 @@ A field guide to the messages ai-engine shows while a goal runs. Vocabulary is i
 
 ## 2. Attempt states and markers (Task view)
 
+Each attempt shows a **stat grid** (Result · Worker model · Turns · Cost worker + reviewer · Started · Duration · Session · Skills) and a **Sessions table**: one row per Claude session that ran for it — worker segments (continuations are extra rows), the task reviewer (cheap model, shows as `reviewer`), mergers. *"Why does the log show another model?"* — that row. The **Task total** strip above sums every attempt and every session (worker / reviewer / merger), so the cost you see is the task's real cost, not the last attempt's.
+
 | Marker | Meaning |
 |---|---|
 | `#3 ↻1` | Attempt 3 was continued once (session resumed). Cost and turns are cumulative over segments. |
@@ -47,7 +49,7 @@ Every notice names the goal and the task and links straight to the task view; th
 | Notice | Meaning | What to do |
 |---|---|---|
 | **Retries exhausted · merge conflict** — lists files and *why each attempt failed* | Two tasks changed the same lines; two Merge Attempts could not land it (or landed it but must checks regressed). | **Resolve manually →** (both sides per file, take a side / edit / open in your editor, Finish merge). Or *Retry with hint* ("merge the goal branch first, keep Postgres…"), or *Skip task*. |
-| **Retries exhausted** — *"used N/M attempts; Must checks still failing"* + the last observation report | The worker could not make the checks pass. | Read the report: wrong approach → *Retry with hint*; check itself wrong → fix it in Expert view; not worth it → *Skip task*. |
+| **Retries exhausted** — *"used N/M attempts; Must checks still failing"* + the last observation report | The worker could not make the checks pass. | **Suggest a hint** (AI reads the task, the failing checks and the last session, explains the cause in plain words and fills the hint — you press *Retry*), or **Let AI handle it** (same, and when the answer is "retry with this hint" it is applied at once; skip / budget / manual merge are never applied for you). Or decide yourself: *Retry with hint* / *Skip task*; a wrong check → fix it in Expert view. |
 | **Retries exhausted · engine** — *"Engine error … 3 times in a row"* | ai-engine bug or environment problem (git missing, disk). | Fix the cause, then *Retry*. Please report it. |
 | **Budget exceeded** | Cost or time limit reached. | *Raise budget* or *Abort*. |
 | **Wants to leave the workspace** | A session tried `git push` / deploy / paid service. | *Approve & run once* or *Deny*. |

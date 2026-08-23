@@ -32,6 +32,7 @@ export function raiseEscalation(engine: Engine, i: RaiseInput): Escalation {
     answer: null,
     createdAt: new Date().toISOString(),
     answeredAt: null,
+    suggestion: null,
   };
   store.append({ type: 'escalation.raised', goalId: i.goal.id, payload: { escalation: esc } });
   if (i.task && i.task.state !== 'blocked' && i.task.state !== 'done' && i.task.state !== 'failed' && i.task.state !== 'skipped') {

@@ -279,6 +279,8 @@ export const api = {
   },
   escalations: (openOnly = true) => req<EscalationRow[]>(`/api/escalations${openOnly ? '?open=1' : ''}`),
   answer: (id: string, answer: EscalationAnswer) => req<{ ok: true }>(`/api/escalations/${id}/answer`, { method: 'POST', body: JSON.stringify(answer) }),
+  /** AI analyses a blocked task; `apply` = answer retry_with_hint right away when that is the suggestion */
+  suggest: (id: string, apply = false) => req<{ suggestion: EscalationSuggestion; applied: boolean }>(`/api/escalations/${id}/suggest`, { method: 'POST', body: JSON.stringify({ apply }) }),
   // skills & setup
   skills: (repo?: string) => req<SkillsOverview>(`/api/skills${repo ? `?repo=${encodeURIComponent(repo)}` : ''}`),
   installSkill: (id: string, force = false) => req<InstallResult>('/api/skills/install', { method: 'POST', body: JSON.stringify({ id, force }) }),

@@ -33,6 +33,17 @@ export const EscalationAnswer = z.object({
 });
 export type EscalationAnswer = z.infer<typeof EscalationAnswer>;
 
+/** What the AI suggested the human do about an escalation (never applied on its own except retry_with_hint on request). */
+export const EscalationSuggestion = z.object({
+  diagnosis: z.string(),
+  action: z.enum(['retry_with_hint', 'skip_task', 'resolve_manually', 'raise_budget']),
+  hint: z.string(),
+  confidence: z.enum(['high', 'medium', 'low']),
+  costUsd: z.number().nonnegative(),
+  at: z.string(),
+});
+export type EscalationSuggestion = z.infer<typeof EscalationSuggestion>;
+
 export const Escalation = z.object({
   id: z.string(),
   goalId: z.string(),
@@ -46,6 +57,8 @@ export const Escalation = z.object({
   answer: EscalationAnswer.nullable(),
   createdAt: z.string(),
   answeredAt: z.string().nullable(),
+  /** last AI suggestion for this escalation (default keeps older events replayable) */
+  suggestion: EscalationSuggestion.nullable().default(null),
 });
 export type Escalation = z.infer<typeof Escalation>;
 

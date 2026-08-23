@@ -174,6 +174,7 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
     startedAt: new Date().toISOString(),
     endedAt: null,
     continuations: 0,
+    sessions: [],
   };
   if (resume) store.append({ type: 'attempt.continued', goalId: goal.id, payload: { attemptId: attempt.id, reason: 'merge_retry', sessionId: attempt.sessionId } });
   else store.append({ type: 'attempt.started', goalId: goal.id, payload: { attempt } });
@@ -225,13 +226,19 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
     env: { AI_ENGINE_ATTEMPT_ID: attempt.id },
     label: `merge ${src.label} #${n}`,
   });
+  const segmentStart = new Date().toISOString();
+  let initModel: string | null = null;
   for await (const ev of handle.events) {
-    if (ev.kind === 'init') store.append({ type: 'attempt.session', goalId: goal.id, payload: { attemptId: attempt.id, sessionId: ev.sessionId, model: ev.model, pid: handle.pid } });
-    engine.broadcast({ goalId: goal.id, taskId: task.id, attemptId: attempt.id, event: ev, ts: new Date().toISOString() });
+    if (ev.kind === 'init') {
+      initModel = ev.model;
+      store.append({ type: 'attempt.session', goalId: goal.id, payload: { attemptId: attempt.id, sessionId: ev.sessionId, model: ev.model, pid: handle.pid } });
+    }
+    engine.broadcast({ goalId: goal.id, taskId: task.id, attemptId: attempt.id, event: ev, ts: new Date().toISOString(), role: 'merger' });
   }
   const result = await handle.result;
   store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source: `merge:${attempt.id}` } });
   engine.recordSessionUsage(result, { goalId: goal.id, kind: 'merge', model: goal.models.strong });
+  store.append({ type: 'attempt.session_finished', goalId: goal.id, payload: { attemptId: attempt.id, session: { role: 'merger', segment: attempt.continuations, sessionId: result.sessionId ?? attempt.sessionId, model: initModel ?? goal.models.strong, costUsd: result.costUsd, numTurns: result.numTurns, durationMs: result.durationMs, subtype: result.subtype, startedAt: segmentStart, endedAt: new Date().toISOString() } } });
 
   const remaining = await conflictedFiles(cwd);
   let ok = remaining.length === 0;

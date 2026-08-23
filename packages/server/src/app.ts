@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { Brief, EscalationAnswer, getAttempt, getBrief, getGoal, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths } from '@ai-engine/core';
+import { Brief, EscalationAnswer, getAttempt, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@ai-engine/core';
 import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, type Engine, type OpenTargetId } from '@ai-engine/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, GoalMode, GoalWorkflow, SettingsPatch } from '@ai-engine/core';
 import { Hono } from 'hono';
@@ -263,7 +263,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       goal,
       paths: { repo: goal.repoPath, workspace: existsSync(ws) ? ws : null },
       budget: budgetStatus(goal),
-      tasks: tasks.map((t) => ({ ...t, depth: depth.get(t.id) ?? 0 })),
+      tasks: tasks.map((t) => ({ ...t, depth: depth.get(t.id) ?? 0, usage: taskUsage(listAttempts(db, t.id)) })),
       attempts: listAttemptsByGoal(db, id),
       checks: listChecks(db, id),
       checkResults: listCheckResultsByGoal(db, id),
@@ -453,6 +453,18 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       }),
     ),
   );
+
+  // the AI reads the task, the failure and the last session and proposes what to do; `apply` answers retry_with_hint on the spot
+  app.post('/api/escalations/:id/suggest', async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const suggestion = await engine.suggestForEscalation(c.req.param('id'));
+    let applied = false;
+    if (body?.apply === true && suggestion.action === 'retry_with_hint') {
+      await engine.answerEscalation(c.req.param('id'), { action: 'retry_with_hint', hint: suggestion.hint, extraAttempts: 1 });
+      applied = true;
+    }
+    return c.json({ suggestion, applied });
+  });
 
   app.post('/api/escalations/:id/answer', async (c) => {
     const answer = EscalationAnswer.parse(await c.req.json());
