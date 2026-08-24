@@ -1,8 +1,10 @@
-# ai-engine in Docker. First run: docker compose run --rm ai-engine claude login
+# ai-engine in Docker.
+#   docker compose run --rm ai-engine claude auth login     # once: paste the code from the printed URL
+#   AI_ENGINE_REPOS=~/Projects docker compose up -d         # then http://127.0.0.1:4111
+# (to build from source instead of pulling: docker build -t imlouiskhenghao/ai-engine .)
 services:
   ai-engine:
     image: imlouiskhenghao/ai-engine:latest
-    build: .
     # the UI is not authenticated: keep it on loopback
     ports: ['127.0.0.1:4111:4111']
     volumes:

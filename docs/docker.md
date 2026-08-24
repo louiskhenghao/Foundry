@@ -7,30 +7,40 @@ Two things it deliberately does **not** ship: your Claude login and your reposit
 docker pull imlouiskhenghao/ai-engine:latest
 ```
 
-## First run
-
-```bash
-# 1. log in to Claude once — the credentials land in the claude-home volume
-AI_ENGINE_REPOS=~/Projects docker compose run --rm ai-engine claude login   # follow the URL, paste the code
-
-# 2. start it
-AI_ENGINE_REPOS=~/Projects docker compose up -d
-open http://127.0.0.1:4111
-```
-
-Without compose:
+## First run — no repo checkout needed
 
 ```bash
 docker volume create ai-engine-data && docker volume create ai-engine-claude
-docker run --rm -it -v ai-engine-claude:/home/node/.claude imlouiskhenghao/ai-engine claude login
+
+# 1. sign in to Claude once (-it so you can paste the code the URL gives you)
+docker run --rm -it -v ai-engine-claude:/home/node/.claude \
+  imlouiskhenghao/ai-engine claude auth login
+
+# 2. run it — mount the directory that holds your repositories
 docker run -d --name ai-engine -p 127.0.0.1:4111:4111 \
-  -v ai-engine-data:/app/data -v ai-engine-claude:/home/node/.claude \
-  -v ~/Projects:/repos imlouiskhenghao/ai-engine
+  -v ai-engine-data:/app/data \
+  -v ai-engine-claude:/home/node/.claude \
+  -v ~/Projects:/repos \
+  imlouiskhenghao/ai-engine
+open http://127.0.0.1:4111
+```
+
+Check the login at any time with `docker exec ai-engine claude auth status`.
+
+### With docker compose
+
+`docker compose` needs a `docker-compose.yml` **in the directory you run it from** — otherwise it answers
+`no configuration file provided: not found`. The image carries one:
+
+```bash
+docker run --rm imlouiskhenghao/ai-engine cat /app/docker-compose.yml > docker-compose.yml
+docker compose run --rm ai-engine claude auth login          # once
+AI_ENGINE_REPOS=~/Projects docker compose up -d
 ```
 
 **The login must happen inside the container.** On macOS the host's Claude Code keeps its credentials in the
 Keychain, so mounting `~/.claude` from a Mac carries settings and skills but not the login. In the container they
-are written to `/home/node/.claude/.credentials.json` inside the `claude-home` volume and survive restarts.
+are written to `/home/node/.claude/.credentials.json` inside the `ai-engine-claude` volume and survive restarts.
 
 ## Repositories
 

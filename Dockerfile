@@ -65,6 +65,8 @@ COPY catalog ./catalog
 COPY scripts ./scripts
 COPY CONTEXT.md README.md ./
 COPY docs ./docs
+# so a user who only pulled the image can get the compose file: docker run --rm <image> cat /app/docker-compose.yml
+COPY docker-compose.yml ./docker-compose.yml
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 COPY --from=build /app/apps/web/dist ./apps/web/dist
 
