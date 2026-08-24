@@ -62,6 +62,8 @@ Every notice names the goal and the task and links straight to the task view; th
 | *baseline at abc1234: N must check(s) already failing on the goal branch … merges are judged on regressions only* | The goal's own suite is red independent of the merge. A correctly resolved merge is not blocked by it. Fix the suite (goal review will), but merges keep flowing. |
 | *merge attempt 1 …: N must check(s) fail but already failed before the merge — accepted* | Same, applied. |
 | *catch-up: merged N goal-branch commit(s) into task/… before "…"* | Task worktree brought up to date before work / before landing. |
+| *autoskills: N skill(s) installed for this stack (content in .agents/)* | The stack's project skills were installed as symlinks into `.claude/skills`; both the links and their target dir are git-excluded so they never reach a commit. |
+| *…; N stale tracked link(s) removed from the index* | An older run let those symlinks into git; they are dropped from the index (files stay on disk). If a branch already carries them, clean it with `git rm -r --cached .claude/skills && git commit`. |
 | *catch-up: task/… has an unfinished merge with conflicts … leaving it for the worker* | An earlier session left a merge open; the worker is told to finish it. |
 | *attempt … was interrupted by an engine restart; its session will be resumed* | Continuation after restart. |
 | *attempt … was orphaned by an engine restart* | Could not be resumed (no session yet); a fresh attempt runs, budget refunded. |

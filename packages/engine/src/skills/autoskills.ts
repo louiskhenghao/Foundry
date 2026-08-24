@@ -4,8 +4,8 @@
  * up so nothing it wrote reaches a commit: the generated/modified CLAUDE.md is restored and the skill
  * dirs + skills-lock.json are excluded via the repository's `.git/info/exclude`.
  */
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
 import { exec, git } from '../git/git.ts';
 import { spawnStreaming } from './updaters.ts';
 
@@ -37,17 +37,58 @@ export async function nodeMajor(deps: AutoskillsDeps = {}): Promise<number | nul
   return m ? Number(m[1]) : null;
 }
 
+/**
+ * Installed project skills, by name. autoskills writes some of them as symlinks
+ * (`.claude/skills/<n>` → `../../.agents/skills/<n>`), and `Dirent.isDirectory()` is false for a symlink —
+ * so the only reliable test is whether `<n>/SKILL.md` resolves.
+ */
 function skillDirs(ws: string): string[] {
   const d = join(ws, '.claude', 'skills');
   if (!existsSync(d)) return [];
   try {
     return readdirSync(d, { withFileTypes: true })
-      .filter((e) => e.isDirectory() && existsSync(join(d, e.name, 'SKILL.md')))
+      .filter((e) => (e.isDirectory() || e.isSymbolicLink()) && existsSync(join(d, e.name, 'SKILL.md')))
       .map((e) => e.name)
       .sort();
   } catch {
     return [];
   }
+}
+
+function isLink(ws: string, name: string): boolean {
+  try {
+    return lstatSync(join(ws, '.claude', 'skills', name)).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Top-level directories inside the workspace that installed skills point at (autoskills keeps the real
+ * content in `.agents/skills/…` and symlinks it). They must be excluded too, or the links become dangling
+ * for anyone who checks the branch out.
+ */
+function linkTargetRoots(ws: string, names: string[]): string[] {
+  const d = join(ws, '.claude', 'skills');
+  const roots = new Set<string>();
+  // both sides through realpath: the workspace path itself may run through symlinks (/var → /private/var on macOS)
+  const base = (() => {
+    try {
+      return realpathSync(ws);
+    } catch {
+      return ws;
+    }
+  })();
+  for (const n of names) {
+    const p = join(d, n);
+    try {
+      if (!lstatSync(p).isSymbolicLink()) continue;
+      const rel = relative(base, realpathSync(p));
+      const top = rel.split('/')[0];
+      if (top && !rel.startsWith('..') && top !== '.claude') roots.add(top);
+    } catch {}
+  }
+  return [...roots].sort();
 }
 
 /** Run autoskills in `ws` (a worktree of the repository) and clean up after it. Never throws. */
@@ -75,11 +116,17 @@ export async function runAutoskills(ws: string, deps: AutoskillsDeps = {}, onLin
   const added = after.filter((n) => !before.has(n));
 
   // 2. keep the installed skills out of git: per-skill excludes (never the whole .claude/skills, the repo may track its own)
-  const excluded = await excludeFromGit(ws, [...added.map((n) => `.claude/skills/${n}/`), ...(hadLock ? [] : ['skills-lock.json'])], deps.log);
+  const targets = linkTargetRoots(ws, added);
+  // a trailing slash only matches directories, and a symlinked skill is a *file* to git — so pattern by kind
+  const skillPatterns = added.map((n) => `.claude/skills/${n}${isLink(ws, n) ? '' : '/'}`);
+  const excluded = await excludeFromGit(ws, [...skillPatterns, ...targets.map((t) => `${t}/`), ...(hadLock ? [] : ['skills-lock.json'])], deps.log);
+  // a previous (buggy) run may have let these reach the index: a tracked symlink into an excluded dir is a
+  // dangling link for everyone who checks the branch out, so drop it from the index (the file stays on disk)
+  const untracked = await untrackSkillLinks(ws, after, deps.log);
 
   if (r.code !== 0 && !added.length) return { status: 'failed', skills: [], detail: `npx autoskills exited ${r.code}: ${r.tail.split('\n').slice(-3).join(' | ').slice(0, 300)}` };
-  if (!added.length) return { status: 'skipped', skills: after, detail: after.length ? `nothing new to install (${after.length} project skill(s) already present)` : 'autoskills found no skills for this stack' };
-  return { status: 'installed', skills: after, detail: `${added.length} skill(s) installed for this stack${excluded ? '' : ' (could not write .git/info/exclude)'}` };
+  if (!added.length) return { status: 'skipped', skills: after, detail: `${after.length ? `nothing new to install (${after.length} project skill(s) already present)` : 'autoskills found no skills for this stack'}${untracked ? `; ${untracked} stale tracked link(s) removed from the index` : ''}` };
+  return { status: 'installed', skills: after, detail: `${added.length} skill(s) installed for this stack${targets.length ? ` (content in ${targets.map((t) => `${t}/`).join(', ')})` : ''}${untracked ? `; ${untracked} stale tracked link(s) removed from the index` : ''}${excluded ? '' : ' (could not write .git/info/exclude)'}` };
 }
 
 /** Append patterns to the repository's `.git/info/exclude` (shared by every worktree), idempotently. Returns false when the repo is not writable. */
@@ -102,6 +149,21 @@ export async function excludeFromGit(ws: string, patterns: string[], log?: (m: s
     log?.(`[autoskills] could not update ${excludeFile}: ${String(err)}`);
     return false;
   }
+}
+
+/** Drop project-skill symlinks from the index when git still tracks them (leftovers of a run that failed to exclude them). */
+export async function untrackSkillLinks(ws: string, names: string[], log?: (m: string) => void): Promise<number> {
+  const tracked = await git(['ls-files', '--', '.claude/skills'], ws);
+  if (tracked.code !== 0) return 0;
+  const inIndex = new Set(tracked.stdout.split('\n').filter(Boolean));
+  const stale = names.filter((n) => inIndex.has(`.claude/skills/${n}`) && isLink(ws, n));
+  if (!stale.length) return 0;
+  const r = await git(['rm', '-r', '--cached', '-q', '--', ...stale.map((n) => `.claude/skills/${n}`)], ws);
+  if (r.code !== 0) {
+    log?.(`[autoskills] could not untrack stale skill links: ${r.stderr.slice(0, 200)}`);
+    return 0;
+  }
+  return stale.length;
 }
 
 /** Give a task worktree the goal workspace's project skills (they are git-excluded, so a checkout lacks them). */

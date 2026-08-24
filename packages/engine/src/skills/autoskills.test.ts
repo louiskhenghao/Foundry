@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeRepo, sh } from '../test-helpers.ts';
@@ -68,5 +68,55 @@ describe('autoskills', () => {
     const r = await runAutoskills(repo, { spawn: (async () => ({ code: 1, tail: 'boom' })) as any, nodeVersion: async () => 'v22.0.0' });
     expect(r.status).toBe('failed');
     expect(r.detail).toContain('boom');
+  });
+});
+
+/** the real autoskills keeps content in .agents/skills and symlinks it into .claude/skills */
+const fakeNpxSymlinked = async (_argv: string[], cwd: string, onLine: (l: string) => void) => {
+  const { symlinkSync } = await import('node:fs');
+  mkdirSync(join(cwd, '.claude', 'skills'), { recursive: true });
+  for (const n of ['vitest', 'next-best-practices']) {
+    mkdirSync(join(cwd, '.agents', 'skills', n), { recursive: true });
+    writeFileSync(join(cwd, '.agents', 'skills', n, 'SKILL.md'), `---\nname: ${n}\n---\nrules`);
+    const link = join(cwd, '.claude', 'skills', n);
+    if (!existsSync(link)) symlinkSync(join('..', '..', '.agents', 'skills', n), link); // the real tool is idempotent
+  }
+  writeFileSync(join(cwd, 'skills-lock.json'), '{}');
+  onLine('installed 2 skills');
+  return { code: 0, tail: 'installed 2 skills' };
+};
+
+describe('autoskills with symlinked skills', () => {
+  test('symlinks count as skills, their target dir is excluded too, and nothing reaches git', async () => {
+    const repo = await makeRepo();
+    writeFileSync(join(repo, 'package.json'), '{"name":"x"}');
+    await sh('git -c user.name=t -c user.email=t@t add -A && git -c user.name=t -c user.email=t@t commit -qm "chore: manifest"', repo);
+    const r = await runAutoskills(repo, { spawn: fakeNpxSymlinked as any, nodeVersion: async () => 'v22.1.0' });
+    expect(r).toMatchObject({ status: 'installed', skills: ['next-best-practices', 'vitest'] });
+    expect(r.detail).toContain('.agents/');
+    const exclude = readFileSync(join(repo, '.git', 'info', 'exclude'), 'utf8');
+    // a symlinked skill is a file to git: the pattern must not carry a trailing slash, or git keeps seeing it
+    expect(exclude).toContain('.claude/skills/vitest\n');
+    expect(exclude).toContain('.agents/');
+    // the whole point: a commit made by the engine must not carry the links or their target
+    expect(await sh('git status --porcelain', repo)).toBe('');
+    // task worktrees get the real content, not a dangling link
+    const other = mkdtempSync(join(tmpdir(), 'as-task-'));
+    expect(copyProjectSkills(repo, other)).toBe(2);
+    expect(readFileSync(join(other, '.claude', 'skills', 'vitest', 'SKILL.md'), 'utf8')).toContain('name: vitest');
+    expect(lstatSync(join(other, '.claude', 'skills', 'vitest')).isSymbolicLink()).toBe(false);
+  });
+
+  test('links a buggy earlier run committed are dropped from the index', async () => {
+    const repo = await makeRepo();
+    writeFileSync(join(repo, 'package.json'), '{"name":"x"}');
+    await runAutoskills(repo, { spawn: fakeNpxSymlinked as any, nodeVersion: async () => 'v22.1.0' });
+    // simulate the old behaviour: force the links into the index and commit them
+    await sh('git add -f .claude/skills && git -c user.name=t -c user.email=t@t commit -qm "oops: links"', repo);
+    expect((await sh('git ls-files .claude/skills', repo)).split('\n').filter(Boolean)).toHaveLength(2);
+    const again = await runAutoskills(repo, { spawn: fakeNpxSymlinked as any, nodeVersion: async () => 'v22.1.0' });
+    expect(again.detail).toContain('stale tracked link');
+    expect(await sh('git ls-files .claude/skills', repo)).toBe('');
+    expect(existsSync(join(repo, '.claude', 'skills', 'vitest', 'SKILL.md'))).toBe(true);
   });
 });
