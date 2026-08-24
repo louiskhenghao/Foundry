@@ -21,6 +21,16 @@ Goal ──► Clarify ──► Brief (you approve once) ──► Tasks (DAG) 
 - **Output is a local branch** (`goal/<id>` in `data/worktrees/<goal>/_goal`). Pushing is a button you click.
 - **Event-sourced.** Every state change is an event in SQLite; the UI streams the same events; the engine recovers from crashes by replay + reconcile.
 
+## Docker
+
+```bash
+docker pull imlouiskhenghao/ai-engine:latest
+docker compose run --rm ai-engine claude login    # once — the login lives in a volume
+AI_ENGINE_REPOS=~/Projects docker compose up -d   # http://127.0.0.1:4111, repos at /repos/<name>
+```
+
+The image brings the engine, the UI and the tools it drives (bun, git, `claude`, `gh`, ripgrep, npx, uv); your Claude login and your repositories are mounted. Details and caveats: [docs/docker.md](./docs/docker.md).
+
 ## Requirements
 
 - macOS/Linux, [Bun](https://bun.sh) ≥ 1.1, git

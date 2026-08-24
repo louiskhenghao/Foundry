@@ -1,0 +1,10 @@
+# build context: source + manifests only
+node_modules
+**/node_modules
+data
+apps/web/dist
+fixtures
+.git
+.DS_Store
+*.log
+docs/**/*.png

@@ -2,7 +2,10 @@
   "name": "ai-engine",
   "private": true,
   "version": "0.1.0",
-  "workspaces": ["packages/*", "apps/*"],
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "dev": "bun --watch apps/cli/src/main.ts serve",
     "serve": "bun apps/cli/src/main.ts serve",

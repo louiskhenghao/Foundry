@@ -1,0 +1,21 @@
+# ai-engine in Docker. First run: docker compose run --rm ai-engine claude login
+services:
+  ai-engine:
+    image: imlouiskhenghao/ai-engine:latest
+    build: .
+    # the UI is not authenticated: keep it on loopback
+    ports: ['127.0.0.1:4111:4111']
+    volumes:
+      - engine-data:/app/data          # event log, worktrees, transcripts, settings
+      - claude-home:/home/node/.claude # Claude Code login, sessions, skills
+      # your repositories — goals point at paths *inside* the container, e.g. /repos/my-app
+      - ${AI_ENGINE_REPOS:-${HOME}/Projects}:/repos
+    environment:
+      AI_ENGINE_MODEL_STRONG: ${AI_ENGINE_MODEL_STRONG:-opus}
+      AI_ENGINE_MODEL_WORKER: ${AI_ENGINE_MODEL_WORKER:-opus}
+      AI_ENGINE_MODEL_CHEAP: ${AI_ENGINE_MODEL_CHEAP:-haiku}
+      AI_ENGINE_MAX_CONCURRENT: ${AI_ENGINE_MAX_CONCURRENT:-3}
+    restart: unless-stopped
+volumes:
+  engine-data:
+  claude-home:
