@@ -959,8 +959,8 @@ export class Engine {
         scope: t.scope?.trim() || area?.slug || null,
         scenario: t.scenario ?? 'general',
         area: area?.name ?? null,
-        // docs and infra work gets no TDD mandate regardless of the goal's discipline
-        tdd: t.tdd === 'off' || t.scenario === 'docs' || t.scenario === 'infra' ? 'off' : 'inherit',
+        // docs, infra, research and media work gets no TDD mandate regardless of the goal's discipline
+        tdd: t.tdd === 'off' || ['docs', 'infra', 'research', 'image', 'video'].includes(t.scenario ?? 'general') ? 'off' : 'inherit',
         dependsOn: t.dependsOnKeys.map((k) => idByKey.get(k)!),
         relevantFiles: t.relevantFiles,
         parallelizable: t.parallelizable,

@@ -800,6 +800,32 @@
           "instruction": "Generate video/audio with the mmx CLI. Save every rendered file into artifacts/ and record its prompt/parameters in the task manifest."
         }
       ]
+    },
+    {
+      "id": "ffmpeg",
+      "name": "ffmpeg",
+      "summary": "ffmpeg/ffprobe: verify video metadata (duration, resolution, codec) and extract frames so reviewers can look at them.",
+      "why": "Video goals get objective must checks (ffprobe) and frame extraction for review; without it acceptance falls back to file-exists checks.",
+      "tier": "optional",
+      "source": {
+        "type": "cli",
+        "detect": "ffprobe",
+        "install": "brew install ffmpeg",
+        "docs": "https://ffmpeg.org"
+      },
+      "roles": [
+        "worker",
+        "reviewer-task",
+        "reviewer-goal"
+      ],
+      "tags": [
+        "video",
+        "checks"
+      ],
+      "aliases": [],
+      "scenarios": [
+        "video"
+      ]
     }
   ]
 }
