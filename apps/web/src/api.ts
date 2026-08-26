@@ -142,6 +142,8 @@ export interface LoginSession {
   ok: boolean | null;
   error: string | null;
   finishedAt: string | null;
+  /** the CLI is waiting for the code shown in the browser (no browser on the engine's machine) */
+  needsCode: boolean;
 }
 export interface AuthInfo {
   status: ClaudeAuthStatus;
@@ -309,6 +311,7 @@ export const api = {
   startLogin: (body: { mode?: 'claudeai' | 'console'; email?: string }) => req<LoginSession>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   loginSession: () => req<LoginSession | null>('/api/auth/login'),
   cancelLogin: () => req<{ ok: true }>('/api/auth/login/cancel', { method: 'POST' }),
+  submitLoginCode: (code: string) => req<LoginSession>('/api/auth/login/code', { method: 'POST', body: JSON.stringify({ code }) }),
   logout: () => req<ClaudeAuthStatus>('/api/auth/logout', { method: 'POST' }),
   usage: () => req<Usage>('/api/usage'),
   probeUsage: () => req<Usage>('/api/usage/probe', { method: 'POST' }),

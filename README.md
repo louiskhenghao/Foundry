@@ -24,11 +24,14 @@ Goal ──► Clarify ──► Brief (you approve once) ──► Tasks (DAG) 
 ## Docker
 
 ```bash
-docker run --rm -it -v ai-engine-claude:/home/node/.claude imlouiskhenghao/ai-engine claude auth login
 docker run -d --name ai-engine -p 127.0.0.1:4111:4111 \
   -v ai-engine-data:/app/data -v ai-engine-claude:/home/node/.claude -v ~/Projects:/repos \
   imlouiskhenghao/ai-engine        # http://127.0.0.1:4111, your repos at /repos/<name>
 ```
+
+Then sign in to Claude from the Setup page: it hands you a link and a field for the code the browser gives back
+(a container has no browser of its own). `claude auth login` in a terminal, or a `claude setup-token` token, work
+too.
 
 The image brings the engine, the UI and the tools it drives (bun, git, `claude`, `gh`, ripgrep, npx, uv); your Claude login and your repositories are mounted. Details and caveats: [docs/docker.md](./docs/docker.md).
 

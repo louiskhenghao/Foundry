@@ -21,9 +21,15 @@ export interface LoginSession {
   ok: boolean | null;
   error: string | null;
   finishedAt: string | null;
+  /** the CLI is waiting for the code shown in the browser (headless machines, e.g. Docker) */
+  needsCode: boolean;
 }
 
 const URL_RE = /https?:\/\/[^\s"'<>)\]]+/;
+/** `claude auth login` falls back to "copy the code back" when it cannot open a browser and catch the callback */
+const CODE_PROMPT = /paste[^\n]{0,40}code|enter[^\n]{0,40}code/i;
+/** the CLI says this and waits again (it never repeats the prompt when there is no TTY) */
+const CODE_REJECTED = /invalid code|code .{0,20}(expired|not valid)/i;
 
 export async function claudeAuthStatus(claudeBin: string | null, run: typeof exec = exec): Promise<ClaudeAuthStatus> {
   const checkedAt = new Date().toISOString();
@@ -46,10 +52,11 @@ export class ClaudeAuth {
   private cached: ClaudeAuthStatus | null = null;
   private current: LoginSession | null = null;
   private proc: ReturnType<typeof Bun.spawn> | null = null;
+  private arm: ((ms: number) => void) | null = null;
   private listeners = new Set<(s: LoginSession) => void>();
 
   constructor(
-    private opts: { claudeBin: string | null; timeoutMs?: number; run?: typeof exec; log?: (m: string) => void },
+    private opts: { claudeBin: string | null; timeoutMs?: number; codeTimeoutMs?: number; run?: typeof exec; log?: (m: string) => void },
   ) {}
 
   async status(force = false): Promise<ClaudeAuthStatus> {
@@ -75,12 +82,13 @@ export class ClaudeAuth {
     if (!this.opts.claudeBin) throw new Error('claude CLI not installed');
     if (this.current && !this.current.done) return this.current;
     const mode = input.mode ?? 'claudeai';
-    const session: LoginSession = { id: `login_${Date.now().toString(36)}`, mode, startedAt: new Date().toISOString(), url: null, lines: [], done: false, ok: null, error: null, finishedAt: null };
+    const session: LoginSession = { id: `login_${Date.now().toString(36)}`, mode, startedAt: new Date().toISOString(), url: null, lines: [], done: false, ok: null, error: null, finishedAt: null, needsCode: false };
     this.current = session;
     const args = [this.opts.claudeBin, 'auth', 'login', mode === 'console' ? '--console' : '--claudeai', ...(input.email ? ['--email', input.email] : [])];
     let proc: ReturnType<typeof Bun.spawn>;
     try {
-      proc = Bun.spawn(args, { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' } });
+      // stdin stays open: on a machine without a browser the CLI asks for the code from the browser instead
+      proc = Bun.spawn(args, { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' } });
     } catch (err) {
       session.done = true;
       session.ok = false;
@@ -89,12 +97,18 @@ export class ClaudeAuth {
       return session;
     }
     this.proc = proc;
-    const timer = setTimeout(() => {
-      try {
-        proc.kill('SIGTERM');
-      } catch {}
-      session.error = session.error ?? 'login timed out';
-    }, this.opts.timeoutMs ?? 5 * 60_000);
+    let timer: ReturnType<typeof setTimeout>;
+    const arm = (ms: number) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        try {
+          proc.kill('SIGTERM');
+        } catch {}
+        session.error = session.error ?? 'login timed out';
+      }, ms);
+    };
+    arm(this.opts.timeoutMs ?? 5 * 60_000);
+    this.arm = arm;
     const pump = async (stream: ReadableStream<Uint8Array>) => {
       const reader = stream.getReader();
       const dec = new TextDecoder();
@@ -106,6 +120,19 @@ export class ClaudeAuth {
         const parts = buf.split(/\r?\n/);
         buf = parts.pop() ?? '';
         for (const line of parts) this.push(session, line);
+        // the prompt carries no newline, so it lives in the leftover — and it comes back after a wrong code
+        // a rejected code: put the field back so the user can paste it again instead of waiting for the timeout
+        if (!session.needsCode && parts.some((l) => CODE_REJECTED.test(l))) {
+          session.needsCode = true;
+          arm(this.opts.codeTimeoutMs ?? 15 * 60_000);
+          this.emit();
+        }
+        if (!session.needsCode && CODE_PROMPT.test(buf)) {
+          session.needsCode = true;
+          this.push(session, buf);
+          buf = '';
+          arm(this.opts.codeTimeoutMs ?? 15 * 60_000); // a human has to fetch the code from the browser
+        }
       }
       if (buf.trim()) this.push(session, buf);
     };
@@ -113,6 +140,8 @@ export class ClaudeAuth {
       .then(() => proc.exited)
       .then(async (code) => {
         clearTimeout(timer);
+        this.arm = null;
+        session.needsCode = false;
         this.invalidate();
         const st = await this.status(true);
         session.done = true;
@@ -137,6 +166,34 @@ export class ClaudeAuth {
       if (m) session.url = m[0];
     }
     this.emit();
+  }
+
+  /**
+   * Hand the CLI the code the user copied from the browser. Only possible while it is asking for one —
+   * which happens when the machine running the engine has no browser (a container, a remote host).
+   */
+  submitCode(code: string): LoginSession {
+    const session = this.current;
+    if (!session || session.done) throw new Error('no sign-in is in progress');
+    if (!session.needsCode) throw new Error('this sign-in is not waiting for a code');
+    const trimmed = code.trim();
+    if (!trimmed) throw new Error('the code is empty');
+    const stdin = this.proc?.stdin as { write?: (s: string) => void; flush?: () => void } | undefined;
+    if (!stdin?.write) throw new Error('the sign-in process is not accepting input');
+    try {
+      stdin.write(`${trimmed}\n`);
+      stdin.flush?.();
+    } catch (err) {
+      // the CLI stopped reading (it gave up on the code): end the session so the UI offers a fresh sign-in
+      session.needsCode = false;
+      session.error = 'the sign-in process stopped accepting the code — start the sign-in again';
+      this.cancelLogin();
+      throw new Error(session.error);
+    }
+    session.needsCode = false;
+    this.push(session, '(code submitted)');
+    this.arm?.(this.opts.timeoutMs ?? 5 * 60_000);
+    return session;
   }
 
   cancelLogin(): void {

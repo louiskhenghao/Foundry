@@ -603,6 +603,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json(engine.auth.startLogin(body));
   });
   app.get('/api/auth/login', (c) => c.json(engine.auth.loginSession()));
+  // headless machines (Docker, a remote host): the CLI shows a code in the browser and waits for it here
+  app.post('/api/auth/login/code', async (c) => {
+    const { code } = z.object({ code: z.string().min(1) }).parse(await c.req.json());
+    return c.json(engine.auth.submitCode(code));
+  });
   app.post('/api/auth/login/cancel', (c) => {
     engine.auth.cancelLogin();
     return c.json({ ok: true });

@@ -69,6 +69,7 @@ Every notice names the goal and the task and links straight to the task view; th
 | *attempt … was orphaned by an engine restart* | Could not be resumed (no session yet); a fresh attempt runs, budget refunded. |
 | *"…" waits for "…": both touch …* | Overlap-aware scheduling (§3). |
 | *model X is unavailable (…); worker sessions of this goal now use Y* | Model fallback chain kicked in. Check Settings → Models. |
+| *Setup → Sign in asks for a code* | The machine running the engine has no browser (Docker, a remote host), so Claude Code falls back to the copy-the-code flow: open the link it shows, approve, paste the code into the dialog. A wrong code re-opens the field; the sign-in waits 15 minutes. |
 | *coverage repair did not return a valid Brief …* | The Clarifier missed an Area and the repair turn failed; the gap is a Question on the Brief. |
 
 ## 6. What costs money, what does not

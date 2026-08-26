@@ -9,12 +9,27 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState('');
   const [session, setSession] = useState<LoginSession | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     if (!session || session.done) return;
     const t = setInterval(() => api.loginSession().then((s) => s && setSession(s)).catch(() => {}), 1500);
     return () => clearInterval(t);
   }, [session?.id, session?.done]);
+
+  const submit = async () => {
+    setSending(true);
+    setErr(null);
+    try {
+      setSession(await api.submitLoginCode(code));
+      setCode('');
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setSending(false);
+    }
+  };
 
   const start = async () => {
     setErr(null);
@@ -34,7 +49,7 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
             <X size={14} />
           </Button>
         </div>
-        <p className="text-xs text-zinc-400">Same flow as Claude Code: a browser window opens on this machine, you sign in, and this page updates by itself. ai-engine never sees your password or token — Claude Code stores the credential.</p>
+        <p className="text-xs text-zinc-400">Same flow as Claude Code: a browser window opens on this machine, you sign in, and this page updates by itself. When the engine runs where there is no browser (a container, a remote host), open the link yourself and paste the code it gives you. ai-engine never sees your password or token — Claude Code stores the credential.</p>
         {!session ? (
           <>
             <div className="flex gap-2 text-xs">
@@ -54,9 +69,25 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
           </>
         ) : (
           <>
-            <div className={cn('rounded-md border p-3 text-sm', session.done ? (session.ok ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-rose-500/40 bg-rose-500/5') : 'border-zinc-800')}>
-              {session.done ? (session.ok ? '✔ Signed in.' : `✘ ${session.error ?? 'Sign-in failed'}`) : 'Waiting for you to finish in the browser…'}
+            <div className={cn('rounded-md border p-3 text-sm', session.done ? (session.ok ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-rose-500/40 bg-rose-500/5') : session.needsCode ? 'border-sky-500/40 bg-sky-500/5' : 'border-zinc-800')}>
+              {session.done ? (session.ok ? '✔ Signed in.' : `✘ ${session.error ?? 'Sign-in failed'}`) : session.needsCode ? 'Open the link below, sign in, then paste the code Claude shows you.' : 'Waiting for you to finish in the browser…'}
             </div>
+            {session.needsCode && !session.done && (
+              <div className="space-y-1.5">
+                <Input
+                  autoFocus
+                  placeholder="paste the code from the browser"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && code.trim() && submit()}
+                />
+                <div className="flex justify-end">
+                  <Button size="sm" variant="primary" disabled={!code.trim() || sending} onClick={submit}>
+                    {sending ? 'Sending…' : 'Submit code'}
+                  </Button>
+                </div>
+              </div>
+            )}
             {session.url && !session.done && (
               <div className="text-xs">
                 <div className="text-zinc-400 mb-1">If the browser did not open, use this link:</div>

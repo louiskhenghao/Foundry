@@ -74,6 +74,9 @@ The only way the system ever asks a human for anything after the Brief is approv
 **Suggestion**
 What the system proposes when a Task is blocked and the user asks: a plain-words diagnosis, the action it recommends (retry with a hint, skip, resolve by hand, raise the budget) and the hint itself. Only a *retry with hint* may be applied on the user's say-so in one click; every other action stays the user's.
 
+**Sign-in**
+How the engine gets a Claude session for its own machine. Normally the CLI opens a browser and finishes by itself; where there is no browser (a container, a remote host) it shows a link and a code instead, and the user pastes that code into the Setup page. The engine never sees the password or the token — Claude Code stores the credential.
+
 **Boundary**
 The line between the local workspace and the outside world. Crossing it is always an Escalation.
 

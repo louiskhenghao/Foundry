@@ -14,7 +14,18 @@ You need: Docker (Desktop or Engine), a Claude subscription (Pro/Max) — no API
 docker pull imlouiskhenghao/ai-engine:latest
 ```
 
-## 2. Sign in to Claude, once
+## 2. Sign in to Claude
+
+The engine works through Claude Code, so the container needs its own Claude session — a container is a separate
+machine as far as Claude Code is concerned, even if you are already signed in on your own. Three ways; any one is
+enough, and you only do it once.
+
+**a. From the web UI, after the container is running (simplest — no terminal).**
+Do §3 first, open <http://127.0.0.1:4111>, and press *Sign in* on the Setup page. There is no browser inside the
+container, so Claude Code shows a link and asks for a code instead of completing by itself: open the link in your
+own browser, approve, and paste the code back into the dialog. A rejected code just re-opens the field.
+
+**b. From the terminal, before you start it.**
 
 ```bash
 docker volume create ai-engine-claude
@@ -22,22 +33,13 @@ docker run --rm -it -v ai-engine-claude:/home/node/.claude \
   imlouiskhenghao/ai-engine claude auth login
 ```
 
-It prints a URL; open it in your browser, approve, then paste the code back into the terminal
-(`-it` is what lets you paste). The login is stored in the `ai-engine-claude` volume and survives restarts.
+Same flow — it prints a URL, you approve in your browser and paste the code back (`-it` is what lets you paste).
+The login lands in the `ai-engine-claude` volume and survives restarts.
 
-> The login **must** happen inside the container. On macOS your host's Claude Code keeps its credentials in the
-> Keychain, so mounting your `~/.claude` from the Mac carries settings and skills but *not* the login.
-
-Check any time: `docker exec ai-engine claude auth status`.
-
-### Already signed in to Claude Code on your own machine?
-
-The container is a separate machine as far as Claude Code is concerned, so it needs its own credentials. Pick one:
-
-**Any OS — reuse your subscription with a long-lived token (nothing to log in inside the container):**
+**c. With a token from the machine you are already signed in on.**
 
 ```bash
-claude setup-token            # on YOUR machine, where you are already signed in; prints a token
+claude setup-token            # on YOUR machine; prints a long-lived token for your subscription
 ```
 
 Put it in a file you keep out of git and hand it to the container:
@@ -47,23 +49,16 @@ echo "CLAUDE_CODE_OAUTH_TOKEN=<the token>" > ~/.ai-engine.env   # chmod 600
 docker run -d --name ai-engine --env-file ~/.ai-engine.env ...  # rest of the flags as in §3
 ```
 
-`docker exec ai-engine claude auth status` then reports `"authMethod": "oauth_token"` and you can skip §2 entirely.
-Treat the token like a password: it is your subscription.
+`docker exec ai-engine claude auth status` then reports `"authMethod": "oauth_token"` and there is nothing to sign
+in to. Treat the token like a password: it is your subscription.
 
-**Linux only — mount the credentials you already have:**
+> **Linux only:** you can instead mount the credentials you already have — `-v ~/.claude:/home/node/.claude`
+> instead of the `ai-engine-claude` volume. On Linux Claude Code keeps them in `~/.claude/.credentials.json`, so
+> they travel with the mount (the container will also write its sessions and skills there). On **macOS this does
+> not work**: the credentials live in the Keychain, not in `~/.claude`, so a mounted `~/.claude` carries settings
+> and skills but not the login.
 
-```bash
--v ~/.claude:/home/node/.claude      # instead of the ai-engine-claude volume
-```
-
-On Linux Claude Code keeps its credentials in `~/.claude/.credentials.json`, so they travel with the mount (the
-container will also write its sessions and skills there). On **macOS this does not work**: the credentials live in
-the Keychain, not in `~/.claude`.
-
-> **The Setup page's *Sign in* button does not finish inside Docker.** When the engine runs directly on your
-> machine, that button opens your browser and the login completes by itself. In a container there is no browser,
-> so Claude Code falls back to "copy this code back into the terminal" — which the Setup page has nowhere to
-> paste. Use `claude auth login` from §2, or the token above.
+Check any time: `docker exec ai-engine claude auth status`.
 
 ## 3. Point it at the repository you want worked on
 
@@ -187,7 +182,7 @@ same volumes — the event log is replayed and unfinished attempts resume where 
 |---|---|---|
 | `no configuration file provided: not found` | `docker compose` was run in a folder with no `docker-compose.yml` | use the `docker run` form above, or fetch the compose file out of the image (§3) |
 | `Not logged in · Please run /login` | `claude login` is not a command | `claude auth login` (with `-it`) |
-| Setup page shows the login URL but never completes | in Docker the OAuth flow needs a code pasted into a terminal | log in with `docker run … -it … claude auth login`, or use `CLAUDE_CODE_OAUTH_TOKEN` (§2) |
+| Setup page shows a link and asks for a code | normal in Docker: no browser inside, so Claude Code uses the copy-the-code flow | open the link, sign in, paste the code into the dialog |
 | *not a git repository* in New goal | you typed a host path | type the container path, e.g. `/repos/acme-app` |
 | `Permission denied` writing in the repo, or worktrees fail (Linux) | your files are not owned by uid 1000 | use the `--user "$(id -u):$(id -g)"` recipe above |
 | `port is already allocated` | something else uses 4111 | `-p 127.0.0.1:4112:4111` and open that port instead |
