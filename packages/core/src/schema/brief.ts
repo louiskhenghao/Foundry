@@ -93,8 +93,8 @@ const OutputTask = z.object({
   kind: z.enum(['feature', 'bug', 'refactor', 'research', 'chore']).describe('feature = new behaviour; bug = something is broken and must be reproduced first; refactor = behaviour-preserving restructure; research = a spike whose output is knowledge, not production code; chore = config/tooling.'),
   scope: z.string().nullable().describe('Conventional Commits scope (e.g. "quotes", "api", "ui"); null = use the Area slug.'),
   scenario: z
-    .enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'general'])
-    .describe('Where the work happens: frontend = UI, pages, styling, components; backend = APIs, services, database; fullstack = substantial changes on both sides; data = data processing, scripts, analysis; mobile = native/mobile app; infra = CI, build, deploy, configuration; docs = documentation only; general = anything else.'),
+    .enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'general'])
+    .describe('Where the work happens: frontend = UI, pages, styling, components; backend = APIs, services, database; fullstack = substantial changes on both sides; data = data processing, scripts, analysis; mobile = native/mobile app; infra = CI, build, deploy, configuration; docs = documentation/prose writing; research = investigation whose output is a cited report; image = generating or editing images; video = generating or editing video/audio; general = anything else.'),
   areaKey: z.string().describe('Key of the Area this task belongs to.'),
   dependsOnKeys: z.array(z.string()),
   parallelizable: z.boolean(),

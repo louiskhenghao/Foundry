@@ -50,7 +50,7 @@ export const CatalogSource = z.discriminatedUnion('type', [
 export type CatalogSource = z.infer<typeof CatalogSource>;
 
 export const TaskKindForSkill = z.enum(['feature', 'bug', 'refactor', 'research', 'chore', 'any']);
-export const SkillScenario = z.enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'general']);
+export const SkillScenario = z.enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'general']);
 export type SkillScenario = z.infer<typeof SkillScenario>;
 
 /** How a role must/should use a skill inside the engine's own workflow (see ADR-0004). */
