@@ -159,6 +159,55 @@ describe('docs generation', () => {
   });
 });
 
+describe('media artifacts', () => {
+  test('parallel media tasks: artifacts stay out of git, land in the goal workspace, and are delivered to the output folder at done', async () => {
+    const { basename, join: j } = await import('node:path');
+    const runner = new FakeRunner((spec) => {
+      if (!spec.label?.startsWith('attempt')) return;
+      const tag = basename(spec.cwd); // goal ws = _goal, task worktrees = task ids
+      mkdirSync(j(spec.cwd, 'artifacts'), { recursive: true });
+      writeFileSync(j(spec.cwd, 'artifacts', `${tag}.png`), 'png-bytes');
+      mkdirSync(j(spec.cwd, 'docs', 'artifacts'), { recursive: true });
+      writeFileSync(j(spec.cwd, 'docs', 'artifacts', `${tag}.md`), `# artifacts\n- ${tag}.png — test render`);
+    });
+    const engine = new Engine(cfg(), runner);
+    const outputDir = mkdtempSync(join(tmpdir(), 'ai-engine-artifacts-out-'));
+    try {
+      const t = (key: string): Brief['tasks'][number] => ({ key, title: `render ${key}`, spec: `generate ${key}, manifest docs/artifacts/${key}.md`, kind: 'feature', scope: null, scenario: 'image', areaKey: 'A1', tdd: 'inherit', dependsOnKeys: [], parallelizable: true, relevantFiles: [`docs/artifacts/${key}.md`] });
+      const c = (key: string, taskKey: string): Brief['checks'][number] => ({ key: `C-${key}`, name: `artifacts exist for ${key}`, tier: 'must', taskKey, areaKey: null, spec: { type: 'command', cmd: 'test -d artifacts', timeoutMs: 300_000, expectExitCode: 0 } });
+      const goal = await engine.createGoal({
+        prompt: 'render two posters',
+        repoPath: repo,
+        nature: 'image',
+        outputDir,
+        brief: { ...briefBase, title: '', areas: [{ key: 'A1', name: 'Posters', slug: 'posters', description: '' }], tasks: [t('T1'), t('T2')], checks: [c('T1', 'T1'), c('T2', 'T2')] },
+      });
+      expect(goal.mode).toBe('simple'); // non-code goals open in the plain view
+      await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state));
+      const g = getGoal(engine.store.db, goal.id)!;
+      expect(g.state).toBe('done');
+      // both tasks' artifacts were rescued into the goal workspace and delivered to the output folder
+      await waitFor(() => getGoal(engine.store.db, goal.id)!.completion.artifactsRun != null);
+      const run = getGoal(engine.store.db, goal.id)!.completion.artifactsRun!;
+      expect(run.status).toBe('ok');
+      expect(run.files).toHaveLength(2);
+      expect(run.dest).toBe(outputDir);
+      for (const f of run.files) expect(existsSync(join(outputDir, f))).toBe(true);
+      // nothing media-shaped reached git: the manifests are committed, the binaries are excluded
+      const ws = goalWorkspacePath(dataDir, goal.id);
+      const status = (await Bun.$`git -C ${ws} status --porcelain`.text()).trim();
+      expect(status).toBe('');
+      const tracked = (await Bun.$`git -C ${ws} ls-files artifacts docs/artifacts`.text()).trim().split('\n').filter(Boolean);
+      expect(tracked.some((f) => f.endsWith('.png'))).toBe(false);
+      expect(tracked.filter((f) => f.endsWith('.md'))).toHaveLength(2);
+      await engine.stop();
+      await Bun.sleep(100);
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('graph refresh', () => {
   test('local mode runs in the goal workspace; tools not on PATH are recorded as skipped', async () => {
     const engine = new Engine(cfg(), new FakeRunner(() => {}));

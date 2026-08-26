@@ -1,7 +1,40 @@
-import { join } from 'node:path';
+import { cpSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
 import type { Goal, Task } from '@ai-engine/core';
 import { ensureWorktree, git, headRef, removeWorktree } from './git/git.ts';
 import { copyProjectSkills } from './skills/autoskills.ts';
+
+/** Where media tasks generate their files, workspace-relative. Kept out of git; delivered to the goal's output folder at done. */
+export const ARTIFACTS_DIR = 'artifacts';
+
+/** Every file under a workspace's artifacts/, as paths relative to that folder. */
+export function listArtifacts(ws: string): string[] {
+  const root = join(ws, ARTIFACTS_DIR);
+  if (!existsSync(root)) return [];
+  try {
+    return readdirSync(root, { recursive: true, withFileTypes: true })
+      .filter((e) => e.isFile())
+      .map((e) => relative(root, join(e.parentPath, e.name)))
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Merge one workspace's artifacts into another's (task worktree → goal workspace after integrate:
+ * the squash merge cannot carry them, they are git-excluded). Existing files are overwritten —
+ * parallel media tasks write disjoint names by convention (their manifests declare them).
+ */
+export function copyArtifacts(fromWs: string, toWs: string): number {
+  const files = listArtifacts(fromWs);
+  for (const f of files) {
+    const dest = join(toWs, ARTIFACTS_DIR, f);
+    mkdirSync(dirname(dest), { recursive: true });
+    cpSync(join(fromWs, ARTIFACTS_DIR, f), dest);
+  }
+  return files.length;
+}
 
 export function goalWorkspacePath(dataDir: string, goalId: string): string {
   return join(dataDir, 'worktrees', goalId, '_goal');

@@ -55,7 +55,7 @@ import { SettingsStore, applySettingsToConfig } from './settings.ts';
 import { ModelFallbackRunner } from './models/fallback-runner.ts';
 import { ModelRegistry, SEED_MODELS, isPinnedId, type ModelRecord } from './models/registry.ts';
 import { copyProjectSkills, hasStackManifest, runAutoskills, type AutoskillsDeps } from './skills/autoskills.ts';
-import { inferCompletion, runGraphRefresh, shouldRunGraphRefresh, type GraphRefreshDeps } from './completion.ts';
+import { deliverArtifacts, inferCompletion, runGraphRefresh, shouldRunGraphRefresh, type GraphRefreshDeps } from './completion.ts';
 import type { SettingsPatch, SettingsView } from '@ai-engine/core';
 import { spawnStreaming } from './skills/updaters.ts';
 import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
@@ -107,6 +107,8 @@ export class Engine {
   private delivering = new Map<string, AbortController>();
   /** post-completion graph refreshes in progress, per goal */
   private completing = new Set<string>();
+  /** artifact deliveries in progress, per goal */
+  private deliveringArtifacts = new Set<string>();
 
   private streamListeners = new Set<StreamListener>();
   private escalationListeners = new Set<(e: Escalation) => void>();
@@ -662,6 +664,13 @@ export class Engine {
         return;
       case 'done':
       case 'over_delivered': {
+        // media artifacts leave the workspace first (independent of delivery mode — they never ride a PR)
+        if (!goal.completion.artifactsRun && !this.deliveringArtifacts.has(goalId)) {
+          this.deliveringArtifacts.add(goalId);
+          void deliverArtifacts(this, goal)
+            .catch((err) => this.store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `artifact delivery crashed: ${String(err)}` } }))
+            .finally(() => this.deliveringArtifacts.delete(goalId));
+        }
         // graph refresh: after delivery for goals that leave the machine, right away for local ones
         if (shouldRunGraphRefresh(goal) && !this.completing.has(goalId)) {
           this.completing.add(goalId);
