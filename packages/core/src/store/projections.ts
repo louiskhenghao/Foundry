@@ -175,6 +175,16 @@ export function applyEvent(db: Database, e: EngineEvent): void {
       if (g) upsertGoal(db, { ...g, autoskills: { status: e.payload.status, skills: e.payload.skills, detail: e.payload.detail, at: e.ts } });
       break;
     }
+    case 'goal.nature_set': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, nature: e.payload.nature, updatedAt: e.ts });
+      break;
+    }
+    case 'goal.artifacts_delivered': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, artifactsRun: { status: e.payload.status, files: e.payload.files, dest: e.payload.dest, detail: e.payload.detail, at: e.ts } }, updatedAt: e.ts });
+      break;
+    }
     case 'goal.completion_set': {
       const g = getGoal(db, e.goalId!);
       if (g) upsertGoal(db, { ...g, completion: { ...g.completion, graphRefresh: e.payload.graphRefresh, docs: e.payload.docs }, updatedAt: e.ts });
