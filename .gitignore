@@ -1,6 +1,14 @@
 node_modules/
 data/
 dist/
+# knowledge-graph indexes (graphify update / gitnexus analyze) — regenerated, never committed
+graphify-out/
+.gitnexus/
+# gitnexus-generated agent guidance (local only: goal worktrees carry no .gitnexus index, so
+# committing its MUST-run-impact rules would send workers chasing a tool that is not there)
+/CLAUDE.md
+/AGENTS.md
+/.claude/
 *.log
 .DS_Store
 apps/web/dist/
