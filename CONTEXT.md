@@ -167,6 +167,23 @@ How hard the engine pushes an engineering practice on its sessions. For TDD: *re
 **Settings**
 The engine's user-editable configuration: concurrency, models, session caps, workflow profile, Design Pack, autoskills, review and delivery defaults, tools, safety limits. A saved value beats an environment variable, which beats the default; most changes apply immediately, a few only after the engine restarts.
 
+## Goal natures
+
+**Nature**
+What a Goal produces: *code* (software), *documents* (prose), *research* (a cited report), *image* or *video* (media files) — or *auto*, meaning the user did not say and the Clarifier decides. The engine is the same for every nature; the nature only changes what the Brief asks about, what acceptance looks like, and where the result ends up. Non-code Goals open in Simple mode. A mixed Goal carries its dominant nature; its Tasks keep their own Scenarios.
+
+**Artifact**
+A media file a Goal produces (an image, a video, audio). Artifacts are generated inside the Workspace but never enter git; when the Goal finishes they are copied to the Output Folder — or stay in the Workspace when none is set.
+
+**Artifact Manifest**
+The committed record of a media Task's Artifacts: one entry per file — its name, what it shows, and the prompt/parameters that produced it. The Manifest is what reviews and diffs see; an Artifact missing from disk or contradicting its Manifest entry is a blocker.
+
+**Output Folder**
+Where a Goal's Artifacts are delivered when it finishes. Chosen by the user when the Goal is created; optional.
+
+**Image Pack / Video Pack**
+The one media skill set mandated to Workers on image / video Tasks — chosen in Settings exactly like the Design Pack, mutually exclusive, *none* allowed. Media capability always comes from skills, never from the engine itself.
+
 ## Completion
 
 **Completion Actions**

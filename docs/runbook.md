@@ -76,6 +76,9 @@ Every notice names the goal and the task and links straight to the task view; th
 | *autoskills: skipped — no stack manifest … retried after each task until one appears* | Empty-repository goal: nothing to detect yet. After each task lands the engine checks again; the task that creates package.json (or another manifest) triggers the install, and live task worktrees receive the skills. |
 | *graph refresh: graphify ok, gitnexus skipped* | Completion action after the goal was delivered (or at done for local goals): `graphify update` (and `gitnexus analyze` when installed) re-indexed the delivered code. `skipped` = tool not on PATH, `pull skipped` = the user's checkout could not be fast-forwarded (dirty/diverged) — the refresh still ran where it could. |
 | *docs generation failed: …* | The Documenter session (after goal review, before done) failed; the goal still finishes. Details on `goal.docs_generated` and the Goal → Completion card; re-run by restarting the last task is not needed — docs can be written by hand or the goal restarted from goal review. |
+| *N artifact(s) delivered to …* | A media goal finished: the workspace's `artifacts/` was copied to the goal's output folder (`goal.artifacts_delivered`). No output folder set → the files stay in the goal workspace (Open ▾ → The result). |
+| *artifact delivery to … failed: …* | Copying artifacts to the output folder failed (permissions, missing disk). The goal still finishes; the files are intact in the goal workspace — copy them by hand or fix the folder and restart delivery is NOT needed. |
+| *[artifacts] task…: N file(s) copied to the goal workspace* | A media task integrated: its worktree's git-excluded `artifacts/` was rescued into the goal workspace before the worktree was dropped. |
 
 ## 6. What costs money, what does not
 
