@@ -4,10 +4,10 @@ import { api, type PacksView } from '../api.ts';
 import { Button, CopyButton, cn } from '../ui.tsx';
 
 /**
- * The mutually exclusive design packs: pick one (Settings `workflow.designPack`), see its install state,
- * install it in one click. Used by the Setup page and the Settings page.
+ * One mutually exclusive skill pack (design / image / video): pick an option (Settings
+ * `workflow.<pack>Pack`), see its install state, install it in one click. Used by Setup and Settings.
  */
-export function DesignPacks({ onInstallStarted, compact }: { onInstallStarted?: (option: string) => void; compact?: boolean }) {
+export function DesignPacks({ onInstallStarted, compact, pack = 'design' }: { onInstallStarted?: (option: string) => void; compact?: boolean; pack?: 'design' | 'image' | 'video' }) {
   const [packs, setPacks] = useState<PacksView | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -15,12 +15,12 @@ export function DesignPacks({ onInstallStarted, compact }: { onInstallStarted?: 
   useEffect(() => {
     load();
   }, []);
-  if (!packs) return <div className="text-xs text-zinc-500">{msg ?? 'checking design skills…'}</div>;
+  if (!packs) return <div className="text-xs text-zinc-500">{msg ?? `checking ${pack} skills…`}</div>;
   const choose = async (id: string) => {
     setBusy(id);
     setMsg(null);
     try {
-      await api.updateSettings({ workflow: { designPack: id as any } });
+      await api.updateSettings({ workflow: { [`${pack}Pack`]: id } as any });
       await load();
     } catch (e: any) {
       setMsg(e.message);
@@ -32,7 +32,7 @@ export function DesignPacks({ onInstallStarted, compact }: { onInstallStarted?: 
     setBusy(`install:${id}`);
     setMsg(null);
     try {
-      await api.installPack('design', id);
+      await api.installPack(pack, id);
       onInstallStarted?.(id);
       setMsg(`Installing ${id} — output streams on the Setup page; this list refreshes in a few seconds.`);
       setTimeout(load, 8000);
@@ -45,8 +45,8 @@ export function DesignPacks({ onInstallStarted, compact }: { onInstallStarted?: 
   return (
     <div className="space-y-2">
       <div className={cn('grid gap-2', compact ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2')}>
-        {packs.design.options.map((o) => {
-          const chosen = packs.design.chosen === o.id;
+        {(packs[pack] ?? packs.design).options.map((o) => {
+          const chosen = (packs[pack] ?? packs.design).chosen === o.id;
           const missing = o.entries.filter((e) => e.status === 'missing' || e.status === 'partial');
           const ready = o.entries.length > 0 && missing.length === 0;
           const manualOnly = missing.length > 0 && missing.every((e) => e.sourceType === 'cli' || e.sourceType === 'manual');

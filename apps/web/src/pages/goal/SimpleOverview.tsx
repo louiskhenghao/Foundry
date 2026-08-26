@@ -89,6 +89,17 @@ export function SimpleOverview({ d, onExpert }: { d: GoalDetail; onExpert: () =>
 
       {finished && (
         <Card title="Result">
+          {g.completion.artifactsRun && (
+            <div className={`text-sm mb-2 ${g.completion.artifactsRun.status === 'ok' ? 'text-emerald-300' : 'text-zinc-300'}`}>
+              {g.completion.artifactsRun.status === 'ok' ? (
+                <>
+                  🎉 {g.completion.artifactsRun.files.length} file(s) are in <span className="mono">{g.completion.artifactsRun.dest}</span> — open the folder and have a look.
+                </>
+              ) : (
+                <>{g.completion.artifactsRun.detail}</>
+              )}
+            </div>
+          )}
           <div className="flex items-center gap-3 flex-wrap text-sm text-zinc-300">
             <Check size={14} className="text-emerald-300" />
             <span>

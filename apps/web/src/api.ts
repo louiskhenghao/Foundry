@@ -85,8 +85,14 @@ export interface PackOptionView {
   homepage: string | null;
   entries: PackEntry[];
 }
+export interface PackGroupView {
+  chosen: string;
+  options: PackOptionView[];
+}
 export interface PacksView {
-  design: { chosen: string; options: PackOptionView[] };
+  design: PackGroupView;
+  image: PackGroupView;
+  video: PackGroupView;
 }
 
 export interface RepoInfo {

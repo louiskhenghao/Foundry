@@ -294,6 +294,22 @@ export function SettingsPage() {
             <DesignPacks compact />
             <p className="text-[11px] text-zinc-500 mt-1.5">Choosing a pack saves immediately; only that pack is shown to sessions working on frontend / fullstack tasks.</p>
           </div>
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-xs text-zinc-300">Image skills</span>
+              <span className="ml-auto flex items-center gap-1.5">{aside('workflow.imagePack')}</span>
+            </div>
+            <DesignPacks compact pack="image" />
+            <p className="text-[11px] text-zinc-500 mt-1.5">Mandated to workers on image tasks (scenario `image`).</p>
+          </div>
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-xs text-zinc-300">Video skills</span>
+              <span className="ml-auto flex items-center gap-1.5">{aside('workflow.videoPack')}</span>
+            </div>
+            <DesignPacks compact pack="video" />
+            <p className="text-[11px] text-zinc-500 mt-1.5">Mandated to workers on video tasks (scenario `video`).</p>
+          </div>
         </div>
       </Card>
 

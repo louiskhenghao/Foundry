@@ -11,6 +11,17 @@ import { Button, Card, Input, Textarea, cn, Select } from '../ui.tsx';
 
 const DELIVERY_KEY = 'ai-engine.delivery';
 const BUDGET_KEY = 'ai-engine.budget';
+const NATURE_KEY = 'ai-engine.nature';
+
+type Nature = 'auto' | 'code' | 'docs' | 'research' | 'image' | 'video';
+const NATURES: { id: Nature; label: string; text: string }[] = [
+  { id: 'auto', label: 'Auto', text: 'The system reads your description and decides.' },
+  { id: 'code', label: 'Code', text: 'Software: features, fixes, whole apps.' },
+  { id: 'docs', label: 'Documents', text: 'Proposals, contracts, tutorials, articles.' },
+  { id: 'research', label: 'Research', text: 'An investigation ending in a cited report.' },
+  { id: 'image', label: 'Images', text: 'Posters, logos, illustrations.' },
+  { id: 'video', label: 'Video', text: 'Generated video or narrated presentations.' },
+];
 function loadDraft(): PolicyDraft {
   try {
     return { mode: 'local', unit: 'task', ...JSON.parse(localStorage.getItem(DELIVERY_KEY) ?? '{}') };
@@ -40,6 +51,9 @@ export function NewGoalPage() {
   const [budget, setBudget] = useState<BudgetDraft>(loadBudget());
   const [auto, setAuto] = useState(false);
   const [advanced, setAdvanced] = useState(false);
+  const [nature, setNature] = useState<Nature>(() => ((localStorage.getItem(NATURE_KEY) as Nature | null) ?? 'auto'));
+  const [outputDir, setOutputDir] = useState('');
+  useEffect(() => localStorage.setItem(NATURE_KEY, nature), [nature]);
   const [mode, setMode] = useState<'simple' | 'expert'>(() => ((localStorage.getItem('ai-engine.mode') as 'simple' | 'expert' | null) ?? 'expert'));
   const [tdd, setTdd] = useState<'required' | 'preferred' | 'off'>(() => ((localStorage.getItem('ai-engine.tdd') as 'required' | 'preferred' | 'off' | null) ?? 'required'));
   useEffect(() => localStorage.setItem('ai-engine.mode', mode), [mode]);
@@ -83,6 +97,8 @@ export function NewGoalPage() {
         attachments,
         mode,
         workflow: { tdd: mode === 'simple' ? 'preferred' : tdd },
+        nature,
+        outputDir: (nature === 'image' || nature === 'video') && outputDir.trim() ? outputDir.trim() : undefined,
       });
       try {
         localStorage.setItem(DELIVERY_KEY, JSON.stringify({ mode: delivery.mode, remote: delivery.remote, mergeMethod: delivery.mergeMethod, requireChecks: delivery.requireChecks, autoResolveConflicts: delivery.autoResolveConflicts, fixCiCycles: delivery.fixCiCycles, deleteRemoteBranch: delivery.deleteRemoteBranch }));
@@ -110,6 +126,43 @@ export function NewGoalPage() {
           ))}
         </ol>
       </div>
+
+      <Card title="What kind of goal is this?">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {NATURES.map((n) => (
+            <button
+              key={n.id}
+              type="button"
+              onClick={() => {
+                setNature(n.id);
+                // anyone-facing default: prose/media goals open in the plain-language view
+                if (n.id !== 'code' && n.id !== 'auto') setMode('simple');
+              }}
+              className={cn('text-left rounded-lg border p-2.5', nature === n.id ? 'border-emerald-500 bg-emerald-500/10' : 'border-zinc-800 hover:border-zinc-600')}
+            >
+              <div className="text-sm font-medium text-zinc-100">{n.label}</div>
+              <div className="text-[11px] text-zinc-400 mt-0.5 leading-snug">{n.text}</div>
+            </button>
+          ))}
+        </div>
+        {(nature === 'image' || nature === 'video') && (
+          <div className="mt-3">
+            <label className="text-xs text-zinc-400">Output folder — the finished files are copied here when the goal completes (optional; otherwise they stay in the goal's workspace)</label>
+            <div className="flex gap-2 mt-1">
+              <Input className="mono flex-1" placeholder="/Users/you/Desktop/output" value={outputDir} onChange={(e) => setOutputDir(e.target.value)} />
+              <Button
+                variant="ghost"
+                onClick={async () => {
+                  const r = await api.fsPick(outputDir || undefined).catch(() => null);
+                  if (r?.path) setOutputDir(r.path);
+                }}
+              >
+                Choose…
+              </Button>
+            </div>
+          </div>
+        )}
+      </Card>
 
       <Card title="How much do you want to see?">
         <div className="grid sm:grid-cols-2 gap-2">
