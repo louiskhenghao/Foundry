@@ -177,7 +177,7 @@ export class Engine {
       // user skills only load when user settings are in scope
       hintsEnabled: () => !config.settingSources || config.settingSources.includes('user'),
       workflowProfile: () => config.workflowProfile ?? 'mattpocock',
-      packs: () => ({ design: config.designPack }),
+      packs: () => ({ design: config.designPack, image: config.imagePack, video: config.videoPack }),
       // every updater run is an audit event (goalId null, informational)
       onRun: (run) => this.store.append({ type: 'skills.update_run', goalId: null, payload: { sourceId: run.sourceId, updater: run.updater, command: run.command, cwd: run.cwd, exitCode: run.exitCode, durationMs: run.durationMs, outputTail: run.outputTail, changed: run.changed, error: run.error } }),
     });

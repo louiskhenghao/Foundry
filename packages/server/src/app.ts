@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Brief, EscalationAnswer, getAttempt, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@ai-engine/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, type Engine, type OpenTargetId } from '@ai-engine/engine';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, type Engine, type OpenTargetId } from '@ai-engine/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, SettingsPatch } from '@ai-engine/core';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -533,14 +533,21 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const { bundle } = z.object({ bundle: z.string().min(1) }).parse(await c.req.json());
     return c.json(await engine.skills.installBundle(bundle));
   });
-  // mutually exclusive packs (design skills): options + install status, and a streamed one-click install
+  // mutually exclusive packs (design / image / video skills): options + install status, and a streamed one-click install
   app.get('/api/skills/packs', async (c) => {
     const statuses = await engine.skills.status();
-    const options = DESIGN_PACK_OPTIONS.map((o) => ({
-      ...o,
-      entries: statuses.filter((s) => s.entry.pack === 'design' && s.entry.packOption === o.id).map((s) => ({ id: s.entry.id, name: s.entry.name, invoke: s.entry.invoke ?? s.installedInvoke ?? `/${s.entry.name}`, status: s.status, detail: s.detail, manual: s.manual, sourceType: s.entry.source.type })),
-    }));
-    return c.json({ design: { chosen: engine.config.designPack, options } });
+    const view = (pack: string, opts: typeof DESIGN_PACK_OPTIONS, chosen: string) => ({
+      chosen,
+      options: opts.map((o) => ({
+        ...o,
+        entries: statuses.filter((s) => s.entry.pack === pack && s.entry.packOption === o.id).map((s) => ({ id: s.entry.id, name: s.entry.name, invoke: s.entry.invoke ?? s.installedInvoke ?? `/${s.entry.name}`, status: s.status, detail: s.detail, manual: s.manual, sourceType: s.entry.source.type })),
+      })),
+    });
+    return c.json({
+      design: view('design', DESIGN_PACK_OPTIONS, engine.config.designPack),
+      image: view('image', IMAGE_PACK_OPTIONS, engine.config.imagePack),
+      video: view('video', VIDEO_PACK_OPTIONS, engine.config.videoPack),
+    });
   });
   app.post('/api/skills/install-pack', async (c) => {
     const { pack, option } = z.object({ pack: z.string().min(1), option: z.string().min(1) }).parse(await c.req.json());

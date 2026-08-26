@@ -40,6 +40,8 @@ export interface EngineConfig {
   defaultDelivery?: { mode?: 'local' | 'push' | 'pr' | 'pr-automerge'; remote?: string; unit?: 'goal' | 'task' };
   /** which design skill set UI tasks use (catalog entries with pack "design"); 'none' = no design skill is mandated */
   designPack: string;
+  imagePack: string;
+  videoPack: string;
   /** run `npx autoskills` in each goal's workspace so the repository's stack gets matching project skills */
   autoskills: boolean;
   /** fetch the base branch before a goal starts; start the goal branch from the remote tip when local is behind; re-fetch between tasks */
@@ -85,6 +87,8 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     maxFixCycles: 1,
     defaultDelivery: { unit: 'task', ...(process.env.AI_ENGINE_DELIVERY_MODE ? { mode: process.env.AI_ENGINE_DELIVERY_MODE as any } : {}) },
     designPack: process.env.AI_ENGINE_DESIGN_PACK ?? 'ui-ux-pro-max',
+    imagePack: process.env.AI_ENGINE_IMAGE_PACK ?? 'gpt-image-2',
+    videoPack: process.env.AI_ENGINE_VIDEO_PACK ?? 'web-video-presentation',
     autoskills: process.env.AI_ENGINE_AUTOSKILLS ? !/^(0|false|off|no)$/i.test(process.env.AI_ENGINE_AUTOSKILLS) : true,
     sync: { fetchBeforeGoal: process.env.AI_ENGINE_SYNC_FETCH ? !/^(0|false|off|no)$/i.test(process.env.AI_ENGINE_SYNC_FETCH) : true, startFrom: process.env.AI_ENGINE_SYNC_START === 'local' ? 'local' : 'auto', refreshBetweenTasks: /^(1|true|on|yes)$/i.test(process.env.AI_ENGINE_SYNC_REFRESH ?? '') },
     delivery: { pollMs: 30_000, noChecksGraceMs: 90_000, checksTimeoutMs: 30 * 60_000, automergeWaitMs: 10 * 60_000 },
