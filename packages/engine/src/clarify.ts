@@ -118,6 +118,9 @@ export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
     }
 
     let brief: Brief;
+    if (parsed.success && goal.nature === 'auto') {
+      store.append({ type: 'goal.nature_set', goalId: goal.id, payload: { nature: parsed.data.nature, reason: 'clarifier verdict' } });
+    }
     if (parsed.success) {
       brief = toBrief(goal, parsed.data, questions);
       // still uncovered after the repair turn: leave the gap to the human (Draft on the Brief page, or delete the Area)

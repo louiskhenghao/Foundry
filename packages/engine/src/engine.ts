@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import type { Attachment, Brief, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalWorkflow, ModelConfig, Task, Check } from '@ai-engine/core';
+import type { Attachment, Brief, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalWorkflow, ModelConfig, Task, Check } from '@ai-engine/core';
 import {
   BUDGET_PRESETS,
   Budgets,
@@ -84,6 +84,10 @@ export interface CreateGoalInput {
   mode?: GoalMode;
   /** engineering discipline; Simple mode defaults tdd to `preferred`, Expert to the Settings default */
   workflow?: Partial<GoalWorkflow>;
+  /** what the goal produces; auto (default) = the Clarifier decides. Non-code goals open in Simple mode unless mode says otherwise. */
+  nature?: GoalNature;
+  /** where media artifacts are copied at done; null = they stay in the goal workspace */
+  outputDir?: string | null;
 }
 
 interface InFlight {
@@ -702,7 +706,9 @@ export class Engine {
     if (baseBranch === 'HEAD') throw new Error('repository is in detached HEAD state; pass --base <branch>');
     const now = new Date().toISOString();
     const id = newId(IdPrefix.goal);
-    const mode: GoalMode = input.mode ?? this.config.defaultGoalMode;
+    const nature: GoalNature = input.nature ?? 'auto';
+    // anyone-facing default: a goal that produces prose or media opens in the plain-language view
+    const mode: GoalMode = input.mode ?? (nature !== 'auto' && nature !== 'code' ? 'simple' : this.config.defaultGoalMode);
     const goal: Goal = {
       id,
       title: input.title?.trim() || input.prompt.trim().split('\n')[0]!.slice(0, 80),
@@ -713,8 +719,8 @@ export class Engine {
       budgets: Budgets.parse({ ...BUDGET_PRESETS[input.budgetPreset ?? 'custom'].budgets, ...(input.budgets ?? {}) }),
       budgetPreset: input.budgetPreset ?? 'custom',
       mode,
-      nature: 'auto',
-      outputDir: null,
+      nature,
+      outputDir: input.outputDir ?? null,
       workflow: { tdd: input.workflow?.tdd ?? (mode === 'simple' ? 'preferred' : this.config.workflowTdd) },
       models: { ...this.config.models, ...(input.models ?? {}) },
       state: 'draft',

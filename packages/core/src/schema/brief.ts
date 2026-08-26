@@ -115,6 +115,10 @@ const OutputCheck = z.object({
 export const BriefOutput = z.object({
   title: z.string().describe('One Conventional Commits header for the whole goal, e.g. "feat(site): add resort landing page". ≤ 72 chars. Used as the pull request title.'),
   understanding: z.string().describe('Your understanding of the goal in 3-8 sentences.'),
+  nature: z
+    .enum(['code', 'docs', 'research', 'image', 'video'])
+    .default('code')
+    .describe('What the goal produces: code = software changes; docs = prose/documents; research = an investigation ending in a cited report; image = generated/edited images; video = generated/edited video or audio. Pick the dominant one for mixed goals.'),
   areas: z
     .array(
       z.object({
