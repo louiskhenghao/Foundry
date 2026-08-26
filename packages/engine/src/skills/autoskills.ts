@@ -93,7 +93,7 @@ function linkTargetRoots(ws: string, names: string[]): string[] {
 
 /** Run autoskills in `ws` (a worktree of the repository) and clean up after it. Never throws. */
 export async function runAutoskills(ws: string, deps: AutoskillsDeps = {}, onLine: (l: string) => void = () => {}): Promise<AutoskillsResult> {
-  if (!hasStackManifest(ws)) return { status: 'skipped', skills: [], detail: 'no stack manifest (package.json, pyproject.toml, go.mod, …) in the repository' };
+  if (!hasStackManifest(ws)) return { status: 'skipped', skills: [], detail: 'no stack manifest (package.json, pyproject.toml, go.mod, …) in the repository yet — retried after each task until one appears' };
   const major = await nodeMajor(deps);
   if (major == null || major < 22) return { status: 'skipped', skills: [], detail: major == null ? 'node is not on PATH (autoskills needs Node ≥ 22)' : `node v${major} is too old for autoskills (needs ≥ 22)` };
 

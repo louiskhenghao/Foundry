@@ -163,6 +163,8 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
         if (fresh.worktreePath) await dropTaskWorkspace(goal, getTask(store.db, task.id)!).catch(() => {});
         const t = getTask(store.db, task.id)!;
         store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'merging', to: 'done', reason: t.commitRef ? `committed ${t.commitRef.slice(0, 7)} on goal branch` : 'no changes to commit' } });
+        // empty-repo goals: the task that created the first stack manifest unlocks autoskills for the rest
+        engine.retryAutoskillsAfterTask(goal.id);
       }
       return;
     }

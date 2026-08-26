@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Brief, EscalationAnswer, getAttempt, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@ai-engine/core';
 import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, type Engine, type OpenTargetId } from '@ai-engine/engine';
-import { Attachment, BudgetPreset, DeliveryPolicy, GoalMode, GoalWorkflow, SettingsPatch } from '@ai-engine/core';
+import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalWorkflow, SettingsPatch } from '@ai-engine/core';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
@@ -23,6 +23,11 @@ const BudgetsBody = z.object({
   maxDurationMin: z.number().positive().nullable().optional(),
   maxConcurrent: z.number().int().positive().optional(),
   attemptsPerTask: z.number().int().positive().optional(),
+});
+
+const CompletionBody = z.object({
+  graphRefresh: z.boolean().optional(),
+  docs: z.array(DocType).optional(),
 });
 
 const CreateGoalBody = z.object({
@@ -336,12 +341,13 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json({ ok: true });
   });
   app.post('/api/goals/:id/brief/approve', async (c) => {
-    // body: the (possibly edited) Brief, optionally with `budgets` alongside (Brief.parse strips unknown keys)
+    // body: the (possibly edited) Brief, optionally with `budgets` / `completion` alongside (Brief.parse strips unknown keys)
     const raw = await c.req.text();
     const json = raw ? JSON.parse(raw) : null;
     const brief = json && json.understanding !== undefined ? Brief.parse({ ...json, goalId: c.req.param('id') }) : undefined;
     const budgets = json?.budgets ? BudgetsBody.parse(json.budgets) : undefined;
-    await engine.approveBrief(c.req.param('id'), brief, budgets);
+    const completion = json?.completion ? CompletionBody.parse(json.completion) : undefined;
+    await engine.approveBrief(c.req.param('id'), brief, budgets, completion);
     return c.json({ ok: true });
   });
 

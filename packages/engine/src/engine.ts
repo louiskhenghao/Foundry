@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import type { Attachment, Brief, BudgetPreset, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalWorkflow, ModelConfig, Task, Check } from '@ai-engine/core';
+import type { Attachment, Brief, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalWorkflow, ModelConfig, Task, Check } from '@ai-engine/core';
 import {
   BUDGET_PRESETS,
   Budgets,
@@ -7,6 +7,7 @@ import {
   IDLE_DELIVERY,
   proposeBudgetFromEstimate,
   renderDecisions,
+  IDLE_COMPLETION,
   EventStore,
   IdPrefix,
   getAttempt,
@@ -53,7 +54,8 @@ import { Markitdown } from './convert/markitdown.ts';
 import { SettingsStore, applySettingsToConfig } from './settings.ts';
 import { ModelFallbackRunner } from './models/fallback-runner.ts';
 import { ModelRegistry, SEED_MODELS, isPinnedId, type ModelRecord } from './models/registry.ts';
-import { hasStackManifest, runAutoskills } from './skills/autoskills.ts';
+import { copyProjectSkills, hasStackManifest, runAutoskills, type AutoskillsDeps } from './skills/autoskills.ts';
+import { inferCompletion, runGraphRefresh, shouldRunGraphRefresh, type GraphRefreshDeps } from './completion.ts';
 import type { SettingsPatch, SettingsView } from '@ai-engine/core';
 import { spawnStreaming } from './skills/updaters.ts';
 import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
@@ -99,6 +101,8 @@ export class Engine {
   readonly gh: GhClient;
   context: ContextProvider;
   private delivering = new Map<string, AbortController>();
+  /** post-completion graph refreshes in progress, per goal */
+  private completing = new Set<string>();
 
   private streamListeners = new Set<StreamListener>();
   private escalationListeners = new Set<(e: Escalation) => void>();
@@ -121,6 +125,10 @@ export class Engine {
   readonly models: ModelRegistry;
   /** autoskills runs in progress, per goal (tasks wait for them before their first attempt) */
   private autoskillsRuns = new Map<string, Promise<void>>();
+  /** test seam: deps handed to runAutoskills (fake npx / node version) */
+  autoskillsDeps: AutoskillsDeps = {};
+  /** test seam: deps handed to runGraphRefresh (fake which/exec) */
+  graphRefreshDeps: GraphRefreshDeps = {};
 
   constructor(
     public readonly config: EngineConfig,
@@ -273,11 +281,14 @@ export class Engine {
 
   // ---------- autoskills ----------
 
-  /** Kick off the per-goal autoskills run (idempotent per goal); the scheduler awaits it before the first attempt. */
+  /**
+   * Kick off the per-goal autoskills run (idempotent per goal); the scheduler awaits it before the first attempt.
+   * A run recorded as skipped for lack of a stack manifest (empty repository) may run again once a task created
+   * one — `retryAutoskillsAfterTask` calls back in after every task lands.
+   */
   startAutoskills(goal: Goal, ws: string): void {
-    if (!this.config.autoskills || this.autoskillsRuns.has(goal.id) || goal.autoskills) return;
-    // nothing to detect from → nothing to run, nothing to record
-    if (!hasStackManifest(ws)) return;
+    if (!this.config.autoskills || this.autoskillsRuns.has(goal.id)) return;
+    if (goal.autoskills && !(goal.autoskills.status === 'skipped' && goal.autoskills.detail.startsWith('no stack manifest') && hasStackManifest(ws))) return;
     const channel = `autoskills-${goal.id}`;
     const record = (payload: { status: 'installed' | 'skipped' | 'failed'; skills: string[]; detail: string }) => {
       try {
@@ -288,7 +299,7 @@ export class Engine {
     };
     const run = (async () => {
       const onLine = (text: string) => this.broadcast({ goalId: goal.id, taskId: null, attemptId: channel, event: { kind: 'text', text }, ts: new Date().toISOString() });
-      const r = await runAutoskills(ws, { log: this.config.log }, onLine);
+      const r = await runAutoskills(ws, { log: this.config.log, ...this.autoskillsDeps }, onLine);
       record(r);
       this.config.log(`[autoskills] ${goal.id}: ${r.status} — ${r.detail}`);
     })().catch((err) => record({ status: 'failed', skills: [], detail: String((err as Error).message ?? err) }));
@@ -300,6 +311,28 @@ export class Engine {
     const run = this.autoskillsRuns.get(goalId);
     if (!run) return;
     await Promise.race([run, new Promise<void>((r) => setTimeout(r, timeoutMs))]);
+  }
+  /**
+   * Empty-repository goals: autoskills was skipped for lack of a stack manifest. After every task lands,
+   * check whether one exists now and run autoskills then, copying the skills into live task worktrees.
+   */
+  retryAutoskillsAfterTask(goalId: string): void {
+    const goal = getGoal(this.store.db, goalId);
+    if (!goal || !goal.autoskills || goal.autoskills.status !== 'skipped' || !goal.autoskills.detail.startsWith('no stack manifest')) return;
+    const ws = goalWorkspacePath(this.config.dataDir, goalId);
+    if (!hasStackManifest(ws)) return;
+    this.startAutoskills(goal, ws);
+    void this.awaitAutoskills(goalId).then(() => {
+      const fresh = getGoal(this.store.db, goalId);
+      if (fresh?.autoskills?.status !== 'installed') return;
+      for (const t of listTasks(this.store.db, goalId)) {
+        if (t.worktreePath && existsSync(t.worktreePath)) {
+          try {
+            copyProjectSkills(ws, t.worktreePath);
+          } catch {}
+        }
+      }
+    });
   }
 
   // ---------- lifecycle ----------
@@ -314,6 +347,10 @@ export class Engine {
   }
 
   async stop(): Promise<void> {
+    if (this.resumeTimer) {
+      clearTimeout(this.resumeTimer);
+      this.resumeTimer = null;
+    }
     for (const [, f] of this.inFlight) f.handle?.kill('killed_manual');
     // reviews, clarify, merges and probes are not in `inFlight`: kill every child the runner still owns
     const n = (this.runner as { killAll?: () => number }).killAll?.() ?? 0;
@@ -321,6 +358,7 @@ export class Engine {
   }
 
   private async reconcile(): Promise<void> {
+    this.restoreRateLimitPause();
     for (const a of listRunningAttempts(this.store.db)) {
       if (a.pid && isAlive(a.pid)) {
         try {
@@ -434,14 +472,40 @@ export class Engine {
     if (this.rateLimitedUntil && this.rateLimitedUntil >= until) return;
     this.rateLimitedUntil = until;
     this.store.append({ type: 'rate_limit.paused', goalId: null, payload: { rateLimitType, until: new Date(until).toISOString(), reason } });
+    this.store.append({ type: 'engine.note', goalId: null, payload: { level: 'warn', message: `usage limit reached (${rateLimitType ?? '?'}): paused until ${new Date(until).toLocaleString()}; goals resume automatically` } });
     this.config.log(`[engine] rate limited (${rateLimitType ?? '?'}): pausing new sessions until ${new Date(until).toLocaleTimeString()} — ${reason}`);
+    this.armResume(until);
+  }
+  /** (Re)arm the timer that lifts the pause and ticks every live goal. */
+  private armResume(until: number): void {
     if (this.resumeTimer) clearTimeout(this.resumeTimer);
     this.resumeTimer = setTimeout(() => {
       this.rateLimitedUntil = null;
       this.resumeTimer = null;
       this.store.append({ type: 'rate_limit.resumed', goalId: null, payload: { reason: 'reset time reached' } });
+      this.store.append({ type: 'engine.note', goalId: null, payload: { level: 'info', message: 'usage limit reset — goals resume' } });
       for (const g of listGoals(this.store.db)) if (!['done', 'over_delivered', 'failed', 'cancelled'].includes(g.state)) this.tick(g.id);
     }, Math.max(0, until - Date.now()) + 1000);
+  }
+  /**
+   * After a restart the pause lives only in the event log: if the last `rate_limit.paused` has no later
+   * `rate_limit.resumed` and its reset time is still ahead, arm the timer again (no duplicate paused event);
+   * a reset that passed while the engine was down is resumed immediately.
+   */
+  private restoreRateLimitPause(): void {
+    const paused = this.store.listByType('rate_limit.paused', 1)[0];
+    if (!paused) return;
+    const resumed = this.store.listByType('rate_limit.resumed', 1)[0];
+    if (resumed && resumed.seq > paused.seq) return;
+    const until = Date.parse((paused.payload as { until: string }).until);
+    if (!Number.isFinite(until)) return;
+    if (until > Date.now()) {
+      this.rateLimitedUntil = until;
+      this.armResume(until);
+      this.config.log(`[engine] restart during a usage pause: still paused until ${new Date(until).toLocaleTimeString()}`);
+    } else {
+      this.store.append({ type: 'rate_limit.resumed', goalId: null, payload: { reason: 'reset time passed while the engine was down' } });
+    }
   }
   isRateLimited(): boolean {
     return this.rateLimitedUntil != null && this.rateLimitedUntil > Date.now();
@@ -594,6 +658,13 @@ export class Engine {
         return;
       case 'done':
       case 'over_delivered': {
+        // graph refresh: after delivery for goals that leave the machine, right away for local ones
+        if (shouldRunGraphRefresh(goal) && !this.completing.has(goalId)) {
+          this.completing.add(goalId);
+          void runGraphRefresh(this, goal, this.graphRefreshDeps)
+            .catch((err) => this.store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `graph refresh crashed: ${String(err)}` } }))
+            .finally(() => this.completing.delete(goalId));
+        }
         if (goal.delivery.policy.mode === 'local' || goal.delivery.status !== 'idle' || this.delivering.has(goalId)) return;
         const ac = new AbortController();
         this.delivering.set(goalId, ac);
@@ -652,6 +723,7 @@ export class Engine {
       attachments: input.attachments?.length ? claimStaged(this.config.dataDir, id, input.attachments.map((a) => this.latestStaged(a))) : [],
       baseSync: null,
       autoskills: null,
+      completion: { ...IDLE_COMPLETION },
       runningSince: null,
       createdAt: now,
       updatedAt: now,
@@ -832,7 +904,7 @@ export class Engine {
    * `budgets` (optional) is applied first — this is how the Auto preset's proposed budget, confirmed or edited
    * by the human on the Brief page, becomes the goal's budget before any work starts.
    */
-  async approveBrief(goalId: string, edited?: Brief, budgets?: Partial<Budgets>): Promise<void> {
+  async approveBrief(goalId: string, edited?: Brief, budgets?: Partial<Budgets>, completion?: { graphRefresh?: boolean; docs?: DocType[] }): Promise<void> {
     const goal = this.mustGoal(goalId);
     if (goal.state !== 'awaiting_brief_approval') throw new Error(`goal is ${goal.state}, cannot approve`);
     const brief = BriefSchema.parse({ ...(edited ?? getBrief(this.store.db, goalId)?.brief), goalId });
@@ -843,6 +915,13 @@ export class Engine {
 
     const ws = await this.ensureSyncedWorkspace(goal);
     this.startAutoskills(goal, ws);
+    // completion actions: what the UI sent, holes filled from the Brief (Simple mode and API callers send nothing)
+    const inferred = inferCompletion(brief, ws);
+    this.store.append({
+      type: 'goal.completion_set',
+      goalId,
+      payload: { graphRefresh: completion?.graphRefresh ?? inferred.graphRefresh, docs: completion?.docs ?? inferred.docs, reason: completion ? 'set at brief approval' : inferred.reason },
+    });
     if (budgets && Object.keys(budgets).length) {
       const next = Budgets.parse({ ...goal.budgets, ...budgets });
       this.store.append({ type: 'goal.budgets_changed', goalId, payload: { budgets: next, reason: goal.budgetPreset === 'auto' ? 'auto-from-brief' : 'set at brief approval' } });

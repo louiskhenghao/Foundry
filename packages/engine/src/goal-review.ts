@@ -9,6 +9,7 @@ import { runCommandCheck } from './checks/command.ts';
 import { tryJson } from './checks/reviewer.ts';
 import type { Engine } from './engine.ts';
 import { goalScenario } from './skills/workflow.ts';
+import { runDocsGeneration } from './docs-generate.ts';
 import { raiseEscalation } from './escalation.ts';
 import { diff } from './git/git.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
@@ -84,6 +85,8 @@ export async function runGoalReview(engine: Engine, goal: Goal): Promise<void> {
 
   if (mustPassed) {
     store.append({ type: 'review.goal.finished', goalId: goal.id, payload: { passed: true, overDelivered: stretchPassed, mustResults, stretchResults, fixTaskIds: [], notes: review?.notes ?? '' } });
+    // docs are generated before the goal turns done so their commit lands on the goal branch and ships with the code
+    await runDocsGeneration(engine, goal);
     store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'goal_review', to: stretchPassed ? 'over_delivered' : 'done', reason: stretchPassed ? 'all must + stretch checks pass' : 'all must checks pass' } });
     return;
   }

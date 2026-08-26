@@ -7,6 +7,21 @@ import { tryJson } from './checks/reviewer.ts';
 import type { Engine } from './engine.ts';
 import { git, isDirty } from './git/git.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
+import { hasStackManifest } from './skills/autoskills.ts';
+import { readdirSync } from 'node:fs';
+
+/** Files that do not make a repository "have code": a freshly initialised repo may carry any of these. */
+const EMPTY_REPO_IGNORE = new Set(['.git', '.claude', '.agents', '.DS_Store', 'graphify-out', 'CLAUDE.md', 'AGENTS.md', 'README.md', '.gitignore', '.gitattributes', 'LICENSE', 'docs']);
+
+/** An empty repository has no stack manifest and nothing but scaffolding-free files — the tech stack is then the human's decision. */
+export function isEmptyRepo(ws: string): boolean {
+  if (hasStackManifest(ws)) return false;
+  try {
+    return readdirSync(ws).every((n) => EMPTY_REPO_IGNORE.has(n));
+  } catch {
+    return false;
+  }
+}
 
 /** Multi-Area goals need more turns and budget than the old "1–6 tasks" briefs. */
 export const CLARIFY_MAX_TURNS = 90;
@@ -28,6 +43,7 @@ export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
         answer: null,
         blocking: true,
         areaKey: null,
+        options: [],
         applied: false,
       });
     }
@@ -45,7 +61,7 @@ export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
     // a re-run keeps the human's Decisions from the discarded Brief
     const reclarified = store.listByGoal(goal.id, 5000).filter((e) => e.type === 'goal.reclarified').at(-1);
     const decisions = reclarified ? ((reclarified.payload as { decisions?: string }).decisions ?? '') : '';
-    const prompt = buildClarifyPrompt(goal, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions);
+    const prompt = buildClarifyPrompt(goal, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws));
     const addDirs = goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined;
     const schema = zodToJsonSchema(BriefOutput, { $refStrategy: 'none' });
     const transcriptPath = join(config.dataDir, 'transcripts', `clarify-${goal.id}.jsonl`);
@@ -106,7 +122,7 @@ export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
       brief = toBrief(goal, parsed.data, questions);
       // still uncovered after the repair turn: leave the gap to the human (Draft on the Brief page, or delete the Area)
       for (const a of uncoveredAreas(brief)) {
-        brief.questions.push({ id: newId('q'), text: `Area "${a.name}" has no tasks yet. Use "Draft tasks for this Area" on the Brief page, or delete the Area if this goal does not cover it.`, answer: null, blocking: false, areaKey: a.key, applied: false });
+        brief.questions.push({ id: newId('q'), text: `Area "${a.name}" has no tasks yet. Use "Draft tasks for this Area" on the Brief page, or delete the Area if this goal does not cover it.`, answer: null, blocking: false, areaKey: a.key, options: [], applied: false });
       }
     } else {
       brief = {
@@ -121,7 +137,7 @@ export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
         timeEstimateMin: 0,
         questions: [
           ...questions,
-          { id: newId('q'), text: 'The clarifier could not produce a structured Brief. Edit the tasks and checks manually, then answer "ok" here.', answer: null, blocking: true, areaKey: null, applied: false },
+          { id: newId('q'), text: 'The clarifier could not produce a structured Brief. Edit the tasks and checks manually, then answer "ok" here.', answer: null, blocking: true, areaKey: null, options: [], applied: false },
         ],
       };
     }
@@ -135,10 +151,13 @@ export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
   }
 }
 
-function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: string | null = null, attachments = '', decisions = ''): string {
+function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: string | null = null, attachments = '', decisions = '', emptyRepo = false): string {
   return [
     `# Goal from the user\n${goal.prompt}`,
     decisions ? `${decisions}\nTreat these as settled: plan with them, record them as assumptions, and do not ask about them again.` : '',
+    emptyRepo
+      ? `# Empty repository\nThis repository has no code yet, so there is nothing to discover — the tech stack is the human's decision, not yours to assume. Unless the goal (or a Decision above) already names the stack, include exactly ONE blocking question choosing it: propose 2–4 concrete, complete stack options suited to this goal (e.g. "Next.js + Prisma + Postgres", "NestJS API + React SPA", "Laravel + MySQL", a Bun/Node monorepo …) in the question's \`options\`, with YOUR recommended option FIRST. Plan the tasks assuming that recommended option, and make the first task scaffold the project (initialise the chosen stack, package manifest, build/test commands) — every other task depends on it. Must checks may only use commands that will exist once that scaffold task is done.`
+      : '',
     attachments ? `${attachments}\nWhen an attachment matters for a specific task, name it (by file name) in that task's spec.` : '',
     overview ? `# Repository overview\n${overview}` : '',
     skillsHint ?? '',
@@ -173,7 +192,7 @@ export function toBrief(goal: Goal, o: BriefOutput, extraQuestions: Brief['quest
     tasks: o.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind ?? 'feature', scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys, parallelizable: t.parallelizable, relevantFiles: t.relevantFiles })),
     costEstimateUsd: o.costEstimateUsd,
     timeEstimateMin: o.timeEstimateMin,
-    questions: [...extraQuestions, ...o.questions.map((q) => ({ id: newId('q'), text: q.text, answer: null, blocking: q.blocking, areaKey: area(q.areaKey), applied: false }))],
+    questions: [...extraQuestions, ...o.questions.map((q) => ({ id: newId('q'), text: q.text, answer: null, blocking: q.blocking, areaKey: area(q.areaKey), options: q.options ?? [], applied: false }))],
   };
 }
 
