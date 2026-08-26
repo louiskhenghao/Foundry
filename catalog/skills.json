@@ -137,6 +137,15 @@
       "bundle": "mattpocock",
       "aliases": [
         "grill-me"
+      ],
+      "scenarios": [
+        "frontend",
+        "backend",
+        "fullstack",
+        "data",
+        "mobile",
+        "infra",
+        "general"
       ]
     },
     {
@@ -164,8 +173,26 @@
           "role": "clarifier",
           "mandate": "prefer",
           "when": "any",
-          "instruction": "Read it for vocabulary discipline only — you are read-only: do not write CONTEXT.md or ADRs."
+          "instruction": "Read it for vocabulary discipline only — you are read-only: do not write CONTEXT.md or ADRs.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
         }
+      ],
+      "scenarios": [
+        "frontend",
+        "backend",
+        "fullstack",
+        "data",
+        "mobile",
+        "infra",
+        "general"
       ]
     },
     {
@@ -221,14 +248,41 @@
           "role": "worker",
           "mandate": "prefer",
           "when": "feature",
-          "instruction": "Invoke it when you introduce or reshape a module: prefer deep modules with small interfaces."
+          "instruction": "Invoke it when you introduce or reshape a module: prefer deep modules with small interfaces.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
         },
         {
           "role": "planner",
           "mandate": "prefer",
           "when": "any",
-          "instruction": "Use its deep-module vocabulary when carving tasks."
+          "instruction": "Use its deep-module vocabulary when carving tasks.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
         }
+      ],
+      "scenarios": [
+        "frontend",
+        "backend",
+        "fullstack",
+        "data",
+        "mobile",
+        "infra",
+        "general"
       ]
     },
     {
@@ -723,8 +777,16 @@
           "role": "clarifier",
           "mandate": "prefer",
           "when": "any",
-          "instruction": "When the goal or its attachments point at external documentation, invoke it to ground the Brief in primary sources."
+          "instruction": "When the goal or its attachments point at external documentation, invoke it to ground the Brief in primary sources.",
+          "scenarios": [
+            "research",
+            "general"
+          ]
         }
+      ],
+      "scenarios": [
+        "research",
+        "general"
       ]
     },
     {

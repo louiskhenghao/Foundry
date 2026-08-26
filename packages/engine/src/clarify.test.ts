@@ -21,16 +21,22 @@ afterEach(() => {
   rmSync(repo, { recursive: true, force: true });
 });
 
-/** Runner that answers every session with a scripted structured output, chosen by call index. */
+/**
+ * Runner that answers every session with a scripted structured output, chosen by call index.
+ * The auto-goal nature pre-classification (label `classify nature …`) is answered separately
+ * (default `code`) and does not consume an index, so scripts keep their call numbering.
+ */
 class StructuredRunner implements ClaudeRunner {
   calls: RunSpec[] = [];
+  classifyAs: 'code' | 'docs' | 'research' | 'image' | 'video' = 'code';
+  private mainCalls = 0;
   constructor(private answers: (spec: RunSpec, n: number) => unknown) {}
   active() {
     return 0;
   }
   async run(spec: RunSpec): Promise<RunHandle> {
     this.calls.push(spec);
-    const structuredOutput = this.answers(spec, this.calls.length);
+    const structuredOutput = spec.label?.startsWith('classify nature') ? { nature: this.classifyAs } : this.answers(spec, ++this.mainCalls);
     const result: RunResult = { sessionId: `s${this.calls.length}`, subtype: 'success', isError: false, costUsd: 0.5, numTurns: 3, durationMs: 1, usage: null, modelUsage: null, permissionDenials: [], finalText: JSON.stringify(structuredOutput), structuredOutput, exitCode: 0, pid: null, rateLimit: null, errorMessage: null, failureClass: null, skillsUsed: [], toolsUsed: {} };
     const events: RunnerEvent[] = [{ kind: 'init', sessionId: result.sessionId!, model: 'fake', tools: [], raw: {} }, { kind: 'result', result }];
     return { pid: null, events: (async function* () { for (const e of events) yield e; })(), kill() {}, result: Promise.resolve(result) };
@@ -53,17 +59,19 @@ describe('clarify coverage gate', () => {
     const engine = new Engine(cfg(), runner);
     const goal = await engine.createGoal({ prompt: 'student and teacher portals', repoPath: repo });
     await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
-    expect(runner.calls).toHaveLength(2);
-    expect(runner.calls[1]!.resumeSessionId).toBe('s1');
-    expect(runner.calls[1]!.prompt).toContain('"Teacher portal" (A2)');
-    expect(runner.calls[0]!.prompt).toContain('every Area MUST have at least one task');
+    const main = runner.calls.filter((c) => !c.label?.startsWith('classify nature'));
+    expect(runner.calls).toHaveLength(3); // classify + clarify + coverage repair
+    expect(main).toHaveLength(2);
+    expect(main[1]!.resumeSessionId).toBe('s2'); // resumes the clarify session (s1 was the classification)
+    expect(main[1]!.prompt).toContain('"Teacher portal" (A2)');
+    expect(main[0]!.prompt).toContain('every Area MUST have at least one task');
     const brief = getBrief(engine.store.db, goal.id)!.brief;
     expect(brief.areas.map((a) => a.key)).toEqual(['A1', 'A2']);
     expect(brief.tasks.map((t) => [t.key, t.areaKey])).toEqual([['T1', 'A1'], ['T2', 'A2']]);
     expect(brief.checks.find((c) => c.key === 'G1')).toMatchObject({ taskKey: null, areaKey: 'A1' });
     expect(brief.questions.filter((q) => q.areaKey)).toHaveLength(0);
     const cost = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'goal.cost_added').map((e) => (e.payload as { source: string }).source);
-    expect(cost).toEqual(['clarify', 'clarify-coverage']);
+    expect(cost).toEqual(['clarify', 'clarify', 'clarify-coverage']); // classification is billed as clarify
 
     // approval materialises the Area name and the slug as default commit scope
     await engine.approveBrief(goal.id);
@@ -81,7 +89,7 @@ describe('clarify coverage gate', () => {
     const engine = new Engine(cfg(), runner);
     const goal = await engine.createGoal({ prompt: 'student and teacher portals', repoPath: repo });
     await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
-    expect(runner.calls).toHaveLength(2);
+    expect(runner.calls.filter((c) => !c.label?.startsWith('classify nature'))).toHaveLength(2);
     const brief = getBrief(engine.store.db, goal.id)!.brief;
     const q = brief.questions.find((q) => q.areaKey === 'A2')!;
     expect(q.blocking).toBe(false);
@@ -89,6 +97,38 @@ describe('clarify coverage gate', () => {
     // not blocking: the Brief can still be approved
     await engine.approveBrief(goal.id);
     expect(getGoal(engine.store.db, goal.id)!.state).toBe('running');
+    engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
+  }, 20_000);
+});
+
+describe('nature pre-classification', () => {
+  test('an auto goal is classified before the prompt is built; the media sections replace the code ones', async () => {
+    const runner = new StructuredRunner(() => ({ ...briefWith([{ ...task('T1', 'A1', 'render posters'), scenario: 'image' as const }], [check('C1', 'T1')]), nature: 'image' as const }));
+    runner.classifyAs = 'image';
+    const engine = new Engine(cfg(), runner);
+    const goal = await engine.createGoal({ prompt: '生成三张产品海报', repoPath: repo });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    // the verdict was recorded before Clarify ran, and the goal carries it
+    expect(getGoal(engine.store.db, goal.id)!.nature).toBe('image');
+    const natureEvents = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'goal.nature_set');
+    expect(natureEvents.map((e) => (e.payload as { reason: string }).reason)).toEqual(['pre-clarify classification']);
+    // the clarify prompt got the image sections, not the code ones (no tech-stack question, no repo-gate talk)
+    const clarify = runner.calls.find((c) => c.label?.startsWith('clarify'))!;
+    expect(clarify.prompt).toContain('# Nature: image');
+    expect(clarify.prompt).not.toContain('Judge the nature first');
+    expect(clarify.prompt).not.toContain('tech stack is the human');
+    engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
+  }, 20_000);
+
+  test('a user-chosen nature is never classified nor overridden by the verdict', async () => {
+    const runner = new StructuredRunner(() => ({ ...briefWith([task('T1', 'A1', 'write the guide')], [check('C1', 'T1')]), nature: 'code' as const }));
+    const engine = new Engine(cfg(), runner);
+    const goal = await engine.createGoal({ prompt: 'write the onboarding guide', repoPath: repo, nature: 'docs' });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    expect(runner.calls.some((c) => c.label?.startsWith('classify nature'))).toBe(false);
+    expect(getGoal(engine.store.db, goal.id)!.nature).toBe('docs');
     engine.cancelGoal(goal.id);
     await Bun.sleep(150);
   }, 20_000);

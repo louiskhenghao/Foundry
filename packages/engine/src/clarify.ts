@@ -1,6 +1,7 @@
 import { join } from 'node:path';
-import type { Brief, Goal } from '@ai-engine/core';
+import type { Brief, Goal, GoalNature, TaskScenario } from '@ai-engine/core';
 import { BriefOutput, IdPrefix, getGoal, newId, uncoveredAreas } from '@ai-engine/core';
+import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
 import { tryJson } from './checks/reviewer.ts';
@@ -12,6 +13,44 @@ import { readdirSync } from 'node:fs';
 
 /** Files that do not make a repository "have code": a freshly initialised repo may carry any of these. */
 const EMPTY_REPO_IGNORE = new Set(['.git', '.claude', '.agents', '.DS_Store', 'graphify-out', 'CLAUDE.md', 'AGENTS.md', 'README.md', '.gitignore', '.gitattributes', 'LICENSE', 'docs']);
+
+/** The scenario that filters clarifier/planner skill hints for a nature; undefined = no filter (code and unclassified goals). */
+export function natureScenario(nature: GoalNature): TaskScenario | undefined {
+  return nature === 'docs' || nature === 'research' || nature === 'image' || nature === 'video' ? nature : undefined;
+}
+
+const NatureVerdict = z.object({ nature: z.enum(['code', 'docs', 'research', 'image', 'video']) });
+
+/**
+ * One cheap single-turn call that classifies an `auto` goal's nature BEFORE the Clarify prompt is built,
+ * so the prompt sections and skill hints match the goal (a poster goal should never be handed
+ * codebase-design). Null on any failure — Clarify then runs with the judge-it-yourself sections.
+ */
+async function classifyNature(engine: Engine, goal: Goal, ws: string): Promise<GoalNature | null> {
+  try {
+    const handle = await engine.runner.run({
+      prompt: `Classify what this goal produces. code = software changes; docs = prose/documents; research = an investigation ending in a cited report; image = generated/edited images; video = generated/edited video or audio. Pick the dominant one for mixed goals.\n\n# Goal\n${goal.prompt.slice(0, 4000)}`,
+      cwd: ws,
+      model: goal.models.cheap,
+      meta: { goalId: goal.id, tier: 'cheap' },
+      maxTurns: 1,
+      maxBudgetUsd: 0.1,
+      permissionMode: 'dontAsk',
+      allowedTools: [],
+      jsonSchema: zodToJsonSchema(NatureVerdict, { $refStrategy: 'none' }),
+      timeoutMs: 60_000,
+      label: `classify nature ${goal.title}`,
+    });
+    for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: `clarify-${goal.id}`, event: ev, ts: new Date().toISOString() });
+    const r = await handle.result;
+    engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: r.costUsd, source: 'clarify' } });
+    engine.recordSessionUsage(r, { goalId: goal.id, kind: 'clarify', model: goal.models.cheap });
+    const parsed = NatureVerdict.safeParse(r.structuredOutput ?? tryJson(r.finalText));
+    return parsed.success ? parsed.data.nature : null;
+  } catch {
+    return null;
+  }
+}
 
 /** An empty repository has no stack manifest and nothing but scaffolding-free files — the tech stack is then the human's decision. */
 export function isEmptyRepo(ws: string): boolean {
@@ -49,6 +88,16 @@ export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
     }
     // explore the goal worktree, not the user's checkout: it was just fetched and may be ahead of the local base
     const ws = await engine.ensureSyncedWorkspace(goal);
+    // auto goals: settle the nature BEFORE building the prompt, so its sections and skill hints match the goal
+    const wasAuto = goal.nature === 'auto';
+    let nature = goal.nature;
+    if (wasAuto) {
+      const n = await classifyNature(engine, goal, ws);
+      if (n) {
+        nature = n;
+        store.append({ type: 'goal.nature_set', goalId: goal.id, payload: { nature: n, reason: 'pre-clarify classification' } });
+      }
+    }
     await engine.context.prepare(ws).catch((err) => config.log(`[clarify] context prepare failed: ${err}`));
     let overview = await engine.context.overview(ws).catch(() => null);
     const sync = getGoal(store.db, goal.id)?.baseSync;
@@ -57,11 +106,12 @@ export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
     const log = await git(['log', '--no-merges', '--format=%s', '-n', '8', '--', '.'], ws).catch(() => null);
     if (log && log.code === 0 && log.stdout.trim()) overview = `${overview ?? ''}\n\n## Recent commits\n${log.stdout.trim()}`.trim();
 
-    const [clarifierHint, plannerHint] = await Promise.all([engine.skills.hints.sectionFor('clarifier'), engine.skills.hints.sectionFor('planner')]);
+    const scenario = natureScenario(nature);
+    const [clarifierHint, plannerHint] = await Promise.all([engine.skills.hints.sectionFor('clarifier', { scenario }), engine.skills.hints.sectionFor('planner', { scenario })]);
     // a re-run keeps the human's Decisions from the discarded Brief
     const reclarified = store.listByGoal(goal.id, 5000).filter((e) => e.type === 'goal.reclarified').at(-1);
     const decisions = reclarified ? ((reclarified.payload as { decisions?: string }).decisions ?? '') : '';
-    const prompt = buildClarifyPrompt(goal, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws));
+    const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws));
     const addDirs = goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined;
     const schema = zodToJsonSchema(BriefOutput, { $refStrategy: 'none' });
     const transcriptPath = join(config.dataDir, 'transcripts', `clarify-${goal.id}.jsonl`);
@@ -118,8 +168,9 @@ export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
     }
 
     let brief: Brief;
-    if (parsed.success && goal.nature === 'auto') {
-      store.append({ type: 'goal.nature_set', goalId: goal.id, payload: { nature: parsed.data.nature, reason: 'clarifier verdict' } });
+    // the Clarifier's verdict wins over the pre-classification, but never over a nature the user chose
+    if (parsed.success && wasAuto && parsed.data.nature !== nature) {
+      store.append({ type: 'goal.nature_set', goalId: goal.id, payload: { nature: parsed.data.nature, reason: nature === 'auto' ? 'clarifier verdict' : `clarifier verdict (over pre-classification: ${nature})` } });
     }
     if (parsed.success) {
       brief = toBrief(goal, parsed.data, questions);
