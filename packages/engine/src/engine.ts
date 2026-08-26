@@ -352,7 +352,11 @@ export class Engine {
     for (const g of listGoals(this.store.db)) this.tick(g.id);
   }
 
+  /** set by stop(): no new ticks run, so nothing writes to the store after shutdown (tests delete it right after) */
+  private stopped = false;
+
   async stop(): Promise<void> {
+    this.stopped = true;
     if (this.resumeTimer) {
       clearTimeout(this.resumeTimer);
       this.resumeTimer = null;
@@ -361,6 +365,11 @@ export class Engine {
     // reviews, clarify, merges and probes are not in `inFlight`: kill every child the runner still owns
     const n = (this.runner as { killAll?: () => number }).killAll?.() ?? 0;
     if (n) this.config.log(`[engine] stopped ${n} claude session(s) on shutdown`);
+    // drain what is already in flight (bounded): a tick writing to a database the caller is about to delete
+    // was the source of cross-file test flakes
+    const t0 = Date.now();
+    while (this.busy().total > 0 && Date.now() - t0 < 3000) await new Promise((r) => setTimeout(r, 25));
+    await Promise.allSettled([...this.chains.values()]);
   }
 
   private async reconcile(): Promise<void> {
@@ -649,6 +658,7 @@ export class Engine {
   }
 
   private async runTick(goalId: string): Promise<void> {
+    if (this.stopped) return;
     const goal = getGoal(this.store.db, goalId);
     if (!goal) return;
     if (this.isRateLimited()) return; // resume timer will tick again

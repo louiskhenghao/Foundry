@@ -16,7 +16,14 @@ beforeEach(async () => {
   dataDir = mkdtempSync(join(tmpdir(), 'ai-engine-clarify-'));
   repo = await makeRepo();
 });
-afterEach(() => {
+const engines: Engine[] = [];
+/** every Engine a test makes is stopped (background ticks drained) before the dataDir is deleted */
+const track = <T extends Engine>(e: T): T => {
+  engines.push(e);
+  return e;
+};
+afterEach(async () => {
+  for (const e of engines.splice(0)) await e.stop().catch(() => {});
   rmSync(dataDir, { recursive: true, force: true });
   rmSync(repo, { recursive: true, force: true });
 });
@@ -56,7 +63,7 @@ const cfg = () => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'clau
 describe('clarify coverage gate', () => {
   test('an Area without tasks triggers one repair turn in the same session; the repaired Brief is kept', async () => {
     const runner = new StructuredRunner((spec, n) => (n === 1 ? briefWith([task('T1', 'A1', 'add student home')], [check('C1', 'T1'), check('G1', null, 'A1')]) : briefWith([task('T1', 'A1', 'add student home'), task('T2', 'A2', 'add teacher home', ['T1'])], [check('C1', 'T1'), check('C2', 'T2'), check('G1', null, 'A1')])));
-    const engine = new Engine(cfg(), runner);
+    const engine = track(new Engine(cfg(), runner));
     const goal = await engine.createGoal({ prompt: 'student and teacher portals', repoPath: repo });
     await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
     const main = runner.calls.filter((c) => !c.label?.startsWith('classify nature'));
@@ -86,7 +93,7 @@ describe('clarify coverage gate', () => {
 
   test('still uncovered after the repair → a non-blocking Question tagged with the Area', async () => {
     const runner = new StructuredRunner(() => briefWith([task('T1', 'A1', 'add student home')], [check('C1', 'T1')]));
-    const engine = new Engine(cfg(), runner);
+    const engine = track(new Engine(cfg(), runner));
     const goal = await engine.createGoal({ prompt: 'student and teacher portals', repoPath: repo });
     await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
     expect(runner.calls.filter((c) => !c.label?.startsWith('classify nature'))).toHaveLength(2);
@@ -106,7 +113,7 @@ describe('nature pre-classification', () => {
   test('an auto goal is classified before the prompt is built; the media sections replace the code ones', async () => {
     const runner = new StructuredRunner(() => ({ ...briefWith([{ ...task('T1', 'A1', 'render posters'), scenario: 'image' as const }], [check('C1', 'T1')]), nature: 'image' as const }));
     runner.classifyAs = 'image';
-    const engine = new Engine(cfg(), runner);
+    const engine = track(new Engine(cfg(), runner));
     const goal = await engine.createGoal({ prompt: '生成三张产品海报', repoPath: repo });
     await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
     // the verdict was recorded before Clarify ran, and the goal carries it
@@ -124,7 +131,7 @@ describe('nature pre-classification', () => {
 
   test('a user-chosen nature is never classified nor overridden by the verdict', async () => {
     const runner = new StructuredRunner(() => ({ ...briefWith([task('T1', 'A1', 'write the guide')], [check('C1', 'T1')]), nature: 'code' as const }));
-    const engine = new Engine(cfg(), runner);
+    const engine = track(new Engine(cfg(), runner));
     const goal = await engine.createGoal({ prompt: 'write the onboarding guide', repoPath: repo, nature: 'docs' });
     await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
     expect(runner.calls.some((c) => c.label?.startsWith('classify nature'))).toBe(false);
@@ -142,7 +149,7 @@ describe('draft with AI', () => {
       if (spec.label?.startsWith('draft area')) return { tasks: [task('N1', 'A2', 'add teacher home'), task('N2', 'A2', 'add grading view', ['N1'])], checks: [check('X1', 'N1'), check('X2', null)], rationale: 'two slices' };
       return { spec: spec.label?.startsWith('draft acceptance') ? null : '## Do it\nbuild the page', kind: 'feature', scope: null, scenario: 'frontend', areaKey: 'A2', tdd: 'inherit' as const, dependsOnKeys: ['T1', 'nope'], relevantFiles: ['README.md'], checks: [{ name: 'renders', tier: 'must', type: 'reviewer', cmd: null, rubric: 'page renders' }], rationale: 'because' };
     });
-    const engine = new Engine(cfg(), runner);
+    const engine = track(new Engine(cfg(), runner));
     const goal = await engine.createGoal({ prompt: 'portals', repoPath: repo });
     await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
     const { goalId: _g, ...brief } = getBrief(engine.store.db, goal.id)!.brief;
@@ -195,7 +202,7 @@ describe('decisions', () => {
       }
       return null;
     });
-    const engine = new Engine(cfg(), runner);
+    const engine = track(new Engine(cfg(), runner));
     const goal = await engine.createGoal({ prompt: 'portals', repoPath: repo });
     await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
     const { goalId: _g, ...brief } = getBrief(engine.store.db, goal.id)!.brief;

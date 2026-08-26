@@ -55,7 +55,14 @@ beforeEach(async () => {
   dataDir = mkdtempSync(join(tmpdir(), 'ai-engine-completion-data-'));
   repo = await makeRepo();
 });
-afterEach(() => {
+const engines: Engine[] = [];
+/** every Engine a test makes is stopped (background ticks drained) before the dataDir is deleted */
+const track = <T extends Engine>(e: T): T => {
+  engines.push(e);
+  return e;
+};
+afterEach(async () => {
+  for (const e of engines.splice(0)) await e.stop().catch(() => {});
   rmSync(dataDir, { recursive: true, force: true });
   rmSync(repo, { recursive: true, force: true });
 });
@@ -82,7 +89,7 @@ describe('autoskills retry for empty repositories', () => {
     const runner = new FakeRunner((spec) => {
       if (spec.label?.startsWith('attempt')) writeFileSync(join(spec.cwd, 'package.json'), '{"name":"x"}');
     });
-    const engine = new Engine(cfg(), runner);
+    const engine = track(new Engine(cfg(), runner));
     engine.autoskillsDeps = { spawn: fakeNpx as any, nodeVersion: async () => 'v22.1.0' };
     const goal = await engine.createGoal({ prompt: 'scaffold the project', repoPath: repo, autoBrief: { mustChecks: ['test -f package.json'] } });
     // recorded as skipped for lack of a manifest (not silently ignored)
@@ -102,12 +109,12 @@ describe('autoskills retry for empty repositories', () => {
 
 describe('usage pause across restarts', () => {
   test('a pause with a future reset is re-armed; one that passed while down resumes immediately', async () => {
-    const engine = new Engine(cfg(), new FakeRunner(() => {}));
+    const engine = track(new Engine(cfg(), new FakeRunner(() => {})));
     engine.pauseUntil(Date.now() + 60 * 60_000, 'five_hour', 'test');
     expect(engine.isRateLimited()).toBe(true);
     await engine.stop();
     // fresh engine over the same event log: still paused, no duplicate paused event
-    const engine2 = new Engine(cfg(), new FakeRunner(() => {}));
+    const engine2 = track(new Engine(cfg(), new FakeRunner(() => {})));
     await engine2.start();
     expect(engine2.isRateLimited()).toBe(true);
     expect(engine2.store.listByType('rate_limit.paused', 10)).toHaveLength(1);
@@ -116,10 +123,10 @@ describe('usage pause across restarts', () => {
     const dataDir2 = mkdtempSync(join(tmpdir(), 'ai-engine-completion-data2-'));
     try {
       const cfg2 = () => defaultConfig(ROOT, { dataDir: dataDir2, claudeHome: join(dataDir2, 'claude-home'), log: () => {} });
-      const a = new Engine(cfg2(), new FakeRunner(() => {}));
+      const a = track(new Engine(cfg2(), new FakeRunner(() => {})));
       a.store.append({ type: 'rate_limit.paused', goalId: null, payload: { rateLimitType: 'weekly', until: new Date(Date.now() - 60_000).toISOString(), reason: 'test' } });
       await a.stop();
-      const b = new Engine(cfg2(), new FakeRunner(() => {}));
+      const b = track(new Engine(cfg2(), new FakeRunner(() => {})));
       await b.start();
       expect(b.isRateLimited()).toBe(false);
       const resumed = b.store.listByType('rate_limit.resumed', 1)[0]!;
@@ -140,7 +147,7 @@ describe('docs generation', () => {
         writeFileSync(join(spec.cwd, 'junk.ts'), 'export const oops = 1;\n');
       }
     });
-    const engine = new Engine(cfg(), runner);
+    const engine = track(new Engine(cfg(), runner));
     const goal = await engine.createGoal({ prompt: 'noop', repoPath: repo, autoBrief: { mustChecks: ['true'] } });
     await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state));
     engine.store.append({ type: 'goal.completion_set', goalId: goal.id, payload: { graphRefresh: false, docs: ['to-prd'], reason: 'test' } });
@@ -170,7 +177,7 @@ describe('media artifacts', () => {
       mkdirSync(j(spec.cwd, 'docs', 'artifacts'), { recursive: true });
       writeFileSync(j(spec.cwd, 'docs', 'artifacts', `${tag}.md`), `# artifacts\n- ${tag}.png — test render`);
     });
-    const engine = new Engine(cfg(), runner);
+    const engine = track(new Engine(cfg(), runner));
     const outputDir = mkdtempSync(join(tmpdir(), 'ai-engine-artifacts-out-'));
     try {
       const t = (key: string): Brief['tasks'][number] => ({ key, title: `render ${key}`, spec: `generate ${key}, manifest docs/artifacts/${key}.md`, kind: 'feature', scope: null, scenario: 'image', areaKey: 'A1', tdd: 'inherit', dependsOnKeys: [], parallelizable: true, relevantFiles: [`docs/artifacts/${key}.md`] });
@@ -210,7 +217,7 @@ describe('media artifacts', () => {
 
 describe('graph refresh', () => {
   test('local mode runs in the goal workspace; tools not on PATH are recorded as skipped', async () => {
-    const engine = new Engine(cfg(), new FakeRunner(() => {}));
+    const engine = track(new Engine(cfg(), new FakeRunner(() => {})));
     const goal = await engine.createGoal({ prompt: 'noop', repoPath: repo, autoBrief: { mustChecks: ['true'] } });
     await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state));
     const ran: string[][] = [];
