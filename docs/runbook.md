@@ -71,13 +71,18 @@ Every notice names the goal and the task and links straight to the task view; th
 | *model X is unavailable (…); worker sessions of this goal now use Y* | Model fallback chain kicked in. Check Settings → Models. |
 | *Setup → Sign in asks for a code* | The machine running the engine has no browser (Docker, a remote host), so Claude Code falls back to the copy-the-code flow: open the link it shows, approve, paste the code into the dialog. A wrong code re-opens the field; the sign-in waits 15 minutes. |
 | *coverage repair did not return a valid Brief …* | The Clarifier missed an Area and the repair turn failed; the gap is a Question on the Brief. |
+| *usage limit reached (five_hour/weekly): paused until … ; goals resume automatically* | A Claude usage window is exhausted. Nothing is killed; new sessions wait. Goals, Goal and Inbox pages show an amber banner; the pause survives an engine restart (re-armed from the event log) and lifts itself at the reset time. |
+| *usage limit reset — goals resume* | The pause above ended; every non-terminal goal was ticked. |
+| *autoskills: skipped — no stack manifest … retried after each task until one appears* | Empty-repository goal: nothing to detect yet. After each task lands the engine checks again; the task that creates package.json (or another manifest) triggers the install, and live task worktrees receive the skills. |
+| *graph refresh: graphify ok, gitnexus skipped* | Completion action after the goal was delivered (or at done for local goals): `graphify update` (and `gitnexus analyze` when installed) re-indexed the delivered code. `skipped` = tool not on PATH, `pull skipped` = the user's checkout could not be fast-forwarded (dirty/diverged) — the refresh still ran where it could. |
+| *docs generation failed: …* | The Documenter session (after goal review, before done) failed; the goal still finishes. Details on `goal.docs_generated` and the Goal → Completion card; re-run by restarting the last task is not needed — docs can be written by hand or the goal restarted from goal review. |
 
 ## 6. What costs money, what does not
 
 - **Sessions** (worker, reviewer, merger, clarifier, goal reviewer, draft/revise) cost; everything the engine does in git, checks and worktrees is free (time only).
 - **Continuations are cheaper than attempts**: a resumed session reuses its context (prompt-cached); a fresh attempt re-reads the repository. That is why cut sessions and progressing sessions are resumed first.
 - **Baseline checks** run the goal's must commands once per goal-branch commit in a throw-away worktree — time, not tokens.
-- **Draft with AI** ≤ $2, **Revise with answers** ≤ $3, a Merge Attempt ≤ $2, a task reviewer a few cents. The Usage page has the per-kind ledger.
+- **Draft with AI** ≤ $2, **Revise with answers** ≤ $3, a Merge Attempt ≤ $2, the **Documenter** ≤ $3 (only when the goal's Completion docs are on), a task reviewer a few cents. The graph refresh is free (no LLM). The Usage page has the per-kind ledger.
 
 ## 7. Restarting the engine safely
 

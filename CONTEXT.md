@@ -150,7 +150,7 @@ The area a Task works in — frontend, backend, fullstack, data, mobile, infra, 
 The one design skill set the engine hands to UI work (frontend / fullstack Scenarios): ui-ux-pro-max, Anthropic's frontend-design, impeccable, bencium or garden — or none. Packs are mutually exclusive: the Worker gets the chosen pack as a MUST and the Goal Reviewer its review counterpart; the others stay invisible even when installed.
 
 **Project Skills**
-Skills matched to a repository's own stack (React, Tailwind, Supabase…) that autoskills installs into a Goal's workspace after the Brief is approved. They live in the workspace's `.claude/skills`, are git-excluded so they never reach a commit, and are listed to every Worker of that Goal.
+Skills matched to a repository's own stack (React, Tailwind, Supabase…) that autoskills installs into a Goal's workspace after the Brief is approved. They live in the workspace's `.claude/skills`, are git-excluded so they never reach a commit, and are listed to every Worker of that Goal. An empty repository has no stack to detect yet, so the install is retried after each Task lands until a stack manifest exists.
 
 **Model Registry**
 What this machine has learned about model names: which id a requested name (`fable`, `opus`, a pinned id) resolved to, and when it last worked or failed. Learned from sessions, never hard-coded; a new model family is listed once it has been used (or tested) here.
@@ -166,3 +166,20 @@ How hard the engine pushes an engineering practice on its sessions. For TDD: *re
 
 **Settings**
 The engine's user-editable configuration: concurrency, models, session caps, workflow profile, Design Pack, autoskills, review and delivery defaults, tools, safety limits. A saved value beats an environment variable, which beats the default; most changes apply immediately, a few only after the engine restarts.
+
+## Completion
+
+**Completion Actions**
+The automatic wrap-up of a finished Goal, chosen once at Brief approval (defaults inferred from the kind of work planned; every choice editable in Expert view): which documents to generate, and whether to refresh the knowledge graph. They never block a Goal — every outcome is recorded and a failure is only a note.
+
+**Documenter**
+The session that writes a finished Goal's documentation (PRD, README updates, changelog entry, stakeholder confirmation sheet) after the Goal review passes. It may only touch documentation; its files land as one `docs:` commit on the Goal branch, so they ship in the same delivery as the code they describe.
+
+**Graph Refresh**
+Re-indexing the knowledge graph (graphify, and gitnexus when installed) where the delivered code lives, once the Goal is delivered — so the graph never describes a codebase that no longer exists. Local-mode Goals refresh their workspace; delivered Goals refresh the user's checkout.
+
+**Tech Stack Question**
+The one blocking Question a Brief carries when the repository is empty: there are no facts to discover, so the stack is the human's Decision. It offers 2–4 concrete options with the Clarifier's recommendation first; the plan assumes the recommendation, and the first Task scaffolds the chosen stack.
+
+**Usage Pause**
+The engine's reaction to a Claude usage limit (5-hour or weekly window): no new sessions start, Goals stay exactly where they are, and everything resumes by itself when the limit resets — surviving engine restarts. Visible as a banner and on the Usage page; never an Escalation.
