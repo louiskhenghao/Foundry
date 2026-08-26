@@ -169,9 +169,15 @@ export async function runGoalReview(engine: Engine, goal: Goal): Promise<void> {
 async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, checks: Check[], objective: CheckResult[]) {
   const brief = getBrief(engine.store.db, goal.id)?.brief;
   const fmt = (c: Check) => `- [${c.tier}] ${c.name}${c.spec.type === 'reviewer' ? `: ${c.spec.rubric}` : c.spec.type === 'command' ? ` (command \`${c.spec.cmd}\` → ${objective.find((r) => r.checkId === c.id)?.status ?? 'n/a'})` : ''}`;
-  const reviewerHint = await engine.skills.hints.sectionFor('reviewer-goal', { scenario: goalScenario(listTasks(engine.store.db, goal.id)) });
+  const scenario = goalScenario(listTasks(engine.store.db, goal.id));
+  const reviewerHint = await engine.skills.hints.sectionFor('reviewer-goal', { scenario });
+  const media =
+    scenario === 'image' || scenario === 'video'
+      ? `# Media review\nThis goal's deliverables are media files under \`artifacts/\` — they are NOT in the diff (kept out of git); the committed \`docs/artifacts/\` manifests describe them. Verify every manifest entry exists on disk${scenario === 'image' ? ' and open the images with the Read tool (it renders them) to judge them against the checks' : '; verify video metadata with ffprobe when available (you cannot watch video — final visual quality stays with the human)'}.`
+      : '';
   const prompt = [
     `# Goal\n${goal.title}\n\n${goal.prompt}`,
+    media,
     renderAttachments(goal, engine.config.dataDir),
     brief ? `# Approved understanding\n${brief.understanding}` : '',
     brief ? renderDecisions(brief) : '',

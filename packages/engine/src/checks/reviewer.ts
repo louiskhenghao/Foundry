@@ -34,9 +34,16 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
     .filter(Boolean)
     .join('\n');
   const reviewerHint = await engine.skills.hints.sectionFor('reviewer-task', { scenario: task.scenario });
+  const media =
+    task.scenario === 'image'
+      ? `# Media review\nThe artifacts themselves are the deliverable and they are NOT in the diff (the \`artifacts/\` folder is kept out of git). Read the task's manifest (\`docs/artifacts/…\` in the diff), then open each listed image under \`artifacts/\` with the Read tool — it renders images — and judge what you see against the task and rubric. An artifact listed in the manifest but missing on disk, or clearly not matching its description, is a blocker.`
+      : task.scenario === 'video'
+        ? `# Media review\nThe artifacts themselves are the deliverable and they are NOT in the diff (the \`artifacts/\` folder is kept out of git). Read the task's manifest (\`docs/artifacts/…\` in the diff) and verify each listed file exists under \`artifacts/\`. You cannot watch video: verify metadata with \`ffprobe\` if available, and if \`ffmpeg\` is available extract 2–3 frames (\`ffmpeg -i <file> -vf "select=gt(scene\\,0.3)" -frames:v 3 /tmp/frame%d.png\`) and view them with the Read tool. A file listed but missing, or metadata contradicting the spec (duration, resolution), is a blocker; final visual quality stays with the human.`
+        : '';
   const prompt = [
     `# Task (${task.kind}${task.scenario !== 'general' ? `, ${task.scenario}` : ''})\n${task.title}\n\n${task.spec}`,
     rubric ? `# Rubric (verify each)\n${rubric}` : '',
+    media,
     reviewerHint ?? '',
     formatWorkflowObservation(workflow),
     `# Diff\n\`\`\`diff\n${d}\n\`\`\``,
