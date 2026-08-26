@@ -52,7 +52,24 @@ export function SimpleBrief(p: {
                 <div className="text-sm text-zinc-200 mb-1">
                   {q.blocking && <Badge state="must">needed</Badge>} {q.text}
                 </div>
-                <Input disabled={!editable} placeholder="Your answer" value={q.answer ?? ''} onChange={(e) => update({ questions: brief.questions.map((x, j) => (j === i ? { ...x, answer: e.target.value, applied: false } : x)) })} />
+                {q.options.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-1.5">
+                    {q.options.map((opt, oi) => (
+                      <button
+                        key={opt}
+                        type="button"
+                        disabled={!editable}
+                        title={oi === 0 ? 'Recommended' : undefined}
+                        className={cn('text-[11px] rounded-full border px-2 py-0.5', (q.answer ?? '') === opt ? 'border-emerald-500 text-emerald-300 bg-emerald-500/10' : 'border-zinc-700 text-zinc-300 hover:border-zinc-500')}
+                        onClick={() => update({ questions: brief.questions.map((x, j) => (j === i ? { ...x, answer: opt, applied: false } : x)) })}
+                      >
+                        {opt}
+                        {oi === 0 ? ' ★' : ''}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <Input disabled={!editable} placeholder={q.options.length ? 'Pick an option or type your own answer' : 'Your answer'} value={q.answer ?? ''} onChange={(e) => update({ questions: brief.questions.map((x, j) => (j === i ? { ...x, answer: e.target.value, applied: false } : x)) })} />
               </div>
             ))}
           </div>

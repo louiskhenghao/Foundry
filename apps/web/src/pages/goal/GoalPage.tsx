@@ -15,6 +15,7 @@ import { DiffTab } from './DiffTab.tsx';
 import { OverviewTab } from './OverviewTab.tsx';
 import { TaskDrawer } from './TaskDrawer.tsx';
 import { SimpleOverview } from './SimpleOverview.tsx';
+import { UsagePausedBanner } from '../../components/UsageBanner.tsx';
 
 type Tab = 'overview' | 'tasks' | 'activity' | 'diff' | 'delivery';
 const TABS: Tab[] = ['overview', 'tasks', 'activity', 'diff', 'delivery'];
@@ -81,6 +82,7 @@ export function GoalPage() {
 
   return (
     <div className="max-w-7xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
+      <UsagePausedBanner />
       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_21rem] md:gap-6 md:items-start">
         <div className="min-w-0">
           <div className="flex items-start gap-2 flex-wrap">

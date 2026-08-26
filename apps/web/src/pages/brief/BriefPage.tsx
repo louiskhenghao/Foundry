@@ -9,6 +9,7 @@ import { useLive } from '../../store.ts';
 import { Badge, Button, Card, Empty, Input, Textarea, cn, fmtLimitMin, fmtLimitUsd } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { AreasCard } from './AreasCard.tsx';
+import { CompletionCard, type CompletionChoice } from './CompletionCard.tsx';
 import { DecisionsBar } from './DecisionsBar.tsx';
 import { GoalAcceptanceCard } from './GoalAcceptanceCard.tsx';
 import { PlanSection } from './PlanSection.tsx';
@@ -26,6 +27,8 @@ export function BriefPage() {
   const [busy, setBusy] = useState(false);
   /** budget the human will approve with the Brief (Auto preset proposes it from the estimate) */
   const [budgetEdit, setBudgetEdit] = useState<{ maxCostUsd: number | null; maxDurationMin: number | null } | null>(null);
+  /** completion actions; null = untouched, the engine infers the defaults at approval */
+  const [completionEdit, setCompletionEdit] = useState<CompletionChoice | null>(null);
   /** Simple-mode goals open the plain view; either view can be switched per goal (remembered in this browser) */
   const [expert, setExpert] = useState<boolean | null>(() => {
     const v = localStorage.getItem(`ai-engine.expert.${id}`);
@@ -122,7 +125,7 @@ export function BriefPage() {
     setBusy(true);
     setErr(null);
     try {
-      await api.approveBrief(id, brief, budgetChanged ? budgetDraft : undefined);
+      await api.approveBrief(id, brief, budgetChanged ? budgetDraft : undefined, completionEdit ?? undefined);
       nav(`/goals/${id}`);
     } catch (e: any) {
       setErr(e.message);
@@ -191,7 +194,24 @@ export function BriefPage() {
                     {area && <span className={cn('text-[10px] rounded-full border px-2 py-0.5', areaStyle(brief, q.areaKey).chip)}>{area.name}</span>}
                     <span>{q.text}</span>
                   </div>
-                  <Input disabled={!editable} placeholder="Your answer" value={q.answer ?? ''} onChange={(e) => update({ questions: brief.questions.map((x, j) => (j === i ? { ...x, answer: e.target.value, applied: false } : x)) })} />
+                  {q.options.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-1.5">
+                      {q.options.map((opt, oi) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          disabled={!editable}
+                          title={oi === 0 ? 'Recommended by the Clarifier' : undefined}
+                          className={cn('text-[11px] rounded-full border px-2 py-0.5', (q.answer ?? '') === opt ? 'border-emerald-500 text-emerald-300 bg-emerald-500/10' : 'border-zinc-700 text-zinc-300 hover:border-zinc-500')}
+                          onClick={() => update({ questions: brief.questions.map((x, j) => (j === i ? { ...x, answer: opt, applied: false } : x)) })}
+                        >
+                          {opt}
+                          {oi === 0 ? ' ★' : ''}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <Input disabled={!editable} placeholder={q.options.length ? 'Pick an option above or type your own answer' : 'Your answer'} value={q.answer ?? ''} onChange={(e) => update({ questions: brief.questions.map((x, j) => (j === i ? { ...x, answer: e.target.value, applied: false } : x)) })} />
                 </div>
               );
             })}
@@ -215,6 +235,7 @@ export function BriefPage() {
       <AreasCard brief={brief} goalId={id} editable={editable} edit={edit} />
       <PlanSection brief={brief} goalId={id} editable={editable} edit={edit} />
       <GoalAcceptanceCard brief={brief} editable={editable} edit={edit} />
+      <CompletionCard brief={brief} editable={editable} value={completionEdit} onChange={setCompletionEdit} />
 
       <Card title={isAuto && editable ? 'Estimate → proposed budget' : 'Estimate & budget'}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">

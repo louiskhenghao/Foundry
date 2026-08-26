@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type GoalRow } from '../api.ts';
 import { SetupBanner } from '../components/SetupBanner.tsx';
+import { UsagePausedBanner } from '../components/UsageBanner.tsx';
 import { useLive } from '../store.ts';
 import { Badge, Button, Empty, ago, fmtLimitUsd, fmtUsd } from '../ui.tsx';
 
@@ -22,6 +23,9 @@ export function GoalsPage() {
   return (
     <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6">
       <SetupBanner />
+      <div className="mb-3">
+        <UsagePausedBanner />
+      </div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-lg font-semibold">Goals</h1>
         <Link to="/goals/new">

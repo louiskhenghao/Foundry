@@ -106,6 +106,35 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
               <p className="text-[11px] text-zinc-500 mt-2">Written to the goal workspace's .claude/skills and git-excluded; they never reach a commit or PR.</p>
             </Card>
           )}
+          {(g.completion.graphRefresh || g.completion.docs.length > 0) && (
+            <Card title="Completion">
+              <div className="text-xs text-zinc-400 space-y-1.5">
+                {g.completion.docs.length > 0 && (
+                  <div>
+                    Docs: <span className="mono text-zinc-200">{g.completion.docs.join(', ')}</span>
+                    {g.completion.docsRun ? (
+                      <span className={g.completion.docsRun.status === 'failed' ? 'text-rose-300' : 'text-zinc-300'}>
+                        {' '}
+                        — {g.completion.docsRun.status}, {g.completion.docsRun.detail}
+                      </span>
+                    ) : (
+                      <span className="text-zinc-600"> — generated after the goal review passes, committed to the goal branch</span>
+                    )}
+                  </div>
+                )}
+                {g.completion.graphRefresh && (
+                  <div>
+                    Graph refresh:{' '}
+                    {g.completion.graphRun ? (
+                      <span className="mono text-zinc-200">{g.completion.graphRun.tools.map((t) => `${t.name} ${t.status}`).join(', ')}</span>
+                    ) : (
+                      <span className="text-zinc-600">runs when the goal is delivered (graphify, and gitnexus when installed)</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
           <Card title={`Attachments${g.attachments.length ? ` (${g.attachments.length})` : ''}`}>
             <AttachmentInput items={g.attachments} goalId={g.id} onChange={() => {}} />
             <p className="text-[11px] text-zinc-500 mt-2">Attachments are handed to every new session of this goal (Clarify, workers, goal review) as read-only references.</p>

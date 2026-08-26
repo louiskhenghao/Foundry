@@ -6,6 +6,7 @@ import { Sparkles } from 'lucide-react';
 import { api, type EscalationRow } from '../api.ts';
 import { MarkdownPanel } from '../components/Markdown.tsx';
 import { useLive } from '../store.ts';
+import { UsagePausedBanner } from '../components/UsageBanner.tsx';
 import { Badge, Button, Empty, Input, ago } from '../ui.tsx';
 
 const TRIGGER_LABEL: Record<string, string> = {
@@ -43,6 +44,7 @@ export function InboxPage() {
   }, [version, all]);
   return (
     <div className="max-w-4xl mx-auto p-3 sm:p-4 md:p-6 space-y-3">
+      <UsagePausedBanner />
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Inbox</h1>
         <label className="text-xs text-zinc-400 flex items-center gap-1">
