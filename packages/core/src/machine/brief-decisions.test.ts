@@ -9,8 +9,8 @@ const brief = (over: Partial<Omit<Brief, 'goalId'>> = {}): Omit<Brief, 'goalId'>
 describe('decisions', () => {
   const b = brief({
     questions: [
-      { id: 'q1', text: 'Which DB?', answer: 'sqlite', blocking: true, areaKey: null, applied: false },
-      { id: 'q2', text: 'unanswered', answer: '  ', blocking: false, areaKey: null, applied: false },
+      { id: 'q1', text: 'Which DB?', answer: 'sqlite', blocking: true, areaKey: null, options: [], applied: false },
+      { id: 'q2', text: 'unanswered', answer: '  ', blocking: false, areaKey: null, options: [], applied: false },
     ],
     assumptions: [
       { id: 'a1', text: 'teachers too', accepted: false, applied: false },

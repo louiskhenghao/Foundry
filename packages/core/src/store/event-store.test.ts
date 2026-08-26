@@ -24,6 +24,7 @@ function goal(id: string): Goal {
     attachments: [],
     baseSync: null,
     autoskills: null,
+    completion: { graphRefresh: false, docs: [], docsRun: null, graphRun: null },
     runningSince: null,
     createdAt: now,
     updatedAt: now,

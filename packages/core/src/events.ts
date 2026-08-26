@@ -10,6 +10,7 @@ import {
   DeliveryStep,
   Check,
   CheckResult,
+  DocType,
   Escalation,
   EscalationSuggestion,
   EscalationAnswer,
@@ -59,6 +60,12 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.base_synced', { remote: z.string().nullable(), base: z.string(), localRef: z.string().nullable(), remoteRef: z.string().nullable(), ahead: z.number().int(), behind: z.number().int(), fetched: z.boolean(), startedFrom: z.enum(['local', 'remote']), detail: z.string() }),
   /** per-goal autoskills run: project skills matched to the repository's stack, installed in the goal workspace */
   ev('goal.autoskills', { status: z.enum(['installed', 'skipped', 'failed']), skills: z.array(z.string()), detail: z.string() }),
+  /** completion actions chosen at Brief approval (defaults inferred from the tasks' scenarios when the UI sends nothing) */
+  ev('goal.completion_set', { graphRefresh: z.boolean(), docs: z.array(DocType), reason: z.string() }),
+  /** the docs-generation session ran (after the goal review passed); files are repo-relative paths it committed */
+  ev('goal.docs_generated', { status: z.enum(['ok', 'skipped', 'failed']), types: z.array(DocType), files: z.array(z.string()), costUsd: z.number(), detail: z.string() }),
+  /** the post-delivery graph refresh ran (graphify / gitnexus, whichever is on PATH) */
+  ev('goal.completion_ran', { tools: z.array(z.object({ name: z.string(), status: z.enum(['ok', 'skipped', 'failed']), detail: z.string() })) }),
   /** settings changed from the Settings page / API (goalId null); values are not recorded, only which keys */
   ev('settings.changed', { keys: z.array(z.string()), restartNeeded: z.array(z.string()) }),
 

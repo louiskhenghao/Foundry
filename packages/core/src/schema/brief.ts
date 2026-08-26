@@ -60,6 +60,8 @@ export const BriefQuestion = z.object({
   answer: z.string().nullable().default(null),
   blocking: z.boolean().default(true),
   areaKey: z.string().nullable().default(null),
+  /** suggested answers rendered as choices (free text always allowed); the first one is the Clarifier's recommendation */
+  options: z.array(z.string()).default([]),
   /** an answered question is a Decision; true once a Revise honoured it (or the human said no change was needed) */
   applied: z.boolean().default(false),
 });
@@ -135,6 +137,7 @@ export const BriefOutput = z.object({
         text: z.string(),
         blocking: z.boolean().describe('true only if you genuinely cannot proceed without an answer.'),
         areaKey: z.string().nullable().describe('The Area the question is about, or null.'),
+        options: z.array(z.string()).default([]).describe('Suggested answers the human can pick from (free text stays possible). Put YOUR recommended answer first. Empty for open questions.'),
       }),
     )
     .describe('Questions you could not safely assume. Prefer assumptions over questions.'),

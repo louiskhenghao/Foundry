@@ -175,6 +175,21 @@ export function applyEvent(db: Database, e: EngineEvent): void {
       if (g) upsertGoal(db, { ...g, autoskills: { status: e.payload.status, skills: e.payload.skills, detail: e.payload.detail, at: e.ts } });
       break;
     }
+    case 'goal.completion_set': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, graphRefresh: e.payload.graphRefresh, docs: e.payload.docs }, updatedAt: e.ts });
+      break;
+    }
+    case 'goal.docs_generated': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, docsRun: { status: e.payload.status, types: e.payload.types, files: e.payload.files, costUsd: e.payload.costUsd, detail: e.payload.detail, at: e.ts } }, updatedAt: e.ts });
+      break;
+    }
+    case 'goal.completion_ran': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, graphRun: { tools: e.payload.tools, at: e.ts } }, updatedAt: e.ts });
+      break;
+    }
     case 'task.base_ref': {
       const t = getTask(db, e.payload.taskId);
       if (t) upsertTask(db, { ...t, baseRef: e.payload.ref, updatedAt: e.ts });

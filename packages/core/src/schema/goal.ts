@@ -69,6 +69,26 @@ export const GoalWorkflow = z.object({
 });
 export type GoalWorkflow = z.infer<typeof GoalWorkflow>;
 
+/** Documents generated once at goal completion (after the goal review passes, before delivery). */
+export const DocType = z.enum(['to-prd', 'readme-update', 'changelog', 'to-questionnaire']);
+export type DocType = z.infer<typeof DocType>;
+
+/**
+ * Completion actions: automatic wrap-up chosen at Brief approval, executed when the goal finishes.
+ * Docs are generated after the goal review passes and committed to the goal branch (same delivery unit as the code);
+ * the graph refresh (graphify / gitnexus, whichever is on PATH) runs after delivery so the graph reflects the landed code.
+ */
+export const GoalCompletion = z.object({
+  graphRefresh: z.boolean().default(false),
+  docs: z.array(DocType).default([]),
+  /** result of the docs-generation session (null = not run yet) */
+  docsRun: z.object({ status: z.enum(['ok', 'skipped', 'failed']), types: z.array(DocType), files: z.array(z.string()), costUsd: z.number(), detail: z.string(), at: z.string() }).nullable().default(null),
+  /** result of the graph refresh (null = not run yet) */
+  graphRun: z.object({ tools: z.array(z.object({ name: z.string(), status: z.enum(['ok', 'skipped', 'failed']), detail: z.string() })), at: z.string() }).nullable().default(null),
+});
+export type GoalCompletion = z.infer<typeof GoalCompletion>;
+export const IDLE_COMPLETION: GoalCompletion = { graphRefresh: false, docs: [], docsRun: null, graphRun: null };
+
 export const Goal = z.object({
   id: z.string(),
   title: z.string().min(1),
@@ -111,6 +131,8 @@ export const Goal = z.object({
     .default(null),
   /** result of the per-goal autoskills run (project skills matched to the repository's stack) */
   autoskills: z.object({ status: z.enum(['installed', 'skipped', 'failed']), skills: z.array(z.string()), detail: z.string(), at: z.string() }).nullable().default(null),
+  /** completion actions chosen at Brief approval; default keeps pre-completion `goal.created` events replayable */
+  completion: GoalCompletion.default(() => ({ ...IDLE_COMPLETION })),
   runningSince: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
