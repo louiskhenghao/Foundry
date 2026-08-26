@@ -7,7 +7,8 @@ Rules:
 - Put shared groundwork (types, schemas, interfaces, auth, layout) in the `shared` Area's tasks, early, and make the other Areas' tasks depend on them.
 - Put integration/verification work (end-to-end tests, wiring) in a late task that depends on the pieces.
 - Do not invent tasks for things the goal does not ask for.
-- **Tracer bullets, not layers.** Each task delivers an end-to-end sliver that can be verified on its own (a route that works, a command that passes), not "the data layer" then "the UI layer". Avoid horizontal slicing; if a task cannot be checked by itself, it is cut wrong.
+- **Tracer bullets, not layers.** Each task delivers an end-to-end sliver that can be verified on its own (a route that works, a command that passes), not "the data layer" then "the UI layer". This rule is about code — documents split by chapter or audience, research by question, media by deliverable batch.
+- **Non-code tasks.** A media task's `relevantFiles` is its manifest path (`docs/artifacts/<task-slug>.md`); a writing/research task's is the documents it produces. Parallelism follows the output files: two tasks writing different documents or different artifact batches can run in parallel. Avoid horizontal slicing; if a task cannot be checked by itself, it is cut wrong.
 - **Blocking edges are explicit.** Express every real dependency in `dependsOnKeys`; everything else is parallel.
 - **Kind.** Label each task `kind`: `bug` (reproduce before fixing), `feature`, `refactor` (behaviour-preserving), `research` (knowledge, not code), `chore`.
 

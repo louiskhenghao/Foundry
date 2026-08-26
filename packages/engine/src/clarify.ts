@@ -154,19 +154,48 @@ export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
   }
 }
 
+const TECH_STACK_SECTION = `This repository has no code yet, so there is nothing to discover — the tech stack is the human's decision, not yours to assume. Unless the goal (or a Decision above) already names the stack, include exactly ONE blocking question choosing it: propose 2–4 concrete, complete stack options suited to this goal (e.g. "Next.js + Prisma + Postgres", "NestJS API + React SPA", "Laravel + MySQL", a Bun/Node monorepo …) in the question's \`options\`, with YOUR recommended option FIRST. Plan the tasks assuming that recommended option, and make the first task scaffold the project (initialise the chosen stack, package manifest, build/test commands) — every other task depends on it. Must checks may only use commands that will exist once that scaffold task is done.`;
+
+/** Nature-specific planning rules. Auto goals get the conditional form: judge the nature first, then apply its rules. */
+function natureSection(goal: Goal, emptyRepo: boolean): string {
+  const ffprobe = Bun.which('ffprobe') != null;
+  const media = (kind: 'image' | 'video') =>
+    `# Nature: ${kind}\nThis goal produces media files, not software. Set \`nature: "${kind}"\` and plan tasks per deliverable batch (scenario \`${kind}\`). Conventions every media task's spec MUST state verbatim:\n- generated files go to \`artifacts/\` in the workspace (the engine keeps that folder out of git)\n- the task also writes its manifest \`docs/artifacts/<task-slug>.md\` (committed): one bullet per artifact — file name, what it shows, and the prompt/parameters used\nAcceptance: reviewer checks whose rubric judges the manifest AND the artifacts themselves (the reviewer opens image files to look at them)${kind === 'video' ? `; add a must command check verifying each video with ffprobe (duration, resolution)${ffprobe ? '' : ' — ffprobe is NOT installed on this machine, so use a plain file-exists check instead'}` : ''}. Command checks otherwise only verify objective facts (files exist, counts). Never ask about tech stacks and never propose build/test/lint checks.`;
+  const docs = `# Nature: documents\nThis goal produces prose, not software. Set \`nature: "docs"\` and plan writing tasks (scenario \`docs\`), one per document or chapter; Areas are documents or audiences, not apps. Acceptance: reviewer checks with a precise rubric (audience, structure, tone, completeness, factual grounding); command checks only for objective facts (a file exists, links resolve). Never ask about tech stacks and never propose build/test/lint checks.`;
+  const research = `# Nature: research\nThis goal produces knowledge. Set \`nature: "research"\` and plan investigation tasks (scenario \`research\`) whose output is cited markdown reports committed to the repository; Areas are questions or topics. Every claim needs a source; acceptance: reviewer checks whose rubric verifies sources are cited and conclusions follow from them, plus command checks that the report files exist. Never ask about tech stacks and never propose build/test/lint checks.`;
+  switch (goal.nature) {
+    case 'docs':
+      return docs;
+    case 'research':
+      return research;
+    case 'image':
+      return media('image');
+    case 'video':
+      return media('video');
+    case 'code':
+      return emptyRepo ? `# Empty repository\n${TECH_STACK_SECTION}` : '';
+    case 'auto':
+      return [
+        `# Judge the nature first\nThe user did not say what kind of goal this is. Decide from the prompt and set \`nature\` accordingly: code (software), docs (prose), research (a cited report), image or video (media files). Then follow the matching rules:\n- code${emptyRepo ? `, empty repository: ${TECH_STACK_SECTION}` : ': explore the repo as below.'}\n- docs / research / image / video: apply the corresponding section below and ignore build/test/stack concerns entirely.`,
+        docs,
+        research,
+        media('image'),
+        media('video'),
+      ].join('\n\n');
+  }
+}
+
 function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: string | null = null, attachments = '', decisions = '', emptyRepo = false): string {
   return [
     `# Goal from the user\n${goal.prompt}`,
     decisions ? `${decisions}\nTreat these as settled: plan with them, record them as assumptions, and do not ask about them again.` : '',
-    emptyRepo
-      ? `# Empty repository\nThis repository has no code yet, so there is nothing to discover — the tech stack is the human's decision, not yours to assume. Unless the goal (or a Decision above) already names the stack, include exactly ONE blocking question choosing it: propose 2–4 concrete, complete stack options suited to this goal (e.g. "Next.js + Prisma + Postgres", "NestJS API + React SPA", "Laravel + MySQL", a Bun/Node monorepo …) in the question's \`options\`, with YOUR recommended option FIRST. Plan the tasks assuming that recommended option, and make the first task scaffold the project (initialise the chosen stack, package manifest, build/test commands) — every other task depends on it. Must checks may only use commands that will exist once that scaffold task is done.`
-      : '',
+    natureSection(goal, emptyRepo),
     attachments ? `${attachments}\nWhen an attachment matters for a specific task, name it (by file name) in that task's spec.` : '',
     overview ? `# Repository overview\n${overview}` : '',
     skillsHint ?? '',
     `# Your job\nExplore this repository (read-only) enough to understand how the goal should be implemented here: build/test commands, conventions, the files involved. Then list the **Areas** the goal covers, use the \`planner\` agent to split each Area into tasks, and produce the Brief as JSON matching the schema.\n\nRequirements for the Brief:\n- **Areas first.** Read the goal and every attachment and enumerate the parts of the product it covers: one Area per user-facing role or app it names (e.g. student portal, teacher portal, school admin, system admin), plus a \`shared\` Area for groundwork all of them need (data model, auth, layout). A small goal has exactly one Area. Every Area listed in your understanding MUST appear in \`areas\`, and **every Area MUST have at least one task** — a Brief that mentions four apps and plans only one is wrong.\n- **Tasks per Area: 1–6.** There is no limit on the total; the limit is per Area. Each task must be completable by one engineer-session without talking to anyone; give concrete file paths in relevantFiles; set \`areaKey\` on every task. Tasks of the shared Area come first and the others depend on them.\n- **Must checks** come ONLY from what the user explicitly asked for plus the repo's existing quality gates (its test/typecheck/lint/build commands, if any). Every command check must be a real command that works in this repo from its root.\n- **Stretch checks** are improvements you propose on top (docs, edge-case tests, performance, accessibility…). Never fold them into must.\n- Tasks that touch disjoint files can be parallelizable; tasks that must build on each other use dependsOnKeys.\n- Put test/typecheck/lint commands as task-level checks on the task that must make them pass, AND as goal-level checks (taskKey null) so the merged result is verified. Give each goal-level check that verifies one Area that Area's \`areaKey\`; repo-wide gates keep null.\n- Prefer assumptions over questions. A question is blocking only if a wrong guess would waste the whole goal.
 - Set each task's \`kind\`: bug (something is broken — the worker must reproduce it first), feature, refactor, research (a spike whose output is knowledge), chore.
-- Set each task's \`scenario\` (frontend / backend / fullstack / data / mobile / infra / docs / general): it decides which specialised skills the worker is handed — UI work gets the design skills, for instance — so be precise and never leave a UI task as "general".
+- Set each task's \`scenario\` (frontend / backend / fullstack / data / mobile / infra / docs / research / image / video / general): it decides which specialised skills the worker is handed — UI work gets the design skills, media work the image/video skills — so be precise and never leave a UI or media task as "general".
 - Commits and pull requests follow Conventional Commits. Each task's \`title\` is its commit subject: imperative, ≤ 60 chars, no trailing period, NO type prefix (the type comes from \`kind\`); \`scope\` defaults to the Area's slug — set it only when a narrower module name is obviously better. \`title\` (top level) is one Conventional Commits header for the whole goal (e.g. \`feat(site): add resort landing page\`) — it becomes the PR title. Write titles in the language of the repository's recent commits (see the overview); default to English.`,
   ]
     .filter(Boolean)
