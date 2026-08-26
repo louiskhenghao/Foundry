@@ -713,6 +713,8 @@ export class Engine {
       budgets: Budgets.parse({ ...BUDGET_PRESETS[input.budgetPreset ?? 'custom'].budgets, ...(input.budgets ?? {}) }),
       budgetPreset: input.budgetPreset ?? 'custom',
       mode,
+      nature: 'auto',
+      outputDir: null,
       workflow: { tdd: input.workflow?.tdd ?? (mode === 'simple' ? 'preferred' : this.config.workflowTdd) },
       models: { ...this.config.models, ...(input.models ?? {}) },
       state: 'draft',
