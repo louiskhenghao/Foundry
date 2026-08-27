@@ -39,15 +39,16 @@ export function TaskCard({ task, brief, goalId, editable, open, onToggle, edit }
   };
 
   return (
-    <div className={cn('rounded-md border bg-zinc-950/50', problem && editable ? 'border-rose-500/40' : 'border-zinc-800')}>
+    <div className={cn('rounded-md border bg-zinc-950/50 transition-colors', problem && editable ? 'border-rose-500/40' : open ? 'border-zinc-600' : 'border-zinc-800')}>
       <div className="flex items-center gap-2 flex-wrap p-2.5">
         <button onClick={onToggle} className="text-zinc-500 hover:text-zinc-300" title={open ? 'Collapse' : 'Expand'}>
           {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </button>
         <span className="mono text-xs text-zinc-500 w-7">{task.key}</span>
         {editable ? <Input className="flex-1 min-w-[12rem]" placeholder="imperative title, e.g. add teacher dashboard" value={task.title} onChange={(e) => change({ title: e.target.value })} /> : <span className="text-sm flex-1">{task.title}</span>}
-        <TaskTags kind={task.kind} scenario={task.scenario} />
-        {brief.areas.length > 0 && <span className={cn('text-[10px] rounded-full border px-2 py-0.5 whitespace-nowrap', style.chip)}>{area?.name ?? 'unassigned'}</span>}
+        {/* collapsed only: when open, the same attributes are editable right below */}
+        {!open && <TaskTags kind={task.kind} scenario={task.scenario} />}
+        {!open && brief.areas.length > 0 && <span className={cn('text-[10px] rounded-full border px-2 py-0.5 whitespace-nowrap', style.chip)}>{area?.name ?? 'unassigned'}</span>}
         {checks.length > 0 && (
           <span className="text-[10px] text-zinc-500 flex items-center gap-1 whitespace-nowrap" title="acceptance checks on this task">
             <ListChecks size={11} /> {checks.length}
@@ -98,7 +99,7 @@ export function TaskCard({ task, brief, goalId, editable, open, onToggle, edit }
       </div>
 
       {open && (
-        <div className="border-t border-zinc-800 p-2.5 space-y-3">
+        <div className="border-t border-zinc-800 p-3.5 space-y-5">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
             <label className="block">
               <span className="text-zinc-500">Area</span>
@@ -146,7 +147,7 @@ export function TaskCard({ task, brief, goalId, editable, open, onToggle, edit }
 
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs text-zinc-300">Spec</span>
+              <span className="text-[10px] uppercase tracking-wide text-zinc-400">Spec</span>
               {editable && (
                 <span className="ml-auto flex items-center gap-1.5">
                   <Input className="text-xs py-1 w-56" placeholder="notes for the AI (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -173,7 +174,7 @@ export function TaskCard({ task, brief, goalId, editable, open, onToggle, edit }
 
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-xs text-zinc-300">Acceptance for this task</span>
+              <span className="text-[10px] uppercase tracking-wide text-zinc-400 whitespace-nowrap">Acceptance for this task</span>
               <span className="text-[11px] text-zinc-500">run after every attempt; the task is done when its must checks pass</span>
               {editable && (
                 <Menu

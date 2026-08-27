@@ -75,20 +75,23 @@ export function PlanSection({ brief, goalId, editable, edit }: { brief: Brief; g
         </div>
       )}
       {brief.tasks.length === 0 && <div className="text-sm text-zinc-500">No tasks. Add one, or draft tasks for an Area above.</div>}
-      <div className="space-y-4">
+      <div className="space-y-6">
         {stages.stages.map((stage, i) => {
           const xs = stage.filter((t) => visible(t.key));
           if (!xs.length) return null;
           return (
             <div key={i}>
               {stages.ok && (
-                <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1.5">
-                  Stage {i + 1}
-                  {stage.length > 1 ? ` · ${stage.length} in parallel` : ''}
-                  {i > 0 ? ' · after the previous stage' : ''}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded-full bg-zinc-800 text-[10px] text-zinc-300 mono shrink-0">{i + 1}</span>
+                  <span className="text-[10px] uppercase tracking-wide text-zinc-500">
+                    Stage {i + 1}
+                    {stage.length > 1 ? ` · ${stage.length} in parallel` : ''}
+                    {i > 0 ? ' · after the previous stage' : ''}
+                  </span>
                 </div>
               )}
-              <div className="space-y-2">
+              <div className={cn('space-y-2.5', stages.ok && 'ml-2.5 pl-4 border-l-2 border-zinc-800')}>
                 {xs.map((t) => (
                   <div key={t.key} id={`task-${t.key}`}>
                     <TaskCard task={t} brief={brief} goalId={goalId} editable={editable} open={open.has(t.key)} onToggle={() => toggle(t.key)} edit={edit} />
