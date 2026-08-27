@@ -150,6 +150,41 @@ describe('nature pre-classification', () => {
     await Bun.sleep(150);
   }, 20_000);
 
+  test('style samples: regenerate appends files and events, never replacing earlier ones', async () => {
+    const { startStyleSample, StyleSampleError } = await import('./style-sample.ts');
+    const { mkdirSync, writeFileSync } = await import('node:fs');
+    const { goalWorkspacePath } = await import('./workspace.ts');
+    const styles = [{ key: 'S1', name: 'Warm izakaya night', palette: ['#e8a13c'], fonts: [], keywords: ['warm'], description: 'Cozy.' }];
+    const runner = new StructuredRunner((spec) => {
+      if (spec.label?.startsWith('style sample')) {
+        const m = spec.prompt.match(/artifacts\/samples\/[\w.-]+\.png/)!;
+        mkdirSync(join(spec.cwd, 'artifacts', 'samples'), { recursive: true });
+        writeFileSync(join(spec.cwd, m[0]), 'png-bytes');
+        return {};
+      }
+      return { ...briefWith([{ ...task('T1', 'A1', 'render posters'), scenario: 'image' as const }], [check('C1', 'T1')]), nature: 'image' as const, styleOptions: styles };
+    });
+    runner.classifyAs = 'image';
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'posters', repoPath: repo });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    startStyleSample(engine, goal.id, 'S1');
+    await waitFor(() => getBrief(engine.store.db, goal.id)!.brief.styleOptions[0]!.samples.length === 1);
+    // regenerate: the second sample appends, the first survives on disk and in the Brief
+    startStyleSample(engine, goal.id, 'S1');
+    await waitFor(() => getBrief(engine.store.db, goal.id)!.brief.styleOptions[0]!.samples.length === 2);
+    const opt = getBrief(engine.store.db, goal.id)!.brief.styleOptions[0]!;
+    expect(opt.samples).toEqual(['artifacts/samples/S1-1.png', 'artifacts/samples/S1-2.png']);
+    const ws = goalWorkspacePath(dataDir, goal.id);
+    const { existsSync } = await import('node:fs');
+    for (const f of opt.samples) expect(existsSync(join(ws, f))).toBe(true);
+    // artifacts stay out of git even at Brief time
+    expect((await Bun.$`git -C ${ws} status --porcelain`.text()).trim()).toBe('');
+    expect(() => startStyleSample(engine, goal.id, 'NOPE')).toThrow(StyleSampleError);
+    engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
+  }, 20_000);
+
   test('a user-chosen nature is never classified nor overridden by the verdict', async () => {
     const runner = new StructuredRunner(() => ({ ...briefWith([task('T1', 'A1', 'write the guide')], [check('C1', 'T1')]), nature: 'code' as const }));
     const engine = track(new Engine(cfg(), runner));

@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Brief, EscalationAnswer, getAttempt, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@ai-engine/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, type Engine, type OpenTargetId } from '@ai-engine/engine';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, type Engine, type OpenTargetId } from '@ai-engine/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, SettingsPatch } from '@ai-engine/core';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -335,6 +335,24 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const { id, taskId } = c.req.param();
     await abortResolution(engine, id, taskId);
     return c.json({ ok: true });
+  });
+
+  // style samples: start one generation (result arrives as brief.style_sampled), fetch a generated file
+  app.post('/api/goals/:id/brief/style-sample', async (c) => {
+    const { styleKey } = z.object({ styleKey: z.string().min(1).max(40) }).parse(await c.req.json());
+    try {
+      return c.json({ started: true, ...startStyleSample(engine, c.req.param('id'), styleKey) }, 202);
+    } catch (e) {
+      if (e instanceof StyleSampleError) throw new HttpError(e.status, { error: e.message });
+      throw e;
+    }
+  });
+  app.get('/api/goals/:id/brief/style-sample/:file', async (c) => {
+    const file = c.req.param('file');
+    if (!/^[\w.-]+\.png$/.test(file)) throw new HttpError(400, { error: 'bad sample file name' });
+    const p = join(goalWorkspacePath(engine.config.dataDir, c.req.param('id')), 'artifacts', 'samples', file);
+    if (!existsSync(p)) throw new HttpError(404, { error: 'sample not generated yet' });
+    return new Response(Bun.file(p), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'no-cache' } });
   });
 
   app.post('/api/goals/:id/reclarify', async (c) => {
