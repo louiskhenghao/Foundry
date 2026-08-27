@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, ListChecks, Plus, Sparkles, Trash2 } from 'l
 import { useState } from 'react';
 import { api, type DraftProposal } from '../../api.ts';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
+import { TaskTags } from '../../components/TaskTags.tsx';
 import { Button, Input, Menu, MenuItem, Select, Textarea, cn } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { CheckRow } from './CheckRow.tsx';
@@ -45,6 +46,7 @@ export function TaskCard({ task, brief, goalId, editable, open, onToggle, edit }
         </button>
         <span className="mono text-xs text-zinc-500 w-7">{task.key}</span>
         {editable ? <Input className="flex-1 min-w-[12rem]" placeholder="imperative title, e.g. add teacher dashboard" value={task.title} onChange={(e) => change({ title: e.target.value })} /> : <span className="text-sm flex-1">{task.title}</span>}
+        <TaskTags kind={task.kind} scenario={task.scenario} />
         {brief.areas.length > 0 && <span className={cn('text-[10px] rounded-full border px-2 py-0.5 whitespace-nowrap', style.chip)}>{area?.name ?? 'unassigned'}</span>}
         {checks.length > 0 && (
           <span className="text-[10px] text-zinc-500 flex items-center gap-1 whitespace-nowrap" title="acceptance checks on this task">

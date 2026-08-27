@@ -1,11 +1,12 @@
 import type { Task } from '@ai-engine/core/browser';
 import { useMemo } from 'react';
+import { TaskTags } from '../../components/TaskTags.tsx';
 import { useElementWidth } from '../../hooks/useElementWidth.ts';
 import { Badge, cn, fmtUsd } from '../../ui.tsx';
 
 const MIN_W = 236;
 const MAX_W = 480;
-const H = 92;
+const H = 106;
 const GX = 72;
 const GY = 18;
 /** below this container width the graph is rendered as a vertical list */
@@ -119,11 +120,14 @@ function TaskNode({ t, selected, onSelect, className, style, after }: { t: DagTa
         </span>
       </div>
       <div className="text-[13px] mt-1.5 text-zinc-100 line-clamp-2 leading-snug">{t.title}</div>
-      <div className="text-[10px] text-zinc-500 mt-1 flex gap-2 flex-wrap">
-        {t.worktreePath && <span>own worktree</span>}
-        {t.lastCost != null && <span>{fmtUsd(t.lastCost)}</span>}
-        {after && after.length > 0 && <span className="truncate">after: {after.join(', ')}</span>}
-      </div>
+      <TaskTags className="mt-1" kind={t.kind} scenario={t.scenario} area={t.plain ? null : t.area} />
+      {(t.worktreePath || t.lastCost != null || (after && after.length > 0)) && (
+        <div className="text-[10px] text-zinc-500 mt-1 flex gap-2 flex-wrap">
+          {t.worktreePath && <span>own worktree</span>}
+          {t.lastCost != null && <span>{fmtUsd(t.lastCost)}</span>}
+          {after && after.length > 0 && <span className="truncate">after: {after.join(', ')}</span>}
+        </div>
+      )}
     </button>
   );
 }
