@@ -224,6 +224,7 @@ describe('skip and restart', () => {
       brief: {
         title: '',
         understanding: 'u',
+        styleOptions: [],
         areas: [],
         assumptions: [],
         questions: [],

@@ -54,6 +54,14 @@ export function applyEvent(db: Database, e: EngineEvent): void {
     case 'brief.edited':
       upsertBrief(db, e.payload.brief, false);
       break;
+    case 'brief.style_sampled': {
+      if (e.payload.status !== 'ok') break;
+      const b = getBrief(db, e.goalId!);
+      if (!b) break;
+      const styleOptions = b.brief.styleOptions.map((o) => (o.key === e.payload.styleKey && !o.samples.includes(e.payload.file) ? { ...o, samples: [...o.samples, e.payload.file] } : o));
+      upsertBrief(db, { ...b.brief, styleOptions }, b.approved);
+      break;
+    }
     case 'brief.approved':
       upsertBrief(db, e.payload.brief, true);
       break;

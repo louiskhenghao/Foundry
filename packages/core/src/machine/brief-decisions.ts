@@ -1,4 +1,4 @@
-import type { Brief, BriefArea, BriefCheck, BriefTask } from '../schema/brief.ts';
+import type { Brief, BriefArea, BriefCheck, BriefStyleOption, BriefTask } from '../schema/brief.ts';
 
 /**
  * A Decision is a choice the human made on the Brief that every session must honour:
@@ -22,6 +22,14 @@ export function decisionsOf(brief: Pick<Brief, 'questions' | 'assumptions'>): De
 /** Decisions no Revise has honoured yet. */
 export function pendingDecisions(brief: Pick<Brief, 'questions' | 'assumptions'>): Decision[] {
   return decisionsOf(brief).filter((d) => !d.applied);
+}
+
+/** The Style Proposal the human picked (answer of the style question matched by name), or null. */
+export function chosenStyle(brief: Pick<Brief, 'questions' | 'styleOptions'>): BriefStyleOption | null {
+  if (!brief.styleOptions.length) return null;
+  const q = brief.questions.find((x) => x.kind === 'style' && x.answer?.trim());
+  if (!q) return null;
+  return brief.styleOptions.find((o) => o.name === q.answer!.trim()) ?? null;
 }
 
 /** The prompt section every session receives; '' when there is nothing to say. */

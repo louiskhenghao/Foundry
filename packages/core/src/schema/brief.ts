@@ -62,10 +62,32 @@ export const BriefQuestion = z.object({
   areaKey: z.string().nullable().default(null),
   /** suggested answers rendered as choices (free text always allowed); the first one is the Clarifier's recommendation */
   options: z.array(z.string()).default([]),
+  /** style = the engine-generated style-direction question; its options are Style Proposal names rendered as visual cards */
+  kind: z.enum(['text', 'style']).default('text'),
   /** an answered question is a Decision; true once a Revise honoured it (or the human said no change was needed) */
   applied: z.boolean().default(false),
 });
 export type BriefQuestion = z.infer<typeof BriefQuestion>;
+
+/**
+ * A Style Proposal: one visual direction for a media or UI goal, proposed during Clarify and rendered
+ * as a card the human can *see* before any expensive generation starts. The chosen one becomes a
+ * Decision and its full parameters constrain every worker and reviewer.
+ */
+export const BriefStyleOption = z.object({
+  key: z.string(),
+  name: z.string(),
+  /** hex colors, dominant first */
+  palette: z.array(z.string()).default([]),
+  fonts: z.array(z.string()).default([]),
+  keywords: z.array(z.string()).default([]),
+  description: z.string().default(''),
+  /** generated sample images (workspace-relative under artifacts/samples/), oldest first — regenerating appends, never replaces */
+  samples: z.array(z.string()).default([]),
+  /** the sample the human picked as the visual anchor; workers receive it as a reference image */
+  chosenSample: z.string().nullable().default(null),
+});
+export type BriefStyleOption = z.infer<typeof BriefStyleOption>;
 
 export const Brief = z.object({
   goalId: z.string(),
@@ -79,6 +101,8 @@ export const Brief = z.object({
   costEstimateUsd: z.number().nonnegative(),
   timeEstimateMin: z.number().nonnegative(),
   questions: z.array(BriefQuestion),
+  /** visual directions for media/UI goals; non-empty ⇒ the engine adds a blocking style question */
+  styleOptions: z.array(BriefStyleOption).default([]),
 });
 export type Brief = z.infer<typeof Brief>;
 
@@ -145,6 +169,19 @@ export const BriefOutput = z.object({
       }),
     )
     .describe('Questions you could not safely assume. Prefer assumptions over questions.'),
+  styleOptions: z
+    .array(
+      z.object({
+        key: z.string().describe('Short unique key, e.g. S1'),
+        name: z.string().describe('Short evocative name, e.g. "Warm izakaya night".'),
+        palette: z.array(z.string()).describe('3-6 hex colors, dominant first.'),
+        fonts: z.array(z.string()).describe('1-3 typeface suggestions (family names).'),
+        keywords: z.array(z.string()).describe('3-6 style keywords (lighting, mood, medium, era…).'),
+        description: z.string().describe('One or two sentences: the feel, composition and references of this direction.'),
+      }),
+    )
+    .default([])
+    .describe('Visual directions for the human to SEE and pick from before generation starts. REQUIRED for image/video goals and UI-heavy code goals: 2-4 distinct directions, YOUR recommendation first. Empty for prose/research/backend goals.'),
 });
 export type BriefOutput = z.infer<typeof BriefOutput>;
 

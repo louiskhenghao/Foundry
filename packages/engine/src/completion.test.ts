@@ -69,7 +69,7 @@ afterEach(async () => {
 const cfg = () => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, log: () => {} });
 const terminal = (s: string) => ['done', 'over_delivered', 'failed', 'cancelled'].includes(s);
 
-const briefBase: Omit<Brief, 'tasks'> = { goalId: 'g', title: '', understanding: 'u', areas: [], assumptions: [], checks: [], costEstimateUsd: 1, timeEstimateMin: 5, questions: [] };
+const briefBase: Omit<Brief, 'tasks'> = { goalId: 'g', title: '', understanding: 'u', areas: [], assumptions: [], checks: [], costEstimateUsd: 1, timeEstimateMin: 5, questions: [], styleOptions: [] };
 const task = (scenario: Brief['tasks'][number]['scenario']): Brief['tasks'][number] => ({ key: 'T1', title: 't', spec: 's', kind: 'feature', scope: null, scenario, areaKey: null, tdd: 'inherit', dependsOnKeys: [], parallelizable: false, relevantFiles: [] });
 
 describe('completion inference', () => {
@@ -79,7 +79,7 @@ describe('completion inference', () => {
     expect(inferCompletion({ ...briefBase, tasks: [task('general')] }, ws)).toMatchObject({ graphRefresh: false, docs: [] });
     writeFileSync(join(ws, 'CHANGELOG.md'), '# changelog\n');
     expect(inferCompletion({ ...briefBase, tasks: [task('backend')] }, ws).docs).toContain('changelog');
-    const withDecision = { ...briefBase, tasks: [task('docs' as const)], questions: [{ id: 'q1', text: 'Which stack?', answer: 'Next.js', blocking: true, areaKey: null, options: ['Next.js', 'Laravel'], applied: false }] };
+    const withDecision = { ...briefBase, tasks: [task('docs' as const)], questions: [{ id: 'q1', text: 'Which stack?', answer: 'Next.js', blocking: true, areaKey: null, options: ['Next.js', 'Laravel'], kind: 'text' as const, applied: false }] };
     expect(inferCompletion(withDecision, ws).docs).toContain('to-questionnaire');
   });
 });

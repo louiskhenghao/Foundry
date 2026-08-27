@@ -83,6 +83,7 @@ export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
         blocking: true,
         areaKey: null,
         options: [],
+        kind: 'text',
         applied: false,
       });
     }
@@ -176,7 +177,7 @@ export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
       brief = toBrief(goal, parsed.data, questions);
       // still uncovered after the repair turn: leave the gap to the human (Draft on the Brief page, or delete the Area)
       for (const a of uncoveredAreas(brief)) {
-        brief.questions.push({ id: newId('q'), text: `Area "${a.name}" has no tasks yet. Use "Draft tasks for this Area" on the Brief page, or delete the Area if this goal does not cover it.`, answer: null, blocking: false, areaKey: a.key, options: [], applied: false });
+        brief.questions.push({ id: newId('q'), text: `Area "${a.name}" has no tasks yet. Use "Draft tasks for this Area" on the Brief page, or delete the Area if this goal does not cover it.`, answer: null, blocking: false, areaKey: a.key, options: [], kind: 'text', applied: false });
       }
     } else {
       brief = {
@@ -189,9 +190,10 @@ export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
         tasks: [{ key: 'T1', title: goal.title, spec: goal.prompt, kind: 'feature', scope: null, scenario: 'general', areaKey: 'A1', tdd: 'inherit', dependsOnKeys: [], parallelizable: false, relevantFiles: [] }],
         costEstimateUsd: 0,
         timeEstimateMin: 0,
+        styleOptions: [],
         questions: [
           ...questions,
-          { id: newId('q'), text: 'The clarifier could not produce a structured Brief. Edit the tasks and checks manually, then answer "ok" here.', answer: null, blocking: true, areaKey: null, options: [], applied: false },
+          { id: newId('q'), text: 'The clarifier could not produce a structured Brief. Edit the tasks and checks manually, then answer "ok" here.', answer: null, blocking: true, areaKey: null, options: [], kind: 'text', applied: false },
         ],
       };
     }
@@ -275,7 +277,8 @@ export function toBrief(goal: Goal, o: BriefOutput, extraQuestions: Brief['quest
     tasks: o.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind ?? 'feature', scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys, parallelizable: t.parallelizable, relevantFiles: t.relevantFiles })),
     costEstimateUsd: o.costEstimateUsd,
     timeEstimateMin: o.timeEstimateMin,
-    questions: [...extraQuestions, ...o.questions.map((q) => ({ id: newId('q'), text: q.text, answer: null, blocking: q.blocking, areaKey: area(q.areaKey), options: q.options ?? [], applied: false }))],
+    questions: [...extraQuestions, ...o.questions.map((q) => ({ id: newId('q'), text: q.text, answer: null, blocking: q.blocking, areaKey: area(q.areaKey), options: q.options ?? [], kind: 'text' as const, applied: false }))],
+    styleOptions: [],
   };
 }
 

@@ -4,13 +4,13 @@ import { decisionsOf, diffBrief, diffIsEmpty, markDecisionsApplied, pendingDecis
 
 const task = (key: string, spec = 's', deps: string[] = []) => ({ key, title: key, spec, kind: 'feature' as const, scope: null, scenario: 'general' as const, areaKey: null, tdd: 'inherit' as const, dependsOnKeys: deps, parallelizable: true, relevantFiles: [] });
 const check = (key: string, taskKey: string | null, cmd = 'true') => ({ key, name: key, tier: 'must' as const, taskKey, areaKey: null, spec: { type: 'command' as const, cmd, timeoutMs: 1, expectExitCode: 0 } });
-const brief = (over: Partial<Omit<Brief, 'goalId'>> = {}): Omit<Brief, 'goalId'> => ({ title: 't', understanding: 'u', areas: [], assumptions: [], checks: [], tasks: [], costEstimateUsd: 1, timeEstimateMin: 1, questions: [], ...over });
+const brief = (over: Partial<Omit<Brief, 'goalId'>> = {}): Omit<Brief, 'goalId'> => ({ title: 't', understanding: 'u', areas: [], assumptions: [], checks: [], tasks: [], costEstimateUsd: 1, timeEstimateMin: 1, questions: [], styleOptions: [], ...over });
 
 describe('decisions', () => {
   const b = brief({
     questions: [
-      { id: 'q1', text: 'Which DB?', answer: 'sqlite', blocking: true, areaKey: null, options: [], applied: false },
-      { id: 'q2', text: 'unanswered', answer: '  ', blocking: false, areaKey: null, options: [], applied: false },
+      { id: 'q1', text: 'Which DB?', answer: 'sqlite', blocking: true, areaKey: null, options: [], kind: 'text' as const, applied: false },
+      { id: 'q2', text: 'unanswered', answer: '  ', blocking: false, areaKey: null, options: [], kind: 'text' as const, applied: false },
     ],
     assumptions: [
       { id: 'a1', text: 'teachers too', accepted: false, applied: false },

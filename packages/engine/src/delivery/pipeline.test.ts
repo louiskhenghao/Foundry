@@ -145,7 +145,7 @@ describe('delivery pipeline', () => {
     understanding: 'u',
     areas: [],
     assumptions: [],
-    questions: [],
+    questions: [], styleOptions: [],
     costEstimateUsd: 0,
     timeEstimateMin: 0,
     tasks: [t('T1', 'add first', []), t('T2', 'fix second', ['T1'], 'bug')],

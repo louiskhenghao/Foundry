@@ -1172,5 +1172,6 @@ function autoBrief(goal: Goal, must: string[], stretch: string[]): Brief {
     costEstimateUsd: 1,
     timeEstimateMin: 15,
     questions: [],
+    styleOptions: [],
   };
 }

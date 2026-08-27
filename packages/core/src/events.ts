@@ -75,6 +75,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('settings.changed', { keys: z.array(z.string()), restartNeeded: z.array(z.string()) }),
 
   ev('clarify.started', { attemptId: z.string().nullable() }),
+  /** one style sample was generated for a Style Proposal (file appended to its samples, never replacing) */
+  ev('brief.style_sampled', { styleKey: z.string(), file: z.string(), costUsd: z.number(), status: z.enum(['ok', 'failed']), detail: z.string() }),
   ev('brief.proposed', { brief: Brief }),
   ev('brief.edited', { brief: Brief }),
   ev('brief.approved', { brief: Brief }),
