@@ -102,5 +102,5 @@ Every notice names the goal and the task and links straight to the task view; th
 ## 9. Image goals need an image backend
 
 - The image pack (`gpt-image-2`) only *generates* when sessions see `OPENAI_API_KEY` (any OpenAI-compatible endpoint; `OPENAI_BASE_URL` overrides the host). Without it the skill degrades to advisory mode and workers hand-author SVG/HTML renders — noticeably lower fidelity.
-- Two ways to provide the key: put it in `.env` at the repo root (gitignored; Bun loads it when the engine starts), or Settings → Tools → *OpenAI-compatible API key* (stored in `data/settings.json`, restart required). Sessions inherit the engine's environment either way — the key is visible to every session.
+- The normal way to provide the key is **Settings → Tools → *OpenAI-compatible API key***: stored in `data/settings.json`, applied to the next session immediately — no restart. Alternatively put it in `.env` at the repo root (gitignored; Bun loads it when the engine starts). Either way sessions inherit it — the key is visible to every session.
 - When the key is missing you will see it: the skills Doctor warns (*gpt-image-2 backend*), the worker's prompt carries a ⚠ degraded-mode note, and the Clarifier records an explicit assumption on image goals so you can reject it before approving the Brief.

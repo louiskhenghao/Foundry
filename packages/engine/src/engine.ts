@@ -151,7 +151,7 @@ export class Engine {
       new ClaudeCliRunner({
         claudeBin: config.claudeBin,
         maxConcurrent: config.maxConcurrent,
-        env: { AI_ENGINE_CALLBACK: `http://${config.host}:${config.port}`, ...this.sessionEnvExtra() },
+        env: () => ({ AI_ENGINE_CALLBACK: `http://${config.host}:${config.port}`, ...this.sessionEnvExtra() }),
         log: config.log,
       });
     this.models = new ModelRegistry(config.dataDir);
@@ -235,6 +235,8 @@ export class Engine {
     }
     if (changed.includes('tools.markitdownBin')) this.markitdown = new Markitdown({ bin: this.config.markitdownBin, log: this.config.log });
     if (changed.some((k) => k.startsWith('workflow.'))) this.skills.hints.invalidate();
+    // the key feeds the skills env probe (degraded-mode warnings) — refresh the cached statuses right away
+    if (changed.includes('tools.openaiApiKey') || changed.includes('tools.openaiBaseUrl')) this.skills.hints.invalidate();
     const restartNeeded = this.settings.restartNeeded();
     this.store.append({ type: 'settings.changed', goalId: null, payload: { keys: changed, restartNeeded } });
     this.config.log(`[settings] changed ${changed.join(', ')}${restartNeeded.length ? ` (restart needed for ${restartNeeded.join(', ')})` : ''}`);

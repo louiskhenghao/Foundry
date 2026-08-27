@@ -121,7 +121,7 @@ export const SettingsPatch = z.object({
 export type SettingsPatch = z.infer<typeof SettingsPatch>;
 
 /** dotted leaf paths whose change only takes effect after the engine restarts */
-export const RESTART_SETTINGS = ['engine.port', 'engine.host', 'engine.claudeBin', 'engine.claudeHome', 'tools.openaiApiKey', 'tools.openaiBaseUrl'] as const;
+export const RESTART_SETTINGS = ['engine.port', 'engine.host', 'engine.claudeBin', 'engine.claudeHome'] as const;
 
 export type SettingSource = 'file' | 'env' | 'default';
 export interface SettingMeta {
