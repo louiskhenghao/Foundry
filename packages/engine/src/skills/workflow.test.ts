@@ -26,6 +26,22 @@ describe('workflow section', () => {
     expect(s).toContain('/webapp-testing');
     expect(s).toContain('Do NOT run /setup-matt-pocock-skills');
   });
+  test('media scenarios only admit skills that explicitly opt in; empty scenarios still match code scenarios', () => {
+    const img = st(entry({ id: 'gpt-image-2', roles: ['worker'], scenarios: ['image'], workflow: [{ role: 'worker', mandate: 'must', when: 'any', scenarios: ['image'], instruction: 'generate' }] }), 'installed', '/gpt-image-2');
+    const reviewTail = st(entry({ id: 'code-review', roles: ['reviewer-goal'], workflow: [{ role: 'reviewer-goal', mandate: 'prefer', when: 'any', scenarios: [], instruction: 'two axes' }] }), 'installed', '/mattpocock-skills:code-review');
+    // image worker: the scenario-blind tdd MUST rule is dropped, the image skill stays
+    const worker = formatWorkflowSection({ role: 'worker', taskKind: 'feature', scenario: 'image', profile: 'mattpocock', statuses: [...statuses, img] })!;
+    expect(worker).toContain('MUST: invoke `/gpt-image-2`');
+    expect(worker).not.toContain('tdd');
+    expect(worker).not.toContain('/webapp-testing');
+    // image goal reviewer: the scenario-blind code-review rule and tail entry are dropped entirely
+    expect(formatWorkflowSection({ role: 'reviewer-goal', scenario: 'image', profile: 'mattpocock', statuses: [reviewTail] })).toBeNull();
+    expect(mandatedSkillsFor({ role: 'worker', taskKind: 'bug', scenario: 'image', profile: 'mattpocock', statuses })).toEqual([]);
+    // code scenarios keep the empty-means-any behaviour
+    expect(formatWorkflowSection({ role: 'reviewer-goal', scenario: 'backend', profile: 'mattpocock', statuses: [reviewTail] })).toContain('Prefer: invoke `/mattpocock-skills:code-review`');
+    expect(mandatedSkillsFor({ role: 'worker', taskKind: 'bug', scenario: 'backend', profile: 'mattpocock', statuses }).map((m) => m.name)).toEqual(['diagnosing-bugs']);
+  });
+
   test('a mandated skill with missing requiresEnv gets the degraded-mode warning', () => {
     const img = st(entry({ id: 'gpt-image-2', roles: ['worker'], requiresEnv: ['OPENAI_API_KEY'], workflow: [{ role: 'worker', mandate: 'must', when: 'any', scenarios: ['image'], instruction: 'generate' }] }), 'installed', '/gpt-image-2');
     const degraded = { ...img, missingEnv: ['OPENAI_API_KEY'] };

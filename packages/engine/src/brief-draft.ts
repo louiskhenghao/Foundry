@@ -6,7 +6,7 @@ import { newId } from '@ai-engine/core';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
 import { tryJson } from './checks/reviewer.ts';
-import { materializeCheck } from './clarify.ts';
+import { materializeCheck, natureScenario } from './clarify.ts';
 import type { Engine } from './engine.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
 
@@ -62,7 +62,7 @@ export async function runDraft(engine: Engine, goal: Goal, req: DraftRequest): P
   say(req.mode === 'revise' ? '— revision requested: syncing the workspace, then the Clarifier re-reads the Brief and the repository…' : '— draft requested: syncing the workspace, then a read-only session explores the repository…');
   const ws = await engine.ensureSyncedWorkspace(goal);
   const overview = await engine.context.overview(ws).catch(() => null);
-  const hint = await engine.skills.hints.sectionFor('clarifier');
+  const hint = await engine.skills.hints.sectionFor('clarifier', { scenario: natureScenario(goal.nature) });
   const attachments = [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n');
   const outputSchema = req.mode === 'area' ? AreaDraftOutput : req.mode === 'revise' ? RevisionOutput : TaskDraftOutput;
   const schema = zodToJsonSchema(outputSchema, { $refStrategy: 'none' });

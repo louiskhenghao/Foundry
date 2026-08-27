@@ -46,14 +46,41 @@
           "role": "worker",
           "mandate": "must",
           "when": "feature",
-          "instruction": "Before writing implementation code, invoke it and follow red → green → refactor through public interfaces; keep the failing test in the diff and run single test files often, the full suite once at the end."
+          "instruction": "Before writing implementation code, invoke it and follow red → green → refactor through public interfaces; keep the failing test in the diff and run single test files often, the full suite once at the end.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
         },
         {
           "role": "worker",
           "mandate": "must",
           "when": "refactor",
-          "instruction": "Invoke it first: pin the current behaviour with tests through public interfaces, then restructure in small green steps."
+          "instruction": "Invoke it first: pin the current behaviour with tests through public interfaces, then restructure in small green steps.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
         }
+      ],
+      "scenarios": [
+        "frontend",
+        "backend",
+        "fullstack",
+        "data",
+        "mobile",
+        "infra",
+        "general"
       ]
     },
     {
@@ -83,8 +110,26 @@
           "role": "worker",
           "mandate": "must",
           "when": "bug",
-          "instruction": "Invoke it before editing: reproduce → minimise → hypothesise → instrument → fix → add a regression test. Report the reproduction you built."
+          "instruction": "Invoke it before editing: reproduce → minimise → hypothesise → instrument → fix → add a regression test. Report the reproduction you built.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
         }
+      ],
+      "scenarios": [
+        "frontend",
+        "backend",
+        "fullstack",
+        "data",
+        "mobile",
+        "infra",
+        "general"
       ]
     },
     {
@@ -112,8 +157,26 @@
           "role": "reviewer-goal",
           "mandate": "prefer",
           "when": "any",
-          "instruction": "Use its two axes (Standards and Spec) on the whole diff; the base branch named under \"Fixed point\" is your fixed point."
+          "instruction": "Use its two axes (Standards and Spec) on the whole diff; the base branch named under \"Fixed point\" is your fixed point.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
         }
+      ],
+      "scenarios": [
+        "frontend",
+        "backend",
+        "fullstack",
+        "data",
+        "mobile",
+        "infra",
+        "general"
       ]
     },
     {
@@ -303,7 +366,11 @@
         "testing",
         "web"
       ],
-      "homepage": "https://github.com/anthropics/skills"
+      "homepage": "https://github.com/anthropics/skills",
+      "scenarios": [
+        "frontend",
+        "fullstack"
+      ]
     },
     {
       "id": "frontend-design",
@@ -686,7 +753,16 @@
       "tags": [
         "llm"
       ],
-      "homepage": "https://github.com/anthropics/skills"
+      "homepage": "https://github.com/anthropics/skills",
+      "scenarios": [
+        "frontend",
+        "backend",
+        "fullstack",
+        "data",
+        "mobile",
+        "infra",
+        "general"
+      ]
     },
     {
       "id": "skill-creator",
@@ -748,8 +824,26 @@
           "role": "worker",
           "mandate": "prefer",
           "when": "research",
-          "instruction": "Invoke it: build the smallest throwaway that answers the question, write the answer down, and do not polish."
+          "instruction": "Invoke it: build the smallest throwaway that answers the question, write the answer down, and do not polish.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
         }
+      ],
+      "scenarios": [
+        "frontend",
+        "backend",
+        "fullstack",
+        "data",
+        "mobile",
+        "infra",
+        "general"
       ]
     },
     {

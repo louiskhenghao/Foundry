@@ -48,7 +48,13 @@ export function visibleStatuses(i: Pick<WorkflowSectionInput, 'statuses' | 'pack
   return i.statuses.filter((s) => SATISFIED.includes(s.status) && packAllows(s.entry, i.packs ?? {}));
 }
 
-const scenarioOk = (wanted: readonly string[], scenario: TaskScenario | undefined) => !wanted.length || wanted.includes(scenario ?? 'general');
+const MEDIA_SCENARIOS: readonly string[] = ['image', 'video'];
+/** Empty `scenarios` means "any" — except for media sessions, which only get skills that explicitly opt in (a code-review skill has no business judging posters). */
+const scenarioOk = (wanted: readonly string[], scenario: TaskScenario | undefined) => {
+  const s = scenario ?? 'general';
+  if (MEDIA_SCENARIOS.includes(s)) return wanted.includes(s);
+  return !wanted.length || wanted.includes(s);
+};
 
 /** Rules of installed catalog entries that apply to this role, task kind and scenario, with the invoke to use. */
 export function applicableRules(i: WorkflowSectionInput): MandatedSkill[] {
