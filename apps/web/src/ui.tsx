@@ -89,9 +89,9 @@ export function Card({ children, className, title, actions }: { children: ReactN
   return (
     <section className={cn('rounded-lg border border-zinc-800 bg-zinc-900/60', className)}>
       {(title || actions) && (
-        <header className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-zinc-800">
-          <h3 className="text-sm font-semibold text-zinc-200 min-w-0 flex-1">{title}</h3>
-          {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+        <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2.5 border-b border-zinc-800">
+          <h3 className="text-sm font-semibold text-zinc-200 min-w-0 grow shrink basis-56">{title}</h3>
+          {actions && <div className="flex items-center gap-2 shrink-0 ml-auto">{actions}</div>}
         </header>
       )}
       <div className="p-4">{children}</div>

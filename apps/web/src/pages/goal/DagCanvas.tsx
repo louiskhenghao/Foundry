@@ -123,7 +123,7 @@ function TaskNode({ t, selected, onSelect, className, style, after }: { t: DagTa
       <div className="text-[13px] mt-1.5 text-zinc-100 line-clamp-2 leading-snug">{t.title}</div>
       <div className="mt-1 flex items-center gap-x-1.5 gap-y-1 flex-wrap">
         <TaskTags kind={t.kind} scenario={t.scenario} area={t.plain ? null : t.area} />
-        {t.worktreePath && <span className="text-[10px] text-zinc-500 whitespace-nowrap">own worktree</span>}
+        {t.worktreePath && t.state !== 'done' && <span className="text-[10px] text-zinc-500 whitespace-nowrap">own worktree</span>}
       </div>
       {after && after.length > 0 && <div className="text-[10px] text-zinc-500 mt-1 truncate">after: {after.join(', ')}</div>}
     </button>

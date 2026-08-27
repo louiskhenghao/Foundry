@@ -58,7 +58,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
               <RotateCcw size={13} /> Restart from here
             </Button>
           )}
-          {task.worktreePath && <OpenMenu goalId={d.goal.id} places={[{ which: `task:${task.id}`, label: 'Task worktree', path: task.worktreePath, hint: task.branch ?? undefined }]} label="Open worktree" />}
+          {task.worktreePath && task.state !== 'done' && <OpenMenu goalId={d.goal.id} places={[{ which: `task:${task.id}`, label: 'Task worktree', path: task.worktreePath, hint: task.branch ?? undefined }]} label="Open worktree" />}
           <Button size="sm" variant="ghost" onClick={onClose}>
             <X size={14} />
           </Button>
