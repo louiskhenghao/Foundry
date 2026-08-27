@@ -388,15 +388,17 @@ export function SettingsPage() {
         <div className="space-y-3">
           {bool('tools.useGraphify', 'Use graphify for relevant-file discovery', 'When the graphify CLI is installed, sessions get a code-graph based context instead of grep.')}
           {grid(
-            <Field label="markitdown binary" aside={aside('tools.markitdownBin')} help="Empty = auto-detect on PATH and ~/.local/bin.">
-              {text('tools.markitdownBin', 'markitdown', true)}
-            </Field>,
-            <Field label="OpenAI-compatible API key" aside={aside('tools.openaiApiKey')} help="Handed to every session as OPENAI_API_KEY — the image pack needs it to actually generate images (without it, image tasks fall back to hand-authored SVG renders). Empty = whatever the engine's own environment has.">
-              <Input type="password" autoComplete="off" value={(get(draft, 'tools.openaiApiKey') as string | null) ?? ''} placeholder="sk-…" onChange={(e) => set('tools.openaiApiKey', e.target.value === '' ? null : e.target.value)} />
-            </Field>,
-            <Field label="OpenAI-compatible base URL" aside={aside('tools.openaiBaseUrl')} help="Handed to sessions as OPENAI_BASE_URL for proxies / compatible providers; empty = the provider's default endpoint.">
-              {text('tools.openaiBaseUrl', 'https://api.openai.com/v1', true)}
-            </Field>,
+            <>
+              <Field label="markitdown binary" aside={aside('tools.markitdownBin')} help="Empty = auto-detect on PATH and ~/.local/bin.">
+                {text('tools.markitdownBin', 'markitdown', true)}
+              </Field>
+              <Field label="OpenAI-compatible API key" aside={aside('tools.openaiApiKey')} help="Handed to every session as OPENAI_API_KEY — the image pack needs it to actually generate images (without it, image tasks fall back to hand-authored SVG renders). Empty = whatever the engine's own environment has.">
+                <Input type="password" autoComplete="off" value={(get(draft, 'tools.openaiApiKey') as string | null) ?? ''} placeholder="sk-…" onChange={(e) => set('tools.openaiApiKey', e.target.value === '' ? null : e.target.value)} />
+              </Field>
+              <Field label="OpenAI-compatible base URL" aside={aside('tools.openaiBaseUrl')} help="Handed to sessions as OPENAI_BASE_URL for proxies / compatible providers; empty = the provider's default endpoint.">
+                {text('tools.openaiBaseUrl', 'https://api.openai.com/v1', true)}
+              </Field>
+            </>,
           )}
         </div>
       </Card>
