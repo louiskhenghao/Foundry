@@ -151,7 +151,7 @@ export class Engine {
       new ClaudeCliRunner({
         claudeBin: config.claudeBin,
         maxConcurrent: config.maxConcurrent,
-        env: { AI_ENGINE_CALLBACK: `http://${config.host}:${config.port}` },
+        env: { AI_ENGINE_CALLBACK: `http://${config.host}:${config.port}`, ...this.sessionEnvExtra() },
         log: config.log,
       });
     this.models = new ModelRegistry(config.dataDir);
@@ -178,6 +178,7 @@ export class Engine {
       hintsEnabled: () => !config.settingSources || config.settingSources.includes('user'),
       workflowProfile: () => config.workflowProfile ?? 'mattpocock',
       packs: () => ({ design: config.designPack, image: config.imagePack, video: config.videoPack }),
+      envProbe: (name) => !!(process.env[name] ?? this.sessionEnvExtra()[name]),
       // every updater run is an audit event (goalId null, informational)
       onRun: (run) => this.store.append({ type: 'skills.update_run', goalId: null, payload: { sourceId: run.sourceId, updater: run.updater, command: run.command, cwd: run.cwd, exitCode: run.exitCode, durationMs: run.durationMs, outputTail: run.outputTail, changed: run.changed, error: run.error } }),
     });
@@ -188,6 +189,19 @@ export class Engine {
     this.store.subscribe((e) => {
       if (e.goalId) this.tick(e.goalId);
     });
+  }
+
+  /** env vars the engine adds to every session on top of its own process.env (settings-sourced secrets) */
+  sessionEnvExtra(): Record<string, string> {
+    return {
+      ...(this.config.openaiApiKey ? { OPENAI_API_KEY: this.config.openaiApiKey } : {}),
+      ...(this.config.openaiBaseUrl ? { OPENAI_BASE_URL: this.config.openaiBaseUrl } : {}),
+    };
+  }
+
+  /** can media sessions actually generate images here (key present in the env sessions inherit)? */
+  imageGenAvailable(): boolean {
+    return !!(process.env.OPENAI_API_KEY ?? this.config.openaiApiKey);
   }
 
   private buildContext(): ContextProvider {

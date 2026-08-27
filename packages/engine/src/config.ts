@@ -62,6 +62,10 @@ export interface EngineConfig {
   defaultGoalMode: 'simple' | 'expert';
   /** markitdown binary override (env AI_ENGINE_MARKITDOWN); auto-detected on PATH and ~/.local/bin otherwise */
   markitdownBin?: string;
+  /** OpenAI-compatible key handed to every session as OPENAI_API_KEY (image generation); env OPENAI_API_KEY reaches sessions anyway */
+  openaiApiKey?: string;
+  /** endpoint override handed to sessions as OPENAI_BASE_URL */
+  openaiBaseUrl?: string;
   log: (msg: string) => void;
 }
 

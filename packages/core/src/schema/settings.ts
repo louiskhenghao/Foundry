@@ -80,6 +80,10 @@ export const SyncSettings = z.object({
 export const ToolSettings = z.object({
   useGraphify: z.boolean().default(true),
   markitdownBin: z.string().nullable().default(null),
+  /** OpenAI-compatible API key handed to sessions as OPENAI_API_KEY (image generation via the image pack); null = whatever the engine's own environment has */
+  openaiApiKey: z.string().nullable().default(null),
+  /** endpoint override handed to sessions as OPENAI_BASE_URL (proxies, compatible providers); null = provider default */
+  openaiBaseUrl: z.string().nullable().default(null),
 });
 export const SafetySettings = z.object({
   /** extra ERE patterns for the boundary guard, '|'-separated */
@@ -117,7 +121,7 @@ export const SettingsPatch = z.object({
 export type SettingsPatch = z.infer<typeof SettingsPatch>;
 
 /** dotted leaf paths whose change only takes effect after the engine restarts */
-export const RESTART_SETTINGS = ['engine.port', 'engine.host', 'engine.claudeBin', 'engine.claudeHome'] as const;
+export const RESTART_SETTINGS = ['engine.port', 'engine.host', 'engine.claudeBin', 'engine.claudeHome', 'tools.openaiApiKey', 'tools.openaiBaseUrl'] as const;
 
 export type SettingSource = 'file' | 'env' | 'default';
 export interface SettingMeta {

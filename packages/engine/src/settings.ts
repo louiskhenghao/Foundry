@@ -39,6 +39,8 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'sync.startFrom': { name: 'AI_ENGINE_SYNC_START', parse: str },
   'sync.refreshBetweenTasks': { name: 'AI_ENGINE_SYNC_REFRESH', parse: bool },
   'tools.markitdownBin': { name: 'AI_ENGINE_MARKITDOWN', parse: str },
+  'tools.openaiApiKey': { name: 'OPENAI_API_KEY', parse: str },
+  'tools.openaiBaseUrl': { name: 'OPENAI_BASE_URL', parse: str },
 };
 
 export const SETTING_PATHS: string[] = Object.entries(DEFAULT_SETTINGS).flatMap(([section, v]) => Object.keys(v as object).map((k) => `${section}.${k}`));
@@ -217,6 +219,8 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('sync.refreshBetweenTasks')) config.sync.refreshBetweenTasks = s.sync.refreshBetweenTasks;
   if (on('tools.useGraphify')) config.useGraphify = s.tools.useGraphify;
   if (on('tools.markitdownBin')) config.markitdownBin = s.tools.markitdownBin ?? undefined;
+  if (on('tools.openaiApiKey')) config.openaiApiKey = s.tools.openaiApiKey ?? undefined;
+  if (on('tools.openaiBaseUrl')) config.openaiBaseUrl = s.tools.openaiBaseUrl ?? undefined;
   if (on('safety.extraBoundaryPatterns')) config.extraBoundaryPatterns = s.safety.extraBoundaryPatterns ?? undefined;
   if (on('safety.allowedRoots')) config.allowedRoots = s.safety.allowedRoots ?? undefined;
 }
