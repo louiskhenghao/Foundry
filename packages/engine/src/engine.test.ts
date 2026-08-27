@@ -6,6 +6,7 @@ import { getGoal, listAttempts, listEscalations, listTasks } from '@ai-engine/co
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@ai-engine/runner';
 import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
+import { raiseEscalation } from './escalation.ts';
 
 /** Scripted stand-in for claude: runs `behave(spec, callIndex)` then returns a success result. */
 class FakeRunner implements ClaudeRunner {
@@ -125,6 +126,17 @@ describe('Engine loop (fake runner)', () => {
     await waitFor(() => listTasks(engine.store.db, goal.id)[0]!.state === 'skipped');
     await Bun.sleep(300);
     expect(['running', 'goal_review', 'blocked', 'done']).toContain(getGoal(engine.store.db, goal.id)!.state);
+  });
+
+  test('goal-review escalation: skip_task finishes the goal as-is instead of re-reviewing', async () => {
+    const engine = track(new Engine(cfg(), new FakeRunner(() => {})));
+    const goal = await engine.createGoal({ prompt: 'impossible', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f never.txt'] } });
+    await waitFor(() => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).length > 0);
+    // simulate the goal review having failed after its last fix cycle
+    raiseEscalation(engine, { goal: getGoal(engine.store.db, goal.id)!, trigger: 'retries_exhausted', message: 'Goal review failed', payload: { kind: 'goal-review' }, blockGoal: true });
+    const esc = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).find((e) => e.taskId === null)!;
+    await engine.answerEscalation(esc.id, { action: 'skip_task' });
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
   });
 
   test('retry_with_hint grants an extra attempt and injects the hint', async () => {

@@ -72,6 +72,15 @@ export async function answerEscalation(engine: Engine, id: string, answer: Escal
       break;
     }
     case 'skip_task': {
+      // goal-level review escalation: "skip" = accept the result as-is and finish — re-running the same
+      // review would fail the same checks and escalate again (a paid loop with no exit)
+      if (!task && (esc.payload as { kind?: string }).kind === 'goal-review') {
+        if (!['done', 'over_delivered', 'failed', 'cancelled'].includes(goal.state)) {
+          store.append({ type: 'review.goal.finished', goalId: goal.id, payload: { passed: true, overDelivered: false, mustResults: [], stretchResults: [], fixTaskIds: [], notes: 'human accepted the goal as-is; the failing checks are waived' } });
+          store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: goal.state, to: 'done', reason: 'human: accepted despite failing goal checks' } });
+        }
+        break;
+      }
       if (!task) break;
       // skipped ≠ failed: dependents continue and the goal review judges the whole; the human can restart it later
       if (task.state === 'blocked') store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'blocked', to: 'skipped', reason: 'human: skipped' } });
