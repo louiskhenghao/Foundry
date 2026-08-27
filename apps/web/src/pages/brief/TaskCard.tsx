@@ -82,22 +82,22 @@ export function TaskCard({ task, brief, goalId, editable, open, onOpen, onClose,
           <Maximize2 size={12} className="text-zinc-600" />
         </div>
         {(task.dependsOnKeys.length > 0 || next.length > 0) && (
-          <div className="px-2.5 pb-2.5 -mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px]" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+          <div className="px-2.5 pb-2.5 -mt-1 space-y-1.5 text-[11px]" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             {task.dependsOnKeys.length > 0 && (
-              <span className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-zinc-500 whitespace-nowrap" title="this task starts only after these are done">← after</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] uppercase tracking-wide text-zinc-500 w-9 shrink-0" title="this task starts only after these are done">After</span>
                 {task.dependsOnKeys.map((k) => (
                   <DepChip key={k} taskKey={k} title={titleOf(brief, k)} onOpen={onOpenTask} />
                 ))}
-              </span>
+              </div>
             )}
             {next.length > 0 && (
-              <span className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-zinc-500 whitespace-nowrap" title="these tasks wait for this one">→ unblocks</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] uppercase tracking-wide text-zinc-500 w-9 shrink-0" title="these tasks wait for this one">Next</span>
                 {next.map((t) => (
                   <DepChip key={t.key} taskKey={t.key} title={t.title || t.key} onOpen={onOpenTask} />
                 ))}
-              </span>
+              </div>
             )}
           </div>
         )}
@@ -183,7 +183,7 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
           </label>
           {next.length > 0 && (
             <span className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-zinc-500" title="tasks that wait for this one — click to open">→ unblocks</span>
+              <span className="text-zinc-500" title="tasks that wait for this one — click to open">→ next</span>
               {next.map((t) => (
                 <DepChip key={t.key} taskKey={t.key} title={t.title || t.key} onOpen={onOpenTask} />
               ))}
