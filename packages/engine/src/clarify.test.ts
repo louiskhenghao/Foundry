@@ -129,6 +129,27 @@ describe('nature pre-classification', () => {
     await Bun.sleep(150);
   }, 20_000);
 
+  test('styleOptions in the Clarifier output become Brief cards plus an engine-generated blocking style question', async () => {
+    const styles = [
+      { key: 'S1', name: 'Warm izakaya night', palette: ['#2b1d16', '#e8a13c'], fonts: ['Noto Serif JP'], keywords: ['lantern light', 'wood'], description: 'Cozy and warm.' },
+      { key: 'S2', name: 'Minimal washi', palette: ['#f5f1e8', '#3a3a3a'], fonts: ['Zen Kaku Gothic'], keywords: ['negative space'], description: 'Clean and airy.' },
+    ];
+    const runner = new StructuredRunner(() => ({ ...briefWith([{ ...task('T1', 'A1', 'render posters'), scenario: 'image' as const }], [check('C1', 'T1')]), nature: 'image' as const, styleOptions: styles }));
+    runner.classifyAs = 'image';
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'posters for the izakaya', repoPath: repo });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    const brief = getBrief(engine.store.db, goal.id)!.brief;
+    expect(brief.styleOptions.map((s) => [s.key, s.samples, s.chosenSample])).toEqual([['S1', [], null], ['S2', [], null]]);
+    const q = brief.questions.find((x) => x.kind === 'style')!;
+    expect(q.blocking).toBe(true);
+    expect(q.options).toEqual(['Warm izakaya night', 'Minimal washi']); // recommendation first
+    // the clarify prompt asked for the style options
+    expect(runner.calls.find((c) => c.label?.startsWith('clarify'))!.prompt).toContain('styleOptions');
+    engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
+  }, 20_000);
+
   test('a user-chosen nature is never classified nor overridden by the verdict', async () => {
     const runner = new StructuredRunner(() => ({ ...briefWith([task('T1', 'A1', 'write the guide')], [check('C1', 'T1')]), nature: 'code' as const }));
     const engine = track(new Engine(cfg(), runner));
