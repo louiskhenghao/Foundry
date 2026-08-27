@@ -8,6 +8,7 @@ import {
   proposeBudgetFromEstimate,
   renderDecisions,
   IDLE_COMPLETION,
+  MEDIA_NATURES,
   EventStore,
   IdPrefix,
   getAttempt,
@@ -757,7 +758,8 @@ export class Engine {
       nature,
       outputDir: input.outputDir ?? null,
       workflow: (() => {
-        const pace = input.workflow?.pace ?? this.config.workflowPace;
+        // media goals default to fast: their deliverables are judged by the human's eye, not by $5 review sessions
+        const pace = input.workflow?.pace ?? (MEDIA_NATURES.includes(nature) ? 'fast' : this.config.workflowPace);
         // fast goals run only what the Brief asks for: no TDD mandate unless the caller insists
         return { pace, tdd: input.workflow?.tdd ?? (pace === 'fast' ? ('off' as const) : mode === 'simple' ? ('preferred' as const) : this.config.workflowTdd) };
       })(),

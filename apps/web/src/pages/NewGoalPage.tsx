@@ -1,6 +1,6 @@
 import type { Attachment } from '@ai-engine/core/browser';
 import { BUDGET_PRESETS } from '@ai-engine/core/browser';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type RepoInfo } from '../api.ts';
 import { AttachmentInput } from '../components/Attachments.tsx';
@@ -57,7 +57,15 @@ export function NewGoalPage() {
   const [mode, setMode] = useState<'simple' | 'expert'>(() => ((localStorage.getItem('ai-engine.mode') as 'simple' | 'expert' | null) ?? 'expert'));
   const [tdd, setTdd] = useState<'required' | 'preferred' | 'off'>(() => ((localStorage.getItem('ai-engine.tdd') as 'required' | 'preferred' | 'off' | null) ?? 'required'));
   const [pace, setPace] = useState<'thorough' | 'fast'>(() => ((localStorage.getItem('ai-engine.pace') as 'thorough' | 'fast' | null) ?? 'thorough'));
-  useEffect(() => localStorage.setItem('ai-engine.pace', pace), [pace]);
+  /** the remembered preference; media natures auto-tick fast on top of it unless the human touches the checkbox */
+  const basePace = useRef(pace);
+  const paceTouched = useRef(false);
+  const choosePace = (v: 'thorough' | 'fast') => {
+    paceTouched.current = true;
+    basePace.current = v;
+    setPace(v);
+    localStorage.setItem('ai-engine.pace', v);
+  };
   useEffect(() => localStorage.setItem('ai-engine.mode', mode), [mode]);
   useEffect(() => localStorage.setItem('ai-engine.tdd', tdd), [tdd]);
   const [checks, setChecks] = useState('');
@@ -140,6 +148,8 @@ export function NewGoalPage() {
                 setNature(n.id);
                 // anyone-facing default: prose/media goals open in the plain-language view
                 if (n.id !== 'code' && n.id !== 'auto') setMode('simple');
+                // media deliverables are judged by eye — default to fast (no engine AI reviews) unless the human chose a pace
+                if (!paceTouched.current) setPace(n.id === 'image' || n.id === 'video' ? 'fast' : basePace.current);
               }}
               className={cn('text-left rounded-lg border p-2.5', nature === n.id ? 'border-emerald-500 bg-emerald-500/10' : 'border-zinc-800 hover:border-zinc-600')}
             >
@@ -182,7 +192,7 @@ export function NewGoalPage() {
           ))}
         </div>
         <label className="mt-3 flex items-start gap-2 text-sm">
-          <input type="checkbox" className="mt-1" checked={pace === 'fast'} onChange={(e) => setPace(e.target.checked ? 'fast' : 'thorough')} />
+          <input type="checkbox" className="mt-1" checked={pace === 'fast'} onChange={(e) => choosePace(e.target.checked ? 'fast' : 'thorough')} />
           <span>
             <span className="text-zinc-100">Fast mode</span>
             <span className="text-[11px] text-zinc-400 block leading-snug">Once you approve the Brief, the engine skips its own extra AI reviews (and the TDD mandate). The acceptance checks you approved still run — good for media goals and quick jobs.</span>
