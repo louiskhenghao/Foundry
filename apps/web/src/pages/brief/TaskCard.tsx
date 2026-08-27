@@ -16,6 +16,23 @@ const titleOf = (brief: Brief, key: string) => brief.tasks.find((t) => t.key ===
 /** Tasks that depend on this one (its direct downstream). */
 const nextTasks = (brief: Brief, key: string) => brief.tasks.filter((t) => t.dependsOnKeys.includes(key));
 
+/** Clickable reference to another task; opens that task's modal. */
+function DepChip({ taskKey, title, onOpen }: { taskKey: string; title: string; onOpen: (key: string) => void }) {
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpen(taskKey);
+      }}
+      className="max-w-56 truncate rounded border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-zinc-300 hover:border-zinc-400 hover:text-zinc-100 text-left"
+      title={title}
+    >
+      <span className="mono text-zinc-500">{taskKey}</span>
+      {title !== taskKey && <> {title}</>}
+    </button>
+  );
+}
+
 /** One compact row per task; everything else (title, attributes, deps, spec, checks) is edited in a modal. */
 export function TaskCard({ task, brief, goalId, editable, open, onOpen, onClose, onOpenTask, edit }: { task: BriefTask; brief: Brief; goalId: string; editable: boolean; open: boolean; onOpen: () => void; onClose: () => void; onOpenTask: (key: string) => void; edit: (fn: (b: Brief) => Brief) => void }) {
   const checks = brief.checks.filter((c) => c.taskKey === task.key);
@@ -42,16 +59,6 @@ export function TaskCard({ task, brief, goalId, editable, open, onOpen, onClose,
           <span className="mono text-xs text-zinc-500 w-7">{task.key}</span>
           <span className="text-sm flex-1 min-w-0 truncate">{task.title || <span className="text-zinc-500">(untitled)</span>}</span>
           {problem && editable && <span className="text-xs text-rose-300 whitespace-nowrap">{problem}</span>}
-          {task.dependsOnKeys.length > 0 && (
-            <span className="mono text-[10px] text-zinc-500 whitespace-nowrap" title={`runs after: ${task.dependsOnKeys.map((k) => titleOf(brief, k)).join(', ')}`}>
-              ← {task.dependsOnKeys.join(' ')}
-            </span>
-          )}
-          {next.length > 0 && (
-            <span className="mono text-[10px] text-zinc-500 whitespace-nowrap" title={`unblocks: ${next.map((t) => t.title || t.key).join(', ')}`}>
-              → {next.map((t) => t.key).join(' ')}
-            </span>
-          )}
           <TaskTags kind={task.kind} scenario={task.scenario} />
           {brief.areas.length > 0 && <span className={cn('text-[10px] rounded-full border px-2 py-0.5 whitespace-nowrap', style.chip)}>{area?.name ?? 'unassigned'}</span>}
           {checks.length > 0 && (
@@ -74,6 +81,26 @@ export function TaskCard({ task, brief, goalId, editable, open, onOpen, onClose,
           )}
           <Maximize2 size={12} className="text-zinc-600" />
         </div>
+        {(task.dependsOnKeys.length > 0 || next.length > 0) && (
+          <div className="px-2.5 pb-2.5 -mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px]" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+            {task.dependsOnKeys.length > 0 && (
+              <span className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-zinc-500 whitespace-nowrap" title="this task starts only after these are done">← after</span>
+                {task.dependsOnKeys.map((k) => (
+                  <DepChip key={k} taskKey={k} title={titleOf(brief, k)} onOpen={onOpenTask} />
+                ))}
+              </span>
+            )}
+            {next.length > 0 && (
+              <span className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-zinc-500 whitespace-nowrap" title="these tasks wait for this one">→ unblocks</span>
+                {next.map((t) => (
+                  <DepChip key={t.key} taskKey={t.key} title={t.title || t.key} onOpen={onOpenTask} />
+                ))}
+              </span>
+            )}
+          </div>
+        )}
       </div>
       {open && <TaskModal task={task} brief={brief} goalId={goalId} editable={editable} onClose={onClose} onRemove={remove} onOpenTask={onOpenTask} edit={edit} />}
     </>
@@ -158,9 +185,7 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
             <span className="flex items-center gap-1.5 flex-wrap">
               <span className="text-zinc-500" title="tasks that wait for this one — click to open">→ unblocks</span>
               {next.map((t) => (
-                <button key={t.key} onClick={() => onOpenTask(t.key)} className="max-w-56 truncate rounded border border-zinc-700 px-1.5 py-0.5 text-zinc-300 hover:border-zinc-500 text-left" title={t.title || t.key}>
-                  <span className="mono text-zinc-500">{t.key}</span> {t.title || '(untitled)'}
-                </button>
+                <DepChip key={t.key} taskKey={t.key} title={t.title || t.key} onOpen={onOpenTask} />
               ))}
             </span>
           )}
