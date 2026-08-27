@@ -231,6 +231,7 @@ export async function finishResolution(engine: Engine, goalId: string, taskId: s
   store.append({ type: 'task.state_changed', goalId, payload: { taskId, from: fresh.state, to: 'done', reason: `resolved manually, committed ${landed.ref!.slice(0, 7)}` } });
   await removeWorktree(goal.repoPath, path).catch(() => {});
   await dropTaskWorkspace(goal, fresh).catch(() => {});
+  if (fresh.worktreePath) store.append({ type: 'task.workspace_assigned', goalId, payload: { taskId, branch: null, worktreePath: null } });
   const g = getGoal(store.db, goalId)!;
   if (g.state === 'blocked' && !listEscalations(store.db, { goalId, openOnly: true }).length) store.append({ type: 'goal.state_changed', goalId, payload: { from: 'blocked', to: 'running', reason: 'merge resolved manually' } });
   engine.tick(goalId);

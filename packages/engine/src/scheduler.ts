@@ -169,7 +169,11 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
           const n = copyArtifacts(fresh.worktreePath, goalWorkspacePath(config.dataDir, goal.id));
           if (n) config.log(`[artifacts] ${task.id}: ${n} file(s) copied to the goal workspace`);
         }
-        if (fresh.worktreePath) await dropTaskWorkspace(goal, getTask(store.db, task.id)!).catch(() => {});
+        if (fresh.worktreePath) {
+          await dropTaskWorkspace(goal, getTask(store.db, task.id)!).catch(() => {});
+          // the worktree (and its branch) are gone — clear the pointers so the UI stops offering them
+          store.append({ type: 'task.workspace_assigned', goalId: goal.id, payload: { taskId: task.id, branch: null, worktreePath: null } });
+        }
         const t = getTask(store.db, task.id)!;
         store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'merging', to: 'done', reason: t.commitRef ? `committed ${t.commitRef.slice(0, 7)} on goal branch` : 'no changes to commit' } });
         // empty-repo goals: the task that created the first stack manifest unlocks autoskills for the rest

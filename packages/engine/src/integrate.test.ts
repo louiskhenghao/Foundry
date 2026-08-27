@@ -223,8 +223,8 @@ describe('conflict avoidance', () => {
     expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
     const beta = listTasks(engine.store.db, goal.id).find((x) => x.title === 'add beta')!;
     const ev = engine.store.listByGoal(goal.id, 5000);
-    // the catch-up merged the goal branch into beta's task branch before landing
-    expect(ev.some((e) => e.type === 'merge.started' && (e.payload as any).taskId === beta.id && (e.payload as any).into === beta.branch)).toBe(true);
+    // the catch-up merged the goal branch into beta's task branch before landing (task.branch itself is cleared at done)
+    expect(ev.some((e) => e.type === 'merge.started' && (e.payload as any).taskId === beta.id && (e.payload as any).into === `task/${beta.id}`)).toBe(true);
     expect(ev.some((e) => e.type === 'engine.note' && String((e.payload as any).message).startsWith('catch-up: merged 1 goal-branch commit'))).toBe(true);
     expect(ev.filter((e) => e.type === 'merge.conflict')).toHaveLength(0);
     const ws = join(dataDir, 'worktrees', goal.id, '_goal');
@@ -270,8 +270,8 @@ describe('restart from a finished task', () => {
     await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 40_000);
     expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
     const alpha = listTasks(engine.store.db, goal.id).find((x) => x.title === 'add alpha')!;
-    expect(alpha.worktreePath).toBeTruthy();
-    expect(existsSync(alpha.worktreePath!)).toBe(false); // dropped when it finished
+    expect(alpha.worktreePath).toBeNull(); // the pointer is cleared when the worktree is dropped at done
+    expect(existsSync(join(dataDir, 'worktrees', goal.id, alpha.id))).toBe(false); // dropped when it finished
     const r = await engine.restartGoal(goal.id, { fromTaskId: alpha.id });
     expect(r.restarted).toEqual([alpha.id]);
     expect(listTasks(engine.store.db, goal.id).find((x) => x.id === alpha.id)!.worktreePath).toBeNull();
