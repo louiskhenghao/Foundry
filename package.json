@@ -7,7 +7,7 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "bun --watch apps/cli/src/main.ts serve",
+    "dev": "bun scripts/dev.ts",
     "serve": "bun apps/cli/src/main.ts serve",
     "cli": "bun apps/cli/src/main.ts",
     "web:dev": "cd apps/web && bun run dev",
