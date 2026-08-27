@@ -51,7 +51,7 @@ export async function runGoalReview(engine: Engine, goal: Goal): Promise<void> {
   let review: z.infer<typeof GoalReviewOutput> | null = null;
   let reviewError: string | null = null;
   const baseDiff = await diff(goalWs, goal.baseBranch, 'HEAD', 120_000);
-  if (baseDiff.trim() && (reviewerChecks.length || engine.config.alwaysReviewTasks)) {
+  if (baseDiff.trim() && (reviewerChecks.length || (engine.config.alwaysReviewTasks && goal.workflow.pace !== 'fast'))) {
     review = await reviewGoal(engine, goal, goalWs, baseDiff, checks, results).catch((err) => {
       reviewError = String((err as Error).message ?? err).slice(0, 300);
       store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `goal reviewer failed: ${reviewError}` } });

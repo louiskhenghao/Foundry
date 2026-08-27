@@ -740,7 +740,11 @@ export class Engine {
       mode,
       nature,
       outputDir: input.outputDir ?? null,
-      workflow: { tdd: input.workflow?.tdd ?? (mode === 'simple' ? 'preferred' : this.config.workflowTdd) },
+      workflow: (() => {
+        const pace = input.workflow?.pace ?? this.config.workflowPace;
+        // fast goals run only what the Brief asks for: no TDD mandate unless the caller insists
+        return { pace, tdd: input.workflow?.tdd ?? (pace === 'fast' ? ('off' as const) : mode === 'simple' ? ('preferred' as const) : this.config.workflowTdd) };
+      })(),
       models: { ...this.config.models, ...(input.models ?? {}) },
       state: 'draft',
       stateBeforeBlock: null,
@@ -943,7 +947,7 @@ export class Engine {
     const ws = await this.ensureSyncedWorkspace(goal);
     this.startAutoskills(goal, ws);
     // completion actions: what the UI sent, holes filled from the Brief (Simple mode and API callers send nothing)
-    const inferred = inferCompletion(brief, ws);
+    const inferred = inferCompletion(brief, ws, goal.workflow.pace);
     this.store.append({
       type: 'goal.completion_set',
       goalId,

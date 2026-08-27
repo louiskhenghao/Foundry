@@ -74,8 +74,14 @@ export const MEDIA_NATURES: GoalNature[] = ['image', 'video'];
 export const Discipline = z.enum(['required', 'preferred', 'off']);
 export type Discipline = z.infer<typeof Discipline>;
 
+/** thorough = the engine adds its own AI reviews on top of the Brief's checks; fast = only what the Brief asked for runs. */
+export const GoalPace = z.enum(['thorough', 'fast']);
+export type GoalPace = z.infer<typeof GoalPace>;
+
 export const GoalWorkflow = z.object({
   tdd: Discipline.default('required'),
+  /** default keeps pre-pace goals replayable */
+  pace: GoalPace.default('thorough'),
 });
 export type GoalWorkflow = z.infer<typeof GoalWorkflow>;
 

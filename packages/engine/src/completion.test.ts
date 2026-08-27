@@ -166,6 +166,31 @@ describe('docs generation', () => {
   });
 });
 
+describe('fast pace', () => {
+  test('fast goals skip the free task review; thorough goals get it', async () => {
+    const behave = (spec: any) => {
+      if (spec.label?.startsWith('attempt')) writeFileSync(join(spec.cwd, 'done.txt'), 'ok');
+    };
+    const cfgReview = () => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: true, log: () => {} });
+    const fastRunner = new FakeRunner(behave);
+    const fast = track(new Engine(cfgReview(), fastRunner));
+    const g1 = await fast.createGoal({ prompt: 'quick', repoPath: repo, workflow: { pace: 'fast' }, autoBrief: { mustChecks: ['test -f done.txt'] } });
+    expect(g1.workflow.pace).toBe('fast');
+    expect(g1.workflow.tdd).toBe('off'); // fast defaults the TDD mandate off
+    await waitFor(() => terminal(getGoal(fast.store.db, g1.id)!.state));
+    expect(getGoal(fast.store.db, g1.id)!.state).toBe('done');
+    expect(fastRunner.calls.some((c) => c.label?.startsWith('review'))).toBe(false);
+    await fast.stop();
+
+    const thoroughRunner = new FakeRunner(behave);
+    const thorough = track(new Engine(cfgReview(), thoroughRunner));
+    const g2 = await thorough.createGoal({ prompt: 'careful', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] } });
+    await waitFor(() => terminal(getGoal(thorough.store.db, g2.id)!.state));
+    expect(thoroughRunner.calls.some((c) => c.label?.startsWith('review'))).toBe(true);
+    await thorough.stop();
+  }, 30_000);
+});
+
 describe('style direction', () => {
   test('the chosen proposal renders into worker and reviewer prompts, reference image included', async () => {
     const { chosenStyle } = await import('@ai-engine/core');

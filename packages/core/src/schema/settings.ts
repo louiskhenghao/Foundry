@@ -45,6 +45,8 @@ export const WorkflowSettings = z.object({
   /** which view new goals open in */
   defaultMode: GoalMode.default('expert'),
   designPack: DesignPack.default('ui-ux-pro-max'),
+  /** pace new goals start with: fast skips the engine's own AI reviews (approved checks always run) */
+  defaultPace: z.enum(['thorough', 'fast']).default('thorough'),
   /** which image-generation skill set media workers follow (scenario `image`) */
   imagePack: ImagePack.default('gpt-image-2'),
   /** which video skill set media workers follow (scenario `video`) */

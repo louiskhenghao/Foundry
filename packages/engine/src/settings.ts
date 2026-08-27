@@ -30,6 +30,7 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'workflow.tdd': { name: 'AI_ENGINE_TDD', parse: str },
   'workflow.defaultMode': { name: 'AI_ENGINE_GOAL_MODE', parse: str },
   'workflow.designPack': { name: 'AI_ENGINE_DESIGN_PACK', parse: str },
+  'workflow.defaultPace': { name: 'AI_ENGINE_PACE', parse: str },
   'workflow.imagePack': { name: 'AI_ENGINE_IMAGE_PACK', parse: str },
   'workflow.videoPack': { name: 'AI_ENGINE_VIDEO_PACK', parse: str },
   'workflow.autoskills': { name: 'AI_ENGINE_AUTOSKILLS', parse: bool },
@@ -194,6 +195,7 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('workflow.tdd')) config.workflowTdd = s.workflow.tdd;
   if (on('workflow.defaultMode')) config.defaultGoalMode = s.workflow.defaultMode;
   if (on('workflow.designPack')) config.designPack = s.workflow.designPack;
+  if (on('workflow.defaultPace')) config.workflowPace = s.workflow.defaultPace;
   if (on('workflow.imagePack')) config.imagePack = s.workflow.imagePack;
   if (on('workflow.videoPack')) config.videoPack = s.workflow.videoPack;
   if (on('workflow.autoskills')) config.autoskills = s.workflow.autoskills;

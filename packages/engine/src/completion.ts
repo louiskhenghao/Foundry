@@ -18,8 +18,9 @@ import { ARTIFACTS_DIR, goalWorkspacePath, listArtifacts } from './workspace.ts'
 const CODE_SCENARIOS = new Set(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra']);
 
 /** Defaults when the UI sends nothing (Simple mode, API callers): inferred from the Brief. */
-export function inferCompletion(brief: Brief, ws: string): { graphRefresh: boolean; docs: DocType[]; reason: string } {
+export function inferCompletion(brief: Brief, ws: string, pace: 'thorough' | 'fast' = 'thorough'): { graphRefresh: boolean; docs: DocType[]; reason: string } {
   const code = brief.tasks.some((t) => CODE_SCENARIOS.has(t.scenario ?? 'general'));
+  if (pace === 'fast') return { graphRefresh: code, docs: [], reason: 'fast pace: no generated docs' };
   const docs: DocType[] = [];
   if (code) docs.push('to-prd', 'readme-update');
   if (code && existsSync(join(ws, 'CHANGELOG.md'))) docs.push('changelog');

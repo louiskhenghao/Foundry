@@ -14,7 +14,7 @@ function goal(id: string): Goal {
     baseBranch: 'main',
     branch: `goal/${id}`,
     budgets: { maxCostUsd: 5, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3 },
-    budgetPreset: 'custom', mode: 'expert', workflow: { tdd: 'required' },
+    budgetPreset: 'custom', mode: 'expert', workflow: { tdd: 'required', pace: 'thorough' },
     models: { strong: 'opus', cheap: 'haiku', worker: 'opus' },
     state: 'draft',
     stateBeforeBlock: null,

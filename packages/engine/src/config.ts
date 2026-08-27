@@ -40,6 +40,7 @@ export interface EngineConfig {
   defaultDelivery?: { mode?: 'local' | 'push' | 'pr' | 'pr-automerge'; remote?: string; unit?: 'goal' | 'task' };
   /** which design skill set UI tasks use (catalog entries with pack "design"); 'none' = no design skill is mandated */
   designPack: string;
+  workflowPace: 'thorough' | 'fast';
   imagePack: string;
   videoPack: string;
   /** run `npx autoskills` in each goal's workspace so the repository's stack gets matching project skills */
@@ -87,6 +88,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     maxFixCycles: 1,
     defaultDelivery: { unit: 'task', ...(process.env.AI_ENGINE_DELIVERY_MODE ? { mode: process.env.AI_ENGINE_DELIVERY_MODE as any } : {}) },
     designPack: process.env.AI_ENGINE_DESIGN_PACK ?? 'ui-ux-pro-max',
+    workflowPace: process.env.AI_ENGINE_PACE === 'fast' ? 'fast' : 'thorough',
     imagePack: process.env.AI_ENGINE_IMAGE_PACK ?? 'gpt-image-2',
     videoPack: process.env.AI_ENGINE_VIDEO_PACK ?? 'web-video-presentation',
     autoskills: process.env.AI_ENGINE_AUTOSKILLS ? !/^(0|false|off|no)$/i.test(process.env.AI_ENGINE_AUTOSKILLS) : true,

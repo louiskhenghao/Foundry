@@ -241,7 +241,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
     // Nothing changed across all attempts yet every objective check passes: the task is already
     // satisfied by the tree as-is. The reviewer has nothing to judge; checks are the truth.
     store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `task ${task.id}: no changes needed — objective checks pass on the current tree` } });
-  } else if (objectivePassed && (reviewerChecks.length || engine.config.alwaysReviewTasks)) {
+  } else if (objectivePassed && (reviewerChecks.length || (engine.config.alwaysReviewTasks && goal.workflow.pace !== 'fast'))) {
     reviewerVerdict = await reviewTaskDiff(engine, goal, task, attempt, cwd, taskBaseRef, reviewerChecks, workflow).catch((err) => {
       store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `task reviewer failed: ${String(err)}` } });
       return null;
