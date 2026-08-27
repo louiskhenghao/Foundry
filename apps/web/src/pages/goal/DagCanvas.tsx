@@ -84,6 +84,17 @@ export function DagCanvas({ tasks, selected, onSelect }: { tasks: DagTask[]; sel
   const byId = new Map(tasks.map((t) => [t.id, t]));
   const sorted = [...cols.entries()].sort(([a], [b]) => a - b);
 
+  // focused task (hover wins over selection) and its direct neighbourhood: those cards and edges pop, the rest fade
+  const focus = hovered ?? selected;
+  let related: Set<string> | null = null;
+  if (focus) {
+    related = new Set([focus]);
+    for (const t of tasks) {
+      if (t.id === focus) for (const d of t.dependsOn) related.add(d);
+      if (t.dependsOn.includes(focus)) related.add(t.id);
+    }
+  }
+
   return (
     <div ref={ref} className="w-full">
       {listMode ? (
@@ -104,8 +115,6 @@ export function DagCanvas({ tasks, selected, onSelect }: { tasks: DagTask[]; sel
           <div ref={wrapRef} className="relative w-max">
             <svg className="absolute inset-0 w-full h-full pointer-events-none">
               {(() => {
-                // focused task (hover wins over selection): its edges pop, the rest fade out of the way
-                const focus = hovered ?? selected;
                 const active = (e: Edge) => focus != null && (e.from === focus || e.to === focus);
                 return [...edges]
                   .sort((a, b) => Number(active(a)) - Number(active(b)))
@@ -138,7 +147,7 @@ export function DagCanvas({ tasks, selected, onSelect }: { tasks: DagTask[]; sel
                       onMouseEnter={() => setHovered(t.id)}
                       onMouseLeave={() => setHovered((h) => (h === t.id ? null : h))}
                     >
-                      <TaskNode t={t} selected={selected === t.id} onSelect={onSelect} className="w-full" style={{ minHeight: MIN_H }} />
+                      <TaskNode t={t} selected={selected === t.id} onSelect={onSelect} linked={related != null && related.has(t.id) && t.id !== focus} dim={related != null && !related.has(t.id)} className="w-full" style={{ minHeight: MIN_H }} />
                     </div>
                   ))}
                 </div>
@@ -151,12 +160,12 @@ export function DagCanvas({ tasks, selected, onSelect }: { tasks: DagTask[]; sel
   );
 }
 
-function TaskNode({ t, selected, onSelect, className, style, after }: { t: DagTask; selected: boolean; onSelect: (id: string | null) => void; className?: string; style?: React.CSSProperties; after?: string[] }) {
+function TaskNode({ t, selected, linked, dim, onSelect, className, style, after }: { t: DagTask; selected: boolean; linked?: boolean; dim?: boolean; onSelect: (id: string | null) => void; className?: string; style?: React.CSSProperties; after?: string[] }) {
   return (
     <button
       onClick={() => onSelect(selected ? null : t.id)}
       style={style}
-      className={cn('text-left rounded-lg border p-2.5 bg-zinc-950 hover:border-zinc-500 transition', selected ? 'border-emerald-500 ring-1 ring-emerald-500/40' : 'border-zinc-800', t.state === 'running' && 'ring-1 ring-blue-500/40', className)}
+      className={cn('text-left rounded-lg border p-2.5 bg-zinc-950 hover:border-zinc-500 transition', selected ? 'border-emerald-500 ring-1 ring-emerald-500/40' : linked ? 'border-zinc-400 ring-1 ring-zinc-400/30' : 'border-zinc-800', t.state === 'running' && 'ring-1 ring-blue-500/40', dim && 'opacity-40', className)}
     >
       <div className="flex items-center justify-between gap-2">
         {t.plain ? (
