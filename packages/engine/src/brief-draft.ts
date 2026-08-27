@@ -57,6 +57,9 @@ export async function runDraft(engine: Engine, goal: Goal, req: DraftRequest): P
   const area = req.areaKey ? brief.areas.find((a) => a.key === req.areaKey) : undefined;
   if (req.mode === 'area' && !area) throw new Error(`area ${req.areaKey} is not in the Brief`);
 
+  const channel = `draft-${goal.id}`;
+  const say = (text: string) => engine.broadcast({ goalId: goal.id, taskId: null, attemptId: channel, event: { kind: 'text', text }, ts: new Date().toISOString() });
+  say(req.mode === 'revise' ? '— revision requested: syncing the workspace, then the Clarifier re-reads the Brief and the repository…' : '— draft requested: syncing the workspace, then a read-only session explores the repository…');
   const ws = await engine.ensureSyncedWorkspace(goal);
   const overview = await engine.context.overview(ws).catch(() => null);
   const hint = await engine.skills.hints.sectionFor('clarifier');
@@ -91,7 +94,7 @@ export async function runDraft(engine: Engine, goal: Goal, req: DraftRequest): P
   let cost = 0;
   const exec = async (p: string, resume?: string) => {
     const handle = await run(p, resume);
-    for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: `draft-${goal.id}`, event: ev, ts: new Date().toISOString() });
+    for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: channel, event: ev, ts: new Date().toISOString() });
     const result = await handle.result;
     cost += result.costUsd;
     store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source } });
