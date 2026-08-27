@@ -85,7 +85,7 @@ Every notice names the goal and the task and links straight to the task view; th
 - **Sessions** (worker, reviewer, merger, clarifier, goal reviewer, draft/revise) cost; everything the engine does in git, checks and worktrees is free (time only).
 - **Continuations are cheaper than attempts**: a resumed session reuses its context (prompt-cached); a fresh attempt re-reads the repository. That is why cut sessions and progressing sessions are resumed first.
 - **Baseline checks** run the goal's must commands once per goal-branch commit in a throw-away worktree — time, not tokens.
-- **Draft with AI** ≤ $2, **Revise with answers** ≤ $3, a Merge Attempt ≤ $2, the **Documenter** ≤ $3 (only when the goal's Completion docs are on), a task reviewer a few cents. The graph refresh is free (no LLM). The Usage page has the per-kind ledger.
+- **Draft with AI** ≤ $2, **Revise with answers** ≤ $3, a Merge Attempt ≤ $2, the **Documenter** ≤ $3 (only when the goal's Completion docs are on), a **Style sample** ≤ $0.5 per click (max 8 per direction; earlier samples are kept), a task reviewer a few cents. The graph refresh is free (no LLM). **Fast-pace goals** skip the free task/goal reviews and generated docs entirely — approved checks still run. The Usage page has the per-kind ledger.
 
 ## 7. Restarting the engine safely
 
