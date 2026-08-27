@@ -30,6 +30,8 @@ interface Edge {
   x2: number;
   y2: number;
   state: string;
+  from: string;
+  to: string;
 }
 
 /**
@@ -54,6 +56,7 @@ export function DagCanvas({ tasks, selected, onSelect }: { tasks: DagTask[]; sel
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const nodeRefs = useRef(new Map<string, HTMLDivElement>());
   const [edges, setEdges] = useState<Edge[]>([]);
+  const [hovered, setHovered] = useState<string | null>(null);
 
   useLayoutEffect(() => {
     if (listMode) return;
@@ -65,7 +68,7 @@ export function DagCanvas({ tasks, selected, onSelect }: { tasks: DagTask[]; sel
           const from = nodeRefs.current.get(d);
           const to = nodeRefs.current.get(t.id);
           if (!from || !to) continue;
-          next.push({ x1: from.offsetLeft + from.offsetWidth, y1: from.offsetTop + from.offsetHeight / 2, x2: to.offsetLeft, y2: to.offsetTop + to.offsetHeight / 2, state: stateOf.get(d) ?? 'pending' });
+          next.push({ x1: from.offsetLeft + from.offsetWidth, y1: from.offsetTop + from.offsetHeight / 2, x2: to.offsetLeft, y2: to.offsetTop + to.offsetHeight / 2, state: stateOf.get(d) ?? 'pending', from: d, to: t.id });
         }
       setEdges(next);
     };
@@ -100,10 +103,26 @@ export function DagCanvas({ tasks, selected, onSelect }: { tasks: DagTask[]; sel
         <div className="overflow-auto pb-2">
           <div ref={wrapRef} className="relative w-max">
             <svg className="absolute inset-0 w-full h-full pointer-events-none">
-              {edges.map((e, i) => {
-                const c = (e.x2 - e.x1) / 2;
-                return <path key={i} d={`M ${e.x1} ${e.y1} C ${e.x1 + c} ${e.y1}, ${e.x2 - c} ${e.y2}, ${e.x2} ${e.y2}`} fill="none" stroke={STROKE[e.state] ?? '#52525b'} strokeWidth={1.5} strokeOpacity={0.8} />;
-              })}
+              {(() => {
+                // focused task (hover wins over selection): its edges pop, the rest fade out of the way
+                const focus = hovered ?? selected;
+                const active = (e: Edge) => focus != null && (e.from === focus || e.to === focus);
+                return [...edges]
+                  .sort((a, b) => Number(active(a)) - Number(active(b)))
+                  .map((e) => {
+                    const c = (e.x2 - e.x1) / 2;
+                    return (
+                      <path
+                        key={`${e.from}-${e.to}`}
+                        d={`M ${e.x1} ${e.y1} C ${e.x1 + c} ${e.y1}, ${e.x2 - c} ${e.y2}, ${e.x2} ${e.y2}`}
+                        fill="none"
+                        stroke={STROKE[e.state] ?? '#52525b'}
+                        strokeWidth={active(e) ? 2.5 : 1.5}
+                        strokeOpacity={active(e) ? 1 : focus ? 0.15 : 0.55}
+                      />
+                    );
+                  });
+              })()}
             </svg>
             <div className="flex items-start" style={{ columnGap: GX }}>
               {sorted.map(([depth, ts]) => (
@@ -115,6 +134,8 @@ export function DagCanvas({ tasks, selected, onSelect }: { tasks: DagTask[]; sel
                         if (el) nodeRefs.current.set(t.id, el);
                         else nodeRefs.current.delete(t.id);
                       }}
+                      onMouseEnter={() => setHovered(t.id)}
+                      onMouseLeave={() => setHovered((h) => (h === t.id ? null : h))}
                     >
                       <TaskNode t={t} selected={selected === t.id} onSelect={onSelect} className="w-full" style={{ minHeight: MIN_H }} />
                     </div>
@@ -134,7 +155,7 @@ function TaskNode({ t, selected, onSelect, className, style, after }: { t: DagTa
     <button
       onClick={() => onSelect(selected ? null : t.id)}
       style={style}
-      className={cn('text-left rounded-lg border p-2.5 bg-zinc-950/80 hover:border-zinc-500 transition', selected ? 'border-emerald-500 ring-1 ring-emerald-500/40' : 'border-zinc-800', t.state === 'running' && 'ring-1 ring-blue-500/40', className)}
+      className={cn('text-left rounded-lg border p-2.5 bg-zinc-950 hover:border-zinc-500 transition', selected ? 'border-emerald-500 ring-1 ring-emerald-500/40' : 'border-zinc-800', t.state === 'running' && 'ring-1 ring-blue-500/40', className)}
     >
       <div className="flex items-center justify-between gap-2">
         {t.plain ? (
