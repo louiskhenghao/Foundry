@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { catalogStatus, findEntry, loadCatalog, type WhichFn, defaultWhich } from './catalog.ts';
+import { catalogStatus, defaultEnvProbe, findEntry, loadCatalog, type EnvProbe, type WhichFn, defaultWhich } from './catalog.ts';
 import { runDoctor } from './doctor.ts';
 import { SkillsHints } from './hints.ts';
 import { InstallError, installEntry, updateEntry } from './installer.ts';
@@ -24,6 +24,8 @@ export interface SkillsManagerOptions {
   catalogPath: string;
   claudeBin?: string;
   which?: WhichFn;
+  /** whether sessions spawned by this engine will see an env var (default: process.env) */
+  envProbe?: EnvProbe;
   log?: (m: string) => void;
   /** hints are disabled when user settings (and thus user skills) are not loaded */
   hintsEnabled?: () => boolean;
@@ -84,17 +86,17 @@ export class SkillsManager {
     return scanSkills(this.paths, { repoPath });
   }
   async status(repoPath?: string): Promise<CatalogEntryStatus[]> {
-    return catalogStatus(this.catalog(), this.scan(repoPath), this.paths, this.opts.which ?? defaultWhich);
+    return catalogStatus(this.catalog(), this.scan(repoPath), this.paths, this.opts.which ?? defaultWhich, this.opts.envProbe ?? defaultEnvProbe);
   }
   async overview(repoPath?: string): Promise<SkillsOverview> {
     const scan = this.scan(repoPath);
-    const catalog = catalogStatus(this.catalog(), scan, this.paths, this.opts.which ?? defaultWhich);
+    const catalog = catalogStatus(this.catalog(), scan, this.paths, this.opts.which ?? defaultWhich, this.opts.envProbe ?? defaultEnvProbe);
     return { installed: scan.installed, catalog, duplicates: scan.duplicates, lastSession: this.lastView, scannedAt: scan.scannedAt, skillsDir: scan.skillsDir };
   }
   async doctor(extra: DoctorCheck[] = []): Promise<DoctorReport> {
     // offline: never runs git; shadow detection works from the filesystem alone
     const updates = await this.checker.report(this.scan(), this.catalog(), { offline: true }).catch(() => null);
-    return runDoctor({ paths: this.paths, catalog: this.catalog(), statuses: await this.status(), claudeBin: this.opts.claudeBin, which: this.opts.which, updates, extra });
+    return runDoctor({ paths: this.paths, catalog: this.catalog(), statuses: await this.status(), claudeBin: this.opts.claudeBin, which: this.opts.which, updates, packs: this.opts.packs?.(), extra });
   }
 
   // ---------- sources & updates ----------

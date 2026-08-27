@@ -37,8 +37,17 @@ export function preferredInvoke(entry: CatalogEntry, scan: ScanResult): string |
 export type WhichFn = (bin: string) => string | null;
 export const defaultWhich: WhichFn = (bin) => Bun.which(bin);
 
-export function catalogStatus(catalog: Catalog, scan: ScanResult, paths: SkillsPaths, which: WhichFn = defaultWhich): CatalogEntryStatus[] {
-  return catalog.entries.map((entry) => {
+/** does a session spawned by this engine see this env var? (the engine may add settings-sourced vars on top of process.env) */
+export type EnvProbe = (name: string) => boolean;
+export const defaultEnvProbe: EnvProbe = (name) => !!process.env[name];
+
+export function catalogStatus(catalog: Catalog, scan: ScanResult, paths: SkillsPaths, which: WhichFn = defaultWhich, envProbe: EnvProbe = defaultEnvProbe): CatalogEntryStatus[] {
+  const withEnv = (s: Omit<CatalogEntryStatus, 'missingEnv'>): CatalogEntryStatus => ({ ...s, missingEnv: s.entry.requiresEnv.filter((n) => !envProbe(n)) });
+  return catalog.entries.map((entry) => withEnv(statusOf(entry, scan, paths, which)));
+}
+
+function statusOf(entry: CatalogEntry, scan: ScanResult, paths: SkillsPaths, which: WhichFn): Omit<CatalogEntryStatus, 'missingEnv'> {
+  {
     const user = scan.installed.find((r) => r.scope === 'user' && r.name === entry.name && !r.symlink?.broken);
     const plugin = scan.installed.find((r) => r.scope === 'plugin' && r.name === entry.name);
     const manual =
@@ -72,7 +81,7 @@ export function catalogStatus(catalog: Catalog, scan: ScanResult, paths: SkillsP
     if (user) return { entry, status: 'installed-unmanaged', installedInvoke, commit: null, detail: `present in ${paths.skillsDir} (${user.managedBy ?? 'hand-installed'})`, manual: null };
     if (plugin) return { entry, status: 'installed-via-plugin', installedInvoke, commit: null, detail: `provided by plugin ${plugin.plugin?.id}`, manual: null };
     return { entry, status: 'missing', installedInvoke: null, commit: null, detail: 'not installed', manual: null };
-  });
+  }
 }
 
 export const SATISFIED: CatalogEntryStatus['status'][] = ['installed', 'installed-unmanaged', 'installed-via-plugin'];

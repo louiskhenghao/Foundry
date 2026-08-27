@@ -5,7 +5,7 @@ import { formatWorkflowObservation, usedSkill } from '../checks/reviewer.ts';
 import { summarizeReport } from '../attempt-prompt.ts';
 
 const entry = (o: Partial<CatalogEntry> & { id: string }) => CatalogEntry.parse({ name: o.id, summary: 's', why: 'w', tier: 'recommended', source: { type: 'git', repo: 'mattpocock/skills' }, roles: [], ...o });
-const st = (e: CatalogEntry, status: CatalogEntryStatus['status'], installedInvoke: string | null): CatalogEntryStatus => ({ entry: e, status, installedInvoke, commit: null, detail: '', manual: null });
+const st = (e: CatalogEntry, status: CatalogEntryStatus['status'], installedInvoke: string | null): CatalogEntryStatus => ({ entry: e, status, installedInvoke, commit: null, detail: '', manual: null, missingEnv: [] });
 
 const statuses: CatalogEntryStatus[] = [
   st(entry({ id: 'tdd', roles: ['worker'], workflow: [{ role: 'worker', mandate: 'must', when: 'feature', scenarios: [], instruction: 'tests first' }, { role: 'worker', mandate: 'must', when: 'refactor', scenarios: [], instruction: 'pin behaviour' }] }), 'installed-via-plugin', '/mattpocock-skills:tdd'),
@@ -25,6 +25,15 @@ describe('workflow section', () => {
     expect(s).toContain('Other installed skills relevant to this role (use when appropriate):');
     expect(s).toContain('/webapp-testing');
     expect(s).toContain('Do NOT run /setup-matt-pocock-skills');
+  });
+  test('a mandated skill with missing requiresEnv gets the degraded-mode warning', () => {
+    const img = st(entry({ id: 'gpt-image-2', roles: ['worker'], requiresEnv: ['OPENAI_API_KEY'], workflow: [{ role: 'worker', mandate: 'must', when: 'any', scenarios: ['image'], instruction: 'generate' }] }), 'installed', '/gpt-image-2');
+    const degraded = { ...img, missingEnv: ['OPENAI_API_KEY'] };
+    const s = formatWorkflowSection({ role: 'worker', scenario: 'image', profile: 'mattpocock', statuses: [degraded] })!;
+    expect(s).toContain('MUST: invoke `/gpt-image-2` — generate ⚠ OPENAI_API_KEY is NOT set');
+    const ok = formatWorkflowSection({ role: 'worker', scenario: 'image', profile: 'mattpocock', statuses: [img] })!;
+    expect(ok).toContain('MUST: invoke `/gpt-image-2` — generate');
+    expect(ok).not.toContain('⚠');
   });
   test('worker/bug mandates diagnosing-bugs, not tdd', () => {
     const m = mandatedSkillsFor({ role: 'worker', taskKind: 'bug', profile: 'mattpocock', statuses });

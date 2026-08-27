@@ -814,6 +814,9 @@
       "scenarios": [
         "image"
       ],
+      "requiresEnv": [
+        "OPENAI_API_KEY"
+      ],
       "workflow": [
         {
           "role": "worker",
