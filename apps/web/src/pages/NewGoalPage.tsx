@@ -56,6 +56,8 @@ export function NewGoalPage() {
   useEffect(() => localStorage.setItem(NATURE_KEY, nature), [nature]);
   const [mode, setMode] = useState<'simple' | 'expert'>(() => ((localStorage.getItem('ai-engine.mode') as 'simple' | 'expert' | null) ?? 'expert'));
   const [tdd, setTdd] = useState<'required' | 'preferred' | 'off'>(() => ((localStorage.getItem('ai-engine.tdd') as 'required' | 'preferred' | 'off' | null) ?? 'required'));
+  const [pace, setPace] = useState<'thorough' | 'fast'>(() => ((localStorage.getItem('ai-engine.pace') as 'thorough' | 'fast' | null) ?? 'thorough'));
+  useEffect(() => localStorage.setItem('ai-engine.pace', pace), [pace]);
   useEffect(() => localStorage.setItem('ai-engine.mode', mode), [mode]);
   useEffect(() => localStorage.setItem('ai-engine.tdd', tdd), [tdd]);
   const [checks, setChecks] = useState('');
@@ -96,7 +98,8 @@ export function NewGoalPage() {
         delivery,
         attachments,
         mode,
-        workflow: { tdd: mode === 'simple' ? 'preferred' : tdd },
+        // fast: let the engine default the TDD mandate off instead of pinning it here
+        workflow: pace === 'fast' ? { pace } : { pace, tdd: mode === 'simple' ? 'preferred' : tdd },
         nature,
         outputDir: (nature === 'image' || nature === 'video') && outputDir.trim() ? outputDir.trim() : undefined,
       });
@@ -178,6 +181,13 @@ export function NewGoalPage() {
             </button>
           ))}
         </div>
+        <label className="mt-3 flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-1" checked={pace === 'fast'} onChange={(e) => setPace(e.target.checked ? 'fast' : 'thorough')} />
+          <span>
+            <span className="text-zinc-100">Fast mode</span>
+            <span className="text-[11px] text-zinc-400 block leading-snug">Once you approve the Brief, the engine skips its own extra AI reviews (and the TDD mandate). The acceptance checks you approved still run — good for media goals and quick jobs.</span>
+          </span>
+        </label>
         {mode === 'expert' && (
           <div className="mt-3 flex items-center gap-3 flex-wrap">
             <span className="text-xs text-zinc-300">Engineering discipline — TDD</span>
