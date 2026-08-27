@@ -166,6 +166,24 @@ describe('docs generation', () => {
   });
 });
 
+describe('style direction', () => {
+  test('the chosen proposal renders into worker and reviewer prompts, reference image included', async () => {
+    const { chosenStyle } = await import('@ai-engine/core');
+    const { renderStyle } = await import('./attempt-prompt.ts');
+    const style = { key: 'S1', name: 'Warm izakaya night', palette: ['#2b1d16', '#e8a13c'], fonts: ['Noto Serif JP'], keywords: ['lantern light'], description: 'Cozy.', samples: ['artifacts/samples/S1-1.png', 'artifacts/samples/S1-2.png'], chosenSample: 'artifacts/samples/S1-2.png' };
+    const brief = { ...briefBase, tasks: [task('image')], styleOptions: [style], questions: [{ id: 'q1', text: 'Which style direction should the deliverables follow?', answer: 'Warm izakaya night', blocking: true, areaKey: null, options: ['Warm izakaya night'], kind: 'style' as const, applied: false }] };
+    expect(chosenStyle(brief)).toMatchObject({ key: 'S1' });
+    const worker = renderStyle(chosenStyle(brief));
+    expect(worker).toContain('#e8a13c');
+    expect(worker).toContain('artifacts/samples/S1-2.png');
+    expect(worker).toContain('manifest');
+    const reviewer = renderStyle(chosenStyle(brief), { forReviewer: true });
+    expect(reviewer).toContain('BLOCKER');
+    // unanswered or missing question → no section
+    expect(renderStyle(chosenStyle({ ...brief, questions: [] }))).toBe('');
+  });
+});
+
 describe('media artifacts', () => {
   test('parallel media tasks: artifacts stay out of git, land in the goal workspace, and are delivered to the output folder at done', async () => {
     const { basename, join: j } = await import('node:path');

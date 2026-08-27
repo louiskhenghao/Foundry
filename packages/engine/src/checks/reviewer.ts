@@ -1,7 +1,8 @@
 import { join } from 'node:path';
 import type { Attempt, Check, Goal, ReviewerVerdict, Task } from '@ai-engine/core';
-import { ReviewerVerdict as ReviewerVerdictSchema } from '@ai-engine/core';
+import { ReviewerVerdict as ReviewerVerdictSchema, chosenStyle, getBrief } from '@ai-engine/core';
 import { zodToJsonSchema } from 'zod-to-json-schema';
+import { renderStyle } from '../attempt-prompt.ts';
 import type { Engine } from '../engine.ts';
 import { diff } from '../git/git.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from '../guards/boundary.ts';
@@ -40,9 +41,12 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
       : task.scenario === 'video'
         ? `# Media review\nThe artifacts themselves are the deliverable and they are NOT in the diff (the \`artifacts/\` folder is kept out of git). Read the task's manifest (\`docs/artifacts/…\` in the diff) and verify each listed file exists under \`artifacts/\`. You cannot watch video: verify metadata with \`ffprobe\` if available, and if \`ffmpeg\` is available extract 2–3 frames (\`ffmpeg -i <file> -vf "select=gt(scene\\,0.3)" -frames:v 3 /tmp/frame%d.png\`) and view them with the Read tool. A file listed but missing, or metadata contradicting the spec (duration, resolution), is a blocker; final visual quality stays with the human.`
         : '';
+  const brief = getBrief(engine.store.db, goal.id)?.brief;
+  const style = brief && ['image', 'video', 'frontend', 'fullstack'].includes(task.scenario) ? renderStyle(chosenStyle(brief), { forReviewer: true }) : '';
   const prompt = [
     `# Task (${task.kind}${task.scenario !== 'general' ? `, ${task.scenario}` : ''})\n${task.title}\n\n${task.spec}`,
     rubric ? `# Rubric (verify each)\n${rubric}` : '',
+    style,
     media,
     reviewerHint ?? '',
     formatWorkflowObservation(workflow),
