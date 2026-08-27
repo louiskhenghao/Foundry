@@ -1,6 +1,6 @@
 import { cn } from '../ui.tsx';
 
-const CHIP = 'text-[10px] rounded-full border px-1.5 py-0.5 whitespace-nowrap';
+const CHIP = 'inline-block max-w-full truncate text-[10px] rounded-full border px-1.5 py-0.5';
 const KIND = 'border-violet-500/40 bg-violet-500/10 text-violet-300';
 const AREA = 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300';
 const SCENARIO = 'border-sky-500/40 bg-sky-500/10 text-sky-300';

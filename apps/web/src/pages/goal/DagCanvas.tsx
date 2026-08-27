@@ -6,7 +6,7 @@ import { Badge, cn, fmtUsd } from '../../ui.tsx';
 
 const MIN_W = 236;
 const MAX_W = 480;
-const H = 106;
+const H = 112;
 const GX = 72;
 const GY = 18;
 /** below this container width the graph is rendered as a vertical list */
@@ -103,7 +103,7 @@ function TaskNode({ t, selected, onSelect, className, style, after }: { t: DagTa
     <button
       onClick={() => onSelect(selected ? null : t.id)}
       style={style}
-      className={cn('text-left rounded-lg border p-2.5 bg-zinc-950/80 hover:border-zinc-500 transition', selected ? 'border-emerald-500 ring-1 ring-emerald-500/40' : 'border-zinc-800', t.state === 'running' && 'ring-1 ring-blue-500/40', className)}
+      className={cn('text-left rounded-lg border p-2.5 bg-zinc-950/80 hover:border-zinc-500 transition overflow-hidden', selected ? 'border-emerald-500 ring-1 ring-emerald-500/40' : 'border-zinc-800', t.state === 'running' && 'ring-1 ring-blue-500/40', className)}
     >
       <div className="flex items-center justify-between gap-2">
         {t.plain ? (
@@ -114,20 +114,18 @@ function TaskNode({ t, selected, onSelect, className, style, after }: { t: DagTa
         ) : (
           <Badge state={t.state} />
         )}
-        <span className="text-[10px] text-zinc-500 mono">
+        <span className="text-[10px] text-zinc-500 mono whitespace-nowrap">
           {t.plain ? t.id : `${t.attempts}/${t.maxAttempts}`}
+          {!t.plain && t.lastCost != null && <span className="ml-1">{fmtUsd(t.lastCost)}</span>}
           {t.origin !== 'brief' && <span className="ml-1 text-zinc-600">{t.origin}</span>}
         </span>
       </div>
       <div className="text-[13px] mt-1.5 text-zinc-100 line-clamp-2 leading-snug">{t.title}</div>
-      <TaskTags className="mt-1" kind={t.kind} scenario={t.scenario} area={t.plain ? null : t.area} />
-      {(t.worktreePath || t.lastCost != null || (after && after.length > 0)) && (
-        <div className="text-[10px] text-zinc-500 mt-1 flex gap-2 flex-wrap">
-          {t.worktreePath && <span>own worktree</span>}
-          {t.lastCost != null && <span>{fmtUsd(t.lastCost)}</span>}
-          {after && after.length > 0 && <span className="truncate">after: {after.join(', ')}</span>}
-        </div>
-      )}
+      <div className="mt-1 flex items-center gap-x-1.5 gap-y-1 flex-wrap">
+        <TaskTags kind={t.kind} scenario={t.scenario} area={t.plain ? null : t.area} />
+        {t.worktreePath && <span className="text-[10px] text-zinc-500 whitespace-nowrap">own worktree</span>}
+      </div>
+      {after && after.length > 0 && <div className="text-[10px] text-zinc-500 mt-1 truncate">after: {after.join(', ')}</div>}
     </button>
   );
 }
