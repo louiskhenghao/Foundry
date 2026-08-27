@@ -825,7 +825,7 @@
           "scenarios": [
             "image"
           ],
-          "instruction": "Invoke it first: pick the matching template, engineer the prompt, then generate. Save every file into artifacts/ and record its prompt/parameters in the task manifest."
+          "instruction": "Invoke it first: pick the matching template, engineer the prompt, then generate. Independent images MUST be generated in parallel (launch the API calls together — several Bash calls in one message or background jobs), never one after another, with at most one regeneration pass per image. Save every file into artifacts/ and record its prompt/parameters in the task manifest."
         }
       ]
     },
