@@ -4,6 +4,7 @@ import { Check, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { api, type DraftProposal } from '../../api.ts';
 import { Button, Card, Input, cn } from '../../ui.tsx';
+import { LiveLog } from '../LiveLog.tsx';
 import { DraftPanel } from './DraftPanel.tsx';
 
 /**
@@ -71,6 +72,12 @@ export function DecisionsBar({ brief, goalId, editable, edit }: { brief: Brief; 
         ))}
       </ul>
       {err && <div className="text-xs text-rose-300 mt-2">{err}</div>}
+      {busy && (
+        <div className="mt-3">
+          <p className="text-xs text-zinc-500 mb-1">The Clarifier is re-reading the Brief and the repository — its live output below. A revision usually takes a few minutes.</p>
+          <LiveLog attemptId={`draft-${goalId}`} className="max-h-56" />
+        </div>
+      )}
       {proposal && (
         <div className="mt-3">
           {noChanges ? (

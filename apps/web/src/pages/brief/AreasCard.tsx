@@ -4,6 +4,7 @@ import { Plus, Sparkles, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { api, type DraftProposal } from '../../api.ts';
 import { Button, Card, Input, cn } from '../../ui.tsx';
+import { LiveLog } from '../LiveLog.tsx';
 import { DraftPanel } from './DraftPanel.tsx';
 import { areaStyle, newArea } from './shared.ts';
 
@@ -107,6 +108,7 @@ function AreaRow({ area, brief, goalId, editable, edit, counts }: { area: BriefA
         )}
       </div>
       {err && <div className="text-xs text-rose-300">{err}</div>}
+      {drafting && <LiveLog attemptId={`draft-${goalId}`} className="max-h-40" />}
       {proposal && <DraftPanel proposal={proposal} onApply={edit} onClose={() => setProposal(null)} />}
     </div>
   );

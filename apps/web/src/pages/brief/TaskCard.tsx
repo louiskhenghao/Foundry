@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { api, type DraftProposal } from '../../api.ts';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { Button, Input, Menu, MenuItem, Select, Textarea, cn } from '../../ui.tsx';
+import { LiveLog } from '../LiveLog.tsx';
 import { CheckRow } from './CheckRow.tsx';
 import { DraftPanel } from './DraftPanel.tsx';
 import { TASK_KINDS, areaOf, areaStyle, newCheck, taskProblem } from './shared.ts';
@@ -154,6 +155,7 @@ export function TaskCard({ task, brief, goalId, editable, open, onToggle, edit }
               )}
             </div>
             {err && <div className="text-xs text-rose-300 mb-1">{err}</div>}
+            {drafting && <LiveLog attemptId={`draft-${goalId}`} className="max-h-40 mb-2" />}
             {proposal && <div className="mb-2"><DraftPanel proposal={proposal} onApply={edit} onClose={() => setProposal(null)} /></div>}
             {editable ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
