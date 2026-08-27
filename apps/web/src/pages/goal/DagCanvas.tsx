@@ -124,7 +124,8 @@ export function DagCanvas({ tasks, selected, onSelect }: { tasks: DagTask[]; sel
                   });
               })()}
             </svg>
-            <div className="flex items-start" style={{ columnGap: GX }}>
+            {/* positioned, and after the svg in the DOM: the cards paint over the edges, so lines only show in the gaps */}
+            <div className="relative flex items-start" style={{ columnGap: GX }}>
               {sorted.map(([depth, ts]) => (
                 <div key={depth} className="flex flex-col" style={{ width: nodeW, rowGap: GY }}>
                   {ts.map((t) => (
