@@ -82,7 +82,7 @@ export function PlanSection({ brief, goalId, editable, edit }: { brief: Brief; g
               )}
               <div className={cn('space-y-2.5', stages.ok && 'ml-2.5 pl-4 border-l-2 border-zinc-800')}>
                 {xs.map((t) => (
-                  <TaskCard key={t.key} task={t} brief={brief} goalId={goalId} editable={editable} open={openKey === t.key} onOpen={() => setOpenKey(t.key)} onClose={() => setOpenKey(null)} edit={edit} />
+                  <TaskCard key={t.key} task={t} brief={brief} goalId={goalId} editable={editable} open={openKey === t.key} onOpen={() => setOpenKey(t.key)} onClose={() => setOpenKey(null)} onOpenTask={setOpenKey} edit={edit} />
                 ))}
               </div>
             </div>

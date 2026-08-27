@@ -11,12 +11,18 @@ import { CheckRow } from './CheckRow.tsx';
 import { DraftPanel } from './DraftPanel.tsx';
 import { TASK_KINDS, areaOf, areaStyle, newCheck, taskProblem } from './shared.ts';
 
+const titleOf = (brief: Brief, key: string) => brief.tasks.find((t) => t.key === key)?.title || key;
+
+/** Tasks that depend on this one (its direct downstream). */
+const nextTasks = (brief: Brief, key: string) => brief.tasks.filter((t) => t.dependsOnKeys.includes(key));
+
 /** One compact row per task; everything else (title, attributes, deps, spec, checks) is edited in a modal. */
-export function TaskCard({ task, brief, goalId, editable, open, onOpen, onClose, edit }: { task: BriefTask; brief: Brief; goalId: string; editable: boolean; open: boolean; onOpen: () => void; onClose: () => void; edit: (fn: (b: Brief) => Brief) => void }) {
+export function TaskCard({ task, brief, goalId, editable, open, onOpen, onClose, onOpenTask, edit }: { task: BriefTask; brief: Brief; goalId: string; editable: boolean; open: boolean; onOpen: () => void; onClose: () => void; onOpenTask: (key: string) => void; edit: (fn: (b: Brief) => Brief) => void }) {
   const checks = brief.checks.filter((c) => c.taskKey === task.key);
   const area = areaOf(brief, task.areaKey);
   const style = areaStyle(brief, task.areaKey);
   const problem = taskProblem(task);
+  const next = nextTasks(brief, task.key);
 
   const remove = () => {
     edit((b) => ({ ...b, tasks: b.tasks.filter((t) => t.key !== task.key).map((t) => ({ ...t, dependsOnKeys: t.dependsOnKeys.filter((k) => k !== task.key) })), checks: b.checks.filter((c) => c.taskKey !== task.key) }));
@@ -36,6 +42,16 @@ export function TaskCard({ task, brief, goalId, editable, open, onOpen, onClose,
           <span className="mono text-xs text-zinc-500 w-7">{task.key}</span>
           <span className="text-sm flex-1 min-w-0 truncate">{task.title || <span className="text-zinc-500">(untitled)</span>}</span>
           {problem && editable && <span className="text-xs text-rose-300 whitespace-nowrap">{problem}</span>}
+          {task.dependsOnKeys.length > 0 && (
+            <span className="mono text-[10px] text-zinc-500 whitespace-nowrap" title={`runs after: ${task.dependsOnKeys.map((k) => titleOf(brief, k)).join(', ')}`}>
+              ← {task.dependsOnKeys.join(' ')}
+            </span>
+          )}
+          {next.length > 0 && (
+            <span className="mono text-[10px] text-zinc-500 whitespace-nowrap" title={`unblocks: ${next.map((t) => t.title || t.key).join(', ')}`}>
+              → {next.map((t) => t.key).join(' ')}
+            </span>
+          )}
           <TaskTags kind={task.kind} scenario={task.scenario} />
           {brief.areas.length > 0 && <span className={cn('text-[10px] rounded-full border px-2 py-0.5 whitespace-nowrap', style.chip)}>{area?.name ?? 'unassigned'}</span>}
           {checks.length > 0 && (
@@ -59,12 +75,12 @@ export function TaskCard({ task, brief, goalId, editable, open, onOpen, onClose,
           <Maximize2 size={12} className="text-zinc-600" />
         </div>
       </div>
-      {open && <TaskModal task={task} brief={brief} goalId={goalId} editable={editable} onClose={onClose} onRemove={remove} edit={edit} />}
+      {open && <TaskModal task={task} brief={brief} goalId={goalId} editable={editable} onClose={onClose} onRemove={remove} onOpenTask={onOpenTask} edit={edit} />}
     </>
   );
 }
 
-function TaskModal({ task, brief, goalId, editable, onClose, onRemove, edit }: { task: BriefTask; brief: Brief; goalId: string; editable: boolean; onClose: () => void; onRemove: () => void; edit: (fn: (b: Brief) => Brief) => void }) {
+function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTask, edit }: { task: BriefTask; brief: Brief; goalId: string; editable: boolean; onClose: () => void; onRemove: () => void; onOpenTask: (key: string) => void; edit: (fn: (b: Brief) => Brief) => void }) {
   const [proposal, setProposal] = useState<DraftProposal | null>(null);
   const [notes, setNotes] = useState('');
   const [drafting, setDrafting] = useState(false);
@@ -72,6 +88,7 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, edit }: {
   const checks = brief.checks.filter((c) => c.taskKey === task.key);
   const area = areaOf(brief, task.areaKey);
   const after = task.dependsOnKeys.map((k) => brief.tasks.find((t) => t.key === k)).filter(Boolean) as BriefTask[];
+  const next = nextTasks(brief, task.key);
   const problem = taskProblem(task);
   const hasSpec = task.spec.trim().length > 0;
 
@@ -137,6 +154,16 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, edit }: {
           <label className="text-zinc-400 flex items-center gap-1 whitespace-nowrap" title="May run at the same time as other ready tasks (in its own worktree)">
             <input type="checkbox" disabled={!editable} checked={task.parallelizable} onChange={(e) => change({ parallelizable: e.target.checked })} /> parallel
           </label>
+          {next.length > 0 && (
+            <span className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-zinc-500" title="tasks that wait for this one — click to open">→ unblocks</span>
+              {next.map((t) => (
+                <button key={t.key} onClick={() => onOpenTask(t.key)} className="max-w-56 truncate rounded border border-zinc-700 px-1.5 py-0.5 text-zinc-300 hover:border-zinc-500 text-left" title={t.title || t.key}>
+                  <span className="mono text-zinc-500">{t.key}</span> {t.title || '(untitled)'}
+                </button>
+              ))}
+            </span>
+          )}
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
