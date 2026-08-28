@@ -664,6 +664,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const cap = engine.updater.capability();
     if (engine.updater.isApplying()) throw new HttpError(409, { error: 'an update is already running' });
     if (!cap.canSelfUpdate) throw new HttpError(422, { error: 'this install cannot self-update', guided: cap.guided, mode: cap.mode });
+    if (!engine.updater.cachedReport()?.updateAvailable) throw new HttpError(409, { error: 'no newer version known — check for updates first' });
     // background; failures are streamed to the channel and recorded as an update.run event
     void engine.updater.apply({ force, onLine: stream('self-update') }).catch(() => {});
     return c.json({ started: true, channel: 'self-update' }, 202);
