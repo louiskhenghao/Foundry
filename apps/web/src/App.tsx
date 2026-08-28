@@ -1,4 +1,4 @@
-import { Inbox, ListTodo, Menu, Plus, Puzzle, Radio, Settings2, Wrench, X } from 'lucide-react';
+import { Inbox, ListTodo, Menu, Moon, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X } from 'lucide-react';
 import { SettingsPage } from './pages/SettingsPage.tsx';
 import { useEffect, useState } from 'react';
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
@@ -80,6 +80,7 @@ export function App() {
         <nav className="hidden md:flex items-center gap-1">{links}</nav>
         <div className="ml-auto flex items-center gap-2 md:gap-3 text-xs text-zinc-500 min-w-0">
           <UsagePill />
+          <ThemeToggle />
           <AccountMenu />
           <span className="hidden sm:flex items-center gap-1.5">
             <Radio size={13} className={connected ? 'text-emerald-400' : 'text-rose-400'} /> {connected ? 'live' : 'reconnecting…'}
@@ -107,5 +108,23 @@ export function App() {
         </Routes>
       </main>
     </div>
+  );
+}
+
+/** Light/dark toggle; the choice is remembered, first visit follows the system (see index.html). */
+function ThemeToggle() {
+  const [light, setLight] = useState(() => document.documentElement.classList.contains('light'));
+  const toggle = () => {
+    const next = !light;
+    setLight(next);
+    document.documentElement.classList.toggle('light', next);
+    try {
+      localStorage.setItem('foundry.theme', next ? 'light' : 'dark');
+    } catch {}
+  };
+  return (
+    <button onClick={toggle} className="p-1.5 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900" title={light ? 'Switch to dark mode' : 'Switch to light mode'}>
+      {light ? <Moon size={14} /> : <Sun size={14} />}
+    </button>
   );
 }

@@ -3,6 +3,50 @@
 :root {
   color-scheme: dark;
 }
+
+/*
+ * Light mode: the app is authored dark-first against the zinc ramp, so `.light` on <html>
+ * simply inverts that ramp (page ↔ text) and darkens the accent text steps (-200/-300/-400)
+ * that would otherwise wash out on white. Set before paint by the inline script in index.html.
+ */
+:root.light {
+  color-scheme: light;
+  --color-zinc-950: #f4f4f5; /* page */
+  --color-zinc-900: #ffffff; /* surfaces */
+  --color-zinc-800: #e4e4e7; /* borders */
+  --color-zinc-700: #d4d4d8;
+  --color-zinc-600: #a1a1aa;
+  --color-zinc-500: #71717a; /* muted text reads on both */
+  --color-zinc-400: #52525b;
+  --color-zinc-300: #3f3f46;
+  --color-zinc-200: #27272a;
+  --color-zinc-100: #18181b; /* primary text */
+  --color-zinc-50: #09090b;
+  --color-emerald-200: var(--color-emerald-800);
+  --color-emerald-300: var(--color-emerald-700);
+  --color-emerald-400: var(--color-emerald-600);
+  --color-amber-200: var(--color-amber-800);
+  --color-amber-300: var(--color-amber-700);
+  --color-amber-400: var(--color-amber-600);
+  --color-sky-200: var(--color-sky-800);
+  --color-sky-300: var(--color-sky-700);
+  --color-sky-400: var(--color-sky-600);
+  --color-blue-200: var(--color-blue-800);
+  --color-blue-300: var(--color-blue-700);
+  --color-blue-400: var(--color-blue-600);
+  --color-violet-200: var(--color-violet-800);
+  --color-violet-300: var(--color-violet-700);
+  --color-violet-400: var(--color-violet-600);
+  --color-rose-200: var(--color-rose-800);
+  --color-rose-300: var(--color-rose-700);
+  --color-rose-400: var(--color-rose-600);
+  --color-orange-200: var(--color-orange-800);
+  --color-orange-300: var(--color-orange-700);
+  --color-orange-400: var(--color-orange-600);
+  --color-fuchsia-200: var(--color-fuchsia-800);
+  --color-fuchsia-300: var(--color-fuchsia-700);
+  --color-fuchsia-400: var(--color-fuchsia-600);
+}
 html,
 body,
 #root {
