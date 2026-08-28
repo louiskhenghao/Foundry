@@ -58,9 +58,15 @@ export function CheckRow({ check, brief, editable, context, onChange, onRemove }
         )}
       </div>
       {check.spec.type === 'command' ? (
-        <Input className="mono text-xs" disabled={!editable} placeholder="shell command run from the repo root; exit 0 = pass (e.g. bun test)" value={check.spec.cmd} onChange={(e) => onChange({ ...check, spec: { ...check.spec, type: 'command', cmd: e.target.value } })} />
+        (() => {
+          const spec = check.spec; // narrowed here; the onChange closure would otherwise see the whole union
+          return <Input className="mono text-xs" disabled={!editable} placeholder="shell command run from the repo root; exit 0 = pass (e.g. bun test)" value={spec.cmd} onChange={(e) => onChange({ ...check, spec: { ...spec, cmd: e.target.value } })} />;
+        })()
       ) : check.spec.type === 'reviewer' ? (
-        <Input className="text-xs" disabled={!editable} placeholder="rubric: what the reviewer must verify in the diff" value={check.spec.rubric} onChange={(e) => onChange({ ...check, spec: { ...check.spec, type: 'reviewer', rubric: e.target.value } })} />
+        (() => {
+          const spec = check.spec;
+          return <Input className="text-xs" disabled={!editable} placeholder="rubric: what the reviewer must verify in the diff" value={spec.rubric} onChange={(e) => onChange({ ...check, spec: { ...spec, rubric: e.target.value } })} />;
+        })()
       ) : (
         <div className="text-[11px] text-zinc-500">llm-judge: {check.spec.prompt}</div>
       )}
