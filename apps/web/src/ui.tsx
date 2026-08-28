@@ -181,8 +181,14 @@ export function CopyButton({ text }: { text: string }) {
     </button>
   );
 }
+/** Display names where the raw state is too long for a one-line badge; everything else falls through. */
+const STATE_LABELS: Record<string, string> = {
+  awaiting_brief_approval: 'approve brief',
+  over_delivered: 'over-delivered',
+  goal_review: 'reviewing',
+};
 export function Badge({ state, children, className }: { state: string; children?: ReactNode; className?: string }) {
-  return <span className={cn('inline-flex items-center rounded border px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide border-transparent', STATE_COLORS[state] ?? 'bg-zinc-800 text-zinc-300', className)}>{children ?? state.replace(/_/g, ' ')}</span>;
+  return <span className={cn('inline-flex items-center whitespace-nowrap rounded border px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide border-transparent', STATE_COLORS[state] ?? 'bg-zinc-800 text-zinc-300', className)} title={state.replace(/_/g, ' ')}>{children ?? STATE_LABELS[state] ?? state.replace(/_/g, ' ')}</span>;
 }
 
 /** Progress bar against a limit; `max` null = no limit (renders a neutral bar). */
