@@ -123,6 +123,7 @@ export interface FsRecent {
   roots: { label: string; path: string }[];
   nativePicker: boolean;
 }
+import type { AgentLogChunk, AgentsList, AgentsSummary } from '@foundry/engine/agents-types';
 import type { DoctorReport, InstallResult, SkillTier, SkillUpdateRun, SkillsOverview, SkillsUpdateReport, TrashEntry } from '@foundry/engine/skills-types';
 import type { UsageSummary } from '@foundry/engine/usage-types';
 
@@ -214,6 +215,10 @@ const safeJson = (t: string) => {
 };
 
 export const api = {
+  agents: () => req<AgentsList>('/api/agents'),
+  agentsSummary: () => req<AgentsSummary>('/api/agents/summary'),
+  agentLog: (sessionId: string, offset = 0, agent?: string) => req<AgentLogChunk>(`/api/agents/${sessionId}/log?offset=${offset}${agent ? `&agent=${encodeURIComponent(agent)}` : ''}`),
+  killAgent: (sessionId: string) => req<{ ok: true }>(`/api/agents/${sessionId}/kill`, { method: 'POST' }),
   goals: () => req<GoalRow[]>('/api/goals'),
   goal: (id: string) => req<GoalDetail>(`/api/goals/${id}`),
   createGoal: (body: unknown) => req<Goal>('/api/goals', { method: 'POST', body: JSON.stringify(body) }),

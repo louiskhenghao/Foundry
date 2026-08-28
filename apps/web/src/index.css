@@ -69,7 +69,8 @@
 :root.light .md code,
 :root.light .md pre,
 :root.light .md th,
-:root.light .diff-file-head {
+:root.light .diff-file-head,
+:root.light .surface-inset {
   background-color: #f4f4f5;
 }
 :root.light ::-webkit-scrollbar-thumb {

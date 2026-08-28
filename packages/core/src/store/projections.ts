@@ -351,6 +351,10 @@ export function listAttemptsByGoal(db: Database, goalId: string): Attempt[] {
 export function listRunningAttempts(db: Database): Attempt[] {
   return (db.query("SELECT data FROM attempts WHERE state IN ('created','running','observing')").all() as { data: string }[]).map((r) => JSON.parse(r.data));
 }
+/** Attempts whose session ended at/after the given ISO time (for the agents monitor's recent list). */
+export function listAttemptsEndedSince(db: Database, sinceIso: string): Attempt[] {
+  return (db.query("SELECT data FROM attempts WHERE json_extract(data, '$.endedAt') >= ?").all(sinceIso) as { data: string }[]).map((r) => JSON.parse(r.data));
+}
 export function upsertAttempt(db: Database, a: Attempt): void {
   db.run(
     'INSERT INTO attempts (id, goal_id, task_id, state, data) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET state = excluded.state, data = excluded.data',

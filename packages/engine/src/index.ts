@@ -8,6 +8,8 @@ export * from './context/grep-provider.ts';
 export * from './context/graphify-provider.ts';
 export * from './distill/summarize.ts';
 export * from './skills/index.ts';
+export * from './agents/types.ts';
+export { AgentsMonitor, type FoundryLiveSession } from './agents/monitor.ts';
 export * from './usage/ledger.ts';
 export * from './auth/claude-auth.ts';
 export * from './delivery/git-init.ts';

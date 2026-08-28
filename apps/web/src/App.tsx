@@ -1,5 +1,7 @@
-import { Inbox, ListTodo, Menu, Moon, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X } from 'lucide-react';
+import { Bot, Inbox, ListTodo, Menu, Moon, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X } from 'lucide-react';
 import { SettingsPage } from './pages/SettingsPage.tsx';
+import { AgentsPage } from './pages/AgentsPage.tsx';
+import { AgentsPill } from './pages/agents/AgentsPill.tsx';
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api } from './api.ts';
@@ -54,6 +56,9 @@ export function App() {
         <Inbox size={15} /> <span className={label}>Inbox</span>
         {open > 0 && <span className="ml-1 rounded-full bg-orange-500 text-zinc-950 text-[10px] px-1.5 font-bold">{open}</span>}
       </NavLink>
+      <NavLink to="/agents" className={link} title="Agents">
+        <Bot size={15} /> <span className={label}>Agents</span>
+      </NavLink>
       <NavLink to="/skills" className={link} title="Skills">
         <Puzzle size={15} /> <span className={label}>Skills</span>
       </NavLink>
@@ -84,6 +89,7 @@ export function App() {
               <Plus size={14} /> <span className="hidden sm:inline">New goal</span>
             </Button>
           </Link>
+          <AgentsPill />
           <UsagePill />
           <AccountMenu />
           <span className="hidden sm:flex items-center gap-1.5">
@@ -105,6 +111,7 @@ export function App() {
           <Route path="/goals/:id/brief" element={<BriefPage />} />
           <Route path="/goals/:id/resolve/:taskId" element={<MergeResolvePage />} />
           <Route path="/goals/:id" element={<GoalPage />} />
+          <Route path="/agents" element={<AgentsPage />} />
           <Route path="/inbox" element={<InboxPage />} />
           <Route path="/skills" element={<SkillsPage />} />
           <Route path="/setup" element={<SetupPage />} />
