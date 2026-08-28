@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ApiError, api } from '../../api.ts';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { Button, ConfirmDialog, Empty, Input, Modal, ago, cn } from '../../ui.tsx';
-import { CatalogPanel, HistoryPanel, SessionPanel, TrashPanel } from './SidePanels.tsx';
+import { SessionLine, SidePanelTabs } from './SidePanels.tsx';
 import { SourceGroup } from './SourceGroup.tsx';
 
 type Report = SkillsUpdateReport & { updating: string | null; refreshing: boolean };
@@ -185,8 +185,11 @@ export function SkillsPage() {
         </div>
       </div>
       <p className="text-xs text-zinc-500 -mt-2">
-        Grouped by where each skill comes from. Updates run the source's own tool (npx skills, claude plugin) or Foundry's installer; every run is recorded below. Uninstall never deletes — copies go to <span className="mono">data/skills-trash</span>.
+        Grouped by where each skill comes from. Updates run the source's own tool (npx skills, claude plugin) or Foundry's installer; every run is recorded in History. Uninstall never deletes — copies go to the Trash tab.
       </p>
+      <div className="-mt-1">
+        <SessionLine view={overview.lastSession} />
+      </div>
 
       <div className="flex items-center gap-2 flex-wrap">
         {(['all', 'user', 'plugin', 'project'] as const).map((s) => (
@@ -226,11 +229,8 @@ export function SkillsPage() {
           ))}
           {report.sources.every((s) => !s.skills.some(filter)) && <Empty>Nothing matches.</Empty>}
         </div>
-        <div className={cn('space-y-4', showCatalog ? 'block' : 'hidden lg:block')}>
-          <CatalogPanel catalog={overview.catalog} busy={busy} onInstall={install} onInstallTier={installTier} />
-          <TrashPanel trash={trash} busy={busy} onRestore={restore} />
-          <HistoryPanel runs={runs} />
-          <SessionPanel view={overview.lastSession} />
+        <div className={cn(showCatalog ? 'block' : 'hidden lg:block')}>
+          <SidePanelTabs catalog={overview.catalog} trash={trash} runs={runs} busy={busy} onInstall={install} onInstallTier={installTier} onRestore={restore} />
         </div>
       </div>
 
