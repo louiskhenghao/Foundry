@@ -73,7 +73,7 @@ export function MergeResolvePage() {
   if (err && !state) return <Empty>{err}</Empty>;
   if (cannot) {
     return (
-      <div className="max-w-3xl mx-auto p-6 space-y-3">
+      <div className="max-w-6xl mx-auto p-6 space-y-3">
         <Link to={`/goals/${id}#tasks`} className="text-xs text-zinc-400 underline">
           ← back to the goal
         </Link>

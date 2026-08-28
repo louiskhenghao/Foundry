@@ -153,7 +153,7 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
         {err && <div className="text-xs text-rose-400 mt-2">{err}</div>}
         <div className="flex justify-end mt-3 gap-2">
           <Button variant="primary" disabled={busy || draft.mode === 'local' || del.status === 'running'} onClick={run}>
-            {finished ? (draft.mode === 'push' ? 'Push now' : draft.mode === 'pr' ? (draft.unit === 'task' ? 'Open PRs now' : 'Open PR now') : draft.unit === 'task' ? 'Open PRs and merge when green' : 'Open PR and merge when green') : 'Save policy (runs when done)'}
+            {!finished ? 'Save policy (runs when done)' : draft.mode === 'local' ? 'Local only — nothing to run' : draft.mode === 'push' ? 'Push now' : draft.mode === 'pr' ? (draft.unit === 'task' ? 'Open PRs now' : 'Open PR now') : draft.unit === 'task' ? 'Open PRs and merge when green' : 'Open PR and merge when green'}
           </Button>
         </div>
       </Card>

@@ -81,7 +81,7 @@ export function GoalPage() {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
+    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
       <UsagePausedBanner />
       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_21rem] md:gap-6 md:items-start">
         <div className="min-w-0">
@@ -98,7 +98,7 @@ export function GoalPage() {
               {repoName}
             </span>
             <CopyButton text={g.repoPath} />
-            <span className="text-zinc-700">·</span>
+            <span className="text-zinc-600">·</span>
             <GitBranch size={12} className="shrink-0" />
             <span className="mono truncate" title={`${g.baseBranch} → ${g.branch}`}>
               {g.baseBranch} → {g.branch}
@@ -173,16 +173,16 @@ export function GoalPage() {
         <SimpleOverview d={d} onExpert={() => setView(true)} />
       ) : (
         <>
-      {!awaiting && (
-        <div className="text-right">
-          <Button size="sm" variant="ghost" onClick={() => setView(false)} title="Back to the plain progress view">
-            Simple view
-          </Button>
-        </div>
-      )}
       <Tabs<Tab>
         value={tab}
         onChange={setTab}
+        right={
+          !awaiting && (
+            <Button size="sm" variant="ghost" onClick={() => setView(false)} title="Back to the plain progress view">
+              Simple view
+            </Button>
+          )
+        }
         tabs={[
           { id: 'overview', label: 'Overview', badge: open > 0 ? <span className="rounded-full bg-orange-500 text-zinc-950 text-[10px] px-1.5 font-bold">{open}</span> : null },
           { id: 'tasks', label: `Tasks`, badge: <span className="text-[10px] text-zinc-500">{d.tasks.filter((t) => t.state === 'done').length}/{d.tasks.length}{running ? ` · ${running} running` : ''}</span> },

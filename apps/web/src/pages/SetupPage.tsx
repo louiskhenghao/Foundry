@@ -109,7 +109,7 @@ export function SetupPage() {
   const errors = report.checks.filter((c) => !c.ok && c.severity === 'error');
 
   return (
-    <div className="max-w-3xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
+    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
       <div>
         <h1 className="text-lg font-semibold">Setup</h1>
         <p className="text-sm text-zinc-400 mt-1">

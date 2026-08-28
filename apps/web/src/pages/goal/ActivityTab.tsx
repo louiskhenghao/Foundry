@@ -34,13 +34,13 @@ export function ActivityTab({ d }: { d: GoalDetail }) {
         </label>
         <span className="ml-auto">{items.length} entries</span>
       </div>
-      <div className="rounded-lg border border-zinc-800 divide-y divide-zinc-800/60 max-h-[70vh] overflow-auto">
+      <div className="surface-card rounded-lg border border-zinc-800 divide-y divide-zinc-800/60 max-h-[70vh] overflow-auto">
         {items.map((it) => (
           <div key={it.key} className="flex gap-3 px-3 py-1.5 text-xs">
             <span className="mono text-zinc-600 w-16 shrink-0">{it.ts.slice(11, 19)}</span>
             <span className={cn('mt-1.5 h-1.5 w-1.5 rounded-full shrink-0', DOT[it.tone])} />
             <span className={cn('flex-1 break-words', it.kind === 'text' ? 'text-zinc-500 italic' : TONE[it.tone])}>{it.text}</span>
-            <span className="mono text-[10px] text-zinc-700 shrink-0">{it.type}</span>
+            <span className="mono text-[10px] text-zinc-600 shrink-0">{it.type}</span>
           </div>
         ))}
         {items.length === 0 && <div className="text-sm text-zinc-500 py-8 text-center">Nothing yet.</div>}

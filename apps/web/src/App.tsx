@@ -1,7 +1,7 @@
-import { Inbox, ListTodo, Menu, Plus, Puzzle, Radio, Settings2, Wrench, X } from 'lucide-react';
+import { Inbox, ListTodo, Menu, Moon, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X } from 'lucide-react';
 import { SettingsPage } from './pages/SettingsPage.tsx';
 import { useEffect, useState } from 'react';
-import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api } from './api.ts';
 import { AccountMenu } from './components/AccountMenu.tsx';
 import { BriefPage } from './pages/BriefPage.tsx';
@@ -14,7 +14,7 @@ import { SetupPage } from './pages/SetupPage.tsx';
 import { SkillsPage } from './pages/SkillsPage.tsx';
 import { UsagePage, UsagePill } from './pages/UsagePage.tsx';
 import { useLive } from './store.ts';
-import { cn } from './ui.tsx';
+import { Button, cn } from './ui.tsx';
 
 export function App() {
   const connected = useLive((s) => s.connected);
@@ -43,33 +43,32 @@ export function App() {
   }, []);
 
   const link = ({ isActive }: { isActive: boolean }) => cn('flex items-center gap-2 px-3 py-2 md:py-1.5 rounded-md text-sm', isActive ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900');
+  // between md and lg the header only fits the icons; the dropdown (below md) always shows labels
+  const label = 'md:hidden lg:inline';
   const links = (
     <>
-      <NavLink to="/" end className={link}>
-        <ListTodo size={15} /> Goals
+      <NavLink to="/" end className={link} title="Goals">
+        <ListTodo size={15} /> <span className={label}>Goals</span>
       </NavLink>
-      <NavLink to="/goals/new" className={link}>
-        <Plus size={15} /> New goal
-      </NavLink>
-      <NavLink to="/inbox" className={link}>
-        <Inbox size={15} /> Inbox
+      <NavLink to="/inbox" className={link} title="Inbox">
+        <Inbox size={15} /> <span className={label}>Inbox</span>
         {open > 0 && <span className="ml-1 rounded-full bg-orange-500 text-zinc-950 text-[10px] px-1.5 font-bold">{open}</span>}
       </NavLink>
-      <NavLink to="/skills" className={link}>
-        <Puzzle size={15} /> Skills
+      <NavLink to="/skills" className={link} title="Skills">
+        <Puzzle size={15} /> <span className={label}>Skills</span>
       </NavLink>
-      <NavLink to="/setup" className={link}>
-        <Wrench size={15} /> Setup
+      <NavLink to="/setup" className={link} title="Setup">
+        <Wrench size={15} /> <span className={label}>Setup</span>
         {setupBad && <span className="ml-1 h-2 w-2 rounded-full bg-rose-500 inline-block" />}
       </NavLink>
-      <NavLink to="/settings" className={link}>
-        <Settings2 size={15} /> Settings
+      <NavLink to="/settings" className={link} title="Settings">
+        <Settings2 size={15} /> <span className={label}>Settings</span>
       </NavLink>
     </>
   );
   return (
     <div className="h-full flex flex-col">
-      <header className="relative flex items-center gap-2 md:gap-4 px-3 md:px-4 h-12 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur sticky top-0 z-20">
+      <header className="surface-card relative flex items-center gap-2 md:gap-4 px-3 md:px-4 h-12 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur sticky top-0 z-20">
         <button className="md:hidden p-1.5 -ml-1 rounded text-zinc-300 hover:bg-zinc-900" aria-label="menu" onClick={() => setMenu(!menu)}>
           {menu ? <X size={18} /> : <Menu size={18} />}
         </button>
@@ -79,7 +78,14 @@ export function App() {
         </NavLink>
         <nav className="hidden md:flex items-center gap-1">{links}</nav>
         <div className="ml-auto flex items-center gap-2 md:gap-3 text-xs text-zinc-500 min-w-0">
+          {/* the one action that starts work lives here, not in the nav, so a narrow header keeps it */}
+          <Link to="/goals/new" className="shrink-0">
+            <Button size="sm" variant="primary" title="Start a new goal">
+              <Plus size={14} /> <span className="hidden sm:inline">New goal</span>
+            </Button>
+          </Link>
           <UsagePill />
+          <ThemeToggle />
           <AccountMenu />
           <span className="hidden sm:flex items-center gap-1.5">
             <Radio size={13} className={connected ? 'text-emerald-400' : 'text-rose-400'} /> {connected ? 'live' : 'reconnecting…'}
@@ -107,5 +113,23 @@ export function App() {
         </Routes>
       </main>
     </div>
+  );
+}
+
+/** Light/dark toggle; the choice is remembered, first visit follows the system (see index.html). */
+function ThemeToggle() {
+  const [light, setLight] = useState(() => document.documentElement.classList.contains('light'));
+  const toggle = () => {
+    const next = !light;
+    setLight(next);
+    document.documentElement.classList.toggle('light', next);
+    try {
+      localStorage.setItem('foundry.theme', next ? 'light' : 'dark');
+    } catch {}
+  };
+  return (
+    <button onClick={toggle} className="p-1.5 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900" title={light ? 'Switch to dark mode' : 'Switch to light mode'}>
+      {light ? <Moon size={14} /> : <Sun size={14} />}
+    </button>
   );
 }

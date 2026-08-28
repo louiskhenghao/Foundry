@@ -85,9 +85,9 @@ export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTex
   return <textarea className={cn('w-full rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500', className)} {...props} />;
 }
 
-export function Card({ children, className, title, actions }: { children: ReactNode; className?: string; title?: ReactNode; actions?: ReactNode }) {
+export function Card({ children, className, title, actions, id }: { children: ReactNode; className?: string; title?: ReactNode; actions?: ReactNode; id?: string }) {
   return (
-    <section className={cn('rounded-lg border border-zinc-800 bg-zinc-900/60', className)}>
+    <section id={id} className={cn('rounded-lg border border-zinc-800 bg-zinc-900/60', className)}>
       {(title || actions) && (
         <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2.5 border-b border-zinc-800">
           <h3 className="text-sm font-semibold text-zinc-200 min-w-0 grow shrink basis-56">{title}</h3>
@@ -155,7 +155,7 @@ const STATE_COLORS: Record<string, string> = {
   'update-available': 'bg-amber-500/20 text-amber-300 border-amber-500/40',
 };
 
-export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { id: T; label: ReactNode; badge?: ReactNode }[]; value: T; onChange: (t: T) => void }) {
+export function Tabs<T extends string>({ tabs, value, onChange, right }: { tabs: { id: T; label: ReactNode; badge?: ReactNode }[]; value: T; onChange: (t: T) => void; right?: ReactNode }) {
   return (
     <div className="flex items-center gap-1 border-b border-zinc-800 overflow-x-auto whitespace-nowrap -mx-1 px-1">
       {tabs.map((t) => (
@@ -164,6 +164,7 @@ export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { id: 
           {t.badge}
         </button>
       ))}
+      {right && <span className="ml-auto shrink-0 pl-2">{right}</span>}
     </div>
   );
 }
@@ -181,8 +182,14 @@ export function CopyButton({ text }: { text: string }) {
     </button>
   );
 }
+/** Display names where the raw state is too long for a one-line badge; everything else falls through. */
+const STATE_LABELS: Record<string, string> = {
+  awaiting_brief_approval: 'approve brief',
+  over_delivered: 'over-delivered',
+  goal_review: 'reviewing',
+};
 export function Badge({ state, children, className }: { state: string; children?: ReactNode; className?: string }) {
-  return <span className={cn('inline-flex items-center rounded border px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide border-transparent', STATE_COLORS[state] ?? 'bg-zinc-800 text-zinc-300', className)}>{children ?? state.replace(/_/g, ' ')}</span>;
+  return <span className={cn('inline-flex items-center whitespace-nowrap rounded border px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide border-transparent', STATE_COLORS[state] ?? 'bg-zinc-800 text-zinc-300', className)} title={state.replace(/_/g, ' ')}>{children ?? STATE_LABELS[state] ?? state.replace(/_/g, ' ')}</span>;
 }
 
 /** Progress bar against a limit; `max` null = no limit (renders a neutral bar). */

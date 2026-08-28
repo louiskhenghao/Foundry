@@ -62,8 +62,8 @@ export function DiffTab({ goalId, baseBranch, branch }: { goalId: string; baseBr
         </button>
       </div>
       {files.map((f) => (
-        <div key={f.path} className="rounded-md border border-zinc-800 overflow-hidden">
-          <button onClick={() => toggle(f.path)} className="w-full flex items-center gap-3 px-3 py-1.5 bg-zinc-900/70 text-xs text-left">
+        <div key={f.path} className="surface-card rounded-md border border-zinc-800 overflow-hidden">
+          <button onClick={() => toggle(f.path)} className="diff-file-head w-full flex items-center gap-3 px-3 py-1.5 bg-zinc-900/70 text-xs text-left">
             <span className="text-zinc-500">{open.has(f.path) ? '▾' : '▸'}</span>
             <span className="mono text-zinc-100 flex-1 truncate">{f.path}</span>
             <span className="text-emerald-400">+{f.add}</span>
@@ -71,11 +71,14 @@ export function DiffTab({ goalId, baseBranch, branch }: { goalId: string; baseBr
           </button>
           {open.has(f.path) && (
             <pre className="mono text-[11px] leading-4 overflow-auto max-h-[480px] p-2">
-              {f.lines.map((l, i) => (
-                <div key={i} className={cn(l.startsWith('+') && !l.startsWith('+++') ? 'text-emerald-300 bg-emerald-500/5' : l.startsWith('-') && !l.startsWith('---') ? 'text-rose-300 bg-rose-500/5' : l.startsWith('@@') ? 'text-sky-400' : 'text-zinc-400')}>
-                  {l || ' '}
-                </div>
-              ))}
+              {/* the rows sit in a max-content box so a line's tint spans the whole scroll width, not just the visible one */}
+              <div className="w-max min-w-full">
+                {f.lines.map((l, i) => (
+                  <div key={i} className={cn(l.startsWith('+') && !l.startsWith('+++') ? 'text-emerald-300 bg-emerald-500/10' : l.startsWith('-') && !l.startsWith('---') ? 'text-rose-300 bg-rose-500/10' : l.startsWith('@@') ? 'text-sky-400' : 'text-zinc-400')}>
+                    {l || ' '}
+                  </div>
+                ))}
+              </div>
             </pre>
           )}
         </div>

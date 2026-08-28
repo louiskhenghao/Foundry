@@ -3,6 +3,78 @@
 :root {
   color-scheme: dark;
 }
+
+/*
+ * Light mode: the app is authored dark-first against the zinc ramp, so `.light` on <html>
+ * simply inverts that ramp (page ↔ text) and darkens the accent text steps (-200/-300/-400)
+ * that would otherwise wash out on white. Set before paint by the inline script in index.html.
+ */
+:root.light {
+  color-scheme: light;
+  --color-zinc-950: #ebebed; /* page — a step darker than surfaces so white cards keep a visible boundary */
+  --color-zinc-900: #ffffff; /* surfaces */
+  --color-zinc-800: #d6d6dc; /* borders — a hairline is all that separates the header, the tabs and the cards */
+  --color-zinc-700: #c4c4cc;
+  --color-zinc-600: #8e8e96; /* dimmest TEXT step (timestamps, event types) — must stay readable on white */
+  --color-zinc-500: #71717a; /* muted text reads on both */
+  --color-zinc-400: #52525b;
+  --color-zinc-300: #3f3f46;
+  --color-zinc-200: #27272a;
+  --color-zinc-100: #18181b; /* primary text */
+  --color-zinc-50: #09090b;
+  --color-emerald-200: var(--color-emerald-800);
+  --color-emerald-300: var(--color-emerald-700);
+  --color-emerald-400: var(--color-emerald-600);
+  --color-amber-200: var(--color-amber-800);
+  --color-amber-300: var(--color-amber-700);
+  --color-amber-400: var(--color-amber-600);
+  --color-sky-200: var(--color-sky-800);
+  --color-sky-300: var(--color-sky-700);
+  --color-sky-400: var(--color-sky-600);
+  --color-blue-200: var(--color-blue-800);
+  --color-blue-300: var(--color-blue-700);
+  --color-blue-400: var(--color-blue-600);
+  --color-violet-200: var(--color-violet-800);
+  --color-violet-300: var(--color-violet-700);
+  --color-violet-400: var(--color-violet-600);
+  --color-rose-200: var(--color-rose-800);
+  --color-rose-300: var(--color-rose-700);
+  --color-rose-400: var(--color-rose-600);
+  --color-orange-200: var(--color-orange-800);
+  --color-orange-300: var(--color-orange-700);
+  --color-orange-400: var(--color-orange-600);
+  --color-fuchsia-200: var(--color-fuchsia-800);
+  --color-fuchsia-300: var(--color-fuchsia-700);
+  --color-fuchsia-400: var(--color-fuchsia-600);
+}
+
+/*
+ * Dark nests by going darker, but in light the page IS the darkest layer — so a box that is
+ * page-coloured (or transparent) in dark dissolves into the light page. Marked boxes become white
+ * cards, the one shape every panel shares here; their border does the separating when they nest.
+ */
+:root.light .surface-card,
+:root.light .dag-node {
+  background-color: #ffffff;
+}
+:root.light .dag-node {
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+}
+
+/*
+ * Dark has two surface levels (page 950 / card 900) and uses 900 for BOTH cards and the panels
+ * nested inside them. Light needs a third step, or those nested panels turn white-on-white:
+ * code blocks, table headers and the diff file strip get the tint between page and card.
+ */
+:root.light .md code,
+:root.light .md pre,
+:root.light .md th,
+:root.light .diff-file-head {
+  background-color: #f4f4f5;
+}
+:root.light ::-webkit-scrollbar-thumb {
+  background-color: #c4c4c9;
+}
 html,
 body,
 #root {
@@ -14,6 +86,14 @@ body {
 }
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+/*
+ * Styling the scrollbar makes it a classic, space-consuming one, so the page scroller must always
+ * reserve its gutter: otherwise a tab whose content fits is 8px wider than one that scrolls and
+ * switching tabs shifts the whole layout sideways.
+ */
+main {
+  scrollbar-gutter: stable;
 }
 ::-webkit-scrollbar {
   width: 8px;

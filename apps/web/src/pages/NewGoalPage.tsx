@@ -124,13 +124,13 @@ export function NewGoalPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto p-3 sm:p-4 md:p-6 space-y-4 pb-24">
+    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4 pb-24">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="text-lg font-semibold">New goal</h1>
         <ol className="flex items-center gap-1 text-[11px] text-zinc-500">
           {STEPS.map((s, i) => (
             <li key={s} className="flex items-center gap-1">
-              <span className={cn('h-4 w-4 rounded-full text-[9px] flex items-center justify-center border', done[i] ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' : 'border-zinc-700')}>{i + 1}</span>
+              <span className={cn('h-4 w-4 rounded-full text-[9px] flex items-center justify-center border', done[i] ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' : 'border-zinc-600')}>{i + 1}</span>
               <span className="hidden sm:inline">{s}</span>
               {i < STEPS.length - 1 && <span className="w-3 h-px bg-zinc-800 mx-0.5" />}
             </li>
@@ -151,7 +151,8 @@ export function NewGoalPage() {
                 // media deliverables are judged by eye — default to fast (no engine AI reviews) unless the human chose a pace
                 if (!paceTouched.current) setPace(n.id === 'image' || n.id === 'video' ? 'fast' : basePace.current);
               }}
-              className={cn('text-left rounded-lg border p-2.5', nature === n.id ? 'border-emerald-500 bg-emerald-500/10' : 'border-zinc-800 hover:border-zinc-600')}
+              // a stretched button centres its content; flex-col keeps short cards aligned with tall ones
+              className={cn('flex flex-col text-left rounded-lg border p-2.5', nature === n.id ? 'border-emerald-500 bg-emerald-500/10' : 'border-zinc-800 hover:border-zinc-600')}
             >
               <div className="text-sm font-medium text-zinc-100">{n.label}</div>
               <div className="text-[11px] text-zinc-400 mt-0.5 leading-snug">{n.text}</div>
@@ -185,7 +186,7 @@ export function NewGoalPage() {
               { id: 'expert', label: 'Expert', text: 'Every control: Areas, task graph, acceptance checks, attempt logs, merge resolution, engineering discipline.' },
             ] as const
           ).map((m) => (
-            <button key={m.id} type="button" onClick={() => setMode(m.id)} className={cn('text-left rounded-lg border p-3', mode === m.id ? 'border-emerald-500 bg-emerald-500/10' : 'border-zinc-800 hover:border-zinc-600')}>
+            <button key={m.id} type="button" onClick={() => setMode(m.id)} className={cn('flex flex-col text-left rounded-lg border p-3', mode === m.id ? 'border-emerald-500 bg-emerald-500/10' : 'border-zinc-800 hover:border-zinc-600')}>
               <div className="text-sm font-medium text-zinc-100">{m.label}</div>
               <div className="text-[11px] text-zinc-400 mt-1 leading-snug">{m.text}</div>
             </button>
