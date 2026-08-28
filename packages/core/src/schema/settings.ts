@@ -6,13 +6,13 @@ import { DeliveryMode, DeliveryUnit } from './delivery.ts';
  * User-editable engine settings (Settings page, `data/settings.json`). Every field has a default so a
  * missing/partial file is fine. Precedence at runtime: settings file > environment variable > default.
  */
-export const DesignPack = z.enum(['ui-ux-pro-max', 'frontend-design', 'impeccable', 'bencium', 'garden', 'none']);
+export const DesignPack = z.enum(['ui-ux-pro-max', 'frontend-design', 'impeccable', 'bencium', 'garden', 'taste', 'none']);
 export type DesignPack = z.infer<typeof DesignPack>;
 
-export const ImagePack = z.enum(['gpt-image-2', 'none']);
+export const ImagePack = z.enum(['gpt-image-2', 'claude-image-gen', 'taste-imagegen', 'none']);
 export type ImagePack = z.infer<typeof ImagePack>;
 
-export const VideoPack = z.enum(['web-video-presentation', 'mmx-cli', 'none']);
+export const VideoPack = z.enum(['web-video-presentation', 'mmx-cli', 'hyperframes', 'none']);
 export type VideoPack = z.infer<typeof VideoPack>;
 
 export const EngineSettings = z.object({
@@ -84,6 +84,10 @@ export const ToolSettings = z.object({
   openaiApiKey: z.string().nullable().default(null),
   /** endpoint override handed to sessions as OPENAI_BASE_URL (proxies, compatible providers); null = provider default */
   openaiBaseUrl: z.string().nullable().default(null),
+  /** Kimi (Moonshot) key handed to sessions as MOONSHOT_API_KEY and KIMI_API_KEY (taste-skill's sponsored Kimi K3); null = whatever the engine's own environment has */
+  kimiApiKey: z.string().nullable().default(null),
+  /** Gemini key handed to sessions as GEMINI_API_KEY (claude-image-gen's default provider); null = whatever the engine's own environment has */
+  geminiApiKey: z.string().nullable().default(null),
 });
 export const SafetySettings = z.object({
   /** extra ERE patterns for the boundary guard, '|'-separated */

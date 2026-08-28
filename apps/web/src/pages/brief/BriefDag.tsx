@@ -18,6 +18,7 @@ export function BriefDag({ brief, selected, onSelect }: { brief: Brief; selected
       goalId: brief.goalId,
       title: t.title || '(untitled)',
       spec: t.spec,
+      tdd: t.tdd,
       kind: t.kind,
       scope: t.scope,
       scenario: t.scenario,

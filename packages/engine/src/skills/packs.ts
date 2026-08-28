@@ -18,17 +18,21 @@ export const DESIGN_PACK_OPTIONS: PackOption[] = [
   { id: 'impeccable', label: 'Impeccable', summary: '/impeccable with 23 sub-commands (craft, polish, critique, audit, …) built on frontend-design; the goal reviewer runs its critique.', homepage: 'https://github.com/pbakaus/impeccable' },
   { id: 'bencium', label: 'Bencium design pack', summary: 'bencium-impact-designer (anti-generic UI), design-audit for the reviewer and typography rules.', homepage: 'https://github.com/bencium/bencium-marketplace' },
   { id: 'garden', label: 'Garden web-design-engineer', summary: "ConardLi's web-design-engineer: pages, landing pages, dashboards and prototypes from 25 design recipes.", homepage: 'https://github.com/ConardLi/garden-skills' },
+  { id: 'taste', label: 'Taste (design-taste-frontend)', summary: 'taste-skill v2: layout, typography, motion and spacing principles against generic AI slop; Kimi-sponsored (optional key in Settings → Tools & keys).', homepage: 'https://github.com/Leonxlnx/taste-skill' },
   { id: 'none', label: 'None', summary: 'No design skill is mandated; UI tasks rely on the worker alone.', homepage: null },
 ];
 
 export const IMAGE_PACK_OPTIONS: PackOption[] = [
   { id: 'gpt-image-2', label: 'GPT Image 2', summary: 'Prompt-engineering skill for GPT Image 2 with 80+ structured templates (posters, UI, product shots, infographics); generates via an OpenAI-compatible endpoint or hands the prompt to the host agent.', homepage: null },
+  { id: 'claude-image-gen', label: 'claude-image-gen', summary: 'Plugin generating images via Gemini (default) or OpenAI gpt-image; model name picks the provider. Needs GEMINI_API_KEY or OPENAI_API_KEY (Settings → Tools & keys).', homepage: 'https://github.com/guinacio/claude-image-gen' },
+  { id: 'taste-imagegen', label: 'Taste imagegen', summary: "taste-skill's imagegen pair (web + mobile): opinionated art direction for UI/product reference visuals — composition rules and design language baked into the prompts.", homepage: 'https://github.com/Leonxlnx/taste-skill' },
   { id: 'none', label: 'None', summary: 'No image skill is mandated; image tasks rely on the worker alone.', homepage: null },
 ];
 
 export const VIDEO_PACK_OPTIONS: PackOption[] = [
   { id: 'web-video-presentation', label: 'Web video presentation', summary: 'Turns a script or article into a click-driven 16:9 web presentation (cinematic HTML, optional narration audio) — video-as-a-web-page rather than a rendered file.', homepage: 'https://github.com/ConardLi/garden-skills' },
   { id: 'mmx-cli', label: 'MiniMax CLI', summary: 'MiniMax platform CLI (mmx): text/image-to-video generation and narration audio, rendered to real video files.', homepage: 'https://www.npmjs.com/package/mmx-cli' },
+  { id: 'hyperframes', label: 'Hyperframes', summary: 'Motion-graphics workbench: HTML + GSAP compositions rendered to real video (talking-head shorts, product demos, lessons). Workshop-style — the skills scaffold the pipeline in the workspace; needs Node 20+, FFmpeg and Chrome.', homepage: 'https://github.com/nateherkai/hyperframes-student-kit' },
   { id: 'none', label: 'None', summary: 'No video skill is mandated; video tasks rely on the worker alone.', homepage: null },
 ];
 

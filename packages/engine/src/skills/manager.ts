@@ -60,6 +60,7 @@ export class SkillsManager {
   readonly hints: SkillsHints;
   readonly checker: SkillsUpdateChecker;
   private catalogCache: Catalog | null = null;
+  private catalogMtime = 0;
   private chain: Promise<unknown> = Promise.resolve();
   private lastView: SessionView | null = null;
   private updating: string | null = null;
@@ -74,7 +75,16 @@ export class SkillsManager {
   }
 
   catalog(): Catalog {
-    if (!this.catalogCache) this.catalogCache = loadCatalog(this.opts.catalogPath);
+    // mtime-aware: editing catalog/skills.json takes effect without a restart (`bun --watch` only reloads imported code)
+    let mtime = 0;
+    try {
+      mtime = statSync(this.opts.catalogPath).mtimeMs;
+    } catch {}
+    if (!this.catalogCache || mtime !== this.catalogMtime) {
+      this.catalogCache = loadCatalog(this.opts.catalogPath);
+      this.catalogMtime = mtime;
+      this.hints.invalidate();
+    }
     return this.catalogCache;
   }
   reloadCatalog(): Catalog {

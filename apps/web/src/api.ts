@@ -1,4 +1,4 @@
-import type { Attachment, Attempt, Brief, BriefCheck, BriefDiff, BriefTask, Budgets, Check, CheckResult, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, Goal, SettingsPatch, SettingsView, Task } from '@foundry/core/browser';
+import type { Attachment, Attempt, Brief, BriefCheck, BriefDiff, BriefTask, Budgets, Check, CheckResult, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, SettingsPatch, SettingsView, Task, TaskUsage } from '@foundry/core/browser';
 
 /** Manual merge resolution (mirrors engine's merge-resolve.ts). */
 export interface ResolveFile {
@@ -189,7 +189,7 @@ export interface GoalDetail {
   /** directories the Open menu can launch: the user's checkout and the goal branch worktree (when it exists) */
   paths: { repo: string; workspace: string | null };
   budget: BudgetStatus;
-  tasks: (Task & { depth: number })[];
+  tasks: (Task & { depth: number; usage: TaskUsage | null })[];
   attempts: Attempt[];
   checks: Check[];
   checkResults: CheckResult[];
@@ -240,7 +240,7 @@ export const api = {
     }),
   addLink: (url: string, opts: { goalId?: string; name?: string; note?: string } = {}) => req<{ attachments: Attachment[] }>(opts.goalId ? `/api/goals/${opts.goalId}/attachments` : '/api/uploads', { method: 'POST', body: JSON.stringify({ url, name: opts.name, note: opts.note }) }).then((r) => r.attachments[0]!),
   openTargets: () => req<{ targets: OpenTarget[] }>('/api/open/targets').then((r) => r.targets),
-  openGoal: (goalId: string, target: OpenTarget['id'], which: 'repo' | 'workspace' | `task:${string}`) => req<{ ok: true; path: string; command: string[] }>(`/api/goals/${goalId}/open`, { method: 'POST', body: JSON.stringify({ target, which }) }),
+  openGoal: (goalId: string, target: OpenTarget['id'], which: 'repo' | 'workspace' | `task:${string}` | `resolve:${string}`) => req<{ ok: true; path: string; command: string[] }>(`/api/goals/${goalId}/open`, { method: 'POST', body: JSON.stringify({ target, which }) }),
   stagedAttachment: (attId: string) => req<Attachment>(`/api/uploads/${attId}`),
   reconvertAttachment: (goalId: string, attId: string) => req<{ markdown: Attachment['markdown'] }>(`/api/goals/${goalId}/attachments/${attId}/convert`, { method: 'POST' }),
   installMarkitdown: () => req<{ started: true; channel: string }>('/api/tools/markitdown/install', { method: 'POST' }),

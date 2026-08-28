@@ -109,7 +109,6 @@ const STATE_COLORS: Record<string, string> = {
   done: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
   over_delivered: 'bg-emerald-400/30 text-emerald-200 border-emerald-400/60',
   failed: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
-  skipped: 'bg-zinc-700 text-zinc-300 border-zinc-600 line-through decoration-zinc-500',
   cancelled: 'bg-zinc-700 text-zinc-400',
   pending: 'bg-zinc-800 text-zinc-400 border-zinc-700',
   ready: 'bg-sky-500/20 text-sky-300 border-sky-500/40',

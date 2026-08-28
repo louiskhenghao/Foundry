@@ -425,6 +425,12 @@ export function SettingsPage() {
               <Field label="OpenAI-compatible base URL" aside={aside('tools.openaiBaseUrl')} help="Handed to sessions as OPENAI_BASE_URL for proxies / compatible providers; empty = the provider's default endpoint.">
                 {text('tools.openaiBaseUrl', 'https://api.openai.com/v1', true)}
               </Field>
+              <Field label="Gemini API key" aside={aside('tools.geminiApiKey')} help="Handed to sessions as GEMINI_API_KEY — the claude-image-gen image pack option uses Gemini by default (its OpenAI mode uses the key above). Empty = whatever the engine's own environment has.">
+                <Input type="password" autoComplete="off" value={(get(draft, 'tools.geminiApiKey') as string | null) ?? ''} placeholder="AIza…" onChange={(e) => set('tools.geminiApiKey', e.target.value === '' ? null : e.target.value)} />
+              </Field>
+              <Field label="Kimi (Moonshot) API key" aside={aside('tools.kimiApiKey')} help="Handed to sessions as MOONSHOT_API_KEY and KIMI_API_KEY — used by taste-skill's sponsored Kimi models where a skill calls them. Empty = whatever the engine's own environment has.">
+                <Input type="password" autoComplete="off" value={(get(draft, 'tools.kimiApiKey') as string | null) ?? ''} placeholder="sk-…" onChange={(e) => set('tools.kimiApiKey', e.target.value === '' ? null : e.target.value)} />
+              </Field>
               <Field label="markitdown binary" aside={aside('tools.markitdownBin')} help="Converts attachments and repository documents to markdown before sessions read them. Empty = auto-detect on PATH and ~/.local/bin.">
                 {text('tools.markitdownBin', 'markitdown', true)}
               </Field>

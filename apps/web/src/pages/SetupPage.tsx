@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api.ts';
 import { SignInDialog } from '../components/SignInDialog.tsx';
-import { DesignPacks } from '../components/DesignPacks.tsx';
 import { LiveLog } from './LiveLog.tsx';
 import { Button, Card, CopyButton, Empty, cn } from '../ui.tsx';
 
@@ -66,20 +65,6 @@ export function SetupPage() {
     load();
   }, []);
 
-  const installAll = async (tiers: ('required' | 'recommended')[]) => {
-    setBusy(tiers.join('+'));
-    setMsg(null);
-    try {
-      const r = await api.installTier(tiers);
-      const manual = r.results.filter((x) => x.manual);
-      setMsg(`${r.results.filter((x) => x.ok).length}/${r.results.length} satisfied${manual.length ? ` — run yourself: ${manual.map((m) => m.manual!.command).join(' ; ')}` : ''}`);
-    } catch (e: any) {
-      setMsg(e.message);
-    } finally {
-      setBusy(null);
-      load();
-    }
-  };
   const runAction = async (label: string, fn: () => Promise<string>) => {
     setBusy(label);
     setMsg(null);
@@ -242,28 +227,9 @@ export function SetupPage() {
         })} />
       </Card>
 
-      <Card title="Design skills — for UI tasks">
-        <p className="text-xs text-zinc-400 mb-3">
-          Tasks the Brief labels <span className="mono">frontend</span> or <span className="mono">fullstack</span> hand the worker one design skill set as a MUST (and the goal reviewer its review counterpart). Pick the set here; only the chosen one is ever shown to sessions. Project skills for the repository's stack are installed separately by <span className="mono">autoskills</span> when a goal starts (toggle in Settings).
-        </p>
-        <DesignPacks onInstallStarted={(id) => setInstallLog(`design pack ${id}`)} />
-      </Card>
-
-      <Card title="Skills">
-        <p className="text-xs text-zinc-400 mb-3">The catalog marks a few skills as required or recommended for Foundry's roles. Install them in one click; manage everything else on the Skills page.</p>
-        <div className="flex gap-2 items-center">
-          <Button variant="primary" disabled={busy !== null} onClick={() => installAll(['required'])}>
-            {busy === 'required' ? 'Installing…' : 'Install all required'}
-          </Button>
-          <Button disabled={busy !== null} onClick={() => installAll(['required', 'recommended'])}>
-            {busy === 'required+recommended' ? 'Installing…' : 'Install required + recommended'}
-          </Button>
-          <Link to="/skills" className="text-xs underline text-zinc-400 ml-auto">
-            Open Skills →
-          </Link>
-        </div>
-
-      </Card>
+      <p className="text-xs text-zinc-500">
+        Design / image / video skill packs are chosen in <Link to="/settings" className="underline">Settings → Workflow</Link>; the full catalog and everything installed is managed on the <Link to="/skills" className="underline">Skills page</Link> (missing required skills also show up in the Checks above).
+      </p>
       {signIn && (
         <SignInDialog
           onClose={() => {

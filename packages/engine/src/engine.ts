@@ -197,12 +197,14 @@ export class Engine {
     return {
       ...(this.config.openaiApiKey ? { OPENAI_API_KEY: this.config.openaiApiKey } : {}),
       ...(this.config.openaiBaseUrl ? { OPENAI_BASE_URL: this.config.openaiBaseUrl } : {}),
+      ...(this.config.kimiApiKey ? { MOONSHOT_API_KEY: this.config.kimiApiKey, KIMI_API_KEY: this.config.kimiApiKey } : {}),
+      ...(this.config.geminiApiKey ? { GEMINI_API_KEY: this.config.geminiApiKey } : {}),
     };
   }
 
   /** can media sessions actually generate images here (key present in the env sessions inherit)? */
   imageGenAvailable(): boolean {
-    return !!(process.env.OPENAI_API_KEY ?? this.config.openaiApiKey);
+    return !!(process.env.OPENAI_API_KEY ?? this.config.openaiApiKey ?? process.env.GEMINI_API_KEY ?? this.config.geminiApiKey);
   }
 
   private buildContext(): ContextProvider {

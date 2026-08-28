@@ -84,4 +84,14 @@ describe('engine + settings', () => {
     engine.resetSettings('engine.port');
     expect(engine.settingsView().restartNeeded).toEqual([]);
   });
+
+  test('API keys reach sessions via sessionEnvExtra (Kimi under both conventional names)', () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'foundry-settings-keys-'));
+    const engine = new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'ch'), log: () => {} }), new FakeRunner(() => {}));
+    expect(engine.sessionEnvExtra()).toEqual({});
+    engine.updateSettings({ tools: { openaiApiKey: 'sk-o', kimiApiKey: 'sk-k', geminiApiKey: 'g-1' } });
+    expect(engine.sessionEnvExtra()).toEqual({ OPENAI_API_KEY: 'sk-o', MOONSHOT_API_KEY: 'sk-k', KIMI_API_KEY: 'sk-k', GEMINI_API_KEY: 'g-1' });
+    engine.updateSettings({ tools: { kimiApiKey: null, geminiApiKey: null } });
+    expect(engine.sessionEnvExtra()).toEqual({ OPENAI_API_KEY: 'sk-o' });
+  });
 });
