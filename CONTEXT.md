@@ -209,3 +209,17 @@ The one blocking Question a Brief carries when the repository is empty: there ar
 
 **Usage Pause**
 The engine's reaction to a Claude usage limit (5-hour or weekly window): no new sessions start, Goals stay exactly where they are, and everything resumes by itself when the limit resets — surviving engine restarts. Visible as a banner and on the Usage page; never an Escalation.
+
+## Agents monitor
+
+**Agent Session**
+One Claude Code process's conversation on this machine, headless or interactive — whoever started it. The Agents page shows every Agent Session, read live from what Claude Code itself records; Foundry stores nothing about them.
+
+**Session Source**
+Who started an Agent Session: *Foundry* (the engine spawned it for a Goal) or *external* (the user opened it themselves — terminal, VS Code, elsewhere). Only Foundry-sourced sessions can be stopped from the Agents page; external ones are watched, never touched.
+
+**Session Status**
+*Busy* — the session produced output within the last minute (a Foundry in-flight session is always busy). *Idle* — the process is alive but waiting for input. *Finished* — the process is gone; the session stays visible for a day. The header counts only busy sessions, so it is quiet when nothing is working.
+
+**Subagent**
+A helper agent a session spawns for a sub-task (the Task tool). It has its own conversation and its own context window, and is shown nested under the session that spawned it.
