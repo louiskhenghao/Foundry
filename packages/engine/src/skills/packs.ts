@@ -18,6 +18,7 @@ export const DESIGN_PACK_OPTIONS: PackOption[] = [
   { id: 'impeccable', label: 'Impeccable', summary: '/impeccable with 23 sub-commands (craft, polish, critique, audit, …) built on frontend-design; the goal reviewer runs its critique.', homepage: 'https://github.com/pbakaus/impeccable' },
   { id: 'bencium', label: 'Bencium design pack', summary: 'bencium-impact-designer (anti-generic UI), design-audit for the reviewer and typography rules.', homepage: 'https://github.com/bencium/bencium-marketplace' },
   { id: 'garden', label: 'Garden web-design-engineer', summary: "ConardLi's web-design-engineer: pages, landing pages, dashboards and prototypes from 25 design recipes.", homepage: 'https://github.com/ConardLi/garden-skills' },
+  { id: 'taste', label: 'Taste (design-taste-frontend)', summary: 'taste-skill v2: layout, typography, motion and spacing principles against generic AI slop; Kimi-sponsored (optional key in Settings → Tools & keys).', homepage: 'https://github.com/Leonxlnx/taste-skill' },
   { id: 'none', label: 'None', summary: 'No design skill is mandated; UI tasks rely on the worker alone.', homepage: null },
 ];
 

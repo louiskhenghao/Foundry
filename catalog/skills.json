@@ -1099,6 +1099,55 @@
           "instruction": "Follow its art direction when composing and generating mobile-oriented visuals. Save every file into artifacts/ and record its prompt/parameters in the task manifest."
         }
       ]
+    },
+    {
+      "id": "design-taste-frontend",
+      "name": "design-taste-frontend",
+      "summary": "taste-skill's flagship (v2): design principles for AI-built frontends — stronger layout, typography, motion and spacing instead of generic output.",
+      "why": "A design pack option focused on taste rules rather than searchable databases; pairs with the taste imagegen image pack.",
+      "tier": "optional",
+      "source": {
+        "type": "git",
+        "repo": "Leonxlnx/taste-skill",
+        "path": "skills/design-taste-frontend"
+      },
+      "roles": [
+        "worker",
+        "reviewer-goal"
+      ],
+      "tags": [
+        "design",
+        "frontend"
+      ],
+      "aliases": [],
+      "pack": "design",
+      "packOption": "taste",
+      "scenarios": [
+        "frontend",
+        "fullstack"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "any",
+          "scenarios": [
+            "frontend",
+            "fullstack"
+          ],
+          "instruction": "Invoke it before writing markup or styles and follow its layout/typography/motion/spacing principles; say which of its directions you applied."
+        },
+        {
+          "role": "reviewer-goal",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "frontend",
+            "fullstack"
+          ],
+          "instruction": "Judge the UI against its principles: generic layouts, default spacing and lifeless typography are worth blockers when the skill was mandated."
+        }
+      ]
     }
   ]
 }
