@@ -19,15 +19,13 @@ const get = (o: any, path: string) => path.split('.').reduce((x, k) => (x == nul
 
 /** left-hand index; the ids are the Card ids further down */
 const SECTIONS: { id: string; label: string }[] = [
-  { id: 'engine', label: 'Engine' },
-  { id: 'models', label: 'Models' },
-  { id: 'sessions', label: 'Sessions' },
-  { id: 'workflow', label: 'Workflow' },
-  { id: 'reviews', label: 'Reviews' },
-  { id: 'delivery', label: 'Delivery defaults' },
-  { id: 'sync', label: 'Sync with upstream' },
-  { id: 'tools', label: 'Tools' },
+  { id: 'goals', label: 'New goal defaults' },
+  { id: 'models', label: 'Models & limits' },
+  { id: 'skills', label: 'Skills' },
+  { id: 'git', label: 'Git & delivery' },
+  { id: 'tools', label: 'Tools & keys' },
   { id: 'safety', label: 'Safety' },
+  { id: 'engine', label: 'Engine (install)' },
 ];
 
 function SourceBadge({ view, path }: { view: SettingsView; path: string }) {
@@ -239,29 +237,63 @@ export function SettingsPage() {
       {msg && <div className="rounded-md border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-200">{msg}</div>}
       {err && <div className="rounded-md border border-rose-500/40 bg-rose-500/5 px-3 py-2 text-xs text-rose-300">{err}</div>}
 
-      <Card id="engine" title="Engine" className="scroll-mt-16">
-        {grid(
-          <>
-            <Field label="Port" aside={aside('engine.port')} help="HTTP port of the local server and of the boundary hook callback.">
-              {num('engine.port', { min: 1, max: 65535 })}
-            </Field>
-            <Field label="Host" aside={aside('engine.host')} help="Bind address; keep 127.0.0.1 unless you know why.">
-              {text('engine.host')}
-            </Field>
-            <Field label="Concurrent Claude sessions" aside={aside('engine.maxConcurrent')} help="Global cap across all goals (workers, reviewers, clarify). Applies immediately.">
-              {num('engine.maxConcurrent', { min: 1, max: 16 })}
-            </Field>
-            <Field label="claude binary" aside={aside('engine.claudeBin')} help="Path to the Claude Code CLI; empty = first `claude` on PATH.">
-              {text('engine.claudeBin', 'claude', true)}
-            </Field>
-            <Field label="Claude Code home" aside={aside('engine.claudeHome')} help="Where skills, plugins and settings.json live; empty = ~/.claude (or CLAUDE_CONFIG_DIR).">
-              {text('engine.claudeHome', '~/.claude', true)}
-            </Field>
-          </>,
-        )}
+      <Card id="goals" title="New goal defaults" className="scroll-mt-16">
+        <div className="space-y-4">
+          {grid(
+            <>
+              <Field label="Default goal view" aside={aside('workflow.defaultMode')} help="What a new goal opens in. Simple: one plain-language Brief and a progress view; Expert: every control. Switchable per goal.">
+                <Select value={draft.workflow.defaultMode} onChange={(e) => set('workflow.defaultMode', e.target.value)}>
+                  <option value="expert">expert</option>
+                  <option value="simple">simple</option>
+                </Select>
+              </Field>
+              <Field label="Pace for new goals" aside={aside('workflow.defaultPace')} help="thorough: the engine runs its own task and goal reviews and can spawn fix tasks · fast: it skips them, so a goal ends as soon as your approved checks pass. Image and video goals start fast whatever this says. Switchable per goal.">
+                <Select value={draft.workflow.defaultPace} onChange={(e) => set('workflow.defaultPace', e.target.value)}>
+                  <option value="thorough">thorough — engine reviews the work</option>
+                  <option value="fast">fast — approved checks only</option>
+                </Select>
+              </Field>
+              <Field label="TDD for new Expert goals" aside={aside('workflow.tdd')} help="required: workers must invoke tdd and the reviewer is told when they skipped it · preferred: suggested only · off: never mentioned. Simple goals start with preferred; each goal and task can override.">
+                <Select value={draft.workflow.tdd} onChange={(e) => set('workflow.tdd', e.target.value)}>
+                  <option value="required">required</option>
+                  <option value="preferred">preferred</option>
+                  <option value="off">off</option>
+                </Select>
+              </Field>
+              <Field label="Goal-level fix cycles" aside={aside('reviews.maxFixCycles')} help="How many review → fix-task rounds before the goal escalates to you (thorough pace only).">
+                {num('reviews.maxFixCycles', { min: 0, max: 5 })}
+              </Field>
+            </>,
+          )}
+          {bool('reviews.alwaysReviewTasks', 'Review every task', 'Run the lightweight task reviewer even when the Brief defined no reviewer check for the task (thorough pace only).')}
+          <div className="border-t border-zinc-800 pt-4">
+            <div className="text-xs text-zinc-300 mb-2">Delivery — what happens to the branch when a goal finishes</div>
+            {grid(
+              <>
+                <Field label="Mode for new goals" aside={aside('delivery.defaultMode')}>
+                  <Select value={draft.delivery.defaultMode} onChange={(e) => set('delivery.defaultMode', e.target.value)}>
+                    <option value="local">local only</option>
+                    <option value="push">push branch</option>
+                    <option value="pr">open a PR</option>
+                    <option value="pr-automerge">PR + auto-merge</option>
+                  </Select>
+                </Field>
+                <Field label="Granularity" aside={aside('delivery.defaultUnit')}>
+                  <Select value={draft.delivery.defaultUnit} onChange={(e) => set('delivery.defaultUnit', e.target.value)}>
+                    <option value="task">one PR per task (stacked)</option>
+                    <option value="goal">one PR per goal</option>
+                  </Select>
+                </Field>
+                <Field label="Remote" aside={aside('delivery.defaultRemote')}>
+                  {text('delivery.defaultRemote', 'origin')}
+                </Field>
+              </>,
+            )}
+          </div>
+        </div>
       </Card>
 
-      <Card id="models" title="Models" className="scroll-mt-16">
+      <Card id="models" title="Models & limits" className="scroll-mt-16">
         {grid(
           <>
             <Field label="Strong" aside={aside('models.strong')} help="Drives Clarify (understanding the goal, writing the Brief), the Planner (task DAG), the Goal reviewer and Merge Attempts — the stages where judgement matters most and tokens are few. Fable pays off here first.">
@@ -279,28 +311,31 @@ export function SettingsPage() {
           </>,
         )}
         <p className="text-[11px] text-zinc-500 mt-3">The list is what this machine has seen resolve (family aliases follow the latest release through Claude Code; a full model id pins a version). A new family is one custom entry away — after its first session it shows up here with its resolved id. Changes apply to goals created from now on; running goals keep the models they started with unless a fallback kicks in.</p>
+        <div className="border-t border-zinc-800 mt-4 pt-4">
+          <div className="text-xs text-zinc-300 mb-2">Limits — what one session may spend before the engine stops it</div>
+          {grid(
+            <>
+              <Field label="Cost cap per session (USD)" aside={aside('sessions.attemptMaxCostUsd')} help="The real guard: a worker session stops at this spend (also bounded by the goal's remaining budget).">
+                {num('sessions.attemptMaxCostUsd', { min: 0.5, max: 500, step: 0.5 })}
+              </Field>
+              <Field label="Attempt timeout (minutes)" aside={aside('sessions.attemptTimeoutMin')} help="A session killed at this mark keeps what it committed; the attempt then continues or restarts.">
+                {num('sessions.attemptTimeoutMin', { min: 5, max: 240 })}
+              </Field>
+              <Field label="Continuations per attempt" aside={aside('sessions.maxContinuations')} help="How often one attempt may resume its own Claude session (after a restart, a turn/cost cap, a timeout, or failing checks with progress) before a fresh attempt is started. Resuming keeps the session's context — far cheaper than starting over. 0 = always start fresh.">
+                {num('sessions.maxContinuations', { min: 0, max: 5 })}
+              </Field>
+              <Field label="Turn cap per session" aside={aside('sessions.attemptMaxTurns')} help="Only stops runaway loops; keep it generous so a session is not cut mid-work.">
+                {num('sessions.attemptMaxTurns', { min: 10, max: 2000 })}
+              </Field>
+              <Field label="Concurrent Claude sessions" aside={aside('engine.maxConcurrent')} help="Global cap across all goals (workers, reviewers, clarify) — the throughput knob, and the one that decides how fast the bill grows. Applies immediately.">
+                {num('engine.maxConcurrent', { min: 1, max: 16 })}
+              </Field>
+            </>,
+          )}
+        </div>
       </Card>
 
-      <Card id="sessions" title="Sessions" className="scroll-mt-16">
-        {grid(
-          <>
-            <Field label="Cost cap per session (USD)" aside={aside('sessions.attemptMaxCostUsd')} help="The real guard: a worker session stops at this spend (also bounded by the goal's remaining budget).">
-              {num('sessions.attemptMaxCostUsd', { min: 0.5, max: 500, step: 0.5 })}
-            </Field>
-            <Field label="Continuations per attempt" aside={aside('sessions.maxContinuations')} help="How often one attempt may resume its own Claude session (after a restart, a turn/cost cap, a timeout, or failing checks with progress) before a fresh attempt is started. Resuming keeps the session's context — far cheaper than starting over. 0 = always start fresh.">
-              {num('sessions.maxContinuations', { min: 0, max: 5 })}
-            </Field>
-            <Field label="Turn cap per session" aside={aside('sessions.attemptMaxTurns')} help="Only stops runaway loops; keep it generous so a session is not cut mid-work.">
-              {num('sessions.attemptMaxTurns', { min: 10, max: 2000 })}
-            </Field>
-            <Field label="Attempt timeout (minutes)" aside={aside('sessions.attemptTimeoutMin')}>
-              {num('sessions.attemptTimeoutMin', { min: 5, max: 240 })}
-            </Field>
-          </>,
-        )}
-      </Card>
-
-      <Card id="workflow" title="Workflow" className="scroll-mt-16">
+      <Card id="skills" title="Skills" className="scroll-mt-16">
         <div className="space-y-4">
           {grid(
             <>
@@ -310,20 +345,7 @@ export function SettingsPage() {
                   <option value="plain">plain (hint only)</option>
                 </Select>
               </Field>
-              <Field label="Default goal view" aside={aside('workflow.defaultMode')} help="What a new goal opens in. Simple: one plain-language Brief and a progress view; Expert: every control. Switchable per goal.">
-                <Select value={draft.workflow.defaultMode} onChange={(e) => set('workflow.defaultMode', e.target.value)}>
-                  <option value="expert">expert</option>
-                  <option value="simple">simple</option>
-                </Select>
-              </Field>
-              <Field label="TDD for new Expert goals" aside={aside('workflow.tdd')} help="required: workers must invoke tdd and the reviewer is told when they skipped it · preferred: suggested only · off: never mentioned. Simple goals start with preferred; each goal and task can override.">
-                <Select value={draft.workflow.tdd} onChange={(e) => set('workflow.tdd', e.target.value)}>
-                  <option value="required">required</option>
-                  <option value="preferred">preferred</option>
-                  <option value="off">off</option>
-                </Select>
-              </Field>
-              <Field label="Setting sources" aside={aside('workflow.settingSources')} help="`--setting-sources` for sessions, comma-separated (user, project, local); empty = inherit everything.">
+              <Field label="Setting sources" aside={aside('workflow.settingSources')} help="`--setting-sources` for sessions, comma-separated (user, project, local); empty = inherit everything. Without `user`, your own skills never load.">
                 {list('workflow.settingSources', 'user, project')}
               </Field>
             </>,
@@ -343,7 +365,7 @@ export function SettingsPage() {
               <span className="ml-auto flex items-center gap-1.5">{aside('workflow.imagePack')}</span>
             </div>
             <DesignPacks compact pack="image" />
-            <p className="text-[11px] text-zinc-500 mt-1.5">Mandated to workers on image tasks (scenario `image`).</p>
+            <p className="text-[11px] text-zinc-500 mt-1.5">Mandated to workers on image tasks (scenario `image`). The pack only generates when a key is set under Tools &amp; keys.</p>
           </div>
           <div>
             <div className="flex items-center gap-2 mb-1.5">
@@ -356,63 +378,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card id="reviews" title="Reviews" className="scroll-mt-16">
-        <div className="space-y-3">
-          {bool('reviews.alwaysReviewTasks', 'Review every task', 'Run the lightweight task reviewer even when the Brief defined no reviewer check for the task.')}
-          {grid(
-            <Field label="Goal-level fix cycles" aside={aside('reviews.maxFixCycles')} help="How many review → fix-task rounds before the goal escalates to you.">
-              {num('reviews.maxFixCycles', { min: 0, max: 5 })}
-            </Field>,
-          )}
-        </div>
-      </Card>
-
-      <Card id="delivery" title="Delivery defaults" className="scroll-mt-16">
-        {grid(
-          <>
-            <Field label="Mode for new goals" aside={aside('delivery.defaultMode')}>
-              <Select value={draft.delivery.defaultMode} onChange={(e) => set('delivery.defaultMode', e.target.value)}>
-                <option value="local">local only</option>
-                <option value="push">push branch</option>
-                <option value="pr">open a PR</option>
-                <option value="pr-automerge">PR + auto-merge</option>
-              </Select>
-            </Field>
-            <Field label="Granularity" aside={aside('delivery.defaultUnit')}>
-              <Select value={draft.delivery.defaultUnit} onChange={(e) => set('delivery.defaultUnit', e.target.value)}>
-                <option value="task">one PR per task (stacked)</option>
-                <option value="goal">one PR per goal</option>
-              </Select>
-            </Field>
-            <Field label="Remote" aside={aside('delivery.defaultRemote')}>
-              {text('delivery.defaultRemote', 'origin')}
-            </Field>
-          </>,
-        )}
-        <details className="mt-4">
-          <summary className="text-xs text-zinc-400 cursor-pointer">Timings (advanced)</summary>
-          <div className="mt-3">
-            {grid(
-              <>
-                <Field label="Poll interval (s)" aside={aside('delivery.pollSec')}>
-                  {num('delivery.pollSec', { min: 5, max: 600 })}
-                </Field>
-                <Field label="Grace before “no checks” (s)" aside={aside('delivery.noChecksGraceSec')}>
-                  {num('delivery.noChecksGraceSec', { min: 0, max: 3600 })}
-                </Field>
-                <Field label="Checks timeout (min)" aside={aside('delivery.checksTimeoutMin')}>
-                  {num('delivery.checksTimeoutMin', { min: 1, max: 720 })}
-                </Field>
-                <Field label="Auto-merge wait under branch protection (min)" aside={aside('delivery.automergeWaitMin')}>
-                  {num('delivery.automergeWaitMin', { min: 1, max: 720 })}
-                </Field>
-              </>,
-            )}
-          </div>
-        </details>
-      </Card>
-
-      <Card id="sync" title="Sync with upstream" className="scroll-mt-16">
+      <Card id="git" title="Git &amp; delivery timing" className="scroll-mt-16">
         <div className="space-y-3">
           {bool('sync.fetchBeforeGoal', 'Fetch the base branch before a goal starts', 'Only remote-tracking refs are updated — your checkout is never touched. The Clarifier explores, and the goal branch starts from, the freshest tip.')}
           {grid(
@@ -424,22 +390,43 @@ export function SettingsPage() {
             </Field>,
           )}
           {bool('sync.refreshBetweenTasks', 'Refresh between tasks', 'When nothing is running, fetch again and merge a moved base branch into the goal branch (conflicts go to a Merge Attempt). Useful for long goals on busy repositories; off by default because mid-goal merges can surprise workers.')}
+          <details className="pt-1">
+            <summary className="text-xs text-zinc-400 cursor-pointer">Delivery timings (advanced)</summary>
+            <div className="mt-3">
+              {grid(
+                <>
+                  <Field label="Poll interval (s)" aside={aside('delivery.pollSec')}>
+                    {num('delivery.pollSec', { min: 5, max: 600 })}
+                  </Field>
+                  <Field label="Grace before “no checks” (s)" aside={aside('delivery.noChecksGraceSec')}>
+                    {num('delivery.noChecksGraceSec', { min: 0, max: 3600 })}
+                  </Field>
+                  <Field label="Checks timeout (min)" aside={aside('delivery.checksTimeoutMin')}>
+                    {num('delivery.checksTimeoutMin', { min: 1, max: 720 })}
+                  </Field>
+                  <Field label="Auto-merge wait under branch protection (min)" aside={aside('delivery.automergeWaitMin')}>
+                    {num('delivery.automergeWaitMin', { min: 1, max: 720 })}
+                  </Field>
+                </>,
+              )}
+            </div>
+          </details>
         </div>
       </Card>
 
-      <Card id="tools" title="Tools" className="scroll-mt-16">
+      <Card id="tools" title="Tools &amp; keys" className="scroll-mt-16">
         <div className="space-y-3">
           {bool('tools.useGraphify', 'Use graphify for relevant-file discovery', 'When the graphify CLI is installed, sessions get a code-graph based context instead of grep.')}
           {grid(
             <>
-              <Field label="markitdown binary" aside={aside('tools.markitdownBin')} help="Empty = auto-detect on PATH and ~/.local/bin.">
-                {text('tools.markitdownBin', 'markitdown', true)}
-              </Field>
               <Field label="OpenAI-compatible API key" aside={aside('tools.openaiApiKey')} help="Handed to every session as OPENAI_API_KEY — the image pack needs it to actually generate images (without it, image tasks fall back to hand-authored SVG renders). Empty = whatever the engine's own environment has.">
                 <Input type="password" autoComplete="off" value={(get(draft, 'tools.openaiApiKey') as string | null) ?? ''} placeholder="sk-…" onChange={(e) => set('tools.openaiApiKey', e.target.value === '' ? null : e.target.value)} />
               </Field>
               <Field label="OpenAI-compatible base URL" aside={aside('tools.openaiBaseUrl')} help="Handed to sessions as OPENAI_BASE_URL for proxies / compatible providers; empty = the provider's default endpoint.">
                 {text('tools.openaiBaseUrl', 'https://api.openai.com/v1', true)}
+              </Field>
+              <Field label="markitdown binary" aside={aside('tools.markitdownBin')} help="Converts attachments and repository documents to markdown before sessions read them. Empty = auto-detect on PATH and ~/.local/bin.">
+                {text('tools.markitdownBin', 'markitdown', true)}
               </Field>
             </>,
           )}
@@ -454,6 +441,25 @@ export function SettingsPage() {
             </Field>
             <Field label="Folder browser roots" aside={aside('safety.allowedRoots')} help="Directories the repository picker may enter, comma-separated; empty = your home and /Volumes.">
               {list('safety.allowedRoots', '/Users/you/Projects')}
+            </Field>
+          </>,
+        )}
+      </Card>
+
+      <Card id="engine" title="Engine (install)" className="scroll-mt-16">
+        {grid(
+          <>
+            <Field label="Port" aside={aside('engine.port')} help="HTTP port of the local server and of the boundary hook callback.">
+              {num('engine.port', { min: 1, max: 65535 })}
+            </Field>
+            <Field label="Host" aside={aside('engine.host')} help="Bind address; keep 127.0.0.1 unless you know why.">
+              {text('engine.host')}
+            </Field>
+            <Field label="claude binary" aside={aside('engine.claudeBin')} help="Path to the Claude Code CLI; empty = first `claude` on PATH.">
+              {text('engine.claudeBin', 'claude', true)}
+            </Field>
+            <Field label="Claude Code home" aside={aside('engine.claudeHome')} help="Where skills, plugins and settings.json live; empty = ~/.claude (or CLAUDE_CONFIG_DIR).">
+              {text('engine.claudeHome', '~/.claude', true)}
             </Field>
           </>,
         )}
