@@ -13,8 +13,8 @@
   color-scheme: light;
   --color-zinc-950: #ebebed; /* page — a step darker than surfaces so white cards keep a visible boundary */
   --color-zinc-900: #ffffff; /* surfaces */
-  --color-zinc-800: #e4e4e7; /* borders */
-  --color-zinc-700: #d4d4d8;
+  --color-zinc-800: #d6d6dc; /* borders — a hairline is all that separates the header, the tabs and the cards */
+  --color-zinc-700: #c4c4cc;
   --color-zinc-600: #8e8e96; /* dimmest TEXT step (timestamps, event types) — must stay readable on white */
   --color-zinc-500: #71717a; /* muted text reads on both */
   --color-zinc-400: #52525b;
