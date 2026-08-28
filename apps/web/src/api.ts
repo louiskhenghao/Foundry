@@ -199,6 +199,20 @@ export interface GoalDetail {
   events: (EngineEvent & { seq: number })[];
 }
 
+export interface UpdateReportView {
+  current: string;
+  latest: string | null;
+  updateAvailable: boolean;
+  checkedAt: string | null;
+  changelog: { version: string; notes: string }[];
+  error: string | null;
+}
+export interface UpdateStatusView extends UpdateReportView {
+  capability: { mode: 'docker' | 'local' | 'unknown'; canSelfUpdate: boolean; method: 'watchtower' | 'git' | null; guided: string[] };
+  checking: boolean;
+  applying: boolean;
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) } });
   const text = await res.text();
@@ -321,7 +335,10 @@ export const api = {
   resetSettings: () => req<SettingsView>('/api/settings/reset', { method: 'POST' }),
   notifyTest: (override: { telegramBotToken?: string | null; telegramChatId?: string | null; discordWebhookUrl?: string | null }) => req<{ results: { channel: string; ok: boolean; error: string | null }[] }>('/api/notifications/test', { method: 'POST', body: JSON.stringify(override) }),
   telegramChatId: (token: string | null) => req<{ chatId: string; who: string }>('/api/notifications/telegram/chat-id', { method: 'POST', body: JSON.stringify({ token }) }),
-  health: () => req<{ ok: boolean; active: number; events: number; pausedUntil: string | null; restartNeeded: string[] }>('/api/health'),
+  health: () => req<{ ok: boolean; active: number; events: number; pausedUntil: string | null; restartNeeded: string[]; version: string; updateAvailable: boolean; updating: boolean }>('/api/health'),
+  updateStatus: () => req<UpdateStatusView>('/api/update'),
+  updateCheck: () => req<UpdateReportView>('/api/update/check', { method: 'POST' }),
+  updateApply: (force = false) => req<{ started: true; channel: string }>('/api/update/apply', { method: 'POST', body: JSON.stringify({ force }) }),
   auth: (force = false) => req<AuthInfo>(`/api/auth${force ? '?force=1' : ''}`),
   startLogin: (body: { mode?: 'claudeai' | 'console'; email?: string }) => req<LoginSession>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   loginSession: () => req<LoginSession | null>('/api/auth/login'),

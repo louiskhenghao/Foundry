@@ -1,8 +1,9 @@
 import type { Settings, SettingsView } from '@foundry/core/browser';
 import { RotateCcw } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { api, type ModelRecordView } from '../api.ts';
+import { api, type ModelRecordView, type UpdateStatusView } from '../api.ts';
 import { DesignPacks } from '../components/DesignPacks.tsx';
+import { UpdateDialog } from '../components/UpdateDialog.tsx';
 import { Button, Card, CopyButton, Empty, Field, Input, Select, cn } from '../ui.tsx';
 
 type Section = keyof Settings;
@@ -27,6 +28,7 @@ const SECTIONS: { id: string; label: string }[] = [
   { id: 'notifications', label: 'Notifications' },
   { id: 'safety', label: 'Safety' },
   { id: 'engine', label: 'Engine (install)' },
+  { id: 'about', label: 'About & updates' },
 ];
 
 function SourceBadge({ view, path }: { view: SettingsView; path: string }) {
@@ -51,6 +53,19 @@ export function SettingsPage() {
   const [probe, setProbe] = useState<Record<string, string>>({});
   const [notifMsg, setNotifMsg] = useState<string | null>(null);
   const [active, setActive] = useState(SECTIONS[0]!.id);
+  const [upd, setUpd] = useState<UpdateStatusView | null>(null);
+  const [updBusy, setUpdBusy] = useState(false);
+  const [updOpen, setUpdOpen] = useState(false);
+  const loadUpdate = () => api.updateStatus().then(setUpd).catch(() => {});
+  const checkUpdate = async () => {
+    setUpdBusy(true);
+    try {
+      await api.updateCheck();
+      await loadUpdate();
+    } finally {
+      setUpdBusy(false);
+    }
+  };
   const load = () =>
     api
       .settings()
@@ -63,6 +78,7 @@ export function SettingsPage() {
   useEffect(() => {
     load();
     loadModels();
+    loadUpdate();
   }, []);
   // highlight the section the page is on; the scroller is <main>, not the window
   useEffect(() => {
@@ -490,6 +506,7 @@ export function SettingsPage() {
             {bool('notifications.onGoalFinished', 'Goal finished', 'A goal ended done, over-delivered, or failed. Cancelling a goal yourself never notifies.')}
             {bool('notifications.onDelivery', 'Delivery', 'A pull request was opened or merged, or the delivery failed.')}
             {bool('notifications.onRateLimit', 'Usage pause', 'A Claude usage limit paused the engine, and when the pause lifts.')}
+            {bool('notifications.onUpdateAvailable', 'New version', 'A Foundry release newer than this instance exists — once per version. Update from the header pill or Settings → About.')}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => sendTestNotification({ telegramBotToken: draft.notifications.telegramBotToken, telegramChatId: draft.notifications.telegramChatId, discordWebhookUrl: draft.notifications.discordWebhookUrl })} title="Sends a test message with the values above (saved or not)">
@@ -531,6 +548,40 @@ export function SettingsPage() {
           </>,
         )}
       </Card>
+
+      <Card id="about" title="About & updates" className="scroll-mt-16">
+        <div className="space-y-3">
+          <div className="flex items-center gap-3 flex-wrap text-sm">
+            <span className="text-zinc-200">
+              Foundry <span className="mono">{upd?.current ?? '…'}</span>
+            </span>
+            {upd && <span className="text-[10px] uppercase tracking-wide rounded px-1 py-px border text-zinc-500 border-zinc-800">{upd.capability.mode} install</span>}
+            {upd?.updateAvailable ? (
+              <Button size="sm" variant="primary" onClick={() => setUpdOpen(true)}>
+                Update to {upd.latest}
+              </Button>
+            ) : (
+              upd?.checkedAt && <span className="text-[11px] text-zinc-500">up to date · checked {new Date(upd.checkedAt).toLocaleString()}</span>
+            )}
+            <Button size="sm" variant="ghost" disabled={updBusy} onClick={checkUpdate} title="Asks the release registry for the newest version right now (the engine also checks once a day)">
+              {updBusy ? 'Checking…' : 'Check now'}
+            </Button>
+          </div>
+          {upd?.error && <p className="text-[11px] text-amber-300">✘ {upd.error}</p>}
+          {upd?.updateAvailable && upd.changelog.length > 0 && (
+            <div className="max-h-40 overflow-auto rounded-md border border-zinc-800 bg-zinc-900/40 p-3 space-y-2">
+              {upd.changelog.map((c) => (
+                <div key={c.version}>
+                  <div className="text-xs font-semibold text-zinc-200 mono">{c.version}</div>
+                  <div className="text-[11px] text-zinc-400 whitespace-pre-wrap mt-0.5">{c.notes || '(no notes)'}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-[11px] text-zinc-500">Updates never interrupt running agents: new sessions stop first and active ones finish before the restart (unless you force it in the update dialog).</p>
+        </div>
+      </Card>
+      <UpdateDialog open={updOpen} onClose={() => setUpdOpen(false)} status={upd} />
         </div>
       </div>
     </div>
