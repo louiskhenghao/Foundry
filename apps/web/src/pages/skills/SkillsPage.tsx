@@ -154,7 +154,7 @@ export function SkillsPage() {
   const actionsBusy = busy !== null; // a running *source update* only disables that source's Update button
 
   return (
-    <div className="max-w-7xl mx-auto p-3 sm:p-4 md:p-6 space-y-4 pb-24">
+    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4 pb-24">
       <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-lg font-semibold">Skills</h1>
         <span className="text-xs text-zinc-500">

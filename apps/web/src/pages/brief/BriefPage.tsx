@@ -77,7 +77,7 @@ export function BriefPage() {
 
   if (g.state === 'clarifying' || !brief) {
     return (
-      <div className="max-w-5xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
+      <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
         <Header detail={detail} />
         <Card title="Clarifying…">
           <p className="text-sm text-zinc-400 mb-3">The Clarifier is exploring the repository, listing the Areas the goal covers and drafting the Brief. This page updates automatically.</p>
@@ -160,7 +160,7 @@ export function BriefPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
+    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
       <Header detail={detail} onSimple={() => setView(false)} />
       <Card title="Understanding">
         <div className="mb-3">

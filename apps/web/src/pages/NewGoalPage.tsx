@@ -124,7 +124,7 @@ export function NewGoalPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto p-3 sm:p-4 md:p-6 space-y-4 pb-24">
+    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4 pb-24">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="text-lg font-semibold">New goal</h1>
         <ol className="flex items-center gap-1 text-[11px] text-zinc-500">

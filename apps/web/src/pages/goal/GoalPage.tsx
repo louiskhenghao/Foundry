@@ -81,7 +81,7 @@ export function GoalPage() {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
+    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
       <UsagePausedBanner />
       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_21rem] md:gap-6 md:items-start">
         <div className="min-w-0">

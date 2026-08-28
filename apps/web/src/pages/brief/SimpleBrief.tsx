@@ -33,7 +33,7 @@ export function SimpleBrief(p: {
   const byArea = brief.areas.length ? brief.areas.map((a) => ({ area: a, tasks: brief.tasks.filter((t) => t.areaKey === a.key) })) : [{ area: null, tasks: brief.tasks }];
   const unassigned = brief.areas.length ? brief.tasks.filter((t) => !brief.areas.some((a) => a.key === t.areaKey)) : [];
   return (
-    <div className="max-w-3xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
+    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
       <Link to={`/goals/${g.id}`} className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-200" title="Back to the goal's run view">
         ← Goal
       </Link>

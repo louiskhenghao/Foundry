@@ -43,7 +43,7 @@ export function InboxPage() {
     return () => clearTimeout(t);
   }, [version, all]);
   return (
-    <div className="max-w-4xl mx-auto p-3 sm:p-4 md:p-6 space-y-3">
+    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-3">
       <UsagePausedBanner />
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Inbox</h1>
