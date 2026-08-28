@@ -98,7 +98,7 @@ export function GoalPage() {
               {repoName}
             </span>
             <CopyButton text={g.repoPath} />
-            <span className="text-zinc-700">·</span>
+            <span className="text-zinc-600">·</span>
             <GitBranch size={12} className="shrink-0" />
             <span className="mono truncate" title={`${g.baseBranch} → ${g.branch}`}>
               {g.baseBranch} → {g.branch}

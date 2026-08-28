@@ -40,7 +40,7 @@ export function ActivityTab({ d }: { d: GoalDetail }) {
             <span className="mono text-zinc-600 w-16 shrink-0">{it.ts.slice(11, 19)}</span>
             <span className={cn('mt-1.5 h-1.5 w-1.5 rounded-full shrink-0', DOT[it.tone])} />
             <span className={cn('flex-1 break-words', it.kind === 'text' ? 'text-zinc-500 italic' : TONE[it.tone])}>{it.text}</span>
-            <span className="mono text-[10px] text-zinc-700 shrink-0">{it.type}</span>
+            <span className="mono text-[10px] text-zinc-600 shrink-0">{it.type}</span>
           </div>
         ))}
         {items.length === 0 && <div className="text-sm text-zinc-500 py-8 text-center">Nothing yet.</div>}

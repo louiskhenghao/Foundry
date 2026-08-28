@@ -15,7 +15,7 @@
   --color-zinc-900: #ffffff; /* surfaces */
   --color-zinc-800: #e4e4e7; /* borders */
   --color-zinc-700: #d4d4d8;
-  --color-zinc-600: #a1a1aa;
+  --color-zinc-600: #8e8e96; /* dimmest TEXT step (timestamps, event types) — must stay readable on white */
   --color-zinc-500: #71717a; /* muted text reads on both */
   --color-zinc-400: #52525b;
   --color-zinc-300: #3f3f46;
