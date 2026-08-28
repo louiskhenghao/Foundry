@@ -1,19 +1,27 @@
 import { ExternalLink } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, type PacksView } from '../api.ts';
+import { LiveLog } from '../pages/LiveLog.tsx';
 import { Button, CopyButton, cn } from '../ui.tsx';
 
 /**
  * One mutually exclusive skill pack (design / image / video): pick an option (Settings
  * `workflow.<pack>Pack`), see its install state, install it in one click. Used by Setup and Settings.
+ * An install streams its log right under the card and the button stays "Installing…" until the
+ * entries actually report installed (the API only *starts* the install).
  */
 export function DesignPacks({ onInstallStarted, compact, pack = 'design' }: { onInstallStarted?: (option: string) => void; compact?: boolean; pack?: 'design' | 'image' | 'video' }) {
   const [packs, setPacks] = useState<PacksView | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [installing, setInstalling] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const poll = useRef<ReturnType<typeof setInterval> | null>(null);
   const load = () => api.packs().then(setPacks).catch((e) => setMsg(e.message));
   useEffect(() => {
     load();
+    return () => {
+      if (poll.current) clearInterval(poll.current);
+    };
   }, []);
   if (!packs) return <div className="text-xs text-zinc-500">{msg ?? `checking ${pack} skills…`}</div>;
   const choose = async (id: string) => {
@@ -34,8 +42,22 @@ export function DesignPacks({ onInstallStarted, compact, pack = 'design' }: { on
     try {
       await api.installPack(pack, id);
       onInstallStarted?.(id);
-      setMsg(`Installing ${id} — output streams on the Setup page; this list refreshes in a few seconds.`);
-      setTimeout(load, 8000);
+      setInstalling(id);
+      // the API only started the install: poll until this option's entries report installed (or give up)
+      const t0 = Date.now();
+      if (poll.current) clearInterval(poll.current);
+      poll.current = setInterval(async () => {
+        const p = await api.packs().catch(() => null);
+        if (p) setPacks(p);
+        const opt = p?.[pack]?.options.find((o) => o.id === id);
+        const done = !!opt && opt.entries.length > 0 && opt.entries.every((e) => e.status.startsWith('installed'));
+        if (done || Date.now() - t0 > 120_000) {
+          clearInterval(poll.current!);
+          poll.current = null;
+          setInstalling(null);
+          setMsg(done ? `${id} installed ✓` : `${id} is not fully installed yet — see the log above or the Skills page for what happened.`);
+        }
+      }, 3000);
     } catch (e: any) {
       setMsg(e.message);
     } finally {
@@ -58,7 +80,9 @@ export function DesignPacks({ onInstallStarted, compact, pack = 'design' }: { on
                   <span className="text-sm text-zinc-100 truncate">{o.label}</span>
                 </button>
                 {o.id !== 'none' && (
-                  <span className={cn('text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 border', ready ? 'text-emerald-300 border-emerald-500/40' : 'text-amber-300 border-amber-500/40')}>{ready ? 'installed' : `${missing.length} missing`}</span>
+                  <span className={cn('text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 border', installing === o.id ? 'text-sky-300 border-sky-500/40' : ready ? 'text-emerald-300 border-emerald-500/40' : 'text-amber-300 border-amber-500/40')}>
+                    {installing === o.id ? 'installing…' : ready ? 'installed' : `${missing.length} missing`}
+                  </span>
                 )}
                 {o.homepage && (
                   <a href={o.homepage} target="_blank" rel="noreferrer" className="text-zinc-500 hover:text-zinc-200" title={o.homepage}>
@@ -79,9 +103,17 @@ export function DesignPacks({ onInstallStarted, compact, pack = 'design' }: { on
               )}
               {missing.length > 0 && !manualOnly && (
                 <div>
-                  <Button size="sm" variant={chosen ? 'primary' : 'default'} disabled={busy !== null} onClick={() => install(o.id)}>
-                    {busy === `install:${o.id}` ? 'Starting…' : `Install ${o.label}`}
+                  <Button size="sm" variant={chosen ? 'primary' : 'default'} disabled={busy !== null || installing === o.id} onClick={() => install(o.id)}>
+                    {busy === `install:${o.id}` ? 'Starting…' : installing === o.id ? 'Installing…' : `Install ${o.label}`}
                   </Button>
+                </div>
+              )}
+              {installing === o.id && (
+                <div className="space-y-1">
+                  <div className="text-[11px] text-sky-300 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse" /> installing — live log below; this card updates itself when the skills land
+                  </div>
+                  <LiveLog attemptId="tool-install" className="max-h-40" />
                 </div>
               )}
               {manualOnly && missing[0]!.manual && (
