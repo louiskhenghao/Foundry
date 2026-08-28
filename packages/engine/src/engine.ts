@@ -55,6 +55,7 @@ import { deliveryWorkspacePath, dropTaskWorkspace, ensureGoalWorkspace, goalWork
 import { attachmentDir, claimStaged, conversionTmpPath, markdownFileName, sweepStaging, trashAttachment } from './attachments.ts';
 import { Markitdown } from './convert/markitdown.ts';
 import { SettingsStore, applySettingsToConfig } from './settings.ts';
+import { NotificationDispatcher } from './notify/dispatcher.ts';
 import { ModelFallbackRunner } from './models/fallback-runner.ts';
 import { ModelRegistry, SEED_MODELS, isPinnedId, type ModelRecord } from './models/registry.ts';
 import { copyProjectSkills, hasStackManifest, runAutoskills, type AutoskillsDeps } from './skills/autoskills.ts';
@@ -131,6 +132,8 @@ export class Engine {
   private resumeTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly settings: SettingsStore;
+  /** pushes escalations / goal endings / delivery results / usage pauses to Telegram & Discord (Settings → Notifications) */
+  readonly notifications: NotificationDispatcher;
   /** what this machine has learned about model names (requested → resolved id, last ok/fail) */
   readonly models: ModelRegistry;
   /** autoskills runs in progress, per goal (tasks wait for them before their first attempt) */
@@ -201,6 +204,8 @@ export class Engine {
     this.store.subscribe((e) => {
       if (e.goalId) this.tick(e.goalId);
     });
+    this.notifications = new NotificationDispatcher(this);
+    this.notifications.attach();
   }
 
   /** env vars the engine adds to every session on top of its own process.env (settings-sourced secrets) */
@@ -939,7 +944,12 @@ export class Engine {
     const check = available
       ? { id: 'markitdown', label: 'markitdown (optional)', ok: true, severity: 'warn' as const, detail: `${this.markitdown.binary()} — attachments and repository documents are converted to markdown before sessions read them`, fix: null }
       : { id: 'markitdown', label: 'markitdown (optional)', ok: false, severity: 'warn' as const, detail: 'not installed — PDFs, Office files and links are handed to sessions as-is (more tokens to read). Installing converts them to markdown first.', fix: { command: "uv tool install --python 3.12 'markitdown[all]'", url: 'https://github.com/microsoft/markitdown', ...(cmd ? { action: 'install-markitdown' as const } : {}) } };
-    return this.skills.doctor([check, this.modelsCheck()]);
+    const n = this.settings.values().notifications;
+    const notifChannels = [n.telegramBotToken && n.telegramChatId ? 'Telegram' : null, n.discordWebhookUrl ? 'Discord' : null].filter(Boolean);
+    const notif = notifChannels.length
+      ? { id: 'notifications', label: 'Notifications (optional)', ok: true, severity: 'warn' as const, detail: `${notifChannels.join(' + ')} configured — you get pinged when a goal needs you, finishes, delivers, or usage pauses`, fix: null }
+      : { id: 'notifications', label: 'Notifications (optional)', ok: false, severity: 'warn' as const, detail: 'not configured — get a Telegram or Discord ping when a goal needs you, finishes, or a delivery fails', fix: { url: '/settings' } };
+    return this.skills.doctor([check, this.modelsCheck(), notif]);
   }
 
   /** Attach a staged upload or a link to an existing goal; later sessions see it. */
