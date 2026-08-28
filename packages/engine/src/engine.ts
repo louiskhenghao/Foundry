@@ -43,6 +43,7 @@ import { runGoalReview } from './goal-review.ts';
 import { Roles } from './roles.ts';
 import { schedule } from './scheduler.ts';
 import { SkillsManager } from './skills/manager.ts';
+import { UpdateManager } from './update/updater.ts';
 import { AgentsMonitor, type FoundryLiveSession } from './agents/monitor.ts';
 import { ClaudeAuth } from './auth/claude-auth.ts';
 import { CliGh, type GhClient } from './delivery/gh.ts';
@@ -134,6 +135,10 @@ export class Engine {
   readonly settings: SettingsStore;
   /** pushes escalations / goal endings / delivery results / usage pauses to Telegram & Discord (Settings → Notifications) */
   readonly notifications: NotificationDispatcher;
+  /** version self-knowledge, the daily update check, and the self-update pipeline (ADR-0010) */
+  readonly updater: UpdateManager;
+  /** self-update drain: no new sessions start; in-flight work finishes (mirror of the rate-limit gate) */
+  private updateDraining = false;
   /** what this machine has learned about model names (requested → resolved id, last ok/fail) */
   readonly models: ModelRegistry;
   /** autoskills runs in progress, per goal (tasks wait for them before their first attempt) */
@@ -206,6 +211,21 @@ export class Engine {
     });
     this.notifications = new NotificationDispatcher(this);
     this.notifications.attach();
+    this.updater = new UpdateManager(this);
+  }
+
+  // ---------- self-update drain ----------
+
+  beginUpdateDrain(): void {
+    this.updateDraining = true;
+  }
+  endUpdateDrain(): void {
+    if (!this.updateDraining) return;
+    this.updateDraining = false;
+    for (const g of listGoals(this.store.db)) this.tick(g.id);
+  }
+  isUpdateDraining(): boolean {
+    return this.updateDraining;
   }
 
   /** env vars the engine adds to every session on top of its own process.env (settings-sourced secrets) */
@@ -392,6 +412,7 @@ export class Engine {
 
   async stop(): Promise<void> {
     this.stopped = true;
+    this.updater.stopSchedule();
     if (this.resumeTimer) {
       clearTimeout(this.resumeTimer);
       this.resumeTimer = null;
@@ -714,6 +735,7 @@ export class Engine {
     const goal = getGoal(this.store.db, goalId);
     if (!goal) return;
     if (this.isRateLimited()) return; // resume timer will tick again
+    if (this.updateDraining) return; // endUpdateDrain re-ticks every goal
     switch (goal.state) {
       case 'draft':
         this.store.append({ type: 'goal.state_changed', goalId, payload: { from: 'draft', to: 'clarifying', reason: 'start clarify' } });

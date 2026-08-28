@@ -9,7 +9,7 @@ import type { Engine } from '../engine.ts';
 import { DiscordNotifier, TelegramNotifier, type Notifier } from './channels.ts';
 
 export interface Composed {
-  family: 'goalFinished' | 'delivery' | 'rateLimit';
+  family: 'goalFinished' | 'delivery' | 'rateLimit' | 'updateAvailable';
   text: string;
   /** web-UI path appended to notifications.baseUrl when one is set */
   path: string | null;
@@ -43,6 +43,9 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
       return { family: 'rateLimit', text: `⏸️ Claude usage limit — goals paused until ${e.payload.until}`, path: '/usage' };
     case 'rate_limit.resumed':
       return { family: 'rateLimit', text: '▶️ Claude usage limit lifted — goals resume', path: '/usage' };
+    case 'update.available':
+      // the checker announces once per version, so this family never repeats itself
+      return { family: 'updateAvailable', text: `⬆️ Foundry ${e.payload.latest} is available — you run ${e.payload.current}`, path: '/settings' };
     default:
       return null;
   }
@@ -82,7 +85,7 @@ export class NotificationDispatcher {
     const c = compose(e, this.goalTitle);
     if (!c) return;
     const s = this.settings();
-    const on = { goalFinished: s.onGoalFinished, delivery: s.onDelivery, rateLimit: s.onRateLimit }[c.family];
+    const on = { goalFinished: s.onGoalFinished, delivery: s.onDelivery, rateLimit: s.onRateLimit, updateAvailable: s.onUpdateAvailable }[c.family];
     if (on) this.deliver(s, c.text, c.path, e.goalId);
   }
 

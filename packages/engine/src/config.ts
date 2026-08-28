@@ -2,6 +2,8 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 export interface EngineConfig {
+  /** The Foundry checkout/install itself (root package.json = the product version; local self-update runs git here). */
+  rootDir: string;
   /** Where engine.db, transcripts, worktrees, check outputs live. */
   dataDir: string;
   /** Claude Code home (~/.claude). Tests point this at a temp dir. */
@@ -75,6 +77,7 @@ export interface EngineConfig {
 
 export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {}): EngineConfig {
   return {
+    rootDir: resolve(root),
     dataDir: resolve(root, 'data'),
     claudeHome: process.env.FOUNDRY_CLAUDE_HOME ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'),
     catalogPath: resolve(root, 'catalog/skills.json'),

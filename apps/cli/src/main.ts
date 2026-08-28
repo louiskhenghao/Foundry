@@ -112,6 +112,7 @@ switch (cmd) {
     const engine = new Engine(defaultConfig(ROOT));
     const server = startServer(engine, { webDist: resolve(ROOT, 'apps/web/dist') });
     console.log(`foundry listening on http://${engine.config.host}:${server.port}  (data: ${engine.config.dataDir})`);
+    engine.updater.startSchedule();
     await engine.start();
     const shutdown = async () => {
       console.log('\nshutting down…');

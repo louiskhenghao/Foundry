@@ -28,6 +28,7 @@ export * from './models/registry.ts';
 export { ModelFallbackRunner, isModelUnavailable } from './models/fallback-runner.ts';
 export * from './settings.ts';
 export * from './notify/channels.ts';
+export { UpdateManager, compareVersions, parseChangelog, type UpdateReport, type UpdateCapability, type DeploymentMode } from './update/updater.ts';
 export { NotificationDispatcher, compose as composeNotification, composeEscalation as composeEscalationNotification } from './notify/dispatcher.ts';
 export { DraftRequest, type DraftProposal, DRAFT_MAX_BUDGET_USD } from './brief-draft.ts';
 export { startStyleSample, StyleSampleError, STYLE_SAMPLE_MAX, STYLE_SAMPLE_BUDGET_USD } from './style-sample.ts';

@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api } from './api.ts';
 import { AccountMenu } from './components/AccountMenu.tsx';
+import { UpdatePill } from './components/UpdateDialog.tsx';
 import { BriefPage } from './pages/BriefPage.tsx';
 import { MergeResolvePage } from './pages/MergeResolvePage.tsx';
 import { GoalPage } from './pages/GoalPage.tsx';
@@ -89,6 +90,7 @@ export function App() {
               <Plus size={14} /> <span className="hidden sm:inline">New goal</span>
             </Button>
           </Link>
+          <UpdatePill />
           <AgentsPill />
           <UsagePill />
           <AccountMenu />

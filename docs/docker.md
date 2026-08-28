@@ -173,8 +173,18 @@ docker run --rm -v foundry-data:/d -v "$PWD":/out alpine tar czf /out/foundry-da
 docker start foundry
 ```
 
-Upgrade: `docker pull imlouiskhenghao/foundry:latest`, then `docker rm -f foundry` and run it again with the
-same volumes — the event log is replayed and unfinished attempts resume where they stopped.
+## Updating
+
+Foundry checks the release registry once a day; when a newer version exists the header shows an update pill
+(also Settings → About & updates), with the changelog.
+
+- **One-click** (compose with the shipped `docker-compose.yml`): the compose file runs a small
+  [watchtower](https://containrrr.dev/watchtower/) sidecar — the only container that touches the docker
+  socket. *Update* in the UI waits for active agents to finish, then the sidecar pulls the new image and
+  recreates the container; the page reconnects by itself.
+- **Manual** (plain `docker run`, or no sidecar): the UI shows the exact commands instead —
+  `docker pull imlouiskhenghao/foundry:latest`, then `docker rm -f foundry` and run it again with the same
+  volumes. The event log is replayed and unfinished attempts resume where they stopped.
 
 ## Troubleshooting
 
@@ -193,7 +203,7 @@ same volumes — the event log is replayed and unfinished attempts resume where 
 
 - The UI has no authentication — keep the published port on `127.0.0.1`, never expose 4111 to a network.
 - `FOUNDRY_HOST=0.0.0.0` is already set inside the image; do the loopback binding on the host side (`-p 127.0.0.1:…`).
-- Useful env vars: `FOUNDRY_MODEL_STRONG` / `_WORKER` / `_CHEAP` (default `opus`/`opus`/`haiku`), `FOUNDRY_MAX_CONCURRENT` (3), `FOUNDRY_TDD` (`required|preferred|off`), `FOUNDRY_GOAL_MODE` (`simple|expert`). Everything else is editable in Settings.
+- Useful env vars: `FOUNDRY_MODEL_STRONG` / `_WORKER` / `_CHEAP` (default `opus`/`opus`/`haiku`), `FOUNDRY_MAX_CONCURRENT` (3), `FOUNDRY_TDD` (`required|preferred|off`), `FOUNDRY_GOAL_MODE` (`simple|expert`), `FOUNDRY_UPDATE_CHECK=off` (disable the daily version check). Everything else is editable in Settings.
 - Interrupted attempts resume as Continuations after a restart — see [runbook](./runbook.md).
 - Build your own: `docker build -t foundry .` (add `--build-arg CLAUDE_CODE_VERSION=x.y.z` to pin a different CLI).
 - No API key is ever needed or used; `ANTHROPIC_API_KEY` is stripped from every session the engine spawns.
