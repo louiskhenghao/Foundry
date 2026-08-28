@@ -41,7 +41,7 @@ export function AccountMenu() {
           title={st.orgName ?? ''}
         >
           <UserCircle2 size={13} className="text-emerald-400" />
-          <span className="mono hidden md:inline">{st.email ?? 'signed in'}</span>
+          <span className="mono hidden xl:inline">{st.email ?? 'signed in'}</span>
           {st.subscriptionType && <span className="rounded bg-emerald-500/15 text-emerald-300 px-1 uppercase text-[9px]">{st.subscriptionType}</span>}
         </button>
       )}
