@@ -11,6 +11,17 @@ import { SourceGroup } from './SourceGroup.tsx';
 type Report = SkillsUpdateReport & { updating: string | null; refreshing: boolean };
 type View = { name: string; dir: string; invoke: string; skillMd: string | null; files: { path: string; size: number }[] };
 
+/** Sources of the same kind sit together, engine-managed first, loose copies last. */
+const MANAGER_ORDER = ['foundry', 'plugin', 'agents-cli', 'gstack', 'hand', 'project'] as const;
+const MANAGER_HEADING: Record<(typeof MANAGER_ORDER)[number], string> = {
+  foundry: 'Managed by Foundry',
+  plugin: 'Claude plugins',
+  'agents-cli': 'npx skills',
+  gstack: 'gstack',
+  hand: 'Hand-installed',
+  project: 'Project skills',
+};
+
 /**
  * Skills, grouped by where they come from, with update status per source and per skill,
  * one-click updaters, adoption of loose copies, shadow-copy cleanup, bulk uninstall and SKILL.md viewing.
@@ -199,8 +210,19 @@ export function SkillsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-3">
-          {report.sources.map((s) => (
-            <SourceGroup key={s.id} s={s} busy={actionsBusy} updating={report.updating === s.id} filter={filter} a={{ onUpdate: (names) => updateSource(s.id, names), onAdopt: adopt, onTrashShadows: trashShadows, onUninstall: (names) => setConfirmNames(names), onView: openView, selected, onSelect: select }} />
+          {MANAGER_ORDER.filter((m) => report.sources.some((s) => s.manager === m && s.skills.some(filter))).map((m) => (
+            <div key={m} className="space-y-2">
+              <div className="flex items-center gap-2 pt-1">
+                <span className="text-[10px] uppercase tracking-wide text-zinc-500">{MANAGER_HEADING[m]}</span>
+                <span className="text-[10px] text-zinc-600">{report.sources.filter((s) => s.manager === m).reduce((n, s) => n + s.skills.length, 0)}</span>
+                <span className="flex-1 h-px bg-zinc-800/70" />
+              </div>
+              {report.sources
+                .filter((s) => s.manager === m)
+                .map((s) => (
+                  <SourceGroup key={s.id} s={s} busy={actionsBusy} updating={report.updating === s.id} filter={filter} a={{ onUpdate: (names) => updateSource(s.id, names), onAdopt: adopt, onTrashShadows: trashShadows, onUninstall: (names) => setConfirmNames(names), onView: openView, selected, onSelect: select }} />
+                ))}
+            </div>
           ))}
           {report.sources.every((s) => !s.skills.some(filter)) && <Empty>Nothing matches.</Empty>}
         </div>
