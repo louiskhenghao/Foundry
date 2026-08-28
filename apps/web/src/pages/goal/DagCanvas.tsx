@@ -165,7 +165,7 @@ function TaskNode({ t, selected, linked, dim, onSelect, className, style, after 
     <button
       onClick={() => onSelect(selected ? null : t.id)}
       style={style}
-      className={cn('text-left rounded-lg border p-2.5 bg-zinc-950 hover:border-zinc-500 transition', selected ? 'border-emerald-500 ring-1 ring-emerald-500/40' : linked ? 'border-zinc-400 ring-1 ring-zinc-400/30' : 'border-zinc-800', t.state === 'running' && 'ring-1 ring-blue-500/40', dim && 'opacity-40', className)}
+      className={cn('dag-node text-left rounded-lg border p-2.5 bg-zinc-950 hover:border-zinc-500 transition', selected ? 'border-emerald-500 ring-1 ring-emerald-500/40' : linked ? 'border-zinc-400 ring-1 ring-zinc-400/30' : 'border-zinc-800', t.state === 'running' && 'ring-1 ring-blue-500/40', dim && 'opacity-40', className)}
     >
       <div className="flex items-center justify-between gap-2">
         {t.plain ? (

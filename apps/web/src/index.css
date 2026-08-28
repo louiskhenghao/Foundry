@@ -11,7 +11,7 @@
  */
 :root.light {
   color-scheme: light;
-  --color-zinc-950: #f4f4f5; /* page */
+  --color-zinc-950: #ebebed; /* page — a step darker than surfaces so white cards keep a visible boundary */
   --color-zinc-900: #ffffff; /* surfaces */
   --color-zinc-800: #e4e4e7; /* borders */
   --color-zinc-700: #d4d4d8;
@@ -46,6 +46,12 @@
   --color-fuchsia-200: var(--color-fuchsia-800);
   --color-fuchsia-300: var(--color-fuchsia-700);
   --color-fuchsia-400: var(--color-fuchsia-600);
+}
+
+/* The DAG task cards are page-colored ("sunken") in dark, which reads as muddy gray on a white panel — raise them to white surfaces in light. */
+:root.light .dag-node {
+  background-color: #ffffff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
 }
 html,
 body,
