@@ -64,7 +64,17 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   // `active` = everything a restart would interrupt (sessions + attempts between sessions + clarify/review/delivery); `busy` breaks it down
   app.get('/api/health', (c) => {
     const busy = engine.busy();
-    return c.json({ ok: true, active: busy.total, busy, events: engine.store.count(), pausedUntil: engine.rateLimitedUntilIso(), restartNeeded: engine.settings.restartNeeded() });
+    return c.json({
+      ok: true,
+      active: busy.total,
+      busy,
+      events: engine.store.count(),
+      pausedUntil: engine.rateLimitedUntilIso(),
+      restartNeeded: engine.settings.restartNeeded(),
+      version: engine.updater.current(),
+      updateAvailable: !!engine.updater.cachedReport()?.updateAvailable,
+      updating: engine.updater.isApplying() || engine.isUpdateDraining(),
+    });
   });
 
   // ---------- agents monitor (read-through over ~/.claude + engine state; nothing persisted) ----------
@@ -646,6 +656,19 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     if (!t) return c.json({ error: 'no bot token — paste the token from @BotFather first' }, 400);
     return c.json(await detectTelegramChatId(t));
   });
+  // ---------- version & self-update (ADR-0010): cached report like /api/skills/updates; apply streams to `self-update` ----------
+  app.get('/api/update', (c) => c.json({ ...engine.updater.reportOrKick(), capability: engine.updater.capability(), checking: engine.updater.isChecking(), applying: engine.updater.isApplying() }));
+  app.post('/api/update/check', async (c) => c.json(await engine.updater.check()));
+  app.post('/api/update/apply', async (c) => {
+    const { force } = z.object({ force: z.boolean().optional() }).parse(await c.req.json().catch(() => ({})));
+    const cap = engine.updater.capability();
+    if (engine.updater.isApplying()) throw new HttpError(409, { error: 'an update is already running' });
+    if (!cap.canSelfUpdate) throw new HttpError(422, { error: 'this install cannot self-update', guided: cap.guided, mode: cap.mode });
+    // background; failures are streamed to the channel and recorded as an update.run event
+    void engine.updater.apply({ force, onLine: stream('self-update') }).catch(() => {});
+    return c.json({ started: true, channel: 'self-update' }, 202);
+  });
+
   app.post('/api/skills/install', async (c) => {
     const { id, force } = z.object({ id: z.string(), force: z.boolean().optional() }).parse(await c.req.json());
     const r = await engine.skills.install(id, { force });
