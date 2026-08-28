@@ -62,7 +62,7 @@ export function DiffTab({ goalId, baseBranch, branch }: { goalId: string; baseBr
         </button>
       </div>
       {files.map((f) => (
-        <div key={f.path} className="rounded-md border border-zinc-800 overflow-hidden">
+        <div key={f.path} className="surface-card rounded-md border border-zinc-800 overflow-hidden">
           <button onClick={() => toggle(f.path)} className="diff-file-head w-full flex items-center gap-3 px-3 py-1.5 bg-zinc-900/70 text-xs text-left">
             <span className="text-zinc-500">{open.has(f.path) ? '▾' : '▸'}</span>
             <span className="mono text-zinc-100 flex-1 truncate">{f.path}</span>

@@ -56,7 +56,7 @@ export function GoalsPage() {
           {/* phones: cards */}
           <div className="sm:hidden space-y-2">
             {goals.map((g) => (
-              <Link key={g.id} to={href(g)} className="block rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 hover:border-zinc-600">
+              <Link key={g.id} to={href(g)} className="surface-card block rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 hover:border-zinc-600">
                 <div className="flex items-start justify-between gap-2">
                   <div className="text-sm text-zinc-100 leading-snug">{g.title}</div>
                   <span className="shrink-0">{stateCell(g, true)}</span>
@@ -73,7 +73,7 @@ export function GoalsPage() {
             ))}
           </div>
           {/* tablets and up: table */}
-          <div className="hidden sm:block rounded-lg border border-zinc-800 overflow-x-auto">
+          <div className="surface-card hidden sm:block rounded-lg border border-zinc-800 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-zinc-900 text-zinc-400 text-xs uppercase">
                 <tr>

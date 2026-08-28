@@ -48,9 +48,16 @@
   --color-fuchsia-400: var(--color-fuchsia-600);
 }
 
-/* The DAG task cards are page-colored ("sunken") in dark, which reads as muddy gray on a white panel — raise them to white surfaces in light. */
+/*
+ * Dark nests by going darker, but in light the page IS the darkest layer — so a box that is
+ * page-coloured (or transparent) in dark dissolves into the light page. Marked boxes become white
+ * cards, the one shape every panel shares here; their border does the separating when they nest.
+ */
+:root.light .surface-card,
 :root.light .dag-node {
   background-color: #ffffff;
+}
+:root.light .dag-node {
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
 }
 

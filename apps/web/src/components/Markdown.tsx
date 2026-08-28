@@ -53,7 +53,7 @@ export function MarkdownPanel({ source, title, className, maxHeight, local, acti
   const raw = local ? localRaw : globalRaw;
   const setRaw = local ? setLocalRaw : setGlobalRaw;
   return (
-    <div className={cn('relative rounded-md border border-zinc-800 bg-zinc-950/60', className)}>
+    <div className={cn('surface-card relative rounded-md border border-zinc-800 bg-zinc-950/60', className)}>
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-zinc-800/80">
         <span className="text-[11px] uppercase tracking-wide text-zinc-500 flex-1">{title ?? 'markdown'}</span>
         {actions}
