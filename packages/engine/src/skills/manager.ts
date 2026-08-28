@@ -140,7 +140,7 @@ export class SkillsManager {
 
   /**
    * Make a bundle (e.g. "mattpocock") fully available: entries satisfied via a plugin are left alone,
-   * ai-engine-managed ones are refreshed, loose older copies are adopted, missing ones installed.
+   * foundry-managed ones are refreshed, loose older copies are adopted, missing ones installed.
    */
   installBundle(bundle: string, onLine?: (l: string) => void): Promise<{ results: BundleResult[] }> {
     return this.serial(() => this.installEntries(bundle, (e) => e.bundle === bundle, onLine));
@@ -181,12 +181,12 @@ export class SkillsManager {
           results.push({ id: s.entry.id, name: s.entry.name, action: 'failed', detail: String((e as Error).message ?? e) });
         }
       }
-      this.opts.onRun?.({ sourceId: `bundle:${label}`, updater: 'ai-engine', command: ['ai-engine', 'install-bundle', label], cwd: this.paths.skillsDir, exitCode: results.some((r) => r.action === 'failed') ? 1 : 0, durationMs: 0, outputTail: results.map((r) => `${r.action.padEnd(9)} ${r.name}: ${r.detail}`).join('\n'), changed: results.filter((r) => r.action === 'updated' || r.action === 'adopted' || r.action === 'installed').map((r) => ({ name: r.name, from: null, to: null })), error: null, at: new Date().toISOString() });
+      this.opts.onRun?.({ sourceId: `bundle:${label}`, updater: 'foundry', command: ['foundry', 'install-bundle', label], cwd: this.paths.skillsDir, exitCode: results.some((r) => r.action === 'failed') ? 1 : 0, durationMs: 0, outputTail: results.map((r) => `${r.action.padEnd(9)} ${r.name}: ${r.detail}`).join('\n'), changed: results.filter((r) => r.action === 'updated' || r.action === 'adopted' || r.action === 'installed').map((r) => ({ name: r.name, from: null, to: null })), error: null, at: new Date().toISOString() });
       return { results };
     }
   }
 
-  /** Replace loose copies that match catalog entries with ai-engine-managed installs (old copies → trash). */
+  /** Replace loose copies that match catalog entries with foundry-managed installs (old copies → trash). */
   adopt(names: string[], onLine?: (l: string) => void): Promise<SkillUpdateRun[]> {
     return this.serial(async () => {
       const report = await this.checker.report(this.scan(), this.catalog(), { offline: true });
@@ -215,7 +215,7 @@ export class SkillsManager {
         else if (row.managedBy === 'gstack' || row.managedBy === 'gstack-copy') skipped.push({ name, reason: 'managed by gstack' });
         else trashed.push(trashSkill(name, this.paths, `shadowed ${plugin.invoke} (plugin copy is newer)`));
       }
-      if (trashed.length) this.opts.onRun?.({ sourceId: 'shadows', updater: 'none', command: ['ai-engine', 'cleanup-shadows', ...trashed.map((t) => t.name)], cwd: this.paths.skillsDir, exitCode: 0, durationMs: 0, outputTail: trashed.map((t) => `trashed ${t.name} → ${t.path}`).join('\n'), changed: [], error: null, at: new Date().toISOString() });
+      if (trashed.length) this.opts.onRun?.({ sourceId: 'shadows', updater: 'none', command: ['foundry', 'cleanup-shadows', ...trashed.map((t) => t.name)], cwd: this.paths.skillsDir, exitCode: 0, durationMs: 0, outputTail: trashed.map((t) => `trashed ${t.name} → ${t.path}`).join('\n'), changed: [], error: null, at: new Date().toISOString() });
       await this.checker.report(this.scan(), this.catalog(), { offline: true }).catch(() => {});
       return { trashed, skipped };
     });
@@ -260,8 +260,8 @@ export class SkillsManager {
       const row = this.scan().installed.find((r) => r.name === name && r.scope === 'user');
       if (!row) throw new UninstallRefused(`${name} is not a user-level skill`, this.scan().installed.some((r) => r.name === name) ? 'not-user-scope' : 'not-found');
       if (row.managedBy === 'gstack') throw new UninstallRefused('gstack is a git clone that owns hooks in settings.json; remove it with its own tooling', 'managed-by-gstack');
-      if (row.managedBy && row.managedBy !== 'ai-engine' && !opts.force) throw new UninstallRefused(`${name} is managed by ${row.managedBy}: ${row.uninstallNote ?? 'pass force to remove anyway'}`, 'managed-needs-force');
-      const trash = trashSkill(name, this.paths, `uninstalled via ai-engine${row.managedBy ? ` (was managed by ${row.managedBy})` : ''}`);
+      if (row.managedBy && row.managedBy !== 'foundry' && !opts.force) throw new UninstallRefused(`${name} is managed by ${row.managedBy}: ${row.uninstallNote ?? 'pass force to remove anyway'}`, 'managed-needs-force');
+      const trash = trashSkill(name, this.paths, `uninstalled via Foundry${row.managedBy ? ` (was managed by ${row.managedBy})` : ''}`);
       this.opts.log?.(`[skills] trashed ${name} → ${trash.path}`);
       return { trash, note: row.uninstallNote };
     });
@@ -281,12 +281,12 @@ export class SkillsManager {
           results.push({ name, ok: false, error: 'gstack is a git clone that owns hooks; remove it with its own tooling', note: null });
           continue;
         }
-        if (row.managedBy && row.managedBy !== 'ai-engine' && !opts.force) {
+        if (row.managedBy && row.managedBy !== 'foundry' && !opts.force) {
           results.push({ name, ok: false, error: `managed by ${row.managedBy} (force required)`, note: row.uninstallNote });
           continue;
         }
         try {
-          const t = trashSkill(name, this.paths, `uninstalled via ai-engine (bulk)${row.managedBy ? ` (was managed by ${row.managedBy})` : ''}`);
+          const t = trashSkill(name, this.paths, `uninstalled via Foundry (bulk)${row.managedBy ? ` (was managed by ${row.managedBy})` : ''}`);
           this.opts.log?.(`[skills] trashed ${name} → ${t.path}`);
           results.push({ name, ok: true, error: null, note: row.uninstallNote });
         } catch (e) {
@@ -341,7 +341,7 @@ export class SkillsManager {
   update(name?: string): Promise<{ updated: { name: string; from: string | null; to: string | null }[]; unchanged: string[]; errors: { name: string; error: string }[] }> {
     return this.serial(async () => {
       const out = { updated: [] as { name: string; from: string | null; to: string | null }[], unchanged: [] as string[], errors: [] as { name: string; error: string }[] };
-      const rows = this.scan().installed.filter((r) => r.managedBy === 'ai-engine' && r.marker && (!name || r.name === name));
+      const rows = this.scan().installed.filter((r) => r.managedBy === 'foundry' && r.marker && (!name || r.name === name));
       for (const r of rows) {
         const entry = findEntry(this.catalog(), r.marker!.catalogId);
         if (!entry) {

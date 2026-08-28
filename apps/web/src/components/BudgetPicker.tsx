@@ -1,5 +1,5 @@
-import type { BudgetPreset, Budgets } from "@ai-engine/core/browser";
-import { BUDGET_PRESETS } from "@ai-engine/core/browser";
+import type { BudgetPreset, Budgets } from "@foundry/core/browser";
+import { BUDGET_PRESETS } from "@foundry/core/browser";
 import { Input, cn } from "../ui.tsx";
 
 export const PRESET_ORDER: BudgetPreset[] = [

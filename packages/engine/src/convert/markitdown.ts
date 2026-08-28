@@ -113,7 +113,7 @@ export class Markitdown {
     let truncated = false;
     if (bytes > max) {
       const buf = readFileSync(outMd);
-      writeFileSync(outMd, Buffer.concat([buf.subarray(0, max), Buffer.from(`\n\n---\n*[ai-engine: output truncated at ${(max / 1048576).toFixed(0)} MB; original ${(bytes / 1048576).toFixed(1)} MB — read the source file for the rest]*\n`)]));
+      writeFileSync(outMd, Buffer.concat([buf.subarray(0, max), Buffer.from(`\n\n---\n*[foundry: output truncated at ${(max / 1048576).toFixed(0)} MB; original ${(bytes / 1048576).toFixed(1)} MB — read the source file for the rest]*\n`)]));
       bytes = statSync(outMd).size;
       truncated = true;
     }

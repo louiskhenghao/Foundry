@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from 'bun:test';
 import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { getGoal, listEscalations, listTasks } from '@ai-engine/core';
+import { getGoal, listEscalations, listTasks } from '@foundry/core';
 import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
 import { FakeRunner, makeRepo, sh, terminal, waitFor } from './test-helpers.ts';
@@ -11,7 +11,7 @@ const ROOT = resolve(import.meta.dir, '../../..');
 let dataDir: string;
 let repo: string;
 beforeEach(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), 'ai-engine-integrate-'));
+  dataDir = mkdtempSync(join(tmpdir(), 'foundry-integrate-'));
   repo = await makeRepo();
 });
 const cfg = () => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, log: () => {} });

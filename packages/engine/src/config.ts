@@ -36,7 +36,7 @@ export interface EngineConfig {
   alwaysReviewTasks: boolean;
   /** Max goal-level review → fix-task cycles before escalating. */
   maxFixCycles: number;
-  /** Default delivery policy for new goals (env AI_ENGINE_DELIVERY_MODE). */
+  /** Default delivery policy for new goals (env FOUNDRY_DELIVERY_MODE). */
   defaultDelivery?: { mode?: 'local' | 'push' | 'pr' | 'pr-automerge'; remote?: string; unit?: 'goal' | 'task' };
   /** which design skill set UI tasks use (catalog entries with pack "design"); 'none' = no design skill is mandated */
   designPack: string;
@@ -60,7 +60,7 @@ export interface EngineConfig {
   workflowTdd: 'required' | 'preferred' | 'off';
   /** view new goals open in */
   defaultGoalMode: 'simple' | 'expert';
-  /** markitdown binary override (env AI_ENGINE_MARKITDOWN); auto-detected on PATH and ~/.local/bin otherwise */
+  /** markitdown binary override (env FOUNDRY_MARKITDOWN); auto-detected on PATH and ~/.local/bin otherwise */
   markitdownBin?: string;
   /** OpenAI-compatible key handed to every session as OPENAI_API_KEY (image generation); env OPENAI_API_KEY reaches sessions anyway */
   openaiApiKey?: string;
@@ -72,36 +72,36 @@ export interface EngineConfig {
 export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {}): EngineConfig {
   return {
     dataDir: resolve(root, 'data'),
-    claudeHome: process.env.AI_ENGINE_CLAUDE_HOME ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'),
+    claudeHome: process.env.FOUNDRY_CLAUDE_HOME ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'),
     catalogPath: resolve(root, 'catalog/skills.json'),
     rolesDir: resolve(root, 'roles'),
     hooksDir: resolve(root, 'packages/runner/hooks'),
-    port: Number(process.env.AI_ENGINE_PORT ?? 4111),
-    host: process.env.AI_ENGINE_HOST ?? '127.0.0.1',
-    maxConcurrent: Number(process.env.AI_ENGINE_MAX_CONCURRENT ?? 3),
-    models: { strong: process.env.AI_ENGINE_MODEL_STRONG ?? 'opus', cheap: process.env.AI_ENGINE_MODEL_CHEAP ?? 'haiku', worker: process.env.AI_ENGINE_MODEL_WORKER ?? 'opus' },
-    modelFallbacks: (process.env.AI_ENGINE_MODEL_FALLBACKS ?? 'opus,sonnet,haiku').split(',').map((s) => s.trim()).filter(Boolean),
+    port: Number(process.env.FOUNDRY_PORT ?? 4111),
+    host: process.env.FOUNDRY_HOST ?? '127.0.0.1',
+    maxConcurrent: Number(process.env.FOUNDRY_MAX_CONCURRENT ?? 3),
+    models: { strong: process.env.FOUNDRY_MODEL_STRONG ?? 'opus', cheap: process.env.FOUNDRY_MODEL_CHEAP ?? 'haiku', worker: process.env.FOUNDRY_MODEL_WORKER ?? 'opus' },
+    modelFallbacks: (process.env.FOUNDRY_MODEL_FALLBACKS ?? 'opus,sonnet,haiku').split(',').map((s) => s.trim()).filter(Boolean),
     attemptTimeoutMs: 20 * 60_000,
-    maxContinuations: process.env.AI_ENGINE_MAX_CONTINUATIONS ? Number(process.env.AI_ENGINE_MAX_CONTINUATIONS) : 2,
+    maxContinuations: process.env.FOUNDRY_MAX_CONTINUATIONS ? Number(process.env.FOUNDRY_MAX_CONTINUATIONS) : 2,
     // the cost cap is the real guard; turns only stop runaway loops
-    attemptMaxTurns: Number(process.env.AI_ENGINE_ATTEMPT_MAX_TURNS ?? 150),
+    attemptMaxTurns: Number(process.env.FOUNDRY_ATTEMPT_MAX_TURNS ?? 150),
     // per-session cap; a strong model on a real task often needs $3–8, and a session killed mid-work wastes what it spent
-    attemptMaxCostUsd: Number(process.env.AI_ENGINE_ATTEMPT_MAX_COST ?? 10),
+    attemptMaxCostUsd: Number(process.env.FOUNDRY_ATTEMPT_MAX_COST ?? 10),
     useGraphify: true,
     alwaysReviewTasks: true,
     maxFixCycles: 1,
-    defaultDelivery: { unit: 'task', ...(process.env.AI_ENGINE_DELIVERY_MODE ? { mode: process.env.AI_ENGINE_DELIVERY_MODE as any } : {}) },
-    designPack: process.env.AI_ENGINE_DESIGN_PACK ?? 'ui-ux-pro-max',
-    workflowPace: process.env.AI_ENGINE_PACE === 'fast' ? 'fast' : 'thorough',
-    imagePack: process.env.AI_ENGINE_IMAGE_PACK ?? 'gpt-image-2',
-    videoPack: process.env.AI_ENGINE_VIDEO_PACK ?? 'web-video-presentation',
-    autoskills: process.env.AI_ENGINE_AUTOSKILLS ? !/^(0|false|off|no)$/i.test(process.env.AI_ENGINE_AUTOSKILLS) : true,
-    sync: { fetchBeforeGoal: process.env.AI_ENGINE_SYNC_FETCH ? !/^(0|false|off|no)$/i.test(process.env.AI_ENGINE_SYNC_FETCH) : true, startFrom: process.env.AI_ENGINE_SYNC_START === 'local' ? 'local' : 'auto', refreshBetweenTasks: /^(1|true|on|yes)$/i.test(process.env.AI_ENGINE_SYNC_REFRESH ?? '') },
+    defaultDelivery: { unit: 'task', ...(process.env.FOUNDRY_DELIVERY_MODE ? { mode: process.env.FOUNDRY_DELIVERY_MODE as any } : {}) },
+    designPack: process.env.FOUNDRY_DESIGN_PACK ?? 'ui-ux-pro-max',
+    workflowPace: process.env.FOUNDRY_PACE === 'fast' ? 'fast' : 'thorough',
+    imagePack: process.env.FOUNDRY_IMAGE_PACK ?? 'gpt-image-2',
+    videoPack: process.env.FOUNDRY_VIDEO_PACK ?? 'web-video-presentation',
+    autoskills: process.env.FOUNDRY_AUTOSKILLS ? !/^(0|false|off|no)$/i.test(process.env.FOUNDRY_AUTOSKILLS) : true,
+    sync: { fetchBeforeGoal: process.env.FOUNDRY_SYNC_FETCH ? !/^(0|false|off|no)$/i.test(process.env.FOUNDRY_SYNC_FETCH) : true, startFrom: process.env.FOUNDRY_SYNC_START === 'local' ? 'local' : 'auto', refreshBetweenTasks: /^(1|true|on|yes)$/i.test(process.env.FOUNDRY_SYNC_REFRESH ?? '') },
     delivery: { pollMs: 30_000, noChecksGraceMs: 90_000, checksTimeoutMs: 30 * 60_000, automergeWaitMs: 10 * 60_000 },
-    workflowProfile: process.env.AI_ENGINE_WORKFLOW === 'plain' ? 'plain' : 'mattpocock',
-    workflowTdd: (['required', 'preferred', 'off'].includes(process.env.AI_ENGINE_TDD ?? '') ? process.env.AI_ENGINE_TDD : 'required') as 'required' | 'preferred' | 'off',
-    defaultGoalMode: process.env.AI_ENGINE_GOAL_MODE === 'simple' ? 'simple' : 'expert',
-    markitdownBin: process.env.AI_ENGINE_MARKITDOWN,
+    workflowProfile: process.env.FOUNDRY_WORKFLOW === 'plain' ? 'plain' : 'mattpocock',
+    workflowTdd: (['required', 'preferred', 'off'].includes(process.env.FOUNDRY_TDD ?? '') ? process.env.FOUNDRY_TDD : 'required') as 'required' | 'preferred' | 'off',
+    defaultGoalMode: process.env.FOUNDRY_GOAL_MODE === 'simple' ? 'simple' : 'expert',
+    markitdownBin: process.env.FOUNDRY_MARKITDOWN,
     log: (m) => console.log(m),
     ...overrides,
   };

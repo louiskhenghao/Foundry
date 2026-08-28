@@ -1,4 +1,4 @@
-/** Browser-safe subset of @ai-engine/core: schemas, events, ids, DAG helpers. No sqlite. */
+/** Browser-safe subset of @foundry/core: schemas, events, ids, DAG helpers. No sqlite. */
 export * from './schema/index.ts';
 export * from './events.ts';
 export * from './ids.ts';

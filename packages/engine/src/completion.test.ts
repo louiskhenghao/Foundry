@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { getGoal, type Brief } from '@ai-engine/core';
-import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@ai-engine/runner';
+import { getGoal, type Brief } from '@foundry/core';
+import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
 import { inferCompletion, runGraphRefresh } from './completion.ts';
 import { defaultConfig } from './config.ts';
 import { runDocsGeneration } from './docs-generate.ts';
@@ -34,7 +34,7 @@ const fakeNpx = async (_argv: string[], cwd: string, onLine: (l: string) => void
 };
 
 async function makeRepo(): Promise<string> {
-  const dir = mkdtempSync(join(tmpdir(), 'ai-engine-completion-repo-'));
+  const dir = mkdtempSync(join(tmpdir(), 'foundry-completion-repo-'));
   writeFileSync(join(dir, 'README.md'), 'fixture\n');
   await Bun.$`git -C ${dir} init -q -b main && git -C ${dir} -c user.name=t -c user.email=t@t add -A && git -C ${dir} -c user.name=t -c user.email=t@t commit -q -m init`.quiet();
   return dir;
@@ -52,7 +52,7 @@ const ROOT = resolve(import.meta.dir, '../..', '..');
 let dataDir: string;
 let repo: string;
 beforeEach(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), 'ai-engine-completion-data-'));
+  dataDir = mkdtempSync(join(tmpdir(), 'foundry-completion-data-'));
   repo = await makeRepo();
 });
 const engines: Engine[] = [];
@@ -74,7 +74,7 @@ const task = (scenario: Brief['tasks'][number]['scenario']): Brief['tasks'][numb
 
 describe('completion inference', () => {
   test('coding goals get graph refresh + prd/readme; changelog when the file exists; questionnaire when decisions pend', () => {
-    const ws = mkdtempSync(join(tmpdir(), 'ai-engine-infer-'));
+    const ws = mkdtempSync(join(tmpdir(), 'foundry-infer-'));
     expect(inferCompletion({ ...briefBase, tasks: [task('frontend')] }, ws)).toMatchObject({ graphRefresh: true, docs: ['to-prd', 'readme-update'] });
     expect(inferCompletion({ ...briefBase, tasks: [task('general')] }, ws)).toMatchObject({ graphRefresh: false, docs: [] });
     writeFileSync(join(ws, 'CHANGELOG.md'), '# changelog\n');
@@ -120,7 +120,7 @@ describe('usage pause across restarts', () => {
     expect(engine2.store.listByType('rate_limit.paused', 10)).toHaveLength(1);
     await engine2.stop();
 
-    const dataDir2 = mkdtempSync(join(tmpdir(), 'ai-engine-completion-data2-'));
+    const dataDir2 = mkdtempSync(join(tmpdir(), 'foundry-completion-data2-'));
     try {
       const cfg2 = () => defaultConfig(ROOT, { dataDir: dataDir2, claudeHome: join(dataDir2, 'claude-home'), log: () => {} });
       const a = track(new Engine(cfg2(), new FakeRunner(() => {})));
@@ -193,7 +193,7 @@ describe('fast pace', () => {
 
 describe('style direction', () => {
   test('the chosen proposal renders into worker and reviewer prompts, reference image included', async () => {
-    const { chosenStyle } = await import('@ai-engine/core');
+    const { chosenStyle } = await import('@foundry/core');
     const { renderStyle } = await import('./attempt-prompt.ts');
     const style = { key: 'S1', name: 'Warm izakaya night', palette: ['#2b1d16', '#e8a13c'], fonts: ['Noto Serif JP'], keywords: ['lantern light'], description: 'Cozy.', samples: ['artifacts/samples/S1-1.png', 'artifacts/samples/S1-2.png'], chosenSample: 'artifacts/samples/S1-2.png' };
     const brief = { ...briefBase, tasks: [task('image')], styleOptions: [style], questions: [{ id: 'q1', text: 'Which style direction should the deliverables follow?', answer: 'Warm izakaya night', blocking: true, areaKey: null, options: ['Warm izakaya night'], kind: 'style' as const, applied: false }] };
@@ -221,7 +221,7 @@ describe('media artifacts', () => {
       writeFileSync(j(spec.cwd, 'docs', 'artifacts', `${tag}.md`), `# artifacts\n- ${tag}.png — test render`);
     });
     const engine = track(new Engine(cfg(), runner));
-    const outputDir = mkdtempSync(join(tmpdir(), 'ai-engine-artifacts-out-'));
+    const outputDir = mkdtempSync(join(tmpdir(), 'foundry-artifacts-out-'));
     try {
       const t = (key: string): Brief['tasks'][number] => ({ key, title: `render ${key}`, spec: `generate ${key}, manifest docs/artifacts/${key}.md`, kind: 'feature', scope: null, scenario: 'image', areaKey: 'A1', tdd: 'inherit', dependsOnKeys: [], parallelizable: true, relevantFiles: [`docs/artifacts/${key}.md`] });
       const c = (key: string, taskKey: string): Brief['checks'][number] => ({ key: `C-${key}`, name: `artifacts exist for ${key}`, tier: 'must', taskKey, areaKey: null, spec: { type: 'command', cmd: 'test -d artifacts', timeoutMs: 300_000, expectExitCode: 0 } });

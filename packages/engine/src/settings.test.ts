@@ -11,9 +11,9 @@ const ROOT = resolve(import.meta.dir, '../../..');
 
 describe('settings resolution', () => {
   test('file > env > default, with per-field source; invalid values fall back', () => {
-    const r = resolveSettings({ sessions: { attemptMaxTurns: 42 }, workflow: { designPack: 'impeccable' } }, { AI_ENGINE_ATTEMPT_MAX_TURNS: '99', AI_ENGINE_MODEL_STRONG: 'sonnet', AI_ENGINE_PORT: 'not-a-number', AI_ENGINE_AUTOSKILLS: '0' });
+    const r = resolveSettings({ sessions: { attemptMaxTurns: 42 }, workflow: { designPack: 'impeccable' } }, { FOUNDRY_ATTEMPT_MAX_TURNS: '99', FOUNDRY_MODEL_STRONG: 'sonnet', FOUNDRY_PORT: 'not-a-number', FOUNDRY_AUTOSKILLS: '0' });
     expect(r.values.sessions.attemptMaxTurns).toBe(42);
-    expect(r.meta['sessions.attemptMaxTurns']).toMatchObject({ source: 'file', env: 'AI_ENGINE_ATTEMPT_MAX_TURNS', default: 150 });
+    expect(r.meta['sessions.attemptMaxTurns']).toMatchObject({ source: 'file', env: 'FOUNDRY_ATTEMPT_MAX_TURNS', default: 150 });
     expect(r.values.models.strong).toBe('sonnet');
     expect(r.meta['models.strong']!.source).toBe('env');
     expect(r.values.engine.port).toBe(4111);
@@ -24,8 +24,8 @@ describe('settings resolution', () => {
   });
 
   test('store persists only changed leaves, reports restartNeeded, resets per path', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'ai-engine-settings-'));
-    const s = new SettingsStore(dir, { AI_ENGINE_PORT: '5000' });
+    const dir = mkdtempSync(join(tmpdir(), 'foundry-settings-'));
+    const s = new SettingsStore(dir, { FOUNDRY_PORT: '5000' });
     expect(s.view().fileExists).toBe(false);
     const u = s.update({ engine: { port: 6000, maxConcurrent: 5 }, models: { worker: 'sonnet' } });
     expect(u.changed.sort()).toEqual(['engine.maxConcurrent', 'engine.port', 'models.worker']);
@@ -40,7 +40,7 @@ describe('settings resolution', () => {
     expect(r.view.restartNeeded).toEqual([]);
     expect(() => s.update({ engine: { maxConcurrent: 0 } })).toThrow();
     // a fresh store reads the file back and treats it as the boot baseline
-    const s2 = new SettingsStore(dir, { AI_ENGINE_PORT: '5000' });
+    const s2 = new SettingsStore(dir, { FOUNDRY_PORT: '5000' });
     expect(s2.values().engine.maxConcurrent).toBe(5);
     expect(s2.restartNeeded()).toEqual([]);
     s2.reset();
@@ -61,7 +61,7 @@ describe('settings resolution', () => {
 
 describe('engine + settings', () => {
   test('file settings override env at boot; runtime updates hot-apply and are audited', () => {
-    const dataDir = mkdtempSync(join(tmpdir(), 'ai-engine-settings-engine-'));
+    const dataDir = mkdtempSync(join(tmpdir(), 'foundry-settings-engine-'));
     writeFileSync(join(dataDir, 'settings.json'), JSON.stringify({ engine: { maxConcurrent: 4 }, workflow: { designPack: 'bencium', autoskills: false } }));
     const runner = new FakeRunner(() => {});
     const engine = new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'ch'), log: () => {}, maxConcurrent: 2 }), runner);

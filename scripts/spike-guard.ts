@@ -12,7 +12,7 @@ import { join, resolve } from 'node:path';
 import { ClaudeCliRunner, boundaryHook, buildSettings, canaryHook } from '../packages/runner/src/index.ts';
 
 const hooksDir = resolve(import.meta.dir, '../packages/runner/hooks');
-const cwd = mkdtempSync(join(tmpdir(), 'ai-engine-guard-'));
+const cwd = mkdtempSync(join(tmpdir(), 'foundry-guard-'));
 await Bun.$`git -C ${cwd} init -q && git -C ${cwd} commit -q --allow-empty -m init`.quiet();
 
 const callbacks: any[] = [];
@@ -21,14 +21,14 @@ const server = Bun.serve({
   hostname: '127.0.0.1',
   async fetch(req) {
     if (new URL(req.url).pathname === '/internal/boundary') {
-      callbacks.push({ attempt: req.headers.get('x-ai-engine-attempt'), body: await req.json() });
+      callbacks.push({ attempt: req.headers.get('x-foundry-attempt'), body: await req.json() });
       return new Response('ok');
     }
     return new Response('nf', { status: 404 });
   },
 });
 const callbackUrl = `http://127.0.0.1:${server.port}`;
-const runner = new ClaudeCliRunner({ maxConcurrent: 2, env: { AI_ENGINE_CALLBACK: callbackUrl }, log: console.log });
+const runner = new ClaudeCliRunner({ maxConcurrent: 2, env: { FOUNDRY_CALLBACK: callbackUrl }, log: console.log });
 const settings = buildSettings([canaryHook(join(hooksDir, 'canary.sh')), boundaryHook(join(hooksDir, 'boundary-guard.sh'))]);
 
 async function run(label: string, prompt: string, allowedTools: string[]) {
@@ -41,7 +41,7 @@ async function run(label: string, prompt: string, allowedTools: string[]) {
     permissionMode: 'dontAsk',
     allowedTools,
     settings,
-    env: { AI_ENGINE_ATTEMPT_ID: label },
+    env: { FOUNDRY_ATTEMPT_ID: label },
     label,
   });
   for await (const ev of h.events) {

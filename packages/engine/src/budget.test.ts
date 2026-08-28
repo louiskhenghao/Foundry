@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { BUDGET_PRESETS, Budgets, Goal, proposeBudgetFromEstimate } from '@ai-engine/core';
+import { BUDGET_PRESETS, Budgets, Goal, proposeBudgetFromEstimate } from '@foundry/core';
 import { budgetStatus } from './budget.ts';
 
 const base = (over: Partial<Goal> = {}): Goal =>

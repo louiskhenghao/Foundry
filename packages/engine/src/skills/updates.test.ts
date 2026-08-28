@@ -59,7 +59,7 @@ describe('skills sources & updates', () => {
     writeFileSync(join(fh.paths.skillsDir, 'tdd', 'SKILL.md'), upstream.tddV1);
     mkdirSync(join(fh.paths.skillsDir, 'diagnose'));
     writeFileSync(join(fh.paths.skillsDir, 'diagnose', 'SKILL.md'), skillMd('diagnose', 'hand-edited'));
-    // ai-engine-managed copy of diagnosing-bugs at v2 (identical bytes) — install it for real
+    // foundry-managed copy of diagnosing-bugs at v2 (identical bytes) — install it for real
     const m = new SkillsManager({ claudeHome: fh.claudeHome, dataDir: fh.dataDir, catalogPath, which: () => null });
     const r = await m.install('diagnosing-bugs');
     expect(r.ok).toBe(true);
@@ -75,13 +75,13 @@ describe('skills sources & updates', () => {
     expect(sourceOf(by('tdd', 'plugin'), fh.paths)).toMatchObject({ kind: 'plugin', repo: 'mattpocock/skills' });
     expect(by('tdd', 'plugin').plugin?.skillPath).toBe('skills/engineering/tdd');
     expect(sourceOf(by('autoplan'), fh.paths)?.id).toBe('gstack');
-    expect(sourceOf(by('diagnosing-bugs'), fh.paths)).toMatchObject({ manager: 'ai-engine', repo: 'mattpocock/skills' });
+    expect(sourceOf(by('diagnosing-bugs'), fh.paths)).toMatchObject({ manager: 'foundry', repo: 'mattpocock/skills' });
     expect(sourceOf(by('plain'), fh.paths)).toBeNull();
   });
 
   test('fingerprints ignore the marker and match git blob ids', () => {
     const dir = join(fh.paths.skillsDir, 'diagnosing-bugs');
-    expect(existsSync(join(dir, '.ai-engine.json'))).toBe(true);
+    expect(existsSync(join(dir, '.foundry.json'))).toBe(true);
     const upDir = join(fh.paths.cacheDir, 'mattpocock', 'skills', 'skills', 'engineering', 'diagnosing-bugs');
     expect(dirFingerprint(dir)).toBe(dirFingerprint(upDir));
     expect(gitBlobSha1(Buffer.from('hello\n'))).toBe('ce013625030ba8dba906f756967f9e9ca394464a');
@@ -93,11 +93,11 @@ describe('skills sources & updates', () => {
     const src = (id: string) => report.sources.find((s) => s.id === id)!;
     const row = (s: string, n: string) => src(s).skills.find((k) => k.name === n)!;
 
-    // ai-engine managed, identical to upstream
-    expect(src('ai-engine:mattpocock/skills').upstream?.commit).toBe(upstream.head);
-    expect(row('ai-engine:mattpocock/skills', 'diagnosing-bugs').status).toBe('up-to-date');
-    expect(row('ai-engine:mattpocock/skills', 'diagnosing-bugs').upstream?.commit).toBe(upstream.v2); // per-path date, not repo HEAD
-    expect(src('ai-engine:mattpocock/skills').updateAvailable).toBe(false);
+    // foundry managed, identical to upstream
+    expect(src('foundry:mattpocock/skills').upstream?.commit).toBe(upstream.head);
+    expect(row('foundry:mattpocock/skills', 'diagnosing-bugs').status).toBe('up-to-date');
+    expect(row('foundry:mattpocock/skills', 'diagnosing-bugs').upstream?.commit).toBe(upstream.v2); // per-path date, not repo HEAD
+    expect(src('foundry:mattpocock/skills').updateAvailable).toBe(false);
 
     // loose copies: tdd == v1 → outdated/older with the commit; diagnose (alias) → modified
     const hand = src('hand:mattpocock/skills');
@@ -132,14 +132,14 @@ describe('skills sources & updates', () => {
     expect(again.sources.find((s) => s.id === 'hand:mattpocock/skills')!.skills.find((k) => k.name === 'tdd')!.status).toBe('outdated');
   }, 30_000);
 
-  test('upstream moves → managed copy becomes outdated → ai-engine updater brings it back', async () => {
+  test('upstream moves → managed copy becomes outdated → foundry updater brings it back', async () => {
     writeFileSync(join(upstream.up, 'skills', 'engineering', 'diagnosing-bugs', 'SKILL.md'), skillMd('diagnosing-bugs', 'find bugs v3'));
     await sh(['git', 'add', '-A'], upstream.up);
     await sh(['git', ...gitEnv, 'commit', '-q', '-m', 'v3', '--date=2026-05-01T00:00:00Z'], upstream.up);
     const runs: string[] = [];
     const m = new SkillsManager({ claudeHome: fh.claudeHome, dataDir: fh.dataDir, catalogPath, which: () => null, onRun: (r) => runs.push(`${r.sourceId}:${r.updater}:${r.changed.length}`), updates: { ttlMs: 60_000, urlFor: () => upstream.url } });
     const before = await m.updates({ refresh: true });
-    const managed = before.sources.find((s) => s.id === 'ai-engine:mattpocock/skills')!;
+    const managed = before.sources.find((s) => s.id === 'foundry:mattpocock/skills')!;
     expect(managed.skills[0]!.status).toBe('outdated');
     expect(managed.updateAvailable).toBe(true);
 
@@ -147,11 +147,11 @@ describe('skills sources & updates', () => {
     const run = await m.updateSource(managed.id, { onLine: (l) => lines.push(l) });
     expect(run.exitCode).toBe(0);
     expect(run.changed.map((c) => c.name)).toEqual(['diagnosing-bugs']);
-    expect(runs).toEqual(['ai-engine:mattpocock/skills:ai-engine:1']);
+    expect(runs).toEqual(['foundry:mattpocock/skills:foundry:1']);
     expect(lines.some((l) => l.startsWith('✓ diagnosing-bugs'))).toBe(true);
     expect(readFileSync(join(fh.paths.skillsDir, 'diagnosing-bugs', 'SKILL.md'), 'utf8')).toContain('v3');
     const after = await m.updates({ refresh: true });
-    expect(after.sources.find((s) => s.id === 'ai-engine:mattpocock/skills')!.skills[0]!.status).toBe('up-to-date');
+    expect(after.sources.find((s) => s.id === 'foundry:mattpocock/skills')!.skills[0]!.status).toBe('up-to-date');
   }, 30_000);
 
   test('adopt replaces loose copies (alias dir trashed) and cleanupShadows trashes only real shadows', async () => {

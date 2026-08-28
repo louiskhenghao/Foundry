@@ -1,4 +1,4 @@
-import type { Goal } from '@ai-engine/core';
+import type { Goal } from '@foundry/core';
 
 export interface BudgetStatus {
   costUsd: number;

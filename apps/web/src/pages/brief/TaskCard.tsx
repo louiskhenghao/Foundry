@@ -1,5 +1,5 @@
-import type { Brief, BriefTask } from '@ai-engine/core/browser';
-import { TASK_SCENARIOS } from '@ai-engine/core/browser';
+import type { Brief, BriefTask } from '@foundry/core/browser';
+import { TASK_SCENARIOS } from '@foundry/core/browser';
 import { ListChecks, Maximize2, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { api, type DraftProposal } from '../../api.ts';

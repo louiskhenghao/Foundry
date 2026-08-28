@@ -1,5 +1,5 @@
-import type { EscalationAction } from '@ai-engine/core/browser';
-import { ACTIONS_BY_TRIGGER } from '@ai-engine/core/browser';
+import type { EscalationAction } from '@foundry/core/browser';
+import { ACTIONS_BY_TRIGGER } from '@foundry/core/browser';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';

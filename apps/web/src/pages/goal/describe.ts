@@ -1,4 +1,4 @@
-import type { EngineEvent } from '@ai-engine/core/browser';
+import type { EngineEvent } from '@foundry/core/browser';
 
 export type Tone = 'info' | 'ok' | 'warn' | 'err' | 'muted';
 

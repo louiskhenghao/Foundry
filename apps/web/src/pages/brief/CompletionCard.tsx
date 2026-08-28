@@ -1,5 +1,5 @@
-import type { Brief, DocType } from '@ai-engine/core/browser';
-import { pendingDecisions } from '@ai-engine/core/browser';
+import type { Brief, DocType } from '@foundry/core/browser';
+import { pendingDecisions } from '@foundry/core/browser';
 import { Card, cn } from '../../ui.tsx';
 
 export interface CompletionChoice {

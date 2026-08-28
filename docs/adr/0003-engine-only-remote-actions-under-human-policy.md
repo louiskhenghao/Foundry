@@ -15,7 +15,7 @@ Users want the loop closed: initialise git where there is none, create the GitHu
 2. **Remote actions are engine code** behind a per-Goal `DeliveryPolicy` (`local` by default, else `push`, `pr`, `pr-automerge`) that the human selects when creating the Goal or later with an explicit Deliver action that first shows the exact plan. Selecting the policy is the authorisation.
 3. **A closed set of guarded helpers** performs the side effects: a single `pushBranch` (fixed argv, never `--force`, never the base branch), a single remote-branch delete (never the base branch), and a `GhClient` for repository creation, pull requests, checks and merges. The base branch is pushed exactly once, when a brand-new repository was just created.
 4. **Everything is an event** (`delivery.*`, including `delivery.command` with the exact argv, cwd, exit code and output tail), so delivery is auditable, resumable and idempotent after a restart.
-5. **GitHub identity comes from the official `gh` CLI** (device-flow login). ai-engine never stores a token. Without `gh`, delivery degrades to git-only (`push` to an existing or URL-given remote).
+5. **GitHub identity comes from the official `gh` CLI** (device-flow login). Foundry never stores a token. Without `gh`, delivery degrades to git-only (`push` to an existing or URL-given remote).
 6. **Existing mechanisms are reused**, not duplicated: conflicts with the base branch go through the Merge Attempt machinery; failing CI spawns a bounded fix task exactly like a failed Goal review; an exhausted fix budget is the existing Escalation trigger 2.
 
 ## Consequences

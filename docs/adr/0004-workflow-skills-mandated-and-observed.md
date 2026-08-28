@@ -21,7 +21,7 @@ The host also has two divergent copies of the same skills — a Claude Code plug
 4. **Tasks have a kind.** The Brief labels each task feature / bug / refactor / research / chore; synthetic tasks are typed by the engine (review fixes and CI fixes are bugs, base-branch syncs are chores).
 5. **Use is observed, not assumed.** The runner records every `Skill` tool invocation from the stream; `attempt.finished` and `session.usage` carry `skillsUsed`. The Task Reviewer is told which skills were mandated and which were invoked; a missing invocation is a *note* the next Attempt reads, never a blocker — the diff is judged on its merits.
 6. **Plugin copies win.** When a skill exists both as a plugin skill and as a loose user-level copy, prompts use the plugin invoke (it is the copy `claude plugin update` keeps fresh); the loose copy is reported as a shadow and can be trashed.
-7. **The profile is a switch.** `AI_ENGINE_WORKFLOW=plain` restores the one-line hint for hosts that do not want the workflow.
+7. **The profile is a switch.** `FOUNDRY_WORKFLOW=plain` restores the one-line hint for hosts that do not want the workflow.
 
 ## Consequences
 

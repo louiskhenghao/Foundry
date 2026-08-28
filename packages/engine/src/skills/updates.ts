@@ -282,7 +282,7 @@ export class SkillsUpdateChecker {
 
     // actions
     const actions: SkillSourceRow['actions'] = [];
-    if (out.status === 'outdated' && (key.manager === 'ai-engine' || key.manager === 'agents-cli' || key.manager === 'plugin')) actions.push('update');
+    if (out.status === 'outdated' && (key.manager === 'foundry' || key.manager === 'agents-cli' || key.manager === 'plugin')) actions.push('update');
     if (key.manager === 'hand' && catalogId && out.status !== 'up-to-date') actions.push('adopt');
     if (shadowedBy && (out.status === 'outdated' || out.status === 'modified' || out.match?.relation === 'older')) actions.push('trash-shadow');
     if (row.canUninstall) actions.push('uninstall');
@@ -304,7 +304,7 @@ export class SkillsUpdateChecker {
 }
 
 function updaterFor(key: SourceKey, rows: SkillSourceRow[]): SkillSource['updater'] {
-  const kind: UpdaterKind = key.manager === 'ai-engine' ? 'ai-engine' : key.manager === 'agents-cli' ? 'agents-cli' : key.manager === 'plugin' ? 'plugin' : key.manager === 'gstack' ? 'hint' : key.manager === 'hand' ? (rows.some((r) => r.catalogId) ? 'adopt' : 'none') : 'none';
+  const kind: UpdaterKind = key.manager === 'foundry' ? 'foundry' : key.manager === 'agents-cli' ? 'agents-cli' : key.manager === 'plugin' ? 'plugin' : key.manager === 'gstack' ? 'hint' : key.manager === 'hand' ? (rows.some((r) => r.catalogId) ? 'adopt' : 'none') : 'none';
   const pluginId = key.id.startsWith('plugin:') ? key.id.slice('plugin:'.length) : null;
   const mkt = pluginId?.includes('@') ? pluginId.split('@').slice(1).join('@') : null;
   switch (kind) {
@@ -312,10 +312,10 @@ function updaterFor(key: SourceKey, rows: SkillSourceRow[]): SkillSource['update
       return { kind, command: ['npx', '-y', 'skills@latest', 'update', '-g', '-y', '-a', 'claude-code'], hint: null };
     case 'plugin':
       return { kind, command: ['claude', 'plugin', 'marketplace', 'update', mkt ?? '', '&&', 'claude', 'plugin', 'update', pluginId ?? '', '-y'], hint: 'Restart Claude sessions afterwards; the engine picks the new version up on its next session.' };
-    case 'ai-engine':
+    case 'foundry':
       return { kind, command: null, hint: null };
     case 'adopt':
-      return { kind, command: null, hint: 'Replace these loose copies with ai-engine-managed installs from the catalog (old copies go to the trash).' };
+      return { kind, command: null, hint: 'Replace these loose copies with foundry-managed installs from the catalog (old copies go to the trash).' };
     case 'hint':
       return { kind, command: null, hint: 'gstack updates itself: run /gstack-upgrade inside Claude Code.' };
     default:

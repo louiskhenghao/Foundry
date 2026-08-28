@@ -2,9 +2,9 @@ import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFi
 import { basename, join, relative } from 'node:path';
 import { exec } from '../git/git.ts';
 import { pluginInstallCommand } from './catalog.ts';
-import { MARKER_FILE, type SkillsPaths } from './paths.ts';
+import { LEGACY_MARKER_FILE, MARKER_FILE, type SkillsPaths } from './paths.ts';
 import { trashSkill } from './trash.ts';
-import { AiEngineMarker, type CatalogEntry, type InstallResult } from './types.ts';
+import { FoundryMarker, type CatalogEntry, type InstallResult } from './types.ts';
 
 export class InstallError extends Error {
   constructor(
@@ -111,7 +111,7 @@ export async function installEntry(entry: CatalogEntry, ctx: InstallContext, opt
   if (existing) {
     const marker = readMarker(dest);
     if (marker?.catalogId !== entry.id && !opts.force) {
-      throw new InstallError(`${entry.name} already exists in ${ctx.paths.skillsDir} and was not installed by ai-engine`, 'conflict', { name: entry.name, path: dest, managed: marker ? 'ai-engine' : 'other' });
+      throw new InstallError(`${entry.name} already exists in ${ctx.paths.skillsDir} and was not installed by foundry`, 'conflict', { name: entry.name, path: dest, managed: marker ? 'foundry' : 'other' });
     }
     if (marker?.catalogId === entry.id && !opts.force && !opts.refresh) {
       return { ok: true, id: entry.id, name: entry.name, path: dest, commit: marker.commit, manual: null, error: null };
@@ -124,7 +124,7 @@ export async function installEntry(entry: CatalogEntry, ctx: InstallContext, opt
   if (existing) trashSkill(entry.name, ctx.paths, opts.force ? 'replaced by forced install' : 'replaced by update');
   mkdirSync(ctx.paths.skillsDir, { recursive: true });
   cpSync(srcDir, dest, { recursive: true, dereference: true });
-  const marker: AiEngineMarker = {
+  const marker: FoundryMarker = {
     catalogId: entry.id,
     repo: entry.source.repo,
     url: entry.source.url,
@@ -147,12 +147,13 @@ export async function updateEntry(entry: CatalogEntry, ctx: InstallContext): Pro
   return { name: entry.name, from, to: r.commit, changed: from !== r.commit };
 }
 
-export function readMarker(dir: string): AiEngineMarker | null {
-  try {
-    return AiEngineMarker.parse(JSON.parse(readFileSync(join(dir, MARKER_FILE), 'utf8')));
-  } catch {
-    return null;
+export function readMarker(dir: string): FoundryMarker | null {
+  for (const file of [MARKER_FILE, LEGACY_MARKER_FILE]) {
+    try {
+      return FoundryMarker.parse(JSON.parse(readFileSync(join(dir, file), 'utf8')));
+    } catch {}
   }
+  return null;
 }
 
 function isSymlink(p: string): boolean {

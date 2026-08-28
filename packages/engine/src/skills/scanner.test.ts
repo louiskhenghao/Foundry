@@ -28,7 +28,7 @@ describe('scanner', () => {
     expect(by('gstack')).toMatchObject({ managedBy: 'gstack', canUninstall: false });
     expect(by('autoplan')).toMatchObject({ managedBy: 'gstack-copy', canUninstall: true });
     expect(by('withmanifest')).toMatchObject({ managedBy: 'manifest', version: '1.2.3', manifest: { homepage: 'https://example.com/x' } });
-    expect(by('managed')).toMatchObject({ managedBy: 'ai-engine', marker: { catalogId: 'managed', commit: 'abc1234' } });
+    expect(by('managed')).toMatchObject({ managedBy: 'foundry', marker: { catalogId: 'managed', commit: 'abc1234' } });
     expect(by('empty-dir')).toMatchObject({ unparsable: true, skillMd: null });
   });
 

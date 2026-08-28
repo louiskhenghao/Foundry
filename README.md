@@ -1,4 +1,4 @@
-# ai-engine
+# Foundry
 
 A local orchestration system that drives **your host's Claude Code** (subscription login, your skills, your MCP servers) to over-deliver on software goals — Clarify once, then Plan → Act → Observe → Retry automatically, in parallel, inside isolated git worktrees, and only interrupt you for one of five reasons.
 
@@ -24,9 +24,9 @@ Goal ──► Clarify ──► Brief (you approve once) ──► Tasks (DAG) 
 ## Docker
 
 ```bash
-docker run -d --name ai-engine -p 127.0.0.1:4111:4111 \
-  -v ai-engine-data:/app/data -v ai-engine-claude:/home/node/.claude -v ~/Projects:/repos \
-  imlouiskhenghao/ai-engine        # http://127.0.0.1:4111, your repos at /repos/<name>
+docker run -d --name foundry -p 127.0.0.1:4111:4111 \
+  -v foundry-data:/app/data -v foundry-claude:/home/node/.claude -v ~/Projects:/repos \
+  imlouiskhenghao/foundry        # http://127.0.0.1:4111, your repos at /repos/<name>
 ```
 
 Then sign in to Claude from the Setup page: it hands you a link and a field for the code the browser gives back
@@ -70,15 +70,15 @@ bun run cli doctor                 # claude installed? logged in? git, bun, grap
 bun run cli skills install --tier required    # or: --tier recommended
 ```
 
-The web UI has the same thing under **Setup** (auto-opens on first run when something is missing) and a **Skills** page that lists every skill Claude Code can see on this machine — user-level (`~/.claude/skills`), plugin-provided, and project-level — with who manages each one (hand-installed, `npx skills` link, gstack clone/copy, plugin, ai-engine), duplicate-name warnings, one-click install from the curated catalog, and reversible uninstall (skills go to `data/skills-trash/`, never `rm -rf`).
+The web UI has the same thing under **Setup** (auto-opens on first run when something is missing) and a **Skills** page that lists every skill Claude Code can see on this machine — user-level (`~/.claude/skills`), plugin-provided, and project-level — with who manages each one (hand-installed, `npx skills` link, gstack clone/copy, plugin, Foundry), duplicate-name warnings, one-click install from the curated catalog, and reversible uninstall (skills go to `data/skills-trash/`, never `rm -rf`).
 
 The catalog lives in [`catalog/skills.json`](./catalog/skills.json): `required` (the engine is noticeably weaker without it — today just graphify), `recommended` (improves the worker / reviewer / clarifier roles), `optional`. Each entry says *why*. Edit the JSON to curate your own.
 
-**Sources and updates.** The Skills page groups every installed skill by where it comes from — a GitHub repo managed by ai-engine, by `npx skills`, or by a Claude Code plugin; the gstack clone; project skills; hand-installed copies whose origin is inferred by matching their bytes against known sources. For each source it shows when it was installed and when upstream last changed, and per skill whether it is up to date, outdated (its bytes match an older upstream version) or modified locally. *Check for updates* fetches every upstream repository into `data/skills-cache` (deepened to 100 commits so per-skill dates are real). One click updates a whole source with its own tool — `npx skills update`, `claude plugin marketplace update` + `claude plugin update`, or ai-engine's installer — streaming the output and recording every run as a `skills.update_run` event. Loose copies that match a catalog entry can be *adopted* (replaced by a managed install, old copy to the trash); user-level copies that shadow a newer plugin skill are flagged by the doctor and trashed in one click.
+**Sources and updates.** The Skills page groups every installed skill by where it comes from — a GitHub repo managed by Foundry, by `npx skills`, or by a Claude Code plugin; the gstack clone; project skills; hand-installed copies whose origin is inferred by matching their bytes against known sources. For each source it shows when it was installed and when upstream last changed, and per skill whether it is up to date, outdated (its bytes match an older upstream version) or modified locally. *Check for updates* fetches every upstream repository into `data/skills-cache` (deepened to 100 commits so per-skill dates are real). One click updates a whole source with its own tool — `npx skills update`, `claude plugin marketplace update` + `claude plugin update`, or Foundry's installer — streaming the output and recording every run as a `skills.update_run` event. Loose copies that match a catalog entry can be *adopted* (replaced by a managed install, old copy to the trash); user-level copies that shadow a newer plugin skill are flagged by the doctor and trashed in one click.
 
 **Simple or Expert.** Every goal opens in one of two views of the same engine (choose when creating it; Settings → Workflow sets the default; switch per goal any time). *Simple* shows one plain-language Brief — what the system understood, the questions only you can answer, the assumptions you can veto, the list of what you will get, the price — and, while it runs, a progress bar, the cost and whatever needs you, in plain words. *Expert* shows everything: Areas, the task graph, acceptance checks, Draft/Revise, attempt logs, merge resolution, delivery. Engineering discipline is a per-goal setting too: **TDD required / preferred / off** (Simple goals start with *preferred*; any task can switch it off in the Brief; docs, infra, chore and research tasks never get a TDD mandate).
 
-**Workflow.** ai-engine follows Matt Pocock's engineering workflow ([ADR-0004](./docs/adr/0004-workflow-skills-mandated-and-observed.md)). Catalog entries carry `workflow` rules — worker **must** invoke `tdd` for features and refactors and `diagnosing-bugs` for bugs, the merger **must** use `resolving-merge-conflicts`, the goal reviewer should apply `code-review`'s two axes — and every session gets a `# Workflow skills` section naming the invoke that is actually loaded (plugin copy first). The runner records which skills each session invoked; the task drawer shows them and the task reviewer is told when a mandated skill was skipped (a note, not a blocker). The Setup page has a one-click *Development workflow* card that installs/adopts the bundle. `AI_ENGINE_WORKFLOW=plain` turns this back into the old one-line hint.
+**Workflow.** Foundry follows Matt Pocock's engineering workflow ([ADR-0004](./docs/adr/0004-workflow-skills-mandated-and-observed.md)). Catalog entries carry `workflow` rules — worker **must** invoke `tdd` for features and refactors and `diagnosing-bugs` for bugs, the merger **must** use `resolving-merge-conflicts`, the goal reviewer should apply `code-review`'s two axes — and every session gets a `# Workflow skills` section naming the invoke that is actually loaded (plugin copy first). The runner records which skills each session invoked; the task drawer shows them and the task reviewer is told when a mandated skill was skipped (a note, not a blocker). The Setup page has a one-click *Development workflow* card that installs/adopts the bundle. `FOUNDRY_WORKFLOW=plain` turns this back into the old one-line hint.
 
 **Scenarios and design packs** ([ADR-0005](./docs/adr/0005-scenario-skills-and-settings.md)). The Clarifier labels every task with a *scenario* (frontend, backend, fullstack, data, mobile, infra, docs, general) and catalog rules can be bound to scenarios. UI tasks get a **design pack** as a MUST — choose it on Setup or Settings: ui-ux-pro-max (default; a plugin the engine can install with `claude plugin`), Anthropic's frontend-design, [impeccable](https://github.com/pbakaus/impeccable), the [bencium](https://github.com/bencium/bencium-marketplace) pack (impact-designer + design-audit + typography) or [garden](https://github.com/ConardLi/garden-skills)'s web-design-engineer. Packs are mutually exclusive: only the chosen one is shown to sessions, and the goal reviewer gets its review counterpart (`/impeccable critique`, `design-audit`, ui-ux-pro-max's UX guidelines).
 
@@ -113,11 +113,11 @@ Per goal you choose a **delivery policy** (New Goal page, or later via *Deliver�
 
 **Granularity.** Each policy has a *unit*: `goal` (one branch / one PR for everything) or `task` (the default for new goals: one PR per task). Every finished task becomes exactly one commit on the goal branch — the engine squashes its attempts and writes a [Conventional Commits](https://www.conventionalcommits.org) message (`feat(scope): subject`, type from the task kind, scope and subject from the Brief); sync merges and the initial commit of a fresh repo follow the same standard, and the model never commits. With `unit: task` the delivery re-applies those commits one by one on top of the remote base branch into `goal/<id>-1-<slug>`, `goal/<id>-2-<slug>`, … and opens one PR per branch, each based on the one below and titled with the commit header (PR body: task spec, its checks, reviewer note, position in the stack). Auto-merge walks the stack bottom-up: retarget the PR to the base, bring the base in, wait for CI, merge, then retarget the PR above it *before* deleting the merged branch (GitHub closes a PR whose base branch disappears). A re-run after a failure resumes where it stopped: merged tasks are skipped, branch positions are stable, an open PR is reused, a closed one is reopened or — when GitHub refuses — replaced by a fresh PR from the same branch. A commit that cannot be re-applied (even after a Merge Attempt) makes the engine fall back to one PR for the whole goal and record a `delivery.note`. The one-PR title is the Brief's title (editable on the Brief page).
 
-Rules that never bend: the model stays inside its worktree (hook), only the engine touches the remote, never `--force`, never a direct push to the base branch, every remote command is logged as a `delivery.command` event. A repository without git gets a one-click `git init` + initial commit; one without a remote can be created on GitHub (owner/org picker). GitHub identity is the official `gh` CLI — `ai-engine github login` / Connect GitHub runs its device flow; no token is stored by ai-engine. Without `gh`, `push` to an existing/URL remote still works.
+Rules that never bend: the model stays inside its worktree (hook), only the engine touches the remote, never `--force`, never a direct push to the base branch, every remote command is logged as a `delivery.command` event. A repository without git gets a one-click `git init` + initial commit; one without a remote can be created on GitHub (owner/org picker). GitHub identity is the official `gh` CLI — `foundry github login` / Connect GitHub runs its device flow; no token is stored by Foundry. Without `gh`, `push` to an existing/URL remote still works.
 
 ### Usage & rate limits
 
-**Usage** (header pill + `/usage` page, `bun run cli usage`) is a small dashboard of what ai-engine itself has consumed: the current 5-hour and 7-day windows (cost, tokens, elapsed-time bar, reset countdown, cost per hour / per day), cache hit rate, average cost and length per session, failed sessions, and breakdowns by goal (with titles), session kind and model, plus the last rate-limit signal from the CLI (`allowed` / reset time). When a session reports that the subscription is rate-limited, the engine stops starting new sessions until the reset time and resumes by itself. Subscription plans expose no usage API, so these are ai-engine's own numbers, not your account percentage — run `/usage` inside Claude Code for that. We never read your credentials.
+**Usage** (header pill + `/usage` page, `bun run cli usage`) is a small dashboard of what Foundry itself has consumed: the current 5-hour and 7-day windows (cost, tokens, elapsed-time bar, reset countdown, cost per hour / per day), cache hit rate, average cost and length per session, failed sessions, and breakdowns by goal (with titles), session kind and model, plus the last rate-limit signal from the CLI (`allowed` / reset time). When a session reports that the subscription is rate-limited, the engine stops starting new sessions until the reset time and resumes by itself. Subscription plans expose no usage API, so these are Foundry's own numbers, not your account percentage — run `/usage` inside Claude Code for that. We never read your credentials.
 
 ### CLI
 
@@ -142,18 +142,18 @@ Environment variables seed the initial values (handy for CI or a one-off run):
 
 | var | default | meaning |
 |---|---|---|
-| `AI_ENGINE_PORT` / `AI_ENGINE_HOST` | `4111` / `127.0.0.1` | server listen address (restart) |
-| `AI_ENGINE_MAX_CONCURRENT` | `3` | global cap on concurrent `claude` processes |
-| `AI_ENGINE_CLAUDE_HOME` (or `CLAUDE_CONFIG_DIR`) | `~/.claude` | Claude Code home: skills, plugins, settings.json (restart) |
-| `AI_ENGINE_MODEL_WORKER` / `_STRONG` / `_CHEAP` | `opus` / `opus` / `haiku` | model per tier — `fable`, `opus`, `sonnet`, `haiku` (Claude Code aliases) or a full model id. *strong* = Clarify, Planner, Goal review, Merge Attempts; *worker* = task attempts; *cheap* = task reviewer, probes |
-| `AI_ENGINE_MODEL_FALLBACKS` | `opus,sonnet,haiku` | tried in order when a session's model is unavailable (deprecated alias, retired id) — see [ADR-0006](./docs/adr/0006-model-registry-and-fallback.md) |
-| `AI_ENGINE_ATTEMPT_MAX_COST` / `AI_ENGINE_ATTEMPT_MAX_TURNS` | `10` / `150` | per-session cost (USD) and turn caps for a worker attempt; cost is also bounded by the goal's remaining budget |
-| `AI_ENGINE_WORKFLOW` | `mattpocock` | `plain` disables mandated workflow skills (one-line hint only) |
-| `AI_ENGINE_DESIGN_PACK` | `ui-ux-pro-max` | design pack for UI tasks: `ui-ux-pro-max`, `frontend-design`, `impeccable`, `bencium`, `garden`, `none` |
-| `AI_ENGINE_AUTOSKILLS` | `true` | run autoskills per goal (`0`/`false` to disable) |
-| `AI_ENGINE_DELIVERY_MODE` | `local` | default delivery policy for new goals |
-| `AI_ENGINE_SYNC_FETCH` / `AI_ENGINE_SYNC_START` / `AI_ENGINE_SYNC_REFRESH` | `true` / `auto` / `false` | fetch the base before a goal; start from the remote tip when local is behind (`auto`) or always local; refresh between tasks |
-| `AI_ENGINE_MARKITDOWN` | auto-detect | path to the markitdown binary |
+| `FOUNDRY_PORT` / `FOUNDRY_HOST` | `4111` / `127.0.0.1` | server listen address (restart) |
+| `FOUNDRY_MAX_CONCURRENT` | `3` | global cap on concurrent `claude` processes |
+| `FOUNDRY_CLAUDE_HOME` (or `CLAUDE_CONFIG_DIR`) | `~/.claude` | Claude Code home: skills, plugins, settings.json (restart) |
+| `FOUNDRY_MODEL_WORKER` / `_STRONG` / `_CHEAP` | `opus` / `opus` / `haiku` | model per tier — `fable`, `opus`, `sonnet`, `haiku` (Claude Code aliases) or a full model id. *strong* = Clarify, Planner, Goal review, Merge Attempts; *worker* = task attempts; *cheap* = task reviewer, probes |
+| `FOUNDRY_MODEL_FALLBACKS` | `opus,sonnet,haiku` | tried in order when a session's model is unavailable (deprecated alias, retired id) — see [ADR-0006](./docs/adr/0006-model-registry-and-fallback.md) |
+| `FOUNDRY_ATTEMPT_MAX_COST` / `FOUNDRY_ATTEMPT_MAX_TURNS` | `10` / `150` | per-session cost (USD) and turn caps for a worker attempt; cost is also bounded by the goal's remaining budget |
+| `FOUNDRY_WORKFLOW` | `mattpocock` | `plain` disables mandated workflow skills (one-line hint only) |
+| `FOUNDRY_DESIGN_PACK` | `ui-ux-pro-max` | design pack for UI tasks: `ui-ux-pro-max`, `frontend-design`, `impeccable`, `bencium`, `garden`, `none` |
+| `FOUNDRY_AUTOSKILLS` | `true` | run autoskills per goal (`0`/`false` to disable) |
+| `FOUNDRY_DELIVERY_MODE` | `local` | default delivery policy for new goals |
+| `FOUNDRY_SYNC_FETCH` / `FOUNDRY_SYNC_START` / `FOUNDRY_SYNC_REFRESH` | `true` / `auto` / `false` | fetch the base before a goal; start from the remote tip when local is behind (`auto`) or always local; refresh between tasks |
+| `FOUNDRY_MARKITDOWN` | auto-detect | path to the markitdown binary |
 
 Per-goal budgets (cost, minutes, concurrency, attempts per task) are set when creating the goal and can be raised from the Inbox when exceeded.
 

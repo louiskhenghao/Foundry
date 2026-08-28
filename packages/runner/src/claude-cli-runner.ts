@@ -9,7 +9,7 @@ export interface ClaudeCliRunnerOptions {
   maxConcurrent?: number;
   defaultTimeoutMs?: number;
   defaultIdleTimeoutMs?: number;
-  /** Extra env for every run (e.g. AI_ENGINE_CALLBACK); a function is re-evaluated per run, so settings-sourced values apply without a restart. */
+  /** Extra env for every run (e.g. FOUNDRY_CALLBACK); a function is re-evaluated per run, so settings-sourced values apply without a restart. */
   env?: Record<string, string> | (() => Record<string, string>);
   log?: (msg: string) => void;
 }

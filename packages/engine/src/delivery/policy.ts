@@ -1,5 +1,5 @@
-import type { Brief, CheckResult, DeliveryPlanStep, DeliveryPolicy, Goal, Task } from '@ai-engine/core';
-import { decisionsOf } from '@ai-engine/core';
+import type { Brief, CheckResult, DeliveryPlanStep, DeliveryPolicy, Goal, Task } from '@foundry/core';
+import { decisionsOf } from '@foundry/core';
 import { headerOf } from '../git/conventional.ts';
 
 export const needsGh = (p: DeliveryPolicy) => p.mode === 'pr' || p.mode === 'pr-automerge' || !!p.createRepo;
@@ -64,12 +64,12 @@ function planStacked(goal: Goal, p: DeliveryPolicy, probes: PlanProbes, base: st
 /** Body of one PR of a stacked delivery. */
 export function buildTaskPrBody(goal: Goal, task: Task, i: { index: number; total: number; goalTitle: string; prevPr: number | null; prevBranch: string | null }, results: { name: string; status: string }[], reviewNote: string | null): string {
   const lines: string[] = [];
-  lines.push(`_Part ${i.index}/${i.total} of **${i.goalTitle}**${i.prevPr ? ` · stacked on #${i.prevPr}` : i.prevBranch ? ` · stacked on \`${i.prevBranch}\`` : ''}. Merge bottom-up; once the PR below merges, use **Update branch** (or let ai-engine do it) before merging this one._`);
+  lines.push(`_Part ${i.index}/${i.total} of **${i.goalTitle}**${i.prevPr ? ` · stacked on #${i.prevPr}` : i.prevBranch ? ` · stacked on \`${i.prevBranch}\`` : ''}. Merge bottom-up; once the PR below merges, use **Update branch** (or let Foundry do it) before merging this one._`);
   lines.push(`## ${headerOf(task.commitMessage ?? task.title)}\n\n${task.spec.trim()}`);
   if (results.length) lines.push(`## Checks\n\n| check | result |\n|---|---|\n${results.map((r) => `| ${r.name} | ${r.status === 'pass' ? '✅ pass' : `❌ ${r.status}`} |`).join('\n')}`);
   if (reviewNote) lines.push(`## Reviewer\n\n${reviewNote.trim()}`);
   lines.push(`## Goal\n\n${goal.prompt.trim()}`);
-  lines.push(`---\n_Opened by ai-engine · goal \`${goal.id}\` · task \`${task.id}\`_`);
+  lines.push(`---\n_Opened by Foundry · goal \`${goal.id}\` · task \`${task.id}\`_`);
   return lines.join('\n\n');
 }
 
@@ -94,6 +94,6 @@ export function buildPrBody(goal: Goal, brief: Brief | null, review: { mustResul
     if (review.overDelivered) lines.push('**Over-delivered**: all stretch checks pass as well.');
     if (review.notes) lines.push(`## Reviewer notes\n\n${review.notes.trim()}`);
   }
-  lines.push(`---\n_Opened by ai-engine · goal \`${goal.id}\` · est. cost $${goal.costUsd.toFixed(2)}_`);
+  lines.push(`---\n_Opened by Foundry · goal \`${goal.id}\` · est. cost $${goal.costUsd.toFixed(2)}_`);
   return lines.join('\n\n');
 }

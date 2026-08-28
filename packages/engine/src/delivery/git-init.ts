@@ -95,7 +95,7 @@ export async function initRepo(path: string, opts: { branch?: string } = {}): Pr
   }
   await git(['add', '-A'], path);
   const filesCommitted = (await git(['diff', '--cached', '--name-only'], path)).stdout.split('\n').filter(Boolean).length;
-  const ident = info.identity ? [] : ['-c', 'user.name=ai-engine', '-c', 'user.email=ai-engine@local'];
+  const ident = info.identity ? [] : ['-c', 'user.name=foundry', '-c', 'user.email=foundry@local'];
   const c = await git([...ident, 'commit', '-q', '--allow-empty', '-m', 'chore: initial commit'], path);
   if (c.code !== 0) throw new Error(`initial commit failed: ${c.stderr.trim()}`);
   const ref = (await git(['rev-parse', 'HEAD'], path)).stdout.trim();

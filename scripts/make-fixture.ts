@@ -16,7 +16,7 @@ mkdirSync(join(dir, 'src'), { recursive: true });
 writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'demo-repo', private: true, type: 'module', scripts: { test: 'bun test', typecheck: 'bunx tsc --noEmit -p .' } }, null, 2));
 writeFileSync(join(dir, 'tsconfig.json'), JSON.stringify({ compilerOptions: { strict: true, target: 'ESNext', module: 'ESNext', moduleResolution: 'bundler', types: ['bun-types'], noEmit: true }, include: ['src'] }, null, 2));
 writeFileSync(join(dir, '.gitignore'), 'node_modules\n');
-writeFileSync(join(dir, 'README.md'), '# demo-repo\n\nTiny fixture for ai-engine. `bun test` must pass.\n');
+writeFileSync(join(dir, 'README.md'), '# demo-repo\n\nTiny fixture for foundry. `bun test` must pass.\n');
 writeFileSync(
   join(dir, 'src/math.ts'),
   `export function add(a: number, b: number): number {

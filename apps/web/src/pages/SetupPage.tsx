@@ -1,4 +1,4 @@
-import type { DoctorReport, SkillsOverview } from '@ai-engine/engine/skills-types';
+import type { DoctorReport, SkillsOverview } from '@foundry/engine/skills-types';
 import { CheckCircle2, CircleAlert, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -28,7 +28,7 @@ function BundleStatus({ bundle, busy, onInstall }: { bundle: string; busy: strin
           <span key={c.entry.id} className="inline-flex items-center gap-1 rounded border border-zinc-800 bg-zinc-950/50 px-1.5 py-0.5 text-[11px]">
             <span className={cn('h-1.5 w-1.5 rounded-full', c.status === 'installed' || c.status === 'installed-via-plugin' ? 'bg-emerald-400' : c.status === 'installed-unmanaged' ? 'bg-amber-400' : 'bg-zinc-600')} />
             <span className="mono text-zinc-200">{c.entry.name}</span>
-            <span className="text-zinc-500">{c.status === 'installed-via-plugin' ? 'plugin' : c.status === 'installed' ? 'ai-engine' : c.status === 'installed-unmanaged' ? 'loose copy' : 'missing'}</span>
+            <span className="text-zinc-500">{c.status === 'installed-via-plugin' ? 'plugin' : c.status === 'installed' ? 'Foundry' : c.status === 'installed-unmanaged' ? 'loose copy' : 'missing'}</span>
           </span>
         ))}
       </div>
@@ -113,7 +113,7 @@ export function SetupPage() {
       <div>
         <h1 className="text-lg font-semibold">Setup</h1>
         <p className="text-sm text-zinc-400 mt-1">
-          ai-engine drives the Claude Code already installed on this machine. This page checks everything it needs and installs the recommended skills for you. Nothing here touches your code.
+          Foundry drives the Claude Code already installed on this machine. This page checks everything it needs and installs the recommended skills for you. Nothing here touches your code.
         </p>
       </div>
       <div className={cn('rounded-lg border p-4 flex items-center gap-3', report.ok ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-rose-500/40 bg-rose-500/5')}>
@@ -234,7 +234,7 @@ export function SetupPage() {
 
       <Card title="Development workflow — Matt Pocock's engineering skills">
         <p className="text-xs text-zinc-400 mb-3">
-          ai-engine's roles follow this workflow: workers invoke <span className="mono">tdd</span> for features and refactors and <span className="mono">diagnosing-bugs</span> for bugs, the merger uses <span className="mono">resolving-merge-conflicts</span>, the goal reviewer applies <span className="mono">code-review</span>'s two axes. The engine records which skills each session invoked. Skills provided by the <span className="mono">mattpocock-skills</span> plugin are used as-is; others are installed from the catalog.
+          Foundry's roles follow this workflow: workers invoke <span className="mono">tdd</span> for features and refactors and <span className="mono">diagnosing-bugs</span> for bugs, the merger uses <span className="mono">resolving-merge-conflicts</span>, the goal reviewer applies <span className="mono">code-review</span>'s two axes. The engine records which skills each session invoked. Skills provided by the <span className="mono">mattpocock-skills</span> plugin are used as-is; others are installed from the catalog.
         </p>
         <BundleStatus bundle="mattpocock" busy={busy} onInstall={() => runAction('bundle', async () => {
           const r = await api.installBundle('mattpocock');
@@ -250,7 +250,7 @@ export function SetupPage() {
       </Card>
 
       <Card title="Skills">
-        <p className="text-xs text-zinc-400 mb-3">The catalog marks a few skills as required or recommended for ai-engine's roles. Install them in one click; manage everything else on the Skills page.</p>
+        <p className="text-xs text-zinc-400 mb-3">The catalog marks a few skills as required or recommended for Foundry's roles. Install them in one click; manage everything else on the Skills page.</p>
         <div className="flex gap-2 items-center">
           <Button variant="primary" disabled={busy !== null} onClick={() => installAll(['required'])}>
             {busy === 'required' ? 'Installing…' : 'Install all required'}

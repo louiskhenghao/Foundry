@@ -1,4 +1,4 @@
-import type { Brief, BriefCheck } from '@ai-engine/core/browser';
+import type { Brief, BriefCheck } from '@foundry/core/browser';
 import { ArrowUpToLine, Trash2 } from 'lucide-react';
 import { Badge, Button, Input, Select, cn } from '../../ui.tsx';
 import { assignCheck, checkProblem, convertCheck } from './shared.ts';

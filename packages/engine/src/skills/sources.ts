@@ -1,12 +1,12 @@
 /**
  * Where does an installed skill come from? Pure, synchronous helpers: map scanner rows to a source
- * (GitHub repo via ai-engine / npx skills / Claude plugin, gstack clone, project dir) and fingerprint
+ * (GitHub repo via foundry / npx skills / Claude plugin, gstack clone, project dir) and fingerprint
  * directories so copies can be compared byte-for-byte with their upstream.
  */
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
-import { MARKER_FILE, type SkillsPaths } from './paths.ts';
+import { LEGACY_MARKER_FILE, MARKER_FILE, type SkillsPaths } from './paths.ts';
 import type { MarketplaceInfo } from './scanner.ts';
 import type { Catalog, CatalogEntry, InstalledSkill, SkillManager, SkillSourceKind } from './types.ts';
 
@@ -32,8 +32,8 @@ export function sourceOf(row: InstalledSkill, paths: SkillsPaths): SourceKey | n
     const repo = row.plugin.marketplaceRepo;
     return { id: `plugin:${row.plugin.id}`, kind: 'plugin', label: repo ?? row.plugin.id, manager: 'plugin', repo, url: repo ? `https://github.com/${repo}` : null, homepage: repo ? `https://github.com/${repo}` : null };
   }
-  if (row.managedBy === 'ai-engine' && row.marker) {
-    return { id: `ai-engine:${row.marker.repo}`, kind: 'github', label: row.marker.repo, manager: 'ai-engine', repo: row.marker.repo, url: row.marker.url ?? `https://github.com/${row.marker.repo}`, homepage: `https://github.com/${row.marker.repo}` };
+  if (row.managedBy === 'foundry' && row.marker) {
+    return { id: `foundry:${row.marker.repo}`, kind: 'github', label: row.marker.repo, manager: 'foundry', repo: row.marker.repo, url: row.marker.url ?? `https://github.com/${row.marker.repo}`, homepage: `https://github.com/${row.marker.repo}` };
   }
   if (row.managedBy === 'agents-cli') {
     const repo = row.lock?.source ?? null;
@@ -66,7 +66,7 @@ export function gitBlobSha1(buf: Uint8Array): string {
   return createHash('sha1').update(`blob ${buf.byteLength}\0`).update(buf).digest('hex');
 }
 
-const IGNORED = new Set([MARKER_FILE, '.git', '.DS_Store', 'manifest.json', '.trash.json']);
+const IGNORED = new Set([MARKER_FILE, LEGACY_MARKER_FILE, '.git', '.DS_Store', 'manifest.json', '.trash.json']);
 
 /** Sorted list of [relpath, blob sha1] for every regular file under dir (ignoring our marker and VCS noise). */
 export function dirFiles(dir: string): [string, string][] {

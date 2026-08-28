@@ -1,4 +1,4 @@
-import type { DoctorReport } from '@ai-engine/engine/skills-types';
+import type { DoctorReport } from '@foundry/engine/skills-types';
 import { CircleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';

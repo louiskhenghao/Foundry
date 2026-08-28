@@ -24,7 +24,7 @@ export interface AutoskillsResult {
 }
 
 const MANIFESTS = ['package.json', 'build.gradle', 'build.gradle.kts', 'pom.xml', 'pyproject.toml', 'requirements.txt', 'go.mod', 'Cargo.toml', 'Gemfile', 'composer.json', 'pubspec.yaml'];
-export const EXCLUDE_MARKER = '# ai-engine autoskills (project skills installed per goal; never committed)';
+export const EXCLUDE_MARKER = '# foundry autoskills (project skills installed per goal; never committed)';
 
 /** autoskills only detects stacks from manifests; skip the npx round-trip when there is none. */
 export function hasStackManifest(dir: string): boolean {

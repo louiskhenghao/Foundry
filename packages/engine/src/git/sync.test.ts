@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { getGoal } from '@ai-engine/core';
+import { getGoal } from '@foundry/core';
 import { defaultConfig } from '../config.ts';
 import { Engine } from '../engine.ts';
 import { FakeRunner, makeRepo, makeRepoWithRemote, sh, terminal, waitFor } from '../test-helpers.ts';
@@ -17,7 +17,7 @@ beforeEach(async () => {
 
 /** push a commit to the bare remote's main from a second clone, so the local repo falls behind */
 async function upstreamCommit(file = 'upstream.txt') {
-  const other = mkdtempSync(join(tmpdir(), 'ai-engine-sync-other-'));
+  const other = mkdtempSync(join(tmpdir(), 'foundry-sync-other-'));
   await sh(`git clone -q ${bare} . && printf 'new\\n' > ${file} && git add -A && git -c user.name=o -c user.email=o@o commit -qm "feat: ${file}" && git push -q origin main`, other);
 }
 
@@ -81,7 +81,7 @@ describe('base branch sync', () => {
   });
 
   test('re-run Clarify while the Brief awaits approval: workspace rebuilt from the fresh remote tip, new Brief proposed', async () => {
-    const dataDir = mkdtempSync(join(tmpdir(), 'ai-engine-reclarify-'));
+    const dataDir = mkdtempSync(join(tmpdir(), 'foundry-reclarify-'));
     // the fake clarifier returns no structured output → fallback Brief with a blocking question (awaits approval)
     const engine = new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'ch'), log: () => {} }), new FakeRunner(() => {}));
     const goal = await engine.createGoal({ prompt: 'clarify me', repoPath: repo });
@@ -109,7 +109,7 @@ describe('base branch sync', () => {
 
   test('a goal on a stale checkout starts from origin/main and records goal.base_synced; the worker sees the upstream file', async () => {
     await upstreamCommit('upstream.txt');
-    const dataDir = mkdtempSync(join(tmpdir(), 'ai-engine-sync-data-'));
+    const dataDir = mkdtempSync(join(tmpdir(), 'foundry-sync-data-'));
     let sawUpstream = false;
     const engine = new Engine(
       defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'ch'), alwaysReviewTasks: false, log: () => {} }),

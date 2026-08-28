@@ -1,8 +1,8 @@
 import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { parseSkillMd } from './frontmatter.ts';
-import { MARKER_FILE, type SkillsPaths } from './paths.ts';
-import { AiEngineMarker, type AgentsLockRecord, type InstalledSkill, type ScanResult } from './types.ts';
+import { LEGACY_MARKER_FILE, MARKER_FILE, type SkillsPaths } from './paths.ts';
+import { FoundryMarker, type AgentsLockRecord, type InstalledSkill, type ScanResult } from './types.ts';
 
 export interface ScanOptions {
   /** also scan <repo>/.claude/skills */
@@ -107,12 +107,13 @@ function classifyDir(name: string, dir: string, paths: SkillsPaths): InstalledSk
     row.hint = 'managed by gstack (git clone; settings.json hooks point here) — update with /gstack-upgrade';
     return row;
   }
-  // 3. our marker
-  const markerPath = join(dir, MARKER_FILE);
-  if (existsSync(markerPath)) {
+  // 3. our marker (legacy name kept readable so pre-rename installs stay managed)
+  for (const file of [MARKER_FILE, LEGACY_MARKER_FILE]) {
+    const markerPath = join(dir, file);
+    if (!existsSync(markerPath)) continue;
     try {
-      row.marker = AiEngineMarker.parse(JSON.parse(readFileSync(markerPath, 'utf8')));
-      row.managedBy = 'ai-engine';
+      row.marker = FoundryMarker.parse(JSON.parse(readFileSync(markerPath, 'utf8')));
+      row.managedBy = 'foundry';
       return row;
     } catch {}
   }

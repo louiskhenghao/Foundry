@@ -3,7 +3,7 @@
  * kind of work and scenario, with the invoke name that is actually loaded on this machine (plugin copy first).
  * Replaces the one-line hint when the workflow profile is `mattpocock`; falls back to it otherwise.
  */
-import type { Goal, Task, TaskKind, TaskScenario } from '@ai-engine/core';
+import type { Goal, Task, TaskKind, TaskScenario } from '@foundry/core';
 import { SATISFIED } from './catalog.ts';
 import { formatSkillsHint } from './hints.ts';
 import { packAllows } from './packs.ts';
@@ -124,7 +124,7 @@ export function formatWorkflowSection(i: WorkflowSectionInput): string | null {
       const degraded = r.missingEnv.length ? ` ⚠ ${r.missingEnv.join(', ')} is NOT set in this session, so the skill's API/generation mode is unavailable and it can only advise. If the deliverable depends on it, build the best fallback you can and say so explicitly in your result and manifests — never present the fallback as the real output.` : '';
       lines.push(`- ${r.mandate === 'must' ? 'MUST' : 'Prefer'}: invoke \`${r.invoke}\` — ${r.instruction}${degraded}`);
     }
-    lines.push(`- Do NOT run ${NEVER_RUN.join(', ')}: ai-engine is the tracker and has already done that work. Never write docs/agents/*.`);
+    lines.push(`- Do NOT run ${NEVER_RUN.join(', ')}: Foundry is the tracker and has already done that work. Never write docs/agents/*.`);
     lines.push('- The engine records which skills you invoked; the reviewer sees it.');
   }
   if (others.length) lines.push(`${rules.length ? 'Other installed' : 'Installed'} skills relevant to this role (use when appropriate): ${others.join(', ')}`);

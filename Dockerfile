@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# ai-engine — the orchestrator, its web UI and the Claude Code CLI it drives.
+# foundry — the orchestrator, its web UI and the Claude Code CLI it drives.
 # The image brings the tools; the login and your repositories come from mounted volumes.
 ARG BUN_VERSION=1.3.13
 ARG CLAUDE_CODE_VERSION=2.1.241
@@ -72,8 +72,8 @@ COPY --from=build /app/apps/web/dist ./apps/web/dist
 
 # everything Claude Code keeps (login, sessions, skills) lives in one mounted directory
 ENV CLAUDE_CONFIG_DIR=/home/node/.claude \
-    AI_ENGINE_HOST=0.0.0.0 \
-    AI_ENGINE_PORT=4111
+    FOUNDRY_HOST=0.0.0.0 \
+    FOUNDRY_PORT=4111
 RUN mkdir -p /app/data /home/node/.claude /repos && chown -R node:node /app /home/node /repos
 USER node
 EXPOSE 4111

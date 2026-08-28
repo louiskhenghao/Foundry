@@ -1,5 +1,5 @@
-import type { Attachment } from '@ai-engine/core/browser';
-import { attachmentKindLabel } from '@ai-engine/core/browser';
+import type { Attachment } from '@foundry/core/browser';
+import { attachmentKindLabel } from '@foundry/core/browser';
 import { ExternalLink, File as FileIcon, FileText, Image as ImageIcon, Link2, Paperclip, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.ts';

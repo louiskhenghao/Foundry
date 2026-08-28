@@ -1,5 +1,5 @@
-import type { Attachment } from '@ai-engine/core/browser';
-import { BUDGET_PRESETS } from '@ai-engine/core/browser';
+import type { Attachment } from '@foundry/core/browser';
+import { BUDGET_PRESETS } from '@foundry/core/browser';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type RepoInfo } from '../api.ts';
@@ -9,9 +9,9 @@ import { DeliveryPolicyForm, type PolicyDraft } from '../components/DeliveryPoli
 import { RepoCard } from '../components/RepoCard.tsx';
 import { Button, Card, Input, Textarea, cn, Select } from '../ui.tsx';
 
-const DELIVERY_KEY = 'ai-engine.delivery';
-const BUDGET_KEY = 'ai-engine.budget';
-const NATURE_KEY = 'ai-engine.nature';
+const DELIVERY_KEY = 'foundry.delivery';
+const BUDGET_KEY = 'foundry.budget';
+const NATURE_KEY = 'foundry.nature';
 
 type Nature = 'auto' | 'code' | 'docs' | 'research' | 'image' | 'video';
 const NATURES: { id: Nature; label: string; text: string }[] = [
@@ -54,9 +54,9 @@ export function NewGoalPage() {
   const [nature, setNature] = useState<Nature>(() => ((localStorage.getItem(NATURE_KEY) as Nature | null) ?? 'auto'));
   const [outputDir, setOutputDir] = useState('');
   useEffect(() => localStorage.setItem(NATURE_KEY, nature), [nature]);
-  const [mode, setMode] = useState<'simple' | 'expert'>(() => ((localStorage.getItem('ai-engine.mode') as 'simple' | 'expert' | null) ?? 'expert'));
-  const [tdd, setTdd] = useState<'required' | 'preferred' | 'off'>(() => ((localStorage.getItem('ai-engine.tdd') as 'required' | 'preferred' | 'off' | null) ?? 'required'));
-  const [pace, setPace] = useState<'thorough' | 'fast'>(() => ((localStorage.getItem('ai-engine.pace') as 'thorough' | 'fast' | null) ?? 'thorough'));
+  const [mode, setMode] = useState<'simple' | 'expert'>(() => ((localStorage.getItem('foundry.mode') as 'simple' | 'expert' | null) ?? 'expert'));
+  const [tdd, setTdd] = useState<'required' | 'preferred' | 'off'>(() => ((localStorage.getItem('foundry.tdd') as 'required' | 'preferred' | 'off' | null) ?? 'required'));
+  const [pace, setPace] = useState<'thorough' | 'fast'>(() => ((localStorage.getItem('foundry.pace') as 'thorough' | 'fast' | null) ?? 'thorough'));
   /** the remembered preference; media natures auto-tick fast on top of it unless the human touches the checkbox */
   const basePace = useRef(pace);
   const paceTouched = useRef(false);
@@ -64,10 +64,10 @@ export function NewGoalPage() {
     paceTouched.current = true;
     basePace.current = v;
     setPace(v);
-    localStorage.setItem('ai-engine.pace', v);
+    localStorage.setItem('foundry.pace', v);
   };
-  useEffect(() => localStorage.setItem('ai-engine.mode', mode), [mode]);
-  useEffect(() => localStorage.setItem('ai-engine.tdd', tdd), [tdd]);
+  useEffect(() => localStorage.setItem('foundry.mode', mode), [mode]);
+  useEffect(() => localStorage.setItem('foundry.tdd', tdd), [tdd]);
   const [checks, setChecks] = useState('');
   const [stretch, setStretch] = useState('');
   const [busy, setBusy] = useState(false);

@@ -1,4 +1,4 @@
-import type { Attachment, Attempt, Brief, BriefCheck, BriefDiff, BriefTask, Budgets, Check, CheckResult, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, Goal, SettingsPatch, SettingsView, Task } from '@ai-engine/core/browser';
+import type { Attachment, Attempt, Brief, BriefCheck, BriefDiff, BriefTask, Budgets, Check, CheckResult, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, Goal, SettingsPatch, SettingsView, Task } from '@foundry/core/browser';
 
 /** Manual merge resolution (mirrors engine's merge-resolve.ts). */
 export interface ResolveFile {
@@ -123,8 +123,8 @@ export interface FsRecent {
   roots: { label: string; path: string }[];
   nativePicker: boolean;
 }
-import type { DoctorReport, InstallResult, SkillTier, SkillUpdateRun, SkillsOverview, SkillsUpdateReport, TrashEntry } from '@ai-engine/engine/skills-types';
-import type { UsageSummary } from '@ai-engine/engine/usage-types';
+import type { DoctorReport, InstallResult, SkillTier, SkillUpdateRun, SkillsOverview, SkillsUpdateReport, TrashEntry } from '@foundry/engine/skills-types';
+import type { UsageSummary } from '@foundry/engine/usage-types';
 
 export type Usage = UsageSummary & { pausedUntil: string | null };
 

@@ -1,6 +1,6 @@
 import { join } from 'node:path';
-import type { Attempt, Check, Goal, ReviewerVerdict, Task } from '@ai-engine/core';
-import { ReviewerVerdict as ReviewerVerdictSchema, chosenStyle, getBrief } from '@ai-engine/core';
+import type { Attempt, Check, Goal, ReviewerVerdict, Task } from '@foundry/core';
+import { ReviewerVerdict as ReviewerVerdictSchema, chosenStyle, getBrief } from '@foundry/core';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { renderStyle } from '../attempt-prompt.ts';
 import type { Engine } from '../engine.ts';

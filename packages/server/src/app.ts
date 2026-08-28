@@ -1,9 +1,9 @@
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { Brief, EscalationAnswer, getAttempt, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@ai-engine/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, type Engine, type OpenTargetId } from '@ai-engine/engine';
-import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, SettingsPatch } from '@ai-engine/core';
+import { Brief, EscalationAnswer, getAttempt, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, type Engine, type OpenTargetId } from '@foundry/engine';
+import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
@@ -652,7 +652,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
 
   app.post('/internal/boundary', async (c) => {
     const payload = await c.req.json().catch(() => ({}));
-    engine.handleBoundaryCallback(c.req.header('x-ai-engine-attempt') || null, payload);
+    engine.handleBoundaryCallback(c.req.header('x-foundry-attempt') || null, payload);
     return c.json({ ok: true });
   });
 
@@ -667,7 +667,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       return new Response(Bun.file(join(dist, 'index.html')), { headers: { 'Cache-Control': 'no-cache' } });
     });
   } else {
-    app.get('/', (c) => c.text('ai-engine server. Web UI not built: run `bun run web:build`. API at /api/*'));
+    app.get('/', (c) => c.text('Foundry server. Web UI not built: run `bun run web:build`. API at /api/*'));
   }
   return app;
 }

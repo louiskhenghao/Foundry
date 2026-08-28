@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import type { ClaudeRunner, RunResult } from '@ai-engine/runner';
+import type { ClaudeRunner, RunResult } from '@foundry/runner';
 import { truncateOutput } from './truncate.ts';
 
 const Summary = z.object({

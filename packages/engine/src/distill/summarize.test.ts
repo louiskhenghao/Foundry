@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import type { ClaudeRunner } from '@ai-engine/runner';
+import type { ClaudeRunner } from '@foundry/runner';
 import { SUMMARIZE_ABOVE_BYTES, summarizeOutput } from './summarize.ts';
 
 test('small outputs never call the model', async () => {

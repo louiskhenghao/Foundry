@@ -1,4 +1,4 @@
-import type { Task } from '@ai-engine/core/browser';
+import type { Task } from '@foundry/core/browser';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { TaskTags } from '../../components/TaskTags.tsx';
 import { useElementWidth } from '../../hooks/useElementWidth.ts';

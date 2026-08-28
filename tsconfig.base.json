@@ -14,13 +14,13 @@
     "verbatimModuleSyntax": true,
     "jsx": "react-jsx",
     "paths": {
-      "@ai-engine/core": ["./packages/core/src/index.ts"],
-      "@ai-engine/core/*": ["./packages/core/src/*"],
-      "@ai-engine/runner": ["./packages/runner/src/index.ts"],
-      "@ai-engine/engine": ["./packages/engine/src/index.ts"],
-      "@ai-engine/engine/skills-types": ["./packages/engine/src/skills/types.ts"],
-      "@ai-engine/engine/usage-types": ["./packages/engine/src/usage/types.ts"],
-      "@ai-engine/server": ["./packages/server/src/index.ts"]
+      "@foundry/core": ["./packages/core/src/index.ts"],
+      "@foundry/core/*": ["./packages/core/src/*"],
+      "@foundry/runner": ["./packages/runner/src/index.ts"],
+      "@foundry/engine": ["./packages/engine/src/index.ts"],
+      "@foundry/engine/skills-types": ["./packages/engine/src/skills/types.ts"],
+      "@foundry/engine/usage-types": ["./packages/engine/src/usage/types.ts"],
+      "@foundry/server": ["./packages/server/src/index.ts"]
     }
   }
 }

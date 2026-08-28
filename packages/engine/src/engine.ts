@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import type { Attachment, Brief, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalWorkflow, ModelConfig, Task, Check } from '@ai-engine/core';
+import type { Attachment, Brief, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalWorkflow, ModelConfig, Task, Check } from '@foundry/core';
 import {
   BUDGET_PRESETS,
   Budgets,
@@ -24,8 +24,8 @@ import {
   openDatabase,
   topoSort,
   Brief as BriefSchema,
-} from '@ai-engine/core';
-import { ClaudeCliRunner, type ClaudeRunner, type RunHandle } from '@ai-engine/runner';
+} from '@foundry/core';
+import { ClaudeCliRunner, type ClaudeRunner, type RunHandle } from '@foundry/runner';
 import { runClarify } from './clarify.ts';
 import { type DraftProposal, type DraftRequest, runDraft } from './brief-draft.ts';
 import { runSuggest } from './escalation-suggest.ts';
@@ -47,7 +47,7 @@ import { CliGh, type GhClient } from './delivery/gh.ts';
 import { probeForPlan, runDelivery } from './delivery/pipeline.ts';
 import { planDelivery } from './delivery/policy.ts';
 import { usageSummary, type UsageSummary } from './usage/ledger.ts';
-import type { RunResult } from '@ai-engine/runner';
+import type { RunResult } from '@foundry/runner';
 import type { StreamEvent, StreamListener } from './types.ts';
 import { deliveryWorkspacePath, dropTaskWorkspace, ensureGoalWorkspace, goalWorkspacePath, listStackBranches } from './workspace.ts';
 import { attachmentDir, claimStaged, conversionTmpPath, markdownFileName, sweepStaging, trashAttachment } from './attachments.ts';
@@ -57,7 +57,7 @@ import { ModelFallbackRunner } from './models/fallback-runner.ts';
 import { ModelRegistry, SEED_MODELS, isPinnedId, type ModelRecord } from './models/registry.ts';
 import { copyProjectSkills, hasStackManifest, runAutoskills, type AutoskillsDeps } from './skills/autoskills.ts';
 import { deliverArtifacts, inferCompletion, runGraphRefresh, shouldRunGraphRefresh, type GraphRefreshDeps } from './completion.ts';
-import type { SettingsPatch, SettingsView } from '@ai-engine/core';
+import type { SettingsPatch, SettingsView } from '@foundry/core';
 import { spawnStreaming } from './skills/updaters.ts';
 import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
 import { removeWorktree } from './git/git.ts';
@@ -152,7 +152,7 @@ export class Engine {
       new ClaudeCliRunner({
         claudeBin: config.claudeBin,
         maxConcurrent: config.maxConcurrent,
-        env: () => ({ AI_ENGINE_CALLBACK: `http://${config.host}:${config.port}`, ...this.sessionEnvExtra() }),
+        env: () => ({ FOUNDRY_CALLBACK: `http://${config.host}:${config.port}`, ...this.sessionEnvExtra() }),
         log: config.log,
       });
     this.models = new ModelRegistry(config.dataDir);

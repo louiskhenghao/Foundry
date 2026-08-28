@@ -6,7 +6,7 @@ import { initRepo, inspectRepo } from './git-init.ts';
 
 describe('git-init', () => {
   test('inspect + init on a plain directory', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'ai-engine-init-'));
+    const dir = mkdtempSync(join(tmpdir(), 'foundry-init-'));
     writeFileSync(join(dir, 'a.txt'), 'a');
     const before = await inspectRepo(dir);
     expect(before).toMatchObject({ exists: true, isDir: true, isGitRepo: false, insideRepoAt: null });
@@ -21,7 +21,7 @@ describe('git-init', () => {
   });
 
   test('refuses nested init and keeps an existing .gitignore', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'ai-engine-init2-'));
+    const dir = mkdtempSync(join(tmpdir(), 'foundry-init2-'));
     writeFileSync(join(dir, '.gitignore'), 'custom\n');
     await initRepo(dir);
     const { readFileSync } = await import('node:fs');

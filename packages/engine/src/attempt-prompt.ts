@@ -1,4 +1,4 @@
-import type { BriefStyleOption, Check, Goal, ObservationReport, Task } from '@ai-engine/core';
+import type { BriefStyleOption, Check, Goal, ObservationReport, Task } from '@foundry/core';
 
 /** The chosen Style Proposal rendered for workers and reviewers; '' when none. */
 export function renderStyle(style: BriefStyleOption | null | undefined, opts: { forReviewer?: boolean } = {}): string {

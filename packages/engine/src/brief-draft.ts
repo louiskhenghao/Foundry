@@ -1,8 +1,8 @@
 import { join } from 'node:path';
-import type { Brief, BriefCheck, BriefTask, Goal } from '@ai-engine/core';
-import { AreaDraftOutput, Brief as BriefSchema, RevisionOutput, TaskDraftOutput, type BriefDiff, diffBrief, getBrief, renderDecisions } from '@ai-engine/core';
+import type { Brief, BriefCheck, BriefTask, Goal } from '@foundry/core';
+import { AreaDraftOutput, Brief as BriefSchema, RevisionOutput, TaskDraftOutput, type BriefDiff, diffBrief, getBrief, renderDecisions } from '@foundry/core';
 import { z } from 'zod';
-import { newId } from '@ai-engine/core';
+import { newId } from '@foundry/core';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
 import { tryJson } from './checks/reviewer.ts';

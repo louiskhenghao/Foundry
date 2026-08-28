@@ -1,4 +1,4 @@
-import type { Goal, Task } from '@ai-engine/core';
+import type { Goal, Task } from '@foundry/core';
 
 /**
  * The only other abstraction seam besides ClaudeRunner. A ContextProvider decides what

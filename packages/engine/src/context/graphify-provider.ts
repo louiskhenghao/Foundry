@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { excludeLocally } from './exclude.ts';
-import type { Goal, Task } from '@ai-engine/core';
+import type { Goal, Task } from '@foundry/core';
 import { exec } from '../git/git.ts';
 import type { ContextProvider } from './provider.ts';
 

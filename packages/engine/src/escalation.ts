@@ -1,5 +1,5 @@
-import type { Escalation, EscalationAnswer, EscalationTrigger, Goal, Task } from '@ai-engine/core';
-import { ACTIONS_BY_TRIGGER, IdPrefix, getEscalation, getGoal, getTask, listEscalations, newId } from '@ai-engine/core';
+import type { Escalation, EscalationAnswer, EscalationTrigger, Goal, Task } from '@foundry/core';
+import { ACTIONS_BY_TRIGGER, IdPrefix, getEscalation, getGoal, getTask, listEscalations, newId } from '@foundry/core';
 import type { Engine } from './engine.ts';
 import { exec } from './git/git.ts';
 import { goalWorkspacePath } from './workspace.ts';

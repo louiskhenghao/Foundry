@@ -1,4 +1,4 @@
-# ai-engine — Domain Context
+# Foundry — Domain Context
 
 This file is a glossary. It defines the language used across the codebase, the UI and conversations. It deliberately contains no implementation detail.
 
@@ -129,10 +129,10 @@ A source the system consults to decide which parts of a repository are relevant 
 ## Skills
 
 **Skill**
-A packaged instruction set Claude Code can load (a `SKILL.md` directory). ai-engine does not define skills; it sees the ones installed on the host, installs curated ones from its Catalog, and tells its Roles which to use.
+A packaged instruction set Claude Code can load (a `SKILL.md` directory). Foundry does not define skills; it sees the ones installed on the host, installs curated ones from its Catalog, and tells its Roles which to use.
 
 **Skill Source**
-Where an installed Skill comes from and who updates it: a GitHub repository managed by ai-engine, by the community `skills` CLI, or by a Claude Code plugin; a gstack clone; a project directory; or a hand-installed copy whose origin is inferred by matching its contents against known sources. Skills of the same Source are updated together; a Skill whose bytes match an older version of its Source is *outdated*, one that matches no version is *modified*.
+Where an installed Skill comes from and who updates it: a GitHub repository managed by Foundry, by the community `skills` CLI, or by a Claude Code plugin; a gstack clone; a project directory; or a hand-installed copy whose origin is inferred by matching its contents against known sources. Skills of the same Source are updated together; a Skill whose bytes match an older version of its Source is *outdated*, one that matches no version is *modified*.
 
 **Shadow copy**
 A user-level Skill that has the same name as a Skill provided by a plugin. Both load; prompts use the plugin's copy because it is the one that gets updated. Shadow copies are reported and can be moved to the trash in one click.

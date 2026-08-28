@@ -2,7 +2,7 @@
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@ai-engine/runner';
+import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
 
 /** Scripted stand-in for claude: runs `behave(spec, nthCallForCwd)` then returns a success result. */
 export class FakeRunner implements ClaudeRunner {
@@ -65,7 +65,7 @@ export async function sh(cmd: string, cwd: string): Promise<string> {
 }
 
 /** temp repo with one commit on main */
-export async function makeRepo(prefix = 'ai-engine-test-repo-'): Promise<string> {
+export async function makeRepo(prefix = 'foundry-test-repo-'): Promise<string> {
   const dir = mkdtempSync(join(tmpdir(), prefix));
   writeFileSync(join(dir, 'README.md'), 'fixture\n');
   await sh('git init -q -b main && git -c user.name=t -c user.email=t@t add -A && git -c user.name=t -c user.email=t@t commit -q -m init', dir);
@@ -75,7 +75,7 @@ export async function makeRepo(prefix = 'ai-engine-test-repo-'): Promise<string>
 /** temp repo + bare remote `origin` with main pushed */
 export async function makeRepoWithRemote(): Promise<{ repo: string; bare: string }> {
   const repo = await makeRepo();
-  const bare = mkdtempSync(join(tmpdir(), 'ai-engine-test-bare-')) + '.git';
+  const bare = mkdtempSync(join(tmpdir(), 'foundry-test-bare-')) + '.git';
   await sh(`git init -q --bare ${bare} && git remote add origin ${bare} && git push -q -u origin main`, repo);
   return { repo, bare };
 }

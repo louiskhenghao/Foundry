@@ -40,7 +40,7 @@ describe('installer', () => {
     const dir = join(fake.paths.skillsDir, 'foo');
     expect(readFileSync(join(dir, 'SKILL.md'), 'utf8')).toContain('v1');
     expect(existsSync(join(dir, 'extra.md'))).toBe(true);
-    const marker = JSON.parse(readFileSync(join(dir, '.ai-engine.json'), 'utf8'));
+    const marker = JSON.parse(readFileSync(join(dir, '.foundry.json'), 'utf8'));
     expect(marker).toMatchObject({ catalogId: 'foo', repo: 'acme/upstream', path: 'skills/foo' });
     expect(marker.commit).toHaveLength(40);
     const st = (await manager.status()).find((s) => s.entry.id === 'foo')!;
@@ -51,7 +51,7 @@ describe('installer', () => {
   test('locates a path-less entry by searching **/<name>/SKILL.md', async () => {
     const r = await manager.install('bar');
     expect(r.ok).toBe(true);
-    expect(JSON.parse(readFileSync(join(fake.paths.skillsDir, 'bar', '.ai-engine.json'), 'utf8')).path).toBe('x/bar');
+    expect(JSON.parse(readFileSync(join(fake.paths.skillsDir, 'bar', '.foundry.json'), 'utf8')).path).toBe('x/bar');
   });
 
   test('refuses to overwrite an unmanaged dir unless forced (forced → old copy goes to trash)', async () => {

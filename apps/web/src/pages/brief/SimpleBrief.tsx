@@ -1,4 +1,4 @@
-import type { Brief, Goal } from '@ai-engine/core/browser';
+import type { Brief, Goal } from '@foundry/core/browser';
 import { Check, Settings2 } from 'lucide-react';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { Badge, Button, Card, Input, cn, fmtLimitMin, fmtLimitUsd } from '../../ui.tsx';

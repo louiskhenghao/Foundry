@@ -5,7 +5,7 @@
       "id": "graphify",
       "name": "graphify",
       "summary": "Turns a repository into a queryable code/knowledge graph.",
-      "why": "ai-engine's context provider uses the graphify CLI to hand workers only the relevant files and symbols instead of whole files — the single biggest token saver during Clarify and each Attempt.",
+      "why": "Foundry's context provider uses the graphify CLI to hand workers only the relevant files and symbols instead of whole files — the single biggest token saver during Clarify and each Attempt.",
       "tier": "required",
       "source": {
         "type": "cli",
@@ -721,12 +721,12 @@
       "id": "autoskills",
       "name": "autoskills",
       "summary": "Detects the repository's stack (package.json, Gradle, …) and installs matching skills into its .claude/skills.",
-      "why": "Workers get framework-specific house rules for the exact stack they are editing; ai-engine runs it per goal in the goal workspace.",
+      "why": "Workers get framework-specific house rules for the exact stack they are editing; Foundry runs it per goal in the goal workspace.",
       "tier": "optional",
       "source": {
         "type": "cli",
         "detect": "node",
-        "install": "npx -y autoskills@latest --dry-run   # needs Node >= 22; ai-engine runs it for you in each goal workspace",
+        "install": "npx -y autoskills@latest --dry-run   # needs Node >= 22; Foundry runs it for you in each goal workspace",
         "docs": "https://www.autoskills.sh/"
       },
       "roles": [],
@@ -785,7 +785,7 @@
       "id": "gstack",
       "name": "gstack",
       "summary": "Garry Tan's large skill suite (review, QA, ship, design…).",
-      "why": "Powerful but heavyweight: it is a git clone that flattens ~60 skills into ~/.claude/skills and installs its own hooks, so it must be installed and upgraded with its own tooling, not copied by ai-engine.",
+      "why": "Powerful but heavyweight: it is a git clone that flattens ~60 skills into ~/.claude/skills and installs its own hooks, so it must be installed and upgraded with its own tooling, not copied by Foundry.",
       "tier": "optional",
       "source": {
         "type": "manual",

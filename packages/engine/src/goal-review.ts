@@ -1,6 +1,6 @@
 import { join } from 'node:path';
-import type { Check, CheckResult, Goal, Task } from '@ai-engine/core';
-import { IdPrefix, chosenStyle, getBrief, listChecks, listTasks, newId, renderDecisions } from '@ai-engine/core';
+import type { Check, CheckResult, Goal, Task } from '@foundry/core';
+import { IdPrefix, chosenStyle, getBrief, listChecks, listTasks, newId, renderDecisions } from '@foundry/core';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { renderStyle } from './attempt-prompt.ts';

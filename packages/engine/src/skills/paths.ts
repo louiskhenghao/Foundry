@@ -35,4 +35,6 @@ export function skillsPaths(claudeHome: string, dataDir: string): SkillsPaths {
   };
 }
 
-export const MARKER_FILE = '.ai-engine.json';
+export const MARKER_FILE = '.foundry.json';
+/** Marker name written before the rename to Foundry; still read so existing installs stay managed. */
+export const LEGACY_MARKER_FILE = '.ai-engine.json';

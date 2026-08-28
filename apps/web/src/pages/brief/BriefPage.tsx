@@ -1,5 +1,5 @@
-import type { Brief } from '@ai-engine/core/browser';
-import { pendingDecisions, proposeBudgetFromEstimate, topoSort, uncoveredAreas } from '@ai-engine/core/browser';
+import type { Brief } from '@foundry/core/browser';
+import { pendingDecisions, proposeBudgetFromEstimate, topoSort, uncoveredAreas } from '@foundry/core/browser';
 import { RotateCcw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -32,12 +32,12 @@ export function BriefPage() {
   const [completionEdit, setCompletionEdit] = useState<CompletionChoice | null>(null);
   /** Simple-mode goals open the plain view; either view can be switched per goal (remembered in this browser) */
   const [expert, setExpert] = useState<boolean | null>(() => {
-    const v = localStorage.getItem(`ai-engine.expert.${id}`);
+    const v = localStorage.getItem(`foundry.expert.${id}`);
     return v === null ? null : v === '1';
   });
   const setView = (e: boolean) => {
     setExpert(e);
-    localStorage.setItem(`ai-engine.expert.${id}`, e ? '1' : '0');
+    localStorage.setItem(`foundry.expert.${id}`, e ? '1' : '0');
   };
 
   useEffect(() => {

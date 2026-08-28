@@ -6,7 +6,7 @@
  * Consumers see one event stream and one result; the swap happens underneath. Every engine call site
  * iterates `events` before awaiting `result` (a safety drain covers the rare case where none does).
  */
-import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@ai-engine/runner';
+import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
 import type { ModelRegistry } from './registry.ts';
 
 export interface FallbackRunnerOptions {

@@ -1,5 +1,5 @@
-import type { Engine, StreamEvent } from '@ai-engine/engine';
-import type { EngineEvent } from '@ai-engine/core';
+import type { Engine, StreamEvent } from '@foundry/engine';
+import type { EngineEvent } from '@foundry/core';
 import type { ServerWebSocket } from 'bun';
 import { createApp } from './app.ts';
 

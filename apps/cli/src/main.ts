@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * ai-engine CLI — thin client over the local server, plus `serve` and `replay`.
+ * foundry CLI — thin client over the local server, plus `serve` and `replay`.
  */
 import { resolve } from 'node:path';
 
@@ -30,14 +30,14 @@ function opts(name: string): string[] {
 const has = (name: string) => rest.includes(name);
 const positional = () => rest.filter((a, i) => !a.startsWith('--') && !(i > 0 && rest[i - 1]!.startsWith('--') && !FLAGS.has(rest[i - 1]!)));
 const FLAGS = new Set(['--auto-approve', '--approve', '--verify', '--json', '--follow', '--force']);
-const BASE = process.env.AI_ENGINE_URL ?? `http://127.0.0.1:${process.env.AI_ENGINE_PORT ?? 4111}`;
+const BASE = process.env.FOUNDRY_URL ?? `http://127.0.0.1:${process.env.FOUNDRY_PORT ?? 4111}`;
 
 async function api(path: string, init?: RequestInit): Promise<any> {
   let res: Response;
   try {
     res = await fetch(BASE + path, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) } });
   } catch {
-    console.error(`Cannot reach ai-engine at ${BASE}. Start it with: bun run serve`);
+    console.error(`Cannot reach foundry at ${BASE}. Start it with: bun run serve`);
     process.exit(2);
   }
   const text = await res.text();
@@ -56,7 +56,7 @@ const safeJson = (t: string) => {
   }
 };
 
-const help = `ai-engine — drive the host Claude Code to over-deliver on goals
+const help = `foundry — drive the host Claude Code to over-deliver on goals
 
   serve                                   start engine + server (http://127.0.0.1:4111)
   goal new "<prompt>" --repo <path>       create a goal (Clarify → Brief → approve in UI or via \`brief\`)
@@ -82,14 +82,14 @@ const help = `ai-engine — drive the host Claude Code to over-deliver on goals
   deliver <goalId> [--mode push|pr|pr-automerge ...]   deliver a finished goal (no --mode: print the plan)
   github [status|login]                   GitHub CLI status / device-flow login (needed for PR modes)
   auth [status|login|logout]              Claude account: who is logged in; login/logout hand over to \`claude auth\`
-  usage [--json] [--probe]                Claude usage as seen by ai-engine (5h / 7d windows, rate-limit signal); --probe spends ~$0.02 to refresh
+  usage [--json] [--probe]                Claude usage as seen by foundry (5h / 7d windows, rate-limit signal); --probe spends ~$0.02 to refresh
 
 (doctor and skills work without the server running.)
 `;
 
 /** Use the server when it is up, otherwise run in-process (doctor/skills must work before `serve`). */
 async function skillsLocal() {
-  const { SkillsManager, defaultConfig } = await import('@ai-engine/engine');
+  const { SkillsManager, defaultConfig } = await import('@foundry/engine');
   const cfg = defaultConfig(ROOT);
   return new SkillsManager({ claudeHome: cfg.claudeHome, dataDir: cfg.dataDir, catalogPath: cfg.catalogPath, log: (m) => console.error(m) });
 }
@@ -107,11 +107,11 @@ await main();
 async function main(): Promise<void> {
 switch (cmd) {
   case 'serve': {
-    const { Engine, defaultConfig } = await import('@ai-engine/engine');
-    const { startServer } = await import('@ai-engine/server');
+    const { Engine, defaultConfig } = await import('@foundry/engine');
+    const { startServer } = await import('@foundry/server');
     const engine = new Engine(defaultConfig(ROOT));
     const server = startServer(engine, { webDist: resolve(ROOT, 'apps/web/dist') });
-    console.log(`ai-engine listening on http://${engine.config.host}:${server.port}  (data: ${engine.config.dataDir})`);
+    console.log(`foundry listening on http://${engine.config.host}:${server.port}  (data: ${engine.config.dataDir})`);
     await engine.start();
     const shutdown = async () => {
       console.log('\nshutting down…');
@@ -243,7 +243,7 @@ switch (cmd) {
     break;
   }
   case 'replay': {
-    const { openDatabase, EventStore } = await import('@ai-engine/core');
+    const { openDatabase, EventStore } = await import('@foundry/core');
     const store = new EventStore(openDatabase(resolve(ROOT, 'data/engine.db')));
     const before = store.snapshotReadModels();
     const n = store.replay();
@@ -264,13 +264,13 @@ switch (cmd) {
       const p = await api(`/api/goals/${id}/delivery/plan?mode=${opt('--plan') ?? 'pr'}`);
       console.log(`plan (${p.policy.mode}):`);
       for (const s of p.steps) console.log(`  ${pad(s.step, 14)} ${s.command ?? ''}${s.command ? '\n' + ' '.repeat(17) : ''}${s.note}`);
-      console.log('\nrun with: ai-engine deliver ' + id + ' --mode push|pr|pr-automerge [--remote-url URL] [--owner O --name N] [--merge squash|merge|rebase]');
+      console.log('\nrun with: foundry deliver ' + id + ' --mode push|pr|pr-automerge [--remote-url URL] [--owner O --name N] [--merge squash|merge|rebase]');
       break;
     }
     const body: any = { mode, remote: opt('--remote') ?? 'origin', remoteUrl: opt('--remote-url') ?? null, mergeMethod: opt('--merge') ?? 'squash' };
     if (opt('--owner') && opt('--name')) body.createRepo = { owner: opt('--owner'), name: opt('--name'), visibility: opt('--visibility') ?? 'private' };
     const r = await api(`/api/goals/${id}/deliver`, { method: 'POST', body: JSON.stringify(body) });
-    console.log(`delivery ${r.delivery.status} (mode ${r.delivery.policy.mode}) — watch with: ai-engine watch ${id}`);
+    console.log(`delivery ${r.delivery.status} (mode ${r.delivery.policy.mode}) — watch with: foundry watch ${id}`);
     break;
   }
   case 'github': {
@@ -279,8 +279,8 @@ switch (cmd) {
       const p = Bun.spawn([Bun.which('gh') ?? 'gh', 'auth', 'login', '--web', '-h', 'github.com', '-p', 'https'], { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit' });
       process.exit(await p.exited);
     }
-    const s = (await serverUp()) ? await api('/api/github/status') : await new (await import('@ai-engine/engine')).CliGh().available();
-    console.log(s.installed ? (s.authenticated ? `✔ gh ${s.version} logged in as ${s.login}` : `✘ gh ${s.version} installed but not logged in — run: ai-engine github login`) : '✘ gh not installed — run: brew install gh');
+    const s = (await serverUp()) ? await api('/api/github/status') : await new (await import('@foundry/engine')).CliGh().available();
+    console.log(s.installed ? (s.authenticated ? `✔ gh ${s.version} logged in as ${s.login}` : `✘ gh ${s.version} installed but not logged in — run: foundry github login`) : '✘ gh not installed — run: brew install gh');
     break;
   }
   case 'auth': {
@@ -290,9 +290,9 @@ switch (cmd) {
       const p = Bun.spawn([Bun.which('claude') ?? 'claude', 'auth', sub], { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit' });
       process.exit(await p.exited);
     }
-    const st = (await serverUp()) ? (await api('/api/auth?force=1')).status : await (await import('@ai-engine/engine')).claudeAuthStatus(Bun.which('claude'));
+    const st = (await serverUp()) ? (await api('/api/auth?force=1')).status : await (await import('@foundry/engine')).claudeAuthStatus(Bun.which('claude'));
     if (has('--json')) return console.log(JSON.stringify(st, null, 2));
-    console.log(st.loggedIn ? `✔ logged in as ${st.email ?? '?'} (${st.subscriptionType ?? st.authMethod ?? '?'})${st.orgName ? ` · ${st.orgName}` : ''}` : `✘ not logged in${st.error ? ` — ${st.error}` : ''}\n  run: ai-engine auth login`);
+    console.log(st.loggedIn ? `✔ logged in as ${st.email ?? '?'} (${st.subscriptionType ?? st.authMethod ?? '?'})${st.orgName ? ` · ${st.orgName}` : ''}` : `✘ not logged in${st.error ? ` — ${st.error}` : ''}\n  run: foundry auth login`);
     break;
   }
   case 'usage': {
@@ -319,7 +319,7 @@ switch (cmd) {
         const mark = ch.ok ? '✔' : ch.severity === 'warn' ? '⚠' : '✘';
         console.log(`${mark} ${pad(ch.label, 30)} ${ch.detail}`);
         if (!ch.ok && ch.fix?.command) console.log(`      fix: ${ch.fix.command}`);
-        if (!ch.ok && ch.fix?.installId) console.log(`      or:  ai-engine skills install ${ch.fix.installId}`);
+        if (!ch.ok && ch.fix?.installId) console.log(`      or:  foundry skills install ${ch.fix.installId}`);
         if (!ch.ok && ch.fix?.url) console.log(`      see: ${ch.fix.url}`);
       }
       console.log(report.ok ? '\nall good ✔' : '\nsome checks failed ✘');
@@ -379,7 +379,7 @@ switch (cmd) {
       for (const u of r.updated) console.log(`↑ ${u.name} ${u.from?.slice(0, 7) ?? '?'} → ${u.to?.slice(0, 7) ?? '?'}`);
       for (const n of r.unchanged) console.log(`= ${n} up to date`);
       for (const e of r.errors) console.log(`✘ ${e.name}: ${e.error}`);
-      if (!r.updated.length && !r.unchanged.length && !r.errors.length) console.log('nothing installed by ai-engine to update');
+      if (!r.updated.length && !r.unchanged.length && !r.errors.length) console.log('nothing installed by foundry to update');
       break;
     }
     if (sub === 'trash') {

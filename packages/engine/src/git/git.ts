@@ -41,7 +41,7 @@ export async function commitAll(cwd: string, message: string): Promise<{ ref: st
   return { ref: await headRef(cwd), committed: true };
 }
 
-export const GIT_IDENT = ['-c', 'user.name=ai-engine', '-c', 'user.email=ai-engine@local'];
+export const GIT_IDENT = ['-c', 'user.name=foundry', '-c', 'user.email=foundry@local'];
 
 /** Commit whatever is staged (used after a squash merge / soft reset / resolved cherry-pick). */
 export async function commitStaged(cwd: string, message: string, opts: { allowEmpty?: boolean } = {}): Promise<{ ref: string; committed: boolean }> {

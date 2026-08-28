@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { boundaryHook, buildSettings, canaryHook } from '@ai-engine/runner';
+import { boundaryHook, buildSettings, canaryHook } from '@foundry/runner';
 
 /**
  * The mechanical enforcement of Escalation trigger 3. The patterns themselves live in
