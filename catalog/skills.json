@@ -985,6 +985,120 @@
       "scenarios": [
         "video"
       ]
+    },
+    {
+      "id": "claude-image-gen",
+      "name": "image-generation",
+      "summary": "Image generation via Gemini (default gemini-3-pro-image-preview) or OpenAI gpt-image; the model name routes the provider. Skill + MCP server + CLI in one plugin.",
+      "why": "An image pack option with real API generation out of the box; works with either a Gemini or an OpenAI key from Settings.",
+      "tier": "optional",
+      "source": {
+        "type": "plugin",
+        "marketplace": "guinacio/claude-image-gen",
+        "marketplaceId": "media-pipeline-marketplace",
+        "plugin": "media-pipeline"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "image",
+        "generation"
+      ],
+      "aliases": [],
+      "pack": "image",
+      "packOption": "claude-image-gen",
+      "scenarios": [
+        "image"
+      ],
+      "requiresEnv": [
+        "GEMINI_API_KEY"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "any",
+          "scenarios": [
+            "image"
+          ],
+          "instruction": "Generate with this skill (Gemini by default; a gpt-image/dall-e model name switches to OpenAI). Save every file into artifacts/ and record its prompt/parameters in the task manifest."
+        }
+      ]
+    },
+    {
+      "id": "taste-imagegen-web",
+      "name": "imagegen-frontend-web",
+      "summary": "taste-skill's art-direction framework for generating web UI/product reference visuals: composition rules, section-by-section imagery, an opinionated design language.",
+      "why": "The taste image pack option: strong visual direction for UI-flavoured imagery instead of generic renders.",
+      "tier": "optional",
+      "source": {
+        "type": "git",
+        "repo": "Leonxlnx/taste-skill",
+        "path": "skills/imagegen-frontend-web"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "image",
+        "design"
+      ],
+      "aliases": [],
+      "pack": "image",
+      "packOption": "taste-imagegen",
+      "scenarios": [
+        "image",
+        "frontend"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "any",
+          "scenarios": [
+            "image"
+          ],
+          "instruction": "Follow its art direction when composing and generating web-oriented visuals. Save every file into artifacts/ and record its prompt/parameters in the task manifest."
+        }
+      ]
+    },
+    {
+      "id": "taste-imagegen-mobile",
+      "name": "imagegen-frontend-mobile",
+      "summary": "taste-skill's art-direction framework for generating mobile UI/product reference visuals: composition rules, section-by-section imagery, an opinionated design language.",
+      "why": "The taste image pack option: strong visual direction for UI-flavoured imagery instead of generic renders.",
+      "tier": "optional",
+      "source": {
+        "type": "git",
+        "repo": "Leonxlnx/taste-skill",
+        "path": "skills/imagegen-frontend-mobile"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "image",
+        "design"
+      ],
+      "aliases": [],
+      "pack": "image",
+      "packOption": "taste-imagegen",
+      "scenarios": [
+        "image",
+        "frontend"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "any",
+          "scenarios": [
+            "image"
+          ],
+          "instruction": "Follow its art direction when composing and generating mobile-oriented visuals. Save every file into artifacts/ and record its prompt/parameters in the task manifest."
+        }
+      ]
     }
   ]
 }

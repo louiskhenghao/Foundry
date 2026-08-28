@@ -23,6 +23,8 @@ export const DESIGN_PACK_OPTIONS: PackOption[] = [
 
 export const IMAGE_PACK_OPTIONS: PackOption[] = [
   { id: 'gpt-image-2', label: 'GPT Image 2', summary: 'Prompt-engineering skill for GPT Image 2 with 80+ structured templates (posters, UI, product shots, infographics); generates via an OpenAI-compatible endpoint or hands the prompt to the host agent.', homepage: null },
+  { id: 'claude-image-gen', label: 'claude-image-gen', summary: 'Plugin generating images via Gemini (default) or OpenAI gpt-image; model name picks the provider. Needs GEMINI_API_KEY or OPENAI_API_KEY (Settings → Tools & keys).', homepage: 'https://github.com/guinacio/claude-image-gen' },
+  { id: 'taste-imagegen', label: 'Taste imagegen', summary: "taste-skill's imagegen pair (web + mobile): opinionated art direction for UI/product reference visuals — composition rules and design language baked into the prompts.", homepage: 'https://github.com/Leonxlnx/taste-skill' },
   { id: 'none', label: 'None', summary: 'No image skill is mandated; image tasks rely on the worker alone.', homepage: null },
 ];
 

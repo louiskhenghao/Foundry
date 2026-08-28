@@ -9,7 +9,7 @@ import { DeliveryMode, DeliveryUnit } from './delivery.ts';
 export const DesignPack = z.enum(['ui-ux-pro-max', 'frontend-design', 'impeccable', 'bencium', 'garden', 'none']);
 export type DesignPack = z.infer<typeof DesignPack>;
 
-export const ImagePack = z.enum(['gpt-image-2', 'none']);
+export const ImagePack = z.enum(['gpt-image-2', 'claude-image-gen', 'taste-imagegen', 'none']);
 export type ImagePack = z.infer<typeof ImagePack>;
 
 export const VideoPack = z.enum(['web-video-presentation', 'mmx-cli', 'none']);
