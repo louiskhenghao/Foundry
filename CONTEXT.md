@@ -229,3 +229,26 @@ Who started an Agent Session: *Foundry* (the engine spawned it for a Goal) or *e
 
 **Subagent**
 A helper agent a session spawns for a sub-task (the Task tool). It has its own conversation and its own context window, and is shown nested under the session that spawned it.
+
+## Release & update
+
+**Release**
+One published version of the whole product — a single stable semver shared by every package, with its notes published where any deployment can read them. Foundry has no per-component versions.
+_Avoid_: build, deploy
+
+**Deployment Mode**
+How this instance runs: *docker* (the published image) or *local* (a git checkout served directly). Detected by the instance itself, never configured; it decides what Self-Update does and what a Guided Update shows.
+
+**Update Check**
+The instance asking, on a schedule or on demand, whether a Release newer than itself exists. Only stable semver counts — pre-release and floating tags are invisible to it. The result is remembered, shown in the UI, and announced through Notifications once per new Release.
+_Avoid_: version poll, upgrade check
+
+**Self-Update**
+The one-click path from a noticed Release to running it: the instance drains active work, replaces itself, and comes back on the new version — rolling back and staying put if any step fails. An instance that lacks the means to replace itself falls back to a Guided Update instead of failing.
+_Avoid_: auto-update, hot update
+
+**Guided Update**
+The fallback when Self-Update is impossible: a popup with the exact commands for this Deployment Mode, for the human to run themselves.
+
+**Drain**
+Refusing new sessions while active Agents finish, so an update never kills running work. The human may override and update immediately.
