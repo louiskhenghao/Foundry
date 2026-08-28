@@ -12,7 +12,7 @@ export type DesignPack = z.infer<typeof DesignPack>;
 export const ImagePack = z.enum(['gpt-image-2', 'claude-image-gen', 'taste-imagegen', 'none']);
 export type ImagePack = z.infer<typeof ImagePack>;
 
-export const VideoPack = z.enum(['web-video-presentation', 'mmx-cli', 'none']);
+export const VideoPack = z.enum(['web-video-presentation', 'mmx-cli', 'hyperframes', 'none']);
 export type VideoPack = z.infer<typeof VideoPack>;
 
 export const EngineSettings = z.object({

@@ -32,6 +32,7 @@ export const IMAGE_PACK_OPTIONS: PackOption[] = [
 export const VIDEO_PACK_OPTIONS: PackOption[] = [
   { id: 'web-video-presentation', label: 'Web video presentation', summary: 'Turns a script or article into a click-driven 16:9 web presentation (cinematic HTML, optional narration audio) — video-as-a-web-page rather than a rendered file.', homepage: 'https://github.com/ConardLi/garden-skills' },
   { id: 'mmx-cli', label: 'MiniMax CLI', summary: 'MiniMax platform CLI (mmx): text/image-to-video generation and narration audio, rendered to real video files.', homepage: 'https://www.npmjs.com/package/mmx-cli' },
+  { id: 'hyperframes', label: 'Hyperframes', summary: 'Motion-graphics workbench: HTML + GSAP compositions rendered to real video (talking-head shorts, product demos, lessons). Workshop-style — the skills scaffold the pipeline in the workspace; needs Node 20+, FFmpeg and Chrome.', homepage: 'https://github.com/nateherkai/hyperframes-student-kit' },
   { id: 'none', label: 'None', summary: 'No video skill is mandated; video tasks rely on the worker alone.', homepage: null },
 ];
 

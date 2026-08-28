@@ -1148,6 +1148,124 @@
           "instruction": "Judge the UI against its principles: generic layouts, default spacing and lifeless typography are worth blockers when the skill was mandated."
         }
       ]
+    },
+    {
+      "id": "hyperframes",
+      "name": "hyperframes",
+      "summary": "Core Hyperframes framework: HTML compositions, timeline, rendering concepts.",
+      "why": "The hyperframes video pack: motion-graphics editing/rendering (HTML+GSAP → real video) — the deliberate alternative to API text-to-video for demos, lessons and brand clips.",
+      "tier": "optional",
+      "bundle": "hyperframes",
+      "source": {
+        "type": "git",
+        "repo": "nateherkai/hyperframes-student-kit",
+        "path": ".claude/skills/hyperframes"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "video",
+        "motion"
+      ],
+      "aliases": [],
+      "pack": "video",
+      "packOption": "hyperframes",
+      "scenarios": [
+        "video"
+      ],
+      "workflow": []
+    },
+    {
+      "id": "hyperframes-make-a-video",
+      "name": "make-a-video",
+      "summary": "End-to-end flow: from idea to a rendered video through the Hyperframes pipeline.",
+      "why": "The hyperframes video pack: motion-graphics editing/rendering (HTML+GSAP → real video) — the deliberate alternative to API text-to-video for demos, lessons and brand clips.",
+      "tier": "optional",
+      "bundle": "hyperframes",
+      "source": {
+        "type": "git",
+        "repo": "nateherkai/hyperframes-student-kit",
+        "path": ".claude/skills/make-a-video"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "video",
+        "motion"
+      ],
+      "aliases": [],
+      "pack": "video",
+      "packOption": "hyperframes",
+      "scenarios": [
+        "video"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "any",
+          "scenarios": [
+            "video"
+          ],
+          "instruction": "Build videos through the Hyperframes pipeline: follow the skill to scaffold the project in this workspace (npm install; needs Node 20+, FFmpeg, Chrome), author compositions, then render the final files into artifacts/ and record parameters in the task manifest."
+        }
+      ]
+    },
+    {
+      "id": "hyperframes-gsap",
+      "name": "gsap",
+      "summary": "GSAP animation patterns for composition motion.",
+      "why": "The hyperframes video pack: motion-graphics editing/rendering (HTML+GSAP → real video) — the deliberate alternative to API text-to-video for demos, lessons and brand clips.",
+      "tier": "optional",
+      "bundle": "hyperframes",
+      "source": {
+        "type": "git",
+        "repo": "nateherkai/hyperframes-student-kit",
+        "path": ".claude/skills/gsap"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "video",
+        "motion"
+      ],
+      "aliases": [],
+      "pack": "video",
+      "packOption": "hyperframes",
+      "scenarios": [
+        "video"
+      ],
+      "workflow": []
+    },
+    {
+      "id": "hyperframes-short-form-video",
+      "name": "short-form-video",
+      "summary": "Short-form (vertical/social) video conventions on the same pipeline.",
+      "why": "The hyperframes video pack: motion-graphics editing/rendering (HTML+GSAP → real video) — the deliberate alternative to API text-to-video for demos, lessons and brand clips.",
+      "tier": "optional",
+      "bundle": "hyperframes",
+      "source": {
+        "type": "git",
+        "repo": "nateherkai/hyperframes-student-kit",
+        "path": ".claude/skills/short-form-video"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "video",
+        "motion"
+      ],
+      "aliases": [],
+      "pack": "video",
+      "packOption": "hyperframes",
+      "scenarios": [
+        "video"
+      ],
+      "workflow": []
     }
   ]
 }
