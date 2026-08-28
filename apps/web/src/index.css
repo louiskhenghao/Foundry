@@ -53,6 +53,21 @@
   background-color: #ffffff;
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
 }
+
+/*
+ * Dark has two surface levels (page 950 / card 900) and uses 900 for BOTH cards and the panels
+ * nested inside them. Light needs a third step, or those nested panels turn white-on-white:
+ * code blocks, table headers and the diff file strip get the tint between page and card.
+ */
+:root.light .md code,
+:root.light .md pre,
+:root.light .md th,
+:root.light .diff-file-head {
+  background-color: #f4f4f5;
+}
+:root.light ::-webkit-scrollbar-thumb {
+  background-color: #c4c4c9;
+}
 html,
 body,
 #root {
