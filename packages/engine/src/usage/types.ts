@@ -1,4 +1,4 @@
-/** Browser-safe usage types (no runtime imports). Exported as `@ai-engine/engine/usage-types`. */
+/** Browser-safe usage types (no runtime imports). Exported as `@foundry/engine/usage-types`. */
 export interface WindowSummary {
   label: string;
   windowStart: string;

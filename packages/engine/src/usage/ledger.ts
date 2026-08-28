@@ -1,5 +1,5 @@
 import type { Database } from 'bun:sqlite';
-import { listGoals, listRateLimitState, listUsageSince, type UsageRow } from '@ai-engine/core';
+import { listGoals, listRateLimitState, listUsageSince, type UsageRow } from '@foundry/core';
 import type { UsageBucket, UsageSummary, WindowSummary } from './types.ts';
 
 export type { UsageBucket, UsageSummary, WindowSummary };
@@ -97,6 +97,6 @@ export function usageSummary(db: Database, now = Date.now()): UsageSummary {
       errorSessions: weekRows.filter((r) => r.subtype !== 'success').length,
     },
     limited: limitedState ? { rateLimitType: limitedState.rate_limit_type, until: new Date(limitedState.resets_at! * 1000).toISOString() } : null,
-    note: 'Counts only sessions started by ai-engine on this machine. Subscription plans expose no usage API; for exact percentages run /usage inside Claude Code.',
+    note: 'Counts only sessions started by Foundry on this machine. Subscription plans expose no usage API; for exact percentages run /usage inside Claude Code.',
   };
 }

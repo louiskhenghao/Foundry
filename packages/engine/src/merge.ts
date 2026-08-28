@@ -1,6 +1,6 @@
 import { join } from 'node:path';
-import type { Attempt, Goal, Task } from '@ai-engine/core';
-import { IdPrefix, getAttempt, listAttempts, listChecks, newId } from '@ai-engine/core';
+import type { Attempt, Goal, Task } from '@foundry/core';
+import { IdPrefix, getAttempt, listAttempts, listChecks, newId } from '@foundry/core';
 import { runCommandCheck } from './checks/command.ts';
 import type { Engine } from './engine.ts';
 import { raiseEscalation } from './escalation.ts';
@@ -223,7 +223,7 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
     timeoutMs: 10 * 60_000,
     transcriptPath: attempt.transcriptPath!,
     resumeSessionId: resume ? (attempt.sessionId ?? undefined) : undefined,
-    env: { AI_ENGINE_ATTEMPT_ID: attempt.id },
+    env: { FOUNDRY_ATTEMPT_ID: attempt.id },
     label: `merge ${src.label} #${n}`,
   });
   const segmentStart = new Date().toISOString();

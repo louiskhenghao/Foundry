@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { EventStore, openDatabase } from '@ai-engine/core';
+import { EventStore, openDatabase } from '@foundry/core';
 import { usageSummary } from './ledger.ts';
 
 function store() {
@@ -53,7 +53,7 @@ describe('usage dashboard aggregates', () => {
     const { bucketize } = await import('./ledger.ts');
     const s = store();
     // a goal so byGoal can show a title
-    const { IDLE_DELIVERY } = await import('@ai-engine/core');
+    const { IDLE_DELIVERY } = await import('@foundry/core');
     const now = new Date().toISOString();
     s.append({ type: 'goal.created', goalId: 'g_t', payload: { goal: { id: 'g_t', title: 'Titled goal', prompt: 'p', repoPath: '/r', baseBranch: 'main', branch: 'goal/g_t', mode: 'expert', workflow: { tdd: 'required', pace: 'thorough' }, budgets: { maxCostUsd: 5, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3 }, budgetPreset: 'custom', models: { strong: 'opus', cheap: 'haiku', worker: 'opus' }, state: 'done', stateBeforeBlock: null, costUsd: 1, fixCycles: 0, delivery: IDLE_DELIVERY, attachments: [], baseSync: null, autoskills: null, completion: { graphRefresh: false, docs: [], docsRun: null, graphRun: null, artifactsRun: null }, nature: 'auto', outputDir: null, runningSince: null, createdAt: now, updatedAt: now } } });
     usage(s, 'g_t', 'attempt', 'opus', 0.4);

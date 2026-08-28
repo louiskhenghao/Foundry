@@ -1,5 +1,5 @@
-import type { Brief } from '@ai-engine/core/browser';
-import { decisionsOf, diffIsEmpty, markDecisionsApplied } from '@ai-engine/core/browser';
+import type { Brief } from '@foundry/core/browser';
+import { decisionsOf, diffIsEmpty, markDecisionsApplied } from '@foundry/core/browser';
 import { Check, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { api, type DraftProposal } from '../../api.ts';

@@ -4,7 +4,7 @@ Status: accepted · 2026-08-22
 
 ## Context
 
-Claude models come and go: new families appear (Fable 5 today), aliases move to newer releases, pinned ids retire. ai-engine passes model names straight to `claude --model`, which already makes family aliases (`fable`, `opus`, `sonnet`, `haiku`) follow the latest release. What was missing: the UI only knew a hard-coded list, a retired model made every session of a goal fail the same way, and nothing warned ahead of time.
+Claude models come and go: new families appear (Fable 5 today), aliases move to newer releases, pinned ids retire. Foundry passes model names straight to `claude --model`, which already makes family aliases (`fable`, `opus`, `sonnet`, `haiku`) follow the latest release. What was missing: the UI only knew a hard-coded list, a retired model made every session of a goal fail the same way, and nothing warned ahead of time.
 
 ## Decisions
 

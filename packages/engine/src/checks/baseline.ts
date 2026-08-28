@@ -1,6 +1,6 @@
 import { join } from 'node:path';
-import type { Check, Goal } from '@ai-engine/core';
-import { listChecks } from '@ai-engine/core';
+import type { Check, Goal } from '@foundry/core';
+import { listChecks } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { ensureDetachedWorktree, removeWorktree } from '../git/git.ts';
 import { runCommandCheck } from './command.ts';

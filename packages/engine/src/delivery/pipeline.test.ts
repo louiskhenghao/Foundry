@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from 'bun:test';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { getGoal, listTasks } from '@ai-engine/core';
+import { getGoal, listTasks } from '@foundry/core';
 import { defaultConfig } from '../config.ts';
 import { Engine } from '../engine.ts';
 import { FakeRunner, makeRepoWithRemote, sh, terminal, waitFor } from '../test-helpers.ts';
@@ -13,7 +13,7 @@ let dataDir: string;
 let repo: string;
 let bare: string;
 beforeEach(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), 'ai-engine-deliv-data-'));
+  dataDir = mkdtempSync(join(tmpdir(), 'foundry-deliv-data-'));
   ({ repo, bare } = await makeRepoWithRemote());
 });
 // temp dirs are intentionally not removed: background ticks may still be writing when a test ends
@@ -73,7 +73,7 @@ describe('delivery pipeline', () => {
     const engine = new Engine(cfg(), runner, gh);
     const goal = await engine.createGoal({ prompt: 'conflict me', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
     // someone else pushes a conflicting change to origin/main while the goal runs
-    const other = mkdtempSync(join(tmpdir(), 'ai-engine-other-'));
+    const other = mkdtempSync(join(tmpdir(), 'foundry-other-'));
     await sh(`git clone -q ${bare} . && printf 'upstream version\\n' > README.md && git -c user.name=o -c user.email=o@o commit -qam upstream && git push -q origin main`, other);
     await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 30_000);
     const d = deliveredStatus(engine, goal.id);
@@ -272,7 +272,7 @@ describe('delivery pipeline', () => {
     });
     const engine = new Engine(cfg(), runner, gh);
     const goal = await engine.createGoal({ prompt: 'fallback', repoPath: repo, brief: twoTasks(), delivery: { mode: 'pr', unit: 'task' } });
-    const other = mkdtempSync(join(tmpdir(), 'ai-engine-other-'));
+    const other = mkdtempSync(join(tmpdir(), 'foundry-other-'));
     await sh(`git clone -q ${bare} . && printf 'upstream version\\n' > README.md && git -c user.name=o -c user.email=o@o commit -qam upstream && git push -q origin main`, other);
     await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 40_000);
     const d = deliveredStatus(engine, goal.id);

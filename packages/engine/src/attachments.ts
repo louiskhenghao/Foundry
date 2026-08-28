@@ -4,8 +4,8 @@
  */
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
-import type { Attachment, Goal } from '@ai-engine/core';
-import { ATTACHMENT_LIMITS, IdPrefix, attachmentKindLabel, newId } from '@ai-engine/core';
+import type { Attachment, Goal } from '@foundry/core';
+import { ATTACHMENT_LIMITS, IdPrefix, attachmentKindLabel, newId } from '@foundry/core';
 
 export class AttachmentError extends Error {
   constructor(

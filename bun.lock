@@ -3,29 +3,29 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "ai-engine",
+      "name": "foundry",
       "devDependencies": {
         "@types/bun": "latest",
         "typescript": "^5.6.0",
       },
     },
     "apps/cli": {
-      "name": "@ai-engine/cli",
+      "name": "@foundry/cli",
       "version": "0.1.0",
       "bin": {
-        "ai-engine": "./src/main.ts",
+        "foundry": "./src/main.ts",
       },
       "dependencies": {
-        "@ai-engine/core": "workspace:*",
-        "@ai-engine/engine": "workspace:*",
-        "@ai-engine/server": "workspace:*",
+        "@foundry/core": "workspace:*",
+        "@foundry/engine": "workspace:*",
+        "@foundry/server": "workspace:*",
       },
     },
     "apps/web": {
-      "name": "@ai-engine/web",
+      "name": "@foundry/web",
       "version": "0.1.0",
       "dependencies": {
-        "@ai-engine/core": "workspace:*",
+        "@foundry/core": "workspace:*",
         "lucide-react": "^0.460.0",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
@@ -46,7 +46,7 @@
       },
     },
     "packages/core": {
-      "name": "@ai-engine/core",
+      "name": "@foundry/core",
       "version": "0.1.0",
       "dependencies": {
         "zod": "^3.23.8",
@@ -54,43 +54,31 @@
       },
     },
     "packages/engine": {
-      "name": "@ai-engine/engine",
+      "name": "@foundry/engine",
       "version": "0.1.0",
       "dependencies": {
-        "@ai-engine/core": "workspace:*",
-        "@ai-engine/runner": "workspace:*",
+        "@foundry/core": "workspace:*",
+        "@foundry/runner": "workspace:*",
         "zod": "^3.23.8",
         "zod-to-json-schema": "^3.23.5",
       },
     },
     "packages/runner": {
-      "name": "@ai-engine/runner",
+      "name": "@foundry/runner",
       "version": "0.1.0",
     },
     "packages/server": {
-      "name": "@ai-engine/server",
+      "name": "@foundry/server",
       "version": "0.1.0",
       "dependencies": {
-        "@ai-engine/core": "workspace:*",
-        "@ai-engine/engine": "workspace:*",
+        "@foundry/core": "workspace:*",
+        "@foundry/engine": "workspace:*",
         "hono": "^4.6.0",
         "zod": "^3.23.8",
       },
     },
   },
   "packages": {
-    "@ai-engine/cli": ["@ai-engine/cli@workspace:apps/cli"],
-
-    "@ai-engine/core": ["@ai-engine/core@workspace:packages/core"],
-
-    "@ai-engine/engine": ["@ai-engine/engine@workspace:packages/engine"],
-
-    "@ai-engine/runner": ["@ai-engine/runner@workspace:packages/runner"],
-
-    "@ai-engine/server": ["@ai-engine/server@workspace:packages/server"],
-
-    "@ai-engine/web": ["@ai-engine/web@workspace:apps/web"],
-
     "@babel/code-frame": ["@babel/code-frame@7.29.7", "", { "dependencies": { "@babel/helper-validator-identifier": "^7.29.7", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw=="],
 
     "@babel/compat-data": ["@babel/compat-data@7.29.7", "", {}, "sha512-locTkQyKvwIEgBzVrn8693ebc97F2U8ZHjbXwDXJ5Fn2TCpNwTlKcaKLkdHop5c/icOFE7qt7Q9JC5hnKNa6Gg=="],
@@ -180,6 +168,18 @@
     "@esbuild/win32-ia32": ["@esbuild/win32-ia32@0.25.12", "", { "os": "win32", "cpu": "ia32" }, "sha512-HkqnmmBoCbCwxUKKNPBixiWDGCpQGVsrQfJoVGYLPT41XWF8lHuE5N6WhVia2n4o5QK5M4tYr21827fNhi4byQ=="],
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.25.12", "", { "os": "win32", "cpu": "x64" }, "sha512-alJC0uCZpTFrSL0CCDjcgleBXPnCrEAhTBILpeAp7M/OFgoqtAetfBzX0xM00MUsVVPpVjlPuMbREqnZCXaTnA=="],
+
+    "@foundry/cli": ["@foundry/cli@workspace:apps/cli"],
+
+    "@foundry/core": ["@foundry/core@workspace:packages/core"],
+
+    "@foundry/engine": ["@foundry/engine@workspace:packages/engine"],
+
+    "@foundry/runner": ["@foundry/runner@workspace:packages/runner"],
+
+    "@foundry/server": ["@foundry/server@workspace:packages/server"],
+
+    "@foundry/web": ["@foundry/web@workspace:apps/web"],
 
     "@jridgewell/gen-mapping": ["@jridgewell/gen-mapping@0.3.13", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.0", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA=="],
 

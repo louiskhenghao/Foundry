@@ -1,4 +1,4 @@
-import type { Settings, SettingsView } from '@ai-engine/core/browser';
+import type { Settings, SettingsView } from '@foundry/core/browser';
 import { RotateCcw } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, type ModelRecordView } from '../api.ts';

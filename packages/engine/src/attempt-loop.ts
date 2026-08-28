@@ -1,8 +1,8 @@
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import type { Attempt, Check, CheckResult, Goal, ObservationReport, Task } from '@ai-engine/core';
-import { IdPrefix, bumpStat, chosenStyle, getAttempt, getBrief, getObservation, listAttempts, listChecks, newId, renderDecisions } from '@ai-engine/core';
-import type { RunResult } from '@ai-engine/runner';
+import type { Attempt, Check, CheckResult, Goal, ObservationReport, Task } from '@foundry/core';
+import { IdPrefix, bumpStat, chosenStyle, getAttempt, getBrief, getObservation, listAttempts, listChecks, newId, renderDecisions } from '@foundry/core';
+import type { RunResult } from '@foundry/runner';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
 import { buildAttemptPrompt, summarizeReport } from './attempt-prompt.ts';
 import type { CatchUp } from './catchup.ts';
@@ -170,7 +170,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
     timeoutMs: config.attemptTimeoutMs,
     transcriptPath: attempt.transcriptPath!,
     resumeSessionId: resume ? (attempt.sessionId ?? undefined) : undefined,
-    env: { AI_ENGINE_ATTEMPT_ID: attempt.id, AI_ENGINE_GOAL_ID: goal.id, ...(config.extraBoundaryPatterns ? { AI_ENGINE_EXTRA_PATTERNS: config.extraBoundaryPatterns } : {}) },
+    env: { FOUNDRY_ATTEMPT_ID: attempt.id, FOUNDRY_GOAL_ID: goal.id, ...(config.extraBoundaryPatterns ? { FOUNDRY_EXTRA_PATTERNS: config.extraBoundaryPatterns } : {}) },
     label: `attempt ${task.title} #${index}${resume ? ` (continuation ${attempt.continuations + 1})` : ''}`,
   });
   engine.registerInFlight(task.id, attempt.id, handle);

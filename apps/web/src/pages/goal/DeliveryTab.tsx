@@ -1,4 +1,4 @@
-import type { DeliveryPlanStep } from '@ai-engine/core/browser';
+import type { DeliveryPlanStep } from '@foundry/core/browser';
 import { CheckCircle2, CircleDashed, ExternalLink, Loader2, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, type GoalDetail, type RepoInfo } from '../../api.ts';

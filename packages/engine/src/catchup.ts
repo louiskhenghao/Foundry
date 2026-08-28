@@ -1,4 +1,4 @@
-import type { Goal, Task } from '@ai-engine/core';
+import type { Goal, Task } from '@foundry/core';
 import type { Engine } from './engine.ts';
 import { commitAll, conflictedFiles, git, headRef } from './git/git.ts';
 import { taskCommitMessage } from './git/conventional.ts';
@@ -37,7 +37,7 @@ export async function catchUp(engine: Engine, goal: Goal, task: Task, opts: { es
       engine.store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `catch-up: ${task.branch} has an unfinished merge with conflicts in ${files.slice(0, 4).join(', ')}; leaving it for the worker` } });
       return { moved: true, merged: false, commits: [], conflictFiles: files };
     }
-    await git(['-c', 'user.name=ai-engine', '-c', 'user.email=ai-engine@local', 'commit', '-q', '--no-edit'], task.worktreePath);
+    await git(['-c', 'user.name=foundry', '-c', 'user.email=foundry@local', 'commit', '-q', '--no-edit'], task.worktreePath);
   }
   // uncommitted work of an interrupted attempt becomes a snapshot commit first, so nothing below can discard it
   await commitAll(task.worktreePath, taskCommitMessage(goal, task, { attempt: 0 })).catch(() => {});

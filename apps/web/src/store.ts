@@ -1,4 +1,4 @@
-import type { EngineEvent } from '@ai-engine/core/browser';
+import type { EngineEvent } from '@foundry/core/browser';
 import { create } from 'zustand';
 
 export interface StreamItem {

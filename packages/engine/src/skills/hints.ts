@@ -1,4 +1,4 @@
-import type { TaskKind, TaskScenario } from '@ai-engine/core';
+import type { TaskKind, TaskScenario } from '@foundry/core';
 import { SATISFIED } from './catalog.ts';
 import type { CatalogEntryStatus, SkillRole } from './types.ts';
 import { formatWorkflowSection, mandatedSkillsFor, type MandatedSkill } from './workflow.ts';

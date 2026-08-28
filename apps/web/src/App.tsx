@@ -74,7 +74,7 @@ export function App() {
           {menu ? <X size={18} /> : <Menu size={18} />}
         </button>
         <NavLink to="/" className="font-semibold tracking-tight text-zinc-100 flex items-center gap-2">
-          ai-engine
+          Foundry
           {(open > 0 || setupBad) && <span className={cn('md:hidden h-2 w-2 rounded-full', open > 0 ? 'bg-orange-500' : 'bg-rose-500')} />}
         </NavLink>
         <nav className="hidden md:flex items-center gap-1">{links}</nav>

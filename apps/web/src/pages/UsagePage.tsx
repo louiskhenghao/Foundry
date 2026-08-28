@@ -1,4 +1,4 @@
-import type { UsageBucket, WindowSummary } from '@ai-engine/engine/usage-types';
+import type { UsageBucket, WindowSummary } from '@foundry/engine/usage-types';
 import { Gauge, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -44,7 +44,7 @@ export function UsagePage() {
         <h1 className="text-lg font-semibold flex items-center gap-2">
           <Gauge size={18} /> Claude usage
         </h1>
-        <span className="text-xs text-zinc-500 hidden md:inline">what ai-engine spent on this machine · for your account's percentages run /usage inside Claude Code</span>
+        <span className="text-xs text-zinc-500 hidden md:inline">what Foundry spent on this machine · for your account's percentages run /usage inside Claude Code</span>
         <Button size="sm" variant="primary" className="ml-auto" disabled={busy} onClick={probe} title="Runs one tiny haiku session (~$0.02) to refresh the rate-limit signal">
           <RefreshCw size={13} className={cn(busy && 'animate-spin')} /> Refresh signal
         </Button>

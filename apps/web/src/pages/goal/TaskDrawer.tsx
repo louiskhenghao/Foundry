@@ -1,4 +1,4 @@
-import type { Attempt, CheckResult, Task } from '@ai-engine/core/browser';
+import type { Attempt, CheckResult, Task } from '@foundry/core/browser';
 import { GitMerge, RotateCcw, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { type ReactNode, useEffect, useState } from 'react';

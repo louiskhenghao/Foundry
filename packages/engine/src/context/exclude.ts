@@ -14,5 +14,5 @@ export async function excludeLocally(repoPath: string, pattern: string): Promise
   mkdirSync(dirname(file), { recursive: true });
   const current = existsSync(file) ? readFileSync(file, 'utf8') : '';
   if (current.split('\n').some((l) => l.trim() === pattern)) return;
-  appendFileSync(file, `${current.endsWith('\n') || !current ? '' : '\n'}# added by ai-engine\n${pattern}\n`);
+  appendFileSync(file, `${current.endsWith('\n') || !current ? '' : '\n'}# added by foundry\n${pattern}\n`);
 }

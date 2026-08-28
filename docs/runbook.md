@@ -1,6 +1,6 @@
 # Runbook — what you will see, what it means, what the engine does about it
 
-A field guide to the messages ai-engine shows while a goal runs. Vocabulary is in [CONTEXT.md](../CONTEXT.md); design decisions in [adr/](./adr). Everything here is normal operation unless marked **act**.
+A field guide to the messages Foundry shows while a goal runs. Vocabulary is in [CONTEXT.md](../CONTEXT.md); design decisions in [adr/](./adr). Everything here is normal operation unless marked **act**.
 
 ## 1. Lines in a task's Live log
 
@@ -50,7 +50,7 @@ Every notice names the goal and the task and links straight to the task view; th
 |---|---|---|
 | **Retries exhausted · merge conflict** — lists files and *why each attempt failed* | Two tasks changed the same lines; two Merge Attempts could not land it (or landed it but must checks regressed). | **Resolve manually →** (both sides per file, take a side / edit / open in your editor, Finish merge). Or *Retry with hint* ("merge the goal branch first, keep Postgres…"), or *Skip task*. |
 | **Retries exhausted** — *"used N/M attempts; Must checks still failing"* + the last observation report | The worker could not make the checks pass. | **Suggest a hint** (AI reads the task, the failing checks and the last session, explains the cause in plain words and fills the hint — you press *Retry*), or **Let AI handle it** (same, and when the answer is "retry with this hint" it is applied at once; skip / budget / manual merge are never applied for you). Or decide yourself: *Retry with hint* / *Skip task*; a wrong check → fix it in Expert view. |
-| **Retries exhausted · engine** — *"Engine error … 3 times in a row"* | ai-engine bug or environment problem (git missing, disk). | Fix the cause, then *Retry*. Please report it. |
+| **Retries exhausted · engine** — *"Engine error … 3 times in a row"* | Foundry bug or environment problem (git missing, disk). | Fix the cause, then *Retry*. Please report it. |
 | **Budget exceeded** | Cost or time limit reached. | *Raise budget* or *Abort*. |
 | **Wants to leave the workspace** | A session tried `git push` / deploy / paid service. | *Approve & run once* or *Deny*. |
 | **Brief question** | Only on the Brief page. | Answer; then *Revise with answers* if it changes the plan. |

@@ -4,7 +4,7 @@ import rehypeSanitize from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
 import { cn } from '../ui.tsx';
 
-const PREF_KEY = 'ai-engine.md.raw';
+const PREF_KEY = 'foundry.md.raw';
 let rawPref: boolean | null = null;
 function readPref(): boolean {
   if (rawPref !== null) return rawPref;

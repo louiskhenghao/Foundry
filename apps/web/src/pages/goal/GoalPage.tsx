@@ -33,12 +33,12 @@ export function GoalPage() {
   const [restart, setRestart] = useState<boolean | string>(false);
   const [delBranch, setDelBranch] = useState(false);
   const [expert, setExpert] = useState<boolean | null>(() => {
-    const v = localStorage.getItem(`ai-engine.expert.${id}`);
+    const v = localStorage.getItem(`foundry.expert.${id}`);
     return v === null ? null : v === '1';
   });
   const setView = (e: boolean) => {
     setExpert(e);
-    localStorage.setItem(`ai-engine.expert.${id}`, e ? '1' : '0');
+    localStorage.setItem(`foundry.expert.${id}`, e ? '1' : '0');
   };
   const [deleting, setDeleting] = useState(false);
   const tab = (TABS.find((t) => `#${t}` === loc.hash) ?? 'overview') as Tab;

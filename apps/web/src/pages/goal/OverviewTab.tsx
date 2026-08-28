@@ -1,4 +1,4 @@
-import type { CheckResult } from '@ai-engine/core/browser';
+import type { CheckResult } from '@foundry/core/browser';
 import { Link } from 'react-router-dom';
 import type { GoalDetail } from '../../api.ts';
 import { AttachmentInput } from '../../components/Attachments.tsx';

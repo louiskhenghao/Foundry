@@ -1,5 +1,5 @@
 {
-  "name": "@ai-engine/server",
+  "name": "@foundry/server",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,8 +7,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@ai-engine/core": "workspace:*",
-    "@ai-engine/engine": "workspace:*",
+    "@foundry/core": "workspace:*",
+    "@foundry/engine": "workspace:*",
     "hono": "^4.6.0",
     "zod": "^3.23.8"
   }

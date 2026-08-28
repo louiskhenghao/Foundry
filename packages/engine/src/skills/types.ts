@@ -1,6 +1,6 @@
 /**
  * Browser-safe types for the skills manager (zod only, no node imports).
- * Exported as `@ai-engine/engine/skills-types`.
+ * Exported as `@foundry/engine/skills-types`.
  */
 import { z } from 'zod';
 
@@ -101,7 +101,7 @@ export type CatalogEntry = z.infer<typeof CatalogEntry>;
 export const Catalog = z.object({ version: z.literal(1), entries: z.array(CatalogEntry) });
 export type Catalog = z.infer<typeof Catalog>;
 
-export const AiEngineMarker = z.object({
+export const FoundryMarker = z.object({
   catalogId: z.string(),
   repo: z.string(),
   url: z.string().optional(),
@@ -111,12 +111,12 @@ export const AiEngineMarker = z.object({
   installedAt: z.string(),
   updatedAt: z.string().optional(),
 });
-export type AiEngineMarker = z.infer<typeof AiEngineMarker>;
+export type FoundryMarker = z.infer<typeof FoundryMarker>;
 
 export const SkillScope = z.enum(['user', 'plugin', 'project']);
 export type SkillScope = z.infer<typeof SkillScope>;
 
-export const ManagedBy = z.enum(['ai-engine', 'agents-cli', 'symlink', 'gstack', 'gstack-copy', 'manifest', 'plugin', 'project']);
+export const ManagedBy = z.enum(['foundry', 'agents-cli', 'symlink', 'gstack', 'gstack-copy', 'manifest', 'plugin', 'project']);
 export type ManagedBy = z.infer<typeof ManagedBy>;
 
 /** One record of ~/.agents/.skill-lock.json (written by the community `skills` CLI). */
@@ -158,7 +158,7 @@ export const InstalledSkill = z.object({
   description: z.string(),
   version: z.string().nullable(),
   managedBy: ManagedBy.nullable(),
-  marker: AiEngineMarker.nullable(),
+  marker: FoundryMarker.nullable(),
   plugin: PluginMeta.nullable(),
   lock: AgentsLockRecord.nullable().default(null),
   symlink: z.object({ target: z.string(), broken: z.boolean() }).nullable(),
@@ -233,9 +233,9 @@ export type SessionView = z.infer<typeof SessionView>;
 export const SkillSourceKind = z.enum(['github', 'plugin', 'gstack', 'project', 'local', 'unknown']);
 export type SkillSourceKind = z.infer<typeof SkillSourceKind>;
 /** who installed / who updates */
-export const SkillManager = z.enum(['ai-engine', 'agents-cli', 'plugin', 'gstack', 'hand', 'project']);
+export const SkillManager = z.enum(['foundry', 'agents-cli', 'plugin', 'gstack', 'hand', 'project']);
 export type SkillManager = z.infer<typeof SkillManager>;
-export const UpdaterKind = z.enum(['ai-engine', 'agents-cli', 'plugin', 'adopt', 'hint', 'none']);
+export const UpdaterKind = z.enum(['foundry', 'agents-cli', 'plugin', 'adopt', 'hint', 'none']);
 export type UpdaterKind = z.infer<typeof UpdaterKind>;
 export const SkillRowStatus = z.enum(['up-to-date', 'outdated', 'modified', 'unknown', 'broken']);
 export type SkillRowStatus = z.infer<typeof SkillRowStatus>;

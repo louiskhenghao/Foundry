@@ -5,7 +5,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import type { FailureClass, RunResult } from '@ai-engine/runner';
+import type { FailureClass, RunResult } from '@foundry/runner';
 
 export interface ModelRecord {
   name: string;

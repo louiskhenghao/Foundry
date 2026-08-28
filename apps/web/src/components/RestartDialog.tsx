@@ -1,4 +1,4 @@
-import type { Task } from '@ai-engine/core/browser';
+import type { Task } from '@foundry/core/browser';
 import { useMemo, useState } from 'react';
 import { api } from '../api.ts';
 import { Badge, ConfirmDialog, cn } from '../ui.tsx';

@@ -53,7 +53,7 @@ export function AccountMenu() {
           <div className="text-zinc-500">
             {st.subscriptionType ? `${st.subscriptionType} subscription` : st.authMethod} {st.orgName ? `· ${st.orgName}` : ''}
           </div>
-          <div className="text-[10px] text-zinc-600">checked {new Date(st.checkedAt).toLocaleTimeString()} · credentials are managed by Claude Code, not by ai-engine</div>
+          <div className="text-[10px] text-zinc-600">checked {new Date(st.checkedAt).toLocaleTimeString()} · credentials are managed by Claude Code, not by Foundry</div>
           <div className="flex gap-2 pt-1">
             {confirmOut ? (
               <>

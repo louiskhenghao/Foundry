@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { getGoal, listAttempts, listEscalations, listTasks } from '@ai-engine/core';
-import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@ai-engine/runner';
+import { getGoal, listAttempts, listEscalations, listTasks } from '@foundry/core';
+import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
 import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
 import { raiseEscalation } from './escalation.ts';
@@ -58,7 +58,7 @@ class FakeRunner implements ClaudeRunner {
 }
 
 async function makeRepo(): Promise<string> {
-  const dir = mkdtempSync(join(tmpdir(), 'ai-engine-test-repo-'));
+  const dir = mkdtempSync(join(tmpdir(), 'foundry-test-repo-'));
   writeFileSync(join(dir, 'README.md'), 'fixture\n');
   await Bun.$`git -C ${dir} init -q -b main && git -C ${dir} -c user.name=t -c user.email=t@t add -A && git -C ${dir} -c user.name=t -c user.email=t@t commit -q -m init`.quiet();
   return dir;
@@ -76,7 +76,7 @@ const ROOT = resolve(import.meta.dir, '../../..');
 let dataDir: string;
 let repo: string;
 beforeEach(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), 'ai-engine-test-data-'));
+  dataDir = mkdtempSync(join(tmpdir(), 'foundry-test-data-'));
   repo = await makeRepo();
 });
 const engines: Engine[] = [];
@@ -425,7 +425,7 @@ describe('sessions per attempt and AI suggestions', () => {
     expect(a.sessions.map((s) => s.role)).toEqual(['worker', 'reviewer', 'reviewer']);
     expect(a.sessions[0]).toMatchObject({ segment: 0, model: 'fake', numTurns: 1, subtype: 'success' });
     expect(a.sessions[0]!.costUsd).toBeCloseTo(0.01, 5);
-    const { taskUsage } = await import('@ai-engine/core');
+    const { taskUsage } = await import('@foundry/core');
     const u = taskUsage(listAttempts(engine.store.db, task.id));
     expect(u.attempts).toBe(1);
     expect(u.byRole.worker.sessions).toBe(1);

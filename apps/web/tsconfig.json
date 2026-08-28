@@ -12,9 +12,9 @@
     "verbatimModuleSyntax": true,
     "types": ["vite/client"],
     "paths": {
-      "@ai-engine/core/browser": ["../../packages/core/src/browser.ts"],
-      "@ai-engine/engine/skills-types": ["../../packages/engine/src/skills/types.ts"],
-      "@ai-engine/engine/usage-types": ["../../packages/engine/src/usage/types.ts"]
+      "@foundry/core/browser": ["../../packages/core/src/browser.ts"],
+      "@foundry/engine/skills-types": ["../../packages/engine/src/skills/types.ts"],
+      "@foundry/engine/usage-types": ["../../packages/engine/src/usage/types.ts"]
     }
   },
   "include": ["src"]

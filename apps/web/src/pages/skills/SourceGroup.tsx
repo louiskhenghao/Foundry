@@ -1,10 +1,10 @@
-import type { SkillSource, SkillSourceRow } from '@ai-engine/engine/skills-types';
+import type { SkillSource, SkillSourceRow } from '@foundry/engine/skills-types';
 import { ChevronDown, ChevronRight, ExternalLink, Eye, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import { Badge, Button, CopyButton, ago, cn } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 
-const MANAGER_LABEL: Record<SkillSource['manager'], string> = { 'ai-engine': 'ai-engine', 'agents-cli': 'npx skills', plugin: 'Claude plugin', gstack: 'gstack', hand: 'hand-installed', project: 'project' };
+const MANAGER_LABEL: Record<SkillSource['manager'], string> = { 'foundry': 'Foundry', 'agents-cli': 'npx skills', plugin: 'Claude plugin', gstack: 'gstack', hand: 'hand-installed', project: 'project' };
 const STATUS_LABEL: Record<SkillSourceRow['status'], string> = { 'up-to-date': 'up to date', outdated: 'outdated', modified: 'modified', unknown: 'unknown', broken: 'broken' };
 const DOT: Record<string, string> = { 'up-to-date': 'bg-emerald-400', outdated: 'bg-amber-400', modified: 'bg-sky-400', broken: 'bg-rose-400', unknown: 'bg-zinc-600' };
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: new Date(iso).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }) : null);
@@ -31,7 +31,7 @@ export function SourceGroup({ s, busy, updating, filter, a }: { s: SkillSource; 
   const shadows = s.skills.filter((r) => r.actions.includes('trash-shadow')).map((r) => r.name);
   const adoptable = s.skills.filter((r) => r.actions.includes('adopt')).map((r) => r.name);
   const removable = s.skills.filter((r) => r.actions.includes('uninstall')).map((r) => r.name);
-  const canUpdate = s.updater.kind === 'ai-engine' || s.updater.kind === 'agents-cli' || s.updater.kind === 'plugin';
+  const canUpdate = s.updater.kind === 'foundry' || s.updater.kind === 'agents-cli' || s.updater.kind === 'plugin';
   const state = s.updateAvailable === true ? 'update-available' : s.updateAvailable === false ? 'up-to-date' : 'unknown';
   const allSelected = removable.length > 0 && removable.every((n) => a.selected.has(n));
   if (!rows.length) return null;
@@ -65,12 +65,12 @@ export function SourceGroup({ s, busy, updating, filter, a }: { s: SkillSource; 
   const actions = (
     <>
       {canUpdate && (
-        <Button size="sm" variant={s.updateAvailable ? 'primary' : 'default'} disabled={busy || updating} onClick={() => a.onUpdate()} title={s.updater.command ? s.updater.command.join(' ') : 'update via ai-engine'} className="min-w-[8.5rem] justify-center">
+        <Button size="sm" variant={s.updateAvailable ? 'primary' : 'default'} disabled={busy || updating} onClick={() => a.onUpdate()} title={s.updater.command ? s.updater.command.join(' ') : 'update via Foundry'} className="min-w-[8.5rem] justify-center">
           <RefreshCw size={12} className={cn(updating && 'animate-spin')} /> {updating ? 'Updating…' : s.updater.kind === 'plugin' ? 'Update plugin' : s.updater.kind === 'agents-cli' ? 'Update (npx)' : 'Update'}
         </Button>
       )}
       {adoptable.length > 0 && (
-        <Button size="sm" variant="primary" disabled={busy} onClick={() => a.onAdopt(adoptable)} title="Replace these loose copies with ai-engine-managed installs from the catalog (old copies go to the trash)">
+        <Button size="sm" variant="primary" disabled={busy} onClick={() => a.onAdopt(adoptable)} title="Replace these loose copies with Foundry-managed installs from the catalog (old copies go to the trash)">
           Adopt {adoptable.length}
         </Button>
       )}
@@ -195,7 +195,7 @@ function Row({ r, odd, busy, selected, onSelect, onView, onAdopt, onTrashShadow,
           </Button>
         )}
         {r.actions.includes('adopt') && (
-          <Button size="sm" variant="ghost" disabled={busy} onClick={onAdopt} title="replace with the catalog version (managed by ai-engine)">
+          <Button size="sm" variant="ghost" disabled={busy} onClick={onAdopt} title="replace with the catalog version (managed by Foundry)">
             adopt
           </Button>
         )}

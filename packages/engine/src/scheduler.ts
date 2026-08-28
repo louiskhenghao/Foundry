@@ -1,5 +1,5 @@
-import type { Goal, Task } from '@ai-engine/core';
-import { listTasks, getTask, getGoal, listAttempts, getObservation } from '@ai-engine/core';
+import type { Goal, Task } from '@foundry/core';
+import { listTasks, getTask, getGoal, listAttempts, getObservation } from '@foundry/core';
 import { type Continuation, continuationMessage, decideNext, maxAttemptsFor, runAttempt } from './attempt-loop.ts';
 import { budgetStatus } from './budget.ts';
 import type { Engine } from './engine.ts';

@@ -1,5 +1,5 @@
-import type { EngineEvent } from '@ai-engine/core/browser';
-import type { SkillScope, SkillSourceRow, SkillTier, SkillsOverview, SkillsUpdateReport, TrashEntry } from '@ai-engine/engine/skills-types';
+import type { EngineEvent } from '@foundry/core/browser';
+import type { SkillScope, SkillSourceRow, SkillTier, SkillsOverview, SkillsUpdateReport, TrashEntry } from '@foundry/engine/skills-types';
 import { RefreshCw, Search, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError, api } from '../../api.ts';
@@ -174,7 +174,7 @@ export function SkillsPage() {
         </div>
       </div>
       <p className="text-xs text-zinc-500 -mt-2">
-        Grouped by where each skill comes from. Updates run the source's own tool (npx skills, claude plugin) or ai-engine's installer; every run is recorded below. Uninstall never deletes — copies go to <span className="mono">data/skills-trash</span>.
+        Grouped by where each skill comes from. Updates run the source's own tool (npx skills, claude plugin) or Foundry's installer; every run is recorded below. Uninstall never deletes — copies go to <span className="mono">data/skills-trash</span>.
       </p>
 
       <div className="flex items-center gap-2 flex-wrap">

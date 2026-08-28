@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Escalation, EscalationSuggestion, Goal, Task } from '@ai-engine/core';
-import { getBrief, getEscalation, getGoal, getObservation, getTask, listAttempts, listCheckResultsByGoal, listChecks, renderDecisions } from '@ai-engine/core';
+import type { Escalation, EscalationSuggestion, Goal, Task } from '@foundry/core';
+import { getBrief, getEscalation, getGoal, getObservation, getTask, listAttempts, listCheckResultsByGoal, listChecks, renderDecisions } from '@foundry/core';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { tryJson } from './checks/reviewer.ts';

@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Check, DeliveryPolicy, DeliveryStep, Goal, Task } from '@ai-engine/core';
-import { IdPrefix, getBrief, getGoal, getTask, listCheckResultsByGoal, listChecks, listTasks, newId } from '@ai-engine/core';
+import type { Check, DeliveryPolicy, DeliveryStep, Goal, Task } from '@foundry/core';
+import { IdPrefix, getBrief, getGoal, getTask, listCheckResultsByGoal, listChecks, listTasks, newId } from '@foundry/core';
 import { maxAttemptsFor, runAttempt } from '../attempt-loop.ts';
 import { runCommandCheck } from '../checks/command.ts';
 import { truncateOutput } from '../distill/truncate.ts';
@@ -600,7 +600,7 @@ export async function pushRef(ctx: Ctx, branch: string, taskId: string | null): 
   const r = await run(ctx, 'push', ['git', 'push', '-u', ctx.remote, `refs/heads/${branch}:refs/heads/${branch}`], ctx.goalWs, false);
   if (r.code !== 0) {
     const nonFf = /non-fast-forward|fetch first|rejected/i.test(r.stderr);
-    throw new DeliveryFailed('push', nonFf ? `remote ${ctx.remote}/${branch} has commits we do not have (someone pushed to it). ai-engine never force-pushes; reconcile manually.` : `git push failed: ${r.stderr.trim().slice(0, 300)}`);
+    throw new DeliveryFailed('push', nonFf ? `remote ${ctx.remote}/${branch} has commits we do not have (someone pushed to it). Foundry never force-pushes; reconcile manually.` : `git push failed: ${r.stderr.trim().slice(0, 300)}`);
   }
   const ref = await gitOk(['rev-parse', branch], ctx.goalWs);
   ctx.engine.store.append({ type: 'delivery.pushed', goalId: ctx.goal.id, payload: { remote: ctx.remote, branch, ref, taskId } });

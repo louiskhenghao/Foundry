@@ -1,4 +1,4 @@
-import type { Goal, Task, TaskKind } from '@ai-engine/core';
+import type { Goal, Task, TaskKind } from '@foundry/core';
 
 /**
  * Conventional Commits (commitizen) helpers. Every commit the engine makes — attempt snapshots, the

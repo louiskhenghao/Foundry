@@ -49,7 +49,7 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
             <X size={14} />
           </Button>
         </div>
-        <p className="text-xs text-zinc-400">Same flow as Claude Code: a browser window opens on this machine, you sign in, and this page updates by itself. When the engine runs where there is no browser (a container, a remote host), open the link yourself and paste the code it gives you. ai-engine never sees your password or token — Claude Code stores the credential.</p>
+        <p className="text-xs text-zinc-400">Same flow as Claude Code: a browser window opens on this machine, you sign in, and this page updates by itself. When the engine runs where there is no browser (a container, a remote host), open the link yourself and paste the code it gives you. Foundry never sees your password or token — Claude Code stores the credential.</p>
         {!session ? (
           <>
             <div className="flex gap-2 text-xs">

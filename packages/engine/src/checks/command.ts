@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Check, CheckResult } from '@ai-engine/core';
-import { IdPrefix, newId } from '@ai-engine/core';
+import type { Check, CheckResult } from '@foundry/core';
+import { IdPrefix, newId } from '@foundry/core';
 import { truncateOutput } from '../distill/truncate.ts';
 
 export interface CommandCheckContext {

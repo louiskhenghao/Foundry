@@ -1,5 +1,5 @@
-import type { Brief, BriefArea } from '@ai-engine/core/browser';
-import { areaSlug } from '@ai-engine/core/browser';
+import type { Brief, BriefArea } from '@foundry/core/browser';
+import { areaSlug } from '@foundry/core/browser';
 import { Plus, Sparkles, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { api, type DraftProposal } from '../../api.ts';

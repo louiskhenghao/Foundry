@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Check, CheckResult, Goal, Task } from '@ai-engine/core';
-import { getEscalation, getGoal, getTask, listChecks, listEscalations } from '@ai-engine/core';
+import type { Check, CheckResult, Goal, Task } from '@foundry/core';
+import { getEscalation, getGoal, getTask, listChecks, listEscalations } from '@foundry/core';
 import { runCommandCheck } from './checks/command.ts';
 import type { Engine } from './engine.ts';
 import { taskCommitMessage } from './git/conventional.ts';

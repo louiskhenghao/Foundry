@@ -56,7 +56,7 @@ export function RepoCard({ path, info, onPath, onInfo }: { path: string; info: R
     setInitMsg(null);
     try {
       const r = await api.initRepo(path.trim());
-      setInitMsg(`Initialized ${r.branch} with ${r.filesCommitted} file(s)${r.identity === 'fallback' ? ' — commits are authored as ai-engine until you run: git config --global user.name / user.email' : ''}`);
+      setInitMsg(`Initialized ${r.branch} with ${r.filesCommitted} file(s)${r.identity === 'fallback' ? ' — commits are authored as foundry until you run: git config --global user.name / user.email' : ''}`);
       await validate(path);
     } catch (e: any) {
       setInitMsg(e.message);
@@ -129,7 +129,7 @@ export function RepoCard({ path, info, onPath, onInfo }: { path: string; info: R
                     <span className="text-zinc-500">none — Delivery can create one on GitHub</span>
                   )}
                 </Row>
-                <Row icon={<User size={12} />} label="identity">{info.identity ? `${info.identity.name} <${info.identity.email}>` : <span className="text-amber-300">not configured — commits will be authored as ai-engine</span>}</Row>
+                <Row icon={<User size={12} />} label="identity">{info.identity ? `${info.identity.name} <${info.identity.email}>` : <span className="text-amber-300">not configured — commits will be authored as foundry</span>}</Row>
                 {info.remotes.length > 0 && (
                   <Row icon={<ArrowDownToLine size={12} />} label="upstream">
                     {up === 'loading' ? (
@@ -168,7 +168,7 @@ export function RepoCard({ path, info, onPath, onInfo }: { path: string; info: R
                   <Button size="sm" variant="primary" disabled={busy} onClick={gitInit}>
                     <Check size={13} /> Initialize git here
                   </Button>
-                  <span className="text-zinc-500">git init + .gitignore + initial commit{info.identity ? ` as ${info.identity.name}` : ' (no git identity configured → authored as ai-engine)'}</span>
+                  <span className="text-zinc-500">git init + .gitignore + initial commit{info.identity ? ` as ${info.identity.name}` : ' (no git identity configured → authored as foundry)'}</span>
                 </div>
               )}
               {info.insideRepoAt && <div className="text-zinc-400">Use the repository root instead: <button className="underline mono" onClick={() => choose(info.insideRepoAt!)}>{info.insideRepoAt}</button></div>}

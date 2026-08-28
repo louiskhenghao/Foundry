@@ -6,7 +6,7 @@
  */
 import { resolve } from 'node:path';
 
-const BASE = process.env.AI_ENGINE_URL ?? `http://127.0.0.1:${process.env.AI_ENGINE_PORT ?? 4111}`;
+const BASE = process.env.FOUNDRY_URL ?? `http://127.0.0.1:${process.env.FOUNDRY_PORT ?? 4111}`;
 const model = process.argv.includes('--model') ? process.argv[process.argv.indexOf('--model') + 1] : undefined;
 const repoPath = resolve(import.meta.dir, '../fixtures/demo-repo');
 

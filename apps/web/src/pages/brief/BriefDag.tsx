@@ -1,5 +1,5 @@
-import type { Brief } from '@ai-engine/core/browser';
-import { depths } from '@ai-engine/core/browser';
+import type { Brief } from '@foundry/core/browser';
+import { depths } from '@foundry/core/browser';
 import { useMemo } from 'react';
 import { DagCanvas, type DagTask } from '../goal/DagCanvas.tsx';
 import { areaOf, areaStyle } from './shared.ts';

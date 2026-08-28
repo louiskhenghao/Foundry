@@ -1,5 +1,5 @@
-import type { Brief } from '@ai-engine/core/browser';
-import { LARGE_BRIEF_TASKS, stagesOf } from '@ai-engine/core/browser';
+import type { Brief } from '@foundry/core/browser';
+import { LARGE_BRIEF_TASKS, stagesOf } from '@foundry/core/browser';
 import { Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button, Card, cn, fmtUsd } from '../../ui.tsx';

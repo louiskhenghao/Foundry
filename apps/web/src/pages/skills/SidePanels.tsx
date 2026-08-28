@@ -1,5 +1,5 @@
-import type { EngineEvent } from '@ai-engine/core/browser';
-import type { CatalogEntryStatus, SessionView, SkillTier, TrashEntry } from '@ai-engine/engine/skills-types';
+import type { EngineEvent } from '@foundry/core/browser';
+import type { CatalogEntryStatus, SessionView, SkillTier, TrashEntry } from '@foundry/engine/skills-types';
 import { useState } from 'react';
 import { Badge, Button, Card, CopyButton, ago, cn } from '../../ui.tsx';
 

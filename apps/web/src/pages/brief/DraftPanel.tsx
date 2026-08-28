@@ -1,4 +1,4 @@
-import type { Brief } from '@ai-engine/core/browser';
+import type { Brief } from '@foundry/core/browser';
 import { Check, Sparkles, X } from 'lucide-react';
 import { useState } from 'react';
 import type { DraftProposal } from '../../api.ts';

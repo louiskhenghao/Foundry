@@ -1,4 +1,4 @@
-import type { RunnerEvent } from '@ai-engine/runner';
+import type { RunnerEvent } from '@foundry/runner';
 
 /** Live stream of a running Claude session. Not persisted in the event log (transcript file is). */
 export interface StreamEvent {

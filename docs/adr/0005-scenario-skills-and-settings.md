@@ -24,5 +24,5 @@ ADR-0004 made the engine mandate Matt Pocock's workflow skills by *task kind* (f
 ## Consequences
 
 - Prompts gain `Scenario: frontend.` and a design MUST line only for UI tasks; backend prompts are unchanged apart from the scenario line.
-- `AI_ENGINE_*` variables remain as initial values / CI overrides; the Settings page is the normal way to change things. New variables: `AI_ENGINE_HOST`, `AI_ENGINE_DESIGN_PACK`, `AI_ENGINE_AUTOSKILLS`.
+- `FOUNDRY_*` variables remain as initial values / CI overrides; the Settings page is the normal way to change things. New variables: `FOUNDRY_HOST`, `FOUNDRY_DESIGN_PACK`, `FOUNDRY_AUTOSKILLS`.
 - autoskills is CC BY-NC 4.0 and talks to the network (npm + its registry); it can be switched off in Settings.

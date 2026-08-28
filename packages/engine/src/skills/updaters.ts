@@ -78,7 +78,7 @@ function pluginShas(paths: SkillsPaths): Record<string, string | null> {
   }
 }
 
-/** Execute the updater that fits the source. `names` restricts ai-engine / agents-cli / adopt runs to some skills. */
+/** Execute the updater that fits the source. `names` restricts foundry / agents-cli / adopt runs to some skills. */
 export async function runSourceUpdate(source: SkillSource, names: string[] | undefined, ctx: UpdaterContext): Promise<SkillUpdateRun> {
   const t0 = Date.now();
   const say = (l: string) => ctx.onLine?.(l);
@@ -95,7 +95,7 @@ export async function runSourceUpdate(source: SkillSource, names: string[] | und
   };
 
   switch (source.updater.kind) {
-    case 'ai-engine': {
+    case 'foundry': {
       const changed: SkillUpdateRun['changed'] = [];
       let error: string | null = null;
       for (const s of pick) {
@@ -115,7 +115,7 @@ export async function runSourceUpdate(source: SkillSource, names: string[] | und
         }
       }
       line(`■ done (${changed.length} updated)`);
-      return base({ command: ['ai-engine', 'update', ...pick.map((s) => s.name)], cwd: ctx.paths.skillsDir, exitCode: error ? 1 : 0, outputTail: tailOf.join('\n'), changed, error });
+      return base({ command: ['foundry', 'update', ...pick.map((s) => s.name)], cwd: ctx.paths.skillsDir, exitCode: error ? 1 : 0, outputTail: tailOf.join('\n'), changed, error });
     }
     case 'agents-cli': {
       const npx = ctx.npxBin ?? Bun.which('npx');
@@ -172,7 +172,7 @@ export async function runSourceUpdate(source: SkillSource, names: string[] | und
         }
       }
       line(`■ done (${changed.length} adopted)`);
-      return base({ command: ['ai-engine', 'adopt', ...pick.map((s) => s.name)], cwd: ctx.paths.skillsDir, exitCode: error ? 1 : 0, outputTail: tailOf.join('\n'), changed, error });
+      return base({ command: ['foundry', 'adopt', ...pick.map((s) => s.name)], cwd: ctx.paths.skillsDir, exitCode: error ? 1 : 0, outputTail: tailOf.join('\n'), changed, error });
     }
     case 'hint':
       return base({ error: source.updater.hint ?? 'this source updates itself' });

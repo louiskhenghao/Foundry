@@ -4,7 +4,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEFAULT_SETTINGS, RESTART_SETTINGS, Settings, SettingsPatch, type SettingMeta, type SettingsView } from '@ai-engine/core';
+import { DEFAULT_SETTINGS, RESTART_SETTINGS, Settings, SettingsPatch, type SettingMeta, type SettingsView } from '@foundry/core';
 import type { EngineConfig } from './config.ts';
 
 export const SETTINGS_FILE = 'settings.json';
@@ -15,30 +15,30 @@ const num = (v: string) => Number(v);
 
 /** env var that seeds a leaf when the file has no value for it */
 const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => unknown }> = {
-  'engine.port': { name: 'AI_ENGINE_PORT', parse: num },
-  'engine.host': { name: 'AI_ENGINE_HOST', parse: str },
-  'engine.maxConcurrent': { name: 'AI_ENGINE_MAX_CONCURRENT', parse: num },
-  'engine.claudeHome': { name: 'AI_ENGINE_CLAUDE_HOME', alt: 'CLAUDE_CONFIG_DIR', parse: str },
-  'models.strong': { name: 'AI_ENGINE_MODEL_STRONG', parse: str },
-  'models.cheap': { name: 'AI_ENGINE_MODEL_CHEAP', parse: str },
-  'models.worker': { name: 'AI_ENGINE_MODEL_WORKER', parse: str },
-  'models.fallbacks': { name: 'AI_ENGINE_MODEL_FALLBACKS', parse: (v) => v.split(',').map((s) => s.trim()).filter(Boolean) },
-  'sessions.attemptMaxTurns': { name: 'AI_ENGINE_ATTEMPT_MAX_TURNS', parse: num },
-  'sessions.maxContinuations': { name: 'AI_ENGINE_MAX_CONTINUATIONS', parse: num },
-  'sessions.attemptMaxCostUsd': { name: 'AI_ENGINE_ATTEMPT_MAX_COST', parse: num },
-  'workflow.profile': { name: 'AI_ENGINE_WORKFLOW', parse: str },
-  'workflow.tdd': { name: 'AI_ENGINE_TDD', parse: str },
-  'workflow.defaultMode': { name: 'AI_ENGINE_GOAL_MODE', parse: str },
-  'workflow.designPack': { name: 'AI_ENGINE_DESIGN_PACK', parse: str },
-  'workflow.defaultPace': { name: 'AI_ENGINE_PACE', parse: str },
-  'workflow.imagePack': { name: 'AI_ENGINE_IMAGE_PACK', parse: str },
-  'workflow.videoPack': { name: 'AI_ENGINE_VIDEO_PACK', parse: str },
-  'workflow.autoskills': { name: 'AI_ENGINE_AUTOSKILLS', parse: bool },
-  'delivery.defaultMode': { name: 'AI_ENGINE_DELIVERY_MODE', parse: str },
-  'sync.fetchBeforeGoal': { name: 'AI_ENGINE_SYNC_FETCH', parse: bool },
-  'sync.startFrom': { name: 'AI_ENGINE_SYNC_START', parse: str },
-  'sync.refreshBetweenTasks': { name: 'AI_ENGINE_SYNC_REFRESH', parse: bool },
-  'tools.markitdownBin': { name: 'AI_ENGINE_MARKITDOWN', parse: str },
+  'engine.port': { name: 'FOUNDRY_PORT', parse: num },
+  'engine.host': { name: 'FOUNDRY_HOST', parse: str },
+  'engine.maxConcurrent': { name: 'FOUNDRY_MAX_CONCURRENT', parse: num },
+  'engine.claudeHome': { name: 'FOUNDRY_CLAUDE_HOME', alt: 'CLAUDE_CONFIG_DIR', parse: str },
+  'models.strong': { name: 'FOUNDRY_MODEL_STRONG', parse: str },
+  'models.cheap': { name: 'FOUNDRY_MODEL_CHEAP', parse: str },
+  'models.worker': { name: 'FOUNDRY_MODEL_WORKER', parse: str },
+  'models.fallbacks': { name: 'FOUNDRY_MODEL_FALLBACKS', parse: (v) => v.split(',').map((s) => s.trim()).filter(Boolean) },
+  'sessions.attemptMaxTurns': { name: 'FOUNDRY_ATTEMPT_MAX_TURNS', parse: num },
+  'sessions.maxContinuations': { name: 'FOUNDRY_MAX_CONTINUATIONS', parse: num },
+  'sessions.attemptMaxCostUsd': { name: 'FOUNDRY_ATTEMPT_MAX_COST', parse: num },
+  'workflow.profile': { name: 'FOUNDRY_WORKFLOW', parse: str },
+  'workflow.tdd': { name: 'FOUNDRY_TDD', parse: str },
+  'workflow.defaultMode': { name: 'FOUNDRY_GOAL_MODE', parse: str },
+  'workflow.designPack': { name: 'FOUNDRY_DESIGN_PACK', parse: str },
+  'workflow.defaultPace': { name: 'FOUNDRY_PACE', parse: str },
+  'workflow.imagePack': { name: 'FOUNDRY_IMAGE_PACK', parse: str },
+  'workflow.videoPack': { name: 'FOUNDRY_VIDEO_PACK', parse: str },
+  'workflow.autoskills': { name: 'FOUNDRY_AUTOSKILLS', parse: bool },
+  'delivery.defaultMode': { name: 'FOUNDRY_DELIVERY_MODE', parse: str },
+  'sync.fetchBeforeGoal': { name: 'FOUNDRY_SYNC_FETCH', parse: bool },
+  'sync.startFrom': { name: 'FOUNDRY_SYNC_START', parse: str },
+  'sync.refreshBetweenTasks': { name: 'FOUNDRY_SYNC_REFRESH', parse: bool },
+  'tools.markitdownBin': { name: 'FOUNDRY_MARKITDOWN', parse: str },
   'tools.openaiApiKey': { name: 'OPENAI_API_KEY', parse: str },
   'tools.openaiBaseUrl': { name: 'OPENAI_BASE_URL', parse: str },
 };

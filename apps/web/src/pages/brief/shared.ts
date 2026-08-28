@@ -1,5 +1,5 @@
-import type { Brief, BriefArea, BriefCheck, BriefTask } from '@ai-engine/core/browser';
-import { areaSlug } from '@ai-engine/core/browser';
+import type { Brief, BriefArea, BriefCheck, BriefTask } from '@foundry/core/browser';
+import { areaSlug } from '@foundry/core/browser';
 
 export const TASK_KINDS = ['feature', 'bug', 'refactor', 'research', 'chore'] as const;
 

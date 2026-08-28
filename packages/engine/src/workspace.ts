@@ -1,6 +1,6 @@
 import { cpSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
-import type { Goal, Task } from '@ai-engine/core';
+import type { Goal, Task } from '@foundry/core';
 import { ensureWorktree, git, headRef, removeWorktree } from './git/git.ts';
 import { copyProjectSkills } from './skills/autoskills.ts';
 

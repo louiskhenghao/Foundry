@@ -1,6 +1,6 @@
 import { join } from 'node:path';
-import type { Brief, Goal, GoalNature, TaskScenario } from '@ai-engine/core';
-import { BriefOutput, IdPrefix, getGoal, newId, uncoveredAreas } from '@ai-engine/core';
+import type { Brief, Goal, GoalNature, TaskScenario } from '@foundry/core';
+import { BriefOutput, IdPrefix, getGoal, newId, uncoveredAreas } from '@foundry/core';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';

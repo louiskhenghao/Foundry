@@ -5,8 +5,8 @@
  */
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import type { BriefStyleOption } from '@ai-engine/core';
-import { getBrief, getGoal } from '@ai-engine/core';
+import type { BriefStyleOption } from '@foundry/core';
+import { getBrief, getGoal } from '@foundry/core';
 import { renderStyle } from './attempt-prompt.ts';
 import type { Engine } from './engine.ts';
 import { WORKER_TOOLS, boundarySettings } from './guards/boundary.ts';

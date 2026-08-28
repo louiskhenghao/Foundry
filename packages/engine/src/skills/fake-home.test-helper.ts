@@ -18,11 +18,11 @@ export interface FakeHome {
 /**
  * Builds a ~/.claude that exhibits every provenance family we classify:
  * plain dir, agents-cli symlink, broken symlink, gstack clone + flattened copy, manifest.json,
- * ai-engine marker, a user `tdd` that duplicates a plugin skill, two plugins (array + dir form),
+ * foundry marker, a user `tdd` that duplicates a plugin skill, two plugins (array + dir form),
  * and a repo with project skills.
  */
 export function makeFakeHome(): FakeHome {
-  const home = mkdtempSync(join(tmpdir(), 'ai-engine-fake-home-'));
+  const home = mkdtempSync(join(tmpdir(), 'foundry-fake-home-'));
   const claudeHome = join(home, '.claude');
   const dataDir = join(home, 'data');
   const paths = skillsPaths(claudeHome, dataDir);
@@ -54,10 +54,10 @@ export function makeFakeHome(): FakeHome {
   writeFileSync(join(s, 'withmanifest', 'SKILL.md'), skillMd('withmanifest'));
   writeFileSync(join(s, 'withmanifest', 'manifest.json'), JSON.stringify({ name: 'withmanifest', version: '1.2.3', homepage: 'https://example.com/x' }));
 
-  // ai-engine managed
+  // foundry managed
   mkdirSync(join(s, 'managed'));
   writeFileSync(join(s, 'managed', 'SKILL.md'), skillMd('managed'));
-  writeFileSync(join(s, 'managed', '.ai-engine.json'), JSON.stringify({ catalogId: 'managed', repo: 'o/r', ref: null, commit: 'abc1234', path: 'skills/managed', installedAt: '2026-01-01T00:00:00Z' }));
+  writeFileSync(join(s, 'managed', '.foundry.json'), JSON.stringify({ catalogId: 'managed', repo: 'o/r', ref: null, commit: 'abc1234', path: 'skills/managed', installedAt: '2026-01-01T00:00:00Z' }));
 
   // user tdd duplicating a plugin skill
   mkdirSync(join(s, 'tdd'));

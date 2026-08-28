@@ -5,8 +5,8 @@
  * recorded on `goal.docs_generated` and never blocks the goal.
  */
 import { join } from 'node:path';
-import type { DocType, Goal } from '@ai-engine/core';
-import { getBrief, getGoal, renderDecisions } from '@ai-engine/core';
+import type { DocType, Goal } from '@foundry/core';
+import { getBrief, getGoal, renderDecisions } from '@foundry/core';
 import type { Engine } from './engine.ts';
 import { commitStaged, git, headRef } from './git/git.ts';
 import { WORKER_TOOLS, boundarySettings } from './guards/boundary.ts';

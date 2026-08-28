@@ -7,8 +7,8 @@
  */
 import { cpSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import type { Brief, DocType, Goal } from '@ai-engine/core';
-import { MEDIA_NATURES, pendingDecisions } from '@ai-engine/core';
+import type { Brief, DocType, Goal } from '@foundry/core';
+import { MEDIA_NATURES, pendingDecisions } from '@foundry/core';
 import type { Engine } from './engine.ts';
 import { exec } from './git/git.ts';
 import { pullFastForward } from './git/sync.ts';

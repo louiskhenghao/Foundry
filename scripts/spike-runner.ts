@@ -18,7 +18,7 @@ const model = flag('--model') ?? 'haiku';
 const settingSources = flag('--setting-sources')?.split(',');
 
 const hooksDir = resolve(import.meta.dir, '../packages/runner/hooks');
-const cwd = mkdtempSync(join(tmpdir(), 'ai-engine-spike-'));
+const cwd = mkdtempSync(join(tmpdir(), 'foundry-spike-'));
 const runner = new ClaudeCliRunner({ maxConcurrent: 3, log: console.log });
 
 const prompt = flag('--prompt') ?? 'Create a file named hello.txt containing the single word hello, then reply DONE.';

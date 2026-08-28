@@ -1,4 +1,4 @@
-import type { DeliveryPolicy } from '@ai-engine/core/browser';
+import type { DeliveryPolicy } from '@foundry/core/browser';
 import { Github } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { api, type RepoInfo } from '../api.ts';

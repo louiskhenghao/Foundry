@@ -1,4 +1,4 @@
-import type { Brief, BriefQuestion } from '@ai-engine/core/browser';
+import type { Brief, BriefQuestion } from '@foundry/core/browser';
 import { useState } from 'react';
 import { api } from '../../api.ts';
 import { Button, cn } from '../../ui.tsx';

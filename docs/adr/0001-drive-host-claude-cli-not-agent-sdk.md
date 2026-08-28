@@ -5,7 +5,7 @@ Status: Accepted
 
 ## Context
 
-ai-engine runs many Claude sessions (clarify, work, review, merge), some in parallel, on the user's own Mac. There are two programmatic ways to run Claude Code:
+Foundry runs many Claude sessions (clarify, work, review, merge), some in parallel, on the user's own Mac. There are two programmatic ways to run Claude Code:
 
 1. The Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`), which offers typed `query()` options, a `canUseTool` callback, in-process MCP servers and `maxBudgetUsd`.
 2. The `claude` CLI in headless mode (`claude -p --output-format stream-json`).
