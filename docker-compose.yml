@@ -5,6 +5,8 @@
 services:
   foundry:
     image: imlouiskhenghao/foundry:latest
+    # a fixed name so the watchtower sidecar can update exactly this container
+    container_name: foundry
     # the UI is not authenticated: keep it on loopback
     ports: ['127.0.0.1:4111:4111']
     volumes:
@@ -17,6 +19,22 @@ services:
       FOUNDRY_MODEL_WORKER: ${FOUNDRY_MODEL_WORKER:-opus}
       FOUNDRY_MODEL_CHEAP: ${FOUNDRY_MODEL_CHEAP:-haiku}
       FOUNDRY_MAX_CONCURRENT: ${FOUNDRY_MAX_CONCURRENT:-3}
+      # one-click updates from the UI go through the watchtower sidecar below (ADR-0010);
+      # remove these two lines (or the sidecar) and the UI degrades to guided update commands
+      FOUNDRY_WATCHTOWER_URL: http://watchtower:8080
+      FOUNDRY_WATCHTOWER_TOKEN: ${FOUNDRY_WATCHTOWER_TOKEN:-foundry-watchtower}
+    restart: unless-stopped
+
+  # the only container that touches the docker socket: it pulls the new image and recreates
+  # `foundry` when Foundry asks it to over HTTP. Its API is never published to the host.
+  watchtower:
+    image: containrrr/watchtower
+    container_name: foundry-watchtower
+    command: --http-api-update --cleanup foundry
+    environment:
+      WATCHTOWER_HTTP_API_TOKEN: ${FOUNDRY_WATCHTOWER_TOKEN:-foundry-watchtower}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 volumes:
   engine-data:

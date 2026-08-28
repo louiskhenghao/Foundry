@@ -73,7 +73,8 @@ COPY --from=build /app/apps/web/dist ./apps/web/dist
 # everything Claude Code keeps (login, sessions, skills) lives in one mounted directory
 ENV CLAUDE_CONFIG_DIR=/home/node/.claude \
     FOUNDRY_HOST=0.0.0.0 \
-    FOUNDRY_PORT=4111
+    FOUNDRY_PORT=4111 \
+    FOUNDRY_DOCKER=1
 RUN mkdir -p /app/data /home/node/.claude /repos && chown -R node:node /app /home/node /repos
 USER node
 EXPOSE 4111
