@@ -85,12 +85,12 @@ export function App() {
             </Button>
           </Link>
           <UsagePill />
-          <ThemeToggle />
           <AccountMenu />
           <span className="hidden sm:flex items-center gap-1.5">
             <Radio size={13} className={connected ? 'text-emerald-400' : 'text-rose-400'} /> {connected ? 'live' : 'reconnecting…'}
           </span>
           <Radio size={13} className={cn('sm:hidden', connected ? 'text-emerald-400' : 'text-rose-400')} />
+          <ThemeToggle />
         </div>
         {menu && (
           <nav className="md:hidden absolute left-0 right-0 top-12 border-b border-zinc-800 bg-zinc-950 p-2 flex flex-col gap-0.5 shadow-xl" onClick={() => setMenu(false)}>
