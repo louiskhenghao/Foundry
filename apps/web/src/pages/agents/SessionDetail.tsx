@@ -55,7 +55,8 @@ export function SessionDetail({ row, agentId, onOpen, onBack }: { row: AgentSess
           </div>
         )}
       </Card>
-      {!agentId && row.foundry?.attemptId ? <LiveLog attemptId={row.foundry.attemptId} className="max-h-[70vh]" /> : <TranscriptView sessionId={row.sessionId} agentId={agentId ?? undefined} />}
+      {/* surface-card: on this page the log sits directly on the page, which in light shares zinc-950 — the card class keeps it a visible panel */}
+      {!agentId && row.foundry?.attemptId ? <LiveLog attemptId={row.foundry.attemptId} className="surface-card max-h-[70vh]" /> : <TranscriptView sessionId={row.sessionId} agentId={agentId ?? undefined} />}
     </div>
   );
 }
