@@ -84,6 +84,10 @@ export const ToolSettings = z.object({
   openaiApiKey: z.string().nullable().default(null),
   /** endpoint override handed to sessions as OPENAI_BASE_URL (proxies, compatible providers); null = provider default */
   openaiBaseUrl: z.string().nullable().default(null),
+  /** Kimi (Moonshot) key handed to sessions as MOONSHOT_API_KEY and KIMI_API_KEY (taste-skill's sponsored Kimi K3); null = whatever the engine's own environment has */
+  kimiApiKey: z.string().nullable().default(null),
+  /** Gemini key handed to sessions as GEMINI_API_KEY (claude-image-gen's default provider); null = whatever the engine's own environment has */
+  geminiApiKey: z.string().nullable().default(null),
 });
 export const SafetySettings = z.object({
   /** extra ERE patterns for the boundary guard, '|'-separated */

@@ -66,6 +66,10 @@ export interface EngineConfig {
   openaiApiKey?: string;
   /** endpoint override handed to sessions as OPENAI_BASE_URL */
   openaiBaseUrl?: string;
+  /** Kimi (Moonshot) key handed to sessions as MOONSHOT_API_KEY + KIMI_API_KEY */
+  kimiApiKey?: string;
+  /** Gemini key handed to sessions as GEMINI_API_KEY */
+  geminiApiKey?: string;
   log: (msg: string) => void;
 }
 

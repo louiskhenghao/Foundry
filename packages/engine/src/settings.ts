@@ -41,6 +41,8 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'tools.markitdownBin': { name: 'FOUNDRY_MARKITDOWN', parse: str },
   'tools.openaiApiKey': { name: 'OPENAI_API_KEY', parse: str },
   'tools.openaiBaseUrl': { name: 'OPENAI_BASE_URL', parse: str },
+  'tools.kimiApiKey': { name: 'KIMI_API_KEY', parse: str },
+  'tools.geminiApiKey': { name: 'GEMINI_API_KEY', parse: str },
 };
 
 export const SETTING_PATHS: string[] = Object.entries(DEFAULT_SETTINGS).flatMap(([section, v]) => Object.keys(v as object).map((k) => `${section}.${k}`));
@@ -221,6 +223,8 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('tools.markitdownBin')) config.markitdownBin = s.tools.markitdownBin ?? undefined;
   if (on('tools.openaiApiKey')) config.openaiApiKey = s.tools.openaiApiKey ?? undefined;
   if (on('tools.openaiBaseUrl')) config.openaiBaseUrl = s.tools.openaiBaseUrl ?? undefined;
+  if (on('tools.kimiApiKey')) config.kimiApiKey = s.tools.kimiApiKey ?? undefined;
+  if (on('tools.geminiApiKey')) config.geminiApiKey = s.tools.geminiApiKey ?? undefined;
   if (on('safety.extraBoundaryPatterns')) config.extraBoundaryPatterns = s.safety.extraBoundaryPatterns ?? undefined;
   if (on('safety.allowedRoots')) config.allowedRoots = s.safety.allowedRoots ?? undefined;
 }
