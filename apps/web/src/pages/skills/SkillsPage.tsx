@@ -230,7 +230,7 @@ export function SkillsPage() {
           {report.sources.every((s) => !s.skills.some(filter)) && <Empty>Nothing matches.</Empty>}
         </div>
         <div className={cn(showCatalog ? 'block' : 'hidden lg:block')}>
-          <SidePanelTabs catalog={overview.catalog} trash={trash} runs={runs} busy={busy} onInstall={install} onInstallTier={installTier} onRestore={restore} />
+          <SidePanelTabs catalog={overview.catalog} trash={trash} runs={runs} busy={busy} onInstall={install} onInstallTier={installTier} onRestore={restore} onRefresh={() => void load()} />
         </div>
       </div>
 

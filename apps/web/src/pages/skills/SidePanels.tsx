@@ -1,7 +1,9 @@
 import type { EngineEvent } from '@foundry/core/browser';
 import type { CatalogEntryStatus, SessionView, SkillTier, TrashEntry } from '@foundry/engine/skills-types';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { api } from '../../api.ts';
+import { LiveLog } from '../LiveLog.tsx';
 import { Badge, Button, Card, CopyButton, Tabs, ago, cn } from '../../ui.tsx';
 
 const TIERS: SkillTier[] = ['required', 'recommended', 'optional'];
@@ -10,7 +12,7 @@ const TIER_LABEL: Record<SkillTier, string> = { required: 'Required — the engi
 type SideTab = 'catalog' | 'trash' | 'history';
 
 /** The side column as one card with tabs: the catalog leads, trash and update history sit behind their own tabs. */
-export function SidePanelTabs({ catalog, trash, runs, busy, onInstall, onInstallTier, onRestore }: { catalog: CatalogEntryStatus[]; trash: TrashEntry[]; runs: (EngineEvent & { seq: number })[]; busy: string | null; onInstall: (id: string, force: boolean) => void; onInstallTier: (tiers: SkillTier[]) => void; onRestore: (name: string, path: string) => void }) {
+export function SidePanelTabs({ catalog, trash, runs, busy, onInstall, onInstallTier, onRestore, onRefresh }: { catalog: CatalogEntryStatus[]; trash: TrashEntry[]; runs: (EngineEvent & { seq: number })[]; busy: string | null; onInstall: (id: string, force: boolean) => void; onInstallTier: (tiers: SkillTier[]) => void; onRestore: (name: string, path: string) => void; onRefresh: () => void }) {
   const [tab, setTab] = useState<SideTab>('catalog');
   const tabs = [
     { id: 'catalog' as const, label: 'Catalog' },
@@ -21,7 +23,7 @@ export function SidePanelTabs({ catalog, trash, runs, busy, onInstall, onInstall
     <Card>
       <Tabs tabs={tabs} value={tab} onChange={setTab} />
       <div className="pt-3">
-        {tab === 'catalog' && <CatalogBody catalog={catalog} busy={busy} onInstall={onInstall} onInstallTier={onInstallTier} />}
+        {tab === 'catalog' && <CatalogBody catalog={catalog} busy={busy} onInstall={onInstall} onInstallTier={onInstallTier} onRefresh={onRefresh} />}
         {tab === 'trash' && <TrashBody trash={trash} busy={busy} onRestore={onRestore} />}
         {tab === 'history' && <HistoryBody runs={runs} />}
       </div>
@@ -33,10 +35,40 @@ export function SidePanelTabs({ catalog, trash, runs, busy, onInstall, onInstall
  * The catalog, kept short: what is still missing leads each tier, what is already installed folds
  * into one line, and the whole optional tier starts collapsed.
  */
-function CatalogBody({ catalog, busy, onInstall, onInstallTier }: { catalog: CatalogEntryStatus[]; busy: string | null; onInstall: (id: string, force: boolean) => void; onInstallTier: (tiers: SkillTier[]) => void }) {
+function CatalogBody({ catalog, busy, onInstall, onInstallTier, onRefresh }: { catalog: CatalogEntryStatus[]; busy: string | null; onInstall: (id: string, force: boolean) => void; onInstallTier: (tiers: SkillTier[]) => void; onRefresh: () => void }) {
   const missing = catalog.filter((c) => !c.status.startsWith('installed'));
   const [openTiers, setOpenTiers] = useState<Set<SkillTier>>(() => new Set(TIERS.filter((t) => t !== 'optional')));
   const [showInstalled, setShowInstalled] = useState<Set<SkillTier>>(new Set());
+  const [toolBusy, setToolBusy] = useState<string | null>(null);
+  const [toolMsg, setToolMsg] = useState<string | null>(null);
+  const poll = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => () => {
+    if (poll.current) clearInterval(poll.current);
+  }, []);
+  /** cli entries: run the documented install command server-side, stream inline, poll until detected */
+  const installTool = async (id: string) => {
+    setToolMsg(null);
+    try {
+      await api.installTool(id);
+      setToolBusy(id);
+      const t0 = Date.now();
+      if (poll.current) clearInterval(poll.current);
+      poll.current = setInterval(async () => {
+        const o = await api.skills().catch(() => null);
+        const entry = o?.catalog.find((x) => x.entry.id === id);
+        const done = !!entry && entry.status.startsWith('installed');
+        if (done || Date.now() - t0 > 120_000) {
+          clearInterval(poll.current!);
+          poll.current = null;
+          setToolBusy(null);
+          setToolMsg(done ? `${id} installed ✓` : `${id}: not detected yet — check the log above (it may need a new terminal or PATH refresh).`);
+          onRefresh();
+        }
+      }, 3000);
+    } catch (e: any) {
+      setToolMsg(e.message);
+    }
+  };
   const toggle = (set: Set<SkillTier>, tier: SkillTier) => {
     const n = new Set(set);
     n.has(tier) ? n.delete(tier) : n.add(tier);
@@ -71,26 +103,28 @@ function CatalogBody({ catalog, busy, onInstall, onInstallTier }: { catalog: Cat
             {open && (
               <div className="space-y-1.5">
                 {miss.map((c) => (
-                  <CatalogRow key={c.entry.id} c={c} busy={busy} onInstall={(force) => onInstall(c.entry.id, force)} />
+                  <CatalogRow key={c.entry.id} c={c} busy={busy} onInstall={(force) => onInstall(c.entry.id, force)} onInstallTool={() => installTool(c.entry.id)} toolInstalling={toolBusy === c.entry.id} />
                 ))}
                 {inst.length > 0 && (
                   <button type="button" className="text-[11px] text-zinc-500 underline decoration-dotted pl-1" onClick={() => setShowInstalled((s) => toggle(s, tier))}>
                     {showInstalled.has(tier) ? 'hide' : 'show'} {inst.length} installed
                   </button>
                 )}
-                {showInstalled.has(tier) && inst.map((c) => <CatalogRow key={c.entry.id} c={c} busy={busy} onInstall={(force) => onInstall(c.entry.id, force)} />)}
+                {showInstalled.has(tier) && inst.map((c) => <CatalogRow key={c.entry.id} c={c} busy={busy} onInstall={(force) => onInstall(c.entry.id, force)} onInstallTool={() => installTool(c.entry.id)} toolInstalling={toolBusy === c.entry.id} />)}
               </div>
             )}
           </div>
         );
       })}
+      {toolMsg && <div className="text-xs text-zinc-300 whitespace-pre-wrap">{toolMsg}</div>}
     </div>
   );
 }
 
-function CatalogRow({ c, busy, onInstall }: { c: CatalogEntryStatus; busy: string | null; onInstall: (force: boolean) => void }) {
+function CatalogRow({ c, busy, onInstall, onInstallTool, toolInstalling }: { c: CatalogEntryStatus; busy: string | null; onInstall: (force: boolean) => void; onInstallTool: () => void; toolInstalling: boolean }) {
   const [open, setOpen] = useState(false);
   const satisfied = c.status.startsWith('installed');
+  const type = c.entry.source.type;
   return (
     <div className="rounded-md border border-zinc-800 bg-zinc-950/50 p-2">
       <div className="flex items-center gap-2">
@@ -99,22 +133,37 @@ function CatalogRow({ c, busy, onInstall }: { c: CatalogEntryStatus; busy: strin
           {c.entry.name}
         </button>
         {c.entry.bundle && <span className="text-[9px] uppercase rounded bg-zinc-800 text-zinc-400 px-1">{c.entry.bundle}</span>}
-        {c.entry.source.type === 'git' ? (
-          satisfied ? (
-            c.status === 'installed-unmanaged' && (
+        {(type === 'git' || type === 'plugin') &&
+          (satisfied ? (
+            c.status === 'installed-unmanaged' && type === 'git' && (
               <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => onInstall(true)} title="replace the unmanaged copy with the catalog version (old copy goes to trash)">
                 Replace
               </Button>
             )
           ) : (
-            <Button size="sm" variant={c.entry.tier === 'required' ? 'primary' : 'default'} disabled={busy !== null} onClick={() => onInstall(false)}>
+            <Button size="sm" variant={c.entry.tier === 'required' ? 'primary' : 'default'} disabled={busy !== null} onClick={() => onInstall(false)} title={type === 'plugin' ? 'installed via the claude plugin CLI' : undefined}>
               {busy === c.entry.id ? '…' : 'Install'}
             </Button>
-          )
-        ) : (
-          !satisfied && c.manual && <CopyButton text={c.manual.command} />
+          ))}
+        {type === 'cli' && !satisfied && (
+          <>
+            <Button size="sm" disabled={busy !== null || toolInstalling} onClick={onInstallTool} title={c.manual ? `runs: ${c.manual.command}` : 'run the documented install command'}>
+              {toolInstalling ? 'Installing…' : 'Install'}
+            </Button>
+            {c.manual && <CopyButton text={c.manual.command} />}
+          </>
         )}
+        {type === 'manual' && !satisfied && c.manual && <CopyButton text={c.manual.command} />}
       </div>
+      {type === 'manual' && !satisfied && c.manual && <div className="text-[11px] text-amber-300/80 mt-1">manual install — copy the command/instructions and run them yourself</div>}
+      {toolInstalling && (
+        <div className="mt-2 space-y-1">
+          <div className="text-[11px] text-sky-300 flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse" /> running the install — this row updates when the binary is detected
+          </div>
+          <LiveLog attemptId="tool-install" className="max-h-32" />
+        </div>
+      )}
       <div className="text-[11px] text-zinc-500 mt-1">{c.entry.summary}</div>
       {open && (
         <div className="text-[11px] text-zinc-400 mt-2 space-y-1">
