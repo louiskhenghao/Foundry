@@ -17,6 +17,19 @@ const SEED_MODELS: { id: string; label: string }[] = [
 ];
 const get = (o: any, path: string) => path.split('.').reduce((x, k) => (x == null ? undefined : x[k]), o);
 
+/** left-hand index; the ids are the Card ids further down */
+const SECTIONS: { id: string; label: string }[] = [
+  { id: 'engine', label: 'Engine' },
+  { id: 'models', label: 'Models' },
+  { id: 'sessions', label: 'Sessions' },
+  { id: 'workflow', label: 'Workflow' },
+  { id: 'reviews', label: 'Reviews' },
+  { id: 'delivery', label: 'Delivery defaults' },
+  { id: 'sync', label: 'Sync with upstream' },
+  { id: 'tools', label: 'Tools' },
+  { id: 'safety', label: 'Safety' },
+];
+
 function SourceBadge({ view, path }: { view: SettingsView; path: string }) {
   const m = view.meta[path];
   if (!m) return null;
@@ -37,6 +50,7 @@ export function SettingsPage() {
   const [err, setErr] = useState<string | null>(null);
   const [known, setKnown] = useState<ModelRecordView[] | null>(null);
   const [probe, setProbe] = useState<Record<string, string>>({});
+  const [active, setActive] = useState(SECTIONS[0]!.id);
   const load = () =>
     api
       .settings()
@@ -50,6 +64,23 @@ export function SettingsPage() {
     load();
     loadModels();
   }, []);
+  // highlight the section the page is on; the scroller is <main>, not the window
+  useEffect(() => {
+    if (!draft) return;
+    const root = document.querySelector('main');
+    const io = new IntersectionObserver(
+      (entries) => {
+        const top = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (top?.target.id) setActive(top.target.id);
+      },
+      { root, rootMargin: '-20% 0px -70% 0px' },
+    );
+    for (const s of SECTIONS) {
+      const el = document.getElementById(s.id);
+      if (el) io.observe(el);
+    }
+    return () => io.disconnect();
+  }, [draft]);
   const testModel = async (name: string) => {
     setProbe((p) => ({ ...p, [name]: 'testing…' }));
     try {
@@ -170,24 +201,36 @@ export function SettingsPage() {
   const grid = (children: ReactNode) => <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">{children}</div>;
 
   return (
-    <div className="max-w-4xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
-      <div className="flex items-start gap-3 flex-wrap">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-lg font-semibold">Settings</h1>
-          <p className="text-sm text-zinc-400 mt-1">
-            Saved to <span className="mono">{view.file}</span>. Precedence: saved value › environment variable › default. Most settings apply immediately; the ones marked <span className="text-amber-300">restart</span> after the engine restarts.
-          </p>
-        </div>
-        <div className="sticky top-14 z-10 flex items-center gap-2 rounded-md border border-zinc-800 bg-zinc-950/90 backdrop-blur px-3 py-2">
-          <span className="text-xs text-zinc-400">{changed.length ? `${changed.length} unsaved` : 'no changes'}</span>
-          <Button size="sm" variant="ghost" disabled={!changed.length || busy} onClick={() => setDraft(structuredClone(view.values))}>
-            Discard
-          </Button>
-          <Button size="sm" variant="primary" disabled={!changed.length || busy} onClick={save}>
-            {busy ? 'Saving…' : 'Save'}
-          </Button>
-        </div>
+    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6">
+      <div className="min-w-0 mb-4">
+        <h1 className="text-lg font-semibold">Settings</h1>
+        <p className="text-sm text-zinc-400 mt-1">
+          Saved to <span className="mono">{view.file}</span>. Precedence: saved value › environment variable › default. Most settings apply immediately; the ones marked <span className="text-amber-300">restart</span> after the engine restarts.
+        </p>
       </div>
+      <div className="grid lg:grid-cols-[11rem_minmax(0,1fr)] gap-x-6">
+        <nav className="hidden lg:block sticky top-0 self-start max-h-screen overflow-auto py-1 space-y-0.5">
+          {SECTIONS.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className={cn('block w-full text-left rounded px-2 py-1 text-xs', active === s.id ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900')}
+            >
+              {s.label}
+            </button>
+          ))}
+        </nav>
+        <div className="min-w-0 space-y-4">
+          {/* the save bar follows you down the page: settings are long and the change you just made is at the bottom */}
+          <div className="sticky top-0 z-20 -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6 py-2 bg-zinc-950/95 backdrop-blur flex items-center gap-2">
+            <span className="text-xs text-zinc-400 mr-auto">{changed.length ? `${changed.length} unsaved` : 'no changes'}</span>
+            <Button size="sm" variant="ghost" disabled={!changed.length || busy} onClick={() => setDraft(structuredClone(view.values))}>
+              Discard
+            </Button>
+            <Button size="sm" variant="primary" disabled={!changed.length || busy} onClick={save}>
+              {busy ? 'Saving…' : 'Save'}
+            </Button>
+          </div>
       {view.restartNeeded.length > 0 && (
         <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
           Restart the engine to apply: <span className="mono">{view.restartNeeded.join(', ')}</span> — stop it (Ctrl-C) and run <span className="mono">bun run serve</span> <CopyButton text="bun run serve" />
@@ -196,7 +239,7 @@ export function SettingsPage() {
       {msg && <div className="rounded-md border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-200">{msg}</div>}
       {err && <div className="rounded-md border border-rose-500/40 bg-rose-500/5 px-3 py-2 text-xs text-rose-300">{err}</div>}
 
-      <Card title="Engine">
+      <Card id="engine" title="Engine" className="scroll-mt-16">
         {grid(
           <>
             <Field label="Port" aside={aside('engine.port')} help="HTTP port of the local server and of the boundary hook callback.">
@@ -218,7 +261,7 @@ export function SettingsPage() {
         )}
       </Card>
 
-      <Card title="Models">
+      <Card id="models" title="Models" className="scroll-mt-16">
         {grid(
           <>
             <Field label="Strong" aside={aside('models.strong')} help="Drives Clarify (understanding the goal, writing the Brief), the Planner (task DAG), the Goal reviewer and Merge Attempts — the stages where judgement matters most and tokens are few. Fable pays off here first.">
@@ -238,7 +281,7 @@ export function SettingsPage() {
         <p className="text-[11px] text-zinc-500 mt-3">The list is what this machine has seen resolve (family aliases follow the latest release through Claude Code; a full model id pins a version). A new family is one custom entry away — after its first session it shows up here with its resolved id. Changes apply to goals created from now on; running goals keep the models they started with unless a fallback kicks in.</p>
       </Card>
 
-      <Card title="Sessions">
+      <Card id="sessions" title="Sessions" className="scroll-mt-16">
         {grid(
           <>
             <Field label="Cost cap per session (USD)" aside={aside('sessions.attemptMaxCostUsd')} help="The real guard: a worker session stops at this spend (also bounded by the goal's remaining budget).">
@@ -257,7 +300,7 @@ export function SettingsPage() {
         )}
       </Card>
 
-      <Card title="Workflow">
+      <Card id="workflow" title="Workflow" className="scroll-mt-16">
         <div className="space-y-4">
           {grid(
             <>
@@ -313,7 +356,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card title="Reviews">
+      <Card id="reviews" title="Reviews" className="scroll-mt-16">
         <div className="space-y-3">
           {bool('reviews.alwaysReviewTasks', 'Review every task', 'Run the lightweight task reviewer even when the Brief defined no reviewer check for the task.')}
           {grid(
@@ -324,7 +367,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card title="Delivery defaults">
+      <Card id="delivery" title="Delivery defaults" className="scroll-mt-16">
         {grid(
           <>
             <Field label="Mode for new goals" aside={aside('delivery.defaultMode')}>
@@ -369,7 +412,7 @@ export function SettingsPage() {
         </details>
       </Card>
 
-      <Card title="Sync with upstream">
+      <Card id="sync" title="Sync with upstream" className="scroll-mt-16">
         <div className="space-y-3">
           {bool('sync.fetchBeforeGoal', 'Fetch the base branch before a goal starts', 'Only remote-tracking refs are updated — your checkout is never touched. The Clarifier explores, and the goal branch starts from, the freshest tip.')}
           {grid(
@@ -384,7 +427,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card title="Tools">
+      <Card id="tools" title="Tools" className="scroll-mt-16">
         <div className="space-y-3">
           {bool('tools.useGraphify', 'Use graphify for relevant-file discovery', 'When the graphify CLI is installed, sessions get a code-graph based context instead of grep.')}
           {grid(
@@ -403,7 +446,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card title="Safety">
+      <Card id="safety" title="Safety" className="scroll-mt-16">
         {grid(
           <>
             <Field label="Extra boundary patterns" aside={aside('safety.extraBoundaryPatterns')} help="Additional ERE patterns the boundary hook blocks, '|'-separated (e.g. `terraform apply|kubectl`).">
@@ -415,6 +458,8 @@ export function SettingsPage() {
           </>,
         )}
       </Card>
+        </div>
+      </div>
     </div>
   );
 }
