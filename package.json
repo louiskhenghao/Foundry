@@ -13,6 +13,7 @@
     "web:dev": "cd apps/web && bun run dev",
     "web:build": "cd apps/web && bun run build",
     "fixture": "bun scripts/make-fixture.ts",
+    "release": "bun scripts/release.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc --noEmit -p apps/web",
     "test": "bun test packages"
   },
