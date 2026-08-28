@@ -67,6 +67,35 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json({ ok: true, active: busy.total, busy, events: engine.store.count(), pausedUntil: engine.rateLimitedUntilIso(), restartNeeded: engine.settings.restartNeeded() });
   });
 
+  // ---------- agents monitor (read-through over ~/.claude + engine state; nothing persisted) ----------
+  const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const FOUNDRY_ROW_ID = /^foundry-[A-Za-z0-9_-]{1,64}$/; // placeholder id for rows whose session hasn't reported its id yet
+  const AGENT_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+  app.get('/api/agents', (c) => c.json(engine.agents.list()));
+  app.get('/api/agents/summary', (c) => c.json(engine.agents.summary()));
+
+  app.get('/api/agents/:sessionId/log', (c) => {
+    const sid = c.req.param('sessionId');
+    if (!SESSION_ID.test(sid)) throw new HttpError(400, { error: 'bad session id' });
+    const agent = c.req.query('agent') ?? null;
+    if (agent && !AGENT_ID.test(agent)) throw new HttpError(400, { error: 'bad agent id' });
+    const offset = Math.max(0, Math.floor(Number(c.req.query('offset') ?? 0) || 0));
+    const chunk = engine.agents.log(sid, agent, offset);
+    if (!chunk) throw new HttpError(404, { error: 'no transcript for this session' });
+    return c.json(chunk);
+  });
+
+  app.post('/api/agents/:sessionId/kill', (c) => {
+    const sid = c.req.param('sessionId');
+    if (!SESSION_ID.test(sid) && !FOUNDRY_ROW_ID.test(sid)) throw new HttpError(400, { error: 'bad session id' });
+    // external sessions are never killable from here — they simply don't match a Foundry row
+    const f = engine.foundryLiveSessions().find((s) => s.sessionId === sid || `foundry-${s.taskId}` === sid);
+    if (!f) throw new HttpError(404, { error: 'not a live Foundry session' });
+    if (!engine.killTaskSession(f.taskId)) throw new HttpError(409, { error: 'no live process for this session' });
+    return c.json({ ok: true });
+  });
+
   app.get('/api/goals', (c) => {
     const goals = listGoals(db).map((g) => {
       const tasks = listTasks(db, g.id);
