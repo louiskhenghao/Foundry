@@ -87,6 +87,14 @@ body {
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+/*
+ * Styling the scrollbar makes it a classic, space-consuming one, so the page scroller must always
+ * reserve its gutter: otherwise a tab whose content fits is 8px wider than one that scrolls and
+ * switching tabs shifts the whole layout sideways.
+ */
+main {
+  scrollbar-gutter: stable;
+}
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
