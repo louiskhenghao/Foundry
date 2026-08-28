@@ -15,6 +15,7 @@ import {
   EscalationSuggestion,
   EscalationAnswer,
   Goal,
+  GoalNature,
   GoalState,
   ObservationReport,
   ReviewerVerdict,
@@ -60,6 +61,10 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.base_synced', { remote: z.string().nullable(), base: z.string(), localRef: z.string().nullable(), remoteRef: z.string().nullable(), ahead: z.number().int(), behind: z.number().int(), fetched: z.boolean(), startedFrom: z.enum(['local', 'remote']), detail: z.string() }),
   /** per-goal autoskills run: project skills matched to the repository's stack, installed in the goal workspace */
   ev('goal.autoskills', { status: z.enum(['installed', 'skipped', 'failed']), skills: z.array(z.string()), detail: z.string() }),
+  /** the goal's nature was settled (user chose it at creation, or the Clarifier decided for an `auto` goal) */
+  ev('goal.nature_set', { nature: GoalNature, reason: z.string() }),
+  /** media artifacts were copied from the goal workspace to the goal's output folder at done */
+  ev('goal.artifacts_delivered', { status: z.enum(['ok', 'skipped', 'failed']), files: z.array(z.string()), dest: z.string(), detail: z.string() }),
   /** completion actions chosen at Brief approval (defaults inferred from the tasks' scenarios when the UI sends nothing) */
   ev('goal.completion_set', { graphRefresh: z.boolean(), docs: z.array(DocType), reason: z.string() }),
   /** the docs-generation session ran (after the goal review passed); files are repo-relative paths it committed */
@@ -70,6 +75,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('settings.changed', { keys: z.array(z.string()), restartNeeded: z.array(z.string()) }),
 
   ev('clarify.started', { attemptId: z.string().nullable() }),
+  /** one style sample was generated for a Style Proposal (file appended to its samples, never replacing) */
+  ev('brief.style_sampled', { styleKey: z.string(), file: z.string(), costUsd: z.number(), status: z.enum(['ok', 'failed']), detail: z.string() }),
   ev('brief.proposed', { brief: Brief }),
   ev('brief.edited', { brief: Brief }),
   ev('brief.approved', { brief: Brief }),

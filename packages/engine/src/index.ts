@@ -26,6 +26,7 @@ export * from './models/registry.ts';
 export { ModelFallbackRunner, isModelUnavailable } from './models/fallback-runner.ts';
 export * from './settings.ts';
 export { DraftRequest, type DraftProposal, DRAFT_MAX_BUDGET_USD } from './brief-draft.ts';
+export { startStyleSample, StyleSampleError, STYLE_SAMPLE_MAX, STYLE_SAMPLE_BUDGET_USD } from './style-sample.ts';
 export { CLARIFY_MAX_BUDGET_USD, CLARIFY_MAX_TURNS, coverageRepairMessage } from './clarify.ts';
 export * from './skills/packs.ts';
 export { goalScenario } from './skills/workflow.ts';

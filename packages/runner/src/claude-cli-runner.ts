@@ -9,8 +9,8 @@ export interface ClaudeCliRunnerOptions {
   maxConcurrent?: number;
   defaultTimeoutMs?: number;
   defaultIdleTimeoutMs?: number;
-  /** Extra env for every run (e.g. AI_ENGINE_CALLBACK). */
-  env?: Record<string, string>;
+  /** Extra env for every run (e.g. AI_ENGINE_CALLBACK); a function is re-evaluated per run, so settings-sourced values apply without a restart. */
+  env?: Record<string, string> | (() => Record<string, string>);
   log?: (msg: string) => void;
 }
 
@@ -134,7 +134,7 @@ export class ClaudeCliRunner implements ClaudeRunner {
 
     // The Bash tool keeps its cwd between calls; a second `cd apps/x && …` then fails with "(eval):cd:1: no such file".
     // This flag returns the shell to the workspace root after every command (verified to apply to `-p` sessions).
-    const env = { CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR: '1', ...process.env, ...(this.opts.env ?? {}), ...(spec.env ?? {}) } as Record<string, string>;
+    const env = { CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR: '1', ...process.env, ...(typeof this.opts.env === 'function' ? this.opts.env() : (this.opts.env ?? {})), ...(spec.env ?? {}) } as Record<string, string>;
     // Never inherit an API key by accident: the whole point is the host login.
     delete env.ANTHROPIC_API_KEY;
 

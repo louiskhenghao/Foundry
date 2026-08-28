@@ -1,8 +1,9 @@
 import { join } from 'node:path';
 import type { Check, CheckResult, Goal, Task } from '@ai-engine/core';
-import { IdPrefix, getBrief, listChecks, listTasks, newId, renderDecisions } from '@ai-engine/core';
+import { IdPrefix, chosenStyle, getBrief, listChecks, listTasks, newId, renderDecisions } from '@ai-engine/core';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
+import { renderStyle } from './attempt-prompt.ts';
 import { attachmentsDir, renderAttachments } from './attachments.ts';
 import { budgetStatus } from './budget.ts';
 import { runCommandCheck } from './checks/command.ts';
@@ -50,7 +51,7 @@ export async function runGoalReview(engine: Engine, goal: Goal): Promise<void> {
   let review: z.infer<typeof GoalReviewOutput> | null = null;
   let reviewError: string | null = null;
   const baseDiff = await diff(goalWs, goal.baseBranch, 'HEAD', 120_000);
-  if (baseDiff.trim() && (reviewerChecks.length || engine.config.alwaysReviewTasks)) {
+  if (baseDiff.trim() && (reviewerChecks.length || (engine.config.alwaysReviewTasks && goal.workflow.pace !== 'fast'))) {
     review = await reviewGoal(engine, goal, goalWs, baseDiff, checks, results).catch((err) => {
       reviewError = String((err as Error).message ?? err).slice(0, 300);
       store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `goal reviewer failed: ${reviewError}` } });
@@ -169,12 +170,19 @@ export async function runGoalReview(engine: Engine, goal: Goal): Promise<void> {
 async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, checks: Check[], objective: CheckResult[]) {
   const brief = getBrief(engine.store.db, goal.id)?.brief;
   const fmt = (c: Check) => `- [${c.tier}] ${c.name}${c.spec.type === 'reviewer' ? `: ${c.spec.rubric}` : c.spec.type === 'command' ? ` (command \`${c.spec.cmd}\` → ${objective.find((r) => r.checkId === c.id)?.status ?? 'n/a'})` : ''}`;
-  const reviewerHint = await engine.skills.hints.sectionFor('reviewer-goal', { scenario: goalScenario(listTasks(engine.store.db, goal.id)) });
+  const scenario = goalScenario(listTasks(engine.store.db, goal.id));
+  const reviewerHint = await engine.skills.hints.sectionFor('reviewer-goal', { scenario });
+  const media =
+    scenario === 'image' || scenario === 'video'
+      ? `# Media review\nThis goal's deliverables are media files under \`artifacts/\` — they are NOT in the diff (kept out of git); the committed \`docs/artifacts/\` manifests describe them. Verify every manifest entry exists on disk${scenario === 'image' ? ' and open the images with the Read tool (it renders them) to judge them against the checks' : '; verify video metadata with ffprobe when available (you cannot watch video — final visual quality stays with the human)'}.`
+      : '';
   const prompt = [
     `# Goal\n${goal.title}\n\n${goal.prompt}`,
+    media,
     renderAttachments(goal, engine.config.dataDir),
     brief ? `# Approved understanding\n${brief.understanding}` : '',
     brief ? renderDecisions(brief) : '',
+    brief && ['image', 'video', 'frontend', 'fullstack'].includes(scenario) ? renderStyle(chosenStyle(brief), { forReviewer: true }) : '',
     reviewerHint ?? '',
     `# Fixed point\nThe base of this review is \`${goal.baseBranch}\`; everything in the diff below was added by this goal.`,
     `# Acceptance checks\nObjective command checks were already executed by the engine; their status is shown. You judge the reviewer-type checks and the overall result.\n${checks.map(fmt).join('\n')}`,

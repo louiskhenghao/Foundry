@@ -90,6 +90,7 @@ export function GoalPage() {
               {g.title}
             </h1>
             <Badge state={g.state} className="mt-1" />
+            {g.workflow.pace === 'fast' && <span className="text-[10px] rounded-full border border-amber-800 text-amber-300 px-1.5 mt-1.5">fast</span>}
           </div>
           <div className="text-xs text-zinc-500 flex items-center gap-1.5 mt-1.5 min-w-0 flex-wrap">
             <Folder size={12} className="shrink-0" />

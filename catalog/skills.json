@@ -46,14 +46,41 @@
           "role": "worker",
           "mandate": "must",
           "when": "feature",
-          "instruction": "Before writing implementation code, invoke it and follow red → green → refactor through public interfaces; keep the failing test in the diff and run single test files often, the full suite once at the end."
+          "instruction": "Before writing implementation code, invoke it and follow red → green → refactor through public interfaces; keep the failing test in the diff and run single test files often, the full suite once at the end.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
         },
         {
           "role": "worker",
           "mandate": "must",
           "when": "refactor",
-          "instruction": "Invoke it first: pin the current behaviour with tests through public interfaces, then restructure in small green steps."
+          "instruction": "Invoke it first: pin the current behaviour with tests through public interfaces, then restructure in small green steps.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
         }
+      ],
+      "scenarios": [
+        "frontend",
+        "backend",
+        "fullstack",
+        "data",
+        "mobile",
+        "infra",
+        "general"
       ]
     },
     {
@@ -83,8 +110,26 @@
           "role": "worker",
           "mandate": "must",
           "when": "bug",
-          "instruction": "Invoke it before editing: reproduce → minimise → hypothesise → instrument → fix → add a regression test. Report the reproduction you built."
+          "instruction": "Invoke it before editing: reproduce → minimise → hypothesise → instrument → fix → add a regression test. Report the reproduction you built.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
         }
+      ],
+      "scenarios": [
+        "frontend",
+        "backend",
+        "fullstack",
+        "data",
+        "mobile",
+        "infra",
+        "general"
       ]
     },
     {
@@ -112,8 +157,26 @@
           "role": "reviewer-goal",
           "mandate": "prefer",
           "when": "any",
-          "instruction": "Use its two axes (Standards and Spec) on the whole diff; the base branch named under \"Fixed point\" is your fixed point."
+          "instruction": "Use its two axes (Standards and Spec) on the whole diff; the base branch named under \"Fixed point\" is your fixed point.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
         }
+      ],
+      "scenarios": [
+        "frontend",
+        "backend",
+        "fullstack",
+        "data",
+        "mobile",
+        "infra",
+        "general"
       ]
     },
     {
@@ -137,6 +200,15 @@
       "bundle": "mattpocock",
       "aliases": [
         "grill-me"
+      ],
+      "scenarios": [
+        "frontend",
+        "backend",
+        "fullstack",
+        "data",
+        "mobile",
+        "infra",
+        "general"
       ]
     },
     {
@@ -164,8 +236,26 @@
           "role": "clarifier",
           "mandate": "prefer",
           "when": "any",
-          "instruction": "Read it for vocabulary discipline only — you are read-only: do not write CONTEXT.md or ADRs."
+          "instruction": "Read it for vocabulary discipline only — you are read-only: do not write CONTEXT.md or ADRs.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
         }
+      ],
+      "scenarios": [
+        "frontend",
+        "backend",
+        "fullstack",
+        "data",
+        "mobile",
+        "infra",
+        "general"
       ]
     },
     {
@@ -221,14 +311,41 @@
           "role": "worker",
           "mandate": "prefer",
           "when": "feature",
-          "instruction": "Invoke it when you introduce or reshape a module: prefer deep modules with small interfaces."
+          "instruction": "Invoke it when you introduce or reshape a module: prefer deep modules with small interfaces.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
         },
         {
           "role": "planner",
           "mandate": "prefer",
           "when": "any",
-          "instruction": "Use its deep-module vocabulary when carving tasks."
+          "instruction": "Use its deep-module vocabulary when carving tasks.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
         }
+      ],
+      "scenarios": [
+        "frontend",
+        "backend",
+        "fullstack",
+        "data",
+        "mobile",
+        "infra",
+        "general"
       ]
     },
     {
@@ -249,7 +366,11 @@
         "testing",
         "web"
       ],
-      "homepage": "https://github.com/anthropics/skills"
+      "homepage": "https://github.com/anthropics/skills",
+      "scenarios": [
+        "frontend",
+        "fullstack"
+      ]
     },
     {
       "id": "frontend-design",
@@ -272,13 +393,19 @@
       "homepage": "https://github.com/anthropics/skills",
       "pack": "design",
       "packOption": "frontend-design",
-      "scenarios": ["frontend", "fullstack"],
+      "scenarios": [
+        "frontend",
+        "fullstack"
+      ],
       "workflow": [
         {
           "role": "worker",
           "mandate": "must",
           "when": "any",
-          "scenarios": ["frontend", "fullstack"],
+          "scenarios": [
+            "frontend",
+            "fullstack"
+          ],
           "instruction": "Read it before writing any markup or styles; choose a deliberate aesthetic direction for this product and apply it consistently instead of templated defaults."
         }
       ]
@@ -297,25 +424,41 @@
         "docs": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill"
       },
       "invoke": "/ui-ux-pro-max:ui-ux-pro-max",
-      "roles": ["worker", "reviewer-goal"],
-      "tags": ["web", "design", "ux"],
+      "roles": [
+        "worker",
+        "reviewer-goal"
+      ],
+      "tags": [
+        "web",
+        "design",
+        "ux"
+      ],
       "homepage": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill",
       "pack": "design",
       "packOption": "ui-ux-pro-max",
-      "scenarios": ["frontend", "fullstack"],
+      "scenarios": [
+        "frontend",
+        "fullstack"
+      ],
       "workflow": [
         {
           "role": "worker",
           "mandate": "must",
           "when": "any",
-          "scenarios": ["frontend", "fullstack"],
+          "scenarios": [
+            "frontend",
+            "fullstack"
+          ],
           "instruction": "Invoke it first with the product type and audience to get a style, palette, font pairing and UX guidelines; build the UI on that recommendation and say which one you followed."
         },
         {
           "role": "reviewer-goal",
           "mandate": "prefer",
           "when": "any",
-          "scenarios": ["frontend", "fullstack"],
+          "scenarios": [
+            "frontend",
+            "fullstack"
+          ],
           "instruction": "Check the delivered UI against its UX guidelines (hierarchy, spacing, contrast, states) and name concrete violations."
         }
       ]
@@ -331,25 +474,40 @@
         "repo": "pbakaus/impeccable",
         "path": "skill"
       },
-      "roles": ["worker", "reviewer-goal"],
-      "tags": ["web", "design"],
+      "roles": [
+        "worker",
+        "reviewer-goal"
+      ],
+      "tags": [
+        "web",
+        "design"
+      ],
       "homepage": "https://github.com/pbakaus/impeccable",
       "pack": "design",
       "packOption": "impeccable",
-      "scenarios": ["frontend", "fullstack"],
+      "scenarios": [
+        "frontend",
+        "fullstack"
+      ],
       "workflow": [
         {
           "role": "worker",
           "mandate": "must",
           "when": "any",
-          "scenarios": ["frontend", "fullstack"],
+          "scenarios": [
+            "frontend",
+            "fullstack"
+          ],
           "instruction": "Run `/impeccable craft` for new UI or `/impeccable polish` for existing UI before you consider the task done; never ship the generic defaults it warns about."
         },
         {
           "role": "reviewer-goal",
           "mandate": "prefer",
           "when": "any",
-          "scenarios": ["frontend", "fullstack"],
+          "scenarios": [
+            "frontend",
+            "fullstack"
+          ],
           "instruction": "Run `/impeccable critique` on the delivered UI and turn its findings into concrete pass/fail notes."
         }
       ]
@@ -366,18 +524,29 @@
         "repo": "bencium/bencium-marketplace",
         "path": "bencium-impact-designer/skills/bencium-impact-designer"
       },
-      "roles": ["worker"],
-      "tags": ["web", "design"],
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "web",
+        "design"
+      ],
       "homepage": "https://github.com/bencium/bencium-marketplace",
       "pack": "design",
       "packOption": "bencium",
-      "scenarios": ["frontend", "fullstack"],
+      "scenarios": [
+        "frontend",
+        "fullstack"
+      ],
       "workflow": [
         {
           "role": "worker",
           "mandate": "must",
           "when": "any",
-          "scenarios": ["frontend", "fullstack"],
+          "scenarios": [
+            "frontend",
+            "fullstack"
+          ],
           "instruction": "Invoke it before building UI and follow its direction for layout, colour and type; avoid the patterns it lists as generic."
         }
       ]
@@ -394,18 +563,30 @@
         "repo": "bencium/bencium-marketplace",
         "path": "design-audit/skills/design-audit"
       },
-      "roles": ["reviewer-goal"],
-      "tags": ["web", "design", "review"],
+      "roles": [
+        "reviewer-goal"
+      ],
+      "tags": [
+        "web",
+        "design",
+        "review"
+      ],
       "homepage": "https://github.com/bencium/bencium-marketplace",
       "pack": "design",
       "packOption": "bencium",
-      "scenarios": ["frontend", "fullstack"],
+      "scenarios": [
+        "frontend",
+        "fullstack"
+      ],
       "workflow": [
         {
           "role": "reviewer-goal",
           "mandate": "prefer",
           "when": "any",
-          "scenarios": ["frontend", "fullstack"],
+          "scenarios": [
+            "frontend",
+            "fullstack"
+          ],
           "instruction": "Audit the delivered UI with it and report only concrete defects that a fix task could act on."
         }
       ]
@@ -422,18 +603,30 @@
         "repo": "bencium/bencium-marketplace",
         "path": "typography/skills/typography"
       },
-      "roles": ["worker"],
-      "tags": ["web", "design"],
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "web",
+        "design"
+      ],
       "homepage": "https://github.com/bencium/bencium-marketplace",
       "pack": "design",
       "packOption": "bencium",
-      "scenarios": ["frontend", "fullstack", "docs"],
+      "scenarios": [
+        "frontend",
+        "fullstack",
+        "docs"
+      ],
       "workflow": [
         {
           "role": "worker",
           "mandate": "prefer",
           "when": "any",
-          "scenarios": ["frontend", "fullstack"],
+          "scenarios": [
+            "frontend",
+            "fullstack"
+          ],
           "instruction": "Apply its rules to headings and body copy you write or touch."
         }
       ]
@@ -450,18 +643,29 @@
         "repo": "ConardLi/garden-skills",
         "path": "skills/web-design-engineer"
       },
-      "roles": ["worker"],
-      "tags": ["web", "design"],
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "web",
+        "design"
+      ],
       "homepage": "https://github.com/ConardLi/garden-skills",
       "pack": "design",
       "packOption": "garden",
-      "scenarios": ["frontend", "fullstack"],
+      "scenarios": [
+        "frontend",
+        "fullstack"
+      ],
       "workflow": [
         {
           "role": "worker",
           "mandate": "must",
           "when": "any",
-          "scenarios": ["frontend", "fullstack"],
+          "scenarios": [
+            "frontend",
+            "fullstack"
+          ],
           "instruction": "Pick the recipe that matches the page type before building, and follow it for structure, spacing and colour."
         }
       ]
@@ -478,19 +682,40 @@
         "repo": "ConardLi/garden-skills",
         "path": "skills/web-video-presentation"
       },
-      "roles": ["worker"],
-      "tags": ["web", "presentation"],
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "web",
+        "presentation"
+      ],
       "homepage": "https://github.com/ConardLi/garden-skills",
-      "scenarios": ["docs", "frontend"],
+      "scenarios": [
+        "video",
+        "docs"
+      ],
       "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "any",
+          "scenarios": [
+            "video"
+          ],
+          "instruction": "Build the deliverable with this skill: script → outline → click-driven 16:9 web presentation (optional narration audio). List every produced page/asset in the task manifest."
+        },
         {
           "role": "worker",
           "mandate": "prefer",
           "when": "any",
-          "scenarios": ["docs"],
+          "scenarios": [
+            "docs"
+          ],
           "instruction": "When the task asks for a presentation or slide deck as a web page, build it with this skill."
         }
-      ]
+      ],
+      "pack": "video",
+      "packOption": "web-video-presentation"
     },
     {
       "id": "autoskills",
@@ -505,7 +730,10 @@
         "docs": "https://www.autoskills.sh/"
       },
       "roles": [],
-      "tags": ["stack", "project"],
+      "tags": [
+        "stack",
+        "project"
+      ],
       "homepage": "https://github.com/midudev/autoskills"
     },
     {
@@ -525,7 +753,16 @@
       "tags": [
         "llm"
       ],
-      "homepage": "https://github.com/anthropics/skills"
+      "homepage": "https://github.com/anthropics/skills",
+      "scenarios": [
+        "frontend",
+        "backend",
+        "fullstack",
+        "data",
+        "mobile",
+        "infra",
+        "general"
+      ]
     },
     {
       "id": "skill-creator",
@@ -587,8 +824,26 @@
           "role": "worker",
           "mandate": "prefer",
           "when": "research",
-          "instruction": "Invoke it: build the smallest throwaway that answers the question, write the answer down, and do not polish."
+          "instruction": "Invoke it: build the smallest throwaway that answers the question, write the answer down, and do not polish.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
         }
+      ],
+      "scenarios": [
+        "frontend",
+        "backend",
+        "fullstack",
+        "data",
+        "mobile",
+        "infra",
+        "general"
       ]
     },
     {
@@ -616,8 +871,119 @@
           "role": "clarifier",
           "mandate": "prefer",
           "when": "any",
-          "instruction": "When the goal or its attachments point at external documentation, invoke it to ground the Brief in primary sources."
+          "instruction": "When the goal or its attachments point at external documentation, invoke it to ground the Brief in primary sources.",
+          "scenarios": [
+            "research",
+            "general"
+          ]
         }
+      ],
+      "scenarios": [
+        "research",
+        "general"
+      ]
+    },
+    {
+      "id": "gpt-image-2",
+      "name": "gpt-image-2",
+      "summary": "Image generation/editing skill for GPT Image 2: 80+ structured prompt templates (posters, UI, product shots, infographics, comics), generates via an OpenAI-compatible endpoint or hands the engineered prompt to the host agent.",
+      "why": "The image pack: image tasks need a disciplined prompt + generation flow instead of ad-hoc API calls.",
+      "tier": "optional",
+      "source": {
+        "type": "manual",
+        "install": "Copy the gpt-image-2 skill folder into ~/.claude/skills (it is distributed as a skill directory).",
+        "detectDir": "gpt-image-2"
+      },
+      "roles": [
+        "worker"
+      ],
+      "invoke": "/gpt-image-2",
+      "tags": [
+        "image",
+        "generation"
+      ],
+      "aliases": [],
+      "pack": "image",
+      "packOption": "gpt-image-2",
+      "scenarios": [
+        "image"
+      ],
+      "requiresEnv": [
+        "OPENAI_API_KEY"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "any",
+          "scenarios": [
+            "image"
+          ],
+          "instruction": "Invoke it first: pick the matching template, engineer the prompt, then generate. Independent images MUST be generated in parallel (launch the API calls together — several Bash calls in one message or background jobs), never one after another, with at most one regeneration pass per image. Save every file into artifacts/ and record its prompt/parameters in the task manifest."
+        }
+      ]
+    },
+    {
+      "id": "mmx-cli",
+      "name": "mmx-cli",
+      "summary": "MiniMax platform CLI (binary `mmx`): text/image-to-video generation and narration audio rendered to real media files.",
+      "why": "The video pack option for goals whose deliverable is an actual video file rather than a web presentation.",
+      "tier": "optional",
+      "source": {
+        "type": "cli",
+        "detect": "mmx",
+        "install": "npm i -g mmx-cli",
+        "docs": "https://www.npmjs.com/package/mmx-cli"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "video",
+        "generation"
+      ],
+      "aliases": [],
+      "pack": "video",
+      "packOption": "mmx-cli",
+      "scenarios": [
+        "video"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "any",
+          "scenarios": [
+            "video"
+          ],
+          "instruction": "Generate video/audio with the mmx CLI. Save every rendered file into artifacts/ and record its prompt/parameters in the task manifest."
+        }
+      ]
+    },
+    {
+      "id": "ffmpeg",
+      "name": "ffmpeg",
+      "summary": "ffmpeg/ffprobe: verify video metadata (duration, resolution, codec) and extract frames so reviewers can look at them.",
+      "why": "Video goals get objective must checks (ffprobe) and frame extraction for review; without it acceptance falls back to file-exists checks.",
+      "tier": "optional",
+      "source": {
+        "type": "cli",
+        "detect": "ffprobe",
+        "install": "brew install ffmpeg",
+        "docs": "https://ffmpeg.org"
+      },
+      "roles": [
+        "worker",
+        "reviewer-task",
+        "reviewer-goal"
+      ],
+      "tags": [
+        "video",
+        "checks"
+      ],
+      "aliases": [],
+      "scenarios": [
+        "video"
       ]
     }
   ]

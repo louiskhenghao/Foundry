@@ -62,10 +62,32 @@ export const BriefQuestion = z.object({
   areaKey: z.string().nullable().default(null),
   /** suggested answers rendered as choices (free text always allowed); the first one is the Clarifier's recommendation */
   options: z.array(z.string()).default([]),
+  /** style = the engine-generated style-direction question; its options are Style Proposal names rendered as visual cards */
+  kind: z.enum(['text', 'style']).default('text'),
   /** an answered question is a Decision; true once a Revise honoured it (or the human said no change was needed) */
   applied: z.boolean().default(false),
 });
 export type BriefQuestion = z.infer<typeof BriefQuestion>;
+
+/**
+ * A Style Proposal: one visual direction for a media or UI goal, proposed during Clarify and rendered
+ * as a card the human can *see* before any expensive generation starts. The chosen one becomes a
+ * Decision and its full parameters constrain every worker and reviewer.
+ */
+export const BriefStyleOption = z.object({
+  key: z.string(),
+  name: z.string(),
+  /** hex colors, dominant first */
+  palette: z.array(z.string()).default([]),
+  fonts: z.array(z.string()).default([]),
+  keywords: z.array(z.string()).default([]),
+  description: z.string().default(''),
+  /** generated sample images (workspace-relative under artifacts/samples/), oldest first — regenerating appends, never replaces */
+  samples: z.array(z.string()).default([]),
+  /** the sample the human picked as the visual anchor; workers receive it as a reference image */
+  chosenSample: z.string().nullable().default(null),
+});
+export type BriefStyleOption = z.infer<typeof BriefStyleOption>;
 
 export const Brief = z.object({
   goalId: z.string(),
@@ -79,6 +101,8 @@ export const Brief = z.object({
   costEstimateUsd: z.number().nonnegative(),
   timeEstimateMin: z.number().nonnegative(),
   questions: z.array(BriefQuestion),
+  /** visual directions for media/UI goals; non-empty ⇒ the engine adds a blocking style question */
+  styleOptions: z.array(BriefStyleOption).default([]),
 });
 export type Brief = z.infer<typeof Brief>;
 
@@ -93,8 +117,8 @@ const OutputTask = z.object({
   kind: z.enum(['feature', 'bug', 'refactor', 'research', 'chore']).describe('feature = new behaviour; bug = something is broken and must be reproduced first; refactor = behaviour-preserving restructure; research = a spike whose output is knowledge, not production code; chore = config/tooling.'),
   scope: z.string().nullable().describe('Conventional Commits scope (e.g. "quotes", "api", "ui"); null = use the Area slug.'),
   scenario: z
-    .enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'general'])
-    .describe('Where the work happens: frontend = UI, pages, styling, components; backend = APIs, services, database; fullstack = substantial changes on both sides; data = data processing, scripts, analysis; mobile = native/mobile app; infra = CI, build, deploy, configuration; docs = documentation only; general = anything else.'),
+    .enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'general'])
+    .describe('Where the work happens: frontend = UI, pages, styling, components; backend = APIs, services, database; fullstack = substantial changes on both sides; data = data processing, scripts, analysis; mobile = native/mobile app; infra = CI, build, deploy, configuration; docs = documentation/prose writing; research = investigation whose output is a cited report; image = generating or editing images; video = generating or editing video/audio; general = anything else.'),
   areaKey: z.string().describe('Key of the Area this task belongs to.'),
   dependsOnKeys: z.array(z.string()),
   parallelizable: z.boolean(),
@@ -115,6 +139,10 @@ const OutputCheck = z.object({
 export const BriefOutput = z.object({
   title: z.string().describe('One Conventional Commits header for the whole goal, e.g. "feat(site): add resort landing page". ≤ 72 chars. Used as the pull request title.'),
   understanding: z.string().describe('Your understanding of the goal in 3-8 sentences.'),
+  nature: z
+    .enum(['code', 'docs', 'research', 'image', 'video'])
+    .default('code')
+    .describe('What the goal produces: code = software changes; docs = prose/documents; research = an investigation ending in a cited report; image = generated/edited images; video = generated/edited video or audio. Pick the dominant one for mixed goals.'),
   areas: z
     .array(
       z.object({
@@ -141,6 +169,19 @@ export const BriefOutput = z.object({
       }),
     )
     .describe('Questions you could not safely assume. Prefer assumptions over questions.'),
+  styleOptions: z
+    .array(
+      z.object({
+        key: z.string().describe('Short unique key, e.g. S1'),
+        name: z.string().describe('Short evocative name, e.g. "Warm izakaya night".'),
+        palette: z.array(z.string()).describe('3-6 hex colors, dominant first.'),
+        fonts: z.array(z.string()).describe('1-3 typeface suggestions (family names).'),
+        keywords: z.array(z.string()).describe('3-6 style keywords (lighting, mood, medium, era…).'),
+        description: z.string().describe('One or two sentences: the feel, composition and references of this direction.'),
+      }),
+    )
+    .default([])
+    .describe('Visual directions for the human to SEE and pick from before generation starts. REQUIRED for image/video goals and UI-heavy code goals: 2-4 distinct directions, YOUR recommendation first. Empty for prose/research/backend goals.'),
 });
 export type BriefOutput = z.infer<typeof BriefOutput>;
 

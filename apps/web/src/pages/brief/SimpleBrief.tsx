@@ -3,6 +3,7 @@ import { Check, Settings2 } from 'lucide-react';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { Badge, Button, Card, Input, cn, fmtLimitMin, fmtLimitUsd } from '../../ui.tsx';
 import { areaStyle } from './shared.ts';
+import { StyleCards } from './StyleCards.tsx';
 
 /**
  * The Brief as a non-technical reader needs it: what the system understood, what it will build, the questions
@@ -47,7 +48,7 @@ export function SimpleBrief(p: {
       {brief.questions.length > 0 && (
         <Card title={blockingUnanswered.length ? `Please answer (${blockingUnanswered.length})` : 'Questions'}>
           <div className="space-y-3">
-            {brief.questions.map((q, i) => (
+            {brief.questions.map((q, i) => (q.kind === 'style' && brief.styleOptions.length ? <StyleCards key={q.id} goalId={g.id} brief={brief} question={q} editable={editable} update={update} /> : (
               <div key={q.id}>
                 <div className="text-sm text-zinc-200 mb-1">
                   {q.blocking && <Badge state="must">needed</Badge>} {q.text}
@@ -71,7 +72,7 @@ export function SimpleBrief(p: {
                 )}
                 <Input disabled={!editable} placeholder={q.options.length ? 'Pick an option or type your own answer' : 'Your answer'} value={q.answer ?? ''} onChange={(e) => update({ questions: brief.questions.map((x, j) => (j === i ? { ...x, answer: e.target.value, applied: false } : x)) })} />
               </div>
-            ))}
+            )))}
           </div>
           {p.pendingDecisions > 0 && <p className="text-[11px] text-amber-300 mt-2">Your answers reach every worker. If they change what should be built, use Expert view → Revise with answers so the plan below follows them.</p>}
         </Card>

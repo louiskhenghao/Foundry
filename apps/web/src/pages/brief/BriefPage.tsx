@@ -10,6 +10,7 @@ import { Badge, Button, Card, Empty, Input, Textarea, cn, fmtLimitMin, fmtLimitU
 import { LiveLog } from '../LiveLog.tsx';
 import { AreasCard } from './AreasCard.tsx';
 import { CompletionCard, type CompletionChoice } from './CompletionCard.tsx';
+import { StyleCards } from './StyleCards.tsx';
 import { DecisionsBar } from './DecisionsBar.tsx';
 import { GoalAcceptanceCard } from './GoalAcceptanceCard.tsx';
 import { PlanSection } from './PlanSection.tsx';
@@ -187,6 +188,7 @@ export function BriefPage() {
           <div className="space-y-3">
             {brief.questions.map((q, i) => {
               const area = areaOf(brief, q.areaKey);
+              if (q.kind === 'style' && brief.styleOptions.length) return <StyleCards key={q.id} goalId={id} brief={brief} question={q} editable={editable} update={update} />;
               return (
                 <div key={q.id}>
                   <div className="text-sm text-zinc-200 mb-1 flex items-start gap-2 flex-wrap">

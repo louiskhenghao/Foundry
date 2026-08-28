@@ -10,8 +10,8 @@ export const TaskOrigin = z.enum(['brief', 'goal-review-fix', 'merge', 'delivery
 export const TaskKind = z.enum(['feature', 'bug', 'refactor', 'research', 'chore']);
 export type TaskKind = z.infer<typeof TaskKind>;
 
-/** The area a task works in; selects scenario-specific skills (design packs for UI work, …). */
-export const TaskScenario = z.enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'general']);
+/** The area a task works in; selects scenario-specific skills (design packs for UI work, image/video packs for media, …). */
+export const TaskScenario = z.enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'general']);
 export type TaskScenario = z.infer<typeof TaskScenario>;
 export const TASK_SCENARIOS = TaskScenario.options;
 

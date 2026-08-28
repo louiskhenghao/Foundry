@@ -76,13 +76,16 @@ Every notice names the goal and the task and links straight to the task view; th
 | *autoskills: skipped — no stack manifest … retried after each task until one appears* | Empty-repository goal: nothing to detect yet. After each task lands the engine checks again; the task that creates package.json (or another manifest) triggers the install, and live task worktrees receive the skills. |
 | *graph refresh: graphify ok, gitnexus skipped* | Completion action after the goal was delivered (or at done for local goals): `graphify update` (and `gitnexus analyze` when installed) re-indexed the delivered code. `skipped` = tool not on PATH, `pull skipped` = the user's checkout could not be fast-forwarded (dirty/diverged) — the refresh still ran where it could. |
 | *docs generation failed: …* | The Documenter session (after goal review, before done) failed; the goal still finishes. Details on `goal.docs_generated` and the Goal → Completion card; re-run by restarting the last task is not needed — docs can be written by hand or the goal restarted from goal review. |
+| *N artifact(s) delivered to …* | A media goal finished: the workspace's `artifacts/` was copied to the goal's output folder (`goal.artifacts_delivered`). No output folder set → the files stay in the goal workspace (Open ▾ → The result). |
+| *artifact delivery to … failed: …* | Copying artifacts to the output folder failed (permissions, missing disk). The goal still finishes; the files are intact in the goal workspace — copy them by hand or fix the folder and restart delivery is NOT needed. |
+| *[artifacts] task…: N file(s) copied to the goal workspace* | A media task integrated: its worktree's git-excluded `artifacts/` was rescued into the goal workspace before the worktree was dropped. |
 
 ## 6. What costs money, what does not
 
 - **Sessions** (worker, reviewer, merger, clarifier, goal reviewer, draft/revise) cost; everything the engine does in git, checks and worktrees is free (time only).
 - **Continuations are cheaper than attempts**: a resumed session reuses its context (prompt-cached); a fresh attempt re-reads the repository. That is why cut sessions and progressing sessions are resumed first.
 - **Baseline checks** run the goal's must commands once per goal-branch commit in a throw-away worktree — time, not tokens.
-- **Draft with AI** ≤ $2, **Revise with answers** ≤ $3, a Merge Attempt ≤ $2, the **Documenter** ≤ $3 (only when the goal's Completion docs are on), a task reviewer a few cents. The graph refresh is free (no LLM). The Usage page has the per-kind ledger.
+- **Draft with AI** ≤ $2, **Revise with answers** ≤ $3, a Merge Attempt ≤ $2, the **Documenter** ≤ $3 (only when the goal's Completion docs are on), a **Style sample** ≤ $0.5 per click (max 8 per direction; earlier samples are kept), a task reviewer a few cents. The graph refresh is free (no LLM). **Fast-pace goals** skip the free task/goal reviews and generated docs entirely — approved checks still run. The Usage page has the per-kind ledger.
 
 ## 7. Restarting the engine safely
 
@@ -95,3 +98,9 @@ Every notice names the goal and the task and links straight to the task view; th
 - Semantic conflicts (each side's tests pass, the combination is wrong) — caught by goal-level checks and the Goal reviewer, fixed by fix tasks or you.
 - A task that edits a shared file it did not declare in `relevantFiles` — the scheduler cannot see the overlap; catch-up and Merge Attempts handle the resulting conflict, manual resolution is the last resort.
 - A goal whose suite is red for unrelated reasons: merges flow (baseline), but the goal cannot finish until the suite is green — the goal review's fix task or you.
+
+## 9. Image goals need an image backend
+
+- The image pack (`gpt-image-2`) only *generates* when sessions see `OPENAI_API_KEY` (any OpenAI-compatible endpoint; `OPENAI_BASE_URL` overrides the host). Without it the skill degrades to advisory mode and workers hand-author SVG/HTML renders — noticeably lower fidelity.
+- The normal way to provide the key is **Settings → Tools → *OpenAI-compatible API key***: stored in `data/settings.json`, applied to the next session immediately — no restart. Alternatively put it in `.env` at the repo root (gitignored; Bun loads it when the engine starts). Either way sessions inherit it — the key is visible to every session.
+- When the key is missing you will see it: the skills Doctor warns (*gpt-image-2 backend*), the worker's prompt carries a ⚠ degraded-mode note, and the Clarifier records an explicit assumption on image goals so you can reject it before approving the Brief.

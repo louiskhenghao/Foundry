@@ -1,7 +1,7 @@
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { Attempt, Check, CheckResult, Goal, ObservationReport, Task } from '@ai-engine/core';
-import { IdPrefix, bumpStat, getAttempt, getBrief, getObservation, listAttempts, listChecks, newId, renderDecisions } from '@ai-engine/core';
+import { IdPrefix, bumpStat, chosenStyle, getAttempt, getBrief, getObservation, listAttempts, listChecks, newId, renderDecisions } from '@ai-engine/core';
 import type { RunResult } from '@ai-engine/runner';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
 import { buildAttemptPrompt, summarizeReport } from './attempt-prompt.ts';
@@ -144,7 +144,9 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   const brief = getBrief(store.db, goal.id)?.brief;
   const areaDescription = task.area ? (brief?.areas.find((a) => a.name === task.area)?.description ?? '') : '';
   const decisions = brief ? renderDecisions(brief) : '';
-  const prompt = resume ? resume.message : buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription, decisions, baseMoved: opts.baseMoved ?? null });
+  // the chosen Style Proposal binds visual work; other scenarios never see it
+  const style = brief && ['image', 'video', 'frontend', 'fullstack'].includes(task.scenario) ? chosenStyle(brief) : null;
+  const prompt = resume ? resume.message : buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription, decisions, style, baseMoved: opts.baseMoved ?? null });
   // the -p prompt is not echoed in stream-json; keep it next to the transcript for inspection (continuations append)
   mkdirSync(dirname(attempt.transcriptPath!), { recursive: true });
   if (resume) appendFileSync(attempt.transcriptPath!.replace(/\.jsonl$/, '.prompt.md'), `\n\n---\n# Continuation (${resume.reason})\n${prompt}\n`);
@@ -239,7 +241,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
     // Nothing changed across all attempts yet every objective check passes: the task is already
     // satisfied by the tree as-is. The reviewer has nothing to judge; checks are the truth.
     store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `task ${task.id}: no changes needed — objective checks pass on the current tree` } });
-  } else if (objectivePassed && (reviewerChecks.length || engine.config.alwaysReviewTasks)) {
+  } else if (objectivePassed && (reviewerChecks.length || (engine.config.alwaysReviewTasks && goal.workflow.pace !== 'fast'))) {
     reviewerVerdict = await reviewTaskDiff(engine, goal, task, attempt, cwd, taskBaseRef, reviewerChecks, workflow).catch((err) => {
       store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `task reviewer failed: ${String(err)}` } });
       return null;

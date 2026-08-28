@@ -1,11 +1,13 @@
 import type { Task } from '@ai-engine/core/browser';
-import { useMemo } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { TaskTags } from '../../components/TaskTags.tsx';
 import { useElementWidth } from '../../hooks/useElementWidth.ts';
 import { Badge, cn, fmtUsd } from '../../ui.tsx';
 
 const MIN_W = 236;
 const MAX_W = 480;
-const H = 92;
+/** cards grow with their content; this only keeps near-empty ones from looking squashed */
+const MIN_H = 88;
 const GX = 72;
 const GY = 18;
 /** below this container width the graph is rendered as a vertical list */
@@ -22,8 +24,20 @@ export interface DagTask extends Task {
   plain?: { label: string | null; color: string };
 }
 
+interface Edge {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  state: string;
+  from: string;
+  to: string;
+}
+
 /**
- * Tasks laid out in columns by depth, with SVG dependency edges.
+ * Tasks laid out in columns by depth, with SVG dependency edges. Cards size to their content:
+ * columns are normal flex flow, and edge anchors are measured from the DOM after layout
+ * (re-measured on resize), so nothing is clipped by a guessed fixed height.
  * Column width stretches to fill the container (so a single task is not a narrow box hugging the left edge);
  * on narrow containers the graph degrades to a vertical list grouped by step.
  */
@@ -37,59 +51,108 @@ export function DagCanvas({ tasks, selected, onSelect }: { tasks: DagTask[]; sel
   const nCols = cols.size ? Math.max(...cols.keys()) + 1 : 1;
   // fill the available width, but keep nodes between MIN_W and MAX_W
   const nodeW = cw > 0 ? Math.max(MIN_W, Math.min(MAX_W, Math.floor((cw - (nCols - 1) * GX) / nCols))) : MIN_W;
+  const listMode = cw > 0 && cw < LIST_BREAKPOINT;
 
-  const layout = useMemo(() => {
-    const pos = new Map<string, { x: number; y: number }>();
-    let maxRows = 0;
-    for (const [d, ts] of cols) {
-      maxRows = Math.max(maxRows, ts.length);
-      ts.forEach((t, i) => pos.set(t.id, { x: d * (nodeW + GX), y: i * (H + GY) }));
-    }
-    const width = nCols * (nodeW + GX) - GX;
-    const height = Math.max(1, maxRows) * (H + GY) - GY;
-    const edges = tasks.flatMap((t) => t.dependsOn.map((d) => ({ from: pos.get(d), to: pos.get(t.id), state: tasks.find((x) => x.id === d)?.state ?? 'pending' })).filter((e) => e.from && e.to)) as { from: { x: number; y: number }; to: { x: number; y: number }; state: string }[];
-    return { pos, width, height, edges };
-  }, [tasks, cols, nodeW, nCols]);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const nodeRefs = useRef(new Map<string, HTMLDivElement>());
+  const [edges, setEdges] = useState<Edge[]>([]);
+  const [hovered, setHovered] = useState<string | null>(null);
+
+  useLayoutEffect(() => {
+    if (listMode) return;
+    const measure = () => {
+      const stateOf = new Map(tasks.map((t) => [t.id, t.state]));
+      const next: Edge[] = [];
+      for (const t of tasks)
+        for (const d of t.dependsOn) {
+          const from = nodeRefs.current.get(d);
+          const to = nodeRefs.current.get(t.id);
+          if (!from || !to) continue;
+          next.push({ x1: from.offsetLeft + from.offsetWidth, y1: from.offsetTop + from.offsetHeight / 2, x2: to.offsetLeft, y2: to.offsetTop + to.offsetHeight / 2, state: stateOf.get(d) ?? 'pending', from: d, to: t.id });
+        }
+      setEdges(next);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (wrapRef.current) ro.observe(wrapRef.current);
+    for (const el of nodeRefs.current.values()) ro.observe(el);
+    return () => ro.disconnect();
+  }, [tasks, nodeW, listMode]);
 
   if (!tasks.length) return <div className="text-sm text-zinc-500 py-8 text-center">No tasks yet.</div>;
 
-  const listMode = cw > 0 && cw < LIST_BREAKPOINT;
   const byId = new Map(tasks.map((t) => [t.id, t]));
+  const sorted = [...cols.entries()].sort(([a], [b]) => a - b);
+
+  // focused task (hover wins over selection) and its direct neighbourhood: those cards and edges pop, the rest fade
+  const focus = hovered ?? selected;
+  let related: Set<string> | null = null;
+  if (focus) {
+    related = new Set([focus]);
+    for (const t of tasks) {
+      if (t.id === focus) for (const d of t.dependsOn) related.add(d);
+      if (t.dependsOn.includes(focus)) related.add(t.id);
+    }
+  }
 
   return (
     <div ref={ref} className="w-full">
       {listMode ? (
         <div className="space-y-4">
-          {[...cols.entries()]
-            .sort(([a], [b]) => a - b)
-            .map(([depth, ts]) => (
-              <div key={depth}>
-                <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1.5">Step {depth + 1}</div>
-                <div className="space-y-2">
-                  {ts.map((t) => (
-                    <TaskNode key={t.id} t={t} selected={selected === t.id} onSelect={onSelect} className="w-full" style={{ minHeight: H }} after={t.dependsOn.map((d) => byId.get(d)?.title ?? d)} />
-                  ))}
-                </div>
+          {sorted.map(([depth, ts]) => (
+            <div key={depth}>
+              <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1.5">Step {depth + 1}</div>
+              <div className="space-y-2">
+                {ts.map((t) => (
+                  <TaskNode key={t.id} t={t} selected={selected === t.id} onSelect={onSelect} className="w-full" style={{ minHeight: MIN_H }} after={t.dependsOn.map((d) => byId.get(d)?.title ?? d)} />
+                ))}
               </div>
-            ))}
+            </div>
+          ))}
         </div>
       ) : (
         <div className="overflow-auto pb-2">
-          <div className="relative" style={{ width: layout.width, height: layout.height }}>
-            <svg className="absolute inset-0 pointer-events-none" width={layout.width} height={layout.height}>
-              {layout.edges.map((e, i) => {
-                const x1 = e.from.x + nodeW;
-                const y1 = e.from.y + H / 2;
-                const x2 = e.to.x;
-                const y2 = e.to.y + H / 2;
-                const c = (x2 - x1) / 2;
-                return <path key={i} d={`M ${x1} ${y1} C ${x1 + c} ${y1}, ${x2 - c} ${y2}, ${x2} ${y2}`} fill="none" stroke={STROKE[e.state] ?? '#52525b'} strokeWidth={1.5} strokeOpacity={0.8} />;
-              })}
+          <div ref={wrapRef} className="relative w-max">
+            <svg className="absolute inset-0 w-full h-full pointer-events-none">
+              {(() => {
+                const active = (e: Edge) => focus != null && (e.from === focus || e.to === focus);
+                return [...edges]
+                  .sort((a, b) => Number(active(a)) - Number(active(b)))
+                  .map((e) => {
+                    const c = (e.x2 - e.x1) / 2;
+                    return (
+                      <path
+                        key={`${e.from}-${e.to}`}
+                        d={`M ${e.x1} ${e.y1} C ${e.x1 + c} ${e.y1}, ${e.x2 - c} ${e.y2}, ${e.x2} ${e.y2}`}
+                        fill="none"
+                        stroke={STROKE[e.state] ?? '#52525b'}
+                        strokeWidth={active(e) ? 2.5 : 1.5}
+                        strokeOpacity={active(e) ? 1 : focus ? 0.15 : 0.55}
+                      />
+                    );
+                  });
+              })()}
             </svg>
-            {tasks.map((t) => {
-              const p = layout.pos.get(t.id)!;
-              return <TaskNode key={t.id} t={t} selected={selected === t.id} onSelect={onSelect} className="absolute" style={{ left: p.x, top: p.y, width: nodeW, height: H }} />;
-            })}
+            {/* positioned, and after the svg in the DOM: the cards paint over the edges, so lines only show in the gaps */}
+            <div className="relative flex items-start" style={{ columnGap: GX }}>
+              {sorted.map(([depth, ts]) => (
+                <div key={depth} className="flex flex-col" style={{ width: nodeW, rowGap: GY }}>
+                  {ts.map((t) => (
+                    <div
+                      key={t.id}
+                      ref={(el) => {
+                        if (el) nodeRefs.current.set(t.id, el);
+                        else nodeRefs.current.delete(t.id);
+                      }}
+                      onMouseEnter={() => setHovered(t.id)}
+                      onMouseLeave={() => setHovered((h) => (h === t.id ? null : h))}
+                    >
+                      <TaskNode t={t} selected={selected === t.id} onSelect={onSelect} linked={related != null && related.has(t.id) && t.id !== focus} dim={related != null && !related.has(t.id)} className="w-full" style={{ minHeight: MIN_H }} />
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -97,12 +160,12 @@ export function DagCanvas({ tasks, selected, onSelect }: { tasks: DagTask[]; sel
   );
 }
 
-function TaskNode({ t, selected, onSelect, className, style, after }: { t: DagTask; selected: boolean; onSelect: (id: string | null) => void; className?: string; style?: React.CSSProperties; after?: string[] }) {
+function TaskNode({ t, selected, linked, dim, onSelect, className, style, after }: { t: DagTask; selected: boolean; linked?: boolean; dim?: boolean; onSelect: (id: string | null) => void; className?: string; style?: React.CSSProperties; after?: string[] }) {
   return (
     <button
       onClick={() => onSelect(selected ? null : t.id)}
       style={style}
-      className={cn('text-left rounded-lg border p-2.5 bg-zinc-950/80 hover:border-zinc-500 transition', selected ? 'border-emerald-500 ring-1 ring-emerald-500/40' : 'border-zinc-800', t.state === 'running' && 'ring-1 ring-blue-500/40', className)}
+      className={cn('text-left rounded-lg border p-2.5 bg-zinc-950 hover:border-zinc-500 transition', selected ? 'border-emerald-500 ring-1 ring-emerald-500/40' : linked ? 'border-zinc-400 ring-1 ring-zinc-400/30' : 'border-zinc-800', t.state === 'running' && 'ring-1 ring-blue-500/40', dim && 'opacity-40', className)}
     >
       <div className="flex items-center justify-between gap-2">
         {t.plain ? (
@@ -113,17 +176,18 @@ function TaskNode({ t, selected, onSelect, className, style, after }: { t: DagTa
         ) : (
           <Badge state={t.state} />
         )}
-        <span className="text-[10px] text-zinc-500 mono">
+        <span className="text-[10px] text-zinc-500 mono whitespace-nowrap">
           {t.plain ? t.id : `${t.attempts}/${t.maxAttempts}`}
+          {!t.plain && t.lastCost != null && <span className="ml-1">{fmtUsd(t.lastCost)}</span>}
           {t.origin !== 'brief' && <span className="ml-1 text-zinc-600">{t.origin}</span>}
         </span>
       </div>
-      <div className="text-[13px] mt-1.5 text-zinc-100 line-clamp-2 leading-snug">{t.title}</div>
-      <div className="text-[10px] text-zinc-500 mt-1 flex gap-2 flex-wrap">
-        {t.worktreePath && <span>own worktree</span>}
-        {t.lastCost != null && <span>{fmtUsd(t.lastCost)}</span>}
-        {after && after.length > 0 && <span className="truncate">after: {after.join(', ')}</span>}
+      <div className="text-[13px] mt-1.5 text-zinc-100 leading-snug">{t.title}</div>
+      <div className="mt-1 flex items-center gap-x-1.5 gap-y-1 flex-wrap">
+        <TaskTags kind={t.kind} scenario={t.scenario} area={t.plain ? null : t.area} />
+        {t.worktreePath && t.state !== 'done' && <span className="text-[10px] text-zinc-500 whitespace-nowrap">own worktree</span>}
       </div>
+      {after && after.length > 0 && <div className="text-[10px] text-zinc-500 mt-1 truncate">after: {after.join(', ')}</div>}
     </button>
   );
 }

@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import type { Attachment, Brief, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalWorkflow, ModelConfig, Task, Check } from '@ai-engine/core';
+import type { Attachment, Brief, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalWorkflow, ModelConfig, Task, Check } from '@ai-engine/core';
 import {
   BUDGET_PRESETS,
   Budgets,
@@ -8,6 +8,7 @@ import {
   proposeBudgetFromEstimate,
   renderDecisions,
   IDLE_COMPLETION,
+  MEDIA_NATURES,
   EventStore,
   IdPrefix,
   getAttempt,
@@ -55,7 +56,7 @@ import { SettingsStore, applySettingsToConfig } from './settings.ts';
 import { ModelFallbackRunner } from './models/fallback-runner.ts';
 import { ModelRegistry, SEED_MODELS, isPinnedId, type ModelRecord } from './models/registry.ts';
 import { copyProjectSkills, hasStackManifest, runAutoskills, type AutoskillsDeps } from './skills/autoskills.ts';
-import { inferCompletion, runGraphRefresh, shouldRunGraphRefresh, type GraphRefreshDeps } from './completion.ts';
+import { deliverArtifacts, inferCompletion, runGraphRefresh, shouldRunGraphRefresh, type GraphRefreshDeps } from './completion.ts';
 import type { SettingsPatch, SettingsView } from '@ai-engine/core';
 import { spawnStreaming } from './skills/updaters.ts';
 import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
@@ -84,6 +85,10 @@ export interface CreateGoalInput {
   mode?: GoalMode;
   /** engineering discipline; Simple mode defaults tdd to `preferred`, Expert to the Settings default */
   workflow?: Partial<GoalWorkflow>;
+  /** what the goal produces; auto (default) = the Clarifier decides. Non-code goals open in Simple mode unless mode says otherwise. */
+  nature?: GoalNature;
+  /** where media artifacts are copied at done; null = they stay in the goal workspace */
+  outputDir?: string | null;
 }
 
 interface InFlight {
@@ -103,6 +108,8 @@ export class Engine {
   private delivering = new Map<string, AbortController>();
   /** post-completion graph refreshes in progress, per goal */
   private completing = new Set<string>();
+  /** artifact deliveries in progress, per goal */
+  private deliveringArtifacts = new Set<string>();
 
   private streamListeners = new Set<StreamListener>();
   private escalationListeners = new Set<(e: Escalation) => void>();
@@ -145,7 +152,7 @@ export class Engine {
       new ClaudeCliRunner({
         claudeBin: config.claudeBin,
         maxConcurrent: config.maxConcurrent,
-        env: { AI_ENGINE_CALLBACK: `http://${config.host}:${config.port}` },
+        env: () => ({ AI_ENGINE_CALLBACK: `http://${config.host}:${config.port}`, ...this.sessionEnvExtra() }),
         log: config.log,
       });
     this.models = new ModelRegistry(config.dataDir);
@@ -171,7 +178,8 @@ export class Engine {
       // user skills only load when user settings are in scope
       hintsEnabled: () => !config.settingSources || config.settingSources.includes('user'),
       workflowProfile: () => config.workflowProfile ?? 'mattpocock',
-      packs: () => ({ design: config.designPack }),
+      packs: () => ({ design: config.designPack, image: config.imagePack, video: config.videoPack }),
+      envProbe: (name) => !!(process.env[name] ?? this.sessionEnvExtra()[name]),
       // every updater run is an audit event (goalId null, informational)
       onRun: (run) => this.store.append({ type: 'skills.update_run', goalId: null, payload: { sourceId: run.sourceId, updater: run.updater, command: run.command, cwd: run.cwd, exitCode: run.exitCode, durationMs: run.durationMs, outputTail: run.outputTail, changed: run.changed, error: run.error } }),
     });
@@ -182,6 +190,19 @@ export class Engine {
     this.store.subscribe((e) => {
       if (e.goalId) this.tick(e.goalId);
     });
+  }
+
+  /** env vars the engine adds to every session on top of its own process.env (settings-sourced secrets) */
+  sessionEnvExtra(): Record<string, string> {
+    return {
+      ...(this.config.openaiApiKey ? { OPENAI_API_KEY: this.config.openaiApiKey } : {}),
+      ...(this.config.openaiBaseUrl ? { OPENAI_BASE_URL: this.config.openaiBaseUrl } : {}),
+    };
+  }
+
+  /** can media sessions actually generate images here (key present in the env sessions inherit)? */
+  imageGenAvailable(): boolean {
+    return !!(process.env.OPENAI_API_KEY ?? this.config.openaiApiKey);
   }
 
   private buildContext(): ContextProvider {
@@ -215,6 +236,8 @@ export class Engine {
     }
     if (changed.includes('tools.markitdownBin')) this.markitdown = new Markitdown({ bin: this.config.markitdownBin, log: this.config.log });
     if (changed.some((k) => k.startsWith('workflow.'))) this.skills.hints.invalidate();
+    // the key feeds the skills env probe (degraded-mode warnings) — refresh the cached statuses right away
+    if (changed.includes('tools.openaiApiKey') || changed.includes('tools.openaiBaseUrl')) this.skills.hints.invalidate();
     const restartNeeded = this.settings.restartNeeded();
     this.store.append({ type: 'settings.changed', goalId: null, payload: { keys: changed, restartNeeded } });
     this.config.log(`[settings] changed ${changed.join(', ')}${restartNeeded.length ? ` (restart needed for ${restartNeeded.join(', ')})` : ''}`);
@@ -346,7 +369,11 @@ export class Engine {
     for (const g of listGoals(this.store.db)) this.tick(g.id);
   }
 
+  /** set by stop(): no new ticks run, so nothing writes to the store after shutdown (tests delete it right after) */
+  private stopped = false;
+
   async stop(): Promise<void> {
+    this.stopped = true;
     if (this.resumeTimer) {
       clearTimeout(this.resumeTimer);
       this.resumeTimer = null;
@@ -355,6 +382,11 @@ export class Engine {
     // reviews, clarify, merges and probes are not in `inFlight`: kill every child the runner still owns
     const n = (this.runner as { killAll?: () => number }).killAll?.() ?? 0;
     if (n) this.config.log(`[engine] stopped ${n} claude session(s) on shutdown`);
+    // drain what is already in flight (bounded): a tick writing to a database the caller is about to delete
+    // was the source of cross-file test flakes
+    const t0 = Date.now();
+    while (this.busy().total > 0 && Date.now() - t0 < 3000) await new Promise((r) => setTimeout(r, 25));
+    await Promise.allSettled([...this.chains.values()]);
   }
 
   private async reconcile(): Promise<void> {
@@ -643,6 +675,7 @@ export class Engine {
   }
 
   private async runTick(goalId: string): Promise<void> {
+    if (this.stopped) return;
     const goal = getGoal(this.store.db, goalId);
     if (!goal) return;
     if (this.isRateLimited()) return; // resume timer will tick again
@@ -658,6 +691,13 @@ export class Engine {
         return;
       case 'done':
       case 'over_delivered': {
+        // media artifacts leave the workspace first (independent of delivery mode — they never ride a PR)
+        if (!goal.completion.artifactsRun && !this.deliveringArtifacts.has(goalId)) {
+          this.deliveringArtifacts.add(goalId);
+          void deliverArtifacts(this, goal)
+            .catch((err) => this.store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `artifact delivery crashed: ${String(err)}` } }))
+            .finally(() => this.deliveringArtifacts.delete(goalId));
+        }
         // graph refresh: after delivery for goals that leave the machine, right away for local ones
         if (shouldRunGraphRefresh(goal) && !this.completing.has(goalId)) {
           this.completing.add(goalId);
@@ -702,7 +742,9 @@ export class Engine {
     if (baseBranch === 'HEAD') throw new Error('repository is in detached HEAD state; pass --base <branch>');
     const now = new Date().toISOString();
     const id = newId(IdPrefix.goal);
-    const mode: GoalMode = input.mode ?? this.config.defaultGoalMode;
+    const nature: GoalNature = input.nature ?? 'auto';
+    // anyone-facing default: a goal that produces prose or media opens in the plain-language view
+    const mode: GoalMode = input.mode ?? (nature !== 'auto' && nature !== 'code' ? 'simple' : this.config.defaultGoalMode);
     const goal: Goal = {
       id,
       title: input.title?.trim() || input.prompt.trim().split('\n')[0]!.slice(0, 80),
@@ -713,7 +755,14 @@ export class Engine {
       budgets: Budgets.parse({ ...BUDGET_PRESETS[input.budgetPreset ?? 'custom'].budgets, ...(input.budgets ?? {}) }),
       budgetPreset: input.budgetPreset ?? 'custom',
       mode,
-      workflow: { tdd: input.workflow?.tdd ?? (mode === 'simple' ? 'preferred' : this.config.workflowTdd) },
+      nature,
+      outputDir: input.outputDir ?? null,
+      workflow: (() => {
+        // media goals default to fast: their deliverables are judged by the human's eye, not by $5 review sessions
+        const pace = input.workflow?.pace ?? (MEDIA_NATURES.includes(nature) ? 'fast' : this.config.workflowPace);
+        // fast goals run only what the Brief asks for: no TDD mandate unless the caller insists
+        return { pace, tdd: input.workflow?.tdd ?? (pace === 'fast' ? ('off' as const) : mode === 'simple' ? ('preferred' as const) : this.config.workflowTdd) };
+      })(),
       models: { ...this.config.models, ...(input.models ?? {}) },
       state: 'draft',
       stateBeforeBlock: null,
@@ -916,7 +965,7 @@ export class Engine {
     const ws = await this.ensureSyncedWorkspace(goal);
     this.startAutoskills(goal, ws);
     // completion actions: what the UI sent, holes filled from the Brief (Simple mode and API callers send nothing)
-    const inferred = inferCompletion(brief, ws);
+    const inferred = inferCompletion(brief, ws, goal.workflow.pace);
     this.store.append({
       type: 'goal.completion_set',
       goalId,
@@ -942,8 +991,8 @@ export class Engine {
         scope: t.scope?.trim() || area?.slug || null,
         scenario: t.scenario ?? 'general',
         area: area?.name ?? null,
-        // docs and infra work gets no TDD mandate regardless of the goal's discipline
-        tdd: t.tdd === 'off' || t.scenario === 'docs' || t.scenario === 'infra' ? 'off' : 'inherit',
+        // docs, infra, research and media work gets no TDD mandate regardless of the goal's discipline
+        tdd: t.tdd === 'off' || ['docs', 'infra', 'research', 'image', 'video'].includes(t.scenario ?? 'general') ? 'off' : 'inherit',
         dependsOn: t.dependsOnKeys.map((k) => idByKey.get(k)!),
         relevantFiles: t.relevantFiles,
         parallelizable: t.parallelizable,
@@ -1145,5 +1194,6 @@ function autoBrief(goal: Goal, must: string[], stretch: string[]): Brief {
     costEstimateUsd: 1,
     timeEstimateMin: 15,
     questions: [],
+    styleOptions: [],
   };
 }

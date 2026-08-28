@@ -6,7 +6,7 @@ import { newId } from '@ai-engine/core';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
 import { tryJson } from './checks/reviewer.ts';
-import { materializeCheck } from './clarify.ts';
+import { materializeCheck, natureScenario } from './clarify.ts';
 import type { Engine } from './engine.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
 
@@ -57,9 +57,12 @@ export async function runDraft(engine: Engine, goal: Goal, req: DraftRequest): P
   const area = req.areaKey ? brief.areas.find((a) => a.key === req.areaKey) : undefined;
   if (req.mode === 'area' && !area) throw new Error(`area ${req.areaKey} is not in the Brief`);
 
+  const channel = `draft-${goal.id}`;
+  const say = (text: string) => engine.broadcast({ goalId: goal.id, taskId: null, attemptId: channel, event: { kind: 'text', text }, ts: new Date().toISOString() });
+  say(req.mode === 'revise' ? '— revision requested: syncing the workspace, then the Clarifier re-reads the Brief and the repository…' : '— draft requested: syncing the workspace, then a read-only session explores the repository…');
   const ws = await engine.ensureSyncedWorkspace(goal);
   const overview = await engine.context.overview(ws).catch(() => null);
-  const hint = await engine.skills.hints.sectionFor('clarifier');
+  const hint = await engine.skills.hints.sectionFor('clarifier', { scenario: natureScenario(goal.nature) });
   const attachments = [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n');
   const outputSchema = req.mode === 'area' ? AreaDraftOutput : req.mode === 'revise' ? RevisionOutput : TaskDraftOutput;
   const schema = zodToJsonSchema(outputSchema, { $refStrategy: 'none' });
@@ -91,7 +94,7 @@ export async function runDraft(engine: Engine, goal: Goal, req: DraftRequest): P
   let cost = 0;
   const exec = async (p: string, resume?: string) => {
     const handle = await run(p, resume);
-    for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: `draft-${goal.id}`, event: ev, ts: new Date().toISOString() });
+    for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: channel, event: ev, ts: new Date().toISOString() });
     const result = await handle.result;
     cost += result.costUsd;
     store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source } });
@@ -176,7 +179,8 @@ function toRevisedBrief(current: Brief, out: RevisionOutput): Omit<Brief, 'goalI
     tasks: out.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind ?? 'feature', scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys.filter((k) => taskKeys.has(k) && k !== t.key), parallelizable: t.parallelizable, relevantFiles: t.relevantFiles })),
     costEstimateUsd: out.costEstimateUsd,
     timeEstimateMin: out.timeEstimateMin,
-    questions: [...current.questions, ...out.newQuestions.map((q) => ({ id: newId('q'), text: q.text, answer: null, blocking: false, areaKey: area(q.areaKey), options: [], applied: false }))],
+    questions: [...current.questions, ...out.newQuestions.map((q) => ({ id: newId('q'), text: q.text, answer: null, blocking: false, areaKey: area(q.areaKey), options: [], kind: 'text' as const, applied: false }))],
+    styleOptions: current.styleOptions,
   };
 }
 

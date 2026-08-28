@@ -5,26 +5,62 @@
  *   leave the machine, at `done` for local ones — so the knowledge graph reflects the code that actually landed.
  * Failures never block the goal: every outcome is recorded on `goal.completion_ran` and the goal stays done.
  */
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { cpSync, existsSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import type { Brief, DocType, Goal } from '@ai-engine/core';
-import { pendingDecisions } from '@ai-engine/core';
+import { MEDIA_NATURES, pendingDecisions } from '@ai-engine/core';
 import type { Engine } from './engine.ts';
 import { exec } from './git/git.ts';
 import { pullFastForward } from './git/sync.ts';
-import { goalWorkspacePath } from './workspace.ts';
+import { ARTIFACTS_DIR, goalWorkspacePath, listArtifacts } from './workspace.ts';
 
 /** Task scenarios that mean the goal changes code (research/video/docs-only goals have none of these). */
 const CODE_SCENARIOS = new Set(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra']);
 
 /** Defaults when the UI sends nothing (Simple mode, API callers): inferred from the Brief. */
-export function inferCompletion(brief: Brief, ws: string): { graphRefresh: boolean; docs: DocType[]; reason: string } {
+export function inferCompletion(brief: Brief, ws: string, pace: 'thorough' | 'fast' = 'thorough'): { graphRefresh: boolean; docs: DocType[]; reason: string } {
   const code = brief.tasks.some((t) => CODE_SCENARIOS.has(t.scenario ?? 'general'));
+  if (pace === 'fast') return { graphRefresh: code, docs: [], reason: 'fast pace: no generated docs' };
   const docs: DocType[] = [];
   if (code) docs.push('to-prd', 'readme-update');
   if (code && existsSync(join(ws, 'CHANGELOG.md'))) docs.push('changelog');
   if (pendingDecisions(brief).length) docs.push('to-questionnaire');
   return { graphRefresh: code, docs, reason: code ? 'inferred: coding goal' : 'inferred: no coding tasks' };
+}
+
+/**
+ * Copy the goal workspace's artifacts/ to the goal's output folder when the goal finishes.
+ * Never throws and never blocks the goal; the outcome lands on `goal.artifacts_delivered`.
+ * Media goals without an output folder get a `skipped` record (the artifacts stay in the workspace);
+ * other goals with no artifacts get no record at all.
+ */
+export async function deliverArtifacts(engine: Engine, goal: Goal): Promise<void> {
+  const { store, config } = engine;
+  if (goal.completion.artifactsRun) return;
+  const ws = goalWorkspacePath(config.dataDir, goal.id);
+  const files = listArtifacts(ws);
+  const record = (payload: { status: 'ok' | 'skipped' | 'failed'; files: string[]; dest: string; detail: string }) => store.append({ type: 'goal.artifacts_delivered', goalId: goal.id, payload });
+  if (!files.length) {
+    if (MEDIA_NATURES.includes(goal.nature)) record({ status: 'skipped', files: [], dest: goal.outputDir ?? '', detail: 'no artifacts were produced' });
+    return;
+  }
+  if (!goal.outputDir) {
+    record({ status: 'skipped', files, dest: '', detail: `no output folder set — ${files.length} artifact(s) stay in the goal workspace (Open ▾)` });
+    return;
+  }
+  try {
+    for (const f of files) {
+      const dest = join(goal.outputDir, f);
+      mkdirSync(dirname(dest), { recursive: true });
+      cpSync(join(ws, ARTIFACTS_DIR, f), dest);
+    }
+    record({ status: 'ok', files, dest: goal.outputDir, detail: `${files.length} artifact(s) copied` });
+    store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `${files.length} artifact(s) delivered to ${goal.outputDir}` } });
+    config.log(`[completion] ${goal.id}: ${files.length} artifact(s) → ${goal.outputDir}`);
+  } catch (err) {
+    record({ status: 'failed', files, dest: goal.outputDir, detail: String((err as Error).message ?? err).slice(0, 300) });
+    store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `artifact delivery to ${goal.outputDir} failed: ${String((err as Error).message ?? err).slice(0, 200)}` } });
+  }
 }
 
 /** Per-tool argv for the graph refresh; a tool that is not on PATH is recorded as skipped. */

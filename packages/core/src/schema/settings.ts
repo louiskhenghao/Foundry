@@ -9,6 +9,12 @@ import { DeliveryMode, DeliveryUnit } from './delivery.ts';
 export const DesignPack = z.enum(['ui-ux-pro-max', 'frontend-design', 'impeccable', 'bencium', 'garden', 'none']);
 export type DesignPack = z.infer<typeof DesignPack>;
 
+export const ImagePack = z.enum(['gpt-image-2', 'none']);
+export type ImagePack = z.infer<typeof ImagePack>;
+
+export const VideoPack = z.enum(['web-video-presentation', 'mmx-cli', 'none']);
+export type VideoPack = z.infer<typeof VideoPack>;
+
 export const EngineSettings = z.object({
   port: z.number().int().min(1).max(65535).default(4111),
   host: z.string().min(1).default('127.0.0.1'),
@@ -39,6 +45,12 @@ export const WorkflowSettings = z.object({
   /** which view new goals open in */
   defaultMode: GoalMode.default('expert'),
   designPack: DesignPack.default('ui-ux-pro-max'),
+  /** pace new goals start with: fast skips the engine's own AI reviews (approved checks always run) */
+  defaultPace: z.enum(['thorough', 'fast']).default('thorough'),
+  /** which image-generation skill set media workers follow (scenario `image`) */
+  imagePack: ImagePack.default('gpt-image-2'),
+  /** which video skill set media workers follow (scenario `video`) */
+  videoPack: VideoPack.default('web-video-presentation'),
   /** run `npx autoskills` in each goal's workspace to install skills matching the repository's stack */
   autoskills: z.boolean().default(true),
   /** `--setting-sources` for sessions; null = inherit everything */
@@ -68,6 +80,10 @@ export const SyncSettings = z.object({
 export const ToolSettings = z.object({
   useGraphify: z.boolean().default(true),
   markitdownBin: z.string().nullable().default(null),
+  /** OpenAI-compatible API key handed to sessions as OPENAI_API_KEY (image generation via the image pack); null = whatever the engine's own environment has */
+  openaiApiKey: z.string().nullable().default(null),
+  /** endpoint override handed to sessions as OPENAI_BASE_URL (proxies, compatible providers); null = provider default */
+  openaiBaseUrl: z.string().nullable().default(null),
 });
 export const SafetySettings = z.object({
   /** extra ERE patterns for the boundary guard, '|'-separated */

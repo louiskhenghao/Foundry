@@ -50,7 +50,7 @@ export const CatalogSource = z.discriminatedUnion('type', [
 export type CatalogSource = z.infer<typeof CatalogSource>;
 
 export const TaskKindForSkill = z.enum(['feature', 'bug', 'refactor', 'research', 'chore', 'any']);
-export const SkillScenario = z.enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'general']);
+export const SkillScenario = z.enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'general']);
 export type SkillScenario = z.infer<typeof SkillScenario>;
 
 /** How a role must/should use a skill inside the engine's own workflow (see ADR-0004). */
@@ -92,6 +92,8 @@ export const CatalogEntry = z.object({
   packOption: z.string().optional(),
   /** scenarios this entry is relevant to (filters the "other installed skills" tail); empty = any */
   scenarios: z.array(SkillScenario).default([]),
+  /** env vars the skill needs to work fully (e.g. an API key); sessions without them get a degraded-mode warning */
+  requiresEnv: z.array(z.string()).default([]),
   workflow: z.array(WorkflowRule).default([]),
 });
 export type CatalogEntry = z.infer<typeof CatalogEntry>;
@@ -182,6 +184,8 @@ export const CatalogEntryStatus = z.object({
   detail: z.string(),
   /** for cli/manual: the command the human must run */
   manual: z.object({ command: z.string(), docs: z.string().nullable() }).nullable(),
+  /** entry.requiresEnv vars that sessions will NOT have — the skill runs degraded */
+  missingEnv: z.array(z.string()).default([]),
 });
 export type CatalogEntryStatus = z.infer<typeof CatalogEntryStatus>;
 

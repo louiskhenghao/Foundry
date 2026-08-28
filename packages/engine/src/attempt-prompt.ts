@@ -1,4 +1,19 @@
-import type { Check, Goal, ObservationReport, Task } from '@ai-engine/core';
+import type { BriefStyleOption, Check, Goal, ObservationReport, Task } from '@ai-engine/core';
+
+/** The chosen Style Proposal rendered for workers and reviewers; '' when none. */
+export function renderStyle(style: BriefStyleOption | null | undefined, opts: { forReviewer?: boolean } = {}): string {
+  if (!style) return '';
+  const lines = [
+    `# Style direction (chosen by the human): ${style.name}`,
+    style.palette.length ? `- Palette: ${style.palette.join(', ')}` : '',
+    style.fonts.length ? `- Typefaces: ${style.fonts.join(', ')}` : '',
+    style.keywords.length ? `- Keywords: ${style.keywords.join(', ')}` : '',
+    style.description ? `- Feel: ${style.description}` : '',
+    style.chosenSample ? `- Reference image: \`${style.chosenSample}\` — open it with the Read tool; the deliverables must match its feel.` : '',
+    opts.forReviewer ? 'Deliverables that do not follow this direction are a BLOCKER.' : 'Follow this direction in everything you produce, and record the style parameters actually used in the manifest.',
+  ];
+  return lines.filter(Boolean).join('\n');
+}
 
 export interface AttemptPromptInput {
   goal: Goal;
@@ -20,6 +35,8 @@ export interface AttemptPromptInput {
   areaDescription?: string;
   /** rendered `# Decisions from the human` section (see renderDecisions), or '' */
   decisions?: string;
+  /** the chosen Style Proposal (media/UI tasks), or null */
+  style?: BriefStyleOption | null;
   /** the goal branch moved since this task's worktree was created (see catchup.ts), or null */
   baseMoved?: { merged: boolean; commits: string[]; conflictFiles: string[] } | null;
 }
@@ -30,6 +47,8 @@ export function buildAttemptPrompt(i: AttemptPromptInput): string {
   const area = i.task.area ? `Area: ${i.task.area}${i.areaDescription ? ` — ${i.areaDescription}` : ''}\n` : '';
   lines.push(`# Your task (${i.task.title})\n${area}Attempt ${i.attemptIndex} of ${i.maxAttempts}.\n\n${i.task.spec.trim()}`);
   if (i.decisions) lines.push(i.decisions);
+  const styleSection = renderStyle(i.style);
+  if (styleSection) lines.push(styleSection);
   if (i.task.relevantFiles.length) lines.push(`# Start here\n${i.task.relevantFiles.map((f) => `- ${f}`).join('\n')}`);
   if (i.attachments) lines.push(i.attachments);
   if (i.relevantContext) lines.push(`# Repository context\n${i.relevantContext}`);
@@ -55,6 +74,15 @@ export function buildAttemptPrompt(i: AttemptPromptInput): string {
   }
   // the section carries its own heading (`# Workflow skills` or `# Skills`)
   if (i.skillsHint) lines.push(i.skillsHint.startsWith('#') ? i.skillsHint : `# Skills\n${i.skillsHint}`);
+  if (i.task.scenario === 'image' || i.task.scenario === 'video') {
+    lines.push(
+      `# Media conventions\n- Every generated file goes into \`artifacts/\` in this workspace. That folder never reaches git — the engine delivers it to the user when the goal finishes.\n- Keep the manifest named in your task spec (\`docs/artifacts/…\`) up to date: one bullet per artifact — file name, what it shows, and the prompt/parameters used. The manifest is committed and is what the reviewer reads first.\n- Codebase conventions and test suites do not apply here; the craft is the artifacts themselves and an honest manifest.`,
+    );
+  } else if (i.task.scenario === 'docs' || i.task.scenario === 'research') {
+    lines.push(
+      `# Writing conventions\n- The deliverable is committed prose (markdown unless the spec says otherwise). Match the repository's existing documents in tone and structure.${i.task.scenario === 'research' ? '\n- Every claim needs a source: link it where the claim is made. Conclusions must follow from the cited evidence.' : ''}\n- Test-suite rules do not apply; run only the command checks your task lists.`,
+    );
+  }
   lines.push(
     `# How to work\n1. Write a short plan (3-8 bullet points) as your first message, then execute it.\n2. Stay inside the scope of this task. Do not push, open PRs, deploy or touch anything outside this workspace.\n3. Do not commit; the engine commits for you (Conventional Commits — this task ends as one commit titled after it).\n4. When done, reply with a brief summary: what changed, which checks you ran and their outcome, anything left undone.${i.markitdownHint ? `\n5. ${i.markitdownHint}` : ''}`,
   );

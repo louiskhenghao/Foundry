@@ -8,7 +8,8 @@ import { headRef } from './git/git.ts';
 import { integrateTask } from './merge.ts';
 import { catchUp, filesOverlap } from './catchup.ts';
 import { existsSync } from 'node:fs';
-import { dropTaskWorkspace, ensureGoalWorkspace, ensureTaskWorkspace, goalWorkspacePath } from './workspace.ts';
+import { excludeFromGit } from './skills/autoskills.ts';
+import { copyArtifacts, dropTaskWorkspace, ensureGoalWorkspace, ensureTaskWorkspace, goalWorkspacePath } from './workspace.ts';
 
 /**
  * One scheduling pass for a running goal. Idempotent; called after every event.
@@ -118,6 +119,9 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
         cwd = ws.path;
       } else cwd = task.worktreePath;
     }
+    // media tasks generate into artifacts/, which must never reach a commit (info/exclude is shared by all
+    // worktrees); the leading slash anchors to the workspace root so docs/artifacts/ manifests stay tracked
+    if (task.scenario === 'image' || task.scenario === 'video') await excludeFromGit(cwd, ['/artifacts/'], (m) => config.log(m));
     task = getTask(store.db, task.id)!;
     // an attempt cut by an engine restart is resumed (its session keeps its context) instead of being redone
     const last = listAttempts(store.db, task.id).filter((a) => a.kind === 'work').at(-1);
@@ -160,7 +164,16 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
       if (late.moved && !late.merged) return;
       const merged = await integrateTask(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!);
       if (merged) {
-        if (fresh.worktreePath) await dropTaskWorkspace(goal, getTask(store.db, task.id)!).catch(() => {});
+        // artifacts are git-excluded, so the squash merge cannot carry them: rescue them before the worktree goes
+        if (fresh.worktreePath && existsSync(fresh.worktreePath)) {
+          const n = copyArtifacts(fresh.worktreePath, goalWorkspacePath(config.dataDir, goal.id));
+          if (n) config.log(`[artifacts] ${task.id}: ${n} file(s) copied to the goal workspace`);
+        }
+        if (fresh.worktreePath) {
+          await dropTaskWorkspace(goal, getTask(store.db, task.id)!).catch(() => {});
+          // the worktree (and its branch) are gone — clear the pointers so the UI stops offering them
+          store.append({ type: 'task.workspace_assigned', goalId: goal.id, payload: { taskId: task.id, branch: null, worktreePath: null } });
+        }
         const t = getTask(store.db, task.id)!;
         store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'merging', to: 'done', reason: t.commitRef ? `committed ${t.commitRef.slice(0, 7)} on goal branch` : 'no changes to commit' } });
         // empty-repo goals: the task that created the first stack manifest unlocks autoskills for the rest

@@ -35,7 +35,7 @@ describe('task integration: one Conventional Commit per task', () => {
         understanding: 'u',
         areas: [],
         assumptions: [],
-        questions: [],
+        questions: [], styleOptions: [],
         costEstimateUsd: 0,
         timeEstimateMin: 0,
         tasks: [t('T1', 'add first file', [], false, 'feature', 'demo'), t('T2', 'fix second file', ['T1'], false, 'bug')],
@@ -73,7 +73,7 @@ describe('task integration: one Conventional Commit per task', () => {
         understanding: 'u',
         areas: [],
         assumptions: [],
-        questions: [],
+        questions: [], styleOptions: [],
         costEstimateUsd: 0,
         timeEstimateMin: 0,
         tasks: [t('T1', 'add alpha', [], true), t('T2', 'add beta', [], true)],
@@ -109,7 +109,7 @@ describe('manual merge resolution', () => {
         understanding: 'u',
         areas: [],
         assumptions: [],
-        questions: [],
+        questions: [], styleOptions: [],
         costEstimateUsd: 0,
         timeEstimateMin: 0,
         tasks: [t('T1', 'add alpha', [], true), t('T2', 'add beta', [], true)],
@@ -177,7 +177,7 @@ describe('merge judged on regressions only', () => {
         understanding: 'u',
         areas: [],
         assumptions: [],
-        questions: [],
+        questions: [], styleOptions: [],
         costEstimateUsd: 0,
         timeEstimateMin: 0,
         tasks: [t('T1', 'add alpha', [], true), t('T2', 'add beta', [], true)],
@@ -216,15 +216,15 @@ describe('conflict avoidance', () => {
     const goal = await engine.createGoal({
       prompt: 'two parallel tasks',
       repoPath: repo,
-      brief: { title: 'feat: two', understanding: 'u', areas: [], assumptions: [], questions: [], costEstimateUsd: 0, timeEstimateMin: 0, tasks: [t('T1', 'add alpha', [], true), t('T2', 'add beta', [], true)], checks: [c('C1', 'T1', 'test -f "add alpha.txt"'), c('C2', 'T2', 'test -f "add beta.txt"'), c('G', null, 'test -f "add alpha.txt" && test -f "add beta.txt"')] },
+      brief: { title: 'feat: two', understanding: 'u', areas: [], assumptions: [], questions: [], styleOptions: [], costEstimateUsd: 0, timeEstimateMin: 0, tasks: [t('T1', 'add alpha', [], true), t('T2', 'add beta', [], true)], checks: [c('C1', 'T1', 'test -f "add alpha.txt"'), c('C2', 'T2', 'test -f "add beta.txt"'), c('G', null, 'test -f "add alpha.txt" && test -f "add beta.txt"')] },
     });
     goalId = goal.id;
     await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 40_000);
     expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
     const beta = listTasks(engine.store.db, goal.id).find((x) => x.title === 'add beta')!;
     const ev = engine.store.listByGoal(goal.id, 5000);
-    // the catch-up merged the goal branch into beta's task branch before landing
-    expect(ev.some((e) => e.type === 'merge.started' && (e.payload as any).taskId === beta.id && (e.payload as any).into === beta.branch)).toBe(true);
+    // the catch-up merged the goal branch into beta's task branch before landing (task.branch itself is cleared at done)
+    expect(ev.some((e) => e.type === 'merge.started' && (e.payload as any).taskId === beta.id && (e.payload as any).into === `task/${beta.id}`)).toBe(true);
     expect(ev.some((e) => e.type === 'engine.note' && String((e.payload as any).message).startsWith('catch-up: merged 1 goal-branch commit'))).toBe(true);
     expect(ev.filter((e) => e.type === 'merge.conflict')).toHaveLength(0);
     const ws = join(dataDir, 'worktrees', goal.id, '_goal');
@@ -248,7 +248,7 @@ describe('conflict avoidance', () => {
     const goal = await engine.createGoal({
       prompt: 'overlap',
       repoPath: repo,
-      brief: { title: 'feat: overlap', understanding: 'u', areas: [], assumptions: [], questions: [], costEstimateUsd: 0, timeEstimateMin: 0, tasks: [overlapping('T1', 'add one'), overlapping('T2', 'add two')], checks: [c('C1', 'T1', 'test -f "add one.txt"'), c('C2', 'T2', 'test -f "add two.txt"'), c('G', null, 'test -f "add one.txt" && test -f "add two.txt"')] },
+      brief: { title: 'feat: overlap', understanding: 'u', areas: [], assumptions: [], questions: [], styleOptions: [], costEstimateUsd: 0, timeEstimateMin: 0, tasks: [overlapping('T1', 'add one'), overlapping('T2', 'add two')], checks: [c('C1', 'T1', 'test -f "add one.txt"'), c('C2', 'T2', 'test -f "add two.txt"'), c('G', null, 'test -f "add one.txt" && test -f "add two.txt"')] },
     });
     await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 40_000);
     expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
@@ -265,13 +265,13 @@ describe('restart from a finished task', () => {
     const goal = await engine.createGoal({
       prompt: 'parallel then restart',
       repoPath: repo,
-      brief: { title: 'feat: two', understanding: 'u', areas: [], assumptions: [], questions: [], costEstimateUsd: 0, timeEstimateMin: 0, tasks: [t('T1', 'add alpha', [], true), t('T2', 'add beta', [], true)], checks: [c('C1', 'T1', 'test -f "add alpha.txt"'), c('C2', 'T2', 'test -f "add beta.txt"'), c('G', null, 'test -f "add alpha.txt"')] },
+      brief: { title: 'feat: two', understanding: 'u', areas: [], assumptions: [], questions: [], styleOptions: [], costEstimateUsd: 0, timeEstimateMin: 0, tasks: [t('T1', 'add alpha', [], true), t('T2', 'add beta', [], true)], checks: [c('C1', 'T1', 'test -f "add alpha.txt"'), c('C2', 'T2', 'test -f "add beta.txt"'), c('G', null, 'test -f "add alpha.txt"')] },
     });
     await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 40_000);
     expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
     const alpha = listTasks(engine.store.db, goal.id).find((x) => x.title === 'add alpha')!;
-    expect(alpha.worktreePath).toBeTruthy();
-    expect(existsSync(alpha.worktreePath!)).toBe(false); // dropped when it finished
+    expect(alpha.worktreePath).toBeNull(); // the pointer is cleared when the worktree is dropped at done
+    expect(existsSync(join(dataDir, 'worktrees', goal.id, alpha.id))).toBe(false); // dropped when it finished
     const r = await engine.restartGoal(goal.id, { fromTaskId: alpha.id });
     expect(r.restarted).toEqual([alpha.id]);
     expect(listTasks(engine.store.db, goal.id).find((x) => x.id === alpha.id)!.worktreePath).toBeNull();

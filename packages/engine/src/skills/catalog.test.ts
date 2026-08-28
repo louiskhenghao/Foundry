@@ -53,4 +53,18 @@ describe('catalog', () => {
     expect(formatSkillsHint('worker', st)).toBe('Installed skills relevant to this role (use when appropriate): /managed, /plain, /mp-skills:diagnosing-bugs');
     expect(formatSkillsHint('merger', st)).toBeNull();
   });
+
+  test('requiresEnv: missingEnv lists what the env probe cannot satisfy', () => {
+    const p = writeCatalog(join(fake.home, 'cat-env'), [
+      { id: 'managed', name: 'managed', summary: '', why: '', tier: 'recommended', source: { type: 'git', repo: 'o/r' }, roles: ['worker'], requiresEnv: ['OPENAI_API_KEY', 'OTHER_KEY'] },
+    ]);
+    const catalog = loadCatalog(p);
+    const scan = scanSkills(fake.paths);
+    const withKey = catalogStatus(catalog, scan, fake.paths, () => null, (n) => n === 'OPENAI_API_KEY');
+    expect(withKey[0]!.missingEnv).toEqual(['OTHER_KEY']);
+    const noKeys = catalogStatus(catalog, scan, fake.paths, () => null, () => false);
+    expect(noKeys[0]!.missingEnv).toEqual(['OPENAI_API_KEY', 'OTHER_KEY']);
+    const all = catalogStatus(catalog, scan, fake.paths, () => null, () => true);
+    expect(all[0]!.missingEnv).toEqual([]);
+  });
 });

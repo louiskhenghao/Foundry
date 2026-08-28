@@ -30,12 +30,17 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'workflow.tdd': { name: 'AI_ENGINE_TDD', parse: str },
   'workflow.defaultMode': { name: 'AI_ENGINE_GOAL_MODE', parse: str },
   'workflow.designPack': { name: 'AI_ENGINE_DESIGN_PACK', parse: str },
+  'workflow.defaultPace': { name: 'AI_ENGINE_PACE', parse: str },
+  'workflow.imagePack': { name: 'AI_ENGINE_IMAGE_PACK', parse: str },
+  'workflow.videoPack': { name: 'AI_ENGINE_VIDEO_PACK', parse: str },
   'workflow.autoskills': { name: 'AI_ENGINE_AUTOSKILLS', parse: bool },
   'delivery.defaultMode': { name: 'AI_ENGINE_DELIVERY_MODE', parse: str },
   'sync.fetchBeforeGoal': { name: 'AI_ENGINE_SYNC_FETCH', parse: bool },
   'sync.startFrom': { name: 'AI_ENGINE_SYNC_START', parse: str },
   'sync.refreshBetweenTasks': { name: 'AI_ENGINE_SYNC_REFRESH', parse: bool },
   'tools.markitdownBin': { name: 'AI_ENGINE_MARKITDOWN', parse: str },
+  'tools.openaiApiKey': { name: 'OPENAI_API_KEY', parse: str },
+  'tools.openaiBaseUrl': { name: 'OPENAI_BASE_URL', parse: str },
 };
 
 export const SETTING_PATHS: string[] = Object.entries(DEFAULT_SETTINGS).flatMap(([section, v]) => Object.keys(v as object).map((k) => `${section}.${k}`));
@@ -192,6 +197,9 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('workflow.tdd')) config.workflowTdd = s.workflow.tdd;
   if (on('workflow.defaultMode')) config.defaultGoalMode = s.workflow.defaultMode;
   if (on('workflow.designPack')) config.designPack = s.workflow.designPack;
+  if (on('workflow.defaultPace')) config.workflowPace = s.workflow.defaultPace;
+  if (on('workflow.imagePack')) config.imagePack = s.workflow.imagePack;
+  if (on('workflow.videoPack')) config.videoPack = s.workflow.videoPack;
   if (on('workflow.autoskills')) config.autoskills = s.workflow.autoskills;
   if (on('workflow.settingSources')) config.settingSources = s.workflow.settingSources ?? undefined;
   if (on('reviews.alwaysReviewTasks')) config.alwaysReviewTasks = s.reviews.alwaysReviewTasks;
@@ -211,6 +219,8 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('sync.refreshBetweenTasks')) config.sync.refreshBetweenTasks = s.sync.refreshBetweenTasks;
   if (on('tools.useGraphify')) config.useGraphify = s.tools.useGraphify;
   if (on('tools.markitdownBin')) config.markitdownBin = s.tools.markitdownBin ?? undefined;
+  if (on('tools.openaiApiKey')) config.openaiApiKey = s.tools.openaiApiKey ?? undefined;
+  if (on('tools.openaiBaseUrl')) config.openaiBaseUrl = s.tools.openaiBaseUrl ?? undefined;
   if (on('safety.extraBoundaryPatterns')) config.extraBoundaryPatterns = s.safety.extraBoundaryPatterns ?? undefined;
   if (on('safety.allowedRoots')) config.allowedRoots = s.safety.allowedRoots ?? undefined;
 }

@@ -12,7 +12,7 @@ import { areaStyle, newTask } from './shared.ts';
  * tasks of one stage run in parallel, a stage starts when the previous one is done.
  */
 export function PlanSection({ brief, goalId, editable, edit }: { brief: Brief; goalId: string; editable: boolean; edit: (fn: (b: Brief) => Brief) => void }) {
-  const [open, setOpen] = useState<Set<string>>(new Set());
+  const [openKey, setOpenKey] = useState<string | null>(null);
   const [areaFilter, setAreaFilter] = useState<string | null>(null);
   const stages = useMemo(() => {
     try {
@@ -21,21 +21,10 @@ export function PlanSection({ brief, goalId, editable, edit }: { brief: Brief; g
       return { ok: false as const, error: e.message as string, stages: [brief.tasks] };
     }
   }, [brief.tasks]);
-  const toggle = (key: string) =>
-    setOpen((s) => {
-      const n = new Set(s);
-      n.has(key) ? n.delete(key) : n.add(key);
-      return n;
-    });
-  const select = (key: string | null) => {
-    if (!key) return;
-    setOpen((s) => new Set(s).add(key));
-    document.getElementById(`task-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  };
   const addTask = () => {
     const t = newTask(brief, areaFilter);
     edit((b) => ({ ...b, tasks: [...b.tasks, t] }));
-    setOpen((s) => new Set(s).add(t.key));
+    setOpenKey(t.key);
   };
   const large = brief.tasks.length > LARGE_BRIEF_TASKS;
   const visible = (key: string) => !areaFilter || brief.tasks.find((t) => t.key === key)?.areaKey === areaFilter;
@@ -59,7 +48,7 @@ export function PlanSection({ brief, goalId, editable, edit }: { brief: Brief; g
       {!stages.ok && <div className="text-xs text-rose-300 mb-2">Graph error: {stages.error}</div>}
       {brief.tasks.length > 1 && (
         <div className="mb-4">
-          <BriefDag brief={brief} selected={null} onSelect={select} />
+          <BriefDag brief={brief} selected={null} onSelect={setOpenKey} />
         </div>
       )}
       {brief.areas.length > 1 && (
@@ -75,24 +64,25 @@ export function PlanSection({ brief, goalId, editable, edit }: { brief: Brief; g
         </div>
       )}
       {brief.tasks.length === 0 && <div className="text-sm text-zinc-500">No tasks. Add one, or draft tasks for an Area above.</div>}
-      <div className="space-y-4">
+      <div className="space-y-6">
         {stages.stages.map((stage, i) => {
           const xs = stage.filter((t) => visible(t.key));
           if (!xs.length) return null;
           return (
             <div key={i}>
               {stages.ok && (
-                <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1.5">
-                  Stage {i + 1}
-                  {stage.length > 1 ? ` · ${stage.length} in parallel` : ''}
-                  {i > 0 ? ' · after the previous stage' : ''}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded-full bg-zinc-800 text-[10px] text-zinc-300 mono shrink-0">{i + 1}</span>
+                  <span className="text-[10px] uppercase tracking-wide text-zinc-500">
+                    Stage {i + 1}
+                    {stage.length > 1 ? ` · ${stage.length} in parallel` : ''}
+                    {i > 0 ? ' · after the previous stage' : ''}
+                  </span>
                 </div>
               )}
-              <div className="space-y-2">
+              <div className={cn('space-y-2.5', stages.ok && 'ml-2.5 pl-4 border-l-2 border-zinc-800')}>
                 {xs.map((t) => (
-                  <div key={t.key} id={`task-${t.key}`}>
-                    <TaskCard task={t} brief={brief} goalId={goalId} editable={editable} open={open.has(t.key)} onToggle={() => toggle(t.key)} edit={edit} />
-                  </div>
+                  <TaskCard key={t.key} task={t} brief={brief} goalId={goalId} editable={editable} open={openKey === t.key} onOpen={() => setOpenKey(t.key)} onClose={() => setOpenKey(null)} onOpenTask={setOpenKey} edit={edit} />
                 ))}
               </div>
             </div>

@@ -5,6 +5,7 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { api, type GoalDetail } from '../../api.ts';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { OpenMenu } from '../../components/OpenMenu.tsx';
+import { TaskTags } from '../../components/TaskTags.tsx';
 import { Badge, Button, Card, ago, cn, fmtUsd } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { EscalationCard } from '../InboxPage.tsx';
@@ -34,14 +35,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
       title={
         <span className="flex items-center gap-2 flex-wrap">
           <span className="min-w-0 break-words">{task.title}</span> <Badge state={task.state} />
-          <span className="text-[10px] uppercase rounded border border-zinc-700 text-zinc-400 px-1" title="task kind (drives the workflow discipline)">
-            {task.kind}
-          </span>
-          {task.area && (
-            <span className="text-[10px] rounded-full border border-zinc-700 text-zinc-300 px-2" title="Area of the Brief this task belongs to">
-              {task.area}
-            </span>
-          )}
+          <TaskTags kind={task.kind} scenario={task.scenario} area={task.area} />
           {task.origin !== 'brief' && <span className="text-[10px] text-zinc-500">{task.origin}</span>}
           {task.commitRef && (
             <span className="text-[11px] font-normal text-zinc-500 basis-full min-w-0 truncate" title={task.commitMessage ?? undefined}>
@@ -64,7 +58,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
               <RotateCcw size={13} /> Restart from here
             </Button>
           )}
-          {task.worktreePath && <OpenMenu goalId={d.goal.id} places={[{ which: `task:${task.id}`, label: 'Task worktree', path: task.worktreePath, hint: task.branch ?? undefined }]} label="Open worktree" />}
+          {task.worktreePath && task.state !== 'done' && <OpenMenu goalId={d.goal.id} places={[{ which: `task:${task.id}`, label: 'Task worktree', path: task.worktreePath, hint: task.branch ?? undefined }]} label="Open worktree" />}
           <Button size="sm" variant="ghost" onClick={onClose}>
             <X size={14} />
           </Button>

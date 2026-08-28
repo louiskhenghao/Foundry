@@ -17,6 +17,11 @@ You are executing one Task of a larger Goal inside an isolated git workspace man
 - **The engine is the tracker.** Never run setup or ticketing skills (`/setup-matt-pocock-skills`, `/to-spec`, `/to-tickets`, `/triage`, `/implement`); never write `docs/agents/*`. Your task spec already is the ticket.
 - **Honest summary.** End with: what changed (files), which checks you ran and their results, and anything you could not finish or are unsure about. If you could not complete the task, say so plainly — the next attempt will read your summary.
 
+## Non-code tasks
+
+- **Writing / research** (scenario `docs` / `research`): the deliverable is committed prose. "Match the codebase" here means match the repository's existing documents; test-suite habits do not apply. Research: cite a source for every claim, where the claim is made.
+- **Media** (scenario `image` / `video`): generated files go to `artifacts/` (kept out of git; the engine delivers them when the goal finishes) and the manifest named in your spec (`docs/artifacts/…`) is the committed record — every artifact listed with its prompt/parameters. Invoke the media skill marked MUST before generating; iterate on the weakest artifact, not by regenerating everything.
+
 ## Context economy
 
 - Do not read whole large files when a grep or a targeted read will do.

@@ -1,6 +1,6 @@
 import type { Attachment } from '@ai-engine/core/browser';
 import { BUDGET_PRESETS } from '@ai-engine/core/browser';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type RepoInfo } from '../api.ts';
 import { AttachmentInput } from '../components/Attachments.tsx';
@@ -11,6 +11,17 @@ import { Button, Card, Input, Textarea, cn, Select } from '../ui.tsx';
 
 const DELIVERY_KEY = 'ai-engine.delivery';
 const BUDGET_KEY = 'ai-engine.budget';
+const NATURE_KEY = 'ai-engine.nature';
+
+type Nature = 'auto' | 'code' | 'docs' | 'research' | 'image' | 'video';
+const NATURES: { id: Nature; label: string; text: string }[] = [
+  { id: 'auto', label: 'Auto', text: 'The system reads your description and decides.' },
+  { id: 'code', label: 'Code', text: 'Software: features, fixes, whole apps.' },
+  { id: 'docs', label: 'Documents', text: 'Proposals, contracts, tutorials, articles.' },
+  { id: 'research', label: 'Research', text: 'An investigation ending in a cited report.' },
+  { id: 'image', label: 'Images', text: 'Posters, logos, illustrations.' },
+  { id: 'video', label: 'Video', text: 'Generated video or narrated presentations.' },
+];
 function loadDraft(): PolicyDraft {
   try {
     return { mode: 'local', unit: 'task', ...JSON.parse(localStorage.getItem(DELIVERY_KEY) ?? '{}') };
@@ -40,8 +51,21 @@ export function NewGoalPage() {
   const [budget, setBudget] = useState<BudgetDraft>(loadBudget());
   const [auto, setAuto] = useState(false);
   const [advanced, setAdvanced] = useState(false);
+  const [nature, setNature] = useState<Nature>(() => ((localStorage.getItem(NATURE_KEY) as Nature | null) ?? 'auto'));
+  const [outputDir, setOutputDir] = useState('');
+  useEffect(() => localStorage.setItem(NATURE_KEY, nature), [nature]);
   const [mode, setMode] = useState<'simple' | 'expert'>(() => ((localStorage.getItem('ai-engine.mode') as 'simple' | 'expert' | null) ?? 'expert'));
   const [tdd, setTdd] = useState<'required' | 'preferred' | 'off'>(() => ((localStorage.getItem('ai-engine.tdd') as 'required' | 'preferred' | 'off' | null) ?? 'required'));
+  const [pace, setPace] = useState<'thorough' | 'fast'>(() => ((localStorage.getItem('ai-engine.pace') as 'thorough' | 'fast' | null) ?? 'thorough'));
+  /** the remembered preference; media natures auto-tick fast on top of it unless the human touches the checkbox */
+  const basePace = useRef(pace);
+  const paceTouched = useRef(false);
+  const choosePace = (v: 'thorough' | 'fast') => {
+    paceTouched.current = true;
+    basePace.current = v;
+    setPace(v);
+    localStorage.setItem('ai-engine.pace', v);
+  };
   useEffect(() => localStorage.setItem('ai-engine.mode', mode), [mode]);
   useEffect(() => localStorage.setItem('ai-engine.tdd', tdd), [tdd]);
   const [checks, setChecks] = useState('');
@@ -82,7 +106,10 @@ export function NewGoalPage() {
         delivery,
         attachments,
         mode,
-        workflow: { tdd: mode === 'simple' ? 'preferred' : tdd },
+        // fast: let the engine default the TDD mandate off instead of pinning it here
+        workflow: pace === 'fast' ? { pace } : { pace, tdd: mode === 'simple' ? 'preferred' : tdd },
+        nature,
+        outputDir: (nature === 'image' || nature === 'video') && outputDir.trim() ? outputDir.trim() : undefined,
       });
       try {
         localStorage.setItem(DELIVERY_KEY, JSON.stringify({ mode: delivery.mode, remote: delivery.remote, mergeMethod: delivery.mergeMethod, requireChecks: delivery.requireChecks, autoResolveConflicts: delivery.autoResolveConflicts, fixCiCycles: delivery.fixCiCycles, deleteRemoteBranch: delivery.deleteRemoteBranch }));
@@ -111,6 +138,45 @@ export function NewGoalPage() {
         </ol>
       </div>
 
+      <Card title="What kind of goal is this?">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {NATURES.map((n) => (
+            <button
+              key={n.id}
+              type="button"
+              onClick={() => {
+                setNature(n.id);
+                // anyone-facing default: prose/media goals open in the plain-language view
+                if (n.id !== 'code' && n.id !== 'auto') setMode('simple');
+                // media deliverables are judged by eye — default to fast (no engine AI reviews) unless the human chose a pace
+                if (!paceTouched.current) setPace(n.id === 'image' || n.id === 'video' ? 'fast' : basePace.current);
+              }}
+              className={cn('text-left rounded-lg border p-2.5', nature === n.id ? 'border-emerald-500 bg-emerald-500/10' : 'border-zinc-800 hover:border-zinc-600')}
+            >
+              <div className="text-sm font-medium text-zinc-100">{n.label}</div>
+              <div className="text-[11px] text-zinc-400 mt-0.5 leading-snug">{n.text}</div>
+            </button>
+          ))}
+        </div>
+        {(nature === 'image' || nature === 'video') && (
+          <div className="mt-3">
+            <label className="text-xs text-zinc-400">Output folder — the finished files are copied here when the goal completes (optional; otherwise they stay in the goal's workspace)</label>
+            <div className="flex gap-2 mt-1">
+              <Input className="mono flex-1" placeholder="/Users/you/Desktop/output" value={outputDir} onChange={(e) => setOutputDir(e.target.value)} />
+              <Button
+                variant="ghost"
+                onClick={async () => {
+                  const r = await api.fsPick(outputDir || undefined).catch(() => null);
+                  if (r?.path) setOutputDir(r.path);
+                }}
+              >
+                Choose…
+              </Button>
+            </div>
+          </div>
+        )}
+      </Card>
+
       <Card title="How much do you want to see?">
         <div className="grid sm:grid-cols-2 gap-2">
           {(
@@ -125,6 +191,13 @@ export function NewGoalPage() {
             </button>
           ))}
         </div>
+        <label className="mt-3 flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-1" checked={pace === 'fast'} onChange={(e) => choosePace(e.target.checked ? 'fast' : 'thorough')} />
+          <span>
+            <span className="text-zinc-100">Fast mode</span>
+            <span className="text-[11px] text-zinc-400 block leading-snug">Once you approve the Brief, the engine skips its own extra AI reviews (and the TDD mandate). The acceptance checks you approved still run — good for media goals and quick jobs.</span>
+          </span>
+        </label>
         {mode === 'expert' && (
           <div className="mt-3 flex items-center gap-3 flex-wrap">
             <span className="text-xs text-zinc-300">Engineering discipline — TDD</span>

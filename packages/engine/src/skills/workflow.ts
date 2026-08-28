@@ -37,6 +37,8 @@ export interface MandatedSkill {
   invoke: string;
   mandate: WorkflowRule['mandate'];
   instruction: string;
+  /** requiresEnv vars this session will not have — the skill runs degraded */
+  missingEnv: string[];
 }
 
 const NEVER_RUN = ['/setup-matt-pocock-skills', '/to-spec', '/to-tickets', '/triage', '/implement', '/wayfinder'];
@@ -46,7 +48,13 @@ export function visibleStatuses(i: Pick<WorkflowSectionInput, 'statuses' | 'pack
   return i.statuses.filter((s) => SATISFIED.includes(s.status) && packAllows(s.entry, i.packs ?? {}));
 }
 
-const scenarioOk = (wanted: readonly string[], scenario: TaskScenario | undefined) => !wanted.length || wanted.includes(scenario ?? 'general');
+const MEDIA_SCENARIOS: readonly string[] = ['image', 'video'];
+/** Empty `scenarios` means "any" — except for media sessions, which only get skills that explicitly opt in (a code-review skill has no business judging posters). */
+const scenarioOk = (wanted: readonly string[], scenario: TaskScenario | undefined) => {
+  const s = scenario ?? 'general';
+  if (MEDIA_SCENARIOS.includes(s)) return wanted.includes(s);
+  return !wanted.length || wanted.includes(s);
+};
 
 /** Rules of installed catalog entries that apply to this role, task kind and scenario, with the invoke to use. */
 export function applicableRules(i: WorkflowSectionInput): MandatedSkill[] {
@@ -63,7 +71,7 @@ export function applicableRules(i: WorkflowSectionInput): MandatedSkill[] {
         if (i.discipline.tdd === 'off') continue;
         if (i.discipline.tdd === 'preferred') mandate = 'prefer';
       }
-      out.push({ name: s.entry.name, invoke, mandate, instruction: r.instruction });
+      out.push({ name: s.entry.name, invoke, mandate, instruction: r.instruction, missingEnv: s.missingEnv });
     }
   }
   // must before prefer, stable otherwise
@@ -112,7 +120,10 @@ export function formatWorkflowSection(i: WorkflowSectionInput): string | null {
   if (i.scenario && i.scenario !== 'general') lines.push(`Scenario: ${i.scenario}.`);
   if (rules.length) {
     lines.push("This engine follows Matt Pocock's engineering workflow. The skills below are loaded in this session; invoke them with the Skill tool.");
-    for (const r of rules) lines.push(`- ${r.mandate === 'must' ? 'MUST' : 'Prefer'}: invoke \`${r.invoke}\` — ${r.instruction}`);
+    for (const r of rules) {
+      const degraded = r.missingEnv.length ? ` ⚠ ${r.missingEnv.join(', ')} is NOT set in this session, so the skill's API/generation mode is unavailable and it can only advise. If the deliverable depends on it, build the best fallback you can and say so explicitly in your result and manifests — never present the fallback as the real output.` : '';
+      lines.push(`- ${r.mandate === 'must' ? 'MUST' : 'Prefer'}: invoke \`${r.invoke}\` — ${r.instruction}${degraded}`);
+    }
     lines.push(`- Do NOT run ${NEVER_RUN.join(', ')}: ai-engine is the tracker and has already done that work. Never write docs/agents/*.`);
     lines.push('- The engine records which skills you invoked; the reviewer sees it.');
   }

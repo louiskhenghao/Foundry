@@ -6,6 +6,7 @@ import { getGoal, listAttempts, listEscalations, listTasks } from '@ai-engine/co
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@ai-engine/runner';
 import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
+import { raiseEscalation } from './escalation.ts';
 
 /** Scripted stand-in for claude: runs `behave(spec, callIndex)` then returns a success result. */
 class FakeRunner implements ClaudeRunner {
@@ -78,7 +79,14 @@ beforeEach(async () => {
   dataDir = mkdtempSync(join(tmpdir(), 'ai-engine-test-data-'));
   repo = await makeRepo();
 });
-afterEach(() => {
+const engines: Engine[] = [];
+/** every Engine a test makes is stopped (background ticks drained) before the dataDir is deleted */
+const track = <T extends Engine>(e: T): T => {
+  engines.push(e);
+  return e;
+};
+afterEach(async () => {
+  for (const e of engines.splice(0)) await e.stop().catch(() => {});
   rmSync(dataDir, { recursive: true, force: true });
   rmSync(repo, { recursive: true, force: true });
 });
@@ -91,7 +99,7 @@ describe('Engine loop (fake runner)', () => {
     const runner = new FakeRunner((spec, n) => {
       if (n >= 2) writeFileSync(join(spec.cwd, 'done.txt'), 'ok');
     });
-    const engine = new Engine(cfg(), runner);
+    const engine = track(new Engine(cfg(), runner));
     const goal = await engine.createGoal({ prompt: 'create done.txt', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] } });
     await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state));
     const g = getGoal(engine.store.db, goal.id)!;
@@ -107,7 +115,7 @@ describe('Engine loop (fake runner)', () => {
   });
 
   test('exhausted retries → escalation; skip_task → task skipped, goal moves on', async () => {
-    const engine = new Engine(cfg(), new FakeRunner(() => {}));
+    const engine = track(new Engine(cfg(), new FakeRunner(() => {})));
     const goal = await engine.createGoal({ prompt: 'impossible', repoPath: repo, budgets: { attemptsPerTask: 2 }, autoBrief: { mustChecks: ['test -f never.txt'] } });
     await waitFor(() => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).length > 0);
     const esc = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true })[0]!;
@@ -120,12 +128,23 @@ describe('Engine loop (fake runner)', () => {
     expect(['running', 'goal_review', 'blocked', 'done']).toContain(getGoal(engine.store.db, goal.id)!.state);
   });
 
+  test('goal-review escalation: skip_task finishes the goal as-is instead of re-reviewing', async () => {
+    const engine = track(new Engine(cfg(), new FakeRunner(() => {})));
+    const goal = await engine.createGoal({ prompt: 'impossible', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f never.txt'] } });
+    await waitFor(() => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).length > 0);
+    // simulate the goal review having failed after its last fix cycle
+    raiseEscalation(engine, { goal: getGoal(engine.store.db, goal.id)!, trigger: 'retries_exhausted', message: 'Goal review failed', payload: { kind: 'goal-review' }, blockGoal: true });
+    const esc = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).find((e) => e.taskId === null)!;
+    await engine.answerEscalation(esc.id, { action: 'skip_task' });
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+  });
+
   test('retry_with_hint grants an extra attempt and injects the hint', async () => {
     let allow = false;
     const runner = new FakeRunner((spec) => {
       if (allow) writeFileSync(join(spec.cwd, 'done.txt'), 'ok');
     });
-    const engine = new Engine(cfg(), runner);
+    const engine = track(new Engine(cfg(), runner));
     const goal = await engine.createGoal({ prompt: 'needs hint', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f done.txt'] } });
     await waitFor(() => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).length > 0);
     allow = true;
@@ -137,11 +156,13 @@ describe('Engine loop (fake runner)', () => {
   });
 
   test('budget exceeded → budget_exceeded escalation blocks the goal; raise_budget resumes', async () => {
-    const engine = new Engine(
-      cfg(),
-      new FakeRunner((spec, n) => {
-        if (n >= 2) writeFileSync(join(spec.cwd, 'done.txt'), 'ok');
-      }),
+    const engine = track(
+      new Engine(
+        cfg(),
+        new FakeRunner((spec, n) => {
+          if (n >= 2) writeFileSync(join(spec.cwd, 'done.txt'), 'ok');
+        }),
+      ),
     );
     const goal = await engine.createGoal({ prompt: 'tiny budget', repoPath: repo, budgets: { maxCostUsd: 0.015 }, autoBrief: { mustChecks: ['test -f done.txt'] } });
     await waitFor(() => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).some((e) => e.trigger === 'budget_exceeded'));
@@ -161,7 +182,7 @@ describe('Engine loop (fake runner)', () => {
     writeFileSync(catalogPath, JSON.stringify({ version: 1, entries: [{ id: 'tdd', name: 'tdd', summary: '', why: '', tier: 'recommended', source: { type: 'git', repo: 'o/r' }, roles: ['worker'] }] }));
     const runner = new FakeRunner((spec) => writeFileSync(join(spec.cwd, 'done.txt'), 'ok'));
     runner.rateLimit = { status: 'allowed', resetsAt: Math.floor(Date.now() / 1000) + 3600, rateLimitType: 'five_hour', isUsingOverage: false, raw: {} };
-    const engine = new Engine(cfg({ catalogPath }), runner);
+    const engine = track(new Engine(cfg({ catalogPath }), runner));
     const goal = await engine.createGoal({ prompt: 'hinted', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] } });
     await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state));
     expect(runner.calls[0]!.prompt).toContain('# Workflow skills');
@@ -180,7 +201,7 @@ describe('Engine loop (fake runner)', () => {
       if (n >= 2) writeFileSync(join(spec.cwd, 'done.txt'), 'ok');
     });
     runner.rateLimit = { status: 'rejected', resetsAt: Math.floor(Date.now() / 1000) + 2, rateLimitType: 'five_hour', isUsingOverage: false, raw: {} };
-    const engine = new Engine(cfg(), runner);
+    const engine = track(new Engine(cfg(), runner));
     const goal = await engine.createGoal({ prompt: 'limited', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] } });
     await waitFor(() => engine.isRateLimited());
     const pausedAt = n;
@@ -196,7 +217,7 @@ describe('Engine loop (fake runner)', () => {
   });
 
   test('event log replay reproduces the read models', async () => {
-    const engine = new Engine(cfg(), new FakeRunner((spec) => writeFileSync(join(spec.cwd, 'done.txt'), 'ok')));
+    const engine = track(new Engine(cfg(), new FakeRunner((spec) => writeFileSync(join(spec.cwd, 'done.txt'), 'ok'))));
     const goal = await engine.createGoal({ prompt: 'replay', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] } });
     await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state));
     const before = engine.store.snapshotReadModels();
@@ -215,6 +236,7 @@ describe('skip and restart', () => {
       brief: {
         title: '',
         understanding: 'u',
+        styleOptions: [],
         areas: [],
         assumptions: [],
         questions: [],
@@ -236,7 +258,7 @@ describe('skip and restart', () => {
     const runner = new FakeRunner((spec) => {
       if (spec.prompt.includes('# Your task (second)')) writeFileSync(join(spec.cwd, 'second.txt'), 'ok');
     });
-    const engine = new Engine(cfg(), runner);
+    const engine = track(new Engine(cfg(), runner));
     const goal = await chain(engine, repo);
     await waitFor(() => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).length > 0);
     const esc = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true })[0]!;
@@ -254,7 +276,7 @@ describe('skip and restart', () => {
       if (pass && spec.prompt.includes('# Your task (first)')) writeFileSync(join(spec.cwd, 'never.txt'), 'ok');
       if (spec.prompt.includes('# Your task (second)')) writeFileSync(join(spec.cwd, 'second.txt'), 'ok');
     });
-    const engine = new Engine(cfg(), runner);
+    const engine = track(new Engine(cfg(), runner));
     const goal = await chain(engine, repo);
     await waitFor(() => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).length > 0);
     const esc = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true })[0]!;
@@ -281,7 +303,7 @@ describe('goal mode and discipline', () => {
     const catalogPath = join(dataDir, 'catalog.json');
     wf(catalogPath, JSON.stringify({ version: 1, entries: [{ id: 'tdd', name: 'tdd', summary: '', why: '', tier: 'recommended', source: { type: 'git', repo: 'o/r' }, roles: ['worker'], workflow: [{ role: 'worker', mandate: 'must', when: 'feature', instruction: 'tests first' }] }] }));
     const runner = new FakeRunner((spec) => writeFileSync(join(spec.cwd, 'done.txt'), 'ok'));
-    const engine = new Engine(cfg({ catalogPath }), runner);
+    const engine = track(new Engine(cfg({ catalogPath }), runner));
     const run = async (input: Parameters<typeof engine.createGoal>[0]) => {
       const before = runner.calls.length;
       const goal = await engine.createGoal(input);
@@ -324,7 +346,7 @@ describe('continuations', () => {
   }
   test('a session cut by its turn cap is resumed (same attempt, same session), not replaced', async () => {
     const runner = new CutRunner();
-    const engine = new Engine(cfg(), runner);
+    const engine = track(new Engine(cfg(), runner));
     const goal = await engine.createGoal({ prompt: 'continue me', repoPath: repo, autoBrief: { mustChecks: ['test -f half.txt && test -f done.txt'] } });
     await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state));
     expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
@@ -355,7 +377,7 @@ describe('continuations', () => {
       if (segment === 1) writeFileSync(join(spec.cwd, 'a.txt'), 'ok'); // progress, but b.txt missing
       if (segment === 2) writeFileSync(join(spec.cwd, 'b.txt'), 'ok'); // resumed: finishes
     });
-    const engine = new Engine(cfg(), runner);
+    const engine = track(new Engine(cfg(), runner));
     const goal = await engine.createGoal({ prompt: 'progress', repoPath: repo, autoBrief: { mustChecks: ['test -f a.txt', 'test -f b.txt'] } });
     await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state));
     expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
@@ -368,7 +390,7 @@ describe('continuations', () => {
 
     // no progress (nothing written): a fresh attempt, with the observation report, as before
     const idle = new FakeRunner(() => {});
-    const engine2 = new Engine(cfg(), idle);
+    const engine2 = track(new Engine(cfg(), idle));
     const g2 = await engine2.createGoal({ prompt: 'idle', repoPath: repo, budgets: { attemptsPerTask: 2 }, autoBrief: { mustChecks: ['test -f never.txt'] } });
     await waitFor(() => listEscalations(engine2.store.db, { goalId: g2.id, openOnly: true }).length > 0);
     const a2 = listAttempts(engine2.store.db, listTasks(engine2.store.db, g2.id)[0]!.id);
@@ -379,7 +401,7 @@ describe('continuations', () => {
 
   test('maxContinuations 0 restores the old behaviour', async () => {
     const runner = new CutRunner();
-    const engine = new Engine(cfg({ maxContinuations: 0 }), runner);
+    const engine = track(new Engine(cfg({ maxContinuations: 0 }), runner));
     const goal = await engine.createGoal({ prompt: 'no continuation', repoPath: repo, autoBrief: { mustChecks: ['test -f half.txt && test -f done.txt'] } });
     await waitFor(() => ['done', 'blocked', 'failed'].includes(getGoal(engine.store.db, goal.id)!.state) || listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).length > 0);
     const attempts = listAttempts(engine.store.db, listTasks(engine.store.db, goal.id)[0]!.id).filter((a) => a.kind === 'work');
@@ -394,7 +416,7 @@ describe('sessions per attempt and AI suggestions', () => {
     const runner = new FakeRunner((spec) => {
       if (spec.label?.startsWith('attempt')) writeFileSync(join(spec.cwd, 'done.txt'), 'ok');
     });
-    const engine = new Engine(cfg({ alwaysReviewTasks: true }), runner);
+    const engine = track(new Engine(cfg({ alwaysReviewTasks: true }), runner));
     const goal = await engine.createGoal({ prompt: 'sessions', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] } });
     await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state));
     const task = listTasks(engine.store.db, goal.id)[0]!;
@@ -425,7 +447,7 @@ describe('sessions per attempt and AI suggestions', () => {
       const structuredOutput = mode === 'retry' ? { diagnosis: 'never.txt is never created; the worker looked in the wrong folder', action: 'retry_with_hint', hint: 'Create never.txt at the repo root with `touch never.txt`.', confidence: 'high' } : { diagnosis: 'out of scope', action: 'skip_task', hint: '', confidence: 'medium' };
       return { ...h, result: Promise.resolve({ ...r, structuredOutput }) };
     };
-    const engine = new Engine(cfg(), runner);
+    const engine = track(new Engine(cfg(), runner));
     const goal = await engine.createGoal({ prompt: 'stuck', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f never.txt'] } });
     await waitFor(() => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).length > 0);
     const esc = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true })[0]!;

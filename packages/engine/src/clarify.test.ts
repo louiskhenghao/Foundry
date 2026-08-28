@@ -16,21 +16,34 @@ beforeEach(async () => {
   dataDir = mkdtempSync(join(tmpdir(), 'ai-engine-clarify-'));
   repo = await makeRepo();
 });
-afterEach(() => {
+const engines: Engine[] = [];
+/** every Engine a test makes is stopped (background ticks drained) before the dataDir is deleted */
+const track = <T extends Engine>(e: T): T => {
+  engines.push(e);
+  return e;
+};
+afterEach(async () => {
+  for (const e of engines.splice(0)) await e.stop().catch(() => {});
   rmSync(dataDir, { recursive: true, force: true });
   rmSync(repo, { recursive: true, force: true });
 });
 
-/** Runner that answers every session with a scripted structured output, chosen by call index. */
+/**
+ * Runner that answers every session with a scripted structured output, chosen by call index.
+ * The auto-goal nature pre-classification (label `classify nature …`) is answered separately
+ * (default `code`) and does not consume an index, so scripts keep their call numbering.
+ */
 class StructuredRunner implements ClaudeRunner {
   calls: RunSpec[] = [];
+  classifyAs: 'code' | 'docs' | 'research' | 'image' | 'video' = 'code';
+  private mainCalls = 0;
   constructor(private answers: (spec: RunSpec, n: number) => unknown) {}
   active() {
     return 0;
   }
   async run(spec: RunSpec): Promise<RunHandle> {
     this.calls.push(spec);
-    const structuredOutput = this.answers(spec, this.calls.length);
+    const structuredOutput = spec.label?.startsWith('classify nature') ? { nature: this.classifyAs } : this.answers(spec, ++this.mainCalls);
     const result: RunResult = { sessionId: `s${this.calls.length}`, subtype: 'success', isError: false, costUsd: 0.5, numTurns: 3, durationMs: 1, usage: null, modelUsage: null, permissionDenials: [], finalText: JSON.stringify(structuredOutput), structuredOutput, exitCode: 0, pid: null, rateLimit: null, errorMessage: null, failureClass: null, skillsUsed: [], toolsUsed: {} };
     const events: RunnerEvent[] = [{ kind: 'init', sessionId: result.sessionId!, model: 'fake', tools: [], raw: {} }, { kind: 'result', result }];
     return { pid: null, events: (async function* () { for (const e of events) yield e; })(), kill() {}, result: Promise.resolve(result) };
@@ -43,27 +56,29 @@ const areas = [
 ];
 const task = (key: string, areaKey: string, title: string, deps: string[] = []): BriefOutput['tasks'][number] => ({ key, title, spec: `do ${title}`, kind: 'feature', scope: null, scenario: 'frontend', areaKey, dependsOnKeys: deps, parallelizable: true, relevantFiles: ['README.md'] });
 const check = (key: string, taskKey: string | null, areaKey: string | null = null): BriefOutput['checks'][number] => ({ key, name: key, tier: 'must', taskKey, areaKey, type: 'command', cmd: 'true', rubric: null });
-const briefWith = (tasks: BriefOutput['tasks'], checks: BriefOutput['checks']): BriefOutput => ({ title: 'feat(portal): build portals', understanding: 'Two portals.', areas, assumptions: ['a'], tasks, checks, costEstimateUsd: 4, timeEstimateMin: 30, questions: [] });
+const briefWith = (tasks: BriefOutput['tasks'], checks: BriefOutput['checks']): BriefOutput => ({ title: 'feat(portal): build portals', understanding: 'Two portals.', nature: 'code', areas, assumptions: ['a'], tasks, checks, costEstimateUsd: 4, timeEstimateMin: 30, questions: [], styleOptions: [] });
 
 const cfg = () => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, log: () => {} });
 
 describe('clarify coverage gate', () => {
   test('an Area without tasks triggers one repair turn in the same session; the repaired Brief is kept', async () => {
     const runner = new StructuredRunner((spec, n) => (n === 1 ? briefWith([task('T1', 'A1', 'add student home')], [check('C1', 'T1'), check('G1', null, 'A1')]) : briefWith([task('T1', 'A1', 'add student home'), task('T2', 'A2', 'add teacher home', ['T1'])], [check('C1', 'T1'), check('C2', 'T2'), check('G1', null, 'A1')])));
-    const engine = new Engine(cfg(), runner);
+    const engine = track(new Engine(cfg(), runner));
     const goal = await engine.createGoal({ prompt: 'student and teacher portals', repoPath: repo });
     await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
-    expect(runner.calls).toHaveLength(2);
-    expect(runner.calls[1]!.resumeSessionId).toBe('s1');
-    expect(runner.calls[1]!.prompt).toContain('"Teacher portal" (A2)');
-    expect(runner.calls[0]!.prompt).toContain('every Area MUST have at least one task');
+    const main = runner.calls.filter((c) => !c.label?.startsWith('classify nature'));
+    expect(runner.calls).toHaveLength(3); // classify + clarify + coverage repair
+    expect(main).toHaveLength(2);
+    expect(main[1]!.resumeSessionId).toBe('s2'); // resumes the clarify session (s1 was the classification)
+    expect(main[1]!.prompt).toContain('"Teacher portal" (A2)');
+    expect(main[0]!.prompt).toContain('every Area MUST have at least one task');
     const brief = getBrief(engine.store.db, goal.id)!.brief;
     expect(brief.areas.map((a) => a.key)).toEqual(['A1', 'A2']);
     expect(brief.tasks.map((t) => [t.key, t.areaKey])).toEqual([['T1', 'A1'], ['T2', 'A2']]);
     expect(brief.checks.find((c) => c.key === 'G1')).toMatchObject({ taskKey: null, areaKey: 'A1' });
     expect(brief.questions.filter((q) => q.areaKey)).toHaveLength(0);
     const cost = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'goal.cost_added').map((e) => (e.payload as { source: string }).source);
-    expect(cost).toEqual(['clarify', 'clarify-coverage']);
+    expect(cost).toEqual(['clarify', 'clarify', 'clarify-coverage']); // classification is billed as clarify
 
     // approval materialises the Area name and the slug as default commit scope
     await engine.approveBrief(goal.id);
@@ -78,10 +93,10 @@ describe('clarify coverage gate', () => {
 
   test('still uncovered after the repair → a non-blocking Question tagged with the Area', async () => {
     const runner = new StructuredRunner(() => briefWith([task('T1', 'A1', 'add student home')], [check('C1', 'T1')]));
-    const engine = new Engine(cfg(), runner);
+    const engine = track(new Engine(cfg(), runner));
     const goal = await engine.createGoal({ prompt: 'student and teacher portals', repoPath: repo });
     await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
-    expect(runner.calls).toHaveLength(2);
+    expect(runner.calls.filter((c) => !c.label?.startsWith('classify nature'))).toHaveLength(2);
     const brief = getBrief(engine.store.db, goal.id)!.brief;
     const q = brief.questions.find((q) => q.areaKey === 'A2')!;
     expect(q.blocking).toBe(false);
@@ -89,6 +104,94 @@ describe('clarify coverage gate', () => {
     // not blocking: the Brief can still be approved
     await engine.approveBrief(goal.id);
     expect(getGoal(engine.store.db, goal.id)!.state).toBe('running');
+    engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
+  }, 20_000);
+});
+
+describe('nature pre-classification', () => {
+  test('an auto goal is classified before the prompt is built; the media sections replace the code ones', async () => {
+    const runner = new StructuredRunner(() => ({ ...briefWith([{ ...task('T1', 'A1', 'render posters'), scenario: 'image' as const }], [check('C1', 'T1')]), nature: 'image' as const }));
+    runner.classifyAs = 'image';
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: '生成三张产品海报', repoPath: repo });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    // the verdict was recorded before Clarify ran, and the goal carries it
+    expect(getGoal(engine.store.db, goal.id)!.nature).toBe('image');
+    const natureEvents = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'goal.nature_set');
+    expect(natureEvents.map((e) => (e.payload as { reason: string }).reason)).toEqual(['pre-clarify classification']);
+    // the clarify prompt got the image sections, not the code ones (no tech-stack question, no repo-gate talk)
+    const clarify = runner.calls.find((c) => c.label?.startsWith('clarify'))!;
+    expect(clarify.prompt).toContain('# Nature: image');
+    expect(clarify.prompt).not.toContain('Judge the nature first');
+    expect(clarify.prompt).not.toContain('tech stack is the human');
+    engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
+  }, 20_000);
+
+  test('styleOptions in the Clarifier output become Brief cards plus an engine-generated blocking style question', async () => {
+    const styles = [
+      { key: 'S1', name: 'Warm izakaya night', palette: ['#2b1d16', '#e8a13c'], fonts: ['Noto Serif JP'], keywords: ['lantern light', 'wood'], description: 'Cozy and warm.' },
+      { key: 'S2', name: 'Minimal washi', palette: ['#f5f1e8', '#3a3a3a'], fonts: ['Zen Kaku Gothic'], keywords: ['negative space'], description: 'Clean and airy.' },
+    ];
+    const runner = new StructuredRunner(() => ({ ...briefWith([{ ...task('T1', 'A1', 'render posters'), scenario: 'image' as const }], [check('C1', 'T1')]), nature: 'image' as const, styleOptions: styles }));
+    runner.classifyAs = 'image';
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'posters for the izakaya', repoPath: repo });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    const brief = getBrief(engine.store.db, goal.id)!.brief;
+    expect(brief.styleOptions.map((s) => [s.key, s.samples, s.chosenSample])).toEqual([['S1', [], null], ['S2', [], null]]);
+    const q = brief.questions.find((x) => x.kind === 'style')!;
+    expect(q.blocking).toBe(true);
+    expect(q.options).toEqual(['Warm izakaya night', 'Minimal washi']); // recommendation first
+    // the clarify prompt asked for the style options
+    expect(runner.calls.find((c) => c.label?.startsWith('clarify'))!.prompt).toContain('styleOptions');
+    engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
+  }, 20_000);
+
+  test('style samples: regenerate appends files and events, never replacing earlier ones', async () => {
+    const { startStyleSample, StyleSampleError } = await import('./style-sample.ts');
+    const { mkdirSync, writeFileSync } = await import('node:fs');
+    const { goalWorkspacePath } = await import('./workspace.ts');
+    const styles = [{ key: 'S1', name: 'Warm izakaya night', palette: ['#e8a13c'], fonts: [], keywords: ['warm'], description: 'Cozy.' }];
+    const runner = new StructuredRunner((spec) => {
+      if (spec.label?.startsWith('style sample')) {
+        const m = spec.prompt.match(/artifacts\/samples\/[\w.-]+\.png/)!;
+        mkdirSync(join(spec.cwd, 'artifacts', 'samples'), { recursive: true });
+        writeFileSync(join(spec.cwd, m[0]), 'png-bytes');
+        return {};
+      }
+      return { ...briefWith([{ ...task('T1', 'A1', 'render posters'), scenario: 'image' as const }], [check('C1', 'T1')]), nature: 'image' as const, styleOptions: styles };
+    });
+    runner.classifyAs = 'image';
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'posters', repoPath: repo });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    startStyleSample(engine, goal.id, 'S1');
+    await waitFor(() => getBrief(engine.store.db, goal.id)!.brief.styleOptions[0]!.samples.length === 1);
+    // regenerate: the second sample appends, the first survives on disk and in the Brief
+    startStyleSample(engine, goal.id, 'S1');
+    await waitFor(() => getBrief(engine.store.db, goal.id)!.brief.styleOptions[0]!.samples.length === 2);
+    const opt = getBrief(engine.store.db, goal.id)!.brief.styleOptions[0]!;
+    expect(opt.samples).toEqual(['artifacts/samples/S1-1.png', 'artifacts/samples/S1-2.png']);
+    const ws = goalWorkspacePath(dataDir, goal.id);
+    const { existsSync } = await import('node:fs');
+    for (const f of opt.samples) expect(existsSync(join(ws, f))).toBe(true);
+    // artifacts stay out of git even at Brief time
+    expect((await Bun.$`git -C ${ws} status --porcelain`.text()).trim()).toBe('');
+    expect(() => startStyleSample(engine, goal.id, 'NOPE')).toThrow(StyleSampleError);
+    engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
+  }, 20_000);
+
+  test('a user-chosen nature is never classified nor overridden by the verdict', async () => {
+    const runner = new StructuredRunner(() => ({ ...briefWith([task('T1', 'A1', 'write the guide')], [check('C1', 'T1')]), nature: 'code' as const }));
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'write the onboarding guide', repoPath: repo, nature: 'docs' });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    expect(runner.calls.some((c) => c.label?.startsWith('classify nature'))).toBe(false);
+    expect(getGoal(engine.store.db, goal.id)!.nature).toBe('docs');
     engine.cancelGoal(goal.id);
     await Bun.sleep(150);
   }, 20_000);
@@ -102,7 +205,7 @@ describe('draft with AI', () => {
       if (spec.label?.startsWith('draft area')) return { tasks: [task('N1', 'A2', 'add teacher home'), task('N2', 'A2', 'add grading view', ['N1'])], checks: [check('X1', 'N1'), check('X2', null)], rationale: 'two slices' };
       return { spec: spec.label?.startsWith('draft acceptance') ? null : '## Do it\nbuild the page', kind: 'feature', scope: null, scenario: 'frontend', areaKey: 'A2', tdd: 'inherit' as const, dependsOnKeys: ['T1', 'nope'], relevantFiles: ['README.md'], checks: [{ name: 'renders', tier: 'must', type: 'reviewer', cmd: null, rubric: 'page renders' }], rationale: 'because' };
     });
-    const engine = new Engine(cfg(), runner);
+    const engine = track(new Engine(cfg(), runner));
     const goal = await engine.createGoal({ prompt: 'portals', repoPath: repo });
     await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
     const { goalId: _g, ...brief } = getBrief(engine.store.db, goal.id)!.brief;
@@ -155,7 +258,7 @@ describe('decisions', () => {
       }
       return null;
     });
-    const engine = new Engine(cfg(), runner);
+    const engine = track(new Engine(cfg(), runner));
     const goal = await engine.createGoal({ prompt: 'portals', repoPath: repo });
     await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
     const { goalId: _g, ...brief } = getBrief(engine.store.db, goal.id)!.brief;

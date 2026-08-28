@@ -60,12 +60,28 @@ export type ModelConfig = z.infer<typeof ModelConfig>;
 export const GoalMode = z.enum(['simple', 'expert']);
 export type GoalMode = z.infer<typeof GoalMode>;
 
+/**
+ * What kind of thing the goal produces. Drives the Clarify prompt (no tech-stack question for prose,
+ * artifact conventions for media), the default view (non-code goals open Simple) and completion defaults.
+ * `auto` = the user did not say; the Clarifier decides from the prompt and the engine records its verdict.
+ */
+export const GoalNature = z.enum(['auto', 'code', 'docs', 'research', 'image', 'video']);
+export type GoalNature = z.infer<typeof GoalNature>;
+/** natures whose artifacts are media files (kept out of git, delivered to the output folder at done) */
+export const MEDIA_NATURES: GoalNature[] = ['image', 'video'];
+
 /** How hard the engine pushes a discipline: required = MUST + noted when skipped; preferred = suggested only; off = not mentioned. */
 export const Discipline = z.enum(['required', 'preferred', 'off']);
 export type Discipline = z.infer<typeof Discipline>;
 
+/** thorough = the engine adds its own AI reviews on top of the Brief's checks; fast = only what the Brief asked for runs. */
+export const GoalPace = z.enum(['thorough', 'fast']);
+export type GoalPace = z.infer<typeof GoalPace>;
+
 export const GoalWorkflow = z.object({
   tdd: Discipline.default('required'),
+  /** default keeps pre-pace goals replayable */
+  pace: GoalPace.default('thorough'),
 });
 export type GoalWorkflow = z.infer<typeof GoalWorkflow>;
 
@@ -85,9 +101,11 @@ export const GoalCompletion = z.object({
   docsRun: z.object({ status: z.enum(['ok', 'skipped', 'failed']), types: z.array(DocType), files: z.array(z.string()), costUsd: z.number(), detail: z.string(), at: z.string() }).nullable().default(null),
   /** result of the graph refresh (null = not run yet) */
   graphRun: z.object({ tools: z.array(z.object({ name: z.string(), status: z.enum(['ok', 'skipped', 'failed']), detail: z.string() })), at: z.string() }).nullable().default(null),
+  /** result of copying the media artifacts to the goal's output folder at done (null = not run yet) */
+  artifactsRun: z.object({ status: z.enum(['ok', 'skipped', 'failed']), files: z.array(z.string()), dest: z.string(), detail: z.string(), at: z.string() }).nullable().default(null),
 });
 export type GoalCompletion = z.infer<typeof GoalCompletion>;
-export const IDLE_COMPLETION: GoalCompletion = { graphRefresh: false, docs: [], docsRun: null, graphRun: null };
+export const IDLE_COMPLETION: GoalCompletion = { graphRefresh: false, docs: [], docsRun: null, graphRun: null, artifactsRun: null };
 
 export const Goal = z.object({
   id: z.string(),
@@ -102,6 +120,10 @@ export const Goal = z.object({
   budgetPreset: BudgetPreset.default('custom'),
   /** defaults keep pre-mode `goal.created` events replayable */
   mode: GoalMode.default('expert'),
+  /** default keeps pre-nature `goal.created` events replayable (old goals were all code goals in effect) */
+  nature: GoalNature.default('auto'),
+  /** where media artifacts are copied when the goal finishes; null = they stay in the goal workspace */
+  outputDir: z.string().nullable().default(null),
   workflow: GoalWorkflow.default(() => ({ tdd: 'required' as const })),
   models: ModelConfig,
   state: GoalState,

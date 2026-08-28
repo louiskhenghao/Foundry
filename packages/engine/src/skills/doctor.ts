@@ -2,6 +2,7 @@ import { accessSync, constants, existsSync, mkdirSync, readFileSync } from 'node
 import { claudeAuthStatus } from '../auth/claude-auth.ts';
 import { exec } from '../git/git.ts';
 import { SATISFIED, type WhichFn, defaultWhich } from './catalog.ts';
+import { packAllows } from './packs.ts';
 import type { SkillsPaths } from './paths.ts';
 import type { Catalog, CatalogEntryStatus, DoctorCheck, DoctorReport, SkillsUpdateReport } from './types.ts';
 
@@ -14,6 +15,8 @@ export interface DoctorContext {
   exec?: typeof exec;
   /** offline update report (for shadow-copy and update-available warnings) */
   updates?: SkillsUpdateReport | null;
+  /** chosen pack options (skills of unchosen packs skip the missing-env warning) */
+  packs?: Record<string, string | undefined>;
   /** engine-level checks (optional tools such as markitdown) appended after the gh check */
   extra?: DoctorCheck[];
 }
@@ -50,6 +53,11 @@ export async function runDoctor(ctx: DoctorContext): Promise<DoctorReport> {
       const runnable = s.entry.source.type === 'cli' && !!which(s.manual!.command.trim().split(/\s+/)[0]!);
       checks.push(err(id, `Required: ${s.entry.name}`, `${s.detail} — ${s.entry.why}`, s.manual ? { command: s.manual.command, url: s.manual.docs ?? undefined, installId: s.entry.id, ...(runnable ? { action: 'install-tool' as const } : {}) } : { installId: s.entry.id }));
     }
+  }
+
+  // installed skills whose API mode is dead because sessions lack a required env var (e.g. the image pack without OPENAI_API_KEY)
+  for (const s of ctx.statuses.filter((x) => SATISFIED.includes(x.status) && x.missingEnv.length && packAllows(x.entry, ctx.packs ?? {}))) {
+    checks.push(warn(`env:${s.entry.id}`, `${s.entry.name} backend`, `${s.missingEnv.join(', ')} not set — sessions get the skill in degraded (advisory-only) mode; media deliverables fall back to hand-authored renders`, { url: '/settings' }));
   }
 
   // GitHub CLI (optional: only delivery modes pr / pr-automerge need it)
