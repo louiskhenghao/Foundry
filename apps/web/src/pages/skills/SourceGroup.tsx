@@ -46,7 +46,7 @@ export function SourceGroup({ s, busy, updating, filter, a }: { s: SkillSource; 
   ].filter(Boolean) as string[];
 
   const stateBadge = (
-    <Badge state={state} className="w-[8.5rem] justify-center shrink-0">
+    <Badge state={state} className="shrink-0">
       {state === 'update-available' ? 'update available' : state === 'up-to-date' ? 'up to date' : 'unknown'}
     </Badge>
   );
@@ -65,7 +65,7 @@ export function SourceGroup({ s, busy, updating, filter, a }: { s: SkillSource; 
   const actions = (
     <>
       {canUpdate && (
-        <Button size="sm" variant={s.updateAvailable ? 'primary' : 'default'} disabled={busy || updating} onClick={() => a.onUpdate()} title={s.updater.command ? s.updater.command.join(' ') : 'update via Foundry'} className="min-w-[8.5rem] justify-center">
+        <Button size="sm" variant={s.updateAvailable ? 'primary' : 'default'} disabled={busy || updating} onClick={() => a.onUpdate()} title={s.updater.command ? s.updater.command.join(' ') : 'update via Foundry'}>
           <RefreshCw size={12} className={cn(updating && 'animate-spin')} /> {updating ? 'Updating…' : s.updater.kind === 'plugin' ? 'Update plugin' : s.updater.kind === 'agents-cli' ? 'Update (npx)' : 'Update'}
         </Button>
       )}
@@ -91,12 +91,12 @@ export function SourceGroup({ s, busy, updating, filter, a }: { s: SkillSource; 
   return (
     <section className={cn('rounded-lg border bg-zinc-900/60', s.updateAvailable ? 'border-amber-500/30' : 'border-zinc-800')}>
       <header className="px-3 sm:px-4 py-2.5 space-y-1.5">
-        {/* row 1: identity (truncating) · [desktop] state badge + actions at the right edge */}
+        {/* row 1: identity gets the width — name truncates last; actions sit at the right edge */}
         <div className="flex items-center gap-2 min-w-0">
           {removable.length > 0 && <input type="checkbox" className="shrink-0" checked={allSelected} onChange={(e) => a.onSelect(removable, e.target.checked)} title="select all removable skills in this source" />}
           <button className="flex items-center gap-2 min-w-0 flex-1 text-left" onClick={() => setOpen(!open)} title={open ? 'collapse' : 'expand'}>
             {open ? <ChevronDown size={14} className="text-zinc-500 shrink-0" /> : <ChevronRight size={14} className="text-zinc-500 shrink-0" />}
-            <Badge state={s.manager} className="w-[7.5rem] justify-center shrink-0 hidden sm:inline-flex">
+            <Badge state={s.manager} className="shrink-0 hidden sm:inline-flex">
               {MANAGER_LABEL[s.manager]}
             </Badge>
             <span className="text-sm font-semibold text-zinc-100 truncate">{s.label}</span>
@@ -106,10 +106,7 @@ export function SourceGroup({ s, busy, updating, filter, a }: { s: SkillSource; 
               <ExternalLink size={12} />
             </a>
           )}
-          <div className="hidden sm:flex items-center gap-2 shrink-0">
-            {stateBadge}
-            <div className="flex items-center gap-1.5 justify-end min-w-[8.5rem]">{hasActions ? actions : <span className="text-[11px] text-zinc-500 max-w-[16rem] truncate text-right" title={s.updater.hint ?? ''}>{s.updater.hint ?? (s.manager === 'project' ? 'edit in the repository' : 'no updater')}</span>}</div>
-          </div>
+          <div className="hidden sm:flex items-center gap-1.5 shrink-0">{hasActions ? actions : <span className="text-[11px] text-zinc-500 max-w-[16rem] truncate text-right" title={s.updater.hint ?? ''}>{s.updater.hint ?? (s.manager === 'project' ? 'edit in the repository' : 'no updater')}</span>}</div>
         </div>
         {/* mobile: manager + state + counts, then actions */}
         <div className="sm:hidden flex items-center gap-2 flex-wrap">
@@ -118,13 +115,21 @@ export function SourceGroup({ s, busy, updating, filter, a }: { s: SkillSource; 
           {countsEl}
         </div>
         {(hasActions || s.updater.hint) && <div className="sm:hidden flex items-center gap-1.5 flex-wrap">{hasActions ? actions : <span className="text-[11px] text-zinc-500">{s.updater.hint}</span>}</div>}
-        {/* row 2: metadata · [desktop] counts */}
-        <div className="flex items-center gap-3 text-[11px] text-zinc-500 min-w-0">
-          <span className="truncate flex-1 pl-0 sm:pl-6" title={meta.join(' · ')}>
+        {/* row 2 (desktop): all the status — state badge, metadata, per-skill counts */}
+        <div className="hidden sm:flex items-center gap-3 text-[11px] text-zinc-500 min-w-0 pl-6">
+          {stateBadge}
+          <span className="truncate flex-1" title={meta.join(' · ')}>
             {meta.join(' · ')}
             {s.error && <span className="text-rose-400"> · {s.error}</span>}
           </span>
-          <div className="hidden sm:block shrink-0">{countsEl}</div>
+          <div className="shrink-0">{countsEl}</div>
+        </div>
+        {/* mobile keeps the metadata on its own line */}
+        <div className="sm:hidden text-[11px] text-zinc-500 min-w-0">
+          <span className="block truncate" title={meta.join(' · ')}>
+            {meta.join(' · ')}
+            {s.error && <span className="text-rose-400"> · {s.error}</span>}
+          </span>
         </div>
       </header>
       {s.updater.command && open && (
