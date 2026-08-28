@@ -49,6 +49,10 @@ export interface AgentsList {
 
 export type AgentLogItem =
   | { kind: 'user'; text: string; ts: string | null }
+  /** a slash command the user ran (parsed out of the command XML markers) */
+  | { kind: 'command'; name: string; args: string; ts: string | null }
+  /** dim one-liner: local command output, "interrupted by user", … */
+  | { kind: 'notice'; text: string; ts: string | null }
   | { kind: 'assistant'; text: string; ts: string | null; model: string | null }
   | { kind: 'thinking'; text: string; ts: string | null }
   | { kind: 'tool_use'; id: string; name: string; input: string; ts: string | null }

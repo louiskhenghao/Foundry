@@ -59,10 +59,26 @@ export function TranscriptView({ sessionId, agentId, className }: { sessionId: s
   for (const it of items) if (it.kind === 'tool_result' && it.forId) resultFor.set(it.forId, it);
 
   return (
-    <div ref={ref} className={cn('mono text-[12px] leading-5 bg-zinc-950 border border-zinc-800 rounded-md p-3 overflow-auto max-h-[70vh] space-y-1', className)}>
+    <div ref={ref} className={cn('mono text-[12px] leading-5 bg-zinc-950 border border-zinc-800 rounded-md p-3 overflow-auto max-h-[70vh] space-y-1.5', className)}>
       {items.length === 0 && <div className="text-zinc-600">{error ? `log unavailable: ${error}` : status === null ? 'loading…' : 'no renderable output in this transcript…'}</div>}
       {items.map((it, i) => {
-        if (it.kind === 'user') return <div key={i} className="text-zinc-100 whitespace-pre-wrap"><span className="text-emerald-500">› </span>{it.text}</div>;
+        if (it.kind === 'user')
+          return (
+            <div key={i} className="border border-zinc-800 bg-zinc-900 rounded-md px-3 py-2 my-2">
+              <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-0.5">you</div>
+              <div className="text-zinc-100 whitespace-pre-wrap">{it.text}</div>
+            </div>
+          );
+        if (it.kind === 'command')
+          return (
+            <div key={i} className="my-2">
+              <span className="inline-flex items-baseline gap-1.5 rounded-md border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-violet-300 max-w-full">
+                <span className="shrink-0">/{it.name}</span>
+                {it.args && <span className="text-zinc-400 truncate" title={it.args}>{it.args.replace(/\s+/g, ' ')}</span>}
+              </span>
+            </div>
+          );
+        if (it.kind === 'notice') return <div key={i} className="text-zinc-600 italic whitespace-pre-wrap">{it.text}</div>;
         if (it.kind === 'assistant') return <div key={i} className="text-zinc-200 whitespace-pre-wrap">{it.text}</div>;
         if (it.kind === 'thinking') return <div key={i} className="text-zinc-600 italic whitespace-pre-wrap">{it.text.length > 400 ? `${it.text.slice(0, 400)}…` : it.text}</div>;
         if (it.kind === 'tool_use') return <ToolRow key={i} use={it} result={it.id ? resultFor.get(it.id) : undefined} />;

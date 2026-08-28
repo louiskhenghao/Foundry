@@ -140,6 +140,28 @@ describe('toLogItems', () => {
     expect(compact.preTokens).toBe(788542);
   });
 
+  test('user lines carrying command/IDE machinery split into typed items', () => {
+    const text = [
+      '<command-name>/model</command-name>',
+      '<command-message>model</command-message>',
+      '<command-args>claude-fable-5[1m]</command-args>',
+      '<local-command-stdout>Set model to claude-fable-5</local-command-stdout>',
+      '<ide_opened_file>The user opened App.tsx</ide_opened_file>',
+      '<system-reminder>injected context, not the user</system-reminder>',
+      'do the actual thing',
+      '[Request interrupted by user]',
+    ].join('\n');
+    const items = toLogItems([{ type: 'user', message: { content: text } }]);
+    expect(items).toMatchObject([
+      { kind: 'command', name: 'model', args: 'claude-fable-5[1m]' },
+      { kind: 'notice', text: 'Set model to claude-fable-5' },
+      { kind: 'notice', text: 'interrupted by user' },
+      { kind: 'user', text: 'do the actual thing' },
+    ]);
+    // a line that is nothing but machinery yields no user bubble at all
+    expect(toLogItems([{ type: 'user', message: { content: '<ide_opened_file>x</ide_opened_file>' } }])).toEqual([]);
+  });
+
   test('sidechain mode renders subagent files, whose every line is marked isSidechain', () => {
     const lines = [{ type: 'user', isSidechain: true, agentId: 'a1', message: { content: 'sub work' } }];
     expect(toLogItems(lines)).toEqual([]); // main-transcript view: legacy inline sidechains stay hidden

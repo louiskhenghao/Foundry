@@ -179,6 +179,38 @@ function blockText(content: unknown): string {
   return '';
 }
 
+const NOTICE_CAP = 500;
+
+/**
+ * A "user" line is not always the person typing: slash commands, their stdout, IDE notifications and
+ * injected reminders all arrive as user text wrapped in XML-ish markers. Split them into typed items
+ * so the viewer can render the human's words as the human's words and the rest as machinery.
+ */
+function userTextItems(raw: string, ts: string | null): AgentLogItem[] {
+  const out: AgentLogItem[] = [];
+  let text = raw
+    .replace(/<system-reminder>[\s\S]*?(<\/system-reminder>|$)/g, '') // injected context, not the user's words
+    .replace(/<(ide_opened_file|ide_selection|ide_diagnostics|local-command-caveat)>[\s\S]*?(<\/\1>|$)/g, ''); // IDE noise
+  const name = /<command-name>([\s\S]*?)<\/command-name>/.exec(text)?.[1]?.trim();
+  if (name) {
+    const args = /<command-args>([\s\S]*?)<\/command-args>/.exec(text)?.[1]?.trim() ?? '';
+    out.push({ kind: 'command', name: name.replace(/^\//, ''), args, ts });
+  }
+  text = text.replace(/<(command-name|command-message|command-args|command-contents)>[\s\S]*?(<\/\1>|$)/g, '');
+  text = text.replace(/<local-command-stdout>([\s\S]*?)(<\/local-command-stdout>|$)/g, (_, body: string) => {
+    const t = body.trim();
+    if (t) out.push({ kind: 'notice', text: cap(t, NOTICE_CAP), ts });
+    return '';
+  });
+  text = text.replace(/\[Request interrupted by user[^\]]*\]/g, () => {
+    out.push({ kind: 'notice', text: 'interrupted by user', ts });
+    return '';
+  });
+  text = text.trim();
+  if (text) out.push({ kind: 'user', text, ts });
+  return out;
+}
+
 /**
  * Envelope lines → renderable conversation items. Skip-unknown everywhere: the transcript is an
  * internal Claude Code format and drifts across versions.
@@ -199,12 +231,12 @@ export function toLogItems(lines: Envelope[], opts: { sidechain?: boolean } = {}
     if (e.type === 'user') {
       const content = e.message?.content;
       if (typeof content === 'string') {
-        if (content.trim()) out.push({ kind: 'user', text: content, ts });
+        out.push(...userTextItems(content, ts));
         continue;
       }
       if (!Array.isArray(content)) continue;
       for (const b of content) {
-        if (b?.type === 'text' && b.text?.trim()) out.push({ kind: 'user', text: b.text, ts });
+        if (b?.type === 'text' && b.text?.trim()) out.push(...userTextItems(b.text, ts));
         else if (b?.type === 'tool_result') out.push({ kind: 'tool_result', forId: b.tool_use_id ?? '', content: cap(blockText(b.content), TOOL_RESULT_CAP), isError: !!b.is_error, ts });
       }
       continue;
