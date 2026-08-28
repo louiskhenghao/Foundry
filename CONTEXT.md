@@ -74,6 +74,12 @@ The only way the system ever asks a human for anything after the Brief is approv
 **Suggestion**
 What the system proposes when a Task is blocked and the user asks: a plain-words diagnosis, the action it recommends (retry with a hint, skip, resolve by hand, raise the budget) and the hint itself. Only a *retry with hint* may be applied on the user's say-so in one click; every other action stays the user's.
 
+**Notification**
+A push message sent to a Notification Channel the moment something happens the user would want to know about while away from the app: the system needs them (an Escalation, or a Goal or Task becoming blocked), a Goal ends done, over-delivered or failed, a Delivery opens, merges or fails a pull request, or usage pauses and resumes. Things the user did themselves — cancelling a Goal, answering an Escalation — are never announced back to them, and a Suggestion never notifies, because a Suggestion by definition does not interrupt. A Notification is a hint, not a ledger: one that cannot be delivered is noted and dropped, never queued or replayed. Each family of events has one switch, and the switches apply to every configured Channel alike. A Notification carries a link back to the app only when the user has said where the app can be reached.
+
+**Notification Channel**
+A place outside the app where Notifications are sent — Telegram or Discord — configured by the user in Settings. Sending is the engine acting under the user's standing authorisation, exactly like Delivery: the model never sends anything.
+
 **Sign-in**
 How the engine gets a Claude session for its own machine. Normally the CLI opens a browser and finishes by itself; where there is no browser (a container, a remote host) it shows a link and a code instead, and the user pastes that code into the Setup page. The engine never sees the password or the token — Claude Code stores the credential.
 

@@ -89,6 +89,25 @@ export const ToolSettings = z.object({
   /** Gemini key handed to sessions as GEMINI_API_KEY (claude-image-gen's default provider); null = whatever the engine's own environment has */
   geminiApiKey: z.string().nullable().default(null),
 });
+export const NotificationSettings = z.object({
+  /** Telegram bot token from @BotFather; null = Telegram channel off */
+  telegramBotToken: z.string().min(1).nullable().default(null),
+  /** chat the bot posts to; the Settings page fills it via getUpdates after the user messages the bot */
+  telegramChatId: z.string().min(1).nullable().default(null),
+  /** Discord webhook URL; null = Discord channel off */
+  discordWebhookUrl: z.string().url().nullable().default(null),
+  /** where this UI is reachable from outside (Tailscale, LAN…); null = messages carry no links */
+  baseUrl: z.string().url().nullable().default(null),
+  /** an Escalation was raised — a task or goal is blocked and needs the human */
+  onEscalation: z.boolean().default(true),
+  /** a goal ended done / over-delivered / failed (cancelling is the human's own act and never notifies) */
+  onGoalFinished: z.boolean().default(true),
+  /** a PR opened, merged, or the delivery failed */
+  onDelivery: z.boolean().default(true),
+  /** a Claude usage limit paused the engine / the pause lifted */
+  onRateLimit: z.boolean().default(true),
+});
+export type NotificationSettings = z.infer<typeof NotificationSettings>;
 export const SafetySettings = z.object({
   /** extra ERE patterns for the boundary guard, '|'-separated */
   extraBoundaryPatterns: z.string().nullable().default(null),
@@ -105,6 +124,7 @@ export const Settings = z.object({
   delivery: DeliverySettings.default({}),
   sync: SyncSettings.default({}),
   tools: ToolSettings.default({}),
+  notifications: NotificationSettings.default({}),
   safety: SafetySettings.default({}),
 });
 export type Settings = z.infer<typeof Settings>;
@@ -120,6 +140,7 @@ export const SettingsPatch = z.object({
   delivery: DeliverySettings.partial().optional(),
   sync: SyncSettings.partial().optional(),
   tools: ToolSettings.partial().optional(),
+  notifications: NotificationSettings.partial().optional(),
   safety: SafetySettings.partial().optional(),
 });
 export type SettingsPatch = z.infer<typeof SettingsPatch>;

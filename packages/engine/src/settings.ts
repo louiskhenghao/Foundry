@@ -43,6 +43,10 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'tools.openaiBaseUrl': { name: 'OPENAI_BASE_URL', parse: str },
   'tools.kimiApiKey': { name: 'KIMI_API_KEY', parse: str },
   'tools.geminiApiKey': { name: 'GEMINI_API_KEY', parse: str },
+  'notifications.telegramBotToken': { name: 'FOUNDRY_TELEGRAM_BOT_TOKEN', parse: str },
+  'notifications.telegramChatId': { name: 'FOUNDRY_TELEGRAM_CHAT_ID', parse: str },
+  'notifications.discordWebhookUrl': { name: 'FOUNDRY_DISCORD_WEBHOOK', parse: str },
+  'notifications.baseUrl': { name: 'FOUNDRY_NOTIFY_BASE_URL', parse: str },
 };
 
 export const SETTING_PATHS: string[] = Object.entries(DEFAULT_SETTINGS).flatMap(([section, v]) => Object.keys(v as object).map((k) => `${section}.${k}`));

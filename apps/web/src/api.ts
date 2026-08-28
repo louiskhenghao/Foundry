@@ -319,6 +319,8 @@ export const api = {
   updateSettings: (patch: SettingsPatch) => req<SettingsView>('/api/settings', { method: 'PUT', body: JSON.stringify(patch) }),
   resetSetting: (path: string) => req<SettingsView>(`/api/settings/${encodeURIComponent(path)}`, { method: 'DELETE' }),
   resetSettings: () => req<SettingsView>('/api/settings/reset', { method: 'POST' }),
+  notifyTest: (override: { telegramBotToken?: string | null; telegramChatId?: string | null; discordWebhookUrl?: string | null }) => req<{ results: { channel: string; ok: boolean; error: string | null }[] }>('/api/notifications/test', { method: 'POST', body: JSON.stringify(override) }),
+  telegramChatId: (token: string | null) => req<{ chatId: string; who: string }>('/api/notifications/telegram/chat-id', { method: 'POST', body: JSON.stringify({ token }) }),
   health: () => req<{ ok: boolean; active: number; events: number; pausedUntil: string | null; restartNeeded: string[] }>('/api/health'),
   auth: (force = false) => req<AuthInfo>(`/api/auth${force ? '?force=1' : ''}`),
   startLogin: (body: { mode?: 'claudeai' | 'console'; email?: string }) => req<LoginSession>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
