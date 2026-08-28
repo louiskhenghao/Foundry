@@ -1,13 +1,43 @@
 import type { EngineEvent } from '@foundry/core/browser';
 import type { CatalogEntryStatus, SessionView, SkillTier, TrashEntry } from '@foundry/engine/skills-types';
-import { useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+import { type ReactNode, useState } from 'react';
 import { Badge, Button, Card, CopyButton, ago, cn } from '../../ui.tsx';
 
 const TIERS: SkillTier[] = ['required', 'recommended', 'optional'];
 const TIER_LABEL: Record<SkillTier, string> = { required: 'Required — the engine is noticeably weaker without these', recommended: 'Recommended — improves worker / reviewer / clarifier quality', optional: 'Optional — situational' };
 
+/** A side card whose body folds away; closed it costs one line. */
+function FoldCard({ title, hint, defaultOpen = false, children }: { title: string; hint?: string; defaultOpen?: boolean; children: ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Card
+      title={
+        <button type="button" className="flex items-center gap-1.5 min-w-0" onClick={() => setOpen(!open)}>
+          {open ? <ChevronDown size={13} className="text-zinc-500 shrink-0" /> : <ChevronRight size={13} className="text-zinc-500 shrink-0" />}
+          <span className="truncate">{title}</span>
+        </button>
+      }
+      actions={hint ? <span className="text-[11px] text-zinc-500">{hint}</span> : undefined}
+    >
+      {open ? children : null}
+    </Card>
+  );
+}
+
+/**
+ * The catalog, kept short: what is still missing leads each tier, what is already installed folds
+ * into one line, and the whole optional tier starts collapsed.
+ */
 export function CatalogPanel({ catalog, busy, onInstall, onInstallTier }: { catalog: CatalogEntryStatus[]; busy: string | null; onInstall: (id: string, force: boolean) => void; onInstallTier: (tiers: SkillTier[]) => void }) {
   const missing = catalog.filter((c) => !c.status.startsWith('installed'));
+  const [openTiers, setOpenTiers] = useState<Set<SkillTier>>(() => new Set(TIERS.filter((t) => t !== 'optional')));
+  const [showInstalled, setShowInstalled] = useState<Set<SkillTier>>(new Set());
+  const toggle = (set: Set<SkillTier>, tier: SkillTier) => {
+    const n = new Set(set);
+    n.has(tier) ? n.delete(tier) : n.add(tier);
+    return n;
+  };
   return (
     <Card
       title="Catalog"
@@ -22,21 +52,33 @@ export function CatalogPanel({ catalog, busy, onInstall, onInstallTier }: { cata
         </div>
       }
     >
-      <p className="text-[11px] text-zinc-500 mb-3">Curated in catalog/skills.json. Installed entries tagged with a role are mentioned to that role in its prompt; bundles (e.g. mattpocock) are wired into the workflow — see Setup.</p>
+      <p className="text-[11px] text-zinc-500 mb-3">Curated in catalog/skills.json. Installed entries tagged with a role are mentioned to that role in its prompt; pack options (design / image / video) are chosen in Settings.</p>
       {TIERS.map((tier) => {
         const list = catalog.filter((c) => c.entry.tier === tier);
         if (!list.length) return null;
+        const miss = list.filter((c) => !c.status.startsWith('installed'));
+        const inst = list.filter((c) => c.status.startsWith('installed'));
+        const open = openTiers.has(tier);
         return (
           <div key={tier} className="mb-3">
-            <div className="flex items-center gap-2 mb-1.5">
+            <button type="button" className="flex items-center gap-2 mb-1.5 w-full text-left" onClick={() => setOpenTiers((s) => toggle(s, tier))}>
+              {open ? <ChevronDown size={13} className="text-zinc-500 shrink-0" /> : <ChevronRight size={13} className="text-zinc-500 shrink-0" />}
               <Badge state={tier} />
-              <span className="text-[11px] text-zinc-500">{TIER_LABEL[tier]}</span>
-            </div>
-            <div className="space-y-1.5">
-              {list.map((c) => (
-                <CatalogRow key={c.entry.id} c={c} busy={busy} onInstall={(force) => onInstall(c.entry.id, force)} />
-              ))}
-            </div>
+              <span className="text-[11px] text-zinc-500 truncate">{open ? TIER_LABEL[tier] : `${list.length} skill${list.length === 1 ? '' : 's'}${miss.length ? ` · ${miss.length} missing` : ' · all installed'}`}</span>
+            </button>
+            {open && (
+              <div className="space-y-1.5">
+                {miss.map((c) => (
+                  <CatalogRow key={c.entry.id} c={c} busy={busy} onInstall={(force) => onInstall(c.entry.id, force)} />
+                ))}
+                {inst.length > 0 && (
+                  <button type="button" className="text-[11px] text-zinc-500 underline decoration-dotted pl-1" onClick={() => setShowInstalled((s) => toggle(s, tier))}>
+                    {showInstalled.has(tier) ? 'hide' : 'show'} {inst.length} installed
+                  </button>
+                )}
+                {showInstalled.has(tier) && inst.map((c) => <CatalogRow key={c.entry.id} c={c} busy={busy} onInstall={(force) => onInstall(c.entry.id, force)} />)}
+              </div>
+            )}
           </div>
         );
       })}
@@ -109,7 +151,7 @@ function CatalogRow({ c, busy, onInstall }: { c: CatalogEntryStatus; busy: strin
 export function TrashPanel({ trash, busy, onRestore }: { trash: TrashEntry[]; busy: string | null; onRestore: (name: string, path: string) => void }) {
   if (!trash.length) return null;
   return (
-    <Card title={`Trash (${trash.length})`}>
+    <FoldCard title={`Trash (${trash.length})`} hint={`latest ${ago(trash[0]!.trashedAt)}`}>
       <div className="space-y-1 text-xs">
         {trash.slice(0, 12).map((t) => (
           <div key={t.path} className="flex items-center gap-2">
@@ -124,7 +166,7 @@ export function TrashPanel({ trash, busy, onRestore }: { trash: TrashEntry[]; bu
         ))}
         {trash.length > 12 && <div className="text-zinc-600">… {trash.length - 12} more in data/skills-trash</div>}
       </div>
-    </Card>
+    </FoldCard>
   );
 }
 
@@ -132,7 +174,7 @@ export function HistoryPanel({ runs }: { runs: (EngineEvent & { seq: number })[]
   const [openSeq, setOpenSeq] = useState<number | null>(null);
   if (!runs.length) return null;
   return (
-    <Card title="Update history">
+    <FoldCard title={`Update history (${runs.length})`} hint={`latest ${ago(runs[0]!.ts)}`}>
       <div className="space-y-1 text-xs">
         {runs.map((e) => {
           const p = e.payload as any;
@@ -159,7 +201,7 @@ export function HistoryPanel({ runs }: { runs: (EngineEvent & { seq: number })[]
           );
         })}
       </div>
-    </Card>
+    </FoldCard>
   );
 }
 
