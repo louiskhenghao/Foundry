@@ -24,6 +24,7 @@ const SECTIONS: { id: string; label: string }[] = [
   { id: 'skills', label: 'Skills' },
   { id: 'git', label: 'Git & delivery' },
   { id: 'tools', label: 'Tools & keys' },
+  { id: 'notifications', label: 'Notifications' },
   { id: 'safety', label: 'Safety' },
   { id: 'engine', label: 'Engine (install)' },
 ];
@@ -48,6 +49,7 @@ export function SettingsPage() {
   const [err, setErr] = useState<string | null>(null);
   const [known, setKnown] = useState<ModelRecordView[] | null>(null);
   const [probe, setProbe] = useState<Record<string, string>>({});
+  const [notifMsg, setNotifMsg] = useState<string | null>(null);
   const [active, setActive] = useState(SECTIONS[0]!.id);
   const load = () =>
     api
@@ -87,6 +89,26 @@ export function SettingsPage() {
       loadModels();
     } catch (e: any) {
       setProbe((p) => ({ ...p, [name]: `✘ ${e.message}` }));
+    }
+  };
+
+  const detectChatId = async (token: string | null) => {
+    setNotifMsg('detecting…');
+    try {
+      const r = await api.telegramChatId(token);
+      set('notifications.telegramChatId', r.chatId);
+      setNotifMsg(`✓ found chat ${r.chatId} (${r.who}) — remember to Save`);
+    } catch (e: any) {
+      setNotifMsg(`✘ ${e.message}`);
+    }
+  };
+  const sendTestNotification = async (o: { telegramBotToken: string | null; telegramChatId: string | null; discordWebhookUrl: string | null }) => {
+    setNotifMsg('sending…');
+    try {
+      const { results } = await api.notifyTest(o);
+      setNotifMsg(results.length ? results.map((r) => `${r.channel}: ${r.ok ? '✓ sent' : `✘ ${r.error}`}`).join(' · ') : 'no channel configured — fill in a token + chat id or a webhook URL first');
+    } catch (e: any) {
+      setNotifMsg(`✘ ${e.message}`);
     }
   };
 
@@ -436,6 +458,45 @@ export function SettingsPage() {
               </Field>
             </>,
           )}
+        </div>
+      </Card>
+
+      <Card id="notifications" title="Notifications" className="scroll-mt-16">
+        <div className="space-y-4">
+          <p className="text-[11px] text-zinc-500">Get pinged outside the app the moment a goal needs you or finishes. Every enabled event goes to every configured channel; leave a channel's fields empty to keep it off.</p>
+          {grid(
+            <>
+              <Field label="Telegram bot token" aside={aside('notifications.telegramBotToken')} help="Create a bot with @BotFather in Telegram and paste its token here.">
+                <Input type="password" autoComplete="off" value={(get(draft, 'notifications.telegramBotToken') as string | null) ?? ''} placeholder="123456:ABC-DEF…" onChange={(e) => set('notifications.telegramBotToken', e.target.value === '' ? null : e.target.value)} />
+              </Field>
+              <Field label="Telegram chat id" aside={aside('notifications.telegramChatId')} help="Open your bot in Telegram and send it any message, then Detect fills this in.">
+                <div className="flex gap-1">
+                  <Input className="mono" value={(get(draft, 'notifications.telegramChatId') as string | null) ?? ''} placeholder="123456789" onChange={(e) => set('notifications.telegramChatId', e.target.value === '' ? null : e.target.value)} />
+                  <Button size="sm" variant="ghost" className="shrink-0" disabled={busy || !get(draft, 'notifications.telegramBotToken')} onClick={() => detectChatId(draft.notifications.telegramBotToken)} title="Asks Telegram which chat last messaged your bot and fills in its id">
+                    Detect
+                  </Button>
+                </div>
+              </Field>
+              <Field label="Discord webhook URL" aside={aside('notifications.discordWebhookUrl')} help="In your Discord channel: Settings → Integrations → Webhooks → New Webhook, then copy its URL.">
+                <Input type="password" autoComplete="off" value={(get(draft, 'notifications.discordWebhookUrl') as string | null) ?? ''} placeholder="https://discord.com/api/webhooks/…" onChange={(e) => set('notifications.discordWebhookUrl', e.target.value === '' ? null : e.target.value)} />
+              </Field>
+              <Field label="Link base URL" aside={aside('notifications.baseUrl')} help="Where this UI is reachable from your phone (a Tailscale or LAN address). Empty = messages carry no links, since 127.0.0.1 would not open elsewhere.">
+                {text('notifications.baseUrl', 'http://my-mac.tailnet:4111', true)}
+              </Field>
+            </>,
+          )}
+          <div className="space-y-2">
+            {bool('notifications.onEscalation', 'Needs you', 'An escalation was raised — a task or goal is blocked until you answer it on the Inbox page.')}
+            {bool('notifications.onGoalFinished', 'Goal finished', 'A goal ended done, over-delivered, or failed. Cancelling a goal yourself never notifies.')}
+            {bool('notifications.onDelivery', 'Delivery', 'A pull request was opened or merged, or the delivery failed.')}
+            {bool('notifications.onRateLimit', 'Usage pause', 'A Claude usage limit paused the engine, and when the pause lifts.')}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => sendTestNotification({ telegramBotToken: draft.notifications.telegramBotToken, telegramChatId: draft.notifications.telegramChatId, discordWebhookUrl: draft.notifications.discordWebhookUrl })} title="Sends a test message with the values above (saved or not)">
+              Send test message
+            </Button>
+            {notifMsg && <span className={cn('text-[11px]', notifMsg.includes('✘') ? 'text-amber-300' : 'text-zinc-400')}>{notifMsg}</span>}
+          </div>
         </div>
       </Card>
 
