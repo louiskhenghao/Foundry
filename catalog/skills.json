@@ -1109,7 +1109,7 @@
       "source": {
         "type": "git",
         "repo": "Leonxlnx/taste-skill",
-        "path": "skills/design-taste-frontend"
+        "path": "skills/taste-skill"
       },
       "roles": [
         "worker",
