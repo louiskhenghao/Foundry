@@ -16,6 +16,7 @@ import {
   getGoal,
   getTask,
   listAttempts,
+  listAttemptsEndedSince,
   listEscalations,
   listGoals,
   listRunningAttempts,
@@ -42,6 +43,7 @@ import { runGoalReview } from './goal-review.ts';
 import { Roles } from './roles.ts';
 import { schedule } from './scheduler.ts';
 import { SkillsManager } from './skills/manager.ts';
+import { AgentsMonitor, type FoundryLiveSession } from './agents/monitor.ts';
 import { ClaudeAuth } from './auth/claude-auth.ts';
 import { CliGh, type GhClient } from './delivery/gh.ts';
 import { probeForPlan, runDelivery } from './delivery/pipeline.ts';
@@ -102,6 +104,7 @@ export class Engine {
   readonly runner: ClaudeRunner;
   readonly roles: Roles;
   readonly skills: SkillsManager;
+  readonly agents: AgentsMonitor;
   readonly auth: ClaudeAuth;
   readonly gh: GhClient;
   context: ContextProvider;
@@ -184,6 +187,14 @@ export class Engine {
       onRun: (run) => this.store.append({ type: 'skills.update_run', goalId: null, payload: { sourceId: run.sourceId, updater: run.updater, command: run.command, cwd: run.cwd, exitCode: run.exitCode, durationMs: run.durationMs, outputTail: run.outputTail, changed: run.changed, error: run.error } }),
     });
     this.auth = new ClaudeAuth({ claudeBin: config.claudeBin ?? Bun.which('claude'), log: config.log });
+    this.agents = new AgentsMonitor(
+      { claudeHome: config.claudeHome, dataDir: config.dataDir },
+      {
+        foundryLive: () => this.foundryLiveSessions(),
+        foundryRecent: (sinceIso) => listAttemptsEndedSince(this.store.db, sinceIso),
+        goalTitle: (goalId) => getGoal(this.store.db, goalId)?.title ?? null,
+      },
+    );
     this.markitdown = new Markitdown({ bin: config.markitdownBin, log: config.log });
     this.context = this.buildContext();
     config.log(`[engine] context provider: ${this.context.name}`);
@@ -655,6 +666,23 @@ export class Engine {
   killGoal(goalId: string, reason: string): void {
     for (const [, f] of this.inFlight) if (f.goalId === goalId) f.handle?.kill('killed_manual');
     this.config.log(`[engine] killed in-flight sessions for ${goalId}: ${reason}`);
+  }
+  /** In-flight sessions joined with their attempt records — what the agents monitor shows as Foundry rows. */
+  foundryLiveSessions(): FoundryLiveSession[] {
+    const out: FoundryLiveSession[] = [];
+    for (const [taskId, f] of this.inFlight) {
+      const a = f.attemptId ? getAttempt(this.store.db, f.attemptId) : null;
+      out.push({ taskId, goalId: f.goalId, attemptId: f.attemptId, sessionId: a?.sessionId ?? null, pid: a?.pid ?? null, model: a?.model ?? null, cwd: a?.cwd ?? null, startedAt: a?.startedAt ?? null, killable: f.handle != null });
+    }
+    return out;
+  }
+  /** Kill one in-flight task's session (same path killGoal uses); false when nothing is running for it. */
+  killTaskSession(taskId: string, reason = 'killed from Agents page'): boolean {
+    const f = this.inFlight.get(taskId);
+    if (!f?.handle) return false;
+    f.handle.kill('killed_manual');
+    this.config.log(`[engine] ${reason}: task ${taskId}`);
+    return true;
   }
 
   // ---------- tick ----------

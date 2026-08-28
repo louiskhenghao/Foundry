@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./agents-types": "./src/agents/types.ts",
     "./skills-types": "./src/skills/types.ts",
     "./usage-types": "./src/usage/types.ts"
   },
