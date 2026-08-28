@@ -9,6 +9,21 @@ import { EscalationCard } from '../InboxPage.tsx';
 
 const STAGES = ['clarifying', 'awaiting_brief_approval', 'running', 'goal_review', 'done'] as const;
 const STAGE_LABEL: Record<string, string> = { clarifying: 'Clarify', awaiting_brief_approval: 'Brief', running: 'Run', goal_review: 'Review', done: 'Done' };
+/** where each stage pill takes you: the page or tab that shows that stage's work */
+const STAGE_LINK: Record<string, (goalId: string) => string> = {
+  clarifying: (id) => `/goals/${id}#activity`,
+  awaiting_brief_approval: (id) => `/goals/${id}/brief`,
+  running: (id) => `/goals/${id}#tasks`,
+  goal_review: (id) => `/goals/${id}#activity`,
+  done: (id) => `/goals/${id}#delivery`,
+};
+const STAGE_LINK_HINT: Record<string, string> = {
+  clarifying: 'open the Activity tab (Clarify session log)',
+  awaiting_brief_approval: 'open the Brief page',
+  running: 'open the Tasks tab',
+  goal_review: 'open the Activity tab (review sessions)',
+  done: 'open the Delivery tab',
+};
 
 export function OverviewTab({ d }: { d: GoalDetail }) {
   const g = d.goal;
@@ -32,10 +47,14 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
           const active = i === currentIdx && !terminalOk;
           return (
             <div key={s} className="flex items-center gap-1.5 sm:gap-2 sm:flex-1 min-w-0">
-              <div className={cn('flex items-center gap-2 rounded-md border px-2 sm:px-2.5 py-1.5 text-xs sm:flex-1 whitespace-nowrap', done ? 'border-emerald-500/40 bg-emerald-500/5 text-emerald-300' : active ? 'border-blue-500/50 bg-blue-500/5 text-blue-300' : 'border-zinc-800 text-zinc-500')}>
+              <Link
+                to={STAGE_LINK[s]!(g.id)}
+                title={STAGE_LINK_HINT[s]}
+                className={cn('flex items-center gap-2 rounded-md border px-2 sm:px-2.5 py-1.5 text-xs sm:flex-1 whitespace-nowrap', done ? 'border-emerald-500/40 bg-emerald-500/5 text-emerald-300 hover:border-emerald-400/70' : active ? 'border-blue-500/50 bg-blue-500/5 text-blue-300 hover:border-blue-400/80' : 'border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300')}
+              >
                 <span className={cn('h-2 w-2 rounded-full shrink-0', done ? 'bg-emerald-400' : active ? 'bg-blue-400 animate-pulse' : 'bg-zinc-700')} />
                 {s === 'done' && g.state === 'over_delivered' ? 'Over-delivered' : STAGE_LABEL[s]}
-              </div>
+              </Link>
               {i < STAGES.length - 1 && <div className={cn('h-px w-2 sm:w-3', done ? 'bg-emerald-500/40' : 'bg-zinc-800')} />}
             </div>
           );
@@ -43,7 +62,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
         {g.delivery.policy.mode !== 'local' && (
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
             <div className={cn('h-px w-2 sm:w-3', terminalOk ? 'bg-emerald-500/40' : 'bg-zinc-800')} />
-            <div className={cn('flex items-center gap-2 rounded-md border px-2 sm:px-2.5 py-1.5 text-xs whitespace-nowrap', g.delivery.status === 'delivered' ? 'border-emerald-500/40 bg-emerald-500/5 text-emerald-300' : g.delivery.status === 'running' ? 'border-blue-500/50 bg-blue-500/5 text-blue-300' : g.delivery.status === 'failed' ? 'border-rose-500/40 bg-rose-500/5 text-rose-300' : 'border-zinc-800 text-zinc-500')} title={g.delivery.status === 'idle' ? `Delivery (${g.delivery.policy.mode}) starts automatically once the goal is done` : `Delivery ${g.delivery.status}`}>
+            <Link to={`/goals/${g.id}#delivery`} className={cn('flex items-center gap-2 rounded-md border px-2 sm:px-2.5 py-1.5 text-xs whitespace-nowrap', g.delivery.status === 'delivered' ? 'border-emerald-500/40 bg-emerald-500/5 text-emerald-300 hover:border-emerald-400/70' : g.delivery.status === 'running' ? 'border-blue-500/50 bg-blue-500/5 text-blue-300 hover:border-blue-400/80' : g.delivery.status === 'failed' ? 'border-rose-500/40 bg-rose-500/5 text-rose-300 hover:border-rose-400/70' : 'border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300')} title={g.delivery.status === 'idle' ? `Delivery (${g.delivery.policy.mode}) starts automatically once the goal is done` : `Delivery ${g.delivery.status}`}>
               <span className={cn('h-2 w-2 rounded-full shrink-0', g.delivery.status === 'delivered' ? 'bg-emerald-400' : g.delivery.status === 'running' ? 'bg-blue-400 animate-pulse' : g.delivery.status === 'failed' ? 'bg-rose-400' : 'bg-zinc-700')} />
               Deliver · {g.delivery.policy.mode}
               {g.delivery.prs.length > 0 && (
@@ -52,7 +71,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
                   {g.delivery.prs.some((p) => p.state === 'merged') ? ` · ${g.delivery.prs.filter((p) => p.state === 'merged').length} merged` : ''}
                 </span>
               )}
-            </div>
+            </Link>
           </div>
         )}
         {(g.state === 'failed' || g.state === 'cancelled' || g.state === 'blocked') && <Badge state={g.state} className="ml-2" />}

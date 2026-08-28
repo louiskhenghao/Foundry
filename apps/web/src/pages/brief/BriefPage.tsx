@@ -336,6 +336,9 @@ function Header({ detail, onSimple }: { detail: GoalDetail; onSimple?: () => voi
   const sync = g.baseSync;
   return (
     <div>
+      <Link to={`/goals/${g.id}`} className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-200 mb-1" title="Back to the goal's run view">
+        ← Goal
+      </Link>
       <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-lg font-semibold">{g.title}</h1>
         <Badge state={g.state} />

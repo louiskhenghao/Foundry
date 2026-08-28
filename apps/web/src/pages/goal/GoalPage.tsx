@@ -173,16 +173,16 @@ export function GoalPage() {
         <SimpleOverview d={d} onExpert={() => setView(true)} />
       ) : (
         <>
-      {!awaiting && (
-        <div className="text-right">
-          <Button size="sm" variant="ghost" onClick={() => setView(false)} title="Back to the plain progress view">
-            Simple view
-          </Button>
-        </div>
-      )}
       <Tabs<Tab>
         value={tab}
         onChange={setTab}
+        right={
+          !awaiting && (
+            <Button size="sm" variant="ghost" onClick={() => setView(false)} title="Back to the plain progress view">
+              Simple view
+            </Button>
+          )
+        }
         tabs={[
           { id: 'overview', label: 'Overview', badge: open > 0 ? <span className="rounded-full bg-orange-500 text-zinc-950 text-[10px] px-1.5 font-bold">{open}</span> : null },
           { id: 'tasks', label: `Tasks`, badge: <span className="text-[10px] text-zinc-500">{d.tasks.filter((t) => t.state === 'done').length}/{d.tasks.length}{running ? ` · ${running} running` : ''}</span> },

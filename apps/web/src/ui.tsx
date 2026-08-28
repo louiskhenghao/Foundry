@@ -155,7 +155,7 @@ const STATE_COLORS: Record<string, string> = {
   'update-available': 'bg-amber-500/20 text-amber-300 border-amber-500/40',
 };
 
-export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { id: T; label: ReactNode; badge?: ReactNode }[]; value: T; onChange: (t: T) => void }) {
+export function Tabs<T extends string>({ tabs, value, onChange, right }: { tabs: { id: T; label: ReactNode; badge?: ReactNode }[]; value: T; onChange: (t: T) => void; right?: ReactNode }) {
   return (
     <div className="flex items-center gap-1 border-b border-zinc-800 overflow-x-auto whitespace-nowrap -mx-1 px-1">
       {tabs.map((t) => (
@@ -164,6 +164,7 @@ export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { id: 
           {t.badge}
         </button>
       ))}
+      {right && <span className="ml-auto shrink-0 pl-2">{right}</span>}
     </div>
   );
 }
