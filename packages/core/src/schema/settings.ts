@@ -106,6 +106,8 @@ export const NotificationSettings = z.object({
   onDelivery: z.boolean().default(true),
   /** a Claude usage limit paused the engine / the pause lifted */
   onRateLimit: z.boolean().default(true),
+  /** a Foundry release newer than this instance exists (once per version) */
+  onUpdateAvailable: z.boolean().default(true),
 });
 export type NotificationSettings = z.infer<typeof NotificationSettings>;
 export const SafetySettings = z.object({

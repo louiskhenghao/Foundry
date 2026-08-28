@@ -176,6 +176,10 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('delivery.failed', { step: DeliveryStep, reason: z.string() }),
   ev('rate_limit.paused', { rateLimitType: z.string().nullable(), until: z.string(), reason: z.string() }),
   ev('rate_limit.resumed', { reason: z.string() }),
+  /** a Release newer than this instance appeared on the version source (announced once per version) */
+  ev('update.available', { current: z.string(), latest: z.string(), mode: z.enum(['docker', 'local', 'unknown']) }),
+  /** one self-update attempt ran to its end (success or rolled back) */
+  ev('update.run', { mode: z.enum(['docker', 'local', 'unknown']), from: z.string(), to: z.string(), ok: z.boolean(), error: z.string().nullable(), durationMs: z.number() }),
   ev('boundary.blocked', { taskId: z.string().nullable(), attemptId: z.string().nullable(), command: z.string() }),
   ev('engine.note', { level: z.enum(['info', 'warn', 'error']), message: z.string() }),
 ]);
