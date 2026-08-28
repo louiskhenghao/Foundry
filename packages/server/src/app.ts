@@ -2,8 +2,8 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Brief, EscalationAnswer, getAttempt, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, type Engine, type OpenTargetId } from '@foundry/engine';
-import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, SettingsPatch } from '@foundry/core';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, detectTelegramChatId, type Engine, type OpenTargetId } from '@foundry/engine';
+import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
@@ -635,6 +635,17 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     }
   });
   app.post('/api/settings/reset', (c) => c.json(engine.resetSettings()));
+  // ---------- notifications (test / telegram chat-id detection use the draft credentials, saved ones as fallback) ----------
+  app.post('/api/notifications/test', async (c) => {
+    const override = NotificationSettings.partial().parse(await c.req.json().catch(() => ({})));
+    return c.json({ results: await engine.notifications.test(override) });
+  });
+  app.post('/api/notifications/telegram/chat-id', async (c) => {
+    const { token } = z.object({ token: z.string().min(1).nullable().optional() }).parse(await c.req.json().catch(() => ({})));
+    const t = token ?? engine.settings.values().notifications.telegramBotToken;
+    if (!t) return c.json({ error: 'no bot token — paste the token from @BotFather first' }, 400);
+    return c.json(await detectTelegramChatId(t));
+  });
   app.post('/api/skills/install', async (c) => {
     const { id, force } = z.object({ id: z.string(), force: z.boolean().optional() }).parse(await c.req.json());
     const r = await engine.skills.install(id, { force });
