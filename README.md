@@ -1,4 +1,5 @@
 # Foundry
+> [中文](./README.zh.md) · English
 
 A local orchestration system that drives **your host's Claude Code** (subscription login, your skills, your MCP servers) to over-deliver on software goals — Clarify once, then Plan → Act → Observe → Retry automatically, in parallel, inside isolated git worktrees, and only interrupt you for one of five reasons.
 

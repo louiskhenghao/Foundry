@@ -1,5 +1,7 @@
 # Runbook — what you will see, what it means, what the engine does about it
 
+> [中文](./runbook.zh.md) · English
+
 A field guide to the messages Foundry shows while a goal runs. Vocabulary is in [CONTEXT.md](../CONTEXT.md); design decisions in [adr/](./adr). Everything here is normal operation unless marked **act**.
 
 ## 1. Lines in a task's Live log

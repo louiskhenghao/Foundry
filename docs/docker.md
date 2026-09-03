@@ -1,5 +1,7 @@
 # Running Foundry in Docker
 
+> [中文](./docker.zh.md) · English
+
 Foundry drives Claude Code against **a git repository you already have**. The image brings the engine, its web
 UI and every tool it uses (`bun`, `git`, `claude`, `gh`, `ripgrep`, `npx`, `uv`, `graphify`). It deliberately does
 not bring two things, because they are yours: **your Claude login** and **your repositories**. Both are mounted.

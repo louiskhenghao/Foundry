@@ -1,5 +1,7 @@
 # Remote access: run Foundry at home, use it from anywhere
 
+> [中文](./remote-access.zh.md) · English
+
 Foundry drives Claude Code against repositories on **one machine** — that machine does the work, and the web UI
 is how you steer it. This guide makes that machine reachable from your phone or laptop wherever you are, and
 keeps it working while you are away, using [Tailscale](https://tailscale.com) (a WireGuard mesh: only devices
