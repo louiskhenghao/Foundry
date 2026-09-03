@@ -1,6 +1,7 @@
 import type { Brief, BriefQuestion } from '@foundry/core/browser';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../../api.ts';
+import { useLive } from '../../store.ts';
 import { Button, cn } from '../../ui.tsx';
 
 /**
@@ -11,6 +12,18 @@ import { Button, cn } from '../../ui.tsx';
 export function StyleCards({ goalId, brief, question, editable, update }: { goalId: string; brief: Brief; question: BriefQuestion; editable: boolean; update: (patch: Partial<Brief>) => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const safetyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastEvent = useLive((s) => s.lastEvent);
+  // generation takes minutes: stay busy until this goal's brief.style_sampled event lands, and surface a failure —
+  // a failed sample changes nothing on the Brief, so without this the user sees no sample and no error at all
+  useEffect(() => {
+    if (!lastEvent || lastEvent.type !== 'brief.style_sampled' || lastEvent.goalId !== goalId) return;
+    if (safetyTimer.current) clearTimeout(safetyTimer.current);
+    setBusy(null);
+    const p = lastEvent.payload;
+    const name = brief.styleOptions.find((o) => o.key === p.styleKey)?.name ?? p.styleKey;
+    setErr(p.status === 'failed' ? `sample for "${name}" failed: ${p.detail}` : null);
+  }, [lastEvent, goalId]);
   const pick = (name: string) => update({ questions: brief.questions.map((x) => (x.id === question.id ? { ...x, answer: name, applied: false } : x)) });
   const chooseSample = (key: string, file: string) => update({ styleOptions: brief.styleOptions.map((o) => (o.key === key ? { ...o, chosenSample: o.chosenSample === file ? null : file } : o)) });
   const generate = async (key: string) => {
@@ -18,11 +31,13 @@ export function StyleCards({ goalId, brief, question, editable, update }: { goal
     setErr(null);
     try {
       await api.styleSample(goalId, key);
-      // the result lands as a brief.style_sampled event; the page refreshes off goalVersion
+      // the result lands as a brief.style_sampled event (handled above); the samples refresh off goalVersion.
+      // safety net: if the engine restarts mid-generation no event ever comes — free the button after 6 min
+      if (safetyTimer.current) clearTimeout(safetyTimer.current);
+      safetyTimer.current = setTimeout(() => setBusy(null), 6 * 60_000);
     } catch (e: any) {
       setErr(e.message);
-    } finally {
-      setTimeout(() => setBusy(null), 4000);
+      setBusy(null);
     }
   };
   return (
@@ -70,7 +85,7 @@ export function StyleCards({ goalId, brief, question, editable, update }: { goal
                   {chosen && editable && (
                     <div className="flex items-center gap-2">
                       <Button size="sm" variant="ghost" disabled={busy === o.key || o.samples.length >= 8} onClick={() => generate(o.key)}>
-                        {busy === o.key ? 'Generating… (~30s)' : o.samples.length ? 'Regenerate (~$0.3) — earlier ones are kept' : 'Generate a sample (~$0.3)'}
+                        {busy === o.key ? 'Generating… (a minute or two)' : o.samples.length ? 'Regenerate (~$1) — earlier ones are kept' : 'Generate a sample (~$1)'}
                       </Button>
                       {o.samples.length >= 8 && <span className="text-[11px] text-zinc-500">sample limit reached for this direction</span>}
                       {o.chosenSample && <span className="text-[11px] text-emerald-300">reference image set — workers will match it</span>}

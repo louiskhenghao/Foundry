@@ -15,7 +15,8 @@ import { goalWorkspacePath } from './workspace.ts';
 
 /** soft cap per proposal: keeps a stuck regenerate loop from burning money */
 export const STYLE_SAMPLE_MAX = 8;
-export const STYLE_SAMPLE_BUDGET_USD = 0.5;
+/** a real run (worker model + image skill + MCP image call) costs ~$0.6–0.9; $0.5 killed sessions one step from saving the file */
+export const STYLE_SAMPLE_BUDGET_USD = 2;
 
 export class StyleSampleError extends Error {
   constructor(
