@@ -124,7 +124,7 @@ New Goal 页面先问这是哪种 goal（nature：auto / code / docs / research 
 
 ### 通知
 
-Foundry 可以在一个 goal 需要你、完成或交付时，在一次 Claude 用量限额暂停/恢复引擎时，或在有新版本发布时，推送到 **Telegram** 和 **Discord**（Settings → Notifications）——每一类各有自己的开关，带一个 *Send test message* 按钮和一个链接 base URL，让消息深链回正确的页面。在家里的机器持续干活时用手机访问 UI：[docs/remote-access.md](./docs/remote-access.zh.md)。
+Foundry 可以在一个 goal 需要你、完成或交付时，在一次 Claude 用量限额暂停/恢复引擎时，或在有新版本发布时，推送到 **Telegram** 和 **Discord**（Settings → Notifications）——每一类各有自己的开关，带一个 *Send test message* 按钮和一个链接 base URL，让消息深链回正确的页面。逐步设置见 [docs/notifications.md](./docs/notifications.zh.md)。在家里的机器持续干活时用手机访问 UI：[docs/remote-access.md](./docs/remote-access.zh.md)。
 
 ### 用量与限速
 

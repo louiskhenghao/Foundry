@@ -132,7 +132,7 @@ Docker Desktop → Settings → General → *Start Docker Desktop when you sign 
 ## 4. 让通知指回 tailnet URL
 
 当某个目标需要你、完成或交付时，当 Claude 用量限额让引擎暂停时，或者有新版本发布时，Foundry 都能在 Telegram
-或 Discord 上提醒你（Settings → Notifications，每一类一个开关）。把 **Link base URL** 设为
+或 Discord 上提醒你（Settings → Notifications，每一类一个开关；逐步设置见 [notifications.md](./notifications.zh.md)）。把 **Link base URL** 设为
 `https://mac-mini.<tailnet>.ts.net`（要带上协议头——这个字段要的是完整 URL）：这样每条消息都会带上一个链接，
 在你手机上打开正确的页面。留空的话消息就完全不带链接；设成 `127.0.0.1`，那链接就只有在机器本机上才打得开。按
 *Send test message* 来确认。

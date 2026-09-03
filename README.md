@@ -126,7 +126,7 @@ The **Agents** page (`/agents`, header pill) is a live view of every Claude Code
 
 ### Notifications
 
-Foundry can push to **Telegram** and **Discord** (Settings → Notifications) when a goal needs you, finishes or delivers, when a Claude usage limit pauses/resumes the engine, or when a new version is out — each family its own switch, with a *Send test message* button and a link base URL so the messages deep-link back to the right page. Reaching the UI from your phone while the machine at home keeps working: [docs/remote-access.md](./docs/remote-access.md).
+Foundry can push to **Telegram** and **Discord** (Settings → Notifications) when a goal needs you, finishes or delivers, when a Claude usage limit pauses/resumes the engine, or when a new version is out — each family its own switch, with a *Send test message* button and a link base URL so the messages deep-link back to the right page. Step-by-step setup: [docs/notifications.md](./docs/notifications.md). Reaching the UI from your phone while the machine at home keeps working: [docs/remote-access.md](./docs/remote-access.md).
 
 ### Usage & rate limits
 

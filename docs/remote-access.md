@@ -146,7 +146,8 @@ device should answer `{"ok":true,…}`.
 ## 4. Make notifications point back at the tailnet URL
 
 Foundry can ping you on Telegram or Discord when a goal needs you, finishes or delivers, when a Claude usage
-limit pauses the engine, or when a new version is out (Settings → Notifications, one switch per family). Set
+limit pauses the engine, or when a new version is out (Settings → Notifications, one switch per family;
+step-by-step in [notifications.md](./notifications.md)). Set
 **Link base URL** to `https://mac-mini.<tailnet>.ts.net` (scheme included — the field wants a full URL): every
 message then carries a link that opens the right page on your phone. Leave it empty and messages carry no link
 at all; set it to `127.0.0.1` and the link opens nowhere but on the machine itself. Press *Send test message*
