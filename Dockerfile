@@ -44,7 +44,10 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 # graphify: the context provider that hands sessions only the relevant files/symbols (the catalog's one `required` tool).
 # System-wide so the non-root user can run it; uv fetches its own Python.
 ENV UV_TOOL_DIR=/opt/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/uv/python
-RUN uv tool install graphifyy && chmod -R a+rX /opt/uv && graphify --version
+RUN uv tool install graphifyy && graphify --version
+# markitdown: converts attachments and repository documents to markdown. Baked in because the tool dirs above
+# are root-owned, so the Setup page's one-click install cannot write to them as the non-root user.
+RUN uv tool install --python 3.12 'markitdown[all]' && chmod -R a+rX /opt/uv && markitdown --version
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} && npm cache clean --force
 
 # production dependencies only (the UI is already built)

@@ -1,5 +1,7 @@
 # Running Foundry in Docker
 
+> [中文](./docker.zh.md) · English
+
 Foundry drives Claude Code against **a git repository you already have**. The image brings the engine, its web
 UI and every tool it uses (`bun`, `git`, `claude`, `gh`, `ripgrep`, `npx`, `uv`, `graphify`). It deliberately does
 not bring two things, because they are yours: **your Claude login** and **your repositories**. Both are mounted.
@@ -23,7 +25,8 @@ enough, and you only do it once.
 **a. From the web UI, after the container is running (simplest — no terminal).**
 Do §3 first, open <http://127.0.0.1:4111>, and press *Sign in* on the Setup page. There is no browser inside the
 container, so Claude Code shows a link and asks for a code instead of completing by itself: open the link in your
-own browser, approve, and paste the code back into the dialog. A rejected code just re-opens the field.
+own browser, approve, and paste the code back into the dialog (you have 15 minutes). A rejected code just re-opens
+the field.
 
 **b. From the terminal, before you start it.**
 
@@ -110,7 +113,8 @@ docker run -d --name foundry \
 You can add as many mounts as you like: `-v ~/code:/repos -v ~/Desktop/client-work:/client`.
 
 The mount must be **writable**: the engine adds git worktrees, which write into your repository's `.git/`.
-It never edits your working tree or your branches — work happens on `goal/<id>` branches inside `/app/data`.
+It never touches your working tree or your existing branches — it only adds `goal/<id>` (and task) branches,
+which you will see in `git branch`; the work itself happens in worktrees under `/app/data`.
 
 ### Linux: if your user id is not 1000
 
@@ -118,17 +122,20 @@ The image runs as uid 1000. If `id -u` gives you something else, run as yourself
 folders you own (named volumes would be created owned by 1000):
 
 ```bash
-mkdir -p ~/.foundry/data ~/.foundry/claude
+mkdir -p ~/.foundry/data ~/.foundry/home/.claude
 docker run -d --name foundry \
   --user "$(id -u):$(id -g)" -e HOME=/home/node \
   -p 127.0.0.1:4111:4111 \
   -v ~/.foundry/data:/app/data \
-  -v ~/.foundry/claude:/home/node/.claude \
+  -v ~/.foundry/home:/home/node \
   -v ~/code:/repos \
   imlouiskhenghao/foundry
 ```
 
-Use the same `--user`/`-e HOME` flags for the `claude auth login` step, with the same `~/.foundry/claude` folder.
+The whole home is mounted, not just `.claude`: as a non-1000 user the image's `/home/node` is read-only to you,
+and `gh auth login`, `npx autoskills` and `uv` all need to write under it (`~/.config/gh`, `~/.npm`, `~/.cache`).
+Use the same `--user`/`-e HOME` flags for the `claude auth login` step, with the same `~/.foundry/home` folder.
+With compose, put the same value under `services.foundry.user:`.
 
 ### Prefer docker compose?
 
@@ -141,10 +148,16 @@ docker compose run --rm foundry claude auth login     # once
 FOUNDRY_REPOS=~/code docker compose up -d             # mounts ~/code at /repos
 ```
 
+Without `FOUNDRY_REPOS` the compose file mounts `~/Projects`. It also passes `FOUNDRY_MODEL_STRONG` /
+`_WORKER` / `_CHEAP` and `FOUNDRY_MAX_CONCURRENT` through from your shell, and starts the watchtower sidecar
+that makes one-click updates work (see *Updating*); its token defaults to `foundry-watchtower` —
+set `FOUNDRY_WATCHTOWER_TOKEN` to change it. The sidecar's port is never published to the host.
+
 ## 4. Delivery: pushing, pull requests, merges (optional)
 
 A goal produces a local branch. If you want the engine to push it or open a PR, give the container its own
-GitHub login (Foundry never stores tokens — `gh` does):
+GitHub login (Foundry never stores tokens — `gh` does). Either *Connect GitHub* on the Setup page (the same
+device-code flow, no terminal), or:
 
 ```bash
 docker exec -it foundry gh auth login
@@ -161,7 +174,10 @@ the container.
 |---|---|---|
 | `/app/data/engine.db` | SQLite: goals, tasks, attempts, events (auto-created, auto-migrated — nothing to configure) | **yes** |
 | `/app/data/worktrees` | one git worktree per goal/task; the branches with the actual work | until the goal is delivered |
+| `/app/data/settings.json` | everything you changed on the Settings page | **yes** |
+| `/app/data/models.json` | which model names resolved on this machine (learned) | optional |
 | `/app/data/transcripts`, `check-output`, `attachments` | session logs, check output, your uploads | optional |
+| `/app/data/skills-cache`, `skills-trash` | fetched skill sources; uninstalled skills (restorable) | optional |
 | `/home/node/.claude` | Claude login, sessions, installed skills | **yes** |
 | `/repos/...` | your repositories (mounted from your machine) | it *is* your machine |
 
@@ -170,6 +186,7 @@ Back up the two volumes:
 ```bash
 docker stop foundry
 docker run --rm -v foundry-data:/d -v "$PWD":/out alpine tar czf /out/foundry-data.tgz -C /d .
+docker run --rm -v foundry-claude:/c -v "$PWD":/out alpine tar czf /out/foundry-claude.tgz -C /c .
 docker start foundry
 ```
 
@@ -180,11 +197,15 @@ Foundry checks the release registry once a day; when a newer version exists the 
 
 - **One-click** (compose with the shipped `docker-compose.yml`): the compose file runs a small
   [watchtower](https://containrrr.dev/watchtower/) sidecar — the only container that touches the docker
-  socket. *Update* in the UI waits for active agents to finish, then the sidecar pulls the new image and
-  recreates the container; the page reconnects by itself.
-- **Manual** (plain `docker run`, or no sidecar): the UI shows the exact commands instead —
-  `docker pull imlouiskhenghao/foundry:latest`, then `docker rm -f foundry` and run it again with the same
-  volumes. The event log is replayed and unfinished attempts resume where they stopped.
+  socket. *Update* in the UI first stops starting new sessions and waits for active agents to finish (up to an
+  hour; tick *Update immediately* to interrupt them instead), then the sidecar pulls the new image and
+  recreates the container; the page reconnects by itself. Two things must hold for the button to be live:
+  the container is named `foundry` and it sees `FOUNDRY_WATCHTOWER_URL` + `FOUNDRY_WATCHTOWER_TOKEN` — both
+  come from the compose file. A compose file fetched before v0.2.0 has no sidecar: fetch it again (§3).
+- **Manual** (no sidecar): the UI shows `docker compose pull foundry` and `docker compose up -d foundry`
+  instead. If you started with plain `docker run`, the equivalent is `docker pull imlouiskhenghao/foundry:latest`,
+  `docker rm -f foundry`, then the same `docker run` line with the same volumes. Either way the event log is
+  replayed and unfinished attempts resume where they stopped.
 
 ## Troubleshooting
 
@@ -196,14 +217,15 @@ Foundry checks the release registry once a day; when a newer version exists the 
 | *not a git repository* in New goal | you typed a host path | type the container path, e.g. `/repos/acme-app` |
 | `Permission denied` writing in the repo, or worktrees fail (Linux) | your files are not owned by uid 1000 | use the `--user "$(id -u):$(id -g)"` recipe above |
 | `port is already allocated` | something else uses 4111 | `-p 127.0.0.1:4112:4111` and open that port instead |
-| Setup page: *markitdown not installed* | optional PDF/Office → markdown converter | `docker exec foundry uv tool install --python 3.12 'markitdown[all]'` |
+| Setup page: *markitdown not installed* | image older than v0.2.1 — since then the PDF/Office → markdown converter is baked in (the in-container install cannot write to the root-owned tool dirs) | `docker pull imlouiskhenghao/foundry:latest` and recreate the container |
 | Stale worktrees in your repo's `git worktree list` | worktrees were registered with container paths | `git worktree prune` in that repository |
 
 ## Notes
 
 - The UI has no authentication — keep the published port on `127.0.0.1`, never expose 4111 to a network. To reach it from outside, put the host on a Tailscale tailnet and `tailscale serve 4111` — see [remote-access.md](./remote-access.md).
 - `FOUNDRY_HOST=0.0.0.0` is already set inside the image; do the loopback binding on the host side (`-p 127.0.0.1:…`).
-- Useful env vars: `FOUNDRY_MODEL_STRONG` / `_WORKER` / `_CHEAP` (default `opus`/`opus`/`haiku`), `FOUNDRY_MAX_CONCURRENT` (3), `FOUNDRY_TDD` (`required|preferred|off`), `FOUNDRY_GOAL_MODE` (`simple|expert`), `FOUNDRY_UPDATE_CHECK=off` (disable the daily version check). Everything else is editable in Settings.
+- Useful env vars: `FOUNDRY_MODEL_STRONG` / `_WORKER` / `_CHEAP` (default `opus`/`opus`/`haiku`), `FOUNDRY_MAX_CONCURRENT` (3), `FOUNDRY_TDD` (`required|preferred|off`, default `required`), `FOUNDRY_GOAL_MODE` (`simple|expert`, default `expert`), `FOUNDRY_UPDATE_CHECK=off` (disable the daily version check). Everything else is editable in Settings.
+- First start with an empty `~/.claude` volume: the entrypoint installs the graphify skill into it (`graphify install --platform claude`). `FOUNDRY_SKIP_SETUP=1` skips that; a mounted `~/.claude` that already has a `skills/` directory is never touched.
 - Interrupted attempts resume as Continuations after a restart — see [runbook](./runbook.md).
 - Build your own: `docker build -t foundry .` (add `--build-arg CLAUDE_CODE_VERSION=x.y.z` to pin a different CLI).
 - No API key is ever needed or used; `ANTHROPIC_API_KEY` is stripped from every session the engine spawns.

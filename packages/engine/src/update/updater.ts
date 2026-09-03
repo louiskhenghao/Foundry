@@ -267,6 +267,13 @@ export class UpdateManager {
       }
     }
     done(true, null);
+    // under launchd/systemd (FOUNDRY_SUPERVISED=1, or systemd's own INVOCATION_ID) a detached successor would
+    // fight the supervisor's restart for the port: just exit and let it bring the new version up
+    if (process.env.FOUNDRY_SUPERVISED || process.env.INVOCATION_ID) {
+      line(`✔ updated to ${to} — exiting so the service manager restarts it`);
+      setTimeout(() => process.exit(0), 500);
+      return;
+    }
     line(`✔ updated to ${to} — restarting…`);
     // hand the port over: spawn a detached successor that waits for this process to exit, then die
     const log = join(this.engine.config.dataDir, 'update-restart.log');
