@@ -201,7 +201,7 @@ Foundry checks the release registry once a day; when a newer version exists the 
 
 ## Notes
 
-- The UI has no authentication — keep the published port on `127.0.0.1`, never expose 4111 to a network.
+- The UI has no authentication — keep the published port on `127.0.0.1`, never expose 4111 to a network. To reach it from outside, put the host on a Tailscale tailnet and `tailscale serve 4111` — see [remote-access.md](./remote-access.md).
 - `FOUNDRY_HOST=0.0.0.0` is already set inside the image; do the loopback binding on the host side (`-p 127.0.0.1:…`).
 - Useful env vars: `FOUNDRY_MODEL_STRONG` / `_WORKER` / `_CHEAP` (default `opus`/`opus`/`haiku`), `FOUNDRY_MAX_CONCURRENT` (3), `FOUNDRY_TDD` (`required|preferred|off`), `FOUNDRY_GOAL_MODE` (`simple|expert`), `FOUNDRY_UPDATE_CHECK=off` (disable the daily version check). Everything else is editable in Settings.
 - Interrupted attempts resume as Continuations after a restart — see [runbook](./runbook.md).

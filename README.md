@@ -2,7 +2,7 @@
 
 A local orchestration system that drives **your host's Claude Code** (subscription login, your skills, your MCP servers) to over-deliver on software goals — Clarify once, then Plan → Act → Observe → Retry automatically, in parallel, inside isolated git worktrees, and only interrupt you for one of five reasons.
 
-Vocabulary lives in [CONTEXT.md](./CONTEXT.md). Why it is built this way: [docs/adr](./docs/adr). What the messages mean while a goal runs (live-log lines, task states, Inbox notices, engine notes, restart rules): [docs/runbook.md](./docs/runbook.md).
+Vocabulary lives in [CONTEXT.md](./CONTEXT.md). Why it is built this way: [docs/adr](./docs/adr). What the messages mean while a goal runs (live-log lines, task states, Inbox notices, engine notes, restart rules): [docs/runbook.md](./docs/runbook.md). Using it from your phone while the machine at home does the work: [docs/remote-access.md](./docs/remote-access.md).
 
 ## How it works
 
