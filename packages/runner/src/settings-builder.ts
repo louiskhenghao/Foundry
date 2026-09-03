@@ -27,3 +27,12 @@ export function boundaryHook(scriptPath: string): HookSpec {
 export function canaryHook(scriptPath: string): HookSpec {
   return { event: 'SessionStart', command: scriptPath, timeout: 5 };
 }
+
+/**
+ * Auto-approves rm commands confined to the workspace/temp dirs, which `dontAsk` would
+ * otherwise deny (built-in destructive-command ask). Runs under bun; a deny from the
+ * boundary hook always wins over this hook's allow.
+ */
+export function rmGuardHook(scriptPath: string): HookSpec {
+  return { event: 'PreToolUse', matcher: 'Bash', command: `bun ${JSON.stringify(scriptPath)}`, timeout: 10 };
+}
