@@ -11,7 +11,8 @@ type Leaf = `${Section}.${string}`;
 
 /** fallback list until /api/models answers: aliases Claude Code resolves to the latest model of each family */
 const SEED_MODELS: { id: string; label: string }[] = [
-  { id: 'fable', label: 'Fable 5 — most capable (Mythos-class)' },
+  { id: 'fable', label: 'Fable — most capable (Mythos-class), the release your Claude Code knows' },
+  { id: 'claude-fable-5-1', label: 'Fable 5.1 — pinned id, works on any recent Claude Code' },
   { id: 'opus', label: 'Opus — strong, default' },
   { id: 'sonnet', label: 'Sonnet — fast, good for routine tasks' },
   { id: 'haiku', label: 'Haiku — cheapest' },

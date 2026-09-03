@@ -2,7 +2,7 @@
 # foundry — the orchestrator, its web UI and the Claude Code CLI it drives.
 # The image brings the tools; the login and your repositories come from mounted volumes.
 ARG BUN_VERSION=1.3.13
-ARG CLAUDE_CODE_VERSION=2.1.241
+ARG CLAUDE_CODE_VERSION=2.1.259
 
 # ---------- base: node (for the Claude Code CLI and npx) + bun (the engine's runtime) ----------
 FROM node:22-bookworm-slim AS base

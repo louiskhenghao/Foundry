@@ -20,9 +20,14 @@ export interface ModelRecord {
   seed: boolean;
 }
 
-/** family aliases Claude Code resolves to the latest release — a starting point, not the truth */
+/**
+ * Family aliases Claude Code resolves to the latest release — a starting point, not the truth — plus one pinned
+ * id: `fable` only reaches Fable 5.1 from Claude Code 2.1.259; on older CLIs the full id still goes through
+ * (with a harmless `[claude-code:unrecognized_model]` stderr line).
+ */
 export const SEED_MODELS: { name: string; label: string; note: string }[] = [
-  { name: 'fable', label: 'Fable 5', note: 'most capable (Mythos-class)' },
+  { name: 'fable', label: 'Fable', note: 'most capable (Mythos-class) — the Fable release your Claude Code knows' },
+  { name: 'claude-fable-5-1', label: 'Fable 5.1', note: 'pinned id — works on any recent Claude Code' },
   { name: 'opus', label: 'Opus', note: 'strong, default' },
   { name: 'sonnet', label: 'Sonnet', note: 'fast, good for routine tasks' },
   { name: 'haiku', label: 'Haiku', note: 'cheapest' },
