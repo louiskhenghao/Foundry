@@ -9,6 +9,7 @@
 | You see | Meaning | Engine / you |
 |---|---|---|
 | `● session 1a2b3c4d · claude-…` | 一个 worker Claude session 已启动（或被 **resumed** —— 同一次 Attempt 中的第二个 `●` 是一次 Continuation）。task reviewer 和 merger 显示为 `● reviewer session …` / `● merger session …`。 | — |
+| `[claude-code:unrecognized_model] {"model":"claude-fable-5-1",…}` | 你的 Claude Code 比你选的模型更旧（例如 Fable 5.1 需要 2.1.259）；请求仍会原样发出，session 一切正常。 | 升级 Claude Code（`npm install -g @anthropic-ai/claude-code`）即可消除；Docker 下拉取最新镜像。 |
 | `[reviewer] …` lines after the worker finished | task reviewer（廉价模型）在评判 diff。它与该 Attempt 共用同一份 log。 | — |
 | `[reviewer] ✗ Output does not match required schema: root: must have required property 'pass' …` | reviewer 调用结构化输出工具时用了错误的形状（通常是把 JSON 包成了字符串）。Claude Code 拒绝它，reviewer 会重新正确发送。仅消耗一次廉价模型的重试，别无其他。该 Attempt 的判定不受影响。 | 提示词现已写明确切形状；如果你仍频繁看到它，请上报。 |
 | `✗ Exit code 1 … (eval):cd:1: no such file or directory: apps/x` | *历史遗留问题。* Bash 工具保留了上一次的 `cd`。已修复：现在每条命令都从 workspace 根目录开始（`CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR=1`）。 | 如果它再次出现，说明引擎的 env 没有传达到 session。 |

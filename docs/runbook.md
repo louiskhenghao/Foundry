@@ -9,6 +9,7 @@ A field guide to the messages Foundry shows while a goal runs. Vocabulary is in 
 | You see | Meaning | Engine / you |
 |---|---|---|
 | `● session 1a2b3c4d · claude-…` | A worker Claude session started (or was **resumed** — a second `●` in the same attempt is a Continuation). The task reviewer and merger appear as `● reviewer session …` / `● merger session …`. | — |
+| `[claude-code:unrecognized_model] {"model":"claude-fable-5-1",…}` | Your Claude Code is older than the model you picked (e.g. Fable 5.1 needs 2.1.259); the request still goes through and the session is fine. | Update Claude Code (`npm install -g @anthropic-ai/claude-code`) to silence it; in Docker, pull the newest image. |
 | `[reviewer] …` lines after the worker finished | The task reviewer (cheap model) judging the diff. It shares the attempt's log. | — |
 | `[reviewer] ✗ Output does not match required schema: root: must have required property 'pass' …` | The reviewer called the structured-output tool with the wrong shape (usually the JSON wrapped as a string). Claude Code rejects it; the reviewer resends correctly. Costs a retry of the cheap model, nothing else. The attempt's verdict is unaffected. | Prompt now states the exact shape; if you still see it often, raise it. |
 | `✗ Exit code 1 … (eval):cd:1: no such file or directory: apps/x` | *Historical.* The Bash tool kept the previous `cd`. Fixed: every command now starts from the workspace root (`CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR=1`). | If it reappears, the engine's env is not reaching sessions. |

@@ -151,7 +151,7 @@ github [status|login] · auth [status|login|logout]
 
 **Settings** 页面（`/settings`，API `GET/PUT /api/settings`）编辑下面的一切，并只把你改动的部分存进 `data/settings.json`。每个值的优先级：已保存 › 环境变量 › 默认值——页面会显示每个值来自哪里。大多数设置立即生效（concurrency、模型、session 上限、workflow profile、design / image / video pack、pace、TDD 默认值、autoskills、评审和交付默认值、通知、工具、安全）；`port`、`host`、`claudeBin` 和 `claudeHome` 在 `bun run serve` 重启后才生效（页面和 `/api/health` 会这么说）。
 
-**模型随时间变化。** Settings → Models 列出这台机器见过解析成功的东西（一个由每个 session 的 `init` 消息喂养、习得而来的注册表，`data/models.json`）外加各家族别名；一个新的 Claude 家族只差一个“custom”条目，首次 session 之后（或 *Test* 之后，一次短的付费调用）就会显示它解析出的 id。当某个模型被发现不可用——废弃的别名、退役的 id——该 session 会用回退链上的下一个模型重跑，并更新这个 goal 的模型（`goal.models_changed`，在 Goal 页面展示）；Doctor 会警告那些在这里从没解析成功、或上次失败的 tier（[ADR-0006](./docs/adr/0006-model-registry-and-fallback.md)）。
+**模型随时间变化。** Settings → Models & limits 列出这台机器见过解析成功的东西（一个由每个 session 的 `init` 消息喂养、习得而来的注册表，`data/models.json`）外加各家族别名；一个新的 Claude 家族只差一个“custom”条目，首次 session 之后（或 *Test* 之后，一次短的付费调用）就会显示它解析出的 id。当某个模型被发现不可用——废弃的别名、退役的 id——该 session 会用回退链上的下一个模型重跑，并更新这个 goal 的模型（`goal.models_changed`，在 Goal 页面展示）；Doctor 会警告那些在这里从没解析成功、或上次失败的 tier（[ADR-0006](./docs/adr/0006-model-registry-and-fallback.md)）。**Fable 5.1**：选 `fable`（Claude Code ≥ 2.1.259 会把它解析为 `claude-fable-5-1`），或直接选固定 id 的 `claude-fable-5-1` 条目——较旧的 Claude Code 仍会把这个 id 原样发出去，只是在 live log 里多打一行无害的 `[claude-code:unrecognized_model]`，升级 Claude Code（`npm install -g @anthropic-ai/claude-code`）后即消失。
 
 环境变量为初始值播种（对 CI 或一次性运行很方便）：
 
@@ -160,7 +160,7 @@ github [status|login] · auth [status|login|logout]
 | `FOUNDRY_PORT` / `FOUNDRY_HOST` | `4111` / `127.0.0.1` | 服务器监听地址（需重启） |
 | `FOUNDRY_MAX_CONCURRENT` | `3` | 并发 `claude` 进程的全局上限 |
 | `FOUNDRY_CLAUDE_HOME`（或 `CLAUDE_CONFIG_DIR`） | `~/.claude` | Claude Code 主目录：skills、plugins、settings.json（需重启） |
-| `FOUNDRY_MODEL_WORKER` / `_STRONG` / `_CHEAP` | `opus` / `opus` / `haiku` | 每个 tier 的模型——`fable`、`opus`、`sonnet`、`haiku`（Claude Code 别名）或一个完整的 model id。*strong* = Clarify、Planner、Goal review、Merge Attempt；*worker* = task attempt；*cheap* = task reviewer、探测 |
+| `FOUNDRY_MODEL_WORKER` / `_STRONG` / `_CHEAP` | `opus` / `opus` / `haiku` | 每个 tier 的模型——`fable`、`opus`、`sonnet`、`haiku`（Claude Code 家族别名；从 Claude Code 2.1.259 起 `fable` 指向 Fable 5.1）或一个完整的 model id，例如 `claude-fable-5-1`。*strong* = Clarify、Planner、Goal review、Merge Attempt；*worker* = task attempt；*cheap* = task reviewer、探测 |
 | `FOUNDRY_MODEL_FALLBACKS` | `opus,sonnet,haiku` | 当一个 session 的模型不可用（废弃别名、退役 id）时按序尝试——见 [ADR-0006](./docs/adr/0006-model-registry-and-fallback.md) |
 | `FOUNDRY_ATTEMPT_MAX_COST` / `FOUNDRY_ATTEMPT_MAX_TURNS` | `10` / `150` | 一次 worker attempt 的按 session 花费（USD）和轮次上限；花费还受 goal 剩余预算约束 |
 | `FOUNDRY_MAX_CONTINUATIONS` | `2` | 一次 attempt 在换全新 attempt 之前，可恢复其被切断/有进展 session 的次数 |
