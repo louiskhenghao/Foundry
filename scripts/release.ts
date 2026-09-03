@@ -56,25 +56,32 @@ const next =
   : /^\d+\.\d+\.\d+$/.test(bumpArg) ? bumpArg
   : fail(`bad bump: ${bumpArg}`);
 
+// ---------- resume: `bun run release <x.y.z>` where the bump + tag already happened (an earlier run failed at the image push) ----------
+const tagExists = (await run(['git', 'rev-parse', '-q', '--verify', `refs/tags/v${next}`], { canFail: true })).code === 0;
+const resume = next === cur && tagExists;
+if (next === cur && !tagExists) fail(`already at ${cur} and no v${cur} tag — nothing to bump; pass patch|minor|major or a higher version`);
+
 // ---------- notes: --notes, or the commit subjects since the last release tag ----------
-const lastTag = await run(['git', 'describe', '--tags', '--abbrev=0', '--match', 'v*'], { canFail: true });
+const lastTag = await run(['git', 'describe', '--tags', '--abbrev=0', '--match', 'v*', ...(resume ? ['HEAD~1'] : [])], { canFail: true });
 const range = lastTag.code === 0 && lastTag.out ? `${lastTag.out}..HEAD` : 'HEAD';
 const notes = notesArg ?? (await git(['log', range, '--no-merges', '--pretty=- %s'])).out;
 const today = new Date().toISOString().slice(0, 10);
 const section = `## ${next} — ${today}\n\n${notes || '- (no notes)'}\n`;
 
-console.log(`\nreleasing ${cur} → ${next}\n\n${section}`);
+console.log(resume ? `\nresuming release ${next} (bump + tag already in place)\n` : `\nreleasing ${cur} → ${next}\n\n${section}`);
 if (dryRun) {
   console.log('(dry run — nothing written, tagged, or pushed)');
   process.exit(0);
 }
 
 // ---------- bump + tag ----------
-pkg.version = next;
-writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
-await git(['add', 'package.json']);
-await git(['commit', '-m', `release: v${next}`]);
-await git(['tag', `v${next}`]);
+if (!resume) {
+  pkg.version = next;
+  writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
+  await git(['add', 'package.json']);
+  await git(['commit', '-m', `release: v${next}`]);
+  await git(['tag', `v${next}`]);
+}
 
 // ---------- changelog to the public releases repo (before the image: notes ready when the version appears) ----------
 if (!existsSync(RELEASES_DIR)) {
@@ -88,11 +95,17 @@ if (!existsSync(RELEASES_DIR)) {
 const clPath = join(RELEASES_DIR, 'CHANGELOG.md');
 const existing = existsSync(clPath) ? readFileSync(clPath, 'utf8') : '# Foundry releases\n\n';
 const headerEnd = existing.indexOf('\n## ');
-const updated = headerEnd === -1 ? `${existing.trimEnd()}\n\n${section}` : `${existing.slice(0, headerEnd + 1)}\n${section}${existing.slice(headerEnd + 1)}`;
-writeFileSync(clPath, updated);
-await git(['add', 'CHANGELOG.md'], RELEASES_DIR);
-await git(['commit', '-m', `release: v${next}`], RELEASES_DIR);
-await git(['push'], RELEASES_DIR);
+const alreadyLogged = new RegExp(`^## ${next.replace(/\./g, '\\.')}\\b`, 'm').test(existing);
+if (alreadyLogged) {
+  console.log(`changelog already has a ${next} section — leaving it`);
+} else {
+  // exactly one blank line above and below the new section, whatever the file had
+  const updated = headerEnd === -1 ? `${existing.trimEnd()}\n\n${section}` : `${existing.slice(0, headerEnd).trimEnd()}\n\n${section}\n${existing.slice(headerEnd + 1)}`;
+  writeFileSync(clPath, updated);
+  await git(['add', 'CHANGELOG.md'], RELEASES_DIR);
+  await git(['commit', '-m', `release: v${next}`], RELEASES_DIR);
+  await git(['push'], RELEASES_DIR);
+}
 
 // ---------- the release becomes real: versioned multi-arch image on Docker Hub ----------
 await run(['docker', 'buildx', 'build', '--platform', 'linux/amd64,linux/arm64', '-t', `${IMAGE}:${next}`, '-t', `${IMAGE}:latest`, '--push', '.']);
