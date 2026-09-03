@@ -33,12 +33,12 @@ Then sign in to Claude from the Setup page: it hands you a link and a field for 
 (a container has no browser of its own). `claude auth login` in a terminal, or a `claude setup-token` token, work
 too.
 
-The image brings the engine, the UI and the tools it drives (bun, git, `claude`, `gh`, ripgrep, npx, uv); your Claude login and your repositories are mounted. Details and caveats: [docs/docker.md](./docs/docker.md).
+The image brings the engine, the UI and the tools it drives (bun, git, `claude`, `gh`, ripgrep, npx, uv, graphify, markitdown); your Claude login and your repositories are mounted. Details and caveats: [docs/docker.md](./docs/docker.md).
 
 ## Requirements
 
 - macOS/Linux, [Bun](https://bun.sh) ≥ 1.1, git
-- Claude Code CLI installed and logged in (`claude` on PATH). No API key needed — and `ANTHROPIC_API_KEY` is deliberately stripped from child processes.
+- Claude Code CLI installed and logged in (`claude` on PATH). No API key needed to drive Claude — and `ANTHROPIC_API_KEY` is deliberately stripped from child processes. (Image-generation goals are the one exception: they need an OpenAI-compatible or Gemini key, set in Settings → Tools & keys.)
 - Optional: [`graphify`](https://github.com/safishamsi/graphify) on PATH for code-graph context (auto-detected).
 
 ## Quick start
@@ -76,17 +76,19 @@ The catalog lives in [`catalog/skills.json`](./catalog/skills.json): `required` 
 
 **Sources and updates.** The Skills page groups every installed skill by where it comes from — a GitHub repo managed by Foundry, by `npx skills`, or by a Claude Code plugin; the gstack clone; project skills; hand-installed copies whose origin is inferred by matching their bytes against known sources. For each source it shows when it was installed and when upstream last changed, and per skill whether it is up to date, outdated (its bytes match an older upstream version) or modified locally. *Check for updates* fetches every upstream repository into `data/skills-cache` (deepened to 100 commits so per-skill dates are real). One click updates a whole source with its own tool — `npx skills update`, `claude plugin marketplace update` + `claude plugin update`, or Foundry's installer — streaming the output and recording every run as a `skills.update_run` event. Loose copies that match a catalog entry can be *adopted* (replaced by a managed install, old copy to the trash); user-level copies that shadow a newer plugin skill are flagged by the doctor and trashed in one click.
 
-**Simple or Expert.** Every goal opens in one of two views of the same engine (choose when creating it; Settings → Workflow sets the default; switch per goal any time). *Simple* shows one plain-language Brief — what the system understood, the questions only you can answer, the assumptions you can veto, the list of what you will get, the price — and, while it runs, a progress bar, the cost and whatever needs you, in plain words. *Expert* shows everything: Areas, the task graph, acceptance checks, Draft/Revise, attempt logs, merge resolution, delivery. Engineering discipline is a per-goal setting too: **TDD required / preferred / off** (Simple goals start with *preferred*; any task can switch it off in the Brief; docs, infra, chore and research tasks never get a TDD mandate).
+**Simple or Expert.** Every goal opens in one of two views of the same engine (choose when creating it; Settings → New goal defaults sets the default; switch per goal any time). *Simple* shows one plain-language Brief — what the system understood, the questions only you can answer, the assumptions you can veto, the list of what you will get, the price — and, while it runs, a progress bar, the cost and whatever needs you, in plain words. *Expert* shows everything: Areas, the task graph, acceptance checks, Draft/Revise, attempt logs, merge resolution, delivery. Two more per-goal settings: **TDD required / preferred / off** (Simple goals start with *preferred*; any task can switch it off in the Brief; docs, infra, chore and research tasks never get a TDD mandate), and **pace** — *thorough* (default) runs the engine's own task and goal reviews and writes docs, *fast* skips all of that and ends the goal as soon as your approved checks pass (image and video goals start fast).
 
 **Workflow.** Foundry follows Matt Pocock's engineering workflow ([ADR-0004](./docs/adr/0004-workflow-skills-mandated-and-observed.md)). Catalog entries carry `workflow` rules — worker **must** invoke `tdd` for features and refactors and `diagnosing-bugs` for bugs, the merger **must** use `resolving-merge-conflicts`, the goal reviewer should apply `code-review`'s two axes — and every session gets a `# Workflow skills` section naming the invoke that is actually loaded (plugin copy first). The runner records which skills each session invoked; the task drawer shows them and the task reviewer is told when a mandated skill was skipped (a note, not a blocker). The Setup page has a one-click *Development workflow* card that installs/adopts the bundle. `FOUNDRY_WORKFLOW=plain` turns this back into the old one-line hint.
 
-**Scenarios and design packs** ([ADR-0005](./docs/adr/0005-scenario-skills-and-settings.md)). The Clarifier labels every task with a *scenario* (frontend, backend, fullstack, data, mobile, infra, docs, general) and catalog rules can be bound to scenarios. UI tasks get a **design pack** as a MUST — choose it on Setup or Settings: ui-ux-pro-max (default; a plugin the engine can install with `claude plugin`), Anthropic's frontend-design, [impeccable](https://github.com/pbakaus/impeccable), the [bencium](https://github.com/bencium/bencium-marketplace) pack (impact-designer + design-audit + typography) or [garden](https://github.com/ConardLi/garden-skills)'s web-design-engineer. Packs are mutually exclusive: only the chosen one is shown to sessions, and the goal reviewer gets its review counterpart (`/impeccable critique`, `design-audit`, ui-ux-pro-max's UX guidelines).
+**Scenarios and packs** ([ADR-0005](./docs/adr/0005-scenario-skills-and-settings.md)). The Clarifier labels every task with a *scenario* (frontend, backend, fullstack, data, mobile, infra, docs, research, image, video, general) and catalog rules can be bound to scenarios. UI tasks get a **design pack** as a MUST — choose it on Setup or Settings → Skills: ui-ux-pro-max (default; a plugin the engine can install with `claude plugin`), Anthropic's frontend-design, [impeccable](https://github.com/pbakaus/impeccable), the [bencium](https://github.com/bencium/bencium-marketplace) pack (impact-designer + design-audit + typography), [garden](https://github.com/ConardLi/garden-skills)'s web-design-engineer, or `taste` (design-taste-frontend). Media tasks get **image** and **video** packs the same way: image = gpt-image-2 (default), claude-image-gen (Gemini / OpenAI gpt-image) or taste-imagegen; video = web-video-presentation (default), mmx-cli or the hyperframes motion-graphics kit. Packs are mutually exclusive: only the chosen one is shown to sessions, and the goal reviewer gets its review counterpart.
 
-**Project skills (autoskills).** When a goal's Brief is approved, the engine runs [`npx autoskills`](https://www.autoskills.sh/) in the goal workspace (needs Node ≥ 22 and a stack manifest such as `package.json`): it detects the stack and installs matching skills into the workspace's `.claude/skills`. The engine then restores `CLAUDE.md` (autoskills rewrites it), adds the new skill dirs and `skills-lock.json` to the repository's `.git/info/exclude` — note this exclude is shared by all worktrees of that repository, your own checkout included — copies the skills into task worktrees, and tells every worker which project skills are loaded. Off switch: Settings → Workflow → autoskills.
+**Beyond code** ([ADR-0008](./docs/adr/0008-non-code-goals.md)). A goal's *nature* — code, docs, research, image or video (or *auto*, decided by the Clarifier) — changes what the Brief asks and what "done" means. Media goals write their files into `artifacts/` outside git, with a committed manifest under `docs/artifacts/`, and copy the result to the goal's output folder when it finishes.
+
+**Project skills (autoskills).** When a goal's Brief is approved, the engine runs [`npx autoskills`](https://www.autoskills.sh/) in the goal workspace (needs Node ≥ 22 and a stack manifest such as `package.json`): it detects the stack and installs matching skills into the workspace's `.claude/skills`. The engine then restores `CLAUDE.md` (autoskills rewrites it), adds the new skill dirs and `skills-lock.json` to the repository's `.git/info/exclude` — note this exclude is shared by all worktrees of that repository, your own checkout included — copies the skills into task worktrees, and tells every worker which project skills are loaded. Off switch: Settings → Skills → autoskills.
 
 ### Creating a goal
 
-The New Goal page is four steps. **Goal** — describe it and attach what words cannot carry: screenshots, PDFs, files or links (drop, paste or pick; ≤ 25 MB each, kept under `data/attachments/<goal>/`, handed to every session of the goal as read-only references, never copied into the repository). When [markitdown](https://github.com/microsoft/markitdown) is installed (Setup has a one-click `uv tool install`), PDFs, Office files, HTML, EPUB… are converted to markdown on upload and links are snapshotted as markdown, so sessions `Read` one `.md` instead of rendering PDF pages as images or spending a WebFetch — far fewer tokens. Workers are also told to run `markitdown <file>` on documents they meet inside the repository. Click an attachment to open it: the *Markdown* tab shows exactly what sessions read, the *Original* tab shows images, PDFs and text inline (other types open in a new tab). **Repository** — *Select folder…* opens a folder browser (recent repositories, well-known places, git badges; on macOS also the native Finder dialog); the panel under it shows branch, commits, remotes and identity, offers one-click `git init` when needed, and prefills Delivery from what it finds. **Budget** — presets: *Auto* (default: no cap while clarifying; the Brief's estimate ×2 is proposed and you confirm or edit it before approving), *Quick*, *Thorough*, *Unlimited*, *Custom*. **Delivery** — see below.
+The New Goal page first asks what kind of goal it is (nature: auto / code / docs / research / image / video) and how much you want to see (Simple or Expert, pace, TDD), then four steps. **Goal** — describe it and attach what words cannot carry: screenshots, PDFs, files or links (drop, paste or pick; ≤ 25 MB each, kept under `data/attachments/<goal>/`, handed to every session of the goal as read-only references, never copied into the repository). When [markitdown](https://github.com/microsoft/markitdown) is installed (Setup has a one-click `uv tool install`), PDFs, Office files, HTML, EPUB… are converted to markdown on upload and links are snapshotted as markdown, so sessions `Read` one `.md` instead of rendering PDF pages as images or spending a WebFetch — far fewer tokens. Workers are also told to run `markitdown <file>` on documents they meet inside the repository. Click an attachment to open it: the *Markdown* tab shows exactly what sessions read, the *Original* tab shows images, PDFs and text inline (other types open in a new tab). **Repository** — *Select folder…* opens a folder browser (recent repositories, well-known places, git badges; on macOS also the native Finder dialog); the panel under it shows branch, commits, remotes and identity, offers one-click `git init` when needed, and prefills Delivery from what it finds. **Budget** — presets: *Auto* (default: no cap while clarifying; the Brief's estimate ×2 is proposed and you confirm or edit it before approving), *Quick*, *Thorough*, *Unlimited*, *Custom*. **Delivery** — see below.
 
 **The Brief.** Clarify ends with one document you approve once. The Clarifier first lists the **Areas** the goal covers (one per user-facing role or app it names — student portal, teacher portal… — plus a *shared* Area for groundwork), then plans **1–6 tasks per Area** (no cap on the total; above 12 the page warns that the goal is large). Every task, goal-level check and question carries its Area; the engine checks that every Area has at least one task and sends the Clarifier back once when one is missing — a gap that remains becomes a question on the page. The Brief page shows the task graph (coloured by Area) and lists the tasks by **Stage** (a stage's tasks run in parallel; a stage starts when the previous one is done); each task card has a *runs after* picker, its kind / scenario / Area / commit scope (blank = the Area's slug), its spec, and its own acceptance checks (Command = a shell command that must exit 0, Reviewer = a Claude session judging the diff against a rubric; switch the type, toggle must/stretch, move a check between task and goal level). Goal-level checks sit in their own card, grouped by Area. **Draft with AI** on a task you added drafts its spec, attributes, dependencies and checks from the Brief and a read-only look at the repository (≤ $2, strong model); on a task that already has a spec it only *suggests acceptance*; an Area with no tasks offers *Draft tasks for this Area*. Everything comes back as a proposal you accept item by item — nothing you typed is ever overwritten. **Decisions.** Your answers to the Brief's questions and the assumptions you untick are *decisions*: every worker, the goal reviewer and the PR body receive them verbatim, and a re-run Clarify starts from them instead of asking again. Because the tasks were planned before you decided, the Decisions card offers **Revise with answers** (≤ $3): the Clarifier re-reads the Brief and the repository and returns a diff — changed, added or dropped tasks, checks and Areas — that you accept item by item; until then the page flags "N decisions not applied to the plan", without blocking approval.
 
@@ -115,6 +117,16 @@ Per goal you choose a **delivery policy** (New Goal page, or later via *Deliver�
 
 Rules that never bend: the model stays inside its worktree (hook), only the engine touches the remote, never `--force`, never a direct push to the base branch, every remote command is logged as a `delivery.command` event. A repository without git gets a one-click `git init` + initial commit; one without a remote can be created on GitHub (owner/org picker). GitHub identity is the official `gh` CLI — `foundry github login` / Connect GitHub runs its device flow; no token is stored by Foundry. Without `gh`, `push` to an existing/URL remote still works.
 
+**After the goal review, before done.** With pace *thorough*, a **Documenter** session (docs only, ≤ $3) writes the documentation you chose at Brief approval — a PRD, README updates, a changelog entry, a stakeholder questionnaire — as one `docs:` commit on the goal branch, so it ships in the same delivery ([ADR-0007](./docs/adr/0007-completion-actions.md)). After delivery the engine refreshes the code knowledge graph where the delivered code lives (`graphify update`, and `gitnexus analyze` when installed).
+
+### Agents monitor
+
+The **Agents** page (`/agents`, header pill) is a live view of every Claude Code session on the machine — the ones Foundry spawned and the ones you started yourself (terminal, VS Code) — with status (busy / idle / finished), model, elapsed time, context-window use and nested subagents. Click a session for its live log; Foundry-spawned sessions can be stopped from here, external ones are watched only.
+
+### Notifications
+
+Foundry can push to **Telegram** and **Discord** (Settings → Notifications) when a goal needs you, finishes or delivers, when a Claude usage limit pauses/resumes the engine, or when a new version is out — each family its own switch, with a *Send test message* button and a link base URL so the messages deep-link back to the right page. Reaching the UI from your phone while the machine at home keeps working: [docs/remote-access.md](./docs/remote-access.md).
+
 ### Usage & rate limits
 
 **Usage** (header pill + `/usage` page, `bun run cli usage`) is a small dashboard of what Foundry itself has consumed: the current 5-hour and 7-day windows (cost, tokens, elapsed-time bar, reset countdown, cost per hour / per day), cache hit rate, average cost and length per session, failed sessions, and breakdowns by goal (with titles), session kind and model, plus the last rate-limit signal from the CLI (`allowed` / reset time). When a session reports that the subscription is rate-limited, the engine stops starting new sessions until the reset time and resumes by itself. Subscription plans expose no usage API, so these are Foundry's own numbers, not your account percentage — run `/usage` inside Claude Code for that. We never read your credentials.
@@ -123,18 +135,22 @@ Rules that never bend: the model stays inside its worktree (hook), only the engi
 
 ```
 serve                                    start engine + server
-goal new "<prompt>" --repo <path> [...]  create a goal (--preset auto|quick|thorough|unlimited, --max-cost N|none, --auto-approve, --check, --follow)
+goal new "<prompt>" --repo <path> [...]  create a goal (--preset auto|quick|thorough|unlimited|custom, --max-cost N|none,
+                                         --max-min, --concurrency, --attempts, --auto-approve, --check, --stretch, --follow,
+                                         --deliver push|pr|pr-automerge [--remote] [--remote-url], --title, --base, --model)
 status [goalId]                          goals overview / one goal's tasks, attempts, checks
 brief <goalId> [--approve]               print / approve the Brief
+deliver <goalId> [--mode push|pr|pr-automerge …]   run (or re-run) delivery
 escalations · answer <id> <action>       inbox from the terminal
 watch <goalId> · diff <goalId> · cancel <goalId>
 replay --verify                          rebuild read models from the event log and compare
 doctor · skills list|catalog|install|uninstall|restore|update|trash · usage [--probe]
+github [status|login] · auth [status|login|logout]
 ```
 
 ## Configuration
 
-The **Settings** page (`/settings`, API `GET/PUT /api/settings`) edits everything below and saves only what you changed to `data/settings.json`. Precedence per value: saved › environment variable › default — the page shows where each value comes from. Most settings apply immediately (concurrency, models, session caps, workflow profile, design pack, autoskills, review and delivery defaults, tools, safety); `port`, `host`, `claudeBin` and `claudeHome` take effect after `bun run serve` is restarted (the page and `/api/health` say so).
+The **Settings** page (`/settings`, API `GET/PUT /api/settings`) edits everything below and saves only what you changed to `data/settings.json`. Precedence per value: saved › environment variable › default — the page shows where each value comes from. Most settings apply immediately (concurrency, models, session caps, workflow profile, design / image / video packs, pace, TDD default, autoskills, review and delivery defaults, notifications, tools, safety); `port`, `host`, `claudeBin` and `claudeHome` take effect after `bun run serve` is restarted (the page and `/api/health` say so).
 
 **Models over time.** Settings → Models lists what this machine has seen resolve (a learned registry, `data/models.json`, fed by every session's `init` message) plus the family aliases; a new Claude family is one "custom" entry away and shows its resolved id after the first session (or after *Test*, one short paid call). When a model turns out to be unavailable — deprecated alias, retired id — the session is re-run with the next model of the fallback chain and the goal's model is updated (`goal.models_changed`, shown on the Goal page); the Doctor warns about tiers that never resolved here or failed last time ([ADR-0006](./docs/adr/0006-model-registry-and-fallback.md)).
 
@@ -148,36 +164,45 @@ Environment variables seed the initial values (handy for CI or a one-off run):
 | `FOUNDRY_MODEL_WORKER` / `_STRONG` / `_CHEAP` | `opus` / `opus` / `haiku` | model per tier — `fable`, `opus`, `sonnet`, `haiku` (Claude Code aliases) or a full model id. *strong* = Clarify, Planner, Goal review, Merge Attempts; *worker* = task attempts; *cheap* = task reviewer, probes |
 | `FOUNDRY_MODEL_FALLBACKS` | `opus,sonnet,haiku` | tried in order when a session's model is unavailable (deprecated alias, retired id) — see [ADR-0006](./docs/adr/0006-model-registry-and-fallback.md) |
 | `FOUNDRY_ATTEMPT_MAX_COST` / `FOUNDRY_ATTEMPT_MAX_TURNS` | `10` / `150` | per-session cost (USD) and turn caps for a worker attempt; cost is also bounded by the goal's remaining budget |
+| `FOUNDRY_MAX_CONTINUATIONS` | `2` | times one attempt may resume its cut/progressing session before a fresh attempt |
 | `FOUNDRY_WORKFLOW` | `mattpocock` | `plain` disables mandated workflow skills (one-line hint only) |
-| `FOUNDRY_DESIGN_PACK` | `ui-ux-pro-max` | design pack for UI tasks: `ui-ux-pro-max`, `frontend-design`, `impeccable`, `bencium`, `garden`, `none` |
+| `FOUNDRY_TDD` / `FOUNDRY_GOAL_MODE` / `FOUNDRY_PACE` | `required` / `expert` / `thorough` | TDD discipline, default view, and pace new goals start with |
+| `FOUNDRY_DESIGN_PACK` / `FOUNDRY_IMAGE_PACK` / `FOUNDRY_VIDEO_PACK` | `ui-ux-pro-max` / `gpt-image-2` / `web-video-presentation` | packs for UI / image / video tasks (design also: `frontend-design`, `impeccable`, `bencium`, `garden`, `taste`, `none`) |
 | `FOUNDRY_AUTOSKILLS` | `true` | run autoskills per goal (`0`/`false` to disable) |
 | `FOUNDRY_DELIVERY_MODE` | `local` | default delivery policy for new goals |
 | `FOUNDRY_SYNC_FETCH` / `FOUNDRY_SYNC_START` / `FOUNDRY_SYNC_REFRESH` | `true` / `auto` / `false` | fetch the base before a goal; start from the remote tip when local is behind (`auto`) or always local; refresh between tasks |
+| `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `GEMINI_API_KEY` / `KIMI_API_KEY` | — | seed the image-generation keys handed to sessions (also editable in Settings → Tools & keys) |
+| `FOUNDRY_TELEGRAM_BOT_TOKEN` / `FOUNDRY_TELEGRAM_CHAT_ID` / `FOUNDRY_DISCORD_WEBHOOK` / `FOUNDRY_NOTIFY_BASE_URL` | — | seed the notification channels |
+| `FOUNDRY_UPDATE_CHECK` | `on` | `off` disables the daily version check ([self-update](./docs/adr/0010-self-update-via-docker-hub-and-watchtower.md)) |
 | `FOUNDRY_MARKITDOWN` | auto-detect | path to the markitdown binary |
+| `FOUNDRY_URL` | `http://127.0.0.1:<port>` | where the `foundry` CLI reaches the server (set it when the engine binds elsewhere) |
 
 Per-goal budgets (cost, minutes, concurrency, attempts per task) are set when creating the goal and can be raised from the Inbox when exceeded.
 
-Roles (prompts) are plain markdown in [`roles/`](./roles) — edit them without touching code: `clarifier`, `planner`, `worker`, `reviewer-task`, `reviewer-goal`, `merger`.
+Roles (prompts) are plain markdown in [`roles/`](./roles) — edit them without touching code: `clarifier`, `planner`, `worker`, `reviewer-task`, `reviewer-goal`, `merger`, `documenter`.
 
 ## Layout
 
 ```
 packages/core     zod schemas, event log (bun:sqlite), projections, state machines, DAG
 packages/runner   ClaudeRunner interface + ClaudeCliRunner (spawns `claude -p --output-format stream-json`), boundary hook
-packages/engine   scheduler, attempt loop, checks, reviewers, merge, clarify, budgets, escalations, context providers,
-                  attachments, fs/ (folder browser, native picker), delivery/ (git init, gh, pipeline),
+packages/engine   scheduler, attempt loop, checks/, reviewers, merge, clarify, budgets, escalations, context/ providers,
+                  attachments, agents/ (session monitor), auth/, notify/ (telegram, discord), update/ (self-update),
+                  models/ (registry + fallback), convert/ (markitdown), git/ (conventional commits, sync), completion,
+                  fs/ (folder browser, native picker), delivery/ (git init, gh, pipeline),
                   skills/ (scanner, catalog, installer, trash, doctor, sources, updates, updaters, workflow), usage/ (ledger, rate-limit pause)
 catalog/          skills.json — curated required / recommended / optional skills
 packages/server   Hono API + WebSocket + static UI
-apps/web          React UI (goals, new goal, brief review, run view, inbox)
+apps/web          React UI (goals, new goal, brief review, run view, inbox, agents, skills, setup, usage, settings, merge-resolve)
 apps/cli          thin CLI
-roles/            versioned role prompts
-data/             runtime: engine.db, transcripts/, worktrees/, check-output/ (gitignored)
+roles/            versioned role prompts (clarifier, planner, worker, reviewer-*, merger, documenter)
+data/             runtime: engine.db, settings.json, models.json, transcripts/, worktrees/, check-output/, attachments/, skills-cache/, skills-trash/ (gitignored)
+docs/, scripts/, fixtures/, Dockerfile, docker-compose.yml
 ```
 
 ## Token economy (by design, not by tooling)
 
-- every Attempt is a fresh session that receives a distilled *Observation Report*, never the previous transcript
+- every *retry* is a fresh session that receives a distilled *Observation Report*, never the previous transcript; a cut or still-progressing session is *resumed* (`claude --resume`, context kept) up to `maxContinuations` times first
 - task specs carry only relevant files / graph excerpts (graphify when available, ripgrep otherwise)
 - strong model for planning/coding/goal review, cheap model for task reviews and output distillation
 - check outputs are truncated/distilled by the engine before they reach a model
@@ -186,8 +211,11 @@ data/             runtime: engine.db, transcripts/, worktrees/, check-output/ (g
 ## Development
 
 ```bash
+bun install
+bun run dev              # engine (--watch) + UI build (--watch); or `bun run web:dev` for HMR on :5173
 bun test                 # unit tests (core, runner, engine)
 bun run typecheck
 bun scripts/spike-runner.ts   # raw runner spike against the real CLI
 bun scripts/spike-guard.ts    # boundary hook + permission-denial spike
+bun run release <patch|minor|major>   # cut a release: bump, tag, changelog, multi-arch image
 ```

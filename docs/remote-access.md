@@ -49,9 +49,11 @@ runs from source or in Docker (the compose file and the `docker run` recipes alr
 Open `https://mac-mini.<tailnet>.ts.net` on your phone (Wi-Fi off, to prove the point). The header's live dot
 should be green.
 
-> **Alternative without `serve`** — bind Foundry to the tailnet address directly: Settings → Engine → Host
-> = `100.x.y.z` (restart), or `-p 100.x.y.z:4111:4111` for Docker. You get plain `http://100.x.y.z:4111`
-> without a certificate. Only do this if `serve` is unavailable on your Tailscale plan; never use `0.0.0.0`.
+> **Alternative without `serve`** — bind Foundry to the tailnet address directly: Settings → Engine (install)
+> → Host = `100.x.y.z` (takes effect after a restart), or `-p 100.x.y.z:4111:4111` for Docker. You get plain
+> `http://100.x.y.z:4111` without a certificate, and the engine no longer listens on loopback: on that machine
+> open the same address in the browser and give the CLI `FOUNDRY_URL=http://100.x.y.z:4111`. Only do this if
+> `serve` is unavailable on your Tailscale plan; never use `0.0.0.0`.
 
 To undo: `tailscale serve reset`.
 
@@ -76,6 +78,7 @@ three paths:
   <key>WorkingDirectory</key><string>/Users/you/Projects/foundry</string>
   <key>EnvironmentVariables</key><dict>
     <key>PATH</key><string>/Users/you/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>FOUNDRY_SUPERVISED</key><string>1</string>
   </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -85,6 +88,7 @@ three paths:
 ```
 
 ```bash
+mkdir -p ~/Projects/foundry/data                                                    # launchd does not create the log dir
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.foundry.serve.plist   # start now + at every login
 launchctl kickstart -k gui/$(id -u)/com.foundry.serve                              # restart it
 tail -f ~/Projects/foundry/data/serve.log
@@ -92,6 +96,8 @@ tail -f ~/Projects/foundry/data/serve.log
 
 `PATH` must contain wherever `bun`, `claude`, `git`, `gh` and `graphify` live (`which claude` tells you); a
 LaunchAgent does not read your shell profile. Use plain `bun run serve`, not `bun --watch`.
+`FOUNDRY_SUPERVISED=1` tells a one-click update (§5) to simply exit when it is done, so the service manager
+brings the new version up — without it the engine restarts itself and the two would fight over the port.
 
 **Linux — a systemd user service.** Save as `~/.config/systemd/user/foundry.service`:
 
@@ -103,6 +109,7 @@ After=network-online.target
 [Service]
 WorkingDirectory=%h/Projects/foundry
 Environment=PATH=%h/.bun/bin:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=FOUNDRY_SUPERVISED=1
 ExecStart=%h/.bun/bin/bun run serve
 Restart=always
 RestartSec=3
@@ -128,18 +135,20 @@ sign in*.
   `sudo pmset -a disablesleep 1` (`0` to undo). Turn on *Wake for network access* while you are there.
   If the machine may reboot on its own (updates, power), enable automatic login so the LaunchAgent starts
   without you — with the usual FileVault trade-off.
-- **Linux**: on a desktop session, `systemctl mask sleep.target suspend.target hibernate.target`; on a server
-  there is nothing to do.
+- **Linux**: on a desktop session, `sudo systemctl mask sleep.target suspend.target hibernate.target`; on a
+  server there is nothing to do.
 
 Check it is really alive after a reboot: `curl -s https://mac-mini.<tailnet>.ts.net/api/health` from another
 device should answer `{"ok":true,…}`.
 
 ## 4. Make notifications point back at the tailnet URL
 
-Foundry can ping you on Telegram or Discord when a goal needs you, finishes, delivers, or when a new version is
-out (Settings → Notifications). Set **Link base URL** to `https://mac-mini.<tailnet>.ts.net` — every message then
-carries a link that opens the right page on your phone (with the default `127.0.0.1` there would be no link,
-since it would not open anywhere else). Press *Send test message* to confirm.
+Foundry can ping you on Telegram or Discord when a goal needs you, finishes or delivers, when a Claude usage
+limit pauses the engine, or when a new version is out (Settings → Notifications, one switch per family). Set
+**Link base URL** to `https://mac-mini.<tailnet>.ts.net` (scheme included — the field wants a full URL): every
+message then carries a link that opens the right page on your phone. Leave it empty and messages carry no link
+at all; set it to `127.0.0.1` and the link opens nowhere but on the machine itself. Press *Send test message*
+to confirm.
 
 That is the loop: the machine works, you get a ping, you tap it, you answer the question or approve the Brief,
 the machine carries on.
@@ -158,13 +167,14 @@ delivery pushes with that machine's `gh` login — set it up once while you are 
 ## 6. Security checklist
 
 - Foundry listens on `127.0.0.1` (or the `100.x.y.z` tailnet address); it is never bound to `0.0.0.0`, and no
-  router port-forward or `tailscale funnel` points at it. `tailscale serve status` must say **serve**, not funnel.
+  router port-forward or `tailscale funnel` points at it. `tailscale serve status` must show the listener as
+  *tailnet only* — never *Funnel on*.
 - The Foundry machine holds your Claude login, your repositories and a `gh` login that can push and open PRs.
   Treat it like your laptop: disk encryption on, screen lock on, only your own devices on the tailnet.
 - Sharing the tailnet with other people (family, colleagues)? Restrict who can reach port 4111 with a
   Tailscale ACL (<https://login.tailscale.com/admin/acls>), e.g. only devices tagged as yours.
 - Keep the `docker-compose.yml` watchtower sidecar's API unpublished (the shipped file does); it is reachable
-  only from the Foundry container.
+  only from inside the compose network.
 
 ## Alternatives
 
@@ -178,7 +188,8 @@ delivery pushes with that machine's `gh` login — set it up once while you are 
 | What you see | Why | Fix |
 |---|---|---|
 | Browser says the certificate is not ready / HTTPS times out | first `tailscale serve` provisions the `ts.net` certificate on demand | wait a minute, reload; check HTTPS is enabled in the admin DNS page |
-| Header shows *reconnecting…* and nothing loads | the machine is asleep, or the engine stopped | `tailscale ping mac-mini` from another device; `curl …/api/health`; check the sleep settings and the service log |
-| `curl …/api/health` works, notification links open nothing | Link base URL not set or still `127.0.0.1` | Settings → Notifications → Link base URL = the `ts.net` URL |
+| The header's live dot is red (*reconnecting…* on a wider screen) and nothing loads | the machine is asleep, or the engine stopped | `tailscale ping mac-mini` from another device; `curl …/api/health`; check the sleep settings and the service log |
+| `curl …/api/health` works, but messages carry no link or the link opens nothing | Link base URL empty (no links at all) or set to `127.0.0.1` | Settings → Notifications → Link base URL = the `https://…ts.net` URL |
+| After a one-click update the service log shows a port-in-use crash loop | the engine restarted itself instead of letting launchd/systemd do it | add `FOUNDRY_SUPERVISED=1` to the plist/unit (§3), then `launchctl kickstart -k …` / `systemctl --user restart foundry` |
 | Goals start but sessions fail immediately after a reboot | the service `PATH` lacks `claude` / `bun`, or the Keychain login is not available (macOS, user not logged in) | fix `PATH` in the plist/unit; enable automatic login |
 | `tailscale serve` says the feature is not available | older client or plan without serve | update Tailscale, or use the bind-to-`100.x.y.z` alternative in §2 |
