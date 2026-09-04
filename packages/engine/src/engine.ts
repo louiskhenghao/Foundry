@@ -266,7 +266,9 @@ export class Engine {
   }
   private applySettingsChange(changed: string[]): void {
     if (!changed.length) return;
+    const modelsBefore = { ...this.config.models };
     applySettingsToConfig(this.config, this.settings.values(), new Set(changed));
+    if (changed.some((k) => k.startsWith('models.'))) this.propagateModels(modelsBefore);
     if (changed.includes('engine.maxConcurrent')) this.runner.setMaxConcurrent?.(this.config.maxConcurrent);
     if (changed.includes('tools.useGraphify')) {
       this.context = this.buildContext();
@@ -279,6 +281,22 @@ export class Engine {
     const restartNeeded = this.settings.restartNeeded();
     this.store.append({ type: 'settings.changed', goalId: null, payload: { keys: changed, restartNeeded } });
     this.config.log(`[settings] changed ${changed.join(', ')}${restartNeeded.length ? ` (restart needed for ${restartNeeded.join(', ')})` : ''}`);
+  }
+
+  /**
+   * A model change in Settings reaches the goals still in flight: every tier that still carried the old default moves to the
+   * new one (a per-goal override — a value that never matched the default — stays). Goals snapshot models at creation, so
+   * without this a goal started minutes before the change would run on the old model until it finished.
+   */
+  private propagateModels(before: ModelConfig): void {
+    for (const goal of listGoals(this.store.db)) {
+      if (['done', 'over_delivered', 'failed', 'cancelled'].includes(goal.state)) continue;
+      for (const tier of ['strong', 'worker', 'cheap'] as const) {
+        const to = this.config.models[tier];
+        if (goal.models[tier] === to || goal.models[tier] !== before[tier]) continue;
+        this.store.append({ type: 'goal.models_changed', goalId: goal.id, payload: { tier, from: before[tier], to, reason: 'settings changed' } });
+      }
+    }
   }
 
   // ---------- base branch sync ----------

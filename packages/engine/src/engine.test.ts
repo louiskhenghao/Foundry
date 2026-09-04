@@ -512,4 +512,15 @@ describe('goal-review escalation + settings propagation', () => {
     expect(listTasks(engine.store.db, goal.id)).toHaveLength(before);
   });
 
+  test('changing a model in Settings reaches goals in flight, but not a per-goal override', async () => {
+    const engine = track(new Engine(cfg(), new FakeRunner(() => {})));
+    const inherited = await engine.createGoal({ prompt: 'impossible', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f never.txt'] } });
+    const pinned = await engine.createGoal({ prompt: 'impossible too', repoPath: repo, budgets: { attemptsPerTask: 1 }, models: { strong: 'my-own-model' }, autoBrief: { mustChecks: ['test -f never.txt'] } });
+    expect(getGoal(engine.store.db, inherited.id)!.models.strong).toBe(engine.config.models.strong);
+    engine.updateSettings({ models: { strong: 'claude-fable-5-1' } });
+    expect(getGoal(engine.store.db, inherited.id)!.models.strong).toBe('claude-fable-5-1');
+    expect(getGoal(engine.store.db, inherited.id)!.models.worker).toBe(engine.config.models.worker);
+    expect(getGoal(engine.store.db, pinned.id)!.models.strong).toBe('my-own-model');
+    expect(engine.store.listByType('goal.models_changed').some((e) => e.goalId === inherited.id && (e.payload as { reason: string }).reason === 'settings changed')).toBe(true);
+  });
 });
