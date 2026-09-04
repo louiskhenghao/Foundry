@@ -3,7 +3,7 @@ import type { Check, CheckResult, Goal } from '@foundry/core';
 import { IdPrefix, chosenStyle, getBrief, listCheckResultsByGoal, listChecks, listTasks, newId, renderDecisions } from '@foundry/core';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import { renderStyle } from './attempt-prompt.ts';
+import { renderStyle, styleApplies } from './attempt-prompt.ts';
 import { attachmentsDir, renderAttachments } from './attachments.ts';
 import { budgetStatus } from './budget.ts';
 import { runCommandCheck } from './checks/command.ts';
@@ -137,7 +137,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
     renderAttachments(goal, engine.config.dataDir),
     brief ? `# Approved understanding\n${brief.understanding}` : '',
     brief ? renderDecisions(brief) : '',
-    brief && ['image', 'video', 'frontend', 'fullstack'].includes(scenario) ? renderStyle(chosenStyle(brief), { forReviewer: true }) : '',
+    brief && styleApplies(scenario) ? renderStyle(chosenStyle(brief), { forReviewer: true }) : '',
     reviewerHint ?? '',
     `# Fixed point\nThe base of this review is \`${goal.baseBranch}\`; everything in the diff below was added by this goal.`,
     `# Acceptance checks\nObjective command checks were already executed by the engine; their status is shown. You judge the reviewer-type checks and the overall result.\n${checks.map(fmt).join('\n')}`,
