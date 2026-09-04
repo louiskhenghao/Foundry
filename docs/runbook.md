@@ -61,7 +61,8 @@ Every notice names the goal and the task and links straight to the task view; th
 | **Budget exceeded** | Cost or time limit reached. | *Raise budget* or *Abort*. |
 | **Wants to leave the workspace** | A session tried `git push` / deploy / paid service. | *Approve & run once* or *Deny*. |
 | **Tool denied** — *"the task failed and Claude was denied: &lt;tools&gt;"* | The last attempt failed and Claude refused a (non-boundary) tool call. | Same choices as *Retries exhausted*: **Suggest a hint** / **Let AI handle it**, *Retry with hint*, *Skip task*. |
-| **Retries exhausted · goal review / delivery** | The goal review crashed (`kind: goal-review`), or CI on a delivered PR could not be fixed within the task's attempts (`kind: delivery-fix`). | *Retry* after fixing the cause; a delivery-fix can be re-run with *Deliver* again. |
+| **Retries exhausted · goal review** — *"Goal review failed after N fix cycle(s). Failing Must checks: …"* + the reviewer's notes | The merged result failed reviewer-type Must checks after its fix cycle(s). The reviewer's findings ride on the escalation. | **Retry with hint** turns those findings into fix tasks (your hint goes with them), runs them and reviews again — it never just re-rolls the same review. **Accept as-is** finishes the goal with the failing checks waived. A re-review sees the previous verdicts and may flip one only for a reason it cites. |
+| **Retries exhausted · goal review crashed / delivery** | The goal review crashed (`kind: goal-review`, no findings), or CI on a delivered PR could not be fixed within the task's attempts (`kind: delivery-fix`). | *Retry* after fixing the cause (re-runs the review); a delivery-fix can be re-run with *Deliver* again. |
 | **Brief question** | Only on the Brief page. | Answer; then *Revise with answers* if it changes the plan. |
 
 ## 5. Engine notes worth knowing

@@ -61,7 +61,8 @@ Task 状态：`pending`（等待它所依赖的 task）→ `ready`（可以开�
 | **Budget exceeded** | 触及成本或时间上限。 | *Raise budget* 或 *Abort*。 |
 | **Wants to leave the workspace** | 某个 session 尝试 `git push` / 部署 / 付费服务。 | *Approve & run once* 或 *Deny*。 |
 | **Tool denied** — *"the task failed and Claude was denied: &lt;tools&gt;"* | 最后一次 Attempt 失败了，且 Claude 拒绝了一次（非边界的）工具调用。 | 与 *Retries exhausted* 相同的选项：**Suggest a hint** / **Let AI handle it**、*Retry with hint*、*Skip task*。 |
-| **Retries exhausted · goal review / delivery** | goal review 崩溃了（`kind: goal-review`），或已交付 PR 上的 CI 在该 task 的 Attempt 内无法修复（`kind: delivery-fix`）。 | 修复根因后 *Retry*；delivery-fix 可以再次用 *Deliver* 重新运行。 |
+| **Retries exhausted · goal review** — *"Goal review failed after N fix cycle(s). Failing Must checks: …"* + reviewer 的说明 | 合并后的结果在 fix cycle 用完后仍有 reviewer 型 Must 检查不通过。reviewer 的发现随 escalation 一起保存。 | **Retry with hint** 会把这些发现变成 fix task（你的 hint 一并带上），跑完再 review 一次——绝不会只是重跑同一个 review。**Accept as-is** 直接完成 goal，放弃未通过的检查。再次 review 时能看到上一次的结论，只有给出可引用的理由才允许翻转结论。 |
+| **Retries exhausted · goal review 崩溃 / delivery** | goal review 崩溃了（`kind: goal-review`，没有发现可用），或已交付 PR 上的 CI 在该 task 的 Attempt 内无法修复（`kind: delivery-fix`）。 | 修复根因后 *Retry*（重跑 review）；delivery-fix 可以再次用 *Deliver* 重新运行。 |
 | **Brief question** | 只出现在 Brief 页面。 | 回答；如果它改变了计划，再 *Revise with answers*。 |
 
 ## 5. 值得了解的引擎注记

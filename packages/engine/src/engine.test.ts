@@ -473,3 +473,43 @@ describe('sessions per attempt and AI suggestions', () => {
     expect(listEscalations(engine.store.db, { goalId: goal.id, openOnly: true })[0]!.state).toBe('open');
   }, 30_000);
 });
+
+describe('goal-review escalation + settings propagation', () => {
+  test('retry_with_hint on a goal-review escalation spawns fix tasks carrying the hint and resumes the goal as running', async () => {
+    const engine = track(new Engine(cfg(), new FakeRunner(() => {})));
+    const goal = await engine.createGoal({ prompt: 'impossible', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f never.txt'] } });
+    await waitFor(() => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).length > 0);
+    // simulate a goal review that failed after its last fix cycle, carrying its findings
+    raiseEscalation(engine, {
+      goal: getGoal(engine.store.db, goal.id)!,
+      trigger: 'retries_exhausted',
+      message: 'Goal review failed',
+      payload: { kind: 'goal-review', fixTasks: [{ title: 'Pass the loadout into createMatch', spec: 'GameScreen.tsx:61 omits the loadout', relevantFiles: ['GameScreen.tsx'] }], failing: [{ name: 'mechanics complete', summary: 'loadout ignored' }] },
+      blockGoal: true,
+    });
+    const before = listTasks(engine.store.db, goal.id).length;
+    const esc = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).find((e) => e.taskId === null)!;
+    await engine.answerEscalation(esc.id, { action: 'retry_with_hint', hint: 'wire buildLoadout into GameScreen' });
+    const tasks = listTasks(engine.store.db, goal.id);
+    expect(tasks).toHaveLength(before + 1);
+    const fix = tasks.find((t) => t.origin === 'goal-review-fix')!;
+    expect(fix.title).toBe('Pass the loadout into createMatch');
+    expect(fix.hint).toBe('wire buildLoadout into GameScreen');
+    expect(fix.relevantFiles).toEqual(['GameScreen.tsx']);
+    // the goal runs the fix task instead of jumping straight back into another review
+    expect(['running', 'goal_review', 'blocked']).toContain(getGoal(engine.store.db, goal.id)!.state);
+    expect(getGoal(engine.store.db, goal.id)!.state).not.toBe('goal_review');
+  });
+
+  test('retry_with_hint on a goal-review escalation without findings just re-runs the review', async () => {
+    const engine = track(new Engine(cfg(), new FakeRunner(() => {})));
+    const goal = await engine.createGoal({ prompt: 'impossible', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f never.txt'] } });
+    await waitFor(() => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).length > 0);
+    raiseEscalation(engine, { goal: getGoal(engine.store.db, goal.id)!, trigger: 'retries_exhausted', message: 'Goal review crashed', payload: { kind: 'goal-review' }, blockGoal: true });
+    const before = listTasks(engine.store.db, goal.id).length;
+    const esc = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).find((e) => e.taskId === null)!;
+    await engine.answerEscalation(esc.id, { action: 'retry_with_hint' });
+    expect(listTasks(engine.store.db, goal.id)).toHaveLength(before);
+  });
+
+});

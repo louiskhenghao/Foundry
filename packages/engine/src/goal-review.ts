@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import type { Check, CheckResult, Goal, Task } from '@foundry/core';
+import type { Check, CheckResult, Goal } from '@foundry/core';
 import { IdPrefix, chosenStyle, getBrief, listChecks, listTasks, newId, renderDecisions } from '@foundry/core';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
@@ -12,6 +12,7 @@ import type { Engine } from './engine.ts';
 import { goalScenario } from './skills/workflow.ts';
 import { runDocsGeneration } from './docs-generate.ts';
 import { raiseEscalation } from './escalation.ts';
+import { createFixTasks, genericFixSpec } from './fix-tasks.ts';
 import { diff } from './git/git.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
 import { goalWorkspacePath } from './workspace.ts';
@@ -94,56 +95,9 @@ export async function runGoalReview(engine: Engine, goal: Goal): Promise<void> {
 
   // Failing must: spawn fix tasks (bounded) or escalate
   const fixSpecs = review?.fixTasks ?? [];
+  const failing = mustResults.filter((r) => r.status === 'fail').map((r) => ({ name: checks.find((c) => c.id === r.checkId)?.name ?? r.checkId, summary: r.summary.slice(0, 1200) }));
   if (goal.fixCycles < config.maxFixCycles && (fixSpecs.length || mustResults.some((r) => r.status !== 'pass'))) {
-    const now = new Date().toISOString();
-    const existing = listTasks(store.db, goal.id);
-    const specs = fixSpecs.length
-      ? fixSpecs
-      : [
-          {
-            title: 'Fix failing goal-level checks',
-            spec: `The following goal-level checks fail on the merged result:\n${mustResults
-              .filter((r) => r.status !== 'pass')
-              .map((r) => `- ${checks.find((c) => c.id === r.checkId)?.name}\n\`\`\`\n${r.summary.slice(0, 1200)}\n\`\`\``)
-              .join('\n')}\nMake them pass without weakening the checks.`,
-            relevantFiles: [],
-          },
-        ];
-    const ids: string[] = [];
-    for (const s of specs) {
-      const t: Task = {
-        id: newId(IdPrefix.task),
-        goalId: goal.id,
-        title: s.title,
-        spec: s.spec,
-        kind: 'bug',
-        scope: null,
-        scenario: goalScenario(existing),
-        area: null, tdd: 'inherit',
-        dependsOn: existing.filter((x) => x.state === 'done' || x.state === 'skipped').map((x) => x.id),
-        relevantFiles: s.relevantFiles,
-        parallelizable: false,
-        retryBudget: goal.budgets.attemptsPerTask,
-        origin: 'goal-review-fix',
-        state: 'pending',
-        branch: null,
-        worktreePath: null,
-        baseRef: null,
-        commitRef: null,
-        commitMessage: null,
-        hint: null,
-        extraAttempts: 0,
-        createdAt: now,
-        updatedAt: now,
-      };
-      store.append({ type: 'task.created', goalId: goal.id, payload: { task: t } });
-      // goal-level must command checks are re-run at the next review; give the fix task the same checks so its attempts self-verify
-      for (const c of goalChecks.filter((x) => x.tier === 'must' && x.spec.type === 'command')) {
-        const copy: Check = { ...c, id: newId(IdPrefix.check), taskId: t.id };
-        store.append({ type: 'check.created', goalId: goal.id, payload: { check: copy } });
-      }
-      ids.push(t.id);
-    }
+    const ids = createFixTasks(engine, goal, fixSpecs.length ? fixSpecs : [genericFixSpec(failing)]);
     store.append({ type: 'review.goal.finished', goalId: goal.id, payload: { passed: false, overDelivered: false, mustResults, stretchResults, fixTaskIds: ids, notes: review?.notes ?? '' } });
     store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'goal_review', to: 'running', reason: `fix cycle ${goal.fixCycles + 1}: ${ids.length} fix task(s)` } });
     return;
@@ -162,7 +116,8 @@ export async function runGoalReview(engine: Engine, goal: Goal): Promise<void> {
           .filter((r) => r.status !== 'pass')
           .map((r) => checks.find((c) => c.id === r.checkId)?.name)
           .join(', ')}${review ? `\n\n${review.notes.slice(0, 800)}` : ''}`,
-    payload: { kind: 'goal-review' },
+    // the findings ride on the escalation: a human "Retry with hint" turns them into fix tasks instead of re-rolling the review
+    payload: { kind: 'goal-review', fixTasks: fixSpecs, failing },
     blockGoal: true,
   });
 }
