@@ -9,6 +9,8 @@ export const GoalState = z.enum([
   'running',
   'goal_review',
   'blocked',
+  /** paused at a milestone for the human to look at the work and continue or give feedback */
+  'awaiting_feedback',
   'done',
   'over_delivered',
   'failed',
@@ -126,6 +128,10 @@ export const Goal = z.object({
   outputDir: z.string().nullable().default(null),
   /** the progress folder — the goal worktree the human opens, next to the repository; null = the legacy `<dataDir>/worktrees/<id>/_goal` */
   workspaceDir: z.string().nullable().default(null),
+  /** the milestone checkpoint the goal is paused at (state awaiting_feedback), or null */
+  checkpoint: z.object({ taskId: z.string(), lookFor: z.string(), openedAt: z.string(), recheck: z.boolean() }).nullable().default(null),
+  /** after each integration, open the preview in a headless browser, screenshot it and fail on console/network errors */
+  selfCheck: z.boolean().default(false),
   workflow: GoalWorkflow.default(() => ({ tdd: 'required' as const })),
   models: ModelConfig,
   state: GoalState,

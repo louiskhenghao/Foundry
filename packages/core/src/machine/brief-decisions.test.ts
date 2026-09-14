@@ -2,9 +2,9 @@ import { describe, expect, test } from 'bun:test';
 import type { Brief } from '../schema/brief.ts';
 import { decisionsOf, diffBrief, diffIsEmpty, markDecisionsApplied, pendingDecisions, renderDecisions } from './brief-decisions.ts';
 
-const task = (key: string, spec = 's', deps: string[] = []) => ({ key, title: key, spec, kind: 'feature' as const, scope: null, scenario: 'general' as const, areaKey: null, tdd: 'inherit' as const, dependsOnKeys: deps, parallelizable: true, relevantFiles: [] });
+const task = (key: string, spec = 's', deps: string[] = []) => ({ key, title: key, spec, kind: 'feature' as const, scope: null, scenario: 'general' as const, areaKey: null, tdd: 'inherit' as const, dependsOnKeys: deps, parallelizable: true, relevantFiles: [], milestone: null });
 const check = (key: string, taskKey: string | null, cmd = 'true') => ({ key, name: key, tier: 'must' as const, taskKey, areaKey: null, spec: { type: 'command' as const, cmd, timeoutMs: 1, expectExitCode: 0 } });
-const brief = (over: Partial<Omit<Brief, 'goalId'>> = {}): Omit<Brief, 'goalId'> => ({ title: 't', understanding: 'u', areas: [], assumptions: [], checks: [], tasks: [], costEstimateUsd: 1, timeEstimateMin: 1, questions: [], styleOptions: [], ...over });
+const brief = (over: Partial<Omit<Brief, 'goalId'>> = {}): Omit<Brief, 'goalId'> => ({ title: 't', understanding: 'u', areas: [], assumptions: [], checks: [], tasks: [], costEstimateUsd: 1, timeEstimateMin: 1, questions: [], styleOptions: [], run: null, ...over });
 
 describe('decisions', () => {
   const b = brief({

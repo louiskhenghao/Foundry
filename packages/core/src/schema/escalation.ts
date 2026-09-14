@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { FeedbackPlan } from './feedback.ts';
 
 /** Closed enum. Nothing else ever asks the human. */
 export const EscalationTrigger = z.enum([
@@ -7,6 +8,8 @@ export const EscalationTrigger = z.enum([
   'boundary_action',
   'budget_exceeded',
   'permission_denial',
+  /** the goal paused at a milestone: look at the work, then continue or give feedback */
+  'milestone',
 ]);
 export type EscalationTrigger = z.infer<typeof EscalationTrigger>;
 
@@ -21,6 +24,10 @@ export const EscalationAction = z.enum([
   'raise_budget',
   /** a merge conflict the human resolved by hand (answered by the engine when the manual resolution is finished) */
   'resolve_manually',
+  /** milestone: carry on with the remaining tasks */
+  'continue',
+  /** milestone: what the human saw becomes a hint, fix tasks or a Decision (the confirmed plan rides along) */
+  'feedback',
 ]);
 export type EscalationAction = z.infer<typeof EscalationAction>;
 
@@ -30,6 +37,8 @@ export const EscalationAnswer = z.object({
   extraAttempts: z.number().int().positive().optional(),
   newMaxCostUsd: z.number().positive().optional(),
   newMaxDurationMin: z.number().positive().optional(),
+  feedback: z.string().optional(),
+  plan: FeedbackPlan.optional(),
 });
 export type EscalationAnswer = z.infer<typeof EscalationAnswer>;
 
@@ -69,4 +78,5 @@ export const ACTIONS_BY_TRIGGER: Record<EscalationTrigger, EscalationAction[]> =
   boundary_action: ['approve', 'deny'],
   budget_exceeded: ['raise_budget', 'abort_goal'],
   permission_denial: ['retry_with_hint', 'skip_task', 'abort_goal'],
+  milestone: ['continue', 'feedback'],
 };

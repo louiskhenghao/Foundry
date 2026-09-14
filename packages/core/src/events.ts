@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Attachment, AttachmentMarkdown } from './schema/attachment.ts';
+import { FeedbackPlan } from './schema/feedback.ts';
 import {
   Attempt,
   Brief,
@@ -61,6 +62,19 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.base_synced', { remote: z.string().nullable(), base: z.string(), localRef: z.string().nullable(), remoteRef: z.string().nullable(), ahead: z.number().int(), behind: z.number().int(), fetched: z.boolean(), startedFrom: z.enum(['local', 'remote']), detail: z.string() }),
   /** the goal's progress folder was chosen at creation, or the goal was moved there from the legacy data-dir layout */
   ev('goal.workspace_set', { dir: z.string(), reason: z.enum(['created', 'migrated']) }),
+  /** the goal paused at a milestone task for the human to look (state awaiting_feedback); recheck = the one second look after feedback fixes */
+  ev('goal.checkpoint_opened', { taskId: z.string(), lookFor: z.string(), recheck: z.boolean() }),
+  /** the human continued or gave feedback at a milestone; plan = what the feedback became (null on continue) */
+  ev('goal.checkpoint_closed', { taskId: z.string(), action: z.enum(['continue', 'feedback']), feedback: z.string().nullable(), plan: FeedbackPlan.nullable() }),
+  /** a Decision recorded mid-goal from milestone feedback; every later session receives it with the Brief's Decisions */
+  ev('brief.decision_added', { id: z.string(), text: z.string(), answer: z.string() }),
+  /** the engine started / stopped the goal's preview (the run command in the progress folder) */
+  /** the human switched the goal's headless self-check on or off */
+  ev('goal.selfcheck_set', { on: z.boolean() }),
+  ev('preview.started', { port: z.number().int(), url: z.string(), command: z.string() }),
+  ev('preview.stopped', { reason: z.string() }),
+  /** the headless self-check looked at the preview after a task landed (taskId) or at goal review (null); screenshot is a file name under the goal's screenshots folder */
+  ev('selfcheck.finished', { taskId: z.string().nullable(), status: z.enum(['pass', 'fail', 'error']), url: z.string().nullable(), screenshot: z.string().nullable(), errors: z.array(z.string()), summary: z.string() }),
   /** per-goal autoskills run: project skills matched to the repository's stack, installed in the goal workspace */
   ev('goal.autoskills', { status: z.enum(['installed', 'skipped', 'failed']), skills: z.array(z.string()), detail: z.string() }),
   /** the goal's nature was settled (user chose it at creation, or the Clarifier decided for an `auto` goal) */

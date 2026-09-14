@@ -168,6 +168,28 @@ export function applyEvent(db: Database, e: EngineEvent): void {
       if (g) upsertGoal(db, { ...g, workspaceDir: e.payload.dir, updatedAt: e.ts });
       break;
     }
+    case 'goal.checkpoint_opened': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, checkpoint: { taskId: e.payload.taskId, lookFor: e.payload.lookFor, openedAt: e.ts, recheck: e.payload.recheck }, updatedAt: e.ts });
+      const t = getTask(db, e.payload.taskId);
+      if (t) upsertTask(db, { ...t, milestoneVisits: t.milestoneVisits + 1, updatedAt: e.ts });
+      break;
+    }
+    case 'goal.selfcheck_set': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, selfCheck: e.payload.on, updatedAt: e.ts });
+      break;
+    }
+    case 'goal.checkpoint_closed': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, checkpoint: null, updatedAt: e.ts });
+      break;
+    }
+    case 'brief.decision_added': {
+      const b = getBrief(db, e.goalId!);
+      if (b) upsertBrief(db, { ...b.brief, questions: [...b.brief.questions, { id: e.payload.id, text: e.payload.text, answer: e.payload.answer, blocking: false, areaKey: null, options: [], kind: 'text', applied: true }] }, b.approved);
+      break;
+    }
     case 'goal.models_changed': {
       const g = getGoal(db, e.goalId!);
       if (g && e.payload.tier) upsertGoal(db, { ...g, models: { ...g.models, [e.payload.tier]: e.payload.to }, updatedAt: e.ts });

@@ -4,7 +4,7 @@ import { z } from 'zod';
 export const TaskState = z.enum(['pending', 'ready', 'running', 'observing', 'merging', 'blocked', 'done', 'failed', 'skipped']);
 export type TaskState = z.infer<typeof TaskState>;
 
-export const TaskOrigin = z.enum(['brief', 'goal-review-fix', 'merge', 'delivery-fix']);
+export const TaskOrigin = z.enum(['brief', 'goal-review-fix', 'merge', 'delivery-fix', 'feedback-fix']);
 
 /** What kind of work a task is; selects the workflow discipline the worker is asked to follow (tdd vs diagnosing-bugs …). */
 export const TaskKind = z.enum(['feature', 'bug', 'refactor', 'research', 'chore']);
@@ -41,6 +41,12 @@ export const Task = z.object({
   parallelizable: z.boolean(),
   retryBudget: z.number().int().positive(),
   origin: TaskOrigin,
+  /** what a person should look at or try once this task lands — non-null makes the task a milestone (the goal pauses there) */
+  milestone: z.string().nullable().default(null),
+  /** how many times the goal has paused at this milestone: the first look, then at most one re-check after feedback fixes */
+  milestoneVisits: z.number().int().nonnegative().default(0),
+  /** for a feedback-fix task: the milestone task whose checkpoint re-opens once this one lands */
+  checkpointOf: z.string().nullable().default(null),
   state: TaskState,
   /** git branch this task works on (task/<id>) or null when it works on the goal branch */
   branch: z.string().nullable(),

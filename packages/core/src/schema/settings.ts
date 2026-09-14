@@ -119,6 +119,18 @@ export const SafetySettings = z.object({
   allowedRoots: z.array(z.string()).nullable().default(null),
 });
 
+export const PreviewSettings = z.object({
+  /** ports handed to goal previews (the run command in a progress folder), inclusive range */
+  portFrom: z.number().int().min(1024).max(65535).default(4200),
+  portTo: z.number().int().min(1024).max(65535).default(4299),
+  /** a preview nobody has opened for this long is stopped */
+  idleMinutes: z.number().int().min(5).max(1440).default(60),
+});
+export const ChecksSettings = z.object({
+  /** default for new goals: after each integration, open the preview headless, screenshot it, fail on console/network errors */
+  selfCheck: z.boolean().default(false),
+});
+
 export const Settings = z.object({
   engine: EngineSettings.default({}),
   models: ModelSettings.default({}),
@@ -130,6 +142,8 @@ export const Settings = z.object({
   tools: ToolSettings.default({}),
   notifications: NotificationSettings.default({}),
   safety: SafetySettings.default({}),
+  preview: PreviewSettings.default({}),
+  checks: ChecksSettings.default({}),
 });
 export type Settings = z.infer<typeof Settings>;
 export const DEFAULT_SETTINGS: Settings = Settings.parse({});
@@ -146,6 +160,8 @@ export const SettingsPatch = z.object({
   tools: ToolSettings.partial().optional(),
   notifications: NotificationSettings.partial().optional(),
   safety: SafetySettings.partial().optional(),
+  preview: PreviewSettings.partial().optional(),
+  checks: ChecksSettings.partial().optional(),
 });
 export type SettingsPatch = z.infer<typeof SettingsPatch>;
 
