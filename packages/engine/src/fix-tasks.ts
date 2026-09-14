@@ -23,7 +23,7 @@ export function genericFixSpec(failing: { name: string; summary: string }[]): Fi
  * Spawn fix tasks that run after every existing task (the goal branch already holds their work). Each gets a copy of the
  * goal-level must command checks so its attempts self-verify; `hint` (the human's words on a retry) rides on every task.
  */
-export function createFixTasks(engine: Engine, goal: Goal, specs: FixSpec[], hint: string | null = null): string[] {
+export function createFixTasks(engine: Engine, goal: Goal, specs: FixSpec[], hint: string | null = null, opts: { origin?: 'goal-review-fix' | 'feedback-fix'; checkpointOf?: string | null } = {}): string[] {
   const { store } = engine;
   const now = new Date().toISOString();
   const existing = listTasks(store.db, goal.id);
@@ -44,7 +44,10 @@ export function createFixTasks(engine: Engine, goal: Goal, specs: FixSpec[], hin
       relevantFiles: s.relevantFiles,
       parallelizable: false,
       retryBudget: goal.budgets.attemptsPerTask,
-      origin: 'goal-review-fix',
+      origin: opts.origin ?? 'goal-review-fix',
+      milestone: null,
+      milestoneVisits: 0,
+      checkpointOf: opts.checkpointOf ?? null,
       state: 'pending',
       branch: null,
       worktreePath: null,

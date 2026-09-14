@@ -541,3 +541,58 @@ describe('progress folders', () => {
     expect(existsSync(internal)).toBe(false);
   });
 });
+
+describe('milestones', () => {
+  const { writeFileSync: write } = require('node:fs') as typeof import('node:fs');
+  const t = (key: string, title: string, deps: string[], milestone: string | null = null) => ({ key, title, spec: `do ${title}`, kind: 'feature' as const, scope: null, scenario: 'general' as const, areaKey: null, tdd: 'off' as const, dependsOnKeys: deps, parallelizable: false, relevantFiles: [], milestone });
+  const brief = (m1: string | null) => ({ title: 'feat(demo): two steps', understanding: 'u', areas: [], assumptions: [], questions: [], styleOptions: [], checks: [], costEstimateUsd: 0, timeEstimateMin: 0, tasks: [t('T1', 'first step', [], m1), t('T2', 'second step', ['T1'])] });
+  const worker = () =>
+    new FakeRunner((spec) => {
+      if (spec.label?.startsWith('attempt')) write(join(spec.cwd, `${spec.label.replace(/^attempt /, '').replace(/ #\d+$/, '').replace(/\s+/g, '-')}.txt`), 'ok');
+    });
+
+  test('the goal pauses after a milestone task lands and resumes on Continue', async () => {
+    const engine = track(new Engine(cfg(), worker()));
+    const goal = await engine.createGoal({ prompt: 'two steps', repoPath: repo, brief: brief('open it and try the first step'), workflow: { pace: 'fast' } });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_feedback', 20_000);
+    const g = getGoal(engine.store.db, goal.id)!;
+    const tasks = listTasks(engine.store.db, goal.id);
+    const first = tasks.find((x) => x.title === 'first step')!;
+    expect(g.checkpoint).toMatchObject({ taskId: first.id, lookFor: 'open it and try the first step', recheck: false });
+    expect(first.milestoneVisits).toBe(1);
+    expect(tasks.find((x) => x.title === 'second step')!.state).not.toBe('done');
+    const esc = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).find((e) => e.trigger === 'milestone')!;
+    expect(esc.payload).toMatchObject({ kind: 'milestone', taskId: first.id });
+    await engine.answerEscalation(esc.id, { action: 'continue' });
+    expect(getGoal(engine.store.db, goal.id)!.checkpoint).toBeNull();
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+    expect(engine.store.listByGoal(goal.id).filter((e) => e.type === 'goal.checkpoint_opened')).toHaveLength(1);
+  }, 40_000);
+
+  test('feedback with a fix plan spawns a feedback-fix task, hints the remaining ones, and re-opens the milestone once', async () => {
+    const engine = track(new Engine(cfg(), worker()));
+    const goal = await engine.createGoal({ prompt: 'two steps', repoPath: repo, brief: brief('look'), workflow: { pace: 'fast' } });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_feedback', 20_000);
+    const first = listTasks(engine.store.db, goal.id).find((x) => x.title === 'first step')!;
+    const esc = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).find((e) => e.trigger === 'milestone')!;
+    await engine.answerEscalation(esc.id, {
+      action: 'feedback',
+      feedback: 'the button is missing, and keep everything blue',
+      plan: { kind: 'decision', rationale: 'r', hint: 'keep everything blue', fixTasks: [{ title: 'add the missing button', spec: 'add it', relevantFiles: [] }], decision: 'everything is blue' },
+    });
+    const after = listTasks(engine.store.db, goal.id);
+    const fix = after.find((x) => x.origin === 'feedback-fix')!;
+    expect(fix).toMatchObject({ title: 'add the missing button', checkpointOf: first.id, hint: 'keep everything blue' });
+    expect(after.find((x) => x.title === 'second step')!.hint).toContain('everything is blue');
+    expect(engine.store.listByGoal(goal.id).some((e) => e.type === 'brief.decision_added')).toBe(true);
+    // the fix lands → second look at the same milestone, then Continue → done
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.checkpoint?.recheck === true, 30_000);
+    expect(listTasks(engine.store.db, goal.id).find((x) => x.id === first.id)!.milestoneVisits).toBe(2);
+    const esc2 = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).find((e) => e.trigger === 'milestone')!;
+    await engine.answerEscalation(esc2.id, { action: 'continue' });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 30_000);
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+    expect(engine.store.listByGoal(goal.id).filter((e) => e.type === 'goal.checkpoint_opened')).toHaveLength(2);
+  }, 60_000);
+});

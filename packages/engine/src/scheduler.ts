@@ -3,6 +3,7 @@ import { listTasks, getTask, getGoal, listAttempts, getObservation } from '@foun
 import { type Continuation, continuationMessage, decideNext, maxAttemptsFor, runAttempt } from './attempt-loop.ts';
 import { budgetStatus } from './budget.ts';
 import type { Engine } from './engine.ts';
+import { dueCheckpoint, openCheckpoint } from './checkpoint.ts';
 import { raiseEscalation } from './escalation.ts';
 import { headRef } from './git/git.ts';
 import { integrateTask } from './merge.ts';
@@ -34,6 +35,13 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
     }
   }
   tasks = listTasks(store.db, goal.id);
+
+  // 2b. a milestone landed (or a feedback fix for one): launch nothing more, let in-flight work land, then pause for the human
+  const due = dueCheckpoint(tasks);
+  if (due) {
+    if (engine.inFlightForGoal(goal.id).length === 0) await openCheckpoint(engine, goal, due);
+    return;
+  }
 
   // 3. all terminal?
   if (tasks.length && tasks.every((t) => t.state === 'done' || t.state === 'failed' || t.state === 'skipped')) {
@@ -178,6 +186,9 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
         store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'merging', to: 'done', reason: t.commitRef ? `committed ${t.commitRef.slice(0, 7)} on goal branch` : 'no changes to commit' } });
         // empty-repo goals: the task that created the first stack manifest unlocks autoskills for the rest
         engine.retryAutoskillsAfterTask(goal.id);
+        // a running preview shows the new code; the self-check looks at it when the goal asked for one
+        await engine.preview.restartIfRunning(getGoal(store.db, goal.id)!);
+        await engine.afterIntegration(getGoal(store.db, goal.id)!, getTask(store.db, task.id)!);
       }
       return;
     }

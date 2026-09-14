@@ -7,6 +7,7 @@ import { renderStyle, styleApplies } from './attempt-prompt.ts';
 import { attachmentsDir, renderAttachments } from './attachments.ts';
 import { budgetStatus } from './budget.ts';
 import { runCommandCheck } from './checks/command.ts';
+import { runSelfCheck } from './checks/selfcheck.ts';
 import { tryJson } from './checks/reviewer.ts';
 import type { Engine } from './engine.ts';
 import { goalScenario } from './skills/workflow.ts';
@@ -36,6 +37,11 @@ export async function runGoalReview(engine: Engine, goal: Goal): Promise<void> {
   const results: CheckResult[] = [];
 
   for (const c of goalChecks) {
+    if (c.spec.type === 'selfcheck') {
+      const r = await runSelfCheck(engine, goal, { taskId: null, check: c });
+      if (r) results.push(r);
+      continue;
+    }
     if (c.spec.type !== 'command') continue;
     const r = await runCommandCheck(c, { cwd: goalWs, outputDir: join(config.dataDir, 'check-output'), attemptId: null });
     results.push(r);
