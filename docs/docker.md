@@ -112,9 +112,12 @@ docker run -d --name foundry \
 
 You can add as many mounts as you like: `-v ~/code:/repos -v ~/Desktop/client-work:/client`.
 
-The mount must be **writable**: the engine adds git worktrees, which write into your repository's `.git/`.
-It never touches your working tree or your existing branches — it only adds `goal/<id>` (and task) branches,
-which you will see in `git branch`; the work itself happens in worktrees under `/app/data`.
+The mount must be **writable**: the engine adds git worktrees, which write into your repository's `.git/`,
+and creates each goal's **progress folder next to the repository** — `/repos/my-app-foundry/<goal>/` in the container,
+`~/Projects/my-app-foundry/<goal>/` on the host — so you can open and run the work as it lands. It never touches your
+working tree or your existing branches — it only adds `goal/<id>` (and task) branches, which you will see in `git branch`.
+Files in the progress folder belong to uid 1000 (see *Permissions* below); set Settings → Engine → *Progress folders*
+to another mounted path if you want them elsewhere.
 
 ### Linux: if your user id is not 1000
 
@@ -173,7 +176,8 @@ the container.
 | Path in the container | What | Keep it? |
 |---|---|---|
 | `/app/data/engine.db` | SQLite: goals, tasks, attempts, events (auto-created, auto-migrated — nothing to configure) | **yes** |
-| `/app/data/worktrees` | one git worktree per goal/task; the branches with the actual work | until the goal is delivered |
+| `/repos/<repo>-foundry/` (bind mount) | the progress folders: one git worktree per goal, plus the engine's task worktrees under `.foundry/` | until the goal is deleted |
+| `/app/data/worktrees` | worktrees of goals created before progress folders existed | until the goal is delivered |
 | `/app/data/settings.json` | everything you changed on the Settings page | **yes** |
 | `/app/data/models.json` | which model names resolved on this machine (learned) | optional |
 | `/app/data/transcripts`, `check-output`, `attachments` | session logs, check output, your uploads | optional |

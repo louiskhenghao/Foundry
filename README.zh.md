@@ -19,7 +19,7 @@ Goal ──► Clarify ──► Brief (you approve once) ──► Tasks (DAG) 
 
 - **Must / Stretch 检查。** Must = 你要求的东西（外加仓库自身的质量关卡）。Stretch = Clarifier 提出、由你接受的额外内容。所有 Must 通过 → `done`；连 Stretch 也通过 → `over_delivered`。未经你批准，任何东西都不会被加进范围。
 - **五种升级，别无其他：** 一个阻塞性的 Brief 问题 · 一个 task 用尽重试次数 · 一条会离开工作区的命令（`git push`、PR、部署——被 PreToolUse hook 拦截）· 预算超支 · 一个被拒绝的工具。其余一切都是自动的。
-- **产物是一个本地分支**（`goal/<id>`，位于 `data/worktrees/<goal>/_goal`）。推送是你点一下的按钮。
+- **产物是一个本地分支**（`goal/<id>`），检出在**你的仓库旁边的进度文件夹**里（`<repo>-foundry/<goal>/`），随时可以打开、运行、查看。推送是你点一下的按钮。
 - **事件溯源。** 每一次状态变更都是 SQLite 里的一个事件；UI 流式播放同一批事件；引擎通过重放 + 对账从崩溃中恢复。
 
 ## Docker
@@ -195,7 +195,7 @@ packages/server   Hono API + WebSocket + static UI
 apps/web          React UI (goals, new goal, brief review, run view, inbox, agents, skills, setup, usage, settings, merge-resolve)
 apps/cli          thin CLI
 roles/            versioned role prompts (clarifier, planner, worker, reviewer-*, merger, documenter)
-data/             runtime: engine.db, settings.json, models.json, transcripts/, worktrees/, check-output/, attachments/, skills-cache/, skills-trash/ (gitignored)
+data/             runtime: engine.db, settings.json, models.json, transcripts/, worktrees/ (goals from before progress folders), check-output/, attachments/, skills-cache/, skills-trash/ (gitignored)
 docs/, scripts/, fixtures/, Dockerfile, docker-compose.yml
 ```
 

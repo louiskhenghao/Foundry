@@ -19,7 +19,7 @@ Goal ──► Clarify ──► Brief (you approve once) ──► Tasks (DAG) 
 
 - **Must / Stretch checks.** Must = what you asked for (+ the repo's own quality gates). Stretch = extras the Clarifier proposes and you accept. All Must pass → `done`; Stretch too → `over_delivered`. Nothing is ever added to scope without your approval.
 - **Five escalations, nothing else:** a blocking Brief question · a task out of retries · a command that would leave the workspace (`git push`, PRs, deploys — blocked by a PreToolUse hook) · budget exceeded · a denied tool. Everything else is automatic.
-- **Output is a local branch** (`goal/<id>` in `data/worktrees/<goal>/_goal`). Pushing is a button you click.
+- **Output is a local branch** (`goal/<id>`), checked out in a **progress folder next to your repository** (`<repo>-foundry/<goal>/`) that you can open, run and read at any time. Pushing is a button you click.
 - **Event-sourced.** Every state change is an event in SQLite; the UI streams the same events; the engine recovers from crashes by replay + reconcile.
 
 ## Docker
@@ -197,7 +197,7 @@ packages/server   Hono API + WebSocket + static UI
 apps/web          React UI (goals, new goal, brief review, run view, inbox, agents, skills, setup, usage, settings, merge-resolve)
 apps/cli          thin CLI
 roles/            versioned role prompts (clarifier, planner, worker, reviewer-*, merger, documenter)
-data/             runtime: engine.db, settings.json, models.json, transcripts/, worktrees/, check-output/, attachments/, skills-cache/, skills-trash/ (gitignored)
+data/             runtime: engine.db, settings.json, models.json, transcripts/, worktrees/ (goals from before progress folders), check-output/, attachments/, skills-cache/, skills-trash/ (gitignored)
 docs/, scripts/, fixtures/, Dockerfile, docker-compose.yml
 ```
 
