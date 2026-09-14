@@ -49,6 +49,8 @@ export type RunnerEvent =
   | { kind: 'tool_result'; toolUseId: string; isError: boolean; content: string }
   | { kind: 'rate_limit'; info: RateLimitInfo }
   | { kind: 'hook'; name: string; outcome: string | null }
+  /** a long tool call (a sub-agent, mostly) is still running: Claude Code's heartbeat every ~30 s */
+  | { kind: 'progress'; toolUseId: string; tool: string; elapsedSeconds: number }
   | { kind: 'result'; result: RunResult }
   | { kind: 'stderr'; text: string }
   | { kind: 'unknown'; raw: unknown };

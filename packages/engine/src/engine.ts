@@ -557,7 +557,10 @@ export class Engine {
   recordSessionUsage(result: RunResult, meta: { goalId: string | null; kind: string; model?: string | null }): void {
     const u: any = result.usage ?? {};
     const n = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? x : 0);
-    const modelFromUsage = result.modelUsage && typeof result.modelUsage === 'object' ? Object.keys(result.modelUsage as object)[0] ?? null : null;
+    // the session's model = the one that did the work: Claude Code also bills a few hundred haiku tokens per session for its own
+    // housekeeping, and object key order would otherwise label a Fable session "haiku"
+    const usageByModel = result.modelUsage && typeof result.modelUsage === 'object' ? Object.entries(result.modelUsage as Record<string, { costUSD?: number; outputTokens?: number }>) : [];
+    const modelFromUsage = usageByModel.sort((a, b) => (n(b[1]?.costUSD) || n(b[1]?.outputTokens)) - (n(a[1]?.costUSD) || n(a[1]?.outputTokens)))[0]?.[0] ?? null;
     this.store.append({
       type: 'session.usage',
       goalId: meta.goalId,
