@@ -119,6 +119,12 @@ working tree or your existing branches — it only adds `goal/<id>` (and task) b
 Files in the progress folder belong to uid 1000 (see *Permissions* below); set Settings → Engine → *Progress folders*
 to another mounted path if you want them elsewhere.
 
+Previews (the goal's dev server, started at milestones and from the goal page) listen on ports 4200–4299 inside the
+container. Publish that range — `ports: ['127.0.0.1:4200-4299:4200-4299']`, commented out in `docker-compose.yml` — to
+open them from the host; Settings → Preview changes the range. The headless self-check needs Chromium in the container:
+Settings → Preview → *Install Chromium* runs `bunx playwright install chromium` there (a few hundred MB, kept in the
+`engine-data` volume only as long as the image's node_modules stay; rebuilt images need it again).
+
 ### Linux: if your user id is not 1000
 
 The image runs as uid 1000. If `id -u` gives you something else, run as yourself and keep the engine's state in

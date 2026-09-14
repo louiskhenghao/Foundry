@@ -129,6 +129,18 @@ The isolated checkout a Goal or Task works in. A Goal has its own workspace on a
 **Progress folder**
 Where the Goal workspace lives: next to the user's repository as `<repo>-foundry/<goal>/` (or under the root chosen in Settings), named after the Goal's title so a person finds it without knowing Foundry. It is the Goal branch checked out — open it, run it, read it at any time. The engine's own worktrees (Tasks, delivery, resolve, baseline) sit beside it under a hidden `.foundry/` folder, never inside it. The folder is fixed when the Goal is created; Goals from before this layout are moved there when the engine starts.
 
+**Milestone**
+A Task after which a person can see or try something meaningful for the first time. The Clarifier marks 1–3 per Goal with a "look for" note; the human edits them at approval. When a milestone Task lands, the engine launches nothing more, lets in-flight work land, then pauses the Goal (`awaiting_feedback`) with a `milestone` Escalation: the Preview starts, and the Inbox and the notification channels carry the note, the preview link and the latest screenshot.
+
+**Checkpoint**
+One pause at a Milestone. The human continues, or writes what they saw; a cheap triage session proposes what the feedback becomes — a *hint* for the remaining Tasks, *fix* Tasks (after which the same Milestone opens once more for a second look), or a *Decision* recorded with the Brief's Decisions — and the human confirms before anything changes. A Milestone opens at most twice; later feedback becomes hints.
+
+**Preview**
+The Goal's result running: the engine starts the Brief's run command (or the package.json dev/start script) in the Progress folder on a port from Settings → Preview, links the human to it, restarts it after each integration, and stops it when idle, when the Goal ends, or on shutdown.
+
+**Self-check**
+Off by default. After each integration the engine opens the Preview in headless Chromium, screenshots it and collects console, page and network errors; the result is a goal-level Must Check (re-run at Goal Review) and the screenshot reaches the timeline and the Milestone notification. No model involved.
+
 **Role**
 A named set of instructions given to a Claude session: Clarifier, Planner, Worker, Task Reviewer, Goal Reviewer, Merger. Roles are versioned text, not code.
 
