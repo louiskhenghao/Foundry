@@ -2,6 +2,7 @@ import type { Escalation, EscalationAnswer, EscalationTrigger, Goal, Task } from
 import { ACTIONS_BY_TRIGGER, IdPrefix, getEscalation, getGoal, getTask, listEscalations, newId } from '@foundry/core';
 import type { Engine } from './engine.ts';
 import { exec } from './git/git.ts';
+import { type FixSpec, createFixTasks, genericFixSpec } from './fix-tasks.ts';
 import { goalWorkspacePath } from './workspace.ts';
 
 export interface RaiseInput {
@@ -59,9 +60,21 @@ export async function answerEscalation(engine: Engine, id: string, answer: Escal
   const goal = getGoal(store.db, esc.goalId)!;
   const task = esc.taskId ? getTask(store.db, esc.taskId) : null;
 
+  // where the goal resumes when this answer unblocks it; null = where it was blocked
+  let resumeTo: 'running' | null = null;
   switch (answer.action) {
     case 'retry_with_hint': {
-      if (!task) break;
+      if (!task) {
+        // goal-review escalation: the reviewer's findings become fix tasks carrying the human's hint, and the goal runs them before
+        // it is reviewed again. Re-running the same review on the same branch would only re-roll the verdict (a paid loop with no exit).
+        const p = esc.payload as { kind?: string; fixTasks?: FixSpec[]; failing?: { name: string; summary: string }[] };
+        if (p.kind === 'goal-review' && (p.fixTasks?.length || p.failing?.length)) {
+          const ids = createFixTasks(engine, goal, p.fixTasks?.length ? p.fixTasks : [genericFixSpec(p.failing!)], answer.hint?.trim() || null);
+          store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `human: retry goal review with ${ids.length} fix task(s)${answer.hint?.trim() ? ' and a hint' : ''}` } });
+          resumeTo = 'running';
+        }
+        break;
+      }
       store.append({ type: 'task.hint_set', goalId: goal.id, payload: { taskId: task.id, hint: answer.hint ?? null, extraAttempts: answer.extraAttempts ?? 1 } });
       const terminalGoal = ['done', 'over_delivered'].includes(goal.state);
       if (terminalGoal && (task.origin === 'merge' || task.origin === 'delivery-fix')) {
@@ -123,7 +136,7 @@ export async function answerEscalation(engine: Engine, id: string, answer: Escal
   const fresh = getGoal(store.db, goal.id)!;
   const stillOpen = listEscalations(store.db, { goalId: goal.id, openOnly: true }).filter((e) => e.trigger === 'budget_exceeded' || (e.taskId === null && e.trigger === 'retries_exhausted'));
   if (fresh.state === 'blocked' && stillOpen.length === 0) {
-    const to = fresh.stateBeforeBlock && fresh.stateBeforeBlock !== 'blocked' ? fresh.stateBeforeBlock : 'running';
+    const to = resumeTo ?? (fresh.stateBeforeBlock && fresh.stateBeforeBlock !== 'blocked' ? fresh.stateBeforeBlock : 'running');
     store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'blocked', to, reason: 'escalation answered' } });
   }
   engine.tick(goal.id);

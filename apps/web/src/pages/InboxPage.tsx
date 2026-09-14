@@ -179,7 +179,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
             </Link>
           )}
           {actions.filter((a) => a !== 'resolve_manually').map((a) => (
-            <Button key={a} size="sm" disabled={busy} variant={a === 'abort_goal' || a === 'deny' ? 'danger' : a === 'retry_with_hint' || a === 'approve' || a === 'raise_budget' ? 'primary' : 'default'} onClick={() => answer(a)} title={a === 'skip_task' && !e.taskId ? 'Finish the goal with what is there; the failing checks are waived (no more review runs)' : undefined}>
+            <Button key={a} size="sm" disabled={busy} variant={a === 'abort_goal' || a === 'deny' ? 'danger' : a === 'retry_with_hint' || a === 'approve' || a === 'raise_budget' ? 'primary' : 'default'} onClick={() => answer(a)} title={!e.taskId && a === 'skip_task' ? 'Finish the goal with what is there; the failing checks are waived (no more review runs)' : !e.taskId && a === 'retry_with_hint' ? "Turn the reviewer's findings into fix tasks (your hint rides along), run them, then review again" : undefined}>
               {a === 'skip_task' && !e.taskId ? 'Accept as-is (finish goal)' : ACTION_LABEL[a]}
             </Button>
           ))}

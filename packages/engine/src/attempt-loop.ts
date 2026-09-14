@@ -4,7 +4,7 @@ import type { Attempt, Check, CheckResult, Goal, ObservationReport, Task } from 
 import { IdPrefix, bumpStat, chosenStyle, getAttempt, getBrief, getObservation, listAttempts, listChecks, newId, renderDecisions } from '@foundry/core';
 import type { RunResult } from '@foundry/runner';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
-import { buildAttemptPrompt, summarizeReport } from './attempt-prompt.ts';
+import { buildAttemptPrompt, styleApplies, summarizeReport } from './attempt-prompt.ts';
 import type { CatchUp } from './catchup.ts';
 import { resolveDiscipline } from './skills/workflow.ts';
 import { budgetStatus } from './budget.ts';
@@ -144,8 +144,8 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   const brief = getBrief(store.db, goal.id)?.brief;
   const areaDescription = task.area ? (brief?.areas.find((a) => a.name === task.area)?.description ?? '') : '';
   const decisions = brief ? renderDecisions(brief) : '';
-  // the chosen Style Proposal binds visual work; other scenarios never see it
-  const style = brief && ['image', 'video', 'frontend', 'fullstack'].includes(task.scenario) ? chosenStyle(brief) : null;
+  // the chosen Style Proposal binds everything with a look (UI, mobile, media, general); backend-only scenarios never see it
+  const style = brief && styleApplies(task.scenario) ? chosenStyle(brief) : null;
   const prompt = resume ? resume.message : buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription, decisions, style, baseMoved: opts.baseMoved ?? null });
   // the -p prompt is not echoed in stream-json; keep it next to the transcript for inspection (continuations append)
   mkdirSync(dirname(attempt.transcriptPath!), { recursive: true });

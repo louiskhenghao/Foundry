@@ -1,9 +1,9 @@
 import { join } from 'node:path';
-import type { Check, CheckResult, Goal, Task } from '@foundry/core';
-import { IdPrefix, chosenStyle, getBrief, listChecks, listTasks, newId, renderDecisions } from '@foundry/core';
+import type { Check, CheckResult, Goal } from '@foundry/core';
+import { IdPrefix, chosenStyle, getBrief, listCheckResultsByGoal, listChecks, listTasks, newId, renderDecisions } from '@foundry/core';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import { renderStyle } from './attempt-prompt.ts';
+import { renderStyle, styleApplies } from './attempt-prompt.ts';
 import { attachmentsDir, renderAttachments } from './attachments.ts';
 import { budgetStatus } from './budget.ts';
 import { runCommandCheck } from './checks/command.ts';
@@ -12,6 +12,7 @@ import type { Engine } from './engine.ts';
 import { goalScenario } from './skills/workflow.ts';
 import { runDocsGeneration } from './docs-generate.ts';
 import { raiseEscalation } from './escalation.ts';
+import { createFixTasks, genericFixSpec } from './fix-tasks.ts';
 import { diff } from './git/git.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
 import { goalWorkspacePath } from './workspace.ts';
@@ -94,56 +95,9 @@ export async function runGoalReview(engine: Engine, goal: Goal): Promise<void> {
 
   // Failing must: spawn fix tasks (bounded) or escalate
   const fixSpecs = review?.fixTasks ?? [];
+  const failing = mustResults.filter((r) => r.status === 'fail').map((r) => ({ name: checks.find((c) => c.id === r.checkId)?.name ?? r.checkId, summary: r.summary.slice(0, 1200) }));
   if (goal.fixCycles < config.maxFixCycles && (fixSpecs.length || mustResults.some((r) => r.status !== 'pass'))) {
-    const now = new Date().toISOString();
-    const existing = listTasks(store.db, goal.id);
-    const specs = fixSpecs.length
-      ? fixSpecs
-      : [
-          {
-            title: 'Fix failing goal-level checks',
-            spec: `The following goal-level checks fail on the merged result:\n${mustResults
-              .filter((r) => r.status !== 'pass')
-              .map((r) => `- ${checks.find((c) => c.id === r.checkId)?.name}\n\`\`\`\n${r.summary.slice(0, 1200)}\n\`\`\``)
-              .join('\n')}\nMake them pass without weakening the checks.`,
-            relevantFiles: [],
-          },
-        ];
-    const ids: string[] = [];
-    for (const s of specs) {
-      const t: Task = {
-        id: newId(IdPrefix.task),
-        goalId: goal.id,
-        title: s.title,
-        spec: s.spec,
-        kind: 'bug',
-        scope: null,
-        scenario: goalScenario(existing),
-        area: null, tdd: 'inherit',
-        dependsOn: existing.filter((x) => x.state === 'done' || x.state === 'skipped').map((x) => x.id),
-        relevantFiles: s.relevantFiles,
-        parallelizable: false,
-        retryBudget: goal.budgets.attemptsPerTask,
-        origin: 'goal-review-fix',
-        state: 'pending',
-        branch: null,
-        worktreePath: null,
-        baseRef: null,
-        commitRef: null,
-        commitMessage: null,
-        hint: null,
-        extraAttempts: 0,
-        createdAt: now,
-        updatedAt: now,
-      };
-      store.append({ type: 'task.created', goalId: goal.id, payload: { task: t } });
-      // goal-level must command checks are re-run at the next review; give the fix task the same checks so its attempts self-verify
-      for (const c of goalChecks.filter((x) => x.tier === 'must' && x.spec.type === 'command')) {
-        const copy: Check = { ...c, id: newId(IdPrefix.check), taskId: t.id };
-        store.append({ type: 'check.created', goalId: goal.id, payload: { check: copy } });
-      }
-      ids.push(t.id);
-    }
+    const ids = createFixTasks(engine, goal, fixSpecs.length ? fixSpecs : [genericFixSpec(failing)]);
     store.append({ type: 'review.goal.finished', goalId: goal.id, payload: { passed: false, overDelivered: false, mustResults, stretchResults, fixTaskIds: ids, notes: review?.notes ?? '' } });
     store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'goal_review', to: 'running', reason: `fix cycle ${goal.fixCycles + 1}: ${ids.length} fix task(s)` } });
     return;
@@ -162,7 +116,8 @@ export async function runGoalReview(engine: Engine, goal: Goal): Promise<void> {
           .filter((r) => r.status !== 'pass')
           .map((r) => checks.find((c) => c.id === r.checkId)?.name)
           .join(', ')}${review ? `\n\n${review.notes.slice(0, 800)}` : ''}`,
-    payload: { kind: 'goal-review' },
+    // the findings ride on the escalation: a human "Retry with hint" turns them into fix tasks instead of re-rolling the review
+    payload: { kind: 'goal-review', fixTasks: fixSpecs, failing },
     blockGoal: true,
   });
 }
@@ -182,10 +137,11 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
     renderAttachments(goal, engine.config.dataDir),
     brief ? `# Approved understanding\n${brief.understanding}` : '',
     brief ? renderDecisions(brief) : '',
-    brief && ['image', 'video', 'frontend', 'fullstack'].includes(scenario) ? renderStyle(chosenStyle(brief), { forReviewer: true }) : '',
+    brief && styleApplies(scenario) ? renderStyle(chosenStyle(brief), { forReviewer: true }) : '',
     reviewerHint ?? '',
     `# Fixed point\nThe base of this review is \`${goal.baseBranch}\`; everything in the diff below was added by this goal.`,
     `# Acceptance checks\nObjective command checks were already executed by the engine; their status is shown. You judge the reviewer-type checks and the overall result.\n${checks.map(fmt).join('\n')}`,
+    previousVerdicts(engine, goal, checks),
     `# Full diff against ${goal.baseBranch}\n\`\`\`diff\n${d}\n\`\`\``,
     `The full diff is above — judge from it. Open a file only when the diff alone cannot answer a check (a handful at most); do not re-read files that appear in the diff. Judge every check by name. For MUST items that fail, propose concrete fix tasks. Do not propose work beyond the listed checks.`,
   ]
@@ -212,7 +168,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
     addDirs: goal.attachments.length ? [attachmentsDir(engine.config.dataDir, goal.id)] : undefined,
     transcriptPath,
   };
-  const handle = await engine.runner.run({ ...base, prompt, maxTurns: 80, maxBudgetUsd: cap, appendSystemPromptFile: engine.roles.path('reviewer-goal'), timeoutMs: 15 * 60_000, label: `goal review ${goal.title}` });
+  const handle = await engine.runner.run({ ...base, prompt, maxTurns: 80, maxBudgetUsd: cap, appendSystemPromptFile: engine.roles.path('reviewer-goal'), timeoutMs: 30 * 60_000, label: `goal review ${goal.title}` });
   for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: channel, event: ev, ts: new Date().toISOString() });
   let r = await handle.result;
   engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: r.costUsd, source: 'goal-review' } });
@@ -220,7 +176,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
   let parsed = GoalReviewOutput.safeParse(r.structuredOutput ?? tryJson(r.finalText));
   if (!parsed.success && r.sessionId) {
     // the session ended (budget/turns) before the JSON: resume it with a small fresh budget and ask for the verdict only
-    const again = await engine.runner.run({ ...base, prompt: 'Stop exploring. Reply now with ONLY the JSON verdict matching the schema, judging from what you have already read. Unverified Must items fail with a reason; unverified Stretch items pass.', maxTurns: 3, maxBudgetUsd: 2, resumeSessionId: r.sessionId, timeoutMs: 5 * 60_000, label: `goal review ${goal.title} (nudge)` });
+    const again = await engine.runner.run({ ...base, prompt: 'Stop exploring. Reply now with ONLY the JSON verdict matching the schema, judging from what you have already read. An unverified Must item keeps its verdict from "Previous review" when one is listed, otherwise it fails with a reason; unverified Stretch items pass.', maxTurns: 3, maxBudgetUsd: 2, resumeSessionId: r.sessionId, timeoutMs: 5 * 60_000, label: `goal review ${goal.title} (nudge)` });
     for await (const ev of again.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: channel, event: ev, ts: new Date().toISOString() });
     const r2 = await again.result;
     engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: r2.costUsd, source: 'goal-review' } });
@@ -230,4 +186,21 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
   }
   if (!parsed.success) throw new Error(`${r.subtype}${r.errorMessage ? ` (${r.errorMessage.slice(0, 120)})` : ''}: no JSON verdict`);
   return parsed.data;
+}
+
+/**
+ * The latest earlier verdict per reviewer-type goal check. A re-review (after a fix cycle or a human retry) sees them so a
+ * verdict flips only for a reason it can cite — not because this session happened to look at different files or ran out of time.
+ */
+function previousVerdicts(engine: Engine, goal: Goal, checks: Check[]): string {
+  const reviewerChecks = checks.filter((c) => c.taskId === null && c.spec.type === 'reviewer');
+  const latest = new Map<string, CheckResult>();
+  for (const r of listCheckResultsByGoal(engine.store.db, goal.id)) {
+    if (r.attemptId !== null || r.status === 'error' || !reviewerChecks.some((c) => c.id === r.checkId)) continue;
+    const cur = latest.get(r.checkId);
+    if (!cur || r.at > cur.at) latest.set(r.checkId, r);
+  }
+  if (!latest.size) return '';
+  const lines = [...latest.values()].map((r) => `- ${reviewerChecks.find((c) => c.id === r.checkId)!.name}: **${r.status}** — ${r.summary.slice(0, 400)}`);
+  return `# Previous review of this goal\nThese verdicts were given on an earlier revision of the same branch (before the latest fix tasks). Re-verify each one against the current diff. A verdict may change only for a reason you can cite (a hunk in the diff or file:line) — never because you did not get to it. A previously passing check you could not re-verify stays passing; say so in its reason.\n${lines.join('\n')}`;
 }

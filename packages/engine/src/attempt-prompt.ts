@@ -1,5 +1,9 @@
 import type { BriefStyleOption, Check, Goal, ObservationReport, Task } from '@foundry/core';
 
+/** Scenarios whose deliverables have no look — the chosen Style Proposal is noise to them. Everything else (UI, mobile, media, general) must follow it. */
+const STYLE_FREE_SCENARIOS: ReadonlySet<string> = new Set(['backend', 'infra', 'docs', 'data', 'research']);
+export const styleApplies = (scenario: string): boolean => !STYLE_FREE_SCENARIOS.has(scenario);
+
 /** The chosen Style Proposal rendered for workers and reviewers; '' when none. */
 export function renderStyle(style: BriefStyleOption | null | undefined, opts: { forReviewer?: boolean } = {}): string {
   if (!style) return '';

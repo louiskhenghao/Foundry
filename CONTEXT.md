@@ -191,10 +191,10 @@ Where a Goal's Artifacts are delivered when it finishes. Chosen by the user when
 The one media skill set mandated to Workers on image / video Tasks — chosen in Settings exactly like the Design Pack, mutually exclusive, *none* allowed. Media capability always comes from skills, never from the engine itself.
 
 **Style Proposal**
-One visual direction for a media or UI Goal — palette, typefaces, keywords, a described feel — proposed during Clarify (2–4 of them, recommendation first) and rendered as a card the human can *see* before any expensive generation starts. The pick is a Decision, and the chosen proposal's full parameters bind every Worker and Reviewer; deviating from it is a blocker.
+One visual direction for a media or UI Goal — palette, typefaces, keywords, a described feel — proposed during Clarify (2–4 of them, recommendation first) and rendered as a card the human can *see* before any expensive generation starts. The pick is a Decision, and the chosen proposal's full parameters bind every Worker and Reviewer on every Task that produces something with a look (UI, mobile, media, general) — only backend, infra, docs, data and research Tasks never see it; deviating from it is a blocker.
 
 **Style Sample**
-A single cheap real image generated on demand to taste a Style Proposal before approving the Brief. Samples are a history: regenerating appends a new one and every earlier sample stays — the human can change their mind and pin any of them as the reference image Workers must match.
+A single cheap real image generated on demand to taste a Style Proposal before approving the Brief. Samples are a history: regenerating appends a new one and every earlier sample stays — the human can change their mind and pin any of them as the reference image Workers must match. Samples live in the goal workspace's `artifacts/samples/` (git-excluded) and are copied into every Task worktree so the Worker can open the pinned one.
 
 **Pace**
 How much the engine adds on top of what the human approved. *Thorough* (default) adds its own task reviews, the goal-diff review and generated docs; *fast* runs only what the Brief asks for — every approved Check, including Reviewer Checks, still executes. Chosen per Goal at creation.

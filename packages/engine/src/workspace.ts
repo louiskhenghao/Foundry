@@ -36,6 +36,24 @@ export function copyArtifacts(fromWs: string, toWs: string): number {
   return files.length;
 }
 
+/**
+ * `artifacts/samples/` holds the Brief's style sample images; the chosen one is the reference image the worker prompt tells
+ * every task to open, so it must exist in each task worktree, not only in the goal workspace where it was generated.
+ */
+export function copyStyleSamples(fromWs: string, toWs: string): number {
+  const src = join(fromWs, ARTIFACTS_DIR, 'samples');
+  if (!existsSync(src)) return 0;
+  const dest = join(toWs, ARTIFACTS_DIR, 'samples');
+  mkdirSync(dest, { recursive: true });
+  let n = 0;
+  for (const f of readdirSync(src)) {
+    if (existsSync(join(dest, f))) continue;
+    cpSync(join(src, f), join(dest, f));
+    n++;
+  }
+  return n;
+}
+
 export function goalWorkspacePath(dataDir: string, goalId: string): string {
   return join(dataDir, 'worktrees', goalId, '_goal');
 }
@@ -77,8 +95,9 @@ export async function ensureTaskWorkspace(dataDir: string, goal: Goal, task: Tas
   const path = taskWorkspacePath(dataDir, goal.id, task.id);
   const branch = taskBranch(task.id);
   await ensureWorktree(goal.repoPath, path, branch, base);
-  // project skills are git-excluded, so a fresh checkout lacks them: copy them over from the goal workspace
+  // project skills and the Brief's style samples are git-excluded, so a fresh checkout lacks them: copy them over from the goal workspace
   copyProjectSkills(goalPath, path);
+  copyStyleSamples(goalPath, path);
   return { path, branch };
 }
 
