@@ -1,3 +1,4 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Check, CheckResult, Goal } from '@foundry/core';
 import { IdPrefix, chosenStyle, getBrief, listCheckResultsByGoal, listChecks, listTasks, newId, renderDecisions } from '@foundry/core';
@@ -16,7 +17,7 @@ import { raiseEscalation } from './escalation.ts';
 import { createFixTasks, genericFixSpec } from './fix-tasks.ts';
 import { diff } from './git/git.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
-import { goalWorkspacePath } from './workspace.ts';
+import { goalWorkspacePath, internalWorkspaceDir } from './workspace.ts';
 
 const GoalReviewOutput = z.object({
   mustVerdicts: z.array(z.object({ checkName: z.string(), pass: z.boolean(), reason: z.string() })),
@@ -132,7 +133,11 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
   const brief = getBrief(engine.store.db, goal.id)?.brief;
   const fmt = (c: Check) => `- [${c.tier}] ${c.name}${c.spec.type === 'reviewer' ? `: ${c.spec.rubric}` : c.spec.type === 'command' ? ` (command \`${c.spec.cmd}\` → ${objective.find((r) => r.checkId === c.id)?.status ?? 'n/a'})` : ''}`;
   const scenario = goalScenario(listTasks(engine.store.db, goal.id));
-  const reviewerHint = await engine.skills.hints.sectionFor('reviewer-goal', { scenario });
+  // a small goal does not need the strong model reading its diff through two review sub-agents: the cheap tier, no skills
+  const lines = d.split('\n').length;
+  const small = lines <= engine.config.smallGoalLines;
+  const tier: 'strong' | 'worker' | 'cheap' = small ? 'cheap' : engine.config.goalReviewer;
+  const reviewerHint = small ? null : await engine.skills.hints.sectionFor('reviewer-goal', { scenario });
   const media =
     scenario === 'image' || scenario === 'video'
       ? `# Media review\nThis goal's deliverables are media files under \`artifacts/\` — they are NOT in the diff (kept out of git); the committed \`docs/artifacts/\` manifests describe them. Verify every manifest entry exists on disk${scenario === 'image' ? ' and open the images with the Read tool (it renders them) to judge them against the checks' : '; verify video metadata with ffprobe when available (you cannot watch video — final visual quality stays with the human)'}.`
@@ -148,8 +153,8 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
     `# Fixed point\nThe base of this review is \`${goal.baseBranch}\`; everything in the diff below was added by this goal.`,
     `# Acceptance checks\nObjective command checks were already executed by the engine; their status is shown. You judge the reviewer-type checks and the overall result.\n${checks.map(fmt).join('\n')}`,
     previousVerdicts(engine, goal, checks),
-    `# Full diff against ${goal.baseBranch}\n\`\`\`diff\n${d}\n\`\`\``,
-    `The full diff is above — judge from it. Open a file only when the diff alone cannot answer a check (a handful at most); do not re-read files that appear in the diff. Judge every check by name. For MUST items that fail, propose concrete fix tasks. Do not propose work beyond the listed checks.`,
+    lines <= INLINE_DIFF_LINES ? `# Full diff against ${goal.baseBranch}\n\`\`\`diff\n${d}\n\`\`\`` : `# Full diff against ${goal.baseBranch}\nThe diff is ${lines} lines — too long to paste. It is saved at \`${diffFile(engine, goal, d)}\`; read it in parts (Grep for file names, Read with offsets) and hand sub-agents the path, never the text.`,
+    `The full diff is ${lines <= INLINE_DIFF_LINES ? 'above' : 'in the file named above'} — judge from it. Open a file only when the diff alone cannot answer a check (a handful at most); do not re-read files that appear in the diff. Judge every check by name. For MUST items that fail, propose concrete fix tasks. Do not propose work beyond the listed checks.`,
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -163,8 +168,8 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
   const channel = `goal-review-${goal.fixCycles}`;
   const base = {
     cwd,
-    model: goal.models.strong,
-    meta: { goalId: goal.id, tier: 'strong' },
+    model: goal.models[tier],
+    meta: { goalId: goal.id, tier },
     permissionMode: 'dontAsk' as const,
     allowedTools: READONLY_TOOLS,
     disallowedTools: READONLY_DISALLOWED,
@@ -178,7 +183,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
   for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: channel, event: ev, ts: new Date().toISOString() });
   let r = await handle.result;
   engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: r.costUsd, source: 'goal-review' } });
-  engine.recordSessionUsage(r, { goalId: goal.id, kind: 'review-goal', model: goal.models.strong });
+  engine.recordSessionUsage(r, { goalId: goal.id, kind: 'review-goal', model: goal.models[tier] });
   let parsed = GoalReviewOutput.safeParse(r.structuredOutput ?? tryJson(r.finalText));
   if (!parsed.success && r.sessionId) {
     // the session ended (budget/turns) before the JSON: resume it with a small fresh budget and ask for the verdict only
@@ -186,7 +191,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
     for await (const ev of again.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: channel, event: ev, ts: new Date().toISOString() });
     const r2 = await again.result;
     engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: r2.costUsd, source: 'goal-review' } });
-    engine.recordSessionUsage(r2, { goalId: goal.id, kind: 'review-goal', model: goal.models.strong });
+    engine.recordSessionUsage(r2, { goalId: goal.id, kind: 'review-goal', model: goal.models[tier] });
     parsed = GoalReviewOutput.safeParse(r2.structuredOutput ?? tryJson(r2.finalText));
     if (!parsed.success) r = r2;
   }
@@ -209,4 +214,14 @@ function previousVerdicts(engine: Engine, goal: Goal, checks: Check[]): string {
   if (!latest.size) return '';
   const lines = [...latest.values()].map((r) => `- ${reviewerChecks.find((c) => c.id === r.checkId)!.name}: **${r.status}** — ${r.summary.slice(0, 400)}`);
   return `# Previous review of this goal\nThese verdicts were given on an earlier revision of the same branch (before the latest fix tasks). Re-verify each one against the current diff. A verdict may change only for a reason you can cite (a hunk in the diff or file:line) — never because you did not get to it. A previously passing check you could not re-verify stays passing; say so in its reason.\n${lines.join('\n')}`;
+}
+
+/** diffs longer than this are written to a file beside the progress folder and read on demand instead of pasted into the prompt */
+const INLINE_DIFF_LINES = 1500;
+function diffFile(engine: Engine, goal: Goal, d: string): string {
+  const dir = join(internalWorkspaceDir(goal) ?? join(engine.config.dataDir, 'review'), 'review');
+  mkdirSync(dir, { recursive: true });
+  const p = join(dir, `goal-diff-${goal.fixCycles}.patch`);
+  writeFileSync(p, d);
+  return p;
 }

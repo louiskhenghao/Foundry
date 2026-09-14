@@ -37,6 +37,9 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'workflow.designPack': { name: 'FOUNDRY_DESIGN_PACK', parse: str },
   'workflow.defaultPace': { name: 'FOUNDRY_PACE', parse: str },
   'workflow.interview': { name: 'FOUNDRY_INTERVIEW', parse: str },
+  'workflow.effort': { name: 'FOUNDRY_EFFORT', parse: str },
+  'reviews.goalReviewer': { name: 'FOUNDRY_GOAL_REVIEWER', parse: str },
+  'reviews.smallGoalLines': { name: 'FOUNDRY_SMALL_GOAL_LINES', parse: num },
   'workflow.imagePack': { name: 'FOUNDRY_IMAGE_PACK', parse: str },
   'workflow.videoPack': { name: 'FOUNDRY_VIDEO_PACK', parse: str },
   'workflow.autoskills': { name: 'FOUNDRY_AUTOSKILLS', parse: bool },
@@ -203,6 +206,9 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('preview.idleMinutes')) config.preview.idleMinutes = s.preview.idleMinutes;
   if (on('checks.selfCheck')) config.selfCheck = s.checks.selfCheck;
   if (on('workflow.interview')) config.interview = s.workflow.interview;
+  if (on('workflow.effort')) config.effort = s.workflow.effort;
+  if (on('reviews.goalReviewer')) config.goalReviewer = s.reviews.goalReviewer;
+  if (on('reviews.smallGoalLines')) config.smallGoalLines = s.reviews.smallGoalLines;
   if (on('models.strong')) config.models.strong = s.models.strong;
   if (on('models.cheap')) config.models.cheap = s.models.cheap;
   if (on('models.worker')) config.models.worker = s.models.worker;

@@ -48,6 +48,7 @@ const CreateGoalBody = z.object({
   outputDir: z.string().nullable().optional(),
   selfCheck: z.boolean().optional(),
   interview: z.enum(['auto', 'always', 'never']).optional(),
+  effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).nullable().optional(),
 });
 
 export function createApp(engine: Engine, opts: { webDist?: string } = {}) {

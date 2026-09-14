@@ -301,6 +301,16 @@ export function SettingsPage() {
                   <option value="never">never — one-shot Brief</option>
                 </Select>
               </Field>
+              <Field label="Effort for new goals" aside={aside('workflow.effort')} help="Claude Code's effort level for every session of a goal (attempts, reviews, clarify, merges). Empty = the CLI default. Lower is faster and cheaper; xhigh / max for hard, cross-cutting work. Switchable per goal when creating it.">
+                <Select value={(draft.workflow.effort as string | null) ?? ''} onChange={(e) => set('workflow.effort', e.target.value || null)}>
+                  <option value="">CLI default</option>
+                  <option value="low">low</option>
+                  <option value="medium">medium</option>
+                  <option value="high">high</option>
+                  <option value="xhigh">xhigh</option>
+                  <option value="max">max</option>
+                </Select>
+              </Field>
               <Field label="TDD for new Expert goals" aside={aside('workflow.tdd')} help="required: workers must invoke tdd and the reviewer is told when they skipped it · preferred: suggested only · off: never mentioned. Simple goals start with preferred; each goal and task can override.">
                 <Select value={draft.workflow.tdd} onChange={(e) => set('workflow.tdd', e.target.value)}>
                   <option value="required">required</option>
@@ -310,6 +320,16 @@ export function SettingsPage() {
               </Field>
               <Field label="Goal-level fix cycles" aside={aside('reviews.maxFixCycles')} help="How many review → fix-task rounds before the goal escalates to you (thorough pace only).">
                 {num('reviews.maxFixCycles', { min: 0, max: 5 })}
+              </Field>
+              <Field label="Goal reviewer" aside={aside('reviews.goalReviewer')} help="Which model tier reads the whole goal diff at the end. strong is the most careful and the slowest (avg $4, 5 min); worker or cheap when goals are routine.">
+                <Select value={draft.reviews.goalReviewer} onChange={(e) => set('reviews.goalReviewer', e.target.value)}>
+                  <option value="strong">strong tier</option>
+                  <option value="worker">worker tier</option>
+                  <option value="cheap">cheap tier</option>
+                </Select>
+              </Field>
+              <Field label="Small goal (diff lines)" aside={aside('reviews.smallGoalLines')} help="A goal whose whole diff is this many lines or fewer is reviewed by the cheap tier without review skills or sub-agents. 0 = never.">
+                {num('reviews.smallGoalLines', { min: 0, max: 5000 })}
               </Field>
             </>,
           )}

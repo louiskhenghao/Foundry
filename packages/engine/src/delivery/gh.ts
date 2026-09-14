@@ -31,6 +31,8 @@ export interface GhClient {
   prFind(cwd: string, i: { repo: string; head: string; base: string }): Promise<PrRef | null>;
   prCreate(cwd: string, i: { repo: string; head: string; base: string; title: string; bodyFile: string }): Promise<PrRef>;
   prView(cwd: string, i: { repo: string; number: number }): Promise<PrView>;
+  /** does the repository run any CI at all (workflows, or required status checks on the base)? null = could not tell */
+  hasCi?(cwd: string, i: { repo: string; base: string }): Promise<boolean | null>;
   prMerge(cwd: string, i: { repo: string; number: number; method: 'squash' | 'merge' | 'rebase'; auto: boolean }): Promise<ExecResult>;
   /** retarget a stacked PR once the PR below it merged */
   prEdit(cwd: string, i: { repo: string; number: number; base: string }): Promise<ExecResult>;
@@ -145,6 +147,15 @@ export class CliGh implements GhClient {
     const j = JSON.parse(r.stdout);
     const checks = (Array.isArray(j.statusCheckRollup) ? j.statusCheckRollup : []).map((c: any) => ({ name: c.name ?? c.context ?? '?', status: c.status ?? c.state ?? '', conclusion: c.conclusion ?? c.state ?? null }));
     return { number: j.number, url: j.url, state: j.state, mergeable: j.mergeable ?? 'UNKNOWN', mergeStateStatus: j.mergeStateStatus ?? null, mergedAt: j.mergedAt ?? null, mergeCommit: j.mergeCommit?.oid ?? null, checks };
+  }
+  async hasCi(cwd: string, i: { repo: string; base: string }): Promise<boolean | null> {
+    const wf = await this.run(['api', `repos/${i.repo}/actions/workflows`, '--jq', '.total_count'], cwd);
+    if (wf.code !== 0) return null;
+    if (Number(wf.stdout.trim()) > 0) return true;
+    // no workflows: required status checks (from another CI) still count
+    const prot = await this.run(['api', `repos/${i.repo}/branches/${encodeURIComponent(i.base)}/protection/required_status_checks`, '--jq', '.contexts | length'], cwd);
+    if (prot.code === 0) return Number(prot.stdout.trim()) > 0;
+    return /404|not found|Branch not protected/i.test(prot.stderr + prot.stdout) ? false : null;
   }
   prMerge(cwd: string, i: { repo: string; number: number; method: 'squash' | 'merge' | 'rebase'; auto: boolean }): Promise<ExecResult> {
     return this.run(['pr', 'merge', String(i.number), '-R', i.repo, `--${i.method}`, ...(i.auto ? ['--auto'] : [])], cwd);

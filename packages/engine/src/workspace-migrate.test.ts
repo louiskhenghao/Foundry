@@ -29,7 +29,7 @@ afterEach(() => {
 const legacyGoal = (id: string, state: Goal['state']): Goal => {
   const now = new Date().toISOString();
   return {
-    id, title: '把按钮改成蓝色，其它不动', prompt: 'p', workspaceDir: null, checkpoint: null, selfCheck: false, interview: null, repoPath: repo, baseBranch: 'main', branch: `goal/${id}`,
+    id, title: '把按钮改成蓝色，其它不动', prompt: 'p', workspaceDir: null, checkpoint: null, selfCheck: false, interview: null, effort: null, repoPath: repo, baseBranch: 'main', branch: `goal/${id}`,
     budgets: { maxCostUsd: 5, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3 }, budgetPreset: 'custom', mode: 'expert', workflow: { tdd: 'off', pace: 'thorough' },
     models: { strong: 'opus', cheap: 'haiku', worker: 'opus' }, state, stateBeforeBlock: null, costUsd: 0, fixCycles: 0, delivery: IDLE_DELIVERY, attachments: [], baseSync: null, autoskills: null,
     completion: { graphRefresh: false, docs: [], docsRun: null, graphRun: null, artifactsRun: null }, nature: 'auto', outputDir: null, runningSince: null, createdAt: now, updatedAt: now,
