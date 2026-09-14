@@ -68,7 +68,7 @@ export function CheckRow({ check, brief, editable, context, onChange, onRemove }
           return <Input className="text-xs" disabled={!editable} placeholder="rubric: what the reviewer must verify in the diff" value={spec.rubric} onChange={(e) => onChange({ ...check, spec: { ...spec, rubric: e.target.value } })} />;
         })()
       ) : (
-        <div className="text-[11px] text-zinc-500">llm-judge: {check.spec.prompt}</div>
+        <div className="text-[11px] text-zinc-500">{check.spec.type === 'selfcheck' ? 'self-check: the engine opens the preview in headless Chromium, screenshots it and fails on console or network errors' : `llm-judge: ${check.spec.prompt}`}</div>
       )}
       {problem && editable && <div className="text-[11px] text-rose-300">{problem}</div>}
     </div>

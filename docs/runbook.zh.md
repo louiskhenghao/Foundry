@@ -61,6 +61,7 @@ Task 状态：`pending`（等待它所依赖的 task）→ `ready`（可以开�
 | **Budget exceeded** | 触及成本或时间上限。 | *Raise budget* 或 *Abort*。 |
 | **Wants to leave the workspace** | 某个 session 尝试 `git push` / 部署 / 付费服务。 | *Approve & run once* 或 *Deny*。 |
 | **Tool denied** — *"the task failed and Claude was denied: &lt;tools&gt;"* | 最后一次 Attempt 失败了，且 Claude 拒绝了一次（非边界的）工具调用。 | 与 *Retries exhausted* 相同的选项：**Suggest a hint** / **Let AI handle it**、*Retry with hint*、*Skip task*。 |
+| **Have a look** — *"&lt;task&gt; landed. &lt;看什么&gt;"* + 预览链接 | 一个里程碑 task 落地了，goal 在等你看（状态 *have a look*），期间不会再启动别的 task。 | 打开 goal 页面：预览（启动/停止/打开）、自检截图、产物都在那里。**Continue** 继续；或写下你看到的 → **Turn into a plan** → 确认：变成后续 task 的 hint、修复 task（修完在同一里程碑再看一次）、或所有后续 task 都要遵守的 Decision。 |
 | **Retries exhausted · goal review** — *"Goal review failed after N fix cycle(s). Failing Must checks: …"* + reviewer 的说明 | 合并后的结果在 fix cycle 用完后仍有 reviewer 型 Must 检查不通过。reviewer 的发现随 escalation 一起保存。 | **Retry with hint** 会把这些发现变成 fix task（你的 hint 一并带上），跑完再 review 一次——绝不会只是重跑同一个 review。**Accept as-is** 直接完成 goal，放弃未通过的检查。再次 review 时能看到上一次的结论，只有给出可引用的理由才允许翻转结论。 |
 | **Retries exhausted · goal review 崩溃 / delivery** | goal review 崩溃了（`kind: goal-review`，没有发现可用），或已交付 PR 上的 CI 在该 task 的 Attempt 内无法修复（`kind: delivery-fix`）。 | 修复根因后 *Retry*（重跑 review）；delivery-fix 可以再次用 *Deliver* 重新运行。 |
 | **Brief question** | 只出现在 Brief 页面。 | 回答；如果它改变了计划，再 *Revise with answers*。 |
@@ -84,6 +85,8 @@ Task 状态：`pending`（等待它所依赖的 task）→ `ready`（可以开�
 | *usage limit reached (five_hour/weekly): paused until … ; goals resume automatically* | 一个 Claude 使用窗口耗尽了。不会杀掉任何东西；新 session 等待。Goals、Goal 和 Inbox 页面显示一条琥珀色横幅；该暂停能在引擎重启后存续（从事件日志重新装载），并在重置时间自行解除。 |
 | *usage limit reset — goals resume* | 上述暂停结束了；每一个非终结状态的 goal 都被推进了一步。 |
 | *Foundry &lt;version&gt; is available* (header pill + notification) | 每日检查发现了更新的 release。`update.available` 每个版本触发一次。 | 打开该 pill 或 Settings → About & updates 查看 changelog 并更新。见 §7。 |
+| *[preview] … did not answer within 90s — the server may still be starting* | 运行命令启动了，但端口在时限内没有响应（安装慢、端口参数不对）。 | 看 Preview 卡片上的服务输出；探测猜错时，在 Brief 的 *How to run it* 里写命令（用 `{port}`）。 |
+| *self-check could not run: nothing to run / Playwright is not installed / Chromium could not start* | goal 开了自检，但没有运行命令，或浏览器没装。 | Settings → Preview → *Install Chromium*；或在 Brief 里写运行命令；或在 goal 的 Preview 卡片上关掉自检。这种情况记为 `error`，不是 `fail`。 |
 | *autoskills: skipped — no stack manifest … retried after each task until one appears* | 空仓库 goal：还没有可检测的东西。每次 task 落地后引擎会再次检查；创建 package.json（或其他 manifest）的那个 task 会触发安装，正在运行的 task worktree 也会收到这些 skills。 |
 | *graph refresh: graphify ok, gitnexus skipped* | goal 交付后（本地 goal 则在 done 时）的收尾动作：`graphify update`（安装了则加上 `gitnexus analyze`）重新为已交付的代码建立索引。`skipped` = 工具不在 PATH 上。另有一条独立的 *pull --ff-only … : …* 注记，报告用户的 checkout 能否先被 fast-forward（dirty/diverged = 不能，刷新会在能做的范围内运行）。 |
 | *docs generation failed: …* | Documenter session（在 goal review 之后、done 之前）失败了；goal 仍然会完成。详情见 `goal.docs_generated` 和 Goal → Completion 卡片；无需通过重启最后一个 task 来重跑 —— docs 可以手写，或从 goal review 重启 goal。 |

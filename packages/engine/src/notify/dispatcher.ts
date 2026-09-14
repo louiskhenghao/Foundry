@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 /**
  * Turns engine events into push notifications on the configured channels (Settings → Notifications).
  * Fire-and-forget: a notification is a hint, not a ledger — sends are retried a couple of times,
@@ -6,6 +8,7 @@
 import type { EngineEvent, Escalation, EscalationTrigger, NotificationSettings } from '@foundry/core';
 import { getGoal } from '@foundry/core';
 import type { Engine } from '../engine.ts';
+import { screenshotsDir } from '../workspace.ts';
 import { DiscordNotifier, TelegramNotifier, type Notifier } from './channels.ts';
 
 export interface Composed {
@@ -21,6 +24,7 @@ const TRIGGER_COPY: Record<EscalationTrigger, string> = {
   boundary_action: 'an action wants to leave the local workspace',
   budget_exceeded: 'the goal hit its cost or time budget',
   permission_denial: 'the Claude runtime refused a tool call',
+  milestone: 'a milestone landed — have a look, then continue or say what to change',
 };
 
 /** Event → message for the non-escalation families; null = nothing to say about this event. */
@@ -53,6 +57,8 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
 
 /** Escalation → message ("needs you" — the one family that maps to the domain's blocked). */
 export function composeEscalation(esc: Escalation, goalTitle: (goalId: string | null) => string): { text: string; path: string } {
+  // a milestone is an invitation, not a problem: the whole note (what to look at, the preview link) and the goal page
+  if (esc.trigger === 'milestone') return { text: `👀 Have a look — ${goalTitle(esc.goalId)}\n${esc.message.slice(0, 700)}`, path: `/goals/${esc.goalId}` };
   return { text: `🛑 Needs you — ${goalTitle(esc.goalId)}\n${TRIGGER_COPY[esc.trigger]}\n${(esc.message.split('\n')[0] ?? '').slice(0, 300)}`, path: '/inbox' };
 }
 
@@ -93,20 +99,33 @@ export class NotificationDispatcher {
     const s = this.settings();
     if (!s.onEscalation) return;
     const c = composeEscalation(esc, this.goalTitle);
-    this.deliver(s, c.text, c.path, esc.goalId);
+    this.deliver(s, c.text, c.path, esc.goalId, esc.trigger === 'milestone' ? this.latestScreenshot(esc.goalId) : null);
   }
 
-  private deliver(s: NotificationSettings, text: string, path: string | null, goalId: string | null): void {
+  /** the self-check's newest screenshot of a goal, as a file path, or null */
+  private latestScreenshot(goalId: string): string | null {
+    const goal = getGoal(this.engine.store.db, goalId);
+    if (!goal) return null;
+    const last = this.engine.store
+      .listByGoal(goalId, 5000)
+      .filter((e) => e.type === 'selfcheck.finished' && (e.payload as { screenshot: string | null }).screenshot)
+      .at(-1);
+    if (!last) return null;
+    const p = join(screenshotsDir(this.engine.config.dataDir, goal), (last.payload as { screenshot: string }).screenshot);
+    return existsSync(p) ? p : null;
+  }
+
+  private deliver(s: NotificationSettings, text: string, path: string | null, goalId: string | null, photo: string | null = null): void {
     const channels = this.channels(s);
     if (!channels.length) return;
     const msg = s.baseUrl && path ? `${text}\n${s.baseUrl.replace(/\/+$/, '')}${path}` : text;
-    for (const ch of channels) void this.sendWithRetry(ch, msg, goalId);
+    for (const ch of channels) void this.sendWithRetry(ch, photo && ch.sendPhoto ? () => ch.sendPhoto!(msg, photo) : () => ch.send(msg), goalId);
   }
 
-  private async sendWithRetry(ch: Notifier, msg: string, goalId: string | null): Promise<void> {
+  private async sendWithRetry(ch: Notifier, send: () => Promise<void>, goalId: string | null): Promise<void> {
     for (let i = 0; ; i++) {
       try {
-        await ch.send(msg);
+        await send();
         return;
       } catch (err) {
         if (i >= RETRY_DELAYS_MS.length) {

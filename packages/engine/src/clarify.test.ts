@@ -55,9 +55,9 @@ const areas = [
   { key: 'A1', name: 'Student portal', slug: 'student-portal', description: 'what students see' },
   { key: 'A2', name: 'Teacher portal', slug: 'teacher-portal', description: 'what teachers see' },
 ];
-const task = (key: string, areaKey: string, title: string, deps: string[] = []): BriefOutput['tasks'][number] => ({ key, title, spec: `do ${title}`, kind: 'feature', scope: null, scenario: 'frontend', areaKey, dependsOnKeys: deps, parallelizable: true, relevantFiles: ['README.md'] });
+const task = (key: string, areaKey: string, title: string, deps: string[] = []): BriefOutput['tasks'][number] => ({ key, title, spec: `do ${title}`, kind: 'feature', scope: null, scenario: 'frontend', areaKey, dependsOnKeys: deps, parallelizable: true, relevantFiles: ['README.md'], milestone: null });
 const check = (key: string, taskKey: string | null, areaKey: string | null = null): BriefOutput['checks'][number] => ({ key, name: key, tier: 'must', taskKey, areaKey, type: 'command', cmd: 'true', rubric: null });
-const briefWith = (tasks: BriefOutput['tasks'], checks: BriefOutput['checks']): BriefOutput => ({ title: 'feat(portal): build portals', understanding: 'Two portals.', nature: 'code', areas, assumptions: ['a'], tasks, checks, costEstimateUsd: 4, timeEstimateMin: 30, questions: [], styleOptions: [] });
+const briefWith = (tasks: BriefOutput['tasks'], checks: BriefOutput['checks']): BriefOutput => ({ title: 'feat(portal): build portals', understanding: 'Two portals.', nature: 'code', areas, assumptions: ['a'], tasks, checks, costEstimateUsd: 4, timeEstimateMin: 30, questions: [], styleOptions: [], run: null });
 
 const cfg = () => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, log: () => {} });
 
@@ -211,7 +211,7 @@ describe('draft with AI', () => {
     await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
     const { goalId: _g, ...brief } = getBrief(engine.store.db, goal.id)!.brief;
     // the page adds an empty task (unsaved) and asks for a draft
-    const draft = { ...brief, tasks: [...brief.tasks, { key: 'T2', title: 'add teacher home', spec: '', kind: 'feature' as const, scope: null, scenario: 'general' as const, areaKey: null, tdd: 'inherit' as const, dependsOnKeys: [], parallelizable: true, relevantFiles: [] }] };
+    const draft = { ...brief, tasks: [...brief.tasks, { key: 'T2', title: 'add teacher home', spec: '', kind: 'feature' as const, scope: null, scenario: 'general' as const, areaKey: null, tdd: 'inherit' as const, dependsOnKeys: [], parallelizable: true, relevantFiles: [], milestone: null }] };
     const p = await engine.draftBrief(goal.id, { mode: 'task', brief: draft, taskKey: 'T2', areaKey: null, notes: 'reuse the student layout' });
     expect(p.task).toEqual({ spec: '## Do it\nbuild the page', kind: 'feature', scenario: 'frontend', scope: null, areaKey: 'A2', dependsOnKeys: ['T1'], relevantFiles: ['README.md'] });
     expect(p.checks).toHaveLength(1);

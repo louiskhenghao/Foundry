@@ -11,6 +11,7 @@ const STATE_TEXT: Record<string, string> = {
   awaiting_brief_approval: 'The plan is ready for you to read and approve.',
   running: 'Working.',
   blocked: 'Paused — something needs you (see below).',
+  awaiting_feedback: 'A milestone landed — have a look above, then continue or say what to change.',
   goal_review: 'Everything is built; checking the whole result now.',
   done: 'Done. Everything you asked for passes its checks.',
   over_delivered: 'Done — and the extras passed too.',

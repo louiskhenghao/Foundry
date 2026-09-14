@@ -32,7 +32,7 @@ export function nextKey(prefix: 'T' | 'C' | 'A', keys: string[]): string {
 }
 
 export function newTask(brief: Brief, areaKey: string | null = null): BriefTask {
-  return { key: nextKey('T', brief.tasks.map((t) => t.key)), title: '', spec: '', kind: 'feature', scope: null, scenario: 'general', areaKey: areaKey ?? (brief.areas.length === 1 ? brief.areas[0]!.key : null), tdd: 'inherit', dependsOnKeys: [], parallelizable: true, relevantFiles: [] };
+  return { key: nextKey('T', brief.tasks.map((t) => t.key)), title: '', spec: '', kind: 'feature', scope: null, scenario: 'general', areaKey: areaKey ?? (brief.areas.length === 1 ? brief.areas[0]!.key : null), tdd: 'inherit', dependsOnKeys: [], parallelizable: true, relevantFiles: [], milestone: null };
 }
 
 export function newArea(brief: Brief, name = ''): BriefArea {

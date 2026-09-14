@@ -8,7 +8,10 @@ services:
     # a fixed name so the watchtower sidecar can update exactly this container
     container_name: foundry
     # the UI is not authenticated: keep it on loopback
-    ports: ['127.0.0.1:4111:4111']
+    ports:
+      - '127.0.0.1:4111:4111'
+      # goal previews (dev servers started at milestones) — uncomment to open them from the host
+      # - '127.0.0.1:4200-4299:4200-4299'
     volumes:
       - engine-data:/app/data          # event log, worktrees, transcripts, settings
       - claude-home:/home/node/.claude # Claude Code login, sessions, skills

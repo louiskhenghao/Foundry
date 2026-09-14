@@ -7,6 +7,8 @@ export interface Notifier {
   readonly name: string;
   /** deliver one plain-text message; throws on failure */
   send(text: string): Promise<void>;
+  /** deliver an image with a caption (a milestone screenshot); channels without it get the text alone */
+  sendPhoto?(caption: string, file: string): Promise<void>;
 }
 
 const TELEGRAM_API = 'https://api.telegram.org';
@@ -25,6 +27,15 @@ export class TelegramNotifier implements Notifier {
   ) {}
   async send(text: string): Promise<void> {
     const res = await post(`${TELEGRAM_API}/bot${this.token}/sendMessage`, { chat_id: this.chatId, text: text.slice(0, MAX_LEN), disable_web_page_preview: true });
+    if (!res.ok) throw new Error(`telegram ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
+  }
+  /** sendPhoto: multipart with the PNG bytes; captions are capped at 1024 by Telegram */
+  async sendPhoto(caption: string, file: string): Promise<void> {
+    const form = new FormData();
+    form.set('chat_id', this.chatId);
+    form.set('caption', caption.slice(0, 1000));
+    form.set('photo', new Blob([await Bun.file(file).arrayBuffer()], { type: 'image/png' }), file.split('/').pop() ?? 'screenshot.png');
+    const res = await fetch(`${TELEGRAM_API}/bot${this.token}/sendPhoto`, { method: 'POST', body: form, signal: AbortSignal.timeout(30_000) });
     if (!res.ok) throw new Error(`telegram ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
   }
 }

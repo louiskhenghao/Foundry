@@ -2,6 +2,7 @@ import type { Settings, SettingsView } from '@foundry/core/browser';
 import { RotateCcw } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, type ModelRecordView, type UpdateStatusView } from '../api.ts';
+import { LiveLog } from './LiveLog.tsx';
 import { DesignPacks } from '../components/DesignPacks.tsx';
 import { UpdateDialog } from '../components/UpdateDialog.tsx';
 import { Button, Card, CopyButton, Empty, Field, Input, Select, cn } from '../ui.tsx';
@@ -26,6 +27,7 @@ const SECTIONS: { id: string; label: string }[] = [
   { id: 'skills', label: 'Skills' },
   { id: 'git', label: 'Git & delivery' },
   { id: 'tools', label: 'Tools & keys' },
+  { id: 'preview', label: 'Preview & self-check' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'safety', label: 'Safety' },
   { id: 'engine', label: 'Engine (install)' },
@@ -478,6 +480,27 @@ export function SettingsPage() {
         </div>
       </Card>
 
+      <Card id="preview" title="Preview &amp; self-check" className="scroll-mt-16">
+        <div className="space-y-3">
+          <p className="text-xs text-zinc-400">At a milestone, and on request from a goal's page, the engine starts the goal's dev server in its progress folder and links you to it. With the self-check on, it also opens that preview in headless Chromium after every task lands, takes a screenshot and fails the goal's must checks on console or network errors.</p>
+          {grid(
+            <>
+              <Field label="First port" aside={aside('preview.portFrom')} help="Previews take the first free port in this range.">
+                {num('preview.portFrom', { min: 1024, max: 65535 })}
+              </Field>
+              <Field label="Last port" aside={aside('preview.portTo')} help="Docker: publish this range in docker-compose.yml so the preview is reachable from the host.">
+                {num('preview.portTo', { min: 1024, max: 65535 })}
+              </Field>
+              <Field label="Idle minutes" aside={aside('preview.idleMinutes')} help="A preview nobody opened for this long is stopped (never while the goal waits for your look).">
+                {num('preview.idleMinutes', { min: 5, max: 1440 })}
+              </Field>
+            </>,
+          )}
+          {bool('checks.selfCheck', 'Self-check new goals by default', "Off by default: it needs Playwright's Chromium (below) and only helps goals whose result runs in a browser. Each goal's page has its own switch.")}
+          <PlaywrightInstall />
+        </div>
+      </Card>
+
       <Card id="notifications" title="Notifications" className="scroll-mt-16">
         <div className="space-y-4">
           <p className="text-[11px] text-zinc-500">Get pinged outside the app the moment a goal needs you or finishes. Every enabled event goes to every configured channel; leave a channel's fields empty to keep it off.</p>
@@ -588,6 +611,46 @@ export function SettingsPage() {
       <UpdateDialog open={updOpen} onClose={() => setUpdOpen(false)} status={upd} />
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Playwright's Chromium for the self-check: the package ships with Foundry, the browser is downloaded once. */
+function PlaywrightInstall() {
+  const [st, setSt] = useState<{ installed: boolean; browser: boolean; detail: string } | null>(null);
+  const [running, setRunning] = useState(false);
+  const load = () => api.playwright().then(setSt).catch(() => {});
+  useEffect(() => {
+    void load();
+  }, []);
+  return (
+    <div className="text-xs text-zinc-400 space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className={st?.browser ? 'text-emerald-300' : 'text-amber-300'}>{st ? (st.browser ? 'Chromium installed' : st.installed ? 'Chromium not downloaded yet' : 'Playwright unavailable') : '…'}</span>
+        {st && <span className="text-zinc-500">{st.detail}</span>}
+        {st && !st.browser && (
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={running}
+            onClick={async () => {
+              setRunning(true);
+              try {
+                await api.installPlaywright();
+              } finally {
+                setTimeout(() => {
+                  setRunning(false);
+                  void load();
+                }, 60_000);
+              }
+            }}
+            title="bunx playwright install chromium (a few hundred MB, once)"
+          >
+            Install Chromium
+          </Button>
+        )}
+      </div>
+      {running && <LiveLog attemptId="tool-install" className="max-h-40" />}
     </div>
   );
 }

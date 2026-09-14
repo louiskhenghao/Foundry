@@ -20,6 +20,10 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'engine.maxConcurrent': { name: 'FOUNDRY_MAX_CONCURRENT', parse: num },
   'engine.claudeHome': { name: 'FOUNDRY_CLAUDE_HOME', alt: 'CLAUDE_CONFIG_DIR', parse: str },
   'engine.workspacesRoot': { name: 'FOUNDRY_WORKSPACES_ROOT', parse: str },
+  'preview.portFrom': { name: 'FOUNDRY_PREVIEW_PORT_FROM', parse: num },
+  'preview.portTo': { name: 'FOUNDRY_PREVIEW_PORT_TO', parse: num },
+  'preview.idleMinutes': { name: 'FOUNDRY_PREVIEW_IDLE_MIN', parse: num },
+  'checks.selfCheck': { name: 'FOUNDRY_SELF_CHECK', parse: bool },
   'models.strong': { name: 'FOUNDRY_MODEL_STRONG', parse: str },
   'models.cheap': { name: 'FOUNDRY_MODEL_CHEAP', parse: str },
   'models.worker': { name: 'FOUNDRY_MODEL_WORKER', parse: str },
@@ -193,6 +197,10 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('engine.claudeBin')) config.claudeBin = s.engine.claudeBin ?? undefined;
   if (on('engine.claudeHome') && s.engine.claudeHome) config.claudeHome = s.engine.claudeHome;
   if (on('engine.workspacesRoot')) config.workspacesRoot = s.engine.workspacesRoot;
+  if (on('preview.portFrom')) config.preview.portFrom = s.preview.portFrom;
+  if (on('preview.portTo')) config.preview.portTo = s.preview.portTo;
+  if (on('preview.idleMinutes')) config.preview.idleMinutes = s.preview.idleMinutes;
+  if (on('checks.selfCheck')) config.selfCheck = s.checks.selfCheck;
   if (on('models.strong')) config.models.strong = s.models.strong;
   if (on('models.cheap')) config.models.cheap = s.models.cheap;
   if (on('models.worker')) config.models.worker = s.models.worker;

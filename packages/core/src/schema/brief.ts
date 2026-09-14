@@ -36,6 +36,21 @@ export const BriefCheck = z.object({
 });
 export type BriefCheck = z.infer<typeof BriefCheck>;
 
+/**
+ * How to start the goal's result so a person (or the self-check) can look at it. Detected from package.json when the Clarifier
+ * leaves it null; `{port}` in the command or URL is replaced by the port the engine assigns (PORT is also set in the env).
+ */
+export const BriefRun = z.object({
+  /** e.g. `npm install`; null = none needed */
+  install: z.string().nullable().default(null),
+  /** the dev-server command, e.g. `npm run dev -- --port {port}`; null = the result cannot be started */
+  command: z.string().nullable().default(null),
+  /** where it serves, e.g. `http://localhost:{port}` */
+  url: z.string().nullable().default(null),
+  platform: z.enum(['web', 'expo', 'none']).default('none'),
+});
+export type BriefRun = z.infer<typeof BriefRun>;
+
 export const BriefTask = z.object({
   key: z.string(),
   /** imperative, Conventional-Commit style subject without the type prefix (the type comes from `kind`) */
@@ -51,6 +66,8 @@ export const BriefTask = z.object({
   dependsOnKeys: z.array(z.string()).default([]),
   parallelizable: z.boolean().default(true),
   relevantFiles: z.array(z.string()).default([]),
+  /** what to look at or try when this task lands; set = milestone, the goal pauses there for a human look */
+  milestone: z.string().nullable().optional(),
 });
 export type BriefTask = z.infer<typeof BriefTask>;
 
@@ -103,6 +120,8 @@ export const Brief = z.object({
   questions: z.array(BriefQuestion),
   /** visual directions for media/UI goals; non-empty ⇒ the engine adds a blocking style question */
   styleOptions: z.array(BriefStyleOption).default([]),
+  /** how to start the result for a look (preview, self-check); null = detected from package.json, or not startable */
+  run: BriefRun.nullable().optional(),
 });
 export type Brief = z.infer<typeof Brief>;
 
@@ -123,6 +142,10 @@ const OutputTask = z.object({
   dependsOnKeys: z.array(z.string()),
   parallelizable: z.boolean(),
   relevantFiles: z.array(z.string()).describe('Repo-relative paths the worker should start from.'),
+  milestone: z
+    .string()
+    .nullable()
+    .describe('Set on 1–3 tasks per goal after which a person can SEE or TRY something meaningful for the first time (first playable round, first page rendering real data, first full render). One or two sentences in the goal\'s language: what to open, what to try, what to judge. null for every other task (scaffolding, pure backend, docs). A goal with a single task has none.'),
 });
 
 const OutputCheck = z.object({
@@ -182,6 +205,15 @@ export const BriefOutput = z.object({
     )
     .default([])
     .describe('Visual directions for the human to SEE and pick from before generation starts. REQUIRED for image/video goals and UI-heavy code goals: 2-4 distinct directions, YOUR recommendation first. Empty for prose/research/backend goals.'),
+  run: z
+    .object({
+      install: z.string().nullable().describe('Install command from the repo root, e.g. "npm install"; null if none.'),
+      command: z.string().nullable().describe('Command that starts a dev server from the repo root and keeps running, e.g. "npm run dev -- --port {port}" or "npx expo start --web --port {port}". Use {port} where the port goes; the engine also sets PORT in the environment. null if the result cannot be started.'),
+      url: z.string().nullable().describe('Where it serves, with {port}, e.g. "http://localhost:{port}".'),
+      platform: z.enum(['web', 'expo', 'none']).describe('web = a browser app or site; expo = a React Native app previewed through Expo web; none = nothing to start.'),
+    })
+    .nullable()
+    .describe('How to start the result so the human (and the engine\'s self-check) can look at it mid-goal. The engine detects package.json scripts itself — fill this ONLY when detection would be wrong, or the repository is empty and the first task creates the manifest. null otherwise.'),
 });
 export type BriefOutput = z.infer<typeof BriefOutput>;
 

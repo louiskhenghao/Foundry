@@ -22,7 +22,12 @@ export const LlmJudgeCheckSpec = z.object({
   prompt: z.string().min(1),
 });
 
-export const CheckSpec = z.discriminatedUnion('type', [CommandCheckSpec, ReviewerCheckSpec, LlmJudgeCheckSpec]);
+/** the engine opens the goal's preview headless, screenshots it and fails on console/page/network errors (goal-level, no LLM) */
+export const SelfCheckSpec = z.object({
+  type: z.literal('selfcheck'),
+});
+
+export const CheckSpec = z.discriminatedUnion('type', [CommandCheckSpec, ReviewerCheckSpec, LlmJudgeCheckSpec, SelfCheckSpec]);
 export type CheckSpec = z.infer<typeof CheckSpec>;
 
 export const Check = z.object({

@@ -13,6 +13,7 @@ import { CompletionCard, type CompletionChoice } from './CompletionCard.tsx';
 import { StyleCards } from './StyleCards.tsx';
 import { DecisionsBar } from './DecisionsBar.tsx';
 import { GoalAcceptanceCard } from './GoalAcceptanceCard.tsx';
+import { RunCard } from './RunCard.tsx';
 import { PlanSection } from './PlanSection.tsx';
 import { SimpleBrief } from './SimpleBrief.tsx';
 import { areaOf, areaStyle, checkProblem, taskProblem } from './shared.ts';
@@ -237,6 +238,7 @@ export function BriefPage() {
       <AreasCard brief={brief} goalId={id} editable={editable} edit={edit} />
       <PlanSection brief={brief} goalId={id} editable={editable} edit={edit} />
       <GoalAcceptanceCard brief={brief} editable={editable} edit={edit} />
+      <RunCard brief={brief} editable={editable} edit={edit} />
       <CompletionCard brief={brief} editable={editable} value={completionEdit} onChange={setCompletionEdit} />
 
       <Card title={isAuto && editable ? 'Estimate → proposed budget' : 'Estimate & budget'}>

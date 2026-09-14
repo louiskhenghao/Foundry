@@ -2,6 +2,7 @@ import { Ban, Folder, GitBranch, RotateCcw, Trash2 } from 'lucide-react';
 import { RestartDialog } from '../../components/RestartDialog.tsx';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { MilestoneCard } from './MilestoneCard.tsx';
 import { api, type GoalDetail } from '../../api.ts';
 import { useLive } from '../../store.ts';
 import { Badge, Button, Card, ConfirmDialog, CopyButton, Empty, Meter, Tabs, fmtLimitMin, fmtLimitUsd, fmtUsd } from '../../ui.tsx';
@@ -162,6 +163,8 @@ export function GoalPage() {
           </span>
         </label>
       </ConfirmDialog>
+
+      {g.state === 'awaiting_feedback' && <MilestoneCard d={d} />}
 
       {(g.state === 'clarifying' || g.state === 'goal_review') && (
         <Card title={g.state === 'clarifying' ? 'Clarifying…' : 'Goal review…'}>

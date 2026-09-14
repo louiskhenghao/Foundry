@@ -85,7 +85,7 @@ function keyed<T extends { key: string }>(before: T[], after: T[], fields: (keyo
 /** What a revision would change, by key. Keys are the contract: a task that keeps its key is "changed", not removed+added. */
 export function diffBrief(current: Omit<Brief, 'goalId'>, revised: Omit<Brief, 'goalId'>): BriefDiff {
   return {
-    tasks: keyed(current.tasks, revised.tasks, ['title', 'spec', 'kind', 'scope', 'scenario', 'areaKey', 'dependsOnKeys', 'parallelizable', 'relevantFiles']),
+    tasks: keyed(current.tasks, revised.tasks, ['title', 'spec', 'kind', 'scope', 'scenario', 'areaKey', 'dependsOnKeys', 'parallelizable', 'relevantFiles', 'milestone']),
     checks: keyed(current.checks, revised.checks, ['name', 'tier', 'taskKey', 'areaKey', 'spec']),
     areas: keyed(current.areas, revised.areas, ['name', 'slug', 'description']),
     understanding: current.understanding.trim() !== revised.understanding.trim() ? { before: current.understanding, after: revised.understanding } : null,

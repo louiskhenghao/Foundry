@@ -4,6 +4,7 @@ import type { GoalDetail } from '../../api.ts';
 import { AttachmentInput } from '../../components/Attachments.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { WorkspaceCard } from './WorkspaceCard.tsx';
+import { PreviewCard } from './PreviewCard.tsx';
 import { Badge, Card, cn } from '../../ui.tsx';
 import { EscalationCard } from '../InboxPage.tsx';
 
@@ -89,6 +90,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
         <div className="lg:col-span-2 space-y-4">
           <MarkdownPanel title="goal" source={g.prompt} maxHeight={240} />
           <WorkspaceCard d={d} />
+          {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <PreviewCard goalId={g.id} selfCheck={g.selfCheck} />}
           {d.events.some((e) => e.type === 'goal.models_changed') && (
             <Card title="Model fallback">
               <div className="text-xs text-zinc-400 space-y-1">

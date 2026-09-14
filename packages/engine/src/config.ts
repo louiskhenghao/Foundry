@@ -23,6 +23,10 @@ export interface EngineConfig {
   settingSources?: string[];
   /** progress-folder root (Settings → engine.workspacesRoot); null = next to each repository */
   workspacesRoot: string | null;
+  /** ports handed to goal previews (inclusive) and how long an unvisited preview lives */
+  preview: { portFrom: number; portTo: number; idleMinutes: number };
+  /** default for new goals: run the headless self-check on the preview after each integration */
+  selfCheck: boolean;
   models: { strong: string; cheap: string; worker: string };
   /** tried in order when a session's model turns out to be unavailable (deprecated alias, retired id) */
   modelFallbacks: string[];
@@ -89,6 +93,8 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     host: process.env.FOUNDRY_HOST ?? '127.0.0.1',
     maxConcurrent: Number(process.env.FOUNDRY_MAX_CONCURRENT ?? 3),
     workspacesRoot: process.env.FOUNDRY_WORKSPACES_ROOT ?? null,
+    preview: { portFrom: Number(process.env.FOUNDRY_PREVIEW_PORT_FROM ?? 4200), portTo: Number(process.env.FOUNDRY_PREVIEW_PORT_TO ?? 4299), idleMinutes: Number(process.env.FOUNDRY_PREVIEW_IDLE_MIN ?? 60) },
+    selfCheck: process.env.FOUNDRY_SELF_CHECK === '1' || process.env.FOUNDRY_SELF_CHECK === 'true',
     models: { strong: process.env.FOUNDRY_MODEL_STRONG ?? 'opus', cheap: process.env.FOUNDRY_MODEL_CHEAP ?? 'haiku', worker: process.env.FOUNDRY_MODEL_WORKER ?? 'opus' },
     modelFallbacks: (process.env.FOUNDRY_MODEL_FALLBACKS ?? 'opus,sonnet,haiku').split(',').map((s) => s.trim()).filter(Boolean),
     attemptTimeoutMs: 20 * 60_000,

@@ -54,6 +54,8 @@ import type { RunResult } from '@foundry/runner';
 import type { StreamEvent, StreamListener } from './types.ts';
 import { defaultWorkspaceDir, deliveryWorkspacePath, dropTaskWorkspace, ensureGoalWorkspace, goalWorkspacePath, internalWorkspaceDir, listStackBranches } from './workspace.ts';
 import { relocateLegacyWorkspaces } from './workspace-migrate.ts';
+import { PreviewManager } from './preview/manager.ts';
+import { ensureSelfCheck, playwrightStatus, runSelfCheck } from './checks/selfcheck.ts';
 import { attachmentDir, claimStaged, conversionTmpPath, markdownFileName, sweepStaging, trashAttachment } from './attachments.ts';
 import { Markitdown } from './convert/markitdown.ts';
 import { SettingsStore, applySettingsToConfig } from './settings.ts';
@@ -78,6 +80,8 @@ export interface CreateGoalInput {
   /** Preset the budgets were derived from (default custom). `auto` = Brief proposes the budget. */
   budgetPreset?: BudgetPreset;
   models?: Partial<ModelConfig>;
+  /** run the headless self-check on the preview after each integration; default = Settings → checks.selfCheck */
+  selfCheck?: boolean;
   /** Skip Clarify: one task = the prompt, with these command checks. */
   autoBrief?: { mustChecks: string[]; stretchChecks?: string[] };
   /** Skip Clarify with a fully specified brief (tasks + checks). Approved immediately. */
@@ -138,6 +142,8 @@ export class Engine {
   readonly notifications: NotificationDispatcher;
   /** version self-knowledge, the daily update check, and the self-update pipeline (ADR-0010) */
   readonly updater: UpdateManager;
+  /** dev servers started in progress folders (Goal page, milestones, integrations) */
+  readonly preview: PreviewManager;
   /** self-update drain: no new sessions start; in-flight work finishes (mirror of the rate-limit gate) */
   private updateDraining = false;
   /** what this machine has learned about model names (requested → resolved id, last ok/fail) */
@@ -213,6 +219,7 @@ export class Engine {
     this.notifications = new NotificationDispatcher(this);
     this.notifications.attach();
     this.updater = new UpdateManager(this);
+    this.preview = new PreviewManager(this);
   }
 
   // ---------- self-update drain ----------
@@ -300,6 +307,20 @@ export class Engine {
     }
   }
 
+  /** switch a goal's headless self-check; turning it on creates its goal-level must check right away */
+  setSelfCheck(goalId: string, on: boolean): void {
+    const goal = this.mustGoal(goalId);
+    if (goal.selfCheck === on) return;
+    this.store.append({ type: 'goal.selfcheck_set', goalId, payload: { on } });
+    if (on) ensureSelfCheck(this, getGoal(this.store.db, goalId)!);
+  }
+
+  /** after a task landed on the goal branch: the self-check looks at the preview when the goal asked for one */
+  async afterIntegration(goal: Goal, task: Task): Promise<void> {
+    if (!goal.selfCheck) return;
+    await runSelfCheck(this, goal, { taskId: task.id }).catch((err) => this.config.log(`[selfcheck] ${goal.id}: ${String((err as Error).message ?? err)}`));
+  }
+
   // ---------- base branch sync ----------
 
   /**
@@ -352,7 +373,7 @@ export class Engine {
     const ref = `${s.remote}/${s.base}`;
     if ((await git(['merge-base', '--is-ancestor', ref, 'HEAD'], ws)).code === 0) return;
     const now = new Date().toISOString();
-    const task: Task = { id: newId(IdPrefix.task), goalId: goal.id, title: `sync ${goal.branch} with ${ref}`, spec: `${ref} moved while this goal was running. Merge it into ${goal.branch} so the remaining tasks build on the current base.`, kind: 'chore', scope: 'sync', scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: false, retryBudget: 2, origin: 'merge', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now };
+    const task: Task = { id: newId(IdPrefix.task), goalId: goal.id, title: `sync ${goal.branch} with ${ref}`, spec: `${ref} moved while this goal was running. Merge it into ${goal.branch} so the remaining tasks build on the current base.`, kind: 'chore', scope: 'sync', scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: false, retryBudget: 2, origin: 'merge', milestone: null, milestoneVisits: 0, checkpointOf: null, state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now };
     this.store.append({ type: 'task.created', goalId: goal.id, payload: { task } });
     const ok = await mergeBranchInto(this, goal, task, { ref, label: ref, intent: `The base branch ${ref} received new commits while this goal was running. Keep their changes AND this goal's changes.` });
     const fresh = getTask(this.store.db, task.id)!;
@@ -424,6 +445,7 @@ export class Engine {
     } catch {}
     await this.reconcile();
     await relocateLegacyWorkspaces(this);
+    this.preview.startSweeper();
     for (const g of listGoals(this.store.db)) this.tick(g.id);
   }
 
@@ -437,6 +459,8 @@ export class Engine {
       clearTimeout(this.resumeTimer);
       this.resumeTimer = null;
     }
+    this.preview.stopSweeper();
+    await this.preview.stopAll('engine shutdown');
     for (const [, f] of this.inFlight) f.handle?.kill('killed_manual');
     // reviews, clarify, merges and probes are not in `inFlight`: kill every child the runner still owns
     const n = (this.runner as { killAll?: () => number }).killAll?.() ?? 0;
@@ -760,6 +784,8 @@ export class Engine {
       case 'draft':
         this.store.append({ type: 'goal.state_changed', goalId, payload: { from: 'draft', to: 'clarifying', reason: 'start clarify' } });
         return;
+      case 'awaiting_feedback':
+        return; // the human continues or gives feedback (escalation answer); nothing to schedule
       case 'clarifying':
         if (!this.clarifying.has(goalId)) void runClarify(this, goal);
         return;
@@ -830,6 +856,8 @@ export class Engine {
       repoPath: input.repoPath,
       // the progress folder: next to the repository (or under Settings → workspaces root), named after the title
       workspaceDir: defaultWorkspaceDir(this.config.workspacesRoot, { id, title, repoPath: input.repoPath }),
+      checkpoint: null,
+      selfCheck: input.selfCheck ?? this.config.selfCheck,
       baseBranch,
       branch: `goal/${id}`,
       budgets: Budgets.parse({ ...BUDGET_PRESETS[input.budgetPreset ?? 'custom'].budgets, ...(input.budgets ?? {}) }),
@@ -962,7 +990,27 @@ export class Engine {
    * One-click install of a catalog `cli` entry (e.g. graphify): runs its documented install command through
    * `sh -lc`, streaming output. Only entries from the catalog can be run — never arbitrary commands.
    */
+  /** Playwright's Chromium for the self-check: the package ships with Foundry, the browser is downloaded on demand */
+  async installPlaywright(onLine: (l: string) => void): Promise<{ ok: boolean; command: string[]; exitCode: number | null }> {
+    const command = ['bunx', 'playwright', 'install', 'chromium'];
+    onLine(`$ ${command.join(' ')}`);
+    const t0 = Date.now();
+    const r = await spawnStreaming(command, this.config.rootDir, onLine, { timeoutMs: 15 * 60_000 });
+    const st = await playwrightStatus();
+    const ok = r.code === 0 && st.browser;
+    onLine(ok ? `■ ${st.detail}` : `■ failed (exit ${r.code}): ${st.detail}`);
+    this.store.append({ type: 'engine.note', goalId: null, payload: { level: ok ? 'info' : 'warn', message: `playwright install: \`${command.join(' ')}\` exited ${r.code} in ${Math.round((Date.now() - t0) / 1000)}s — ${st.detail}` } });
+    return { ok, command, exitCode: r.code };
+  }
+  playwrightStatus(): Promise<{ installed: boolean; browser: boolean; detail: string }> {
+    return playwrightStatus();
+  }
+
   async installTool(id: string, onLine: (l: string) => void): Promise<{ ok: boolean; command: string; exitCode: number | null }> {
+    if (id === 'playwright') {
+      const r = await this.installPlaywright(onLine);
+      return { ok: r.ok, command: r.command.join(' '), exitCode: r.exitCode };
+    }
     if (id === 'markitdown') {
       const r = await this.installMarkitdown(onLine);
       return { ok: r.ok, command: r.command.join(' '), exitCode: r.exitCode };
@@ -1080,6 +1128,9 @@ export class Engine {
         tdd: t.tdd === 'off' || ['docs', 'infra', 'research', 'image', 'video'].includes(t.scenario ?? 'general') ? 'off' : 'inherit',
         dependsOn: t.dependsOnKeys.map((k) => idByKey.get(k)!),
         relevantFiles: t.relevantFiles,
+        milestone: t.milestone ?? null,
+        milestoneVisits: 0,
+        checkpointOf: null,
         parallelizable: t.parallelizable,
         retryBudget: goal.budgets.attemptsPerTask,
         origin: 'brief',
@@ -1102,6 +1153,7 @@ export class Engine {
       const check: Check = { id: newId(IdPrefix.check), goalId, taskId: taskId ?? null, name: c.name, tier: c.tier, spec: c.spec };
       this.store.append({ type: 'check.created', goalId, payload: { check } });
     }
+    ensureSelfCheck(this, getGoal(this.store.db, goalId)!);
     this.store.append({ type: 'goal.state_changed', goalId, payload: { from: 'awaiting_brief_approval', to: 'running', reason: 'brief approved' } });
   }
 
@@ -1277,10 +1329,10 @@ function autoBrief(goal: Goal, must: string[], stretch: string[]): Brief {
     areas: [],
     assumptions: [],
     checks,
-    tasks: [{ key: 'T1', title: goal.title, spec: goal.prompt, kind: 'feature', scope: null, scenario: 'general', areaKey: null, tdd: 'inherit', dependsOnKeys: [], parallelizable: false, relevantFiles: [] }],
+    tasks: [{ key: 'T1', title: goal.title, spec: goal.prompt, kind: 'feature', scope: null, scenario: 'general', areaKey: null, tdd: 'inherit', dependsOnKeys: [], parallelizable: false, relevantFiles: [], milestone: null }],
     costEstimateUsd: 1,
     timeEstimateMin: 15,
     questions: [],
-    styleOptions: [],
+    run: null, styleOptions: [],
   };
 }

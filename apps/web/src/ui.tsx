@@ -105,6 +105,7 @@ const STATE_COLORS: Record<string, string> = {
   awaiting_brief_approval: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
   running: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
   goal_review: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
+  awaiting_feedback: 'bg-amber-400/25 text-amber-200 border-amber-400/50',
   blocked: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
   done: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
   over_delivered: 'bg-emerald-400/30 text-emerald-200 border-emerald-400/60',
@@ -186,6 +187,7 @@ const STATE_LABELS: Record<string, string> = {
   awaiting_brief_approval: 'approve brief',
   over_delivered: 'over-delivered',
   goal_review: 'reviewing',
+  awaiting_feedback: 'have a look',
 };
 export function Badge({ state, children, className }: { state: string; children?: ReactNode; className?: string }) {
   return <span className={cn('inline-flex items-center whitespace-nowrap rounded border px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide border-transparent', STATE_COLORS[state] ?? 'bg-zinc-800 text-zinc-300', className)} title={state.replace(/_/g, ' ')}>{children ?? STATE_LABELS[state] ?? state.replace(/_/g, ' ')}</span>;

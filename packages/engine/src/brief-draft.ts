@@ -124,7 +124,7 @@ export async function runDraft(engine: Engine, goal: Goal, req: DraftRequest): P
     const tasks: BriefTask[] = out.tasks.map((t) => {
       const key = nextKey('T');
       rename.set(t.key, key);
-      return { key, title: t.title, spec: t.spec, kind: t.kind, scope: t.scope ?? null, scenario: t.scenario, areaKey: area!.key, tdd: 'inherit', dependsOnKeys: [], parallelizable: t.parallelizable, relevantFiles: t.relevantFiles };
+      return { key, title: t.title, spec: t.spec, kind: t.kind, scope: t.scope ?? null, scenario: t.scenario, areaKey: area!.key, tdd: 'inherit', dependsOnKeys: [], parallelizable: t.parallelizable, relevantFiles: t.relevantFiles, milestone: null };
     });
     const known = new Set([...brief.tasks.map((t) => t.key), ...tasks.map((t) => t.key)]);
     out.tasks.forEach((t, i) => {
@@ -176,8 +176,9 @@ function toRevisedBrief(current: Brief, out: RevisionOutput): Omit<Brief, 'goalI
     checks: out.checks
       .filter((c) => !c.taskKey || taskKeys.has(c.taskKey))
       .map((c) => ({ key: c.key, name: c.name, tier: c.tier, taskKey: c.taskKey, areaKey: c.taskKey ? null : area(c.areaKey), spec: materializeCheck(c, c.taskKey) })),
-    tasks: out.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind ?? 'feature', scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys.filter((k) => taskKeys.has(k) && k !== t.key), parallelizable: t.parallelizable, relevantFiles: t.relevantFiles })),
+    tasks: out.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind ?? 'feature', scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys.filter((k) => taskKeys.has(k) && k !== t.key), parallelizable: t.parallelizable, relevantFiles: t.relevantFiles, milestone: t.milestone ?? null })),
     costEstimateUsd: out.costEstimateUsd,
+    run: out.run ?? current.run,
     timeEstimateMin: out.timeEstimateMin,
     questions: [...current.questions, ...out.newQuestions.map((q) => ({ id: newId('q'), text: q.text, answer: null, blocking: false, areaKey: area(q.areaKey), options: [], kind: 'text' as const, applied: false }))],
     styleOptions: current.styleOptions,

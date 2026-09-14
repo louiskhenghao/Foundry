@@ -2,6 +2,7 @@ import type { Escalation, EscalationAnswer, EscalationTrigger, Goal, Task } from
 import { ACTIONS_BY_TRIGGER, IdPrefix, getEscalation, getGoal, getTask, listEscalations, newId } from '@foundry/core';
 import type { Engine } from './engine.ts';
 import { exec } from './git/git.ts';
+import { applyFeedback, closeCheckpoint } from './checkpoint.ts';
 import { type FixSpec, createFixTasks, genericFixSpec } from './fix-tasks.ts';
 import { goalWorkspacePath } from './workspace.ts';
 
@@ -130,6 +131,16 @@ export async function answerEscalation(engine: Engine, id: string, answer: Escal
     }
     case 'deny':
       break;
+    case 'continue': {
+      closeCheckpoint(engine, goal, { action: 'continue', feedback: null, plan: null });
+      break;
+    }
+    case 'feedback': {
+      if (!answer.plan) throw new Error('feedback needs a confirmed plan: classify it first (POST /api/goals/:id/feedback/classify)');
+      const plan = applyFeedback(engine, goal, answer.feedback ?? '', answer.plan);
+      closeCheckpoint(engine, goal, { action: 'feedback', feedback: answer.feedback ?? '', plan });
+      break;
+    }
   }
 
   // unblock the goal if nothing else keeps it blocked

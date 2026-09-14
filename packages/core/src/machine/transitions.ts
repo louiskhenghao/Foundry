@@ -10,9 +10,10 @@ const GOAL: Record<GoalState, GoalState[]> = {
   draft: ['clarifying', 'cancelled'],
   clarifying: ['awaiting_brief_approval', 'blocked', 'failed', 'cancelled'],
   awaiting_brief_approval: ['running', 'clarifying', 'cancelled'],
-  running: ['goal_review', 'blocked', 'failed', 'cancelled', 'done'],
+  running: ['goal_review', 'blocked', 'failed', 'cancelled', 'done', 'awaiting_feedback'],
   goal_review: ['done', 'over_delivered', 'running', 'blocked', 'failed', 'cancelled'],
-  blocked: ['running', 'goal_review', 'clarifying', 'failed', 'cancelled'],
+  blocked: ['running', 'goal_review', 'clarifying', 'awaiting_feedback', 'failed', 'cancelled'],
+  awaiting_feedback: ['running', 'blocked', 'failed', 'cancelled'],
   // terminal goals can be restarted by the human (tasks are reset first)
   done: ['running'],
   over_delivered: ['running'],

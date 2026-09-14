@@ -88,6 +88,11 @@ export function baselineWorkspacePath(dataDir: string, goal: WorkspaceRef): stri
   const internal = internalWorkspaceDir(goal);
   return internal ? join(internal, 'baseline') : join(legacyWorkspaceRoot(dataDir, goal.id), '_baseline');
 }
+/** where the self-check's screenshots of a goal go (beside the progress folder; legacy goals under dataDir) */
+export function screenshotsDir(dataDir: string, goal: WorkspaceRef): string {
+  const internal = internalWorkspaceDir(goal);
+  return internal ? join(internal, 'screenshots') : join(dataDir, 'screenshots', goal.id);
+}
 export function taskWorkspacePath(dataDir: string, goal: WorkspaceRef, taskId: string): string {
   const internal = internalWorkspaceDir(goal);
   return internal ? join(internal, 'tasks', taskId) : join(legacyWorkspaceRoot(dataDir, goal.id), taskId);
