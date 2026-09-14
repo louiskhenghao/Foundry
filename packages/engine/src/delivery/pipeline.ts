@@ -45,6 +45,10 @@ interface Ctx {
   opts: DeliveryOptions;
   signal: AbortSignal;
   repo: string | null; // owner/name
+  /** whether the repository runs any CI (detected once per delivery); null = unknown, keep the grace period */
+  ci: boolean | null;
+  /** PRs already pointed at the base branch in this run: the retarget call is not repeated for them */
+  retargeted: Set<number>;
 }
 
 /** One branch of a stacked delivery. */
@@ -78,7 +82,7 @@ export async function runDelivery(engine: Engine, goalIn: Goal, signal: AbortSig
   const goal = getGoal(store.db, goalIn.id)!;
   const policy = goal.delivery.policy;
   if (policy.mode === 'local') return;
-  const ctx: Ctx = { engine, goal, policy, goalWs: goalWorkspacePath(config.dataDir, goal), deliveryWs: deliveryWorkspacePath(config.dataDir, goal), repoPath: goal.repoPath, base: baseOf(goal, policy), remote: policy.remote, gh: engine.gh, opts: config.delivery, signal, repo: null };
+  const ctx: Ctx = { engine, goal, policy, goalWs: goalWorkspacePath(config.dataDir, goal), deliveryWs: deliveryWorkspacePath(config.dataDir, goal), repoPath: goal.repoPath, base: baseOf(goal, policy), remote: policy.remote, gh: engine.gh, opts: config.delivery, signal, repo: null, ci: null, retargeted: new Set<number>() };
   const ev = <T extends Parameters<typeof store.append>[0]>(e: T) => store.append(e);
   const step: StepFn = async (s, fn) => {
     if (signal.aborted) throw new DeliveryCancelled('cancelled');
@@ -397,6 +401,7 @@ async function runStacked(ctx: Ctx, stack: StackBranch[], step: StepFn, done: (o
   /** point a stacked PR at the base branch; a PR GitHub closed (its base branch vanished) is reopened first */
   const retarget = async (step_: DeliveryStep, pr: { b: StackBranch; number: number; url: string }) => {
     const { number } = pr;
+    if (ctx.retargeted.has(number)) return; // cleanup of the PR below already pointed this one at the base
     let r = await ctx.gh.prEdit(ctx.goalWs, { repo, number, base: ctx.base });
     logCmd(ctx, step_, ['gh', 'pr', 'edit', String(number), '--base', ctx.base], ctx.goalWs, r, 0);
     if (r.code !== 0 && /closed/i.test(r.stderr + r.stdout)) {
@@ -409,6 +414,7 @@ async function runStacked(ctx: Ctx, stack: StackBranch[], step: StepFn, done: (o
       }
     }
     if (r.code !== 0) throw new DeliveryFailed(step_, `could not retarget PR #${number} to ${ctx.base}: ${(r.stderr || r.stdout).trim().slice(0, 200)}`);
+    ctx.retargeted.add(number);
     // same PR, new base: the read model keys PRs by head branch, so this just updates `base`
     if (pr.b.base !== ctx.base) ev({ type: 'delivery.pr_opened', goalId: goal.id, payload: { number, url: pr.url, base: ctx.base, head: pr.b.branch, taskId: pr.b.task.id, title: pr.b.title } });
   };
@@ -563,7 +569,7 @@ async function probe(ctx: Ctx) {
 }
 
 export async function probeForPlan(engine: Engine, goal: Goal, policy: DeliveryPolicy) {
-  const ctx: Ctx = { engine, goal, policy, goalWs: goalWorkspacePath(engine.config.dataDir, goal), deliveryWs: deliveryWorkspacePath(engine.config.dataDir, goal), repoPath: goal.repoPath, base: baseOf(goal, policy), remote: policy.remote, gh: engine.gh, opts: engine.config.delivery, signal: new AbortController().signal, repo: null };
+  const ctx: Ctx = { engine, goal, policy, goalWs: goalWorkspacePath(engine.config.dataDir, goal), deliveryWs: deliveryWorkspacePath(engine.config.dataDir, goal), repoPath: goal.repoPath, base: baseOf(goal, policy), remote: policy.remote, gh: engine.gh, opts: engine.config.delivery, signal: new AbortController().signal, repo: null, ci: null, retargeted: new Set<number>() };
   return probe(ctx);
 }
 
@@ -651,17 +657,24 @@ async function syncWithBase(ctx: Ctx, ref: string): Promise<boolean> {
 async function waitForChecks(ctx: Ctx, repo: string, number: number): Promise<PrView> {
   const start = Date.now();
   let last: 'pending' | 'passing' | 'failing' | 'none' | null = null;
+  // detected once per delivery: a repository with no workflows and no required checks never reports any, so waiting the
+  // grace period for every PR (90 s × N stacked PRs) was the single biggest cost of a delivery
+  if (ctx.ci === null && ctx.gh.hasCi) {
+    ctx.ci = await ctx.gh.hasCi(ctx.goalWs, { repo, base: ctx.base }).catch(() => null);
+    if (ctx.ci === false) ctx.engine.store.append({ type: 'delivery.note', goalId: ctx.goal.id, payload: { message: `${repo} runs no CI (no workflows, no required checks): PRs merge without waiting for checks` } });
+  }
   for (;;) {
     const v = await ctx.gh.prView(ctx.goalWs, { repo, number });
     let state = reduceChecks(v.checks);
-    if (state === 'none' && Date.now() - start < ctx.opts.noChecksGraceMs) state = 'pending';
+    if (state === 'none' && ctx.ci !== false && Date.now() - start < ctx.opts.noChecksGraceMs) state = 'pending';
     if (state !== last) {
       ctx.engine.store.append({ type: 'delivery.checks', goalId: ctx.goal.id, payload: { state, summary: v.checks.map((c) => `${c.name}: ${c.conclusion ?? c.status}`).join(', ') || 'no checks reported', prNumber: number } });
       last = state;
     }
     if (state !== 'pending' || v.mergedAt) return v;
     if (Date.now() - start > ctx.opts.checksTimeoutMs) throw new DeliveryFailed('wait-checks', `checks still pending after ${Math.round(ctx.opts.checksTimeoutMs / 60_000)} min; PR #${number} stays open`);
-    await sleep(ctx.opts.pollMs, ctx.signal);
+    // checks usually appear within a minute: poll fast at first, then settle to the configured interval
+    await sleep(Date.now() - start < 120_000 ? Math.min(ctx.opts.pollMs, 10_000) : ctx.opts.pollMs, ctx.signal);
   }
 }
 

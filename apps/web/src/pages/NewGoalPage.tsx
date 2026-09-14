@@ -24,9 +24,9 @@ const NATURES: { id: Nature; label: string; text: string }[] = [
 ];
 function loadDraft(): PolicyDraft {
   try {
-    return { mode: 'local', unit: 'task', ...JSON.parse(localStorage.getItem(DELIVERY_KEY) ?? '{}') };
+    return { mode: 'local', unit: 'goal', ...JSON.parse(localStorage.getItem(DELIVERY_KEY) ?? '{}') };
   } catch {
-    return { mode: 'local', unit: 'task' };
+    return { mode: 'local', unit: 'goal' };
   }
 }
 function loadBudget(): BudgetDraft {
@@ -54,6 +54,7 @@ export function NewGoalPage() {
   const [nature, setNature] = useState<Nature>(() => ((localStorage.getItem(NATURE_KEY) as Nature | null) ?? 'auto'));
   const [outputDir, setOutputDir] = useState('');
   const [interview, setInterview] = useState(false);
+  const [effort, setEffort] = useState('');
   useEffect(() => localStorage.setItem(NATURE_KEY, nature), [nature]);
   const [mode, setMode] = useState<'simple' | 'expert'>(() => ((localStorage.getItem('foundry.mode') as 'simple' | 'expert' | null) ?? 'expert'));
   const [tdd, setTdd] = useState<'required' | 'preferred' | 'off'>(() => ((localStorage.getItem('foundry.tdd') as 'required' | 'preferred' | 'off' | null) ?? 'required'));
@@ -112,6 +113,7 @@ export function NewGoalPage() {
         nature,
         outputDir: (nature === 'image' || nature === 'video') && outputDir.trim() ? outputDir.trim() : undefined,
         interview: interview ? 'always' : undefined,
+        effort: effort ? (effort as 'low' | 'medium' | 'high' | 'xhigh' | 'max') : undefined,
       });
       try {
         localStorage.setItem(DELIVERY_KEY, JSON.stringify({ mode: delivery.mode, remote: delivery.remote, mergeMethod: delivery.mergeMethod, requireChecks: delivery.requireChecks, autoResolveConflicts: delivery.autoResolveConflicts, fixCiCycles: delivery.fixCiCycles, deleteRemoteBranch: delivery.deleteRemoteBranch }));
@@ -208,6 +210,19 @@ export function NewGoalPage() {
             <span className="text-[11px] text-zinc-400 block leading-snug">The Clarifier asks at least one round of questions (options with its recommendation first) before writing the Brief. Unchecked: it asks only when the repository cannot settle something, and skips straight to the Brief for small goals.</span>
           </span>
         </label>
+        <div className="mt-3 flex items-center gap-3 flex-wrap">
+          <span className="text-xs text-zinc-300">Effort</span>
+          <span className="w-56">
+            <Select value={effort} onChange={(e) => setEffort(e.target.value)} title="Claude Code's effort level for every session of this goal — lower is faster and cheaper, xhigh / max for hard cross-cutting work; empty = the Settings default">
+              <option value="">Settings default</option>
+              <option value="low">low — fast, cheap</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+              <option value="xhigh">xhigh</option>
+              <option value="max">max — hardest problems</option>
+            </Select>
+          </span>
+        </div>
         {mode === 'expert' && (
           <div className="mt-3 flex items-center gap-3 flex-wrap">
             <span className="text-xs text-zinc-300">Engineering discipline — TDD</span>

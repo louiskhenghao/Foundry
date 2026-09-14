@@ -51,6 +51,8 @@ export const WorkflowSettings = z.object({
   defaultPace: z.enum(['thorough', 'fast']).default('thorough'),
   /** whether Clarify interviews the human in rounds before writing the Brief: auto = when something is worth asking; always = at least one round; never = the one-shot Brief */
   interview: z.enum(['auto', 'always', 'never']).default('auto'),
+  /** effort level new goals hand to every session (`claude --effort`); null = the CLI default */
+  effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).nullable().default(null),
   /** which image-generation skill set media workers follow (scenario `image`) */
   imagePack: ImagePack.default('gpt-image-2'),
   /** which video skill set media workers follow (scenario `video`) */
@@ -63,10 +65,15 @@ export const WorkflowSettings = z.object({
 export const ReviewSettings = z.object({
   alwaysReviewTasks: z.boolean().default(true),
   maxFixCycles: z.number().int().min(0).max(5).default(1),
+  /** which model tier reviews the whole goal diff; strong is the most careful and the slowest */
+  goalReviewer: z.enum(['strong', 'worker', 'cheap']).default('strong'),
+  /** a goal whose diff is this many lines or fewer is reviewed by the cheap tier without review skills (sub-agents) */
+  smallGoalLines: z.number().int().min(0).max(5000).default(400),
 });
 export const DeliverySettings = z.object({
   defaultMode: DeliveryMode.default('local'),
-  defaultUnit: DeliveryUnit.default('task'),
+  /** one PR per goal by default; per-task stacked PRs are opt-in (each PR is a full push / wait / merge cycle) */
+  defaultUnit: DeliveryUnit.default('goal'),
   defaultRemote: z.string().min(1).default('origin'),
   pollSec: z.number().int().min(5).max(600).default(30),
   noChecksGraceSec: z.number().int().min(0).max(3600).default(90),

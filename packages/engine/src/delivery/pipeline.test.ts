@@ -205,7 +205,7 @@ describe('delivery pipeline', () => {
     expect(d.outcome).toBe('merged');
     expect(d.prs.map((p) => p.state)).toEqual(['merged', 'merged']);
     const order = gh.calls.filter((x) => x[0] === 'prMerge' || x[0] === 'prEdit').map((x) => x.slice(0, 3).join(' '));
-    expect(order).toEqual(['prEdit 1 main', 'prMerge 1 squash', 'prEdit 2 main', 'prEdit 2 main', 'prMerge 2 squash']); // every PR is retargeted before its merge; #2 also right after #1 merged, before #1's branch is deleted
+    expect(order).toEqual(['prEdit 1 main', 'prMerge 1 squash', 'prEdit 2 main', 'prMerge 2 squash']); // every PR is retargeted before its merge; #2 right after #1 merged (before #1's branch is deleted) and not again at its own sync-base
     expect(await sh('git cat-file -e main:"add first.txt" && git cat-file -e main:"fix second.txt" && echo yes', bare)).toBe('yes');
     const remoteBranches = (await sh("git branch --format='%(refname:short)'", bare)).split('\n');
     expect(remoteBranches.some((b) => b.startsWith(goal.branch))).toBe(false);
@@ -228,7 +228,7 @@ describe('delivery pipeline', () => {
     expect(d.prs.map((p) => p.state)).toEqual(['merged', 'merged']);
     const calls = gh.calls.filter((x) => ['prMerge', 'prEdit', 'prReopen'].includes(x[0]!)).map((x) => x.slice(0, 3).join(' '));
     // merge #1 → (fake closes #2) → retarget attempt fails → reopen → retarget → merge #2
-    expect(calls).toEqual(['prEdit 1 main', 'prMerge 1 squash', 'prEdit 2 main', 'prReopen 2', 'prEdit 2 main', 'prEdit 2 main', 'prMerge 2 squash']);
+    expect(calls).toEqual(['prEdit 1 main', 'prMerge 1 squash', 'prEdit 2 main', 'prReopen 2', 'prEdit 2 main', 'prMerge 2 squash']);
     const notes = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'delivery.note').map((e) => (e.payload as any).message as string);
     expect(notes.some((n) => n.includes('reopened PR #2'))).toBe(true);
     // the retarget of #2 happened inside the cleanup step of #1, i.e. before `git push --delete` of branch 1
@@ -326,4 +326,22 @@ describe('delivery pipeline', () => {
     engine2.store.replay();
     expect(engine2.store.snapshotReadModels()).toEqual(before);
   });
+
+  test('a repository without CI skips the no-checks grace period; a PR retargeted at cleanup is not retargeted again', async () => {
+    const gh = new FakeGh(bare);
+    (gh as unknown as { hasCi: () => Promise<boolean> }).hasCi = async () => false;
+    const engine = new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, log: () => {}, delivery: { pollMs: 200, noChecksGraceMs: 60_000, checksTimeoutMs: 60_000, automergeWaitMs: 1000 } }), titleWorker(), gh);
+    const t0 = Date.now();
+    const goal = await engine.createGoal({ prompt: 'fast', repoPath: repo, brief: twoTasks(), delivery: { mode: 'pr-automerge', unit: 'task' } });
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 40_000);
+    expect(deliveredStatus(engine, goal.id).status).toBe('delivered');
+    // two stacked PRs merged in well under one grace period — the wait was skipped
+    expect(Date.now() - t0).toBeLessThan(60_000);
+    const notes = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'delivery.note').map((e) => (e.payload as { message: string }).message);
+    expect(notes.some((m) => m.includes('runs no CI'))).toBe(true);
+    // the second PR was retargeted once (at the first PR's cleanup), not again at its own sync-base
+    const edits = gh.calls.filter((x) => x[0] === 'prEdit');
+    expect(edits.length).toBeLessThanOrEqual(2);
+    await engine.stop();
+  }, 60_000);
 });
