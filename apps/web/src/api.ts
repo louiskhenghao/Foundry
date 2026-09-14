@@ -1,4 +1,21 @@
+import type { FeedbackPlan } from '@foundry/core/browser';
 import type { Attachment, Attempt, Brief, BriefCheck, BriefDiff, BriefTask, Budgets, Check, CheckResult, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, SettingsPatch, SettingsView, Task, TaskUsage } from '@foundry/core/browser';
+
+/** Mirrors the engine's PreviewStatus (preview/manager.ts). */
+export interface PreviewStatus {
+  running: boolean;
+  ready: boolean;
+  port: number | null;
+  url: string | null;
+  command: string | null;
+  startedAt: string | null;
+  startedBy: 'human' | 'milestone' | 'integration' | null;
+  lastVisitAt: string | null;
+  log: string[];
+  run: { install: string | null; command: string | null; url: string | null; platform: 'web' | 'expo' | 'none' } | null;
+  source: 'brief' | 'detected' | null;
+  error: string | null;
+}
 
 /** Manual merge resolution (mirrors engine's merge-resolve.ts). */
 export interface ResolveFile {
@@ -285,6 +302,18 @@ export const api = {
   cancelGoal: (id: string) => req<{ ok: true }>(`/api/goals/${id}/cancel`, { method: 'POST' }),
   styleSample: (id: string, styleKey: string) => req<{ started: true; channel: string; file: string }>(`/api/goals/${id}/brief/style-sample`, { method: 'POST', body: JSON.stringify({ styleKey }) }),
   styleSampleUrl: (id: string, file: string) => `/api/goals/${id}/brief/style-sample/${encodeURIComponent(file.split('/').pop()!)}`,
+  preview: (id: string) => req<PreviewStatus>(`/api/goals/${id}/preview`),
+  previewStart: (id: string) => req<PreviewStatus>(`/api/goals/${id}/preview/start`, { method: 'POST' }),
+  previewStop: (id: string) => req<{ ok: true }>(`/api/goals/${id}/preview/stop`, { method: 'POST' }),
+  previewVisit: (id: string) => req<{ ok: true }>(`/api/goals/${id}/preview/visit`, { method: 'POST' }),
+  setSelfCheck: (id: string, on: boolean) => req<{ ok: true }>(`/api/goals/${id}/selfcheck`, { method: 'POST', body: JSON.stringify({ on }) }),
+  feedbackClassify: (id: string, text: string) => req<{ plan: FeedbackPlan }>(`/api/goals/${id}/feedback/classify`, { method: 'POST', body: JSON.stringify({ text }) }),
+  screenshots: (id: string) => req<{ screenshots: { at: string; taskId: string | null; status: string; url: string | null; screenshot: string | null; errors: string[]; summary: string }[] }>(`/api/goals/${id}/screenshots`),
+  screenshotUrl: (id: string, file: string) => `/api/goals/${id}/screenshots/${encodeURIComponent(file)}`,
+  artifacts: (id: string) => req<{ files: string[] }>(`/api/goals/${id}/artifacts`),
+  artifactUrl: (id: string, path: string) => `/api/goals/${id}/artifacts/${path.split('/').map(encodeURIComponent).join('/')}`,
+  playwright: () => req<{ installed: boolean; browser: boolean; detail: string }>('/api/tools/playwright'),
+  installPlaywright: () => req<{ started: true; channel: string; id: string }>('/api/tools/playwright/install', { method: 'POST' }),
   reclarify: (id: string, reason?: string) => req<{ ok: true }>(`/api/goals/${id}/reclarify`, { method: 'POST', body: JSON.stringify({ reason }) }),
   streamHistory: (id: string) => req<{ events: any[] }>(`/api/stream/${encodeURIComponent(id)}/history`),
   workspace: (id: string) => req<{ path: string; exists: boolean; branch: string; head: string | null; packageManager: string | null; install: string | null; scripts: { name: string; command: string }[]; baseSync: Goal['baseSync']; upstream: BaseSync | null; tasks: { id: string; title: string; path: string; branch: string | null }[] }>(`/api/goals/${id}/workspace`),

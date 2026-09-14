@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Brief, EscalationAnswer, getAttempt, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, detectTelegramChatId, type Engine, type OpenTargetId } from '@foundry/engine';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, PreviewError, classifyFeedback, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, detectTelegramChatId, type Engine, type OpenTargetId } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -46,6 +46,7 @@ const CreateGoalBody = z.object({
   workflow: GoalWorkflow.partial().optional(),
   nature: GoalNature.optional(),
   outputDir: z.string().nullable().optional(),
+  selfCheck: z.boolean().optional(),
 });
 
 export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
@@ -192,6 +193,76 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json({ started: true, channel: 'tool-install', id }, 202);
   };
   app.post('/api/tools/markitdown/install', (c) => toolInstall(c, 'markitdown'));
+
+  // ---- preview: the goal's run command in its progress folder (Goal page, milestones, integrations) ----
+  const goalOr404 = (c: any) => {
+    const goal = getGoal(db, c.req.param('id'));
+    if (!goal) throw new HttpError(404, { error: 'goal not found' });
+    return goal;
+  };
+  app.get('/api/goals/:id/preview', (c) => c.json(engine.preview.status(goalOr404(c).id)));
+  app.post('/api/goals/:id/preview/start', async (c) => {
+    const goal = goalOr404(c);
+    try {
+      return c.json(await engine.preview.start(goal, 'human'));
+    } catch (e) {
+      if (e instanceof PreviewError) throw new HttpError(e.status, { error: e.message });
+      throw e;
+    }
+  });
+  app.post('/api/goals/:id/preview/stop', async (c) => {
+    await engine.preview.stop(goalOr404(c).id, 'human');
+    return c.json({ ok: true });
+  });
+  app.post('/api/goals/:id/preview/visit', (c) => {
+    engine.preview.touch(goalOr404(c).id);
+    return c.json({ ok: true });
+  });
+  app.post('/api/goals/:id/selfcheck', async (c) => {
+    const { on } = z.object({ on: z.boolean() }).parse(await c.req.json());
+    engine.setSelfCheck(goalOr404(c).id, on);
+    return c.json({ ok: true });
+  });
+  // ---- milestone feedback: triage what the person wrote into a plan they confirm (the answer carries the plan) ----
+  app.post('/api/goals/:id/feedback/classify', async (c) => {
+    const goal = goalOr404(c);
+    const { text } = z.object({ text: z.string().min(1) }).parse(await c.req.json());
+    try {
+      return c.json({ plan: await classifyFeedback(engine, goal, text) });
+    } catch (e) {
+      throw new HttpError(409, { error: String((e as Error).message ?? e) });
+    }
+  });
+  // ---- what the self-check saw, and the goal's artifacts ----
+  app.get('/api/goals/:id/screenshots', (c) => {
+    const goal = goalOr404(c);
+    const shots = engine.store
+      .listByGoal(goal.id, 5000)
+      .filter((e) => e.type === 'selfcheck.finished')
+      .map((e) => ({ at: e.ts, ...(e.payload as { taskId: string | null; status: string; url: string | null; screenshot: string | null; errors: string[]; summary: string }) }))
+      .reverse()
+      .slice(0, 20);
+    return c.json({ screenshots: shots });
+  });
+  app.get('/api/goals/:id/screenshots/:file', (c) => {
+    const goal = goalOr404(c);
+    const file = c.req.param('file');
+    if (!/^[\w.-]+\.png$/.test(file)) throw new HttpError(400, { error: 'bad screenshot name' });
+    const p = join(screenshotsDir(engine.config.dataDir, goal), file);
+    if (!existsSync(p)) throw new HttpError(404, { error: 'screenshot not found' });
+    return new Response(Bun.file(p), { headers: { 'content-type': 'image/png', 'cache-control': 'private, max-age=3600' } });
+  });
+  app.get('/api/goals/:id/artifacts', (c) => c.json({ files: listArtifacts(goalWorkspacePath(engine.config.dataDir, goalOr404(c))) }));
+  app.get('/api/goals/:id/artifacts/*', (c) => {
+    const goal = goalOr404(c);
+    const rel = decodeURIComponent(c.req.path.slice(c.req.path.indexOf('/artifacts/') + '/artifacts/'.length));
+    if (!rel || rel.split('/').some((seg) => seg === '..' || seg === '' || seg.startsWith('.git'))) throw new HttpError(400, { error: 'bad artifact path' });
+    const p = join(goalWorkspacePath(engine.config.dataDir, goal), 'artifacts', rel);
+    if (!existsSync(p)) throw new HttpError(404, { error: 'artifact not found' });
+    return new Response(Bun.file(p), { headers: { 'cache-control': 'private, max-age=60' } });
+  });
+  app.get('/api/tools/playwright', async (c) => c.json(await engine.playwrightStatus()));
+  app.post('/api/tools/playwright/install', (c) => toolInstall(c, 'playwright'));
   app.post('/api/tools/install', async (c) => toolInstall(c, z.object({ id: z.string().min(1) }).parse(await c.req.json()).id));
   app.delete('/api/goals/:id/attachments/:attId', (c) => {
     engine.removeAttachment(c.req.param('id'), c.req.param('attId'));

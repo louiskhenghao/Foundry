@@ -145,6 +145,9 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
             </Button>
           )}
         </div>
+        {task.milestone != null && (
+          <Input className="text-xs mt-1" disabled={!editable} placeholder="what to open, try and judge when this lands — e.g. open the game, play one round, try the revive button" value={task.milestone} onChange={(e) => change({ milestone: e.target.value })} />
+        )}
 
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <Menu
@@ -180,6 +183,9 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
           </Menu>
           <label className="text-zinc-400 flex items-center gap-1 whitespace-nowrap" title="May run at the same time as other ready tasks (in its own worktree)">
             <input type="checkbox" disabled={!editable} checked={task.parallelizable} onChange={(e) => change({ parallelizable: e.target.checked })} /> parallel
+          </label>
+          <label className="text-zinc-400 flex items-center gap-1 whitespace-nowrap" title="The goal pauses after this task lands so you can look at the result (preview, screenshots) and give feedback before the rest runs">
+            <input type="checkbox" disabled={!editable} checked={task.milestone != null} onChange={(e) => change({ milestone: e.target.checked ? (task.milestone ?? '') : null })} /> milestone
           </label>
           {next.length > 0 && (
             <span className="flex items-center gap-1.5 flex-wrap">

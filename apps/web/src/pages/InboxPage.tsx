@@ -15,6 +15,7 @@ const TRIGGER_LABEL: Record<string, string> = {
   boundary_action: 'Wants to leave the workspace',
   budget_exceeded: 'Budget exceeded',
   permission_denial: 'Tool denied',
+  milestone: 'Have a look',
 };
 /** one plain sentence per trigger, for people who do not want to read the details */
 const PLAIN: Record<string, string> = {
@@ -23,6 +24,7 @@ const PLAIN: Record<string, string> = {
   boundary_action: 'It wants to do something outside the workspace (push, deploy…) and needs your OK.',
   budget_exceeded: 'It reached the money or time limit you set.',
   permission_denial: 'Claude refused one of the tools it needed.',
+  milestone: 'A milestone landed. Look at the result, then continue or say what to change.',
 };
 const ACTION_LABEL: Record<EscalationAction, string> = {
   retry_with_hint: 'Retry with hint',
@@ -32,6 +34,8 @@ const ACTION_LABEL: Record<EscalationAction, string> = {
   deny: 'Deny',
   raise_budget: 'Raise budget',
   resolve_manually: 'Resolve manually',
+  continue: 'Continue',
+  feedback: 'Give feedback',
 };
 
 export function InboxPage() {
@@ -178,7 +182,14 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
               </Button>
             </Link>
           )}
-          {actions.filter((a) => a !== 'resolve_manually').map((a) => (
+          {e.trigger === 'milestone' && (
+            <Link to={`/goals/${e.goalId}`}>
+              <Button size="sm" variant="primary" title="The goal page shows the preview, screenshots and artifacts, and takes your feedback">
+                Look &amp; give feedback →
+              </Button>
+            </Link>
+          )}
+          {actions.filter((a) => a !== 'resolve_manually' && a !== 'feedback').map((a) => (
             <Button key={a} size="sm" disabled={busy} variant={a === 'abort_goal' || a === 'deny' ? 'danger' : a === 'retry_with_hint' || a === 'approve' || a === 'raise_budget' ? 'primary' : 'default'} onClick={() => answer(a)} title={!e.taskId && a === 'skip_task' ? 'Finish the goal with what is there; the failing checks are waived (no more review runs)' : !e.taskId && a === 'retry_with_hint' ? "Turn the reviewer's findings into fix tasks (your hint rides along), run them, then review again" : undefined}>
               {a === 'skip_task' && !e.taskId ? 'Accept as-is (finish goal)' : ACTION_LABEL[a]}
             </Button>
