@@ -26,6 +26,7 @@ afterEach(async () => {
   for (const e of engines.splice(0)) await e.stop().catch(() => {});
   rmSync(dataDir, { recursive: true, force: true });
   rmSync(repo, { recursive: true, force: true });
+  rmSync(`${repo}-foundry`, { recursive: true, force: true }); // the progress folders of goals created here
 });
 
 /**
@@ -175,7 +176,7 @@ describe('nature pre-classification', () => {
     await waitFor(() => getBrief(engine.store.db, goal.id)!.brief.styleOptions[0]!.samples.length === 2);
     const opt = getBrief(engine.store.db, goal.id)!.brief.styleOptions[0]!;
     expect(opt.samples).toEqual(['artifacts/samples/S1-1.png', 'artifacts/samples/S1-2.png']);
-    const ws = goalWorkspacePath(dataDir, goal.id);
+    const ws = goalWorkspacePath(dataDir, goal);
     const { existsSync } = await import('node:fs');
     for (const f of opt.samples) expect(existsSync(join(ws, f))).toBe(true);
     // artifacts stay out of git even at Brief time

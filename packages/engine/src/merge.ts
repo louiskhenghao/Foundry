@@ -48,7 +48,7 @@ export function integrateTask(engine: Engine, goal: Goal, task: Task): Promise<b
 
 async function integrateTaskUnlocked(engine: Engine, goal: Goal, task: Task): Promise<boolean> {
   const { store } = engine;
-  const goalWs = goalWorkspacePath(engine.config.dataDir, goal.id);
+  const goalWs = goalWorkspacePath(engine.config.dataDir, goal);
   const message = taskCommitMessage(goal, task);
   let ref: string | null = null;
 
@@ -90,7 +90,7 @@ async function integrateTaskUnlocked(engine: Engine, goal: Goal, task: Task): Pr
  */
 export async function mergeBranchInto(engine: Engine, goal: Goal, task: Task, src: MergeSource, opts: { autoResolve?: boolean; cwd?: string; into?: string; escalate?: boolean } = {}): Promise<boolean> {
   const { store } = engine;
-  const goalWs = opts.cwd ?? goalWorkspacePath(engine.config.dataDir, goal.id);
+  const goalWs = opts.cwd ?? goalWorkspacePath(engine.config.dataDir, goal);
   const into = opts.into ?? goal.branch;
   const autoResolve = opts.autoResolve ?? true;
   const message = `${ccHeader({ type: 'chore', scope: 'sync', subject: `merge ${src.label} into ${into}` })}\n\nGoal: ${goal.id}`;
@@ -190,7 +190,7 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
   // what the receiving side did since the two diverged: the merger must keep that too
   const mb = await git(['merge-base', 'HEAD', src.ref], cwd);
   const ours = mb.code === 0 ? (await git(['log', '--no-merges', '--format=%s', `${mb.stdout.trim()}..HEAD`], cwd)).stdout.split('\n').filter(Boolean) : [];
-  const target = op.cwd === goalWorkspacePath(config.dataDir, goal.id) ? goal.branch : task.branch ?? goal.branch;
+  const target = op.cwd === goalWorkspacePath(config.dataDir, goal) ? goal.branch : task.branch ?? goal.branch;
   const prompt = resume
     ? `The conflict was re-created from scratch in this worktree. Your previous resolution did not land: ${resume.reason}.\nResolve it again — you already know these files — and this time make sure the must checks pass before you stop. Edit the files, \`git add\` them, do not commit.`
     : [

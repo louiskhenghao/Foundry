@@ -170,7 +170,8 @@ docker exec -it foundry gh auth login
 | container 内的路径 | 是什么 | 要保留吗？ |
 |---|---|---|
 | `/app/data/engine.db` | SQLite：goals、tasks、attempts、events（自动创建、自动迁移——无需配置） | **要** |
-| `/app/data/worktrees` | 每个 goal/task 一个 git worktree；承载实际工作的分支 | 直到 goal 交付为止 |
+| `/repos/<repo>-foundry/`（bind mount） | 进度文件夹：每个 goal 一个 git worktree，引擎的任务 worktree 在 `.foundry/` 下 | 直到 goal 被删除 |
+| `/app/data/worktrees` | 进度文件夹功能之前创建的 goal 的 worktree | 直到 goal 交付为止 |
 | `/app/data/settings.json` | 你在 Settings 页面上改过的一切 | **要** |
 | `/app/data/models.json` | 在这台机器上解析出的模型名（学习得来） | 可选 |
 | `/app/data/transcripts`, `check-output`, `attachments` | 会话日志、check 输出、你上传的文件 | 可选 |

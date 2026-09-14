@@ -54,7 +54,7 @@ export function startStyleSample(engine: Engine, goalId: string, styleKey: strin
 async function generate(engine: Engine, goalId: string, opt: BriefStyleOption, file: string): Promise<void> {
   const { store, config } = engine;
   const goal = getGoal(store.db, goalId)!;
-  const ws = goalWorkspacePath(config.dataDir, goalId);
+  const ws = goalWorkspacePath(config.dataDir, goal);
   await excludeFromGit(ws, ['/artifacts/'], (m) => config.log(m));
   mkdirSync(join(ws, 'artifacts', 'samples'), { recursive: true });
   const skillsHint = await engine.skills.hints.sectionFor('worker', { scenario: 'image' });

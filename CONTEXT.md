@@ -126,6 +126,9 @@ The user taking over a Task whose Merge Attempts gave up: the conflict is re-cre
 **Workspace**
 The isolated checkout a Goal or Task works in. A Goal has its own workspace on a Goal branch; Tasks that run in parallel each get their own workspace on a Task branch and are merged back into the Goal workspace when their Checks pass. The user's own checkout is never touched.
 
+**Progress folder**
+Where the Goal workspace lives: next to the user's repository as `<repo>-foundry/<goal>/` (or under the root chosen in Settings), named after the Goal's title so a person finds it without knowing Foundry. It is the Goal branch checked out — open it, run it, read it at any time. The engine's own worktrees (Tasks, delivery, resolve, baseline) sit beside it under a hidden `.foundry/` folder, never inside it. The folder is fixed when the Goal is created; Goals from before this layout are moved there when the engine starts.
+
 **Role**
 A named set of instructions given to a Claude session: Clarifier, Planner, Worker, Task Reviewer, Goal Reviewer, Merger. Roles are versioned text, not code.
 

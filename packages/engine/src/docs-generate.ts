@@ -29,7 +29,7 @@ export async function runDocsGeneration(engine: Engine, goalIn: Goal): Promise<v
   if (!types.length || goal.completion.docsRun) return;
   const record = (payload: { status: 'ok' | 'skipped' | 'failed'; files: string[]; costUsd: number; detail: string }) => store.append({ type: 'goal.docs_generated', goalId: goal.id, payload: { types, ...payload } });
   try {
-    const ws = goalWorkspacePath(config.dataDir, goal.id);
+    const ws = goalWorkspacePath(config.dataDir, goal);
     const brief = getBrief(store.db, goal.id)?.brief ?? null;
     const stat = await git(['diff', '--stat', `${goal.baseBranch}...HEAD`], ws).catch(() => null);
     const log = await git(['log', '--no-merges', '--format=%s', `${goal.baseBranch}..HEAD`], ws).catch(() => null);

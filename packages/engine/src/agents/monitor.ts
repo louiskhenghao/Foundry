@@ -44,7 +44,7 @@ export class AgentsMonitor {
   private cache: { at: number; list: AgentsList } | null = null;
 
   constructor(
-    private opts: { claudeHome: string; dataDir: string },
+    private opts: { claudeHome: string; dataDir: string; /** roots of the progress folders (`<repo>-foundry/`), so runs the engine spawned there count as Foundry too */ workspaceRoots?: () => string[] },
     private deps: AgentsMonitorDeps,
   ) {
     this.index = new TranscriptIndex(opts.claudeHome);
@@ -237,7 +237,7 @@ export class AgentsMonitor {
       if (typeof first?.timestamp === 'string') row.startedAt = first.timestamp;
     }
     // headless runs the engine spawned into its worktrees also count as Foundry, even without a goal link
-    if (row.source === 'external' && row.cwd && row.cwd.startsWith(this.opts.dataDir)) row.source = 'foundry';
+    if (row.source === 'external' && row.cwd && (row.cwd.startsWith(this.opts.dataDir) || (this.opts.workspaceRoots?.() ?? []).some((r) => row.cwd!.startsWith(r)))) row.source = 'foundry';
     row.subagents = listSubagents(ref.projDir, row.sessionId).map((s) => ({
       agentId: s.agentId,
       agentType: s.agentType,

@@ -124,6 +124,8 @@ export const Goal = z.object({
   nature: GoalNature.default('auto'),
   /** where media artifacts are copied when the goal finishes; null = they stay in the goal workspace */
   outputDir: z.string().nullable().default(null),
+  /** the progress folder — the goal worktree the human opens, next to the repository; null = the legacy `<dataDir>/worktrees/<id>/_goal` */
+  workspaceDir: z.string().nullable().default(null),
   workflow: GoalWorkflow.default(() => ({ tdd: 'required' as const })),
   models: ModelConfig,
   state: GoalState,

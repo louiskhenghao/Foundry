@@ -98,7 +98,7 @@ export function WorkspaceCard({ d }: { d: GoalDetail }) {
                 Tasks running in parallel have their own worktrees ({ws.tasks.length}); they are merged into the goal branch when their checks pass. Open one from its task drawer.
               </div>
             )}
-            <p className="text-[11px] text-zinc-500">To look at it in your main checkout instead: <span className="mono">git switch {g.branch}</span> (commit or stash your own changes first). Delivery (push / PR) happens automatically once the goal is done.</p>
+            <p className="text-[11px] text-zinc-500">This folder <em>is</em> the branch <span className="mono">{g.branch}</span>, checked out here — it cannot also be switched to in your main checkout. Delivery (push / PR) happens automatically once the goal is done.</p>
           </>
         ) : (
           <div className="text-[11px] text-zinc-500">The workspace has not been created yet (it appears when the Brief is approved).</div>

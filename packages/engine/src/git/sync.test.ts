@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { getGoal } from '@foundry/core';
+import { goalWorkspacePath } from '../workspace.ts';
 import { defaultConfig } from '../config.ts';
 import { Engine } from '../engine.ts';
 import { FakeRunner, makeRepo, makeRepoWithRemote, sh, terminal, waitFor } from '../test-helpers.ts';
@@ -88,7 +89,7 @@ describe('base branch sync', () => {
     await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval', 20_000);
     const first = getGoal(engine.store.db, goal.id)!;
     expect(first.baseSync).toMatchObject({ startedFrom: 'local', behind: 0 });
-    const ws = join(dataDir, 'worktrees', goal.id, '_goal');
+    const ws = goalWorkspacePath(dataDir, goal);
     const firstTip = await sh('git rev-parse HEAD', ws);
     // upstream moves; the user asks for a fresh Brief
     await upstreamCommit('later.txt');
@@ -124,7 +125,7 @@ describe('base branch sync', () => {
     expect(g.state).toBe('done');
     expect(g.baseSync).toMatchObject({ remote: 'origin', base: 'main', behind: 1, ahead: 0, fetched: true, startedFrom: 'remote' });
     expect(sawUpstream).toBe(true);
-    const ws = join(dataDir, 'worktrees', goal.id, '_goal');
+    const ws = goalWorkspacePath(dataDir, goal);
     expect(await sh('git merge-base --is-ancestor origin/main HEAD && echo yes', ws)).toBe('yes');
     // the user's checkout is still behind — untouched
     expect(await sh('git rev-list --count main..origin/main', repo)).toBe('1');

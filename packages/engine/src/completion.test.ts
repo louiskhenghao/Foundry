@@ -65,6 +65,7 @@ afterEach(async () => {
   for (const e of engines.splice(0)) await e.stop().catch(() => {});
   rmSync(dataDir, { recursive: true, force: true });
   rmSync(repo, { recursive: true, force: true });
+  rmSync(`${repo}-foundry`, { recursive: true, force: true }); // the progress folders of goals created here
 });
 const cfg = () => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, log: () => {} });
 const terminal = (s: string) => ['done', 'over_delivered', 'failed', 'cancelled'].includes(s);
@@ -101,7 +102,7 @@ describe('autoskills retry for empty repositories', () => {
     const g = getGoal(engine.store.db, goal.id)!;
     expect(g.state).toBe('done');
     expect(g.autoskills!.skills).toContain('react');
-    expect(existsSync(join(goalWorkspacePath(dataDir, goal.id), '.claude', 'skills', 'react', 'SKILL.md'))).toBe(true);
+    expect(existsSync(join(goalWorkspacePath(dataDir, goal), '.claude', 'skills', 'react', 'SKILL.md'))).toBe(true);
     await engine.stop();
     await Bun.sleep(100); // let queued ticks flush before afterEach removes the database
   });
@@ -154,7 +155,7 @@ describe('docs generation', () => {
     await runDocsGeneration(engine, getGoal(engine.store.db, goal.id)!);
     const g = getGoal(engine.store.db, goal.id)!;
     expect(g.completion.docsRun).toMatchObject({ status: 'ok', files: ['docs/prd/goal.md'] });
-    const ws = goalWorkspacePath(dataDir, goal.id);
+    const ws = goalWorkspacePath(dataDir, goal);
     expect(existsSync(join(ws, 'junk.ts'))).toBe(false);
     const subject = (await Bun.$`git -C ${ws} log -1 --format=%s`.text()).trim();
     expect(subject).toStartWith('docs:');
@@ -244,7 +245,7 @@ describe('media artifacts', () => {
       expect(run.dest).toBe(outputDir);
       for (const f of run.files) expect(existsSync(join(outputDir, f))).toBe(true);
       // nothing media-shaped reached git: the manifests are committed, the binaries are excluded
-      const ws = goalWorkspacePath(dataDir, goal.id);
+      const ws = goalWorkspacePath(dataDir, goal);
       const status = (await Bun.$`git -C ${ws} status --porcelain`.text()).trim();
       expect(status).toBe('');
       const tracked = (await Bun.$`git -C ${ws} ls-files artifacts docs/artifacts`.text()).trim().split('\n').filter(Boolean);
@@ -277,7 +278,7 @@ describe('graph refresh', () => {
       { name: 'gitnexus', status: 'skipped', detail: 'not on PATH' },
     ]);
     // local mode: no pull of the user's checkout, runs in the goal workspace
-    expect(ran[0]![2]).toBe(goalWorkspacePath(dataDir, goal.id));
+    expect(ran[0]![2]).toBe(goalWorkspacePath(dataDir, goal));
     await engine.stop();
   });
 });

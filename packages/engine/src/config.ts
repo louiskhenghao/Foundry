@@ -21,6 +21,8 @@ export interface EngineConfig {
   maxConcurrent: number;
   /** `--setting-sources`; undefined = inherit everything (user skills included). */
   settingSources?: string[];
+  /** progress-folder root (Settings → engine.workspacesRoot); null = next to each repository */
+  workspacesRoot: string | null;
   models: { strong: string; cheap: string; worker: string };
   /** tried in order when a session's model turns out to be unavailable (deprecated alias, retired id) */
   modelFallbacks: string[];
@@ -86,6 +88,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     port: Number(process.env.FOUNDRY_PORT ?? 4111),
     host: process.env.FOUNDRY_HOST ?? '127.0.0.1',
     maxConcurrent: Number(process.env.FOUNDRY_MAX_CONCURRENT ?? 3),
+    workspacesRoot: process.env.FOUNDRY_WORKSPACES_ROOT ?? null,
     models: { strong: process.env.FOUNDRY_MODEL_STRONG ?? 'opus', cheap: process.env.FOUNDRY_MODEL_CHEAP ?? 'haiku', worker: process.env.FOUNDRY_MODEL_WORKER ?? 'opus' },
     modelFallbacks: (process.env.FOUNDRY_MODEL_FALLBACKS ?? 'opus,sonnet,haiku').split(',').map((s) => s.trim()).filter(Boolean),
     attemptTimeoutMs: 20 * 60_000,

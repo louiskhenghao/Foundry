@@ -4,6 +4,7 @@ import { listChecks } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { ensureDetachedWorktree, removeWorktree } from '../git/git.ts';
 import { runCommandCheck } from './command.ts';
+import { baselineWorkspacePath } from '../workspace.ts';
 
 /**
  * Which must command checks already fail on a given goal-branch commit, *before* a merge.
@@ -38,7 +39,7 @@ export class BaselineChecks {
     const { config, store } = this.engine;
     const must = listChecks(store.db, goal.id).filter((c) => c.spec.type === 'command' && c.tier === 'must');
     if (!must.length) return new Set();
-    const path = join(config.dataDir, 'worktrees', goal.id, '_baseline');
+    const path = baselineWorkspacePath(config.dataDir, goal);
     await ensureDetachedWorktree(goal.repoPath, path, ref);
     try {
       const failing = new Set<string>();

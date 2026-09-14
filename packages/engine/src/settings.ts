@@ -19,6 +19,7 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'engine.host': { name: 'FOUNDRY_HOST', parse: str },
   'engine.maxConcurrent': { name: 'FOUNDRY_MAX_CONCURRENT', parse: num },
   'engine.claudeHome': { name: 'FOUNDRY_CLAUDE_HOME', alt: 'CLAUDE_CONFIG_DIR', parse: str },
+  'engine.workspacesRoot': { name: 'FOUNDRY_WORKSPACES_ROOT', parse: str },
   'models.strong': { name: 'FOUNDRY_MODEL_STRONG', parse: str },
   'models.cheap': { name: 'FOUNDRY_MODEL_CHEAP', parse: str },
   'models.worker': { name: 'FOUNDRY_MODEL_WORKER', parse: str },
@@ -191,6 +192,7 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('engine.maxConcurrent')) config.maxConcurrent = s.engine.maxConcurrent;
   if (on('engine.claudeBin')) config.claudeBin = s.engine.claudeBin ?? undefined;
   if (on('engine.claudeHome') && s.engine.claudeHome) config.claudeHome = s.engine.claudeHome;
+  if (on('engine.workspacesRoot')) config.workspacesRoot = s.engine.workspacesRoot;
   if (on('models.strong')) config.models.strong = s.models.strong;
   if (on('models.cheap')) config.models.cheap = s.models.cheap;
   if (on('models.worker')) config.models.worker = s.models.worker;

@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { getGoal, listEscalations, listTasks } from '@foundry/core';
+import { baselineWorkspacePath, goalWorkspacePath, resolveWorkspacePath, taskWorkspacePath } from './workspace.ts';
 import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
 import { FakeRunner, makeRepo, sh, terminal, waitFor } from './test-helpers.ts';
@@ -44,7 +45,7 @@ describe('task integration: one Conventional Commit per task', () => {
     });
     await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
     expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
-    const ws = join(dataDir, 'worktrees', goal.id, '_goal');
+    const ws = goalWorkspacePath(dataDir, goal);
     const log = (await sh(`git log --format=%s main..${goal.branch}`, ws)).split('\n');
     expect(log).toEqual(['fix: fix second file', 'feat(demo): add first file']);
     const tasks = listTasks(engine.store.db, goal.id);
@@ -82,7 +83,7 @@ describe('task integration: one Conventional Commit per task', () => {
     });
     await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
     expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
-    const ws = join(dataDir, 'worktrees', goal.id, '_goal');
+    const ws = goalWorkspacePath(dataDir, goal);
     const log = (await sh(`git log --format=%s main..${goal.branch}`, ws)).split('\n').sort();
     expect(log).toEqual(['feat: add alpha', 'feat: add beta']);
     // squash merges leave no merge commits
@@ -145,11 +146,11 @@ describe('manual merge resolution', () => {
     const task = listTasks(engine.store.db, goal.id).find((x) => x.id === taskId)!;
     expect(task.state).toBe('done');
     expect(task.commitRef).toBe(fin.ref);
-    const ws = join(dataDir, 'worktrees', goal.id, '_goal');
+    const ws = goalWorkspacePath(dataDir, goal);
     expect(await sh('cat shared.txt', ws)).toBe('alpha and beta');
     expect(await sh(`git log -1 --format=%B`, ws)).toContain('Resolved manually by the human');
     expect(listEscalations(engine.store.db, { goalId: goal.id, openOnly: true })).toHaveLength(0);
-    expect(existsSync(join(dataDir, 'worktrees', goal.id, '_resolve', taskId))).toBe(false);
+    expect(existsSync(resolveWorkspacePath(dataDir, goal, taskId))).toBe(false);
     await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
     expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
     const before = engine.store.snapshotReadModels();
@@ -191,11 +192,11 @@ describe('merge judged on regressions only', () => {
     // both Brief tasks landed; what remains open is the goal review's own fix task for never.txt (a real failure, not the merge's)
     const tasks = listTasks(engine.store.db, goal.id);
     expect(tasks.filter((x) => x.origin === 'brief').every((x) => x.state === 'done')).toBe(true);
-    const ws = join(dataDir, 'worktrees', goal.id, '_goal');
+    const ws = goalWorkspacePath(dataDir, goal);
     expect(await sh('cat shared.txt', ws)).toBe('merged by the fake merger');
     const notes = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'engine.note').map((e) => (e.payload as { message: string }).message);
     expect(notes.some((m) => m.includes('already failing on the goal branch'))).toBe(true);
-    expect(existsSync(join(dataDir, 'worktrees', goal.id, '_baseline'))).toBe(false);
+    expect(existsSync(baselineWorkspacePath(dataDir, goal))).toBe(false);
   }, 60_000);
 });
 
@@ -227,7 +228,7 @@ describe('conflict avoidance', () => {
     expect(ev.some((e) => e.type === 'merge.started' && (e.payload as any).taskId === beta.id && (e.payload as any).into === `task/${beta.id}`)).toBe(true);
     expect(ev.some((e) => e.type === 'engine.note' && String((e.payload as any).message).startsWith('catch-up: merged 1 goal-branch commit'))).toBe(true);
     expect(ev.filter((e) => e.type === 'merge.conflict')).toHaveLength(0);
-    const ws = join(dataDir, 'worktrees', goal.id, '_goal');
+    const ws = goalWorkspacePath(dataDir, goal);
     expect((await sh(`git log --format=%s main..${goal.branch}`, ws)).split('\n')).toEqual(['feat: add beta', 'feat: add alpha']);
   }, 60_000);
 
@@ -271,7 +272,7 @@ describe('restart from a finished task', () => {
     expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
     const alpha = listTasks(engine.store.db, goal.id).find((x) => x.title === 'add alpha')!;
     expect(alpha.worktreePath).toBeNull(); // the pointer is cleared when the worktree is dropped at done
-    expect(existsSync(join(dataDir, 'worktrees', goal.id, alpha.id))).toBe(false); // dropped when it finished
+    expect(existsSync(taskWorkspacePath(dataDir, goal, alpha.id))).toBe(false); // dropped when it finished
     const r = await engine.restartGoal(goal.id, { fromTaskId: alpha.id });
     expect(r.restarted).toEqual([alpha.id]);
     expect(listTasks(engine.store.db, goal.id).find((x) => x.id === alpha.id)!.worktreePath).toBeNull();

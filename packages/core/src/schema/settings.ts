@@ -23,6 +23,8 @@ export const EngineSettings = z.object({
   claudeBin: z.string().nullable().default(null),
   /** Claude Code home; null = ~/.claude (or CLAUDE_CONFIG_DIR) */
   claudeHome: z.string().nullable().default(null),
+  /** where progress folders (goal worktrees) are created: `<root>/<repo-name>/<goal>`; null = next to each repository as `<repo-name>-foundry/` */
+  workspacesRoot: z.string().nullable().default(null),
 });
 export const ModelSettings = z.object({
   strong: z.string().min(1).default('opus'),

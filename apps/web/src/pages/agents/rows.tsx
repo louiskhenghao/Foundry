@@ -24,5 +24,8 @@ export const shortModel = (m: string) => m.replace(/^claude-/, '');
 export function shortCwd(cwd: string): string {
   const wt = cwd.match(/\/data\/worktrees\/(.+)$/);
   if (wt) return `worktrees/${wt[1]}`;
+  // progress folders: `<repo>-foundry/<goal>` and their hidden `.foundry/<goal>/tasks/<id>` siblings
+  const pf = cwd.match(/\/([^/]+-foundry\/.+)$/);
+  if (pf) return pf[1]!;
   return cwd.replace(/^\/Users\/[^/]+/, '~');
 }

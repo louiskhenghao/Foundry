@@ -166,7 +166,7 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
       if (merged) {
         // artifacts are git-excluded, so the squash merge cannot carry them: rescue them before the worktree goes
         if (fresh.worktreePath && existsSync(fresh.worktreePath)) {
-          const n = copyArtifacts(fresh.worktreePath, goalWorkspacePath(config.dataDir, goal.id));
+          const n = copyArtifacts(fresh.worktreePath, goalWorkspacePath(config.dataDir, goal));
           if (n) config.log(`[artifacts] ${task.id}: ${n} file(s) copied to the goal workspace`);
         }
         if (fresh.worktreePath) {

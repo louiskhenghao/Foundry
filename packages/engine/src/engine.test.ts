@@ -89,6 +89,7 @@ afterEach(async () => {
   for (const e of engines.splice(0)) await e.stop().catch(() => {});
   rmSync(dataDir, { recursive: true, force: true });
   rmSync(repo, { recursive: true, force: true });
+  rmSync(`${repo}-foundry`, { recursive: true, force: true }); // the progress folders of goals created here
 });
 
 const cfg = (extra: Partial<ReturnType<typeof defaultConfig>> = {}) => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, log: () => {}, ...extra });
@@ -522,5 +523,21 @@ describe('goal-review escalation + settings propagation', () => {
     expect(getGoal(engine.store.db, inherited.id)!.models.worker).toBe(engine.config.models.worker);
     expect(getGoal(engine.store.db, pinned.id)!.models.strong).toBe('my-own-model');
     expect(engine.store.listByType('goal.models_changed').some((e) => e.goalId === inherited.id && (e.payload as { reason: string }).reason === 'settings changed')).toBe(true);
+  });
+});
+
+describe('progress folders', () => {
+  test('a new goal gets a progress folder next to its repository; deleting the goal removes it and its .foundry sibling', async () => {
+    const { basename, dirname } = await import('node:path');
+    const { existsSync } = await import('node:fs');
+    const engine = track(new Engine(cfg(), new FakeRunner(() => {})));
+    const goal = await engine.createGoal({ prompt: '把按钮改成蓝色，其它不动', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f never.txt'] } });
+    expect(goal.workspaceDir).toBe(join(dirname(repo), `${basename(repo)}-foundry`, `把按钮改成蓝色-${goal.id.slice(-6)}`));
+    await waitFor(() => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).length > 0);
+    expect(existsSync(goal.workspaceDir!)).toBe(true);
+    const internal = join(dirname(goal.workspaceDir!), '.foundry', basename(goal.workspaceDir!));
+    await engine.deleteGoal(goal.id);
+    expect(existsSync(goal.workspaceDir!)).toBe(false);
+    expect(existsSync(internal)).toBe(false);
   });
 });

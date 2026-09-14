@@ -52,6 +52,9 @@ export interface FinishResult {
 
 const MARKER = /^(<{7}|={7}|>{7}|\|{7})( |$)/m;
 
+/** the goal's workspace ref for the path helpers; a deleted goal falls back to the legacy layout so cleanup paths still resolve */
+const refOf = (engine: Engine, goalId: string) => getGoal(engine.store.db, goalId) ?? { id: goalId, workspaceDir: null };
+
 function mergeEscalation(engine: Engine, goalId: string, taskId: string) {
   return listEscalations(engine.store.db, { goalId, openOnly: true }).find((e) => e.taskId === taskId && e.trigger === 'retries_exhausted' && (e.payload as { kind?: string }).kind === 'merge') ?? null;
 }
@@ -78,8 +81,8 @@ export async function startResolution(engine: Engine, goalId: string, taskId: st
   const { goal, task } = mustTask(engine, goalId, taskId);
   const can = canResolve(engine, goalId, taskId);
   if (!can.ok) throw new Error(can.reason!);
-  const path = resolveWorkspacePath(engine.config.dataDir, goalId, taskId);
-  const goalWs = goalWorkspacePath(engine.config.dataDir, goalId);
+  const path = resolveWorkspacePath(engine.config.dataDir, refOf(engine, goalId), taskId);
+  const goalWs = goalWorkspacePath(engine.config.dataDir, refOf(engine, goalId));
   const inProgress = existsSync(path) && (await git(['rev-parse', '--git-dir'], path)).code === 0;
   if (!inProgress || opts.fresh) {
     const head = await headRef(goalWs);
@@ -99,7 +102,7 @@ export async function startResolution(engine: Engine, goalId: string, taskId: st
 
 export async function describeResolution(engine: Engine, goalId: string, taskId: string): Promise<ResolveState> {
   const { goal, task } = mustTask(engine, goalId, taskId);
-  const path = resolveWorkspacePath(engine.config.dataDir, goalId, taskId);
+  const path = resolveWorkspacePath(engine.config.dataDir, refOf(engine, goalId), taskId);
   if (!existsSync(path)) throw new Error('no manual resolution in progress for this task');
   const started = engine.store.listByGoal(goalId, 5000).filter((e) => e.type === 'merge.manual_started' && (e.payload as { taskId: string }).taskId === taskId).at(-1);
   const all = new Set<string>((started?.payload as { files?: string[] } | undefined)?.files ?? []);
@@ -124,7 +127,7 @@ export async function describeResolution(engine: Engine, goalId: string, taskId:
 
 /** Write the human's version of one file and stage it (no markers allowed). */
 export async function resolveFile(engine: Engine, goalId: string, taskId: string, file: string, content: string): Promise<ResolveState> {
-  const path = resolveWorkspacePath(engine.config.dataDir, goalId, taskId);
+  const path = resolveWorkspacePath(engine.config.dataDir, refOf(engine, goalId), taskId);
   if (!existsSync(path)) throw new Error('no manual resolution in progress');
   if (file.includes('..') || file.startsWith('/')) throw new Error('bad path');
   if (MARKER.test(content)) throw new Error('the file still contains conflict markers (<<<<<<< ======= >>>>>>>)');
@@ -135,7 +138,7 @@ export async function resolveFile(engine: Engine, goalId: string, taskId: string
 
 /** Take one side of a conflicted file wholesale. `both` = ours followed by theirs (for append-style conflicts). */
 export async function takeSide(engine: Engine, goalId: string, taskId: string, file: string, side: 'ours' | 'theirs' | 'both'): Promise<ResolveState> {
-  const path = resolveWorkspacePath(engine.config.dataDir, goalId, taskId);
+  const path = resolveWorkspacePath(engine.config.dataDir, refOf(engine, goalId), taskId);
   if (!existsSync(path)) throw new Error('no manual resolution in progress');
   if (file.includes('..') || file.startsWith('/')) throw new Error('bad path');
   if (side === 'both') {
@@ -156,7 +159,7 @@ export async function takeSide(engine: Engine, goalId: string, taskId: string, f
 
 /** Re-create the conflict for one file (undo the human's resolution of it). */
 export async function unresolveFile(engine: Engine, goalId: string, taskId: string, file: string): Promise<ResolveState> {
-  const path = resolveWorkspacePath(engine.config.dataDir, goalId, taskId);
+  const path = resolveWorkspacePath(engine.config.dataDir, refOf(engine, goalId), taskId);
   if (!existsSync(path)) throw new Error('no manual resolution in progress');
   if (file.includes('..') || file.startsWith('/')) throw new Error('bad path');
   await gitOk(['checkout', '-m', '--', file], path);
@@ -170,7 +173,7 @@ export async function unresolveFile(engine: Engine, goalId: string, taskId: stri
 export async function finishResolution(engine: Engine, goalId: string, taskId: string, opts: { force?: boolean } = {}): Promise<FinishResult> {
   const { store, config } = engine;
   const { goal, task } = mustTask(engine, goalId, taskId);
-  const path = resolveWorkspacePath(config.dataDir, goalId, taskId);
+  const path = resolveWorkspacePath(config.dataDir, refOf(engine, goalId), taskId);
   if (!existsSync(path)) throw new Error('no manual resolution in progress');
   const remaining = await conflictedFiles(path);
   if (remaining.length) return { ok: false, ref: null, checks: [], reason: `${remaining.length} file(s) still conflicted: ${remaining.slice(0, 5).join(', ')}` };
@@ -211,7 +214,7 @@ export async function finishResolution(engine: Engine, goalId: string, taskId: s
 
   // land on the goal branch: fast-forward if it did not move, otherwise carry the squash commit over
   const landed = await engine.withGoalWsLock(goalId, async () => {
-    const goalWs = goalWorkspacePath(config.dataDir, goalId);
+    const goalWs = goalWorkspacePath(config.dataDir, refOf(engine, goalId));
     if (existing.code === 0) return { ok: true, ref: await headRef(goalWs) };
     const ff = await git(['merge', '--ff-only', ref], goalWs);
     if (ff.code === 0) return { ok: true, ref: await headRef(goalWs) };
@@ -241,7 +244,7 @@ export async function finishResolution(engine: Engine, goalId: string, taskId: s
 /** Drop the `_resolve` worktree; the task stays blocked on its escalation. */
 export async function abortResolution(engine: Engine, goalId: string, taskId: string, reason = 'aborted by the human'): Promise<void> {
   const { goal } = mustTask(engine, goalId, taskId);
-  const path = resolveWorkspacePath(engine.config.dataDir, goalId, taskId);
+  const path = resolveWorkspacePath(engine.config.dataDir, refOf(engine, goalId), taskId);
   if (!existsSync(path)) return;
   await abortInProgress(path).catch(() => {});
   await removeWorktree(goal.repoPath, path).catch(() => {});
