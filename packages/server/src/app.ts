@@ -47,6 +47,7 @@ const CreateGoalBody = z.object({
   nature: GoalNature.optional(),
   outputDir: z.string().nullable().optional(),
   selfCheck: z.boolean().optional(),
+  interview: z.enum(['auto', 'always', 'never']).optional(),
 });
 
 export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
@@ -221,6 +222,17 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.post('/api/goals/:id/selfcheck', async (c) => {
     const { on } = z.object({ on: z.boolean() }).parse(await c.req.json());
     engine.setSelfCheck(goalOr404(c).id, on);
+    return c.json({ ok: true });
+  });
+  // ---- Clarify interview: the human answers a round; the session continues in the background ----
+  app.post('/api/goals/:id/interview/answer', async (c) => {
+    const goal = goalOr404(c);
+    const body = z.object({ answers: z.record(z.string()).default({}), finish: z.boolean().default(false) }).parse(await c.req.json().catch(() => ({})));
+    try {
+      engine.answerInterview(goal.id, body.answers, body.finish);
+    } catch (e) {
+      throw new HttpError(409, { error: String((e as Error).message ?? e) });
+    }
     return c.json({ ok: true });
   });
   // ---- milestone feedback: triage what the person wrote into a plan they confirm (the answer carries the plan) ----

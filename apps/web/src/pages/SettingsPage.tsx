@@ -294,6 +294,13 @@ export function SettingsPage() {
                   <option value="fast">fast — approved checks only</option>
                 </Select>
               </Field>
+              <Field label="Interview before the Brief" aside={aside('workflow.interview')} help="auto: the Clarifier asks a round only when the repository cannot settle something, and skips straight to the Brief for small goals · always: at least one round · never: the one-shot Brief. Switchable per goal when creating it.">
+                <Select value={draft.workflow.interview} onChange={(e) => set('workflow.interview', e.target.value)}>
+                  <option value="auto">auto — ask when something is worth asking</option>
+                  <option value="always">always — at least one round</option>
+                  <option value="never">never — one-shot Brief</option>
+                </Select>
+              </Field>
               <Field label="TDD for new Expert goals" aside={aside('workflow.tdd')} help="required: workers must invoke tdd and the reviewer is told when they skipped it · preferred: suggested only · off: never mentioned. Simple goals start with preferred; each goal and task can override.">
                 <Select value={draft.workflow.tdd} onChange={(e) => set('workflow.tdd', e.target.value)}>
                   <option value="required">required</option>
@@ -527,6 +534,7 @@ export function SettingsPage() {
           )}
           <div className="space-y-2">
             {bool('notifications.onEscalation', 'Needs you', 'An escalation was raised — a task or goal is blocked until you answer it on the Inbox page.')}
+            {bool('notifications.onInterview', 'Interview round', 'The Clarifier asked a round of questions before writing the Brief; the goal waits for your answers.')}
             {bool('notifications.onGoalFinished', 'Goal finished', 'A goal ended done, over-delivered, or failed. Cancelling a goal yourself never notifies.')}
             {bool('notifications.onDelivery', 'Delivery', 'A pull request was opened or merged, or the delivery failed.')}
             {bool('notifications.onRateLimit', 'Usage pause', 'A Claude usage limit paused the engine, and when the pause lifts.')}

@@ -53,6 +53,7 @@ export function NewGoalPage() {
   const [advanced, setAdvanced] = useState(false);
   const [nature, setNature] = useState<Nature>(() => ((localStorage.getItem(NATURE_KEY) as Nature | null) ?? 'auto'));
   const [outputDir, setOutputDir] = useState('');
+  const [interview, setInterview] = useState(false);
   useEffect(() => localStorage.setItem(NATURE_KEY, nature), [nature]);
   const [mode, setMode] = useState<'simple' | 'expert'>(() => ((localStorage.getItem('foundry.mode') as 'simple' | 'expert' | null) ?? 'expert'));
   const [tdd, setTdd] = useState<'required' | 'preferred' | 'off'>(() => ((localStorage.getItem('foundry.tdd') as 'required' | 'preferred' | 'off' | null) ?? 'required'));
@@ -110,6 +111,7 @@ export function NewGoalPage() {
         workflow: pace === 'fast' ? { pace } : { pace, tdd: mode === 'simple' ? 'preferred' : tdd },
         nature,
         outputDir: (nature === 'image' || nature === 'video') && outputDir.trim() ? outputDir.trim() : undefined,
+        interview: interview ? 'always' : undefined,
       });
       try {
         localStorage.setItem(DELIVERY_KEY, JSON.stringify({ mode: delivery.mode, remote: delivery.remote, mergeMethod: delivery.mergeMethod, requireChecks: delivery.requireChecks, autoResolveConflicts: delivery.autoResolveConflicts, fixCiCycles: delivery.fixCiCycles, deleteRemoteBranch: delivery.deleteRemoteBranch }));
@@ -197,6 +199,13 @@ export function NewGoalPage() {
           <span>
             <span className="text-zinc-100">Fast mode</span>
             <span className="text-[11px] text-zinc-400 block leading-snug">Once you approve the Brief, the engine skips its own extra AI reviews (and the TDD mandate). The acceptance checks you approved still run — good for media goals and quick jobs.</span>
+          </span>
+        </label>
+        <label className="mt-3 flex items-start gap-2 cursor-pointer text-xs">
+          <input type="checkbox" className="mt-1" checked={interview} onChange={(e) => setInterview(e.target.checked)} />
+          <span>
+            <span className="text-zinc-100">Interview me before planning</span>
+            <span className="text-[11px] text-zinc-400 block leading-snug">The Clarifier asks at least one round of questions (options with its recommendation first) before writing the Brief. Unchecked: it asks only when the repository cannot settle something, and skips straight to the Brief for small goals.</span>
           </span>
         </label>
         {mode === 'expert' && (
