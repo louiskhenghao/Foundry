@@ -1,5 +1,5 @@
 import { dirname, join } from 'node:path';
-import type { Attachment, Brief, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalWorkflow, ModelConfig, Task, Check } from '@foundry/core';
+import type { Attachment, Brief, BudgetPreset, DocType, Effort, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalWorkflow, ModelConfig, Task, Check } from '@foundry/core';
 import {
   BUDGET_PRESETS,
   Budgets,
@@ -61,6 +61,7 @@ import { Markitdown } from './convert/markitdown.ts';
 import { SettingsStore, applySettingsToConfig } from './settings.ts';
 import { NotificationDispatcher } from './notify/dispatcher.ts';
 import { ModelFallbackRunner } from './models/fallback-runner.ts';
+import { EffortRunner } from './effort-runner.ts';
 import { ModelRegistry, SEED_MODELS, isPinnedId, type ModelRecord } from './models/registry.ts';
 import { copyProjectSkills, hasStackManifest, runAutoskills, type AutoskillsDeps } from './skills/autoskills.ts';
 import { deliverArtifacts, inferCompletion, runGraphRefresh, shouldRunGraphRefresh, type GraphRefreshDeps } from './completion.ts';
@@ -84,6 +85,8 @@ export interface CreateGoalInput {
   selfCheck?: boolean;
   /** interview the human in rounds before the Brief; default = Settings → workflow.interview */
   interview?: 'auto' | 'always' | 'never';
+  /** effort level for every session of this goal; default = Settings → workflow.effort */
+  effort?: Effort | null;
   /** Skip Clarify: one task = the prompt, with these command checks. */
   autoBrief?: { mustChecks: string[]; stretchChecks?: string[] };
   /** Skip Clarify with a fully specified brief (tasks + checks). Approved immediately. */
@@ -177,7 +180,7 @@ export class Engine {
       });
     this.models = new ModelRegistry(config.dataDir);
     // every session goes through the fallback layer: unavailable model → next candidate, and the registry learns what resolves
-    this.runner = new ModelFallbackRunner(baseRunner, {
+    this.runner = new ModelFallbackRunner(new EffortRunner(baseRunner, () => this.store.db, () => this.config.effort), {
       fallbacks: () => config.modelFallbacks,
       registry: this.models,
       log: config.log,
@@ -874,6 +877,7 @@ export class Engine {
       workspaceDir: defaultWorkspaceDir(this.config.workspacesRoot, { id, title, repoPath: input.repoPath }),
       checkpoint: null,
       selfCheck: input.selfCheck ?? this.config.selfCheck,
+      effort: input.effort === undefined ? this.config.effort : input.effort,
       interview: (() => {
         const mode = input.interview ?? this.config.interview;
         return mode === 'never' ? null : { mode, status: 'thinking' as const, sessionId: null, rounds: [] };

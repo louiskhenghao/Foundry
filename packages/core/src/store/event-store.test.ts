@@ -14,6 +14,7 @@ function goal(id: string): Goal {
     checkpoint: null,
     selfCheck: false,
     interview: null,
+    effort: null,
     repoPath: '/tmp/x',
     baseBranch: 'main',
     branch: `goal/${id}`,

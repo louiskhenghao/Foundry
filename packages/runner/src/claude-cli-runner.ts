@@ -72,6 +72,7 @@ export class ClaudeCliRunner implements ClaudeRunner {
   buildArgs(spec: RunSpec): string[] {
     const a: string[] = ['-p', spec.prompt, '--output-format', 'stream-json', '--verbose'];
     if (spec.model) a.push('--model', spec.model);
+    if (spec.effort) a.push('--effort', spec.effort);
     if (spec.fallbackModel) a.push('--fallback-model', spec.fallbackModel);
     if (spec.maxTurns != null) a.push('--max-turns', String(spec.maxTurns));
     if (spec.maxBudgetUsd != null) a.push('--max-budget-usd', spec.maxBudgetUsd.toFixed(2));

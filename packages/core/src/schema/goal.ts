@@ -3,6 +3,10 @@ import { Attachment } from './attachment.ts';
 import { DeliveryState, IDLE_DELIVERY } from './delivery.ts';
 import { Interview } from './interview.ts';
 
+/** Claude Code effort level handed to every session of a goal; null = the CLI default */
+export const Effort = z.enum(['low', 'medium', 'high', 'xhigh', 'max']);
+export type Effort = z.infer<typeof Effort>;
+
 export const GoalState = z.enum([
   'draft',
   'clarifying',
@@ -135,6 +139,8 @@ export const Goal = z.object({
   selfCheck: z.boolean().default(false),
   /** the Clarify interview (rounds of questions before the Brief); null = the one-shot Clarify of before */
   interview: Interview.nullable().default(null),
+  /** effort level for every session of this goal; null = Settings default / CLI default */
+  effort: Effort.nullable().default(null),
   workflow: GoalWorkflow.default(() => ({ tdd: 'required' as const })),
   models: ModelConfig,
   state: GoalState,
