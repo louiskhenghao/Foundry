@@ -37,7 +37,7 @@ export function inferCompletion(brief: Brief, ws: string, pace: 'thorough' | 'fa
 export async function deliverArtifacts(engine: Engine, goal: Goal): Promise<void> {
   const { store, config } = engine;
   if (goal.completion.artifactsRun) return;
-  const ws = goalWorkspacePath(config.dataDir, goal.id);
+  const ws = goalWorkspacePath(config.dataDir, goal);
   const files = listArtifacts(ws);
   const record = (payload: { status: 'ok' | 'skipped' | 'failed'; files: string[]; dest: string; detail: string }) => store.append({ type: 'goal.artifacts_delivered', goalId: goal.id, payload });
   if (!files.length) {
@@ -88,7 +88,7 @@ export async function runGraphRefresh(engine: Engine, goal: Goal, deps: GraphRef
   const which = deps.which ?? ((n: string) => Bun.which(n));
   const run = deps.exec ?? exec;
   const tools: { name: string; status: 'ok' | 'skipped' | 'failed'; detail: string }[] = [];
-  let cwd = goalWorkspacePath(config.dataDir, goal.id);
+  let cwd = goalWorkspacePath(config.dataDir, goal);
   if (goal.delivery.policy.mode !== 'local') {
     const pull = await pullFastForward(goal.repoPath, goal.baseBranch).catch((err) => ({ ok: false, detail: String((err as Error).message ?? err) }));
     tools.push({ name: 'pull', status: pull.ok ? 'ok' : 'skipped', detail: pull.detail });

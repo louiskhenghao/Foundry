@@ -75,7 +75,7 @@ export async function runSuggest(engine: Engine, escalationId: string): Promise<
         .join('\n')
     : '';
   const brief = getBrief(store.db, goal.id)?.brief;
-  const cwd = task?.worktreePath && existsSync(task.worktreePath) ? task.worktreePath : goalWorkspacePath(config.dataDir, goal.id);
+  const cwd = task?.worktreePath && existsSync(task.worktreePath) ? task.worktreePath : goalWorkspacePath(config.dataDir, goal);
   const prompt = buildPrompt(goal, task, esc, { report: report.slice(0, 6000), failing: failing.slice(0, 6000), tail: transcriptTail(last?.transcriptPath ?? null), decisions: brief ? renderDecisions(brief) : '', hint: task?.hint ?? null, understanding: brief?.understanding.slice(0, 2000) ?? '' });
   const n = store.listByGoal(goal.id, 5000).filter((e) => e.type === 'goal.cost_added' && (e.payload as { source?: string }).source === 'suggest').length + 1;
   const handle = await engine.runner.run({

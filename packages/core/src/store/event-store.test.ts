@@ -10,6 +10,7 @@ function goal(id: string): Goal {
     id,
     title: 't',
     prompt: 'p',
+    workspaceDir: null,
     repoPath: '/tmp/x',
     baseBranch: 'main',
     branch: `goal/${id}`,

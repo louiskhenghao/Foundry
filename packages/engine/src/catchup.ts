@@ -41,7 +41,7 @@ export async function catchUp(engine: Engine, goal: Goal, task: Task, opts: { es
   }
   // uncommitted work of an interrupted attempt becomes a snapshot commit first, so nothing below can discard it
   await commitAll(task.worktreePath, taskCommitMessage(goal, task, { attempt: 0 })).catch(() => {});
-  const goalWs = goalWorkspacePath(engine.config.dataDir, goal.id);
+  const goalWs = goalWorkspacePath(engine.config.dataDir, goal);
   const goalHead = await headRef(goalWs).catch(() => null);
   const taskHead = await headRef(task.worktreePath).catch(() => null);
   if (!goalHead || !taskHead) return NONE;

@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { getGoal, listTasks } from '@foundry/core';
+import { deliveryWorkspacePath, goalWorkspacePath } from '../workspace.ts';
 import { defaultConfig } from '../config.ts';
 import { Engine } from '../engine.ts';
 import { FakeRunner, makeRepoWithRemote, sh, terminal, waitFor } from '../test-helpers.ts';
@@ -52,7 +53,7 @@ describe('delivery pipeline', () => {
     const ev = eventsOf(engine, goal.id);
     for (const t of ['delivery.started', 'delivery.pushed', 'delivery.pr_opened', 'delivery.checks', 'delivery.merged', 'delivery.completed']) expect(ev).toContain(t);
     expect(ev.indexOf('delivery.pr_opened')).toBeLessThan(ev.indexOf('delivery.merged'));
-    const goalHead = await sh('git rev-parse HEAD', join(dataDir, 'worktrees', goal.id, '_goal'));
+    const goalHead = await sh('git rev-parse HEAD', goalWorkspacePath(dataDir, goal));
     expect(await sh('git rev-parse main', bare)).toBe(goalHead);
     expect((await sh("git branch --format='%(refname:short)'", bare)).split('\n')).not.toContain(goal.branch);
     expect(gh.calls.some((c) => c[0] === 'prMerge' && c[3] === 'now')).toBe(true);
@@ -209,7 +210,7 @@ describe('delivery pipeline', () => {
     const remoteBranches = (await sh("git branch --format='%(refname:short)'", bare)).split('\n');
     expect(remoteBranches.some((b) => b.startsWith(goal.branch))).toBe(false);
     // the scratch worktree is gone, the local stack branches stay until the goal is deleted
-    expect(existsSync(join(dataDir, 'worktrees', goal.id, '_delivery'))).toBe(false);
+    expect(existsSync(deliveryWorkspacePath(dataDir, goal))).toBe(false);
     expect((await sh("git branch --format='%(refname:short)'", repo)).split('\n')).toContain(`${goal.branch}-2-fix-second`);
     await engine.deleteGoal(goal.id, { deleteBranch: true });
     expect((await sh("git branch --format='%(refname:short)'", repo)).split('\n').some((b) => b.startsWith(goal.branch))).toBe(false);
@@ -261,7 +262,7 @@ describe('delivery pipeline', () => {
     // workers edit README (conflicts with upstream); merge attempts resolve only in the goal workspace, never in _delivery
     const runner = new FakeRunner(async (spec) => {
       if (spec.label?.startsWith('merge')) {
-        if (spec.cwd.endsWith('_delivery')) return;
+        if (/(^|\/)(_delivery|delivery)$/.test(spec.cwd)) return; // the delivery scratch worktree (legacy `_delivery`, or `.foundry/<goal>/delivery`)
         writeFileSync(join(spec.cwd, 'README.md'), 'resolved by merger\n');
         await sh('git add README.md', spec.cwd);
         return;

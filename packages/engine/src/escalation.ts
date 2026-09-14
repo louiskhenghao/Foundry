@@ -117,7 +117,7 @@ export async function answerEscalation(engine: Engine, id: string, answer: Escal
     }
     case 'approve': {
       const command = String(esc.payload.command ?? '');
-      const cwd = String(esc.payload.cwd ?? goalWorkspacePath(engine.config.dataDir, goal.id));
+      const cwd = String(esc.payload.cwd ?? goalWorkspacePath(engine.config.dataDir, goal));
       if (command) {
         const r = await exec(['sh', '-lc', command], cwd, { timeoutMs: 5 * 60_000 });
         store.append({

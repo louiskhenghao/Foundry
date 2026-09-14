@@ -59,6 +59,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.reclarified', { reason: z.string(), workspaceRebuilt: z.boolean(), /** rendered Decisions of the discarded Brief, carried into the new Clarify */ decisions: z.string().default('') }),
   /** the base branch was fetched before the goal branch was created; says where the goal started from */
   ev('goal.base_synced', { remote: z.string().nullable(), base: z.string(), localRef: z.string().nullable(), remoteRef: z.string().nullable(), ahead: z.number().int(), behind: z.number().int(), fetched: z.boolean(), startedFrom: z.enum(['local', 'remote']), detail: z.string() }),
+  /** the goal's progress folder was chosen at creation, or the goal was moved there from the legacy data-dir layout */
+  ev('goal.workspace_set', { dir: z.string(), reason: z.enum(['created', 'migrated']) }),
   /** per-goal autoskills run: project skills matched to the repository's stack, installed in the goal workspace */
   ev('goal.autoskills', { status: z.enum(['installed', 'skipped', 'failed']), skills: z.array(z.string()), detail: z.string() }),
   /** the goal's nature was settled (user chose it at creation, or the Clarifier decided for an `auto` goal) */

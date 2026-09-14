@@ -163,6 +163,11 @@ export function applyEvent(db: Database, e: EngineEvent): void {
       if (t) upsertTask(db, { ...t, state: 'pending', extraAttempts: t.extraAttempts + e.payload.extraAttempts, baseRef: null, commitRef: null, commitMessage: null, branch: null, worktreePath: null, updatedAt: e.ts });
       break;
     }
+    case 'goal.workspace_set': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, workspaceDir: e.payload.dir, updatedAt: e.ts });
+      break;
+    }
     case 'goal.models_changed': {
       const g = getGoal(db, e.goalId!);
       if (g && e.payload.tier) upsertGoal(db, { ...g, models: { ...g.models, [e.payload.tier]: e.payload.to }, updatedAt: e.ts });

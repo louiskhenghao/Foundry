@@ -30,7 +30,7 @@ const GoalReviewOutput = z.object({
  */
 export async function runGoalReview(engine: Engine, goal: Goal): Promise<void> {
   const { store, config } = engine;
-  const goalWs = goalWorkspacePath(config.dataDir, goal.id);
+  const goalWs = goalWorkspacePath(config.dataDir, goal);
   const checks = listChecks(store.db, goal.id);
   const goalChecks = checks.filter((c) => c.taskId === null);
   const results: CheckResult[] = [];

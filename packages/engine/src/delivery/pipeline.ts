@@ -78,7 +78,7 @@ export async function runDelivery(engine: Engine, goalIn: Goal, signal: AbortSig
   const goal = getGoal(store.db, goalIn.id)!;
   const policy = goal.delivery.policy;
   if (policy.mode === 'local') return;
-  const ctx: Ctx = { engine, goal, policy, goalWs: goalWorkspacePath(config.dataDir, goal.id), deliveryWs: deliveryWorkspacePath(config.dataDir, goal.id), repoPath: goal.repoPath, base: baseOf(goal, policy), remote: policy.remote, gh: engine.gh, opts: config.delivery, signal, repo: null };
+  const ctx: Ctx = { engine, goal, policy, goalWs: goalWorkspacePath(config.dataDir, goal), deliveryWs: deliveryWorkspacePath(config.dataDir, goal), repoPath: goal.repoPath, base: baseOf(goal, policy), remote: policy.remote, gh: engine.gh, opts: config.delivery, signal, repo: null };
   const ev = <T extends Parameters<typeof store.append>[0]>(e: T) => store.append(e);
   const step: StepFn = async (s, fn) => {
     if (signal.aborted) throw new DeliveryCancelled('cancelled');
@@ -563,7 +563,7 @@ async function probe(ctx: Ctx) {
 }
 
 export async function probeForPlan(engine: Engine, goal: Goal, policy: DeliveryPolicy) {
-  const ctx: Ctx = { engine, goal, policy, goalWs: goalWorkspacePath(engine.config.dataDir, goal.id), deliveryWs: deliveryWorkspacePath(engine.config.dataDir, goal.id), repoPath: goal.repoPath, base: baseOf(goal, policy), remote: policy.remote, gh: engine.gh, opts: engine.config.delivery, signal: new AbortController().signal, repo: null };
+  const ctx: Ctx = { engine, goal, policy, goalWs: goalWorkspacePath(engine.config.dataDir, goal), deliveryWs: deliveryWorkspacePath(engine.config.dataDir, goal), repoPath: goal.repoPath, base: baseOf(goal, policy), remote: policy.remote, gh: engine.gh, opts: engine.config.delivery, signal: new AbortController().signal, repo: null };
   return probe(ctx);
 }
 

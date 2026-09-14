@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import type { Attachment, Brief, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalWorkflow, ModelConfig, Task, Check } from '@foundry/core';
 import {
   BUDGET_PRESETS,
@@ -52,7 +52,8 @@ import { planDelivery } from './delivery/policy.ts';
 import { usageSummary, type UsageSummary } from './usage/ledger.ts';
 import type { RunResult } from '@foundry/runner';
 import type { StreamEvent, StreamListener } from './types.ts';
-import { deliveryWorkspacePath, dropTaskWorkspace, ensureGoalWorkspace, goalWorkspacePath, listStackBranches } from './workspace.ts';
+import { defaultWorkspaceDir, deliveryWorkspacePath, dropTaskWorkspace, ensureGoalWorkspace, goalWorkspacePath, internalWorkspaceDir, listStackBranches } from './workspace.ts';
+import { relocateLegacyWorkspaces } from './workspace-migrate.ts';
 import { attachmentDir, claimStaged, conversionTmpPath, markdownFileName, sweepStaging, trashAttachment } from './attachments.ts';
 import { Markitdown } from './convert/markitdown.ts';
 import { SettingsStore, applySettingsToConfig } from './settings.ts';
@@ -196,7 +197,7 @@ export class Engine {
     });
     this.auth = new ClaudeAuth({ claudeBin: config.claudeBin ?? Bun.which('claude'), log: config.log });
     this.agents = new AgentsMonitor(
-      { claudeHome: config.claudeHome, dataDir: config.dataDir },
+      { claudeHome: config.claudeHome, dataDir: config.dataDir, workspaceRoots: () => [...new Set(listGoals(this.store.db).flatMap((g) => (g.workspaceDir ? [dirname(g.workspaceDir)] : [])))] },
       {
         foundryLive: () => this.foundryLiveSessions(),
         foundryRecent: (sinceIso) => listAttemptsEndedSince(this.store.db, sinceIso),
@@ -307,7 +308,7 @@ export class Engine {
    * `<remote>/<base>`. Records `goal.base_synced` once; later calls just return the existing worktree.
    */
   async ensureSyncedWorkspace(goal: Goal): Promise<string> {
-    const path = goalWorkspacePath(this.config.dataDir, goal.id);
+    const path = goalWorkspacePath(this.config.dataDir, goal);
     if (goal.baseSync || existsSync(path) || (await branchExists(goal.branch, goal.repoPath).catch(() => false))) return ensureGoalWorkspace(this.config.dataDir, goal);
     const s = await fetchBase(goal.repoPath, goal.baseBranch, { fetch: this.config.sync.fetchBeforeGoal });
     const start = startRef(s, this.config.sync.startFrom);
@@ -327,7 +328,7 @@ export class Engine {
     const goal = this.mustGoal(goalId);
     if (goal.state !== 'awaiting_brief_approval') throw new Error(`goal is ${goal.state}; Clarify can only be re-run while the Brief awaits approval`);
     if (listTasks(this.store.db, goalId).length) throw new Error('tasks already exist for this goal; restart the goal instead');
-    const ws = goalWorkspacePath(this.config.dataDir, goalId);
+    const ws = goalWorkspacePath(this.config.dataDir, goal);
     let rebuilt = false;
     if (await isGitRepo(goal.repoPath).catch(() => false)) {
       // safe to discard: no task has run, so the branch holds nothing of the goal's own
@@ -347,7 +348,7 @@ export class Engine {
     if (!this.config.sync.refreshBetweenTasks) return;
     const s = await fetchBase(goal.repoPath, goal.baseBranch);
     if (!s.remote || !s.remoteRef) return;
-    const ws = goalWorkspacePath(this.config.dataDir, goal.id);
+    const ws = goalWorkspacePath(this.config.dataDir, goal);
     const ref = `${s.remote}/${s.base}`;
     if ((await git(['merge-base', '--is-ancestor', ref, 'HEAD'], ws)).code === 0) return;
     const now = new Date().toISOString();
@@ -398,7 +399,7 @@ export class Engine {
   retryAutoskillsAfterTask(goalId: string): void {
     const goal = getGoal(this.store.db, goalId);
     if (!goal || !goal.autoskills || goal.autoskills.status !== 'skipped' || !goal.autoskills.detail.startsWith('no stack manifest')) return;
-    const ws = goalWorkspacePath(this.config.dataDir, goalId);
+    const ws = goalWorkspacePath(this.config.dataDir, goal);
     if (!hasStackManifest(ws)) return;
     this.startAutoskills(goal, ws);
     void this.awaitAutoskills(goalId).then(() => {
@@ -422,6 +423,7 @@ export class Engine {
       if (swept) this.config.log(`[attachments] removed ${swept} expired staged upload(s)`);
     } catch {}
     await this.reconcile();
+    await relocateLegacyWorkspaces(this);
     for (const g of listGoals(this.store.db)) this.tick(g.id);
   }
 
@@ -820,11 +822,14 @@ export class Engine {
     const nature: GoalNature = input.nature ?? 'auto';
     // anyone-facing default: a goal that produces prose or media opens in the plain-language view
     const mode: GoalMode = input.mode ?? (nature !== 'auto' && nature !== 'code' ? 'simple' : this.config.defaultGoalMode);
+    const title = input.title?.trim() || input.prompt.trim().split('\n')[0]!.slice(0, 80);
     const goal: Goal = {
       id,
-      title: input.title?.trim() || input.prompt.trim().split('\n')[0]!.slice(0, 80),
+      title,
       prompt: input.prompt,
       repoPath: input.repoPath,
+      // the progress folder: next to the repository (or under Settings → workspaces root), named after the title
+      workspaceDir: defaultWorkspaceDir(this.config.workspacesRoot, { id, title, repoPath: input.repoPath }),
       baseBranch,
       branch: `goal/${id}`,
       budgets: Budgets.parse({ ...BUDGET_PRESETS[input.budgetPreset ?? 'custom'].budgets, ...(input.budgets ?? {}) }),
@@ -1201,16 +1206,18 @@ export class Engine {
     for (const t of listTasks(this.store.db, goalId)) {
       if (t.worktreePath && repoOk) await removeWorktree(goal.repoPath, t.worktreePath, { deleteBranch: t.branch ?? undefined }).catch(() => {});
     }
-    const ws = goalWorkspacePath(this.config.dataDir, goalId);
+    const ws = goalWorkspacePath(this.config.dataDir, goal);
     let deletedBranch: string | null = null;
     if (repoOk) {
-      await removeWorktree(goal.repoPath, deliveryWorkspacePath(this.config.dataDir, goalId)).catch(() => {});
+      await removeWorktree(goal.repoPath, deliveryWorkspacePath(this.config.dataDir, goal)).catch(() => {});
       await removeWorktree(goal.repoPath, ws, { deleteBranch: opts.deleteBranch ? goal.branch : undefined }).catch(() => {});
       if (opts.deleteBranch) deletedBranch = goal.branch;
       // stacked delivery branches (goal/<id>/<n>-<slug>) belong to the goal and go with it
       for (const b of await listStackBranches(goal.repoPath, goal.branch)) await git(['branch', '-D', b], goal.repoPath).catch(() => {});
     }
+    // the folders go too: the legacy tree under data/, or the progress folder and its hidden internal sibling
     rmSync(join(this.config.dataDir, 'worktrees', goalId), { recursive: true, force: true });
+    if (goal.workspaceDir) for (const d of [goal.workspaceDir, internalWorkspaceDir(goal)!]) rmSync(d, { recursive: true, force: true });
     for (const a of goal.attachments) trashAttachment(this.config.dataDir, goalId, a);
     this.store.append({ type: 'goal.deleted', goalId, payload: { title: goal.title, deletedBranch, reason: 'deleted by user' } });
     return { deletedBranch };

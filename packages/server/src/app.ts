@@ -240,9 +240,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const body = z.object({ target: z.string(), which: z.string().default('repo') }).parse(await c.req.json());
     let path: string | null = null;
     if (body.which === 'repo') path = goal.repoPath;
-    else if (body.which === 'workspace') path = goalWorkspacePath(engine.config.dataDir, goal.id);
+    else if (body.which === 'workspace') path = goalWorkspacePath(engine.config.dataDir, goal);
     else if (body.which.startsWith('resolve:')) {
-      const p = resolveWorkspacePath(engine.config.dataDir, goal.id, body.which.slice(8));
+      const p = resolveWorkspacePath(engine.config.dataDir, goal, body.which.slice(8));
       path = existsSync(p) ? p : null;
     }
     else if (body.which.startsWith('task:')) path = listTasks(db, goal.id).find((t) => t.id === body.which.slice(5))?.worktreePath ?? null;
@@ -304,7 +304,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     if (!goal) return c.json({ error: 'not found' }, 404);
     const tasks = listTasks(db, id);
     const depth = safeDepths(tasks);
-    const ws = goalWorkspacePath(engine.config.dataDir, id);
+    const ws = goalWorkspacePath(engine.config.dataDir, goal);
     return c.json({
       goal,
       paths: { repo: goal.repoPath, workspace: existsSync(ws) ? ws : null },
@@ -389,7 +389,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.get('/api/goals/:id/brief/style-sample/:file', async (c) => {
     const file = c.req.param('file');
     if (!/^[\w.-]+\.png$/.test(file)) throw new HttpError(400, { error: 'bad sample file name' });
-    const p = join(goalWorkspacePath(engine.config.dataDir, c.req.param('id')), 'artifacts', 'samples', file);
+    const goal = getGoal(db, c.req.param('id'));
+    if (!goal) throw new HttpError(404, { error: 'goal not found' });
+    const p = join(goalWorkspacePath(engine.config.dataDir, goal), 'artifacts', 'samples', file);
     if (!existsSync(p)) throw new HttpError(404, { error: 'sample not generated yet' });
     return new Response(Bun.file(p), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'no-cache' } });
   });
@@ -423,7 +425,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.get('/api/goals/:id/diff', async (c) => {
     const goal = getGoal(db, c.req.param('id'));
     if (!goal) return c.json({ error: 'not found' }, 404);
-    const ws = goalWorkspacePath(engine.config.dataDir, goal.id);
+    const ws = goalWorkspacePath(engine.config.dataDir, goal);
     if (!existsSync(ws)) return c.text('');
     return c.text(await gitDiff(ws, goal.baseBranch, 'HEAD', 500_000));
   });
@@ -476,7 +478,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.get('/api/goals/:id/workspace', async (c) => {
     const goal = getGoal(db, c.req.param('id'));
     if (!goal) throw new HttpError(404, { error: 'goal not found' });
-    const path = goalWorkspacePath(engine.config.dataDir, goal.id);
+    const path = goalWorkspacePath(engine.config.dataDir, goal);
     const exists = existsSync(path);
     let head: string | null = null;
     let scripts: Record<string, string> = {};
