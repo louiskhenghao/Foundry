@@ -85,6 +85,9 @@ export function decodeMessage(msg: any): RunnerEvent[] {
         },
       ];
     }
+    case 'tool_progress':
+      // heartbeat for a long tool call (the planner sub-agent runs for minutes): the log would otherwise go silent
+      return [{ kind: 'progress', toolUseId: String(msg.tool_use_id ?? '').replace(/-heartbeat-\d+$/, ''), tool: String(msg.tool_name ?? 'tool'), elapsedSeconds: Number(msg.elapsed_time_seconds ?? 0) }];
     case 'stream_event':
       return [];
     default:

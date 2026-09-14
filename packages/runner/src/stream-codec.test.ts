@@ -77,3 +77,13 @@ test('skillNameFromToolUse reads the Skill tool input in every shape we have see
   expect(skillNameFromToolUse({ kind: 'tool_use', name: 'Bash', input: { command: 'ls' } })).toBeNull();
   expect(skillNameFromToolUse({ kind: 'text' })).toBeNull();
 });
+
+import { describe as describe2, expect as expect2, test as test2 } from 'bun:test';
+import { decodeMessage } from './stream-codec.ts';
+
+describe2('tool_progress heartbeats', () => {
+  test2('become progress events keyed by the tool call, without the heartbeat suffix', () => {
+    const ev = decodeMessage({ type: 'tool_progress', tool_use_id: 'toolu_01ABC-heartbeat-4', tool_name: 'Agent', parent_tool_use_id: 'toolu_01ABC', elapsed_time_seconds: 120, heartbeat: true, session_id: 's' });
+    expect2(ev).toEqual([{ kind: 'progress', toolUseId: 'toolu_01ABC', tool: 'Agent', elapsedSeconds: 120 }]);
+  });
+});

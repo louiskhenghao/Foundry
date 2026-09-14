@@ -102,6 +102,11 @@ export function InterviewPanel({ goal }: { goal: Goal }) {
           </>
         ) : (
           <>
+            {iv.status !== 'done' && (
+              <p className="text-zinc-400">
+                {iv.rounds.length ? <Elapsed since={iv.rounds.at(-1)!.answeredAt} label="Planning with your answers" /> : 'Exploring the repository and the attachments before asking anything'} — the planner sub-agent usually takes 2–8 minutes; the log below keeps moving while it does.
+              </p>
+            )}
             {iv.status !== 'done' && <LiveLog attemptId={`clarify-${goal.id}`} />}
           </>
         )}
@@ -130,5 +135,21 @@ export function InterviewPanel({ goal }: { goal: Goal }) {
         )}
       </div>
     </Card>
+  );
+}
+
+/** "Planning with your answers · 3m 20s", ticking */
+function Elapsed({ since, label }: { since: string | null; label: string }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  if (!since) return <>{label}</>;
+  const s = Math.max(0, Math.round((now - Date.parse(since)) / 1000));
+  return (
+    <>
+      {label} · {s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`}
+    </>
   );
 }

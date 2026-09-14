@@ -46,6 +46,13 @@ export function LiveLog({ attemptId, className }: { attemptId: string; className
         if (ev.kind === 'tool_result') return wrap(ev.isError ? 'text-rose-400' : 'text-zinc-500', <>{ev.isError ? '✗ ' : '↳ '}{ev.content.slice(0, 200).replace(/\n/g, ' ')}{ev.isError && /does not match required schema/.test(ev.content) ? <span className="text-zinc-500"> — the model will resend it in the right shape; harmless</span> : null}</>);
         if (ev.kind === 'init') return wrap('text-emerald-500', <>● {it.role && it.role !== 'worker' ? `${it.role} ` : ''}session {ev.sessionId.slice(0, 8)} · {ev.model}</>);
         if (ev.kind === 'result') return wrap('text-emerald-400', <>■ {ev.result.subtype} · ${ev.result.costUsd.toFixed(3)} · {ev.result.numTurns} turns{ev.result.subtype === 'error_max_turns' || ev.result.subtype === 'error_max_budget_usd' ? ' — the engine resumes this session (continuation)' : ''}</>);
+        if (ev.kind === 'progress') {
+          // one line per running tool, kept current: consecutive heartbeats of the same call replace each other
+          const next = items[i + 1]?.event;
+          if (next?.kind === 'progress' && next.toolUseId === ev.toolUseId) return null;
+          const s = Math.round(ev.elapsedSeconds);
+          return wrap('text-zinc-500', <>⏱ {ev.tool === 'Agent' ? 'sub-agent' : ev.tool} still working · {s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`}</>);
+        }
         if (ev.kind === 'hook') return null;
         if (ev.kind === 'rate_limit' && ev.info.status !== 'allowed') return wrap('text-amber-400', <>⏳ rate limit {ev.info.status}</>);
         if (ev.kind === 'stderr') return wrap('text-rose-300/70', ev.text);
