@@ -47,14 +47,14 @@ export function InterviewPanel({ goal }: { goal: Goal }) {
       title={
         <span className="flex items-center gap-2">
           <MessageCircleQuestion size={14} className="text-sky-300" />
-          {open ? `Round ${open.round} of up to ${MAX_ROUNDS} — ${open.questions.length} question${open.questions.length === 1 ? '' : 's'}` : iv.status === 'done' ? 'Interview done' : iv.rounds.length ? 'Thinking about your answers…' : 'Reading the repository…'}
+          {open ? `Round ${open.round} — ${open.questions.length} question${open.questions.length === 1 ? '' : 's'}` : iv.status === 'done' ? 'Interview done' : iv.rounds.length ? 'Thinking about your answers…' : 'Reading the repository…'}
         </span>
       }
     >
       <div className="space-y-3 text-xs text-zinc-400">
         {open ? (
           <>
-            <p className="text-zinc-400">Only decisions the repository could not settle are asked. The first option is the Clarifier's recommendation; the reason says what it found.</p>
+            <p className="text-zinc-400">Only decisions the repository could not settle are asked. The first option is the Clarifier's recommendation; the reason says what it found. After your answers it writes the Brief — or asks one more round only if they open new decisions (at most {MAX_ROUNDS} rounds in all).</p>
             <ol className="space-y-3">
               {open.questions.map((q, i) => (
                 <li key={q.key} className="rounded border border-zinc-800 bg-zinc-900/50 p-3 space-y-2">
