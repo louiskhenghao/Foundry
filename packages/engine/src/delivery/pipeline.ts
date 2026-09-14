@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Check, DeliveryPolicy, DeliveryStep, Goal, Task } from '@foundry/core';
 import { IdPrefix, getBrief, getGoal, getTask, listCheckResultsByGoal, listChecks, listTasks, newId } from '@foundry/core';
@@ -8,6 +8,7 @@ import { truncateOutput } from '../distill/truncate.ts';
 import type { Engine } from '../engine.ts';
 import { raiseEscalation } from '../escalation.ts';
 import { branchSlug, goalHeader, headerOf, taskCommitMessage } from '../git/conventional.ts';
+import { detectRun } from '../preview/detect.ts';
 import { abortInProgress, commitStaged, conflictedFiles, ensureDetachedWorktree, exec, git, gitOk, headRef, isGitRepo, removeWorktree, type ExecResult } from '../git/git.ts';
 import { mergeBranchInto, resolveConflicts } from '../merge.ts';
 import { deliveryWorkspacePath, ensureGoalWorkspace, goalWorkspacePath, isStackBranch, listStackBranches, stackBranchName } from '../workspace.ts';
@@ -49,6 +50,8 @@ interface Ctx {
   ci: boolean | null;
   /** PRs already pointed at the base branch in this run: the retarget call is not repeated for them */
   retargeted: Set<number>;
+  /** checkouts whose dependencies were installed in this run (the scratch worktree starts without node_modules) */
+  depsInstalled: Set<string>;
 }
 
 /** One branch of a stacked delivery. */
@@ -82,7 +85,7 @@ export async function runDelivery(engine: Engine, goalIn: Goal, signal: AbortSig
   const goal = getGoal(store.db, goalIn.id)!;
   const policy = goal.delivery.policy;
   if (policy.mode === 'local') return;
-  const ctx: Ctx = { engine, goal, policy, goalWs: goalWorkspacePath(config.dataDir, goal), deliveryWs: deliveryWorkspacePath(config.dataDir, goal), repoPath: goal.repoPath, base: baseOf(goal, policy), remote: policy.remote, gh: engine.gh, opts: config.delivery, signal, repo: null, ci: null, retargeted: new Set<number>() };
+  const ctx: Ctx = { engine, goal, policy, goalWs: goalWorkspacePath(config.dataDir, goal), deliveryWs: deliveryWorkspacePath(config.dataDir, goal), repoPath: goal.repoPath, base: baseOf(goal, policy), remote: policy.remote, gh: engine.gh, opts: config.delivery, signal, repo: null, ci: null, retargeted: new Set<number>(), depsInstalled: new Set<string>() };
   const ev = <T extends Parameters<typeof store.append>[0]>(e: T) => store.append(e);
   const step: StepFn = async (s, fn) => {
     if (signal.aborted) throw new DeliveryCancelled('cancelled');
@@ -454,6 +457,7 @@ async function syncStackBranch(ctx: Ctx, b: StackBranch): Promise<boolean> {
   const ref = `${ctx.remote}/${ctx.base}`;
   if ((await git(['merge-base', '--is-ancestor', ref, 'HEAD'], ctx.deliveryWs)).code === 0) return true;
   const task = syntheticMergeTask(ctx, ref, b.branch);
+  await ensureDeps(ctx, ctx.deliveryWs);
   const ok = await mergeBranchInto(ctx.engine, ctx.goal, task, { ref, label: ref, intent: `The base branch ${ref} moved (the PR below this one merged, or other people pushed). Keep its changes AND this branch's changes.` }, { autoResolve: ctx.policy.autoResolveConflicts, cwd: ctx.deliveryWs, into: b.branch });
   const fresh = getTask(ctx.engine.store.db, task.id)!;
   if (ok && fresh.state === 'merging') ctx.engine.store.append({ type: 'task.state_changed', goalId: ctx.goal.id, payload: { taskId: task.id, from: 'merging', to: 'done', reason: 'base merged' } });
@@ -569,7 +573,7 @@ async function probe(ctx: Ctx) {
 }
 
 export async function probeForPlan(engine: Engine, goal: Goal, policy: DeliveryPolicy) {
-  const ctx: Ctx = { engine, goal, policy, goalWs: goalWorkspacePath(engine.config.dataDir, goal), deliveryWs: deliveryWorkspacePath(engine.config.dataDir, goal), repoPath: goal.repoPath, base: baseOf(goal, policy), remote: policy.remote, gh: engine.gh, opts: engine.config.delivery, signal: new AbortController().signal, repo: null, ci: null, retargeted: new Set<number>() };
+  const ctx: Ctx = { engine, goal, policy, goalWs: goalWorkspacePath(engine.config.dataDir, goal), deliveryWs: deliveryWorkspacePath(engine.config.dataDir, goal), repoPath: goal.repoPath, base: baseOf(goal, policy), remote: policy.remote, gh: engine.gh, opts: engine.config.delivery, signal: new AbortController().signal, repo: null, ci: null, retargeted: new Set<number>(), depsInstalled: new Set<string>() };
   return probe(ctx);
 }
 
@@ -686,6 +690,7 @@ async function fixCi(ctx: Ctx, repo: string, prNumber: number, unit: PrUnit): Pr
   const goalChecks = listChecks(store.db, goal.id).filter((c) => c.taskId === null && c.tier === 'must' && c.spec.type === 'command');
   const now = new Date().toISOString();
   const base = await headRef(unit.cwd);
+  await ensureDeps(ctx, unit.cwd);
   const task: Task = {
     id: newId(IdPrefix.task),
     goalId: goal.id,
@@ -757,4 +762,21 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
       reject(new DeliveryCancelled('cancelled'));
     });
   });
+}
+
+/**
+ * The delivery scratch worktree is a fresh checkout: its must checks (`npm run build`, `eslint .` …) fail with "command not
+ * found" until dependencies are installed, and every such failure used to show up as a red Acceptance card. Install once
+ * per checkout per delivery, with the command the Brief or package.json names.
+ */
+async function ensureDeps(ctx: Ctx, cwd: string): Promise<void> {
+  if (ctx.depsInstalled.has(cwd)) return;
+  ctx.depsInstalled.add(cwd);
+  const brief = getBrief(ctx.engine.store.db, ctx.goal.id)?.brief;
+  const install = brief?.run?.install ?? detectRun(cwd)?.install;
+  if (!install || existsSync(join(cwd, 'node_modules'))) return;
+  const t0 = Date.now();
+  const r = await exec(['sh', '-lc', install], cwd, { timeoutMs: 10 * 60_000, env: { CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' } });
+  ctx.engine.store.append({ type: 'delivery.command', goalId: ctx.goal.id, payload: { step: 'sync-base', command: install, cwd, exitCode: r.code, durationMs: Date.now() - t0, outputTail: (r.stdout + r.stderr).slice(-600) } });
+  if (r.code !== 0) ctx.engine.store.append({ type: 'delivery.note', goalId: ctx.goal.id, payload: { message: `\`${install}\` failed in the delivery worktree (exit ${r.code}); must checks there may fail for want of dependencies` } });
 }

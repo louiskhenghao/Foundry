@@ -34,7 +34,12 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
   const stageIdx = (s: string) => STAGES.indexOf(s as any);
   const currentIdx = g.state === 'blocked' ? stageIdx(g.stateBeforeBlock ?? 'running') : terminalOk ? STAGES.length - 1 : stageIdx(g.state);
   const review = [...d.events].reverse().find((e) => e.type === 'review.goal.finished')?.payload as any;
-  const latestResult = (checkId: string): CheckResult | undefined => [...d.checkResults].reverse().find((r) => r.checkId === checkId);
+  // goal-level checks: the goal review's own run (no attempt) is the verdict; a merge attempt's run in a scratch worktree is
+  // context, not the state of the goal — it stays visible only until a review has run
+  const latestResult = (checkId: string): CheckResult | undefined => {
+    const runs = [...d.checkResults].reverse().filter((r) => r.checkId === checkId);
+    return runs.find((r) => r.attemptId === null) ?? runs[0];
+  };
   const must = d.checks.filter((c) => c.tier === 'must');
   const stretch = d.checks.filter((c) => c.tier === 'stretch');
   const taskName = (id: string | null) => (id ? d.tasks.find((t) => t.id === id)?.title ?? id : 'goal');
