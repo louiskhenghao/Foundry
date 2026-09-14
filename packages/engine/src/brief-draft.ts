@@ -6,7 +6,7 @@ import { newId } from '@foundry/core';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
 import { tryJson } from './checks/reviewer.ts';
-import { materializeCheck, natureScenario } from './clarify.ts';
+import { materializeCheck, natureScenario, isLostSession } from './clarify.ts';
 import type { Engine } from './engine.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
 
@@ -103,7 +103,13 @@ export async function runDraft(engine: Engine, goal: Goal, req: DraftRequest): P
   };
   const parse = (raw: unknown) => outputSchema.safeParse(raw);
 
-  let result = await exec(prompt);
+  // a revision resumes the Clarify interview session when there is one: it already knows the repository and the answers
+  const interviewSession = req.mode === 'revise' ? (goal.interview?.sessionId ?? undefined) : undefined;
+  let result = await exec(prompt, interviewSession);
+  if (interviewSession && isLostSession(result)) {
+    say('— the Clarify session could not be resumed; starting a fresh one');
+    result = await exec(prompt);
+  }
   let parsed = parse(result.structuredOutput ?? tryJson(result.finalText));
   if (!parsed.success && result.sessionId) {
     result = await exec(`Your previous answer did not match the required JSON schema (${parsed.error.issues.slice(0, 3).map((i) => i.path.join('.') + ': ' + i.message).join('; ')}). Output ONLY the JSON object now.`, result.sessionId);

@@ -46,6 +46,8 @@ class StructuredRunner implements ClaudeRunner {
     this.calls.push(spec);
     const structuredOutput = spec.label?.startsWith('classify nature') ? { nature: this.classifyAs } : this.answers(spec, ++this.mainCalls);
     const result: RunResult = { sessionId: `s${this.calls.length}`, subtype: 'success', isError: false, costUsd: 0.5, numTurns: 3, durationMs: 1, usage: null, modelUsage: null, permissionDenials: [], finalText: JSON.stringify(structuredOutput), structuredOutput, exitCode: 0, pid: null, rateLimit: null, errorMessage: null, failureClass: null, skillsUsed: [], toolsUsed: {} };
+    // a scripted `{ __lost: true }` answer plays a resume that found no conversation (expired session)
+    if ((structuredOutput as { __lost?: boolean } | null)?.__lost) Object.assign(result, { subtype: 'error', isError: true, numTurns: 0, errorMessage: 'No conversation found with session ID', structuredOutput: null, finalText: null });
     const events: RunnerEvent[] = [{ kind: 'init', sessionId: result.sessionId!, model: 'fake', tools: [], raw: {} }, { kind: 'result', result }];
     return { pid: null, events: (async function* () { for (const e of events) yield e; })(), kill() {}, result: Promise.resolve(result) };
   }
@@ -298,6 +300,104 @@ describe('decisions', () => {
     await waitFor(() => runner.calls.some((c) => c.label?.startsWith('attempt')));
     expect(runner.calls.find((c) => c.label?.startsWith('attempt'))!.prompt).toContain('# Decisions from the human');
     engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
+  }, 30_000);
+});
+
+describe('clarify interview', () => {
+  const q = (key: string, text: string, options: string[], blocking = true, dependsOn: string | null = null) => ({ key, text, options, reason: `found nothing about ${text}`, dependsOn, blocking });
+  const fullBrief = () => briefWith([task('T1', 'A1', 'add student home'), task('T2', 'A2', 'add teacher home', ['T1'])], [check('C1', 'T1'), check('C2', 'T2')]);
+  const main = (r: StructuredRunner) => r.calls.filter((c) => !c.label?.startsWith('classify nature'));
+  const iv = (engine: Engine, id: string) => getGoal(engine.store.db, id)!.interview!;
+
+  test('rounds of questions, each reshaped by the answers, then the Brief with the answers as Decisions', async () => {
+    const runner = new StructuredRunner((_spec, n) =>
+      n === 1
+        ? { questions: [q('R1Q1', 'Which database?', ['Postgres', 'SQLite']), q('R1Q2', 'Accounts?', ['none', 'email'], false)], brief: null }
+        : n === 2
+          ? { questions: [q('R2Q1', 'Which ORM?', ['Prisma', 'Drizzle'], true, 'R1Q1')], brief: null }
+          : { questions: [], brief: fullBrief() },
+    );
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'student and teacher portals', repoPath: repo });
+    expect(goal.interview).toMatchObject({ mode: 'auto', status: 'thinking', rounds: [] });
+    await waitFor(() => iv(engine, goal.id).status === 'awaiting_answers');
+    expect(main(runner)[0]!.prompt).toContain('# Interview before the Brief');
+    expect(iv(engine, goal.id).rounds[0]!.questions.map((x) => x.key)).toEqual(['R1Q1', 'R1Q2']);
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('clarifying');
+    // blocking questions must be answered unless the human says enough
+    expect(() => engine.answerInterview(goal.id, { R1Q2: 'none' })).toThrow(/blocking/);
+    engine.answerInterview(goal.id, { R1Q1: 'Postgres' });
+    await waitFor(() => iv(engine, goal.id).rounds.length === 2 && iv(engine, goal.id).status === 'awaiting_answers');
+    const second = main(runner)[1]!;
+    expect(second.resumeSessionId).toBe('s2'); // the clarify session (s1 was the nature classification)
+    expect(second.prompt).toContain('# Round 1 answers');
+    expect(second.prompt).toContain('A: Postgres');
+    expect(second.prompt).toContain('(no answer');
+    expect(iv(engine, goal.id).rounds[1]!.questions[0]).toMatchObject({ key: 'R2Q1', dependsOn: 'R1Q1' });
+    engine.answerInterview(goal.id, { R2Q1: 'Prisma' });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    expect(iv(engine, goal.id).status).toBe('done');
+    const brief = getBrief(engine.store.db, goal.id)!.brief;
+    const decided = brief.questions.filter((x) => x.applied && x.answer);
+    expect(decided.map((x) => [x.text, x.answer])).toEqual([
+      ['Which database?', 'Postgres'],
+      ['Which ORM?', 'Prisma'],
+    ]);
+    expect(engine.store.listByGoal(goal.id).find((e) => e.type === 'interview.finished')?.payload).toMatchObject({ rounds: 2, reason: 'brief' });
+    // a revision resumes the interview session instead of starting cold
+    await engine.draftBrief(goal.id, { mode: 'revise', brief, taskKey: null, areaKey: null, notes: '' }).catch(() => null); // the scripted answer is not a revision; only the resume matters here
+    const reviseCall = runner.calls.find((c) => c.label?.startsWith('draft revise'))!;
+    expect(reviseCall.resumeSessionId).toBe('s3'); // the session of the latest round
+    engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
+  }, 20_000);
+
+  test('"enough" writes the Brief with what there is; a lost session starts over with the interview so far', async () => {
+    const runner = new StructuredRunner((_spec, n) => (n === 1 ? { questions: [q('R1Q1', 'Which database?', ['Postgres', 'SQLite'])], brief: null } : n === 2 ? { __lost: true } : { questions: [], brief: fullBrief() }));
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'student and teacher portals', repoPath: repo });
+    await waitFor(() => iv(engine, goal.id).status === 'awaiting_answers');
+    engine.answerInterview(goal.id, {}, true); // blocking left open, but the human asked for the Brief
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    const calls = main(runner);
+    expect(calls).toHaveLength(3);
+    expect(calls[1]!.resumeSessionId).toBe('s2');
+    expect(calls[1]!.prompt).toContain('stop asking and write the Brief now');
+    expect(calls[2]!.resumeSessionId).toBeUndefined(); // fresh session after the lost resume
+    expect(calls[2]!.prompt).toContain('# Interview so far');
+    expect(calls[2]!.prompt).toContain('# Interview before the Brief');
+    expect(engine.store.listByGoal(goal.id).find((e) => e.type === 'interview.finished')?.payload).toMatchObject({ rounds: 1, reason: 'human' });
+    expect(getBrief(engine.store.db, goal.id)!.brief.questions.filter((x) => x.applied)).toHaveLength(0); // nothing was answered
+    engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
+  }, 20_000);
+
+  test('after the round cap the Clarifier is told to write the Brief; mode never keeps the one-shot Clarify', async () => {
+    const runner = new StructuredRunner((_spec, n) => (n <= 5 ? { questions: [q(`R${n}Q1`, `question ${n}`, ['a', 'b'])], brief: null } : { questions: [], brief: fullBrief() }));
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'student and teacher portals', repoPath: repo, interview: 'always' });
+    for (let round = 1; round <= 4; round++) {
+      await waitFor(() => iv(engine, goal.id).rounds.length === round && iv(engine, goal.id).status === 'awaiting_answers');
+      engine.answerInterview(goal.id, { [`R${round}Q1`]: 'a' });
+    }
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    const calls = main(runner);
+    expect(calls).toHaveLength(6); // 4 rounds + a fifth answer that still asked + the "no more questions" turn
+    expect(calls[4]!.prompt).toContain('the last one: write the Brief now');
+    expect(calls[5]!.prompt).toContain('No more questions can be asked');
+    expect(iv(engine, goal.id).rounds).toHaveLength(4);
+    expect(engine.store.listByGoal(goal.id).find((e) => e.type === 'interview.finished')?.payload).toMatchObject({ rounds: 4, reason: 'cap' });
+    engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
+
+    const plain = new StructuredRunner(() => fullBrief());
+    const engine2 = track(new Engine(cfg(), plain));
+    const g2 = await engine2.createGoal({ prompt: 'student and teacher portals', repoPath: repo, interview: 'never' });
+    expect(g2.interview).toBeNull();
+    await waitFor(() => getGoal(engine2.store.db, g2.id)!.state === 'awaiting_brief_approval');
+    expect(main(plain)[0]!.prompt).not.toContain('# Interview before the Brief');
+    engine2.cancelGoal(g2.id);
     await Bun.sleep(150);
   }, 30_000);
 });

@@ -27,7 +27,7 @@ import {
   Brief as BriefSchema,
 } from '@foundry/core';
 import { ClaudeCliRunner, type ClaudeRunner, type RunHandle } from '@foundry/runner';
-import { runClarify } from './clarify.ts';
+import { answerInterview, continueInterview, runClarify } from './clarify.ts';
 import { type DraftProposal, type DraftRequest, runDraft } from './brief-draft.ts';
 import { runSuggest } from './escalation-suggest.ts';
 import type { EngineConfig } from './config.ts';
@@ -82,6 +82,8 @@ export interface CreateGoalInput {
   models?: Partial<ModelConfig>;
   /** run the headless self-check on the preview after each integration; default = Settings → checks.selfCheck */
   selfCheck?: boolean;
+  /** interview the human in rounds before the Brief; default = Settings → workflow.interview */
+  interview?: 'auto' | 'always' | 'never';
   /** Skip Clarify: one task = the prompt, with these command checks. */
   autoBrief?: { mustChecks: string[]; stretchChecks?: string[] };
   /** Skip Clarify with a fully specified brief (tasks + checks). Approved immediately. */
@@ -305,6 +307,11 @@ export class Engine {
         this.store.append({ type: 'goal.models_changed', goalId: goal.id, payload: { tier, from: before[tier], to, reason: 'settings changed' } });
       }
     }
+  }
+
+  /** the human answered the open interview round (finish = write the Brief with what there is); the session continues in the background */
+  answerInterview(goalId: string, answers: Record<string, string>, finish = false): void {
+    answerInterview(this, this.mustGoal(goalId), answers, finish);
   }
 
   /** switch a goal's headless self-check; turning it on creates its goal-level must check right away */
@@ -786,9 +793,15 @@ export class Engine {
         return;
       case 'awaiting_feedback':
         return; // the human continues or gives feedback (escalation answer); nothing to schedule
-      case 'clarifying':
-        if (!this.clarifying.has(goalId)) void runClarify(this, goal);
+      case 'clarifying': {
+        if (this.clarifying.has(goalId)) return;
+        const iv = goal.interview;
+        if (iv?.status === 'awaiting_answers') return; // a round is open: the human answers on the goal page
+        // a round was answered but no session settled it (engine restarted mid-interview): pick it up again
+        if (iv?.status === 'thinking' && iv.rounds.length && iv.rounds.at(-1)!.answers) void continueInterview(this, goal);
+        else void runClarify(this, goal);
         return;
+      }
       case 'running':
         await schedule(this, goal);
         return;
@@ -858,6 +871,10 @@ export class Engine {
       workspaceDir: defaultWorkspaceDir(this.config.workspacesRoot, { id, title, repoPath: input.repoPath }),
       checkpoint: null,
       selfCheck: input.selfCheck ?? this.config.selfCheck,
+      interview: (() => {
+        const mode = input.interview ?? this.config.interview;
+        return mode === 'never' ? null : { mode, status: 'thinking' as const, sessionId: null, rounds: [] };
+      })(),
       baseBranch,
       branch: `goal/${id}`,
       budgets: Budgets.parse({ ...BUDGET_PRESETS[input.budgetPreset ?? 'custom'].budgets, ...(input.budgets ?? {}) }),

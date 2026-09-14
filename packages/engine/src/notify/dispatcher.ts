@@ -12,7 +12,7 @@ import { screenshotsDir } from '../workspace.ts';
 import { DiscordNotifier, TelegramNotifier, type Notifier } from './channels.ts';
 
 export interface Composed {
-  family: 'goalFinished' | 'delivery' | 'rateLimit' | 'updateAvailable';
+  family: 'goalFinished' | 'delivery' | 'rateLimit' | 'updateAvailable' | 'interview';
   text: string;
   /** web-UI path appended to notifications.baseUrl when one is set */
   path: string | null;
@@ -30,6 +30,10 @@ const TRIGGER_COPY: Record<EscalationTrigger, string> = {
 /** Event → message for the non-escalation families; null = nothing to say about this event. */
 export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => string): Composed | null {
   switch (e.type) {
+    case 'interview.round_asked': {
+      const qs = e.payload.questions;
+      return { family: 'interview', text: `❓ Round ${e.payload.round} — ${goalTitle(e.goalId)}\n${qs.length} question(s) before the plan is written. First: ${(qs[0]?.text ?? '').slice(0, 200)}`, path: `/goals/${e.goalId}` };
+    }
     case 'goal.state_changed': {
       const { to, reason } = e.payload;
       // cancelled is always the human's own act — telling them what they just did carries no information
@@ -91,7 +95,7 @@ export class NotificationDispatcher {
     const c = compose(e, this.goalTitle);
     if (!c) return;
     const s = this.settings();
-    const on = { goalFinished: s.onGoalFinished, delivery: s.onDelivery, rateLimit: s.onRateLimit, updateAvailable: s.onUpdateAvailable }[c.family];
+    const on = { goalFinished: s.onGoalFinished, delivery: s.onDelivery, rateLimit: s.onRateLimit, updateAvailable: s.onUpdateAvailable, interview: s.onInterview }[c.family];
     if (on) this.deliver(s, c.text, c.path, e.goalId);
   }
 
