@@ -546,6 +546,9 @@ export function SettingsPage() {
             <Field label="Claude Code home" aside={aside('engine.claudeHome')} help="Where skills, plugins and settings.json live; empty = ~/.claude (or CLAUDE_CONFIG_DIR).">
               {text('engine.claudeHome', '~/.claude', true)}
             </Field>
+            <Field label="Progress folders" aside={aside('engine.workspacesRoot')} help="Where each goal's working folder is created. Empty = next to the repository, as <repo>-foundry/<goal>. A folder here = <folder>/<repo>/<goal>. Applies to goals created from now on.">
+              {text('engine.workspacesRoot', '/Users/you/Foundry', true)}
+            </Field>
           </>,
         )}
       </Card>
