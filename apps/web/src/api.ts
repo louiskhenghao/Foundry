@@ -302,6 +302,7 @@ export const api = {
   cancelGoal: (id: string) => req<{ ok: true }>(`/api/goals/${id}/cancel`, { method: 'POST' }),
   styleSample: (id: string, styleKey: string) => req<{ started: true; channel: string; file: string }>(`/api/goals/${id}/brief/style-sample`, { method: 'POST', body: JSON.stringify({ styleKey }) }),
   styleSampleUrl: (id: string, file: string) => `/api/goals/${id}/brief/style-sample/${encodeURIComponent(file.split('/').pop()!)}`,
+  interviewAnswer: (id: string, answers: Record<string, string>, finish = false) => req<{ ok: true }>(`/api/goals/${id}/interview/answer`, { method: 'POST', body: JSON.stringify({ answers, finish }) }),
   preview: (id: string) => req<PreviewStatus>(`/api/goals/${id}/preview`),
   previewStart: (id: string) => req<PreviewStatus>(`/api/goals/${id}/preview/start`, { method: 'POST' }),
   previewStop: (id: string) => req<{ ok: true }>(`/api/goals/${id}/preview/stop`, { method: 'POST' }),

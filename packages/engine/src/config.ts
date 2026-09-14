@@ -27,6 +27,8 @@ export interface EngineConfig {
   preview: { portFrom: number; portTo: number; idleMinutes: number };
   /** default for new goals: run the headless self-check on the preview after each integration */
   selfCheck: boolean;
+  /** how Clarify starts for new goals: interview in rounds when useful / always at least one round / never (one-shot Brief) */
+  interview: 'auto' | 'always' | 'never';
   models: { strong: string; cheap: string; worker: string };
   /** tried in order when a session's model turns out to be unavailable (deprecated alias, retired id) */
   modelFallbacks: string[];
@@ -95,6 +97,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     workspacesRoot: process.env.FOUNDRY_WORKSPACES_ROOT ?? null,
     preview: { portFrom: Number(process.env.FOUNDRY_PREVIEW_PORT_FROM ?? 4200), portTo: Number(process.env.FOUNDRY_PREVIEW_PORT_TO ?? 4299), idleMinutes: Number(process.env.FOUNDRY_PREVIEW_IDLE_MIN ?? 60) },
     selfCheck: process.env.FOUNDRY_SELF_CHECK === '1' || process.env.FOUNDRY_SELF_CHECK === 'true',
+    interview: (['auto', 'always', 'never'] as const).find((m) => m === process.env.FOUNDRY_INTERVIEW) ?? 'auto',
     models: { strong: process.env.FOUNDRY_MODEL_STRONG ?? 'opus', cheap: process.env.FOUNDRY_MODEL_CHEAP ?? 'haiku', worker: process.env.FOUNDRY_MODEL_WORKER ?? 'opus' },
     modelFallbacks: (process.env.FOUNDRY_MODEL_FALLBACKS ?? 'opus,sonnet,haiku').split(',').map((s) => s.trim()).filter(Boolean),
     attemptTimeoutMs: 20 * 60_000,

@@ -36,6 +36,7 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'workflow.defaultMode': { name: 'FOUNDRY_GOAL_MODE', parse: str },
   'workflow.designPack': { name: 'FOUNDRY_DESIGN_PACK', parse: str },
   'workflow.defaultPace': { name: 'FOUNDRY_PACE', parse: str },
+  'workflow.interview': { name: 'FOUNDRY_INTERVIEW', parse: str },
   'workflow.imagePack': { name: 'FOUNDRY_IMAGE_PACK', parse: str },
   'workflow.videoPack': { name: 'FOUNDRY_VIDEO_PACK', parse: str },
   'workflow.autoskills': { name: 'FOUNDRY_AUTOSKILLS', parse: bool },
@@ -201,6 +202,7 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('preview.portTo')) config.preview.portTo = s.preview.portTo;
   if (on('preview.idleMinutes')) config.preview.idleMinutes = s.preview.idleMinutes;
   if (on('checks.selfCheck')) config.selfCheck = s.checks.selfCheck;
+  if (on('workflow.interview')) config.interview = s.workflow.interview;
   if (on('models.strong')) config.models.strong = s.models.strong;
   if (on('models.cheap')) config.models.cheap = s.models.cheap;
   if (on('models.worker')) config.models.worker = s.models.worker;

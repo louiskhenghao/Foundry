@@ -1,6 +1,7 @@
 import { join } from 'node:path';
-import type { Brief, Goal, GoalNature, TaskScenario } from '@foundry/core';
-import { BriefOutput, IdPrefix, getGoal, newId, uncoveredAreas } from '@foundry/core';
+import type { Brief, Goal, GoalNature, Interview, InterviewQuestion, InterviewRound, TaskScenario } from '@foundry/core';
+import { BriefOutput, INTERVIEW_MAX_QUESTIONS, INTERVIEW_MAX_ROUNDS, IdPrefix, InterviewOutput, getGoal, interviewAnswers, newId, uncoveredAreas } from '@foundry/core';
+import type { RunHandle, RunResult } from '@foundry/runner';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
@@ -66,146 +67,285 @@ export function isEmptyRepo(ws: string): boolean {
 export const CLARIFY_MAX_TURNS = 90;
 export const CLARIFY_MAX_BUDGET_USD = 6;
 
+/** Everything one Clarify session needs; the interview's later rounds resume the session and rebuild this only to recover a lost one. */
+interface ClarifyContext {
+  ws: string;
+  prompt: string;
+  wasAuto: boolean;
+  nature: GoalNature;
+  /** engine-made questions (dirty repo …) that ride into the Brief */
+  extraQuestions: Brief['questions'];
+  run: (p: string, resume?: string) => Promise<RunHandle>;
+}
+
+async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContext> {
+  const { store, config } = engine;
+  const extraQuestions: Brief['questions'] = [];
+  if (await isDirty(goal.repoPath).catch(() => false)) {
+    extraQuestions.push({
+      id: newId('q'),
+      text: `The repository at ${goal.repoPath} has uncommitted changes. The goal branch is created from the last commit of '${goal.baseBranch}' (or its remote tip when that is newer), so those changes will NOT be visible to the workers. Continue anyway? (answer "yes" to continue, or commit/stash first and recreate the goal)`,
+      answer: null,
+      blocking: true,
+      areaKey: null,
+      options: [],
+      kind: 'text',
+      applied: false,
+    });
+  }
+  // explore the goal worktree, not the user's checkout: it was just fetched and may be ahead of the local base
+  const ws = await engine.ensureSyncedWorkspace(goal);
+  // auto goals: settle the nature BEFORE building the prompt, so its sections and skill hints match the goal
+  const wasAuto = goal.nature === 'auto';
+  let nature = goal.nature;
+  if (wasAuto) {
+    const n = await classifyNature(engine, goal, ws);
+    if (n) {
+      nature = n;
+      store.append({ type: 'goal.nature_set', goalId: goal.id, payload: { nature: n, reason: 'pre-clarify classification' } });
+    }
+  }
+  await engine.context.prepare(ws).catch((err) => config.log(`[clarify] context prepare failed: ${err}`));
+  let overview = await engine.context.overview(ws).catch(() => null);
+  const sync = getGoal(store.db, goal.id)?.baseSync;
+  if (sync && sync.startedFrom === 'remote') overview = `${overview ?? ''}\n\n## Base branch\nThis checkout is ${sync.remote}/${sync.base} (${sync.behind} commit(s) newer than the local ${sync.base}).`.trim();
+  // recent commit subjects: the clarifier matches their language and style for task titles
+  const log = await git(['log', '--no-merges', '--format=%s', '-n', '8', '--', '.'], ws).catch(() => null);
+  if (log && log.code === 0 && log.stdout.trim()) overview = `${overview ?? ''}\n\n## Recent commits\n${log.stdout.trim()}`.trim();
+
+  const scenario = natureScenario(nature);
+  const [clarifierHint, plannerHint] = await Promise.all([engine.skills.hints.sectionFor('clarifier', { scenario }), engine.skills.hints.sectionFor('planner', { scenario })]);
+  // a re-run keeps the human's Decisions from the discarded Brief
+  const reclarified = store.listByGoal(goal.id, 5000).filter((e) => e.type === 'goal.reclarified').at(-1);
+  const decisions = reclarified ? ((reclarified.payload as { decisions?: string }).decisions ?? '') : '';
+  const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview?.mode ?? null);
+  const addDirs = goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined;
+  const schema = zodToJsonSchema(goal.interview ? InterviewOutput : BriefOutput, { $refStrategy: 'none' });
+  const transcriptPath = join(config.dataDir, 'transcripts', `clarify-${goal.id}.jsonl`);
+  const run = (p: string, resume?: string) =>
+    engine.runner.run({
+      prompt: p,
+      cwd: ws,
+      model: goal.models.strong,
+      meta: { goalId: goal.id, tier: 'strong' },
+      maxTurns: CLARIFY_MAX_TURNS,
+      maxBudgetUsd: CLARIFY_MAX_BUDGET_USD,
+      permissionMode: 'dontAsk',
+      allowedTools: READONLY_TOOLS,
+      disallowedTools: READONLY_DISALLOWED,
+      appendSystemPromptFile: engine.roles.path('clarifier'),
+      agents: { planner: { description: 'Plans the task DAG for a goal. Use after exploring the repo.', prompt: engine.roles.text('planner') + (plannerHint ? `\n\n${plannerHint}` : ''), model: goal.models.strong } },
+      jsonSchema: schema,
+      settings: boundarySettings(config.hooksDir),
+      settingSources: config.settingSources,
+      addDirs,
+      resumeSessionId: resume,
+      timeoutMs: 15 * 60_000,
+      transcriptPath,
+      label: `clarify ${goal.title}`,
+    });
+  return { ws, prompt, wasAuto, nature, extraQuestions, run };
+}
+
+/** run one Clarify turn (fresh or resumed), streaming it to the goal's clarify channel and booking its cost */
+async function turn(engine: Engine, goal: Goal, ctx: ClarifyContext, message: string, resume: string | undefined, source: string): Promise<RunResult> {
+  const handle = await ctx.run(message, resume);
+  for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: `clarify-${goal.id}`, event: ev, ts: new Date().toISOString() });
+  const result = await handle.result;
+  engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source } });
+  engine.recordSessionUsage(result, { goalId: goal.id, kind: 'clarify', model: goal.models.strong });
+  return result;
+}
+
+/** a resumed session that never got going: the CLI could not find the conversation (expired, other machine, wiped) */
+export function isLostSession(r: RunResult): boolean {
+  return r.subtype !== 'success' && ((r.numTurns ?? 0) === 0 || /no conversation found|session.*not found|could not resume/i.test(r.errorMessage ?? ''));
+}
+
 /**
- * Clarify: explore the repo, produce a Brief, hand it to the human once.
+ * Clarify: explore the repo, then — when the goal has an interview — ask the human what only they can decide, round
+ * by round, and write the Brief once nothing is left to ask. Without an interview it is the one-shot Brief of before.
  */
 export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
-  const { store, config } = engine;
+  const { store } = engine;
   engine.clarifying.add(goal.id);
   try {
     store.append({ type: 'clarify.started', goalId: goal.id, payload: { attemptId: null } });
-    const questions: Brief['questions'] = [];
-    if (await isDirty(goal.repoPath).catch(() => false)) {
-      questions.push({
-        id: newId('q'),
-        text: `The repository at ${goal.repoPath} has uncommitted changes. The goal branch is created from the last commit of '${goal.baseBranch}' (or its remote tip when that is newer), so those changes will NOT be visible to the workers. Continue anyway? (answer "yes" to continue, or commit/stash first and recreate the goal)`,
-        answer: null,
-        blocking: true,
-        areaKey: null,
-        options: [],
-        kind: 'text',
-        applied: false,
-      });
-    }
-    // explore the goal worktree, not the user's checkout: it was just fetched and may be ahead of the local base
-    const ws = await engine.ensureSyncedWorkspace(goal);
-    // auto goals: settle the nature BEFORE building the prompt, so its sections and skill hints match the goal
-    const wasAuto = goal.nature === 'auto';
-    let nature = goal.nature;
-    if (wasAuto) {
-      const n = await classifyNature(engine, goal, ws);
-      if (n) {
-        nature = n;
-        store.append({ type: 'goal.nature_set', goalId: goal.id, payload: { nature: n, reason: 'pre-clarify classification' } });
-      }
-    }
-    await engine.context.prepare(ws).catch((err) => config.log(`[clarify] context prepare failed: ${err}`));
-    let overview = await engine.context.overview(ws).catch(() => null);
-    const sync = getGoal(store.db, goal.id)?.baseSync;
-    if (sync && sync.startedFrom === 'remote') overview = `${overview ?? ''}\n\n## Base branch\nThis checkout is ${sync.remote}/${sync.base} (${sync.behind} commit(s) newer than the local ${sync.base}).`.trim();
-    // recent commit subjects: the clarifier matches their language and style for task titles
-    const log = await git(['log', '--no-merges', '--format=%s', '-n', '8', '--', '.'], ws).catch(() => null);
-    if (log && log.code === 0 && log.stdout.trim()) overview = `${overview ?? ''}\n\n## Recent commits\n${log.stdout.trim()}`.trim();
-
-    const scenario = natureScenario(nature);
-    const [clarifierHint, plannerHint] = await Promise.all([engine.skills.hints.sectionFor('clarifier', { scenario }), engine.skills.hints.sectionFor('planner', { scenario })]);
-    // a re-run keeps the human's Decisions from the discarded Brief
-    const reclarified = store.listByGoal(goal.id, 5000).filter((e) => e.type === 'goal.reclarified').at(-1);
-    const decisions = reclarified ? ((reclarified.payload as { decisions?: string }).decisions ?? '') : '';
-    const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable());
-    const addDirs = goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined;
-    const schema = zodToJsonSchema(BriefOutput, { $refStrategy: 'none' });
-    const transcriptPath = join(config.dataDir, 'transcripts', `clarify-${goal.id}.jsonl`);
-    const run = async (p: string, resume?: string) =>
-      engine.runner.run({
-        prompt: p,
-        cwd: ws,
-        model: goal.models.strong,
-        meta: { goalId: goal.id, tier: 'strong' },
-        maxTurns: CLARIFY_MAX_TURNS,
-        maxBudgetUsd: CLARIFY_MAX_BUDGET_USD,
-        permissionMode: 'dontAsk',
-        allowedTools: READONLY_TOOLS,
-        disallowedTools: READONLY_DISALLOWED,
-        appendSystemPromptFile: engine.roles.path('clarifier'),
-        agents: { planner: { description: 'Plans the task DAG for a goal. Use after exploring the repo.', prompt: engine.roles.text('planner') + (plannerHint ? `\n\n${plannerHint}` : ''), model: goal.models.strong } },
-        jsonSchema: schema,
-        settings: boundarySettings(config.hooksDir),
-        settingSources: config.settingSources,
-        addDirs,
-        resumeSessionId: resume,
-        timeoutMs: 15 * 60_000,
-        transcriptPath,
-        label: `clarify ${goal.title}`,
-      });
-
-    let handle = await run(prompt);
-    for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: `clarify-${goal.id}`, event: ev, ts: new Date().toISOString() });
-    let result = await handle.result;
-    store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source: 'clarify' } });
-    engine.recordSessionUsage(result, { goalId: goal.id, kind: 'clarify', model: goal.models.strong });
-
-    // one follow-up turn in the same session: a schema repair, or a coverage repair (an Area without tasks)
-    const followUp = async (message: string, source: string) => {
-      handle = await run(message, result.sessionId!);
-      for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: `clarify-${goal.id}`, event: ev, ts: new Date().toISOString() });
-      result = await handle.result;
-      store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source } });
-      engine.recordSessionUsage(result, { goalId: goal.id, kind: 'clarify', model: goal.models.strong });
-      return BriefOutput.safeParse(result.structuredOutput ?? tryJson(result.finalText));
-    };
-
-    let parsed = BriefOutput.safeParse(result.structuredOutput ?? tryJson(result.finalText));
-    if (!parsed.success && result.sessionId) {
-      parsed = await followUp(`Your previous answer did not match the required JSON schema (${parsed.error.issues.slice(0, 3).map((i) => i.path.join('.') + ': ' + i.message).join('; ')}). Output ONLY the JSON object now.`, 'clarify-repair');
-    }
-    if (parsed.success && result.sessionId) {
-      const missing = uncoveredAreas({ areas: parsed.data.areas, tasks: parsed.data.tasks });
-      if (missing.length) {
-        const repaired = await followUp(coverageRepairMessage(missing), 'clarify-coverage');
-        if (repaired.success) parsed = repaired;
-        else store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `coverage repair did not return a valid Brief; keeping the first one (${missing.map((a) => a.name).join(', ')} uncovered)` } });
-      }
-    }
-
-    let brief: Brief;
-    // the Clarifier's verdict wins over the pre-classification, but never over a nature the user chose
-    if (parsed.success && wasAuto && parsed.data.nature !== nature) {
-      store.append({ type: 'goal.nature_set', goalId: goal.id, payload: { nature: parsed.data.nature, reason: nature === 'auto' ? 'clarifier verdict' : `clarifier verdict (over pre-classification: ${nature})` } });
-    }
-    if (parsed.success) {
-      brief = toBrief(goal, parsed.data, questions);
-      // still uncovered after the repair turn: leave the gap to the human (Draft on the Brief page, or delete the Area)
-      for (const a of uncoveredAreas(brief)) {
-        brief.questions.push({ id: newId('q'), text: `Area "${a.name}" has no tasks yet. Use "Draft tasks for this Area" on the Brief page, or delete the Area if this goal does not cover it.`, answer: null, blocking: false, areaKey: a.key, options: [], kind: 'text', applied: false });
-      }
-    } else {
-      brief = {
-        goalId: goal.id,
-        title: '',
-        understanding: result.finalText ?? `(clarifier ended with ${result.subtype}${result.errorMessage ? ': ' + result.errorMessage : ''})`,
-        areas: [{ key: 'A1', name: 'General', slug: 'general', description: '' }],
-        assumptions: [],
-        checks: [],
-        tasks: [{ key: 'T1', title: goal.title, spec: goal.prompt, kind: 'feature', scope: null, scenario: 'general', areaKey: 'A1', tdd: 'inherit', dependsOnKeys: [], parallelizable: false, relevantFiles: [], milestone: null }],
-        costEstimateUsd: 0,
-        timeEstimateMin: 0,
-        run: null,
-        styleOptions: [],
-        questions: [
-          ...questions,
-          { id: newId('q'), text: 'The clarifier could not produce a structured Brief. Edit the tasks and checks manually, then answer "ok" here.', answer: null, blocking: true, areaKey: null, options: [], kind: 'text', applied: false },
-        ],
-      };
-    }
-    store.append({ type: 'brief.proposed', goalId: goal.id, payload: { brief } });
-    store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'clarifying', to: 'awaiting_brief_approval', reason: 'brief proposed' } });
+    const ctx = await prepareClarify(engine, goal);
+    const result = await turn(engine, goal, ctx, ctx.prompt, undefined, 'clarify');
+    await settle(engine, getGoal(store.db, goal.id)!, ctx, result);
   } catch (err) {
     store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'error', message: `clarify crashed: ${String((err as Error)?.stack ?? err)}` } });
     store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'clarifying', to: 'failed', reason: `clarify crashed: ${String(err)}` } });
   } finally {
     engine.clarifying.delete(goal.id);
   }
+}
+
+/**
+ * The human answered the open round: record it and continue the Clarify session in the background. Validation is
+ * synchronous so the API can report it; the session's outcome arrives as the next round or the Brief.
+ */
+export function answerInterview(engine: Engine, goal: Goal, answers: Record<string, string>, finish: boolean): void {
+  const iv = goal.interview;
+  if (goal.state !== 'clarifying' || !iv || iv.status !== 'awaiting_answers') throw new Error('no interview round is waiting for answers');
+  const round = iv.rounds.at(-1)!;
+  const known = new Set(round.questions.map((q) => q.key));
+  const clean: Record<string, string> = {};
+  for (const [k, v] of Object.entries(answers)) if (known.has(k) && v.trim()) clean[k] = v.trim();
+  if (!finish) {
+    const missing = round.questions.filter((q) => q.blocking && !clean[q.key]);
+    if (missing.length) throw new Error(`answer the blocking question(s) first, or press "enough": ${missing.map((q) => q.key).join(', ')}`);
+  }
+  // reserve before the event: the tick the event triggers must not start a second session
+  engine.clarifying.add(goal.id);
+  engine.store.append({ type: 'interview.round_answered', goalId: goal.id, payload: { round: round.round, answers: clean, finish } });
+  void continueInterview(engine, getGoal(engine.store.db, goal.id)!, { reserved: true });
+}
+
+/** Resume the Clarify session with the round's answers; a lost session starts over with the interview so far. */
+export async function continueInterview(engine: Engine, goal: Goal, opts: { reserved?: boolean } = {}): Promise<void> {
+  const { store } = engine;
+  if (!opts.reserved) engine.clarifying.add(goal.id);
+  try {
+    const iv = goal.interview;
+    const round = iv?.rounds.at(-1);
+    if (!iv || !round?.answers) return;
+    const ctx = await prepareClarify(engine, goal);
+    const message = answersMessage(iv, round);
+    let result = iv.sessionId ? await turn(engine, goal, ctx, message, iv.sessionId, 'clarify') : null;
+    if (!result || isLostSession(result)) {
+      // the conversation is gone: a fresh session gets the whole interview so far and picks up where it stopped
+      store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: result ? `clarify session ${iv.sessionId} could not be resumed (${result.errorMessage ?? result.subtype}); starting a fresh one with the interview so far` : 'continuing the interview in a fresh session' } });
+      result = await turn(engine, goal, ctx, `${ctx.prompt}\n\n${interviewSoFar(iv)}\n\n${closingInstruction(iv, round)}`, undefined, 'clarify');
+    }
+    await settle(engine, getGoal(store.db, goal.id)!, ctx, result);
+  } catch (err) {
+    store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'error', message: `clarify crashed: ${String((err as Error)?.stack ?? err)}` } });
+    store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'clarifying', to: 'failed', reason: `clarify crashed: ${String(err)}` } });
+  } finally {
+    engine.clarifying.delete(goal.id);
+  }
+}
+
+function canAskMore(iv: Interview): boolean {
+  const last = iv.rounds.at(-1);
+  return iv.rounds.length < INTERVIEW_MAX_ROUNDS && !last?.finish;
+}
+
+function closingInstruction(iv: Interview, round: InterviewRound): string {
+  if (round.finish) return 'The human asked you to stop asking and write the Brief now: plan with these answers, record an assumption for everything still open, and leave `questions` empty.';
+  if (iv.rounds.length >= INTERVIEW_MAX_ROUNDS) return `That was round ${INTERVIEW_MAX_ROUNDS} of ${INTERVIEW_MAX_ROUNDS}, the last one: write the Brief now (\`questions\` empty), with assumptions for anything still open.`;
+  return `If these answers make a decision askable that you could not ask before, ask the next round (at most ${INTERVIEW_MAX_QUESTIONS} questions, \`brief\` null). Otherwise write the Brief now (\`questions\` empty). Output the JSON only.`;
+}
+
+function answersMessage(iv: Interview, round: InterviewRound): string {
+  const lines = round.questions.map((q) => `- ${q.key}: ${q.text}\n  A: ${round.answers?.[q.key] ?? '(no answer — proceed on your recommendation and record it as an assumption)'}`);
+  return `# Round ${round.round} answers\n${lines.join('\n')}\n\n${closingInstruction(iv, round)}`;
+}
+
+/** the whole interview rendered for a fresh session */
+function interviewSoFar(iv: Interview): string {
+  const parts = iv.rounds.map((r) => `## Round ${r.round}\n${r.questions.map((q) => `- ${q.key}: ${q.text}\n  A: ${r.answers?.[q.key] ?? '(no answer — proceed on your recommendation)'}`).join('\n')}`);
+  return `# Interview so far\nYou already asked these rounds in an earlier session and the human answered; do not ask them again.\n\n${parts.join('\n\n')}`;
+}
+
+/** interview answers become Decisions in the Brief: every later session receives them, and Revise honours them */
+function interviewDecisions(iv: Interview | null): Brief['questions'] {
+  if (!iv) return [];
+  return interviewAnswers(iv).map(({ question, answer }) => ({ id: newId('q'), text: question.text, answer, blocking: false, areaKey: null, options: question.options, kind: 'text' as const, applied: true }));
+}
+
+function normalizeQuestions(iv: Interview, qs: InterviewOutput['questions']): InterviewQuestion[] {
+  const round = iv.rounds.length + 1;
+  const seen = new Set(iv.rounds.flatMap((r) => r.questions.map((q) => q.key)));
+  return qs.slice(0, INTERVIEW_MAX_QUESTIONS).map((q, i) => {
+    let key = (q.key ?? '').trim() || `R${round}Q${i + 1}`;
+    if (seen.has(key)) key = `R${round}Q${i + 1}`;
+    seen.add(key);
+    return { key, text: q.text, options: (q.options ?? []).filter(Boolean).slice(0, 4), reason: q.reason ?? '', dependsOn: q.dependsOn && seen.has(q.dependsOn) ? q.dependsOn : null, blocking: q.blocking ?? true };
+  });
+}
+
+/** What a session's output means: a round to ask, or the Brief — with one repair turn when it is neither. */
+async function settle(engine: Engine, goal: Goal, ctx: ClarifyContext, first: RunResult): Promise<void> {
+  const { store } = engine;
+  let result = first;
+  const iv = goal.interview;
+  const parseTurn = (raw: unknown): { questions: InterviewOutput['questions']; brief: BriefOutput | null } | null => {
+    if (iv) {
+      const p = InterviewOutput.safeParse(raw);
+      if (p.success) return p.data;
+    }
+    const b = BriefOutput.safeParse(raw);
+    return b.success ? { questions: [], brief: b.data } : null;
+  };
+  let out = parseTurn(result.structuredOutput ?? tryJson(result.finalText));
+  if (!out && result.sessionId) {
+    const issues = iv ? InterviewOutput.safeParse(result.structuredOutput ?? tryJson(result.finalText)) : BriefOutput.safeParse(result.structuredOutput ?? tryJson(result.finalText));
+    const detail = issues.success ? '' : issues.error.issues.slice(0, 3).map((i) => i.path.join('.') + ': ' + i.message).join('; ');
+    result = await turn(engine, goal, ctx, `Your previous answer did not match the required JSON schema (${detail}). ${iv ? 'Output either {"questions": [...], "brief": null} to ask a round, or {"questions": [], "brief": {...}} with the Brief.' : 'Output ONLY the JSON object now.'}`, result.sessionId, 'clarify-repair');
+    out = parseTurn(result.structuredOutput ?? tryJson(result.finalText));
+  }
+
+  // a round of questions: the goal waits for the human
+  if (iv && out && out.questions.length && !out.brief && canAskMore(iv)) {
+    const questions = normalizeQuestions(iv, out.questions);
+    store.append({ type: 'interview.round_asked', goalId: goal.id, payload: { round: iv.rounds.length + 1, sessionId: result.sessionId ?? null, questions } });
+    return;
+  }
+  // questions came back although no more rounds are allowed: one more turn to get the Brief
+  if (iv && out && !out.brief && result.sessionId) {
+    result = await turn(engine, goal, ctx, 'No more questions can be asked. Write the Brief now with assumptions for everything still open; `questions` must be empty. Output the JSON only.', result.sessionId, 'clarify-repair');
+    out = parseTurn(result.structuredOutput ?? tryJson(result.finalText));
+  }
+
+  let parsed: BriefOutput | null = out?.brief ?? null;
+  if (parsed && result.sessionId) {
+    const missing = uncoveredAreas({ areas: parsed.areas, tasks: parsed.tasks });
+    if (missing.length) {
+      const r2 = await turn(engine, goal, ctx, coverageRepairMessage(missing), result.sessionId, 'clarify-coverage');
+      const repaired = parseTurn(r2.structuredOutput ?? tryJson(r2.finalText));
+      if (repaired?.brief) parsed = repaired.brief;
+      else store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `coverage repair did not return a valid Brief; keeping the first one (${missing.map((a) => a.name).join(', ')} uncovered)` } });
+    }
+  }
+
+  // the Clarifier's verdict wins over the pre-classification, but never over a nature the user chose
+  if (parsed && ctx.wasAuto && parsed.nature !== ctx.nature) {
+    store.append({ type: 'goal.nature_set', goalId: goal.id, payload: { nature: parsed.nature, reason: ctx.nature === 'auto' ? 'clarifier verdict' : `clarifier verdict (over pre-classification: ${ctx.nature})` } });
+  }
+  let brief: Brief;
+  const decisions = interviewDecisions(iv);
+  if (parsed) {
+    brief = toBrief(goal, parsed, [...decisions, ...ctx.extraQuestions]);
+    // still uncovered after the repair turn: leave the gap to the human (Draft on the Brief page, or delete the Area)
+    for (const a of uncoveredAreas(brief)) {
+      brief.questions.push({ id: newId('q'), text: `Area "${a.name}" has no tasks yet. Use "Draft tasks for this Area" on the Brief page, or delete the Area if this goal does not cover it.`, answer: null, blocking: false, areaKey: a.key, options: [], kind: 'text', applied: false });
+    }
+  } else {
+    brief = {
+      goalId: goal.id,
+      title: '',
+      understanding: result.finalText ?? `(clarifier ended with ${result.subtype}${result.errorMessage ? ': ' + result.errorMessage : ''})`,
+      areas: [{ key: 'A1', name: 'General', slug: 'general', description: '' }],
+      assumptions: [],
+      checks: [],
+      tasks: [{ key: 'T1', title: goal.title, spec: goal.prompt, kind: 'feature', scope: null, scenario: 'general', areaKey: 'A1', tdd: 'inherit', dependsOnKeys: [], parallelizable: false, relevantFiles: [], milestone: null }],
+      costEstimateUsd: 0,
+      timeEstimateMin: 0,
+      run: null,
+      styleOptions: [],
+      questions: [
+        ...decisions,
+        ...ctx.extraQuestions,
+        { id: newId('q'), text: 'The clarifier could not produce a structured Brief. Edit the tasks and checks manually, then answer "ok" here.', answer: null, blocking: true, areaKey: null, options: [], kind: 'text', applied: false },
+      ],
+    };
+  }
+  if (iv) store.append({ type: 'interview.finished', goalId: goal.id, payload: { rounds: iv.rounds.length, reason: iv.rounds.at(-1)?.finish ? 'human' : iv.rounds.length === 0 ? 'nothing_to_ask' : iv.rounds.length >= INTERVIEW_MAX_ROUNDS ? 'cap' : 'brief' } });
+  store.append({ type: 'brief.proposed', goalId: goal.id, payload: { brief } });
+  store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'clarifying', to: 'awaiting_brief_approval', reason: 'brief proposed' } });
 }
 
 const TECH_STACK_SECTION = `This repository has no code yet, so there is nothing to discover — the tech stack is the human's decision, not yours to assume. Unless the goal (or a Decision above) already names the stack, include exactly ONE blocking question choosing it: propose 2–4 concrete, complete stack options suited to this goal (e.g. "Next.js + Prisma + Postgres", "NestJS API + React SPA", "Laravel + MySQL", a Bun/Node monorepo …) in the question's \`options\`, with YOUR recommended option FIRST. Plan the tasks assuming that recommended option, and make the first task scaffold the project (initialise the chosen stack, package manifest, build/test commands) — every other task depends on it. Must checks may only use commands that will exist once that scaffold task is done.`;
@@ -243,8 +383,9 @@ function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true): string 
   }
 }
 
-function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: string | null = null, attachments = '', decisions = '', emptyRepo = false, imageGen = true): string {
+function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: string | null = null, attachments = '', decisions = '', emptyRepo = false, imageGen = true, interview: 'auto' | 'always' | null = null): string {
   return [
+    interview ? interviewSection(interview) : '',
     `# Goal from the user\n${goal.prompt}`,
     decisions ? `${decisions}\nTreat these as settled: plan with them, record them as assumptions, and do not ask about them again.` : '',
     natureSection(goal, emptyRepo, imageGen),
@@ -258,6 +399,17 @@ function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: str
   ]
     .filter(Boolean)
     .join('\n\n');
+}
+
+/** The interview rules the Clarifier follows before writing the Brief (a grilling, with the human in the loop). */
+function interviewSection(mode: 'auto' | 'always'): string {
+  return `# Interview before the Brief
+You may ask the human questions in rounds before writing the Brief — the way a careful engineer interviews before planning. Facts are yours to find; decisions are theirs.
+- Explore first. Never ask what the repository, the attachments or the goal already answer; every question cites what you found or could not find (\`reason\`).
+- A round = every decision you can ask about NOW, whose prerequisites are settled — at most ${INTERVIEW_MAX_QUESTIONS}, the most consequential first. A question that depends on an answer you have not heard yet waits for the next round; when a question follows from an earlier answer, name it in \`dependsOn\`.
+- Every question offers 2–4 concrete options with YOUR recommendation first (free text stays possible). \`blocking\` = a wrong guess would waste the goal; everything else is an assumption the human may correct.
+- At most ${INTERVIEW_MAX_ROUNDS} rounds. When nothing is left to ask — or the human says enough — write the Brief: the answers become Decisions, the rest assumptions. ${mode === 'always' ? 'The human asked to be interviewed: ask at least one round unless there is truly nothing a person could decide.' : 'Zero rounds is right for a small, unambiguous goal.'}
+- Output per turn: either \`{"questions": [...], "brief": null}\` to ask a round, or \`{"questions": [], "brief": {...}}\` with the Brief. Write questions in the language of the goal.`;
 }
 
 export function coverageRepairMessage(missing: { key: string; name: string }[]): string {

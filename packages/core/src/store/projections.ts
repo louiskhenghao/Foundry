@@ -175,6 +175,25 @@ export function applyEvent(db: Database, e: EngineEvent): void {
       if (t) upsertTask(db, { ...t, milestoneVisits: t.milestoneVisits + 1, updatedAt: e.ts });
       break;
     }
+    case 'interview.round_asked': {
+      const g = getGoal(db, e.goalId!);
+      if (!g?.interview) break;
+      const rounds = [...g.interview.rounds.filter((r) => r.round !== e.payload.round), { round: e.payload.round, questions: e.payload.questions, answers: null, askedAt: e.ts, answeredAt: null, finish: false }];
+      upsertGoal(db, { ...g, interview: { ...g.interview, status: 'awaiting_answers', sessionId: e.payload.sessionId ?? g.interview.sessionId, rounds }, updatedAt: e.ts });
+      break;
+    }
+    case 'interview.round_answered': {
+      const g = getGoal(db, e.goalId!);
+      if (!g?.interview) break;
+      const rounds = g.interview.rounds.map((r) => (r.round === e.payload.round ? { ...r, answers: e.payload.answers, answeredAt: e.ts, finish: e.payload.finish } : r));
+      upsertGoal(db, { ...g, interview: { ...g.interview, status: 'thinking', rounds }, updatedAt: e.ts });
+      break;
+    }
+    case 'interview.finished': {
+      const g = getGoal(db, e.goalId!);
+      if (g?.interview) upsertGoal(db, { ...g, interview: { ...g.interview, status: 'done' }, updatedAt: e.ts });
+      break;
+    }
     case 'goal.selfcheck_set': {
       const g = getGoal(db, e.goalId!);
       if (g) upsertGoal(db, { ...g, selfCheck: e.payload.on, updatedAt: e.ts });
@@ -197,7 +216,8 @@ export function applyEvent(db: Database, e: EngineEvent): void {
     }
     case 'goal.reclarified': {
       const g = getGoal(db, e.goalId!);
-      if (g) upsertGoal(db, { ...g, baseSync: e.payload.workspaceRebuilt ? null : g.baseSync, autoskills: e.payload.workspaceRebuilt ? null : g.autoskills, updatedAt: e.ts });
+      // a fresh Clarify starts a fresh interview (the discarded Brief's Decisions travel in the event)
+      if (g) upsertGoal(db, { ...g, baseSync: e.payload.workspaceRebuilt ? null : g.baseSync, autoskills: e.payload.workspaceRebuilt ? null : g.autoskills, interview: g.interview ? { mode: g.interview.mode, status: 'thinking', sessionId: null, rounds: [] } : null, updatedAt: e.ts });
       break;
     }
     case 'goal.base_synced': {

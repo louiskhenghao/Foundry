@@ -138,6 +138,9 @@ One pause at a Milestone. The human continues, or writes what they saw; a cheap 
 **Preview**
 The Goal's result running: the engine starts the Brief's run command (or the package.json dev/start script) in the Progress folder on a port from Settings → Preview, links the human to it, restarts it after each integration, and stops it when idle, when the Goal ends, or on shutdown.
 
+**Interview**
+How Clarify talks to the human before the Brief exists: rounds of questions, each holding every decision that is askable now (its prerequisites settled), at most eight, each with the Clarifier's recommended answer first and the evidence that leaves it open. The answers reshape the next round; the Brief is written when nothing is left to ask, when the human says enough, or after the fourth round. Answers become Decisions. A small goal gets zero rounds; a goal created with *interview me* gets at least one. One Clarify session is resumed across rounds and by Revise; a lost session starts over with the interview so far.
+
 **Self-check**
 Off by default. After each integration the engine opens the Preview in headless Chromium, screenshots it and collects console, page and network errors; the result is a goal-level Must Check (re-run at Goal Review) and the screenshot reaches the timeline and the Milestone notification. No model involved.
 

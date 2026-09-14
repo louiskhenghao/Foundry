@@ -2,6 +2,7 @@ import { Ban, Folder, GitBranch, RotateCcw, Trash2 } from 'lucide-react';
 import { RestartDialog } from '../../components/RestartDialog.tsx';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { InterviewPanel } from './InterviewPanel.tsx';
 import { MilestoneCard } from './MilestoneCard.tsx';
 import { api, type GoalDetail } from '../../api.ts';
 import { useLive } from '../../store.ts';
@@ -166,7 +167,8 @@ export function GoalPage() {
 
       {g.state === 'awaiting_feedback' && <MilestoneCard d={d} />}
 
-      {(g.state === 'clarifying' || g.state === 'goal_review') && (
+      {g.state === 'clarifying' && g.interview && <InterviewPanel goal={g} />}
+      {((g.state === 'clarifying' && !g.interview) || g.state === 'goal_review') && (
         <Card title={g.state === 'clarifying' ? 'Clarifying…' : 'Goal review…'}>
           <LiveLog attemptId={g.state === 'clarifying' ? `clarify-${id}` : `goal-review-${g.fixCycles}`} />
         </Card>

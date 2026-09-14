@@ -20,6 +20,7 @@ Goal ──► Clarify ──► Brief (you approve once) ──► Tasks (DAG) 
 - **Must / Stretch checks.** Must = what you asked for (+ the repo's own quality gates). Stretch = extras the Clarifier proposes and you accept. All Must pass → `done`; Stretch too → `over_delivered`. Nothing is ever added to scope without your approval.
 - **Five escalations, nothing else:** a blocking Brief question · a task out of retries · a command that would leave the workspace (`git push`, PRs, deploys — blocked by a PreToolUse hook) · budget exceeded · a denied tool. Everything else is automatic.
 - **Output is a local branch** (`goal/<id>`), checked out in a **progress folder next to your repository** (`<repo>-foundry/<goal>/`) that you can open, run and read at any time. Pushing is a button you click.
+- **It asks before it plans.** Clarify interviews you in rounds — only the decisions the repository cannot settle, each with a recommended answer and the reason it asks — and writes the Brief when nothing is left to ask. Small goals skip straight to the Brief.
 - **You look before it is done.** The Brief marks 1–3 milestones; when one lands the goal pauses, starts the preview and pings you (with a screenshot when the self-check is on). Continue, or say what you saw — it becomes a hint, fix tasks or a Decision, and you confirm before anything changes.
 - **Event-sourced.** Every state change is an event in SQLite; the UI streams the same events; the engine recovers from crashes by replay + reconcile.
 

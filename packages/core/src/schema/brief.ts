@@ -218,6 +218,27 @@ export const BriefOutput = z.object({
 export type BriefOutput = z.infer<typeof BriefOutput>;
 
 /**
+ * What a Clarify interview session emits per turn: a round of questions (brief null), or the Brief (questions empty).
+ * Lenient parsing in the engine also accepts a bare BriefOutput.
+ */
+export const InterviewOutput = z.object({
+  questions: z
+    .array(
+      z.object({
+        key: z.string().describe('Unique key, e.g. R1Q2 (round 1, question 2).'),
+        text: z.string().describe('The question, in the language of the goal. One decision per question.'),
+        options: z.array(z.string()).describe('2–4 concrete answers the human can pick; YOUR recommendation FIRST. Free text stays possible.'),
+        reason: z.string().describe('Why you ask, citing what you found: the file, doc or attachment that leaves this open, or the earlier answer it follows from.'),
+        dependsOn: z.string().nullable().describe('Key of the earlier question whose answer made this one askable; null for a root question.'),
+        blocking: z.boolean().describe('true when a wrong guess would waste the goal; false when you would proceed on your recommendation.'),
+      }),
+    )
+    .describe('This round: every decision you can ask about NOW, at most 8, most consequential first. Empty when you write the Brief.'),
+  brief: BriefOutput.nullable().describe('The Brief, once nothing is left to ask (or the human said enough); null while asking.'),
+});
+export type InterviewOutput = z.infer<typeof InterviewOutput>;
+
+/**
  * What a Revise session emits: the whole Brief again, honouring the human's Decisions. Questions stay the human's
  * (only new, non-blocking ones may be added); keys of unchanged tasks/checks/areas must be kept so the page can diff.
  */

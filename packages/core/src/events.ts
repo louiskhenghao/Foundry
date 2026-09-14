@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Attachment, AttachmentMarkdown } from './schema/attachment.ts';
 import { FeedbackPlan } from './schema/feedback.ts';
+import { InterviewQuestion } from './schema/interview.ts';
 import {
   Attempt,
   Brief,
@@ -69,6 +70,12 @@ export const EngineEvent = z.discriminatedUnion('type', [
   /** a Decision recorded mid-goal from milestone feedback; every later session receives it with the Brief's Decisions */
   ev('brief.decision_added', { id: z.string(), text: z.string(), answer: z.string() }),
   /** the engine started / stopped the goal's preview (the run command in the progress folder) */
+  /** the Clarifier asked a round of questions before writing the Brief; the goal waits for the human */
+  ev('interview.round_asked', { round: z.number().int().positive(), sessionId: z.string().nullable(), questions: z.array(InterviewQuestion) }),
+  /** the human answered a round (finish = write the Brief with what there is) */
+  ev('interview.round_answered', { round: z.number().int().positive(), answers: z.record(z.string()), finish: z.boolean() }),
+  /** the interview ended: the Brief was written (or the Clarifier had nothing to ask) */
+  ev('interview.finished', { rounds: z.number().int().nonnegative(), reason: z.enum(['brief', 'nothing_to_ask', 'cap', 'human']) }),
   /** the human switched the goal's headless self-check on or off */
   ev('goal.selfcheck_set', { on: z.boolean() }),
   ev('preview.started', { port: z.number().int(), url: z.string(), command: z.string() }),
