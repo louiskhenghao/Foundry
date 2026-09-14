@@ -49,6 +49,8 @@ export const WorkflowSettings = z.object({
   designPack: DesignPack.default('ui-ux-pro-max'),
   /** pace new goals start with: fast skips the engine's own AI reviews (approved checks always run) */
   defaultPace: z.enum(['thorough', 'fast']).default('thorough'),
+  /** whether Clarify interviews the human in rounds before writing the Brief: auto = when something is worth asking; always = at least one round; never = the one-shot Brief */
+  interview: z.enum(['auto', 'always', 'never']).default('auto'),
   /** which image-generation skill set media workers follow (scenario `image`) */
   imagePack: ImagePack.default('gpt-image-2'),
   /** which video skill set media workers follow (scenario `video`) */
@@ -102,6 +104,8 @@ export const NotificationSettings = z.object({
   baseUrl: z.string().url().nullable().default(null),
   /** an Escalation was raised — a task or goal is blocked and needs the human */
   onEscalation: z.boolean().default(true),
+  /** the Clarify interview asked a round of questions */
+  onInterview: z.boolean().default(true),
   /** a goal ended done / over-delivered / failed (cancelling is the human's own act and never notifies) */
   onGoalFinished: z.boolean().default(true),
   /** a PR opened, merged, or the delivery failed */

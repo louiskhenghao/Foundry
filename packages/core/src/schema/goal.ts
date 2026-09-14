@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Attachment } from './attachment.ts';
 import { DeliveryState, IDLE_DELIVERY } from './delivery.ts';
+import { Interview } from './interview.ts';
 
 export const GoalState = z.enum([
   'draft',
@@ -132,6 +133,8 @@ export const Goal = z.object({
   checkpoint: z.object({ taskId: z.string(), lookFor: z.string(), openedAt: z.string(), recheck: z.boolean() }).nullable().default(null),
   /** after each integration, open the preview in a headless browser, screenshot it and fail on console/network errors */
   selfCheck: z.boolean().default(false),
+  /** the Clarify interview (rounds of questions before the Brief); null = the one-shot Clarify of before */
+  interview: Interview.nullable().default(null),
   workflow: GoalWorkflow.default(() => ({ tdd: 'required' as const })),
   models: ModelConfig,
   state: GoalState,

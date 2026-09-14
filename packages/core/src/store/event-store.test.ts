@@ -13,6 +13,7 @@ function goal(id: string): Goal {
     workspaceDir: null,
     checkpoint: null,
     selfCheck: false,
+    interview: null,
     repoPath: '/tmp/x',
     baseBranch: 'main',
     branch: `goal/${id}`,
