@@ -171,7 +171,7 @@ export function GoalPage() {
       {g.state === 'clarifying' && g.interview && <InterviewPanel goal={g} />}
       {((g.state === 'clarifying' && !g.interview) || g.state === 'goal_review') && (
         <Card title={g.state === 'clarifying' ? 'Clarifying…' : 'Goal review…'}>
-          <LiveLog attemptId={g.state === 'clarifying' ? `clarify-${id}` : `goal-review-${g.fixCycles}`} />
+          <LiveLog attemptId={g.state === 'clarifying' ? `clarify-${id}` : `goal-review-${id}-${g.fixCycles}`} />
         </Card>
       )}
 

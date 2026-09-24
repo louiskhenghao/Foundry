@@ -248,11 +248,11 @@ A few sessions still read the older `Goal.models` / `config.models` fields (`str
 | `<attemptId>` | a work Attempt's worker segments and its Task reviewer (tagged `role: 'reviewer'`); a Merge Attempt has its own attempt id and is tagged `role: 'merger'` |
 | `clarify-<goalId>` | nature classification, Clarify, interview rounds |
 | `draft-<goalId>` | Draft and Revise on the Brief page |
-| `goal-review-<fixCycles>` | the Goal reviewer (see the note below) |
+| `goal-review-<goalId>-<fixCycles>` | the Goal reviewer, one channel per review round |
 | `docs-<goalId>`, `feedback-<goalId>`, `suggest-<escalationId>`, `style-sample-<goalId>` | Documenter, feedback triage, Suggestion, Style Samples |
 | `autoskills-<goalId>`, `preview-<goalId>` | autoskills install output, preview server output |
 
-The history endpoint looks up an attempt's transcript first, and otherwise `data/transcripts/<channel>.jsonl`. That works for `clarify-<goalId>`. It does not work for the draft and goal-review channels, whose transcript files are named differently (`draft-<goal>-<n>`, `goal-review-<goal>-<n>`). Also note that the goal-review channel is not goal-scoped.
+The history endpoint looks up an attempt's transcript first, and otherwise the channel's own file, `data/transcripts/<channel>.jsonl` (`channelTranscript` in `packages/server/src/transcripts.ts`). The `draft-<goalId>` channel carries every Draft and Revise session, saved as `draft-<goal>-<n>` / `revise-<goal>-<n>`, so its history is the newest of those.
 
 **Web pages** (`apps/web/src/App.tsx`): Goals `/`, New goal `/goals/new`, Brief `/goals/:id/brief` (`pages/brief/*`), Goal `/goals/:id` (`pages/goal/*`: overview, DAG, diff, delivery, activity, interview, milestone, preview), Manual Resolution, Agents, Inbox, Skills, Setup, Usage, Settings (`pages/settings/ModelPresets.tsx` for presets) and Help `/help`, `/help/:slug` (`pages/HelpPage.tsx`, the user guide).
 

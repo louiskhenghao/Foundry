@@ -166,7 +166,8 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
   // overrun itself is escalated to the human separately
   const cap = Math.max(6, remaining == null ? engine.config.attemptMaxCostUsd : Math.min(engine.config.attemptMaxCostUsd, remaining));
   const transcriptPath = join(engine.config.dataDir, 'transcripts', `goal-review-${goal.id}-${goal.fixCycles}.jsonl`);
-  const channel = `goal-review-${goal.fixCycles}`;
+  // the channel is the transcript's name: scoped to this goal and round, and the Live log finds it again after a refresh
+  const channel = `goal-review-${goal.id}-${goal.fixCycles}`;
   const base = {
     cwd,
     model: reviewer.model,
