@@ -37,6 +37,17 @@ const goal = (over: Partial<Goal> = {}): Goal => {
   return getGoal(engine.store.db, g.id)!;
 };
 
+/** true while the url still answers after `ms` of polling for it to go away */
+const answersWithin = async (url: string, ms: number): Promise<boolean> => {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    const up = await fetch(url, { signal: AbortSignal.timeout(500) }).then(() => true, () => false);
+    if (!up) return false;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return true;
+};
+
 describe('PreviewManager', () => {
   test('starts the detected dev script on a free port from the range, answers, and stops', async () => {
     writeFileSync(join(ws, 'package.json'), JSON.stringify({ scripts: { start: `bun -e "Bun.serve({ port: Number(process.env.PORT), fetch: () => new Response('hi from preview') })"` } }));
@@ -52,6 +63,8 @@ describe('PreviewManager', () => {
     expect((await engine.preview.start(g, 'human')).port).toBe(st.port);
     await engine.preview.stop(g.id, 'test');
     expect(engine.preview.status(g.id).running).toBe(false);
+    // the server itself (npm → sh → bun, grandchildren of the shell) is gone too, not orphaned on the port
+    expect(await answersWithin(st.url!, 3000)).toBe(false);
     expect(engine.store.listByGoal(g.id).some((e) => e.type === 'preview.stopped')).toBe(true);
   }, 30_000);
 

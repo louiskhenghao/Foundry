@@ -129,7 +129,7 @@ export class PreviewManager {
     // in Docker, servers that read HOST (or HOSTNAME, Next's standalone server) listen on every interface too
     const host = previewBindHost();
     const bind = host ? { HOST: host, HOSTNAME: host } : {};
-    entry.proc = Bun.spawn(['sh', '-lc', command], { cwd: ws, stdout: 'pipe', stderr: 'pipe', env: { ...process.env, ...this.engine.sessionEnvExtra(), PORT: String(port), ...bind, BROWSER: 'none', FORCE_COLOR: '0', NO_COLOR: '1' } });
+    entry.proc = Bun.spawn(['sh', '-lc', command], { cwd: ws, stdout: 'pipe', stderr: 'pipe', env: { ...process.env, ...this.engine.sessionEnvExtra(), PORT: String(port), ...bind, BROWSER: 'none', FORCE_COLOR: '0', NO_COLOR: '1' }, detached: true });
     this.live.set(goal.id, entry);
     this.lastError.delete(goal.id);
     void pump(entry.proc.stdout as ReadableStream<Uint8Array>, push);
@@ -153,8 +153,13 @@ export class PreviewManager {
     const l = this.live.get(goalId);
     if (!l) return;
     l.stopping = true;
-    // the dev server is a child of the shell: tell the whole family, then the shell
-    await Bun.spawn(['pkill', '-TERM', '-P', String(l.proc.pid)], { stdout: 'ignore', stderr: 'ignore' }).exited.catch(() => 0);
+    // the dev server is a grandchild of the shell (sh → npm → sh → vite): the shell leads its own process group, so
+    // signal the whole group. No pkill needed (the Docker image has none).
+    try {
+      process.kill(-l.proc.pid, 'SIGTERM');
+    } catch {
+      /* the group is already gone */
+    }
     l.proc.kill();
     await Promise.race([l.proc.exited, new Promise((r) => setTimeout(r, 3000))]);
     if (this.live.get(goalId) === l) {
