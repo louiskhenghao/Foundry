@@ -19,7 +19,8 @@ export interface DagTask extends Task {
   depth: number;
   attempts: number;
   maxAttempts: number;
-  lastCost: number | null;
+  /** every attempt and review of the task so far, as in the task drawer */
+  totalCost: number | null;
   /** Brief mode: no run state yet — show this chip (the Area) instead of the state badge and attempt count */
   plain?: { label: string | null; color: string };
 }
@@ -178,7 +179,7 @@ function TaskNode({ t, selected, linked, dim, onSelect, className, style, after 
         )}
         <span className="text-[10px] text-zinc-500 mono whitespace-nowrap">
           {t.plain ? t.id : `${t.attempts}/${t.maxAttempts}`}
-          {!t.plain && t.lastCost != null && <span className="ml-1">{fmtUsd(t.lastCost)}</span>}
+          {!t.plain && t.totalCost != null && <span className="ml-1" title="cost of this task so far, all attempts">{fmtUsd(t.totalCost)}</span>}
           {t.origin !== 'brief' && <span className="ml-1 text-zinc-600">{t.origin}</span>}
         </span>
       </div>

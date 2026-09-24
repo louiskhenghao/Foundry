@@ -45,7 +45,7 @@ export function BriefDag({ brief, selected, onSelect }: { brief: Brief; selected
       depth: d.get(t.key) ?? 0,
       attempts: 0,
       maxAttempts: 0,
-      lastCost: null,
+      totalCost: null,
       plain: { label: areaOf(brief, t.areaKey)?.name ?? null, color: areaStyle(brief, t.areaKey).dot },
     }));
   }, [brief]);

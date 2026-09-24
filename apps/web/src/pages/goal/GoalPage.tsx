@@ -1,3 +1,4 @@
+import { taskUsage } from '@foundry/core/browser';
 import { Ban, Folder, GitBranch, RotateCcw, Trash2 } from 'lucide-react';
 import { RestartDialog } from '../../components/RestartDialog.tsx';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
@@ -60,7 +61,7 @@ export function GoalPage() {
     () =>
       (d?.tasks ?? []).map((t) => {
         const attempts = d!.attempts.filter((a) => a.taskId === t.id);
-        return { ...t, attempts: attempts.length, maxAttempts: t.retryBudget + t.extraAttempts, lastCost: attempts.at(-1)?.costUsd ?? null };
+        return { ...t, attempts: attempts.length, maxAttempts: t.retryBudget + t.extraAttempts, totalCost: attempts.length ? taskUsage(attempts).costUsd : null };
       }),
     [d],
   );

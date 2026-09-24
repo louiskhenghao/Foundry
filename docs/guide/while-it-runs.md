@@ -62,7 +62,7 @@ From top to bottom:
 
 ## Tasks
 
-The **Tasks** tab draws the plan as a graph. Each card is a task with its state, its attempts so far out of those allowed (for example 2/3) and the cost of its latest attempt. Arrows show which task waits for which. On a phone the graph becomes a list.
+The **Tasks** tab draws the plan as a graph. Each card is a task with its state, its attempts so far out of those allowed (for example 2/3) and what the task has cost so far, all attempts together. Arrows show which task waits for which. On a phone the graph becomes a list.
 
 ### Task states
 
