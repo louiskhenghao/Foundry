@@ -1,3 +1,4 @@
+import { taskUsage } from '@foundry/core/browser';
 import { Ban, Folder, GitBranch, RotateCcw, Trash2 } from 'lucide-react';
 import { RestartDialog } from '../../components/RestartDialog.tsx';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
@@ -60,7 +61,7 @@ export function GoalPage() {
     () =>
       (d?.tasks ?? []).map((t) => {
         const attempts = d!.attempts.filter((a) => a.taskId === t.id);
-        return { ...t, attempts: attempts.length, maxAttempts: t.retryBudget + t.extraAttempts, lastCost: attempts.at(-1)?.costUsd ?? null };
+        return { ...t, attempts: attempts.length, maxAttempts: t.retryBudget + t.extraAttempts, totalCost: attempts.length ? taskUsage(attempts).costUsd : null };
       }),
     [d],
   );
@@ -170,12 +171,19 @@ export function GoalPage() {
       {g.state === 'clarifying' && g.interview && <InterviewPanel goal={g} />}
       {((g.state === 'clarifying' && !g.interview) || g.state === 'goal_review') && (
         <Card title={g.state === 'clarifying' ? 'Clarifying…' : 'Goal review…'}>
-          <LiveLog attemptId={g.state === 'clarifying' ? `clarify-${id}` : `goal-review-${g.fixCycles}`} />
+          <LiveLog attemptId={g.state === 'clarifying' ? `clarify-${id}` : `goal-review-${id}-${g.fixCycles}`} />
         </Card>
       )}
 
       {(expert ?? g.mode !== 'simple') === false ? (
-        <SimpleOverview d={d} onExpert={() => setView(true)} />
+        <SimpleOverview
+          d={d}
+          onExpert={() => setView(true)}
+          onDeliver={() => {
+            setView(true);
+            setTab('delivery');
+          }}
+        />
       ) : (
         <>
       <Tabs<Tab>

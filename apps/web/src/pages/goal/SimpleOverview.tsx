@@ -20,7 +20,7 @@ const STATE_TEXT: Record<string, string> = {
 };
 
 /** Progress for people who do not want the machinery: what is happening, how far, what it costs, what needs them. */
-export function SimpleOverview({ d, onExpert }: { d: GoalDetail; onExpert: () => void }) {
+export function SimpleOverview({ d, onExpert, onDeliver }: { d: GoalDetail; onExpert: () => void; onDeliver: () => void }) {
   const g = d.goal;
   const total = d.tasks.length;
   const done = d.tasks.filter((t) => t.state === 'done' || t.state === 'skipped').length;
@@ -110,7 +110,7 @@ export function SimpleOverview({ d, onExpert }: { d: GoalDetail; onExpert: () =>
             <span className="ml-auto flex items-center gap-2">
               <OpenMenu goalId={g.id} places={[...(d.paths.workspace ? [{ which: 'workspace' as const, label: 'The result', path: d.paths.workspace, hint: `branch ${g.branch}` }] : []), { which: 'repo' as const, label: 'Your repository', path: d.paths.repo }]} label="Open" />
               {g.delivery.status !== 'delivered' && (
-                <Button size="sm" variant="primary" onClick={onExpert} title="Push / open a pull request / merge — in Expert view, Delivery tab">
+                <Button size="sm" variant="primary" onClick={onDeliver} title="Push / open a pull request / merge — opens the Delivery tab in Expert view">
                   Deliver…
                 </Button>
               )}

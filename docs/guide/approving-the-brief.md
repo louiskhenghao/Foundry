@@ -189,7 +189,7 @@ With several Areas, a goal-level check can belong to one Area or to **all Areas*
 
 ## How to run it
 
-**How to run it** tells Foundry how to start the result, for the preview at milestones and for the self-check. Leave it empty for most projects: Foundry reads the start script from `package.json`.
+**How to run it** tells Foundry how to start the result, for the preview at milestones and for the self-check. Leave it empty for most projects: Foundry reads the start script from `package.json`. Its last line is the goal's **Self-check after each task** switch, so you can turn the self-check on before the work starts.
 
 | Field | What it is |
 |---|---|

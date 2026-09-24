@@ -150,7 +150,7 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 
 ### 表单上没有的：自检
 
-自检（Foundry 在一个隐藏的浏览器里打开运行中的结果并截图）在 [Settings → Preview & self-check](./settings.zh.md#preview--self-check) 里设置，也可以在 goal 页面上为单个 goal 打开。见 [运行期间](./while-it-runs.zh.md#self-check)。
+自检（Foundry 在一个隐藏的浏览器里打开运行中的结果并截图）在 [Settings → Preview & self-check](./settings.zh.md#preview--self-check) 里设置，也可以在 Brief 页面（**How to run it**）或之后在 goal 页面上为单个 goal 打开。见 [运行期间](./while-it-runs.zh.md#self-check)。
 
 ## 按下创建按钮之后
 

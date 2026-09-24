@@ -326,7 +326,8 @@ export class Engine {
     const goal = this.mustGoal(goalId);
     if (goal.selfCheck === on) return;
     this.store.append({ type: 'goal.selfcheck_set', goalId, payload: { on } });
-    if (on) ensureSelfCheck(this, getGoal(this.store.db, goalId)!);
+    // before approval only the choice is recorded: approving the Brief creates the check with the others
+    if (on && !['draft', 'clarifying', 'awaiting_brief_approval'].includes(goal.state)) ensureSelfCheck(this, getGoal(this.store.db, goalId)!);
   }
 
   /** after a task landed on the goal branch: the self-check looks at the preview when the goal asked for one */

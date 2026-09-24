@@ -6,6 +6,7 @@ import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, 
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { listGuide, readGuide } from './guide.ts';
+import { channelTranscript } from './transcripts.ts';
 import { z } from 'zod';
 
 /** Errors that carry their own HTTP status (409/422…) instead of the default 400. */
@@ -563,7 +564,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const id = c.req.param('id');
     const a = getAttempt(db, id);
     let path = a?.transcriptPath ?? null;
-    if (!path && /^[\w.-]+$/.test(id)) path = join(engine.config.dataDir, 'transcripts', `${id}.jsonl`);
+    if (!path) path = channelTranscript(engine.config.dataDir, id);
     if (!path || !existsSync(path)) return c.json({ events: [] });
     const text = await Bun.file(path).text();
     const events: unknown[] = [];

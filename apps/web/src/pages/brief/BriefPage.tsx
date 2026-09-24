@@ -244,7 +244,7 @@ export function BriefPage() {
       <AreasCard brief={brief} goalId={id} editable={editable} edit={edit} />
       <PlanSection brief={brief} goalId={id} editable={editable} edit={edit} />
       <GoalAcceptanceCard brief={brief} editable={editable} edit={edit} />
-      <RunCard brief={brief} editable={editable} edit={edit} />
+      <RunCard brief={brief} editable={editable} edit={edit} goalId={g.id} selfCheck={g.selfCheck} />
       <CompletionCard brief={brief} editable={editable} value={completionEdit} onChange={setCompletionEdit} />
 
       <Card title={isAuto && editable ? 'Estimate → proposed budget' : 'Estimate & budget'}>

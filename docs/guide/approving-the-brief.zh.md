@@ -189,7 +189,7 @@ Foundry 从不自作主张扩大范围：stretch 检查存在，只是因为它�
 
 ## How to run it
 
-**How to run it** 告诉 Foundry 怎么启动结果，用于里程碑的预览和自检。大多数项目留空就行：Foundry 会从 `package.json` 读启动脚本。
+**How to run it** 告诉 Foundry 怎么启动结果，用于里程碑的预览和自检。大多数项目留空就行：Foundry 会从 `package.json` 读启动脚本。最后一行是这个 goal 的 **Self-check after each task** 开关，所以在工作开始前就可以打开自检。
 
 | 字段 | 是什么 |
 |---|---|

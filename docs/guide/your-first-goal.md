@@ -150,7 +150,7 @@ A link under the form. It runs the goal as one task with command checks you type
 
 ### Not on the form: self-check
 
-The self-check (Foundry opens the running result in a hidden browser and takes screenshots) is set in [Settings → Preview & self-check](./settings.md#preview--self-check) and can be switched on per goal on the goal page. See [While it runs](./while-it-runs.md#self-check).
+The self-check (Foundry opens the running result in a hidden browser and takes screenshots) is set in [Settings → Preview & self-check](./settings.md#preview--self-check) and can be switched on per goal on the Brief page (**How to run it**) or later on the goal page. See [While it runs](./while-it-runs.md#self-check).
 
 ## After you press the create button
 
