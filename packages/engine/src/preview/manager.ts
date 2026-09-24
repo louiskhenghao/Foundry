@@ -3,7 +3,7 @@ import type { BriefRun, Goal } from '@foundry/core';
 import { getBrief, getGoal } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { goalWorkspacePath } from '../workspace.ts';
-import { detectRun } from './detect.ts';
+import { detectRun, previewBindHost } from './detect.ts';
 
 export type PreviewStarter = 'human' | 'milestone' | 'integration';
 
@@ -75,7 +75,7 @@ export class PreviewManager {
   resolveRun(goal: Goal): { run: BriefRun; source: 'brief' | 'detected' } | null {
     const fromBrief = getBrief(this.engine.store.db, goal.id)?.brief.run;
     if (fromBrief?.command) return { run: fromBrief, source: 'brief' };
-    const detected = detectRun(goalWorkspacePath(this.engine.config.dataDir, goal));
+    const detected = detectRun(goalWorkspacePath(this.engine.config.dataDir, goal), { host: previewBindHost() });
     return detected ? { run: detected, source: 'detected' } : null;
   }
 
@@ -126,7 +126,10 @@ export class PreviewManager {
       this.engine.broadcast({ goalId: goal.id, taskId: null, attemptId: channel, event: { kind: 'text', text: line }, ts: new Date().toISOString() });
     };
     push(`$ ${command}  (port ${port})`);
-    entry.proc = Bun.spawn(['sh', '-lc', command], { cwd: ws, stdout: 'pipe', stderr: 'pipe', env: { ...process.env, ...this.engine.sessionEnvExtra(), PORT: String(port), BROWSER: 'none', FORCE_COLOR: '0', NO_COLOR: '1' } });
+    // in Docker, servers that read HOST (or HOSTNAME, Next's standalone server) listen on every interface too
+    const host = previewBindHost();
+    const bind = host ? { HOST: host, HOSTNAME: host } : {};
+    entry.proc = Bun.spawn(['sh', '-lc', command], { cwd: ws, stdout: 'pipe', stderr: 'pipe', env: { ...process.env, ...this.engine.sessionEnvExtra(), PORT: String(port), ...bind, BROWSER: 'none', FORCE_COLOR: '0', NO_COLOR: '1' } });
     this.live.set(goal.id, entry);
     this.lastError.delete(goal.id);
     void pump(entry.proc.stdout as ReadableStream<Uint8Array>, push);

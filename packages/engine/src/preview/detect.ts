@@ -11,10 +11,20 @@ export function packageManager(ws: string): 'bun' | 'pnpm' | 'yarn' | 'npm' {
 }
 
 /**
- * How to start the result when the Brief did not say: read from package.json. Knows the port flags of the common dev
- * servers (Vite, Next, Expo); anything else gets PORT in the environment and must honour it. null = nothing startable.
+ * The interface previews listen on, or null for the dev server's own default (loopback). In Docker a published port
+ * only reaches a server that listens on every interface, so the image (FOUNDRY_DOCKER) gets 0.0.0.0; a local install
+ * keeps its previews on localhost.
  */
-export function detectRun(ws: string): BriefRun | null {
+export function previewBindHost(env: Record<string, string | undefined> = process.env): string | null {
+  return env.FOUNDRY_DOCKER ? '0.0.0.0' : null;
+}
+
+/**
+ * How to start the result when the Brief did not say: read from package.json. Knows the port flags of the common dev
+ * servers (Vite, Next, Expo); anything else gets PORT in the environment and must honour it. With `host`, Vite and Next
+ * are told to listen there too (Expo's web server already listens on every interface). null = nothing startable.
+ */
+export function detectRun(ws: string, opts: { host?: string | null } = {}): BriefRun | null {
   const file = join(ws, 'package.json');
   if (!existsSync(file)) return null;
   let pkg: { scripts?: Record<string, string>; dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
@@ -32,6 +42,8 @@ export function detectRun(ws: string): BriefRun | null {
   const script = scripts.dev ? 'dev' : scripts.start ? 'start' : null;
   if (!script) return null;
   const base = `${pm} run ${script}`;
-  const args = script === 'dev' && deps.vite ? ' -- --port {port} --strictPort' : script === 'dev' && deps.next ? ' -- -p {port}' : '';
+  const host = opts.host;
+  const args =
+    script === 'dev' && deps.vite ? ` -- --port {port} --strictPort${host ? ` --host ${host}` : ''}` : script === 'dev' && deps.next ? ` -- -p {port}${host ? ` -H ${host}` : ''}` : '';
   return { install, command: base + args, url, platform: 'web' };
 }

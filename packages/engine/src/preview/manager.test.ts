@@ -55,6 +55,25 @@ describe('PreviewManager', () => {
     expect(engine.store.listByGoal(g.id).some((e) => e.type === 'preview.stopped')).toBe(true);
   }, 30_000);
 
+  test('in Docker the detected command binds every interface and the server gets HOST/HOSTNAME=0.0.0.0', async () => {
+    const saved = process.env.FOUNDRY_DOCKER;
+    process.env.FOUNDRY_DOCKER = '1';
+    try {
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ scripts: { start: `bun -e "Bun.serve({ port: Number(process.env.PORT), hostname: process.env.HOST, fetch: () => new Response(process.env.HOST + ' ' + process.env.HOSTNAME) })"` } }));
+      const g = goal();
+      const st = await engine.preview.start(g, 'human');
+      expect(st.ready).toBe(true);
+      expect(st.url).toBe(`http://localhost:${st.port}`);
+      expect(await fetch(st.url!).then((r) => r.text())).toBe('0.0.0.0 0.0.0.0');
+      await engine.preview.stop(g.id, 'test');
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ scripts: { dev: 'vite' }, devDependencies: { vite: '^5' } }));
+      expect(engine.preview.status(g.id).run?.command).toBe('npm run dev -- --port {port} --strictPort --host 0.0.0.0');
+    } finally {
+      if (saved === undefined) delete process.env.FOUNDRY_DOCKER;
+      else process.env.FOUNDRY_DOCKER = saved;
+    }
+  }, 30_000);
+
   test('nothing to run: start refuses with a reason, and the self-check records an error instead of throwing', async () => {
     const g = goal({ selfCheck: true });
     await expect(engine.preview.start(g, 'human')).rejects.toThrow(/nothing to run/);
