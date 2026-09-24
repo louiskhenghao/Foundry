@@ -1,43 +1,50 @@
 import { describe, expect, test } from 'bun:test';
-import { modelFor, metaFor, resolveModel, workerModelFor } from './roles.ts';
+import { BUILTIN_PRESETS, builtinStatus, presetFingerprint, TaskDifficulty } from '@foundry/core';
+import { modelFor, tableFor, workerModelFor } from './roles.ts';
 
-const goal = { models: { strong: 'claude-fable-5-1', worker: 'opus', cheap: 'haiku' } };
-const cfg = {
-  modelRoles: { clarifier: null, planner: 'worker', merger: 'claude-sonnet-5', goalReviewer: null, taskReviewer: null, documenter: null, feedback: null, suggest: null, styleSample: 'cheap' },
-  difficultyRoute: { routine: 'cheap', normal: 'worker', hard: 'strong' },
-  escalateLastAttempt: true,
-};
+const cfg = { modelPresets: {}, naturePreset: { code: 'production', docs: 'balanced', media: 'balanced' }, escalateLastAttempt: true };
+const goal = (nature = 'code', modelPreset: string | null = null) => ({ nature: nature as never, modelPreset });
 
-describe('model roles', () => {
-  test('empty = the default tier; a tier name follows the goal; a model id is pinned (no tier, so fallbacks never rewrite a tier)', () => {
-    expect(modelFor(cfg, goal, 'clarifier')).toEqual({ model: 'claude-fable-5-1', tier: 'strong' });
-    expect(modelFor(cfg, goal, 'taskReviewer')).toEqual({ model: 'haiku', tier: 'cheap' });
-    expect(modelFor(cfg, goal, 'planner')).toEqual({ model: 'opus', tier: 'worker' });
-    expect(modelFor(cfg, goal, 'merger')).toEqual({ model: 'claude-sonnet-5', tier: null });
-    expect(metaFor('g1', { tier: null })).toEqual({ goalId: 'g1' });
-    expect(resolveModel(goal, '  ', 'worker')).toEqual({ model: 'opus', tier: 'worker' });
-    expect(modelFor(cfg, goal, 'styleSample')).toEqual({ model: 'haiku', tier: 'cheap' });
-    expect(modelFor(cfg, goal, 'suggest')).toEqual({ model: 'claude-fable-5-1', tier: 'strong' });
-    // the goal reviewer: an empty row honours the older Settings → Reviews tier; a row value wins over it
-    expect(modelFor({ ...cfg, goalReviewer: 'worker' }, goal, 'goalReviewer')).toEqual({ model: 'opus', tier: 'worker' });
-    expect(modelFor({ ...cfg, goalReviewer: 'worker', modelRoles: { ...cfg.modelRoles, goalReviewer: 'claude-sonnet-5' } }, goal, 'goalReviewer')).toEqual({ model: 'claude-sonnet-5', tier: null });
+describe('model presets', () => {
+  test('a goal reads its nature table from the preset Settings picks; its own preset wins; a missing preset falls back', () => {
+    expect(tableFor(cfg, goal('code')).presetId).toBe('production');
+    expect(modelFor(cfg, goal('code'), 'clarifier').model).toBe('fable');
+    expect(modelFor(cfg, goal('code'), 'merger').model).toBe('opus');
+    expect(tableFor(cfg, goal('image')).nature).toBe('media');
+    expect(modelFor(cfg, goal('research'), 'goalReviewer').model).toBe(BUILTIN_PRESETS.balanced!.tables.docs.goalReviewer);
+    expect(modelFor(cfg, goal('auto'), 'clarifier').model).toBe('fable'); // unclassified goals use the Code table
+    expect(tableFor(cfg, goal('code', 'economy')).presetId).toBe('economy');
+    expect(tableFor(cfg, goal('code', 'gone')).presetId).toBe('production');
+  });
+  test('an edited built-in or a preset of your own is read live from Settings', () => {
+    const mine = { ...BUILTIN_PRESETS.balanced!, label: 'Cheap merges', tables: { ...BUILTIN_PRESETS.balanced!.tables, code: { ...BUILTIN_PRESETS.balanced!.tables.code, merger: 'haiku' } } };
+    const c = { ...cfg, modelPresets: { mine }, naturePreset: { ...cfg.naturePreset, code: 'mine' } };
+    expect(modelFor(c, goal('code'), 'merger').model).toBe('haiku');
+    const edited = { ...BUILTIN_PRESETS.production!, basedOn: presetFingerprint(BUILTIN_PRESETS.production!), tables: { ...BUILTIN_PRESETS.production!.tables, code: { ...BUILTIN_PRESETS.production!.tables.code, merger: 'sonnet' } } };
+    expect(builtinStatus('production', { production: edited })).toEqual({ builtin: true, modified: true, newerDefault: false });
+    expect(builtinStatus('production', { production: { ...edited, basedOn: 'older' } }).newerDefault).toBe(true);
+    expect(builtinStatus('production', {})).toEqual({ builtin: true, modified: false, newerDefault: false });
+    expect(builtinStatus('mine', { mine })).toEqual({ builtin: false, modified: false, newerDefault: false });
   });
 });
 
 describe('worker routing', () => {
-  const task = (difficulty: 'routine' | 'normal' | 'hard', retryBudget = 3) => ({ difficulty, retryBudget });
-  test('difficulty picks the route', () => {
-    expect(workerModelFor(cfg, goal, task('routine'), 1)).toMatchObject({ model: 'haiku', escalated: null });
-    expect(workerModelFor(cfg, goal, task('normal'), 1)).toMatchObject({ model: 'opus', escalated: null });
-    expect(workerModelFor(cfg, goal, task('hard'), 1)).toMatchObject({ model: 'claude-fable-5-1', escalated: null });
+  const task = (difficulty: 'simple' | 'standard' | 'complex', retryBudget = 3) => ({ difficulty, retryBudget });
+  test('difficulty picks the Simple / Standard / Complex row', () => {
+    expect(workerModelFor(cfg, goal(), task('simple'), 1)).toEqual({ model: 'sonnet', escalated: null });
+    expect(workerModelFor(cfg, goal(), task('standard'), 1)).toEqual({ model: 'opus', escalated: null });
+    expect(workerModelFor(cfg, goal(), task('complex'), 1)).toEqual({ model: 'fable', escalated: null });
   });
-  test('the last attempt of a budget ≥ 2 and human retries run on strong; a budget of 1 never escalates; already-strong stays', () => {
-    expect(workerModelFor(cfg, goal, task('normal', 3), 2)).toMatchObject({ model: 'opus', escalated: null });
-    expect(workerModelFor(cfg, goal, task('normal', 3), 3)).toMatchObject({ model: 'claude-fable-5-1', tier: 'strong', escalated: 'last-attempt' });
-    expect(workerModelFor(cfg, goal, task('normal', 3), 4)).toMatchObject({ model: 'claude-fable-5-1', escalated: 'human-retry' });
-    expect(workerModelFor(cfg, goal, task('normal', 1), 1)).toMatchObject({ model: 'opus', escalated: null });
-    expect(workerModelFor(cfg, goal, task('normal', 1), 2)).toMatchObject({ model: 'claude-fable-5-1', escalated: 'human-retry' });
-    expect(workerModelFor(cfg, goal, task('hard', 3), 3)).toMatchObject({ model: 'claude-fable-5-1', escalated: null });
-    expect(workerModelFor({ ...cfg, escalateLastAttempt: false }, goal, task('normal', 3), 3)).toMatchObject({ model: 'opus', escalated: null });
+  test('the last attempt of a budget ≥ 2 and human retries run on the Complex row; budget 1 never escalates', () => {
+    expect(workerModelFor(cfg, goal(), task('standard', 3), 3)).toEqual({ model: 'fable', escalated: 'last-attempt' });
+    expect(workerModelFor(cfg, goal(), task('standard', 3), 4)).toEqual({ model: 'fable', escalated: 'human-retry' });
+    expect(workerModelFor(cfg, goal(), task('standard', 1), 1)).toEqual({ model: 'opus', escalated: null });
+    expect(workerModelFor(cfg, goal(), task('complex', 3), 3)).toEqual({ model: 'fable', escalated: null });
+    expect(workerModelFor({ ...cfg, escalateLastAttempt: false }, goal(), task('standard', 3), 3)).toEqual({ model: 'opus', escalated: null });
+  });
+  test('difficulty values of the first release replay as the new names', () => {
+    expect(TaskDifficulty.parse('routine')).toBe('simple');
+    expect(TaskDifficulty.parse('normal')).toBe('standard');
+    expect(TaskDifficulty.parse('hard')).toBe('complex');
   });
 });

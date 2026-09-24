@@ -1,4 +1,4 @@
-import { Effort } from '@foundry/core';
+import { DEFAULT_NATURE_PRESETS, Effort, type ModelNature, type ModelPreset } from '@foundry/core';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -32,11 +32,11 @@ export interface EngineConfig {
   interview: 'auto' | 'always' | 'never';
   /** effort handed to every session of new goals; null = CLI default */
   effort: Effort | null;
-  /** per-role model overrides (tier name or model id; null = the role's default tier) */
-  modelRoles: Record<'clarifier' | 'planner' | 'merger' | 'goalReviewer' | 'taskReviewer' | 'documenter' | 'feedback' | 'suggest' | 'styleSample', string | null>;
-  /** worker model per task difficulty (tier name or model id) */
-  difficultyRoute: Record<'routine' | 'normal' | 'hard', string>;
-  /** run the last attempt of a budget ≥ 2, and human-granted extra attempts, on the strong tier */
+  /** presets saved in Settings (edited built-ins and your own); the shipped ones are always available */
+  modelPresets: Record<string, ModelPreset>;
+  /** which preset each goal nature uses */
+  naturePreset: Record<ModelNature, string>;
+  /** run the last attempt of a budget ≥ 2, and human-granted extra attempts, on the Complex-task model */
   escalateLastAttempt: boolean;
   /** model tier for the goal review, and the diff size under which the cheap tier reviews without skills */
   goalReviewer: 'strong' | 'worker' | 'cheap';
@@ -112,8 +112,8 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     interview: (['auto', 'always', 'never'] as const).find((m) => m === process.env.FOUNDRY_INTERVIEW) ?? 'auto',
     effort: Effort.options.find((e) => e === process.env.FOUNDRY_EFFORT) ?? null,
     goalReviewer: (['strong', 'worker', 'cheap'] as const).find((t) => t === process.env.FOUNDRY_GOAL_REVIEWER) ?? 'strong',
-    modelRoles: { clarifier: null, planner: null, merger: null, goalReviewer: null, taskReviewer: null, documenter: null, feedback: null, suggest: null, styleSample: null },
-    difficultyRoute: { routine: 'worker', normal: 'worker', hard: 'strong' },
+    modelPresets: {},
+    naturePreset: { ...DEFAULT_NATURE_PRESETS },
     escalateLastAttempt: true,
     smallGoalLines: Number(process.env.FOUNDRY_SMALL_GOAL_LINES ?? 400),
     models: { strong: process.env.FOUNDRY_MODEL_STRONG ?? 'opus', cheap: process.env.FOUNDRY_MODEL_CHEAP ?? 'haiku', worker: process.env.FOUNDRY_MODEL_WORKER ?? 'opus' },

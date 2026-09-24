@@ -103,14 +103,19 @@ describe('model fallback runner', () => {
       const events: RunnerEvent[] = [{ kind: 'hook', name: 'SessionStart:startup', outcome: 'success' }, { kind: 'init', sessionId: 's', model: 'claude-sonnet-5', tools: [], raw: {} }, { kind: 'result', result }];
       return { pid: null, events: (async function* () { for (const e of events) yield e; })(), kill() {}, result: Promise.resolve(result) };
     }).bind(inner);
-    const engine = new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'ch'), alwaysReviewTasks: false, log: () => {}, modelFallbacks: ['sonnet'] }), inner);
-    const goal = await engine.createGoal({ prompt: 'retired', repoPath: repo, models: { worker: 'retired-model', strong: 'sonnet', cheap: 'sonnet' }, autoBrief: { mustChecks: ['test -f done.txt'] } });
+    const { BUILTIN_PRESETS } = await import('@foundry/core');
+    const all = (m: string) => Object.fromEntries(Object.keys(BUILTIN_PRESETS.economy!.tables.code).map((k) => [k, m])) as import('@foundry/core').PresetTable;
+    // every action on sonnet except the Standard-task row, which names a retired model
+    const retired = { label: 'Retired', description: '', basedOn: null, tables: { code: { ...all('sonnet'), standard: 'retired-model' }, docs: all('sonnet'), media: all('sonnet') } };
+    const engine = new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'ch'), alwaysReviewTasks: false, log: () => {}, modelFallbacks: ['sonnet'], modelPresets: { retired } }), inner);
+    const goal = await engine.createGoal({ prompt: 'retired', repoPath: repo, modelPreset: 'retired', autoBrief: { mustChecks: ['test -f done.txt'] } });
     await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
     const g = getGoal(engine.store.db, goal.id)!;
     expect(g.state).toBe('done');
-    expect(g.models.worker).toBe('sonnet');
+    // the replacement is remembered on the goal, so the dead model is asked for only once
+    expect(g.modelSubstitutions).toEqual({ 'retired-model': 'sonnet' });
     const ev = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'goal.models_changed').map((e) => e.payload as any);
-    expect(ev).toEqual([{ tier: 'worker', from: 'retired-model', to: 'sonnet', reason: 'model: retired-model not found' }]);
+    expect(ev).toEqual([{ tier: null, from: 'retired-model', to: 'sonnet', reason: 'model: retired-model not found' }]);
     expect(inner.calls.filter((c) => c === 'retired-model').length).toBe(1);
     const models = engine.listModels();
     expect(models.find((m) => m.name === 'retired-model')).toMatchObject({ seed: false, inUse: [] });
@@ -118,7 +123,7 @@ describe('model fallback runner', () => {
     const doctor = await engine.doctor();
     const check = doctor.checks.find((c) => c.id === 'models')!;
     expect(check.ok).toBe(true);
-    engine.config.models.worker = 'retired-model';
+    engine.config.naturePreset.code = 'retired';
     const again = (await engine.doctor()).checks.find((c) => c.id === 'models')!;
     expect(again.ok).toBe(false);
     expect(again.detail).toContain('retired-model');

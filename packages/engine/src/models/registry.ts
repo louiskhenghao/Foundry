@@ -18,6 +18,15 @@ export interface ModelRecord {
   sessions: number;
   /** seed alias (always listed) vs learned from use */
   seed: boolean;
+  /** found in the Claude Code binary by a model sync; `newest` = the latest id of its family */
+  discovered?: { family: string; newest: boolean; at: string } | null;
+}
+
+/** when the last model sync ran and against which Claude Code version (a new CLI version triggers one) */
+export interface ModelSyncState {
+  cliVersion: string | null;
+  at: string | null;
+  found: number;
 }
 
 /**
@@ -63,6 +72,28 @@ export class ModelRegistry {
     r.lastSeenAt = now;
     return r;
   }
+  /** a model sync found these ids in the Claude Code binary: add the unknown ones, refresh which is newest per family */
+  noteDiscovered(models: { id: string; family: string; newest: boolean }[]): void {
+    const at = new Date().toISOString();
+    for (const r of this.records.values()) if (r.discovered) r.discovered = { ...r.discovered, newest: false };
+    for (const m of models) {
+      const r = this.records.get(m.id) ?? this.upsert(m.id);
+      r.discovered = { family: m.family, newest: m.newest, at };
+    }
+    this.save();
+  }
+  syncState(): ModelSyncState {
+    try {
+      return JSON.parse(readFileSync(join(dirname(this.path), 'models-sync.json'), 'utf8')) as ModelSyncState;
+    } catch {
+      return { cliVersion: null, at: null, found: 0 };
+    }
+  }
+  noteSync(state: ModelSyncState): void {
+    try {
+      writeFileSync(join(dirname(this.path), 'models-sync.json'), JSON.stringify(state, null, 2));
+    } catch {}
+  }
   /** the CLI's `init` message told us what `name` resolves to */
   noteResolved(name: string, resolvedId: string | null): void {
     if (!name) return;
@@ -76,7 +107,9 @@ export class ModelRegistry {
     const r = this.upsert(name);
     r.sessions++;
     const fc: FailureClass | null | undefined = result.failureClass;
-    const resolved = result.modelUsage && typeof result.modelUsage === 'object' ? Object.keys(result.modelUsage as object)[0] : null;
+    // the model that did the work: Claude Code also bills a few haiku tokens per session for its own housekeeping
+    const usage = result.modelUsage && typeof result.modelUsage === 'object' ? Object.entries(result.modelUsage as Record<string, { costUSD?: number; outputTokens?: number }>) : [];
+    const resolved = usage.sort((a, b) => (b[1]?.costUSD ?? b[1]?.outputTokens ?? 0) - (a[1]?.costUSD ?? a[1]?.outputTokens ?? 0))[0]?.[0] ?? null;
     if (resolved) r.resolvedId = resolved;
     if (fc === 'model_unavailable') {
       r.lastFailAt = new Date().toISOString();

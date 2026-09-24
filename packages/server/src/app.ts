@@ -49,6 +49,7 @@ const CreateGoalBody = z.object({
   selfCheck: z.boolean().optional(),
   interview: z.enum(['auto', 'always', 'never']).optional(),
   effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).nullable().optional(),
+  modelPreset: z.string().min(1).nullable().optional(),
 });
 
 export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
@@ -704,7 +705,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
 
   // ---------- models ----------
-  app.get('/api/models', (c) => c.json({ models: engine.listModels(), fallbacks: engine.config.modelFallbacks, current: engine.config.models }));
+  app.get('/api/models', (c) => c.json({ models: engine.listModels(), fallbacks: engine.config.modelFallbacks, current: engine.config.models, sync: engine.models.syncState() }));
+  // model sync: ids from the Claude Code binary (free) + one tiny session per family alias (~$0.04)
+  app.post('/api/models/sync', async (c) => c.json(await engine.syncModels()));
   app.post('/api/models/probe', async (c) => {
     const { name } = z.object({ name: z.string().min(1).max(80) }).parse(await c.req.json());
     return c.json(await engine.probeModel(name));
