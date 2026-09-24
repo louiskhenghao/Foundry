@@ -7,6 +7,8 @@ services:
     image: imlouiskhenghao/foundry:latest
     # a fixed name so the watchtower sidecar can update exactly this container
     container_name: foundry
+    # a tiny init as PID 1 reaps the dev servers, sessions and tools that exit or lose their parent (bun does not)
+    init: true
     # the UI is not authenticated: keep it on loopback
     ports:
       - '127.0.0.1:4111:4111'
