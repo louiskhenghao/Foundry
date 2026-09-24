@@ -77,18 +77,18 @@ Unticked: it asks only when your project cannot answer something, and goes strai
 
 ### Effort
 
-How hard every Claude session of this goal thinks.
+How hard every Claude session of this goal thinks. Press one of the buttons; hover one for a short hint.
 
 | Choice | When |
 |---|---|
-| **Settings default** | Most of the time. |
-| **low — fast, cheap** | Small, obvious changes. |
+| **Default** | Most of the time. Uses the effort level set in Settings. |
+| **low** | Small, obvious changes. Fast and cheap. |
 | **medium**, **high** | In between. |
-| **xhigh**, **max — hardest problems** | Hard work that touches many parts of the project. Slower and more expensive. |
+| **xhigh**, **max** | Hard work that touches many parts of the project. Slower and more expensive. |
 
 ### Models
 
-Which [model preset](./settings.md#presets) this goal uses. **Default for this goal type** uses the preset Settings picks for code, documents or media goals; the name in brackets is that preset. Pick **Max**, **Production**, **Balanced**, **Economy** (or one of your own) to override it for this goal only. Cheaper presets cost a fraction of Max.
+Which [model preset](./settings.md#presets) this goal uses. **Default** uses the preset Settings picks for code, documents or media goals; the name after it, for example **Default · Production**, is that preset. It changes when you change the kind of goal. Pick **Max**, **Production**, **Balanced**, **Economy** (or one of your own) to override it for this goal only. Cheaper presets cost a fraction of Max.
 
 ### Engineering discipline (TDD)
 
@@ -96,8 +96,8 @@ Only in Expert view. TDD means writing a test first, then the code that makes it
 
 | Choice | Meaning |
 |---|---|
-| **required (must, observed)** | Workers must follow it, and the reviewer is told when they did not. The default. |
-| **preferred (suggested)** | Suggested only. Simple view goals always use this. |
+| **required** | Workers must follow it, and the reviewer is told when they did not. The default. |
+| **preferred** | Suggested only. Simple view goals always use this. |
 | **off** | Never mentioned. |
 
 Documentation, setup and research tasks never get a TDD rule, and a single task can switch it off in the Brief. With **Fast mode** ticked, TDD is off.

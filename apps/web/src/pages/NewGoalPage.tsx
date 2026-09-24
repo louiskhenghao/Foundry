@@ -8,7 +8,7 @@ import { AttachmentInput } from '../components/Attachments.tsx';
 import { BudgetPicker, type BudgetDraft } from '../components/BudgetPicker.tsx';
 import { DeliveryPolicyForm, type PolicyDraft } from '../components/DeliveryPolicyForm.tsx';
 import { RepoCard } from '../components/RepoCard.tsx';
-import { Button, Card, Input, Textarea, cn, Select } from '../ui.tsx';
+import { Button, ButtonGroup, Card, Input, Textarea, cn } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
 
 const DELIVERY_KEY = 'foundry.delivery';
@@ -141,6 +141,9 @@ export function NewGoalPage() {
     }
   };
 
+  // the preset Settings picks for this goal type, named on the Default button
+  const defaultPick = presetInfo?.picks[natureKey(nature)];
+  const defaultPreset = defaultPick ? (presetInfo!.ids.find((p) => p.id === defaultPick)?.label ?? defaultPick) : null;
   return (
     <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4 pb-24">
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -224,44 +227,53 @@ export function NewGoalPage() {
             <span className="text-[11px] text-zinc-400 block leading-snug">The Clarifier asks at least one round of questions (options with its recommendation first) before writing the Brief. Unchecked: it asks only when the repository cannot settle something, and skips straight to the Brief for small goals.</span>
           </span>
         </label>
-        <div className="mt-3 flex items-center gap-3 flex-wrap">
-          <span className="text-xs text-zinc-300">Effort<HelpLink to="your-first-goal#effort" className="ml-1.5" /></span>
-          <span className="w-56">
-            <Select value={effort} onChange={(e) => setEffort(e.target.value)} title="Claude Code's effort level for every session of this goal — lower is faster and cheaper, xhigh / max for hard cross-cutting work; empty = the Settings default">
-              <option value="">Settings default</option>
-              <option value="low">low — fast, cheap</option>
-              <option value="medium">medium</option>
-              <option value="high">high</option>
-              <option value="xhigh">xhigh</option>
-              <option value="max">max — hardest problems</option>
-            </Select>
-          </span>
-        </div>
-        <div className="mt-3 flex items-center gap-3 flex-wrap">
-          <span className="text-xs text-zinc-300">Models<HelpLink to="your-first-goal#models" className="ml-1.5" /></span>
-          <span className="w-56">
-            <Select value={modelPreset} onChange={(e) => setModelPreset(e.target.value)} title="Which model preset this goal uses for every action (Settings → Models); default = the preset Settings picks for this goal type">
-              <option value="">
-                Default for this goal type{presetInfo ? ` (${presetInfo.ids.find((p) => p.id === presetInfo.picks[natureKey(nature)])?.label ?? presetInfo.picks[natureKey(nature)]})` : ''}
-              </option>
-              {(presetInfo?.ids ?? []).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
-              ))}
-            </Select>
-          </span>
+        <div className="mt-4 flex flex-wrap items-center gap-x-8 gap-y-3">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="text-xs text-zinc-300">Effort<HelpLink to="your-first-goal#effort" className="ml-1.5" /></span>
+            <ButtonGroup
+              label="Effort"
+              value={effort}
+              onChange={setEffort}
+              options={[
+                { id: '', label: 'Default', title: 'The effort level set in Settings' },
+                { id: 'low', label: 'low', title: 'Fast and cheap: simple, well-defined goals' },
+                { id: 'medium', label: 'medium' },
+                { id: 'high', label: 'high' },
+                { id: 'xhigh', label: 'xhigh', title: 'Hard, cross-cutting work' },
+                { id: 'max', label: 'max', title: 'The hardest problems; slowest and most expensive' },
+              ]}
+            />
+          </div>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="text-xs text-zinc-300">Models<HelpLink to="your-first-goal#models" className="ml-1.5" /></span>
+            <ButtonGroup
+              label="Models"
+              value={modelPreset}
+              onChange={setModelPreset}
+              options={[
+                {
+                  id: '',
+                  label: `Default${defaultPreset ? ` · ${defaultPreset}` : ''}`,
+                  title: 'The preset Settings picks for this goal type (Settings → Models & limits)',
+                },
+                ...(presetInfo?.ids ?? []).map((p) => ({ id: p.id, label: p.label })),
+              ]}
+            />
+          </div>
         </div>
         {mode === 'expert' && (
-          <div className="mt-3 flex items-center gap-3 flex-wrap">
+          <div className="mt-3 flex items-center gap-2.5 flex-wrap">
             <span className="text-xs text-zinc-300">Engineering discipline — TDD<HelpLink to="your-first-goal#engineering-discipline-tdd" className="ml-1.5" /></span>
-            <span className="w-56">
-              <Select value={tdd} onChange={(e) => setTdd(e.target.value as typeof tdd)} title="required: workers must invoke the tdd skill and the reviewer is told when they did not · preferred: suggested only · off: never mentioned">
-                <option value="required">required (must, observed)</option>
-                <option value="preferred">preferred (suggested)</option>
-                <option value="off">off</option>
-              </Select>
-            </span>
+            <ButtonGroup
+              label="Engineering discipline — TDD"
+              value={tdd}
+              onChange={setTdd}
+              options={[
+                { id: 'required', label: 'required', title: 'Workers must write the test first; the reviewer is told when they did not' },
+                { id: 'preferred', label: 'preferred', title: 'Suggested to workers, not checked' },
+                { id: 'off', label: 'off', title: 'Never mentioned' },
+              ]}
+            />
             <span className="text-[11px] text-zinc-500">docs / infra / chore / research tasks never get a TDD mandate; a task can also switch it off in the Brief.</span>
           </div>
         )}

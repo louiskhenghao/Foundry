@@ -77,18 +77,18 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 
 ### Effort
 
-这个 goal 的每个 Claude 会话思考得有多用力。
+这个 goal 的每个 Claude 会话思考得有多用力。点其中一个按钮；鼠标停在按钮上会有简短说明。
 
 | 选项 | 什么时候用 |
 |---|---|
-| **Settings default** | 大多数时候。 |
-| **low — fast, cheap** | 小而明显的改动。 |
+| **Default** | 大多数时候。使用 Settings 里设的 effort。 |
+| **low** | 小而明显的改动。快，也便宜。 |
 | **medium**、**high** | 介于两者之间。 |
-| **xhigh**、**max — hardest problems** | 牵涉项目很多部分的难活。更慢，也更贵。 |
+| **xhigh**、**max** | 牵涉项目很多部分的难活。更慢，也更贵。 |
 
 ### Models
 
-这个 goal 用哪个 [模型预设](./settings.zh.md#presets)。**Default for this goal type** 使用 Settings 为代码、文档或媒体类 goal 选定的预设；括号里的名字就是那个预设。选 **Max**、**Production**、**Balanced**、**Economy**（或者你自己建的预设），就只对这个 goal 覆盖默认值。便宜的预设只要 Max 的一小部分。
+这个 goal 用哪个 [模型预设](./settings.zh.md#presets)。**Default** 使用 Settings 为代码、文档或媒体类 goal 选定的预设；后面的名字就是那个预设，例如 **Default · Production**。换 goal 类型时它会跟着变。选 **Max**、**Production**、**Balanced**、**Economy**（或者你自己建的预设），就只对这个 goal 覆盖默认值。便宜的预设只要 Max 的一小部分。
 
 ### Engineering discipline (TDD)
 
@@ -96,8 +96,8 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 
 | 选项 | 意思 |
 |---|---|
-| **required (must, observed)** | 执行者必须遵守；没遵守时审查员会被告知。这是默认。 |
-| **preferred (suggested)** | 只是建议。Simple 视图的 goal 总是用这个。 |
+| **required** | 执行者必须遵守；没遵守时审查员会被告知。这是默认。 |
+| **preferred** | 只是建议。Simple 视图的 goal 总是用这个。 |
 | **off** | 完全不提。 |
 
 文档、环境搭建和调研类任务从来不加 TDD 规则；单个任务也可以在 Brief 里关掉它。勾上 **Fast mode** 时，TDD 是关闭的。

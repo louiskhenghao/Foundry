@@ -85,6 +85,29 @@ export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTex
   return <textarea className={cn('w-full rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500', className)} {...props} />;
 }
 
+/** A row of mutually exclusive buttons for a short list of choices: every option visible, one click to pick. */
+export function ButtonGroup<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: { id: T; label: ReactNode; title?: string }[]; label: string }) {
+  return (
+    // the 1px gaps show the border colour through, so the dividers stay clean when a narrow screen wraps the row;
+    // wrapped buttons grow to fill their row
+    <div role="radiogroup" aria-label={label} className="inline-flex flex-wrap gap-px max-w-full rounded-md border border-zinc-700 bg-zinc-700 overflow-hidden text-xs">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          role="radio"
+          aria-checked={value === o.id}
+          title={o.title}
+          onClick={() => onChange(o.id)}
+          className={cn('grow px-2.5 py-1 whitespace-nowrap bg-zinc-900', value === o.id ? 'shadow-[inset_0_0_0_999px_rgb(16_185_129/0.15)] text-emerald-200 font-medium' : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800')}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function Card({ children, className, title, actions, id }: { children: ReactNode; className?: string; title?: ReactNode; actions?: ReactNode; id?: string }) {
   return (
     <section id={id} className={cn('rounded-lg border border-zinc-800 bg-zinc-900/60', className)}>
