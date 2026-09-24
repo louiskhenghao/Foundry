@@ -1,4 +1,5 @@
-import { Bot, Inbox, ListTodo, Menu, Moon, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X } from 'lucide-react';
+import { Bot, Inbox, ListTodo, Menu, Moon, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X, HelpCircle } from 'lucide-react';
+import { HelpPage } from './pages/HelpPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
 import { AgentsPage } from './pages/AgentsPage.tsx';
 import { AgentsPill } from './pages/agents/AgentsPill.tsx';
@@ -70,6 +71,9 @@ export function App() {
       <NavLink to="/settings" className={link} title="Settings">
         <Settings2 size={15} /> <span className={label}>Settings</span>
       </NavLink>
+      <NavLink to="/help" className={link} title="Guide — how to use Foundry">
+        <HelpCircle size={15} /> <span className={label}>Help</span>
+      </NavLink>
     </>
   );
   return (
@@ -119,6 +123,8 @@ export function App() {
           <Route path="/setup" element={<SetupPage />} />
           <Route path="/usage" element={<UsagePage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/help" element={<HelpPage />} />
+          <Route path="/help/:slug" element={<HelpPage />} />
         </Routes>
       </main>
     </div>
