@@ -29,7 +29,7 @@ function opts(name: string): string[] {
 }
 const has = (name: string) => rest.includes(name);
 const positional = () => rest.filter((a, i) => !a.startsWith('--') && !(i > 0 && rest[i - 1]!.startsWith('--') && !FLAGS.has(rest[i - 1]!)));
-const FLAGS = new Set(['--auto-approve', '--approve', '--verify', '--json', '--follow', '--force']);
+const FLAGS = new Set(['--auto-approve', '--approve', '--verify', '--json', '--follow', '--force', '--self-check']);
 const BASE = process.env.FOUNDRY_URL ?? `http://127.0.0.1:${process.env.FOUNDRY_PORT ?? 4111}`;
 
 async function api(path: string, init?: RequestInit): Promise<any> {
@@ -62,6 +62,9 @@ const help = `foundry — drive the host Claude Code to over-deliver on goals
   goal new "<prompt>" --repo <path>       create a goal (Clarify → Brief → approve in UI or via \`brief\`)
        [--title t] [--base branch] [--preset auto|quick|thorough|unlimited|custom] [--max-cost 5|none] [--max-min 120|none] [--concurrency 3] [--attempts 3]
        [--auto-approve --check "<cmd>"]... [--stretch "<cmd>"]...   skip Clarify: one task + command checks
+       [--models max|production|balanced|economy|<your preset>]   model preset (default: Settings' preset for the goal type)
+       [--nature auto|code|docs|research|image|video] [--pace thorough|fast] [--interview auto|always|never]
+       [--effort low|medium|high|xhigh|max] [--self-check]
        [--follow]                         tail the goal's live stream after creating it
        [--deliver push|pr|pr-automerge [--remote origin] [--remote-url URL]]   delivery policy (default local)
   status [goalId]                         list goals, or show one goal's tasks/attempts/checks
@@ -142,9 +145,12 @@ switch (cmd) {
         ...(opt('--concurrency') ? { maxConcurrent: Number(opt('--concurrency')) } : {}),
         ...(opt('--attempts') ? { attemptsPerTask: Number(opt('--attempts')) } : {}),
       },
-      models: {
-        ...(opt('--model') ? { worker: opt('--model'), strong: opt('--model') } : {}),
-      },
+      modelPreset: opt('--models'),
+      nature: opt('--nature'),
+      workflow: opt('--pace') ? { pace: opt('--pace') } : undefined,
+      interview: opt('--interview'),
+      effort: opt('--effort'),
+      ...(has('--self-check') ? { selfCheck: true } : {}),
     };
     if (has('--auto-approve')) body.autoBrief = { mustChecks: opts('--check'), stretchChecks: opts('--stretch') };
     if (opt('--deliver')) body.delivery = { mode: opt('--deliver'), remote: opt('--remote') ?? 'origin', remoteUrl: opt('--remote-url') ?? null };

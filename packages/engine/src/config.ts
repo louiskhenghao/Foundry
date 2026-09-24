@@ -38,8 +38,7 @@ export interface EngineConfig {
   naturePreset: Record<ModelNature, string>;
   /** run the last attempt of a budget ≥ 2, and human-granted extra attempts, on the Complex-task model */
   escalateLastAttempt: boolean;
-  /** model tier for the goal review, and the diff size under which the cheap tier reviews without skills */
-  goalReviewer: 'strong' | 'worker' | 'cheap';
+  /** the diff size under which a goal is reviewed by the Task reviewer model without review skills */
   smallGoalLines: number;
   models: { strong: string; cheap: string; worker: string };
   /** tried in order when a session's model turns out to be unavailable (deprecated alias, retired id) */
@@ -111,12 +110,11 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     selfCheck: process.env.FOUNDRY_SELF_CHECK === '1' || process.env.FOUNDRY_SELF_CHECK === 'true',
     interview: (['auto', 'always', 'never'] as const).find((m) => m === process.env.FOUNDRY_INTERVIEW) ?? 'auto',
     effort: Effort.options.find((e) => e === process.env.FOUNDRY_EFFORT) ?? null,
-    goalReviewer: (['strong', 'worker', 'cheap'] as const).find((t) => t === process.env.FOUNDRY_GOAL_REVIEWER) ?? 'strong',
     modelPresets: {},
     naturePreset: { ...DEFAULT_NATURE_PRESETS },
     escalateLastAttempt: true,
     smallGoalLines: Number(process.env.FOUNDRY_SMALL_GOAL_LINES ?? 400),
-    models: { strong: process.env.FOUNDRY_MODEL_STRONG ?? 'opus', cheap: process.env.FOUNDRY_MODEL_CHEAP ?? 'haiku', worker: process.env.FOUNDRY_MODEL_WORKER ?? 'opus' },
+    models: { strong: 'opus', cheap: process.env.FOUNDRY_MODEL_CHEAP ?? 'haiku', worker: 'opus' },
     modelFallbacks: (process.env.FOUNDRY_MODEL_FALLBACKS ?? 'opus,sonnet,haiku').split(',').map((s) => s.trim()).filter(Boolean),
     attemptTimeoutMs: 20 * 60_000,
     maxContinuations: process.env.FOUNDRY_MAX_CONTINUATIONS ? Number(process.env.FOUNDRY_MAX_CONTINUATIONS) : 2,
