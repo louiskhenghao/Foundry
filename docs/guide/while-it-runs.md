@@ -123,7 +123,7 @@ Foundry also starts the preview by itself at a milestone, restarts it after each
 
 ### Self-check
 
-**Self-check after each task (screenshot + console errors)** is a switch on the Preview card. When on, after every task lands Foundry opens the preview in a hidden browser, takes a screenshot and checks for errors. Errors fail a must check, so they get fixed. No AI is involved, so it costs nothing.
+**Self-check after each task (screenshot + console errors)** is a switch on the Preview card, and on the Brief's **How to run it** section before you approve. When on, after every task lands Foundry opens the preview in a hidden browser, takes a screenshot and checks for errors. Errors fail a must check, so they get fixed. No AI is involved, so it costs nothing.
 
 It only helps goals whose result runs in a browser, and it needs a one-time download (**Install Chromium** in [Settings → Preview & self-check](./settings.md#preview--self-check)). It is off by default.
 

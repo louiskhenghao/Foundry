@@ -123,7 +123,7 @@ Foundry 也会在里程碑时自己启动预览；预览在运行时，每个任
 
 ### Self-check
 
-**Self-check after each task (screenshot + console errors)** 是 Preview 卡片上的一个开关。打开后，每个任务并入后 Foundry 都会在隐藏的浏览器里打开预览，截图并检查错误。有错误就会让一个 must 检查失败，所以错误会被修掉。整个过程不用 AI，所以不花钱。
+**Self-check after each task (screenshot + console errors)** 是 Preview 卡片上的一个开关；批准之前，它也在 Brief 的 **How to run it** 部分里。打开后，每个任务并入后 Foundry 都会在隐藏的浏览器里打开预览，截图并检查错误。有错误就会让一个 must 检查失败，所以错误会被修掉。整个过程不用 AI，所以不花钱。
 
 它只对结果在浏览器里运行的 goal 有用，而且需要下载一次（在 [Settings → Preview & self-check](./settings.zh.md#preview--self-check) 里按 **Install Chromium**）。默认关闭。
 

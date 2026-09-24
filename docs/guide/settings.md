@@ -167,7 +167,7 @@ The preview is the goal's result running, so you can try it (see [While it runs]
 
 - **First port** and **Last port** (4200 to 4299): previews use the first free port in this range.
 - **Idle minutes** (60): a preview nobody opened for this long is stopped. Never while a milestone waits for you.
-- **Self-check new goals by default** (off): switch the self-check on for every new goal. Each goal also has its own switch on its Preview card.
+- **Self-check new goals by default** (off): switch the self-check on for every new goal. Each goal also has its own switch, on the Brief's **How to run it** section and on its Preview card.
 - **Install Chromium**: the self-check needs a hidden browser, downloaded once (a few hundred MB). The line says **Chromium installed** when it is there.
 
 When to change: turn the self-check on by default if most of your goals are web apps.

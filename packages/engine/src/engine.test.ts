@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { getGoal, listAttempts, listEscalations, listTasks } from '@foundry/core';
+import { getGoal, listAttempts, listChecks, listEscalations, listTasks } from '@foundry/core';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
 import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
@@ -534,6 +534,18 @@ describe('goal-review escalation + settings propagation', () => {
     const notes = engine.store.listByType('engine.note', 50).map((e) => (e.payload as { message: string }).message).filter((m) => m.startsWith('Models now come from presets'));
     expect(notes).toHaveLength(1);
     expect(notes[0]).toContain('strong = claude-fable-5-1, worker = opus');
+  });
+  test('the self-check can be switched on before the Brief is approved; the check itself comes with approval', async () => {
+    const engine = track(new Engine(cfg(), new FakeRunner(() => {})));
+    const selfChecks = (id: string) => listChecks(engine.store.db, id).filter((c) => c.spec.type === 'selfcheck');
+    const early = await engine.createGoal({ prompt: 'x', repoPath: repo });
+    engine.setSelfCheck(early.id, true);
+    expect(getGoal(engine.store.db, early.id)!.selfCheck).toBe(true);
+    expect(selfChecks(early.id)).toHaveLength(0);
+    const running = await engine.createGoal({ prompt: 'y', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f never.txt'] } });
+    await waitFor(() => !['draft', 'clarifying', 'awaiting_brief_approval'].includes(getGoal(engine.store.db, running.id)!.state));
+    engine.setSelfCheck(running.id, true);
+    expect(selfChecks(running.id)).toHaveLength(1);
   });
   test('a goal naming a model preset that does not exist is refused, with the valid ids', async () => {
     const engine = track(new Engine(cfg(), new FakeRunner(() => {})));

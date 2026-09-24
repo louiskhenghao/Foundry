@@ -167,7 +167,7 @@ key 对下一个会话生效，不用重启。更多见 [费用与用量](./cost
 
 - **First port** 和 **Last port**（4200 到 4299）：预览使用这个范围内第一个空闲的端口。
 - **Idle minutes**（60）：没人打开这么久的预览会被停止。里程碑在等你时从不停止。
-- **Self-check new goals by default**（关）：为每个新 goal 打开自检。每个 goal 的 Preview 卡片上也有自己的开关。
+- **Self-check new goals by default**（关）：为每个新 goal 打开自检。每个 goal 也有自己的开关，在 Brief 的 **How to run it** 部分和它的 Preview 卡片上。
 - **Install Chromium**：自检需要一个隐藏的浏览器，下载一次（几百 MB）。装好后这一行显示 **Chromium installed**。
 
 什么时候改：如果你的 goal 大多是 web 应用，就默认打开自检。

@@ -1,11 +1,14 @@
 import type { Brief, BriefRun } from '@foundry/core/browser';
+import { useState } from 'react';
+import { api } from '../../api.ts';
 import { Button, Card, Field, Input, Select } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 
 const EMPTY: BriefRun = { install: null, command: null, url: null, platform: 'none' };
 
 /** How the engine starts the result for previews and the self-check; empty = read package.json (dev / start script). */
-export function RunCard({ brief, editable, edit }: { brief: Brief; editable: boolean; edit: (fn: (b: Brief) => Brief) => void }) {
+export function RunCard({ brief, editable, edit, goalId, selfCheck }: { brief: Brief; editable: boolean; edit: (fn: (b: Brief) => Brief) => void; goalId: string; selfCheck: boolean }) {
+  const [selfCheckErr, setSelfCheckErr] = useState<string | null>(null);
   const run = brief.run ?? null;
   const set = (patch: Partial<BriefRun>) => edit((b) => ({ ...b, run: { ...EMPTY, ...(b.run ?? {}), ...patch } }));
   return (
@@ -41,6 +44,19 @@ export function RunCard({ brief, editable, edit }: { brief: Brief; editable: boo
             <Input className="mono text-xs" disabled={!editable} placeholder="http://localhost:{port}" value={run?.url ?? ''} onChange={(e) => set({ url: e.target.value || null })} />
           </Field>
         </div>
+        <label className="flex items-center gap-2 text-[11px] text-zinc-400 cursor-pointer pt-1" title="After every task lands, the engine opens the preview in headless Chromium, takes a screenshot and fails a must check on console or network errors. Needs Playwright's Chromium (Settings → Preview & self-check).">
+          <input
+            type="checkbox"
+            className="accent-emerald-500"
+            checked={selfCheck}
+            onChange={(e) => {
+              setSelfCheckErr(null);
+              api.setSelfCheck(goalId, e.target.checked).catch((err) => setSelfCheckErr(err.message));
+            }}
+          />
+          Self-check after each task (screenshot + console errors)
+        </label>
+        {selfCheckErr && <div className="text-rose-300">{selfCheckErr}</div>}
       </div>
     </Card>
   );
