@@ -24,9 +24,11 @@ const NATURES: { id: Nature; label: string; text: string }[] = [
   { id: 'image', label: 'Images', text: 'Posters, logos, illustrations.' },
   { id: 'video', label: 'Video', text: 'Generated video or narrated presentations.' },
 ];
+/** the browser remembers the finer delivery options; mode and unit always start from Settings → New goal defaults */
 function loadDraft(): PolicyDraft {
   try {
-    return { mode: 'local', unit: 'goal', ...JSON.parse(localStorage.getItem(DELIVERY_KEY) ?? '{}') };
+    const { mode: _m, unit: _u, ...rest } = JSON.parse(localStorage.getItem(DELIVERY_KEY) ?? '{}');
+    return { ...rest, mode: 'local', unit: 'goal' };
   } catch {
     return { mode: 'local', unit: 'goal' };
   }
@@ -59,30 +61,47 @@ export function NewGoalPage() {
   const [effort, setEffort] = useState('');
   const [modelPreset, setModelPreset] = useState('');
   const [presetInfo, setPresetInfo] = useState<{ ids: { id: string; label: string }[]; picks: Record<ModelNature, string> } | null>(null);
-  useEffect(() => {
-    api
-      .settings()
-      .then((v) => {
-        const presets = effectivePresets((v.values.models.presets ?? {}) as Record<string, ModelPreset>);
-        setPresetInfo({ ids: Object.entries(presets).map(([id, p]) => ({ id, label: p.label })), picks: { code: v.values.models.presetCode, docs: v.values.models.presetDocs, media: v.values.models.presetMedia } });
-      })
-      .catch(() => {});
-  }, []);
   useEffect(() => localStorage.setItem(NATURE_KEY, nature), [nature]);
-  const [mode, setMode] = useState<'simple' | 'expert'>(() => ((localStorage.getItem('foundry.mode') as 'simple' | 'expert' | null) ?? 'expert'));
-  const [tdd, setTdd] = useState<'required' | 'preferred' | 'off'>(() => ((localStorage.getItem('foundry.tdd') as 'required' | 'preferred' | 'off' | null) ?? 'required'));
-  const [pace, setPace] = useState<'thorough' | 'fast'>(() => ((localStorage.getItem('foundry.pace') as 'thorough' | 'fast' | null) ?? 'thorough'));
-  /** the remembered preference; media natures auto-tick fast on top of it unless the human touches the checkbox */
+  const [mode, setModeState] = useState<'simple' | 'expert'>('expert');
+  const [tdd, setTddState] = useState<'required' | 'preferred' | 'off'>('required');
+  const [pace, setPace] = useState<'thorough' | 'fast'>('thorough');
+  const [defaultRemote, setDefaultRemote] = useState('origin');
+  /** fields the human changed on this page: the Settings defaults arriving later never overwrite them */
+  const changed = useRef(new Set<string>());
+  const setMode = (v: 'simple' | 'expert') => {
+    changed.current.add('mode');
+    setModeState(v);
+  };
+  const setTdd = (v: 'required' | 'preferred' | 'off') => {
+    changed.current.add('tdd');
+    setTddState(v);
+  };
+  /** the Settings default; media natures auto-tick fast on top of it unless the human touches the checkbox */
   const basePace = useRef(pace);
   const paceTouched = useRef(false);
   const choosePace = (v: 'thorough' | 'fast') => {
     paceTouched.current = true;
     basePace.current = v;
     setPace(v);
-    localStorage.setItem('foundry.pace', v);
   };
-  useEffect(() => localStorage.setItem('foundry.mode', mode), [mode]);
-  useEffect(() => localStorage.setItem('foundry.tdd', tdd), [tdd]);
+  // the form starts from Settings → New goal defaults (view, pace, TDD, delivery) and the goal-type model presets
+  useEffect(() => {
+    api
+      .settings()
+      .then((v) => {
+        const presets = effectivePresets((v.values.models.presets ?? {}) as Record<string, ModelPreset>);
+        setPresetInfo({ ids: Object.entries(presets).map(([id, p]) => ({ id, label: p.label })), picks: { code: v.values.models.presetCode, docs: v.values.models.presetDocs, media: v.values.models.presetMedia } });
+        const d = v.values;
+        if (!changed.current.has('mode')) setModeState(d.workflow.defaultMode);
+        if (!changed.current.has('tdd')) setTddState(d.workflow.tdd);
+        basePace.current = d.workflow.defaultPace;
+        // media goals default to fast on top of the Settings pace, as when the goal type is picked by hand
+        if (!paceTouched.current) setPace(nature === 'image' || nature === 'video' ? 'fast' : d.workflow.defaultPace);
+        setDefaultRemote(d.delivery.defaultRemote);
+        setDelivery((cur) => ({ ...cur, ...(changed.current.has('deliveryMode') ? {} : { mode: d.delivery.defaultMode }), ...(changed.current.has('deliveryUnit') ? {} : { unit: d.delivery.defaultUnit }) }));
+      })
+      .catch(() => {});
+  }, []);
   const [checks, setChecks] = useState('');
   const [stretch, setStretch] = useState('');
   const [busy, setBusy] = useState(false);
@@ -92,14 +111,16 @@ export function NewGoalPage() {
   useEffect(() => {
     if (!repoInfo?.ok) return;
     if (!touched.has('remote') && repoInfo.remotes.length) {
-      const name = repoInfo.remotes.some((r) => r.name === 'origin') ? 'origin' : repoInfo.remotes[0]!.name;
+      const name = repoInfo.remotes.some((r) => r.name === defaultRemote) ? defaultRemote : repoInfo.remotes.some((r) => r.name === 'origin') ? 'origin' : repoInfo.remotes[0]!.name;
       if (delivery.remote !== name) setDelivery((d) => ({ ...d, remote: name, remoteUrl: null }));
     }
-  }, [repoInfo]);
+  }, [repoInfo, defaultRemote]);
 
   const onDelivery = (next: PolicyDraft) => {
     const t = new Set(touched);
     if (next.remote !== delivery.remote) t.add('remote');
+    if (next.mode !== delivery.mode) changed.current.add('deliveryMode');
+    if (next.unit !== delivery.unit) changed.current.add('deliveryUnit');
     setTouched(t);
     setDelivery(next);
   };
@@ -130,7 +151,7 @@ export function NewGoalPage() {
         modelPreset: modelPreset || undefined,
       });
       try {
-        localStorage.setItem(DELIVERY_KEY, JSON.stringify({ mode: delivery.mode, remote: delivery.remote, mergeMethod: delivery.mergeMethod, requireChecks: delivery.requireChecks, autoResolveConflicts: delivery.autoResolveConflicts, fixCiCycles: delivery.fixCiCycles, deleteRemoteBranch: delivery.deleteRemoteBranch }));
+        localStorage.setItem(DELIVERY_KEY, JSON.stringify({ remote: delivery.remote, mergeMethod: delivery.mergeMethod, requireChecks: delivery.requireChecks, autoResolveConflicts: delivery.autoResolveConflicts, fixCiCycles: delivery.fixCiCycles, deleteRemoteBranch: delivery.deleteRemoteBranch }));
         localStorage.setItem(BUDGET_KEY, JSON.stringify(budget));
       } catch {}
       nav(auto ? `/goals/${goal.id}` : `/goals/${goal.id}/brief`);
