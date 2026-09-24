@@ -4,7 +4,7 @@ import { dueCheckpoint, hintOnly } from './checkpoint.ts';
 
 const task = (id: string, over: Partial<Task> = {}): Task => ({
   id, goalId: 'g', title: id, spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief',
-  milestone: null, milestoneVisits: 0, checkpointOf: null, state: 'done', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: '2026-01-01', updatedAt: '2026-01-01', ...over,
+  milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'normal' as const, state: 'done', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: '2026-01-01', updatedAt: '2026-01-01', ...over,
 });
 
 describe('dueCheckpoint', () => {

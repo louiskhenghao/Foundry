@@ -213,6 +213,11 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('models.cheap')) config.models.cheap = s.models.cheap;
   if (on('models.worker')) config.models.worker = s.models.worker;
   if (on('models.fallbacks')) config.modelFallbacks = s.models.fallbacks;
+  for (const role of ['clarifier', 'planner', 'merger', 'taskReviewer', 'documenter', 'feedback'] as const) if (on(`models.${role}`)) config.modelRoles[role] = s.models[role];
+  if (on('models.routeRoutine')) config.difficultyRoute.routine = s.models.routeRoutine;
+  if (on('models.routeNormal')) config.difficultyRoute.normal = s.models.routeNormal;
+  if (on('models.routeHard')) config.difficultyRoute.hard = s.models.routeHard;
+  if (on('models.escalateLastAttempt')) config.escalateLastAttempt = s.models.escalateLastAttempt;
   if (on('sessions.attemptMaxTurns')) config.attemptMaxTurns = s.sessions.attemptMaxTurns;
   if (on('sessions.maxContinuations')) config.maxContinuations = s.sessions.maxContinuations;
   if (on('sessions.attemptMaxCostUsd')) config.attemptMaxCostUsd = s.sessions.attemptMaxCostUsd;

@@ -47,7 +47,7 @@ export function createFixTasks(engine: Engine, goal: Goal, specs: FixSpec[], hin
       origin: opts.origin ?? 'goal-review-fix',
       milestone: null,
       milestoneVisits: 0,
-      checkpointOf: opts.checkpointOf ?? null,
+      checkpointOf: opts.checkpointOf ?? null, difficulty: 'normal' as const,
       state: 'pending',
       branch: null,
       worktreePath: null,

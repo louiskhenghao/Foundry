@@ -11,6 +11,7 @@ import type { Engine } from './engine.ts';
 import { commitStaged, git, headRef } from './git/git.ts';
 import { WORKER_TOOLS, boundarySettings } from './guards/boundary.ts';
 import { goalWorkspacePath } from './workspace.ts';
+import { metaFor, modelFor } from './models/roles.ts';
 
 export const DOCS_MAX_BUDGET_USD = 3;
 
@@ -49,8 +50,8 @@ export async function runDocsGeneration(engine: Engine, goalIn: Goal): Promise<v
     const handle = await engine.runner.run({
       prompt,
       cwd: ws,
-      model: goal.models.strong,
-      meta: { goalId: goal.id, tier: 'strong' },
+      model: modelFor(config, goal, 'documenter').model,
+      meta: metaFor(goal.id, modelFor(config, goal, 'documenter')),
       maxTurns: 50,
       maxBudgetUsd: DOCS_MAX_BUDGET_USD,
       permissionMode: 'dontAsk',
@@ -65,7 +66,7 @@ export async function runDocsGeneration(engine: Engine, goalIn: Goal): Promise<v
     for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: channel, event: ev, ts: new Date().toISOString() });
     const r = await handle.result;
     store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: r.costUsd, source: 'docs' } });
-    engine.recordSessionUsage(r, { goalId: goal.id, kind: 'docs', model: goal.models.strong });
+    engine.recordSessionUsage(r, { goalId: goal.id, kind: 'docs', model: modelFor(config, goal, 'documenter').model });
     // the session may only add docs; anything else it wrote is discarded rather than committed
     if ((await headRef(ws)) !== before) await git(['reset', '-q', before], ws);
     await git(['add', '-A'], ws);

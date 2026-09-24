@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
 import { tryJson } from './checks/reviewer.ts';
+import { metaFor, modelFor } from './models/roles.ts';
 import type { Engine } from './engine.ts';
 import { git, isDirty } from './git/git.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
@@ -122,19 +123,22 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
   const addDirs = goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined;
   const schema = zodToJsonSchema(goal.interview ? InterviewOutput : BriefOutput, { $refStrategy: 'none' });
   const transcriptPath = join(config.dataDir, 'transcripts', `clarify-${goal.id}.jsonl`);
+  const clarifierModel = modelFor(config, goal, 'clarifier');
   const run = (p: string, resume?: string) =>
     engine.runner.run({
       prompt: p,
       cwd: ws,
-      model: goal.models.strong,
-      meta: { goalId: goal.id, tier: 'strong' },
+      model: clarifierModel.model,
+      meta: metaFor(goal.id, clarifierModel),
       maxTurns: CLARIFY_MAX_TURNS,
       maxBudgetUsd: CLARIFY_MAX_BUDGET_USD,
       permissionMode: 'dontAsk',
       allowedTools: READONLY_TOOLS,
       disallowedTools: READONLY_DISALLOWED,
       appendSystemPromptFile: engine.roles.path('clarifier'),
-      agents: { planner: { description: 'Plans the task DAG for a goal. Use after exploring the repo.', prompt: engine.roles.text('planner') + (plannerHint ? `\n\n${plannerHint}` : ''), model: goal.models.strong } },
+      agents: { planner: { description: 'Plans the task DAG for a goal. Use after exploring the repo.', prompt: engine.roles.text('planner') + (plannerHint ? `
+
+${plannerHint}` : ''), model: modelFor(config, goal, 'planner').model } },
       jsonSchema: schema,
       settings: boundarySettings(config.hooksDir),
       settingSources: config.settingSources,
@@ -153,7 +157,7 @@ async function turn(engine: Engine, goal: Goal, ctx: ClarifyContext, message: st
   for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: `clarify-${goal.id}`, event: ev, ts: new Date().toISOString() });
   const result = await handle.result;
   engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source } });
-  engine.recordSessionUsage(result, { goalId: goal.id, kind: 'clarify', model: goal.models.strong });
+  engine.recordSessionUsage(result, { goalId: goal.id, kind: 'clarify', model: modelFor(engine.config, goal, 'clarifier').model });
   return result;
 }
 

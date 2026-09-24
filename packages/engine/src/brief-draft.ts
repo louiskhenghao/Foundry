@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { newId } from '@foundry/core';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
+import { metaFor, modelFor } from './models/roles.ts';
 import { tryJson } from './checks/reviewer.ts';
 import { materializeCheck, natureScenario, isLostSession } from './clarify.ts';
 import type { Engine } from './engine.ts';
@@ -73,8 +74,8 @@ export async function runDraft(engine: Engine, goal: Goal, req: DraftRequest): P
     engine.runner.run({
       prompt: p,
       cwd: ws,
-      model: goal.models.strong,
-      meta: { goalId: goal.id, tier: 'strong' },
+      model: modelFor(config, goal, 'clarifier').model,
+      meta: metaFor(goal.id, modelFor(config, goal, 'clarifier')),
       maxTurns: req.mode === 'revise' ? REVISE_MAX_TURNS : DRAFT_MAX_TURNS,
       maxBudgetUsd: req.mode === 'revise' ? REVISE_MAX_BUDGET_USD : DRAFT_MAX_BUDGET_USD,
       permissionMode: 'dontAsk',
@@ -98,7 +99,7 @@ export async function runDraft(engine: Engine, goal: Goal, req: DraftRequest): P
     const result = await handle.result;
     cost += result.costUsd;
     store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source } });
-    engine.recordSessionUsage(result, { goalId: goal.id, kind: 'clarify', model: goal.models.strong });
+    engine.recordSessionUsage(result, { goalId: goal.id, kind: 'clarify', model: modelFor(config, goal, 'clarifier').model });
     return result;
   };
   const parse = (raw: unknown) => outputSchema.safeParse(raw);

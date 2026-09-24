@@ -1,3 +1,4 @@
+import { metaFor, modelFor } from '../models/roles.ts';
 import { join } from 'node:path';
 import type { Attempt, Check, Goal, ReviewerVerdict, Task } from '@foundry/core';
 import { ReviewerVerdict as ReviewerVerdictSchema, chosenStyle, getBrief } from '@foundry/core';
@@ -59,8 +60,8 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
   const handle = await engine.runner.run({
     prompt,
     cwd,
-    model: goal.models.cheap,
-    meta: { goalId: goal.id, tier: 'cheap' },
+    model: modelFor(engine.config, goal, 'taskReviewer').model,
+    meta: metaFor(goal.id, modelFor(engine.config, goal, 'taskReviewer')),
     // the cheap model sometimes spends its turns reading files; give it room, and nudge once below if it still returns no JSON
     maxTurns: 20,
     maxBudgetUsd: 0.8,
@@ -83,16 +84,16 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
   }
   const r = await handle.result;
   engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: r.costUsd, source: `review-task:${attempt.id}` } });
-  engine.recordSessionUsage(r, { goalId: goal.id, kind: 'review-task', model: goal.models.cheap });
-  engine.store.append({ type: 'attempt.session_finished', goalId: goal.id, payload: { attemptId: attempt.id, session: { role: 'reviewer', segment: attempt.continuations, sessionId: r.sessionId, model: initModel ?? goal.models.cheap, costUsd: r.costUsd, numTurns: r.numTurns, durationMs: r.durationMs, subtype: r.subtype, startedAt: started, endedAt: new Date().toISOString() } } });
+  engine.recordSessionUsage(r, { goalId: goal.id, kind: 'review-task', model: modelFor(engine.config, goal, 'taskReviewer').model });
+  engine.store.append({ type: 'attempt.session_finished', goalId: goal.id, payload: { attemptId: attempt.id, session: { role: 'reviewer', segment: attempt.continuations, sessionId: r.sessionId, model: initModel ?? modelFor(engine.config, goal, 'taskReviewer').model, costUsd: r.costUsd, numTurns: r.numTurns, durationMs: r.durationMs, subtype: r.subtype, startedAt: started, endedAt: new Date().toISOString() } } });
   let parsed = ReviewerVerdictSchema.safeParse(r.structuredOutput ?? tryJson(r.finalText));
   if (!parsed.success && r.sessionId) {
     // one nudge in the same session: "stop reading, answer now"
     const again = await engine.runner.run({
       prompt: 'Stop exploring. Reply now with ONLY the JSON verdict matching the schema (pass, blockers, notes). If you are unsure, pass with a note.',
       cwd,
-      model: goal.models.cheap,
-      meta: { goalId: goal.id, tier: 'cheap' },
+      model: modelFor(engine.config, goal, 'taskReviewer').model,
+      meta: metaFor(goal.id, modelFor(engine.config, goal, 'taskReviewer')),
       maxTurns: 2,
       maxBudgetUsd: 0.2,
       permissionMode: 'dontAsk',
@@ -110,8 +111,8 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
     for await (const ev of again.events) engine.broadcast({ goalId: goal.id, taskId: task.id, attemptId: attempt.id, event: ev, ts: new Date().toISOString(), role: 'reviewer' });
     const r2 = await again.result;
     engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: r2.costUsd, source: `review-task:${attempt.id}` } });
-    engine.recordSessionUsage(r2, { goalId: goal.id, kind: 'review-task', model: goal.models.cheap });
-    engine.store.append({ type: 'attempt.session_finished', goalId: goal.id, payload: { attemptId: attempt.id, session: { role: 'reviewer', segment: attempt.continuations, sessionId: r2.sessionId, model: initModel ?? goal.models.cheap, costUsd: r2.costUsd, numTurns: r2.numTurns, durationMs: r2.durationMs, subtype: r2.subtype, startedAt: started2, endedAt: new Date().toISOString() } } });
+    engine.recordSessionUsage(r2, { goalId: goal.id, kind: 'review-task', model: modelFor(engine.config, goal, 'taskReviewer').model });
+    engine.store.append({ type: 'attempt.session_finished', goalId: goal.id, payload: { attemptId: attempt.id, session: { role: 'reviewer', segment: attempt.continuations, sessionId: r2.sessionId, model: initModel ?? modelFor(engine.config, goal, 'taskReviewer').model, costUsd: r2.costUsd, numTurns: r2.numTurns, durationMs: r2.durationMs, subtype: r2.subtype, startedAt: started2, endedAt: new Date().toISOString() } } });
     parsed = ReviewerVerdictSchema.safeParse(r2.structuredOutput ?? tryJson(r2.finalText));
   }
   if (!parsed.success) {

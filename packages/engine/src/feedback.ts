@@ -7,6 +7,7 @@ import { tryJson } from './checks/reviewer.ts';
 import type { Engine } from './engine.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
 import { goalWorkspacePath } from './workspace.ts';
+import { metaFor, modelFor } from './models/roles.ts';
 
 /** a triage session is small: it reads the Brief and the feedback, opens a file or two at most */
 export const FEEDBACK_MAX_BUDGET_USD = 0.5;
@@ -36,8 +37,8 @@ export async function classifyFeedback(engine: Engine, goal: Goal, text: string)
   const handle = await engine.runner.run({
     prompt,
     cwd: goalWorkspacePath(config.dataDir, goal),
-    model: goal.models.cheap,
-    meta: { goalId: goal.id, tier: 'cheap' },
+    model: modelFor(config, goal, 'feedback').model,
+    meta: metaFor(goal.id, modelFor(config, goal, 'feedback')),
     permissionMode: 'dontAsk',
     allowedTools: READONLY_TOOLS,
     disallowedTools: READONLY_DISALLOWED,
@@ -54,7 +55,7 @@ export async function classifyFeedback(engine: Engine, goal: Goal, text: string)
   for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: `feedback-${goal.id}`, event: ev, ts: new Date().toISOString() });
   const r = await handle.result;
   store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: r.costUsd, source: 'feedback' } });
-  engine.recordSessionUsage(r, { goalId: goal.id, kind: 'feedback', model: goal.models.cheap });
+  engine.recordSessionUsage(r, { goalId: goal.id, kind: 'feedback', model: modelFor(config, goal, 'feedback').model });
   const parsed = FeedbackPlan.safeParse(r.structuredOutput ?? tryJson(r.finalText));
   if (!parsed.success) throw new Error(`the triage session gave no plan (${r.subtype}${r.errorMessage ? `: ${r.errorMessage.slice(0, 120)}` : ''})`);
   return cp.recheck ? hintOnly(parsed.data) : parsed.data;

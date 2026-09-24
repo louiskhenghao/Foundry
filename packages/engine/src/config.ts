@@ -32,6 +32,12 @@ export interface EngineConfig {
   interview: 'auto' | 'always' | 'never';
   /** effort handed to every session of new goals; null = CLI default */
   effort: Effort | null;
+  /** per-role model overrides (tier name or model id; null = the role's default tier) */
+  modelRoles: Record<'clarifier' | 'planner' | 'merger' | 'taskReviewer' | 'documenter' | 'feedback', string | null>;
+  /** worker model per task difficulty (tier name or model id) */
+  difficultyRoute: Record<'routine' | 'normal' | 'hard', string>;
+  /** run the last attempt of a budget ≥ 2, and human-granted extra attempts, on the strong tier */
+  escalateLastAttempt: boolean;
   /** model tier for the goal review, and the diff size under which the cheap tier reviews without skills */
   goalReviewer: 'strong' | 'worker' | 'cheap';
   smallGoalLines: number;
@@ -106,6 +112,9 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     interview: (['auto', 'always', 'never'] as const).find((m) => m === process.env.FOUNDRY_INTERVIEW) ?? 'auto',
     effort: Effort.options.find((e) => e === process.env.FOUNDRY_EFFORT) ?? null,
     goalReviewer: (['strong', 'worker', 'cheap'] as const).find((t) => t === process.env.FOUNDRY_GOAL_REVIEWER) ?? 'strong',
+    modelRoles: { clarifier: null, planner: null, merger: null, taskReviewer: null, documenter: null, feedback: null },
+    difficultyRoute: { routine: 'worker', normal: 'worker', hard: 'strong' },
+    escalateLastAttempt: true,
     smallGoalLines: Number(process.env.FOUNDRY_SMALL_GOAL_LINES ?? 400),
     models: { strong: process.env.FOUNDRY_MODEL_STRONG ?? 'opus', cheap: process.env.FOUNDRY_MODEL_CHEAP ?? 'haiku', worker: process.env.FOUNDRY_MODEL_WORKER ?? 'opus' },
     modelFallbacks: (process.env.FOUNDRY_MODEL_FALLBACKS ?? 'opus,sonnet,haiku').split(',').map((s) => s.trim()).filter(Boolean),
