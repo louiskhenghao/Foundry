@@ -924,6 +924,11 @@ export class Engine {
   // ---------- commands ----------
 
   async createGoal(input: CreateGoalInput): Promise<Goal> {
+    // an unknown preset would silently fall back to the Settings pick while the goal still shows the typo
+    if (input.modelPreset) {
+      const known = Object.keys(effectivePresets(this.config.modelPresets));
+      if (!known.includes(input.modelPreset)) throw new Error(`unknown model preset "${input.modelPreset}"; use one of: ${known.join(', ')}`);
+    }
     if (!(await isGitRepo(input.repoPath))) throw new Error(`${input.repoPath} is not a git repository`);
     const baseBranch = input.baseBranch ?? (await currentBranch(input.repoPath));
     if (baseBranch === 'HEAD') throw new Error('repository is in detached HEAD state; pass --base <branch>');
