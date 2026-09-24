@@ -36,9 +36,14 @@ export const ModelSettings = z.object({
   clarifier: z.string().min(1).nullable().default(null),
   planner: z.string().min(1).nullable().default(null),
   merger: z.string().min(1).nullable().default(null),
+  goalReviewer: z.string().min(1).nullable().default(null),
   taskReviewer: z.string().min(1).nullable().default(null),
   documenter: z.string().min(1).nullable().default(null),
   feedback: z.string().min(1).nullable().default(null),
+  /** the AI hint for a blocked task (Inbox → Suggest a hint) */
+  suggest: z.string().min(1).nullable().default(null),
+  /** the one-image style samples on the Brief page */
+  styleSample: z.string().min(1).nullable().default(null),
   /** worker model per task difficulty: a tier name or a model id */
   routeRoutine: z.string().min(1).default('worker'),
   routeNormal: z.string().min(1).default('worker'),

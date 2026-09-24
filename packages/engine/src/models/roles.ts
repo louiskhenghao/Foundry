@@ -2,17 +2,20 @@ import type { Goal, Task, TaskDifficulty } from '@foundry/core';
 import type { EngineConfig } from '../config.ts';
 
 export type Tier = 'strong' | 'worker' | 'cheap';
-/** the session roles whose model can be overridden in Settings → Models (the goal reviewer's lives in Settings → Reviews) */
-export type ModelRole = 'clarifier' | 'planner' | 'merger' | 'taskReviewer' | 'documenter' | 'feedback';
+/** every action whose model can be chosen in Settings → Models */
+export type ModelRole = 'clarifier' | 'planner' | 'merger' | 'goalReviewer' | 'taskReviewer' | 'documenter' | 'feedback' | 'suggest' | 'styleSample';
 
 /** which tier each role uses when Settings leaves it empty — the bindings every goal had before roles existed */
 export const ROLE_DEFAULT_TIER: Record<ModelRole, Tier> = {
   clarifier: 'strong',
   planner: 'strong',
   merger: 'strong',
+  goalReviewer: 'strong',
   taskReviewer: 'cheap',
   documenter: 'strong',
   feedback: 'cheap',
+  suggest: 'strong',
+  styleSample: 'worker',
 };
 
 const TIERS: readonly string[] = ['strong', 'worker', 'cheap'];
@@ -30,8 +33,10 @@ export function resolveModel(goal: Pick<Goal, 'models'>, value: string | null | 
 }
 
 /** the model a role's session runs on for this goal */
-export function modelFor(config: Pick<EngineConfig, 'modelRoles'>, goal: Pick<Goal, 'models'>, role: ModelRole): { model: string; tier: Tier | null } {
-  return resolveModel(goal, config.modelRoles[role], ROLE_DEFAULT_TIER[role]);
+export function modelFor(config: Pick<EngineConfig, 'modelRoles'> & Partial<Pick<EngineConfig, 'goalReviewer'>>, goal: Pick<Goal, 'models'>, role: ModelRole): { model: string; tier: Tier | null } {
+  // the goal reviewer's tier used to live in Settings → Reviews; an empty role row still honours it
+  const def = role === 'goalReviewer' ? (config.goalReviewer ?? 'strong') : ROLE_DEFAULT_TIER[role];
+  return resolveModel(goal, config.modelRoles[role], def);
 }
 
 /** RunSpec.meta for a resolved model: the tier rides along only when the model came from one */

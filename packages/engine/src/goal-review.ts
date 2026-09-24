@@ -12,6 +12,7 @@ import { runSelfCheck } from './checks/selfcheck.ts';
 import { tryJson } from './checks/reviewer.ts';
 import type { Engine } from './engine.ts';
 import { goalScenario } from './skills/workflow.ts';
+import { metaFor, modelFor, resolveModel } from './models/roles.ts';
 import { runDocsGeneration } from './docs-generate.ts';
 import { raiseEscalation } from './escalation.ts';
 import { createFixTasks, genericFixSpec } from './fix-tasks.ts';
@@ -136,7 +137,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
   // a small goal does not need the strong model reading its diff through two review sub-agents: the cheap tier, no skills
   const lines = d.split('\n').length;
   const small = lines <= engine.config.smallGoalLines;
-  const tier: 'strong' | 'worker' | 'cheap' = small ? 'cheap' : engine.config.goalReviewer;
+  const reviewer = small ? resolveModel(goal, 'cheap', 'cheap') : modelFor(engine.config, goal, 'goalReviewer');
   const reviewerHint = small ? null : await engine.skills.hints.sectionFor('reviewer-goal', { scenario });
   const media =
     scenario === 'image' || scenario === 'video'
@@ -168,8 +169,8 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
   const channel = `goal-review-${goal.fixCycles}`;
   const base = {
     cwd,
-    model: goal.models[tier],
-    meta: { goalId: goal.id, tier },
+    model: reviewer.model,
+    meta: metaFor(goal.id, reviewer),
     permissionMode: 'dontAsk' as const,
     allowedTools: READONLY_TOOLS,
     disallowedTools: READONLY_DISALLOWED,
@@ -183,7 +184,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
   for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: channel, event: ev, ts: new Date().toISOString() });
   let r = await handle.result;
   engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: r.costUsd, source: 'goal-review' } });
-  engine.recordSessionUsage(r, { goalId: goal.id, kind: 'review-goal', model: goal.models[tier] });
+  engine.recordSessionUsage(r, { goalId: goal.id, kind: 'review-goal', model: reviewer.model });
   let parsed = GoalReviewOutput.safeParse(r.structuredOutput ?? tryJson(r.finalText));
   if (!parsed.success && r.sessionId) {
     // the session ended (budget/turns) before the JSON: resume it with a small fresh budget and ask for the verdict only
@@ -191,7 +192,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
     for await (const ev of again.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: channel, event: ev, ts: new Date().toISOString() });
     const r2 = await again.result;
     engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: r2.costUsd, source: 'goal-review' } });
-    engine.recordSessionUsage(r2, { goalId: goal.id, kind: 'review-goal', model: goal.models[tier] });
+    engine.recordSessionUsage(r2, { goalId: goal.id, kind: 'review-goal', model: reviewer.model });
     parsed = GoalReviewOutput.safeParse(r2.structuredOutput ?? tryJson(r2.finalText));
     if (!parsed.success) r = r2;
   }

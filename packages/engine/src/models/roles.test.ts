@@ -3,7 +3,7 @@ import { modelFor, metaFor, resolveModel, workerModelFor } from './roles.ts';
 
 const goal = { models: { strong: 'claude-fable-5-1', worker: 'opus', cheap: 'haiku' } };
 const cfg = {
-  modelRoles: { clarifier: null, planner: 'worker', merger: 'claude-sonnet-5', taskReviewer: null, documenter: null, feedback: null },
+  modelRoles: { clarifier: null, planner: 'worker', merger: 'claude-sonnet-5', goalReviewer: null, taskReviewer: null, documenter: null, feedback: null, suggest: null, styleSample: 'cheap' },
   difficultyRoute: { routine: 'cheap', normal: 'worker', hard: 'strong' },
   escalateLastAttempt: true,
 };
@@ -16,6 +16,11 @@ describe('model roles', () => {
     expect(modelFor(cfg, goal, 'merger')).toEqual({ model: 'claude-sonnet-5', tier: null });
     expect(metaFor('g1', { tier: null })).toEqual({ goalId: 'g1' });
     expect(resolveModel(goal, '  ', 'worker')).toEqual({ model: 'opus', tier: 'worker' });
+    expect(modelFor(cfg, goal, 'styleSample')).toEqual({ model: 'haiku', tier: 'cheap' });
+    expect(modelFor(cfg, goal, 'suggest')).toEqual({ model: 'claude-fable-5-1', tier: 'strong' });
+    // the goal reviewer: an empty row honours the older Settings → Reviews tier; a row value wins over it
+    expect(modelFor({ ...cfg, goalReviewer: 'worker' }, goal, 'goalReviewer')).toEqual({ model: 'opus', tier: 'worker' });
+    expect(modelFor({ ...cfg, goalReviewer: 'worker', modelRoles: { ...cfg.modelRoles, goalReviewer: 'claude-sonnet-5' } }, goal, 'goalReviewer')).toEqual({ model: 'claude-sonnet-5', tier: null });
   });
 });
 

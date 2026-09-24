@@ -12,6 +12,7 @@ import type { Engine } from './engine.ts';
 import { WORKER_TOOLS, boundarySettings } from './guards/boundary.ts';
 import { excludeFromGit } from './skills/autoskills.ts';
 import { goalWorkspacePath } from './workspace.ts';
+import { metaFor, modelFor } from './models/roles.ts';
 
 /** soft cap per proposal: keeps a stuck regenerate loop from burning money */
 export const STYLE_SAMPLE_MAX = 8;
@@ -69,8 +70,8 @@ async function generate(engine: Engine, goalId: string, opt: BriefStyleOption, f
   const handle = await engine.runner.run({
     prompt,
     cwd: ws,
-    model: goal.models.worker,
-    meta: { goalId, tier: 'worker' },
+    model: modelFor(config, goal, 'styleSample').model,
+    meta: metaFor(goalId, modelFor(config, goal, 'styleSample')),
     maxTurns: 15,
     maxBudgetUsd: STYLE_SAMPLE_BUDGET_USD,
     permissionMode: 'dontAsk',
@@ -84,7 +85,7 @@ async function generate(engine: Engine, goalId: string, opt: BriefStyleOption, f
   for await (const ev of handle.events) engine.broadcast({ goalId, taskId: null, attemptId: `style-sample-${goalId}`, event: ev, ts: new Date().toISOString() });
   const r = await handle.result;
   store.append({ type: 'goal.cost_added', goalId, payload: { costUsd: r.costUsd, source: 'style-sample' } });
-  engine.recordSessionUsage(r, { goalId, kind: 'style-sample', model: goal.models.worker });
+  engine.recordSessionUsage(r, { goalId, kind: 'style-sample', model: modelFor(config, goal, 'styleSample').model });
   const ok = existsSync(join(ws, file));
   store.append({
     type: 'brief.style_sampled',

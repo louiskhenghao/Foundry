@@ -34,14 +34,17 @@ const SECTIONS: { id: string; label: string }[] = [
   { id: 'about', label: 'About & updates' },
 ];
 
-/** Settings → Models: roles whose model can be overridden (the goal reviewer's tier lives in Settings → Reviews). */
+/** Settings → Models: every action whose model can be chosen, with the tier it uses when left empty. */
 const ROLE_ROWS: { path: `models.${string}`; label: string; def: 'strong' | 'worker' | 'cheap'; help: string }[] = [
-  { path: 'models.clarifier', label: 'Clarifier', def: 'strong', help: 'Explores the repository, interviews you and writes the Brief; also Draft / Revise.' },
-  { path: 'models.planner', label: 'Planner', def: 'strong', help: 'The sub-agent that splits each Area into tasks inside Clarify.' },
-  { path: 'models.merger', label: 'Merger', def: 'strong', help: 'Resolves merge conflicts when tasks or the base branch collide.' },
+  { path: 'models.clarifier', label: 'Clarify', def: 'strong', help: 'Explores the repository, interviews you and writes the Brief; also Draft / Revise (they resume its session).' },
+  { path: 'models.planner', label: 'Planner', def: 'strong', help: 'The sub-agent inside Clarify that splits each Area into the task DAG.' },
+  { path: 'models.merger', label: 'Merge attempts', def: 'strong', help: 'Resolves merge conflicts when tasks or the base branch collide (avg ~$0.9 each on Fable) — Sonnet or Opus is usually enough.' },
+  { path: 'models.goalReviewer', label: 'Goal reviewer', def: 'strong', help: 'Reads the whole goal diff at the end against the acceptance checks — the most expensive single session (avg ~$6 on Fable). Goals under the small-goal size in Reviews always use the cheap tier.' },
   { path: 'models.taskReviewer', label: 'Task reviewer', def: 'cheap', help: 'Reads each task diff against its checks before it lands.' },
   { path: 'models.documenter', label: 'Documenter', def: 'strong', help: 'Writes the completion docs you chose at approval.' },
   { path: 'models.feedback', label: 'Feedback triage', def: 'cheap', help: 'Turns what you write at a milestone into a hint, fix tasks or a Decision.' },
+  { path: 'models.suggest', label: 'Suggest a hint', def: 'strong', help: 'The AI diagnosis and hint for a blocked task in the Inbox.' },
+  { path: 'models.styleSample', label: 'Style samples', def: 'worker', help: 'The one-image samples of a style direction on the Brief page.' },
 ];
 
 function SourceBadge({ view, path }: { view: SettingsView; path: string }) {
@@ -354,13 +357,6 @@ export function SettingsPage() {
               <Field label="Goal-level fix cycles" aside={aside('reviews.maxFixCycles')} help="How many review → fix-task rounds before the goal escalates to you (thorough pace only).">
                 {num('reviews.maxFixCycles', { min: 0, max: 5 })}
               </Field>
-              <Field label="Goal reviewer" aside={aside('reviews.goalReviewer')} help="Which model tier reads the whole goal diff at the end. strong is the most careful and the slowest (avg $4, 5 min); worker or cheap when goals are routine.">
-                <Select value={draft.reviews.goalReviewer} onChange={(e) => set('reviews.goalReviewer', e.target.value)}>
-                  <option value="strong">strong tier</option>
-                  <option value="worker">worker tier</option>
-                  <option value="cheap">cheap tier</option>
-                </Select>
-              </Field>
               <Field label="Small goal (diff lines)" aside={aside('reviews.smallGoalLines')} help="A goal whose whole diff is this many lines or fewer is reviewed by the cheap tier without review skills or sub-agents. 0 = never.">
                 {num('reviews.smallGoalLines', { min: 0, max: 5000 })}
               </Field>
@@ -410,7 +406,7 @@ export function SettingsPage() {
               {list('models.fallbacks', 'opus, sonnet, haiku')}
             </Field>
             <div className="sm:col-span-2 border-t border-zinc-800 pt-3 text-xs text-zinc-400">
-              <div className="text-zinc-200 mb-1">Model per role</div>
+              <div className="text-zinc-200 mb-1">Model per action</div>
               Empty = the role's default tier. A tier name follows whatever that tier is set to (and its fallbacks); a model id pins the role to that model.
             </div>
             {ROLE_ROWS.map((r) => (
