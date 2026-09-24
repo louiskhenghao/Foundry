@@ -71,13 +71,15 @@ The only way the system ever asks a human for anything after the Brief is approv
 4. the Claude runtime refused a tool call;
 5. a Milestone landed and the Goal waits for the human to look (a Checkpoint).
 
+(The trigger enum also keeps `brief_question` so older events still read; nothing raises it any more.)
+
 Before approval the human is asked in two other ways, neither of them an Escalation: the Interview, and blocking Questions on the Brief page, which hold the approval until they are answered.
 
 **Suggestion**
 What the system proposes when a Task is blocked and the user asks: a plain-words diagnosis, the action it recommends (retry with a hint, skip, resolve by hand, raise the budget) and the hint itself. Only a *retry with hint* may be applied on the user's say-so in one click; every other action stays the user's.
 
 **Notification**
-A push message sent to a Notification Channel the moment something happens the user would want to know about while away from the app: the system needs them (an Escalation, or a Goal or Task becoming blocked), a Goal ends done, over-delivered or failed, a Delivery opens, merges or fails a pull request, or usage pauses and resumes. Things the user did themselves — cancelling a Goal, answering an Escalation — are never announced back to them, and a Suggestion never notifies, because a Suggestion by definition does not interrupt. A Notification is a hint, not a ledger: one that cannot be delivered is noted and dropped, never queued or replayed. Each family of events has one switch, and the switches apply to every configured Channel alike. A Notification carries a link back to the app only when the user has said where the app can be reached.
+A push message sent to a Notification Channel the moment something happens the user would want to know about while away from the app: the system needs them (an Escalation, or a Goal or Task becoming blocked), a Goal ends done, over-delivered or failed, a Delivery opens, merges or fails a pull request, the Clarifier asks an Interview round, usage pauses and resumes, or a newer Release is out. Things the user did themselves — cancelling a Goal, answering an Escalation — are never announced back to them, and a Suggestion never notifies, because a Suggestion by definition does not interrupt. A Notification is a hint, not a ledger: one that cannot be delivered is noted and dropped, never queued or replayed. Each family of events has one switch, and the switches apply to every configured Channel alike. A Notification carries a link back to the app only when the user has said where the app can be reached.
 
 **Notification Channel**
 A place outside the app where Notifications are sent — Telegram or Discord — configured by the user in Settings. Sending is the engine acting under the user's standing authorisation, exactly like Delivery: the model never sends anything.
@@ -203,7 +205,7 @@ How hard every session of a Goal thinks, from low to max — a knob of the Claud
 A Goal viewed by someone who does not want the machinery: one plain-language Brief (what the system understood, what it will build, the questions only they can answer, the assumptions they can veto, the price) and a progress view (how far, what it costs, what needs them). The engine underneath is the same; Expert view — every control — is one click away on any Goal, and a Goal's mode is just which view it opens in.
 
 **Discipline**
-How hard the engine pushes an engineering practice on its sessions. For TDD: *required* (the Worker must invoke the skill and the Reviewer is told when it did not), *preferred* (suggested only), or *off* (never mentioned). Set per Goal, overridable per Task; docs, infra, chore and research Tasks never carry a TDD mandate. Simple-mode Goals start with *preferred*.
+How hard the engine pushes an engineering practice on its sessions. For TDD: *required* (the Worker must invoke the skill and the Reviewer is told when it did not), *preferred* (suggested only), or *off* (never mentioned). Set per Goal, overridable per Task; Tasks in the docs, infra, research, image or video Scenarios never carry a TDD mandate, and the TDD rules only apply to feature and refactor Tasks. Simple-mode Goals start with *preferred*.
 
 **Settings**
 The engine's user-editable configuration: concurrency, models, session caps, workflow profile, Design Pack, autoskills, review and delivery defaults, tools, safety limits. A saved value beats an environment variable, which beats the default; most changes apply immediately, a few only after the engine restarts.
