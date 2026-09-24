@@ -156,7 +156,7 @@ export function GoalPage() {
           }
         }}
       >
-        <p>Running sessions are stopped, task worktrees and attachments go to the trash, and the goal disappears from the list. The event history is kept.</p>
+        <p>Running sessions are stopped. The progress folder, the task folders and the goal's stacked delivery branches are deleted for good; attachments go to the trash. The goal disappears from the list, and its event history is kept.</p>
         <label className="flex items-start gap-2">
           <input type="checkbox" className="mt-0.5" checked={delBranch} onChange={(e) => setDelBranch(e.target.checked)} />
           <span>

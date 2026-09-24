@@ -295,7 +295,7 @@ export function NewGoalPage() {
                 { id: 'off', label: 'off', title: 'Never mentioned' },
               ]}
             />
-            <span className="text-[11px] text-zinc-500">docs / infra / chore / research tasks never get a TDD mandate; a task can also switch it off in the Brief.</span>
+            <span className="text-[11px] text-zinc-500">docs, infra, research, image and video tasks never get a TDD mandate; a task can also switch it off in the Brief.</span>
           </div>
         )}
       </Card>
