@@ -104,8 +104,10 @@ if (alreadyLogged) {
   writeFileSync(clPath, updated);
   await git(['add', 'CHANGELOG.md'], RELEASES_DIR);
   await git(['commit', '-m', `release: v${next}`], RELEASES_DIR);
-  await git(['push'], RELEASES_DIR);
 }
+// push whatever is not on GitHub yet — also a section an earlier, failed run committed but could not push
+const ahead = Number((await run(['git', 'rev-list', '--count', '@{u}..HEAD'], { cwd: RELEASES_DIR })).out.trim() || '0');
+if (ahead > 0) await git(['push'], RELEASES_DIR);
 
 // ---------- the release becomes real: versioned multi-arch image on Docker Hub ----------
 await run(['docker', 'buildx', 'build', '--platform', 'linux/amd64,linux/arm64', '-t', `${IMAGE}:${next}`, '-t', `${IMAGE}:latest`, '--push', '.']);

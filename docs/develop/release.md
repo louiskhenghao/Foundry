@@ -64,12 +64,7 @@ bun run release 0.4.1        # package.json already says 0.4.1 and tag v0.4.1 ex
 
 When the requested version equals the current one **and** its tag exists, the script resumes. It skips the bump and tag, finds the changelog section already there and leaves it, and then rebuilds and pushes the image and pushes `main` with its tags. (Passing the current version without an existing tag is refused: there is nothing to bump.)
 
-**The changelog push failed** (for example `gh` not authenticated). Resuming as above does *not* push the changelog. The section was already committed in `data/releases-repo`, so the script sees it and skips the push. Push it yourself, then resume:
-
-```sh
-git -C data/releases-repo push
-bun run release 0.4.1
-```
+**The changelog push failed** (for example `gh` not authenticated). Fix the access problem and resume as above. The section is already committed in `data/releases-repo`, so the script leaves it as it is and pushes whatever that clone has not pushed yet before it builds the image.
 
 **The final `git push` failed.** The image is already published. Fix the access problem and run `git push origin main --tags` by hand. Don't run the release again: that would rebuild and re-push the same image, which is harmless but slow.
 
