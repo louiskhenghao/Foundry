@@ -513,16 +513,27 @@ describe('goal-review escalation + settings propagation', () => {
     expect(listTasks(engine.store.db, goal.id)).toHaveLength(before);
   });
 
-  test('changing a model in Settings reaches goals in flight, but not a per-goal override', async () => {
+  test('changing the housekeeping model in Settings reaches goals in flight, but not a per-goal override', async () => {
     const engine = track(new Engine(cfg(), new FakeRunner(() => {})));
     const inherited = await engine.createGoal({ prompt: 'impossible', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f never.txt'] } });
-    const pinned = await engine.createGoal({ prompt: 'impossible too', repoPath: repo, budgets: { attemptsPerTask: 1 }, models: { strong: 'my-own-model' }, autoBrief: { mustChecks: ['test -f never.txt'] } });
-    expect(getGoal(engine.store.db, inherited.id)!.models.strong).toBe(engine.config.models.strong);
-    engine.updateSettings({ models: { strong: 'claude-fable-5-1' } });
-    expect(getGoal(engine.store.db, inherited.id)!.models.strong).toBe('claude-fable-5-1');
-    expect(getGoal(engine.store.db, inherited.id)!.models.worker).toBe(engine.config.models.worker);
-    expect(getGoal(engine.store.db, pinned.id)!.models.strong).toBe('my-own-model');
+    const pinned = await engine.createGoal({ prompt: 'impossible too', repoPath: repo, budgets: { attemptsPerTask: 1 }, models: { cheap: 'my-own-model' }, autoBrief: { mustChecks: ['test -f never.txt'] } });
+    expect(getGoal(engine.store.db, inherited.id)!.models.cheap).toBe(engine.config.models.cheap);
+    engine.updateSettings({ models: { cheap: 'claude-haiku-4-5' } });
+    expect(getGoal(engine.store.db, inherited.id)!.models.cheap).toBe('claude-haiku-4-5');
+    expect(getGoal(engine.store.db, pinned.id)!.models.cheap).toBe('my-own-model');
     expect(engine.store.listByType('goal.models_changed').some((e) => e.goalId === inherited.id && (e.payload as { reason: string }).reason === 'settings changed')).toBe(true);
+  });
+
+  test('a settings file from before presets moves to the default presets once, with a note listing the old tiers', async () => {
+    const { writeFileSync: w, readFileSync: r } = await import('node:fs');
+    w(join(dataDir, 'settings.json'), JSON.stringify({ models: { strong: 'claude-fable-5-1', worker: 'opus' } }));
+    const engine = track(new Engine(cfg(), new FakeRunner(() => {})));
+    await engine.start();
+    const saved = JSON.parse(r(join(dataDir, 'settings.json'), 'utf8'));
+    expect(saved.models).toMatchObject({ presetCode: 'production', presetDocs: 'balanced', presetMedia: 'balanced' });
+    const notes = engine.store.listByType('engine.note', 50).map((e) => (e.payload as { message: string }).message).filter((m) => m.startsWith('Models now come from presets'));
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toContain('strong = claude-fable-5-1, worker = opus');
   });
 });
 

@@ -31,7 +31,7 @@ export const Task = z.object({
   spec: z.string(),
   /** default keeps pre-kind `task.created` events replayable */
   kind: TaskKind.default('feature'),
-  /** routine / normal / hard — the Clarifier's call, the human's to change; default keeps older events replayable */
+  /** simple / standard / complex — the Clarifier's call, the human's to change; default keeps older events replayable */
   difficulty: TaskDifficulty.default('standard'),
   /** Conventional Commit scope for this task's commit, or null */
   scope: z.string().nullable().default(null),

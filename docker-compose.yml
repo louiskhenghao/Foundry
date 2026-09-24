@@ -13,13 +13,12 @@ services:
       # goal previews (dev servers started at milestones) — uncomment to open them from the host
       # - '127.0.0.1:4200-4299:4200-4299'
     volumes:
-      - engine-data:/app/data          # event log, worktrees, transcripts, settings
+      - engine-data:/app/data          # event log, transcripts, settings (goal work lives in progress folders next to each repo)
       - claude-home:/home/node/.claude # Claude Code login, sessions, skills
       # your repositories — goals point at paths *inside* the container, e.g. /repos/my-app
       - ${FOUNDRY_REPOS:-${HOME}/Projects}:/repos
     environment:
-      FOUNDRY_MODEL_STRONG: ${FOUNDRY_MODEL_STRONG:-opus}
-      FOUNDRY_MODEL_WORKER: ${FOUNDRY_MODEL_WORKER:-opus}
+      # the housekeeping model (one-turn chores); every other model comes from the presets in Settings → Models & limits
       FOUNDRY_MODEL_CHEAP: ${FOUNDRY_MODEL_CHEAP:-haiku}
       FOUNDRY_MAX_CONCURRENT: ${FOUNDRY_MAX_CONCURRENT:-3}
       # one-click updates from the UI go through the watchtower sidecar below (ADR-0010);

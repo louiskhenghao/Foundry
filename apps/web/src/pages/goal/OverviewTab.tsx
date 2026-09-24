@@ -105,13 +105,23 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
                     const p = e.payload as any;
                     return (
                       <div key={i}>
-                        <span className="mono text-zinc-200">{p.from}</span> was unavailable → {p.tier ? `${p.tier} sessions now use ` : 'used '}
+                        <span className="mono text-zinc-200">{p.from}</span> was unavailable → {p.tier ? `${p.tier} sessions now use ` : 'this goal now uses '}
                         <span className="mono text-zinc-200">{p.to}</span> <span className="text-zinc-600">({p.reason})</span>
                       </div>
                     );
                   })}
                 <div className="text-[11px] text-zinc-500">
-                  Current models: strong <span className="mono">{g.models.strong}</span> · worker <span className="mono">{g.models.worker}</span> · cheap <span className="mono">{g.models.cheap}</span>
+                  Preset: <span className="mono">{g.modelPreset ?? 'Settings default for this goal type'}</span>
+                  {Object.keys(g.modelSubstitutions ?? {}).length > 0 && (
+                    <>
+                      {' '}· replaced for this goal:{' '}
+                      {Object.entries(g.modelSubstitutions).map(([from, to]) => (
+                        <span key={from} className="mono">
+                          {from} → {to}{' '}
+                        </span>
+                      ))}
+                    </>
+                  )}
                 </div>
               </div>
             </Card>

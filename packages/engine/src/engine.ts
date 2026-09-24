@@ -69,7 +69,7 @@ import { deliverArtifacts, inferCompletion, runGraphRefresh, shouldRunGraphRefre
 import type { SettingsPatch, SettingsView } from '@foundry/core';
 import { ACTION_INFO, BUILTIN_PRESETS, DEFAULT_NATURE_PRESETS, MODEL_ACTIONS, MODEL_NATURES, NATURE_LABEL, effectivePresets } from '@foundry/core';
 import { spawnStreaming } from './skills/updaters.ts';
-import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { removeWorktree } from './git/git.ts';
 import { BaselineChecks } from './checks/baseline.ts';
 import { relative, resolve } from 'node:path';
@@ -725,11 +725,18 @@ export class Engine {
    * is moved to the shipped defaults once, with a note listing what it had so the choice can be undone.
    */
   private migrateModelTiersToPresets(): void {
-    const view = this.settings.view();
-    const tiers = (['strong', 'worker', 'cheap'] as const).filter((t) => view.meta[`models.${t}`]?.source === 'file');
-    const chosen = (['presetCode', 'presetDocs', 'presetMedia'] as const).some((k) => view.meta[`models.${k}`]?.source === 'file');
+    for (const name of ['FOUNDRY_MODEL_STRONG', 'FOUNDRY_MODEL_WORKER', 'FOUNDRY_GOAL_REVIEWER']) {
+      if (process.env[name]) this.config.log(`[settings] ${name} is set but no longer does anything: models come from presets (Settings → Models & limits)`);
+    }
+    // the tier keys are no longer part of the settings schema: read what an older version wrote straight from the file
+    let raw: { models?: Record<string, unknown> } = {};
+    try {
+      raw = JSON.parse(readFileSync(this.settings.path, 'utf8'));
+    } catch {}
+    const tiers = (['strong', 'worker', 'cheap'] as const).filter((t) => typeof raw.models?.[t] === 'string');
+    const chosen = (['presetCode', 'presetDocs', 'presetMedia'] as const).some((k) => raw.models?.[k] != null);
     if (!tiers.length || chosen) return;
-    const before = tiers.map((t) => `${t} = ${view.values.models[t]}`).join(', ');
+    const before = tiers.map((t) => `${t} = ${raw.models![t]}`).join(', ');
     this.updateSettings({ models: { presetCode: DEFAULT_NATURE_PRESETS.code, presetDocs: DEFAULT_NATURE_PRESETS.docs, presetMedia: DEFAULT_NATURE_PRESETS.media } });
     this.store.append({ type: 'engine.note', goalId: null, payload: { level: 'info', message: `Models now come from presets: Code = Production, Docs & research = Balanced, Media = Balanced (Settings → Models). Your previous tiers were ${before}; the Economy or Balanced preset is closest if you want them back.` } });
   }

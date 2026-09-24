@@ -28,9 +28,8 @@ export const EngineSettings = z.object({
   workspacesRoot: z.string().nullable().default(null),
 });
 export const ModelSettings = z.object({
-  strong: z.string().min(1).default('opus'),
+  /** the housekeeping model: one-turn engine chores (classifying a goal, summarising logs, the rate-limit probe) */
   cheap: z.string().min(1).default('haiku'),
-  worker: z.string().min(1).default('opus'),
   /** tried in order when a tier's model is unavailable (deprecated, unknown alias …) */
   fallbacks: z.array(z.string().min(1)).default(['opus', 'sonnet', 'haiku']),
   /** presets you edited or created (built-ins you never touched are not stored) */
@@ -74,8 +73,6 @@ export const WorkflowSettings = z.object({
 export const ReviewSettings = z.object({
   alwaysReviewTasks: z.boolean().default(true),
   maxFixCycles: z.number().int().min(0).max(5).default(1),
-  /** which model tier reviews the whole goal diff; strong is the most careful and the slowest */
-  goalReviewer: z.enum(['strong', 'worker', 'cheap']).default('strong'),
   /** a goal whose diff is this many lines or fewer is reviewed by the cheap tier without review skills (sub-agents) */
   smallGoalLines: z.number().int().min(0).max(5000).default(400),
 });

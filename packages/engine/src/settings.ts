@@ -24,9 +24,7 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'preview.portTo': { name: 'FOUNDRY_PREVIEW_PORT_TO', parse: num },
   'preview.idleMinutes': { name: 'FOUNDRY_PREVIEW_IDLE_MIN', parse: num },
   'checks.selfCheck': { name: 'FOUNDRY_SELF_CHECK', parse: bool },
-  'models.strong': { name: 'FOUNDRY_MODEL_STRONG', parse: str },
   'models.cheap': { name: 'FOUNDRY_MODEL_CHEAP', parse: str },
-  'models.worker': { name: 'FOUNDRY_MODEL_WORKER', parse: str },
   'models.fallbacks': { name: 'FOUNDRY_MODEL_FALLBACKS', parse: (v) => v.split(',').map((s) => s.trim()).filter(Boolean) },
   'sessions.attemptMaxTurns': { name: 'FOUNDRY_ATTEMPT_MAX_TURNS', parse: num },
   'sessions.maxContinuations': { name: 'FOUNDRY_MAX_CONTINUATIONS', parse: num },
@@ -38,7 +36,6 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'workflow.defaultPace': { name: 'FOUNDRY_PACE', parse: str },
   'workflow.interview': { name: 'FOUNDRY_INTERVIEW', parse: str },
   'workflow.effort': { name: 'FOUNDRY_EFFORT', parse: str },
-  'reviews.goalReviewer': { name: 'FOUNDRY_GOAL_REVIEWER', parse: str },
   'reviews.smallGoalLines': { name: 'FOUNDRY_SMALL_GOAL_LINES', parse: num },
   'workflow.imagePack': { name: 'FOUNDRY_IMAGE_PACK', parse: str },
   'workflow.videoPack': { name: 'FOUNDRY_VIDEO_PACK', parse: str },
@@ -207,11 +204,8 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('checks.selfCheck')) config.selfCheck = s.checks.selfCheck;
   if (on('workflow.interview')) config.interview = s.workflow.interview;
   if (on('workflow.effort')) config.effort = s.workflow.effort;
-  if (on('reviews.goalReviewer')) config.goalReviewer = s.reviews.goalReviewer;
   if (on('reviews.smallGoalLines')) config.smallGoalLines = s.reviews.smallGoalLines;
-  if (on('models.strong')) config.models.strong = s.models.strong;
   if (on('models.cheap')) config.models.cheap = s.models.cheap;
-  if (on('models.worker')) config.models.worker = s.models.worker;
   if (on('models.fallbacks')) config.modelFallbacks = s.models.fallbacks;
   if (on('models.presets')) config.modelPresets = s.models.presets;
   if (on('models.presetCode')) config.naturePreset.code = s.models.presetCode;
