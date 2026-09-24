@@ -13,6 +13,7 @@ This page says where Foundry keeps its state, how to back it up and restore it, 
 | **Your repositories** | wherever they are | bind-mounted, usually at `/repos` | your normal backups |
 | **Progress folders**: one per goal, next to each repository | `<repo>-foundry/<goal>/` | same, inside the mount | until the goal is deleted |
 | **GitHub login** (`gh`) | `~/.config/gh` | `/home/node/.config/gh`, no volume unless you add one | optional |
+| **Chromium** for the self-check | `~/.cache/ms-playwright` | `/home/node/.cache/ms-playwright`, volume `playwright-browsers` (Compose) | no: **Install Chromium** downloads it again |
 
 With Docker Compose, the real volume names start with the Compose project name, which is the folder you run
 `docker compose` from. From `~/foundry` they are `foundry_engine-data` and `foundry_claude-home`.
@@ -176,8 +177,9 @@ docker rm -f foundry
 docker run -d --name foundry ...        # your original line, same volumes
 ```
 
-After re-creating the container, install Chromium again if you use the self-check (it is not kept in a volume), and
-log in to `gh` again unless you mounted a volume for it (see [install.md](./install.md#7-github-for-delivery-optional)).
+After re-creating the container, install Chromium again if you use the self-check, unless you mounted a volume at
+`/home/node/.cache/ms-playwright` (see [install.md](./install.md#6-previews-from-the-host)), and log in to `gh` again
+unless you mounted a volume for it (see [install.md](./install.md#7-github-for-delivery-optional)).
 
 ### Local install (git)
 
