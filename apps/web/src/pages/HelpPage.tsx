@@ -138,9 +138,10 @@ export function HelpPage() {
 
 /** A small "?" that opens the guide at the page and heading that explain the screen it sits on. */
 export function HelpLink({ to, label, className }: { to: string; label?: string; className?: string }) {
+  // a new tab: following it must never throw away a half-filled form or an unsaved Brief edit
   return (
-    <Link to={`/help/${to}`} title={label ?? 'Open the guide for this'} className={cn('inline-flex items-center text-zinc-500 hover:text-zinc-200 align-middle', className)} aria-label={label ?? 'help'}>
+    <a href={`/help/${to}`} target="_blank" rel="noreferrer" title={label ?? 'Open the guide for this (new tab)'} className={cn('inline-flex items-center text-zinc-500 hover:text-zinc-200 align-middle font-normal', className)} aria-label={label ?? 'help'}>
       <HelpCircle size={14} />
-    </Link>
+    </a>
   );
 }

@@ -6,6 +6,7 @@ import { Button, Card, cn, fmtUsd } from '../../ui.tsx';
 import { BriefDag } from './BriefDag.tsx';
 import { TaskCard } from './TaskCard.tsx';
 import { areaStyle, newTask } from './shared.ts';
+import { HelpLink } from '../HelpPage.tsx';
 
 /**
  * The plan: a graph of the tasks (coloured by Area) and the same tasks listed by Stage —
@@ -31,7 +32,7 @@ export function PlanSection({ brief, goalId, editable, edit }: { brief: Brief; g
 
   return (
     <Card
-      title={`Plan (${brief.tasks.length} task${brief.tasks.length === 1 ? '' : 's'} · ${stages.stages.length} stage${stages.stages.length === 1 ? '' : 's'})`}
+      title={<>{`Plan (${brief.tasks.length} task${brief.tasks.length === 1 ? '' : 's'} · ${stages.stages.length} stage${stages.stages.length === 1 ? '' : 's'})`}<HelpLink to="approving-the-brief#plan" className="ml-1.5" /></>}
       actions={
         editable && (
           <Button size="sm" onClick={addTask}>

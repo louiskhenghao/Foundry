@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { Badge, Button, Card, Menu, MenuItem, cn } from '../../ui.tsx';
 import { CheckRow } from './CheckRow.tsx';
 import { areaStyle, newCheck } from './shared.ts';
+import { HelpLink } from '../HelpPage.tsx';
 
 /** Goal-level checks: run on the merged result at goal review. Task-level checks live in their task cards. */
 export function GoalAcceptanceCard({ brief, editable, edit }: { brief: Brief; editable: boolean; edit: (fn: (b: Brief) => Brief) => void }) {
@@ -13,7 +14,7 @@ export function GoalAcceptanceCard({ brief, editable, edit }: { brief: Brief; ed
   const add = (type: 'command' | 'reviewer', areaKey: string | null) => edit((b) => ({ ...b, checks: [...b.checks, newCheck(b, type, null, areaKey)] }));
   return (
     <Card
-      title={`Goal acceptance (${goalChecks.length})`}
+      title={<>{`Goal acceptance (${goalChecks.length})`}<HelpLink to="approving-the-brief#goal-acceptance" className="ml-1.5" /></>}
       actions={
         editable && (
           <Menu

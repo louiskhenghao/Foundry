@@ -1,5 +1,6 @@
 import type { Brief, BriefRun } from '@foundry/core/browser';
 import { Button, Card, Field, Input, Select } from '../../ui.tsx';
+import { HelpLink } from '../HelpPage.tsx';
 
 const EMPTY: BriefRun = { install: null, command: null, url: null, platform: 'none' };
 
@@ -9,7 +10,7 @@ export function RunCard({ brief, editable, edit }: { brief: Brief; editable: boo
   const set = (patch: Partial<BriefRun>) => edit((b) => ({ ...b, run: { ...EMPTY, ...(b.run ?? {}), ...patch } }));
   return (
     <Card
-      title="How to run it"
+      title={<>How to run it<HelpLink to="approving-the-brief#how-to-run-it" className="ml-1.5" /></>}
       actions={
         run && editable ? (
           <Button size="sm" variant="ghost" onClick={() => edit((b) => ({ ...b, run: null }))} title="Forget these and let the engine read package.json">

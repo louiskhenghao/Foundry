@@ -18,6 +18,7 @@ import { InterviewPanel } from '../goal/InterviewPanel.tsx';
 import { PlanSection } from './PlanSection.tsx';
 import { SimpleBrief } from './SimpleBrief.tsx';
 import { areaOf, areaStyle, checkProblem, taskProblem } from './shared.ts';
+import { HelpLink } from '../HelpPage.tsx';
 
 export function BriefPage() {
   const { id = '' } = useParams();
@@ -168,7 +169,7 @@ export function BriefPage() {
   return (
     <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
       <Header detail={detail} onSimple={() => setView(false)} />
-      <Card title="Understanding">
+      <Card title={<>Understanding<HelpLink to="approving-the-brief#understanding" className="ml-1.5" /></>}>
         <div className="mb-3">
           <label className="text-[11px] text-zinc-500">
             pull request title <span className="text-zinc-600">· Conventional Commits header for the whole goal (one-PR delivery); per-task PRs use each task's header</span>
@@ -190,7 +191,7 @@ export function BriefPage() {
       </Card>
 
       {brief.questions.length > 0 && (
-        <Card title={`Questions (${blockingUnanswered.length} blocking unanswered)`}>
+        <Card title={<>{`Questions (${blockingUnanswered.length} blocking unanswered)`}<HelpLink to="approving-the-brief#questions" className="ml-1.5" /></>}>
           <div className="space-y-3">
             {brief.questions.map((q, i) => {
               const area = areaOf(brief, q.areaKey);
@@ -227,7 +228,7 @@ export function BriefPage() {
         </Card>
       )}
 
-      <Card title="Assumptions (accepted unless you uncheck)">
+      <Card title={<>Assumptions (accepted unless you uncheck)<HelpLink to="approving-the-brief#assumptions" className="ml-1.5" /></>}>
         {brief.assumptions.length === 0 && <div className="text-sm text-zinc-500">None.</div>}
         <div className="space-y-1.5">
           {brief.assumptions.map((a, i) => (
@@ -349,6 +350,7 @@ function Header({ detail, onSimple }: { detail: GoalDetail; onSimple?: () => voi
       <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-lg font-semibold">{g.title}</h1>
         <Badge state={g.state} />
+        <HelpLink to="approving-the-brief" label="How to read and approve the Brief (new tab)" />
         {onSimple && (
           <Button size="sm" variant="ghost" className="ml-auto" onClick={onSimple} title="Back to the plain-language view">
             Simple view
