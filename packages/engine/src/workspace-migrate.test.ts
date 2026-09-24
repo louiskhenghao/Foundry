@@ -37,7 +37,7 @@ const legacyGoal = (id: string, state: Goal['state']): Goal => {
 };
 const legacyTask = (id: string, goalId: string): Task => {
   const now = new Date().toISOString();
-  return { id, goalId, title: 't', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: false, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, state: 'running', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now };
+  return { id, goalId, title: 't', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: false, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'normal' as const, state: 'running', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now };
 };
 
 describe('relocateLegacyWorkspaces', () => {

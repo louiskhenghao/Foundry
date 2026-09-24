@@ -7,6 +7,7 @@ import { attachmentsDir, markitdownHint, renderAttachments } from './attachments
 import { buildAttemptPrompt, styleApplies, summarizeReport } from './attempt-prompt.ts';
 import type { CatchUp } from './catchup.ts';
 import { resolveDiscipline } from './skills/workflow.ts';
+import { metaFor, workerModelFor } from './models/roles.ts';
 import { budgetStatus } from './budget.ts';
 import { runCommandCheck } from './checks/command.ts';
 import { reviewTaskDiff } from './checks/reviewer.ts';
@@ -109,6 +110,13 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   /** The task's work is cumulative across attempts; reviewers and change lists judge all of it. */
   const taskBaseRef = prior.find((a) => a.baseRef)?.baseRef ?? resume?.attempt.baseRef ?? baseRef;
   const prevReport = resume ? null : prior.length ? getObservation(store.db, prior[prior.length - 1]!.id) : null;
+  // the task's difficulty picks the route; the last budgeted attempt (budget ≥ 2) and human retries run on the strong tier.
+  // A continuation keeps the model its attempt started with.
+  const routed = workerModelFor(config, goal, task, index);
+  const model = resume?.attempt.model ?? routed.model;
+  if (!resume && routed.escalated) {
+    store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `"${task.title}" attempt ${index}: running on ${routed.model} (strong tier) — ${routed.escalated === 'human-retry' ? 'a retry you granted' : 'the last attempt of its budget'}` } });
+  }
   const now = new Date().toISOString();
   const attemptId = resume ? resume.attempt.id : newId(IdPrefix.attempt);
   const attempt: Attempt = resume ? { ...resume.attempt, state: 'running', endedAt: null } : {
@@ -119,7 +127,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
     index,
     kind: 'work',
     sessionId: null,
-    model: goal.models.worker,
+    model,
     state: 'created',
     costUsd: 0,
     numTurns: 0,
@@ -156,9 +164,9 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   const handle = await engine.runner.run({
     prompt,
     cwd,
-    model: goal.models.worker,
-    meta: { goalId: goal.id, tier: 'worker' },
-    fallbackModel: goal.models.worker === 'opus' ? 'sonnet' : undefined,
+    model,
+    meta: resume ? { goalId: goal.id } : metaFor(goal.id, routed),
+    fallbackModel: model === 'opus' ? 'sonnet' : undefined,
     maxTurns: config.attemptMaxTurns,
     maxBudgetUsd: Math.max(0.05, remaining == null ? config.attemptMaxCostUsd : Math.min(config.attemptMaxCostUsd, remaining)),
     permissionMode: 'dontAsk',

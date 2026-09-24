@@ -8,6 +8,7 @@ import { tryJson } from './checks/reviewer.ts';
 import type { Engine } from './engine.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
 import { goalWorkspacePath } from './workspace.ts';
+import { metaFor, modelFor } from './models/roles.ts';
 
 export const SUGGEST_MAX_BUDGET_USD = 1;
 
@@ -81,8 +82,8 @@ export async function runSuggest(engine: Engine, escalationId: string): Promise<
   const handle = await engine.runner.run({
     prompt,
     cwd: existsSync(cwd) ? cwd : goal.repoPath,
-    model: goal.models.strong,
-    meta: { goalId: goal.id, tier: 'strong' },
+    model: modelFor(engine.config, goal, 'suggest').model,
+    meta: metaFor(goal.id, modelFor(engine.config, goal, 'suggest')),
     maxTurns: 20,
     maxBudgetUsd: SUGGEST_MAX_BUDGET_USD,
     permissionMode: 'dontAsk',
@@ -98,7 +99,7 @@ export async function runSuggest(engine: Engine, escalationId: string): Promise<
   for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: task?.id ?? null, attemptId: `suggest-${escalationId}`, event: ev, ts: new Date().toISOString() });
   const result = await handle.result;
   store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source: 'suggest' } });
-  engine.recordSessionUsage(result, { goalId: goal.id, kind: 'suggest', model: goal.models.strong });
+  engine.recordSessionUsage(result, { goalId: goal.id, kind: 'suggest', model: modelFor(engine.config, goal, 'suggest').model });
   const parsed = SuggestOutput.safeParse(result.structuredOutput ?? tryJson(result.finalText));
   if (!parsed.success) throw new Error(`the AI did not return a usable suggestion${result.errorMessage ? `: ${result.errorMessage}` : ''}`);
   const suggestion: EscalationSuggestion = { ...parsed.data, hint: parsed.data.action === 'retry_with_hint' ? parsed.data.hint.trim() : parsed.data.hint.trim(), costUsd: result.costUsd, at: new Date().toISOString() };

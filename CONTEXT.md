@@ -138,6 +138,9 @@ One pause at a Milestone. The human continues, or writes what they saw; a cheap 
 **Preview**
 The Goal's result running: the engine starts the Brief's run command (or the package.json dev/start script) in the Progress folder on a port from Settings → Preview, links the human to it, restarts it after each integration, and stops it when idle, when the Goal ends, or on shutdown.
 
+**Difficulty**
+routine, normal or hard — the Clarifier's rating of a Task, the human's to change in the Brief. It picks the model the Worker runs on (Settings → Models: by default hard Tasks run on the strong tier, the rest on the worker tier). The last Attempt of a budget of two or more, and every Attempt the human grants beyond the budget, run on the strong tier before the Task is handed back.
+
 **Interview**
 How Clarify talks to the human before the Brief exists: rounds of questions, each holding every decision that is askable now (its prerequisites settled), at most eight, each with the Clarifier's recommended answer first and the evidence that leaves it open. The answers reshape the next round; the Brief is written when nothing is left to ask, when the human says enough, or after the fourth round. Answers become Decisions. A small goal gets zero rounds; a goal created with *interview me* gets at least one. One Clarify session is resumed across rounds and by Revise; a lost session starts over with the interview so far.
 

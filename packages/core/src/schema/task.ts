@@ -4,6 +4,10 @@ import { z } from 'zod';
 export const TaskState = z.enum(['pending', 'ready', 'running', 'observing', 'merging', 'blocked', 'done', 'failed', 'skipped']);
 export type TaskState = z.infer<typeof TaskState>;
 
+/** How hard a task is for a worker; picks the model route (Settings → Models). */
+export const TaskDifficulty = z.enum(['routine', 'normal', 'hard']);
+export type TaskDifficulty = z.infer<typeof TaskDifficulty>;
+
 export const TaskOrigin = z.enum(['brief', 'goal-review-fix', 'merge', 'delivery-fix', 'feedback-fix']);
 
 /** What kind of work a task is; selects the workflow discipline the worker is asked to follow (tdd vs diagnosing-bugs …). */
@@ -23,6 +27,8 @@ export const Task = z.object({
   spec: z.string(),
   /** default keeps pre-kind `task.created` events replayable */
   kind: TaskKind.default('feature'),
+  /** routine / normal / hard — the Clarifier's call, the human's to change; default keeps older events replayable */
+  difficulty: TaskDifficulty.default('normal'),
   /** Conventional Commit scope for this task's commit, or null */
   scope: z.string().nullable().default(null),
   /** default keeps pre-scenario `task.created` events replayable */

@@ -383,7 +383,7 @@ export class Engine {
     const ref = `${s.remote}/${s.base}`;
     if ((await git(['merge-base', '--is-ancestor', ref, 'HEAD'], ws)).code === 0) return;
     const now = new Date().toISOString();
-    const task: Task = { id: newId(IdPrefix.task), goalId: goal.id, title: `sync ${goal.branch} with ${ref}`, spec: `${ref} moved while this goal was running. Merge it into ${goal.branch} so the remaining tasks build on the current base.`, kind: 'chore', scope: 'sync', scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: false, retryBudget: 2, origin: 'merge', milestone: null, milestoneVisits: 0, checkpointOf: null, state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now };
+    const task: Task = { id: newId(IdPrefix.task), goalId: goal.id, title: `sync ${goal.branch} with ${ref}`, spec: `${ref} moved while this goal was running. Merge it into ${goal.branch} so the remaining tasks build on the current base.`, kind: 'chore', scope: 'sync', scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: false, retryBudget: 2, origin: 'merge', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'normal' as const, state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now };
     this.store.append({ type: 'task.created', goalId: goal.id, payload: { task } });
     const ok = await mergeBranchInto(this, goal, task, { ref, label: ref, intent: `The base branch ${ref} received new commits while this goal was running. Keep their changes AND this goal's changes.` });
     const fresh = getTask(this.store.db, task.id)!;
@@ -1155,6 +1155,7 @@ export class Engine {
         milestone: t.milestone ?? null,
         milestoneVisits: 0,
         checkpointOf: null,
+        difficulty: t.difficulty ?? 'normal',
         parallelizable: t.parallelizable,
         retryBudget: goal.budgets.attemptsPerTask,
         origin: 'brief',

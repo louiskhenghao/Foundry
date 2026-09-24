@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import type { Attempt, Goal, Task } from '@foundry/core';
 import { IdPrefix, getAttempt, listAttempts, listChecks, newId } from '@foundry/core';
 import { runCommandCheck } from './checks/command.ts';
+import { metaFor, modelFor } from './models/roles.ts';
 import type { Engine } from './engine.ts';
 import { raiseEscalation } from './escalation.ts';
 import { GIT_IDENT, abortInProgress, commitAll, commitStaged, conflictedFiles, git, gitOk, headRef, refExists } from './git/git.ts';
@@ -161,7 +162,7 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
     index,
     kind: 'merge',
     sessionId: null,
-    model: goal.models.strong,
+    model: modelFor(engine.config, goal, 'merger').model,
     state: 'created',
     costUsd: 0,
     numTurns: 0,
@@ -211,8 +212,8 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
   const handle = await engine.runner.run({
     prompt,
     cwd,
-    model: goal.models.strong,
-    meta: { goalId: goal.id, tier: 'strong' },
+    model: modelFor(engine.config, goal, 'merger').model,
+    meta: metaFor(goal.id, modelFor(engine.config, goal, 'merger')),
     maxTurns: 50,
     maxBudgetUsd: 2,
     permissionMode: 'dontAsk',
@@ -237,8 +238,8 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
   }
   const result = await handle.result;
   store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source: `merge:${attempt.id}` } });
-  engine.recordSessionUsage(result, { goalId: goal.id, kind: 'merge', model: goal.models.strong });
-  store.append({ type: 'attempt.session_finished', goalId: goal.id, payload: { attemptId: attempt.id, session: { role: 'merger', segment: attempt.continuations, sessionId: result.sessionId ?? attempt.sessionId, model: initModel ?? goal.models.strong, costUsd: result.costUsd, numTurns: result.numTurns, durationMs: result.durationMs, subtype: result.subtype, startedAt: segmentStart, endedAt: new Date().toISOString() } } });
+  engine.recordSessionUsage(result, { goalId: goal.id, kind: 'merge', model: modelFor(engine.config, goal, 'merger').model });
+  store.append({ type: 'attempt.session_finished', goalId: goal.id, payload: { attemptId: attempt.id, session: { role: 'merger', segment: attempt.continuations, sessionId: result.sessionId ?? attempt.sessionId, model: initModel ?? modelFor(engine.config, goal, 'merger').model, costUsd: result.costUsd, numTurns: result.numTurns, durationMs: result.durationMs, subtype: result.subtype, startedAt: segmentStart, endedAt: new Date().toISOString() } } });
 
   const remaining = await conflictedFiles(cwd);
   let ok = remaining.length === 0;
