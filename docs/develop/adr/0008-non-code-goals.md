@@ -1,6 +1,6 @@
-# ADR-0008 — Non-code goals: nature, git substrate, media artifacts outside git
+# ADR-0008: Non-code goals: nature, git substrate, media artifacts outside git
 
-Status: accepted · 2026-08-26
+**Status:** accepted · 2026-08-26
 
 ## Context
 

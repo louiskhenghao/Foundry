@@ -65,11 +65,13 @@ The user asking the system to re-read the Brief in the light of the current Deci
 
 **Escalation**
 The only way the system ever asks a human for anything after the Brief is approved. There are exactly five triggers, and nothing else interrupts the user:
-1. a blocking Question in the Brief;
-2. a Task exhausted its retry budget with Must Checks still failing;
-3. an action that would leave the local workspace (push, pull request, deploy, shared database, paid service);
-4. the Goal's cost or time budget was exceeded;
-5. the Claude runtime refused a tool call.
+1. a Task exhausted its retry budget with Must Checks still failing (including a failed Goal review);
+2. an action that would leave the local workspace (push, pull request, deploy, shared database, paid service);
+3. the Goal's cost or time budget was exceeded;
+4. the Claude runtime refused a tool call;
+5. a Milestone landed and the Goal waits for the human to look (a Checkpoint).
+
+Before approval the human is asked in two other ways, neither of them an Escalation: the Interview, and blocking Questions on the Brief page, which hold the approval until they are answered.
 
 **Suggestion**
 What the system proposes when a Task is blocked and the user asks: a plain-words diagnosis, the action it recommends (retry with a hint, skip, resolve by hand, raise the budget) and the hint itself. Only a *retry with hint* may be applied on the user's say-so in one click; every other action stays the user's.
@@ -133,16 +135,18 @@ Where the Goal workspace lives: next to the user's repository as `<repo>-foundry
 A Task after which a person can see or try something meaningful for the first time. The Clarifier marks 1–3 per Goal with a "look for" note; the human edits them at approval. When a milestone Task lands, the engine launches nothing more, lets in-flight work land, then pauses the Goal (`awaiting_feedback`) with a `milestone` Escalation: the Preview starts, and the Inbox and the notification channels carry the note, the preview link and the latest screenshot.
 
 **Checkpoint**
-One pause at a Milestone. The human continues, or writes what they saw; a cheap triage session proposes what the feedback becomes — a *hint* for the remaining Tasks, *fix* Tasks (after which the same Milestone opens once more for a second look), or a *Decision* recorded with the Brief's Decisions — and the human confirms before anything changes. A Milestone opens at most twice; later feedback becomes hints.
+One pause at a Milestone. The human continues, or writes what they saw; a small triage session proposes what the feedback becomes — a *hint* for the remaining Tasks, *fix* Tasks (after which the same Milestone opens once more for a second look), or a *Decision* recorded with the Brief's Decisions — and the human confirms before anything changes. A Milestone opens at most twice; later feedback becomes hints.
 
 **Preview**
-The Goal's result running: the engine starts the Brief's run command (or the package.json dev/start script) in the Progress folder on a port from Settings → Preview, links the human to it, restarts it after each integration, and stops it when idle, when the Goal ends, or on shutdown.
+The Goal's result running: the engine starts the Brief's run command (or the package.json dev/start script) in the Progress folder on a port from Settings → Preview & self-check, links the human to it, restarts it after each integration, and stops it when idle, when the Goal ends, or on shutdown.
 
 **Difficulty**
-simple, standard or complex — the Clarifier's rating of a Task, the human's to change in the Brief. It picks the row of the Goal's Model Preset the Worker runs on. The last Attempt of a budget of two or more, and every Attempt the human grants beyond the budget, run on the Complex row before the Task is handed back.
+simple, standard or complex — the Clarifier's rating of a Task, the human's to change in the Brief. It picks the row of the Goal's Model Preset the Worker runs on.
+_Avoid_: routine / normal / hard (the first names) The last Attempt of a budget of two or more, and every Attempt the human grants beyond the budget, run on the Complex row before the Task is handed back.
 
 **Model Preset**
 A named choice of model for every action — Clarify, Planner, Simple / Standard / Complex tasks, merges, reviews, docs, triage, hints, style samples — with one table per goal nature (Code, Docs & research, Media). Four ship with Foundry (Max, Production, Balanced, Economy); they can be edited and reset, and your own can be added. Settings picks one per nature; a Goal may pick another at creation. Sessions read it when they start.
+_Avoid_: strong / worker / cheap model, tier (the model tiers Presets replaced)
 
 **Interview**
 How Clarify talks to the human before the Brief exists: rounds of questions, each holding every decision that is askable now (its prerequisites settled), at most eight, each with the Clarifier's recommended answer first and the evidence that leaves it open. The answers reshape the next round; the Brief is written when nothing is left to ask, when the human says enough, or after the fourth round. Answers become Decisions. A small goal gets zero rounds; a goal created with *interview me* gets at least one. One Clarify session is resumed across rounds and by Revise; a lost session starts over with the interview so far.
@@ -151,7 +155,7 @@ How Clarify talks to the human before the Brief exists: rounds of questions, eac
 Off by default. After each integration the engine opens the Preview in headless Chromium, screenshots it and collects console, page and network errors; the result is a goal-level Must Check (re-run at Goal Review) and the screenshot reaches the timeline and the Milestone notification. No model involved.
 
 **Role**
-A named set of instructions given to a Claude session: Clarifier, Planner, Worker, Task Reviewer, Goal Reviewer, Merger. Roles are versioned text, not code.
+A named set of instructions given to a Claude session: Clarifier, Planner, Worker, Task Reviewer, Goal Reviewer, Merger, Documenter, Feedback Triage. Roles are versioned text, not code. Which model a Role's session runs on is set by the Goal's Model Preset.
 
 **Context Provider**
 A source the system consults to decide which parts of a repository are relevant to a Task, so that sessions are given only what they need.
@@ -174,10 +178,10 @@ A Skill a Role is told to invoke for a kind of work — *must* or *prefer* — b
 The nature of a Task — feature, bug, refactor, research or chore — set in the Brief. It selects the Workflow Skills the Worker is asked to follow.
 
 **Scenario**
-The area a Task works in — frontend, backend, fullstack, data, mobile, infra, docs or general — set in the Brief. A Goal's scenario is the one most of its Tasks share. Scenario-bound Skills (the Design Pack, presentation skills…) are shown to a session only when the scenario matches.
+The area a Task works in — frontend, backend, fullstack, data, mobile, infra, docs, research, image, video or general — set in the Brief. A Goal's scenario is the one most of its Tasks share. Scenario-bound Skills (the Design Pack, presentation skills…) are shown to a session only when the scenario matches.
 
 **Design Pack**
-The one design skill set the engine hands to UI work (frontend / fullstack Scenarios): ui-ux-pro-max, Anthropic's frontend-design, impeccable, bencium or garden — or none. Packs are mutually exclusive: the Worker gets the chosen pack as a MUST and the Goal Reviewer its review counterpart; the others stay invisible even when installed.
+The one design skill set the engine hands to UI work (frontend / fullstack Scenarios): ui-ux-pro-max, Anthropic's frontend-design, impeccable, bencium, garden or taste — or none. Packs are mutually exclusive: the Worker gets the chosen pack as a MUST and the Goal Reviewer its review counterpart; the others stay invisible even when installed.
 
 **Project Skills**
 Skills matched to a repository's own stack (React, Tailwind, Supabase…) that autoskills installs into a Goal's workspace after the Brief is approved. They live in the workspace's `.claude/skills`, are git-excluded so they never reach a commit, and are listed to every Worker of that Goal. An empty repository has no stack to detect yet, so the install is retried after each Task lands until a stack manifest exists.
@@ -186,7 +190,14 @@ Skills matched to a repository's own stack (React, Tailwind, Supabase…) that a
 What this machine has learned about model names: which id a requested name (`fable`, `opus`, a pinned id) resolved to, and when it last worked or failed. Learned from sessions, never hard-coded; a new model family is listed once it has been used (or tested) here.
 
 **Fallback**
-What the engine does when a session's model is unavailable: re-run the same session with the next model of the configured chain and record the swap on the Goal, so later sessions use the replacement; only when the whole chain fails does the Goal escalate.
+What the engine does when a session's model is unavailable: re-run the same session with the next model of the configured chain and remember the replacement on the Goal, so its later sessions skip the dead model; only when the whole chain fails does the Goal escalate.
+
+**Housekeeping model**
+The model of the engine's one-turn chores — classifying a Goal's nature, summarising a log, probing the usage limit. The only model not set by a Model Preset.
+_Avoid_: cheap tier, cheap model
+
+**Effort**
+How hard every session of a Goal thinks, from low to max — a knob of the Claude runtime, chosen when the Goal is created (or its Settings default). Independent of which model runs.
 
 **Simple mode**
 A Goal viewed by someone who does not want the machinery: one plain-language Brief (what the system understood, what it will build, the questions only they can answer, the assumptions they can veto, the price) and a progress view (how far, what it costs, what needs them). The engine underneath is the same; Expert view — every control — is one click away on any Goal, and a Goal's mode is just which view it opens in.

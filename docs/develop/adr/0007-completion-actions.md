@@ -1,6 +1,6 @@
-# ADR-0007 — Completion actions: docs on the goal branch, graph refresh after delivery
+# ADR-0007: Completion actions: docs on the goal branch, graph refresh after delivery
 
-Status: accepted · 2026-08-26
+**Status:** accepted · 2026-08-26
 
 ## Context
 

@@ -1,6 +1,6 @@
-# ADR-0005 — Scenario-selected skills, exclusive design packs, per-goal autoskills, and a settings file
+# ADR-0005: Scenario-selected skills, exclusive design packs, per-goal autoskills, and a settings file
 
-Status: accepted · 2026-08-22
+**Status:** accepted · 2026-08-22
 
 ## Context
 

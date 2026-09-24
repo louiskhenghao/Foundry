@@ -1,6 +1,6 @@
-# ADR-0009 — Multi-engine roadmap: codex (and others) as swappable runners
+# ADR-0009: Multi-engine roadmap: codex (and others) as swappable runners
 
-Status: proposed · 2026-08-27
+**Status:** proposed · 2026-08-27 · deferred, nothing implemented
 
 ## Context
 

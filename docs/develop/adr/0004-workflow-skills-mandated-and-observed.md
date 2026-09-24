@@ -1,7 +1,6 @@
-# 0004 — Workflow skills are mandated per role and task kind, and their use is observed
+# ADR-0004: Workflow skills are mandated per role and task kind, and their use is observed
 
-Date: 2026-08-21
-Status: Accepted
+**Status:** accepted · 2026-08-21
 
 ## Context
 

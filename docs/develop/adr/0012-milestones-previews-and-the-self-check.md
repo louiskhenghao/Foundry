@@ -1,6 +1,6 @@
 # ADR-0012: Milestones, previews and the headless self-check
 
-**Status:** accepted (2026-09-14)
+**Status:** accepted · 2026-09-14
 
 ## Context
 

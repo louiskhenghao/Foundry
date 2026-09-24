@@ -1,6 +1,6 @@
-# ADR-0006 — No hard-coded model knowledge: a learned registry and a fallback chain
+# ADR-0006: No hard-coded model knowledge: a learned registry and a fallback chain
 
-Status: accepted · 2026-08-22
+**Status:** accepted · 2026-08-22 · partly superseded by ADR-0014 (goal model snapshot per tier; doctor checks tiers)
 
 ## Context
 

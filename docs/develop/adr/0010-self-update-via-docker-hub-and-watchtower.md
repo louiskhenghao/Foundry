@@ -1,6 +1,6 @@
-# ADR-0010 — Self-update: Docker Hub as version source, watchtower as the docker updater
+# ADR-0010: Self-update: Docker Hub as version source, watchtower as the docker updater
 
-Status: accepted · 2026-08-28
+**Status:** accepted · 2026-08-28
 
 ## Context
 

@@ -1,6 +1,6 @@
 # ADR-0011: Progress folders next to the repository
 
-**Status:** accepted (2026-09-14)
+**Status:** accepted · 2026-09-14
 
 ## Context
 

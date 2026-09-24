@@ -1,7 +1,6 @@
-# 0002 — Append-only event log as the source of truth
+# ADR-0002: Append-only event log as the source of truth
 
-Date: 2026-08-21
-Status: Accepted
+**Status:** accepted · 2026-08-21
 
 ## Context
 

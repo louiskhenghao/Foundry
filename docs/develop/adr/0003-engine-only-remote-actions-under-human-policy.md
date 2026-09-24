@@ -1,7 +1,6 @@
-# 0003 — Remote actions are performed only by the engine, only under a policy the human chose
+# ADR-0003: Remote actions are performed only by the engine, only under a policy the human chose
 
-Date: 2026-08-21
-Status: Accepted
+**Status:** accepted · 2026-08-21 · amended by ADR-0012 (a sixth escalation trigger, `milestone`)
 
 ## Context
 

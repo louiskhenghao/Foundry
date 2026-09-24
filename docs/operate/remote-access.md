@@ -1,7 +1,5 @@
 # Remote access: run Foundry at home, use it from anywhere
 
-> [中文](./remote-access.zh.md) · English
-
 Foundry drives Claude Code against repositories on **one machine** — that machine does the work, and the web UI
 is how you steer it. This guide makes that machine reachable from your phone or laptop wherever you are, and
 keeps it working while you are away, using [Tailscale](https://tailscale.com) (a WireGuard mesh: only devices
@@ -12,7 +10,7 @@ Briefs, push branches with your `gh` login and spend your Claude subscription. S
 stays on loopback, and Tailscale is the only door. Never publish it to the internet, never use `tailscale funnel`.
 
 You need: a machine that stays on (a Mac mini, a desktop, a home server, a VPS) with Foundry already working
-locally — either `bun run serve` ([README](../README.md#quick-start)) or the Docker image ([docs/docker.md](./docker.md)) —
+locally — either from source with `bun run serve` or with the Docker image (both in [install.md](./install.md)) —
 plus a free Tailscale account.
 
 ---
@@ -98,8 +96,10 @@ tail -f ~/Projects/foundry/data/serve.log
 
 `PATH` must contain wherever `bun`, `claude`, `git`, `gh` and `graphify` live (`which claude` tells you); a
 LaunchAgent does not read your shell profile. Use plain `bun run serve`, not `bun --watch`.
-`FOUNDRY_SUPERVISED=1` tells a one-click update (§5) to simply exit when it is done, so the service manager
-brings the new version up — without it the engine restarts itself and the two would fight over the port.
+`FOUNDRY_SUPERVISED=1` tells a one-click update to simply exit when it is done, so the service manager
+brings the new version up — without it the engine restarts itself and the two would fight over the port
+(see [updates-and-backup.md](./updates-and-backup.md#local-install-git)). systemd services are also detected by
+their `INVOCATION_ID` variable, but setting the variable does no harm.
 
 **Linux — a systemd user service.** Save as `~/.config/systemd/user/foundry.service`:
 
@@ -145,9 +145,9 @@ device should answer `{"ok":true,…}`.
 
 ## 4. Make notifications point back at the tailnet URL
 
-Foundry can ping you on Telegram or Discord when a goal needs you, finishes or delivers, when a Claude usage
-limit pauses the engine, or when a new version is out (Settings → Notifications, one switch per family;
-step-by-step in [notifications.md](./notifications.md)). Set
+Foundry can ping you on Telegram or Discord when a goal needs you, when the Clarifier asks you an interview round,
+when a goal finishes or delivers, when a Claude usage limit pauses the engine, or when a new version is out
+(Settings → Notifications, one switch per kind; step-by-step in [notifications.md](./notifications.md)). Set
 **Link base URL** to `https://mac-mini.<tailnet>.ts.net` (scheme included — the field wants a full URL): every
 message then carries a link that opens the right page on your phone. Leave it empty and messages carry no link
 at all; set it to `127.0.0.1` and the link opens nowhere but on the machine itself. Press *Send test message*

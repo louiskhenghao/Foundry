@@ -1,7 +1,6 @@
-# 0001 — Drive the host `claude` CLI rather than the Agent SDK
+# ADR-0001: Drive the host `claude` CLI rather than the Agent SDK
 
-Date: 2026-08-21
-Status: Accepted
+**Status:** accepted · 2026-08-21
 
 ## Context
 
