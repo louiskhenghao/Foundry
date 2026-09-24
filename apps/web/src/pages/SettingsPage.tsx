@@ -3,6 +3,7 @@ import { RotateCcw } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, type ModelRecordView, type UpdateStatusView } from '../api.ts';
 import { LiveLog } from './LiveLog.tsx';
+import { ModelPresetsSection } from './settings/ModelPresets.tsx';
 import { DesignPacks } from '../components/DesignPacks.tsx';
 import { UpdateDialog } from '../components/UpdateDialog.tsx';
 import { Button, Card, CopyButton, Empty, Field, Input, Select, cn } from '../ui.tsx';
@@ -32,19 +33,6 @@ const SECTIONS: { id: string; label: string }[] = [
   { id: 'safety', label: 'Safety' },
   { id: 'engine', label: 'Engine (install)' },
   { id: 'about', label: 'About & updates' },
-];
-
-/** Settings → Models: every action whose model can be chosen, with the tier it uses when left empty. */
-const ROLE_ROWS: { path: `models.${string}`; label: string; def: 'strong' | 'worker' | 'cheap'; help: string }[] = [
-  { path: 'models.clarifier', label: 'Clarify', def: 'strong', help: 'Explores the repository, interviews you and writes the Brief; also Draft / Revise (they resume its session).' },
-  { path: 'models.planner', label: 'Planner', def: 'strong', help: 'The sub-agent inside Clarify that splits each Area into the task DAG.' },
-  { path: 'models.merger', label: 'Merge attempts', def: 'strong', help: 'Resolves merge conflicts when tasks or the base branch collide (avg ~$0.9 each on Fable) — Sonnet or Opus is usually enough.' },
-  { path: 'models.goalReviewer', label: 'Goal reviewer', def: 'strong', help: 'Reads the whole goal diff at the end against the acceptance checks — the most expensive single session (avg ~$6 on Fable). Goals under the small-goal size in Reviews always use the cheap tier.' },
-  { path: 'models.taskReviewer', label: 'Task reviewer', def: 'cheap', help: 'Reads each task diff against its checks before it lands.' },
-  { path: 'models.documenter', label: 'Documenter', def: 'strong', help: 'Writes the completion docs you chose at approval.' },
-  { path: 'models.feedback', label: 'Feedback triage', def: 'cheap', help: 'Turns what you write at a milestone into a hint, fix tasks or a Decision.' },
-  { path: 'models.suggest', label: 'Suggest a hint', def: 'strong', help: 'The AI diagnosis and hint for a blocked task in the Inbox.' },
-  { path: 'models.styleSample', label: 'Style samples', def: 'worker', help: 'The one-image samples of a style direction on the Brief page.' },
 ];
 
 function SourceBadge({ view, path }: { view: SettingsView; path: string }) {
@@ -248,29 +236,6 @@ export function SettingsPage() {
       </div>
     );
   };
-  /** a role / route select: empty (default tier), a tier name, or any known model id */
-  const roleModel = (path: Leaf, def: 'strong' | 'worker' | 'cheap', allowEmpty = true) => {
-    const v = (get(draft, path) as string | null) ?? '';
-    const models = known?.length ? known.map((m) => m.name) : SEED_MODELS.map((m) => m.id);
-    const custom = v !== '' && !['strong', 'worker', 'cheap'].includes(v) && !models.includes(v);
-    return (
-      <div className="flex gap-1">
-        <Select value={custom ? 'custom' : v} onChange={(e) => set(path, e.target.value === '' ? (allowEmpty ? null : def) : e.target.value === 'custom' ? 'claude-' : e.target.value)}>
-          {allowEmpty && <option value="">default — {def} tier ({get(draft, `models.${def}` as Leaf) as string})</option>}
-          <option value="strong">strong tier ({get(draft, 'models.strong') as string})</option>
-          <option value="worker">worker tier ({get(draft, 'models.worker') as string})</option>
-          <option value="cheap">cheap tier ({get(draft, 'models.cheap') as string})</option>
-          {models.map((m) => (
-            <option key={m} value={m}>
-              pin: {m}
-            </option>
-          ))}
-          <option value="custom">custom id…</option>
-        </Select>
-        {custom && <Input className="mono" value={v} onChange={(e) => set(path, e.target.value || (allowEmpty ? null : def))} />}
-      </div>
-    );
-  };
   const list = (path: Leaf, placeholder: string) => <Input className="mono" value={((get(draft, path) as string[] | null) ?? []).join(', ')} placeholder={placeholder} onChange={(e) => set(path, e.target.value.trim() ? e.target.value.split(',').map((s) => s.trim()).filter(Boolean) : null)} />;
 
   const grid = (children: ReactNode) => <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">{children}</div>;
@@ -391,44 +356,18 @@ export function SettingsPage() {
       </Card>
 
       <Card id="models" title="Models & limits" className="scroll-mt-16">
+        <ModelPresetsSection draft={draft} set={set as (p: `models.${string}`, v: unknown) => void} known={known} reloadModels={loadModels} />
+        <div className="border-t border-zinc-800 my-4" />
         {grid(
           <>
-            <Field label="Strong" aside={aside('models.strong')} help="By default drives Clarify, the Planner, Merge Attempts, the Documenter and hard tasks — the stages where judgement matters most. Each role can be pointed elsewhere below.">
-              {model('models.strong')}
-            </Field>
-            <Field label="Worker" aside={aside('models.worker')} help="Drives task attempts — the bulk of the tokens. Which tier a task actually uses is set below by its difficulty (hard tasks go to Strong by default), and the last attempt before a task is handed back to you runs on Strong.">
-              {model('models.worker')}
-            </Field>
-            <Field label="Cheap" aside={aside('models.cheap')} help="Drives the per-task reviewer and the engine's probes (rate-limit checks). Haiku is fine; Sonnet if task reviews feel shallow.">
+            <Field label="Housekeeping model" aside={aside('models.cheap')} help="One-turn engine chores: classifying a goal, summarising logs, the rate-limit probe. Cents per goal.">
               {model('models.cheap')}
             </Field>
-            <Field label="Fallbacks (in order)" aside={aside('models.fallbacks')} help="When a session's model is unavailable (deprecated alias, retired id, typo) the engine re-runs it with the next of these and updates the goal's model; only when all fail does it ask you.">
+            <Field label="Fallbacks (in order)" aside={aside('models.fallbacks')} help="When a session's model is unavailable (deprecated alias, retired id, typo) the engine re-runs it with the next of these and remembers the replacement for that goal; only when all fail does it ask you.">
               {list('models.fallbacks', 'opus, sonnet, haiku')}
             </Field>
-            <div className="sm:col-span-2 border-t border-zinc-800 pt-3 text-xs text-zinc-400">
-              <div className="text-zinc-200 mb-1">Model per action</div>
-              Empty = the role's default tier. A tier name follows whatever that tier is set to (and its fallbacks); a model id pins the role to that model.
-            </div>
-            {ROLE_ROWS.map((r) => (
-              <Field key={r.path} label={r.label} aside={aside(r.path)} help={r.help}>
-                {roleModel(r.path, r.def)}
-              </Field>
-            ))}
-            <div className="sm:col-span-2 border-t border-zinc-800 pt-3 text-xs text-zinc-400">
-              <div className="text-zinc-200 mb-1">Worker model by task difficulty</div>
-              The Clarifier marks each task routine, normal or hard in the Brief (you can change it before approving).
-            </div>
-            <Field label="Routine tasks" aside={aside('models.routeRoutine')} help="Mechanical work: scaffolding, copy edits, config, one small component.">
-              {roleModel('models.routeRoutine', 'worker', false)}
-            </Field>
-            <Field label="Normal tasks" aside={aside('models.routeNormal')} help="Typical feature work — most tasks.">
-              {roleModel('models.routeNormal', 'worker', false)}
-            </Field>
-            <Field label="Hard tasks" aside={aside('models.routeHard')} help="Cross-cutting, subtle or risky: architecture, concurrency, migrations, large refactors.">
-              {roleModel('models.routeHard', 'strong', false)}
-            </Field>
             <div className="sm:col-span-2">
-              {bool('models.escalateLastAttempt', 'Last attempt on Strong', 'When a task has 2 or more attempts, its last one — and every retry you grant from the Inbox — runs on the Strong tier before the task comes back to you. The timeline says when it happens.')}
+              {bool('models.escalateLastAttempt', 'Last attempt on the Complex-task model', 'When a task has 2 or more attempts, its last one — and every retry you grant from the Inbox — runs on the Complex-task model of its preset before the task comes back to you. The timeline says when it happens.')}
             </div>
           </>,
         )}
