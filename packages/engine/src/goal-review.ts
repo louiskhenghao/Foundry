@@ -12,7 +12,7 @@ import { runSelfCheck } from './checks/selfcheck.ts';
 import { tryJson } from './checks/reviewer.ts';
 import type { Engine } from './engine.ts';
 import { goalScenario } from './skills/workflow.ts';
-import { metaFor, modelFor, resolveModel } from './models/roles.ts';
+import { metaFor, modelFor } from './models/roles.ts';
 import { runDocsGeneration } from './docs-generate.ts';
 import { raiseEscalation } from './escalation.ts';
 import { createFixTasks, genericFixSpec } from './fix-tasks.ts';
@@ -137,7 +137,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
   // a small goal does not need the strong model reading its diff through two review sub-agents: the cheap tier, no skills
   const lines = d.split('\n').length;
   const small = lines <= engine.config.smallGoalLines;
-  const reviewer = small ? resolveModel(goal, 'cheap', 'cheap') : modelFor(engine.config, goal, 'goalReviewer');
+  const reviewer = modelFor(engine.config, goal, small ? 'taskReviewer' : 'goalReviewer');
   const reviewerHint = small ? null : await engine.skills.hints.sectionFor('reviewer-goal', { scenario });
   const media =
     scenario === 'image' || scenario === 'video'

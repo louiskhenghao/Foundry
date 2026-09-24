@@ -29,7 +29,7 @@ afterEach(() => {
 const legacyGoal = (id: string, state: Goal['state']): Goal => {
   const now = new Date().toISOString();
   return {
-    id, title: '把按钮改成蓝色，其它不动', prompt: 'p', workspaceDir: null, checkpoint: null, selfCheck: false, interview: null, effort: null, repoPath: repo, baseBranch: 'main', branch: `goal/${id}`,
+    id, title: '把按钮改成蓝色，其它不动', prompt: 'p', workspaceDir: null, checkpoint: null, selfCheck: false, interview: null, effort: null, modelPreset: null, modelSubstitutions: {}, repoPath: repo, baseBranch: 'main', branch: `goal/${id}`,
     budgets: { maxCostUsd: 5, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3 }, budgetPreset: 'custom', mode: 'expert', workflow: { tdd: 'off', pace: 'thorough' },
     models: { strong: 'opus', cheap: 'haiku', worker: 'opus' }, state, stateBeforeBlock: null, costUsd: 0, fixCycles: 0, delivery: IDLE_DELIVERY, attachments: [], baseSync: null, autoskills: null,
     completion: { graphRefresh: false, docs: [], docsRun: null, graphRun: null, artifactsRun: null }, nature: 'auto', outputDir: null, runningSince: null, createdAt: now, updatedAt: now,
@@ -37,7 +37,7 @@ const legacyGoal = (id: string, state: Goal['state']): Goal => {
 };
 const legacyTask = (id: string, goalId: string): Task => {
   const now = new Date().toISOString();
-  return { id, goalId, title: 't', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: false, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'normal' as const, state: 'running', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now };
+  return { id, goalId, title: 't', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: false, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard' as const, state: 'running', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now };
 };
 
 describe('relocateLegacyWorkspaces', () => {

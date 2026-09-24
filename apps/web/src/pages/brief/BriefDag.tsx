@@ -20,7 +20,7 @@ export function BriefDag({ brief, selected, onSelect }: { brief: Brief; selected
       spec: t.spec,
       tdd: t.tdd,
       kind: t.kind,
-      difficulty: t.difficulty ?? 'normal',
+      difficulty: t.difficulty ?? 'standard',
       milestone: t.milestone ?? null,
       milestoneVisits: 0,
       checkpointOf: null,

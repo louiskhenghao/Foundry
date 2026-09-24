@@ -59,7 +59,7 @@ export function TaskCard({ task, brief, goalId, editable, open, onOpen, onClose,
           <span className="mono text-xs text-zinc-500 w-7">{task.key}</span>
           <span className="text-sm flex-1 min-w-0 truncate">{task.title || <span className="text-zinc-500">(untitled)</span>}</span>
           {problem && editable && <span className="text-xs text-rose-300 whitespace-nowrap">{problem}</span>}
-          <TaskTags kind={task.kind} scenario={task.scenario} difficulty={task.difficulty ?? 'normal'} />
+          <TaskTags kind={task.kind} scenario={task.scenario} difficulty={task.difficulty ?? 'standard'} />
           {brief.areas.length > 0 && <span className={cn('text-[10px] rounded-full border px-2 py-0.5 whitespace-nowrap', style.chip)}>{area?.name ?? 'unassigned'}</span>}
           {checks.length > 0 && (
             <span className="text-[10px] text-zinc-500 flex items-center gap-1 whitespace-nowrap" title="acceptance checks on this task">
@@ -231,10 +231,10 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
           </label>
           <label className="block">
             <span className="text-zinc-500">difficulty</span>
-            <Select disabled={!editable} className="text-xs py-1 mt-0.5" value={task.difficulty ?? 'normal'} onChange={(e) => change({ difficulty: e.target.value as NonNullable<BriefTask['difficulty']> })} title="routine / normal / hard — picks the model the worker runs on (Settings → Models → Worker model by difficulty)">
-              <option value="routine">routine</option>
-              <option value="normal">normal</option>
-              <option value="hard">hard</option>
+            <Select disabled={!editable} className="text-xs py-1 mt-0.5" value={task.difficulty ?? 'standard'} onChange={(e) => change({ difficulty: e.target.value as NonNullable<BriefTask['difficulty']> })} title="Picks the model the worker runs on (the Simple / Standard / Complex rows of the goal's preset). Simple: config, copy edits, scaffolding, one small component. Standard: typical feature work. Complex: cross-cutting changes, architecture, migrations, concurrency, large refactors.">
+              <option value="simple">simple — config, copy, small component</option>
+              <option value="standard">standard — typical feature work</option>
+              <option value="complex">complex — cross-cutting, risky</option>
             </Select>
           </label>
           <label className="block">

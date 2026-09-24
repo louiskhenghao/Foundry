@@ -84,7 +84,10 @@ export interface ModelRecordView {
   label: string | null;
   note: string | null;
   pinned: boolean;
-  inUse: ('strong' | 'cheap' | 'worker')[];
+  /** where the presets in use run this model, e.g. "Code: Standard tasks" */
+  inUse: string[];
+  /** found in the Claude Code binary by a model sync */
+  discovered?: { family: string; newest: boolean; at: string } | null;
 }
 export interface PackEntry {
   id: string;
@@ -356,7 +359,8 @@ export const api = {
   updateRuns: () => req<(EngineEvent & { seq: number })[]>('/api/skills/update-runs'),
   doctor: () => req<DoctorReport>('/api/doctor'),
   packs: () => req<PacksView>('/api/skills/packs'),
-  models: () => req<{ models: ModelRecordView[]; fallbacks: string[]; current: { strong: string; cheap: string; worker: string } }>('/api/models'),
+  models: () => req<{ models: ModelRecordView[]; fallbacks: string[]; current: { strong: string; cheap: string; worker: string }; sync: { at: string | null; cliVersion: string | null; found: number } | null }>('/api/models'),
+  syncModels: () => req<{ found: number; newest: string[]; resolved: Record<string, string | null>; cliVersion: string | null }>('/api/models/sync', { method: 'POST' }),
   probeModel: (name: string) => req<{ ok: boolean; name: string; resolvedId: string | null; costUsd: number; error: string | null }>('/api/models/probe', { method: 'POST', body: JSON.stringify({ name }) }),
   installPack: (pack: string, option: string) => req<{ started: true; channel: string }>('/api/skills/install-pack', { method: 'POST', body: JSON.stringify({ pack, option }) }),
   settings: () => req<SettingsView>('/api/settings'),

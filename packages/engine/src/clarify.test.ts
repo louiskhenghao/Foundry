@@ -57,7 +57,7 @@ const areas = [
   { key: 'A1', name: 'Student portal', slug: 'student-portal', description: 'what students see' },
   { key: 'A2', name: 'Teacher portal', slug: 'teacher-portal', description: 'what teachers see' },
 ];
-const task = (key: string, areaKey: string, title: string, deps: string[] = []): BriefOutput['tasks'][number] => ({ key, title, spec: `do ${title}`, kind: 'feature', scope: null, scenario: 'frontend', difficulty: 'normal', areaKey, dependsOnKeys: deps, parallelizable: true, relevantFiles: ['README.md'], milestone: null });
+const task = (key: string, areaKey: string, title: string, deps: string[] = []): BriefOutput['tasks'][number] => ({ key, title, spec: `do ${title}`, kind: 'feature', scope: null, scenario: 'frontend', difficulty: 'standard', areaKey, dependsOnKeys: deps, parallelizable: true, relevantFiles: ['README.md'], milestone: null });
 const check = (key: string, taskKey: string | null, areaKey: string | null = null): BriefOutput['checks'][number] => ({ key, name: key, tier: 'must', taskKey, areaKey, type: 'command', cmd: 'true', rubric: null });
 const briefWith = (tasks: BriefOutput['tasks'], checks: BriefOutput['checks']): BriefOutput => ({ title: 'feat(portal): build portals', understanding: 'Two portals.', nature: 'code', areas, assumptions: ['a'], tasks, checks, costEstimateUsd: 4, timeEstimateMin: 30, questions: [], styleOptions: [], run: null });
 

@@ -2,6 +2,7 @@ import type { Attachment } from '@foundry/core/browser';
 import { BUDGET_PRESETS } from '@foundry/core/browser';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { effectivePresets, natureKey, type ModelNature, type ModelPreset } from '@foundry/core/browser';
 import { api, type RepoInfo } from '../api.ts';
 import { AttachmentInput } from '../components/Attachments.tsx';
 import { BudgetPicker, type BudgetDraft } from '../components/BudgetPicker.tsx';
@@ -55,6 +56,17 @@ export function NewGoalPage() {
   const [outputDir, setOutputDir] = useState('');
   const [interview, setInterview] = useState(false);
   const [effort, setEffort] = useState('');
+  const [modelPreset, setModelPreset] = useState('');
+  const [presetInfo, setPresetInfo] = useState<{ ids: { id: string; label: string }[]; picks: Record<ModelNature, string> } | null>(null);
+  useEffect(() => {
+    api
+      .settings()
+      .then((v) => {
+        const presets = effectivePresets((v.values.models.presets ?? {}) as Record<string, ModelPreset>);
+        setPresetInfo({ ids: Object.entries(presets).map(([id, p]) => ({ id, label: p.label })), picks: { code: v.values.models.presetCode, docs: v.values.models.presetDocs, media: v.values.models.presetMedia } });
+      })
+      .catch(() => {});
+  }, []);
   useEffect(() => localStorage.setItem(NATURE_KEY, nature), [nature]);
   const [mode, setMode] = useState<'simple' | 'expert'>(() => ((localStorage.getItem('foundry.mode') as 'simple' | 'expert' | null) ?? 'expert'));
   const [tdd, setTdd] = useState<'required' | 'preferred' | 'off'>(() => ((localStorage.getItem('foundry.tdd') as 'required' | 'preferred' | 'off' | null) ?? 'required'));
@@ -114,6 +126,7 @@ export function NewGoalPage() {
         outputDir: (nature === 'image' || nature === 'video') && outputDir.trim() ? outputDir.trim() : undefined,
         interview: interview ? 'always' : undefined,
         effort: effort ? (effort as 'low' | 'medium' | 'high' | 'xhigh' | 'max') : undefined,
+        modelPreset: modelPreset || undefined,
       });
       try {
         localStorage.setItem(DELIVERY_KEY, JSON.stringify({ mode: delivery.mode, remote: delivery.remote, mergeMethod: delivery.mergeMethod, requireChecks: delivery.requireChecks, autoResolveConflicts: delivery.autoResolveConflicts, fixCiCycles: delivery.fixCiCycles, deleteRemoteBranch: delivery.deleteRemoteBranch }));
@@ -220,6 +233,21 @@ export function NewGoalPage() {
               <option value="high">high</option>
               <option value="xhigh">xhigh</option>
               <option value="max">max — hardest problems</option>
+            </Select>
+          </span>
+        </div>
+        <div className="mt-3 flex items-center gap-3 flex-wrap">
+          <span className="text-xs text-zinc-300">Models</span>
+          <span className="w-56">
+            <Select value={modelPreset} onChange={(e) => setModelPreset(e.target.value)} title="Which model preset this goal uses for every action (Settings → Models); default = the preset Settings picks for this goal type">
+              <option value="">
+                Default for this goal type{presetInfo ? ` (${presetInfo.ids.find((p) => p.id === presetInfo.picks[natureKey(nature)])?.label ?? presetInfo.picks[natureKey(nature)]})` : ''}
+              </option>
+              {(presetInfo?.ids ?? []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
             </Select>
           </span>
         </div>

@@ -115,7 +115,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   const routed = workerModelFor(config, goal, task, index);
   const model = resume?.attempt.model ?? routed.model;
   if (!resume && routed.escalated) {
-    store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `"${task.title}" attempt ${index}: running on ${routed.model} (strong tier) — ${routed.escalated === 'human-retry' ? 'a retry you granted' : 'the last attempt of its budget'}` } });
+    store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `"${task.title}" attempt ${index}: running on ${routed.model} (the Complex-task model) — ${routed.escalated === 'human-retry' ? 'a retry you granted' : 'the last attempt of its budget'}` } });
   }
   const now = new Date().toISOString();
   const attemptId = resume ? resume.attempt.id : newId(IdPrefix.attempt);
@@ -165,7 +165,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
     prompt,
     cwd,
     model,
-    meta: resume ? { goalId: goal.id } : metaFor(goal.id, routed),
+    meta: metaFor(goal.id),
     fallbackModel: model === 'opus' ? 'sonnet' : undefined,
     maxTurns: config.attemptMaxTurns,
     maxBudgetUsd: Math.max(0.05, remaining == null ? config.attemptMaxCostUsd : Math.min(config.attemptMaxCostUsd, remaining)),

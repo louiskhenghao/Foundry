@@ -36,7 +36,7 @@ import { GraphifyContextProvider } from './context/graphify-provider.ts';
 import { summarizeOutput } from './distill/summarize.ts';
 import type { ContextProvider } from './context/provider.ts';
 import { answerEscalation as answerEsc, raiseEscalation } from './escalation.ts';
-import { branchExists, currentBranch, git, isGitRepo } from './git/git.ts';
+import { branchExists, currentBranch, git, isGitRepo, exec } from './git/git.ts';
 import { fetchBase, startRef } from './git/sync.ts';
 import { mergeBranchInto } from './merge.ts';
 import { runGoalReview } from './goal-review.ts';
@@ -61,11 +61,13 @@ import { Markitdown } from './convert/markitdown.ts';
 import { SettingsStore, applySettingsToConfig } from './settings.ts';
 import { NotificationDispatcher } from './notify/dispatcher.ts';
 import { ModelFallbackRunner } from './models/fallback-runner.ts';
+import { modelsInBinary } from './models/discover.ts';
 import { EffortRunner } from './effort-runner.ts';
 import { ModelRegistry, SEED_MODELS, isPinnedId, type ModelRecord } from './models/registry.ts';
 import { copyProjectSkills, hasStackManifest, runAutoskills, type AutoskillsDeps } from './skills/autoskills.ts';
 import { deliverArtifacts, inferCompletion, runGraphRefresh, shouldRunGraphRefresh, type GraphRefreshDeps } from './completion.ts';
 import type { SettingsPatch, SettingsView } from '@foundry/core';
+import { ACTION_INFO, BUILTIN_PRESETS, DEFAULT_NATURE_PRESETS, MODEL_ACTIONS, MODEL_NATURES, NATURE_LABEL, effectivePresets } from '@foundry/core';
 import { spawnStreaming } from './skills/updaters.ts';
 import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
 import { removeWorktree } from './git/git.ts';
@@ -87,6 +89,8 @@ export interface CreateGoalInput {
   interview?: 'auto' | 'always' | 'never';
   /** effort level for every session of this goal; default = Settings → workflow.effort */
   effort?: Effort | null;
+  /** model preset for this goal; default = the preset Settings picks for its nature */
+  modelPreset?: string | null;
   /** Skip Clarify: one task = the prompt, with these command checks. */
   autoBrief?: { mustChecks: string[]; stretchChecks?: string[] };
   /** Skip Clarify with a fully specified brief (tasks + checks). Approved immediately. */
@@ -383,7 +387,7 @@ export class Engine {
     const ref = `${s.remote}/${s.base}`;
     if ((await git(['merge-base', '--is-ancestor', ref, 'HEAD'], ws)).code === 0) return;
     const now = new Date().toISOString();
-    const task: Task = { id: newId(IdPrefix.task), goalId: goal.id, title: `sync ${goal.branch} with ${ref}`, spec: `${ref} moved while this goal was running. Merge it into ${goal.branch} so the remaining tasks build on the current base.`, kind: 'chore', scope: 'sync', scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: false, retryBudget: 2, origin: 'merge', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'normal' as const, state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now };
+    const task: Task = { id: newId(IdPrefix.task), goalId: goal.id, title: `sync ${goal.branch} with ${ref}`, spec: `${ref} moved while this goal was running. Merge it into ${goal.branch} so the remaining tasks build on the current base.`, kind: 'chore', scope: 'sync', scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: false, retryBudget: 2, origin: 'merge', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard' as const, state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now };
     this.store.append({ type: 'task.created', goalId: goal.id, payload: { task } });
     const ok = await mergeBranchInto(this, goal, task, { ref, label: ref, intent: `The base branch ${ref} received new commits while this goal was running. Keep their changes AND this goal's changes.` });
     const fresh = getTask(this.store.db, task.id)!;
@@ -455,6 +459,8 @@ export class Engine {
     } catch {}
     await this.reconcile();
     await relocateLegacyWorkspaces(this);
+    this.migrateModelTiersToPresets();
+    void this.syncModelsIfCliChanged();
     this.preview.startSweeper();
     for (const g of listGoals(this.store.db)) this.tick(g.id);
   }
@@ -649,11 +655,11 @@ export class Engine {
   // ---------- models ----------
 
   /** seed aliases ∪ names seen in sessions, with what they resolved to; what the Settings page lists */
-  listModels(): (ModelRecord & { label: string | null; note: string | null; pinned: boolean; inUse: ('strong' | 'cheap' | 'worker')[] })[] {
-    const m = this.config.models;
+  listModels(): (ModelRecord & { label: string | null; note: string | null; pinned: boolean; inUse: string[] })[] {
+    const used = this.modelsInUse();
     return this.models.list().map((r) => {
       const seed = SEED_MODELS.find((s) => s.name === r.name);
-      const inUse = (['strong', 'cheap', 'worker'] as const).filter((t) => m[t] === r.name);
+      const inUse = used.get(r.name) ?? [];
       return { ...r, label: seed?.label ?? null, note: seed?.note ?? null, pinned: isPinnedId(r.name), inUse };
     });
   }
@@ -669,18 +675,69 @@ export class Engine {
     return { ok, name, resolvedId: resolved ?? rec?.resolvedId ?? null, costUsd: r.costUsd, error: ok ? null : (r.errorMessage ?? r.subtype) };
   }
   /** Doctor check: are the configured tiers names this machine has seen resolve? */
-  private modelsCheck() {
-    const m = this.config.models;
-    const issues: string[] = [];
-    for (const t of ['strong', 'worker', 'cheap'] as const) {
-      const name = m[t];
-      const r = this.models.get(name);
-      if (r?.lastFailAt && (!r.lastOkAt || r.lastFailAt > r.lastOkAt)) issues.push(`${t} = ${name}: last failed ${r.lastFailAt.slice(0, 16).replace('T', ' ')} (${r.lastError ?? 'model unavailable'})`);
-      else if (!r || (!r.seed && !this.models.known(name))) issues.push(`${t} = ${name}: never seen resolving on this machine`);
+  /** the models the presets Settings picks actually use, with where: "opus" → ["Code: Standard tasks", …] */
+  modelsInUse(): Map<string, string[]> {
+    const presets = effectivePresets(this.config.modelPresets);
+    const used = new Map<string, string[]>();
+    for (const n of MODEL_NATURES) {
+      const p = presets[this.config.naturePreset[n]] ?? BUILTIN_PRESETS[DEFAULT_NATURE_PRESETS[n]]!;
+      for (const a of MODEL_ACTIONS) used.set(p.tables[n][a], [...(used.get(p.tables[n][a]) ?? []), `${NATURE_LABEL[n]}: ${ACTION_INFO[a].label}`]);
     }
-    const pinned = (['strong', 'worker', 'cheap'] as const).filter((t) => isPinnedId(m[t]));
-    const detail = issues.length ? issues.join('; ') : `${m.strong} / ${m.worker} / ${m.cheap}${pinned.length ? ` — ${pinned.join(', ')} pinned to a full id (aliases follow the latest release automatically)` : ''}; fallbacks ${this.config.modelFallbacks.join(' → ')}`;
-    return { id: 'models', label: 'Models (strong / worker / cheap)', ok: issues.length === 0, severity: 'warn' as const, detail, fix: issues.length ? { action: 'test-models' as const } : null };
+    return used;
+  }
+
+  private modelsCheck() {
+    const issues: string[] = [];
+    for (const [name, where] of this.modelsInUse()) {
+      const r = this.models.get(name);
+      if (r?.lastFailAt && (!r.lastOkAt || r.lastFailAt > r.lastOkAt)) issues.push(`${name} (${where.length} action${where.length === 1 ? '' : 's'}): last failed ${r.lastFailAt.slice(0, 16).replace('T', ' ')} (${r.lastError ?? 'model unavailable'})`);
+      else if (!r || (!r.seed && !r.discovered && !this.models.known(name))) issues.push(`${name} (${where.length} action${where.length === 1 ? '' : 's'}): never seen resolving on this machine`);
+    }
+    const picks = MODEL_NATURES.map((n) => `${NATURE_LABEL[n]} ${effectivePresets(this.config.modelPresets)[this.config.naturePreset[n]]?.label ?? this.config.naturePreset[n]}`).join(' · ');
+    const detail = issues.length ? issues.join('; ') : `${picks}; fallbacks ${this.config.modelFallbacks.join(' → ')}`;
+    return { id: 'models', label: 'Models (presets in use)', ok: issues.length === 0, severity: 'warn' as const, detail, fix: issues.length ? { action: 'test-models' as const } : null };
+  }
+
+  /**
+   * Model sync: read every model id the Claude Code binary knows (free), then resolve the family aliases with one tiny
+   * session each so the dropdowns show what `fable` / `opus` / `sonnet` / `haiku` mean today. Runs on demand and when the
+   * Claude Code version changes.
+   */
+  async syncModels(opts: { probe?: boolean } = {}): Promise<{ found: number; newest: string[]; resolved: Record<string, string | null>; cliVersion: string | null }> {
+    const bin = this.config.claudeBin ?? Bun.which('claude');
+    const found = bin ? modelsInBinary(bin) : [];
+    if (found.length) this.models.noteDiscovered(found);
+    const resolved: Record<string, string | null> = {};
+    if (opts.probe !== false) for (const alias of ['fable', 'opus', 'sonnet', 'haiku']) resolved[alias] = (await this.probeModel(alias).catch(() => null))?.resolvedId ?? null;
+    const cliVersion = await this.claudeVersion();
+    this.models.noteSync({ cliVersion, at: new Date().toISOString(), found: found.length });
+    this.config.log(`[models] sync: ${found.length} id(s) in the Claude Code binary; ${Object.entries(resolved).map(([a, r]) => `${a} → ${r ?? '?'}`).join(', ')}`);
+    return { found: found.length, newest: found.filter((f) => f.newest).map((f) => f.id), resolved, cliVersion };
+  }
+  private async claudeVersion(): Promise<string | null> {
+    const bin = this.config.claudeBin ?? Bun.which('claude');
+    if (!bin) return null;
+    const r = await exec([bin, '--version'], this.config.dataDir, { timeoutMs: 15_000 }).catch(() => null);
+    return r?.code === 0 ? r.stdout.trim().split(/\s/)[0] ?? null : null;
+  }
+  /**
+   * Presets replaced the strong / worker / cheap tiers in Settings. A settings file that set tiers but never chose presets
+   * is moved to the shipped defaults once, with a note listing what it had so the choice can be undone.
+   */
+  private migrateModelTiersToPresets(): void {
+    const view = this.settings.view();
+    const tiers = (['strong', 'worker', 'cheap'] as const).filter((t) => view.meta[`models.${t}`]?.source === 'file');
+    const chosen = (['presetCode', 'presetDocs', 'presetMedia'] as const).some((k) => view.meta[`models.${k}`]?.source === 'file');
+    if (!tiers.length || chosen) return;
+    const before = tiers.map((t) => `${t} = ${view.values.models[t]}`).join(', ');
+    this.updateSettings({ models: { presetCode: DEFAULT_NATURE_PRESETS.code, presetDocs: DEFAULT_NATURE_PRESETS.docs, presetMedia: DEFAULT_NATURE_PRESETS.media } });
+    this.store.append({ type: 'engine.note', goalId: null, payload: { level: 'info', message: `Models now come from presets: Code = Production, Docs & research = Balanced, Media = Balanced (Settings → Models). Your previous tiers were ${before}; the Economy or Balanced preset is closest if you want them back.` } });
+  }
+
+  /** a new Claude Code version may know new models: sync once, in the background */
+  private async syncModelsIfCliChanged(): Promise<void> {
+    const v = await this.claudeVersion();
+    if (v && v !== this.models.syncState().cliVersion) await this.syncModels().catch((err) => this.config.log(`[models] sync failed: ${String(err)}`));
   }
 
   /** One minimal cheap-model session purely to refresh the rate-limit signal (~$0.02). */
@@ -878,6 +935,8 @@ export class Engine {
       checkpoint: null,
       selfCheck: input.selfCheck ?? this.config.selfCheck,
       effort: input.effort === undefined ? this.config.effort : input.effort,
+      modelPreset: input.modelPreset ?? null,
+      modelSubstitutions: {},
       interview: (() => {
         const mode = input.interview ?? this.config.interview;
         return mode === 'never' ? null : { mode, status: 'thinking' as const, sessionId: null, rounds: [] };
@@ -1155,7 +1214,7 @@ export class Engine {
         milestone: t.milestone ?? null,
         milestoneVisits: 0,
         checkpointOf: null,
-        difficulty: t.difficulty ?? 'normal',
+        difficulty: t.difficulty ?? 'standard',
         parallelizable: t.parallelizable,
         retryBudget: goal.budgets.attemptsPerTask,
         origin: 'brief',

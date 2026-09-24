@@ -7,6 +7,7 @@ export * from './brief.ts';
 export * from './escalation.ts';
 export * from './feedback.ts';
 export * from './interview.ts';
+export * from './model-presets.ts';
 export * from './delivery.ts';
 export * from './attachment.ts';
 export * from './settings.ts';
