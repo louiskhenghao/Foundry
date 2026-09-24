@@ -46,9 +46,9 @@ export function App() {
       .catch(() => {});
   }, []);
 
-  const link = ({ isActive }: { isActive: boolean }) => cn('flex items-center gap-2 px-3 py-2 md:py-1.5 rounded-md text-sm', isActive ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900');
-  // between md and lg the header only fits the icons; the dropdown (below md) always shows labels
-  const label = 'md:hidden lg:inline';
+  const link = ({ isActive }: { isActive: boolean }) => cn('flex items-center gap-2 px-3 py-2 lg:py-1.5 rounded-md text-sm', isActive ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900');
+  // between lg and xl the header only fits the icons; the dropdown (below lg) always shows labels
+  const label = 'lg:hidden xl:inline';
   const links = (
     <>
       <NavLink to="/" end className={link} title="Goals">
@@ -79,14 +79,14 @@ export function App() {
   return (
     <div className="h-full flex flex-col">
       <header className="surface-card relative flex items-center gap-2 md:gap-4 px-3 md:px-4 h-12 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur sticky top-0 z-20">
-        <button className="md:hidden p-1.5 -ml-1 rounded text-zinc-300 hover:bg-zinc-900" aria-label="menu" onClick={() => setMenu(!menu)}>
+        <button className="lg:hidden p-1.5 -ml-1 rounded text-zinc-300 hover:bg-zinc-900" aria-label="menu" onClick={() => setMenu(!menu)}>
           {menu ? <X size={18} /> : <Menu size={18} />}
         </button>
         <NavLink to="/" className="font-semibold tracking-tight text-zinc-100 flex items-center gap-2">
           Foundry
-          {(open > 0 || setupBad) && <span className={cn('md:hidden h-2 w-2 rounded-full', open > 0 ? 'bg-orange-500' : 'bg-rose-500')} />}
+          {(open > 0 || setupBad) && <span className={cn('lg:hidden h-2 w-2 rounded-full', open > 0 ? 'bg-orange-500' : 'bg-rose-500')} />}
         </NavLink>
-        <nav className="hidden md:flex items-center gap-1">{links}</nav>
+        <nav className="hidden lg:flex items-center gap-1">{links}</nav>
         <div className="ml-auto flex items-center gap-2 md:gap-3 text-xs text-zinc-500 min-w-0">
           {/* the one action that starts work lives here, not in the nav, so a narrow header keeps it */}
           <Link to="/goals/new" className="shrink-0">
@@ -95,7 +95,10 @@ export function App() {
             </Button>
           </Link>
           <UpdatePill />
-          <AgentsPill />
+          {/* Agents is in the phone menu; the pill would push the header past the screen edge */}
+          <span className="hidden sm:contents">
+            <AgentsPill />
+          </span>
           <UsagePill />
           <AccountMenu />
           <span className="hidden sm:flex items-center gap-1.5">
@@ -105,7 +108,7 @@ export function App() {
           <ThemeToggle />
         </div>
         {menu && (
-          <nav className="md:hidden absolute left-0 right-0 top-12 border-b border-zinc-800 bg-zinc-950 p-2 flex flex-col gap-0.5 shadow-xl" onClick={() => setMenu(false)}>
+          <nav className="lg:hidden absolute left-0 right-0 top-12 border-b border-zinc-800 bg-zinc-950 p-2 flex flex-col gap-0.5 shadow-xl" onClick={() => setMenu(false)}>
             {links}
           </nav>
         )}

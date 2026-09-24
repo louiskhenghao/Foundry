@@ -38,11 +38,12 @@ export function AccountMenu() {
             toggle();
           }}
           className={cn('flex items-center gap-1.5 rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-900', open && 'bg-zinc-900')}
-          title={st.orgName ?? ''}
+          title={[st.email, st.orgName].filter(Boolean).join(' · ')}
         >
           <UserCircle2 size={13} className="text-emerald-400" />
-          <span className="mono hidden xl:inline">{st.email ?? 'signed in'}</span>
-          {st.subscriptionType && <span className="rounded bg-emerald-500/15 text-emerald-300 px-1 uppercase text-[9px]">{st.subscriptionType}</span>}
+          {/* the address only where the header has room for it, and never wider than a short name: the menu shows it in full */}
+          <span className="mono hidden 2xl:inline max-w-[14rem] truncate">{st.email ?? 'signed in'}</span>
+          {st.subscriptionType && <span className="hidden sm:inline rounded bg-emerald-500/15 text-emerald-300 px-1 uppercase text-[9px]">{st.subscriptionType}</span>}
         </button>
       )}
     >
