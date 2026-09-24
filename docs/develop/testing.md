@@ -75,6 +75,31 @@ Occasionally a run reports `Unhandled error between tests`. The cause is a backg
 
 If it keeps happening in one file, a new test almost certainly creates an `Engine` without `track()`-ing it, or deletes directories before `await engine.stop()`. Don't paper over it with longer sleeps.
 
+## The seeded demo and the guide's screenshots
+
+`scripts/demo.ts` starts a complete Foundry on port 4198 with a scripted runner in place of the Claude CLI. It creates a
+throwaway repository and seeds five goals, one in each state a user meets: an interview round, a Brief waiting for
+approval, a milestone pause, a running goal and a blocked task. No model is called, so it is free and gives the same
+screens every time. Build the web app first:
+
+```sh
+bun run web:build
+bun scripts/demo.ts           # prints the URL; Ctrl-C stops it and deletes the temp repo and data
+```
+
+`scripts/screenshots.ts` starts the same demo, opens each screen in Chrome through Playwright and rewrites every
+`docs/guide/images/*.png`. It masks e-mail addresses and temp paths before each capture. Re-run it when a screen that
+the guide shows has changed:
+
+```sh
+bun scripts/screenshots.ts
+```
+
+`packages/server/src/guide.test.ts` keeps the guide honest. It fails when an English page has no 中文 twin or a
+different set of sections or screenshots, when a link or an anchor points nowhere, when a screenshot is missing, when a
+Settings section has no heading in `settings.md`, or when a "?" link in the app (`<HelpLink to="page#heading">`) opens
+a heading that does not exist.
+
 ## Manual QA against a throwaway server
 
 Some changes can't be tested with fakes: UI changes, prompt changes, and anything whose real Claude behaviour matters. For those, run a **separate** Foundry and drive it.
