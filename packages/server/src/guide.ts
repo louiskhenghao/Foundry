@@ -7,8 +7,8 @@ export const GUIDE_ORDER = ['index', 'your-first-goal', 'answering-the-interview
 export interface GuidePage {
   slug: string;
   title: string;
-  /** a 中文 version exists */
-  zh: boolean;
+  /** the 中文 title; null = no 中文 version */
+  zh: string | null;
 }
 
 /** The pages of docs/guide/ shipped with this install (the Docker image carries them too). */
@@ -20,7 +20,10 @@ export function listGuide(dir: string): GuidePage[] {
   const order = (s: string) => (GUIDE_ORDER.includes(s) ? GUIDE_ORDER.indexOf(s) : GUIDE_ORDER.length);
   return slugs
     .sort((a, b) => order(a) - order(b) || a.localeCompare(b))
-    .map((slug) => ({ slug, title: titleOf(readFileSync(join(dir, `${slug}.md`), 'utf8')) ?? slug, zh: existsSync(join(dir, `${slug}.zh.md`)) }));
+    .map((slug) => {
+      const zh = join(dir, `${slug}.zh.md`);
+      return { slug, title: titleOf(readFileSync(join(dir, `${slug}.md`), 'utf8')) ?? slug, zh: existsSync(zh) ? (titleOf(readFileSync(zh, 'utf8')) ?? slug) : null };
+    });
 }
 
 /** One page's markdown in the asked language, falling back to English. null = no such page. */

@@ -26,7 +26,7 @@ export function HelpPage() {
   const { hash } = useLocation();
   const nav = useNavigate();
   const [lang, setLangState] = useState<Lang>(initialLang);
-  const [pages, setPages] = useState<{ slug: string; title: string; zh: boolean }[] | null>(null);
+  const [pages, setPages] = useState<{ slug: string; title: string; zh: string | null }[] | null>(null);
   const [page, setPage] = useState<{ markdown: string; lang: Lang } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const setLang = (l: Lang) => {
@@ -103,7 +103,7 @@ export function HelpPage() {
           {(pages ?? []).map((p, i) => (
             <Link key={p.slug} to={`/help/${p.slug}`} className={cn('block rounded px-2 py-1', p.slug === slug ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:text-zinc-200')}>
               <span className="text-zinc-600 mr-1.5">{i + 1}</span>
-              {p.title}
+              {lang === 'zh' && p.zh ? p.zh : p.title}
             </Link>
           ))}
         </div>
@@ -113,7 +113,7 @@ export function HelpPage() {
           <select className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm" value={slug} onChange={(e) => nav(`/help/${e.target.value}`)}>
             {(pages ?? []).map((p) => (
               <option key={p.slug} value={p.slug}>
-                {p.title}
+                {lang === 'zh' && p.zh ? p.zh : p.title}
               </option>
             ))}
           </select>
