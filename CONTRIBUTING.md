@@ -25,7 +25,8 @@ In the same pull request as the code:
 
 1. **Anything a user can see changed** (a screen, a button, a setting, a notice, a default) → update the page in
    `docs/guide/` that describes it, **and its `.zh.md` twin**. Button and setting names are quoted exactly as the UI shows
-   them.
+   them. If the screen appears in a screenshot, run `bun scripts/screenshots.ts` (free: it uses a scripted demo, no
+   model calls).
 2. **A setting, environment variable or CLI command changed** → describe it in
    `packages/engine/src/docs/settings-reference.ts` (settings) or `apps/cli/src/help.ts` (CLI), then run
    `bun scripts/gen-docs.ts`. The tests fail if `docs/operate/configuration.md` or `cli.md` is out of date, or if a

@@ -28,6 +28,7 @@ bun run release patch|minor|major|x.y.z [--notes "..."] [--dry-run]
   This should print JSON with your `Username`. An error means you are not signed in: sign in through Docker Desktop and check again.
 - **`gh` is authenticated** (`gh auth status`) as an account that can create, clone and push `louiskhenghao/foundry-releases`.
 - `git push` to `origin` works.
+- **The guide's screenshots are current.** If a screen the user guide shows changed since the last release, run `bun scripts/screenshots.ts` and commit the new images first (see [testing.md](testing.md#the-seeded-demo-and-the-guides-screenshots)).
 
 ## What it does, in order
 

@@ -5,6 +5,7 @@ import { Brief, EscalationAnswer, getAttempt, getBrief, getGoal, listAttempts, l
 import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, PreviewError, classifyFeedback, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, detectTelegramChatId, type Engine, type OpenTargetId } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
+import { listGuide, readGuide } from './guide.ts';
 import { z } from 'zod';
 
 /** Errors that carry their own HTTP status (409/422…) instead of the default 400. */
@@ -274,6 +275,21 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const p = join(goalWorkspacePath(engine.config.dataDir, goal), 'artifacts', rel);
     if (!existsSync(p)) throw new HttpError(404, { error: 'artifact not found' });
     return new Response(Bun.file(p), { headers: { 'cache-control': 'private, max-age=60' } });
+  });
+  // ---- the user guide, bundled with the install: docs/guide/*.md (+ .zh.md) and its screenshots ----
+  const guideDir = join(engine.config.rootDir, 'docs', 'guide');
+  app.get('/api/guide', (c) => c.json({ pages: listGuide(guideDir) }));
+  app.get('/api/guide/page/:slug', (c) => {
+    const page = readGuide(guideDir, c.req.param('slug'), c.req.query('lang') === 'zh' ? 'zh' : 'en');
+    if (!page) throw new HttpError(404, { error: 'no such guide page' });
+    return c.json({ slug: c.req.param('slug'), ...page });
+  });
+  app.get('/api/guide/images/:file', (c) => {
+    const file = c.req.param('file');
+    if (!/^[\w.-]+\.png$/.test(file)) throw new HttpError(400, { error: 'bad image name' });
+    const p = join(guideDir, 'images', file);
+    if (!existsSync(p)) throw new HttpError(404, { error: 'image not found' });
+    return new Response(Bun.file(p), { headers: { 'content-type': 'image/png', 'cache-control': 'public, max-age=3600' } });
   });
   app.get('/api/tools/playwright', async (c) => c.json(await engine.playwrightStatus()));
   app.post('/api/tools/playwright/install', (c) => toolInstall(c, 'playwright'));

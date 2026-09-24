@@ -228,7 +228,7 @@ export function SetupPage() {
       </Card>
 
       <p className="text-xs text-zinc-500">
-        Design / image / video skill packs are chosen in <Link to="/settings" className="underline">Settings → Workflow</Link>; the full catalog and everything installed is managed on the <Link to="/skills" className="underline">Skills page</Link> (missing required skills also show up in the Checks above).
+        Design / image / video skill packs are chosen in <Link to="/settings" className="underline">Settings → Skills</Link>; the full catalog and everything installed is managed on the <Link to="/skills" className="underline">Skills page</Link> (missing required skills also show up in the Checks above).
       </p>
       {signIn && (
         <SignInDialog

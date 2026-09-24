@@ -7,6 +7,7 @@ import { ModelPresetsSection } from './settings/ModelPresets.tsx';
 import { DesignPacks } from '../components/DesignPacks.tsx';
 import { UpdateDialog } from '../components/UpdateDialog.tsx';
 import { Button, Card, CopyButton, Empty, Field, Input, Select, cn } from '../ui.tsx';
+import { HelpLink } from './HelpPage.tsx';
 
 type Section = keyof Settings;
 type Leaf = `${Section}.${string}`;
@@ -279,7 +280,7 @@ export function SettingsPage() {
       {msg && <div className="rounded-md border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-200">{msg}</div>}
       {err && <div className="rounded-md border border-rose-500/40 bg-rose-500/5 px-3 py-2 text-xs text-rose-300">{err}</div>}
 
-      <Card id="goals" title="New goal defaults" className="scroll-mt-16">
+      <Card id="goals" title={<>New goal defaults<HelpLink to="settings#new-goal-defaults" className="ml-1.5" /></>} className="scroll-mt-16">
         <div className="space-y-4">
           {grid(
             <>
@@ -322,7 +323,7 @@ export function SettingsPage() {
               <Field label="Goal-level fix cycles" aside={aside('reviews.maxFixCycles')} help="How many review → fix-task rounds before the goal escalates to you (thorough pace only).">
                 {num('reviews.maxFixCycles', { min: 0, max: 5 })}
               </Field>
-              <Field label="Small goal (diff lines)" aside={aside('reviews.smallGoalLines')} help="A goal whose whole diff is this many lines or fewer is reviewed by the cheap tier without review skills or sub-agents. 0 = never.">
+              <Field label="Small goal (diff lines)" aside={aside('reviews.smallGoalLines')} help="A goal whose whole diff is this many lines or fewer is reviewed by the Task reviewer model, without review skills or sub-agents. 0 = never.">
                 {num('reviews.smallGoalLines', { min: 0, max: 5000 })}
               </Field>
             </>,
@@ -355,7 +356,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card id="models" title="Models & limits" className="scroll-mt-16">
+      <Card id="models" title={<>Models & limits<HelpLink to="settings#models--limits" className="ml-1.5" /></>} className="scroll-mt-16">
         <ModelPresetsSection draft={draft} set={set as (p: `models.${string}`, v: unknown) => void} known={known} reloadModels={loadModels} />
         <div className="border-t border-zinc-800 my-4" />
         {grid(
@@ -396,7 +397,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card id="skills" title="Skills" className="scroll-mt-16">
+      <Card id="skills" title={<>Skills<HelpLink to="settings#skills" className="ml-1.5" /></>} className="scroll-mt-16">
         <div className="space-y-4">
           {grid(
             <>
@@ -439,7 +440,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card id="git" title="Git &amp; delivery timing" className="scroll-mt-16">
+      <Card id="git" title={<>Git &amp; delivery<HelpLink to="settings#git--delivery" className="ml-1.5" /></>} className="scroll-mt-16">
         <div className="space-y-3">
           {bool('sync.fetchBeforeGoal', 'Fetch the base branch before a goal starts', 'Only remote-tracking refs are updated — your checkout is never touched. The Clarifier explores, and the goal branch starts from, the freshest tip.')}
           {grid(
@@ -475,7 +476,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card id="tools" title="Tools &amp; keys" className="scroll-mt-16">
+      <Card id="tools" title={<>Tools &amp; keys<HelpLink to="settings#tools--keys" className="ml-1.5" /></>} className="scroll-mt-16">
         <div className="space-y-3">
           {bool('tools.useGraphify', 'Use graphify for relevant-file discovery', 'When the graphify CLI is installed, sessions get a code-graph based context instead of grep.')}
           {grid(
@@ -500,7 +501,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card id="preview" title="Preview &amp; self-check" className="scroll-mt-16">
+      <Card id="preview" title={<>Preview &amp; self-check<HelpLink to="settings#preview--self-check" className="ml-1.5" /></>} className="scroll-mt-16">
         <div className="space-y-3">
           <p className="text-xs text-zinc-400">At a milestone, and on request from a goal's page, the engine starts the goal's dev server in its progress folder and links you to it. With the self-check on, it also opens that preview in headless Chromium after every task lands, takes a screenshot and fails the goal's must checks on console or network errors.</p>
           {grid(
@@ -521,7 +522,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card id="notifications" title="Notifications" className="scroll-mt-16">
+      <Card id="notifications" title={<>Notifications<HelpLink to="settings#notifications" className="ml-1.5" /></>} className="scroll-mt-16">
         <div className="space-y-4">
           <p className="text-[11px] text-zinc-500">Get pinged outside the app the moment a goal needs you or finishes. Every enabled event goes to every configured channel; leave a channel's fields empty to keep it off.</p>
           {grid(
@@ -551,7 +552,7 @@ export function SettingsPage() {
             {bool('notifications.onGoalFinished', 'Goal finished', 'A goal ended done, over-delivered, or failed. Cancelling a goal yourself never notifies.')}
             {bool('notifications.onDelivery', 'Delivery', 'A pull request was opened or merged, or the delivery failed.')}
             {bool('notifications.onRateLimit', 'Usage pause', 'A Claude usage limit paused the engine, and when the pause lifts.')}
-            {bool('notifications.onUpdateAvailable', 'New version', 'A Foundry release newer than this instance exists — once per version. Update from the header pill or Settings → About.')}
+            {bool('notifications.onUpdateAvailable', 'New version', 'A Foundry release newer than this instance exists — once per version. Update from the header pill or Settings → About & updates.')}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => sendTestNotification({ telegramBotToken: draft.notifications.telegramBotToken, telegramChatId: draft.notifications.telegramChatId, discordWebhookUrl: draft.notifications.discordWebhookUrl })} title="Sends a test message with the values above (saved or not)">
@@ -562,7 +563,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card id="safety" title="Safety" className="scroll-mt-16">
+      <Card id="safety" title={<>Safety<HelpLink to="settings#safety" className="ml-1.5" /></>} className="scroll-mt-16">
         {grid(
           <>
             <Field label="Extra boundary patterns" aside={aside('safety.extraBoundaryPatterns')} help="Additional ERE patterns the boundary hook blocks, '|'-separated (e.g. `terraform apply|kubectl`).">
@@ -575,7 +576,7 @@ export function SettingsPage() {
         )}
       </Card>
 
-      <Card id="engine" title="Engine (install)" className="scroll-mt-16">
+      <Card id="engine" title={<>Engine (install)<HelpLink to="settings#engine-install" className="ml-1.5" /></>} className="scroll-mt-16">
         {grid(
           <>
             <Field label="Port" aside={aside('engine.port')} help="HTTP port of the local server and of the boundary hook callback.">
@@ -597,7 +598,7 @@ export function SettingsPage() {
         )}
       </Card>
 
-      <Card id="about" title="About & updates" className="scroll-mt-16">
+      <Card id="about" title={<>About & updates<HelpLink to="settings#about--updates" className="ml-1.5" /></>} className="scroll-mt-16">
         <div className="space-y-3">
           <div className="flex items-center gap-3 flex-wrap text-sm">
             <span className="text-zinc-200">

@@ -73,7 +73,7 @@ export function PreviewCard({ goalId, selfCheck, embedded }: { goalId: string; s
           {err && <div className="text-rose-300">{err}</div>}
           {st.error && !err && <div className="text-amber-300">last run: {st.error}</div>}
           {selfCheck !== undefined && (
-            <label className="flex items-center gap-2 text-[11px] text-zinc-400 cursor-pointer" title="After every task lands, the engine opens this preview in headless Chromium, takes a screenshot and fails a must check on console or network errors. Needs Playwright's Chromium (Settings → Preview).">
+            <label className="flex items-center gap-2 text-[11px] text-zinc-400 cursor-pointer" title="After every task lands, the engine opens this preview in headless Chromium, takes a screenshot and fails a must check on console or network errors. Needs Playwright's Chromium (Settings → Preview & self-check).">
               <input type="checkbox" className="accent-emerald-500" checked={selfCheck} onChange={(e) => run(() => api.setSelfCheck(goalId, e.target.checked))} /> Self-check after each task (screenshot + console errors)
             </label>
           )}

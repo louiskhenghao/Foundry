@@ -9,6 +9,7 @@ import { BudgetPicker, type BudgetDraft } from '../components/BudgetPicker.tsx';
 import { DeliveryPolicyForm, type PolicyDraft } from '../components/DeliveryPolicyForm.tsx';
 import { RepoCard } from '../components/RepoCard.tsx';
 import { Button, Card, Input, Textarea, cn, Select } from '../ui.tsx';
+import { HelpLink } from './HelpPage.tsx';
 
 const DELIVERY_KEY = 'foundry.delivery';
 const BUDGET_KEY = 'foundry.budget';
@@ -155,7 +156,7 @@ export function NewGoalPage() {
         </ol>
       </div>
 
-      <Card title="What kind of goal is this?">
+      <Card title={<>What kind of goal is this?<HelpLink to="your-first-goal#what-kind-of-goal-is-this" className="ml-1.5" /></>}>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {NATURES.map((n) => (
             <button
@@ -195,7 +196,7 @@ export function NewGoalPage() {
         )}
       </Card>
 
-      <Card title="How much do you want to see?">
+      <Card title={<>How much do you want to see?<HelpLink to="your-first-goal#how-much-do-you-want-to-see" className="ml-1.5" /></>}>
         <div className="grid sm:grid-cols-2 gap-2">
           {(
             [
@@ -212,19 +213,19 @@ export function NewGoalPage() {
         <label className="mt-3 flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-1" checked={pace === 'fast'} onChange={(e) => choosePace(e.target.checked ? 'fast' : 'thorough')} />
           <span>
-            <span className="text-zinc-100">Fast mode</span>
+            <span className="text-zinc-100">Fast mode</span><HelpLink to="your-first-goal#fast-mode" className="ml-1.5" />
             <span className="text-[11px] text-zinc-400 block leading-snug">Once you approve the Brief, the engine skips its own extra AI reviews (and the TDD mandate). The acceptance checks you approved still run — good for media goals and quick jobs.</span>
           </span>
         </label>
         <label className="mt-3 flex items-start gap-2 cursor-pointer text-xs">
           <input type="checkbox" className="mt-1" checked={interview} onChange={(e) => setInterview(e.target.checked)} />
           <span>
-            <span className="text-zinc-100">Interview me before planning</span>
+            <span className="text-zinc-100">Interview me before planning</span><HelpLink to="your-first-goal#interview-me-before-planning" className="ml-1.5" />
             <span className="text-[11px] text-zinc-400 block leading-snug">The Clarifier asks at least one round of questions (options with its recommendation first) before writing the Brief. Unchecked: it asks only when the repository cannot settle something, and skips straight to the Brief for small goals.</span>
           </span>
         </label>
         <div className="mt-3 flex items-center gap-3 flex-wrap">
-          <span className="text-xs text-zinc-300">Effort</span>
+          <span className="text-xs text-zinc-300">Effort<HelpLink to="your-first-goal#effort" className="ml-1.5" /></span>
           <span className="w-56">
             <Select value={effort} onChange={(e) => setEffort(e.target.value)} title="Claude Code's effort level for every session of this goal — lower is faster and cheaper, xhigh / max for hard cross-cutting work; empty = the Settings default">
               <option value="">Settings default</option>
@@ -237,7 +238,7 @@ export function NewGoalPage() {
           </span>
         </div>
         <div className="mt-3 flex items-center gap-3 flex-wrap">
-          <span className="text-xs text-zinc-300">Models</span>
+          <span className="text-xs text-zinc-300">Models<HelpLink to="your-first-goal#models" className="ml-1.5" /></span>
           <span className="w-56">
             <Select value={modelPreset} onChange={(e) => setModelPreset(e.target.value)} title="Which model preset this goal uses for every action (Settings → Models); default = the preset Settings picks for this goal type">
               <option value="">
@@ -253,7 +254,7 @@ export function NewGoalPage() {
         </div>
         {mode === 'expert' && (
           <div className="mt-3 flex items-center gap-3 flex-wrap">
-            <span className="text-xs text-zinc-300">Engineering discipline — TDD</span>
+            <span className="text-xs text-zinc-300">Engineering discipline — TDD<HelpLink to="your-first-goal#engineering-discipline-tdd" className="ml-1.5" /></span>
             <span className="w-56">
               <Select value={tdd} onChange={(e) => setTdd(e.target.value as typeof tdd)} title="required: workers must invoke the tdd skill and the reviewer is told when they did not · preferred: suggested only · off: never mentioned">
                 <option value="required">required (must, observed)</option>
@@ -266,7 +267,7 @@ export function NewGoalPage() {
         )}
       </Card>
 
-      <Card title="1 · What do you want done?">
+      <Card title={<>1 · What do you want done?<HelpLink to="your-first-goal#what-do-you-want-done" className="ml-1.5" /></>}>
         <Textarea rows={6} placeholder="Describe the goal as you would to a senior engineer. The system clarifies, proposes Must / Stretch acceptance checks and a task plan for you to approve." value={prompt} onChange={(e) => setPrompt(e.target.value)} />
         <AttachmentInput className="mt-2" items={attachments} onChange={setAttachments} />
         <div className="mt-3">
@@ -275,15 +276,15 @@ export function NewGoalPage() {
         </div>
       </Card>
 
-      <Card title="2 · Repository">
+      <Card title={<>2 · Repository<HelpLink to="your-first-goal#repository" className="ml-1.5" /></>}>
         <RepoCard path={repoPath} info={repoInfo} onPath={setRepoPath} onInfo={setRepoInfo} />
       </Card>
 
-      <Card title="3 · Budget">
+      <Card title={<>3 · Budget<HelpLink to="your-first-goal#budget" className="ml-1.5" /></>}>
         <BudgetPicker value={budget} onChange={setBudget} />
       </Card>
 
-      <Card title="4 · Delivery — what may the engine do with the result?">
+      <Card title={<>4 · Delivery — what may the engine do with the result?<HelpLink to="your-first-goal#delivery" className="ml-1.5" /></>}>
         {repoInfo?.ok && delivery.mode !== 'local' && (
           <div className="text-[11px] text-zinc-500 mb-2">
             Prefilled from the repository: remote <span className="mono text-zinc-300">{delivery.remote ?? 'origin'}</span>
