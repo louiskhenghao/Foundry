@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { type GoalDetail, api } from '../../api.ts';
 import { Button, Card, Select, Textarea, cn } from '../../ui.tsx';
 import { PreviewCard } from './PreviewCard.tsx';
+import { HelpLink } from '../HelpPage.tsx';
 
 const KIND_LABEL: Record<FeedbackPlan['kind'], string> = { hint: 'Hint for the remaining tasks', fix: 'Fix tasks (then a second look here)', decision: 'Decision (every later task follows it)' };
 const IMAGE = /\.(png|jpe?g|webp|gif|svg)$/i;
@@ -53,6 +54,7 @@ export function MilestoneCard({ d }: { d: GoalDetail }) {
       title={
         <span className="flex items-center gap-2">
           <Eye size={14} className="text-amber-300" /> {cp.recheck ? 'Second look' : 'Have a look'} — {task?.title ?? cp.taskId}
+          <HelpLink to="while-it-runs#milestones" label="What a milestone look is for (new tab)" />
         </span>
       }
     >

@@ -65,7 +65,7 @@ const cfg = () => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'clau
 
 describe('clarify coverage gate', () => {
   test('an Area without tasks triggers one repair turn in the same session; the repaired Brief is kept', async () => {
-    const runner = new StructuredRunner((spec, n) => (n === 1 ? briefWith([task('T1', 'A1', 'add student home')], [check('C1', 'T1'), check('G1', null, 'A1')]) : briefWith([task('T1', 'A1', 'add student home'), task('T2', 'A2', 'add teacher home', ['T1'])], [check('C1', 'T1'), check('C2', 'T2'), check('G1', null, 'A1')])));
+    const runner = new StructuredRunner((spec, n) => (n === 1 ? briefWith([task('T1', 'A1', 'add student home')], [check('C1', 'T1'), check('G1', null, 'A1')]) : briefWith([task('T1', 'A1', 'add student home'), { ...task('T2', 'A2', 'add teacher home', ['T1']), difficulty: 'complex' as const }], [check('C1', 'T1'), check('C2', 'T2'), check('G1', null, 'A1')])));
     const engine = track(new Engine(cfg(), runner));
     const goal = await engine.createGoal({ prompt: 'student and teacher portals', repoPath: repo });
     await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
@@ -79,6 +79,7 @@ describe('clarify coverage gate', () => {
     expect(brief.areas.map((a) => a.key)).toEqual(['A1', 'A2']);
     expect(brief.tasks.map((t) => [t.key, t.areaKey])).toEqual([['T1', 'A1'], ['T2', 'A2']]);
     expect(brief.checks.find((c) => c.key === 'G1')).toMatchObject({ taskKey: null, areaKey: 'A1' });
+    expect(brief.tasks.map((t) => t.difficulty)).toEqual(['standard', 'complex']); // the Clarifier's rating reaches the Brief
     expect(brief.questions.filter((q) => q.areaKey)).toHaveLength(0);
     const cost = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'goal.cost_added').map((e) => (e.payload as { source: string }).source);
     expect(cost).toEqual(['clarify', 'clarify', 'clarify-coverage']); // classification is billed as clarify

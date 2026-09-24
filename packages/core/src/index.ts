@@ -9,3 +9,4 @@ export * from './machine/task-usage.ts';
 export * from './store/db.ts';
 export * from './store/event-store.ts';
 export * from './store/projections.ts';
+export * from './guide-anchor.ts';

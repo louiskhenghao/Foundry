@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { api, type Usage } from '../api.ts';
 import { useLive } from '../store.ts';
 import { Badge, Button, Card, Empty, cn, fmtUsd } from '../ui.tsx';
+import { HelpLink } from './HelpPage.tsx';
 
 export const fmtK = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 export const untilText = (iso: string) => {
@@ -42,7 +43,7 @@ export function UsagePage() {
     <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-lg font-semibold flex items-center gap-2">
-          <Gauge size={18} /> Claude usage
+          <Gauge size={18} /> Claude usage <HelpLink to="costs-and-usage" label="What costs money and how to spend less (new tab)" />
         </h1>
         <span className="text-xs text-zinc-500 hidden md:inline">what Foundry spent on this machine · for your account's percentages run /usage inside Claude Code</span>
         <Button size="sm" variant="primary" className="ml-auto" disabled={busy} onClick={probe} title="Runs one tiny haiku session (~$0.02) to refresh the rate-limit signal">

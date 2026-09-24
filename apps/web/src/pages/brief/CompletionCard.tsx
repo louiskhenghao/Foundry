@@ -1,6 +1,7 @@
 import type { Brief, DocType } from '@foundry/core/browser';
 import { pendingDecisions } from '@foundry/core/browser';
 import { Card, cn } from '../../ui.tsx';
+import { HelpLink } from '../HelpPage.tsx';
 
 export interface CompletionChoice {
   graphRefresh: boolean;
@@ -33,7 +34,7 @@ export function CompletionCard({ brief, editable, value, onChange }: { brief: Br
   const v = value ?? inferCompletionDefaults(brief);
   const toggleDoc = (t: DocType) => onChange({ ...v, docs: v.docs.includes(t) ? v.docs.filter((x) => x !== t) : [...v.docs, t] });
   return (
-    <Card title="Completion">
+    <Card title={<>Completion<HelpLink to="approving-the-brief#completion" className="ml-1.5" /></>}>
       <p className="text-[11px] text-zinc-500 mb-2">
         Runs automatically when the goal finishes: documents are generated after the review passes and committed to the goal branch (they ship with the code); the knowledge graph refreshes after delivery. Defaults follow the kind of work planned{value ? '' : ' — a changelog entry is added automatically when the repository keeps a CHANGELOG.md'}.
       </p>

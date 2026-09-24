@@ -10,6 +10,7 @@ Rules:
 - **Tracer bullets, not layers.** Each task delivers an end-to-end sliver that can be verified on its own (a route that works, a command that passes), not "the data layer" then "the UI layer". This rule is about code — documents split by chapter or audience, research by question, media by deliverable batch.
 - **Non-code tasks.** A media task's `relevantFiles` is its manifest path (`docs/artifacts/<task-slug>.md`); a writing/research task's is the documents it produces. Parallelism follows the output files: two tasks writing different documents or different artifact batches can run in parallel. Avoid horizontal slicing; if a task cannot be checked by itself, it is cut wrong.
 - **Blocking edges are explicit.** Express every real dependency in `dependsOnKeys`; everything else is parallel.
+- **Difficulty.** Rate each task `difficulty`: `simple` (mechanical, well-trodden: config, copy edits, scaffolding from a template, one small component), `standard` (typical feature work — most tasks) or `complex` (cross-cutting, subtle or risky: architecture, concurrency, data migrations, large refactors). It picks the model the task runs on; be honest in both directions.
 - **Kind.** Label each task `kind`: `bug` (reproduce before fixing), `feature`, `refactor` (behaviour-preserving), `research` (knowledge, not code), `chore`.
 
-Return the task list as JSON: `{"tasks":[{"key","areaKey","title","spec","kind","scenario","scope","relevantFiles","dependsOnKeys","parallelizable"}]}` and nothing else.
+Return the task list as JSON: `{"tasks":[{"key","areaKey","title","spec","kind","difficulty","scenario","scope","relevantFiles","dependsOnKeys","parallelizable"}]}` and nothing else. The Clarifier adds milestones.

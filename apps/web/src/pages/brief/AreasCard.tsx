@@ -7,6 +7,7 @@ import { Button, Card, Input, cn } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { DraftPanel } from './DraftPanel.tsx';
 import { areaStyle, newArea } from './shared.ts';
+import { HelpLink } from '../HelpPage.tsx';
 
 /**
  * The parts of the product this goal covers. Coverage = every Area has at least one task;
@@ -21,7 +22,7 @@ export function AreasCard({ brief, goalId, editable, edit }: { brief: Brief; goa
   const uncovered = brief.areas.filter((a) => counts(a).tasks === 0);
   return (
     <Card
-      title={`Areas (${brief.areas.length})`}
+      title={<>{`Areas (${brief.areas.length})`}<HelpLink to="approving-the-brief#areas" className="ml-1.5" /></>}
       actions={
         editable && (
           <Button size="sm" onClick={() => edit((b) => ({ ...b, areas: [...b.areas, newArea(b)] }))}>

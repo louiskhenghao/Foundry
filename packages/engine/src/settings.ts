@@ -55,6 +55,9 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'notifications.baseUrl': { name: 'FOUNDRY_NOTIFY_BASE_URL', parse: str },
 };
 
+/** setting path → the environment variable that seeds it (documentation, reference.test.ts) */
+export const ENV_VARS: Record<string, string> = Object.fromEntries(Object.entries(ENV).map(([k, v]) => [k, v.alt ? `${v.name} (or ${v.alt})` : v.name]));
+
 export const SETTING_PATHS: string[] = Object.entries(DEFAULT_SETTINGS).flatMap(([section, v]) => Object.keys(v as object).map((k) => `${section}.${k}`));
 
 const get = (o: any, path: string): unknown => path.split('.').reduce((x, k) => (x == null ? undefined : x[k]), o);

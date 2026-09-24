@@ -5,6 +5,7 @@ import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { Badge, Button, Card, Input, cn, fmtLimitMin, fmtLimitUsd } from '../../ui.tsx';
 import { areaStyle } from './shared.ts';
 import { StyleCards } from './StyleCards.tsx';
+import { HelpLink } from '../HelpPage.tsx';
 
 /**
  * The Brief as a non-technical reader needs it: what the system understood, what it will build, the questions
@@ -45,7 +46,7 @@ export function SimpleBrief(p: {
         </Button>
       </div>
 
-      <Card title="What I understood">
+      <Card title={<>What I understood<HelpLink to="approving-the-brief" className="ml-1.5" /></>}>
         <MarkdownPanel title="" source={brief.understanding} maxHeight={400} />
       </Card>
 

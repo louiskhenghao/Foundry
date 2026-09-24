@@ -11,7 +11,7 @@ export const ACTION_INFO: Record<ModelAction, { label: string; help: string }> =
   standard: { label: 'Standard tasks', help: 'Typical feature work — most tasks.' },
   complex: { label: 'Complex tasks', help: 'Cross-cutting changes, architecture, data migrations, concurrency, large refactors. The last attempt of any task (budget ≥ 2) and every retry you grant also run here.' },
   merger: { label: 'Merge attempts', help: 'Resolves merge conflicts when tasks or the base branch collide.' },
-  goalReviewer: { label: 'Goal reviewer', help: 'Reads the whole goal diff at the end against the acceptance checks — the most expensive single session. Goals under the small-goal size (Reviews) use the Task reviewer model instead.' },
+  goalReviewer: { label: 'Goal reviewer', help: 'Reads the whole goal diff at the end against the acceptance checks — the most expensive single session. Goals under the small-goal size (Settings → New goal defaults) use the Task reviewer model instead.' },
   taskReviewer: { label: 'Task reviewer', help: 'Reads each task diff against its checks before it lands.' },
   documenter: { label: 'Documenter', help: 'Writes the completion docs you chose at approval.' },
   feedback: { label: 'Feedback triage', help: 'Turns what you write at a milestone into a hint, fix tasks or a Decision.' },

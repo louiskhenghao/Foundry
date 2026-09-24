@@ -8,3 +8,4 @@ fixtures
 .DS_Store
 *.log
 docs/**/*.png
+!docs/guide/images/*.png

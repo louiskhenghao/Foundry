@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../api.ts';
 import { Button, Card, Input, cn } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
+import { HelpLink } from '../HelpPage.tsx';
 
 const MAX_ROUNDS = 4;
 
@@ -48,6 +49,7 @@ export function InterviewPanel({ goal }: { goal: Goal }) {
         <span className="flex items-center gap-2">
           <MessageCircleQuestion size={14} className="text-sky-300" />
           {open ? `Round ${open.round} — ${open.questions.length} question${open.questions.length === 1 ? '' : 's'}` : iv.status === 'done' ? 'Interview done' : iv.rounds.length ? 'Thinking about your answers…' : 'Reading the repository…'}
+          <HelpLink to="answering-the-interview" label="How the interview works (new tab)" />
         </span>
       }
     >
