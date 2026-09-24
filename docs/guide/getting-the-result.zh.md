@@ -79,7 +79,7 @@ pull request 类的方式需要 GitHub CLI 和一个已连接的账户：见 [�
 
 ## The Delivery tab
 
-在 goal 页面上打开 **Delivery** 标签（在 Simple view 里，Result 卡片上的 **Deliver…** 会先带你到 Expert view）。
+在 goal 页面上打开 **Delivery** 标签（在 Simple view 里，Result 卡片上的 **Deliver…** 会切换到 Expert view 并直接打开它）。
 
 **goal 完成之前**，它显示 **Will deliver automatically when the goal is done**（方式是 Local only 时不显示）。你可以改交付方式，然后按 **Save policy (runs when done)**。选着 **Local only** 时，这个按钮是灰的。
 

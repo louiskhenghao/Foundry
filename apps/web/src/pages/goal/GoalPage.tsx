@@ -175,7 +175,14 @@ export function GoalPage() {
       )}
 
       {(expert ?? g.mode !== 'simple') === false ? (
-        <SimpleOverview d={d} onExpert={() => setView(true)} />
+        <SimpleOverview
+          d={d}
+          onExpert={() => setView(true)}
+          onDeliver={() => {
+            setView(true);
+            setTab('delivery');
+          }}
+        />
       ) : (
         <>
       <Tabs<Tab>

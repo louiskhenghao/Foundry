@@ -79,7 +79,7 @@ At the bottom of the delivery choices is a GitHub line:
 
 ## The Delivery tab
 
-On the goal page, open the **Delivery** tab (in Simple view, **Deliver…** on the Result card takes you to Expert view first).
+On the goal page, open the **Delivery** tab (in Simple view, **Deliver…** on the Result card switches to Expert view and opens it).
 
 **Before the goal is done**, it says **Will deliver automatically when the goal is done** (unless the mode is Local only). You can change the delivery and press **Save policy (runs when done)**. That button is greyed out while **Local only** is selected.
 
