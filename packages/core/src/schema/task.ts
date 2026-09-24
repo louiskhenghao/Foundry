@@ -5,8 +5,12 @@ export const TaskState = z.enum(['pending', 'ready', 'running', 'observing', 'me
 export type TaskState = z.infer<typeof TaskState>;
 
 /** How hard a task is for a worker; picks the model route (Settings → Models). */
-export const TaskDifficulty = z.enum(['routine', 'normal', 'hard']);
-export type TaskDifficulty = z.infer<typeof TaskDifficulty>;
+export const TaskDifficulty = z.preprocess(
+  // the first release named them routine / normal / hard: events written then replay as simple / standard / complex
+  (v) => (v === 'routine' ? 'simple' : v === 'normal' ? 'standard' : v === 'hard' ? 'complex' : v),
+  z.enum(['simple', 'standard', 'complex']),
+);
+export type TaskDifficulty = 'simple' | 'standard' | 'complex';
 
 export const TaskOrigin = z.enum(['brief', 'goal-review-fix', 'merge', 'delivery-fix', 'feedback-fix']);
 
@@ -28,7 +32,7 @@ export const Task = z.object({
   /** default keeps pre-kind `task.created` events replayable */
   kind: TaskKind.default('feature'),
   /** routine / normal / hard — the Clarifier's call, the human's to change; default keeps older events replayable */
-  difficulty: TaskDifficulty.default('normal'),
+  difficulty: TaskDifficulty.default('standard'),
   /** Conventional Commit scope for this task's commit, or null */
   scope: z.string().nullable().default(null),
   /** default keeps pre-scenario `task.created` events replayable */

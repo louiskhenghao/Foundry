@@ -1,3 +1,4 @@
+import { DEFAULT_NATURE_PRESETS, ModelPreset } from './model-presets.ts';
 import { z } from 'zod';
 import { Discipline, GoalMode } from './goal.ts';
 import { DeliveryMode, DeliveryUnit } from './delivery.ts';
@@ -32,23 +33,13 @@ export const ModelSettings = z.object({
   worker: z.string().min(1).default('opus'),
   /** tried in order when a tier's model is unavailable (deprecated, unknown alias …) */
   fallbacks: z.array(z.string().min(1)).default(['opus', 'sonnet', 'haiku']),
-  /** per-role overrides: a tier name (strong / worker / cheap) or a model id; null = the role's default tier */
-  clarifier: z.string().min(1).nullable().default(null),
-  planner: z.string().min(1).nullable().default(null),
-  merger: z.string().min(1).nullable().default(null),
-  goalReviewer: z.string().min(1).nullable().default(null),
-  taskReviewer: z.string().min(1).nullable().default(null),
-  documenter: z.string().min(1).nullable().default(null),
-  feedback: z.string().min(1).nullable().default(null),
-  /** the AI hint for a blocked task (Inbox → Suggest a hint) */
-  suggest: z.string().min(1).nullable().default(null),
-  /** the one-image style samples on the Brief page */
-  styleSample: z.string().min(1).nullable().default(null),
-  /** worker model per task difficulty: a tier name or a model id */
-  routeRoutine: z.string().min(1).default('worker'),
-  routeNormal: z.string().min(1).default('worker'),
-  routeHard: z.string().min(1).default('strong'),
-  /** the last attempt of a budget ≥ 2, and every attempt you grant beyond the budget, run on the strong tier */
+  /** presets you edited or created (built-ins you never touched are not stored) */
+  presets: z.record(z.string(), ModelPreset).default({}),
+  /** which preset each goal nature uses */
+  presetCode: z.string().min(1).default(DEFAULT_NATURE_PRESETS.code),
+  presetDocs: z.string().min(1).default(DEFAULT_NATURE_PRESETS.docs),
+  presetMedia: z.string().min(1).default(DEFAULT_NATURE_PRESETS.media),
+  /** the last attempt of a budget ≥ 2, and every attempt you grant beyond the budget, run on the Complex-task model */
   escalateLastAttempt: z.boolean().default(true),
 });
 export const SessionSettings = z.object({

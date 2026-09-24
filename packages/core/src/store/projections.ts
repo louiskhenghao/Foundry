@@ -212,6 +212,8 @@ export function applyEvent(db: Database, e: EngineEvent): void {
     case 'goal.models_changed': {
       const g = getGoal(db, e.goalId!);
       if (g && e.payload.tier) upsertGoal(db, { ...g, models: { ...g.models, [e.payload.tier]: e.payload.to }, updatedAt: e.ts });
+      // a preset names models directly: remember the replacement on the goal so later sessions skip the dead model
+      else if (g) upsertGoal(db, { ...g, modelSubstitutions: { ...g.modelSubstitutions, [e.payload.from]: e.payload.to }, updatedAt: e.ts });
       break;
     }
     case 'goal.reclarified': {

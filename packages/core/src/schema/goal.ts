@@ -141,6 +141,10 @@ export const Goal = z.object({
   interview: Interview.nullable().default(null),
   /** effort level for every session of this goal; null = Settings default / CLI default */
   effort: Effort.nullable().default(null),
+  /** the model preset this goal uses; null = the preset Settings picks for its nature */
+  modelPreset: z.string().nullable().default(null),
+  /** models found unavailable during this goal and what replaced them (from → to), applied to every later session */
+  modelSubstitutions: z.record(z.string(), z.string()).default({}),
   workflow: GoalWorkflow.default(() => ({ tdd: 'required' as const })),
   models: ModelConfig,
   state: GoalState,
