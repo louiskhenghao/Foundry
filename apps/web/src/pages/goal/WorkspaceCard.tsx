@@ -7,6 +7,14 @@ import { Button, Card, CopyButton } from '../../ui.tsx';
  * "Where is the work and how do I try it?" — the goal branch lives in an engine-owned worktree, never in the
  * user's checkout. Shows the path, the branch, detected run scripts, and the Open menu.
  */
+/** what happens to this branch when the goal is done, per delivery mode (changeable on the Delivery tab) */
+const DELIVERY_NOTE: Record<string, string> = {
+  local: 'Delivery is Local only: nothing is pushed, the branch stays on this machine. Change it on the Delivery tab.',
+  push: 'When the goal is done, Foundry pushes this branch.',
+  pr: 'When the goal is done, Foundry pushes this branch and opens a pull request.',
+  'pr-automerge': 'When the goal is done, Foundry opens a pull request and merges it once its checks pass.',
+};
+
 export function WorkspaceCard({ d }: { d: GoalDetail }) {
   const g = d.goal;
   const [ws, setWs] = useState<Awaited<ReturnType<typeof api.workspace>> | null>(null);
@@ -98,7 +106,7 @@ export function WorkspaceCard({ d }: { d: GoalDetail }) {
                 Tasks running in parallel have their own worktrees ({ws.tasks.length}); they are merged into the goal branch when their checks pass. Open one from its task drawer.
               </div>
             )}
-            <p className="text-[11px] text-zinc-500">This folder <em>is</em> the branch <span className="mono">{g.branch}</span>, checked out here — it cannot also be switched to in your main checkout. Delivery (push / PR) happens automatically once the goal is done.</p>
+            <p className="text-[11px] text-zinc-500">This folder <em>is</em> the branch <span className="mono">{g.branch}</span>, checked out here — it cannot also be switched to in your main checkout. {DELIVERY_NOTE[g.delivery.policy.mode]}</p>
           </>
         ) : (
           <div className="text-[11px] text-zinc-500">The workspace has not been created yet (it appears when the Brief is approved).</div>
