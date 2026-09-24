@@ -733,7 +733,8 @@ export class Engine {
     try {
       raw = JSON.parse(readFileSync(this.settings.path, 'utf8'));
     } catch {}
-    const tiers = (['strong', 'worker', 'cheap'] as const).filter((t) => typeof raw.models?.[t] === 'string');
+    // `cheap` is still a setting (the housekeeping model): only strong / worker mark a pre-presets install
+    const tiers = (['strong', 'worker'] as const).filter((t) => typeof raw.models?.[t] === 'string');
     const chosen = (['presetCode', 'presetDocs', 'presetMedia'] as const).some((k) => raw.models?.[k] != null);
     if (!tiers.length || chosen) return;
     const before = tiers.map((t) => `${t} = ${raw.models![t]}`).join(', ');
