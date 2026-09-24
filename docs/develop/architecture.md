@@ -8,7 +8,8 @@ Foundry is a Bun/TypeScript monorepo. It drives the host's Claude Code CLI (`cla
 flowchart LR
   cli["apps/cli<br/>foundry CLI"] -->|HTTP| server
   web["apps/web<br/>React + Tailwind v4"] -->|HTTP /api + WS /ws| server
-  cli -->|serve / replay| engine
+  cli -->|serve: runs server + engine in-process| server
+  cli -->|replay| core
   server["packages/server<br/>Hono app + Bun.serve"] --> engine
   engine["packages/engine<br/>Engine, scheduler, sessions"] --> core
   engine --> runner
@@ -27,7 +28,7 @@ flowchart LR
 | `apps/web` | The UI: React 18, react-router, zustand, Tailwind v4, built by Vite into `apps/web/dist`. | `src/App.tsx` (routes), `src/store.ts` (WS client + live store), `src/api.ts` |
 | `apps/cli` | The `foundry` CLI. Most commands are a thin HTTP client of the server. `serve` builds `Engine` + server in-process, `replay` opens the store directly, and `doctor`/`skills` work without a server. | `src/main.ts` |
 
-Around them: `roles/*.md` are the role prompts (see [roles.md](roles.md)). `catalog/skills.json` is the curated skill catalog. `scripts/` holds `dev.ts`, `release.ts` and fixture helpers. `data/` (git-ignored) is the engine's state directory. `defaultConfig` always resolves it to `<repo root>/data` (`packages/engine/src/config.ts`).
+Around them: `roles/*.md` are the role prompts (see [roles.md](roles.md)). `catalog/skills.json` is the curated skill catalog. `scripts/` holds `dev.ts`, `release.ts`, `gen-docs.ts` (the generated references), `demo.ts` and `screenshots.ts` (the seeded demo and the guide's screenshots), `e2e-conflict.ts` and fixture helpers. `data/` (git-ignored) is the engine's state directory. `defaultConfig` always resolves it to `<repo root>/data` (`packages/engine/src/config.ts`).
 
 ### What lives in `data/`
 
@@ -154,7 +155,7 @@ An **Attempt** (`runAttempt`, `attempt-loop.ts`) goes through Plan → Act → O
 - **Observe.** Task-level command Checks run (`checks/command.ts`), and large outputs are distilled (`distill/`). If every Must command check passes and the task has reviewer checks (or `alwaysReviewTasks` is on and the pace is not `fast`), the **Task reviewer** runs (`checks/reviewer.ts`). The result is an `ObservationReport`, which the next Attempt receives.
 - **Regression fallback.** If two consecutive attempts are worse than the best one, the workspace is reset to the best attempt's end ref (`workspace.rolled_back`).
 
-**Integrate** (`integrateTask`, `merge.ts`) squashes the task into exactly one Conventional Commit on the goal branch (`git/conventional.ts`). This happens under a per-goal lock (`Engine.withGoalWsLock`). A task that ran in its own worktree is squash-merged. A task that ran in the goal workspace has its snapshots squashed with `reset --soft <baseRef>`. Conflicts go to **Merge Attempts** (`resolveConflicts`, 2 per conflict, the second one resuming the first session). When those give up, the task is blocked with a `merge` Escalation, and the human can use **Manual Resolution** (`merge-resolve.ts`, UI at `/goals/:id/resolve/:taskId`).
+**Integrate** (`integrateTask`, `merge.ts`) squashes the task into exactly one Conventional Commit on the goal branch (`git/conventional.ts`). This happens under a per-goal lock (`Engine.withGoalWsLock`). A task that ran in its own worktree is squash-merged. A task that ran in the goal workspace has its snapshots squashed with `reset --soft <baseRef>`. Conflicts go to **Merge Attempts** (`resolveConflicts`, 2 per conflict, the second one resuming the first session). When those give up, the task is blocked with a `retries_exhausted` Escalation (`payload.kind: 'merge'`), and the human can use **Manual Resolution** (`merge-resolve.ts`, UI at `/goals/:id/resolve/:taskId`).
 
 **Milestones** (`checkpoint.ts`, `feedback.ts`): at a checkpoint the human continues or writes feedback. `classifyFeedback` runs the triage session, and `applyFeedback` applies the confirmed plan as a hint, fix tasks or a Decision.
 
@@ -228,7 +229,8 @@ A few sessions still read the older `Goal.models` / `config.models` fields (`str
 | `/api/skills/*`, `/api/tools/*` | skills view, catalog, install/uninstall/update, packs; markitdown, playwright and CLI tool installs |
 | `/api/models`, `/api/settings`, `/api/notifications/*` | model list/sync/probe, settings get/put/reset, notification tests |
 | `/api/agents`, `/api/usage`, `/api/auth`, `/api/github`, `/api/update`, `/api/doctor`, `/api/health` | Agents monitor, usage and probe, Claude sign-in, gh status/login, self-update, environment report |
-| `/api/fs/*`, `/api/repos/*`, `/api/uploads` | folder picker, repo init/upstream/pull, staged uploads |
+| `/api/fs/*`, `/api/repos/*`, `/api/uploads`, `/api/validate-repo`, `/api/open/targets` | folder picker, repo init/upstream/pull, staged uploads, repository check for the New goal form, the editors and file managers a goal folder can be opened in |
+| `/api/guide`, `/api/guide/page/:slug`, `/api/guide/images/:file` | the user guide for the Help page (`packages/server/src/guide.ts`) |
 | `/internal/boundary` | the boundary hook's callback |
 | `*` | static files from `apps/web/dist` (`index.html` revalidated, `/assets/*` immutable) |
 
@@ -252,7 +254,7 @@ A few sessions still read the older `Goal.models` / `config.models` fields (`str
 
 The history endpoint looks up an attempt's transcript first, and otherwise `data/transcripts/<channel>.jsonl`. That works for `clarify-<goalId>`. It does not work for the draft and goal-review channels, whose transcript files are named differently (`draft-<goal>-<n>`, `goal-review-<goal>-<n>`). Also note that the goal-review channel is not goal-scoped.
 
-**Web pages** (`apps/web/src/App.tsx`): Goals `/`, New goal `/goals/new`, Brief `/goals/:id/brief` (`pages/brief/*`), Goal `/goals/:id` (`pages/goal/*`: overview, DAG, diff, delivery, activity, interview, milestone, preview), Manual Resolution, Agents, Inbox, Skills, Setup, Usage and Settings (`pages/settings/ModelPresets.tsx` for presets).
+**Web pages** (`apps/web/src/App.tsx`): Goals `/`, New goal `/goals/new`, Brief `/goals/:id/brief` (`pages/brief/*`), Goal `/goals/:id` (`pages/goal/*`: overview, DAG, diff, delivery, activity, interview, milestone, preview), Manual Resolution, Agents, Inbox, Skills, Setup, Usage, Settings (`pages/settings/ModelPresets.tsx` for presets) and Help `/help`, `/help/:slug` (`pages/HelpPage.tsx`, the user guide).
 
 ## Where does X live?
 

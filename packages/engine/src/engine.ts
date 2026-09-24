@@ -733,7 +733,8 @@ export class Engine {
     try {
       raw = JSON.parse(readFileSync(this.settings.path, 'utf8'));
     } catch {}
-    const tiers = (['strong', 'worker', 'cheap'] as const).filter((t) => typeof raw.models?.[t] === 'string');
+    // `cheap` is still a setting (the housekeeping model): only strong / worker mark a pre-presets install
+    const tiers = (['strong', 'worker'] as const).filter((t) => typeof raw.models?.[t] === 'string');
     const chosen = (['presetCode', 'presetDocs', 'presetMedia'] as const).some((k) => raw.models?.[k] != null);
     if (!tiers.length || chosen) return;
     const before = tiers.map((t) => `${t} = ${raw.models![t]}`).join(', ');
@@ -923,6 +924,11 @@ export class Engine {
   // ---------- commands ----------
 
   async createGoal(input: CreateGoalInput): Promise<Goal> {
+    // an unknown preset would silently fall back to the Settings pick while the goal still shows the typo
+    if (input.modelPreset) {
+      const known = Object.keys(effectivePresets(this.config.modelPresets));
+      if (!known.includes(input.modelPreset)) throw new Error(`unknown model preset "${input.modelPreset}"; use one of: ${known.join(', ')}`);
+    }
     if (!(await isGitRepo(input.repoPath))) throw new Error(`${input.repoPath} is not a git repository`);
     const baseBranch = input.baseBranch ?? (await currentBranch(input.repoPath));
     if (baseBranch === 'HEAD') throw new Error('repository is in detached HEAD state; pass --base <branch>');

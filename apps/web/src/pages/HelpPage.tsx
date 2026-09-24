@@ -36,12 +36,20 @@ export function HelpPage() {
     } catch {}
   };
   useEffect(() => {
-    void api.guide().then((r) => setPages(r.pages)).catch((e) => setErr(e.message));
+    void api.guide().then((r) => setPages(r.pages)).catch(() => setPages([]));
   }, []);
   useEffect(() => {
+    // switching page or language quickly must not let a slower, older answer replace the newer one
+    let current = true;
     setPage(null);
     setErr(null);
-    void api.guidePage(slug, lang).then(setPage).catch((e) => setErr(e.body?.error ?? e.message));
+    void api
+      .guidePage(slug, lang)
+      .then((p) => current && setPage(p))
+      .catch((e) => current && setErr(e.body?.error ?? e.message));
+    return () => {
+      current = false;
+    };
   }, [slug, lang]);
   // after the page renders, go to the heading the link asked for
   useEffect(() => {

@@ -5,7 +5,7 @@
 Run both from the repository root before you push:
 
 ```sh
-bun test packages     # all unit and integration tests (packages/core, runner, engine)
+bun test packages     # all unit and integration tests (packages/core, runner, engine, server)
 bun run typecheck     # tsc over packages/*, apps/cli and scripts, then a separate pass over apps/web
 ```
 

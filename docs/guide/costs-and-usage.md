@@ -2,23 +2,26 @@
 
 > English · [中文](./costs-and-usage.zh.md)
 
-Foundry runs on your Claude subscription or API account. It spends only when a Claude session runs. Everything it does in git, running your tests, preparing folders and reviewing check results is free — it costs time, not money.
+Foundry runs on your Claude subscription or API account. It spends only when a Claude session runs. Everything it does in git, running your tests, preparing folders and reading check results is free — it costs time, not money.
 
 ## What costs money
 
 | Session | Limit per session |
 |---|---|
-| Clarify (exploring your repository, the interview, writing the Brief) | $6 per turn |
+| Clarify (exploring your repository, the interview, writing the Brief) | $6 per Clarify session. Each interview round, and each repair of the Brief, is its own session. |
 | Draft with AI (one task or area) | $2 |
 | Revise with answers | $3 |
 | Task attempt | $10 by default (Settings → Models & limits), and never more than what is left of the goal's budget |
-| Task review | $0.80 |
+| Task review | $0.80, plus up to $0.20 when its verdict has to be asked for again |
 | Merge attempt (combining two tasks that touched the same lines) | $2 |
-| Final goal review | at least $6, up to the task-attempt limit |
+| Final goal review | at least $6, up to the task-attempt limit, plus up to $2 when its verdict has to be asked for again |
 | Completion docs (only if you turned them on) | $3 |
 | Style sample (one image) | $2 per click, at most 8 per direction |
 | Suggest a hint (Inbox) | $1 |
 | Milestone feedback ("Turn into a plan") | $0.50 |
+| Housekeeping: deciding what kind of goal it is (when set to **Auto**), or summarising a very long check output | $0.10 each |
+| **Sync models** and **Test** in Settings (one tiny session per model) | $0.50 per model |
+| **Refresh signal** on the Usage page | $0.05 |
 
 Which model each of these uses — and so how much it really costs — is set by the goal's **model preset**. See [Settings explained](./settings.md#models--limits).
 
@@ -33,7 +36,7 @@ Which model each of these uses — and so how much it really costs — is set by
 ## Where to see what was spent
 
 - **Each goal** shows its running cost at the top of its page, and each task shows its own.
-- **Usage** (top bar) shows spending over time, by kind of session and by model, and how close you are to your plan's limits.
+- **Usage** (top bar) shows spending over time, by kind of session and by model. For each of your plan's usage windows it shows its status (**allowed**, or a warning when it gets close to the limit) and when it resets, not a percentage; for exact percentages, run `/usage` in Claude Code. **Refresh signal** runs one tiny session to update that status.
 - When a usage limit is reached, Foundry pauses every goal and continues when the limit resets. A banner says when.
 
 ## Image goals need an image key

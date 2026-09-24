@@ -33,7 +33,9 @@ Foundry works in a *repository*: a project folder that git keeps history for. Yo
 
 ## The New goal form
 
-Press **New goal** in the top bar. The four numbered steps at the top right (**Goal**, **Repository**, **Budget**, **Delivery**) turn green as you fill the form. The form starts with two cards of choices; the numbered cards **1** to **4** follow.
+Press **New goal** in the top bar. The four numbered steps at the top right (**Goal**, **Repository**, **Budget**, **Delivery**) show how far you are. **Goal** turns green once you describe the goal, **Repository** once a ready folder is picked. **Budget** and **Delivery** are always green: their defaults work. The form starts with two cards of choices; the numbered cards **1** to **4** follow.
+
+Several choices start from [Settings → New goal defaults](./settings.md#new-goal-defaults): the view, **Fast mode**, TDD, and the delivery mode and granularity. Change any of them here for this goal. A field you change on the page keeps your choice.
 
 ![The New goal form, with a goal described and a repository selected](images/new-goal.png)
 
@@ -61,23 +63,23 @@ For **Images** and **Video** a field appears: **Output folder**. When the goal f
 | **Simple** | One plain-language Brief. You answer its questions and approve. Afterwards you see a progress bar and what needs you. |
 | **Expert** | Every control: Areas, the task graph, acceptance checks, attempt logs, merge resolution. |
 
-The work underneath is the same. You can switch any goal to the other view later with one click. This guide shows both.
+The one picked at first comes from Settings (**Default goal view**). The work underneath is the same. You can switch any goal to the other view later with one click. This guide shows both.
 
 ### Fast mode
 
 Ticked: once you approve the Brief, Foundry skips its own extra AI reviews. The acceptance checks you approved still run. Good for images, video and quick jobs. It also costs less.
 
-Unticked (the default for code): Foundry reviews each task and the whole result on top of your checks, and can add fix tasks.
+Unticked (the default for code, unless Settings sets the pace to fast): Foundry reviews each task and the whole result on top of your checks, and can add fix tasks.
 
 ### Interview me before planning
 
-Ticked: Foundry asks you at least one round of questions before it writes the Brief.
+Ticked: Foundry asks you at least one round of questions before it writes the Brief, unless nothing is left for you to decide.
 
 Unticked: it asks only when your project cannot answer something, and goes straight to the Brief for small goals. Settings can change this default (see [Settings explained](./settings.md#new-goal-defaults)). More in [Answering the interview](./answering-the-interview.md).
 
 ### Effort
 
-How hard every Claude session of this goal thinks. Press one of the buttons; hover one for a short hint.
+How hard every Claude session of this goal thinks. Press one of the buttons; hover a button for a short hint where there is one.
 
 | Choice | When |
 |---|---|
@@ -96,11 +98,11 @@ Only in Expert view. TDD means writing a test first, then the code that makes it
 
 | Choice | Meaning |
 |---|---|
-| **required** | Workers must follow it, and the reviewer is told when they did not. The default. |
+| **required** | Workers must follow it, and the reviewer is told when they did not. The default, unless Settings says otherwise. |
 | **preferred** | Suggested only. Simple view goals always use this. |
 | **off** | Never mentioned. |
 
-Documentation, setup and research tasks never get a TDD rule, and a single task can switch it off in the Brief. With **Fast mode** ticked, TDD is off.
+Docs, infra, research, image and video tasks never get a TDD rule, and a single task can switch it off in the Brief. With **Fast mode** ticked, TDD is off.
 
 ### What do you want done
 
@@ -140,7 +142,7 @@ If you are unsure, keep **Auto**. More in [Costs and usage](./costs-and-usage.md
 
 ### Delivery
 
-**4 · Delivery — what may the engine do with the result?** The default, **Local only**, keeps the work on your computer. The other choices let Foundry push the work or open a pull request when the goal is done. Everything about this is in [Getting the result](./getting-the-result.md). You can change it later on the goal page.
+**4 · Delivery — what may the engine do with the result?** It starts from Settings → New goal defaults: **Local only** unless someone changed it there. **Local only** keeps the work on your computer. The other choices let Foundry push the work or open a pull request when the goal is done. Everything about this is in [Getting the result](./getting-the-result.md). You can change it later on the goal page.
 
 ### Advanced: skip Clarify
 
@@ -154,11 +156,11 @@ The self-check (Foundry opens the running result in a hidden browser and takes s
 
 The button says **Create & clarify** (or **Create & run** if you skipped Clarify). If it is greyed out, the text next to it says why: **Describe the goal**, **Select a repository folder**, or **Repository is not ready (see above)**.
 
-Foundry remembers your choices for the kind of goal, view, pace, TDD, budget and delivery in this browser, so the next goal starts with them.
+This browser remembers the kind of goal, the budget and the finer delivery options (such as the merge method and the CI switches), so the next goal starts with them. The view, Fast mode, TDD, and the delivery mode and granularity start from Settings → New goal defaults every time.
 
 Then you land on the goal's Brief page, and Foundry starts reading your project:
 
 - If it has questions, you see **Round 1 — N questions**. Answer them: [Answering the interview](./answering-the-interview.md).
-- If not, you see **Clarifying…** with a live log of what it is reading. This usually takes a few minutes. The page updates by itself when the Brief is ready.
+- If not, you see **Reading the repository…** with a live log of what it is reading (**Clarifying…** if Settings turned the interview off). This usually takes a few minutes. The page updates by itself when the Brief is ready.
 
 Then read and approve the Brief: [Approving the Brief](./approving-the-brief.md). Nothing is built until you do.

@@ -60,11 +60,12 @@ Both serve the web UI on `http://127.0.0.1:4111`.
 3. Install the required tools and check the machine.
 
    ```bash
-   bun run cli skills install --tier required    # installs graphify
+   uv tool install graphifyy && graphify install --platform claude   # graphify, the one required tool
    bun run cli doctor                            # claude installed? logged in? git, bun, graphify …
    ```
 
-   `doctor` works without the server running. Every line with `✘` must be fixed; lines with `⚠` are optional.
+   `doctor` works without the server running; it then skips the markitdown, Models and Notifications checks, which need
+   the engine. Every line with `✘` must be fixed; lines with `⚠` are optional.
 
 4. Optional: sign in to GitHub, for delivery (push, pull requests, merges).
 
@@ -334,7 +335,7 @@ With the uid ≠ 1000 recipe this is already covered: the whole home folder is m
 ## First-run checks
 
 Open **Setup** in the header (it opens by itself on first run when a check fails and there are no goals yet). It runs
-the same checks as the doctor:
+the same checks as the doctor with the server running:
 
 ```bash
 bun run cli doctor                               # local install
@@ -347,7 +348,7 @@ docker exec foundry bun apps/cli/src/main.ts doctor   # Docker
 | Claude login | yes | **Sign in** on the Setup page, or `claude auth login` |
 | git | yes | install git |
 | Bun runtime | yes | `curl -fsSL https://bun.sh/install \| bash` |
-| Required: graphify | yes | **Install** on the Setup page, or `bun run cli skills install --tier required` |
+| Required: graphify | yes | **Install** on the Setup page, or `uv tool install graphifyy && graphify install --platform claude` |
 | Skills directory writable | yes | make `~/.claude/skills` writable |
 | GitHub CLI (optional) | no | only for push / PR / auto-merge delivery: install `gh`, then `gh auth login --web` |
 | markitdown (optional) | no | **Install markitdown** on the Setup page |

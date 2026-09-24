@@ -535,6 +535,20 @@ describe('goal-review escalation + settings propagation', () => {
     expect(notes).toHaveLength(1);
     expect(notes[0]).toContain('strong = claude-fable-5-1, worker = opus');
   });
+  test('a goal naming a model preset that does not exist is refused, with the valid ids', async () => {
+    const engine = track(new Engine(cfg(), new FakeRunner(() => {})));
+    await expect(engine.createGoal({ prompt: 'x', repoPath: repo, modelPreset: 'Economy' })).rejects.toThrow('unknown model preset "Economy"; use one of: max, production, balanced, economy');
+    const goal = await engine.createGoal({ prompt: 'x', repoPath: repo, modelPreset: 'economy', autoBrief: { mustChecks: ['true'] } });
+    expect(goal.modelPreset).toBe('economy');
+  });
+  test('a current settings file that only changed the housekeeping model is left alone', async () => {
+    const { writeFileSync: w, readFileSync: r } = await import('node:fs');
+    w(join(dataDir, 'settings.json'), JSON.stringify({ models: { cheap: 'sonnet' } }));
+    const engine = track(new Engine(cfg(), new FakeRunner(() => {})));
+    await engine.start();
+    expect(JSON.parse(r(join(dataDir, 'settings.json'), 'utf8')).models).toEqual({ cheap: 'sonnet' });
+    expect(engine.store.listByType('engine.note', 50).some((e) => (e.payload as { message: string }).message.startsWith('Models now come from presets'))).toBe(false);
+  });
 });
 
 describe('progress folders', () => {

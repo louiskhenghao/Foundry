@@ -17,10 +17,12 @@ goal 页面会用大白话告诉你："The work is on branch … in your reposit
 
 | 方式 | goal 完成时 Foundry 做什么 |
 |---|---|
-| **Local only** | 什么都不做。工作留在本地分支上。你想推送时自己推。这是默认。 |
+| **Local only** | 什么都不做。工作留在本地分支上。你想推送时自己推。这是 [Settings → New goal defaults](./settings.zh.md#new-goal-defaults) 里的默认，New goal 表单就从那里开始。 |
 | **Push branch** | 先把基础分支上的新工作并进来，再把 goal 的分支推送到线上副本（比如 GitHub）。不开 pull request。 |
 | **Open a PR** | 推送，然后开一个 pull request，用 Brief 和检查结果作为描述。由你审查并合并。 |
 | **PR + auto-merge** | 开 pull request，等它的自动检查（CI），需要时修好 CI，全部通过后合并，并删除推送的分支。 |
+
+用 **PR + auto-merge** 时，如果 GitHub 上的分支保护挡住了合并，Foundry 会打开 GitHub 自己的 auto-merge（`gh pr merge --auto`），并等一段时间（[Settings → Git & delivery](./settings.zh.md#git--delivery)）。如果到时 GitHub 还没合并，它之后会自己合并，Foundry 也不会删除这个分支。
 
 每种方式都遵守两条规则：
 
@@ -79,7 +81,7 @@ pull request 类的方式需要 GitHub CLI 和一个已连接的账户：见 [�
 
 在 goal 页面上打开 **Delivery** 标签（在 Simple view 里，Result 卡片上的 **Deliver…** 会先带你到 Expert view）。
 
-**goal 完成之前**，它显示 **Will deliver automatically when the goal is done**。你可以改交付方式，然后按 **Save policy (runs when done)**。
+**goal 完成之前**，它显示 **Will deliver automatically when the goal is done**（方式是 Local only 时不显示）。你可以改交付方式，然后按 **Save policy (runs when done)**。选着 **Local only** 时，这个按钮是灰的。
 
 **交付过程中**，卡片用勾、转圈或叉显示每一步：**Preflight**、**Remote**、**Sync with base**、**Build stack**、**Push**、**Open PR**、**CI checks**、**Fix CI**、**Merge**、**Cleanup**（只显示你的方式需要的步骤）。**Cancel** 停止交付。
 
@@ -94,7 +96,7 @@ pull request 类的方式需要 GitHub CLI 和一个已连接的账户：见 [�
 CI 是你的线上仓库对每个 pull request 运行的一组自动检查。交付前 Foundry 自己的检查已经通过了，但 CI 可能测得更多。
 
 - 用 **Open a PR** 时，Foundry 不等 CI。你在 pull request 上看结果，自己决定。
-- 用 **PR + auto-merge** 时，Foundry 会等。如果 CI 失败且 **Fix failing CI** 允许，一个小的修复任务会读失败日志，修好 goal 的分支，再推送一次。如果 CI 仍然失败，或者关了修复，交付会以 **failed** 停下：原因在 Delivery 标签上，pull request 保持打开；如果 **Delivery** 开关开着，你还会收到通知。
+- 用 **PR + auto-merge** 时，Foundry 会等。如果 CI 失败且 **Fix failing CI** 允许，一个小的修复任务会读失败日志，修好 goal 的分支，再推送一次。如果 CI 仍然失败，或者关了修复，交付会以 **failed** 停下：原因在 Delivery 标签上，pull request 保持打开；如果 **Delivery** 开关开着，你还会收到通知。如果修复任务自己也放弃了，Inbox 里还会出现一张 *Retries exhausted* 卡片。
 
 交付失败后，你可以先修好原因（比如连接 GitHub，或修好 CI 配置），再按一次交付按钮。或者自己在 GitHub 上合并 pull request。
 
@@ -143,4 +145,4 @@ git merge goal/abc123
 
 分支名用 goal 页面顶部显示的那个。或者把交付方式改成 **Push branch** 或 **Open a PR**，让 Foundry 通过 GitHub 来做。
 
-不再需要这个 goal 时，**⋯ → Delete goal…** 会删除它；只有在工作已经合并或推送之后，才勾选 **Also delete the branch**。
+不再需要这个 goal 时，**⋯ → Delete goal…** 会删除它和它的进度文件夹；只有在工作已经合并或推送之后，才勾选 **Also delete the branch**。

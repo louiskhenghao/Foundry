@@ -19,7 +19,7 @@ Where to look:
 ## Doctor checks
 
 ```bash
-bun run cli doctor                                    # local install; works without the server running
+bun run cli doctor                                    # local install; without the server it skips the markitdown, Models and Notifications checks
 docker exec foundry bun apps/cli/src/main.ts doctor   # Docker
 ```
 

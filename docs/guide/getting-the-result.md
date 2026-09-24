@@ -17,10 +17,12 @@ You pick the delivery on the New goal form (**4 · Delivery**), and can change i
 
 | Mode | What Foundry does when the goal is done |
 |---|---|
-| **Local only** | Nothing. The work stays on a local branch. You push when you want. This is the default. |
+| **Local only** | Nothing. The work stays on a local branch. You push when you want. This is the default in [Settings → New goal defaults](./settings.md#new-goal-defaults), which the New goal form starts from. |
 | **Push branch** | Brings in any new work from the base branch, then pushes the goal's branch to the online copy (for example GitHub). No pull request. |
 | **Open a PR** | Pushes, then opens a pull request with the Brief and the check results as its description. You review and merge it. |
 | **PR + auto-merge** | Opens the pull request, waits for its automatic checks (CI), fixes CI if needed, merges when everything is green, and deletes the pushed branch. |
+
+With **PR + auto-merge**, if branch protection on GitHub blocks the merge, Foundry turns on GitHub's own auto-merge (`gh pr merge --auto`) and waits a while ([Settings → Git & delivery](./settings.md#git--delivery)). If GitHub has not merged by then, it merges later by itself, and Foundry does not delete the branch.
 
 Two rules hold for every mode:
 
@@ -79,7 +81,7 @@ At the bottom of the delivery choices is a GitHub line:
 
 On the goal page, open the **Delivery** tab (in Simple view, **Deliver…** on the Result card takes you to Expert view first).
 
-**Before the goal is done**, it says **Will deliver automatically when the goal is done**. You can change the delivery and press **Save policy (runs when done)**.
+**Before the goal is done**, it says **Will deliver automatically when the goal is done** (unless the mode is Local only). You can change the delivery and press **Save policy (runs when done)**. That button is greyed out while **Local only** is selected.
 
 **While it delivers**, the card shows each step with a tick, a spinner or a cross: **Preflight**, **Remote**, **Sync with base**, **Build stack**, **Push**, **Open PR**, **CI checks**, **Fix CI**, **Merge**, **Cleanup** (only the steps your mode needs). **Cancel** stops it.
 
@@ -94,7 +96,7 @@ On the goal page, open the **Delivery** tab (in Simple view, **Deliver…** on t
 CI is the set of automatic checks your online repository runs on every pull request. Foundry's own checks passed before delivery, but CI may test more.
 
 - With **Open a PR**, Foundry does not wait for CI. You see the result on the pull request and decide.
-- With **PR + auto-merge**, Foundry waits. If CI fails and **Fix failing CI** allows it, a small fix task reads the failed log, fixes the goal's branch and pushes again. If CI still fails, or fixing is off, the delivery stops as **failed**: the reason is on the Delivery tab, the pull request stays open, and you get a notification if the **Delivery** switch is on.
+- With **PR + auto-merge**, Foundry waits. If CI fails and **Fix failing CI** allows it, a small fix task reads the failed log, fixes the goal's branch and pushes again. If CI still fails, or fixing is off, the delivery stops as **failed**: the reason is on the Delivery tab, the pull request stays open, and you get a notification if the **Delivery** switch is on. If the fix task itself gives up, a *Retries exhausted* card also appears in the Inbox.
 
 After a failed delivery you can fix the cause (for example connect GitHub, or fix the CI setup) and press the delivery button again. Or merge the pull request yourself on GitHub.
 
@@ -143,4 +145,4 @@ git merge goal/abc123
 
 with the branch name shown at the top of the goal page. Or change the delivery to **Push branch** or **Open a PR** and let Foundry do it through GitHub.
 
-When you no longer need the goal, **⋯ → Delete goal…** removes it; tick **Also delete the branch** only once the work is merged or pushed.
+When you no longer need the goal, **⋯ → Delete goal…** removes it and its progress folder; tick **Also delete the branch** only once the work is merged or pushed.

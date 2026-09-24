@@ -169,8 +169,9 @@ delivery pushes with that machine's `gh` login — set it up once while you are 
 
 ## 6. Security checklist
 
-- Foundry listens on `127.0.0.1` (or the `100.x.y.z` tailnet address); it is never bound to `0.0.0.0`, and no
-  router port-forward or `tailscale funnel` points at it. `tailscale serve status` must show the listener as
+- Foundry is reachable only on `127.0.0.1` (or the `100.x.y.z` tailnet address). A local install binds there; the
+  Docker image binds `0.0.0.0` inside the container, so publish its port on the host as `127.0.0.1:4111:4111`, never
+  `0.0.0.0`. No router port-forward or `tailscale funnel` points at it. `tailscale serve status` must show the listener as
   *tailnet only* — never *Funnel on*.
 - The Foundry machine holds your Claude login, your repositories and a `gh` login that can push and open PRs.
   Treat it like your laptop: disk encryption on, screen lock on, only your own devices on the tailnet.

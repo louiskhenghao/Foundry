@@ -372,7 +372,7 @@ export function SettingsPage() {
             </div>
           </>,
         )}
-        <p className="text-[11px] text-zinc-500 mt-3">The list is what this machine has seen resolve (family aliases follow the latest release through Claude Code; a full model id pins a version). A new family is one custom entry away — after its first session it shows up here with its resolved id. Changes apply to goals created from now on; running goals keep the models they started with unless a fallback kicks in.</p>
+        <p className="text-[11px] text-zinc-500 mt-3">The list is what this machine has seen resolve (family aliases follow the latest release through Claude Code; a full model id pins a version). A new family is one custom entry away — after its first session it shows up here with its resolved id. Preset changes reach running goals too, at their next session.</p>
         <div className="border-t border-zinc-800 mt-4 pt-4">
           <div className="text-xs text-zinc-300 mb-2">Limits — what one session may spend before the engine stops it</div>
           {grid(

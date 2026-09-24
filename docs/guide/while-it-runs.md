@@ -14,7 +14,7 @@ Open a goal from **Goals** (the list in the top bar). At the top of its page:
 - The project folder (with **copy** for its path) and the branches: the one the goal started from → the goal's own branch.
 - Two meters: **cost** spent against the budget, and **time** in minutes against the time limit.
 - **Open ▾**: open the project or the progress folder on your computer (see [The progress folder](#the-progress-folder)).
-- One main button that changes with the state: **Review brief →** while the Brief waits, **Cancel** while it runs, **Deliver…** or **Delivery** when it is done.
+- One main button that changes with the state: **Review brief →** while the Brief waits, **Cancel** while it runs, **Deliver…**, **Delivering…** or **Delivery** when it is done.
 - **⋯** (More actions): **Restart…**, **Re-run Clarify**, **Cancel goal**, **Delete goal…**, whichever apply.
 
 Below that, cards appear only when they matter: the milestone card when the goal waits for your look, the interview while Foundry asks questions, and **Goal review…** with a live log while the final review runs.
@@ -99,7 +99,7 @@ Projects/
     Add dark mode-a1b2c3/ ← the progress folder of one goal
 ```
 
-The progress folder is named after the goal's title (its first sentence, up to 40 characters) plus a short code. It contains your whole project with the goal's work so far: the goal's branch, checked out. Open it, run it, read it, at any time. Tasks that run in parallel work in their own hidden folders and are merged in here when their checks pass. You can move where progress folders are created in [Settings → Engine (install)](./settings.md#engine-install).
+The progress folder is named after the goal's title (up to its first punctuation mark, at most 40 characters) plus the last 6 characters of the goal's id. It contains your whole project with the goal's work so far: the goal's branch, checked out. Open it, run it, read it, at any time. Tasks that run in parallel work in their own hidden folders and are merged in here when their checks pass. You can move where progress folders are created in [Settings → Engine (install)](./settings.md#engine-install).
 
 The **Try the work in progress** card on the Overview tab shows the folder's path with **copy**, the latest commit, and ready-to-copy commands to open a terminal there and start the project.
 
@@ -119,7 +119,7 @@ The **Preview** card starts the result so you can try it in your browser.
 
 If the card says **Nothing to run yet**, there is no start command yet. It appears once a task adds one, or you can set one on the Brief under **How to run it**.
 
-Foundry also starts the preview by itself at a milestone, restarts it after each task lands, and stops it when nobody opened it for a while (60 minutes by default) or when the goal ends.
+Foundry also starts the preview by itself at a milestone, restarts it after each task lands if it is running, and stops it when nobody opened it for a while (60 minutes by default) or when the goal ends.
 
 ### Self-check
 
@@ -156,10 +156,10 @@ Every file the goal changed compared with where it started, with lines added (gr
 | You want to | Do this |
 |---|---|
 | Stop the goal now | **Cancel** at the top. Running sessions stop. The work done so far stays on the goal's branch. |
-| Run it again after it stopped | **⋯ → Restart…**. Pick **All tasks from the beginning** or one task; that task and everything after it run again with fresh attempts. Earlier tasks keep their results, and restarted tasks build on the work already there. Available once a goal is blocked, done, failed or cancelled. |
+| Run it again after it stopped | **⋯ → Restart…**. Pick **All tasks from the beginning** or one task; that task and everything after it run again with fresh attempts. Earlier tasks keep their results, and restarted tasks build on the work already there. Available once a goal is blocked, done, over-delivered, failed or cancelled. |
 | Redo one task | Open it on the **Tasks** tab and press **Restart from here**. |
 | Plan again before approving | **⋯ → Re-run Clarify** (also on the Brief page). |
-| Remove the goal | **⋯ → Delete goal…**. Running sessions stop, task folders and attachments go to the trash, and the goal leaves the list. Tick **Also delete the branch** to delete the goal's branch too; if you never delivered it, that work is gone. |
+| Remove the goal | **⋯ → Delete goal…**. Running sessions stop. The progress folder, the task folders and the goal's stacked delivery branches are deleted for good; attachments go to the trash. The goal leaves the list; its event history is kept. Tick **Also delete the branch** to delete the goal's branch too; if you never pushed it, that work is gone. |
 
 ## The Agents page
 
