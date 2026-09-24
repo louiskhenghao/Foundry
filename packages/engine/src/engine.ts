@@ -55,7 +55,7 @@ import type { StreamEvent, StreamListener } from './types.ts';
 import { defaultWorkspaceDir, deliveryWorkspacePath, dropTaskWorkspace, ensureGoalWorkspace, goalWorkspacePath, internalWorkspaceDir, listStackBranches } from './workspace.ts';
 import { relocateLegacyWorkspaces } from './workspace-migrate.ts';
 import { PreviewManager } from './preview/manager.ts';
-import { ensureSelfCheck, playwrightStatus, runSelfCheck } from './checks/selfcheck.ts';
+import { ensureSelfCheck, playwrightInstallCommand, playwrightStatus, runSelfCheck } from './checks/selfcheck.ts';
 import { attachmentDir, claimStaged, conversionTmpPath, markdownFileName, sweepStaging, trashAttachment } from './attachments.ts';
 import { Markitdown } from './convert/markitdown.ts';
 import { SettingsStore, applySettingsToConfig } from './settings.ts';
@@ -1088,7 +1088,7 @@ export class Engine {
    */
   /** Playwright's Chromium for the self-check: the package ships with Foundry, the browser is downloaded on demand */
   async installPlaywright(onLine: (l: string) => void): Promise<{ ok: boolean; command: string[]; exitCode: number | null }> {
-    const command = ['bunx', 'playwright', 'install', 'chromium'];
+    const command = playwrightInstallCommand();
     onLine(`$ ${command.join(' ')}`);
     const t0 = Date.now();
     const r = await spawnStreaming(command, this.config.rootDir, onLine, { timeoutMs: 15 * 60_000 });
