@@ -35,7 +35,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
       title={
         <span className="flex items-center gap-2 flex-wrap">
           <span className="min-w-0 break-words">{task.title}</span> <Badge state={task.state} />
-          <TaskTags kind={task.kind} scenario={task.scenario} area={task.area} />
+          <TaskTags kind={task.kind} scenario={task.scenario} area={task.area} difficulty={task.difficulty} />
           {task.origin !== 'brief' && <span className="text-[10px] text-zinc-500">{task.origin}</span>}
           {task.commitRef && (
             <span className="text-[11px] font-normal text-zinc-500 basis-full min-w-0 truncate" title={task.commitMessage ?? undefined}>
