@@ -12,7 +12,7 @@ You answer in the browser. It takes a minute or two per round.
 
 - A small, clear goal usually gets no interview. Foundry goes straight to the Brief.
 - A bigger or vaguer goal gets one or more rounds when something is worth asking.
-- If you ticked **Interview me before planning** on the New goal form, you always get at least one round.
+- If you ticked **Interview me before planning** on the New goal form, you get at least one round, unless nothing is left for you to decide.
 - Settings can turn the interview off entirely, or on for every goal: [Settings → New goal defaults](./settings.md#new-goal-defaults).
 
 The interview appears on the goal's page and on its Brief page, as a card titled **Round N — K questions**. If you set up notifications, you also get a message (the **Interview round** switch).
@@ -39,11 +39,11 @@ The small grey text under the question. It says what Foundry found in your proje
 
 ### Follows from
 
-Some questions say **follows from …**, followed by a short name for an earlier question. That question only makes sense because of how you answered the earlier one. Questions that depend on answers you have not given yet wait for the next round.
+Some questions say **follows from …**, followed by the key of an earlier question, such as `R1Q2` (round 1, question 2). That question only makes sense because of how you answered the earlier one. Questions that depend on answers you have not given yet wait for the next round.
 
 ### Blocking questions
 
-A question marked **blocking** must be answered before **Send answers** works. Hover over the greyed-out button to see which are still open. **Accept all recommended** and **Enough — write the Brief** work even with blocking questions open.
+A question marked **blocking** must be answered before **Send answers** works. Hover over the greyed-out button to see which are still open: it lists their keys, such as `R2Q1`. **Accept all recommended** and **Enough — write the Brief** work even with blocking questions open.
 
 ## The three buttons
 

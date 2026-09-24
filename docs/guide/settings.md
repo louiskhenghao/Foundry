@@ -27,7 +27,7 @@ What a new goal starts with. Most of them can be changed for one goal on the New
 
 Under **Delivery — what happens to the branch when a goal finishes**: **Mode for new goals** (local only), **Granularity** (one PR per goal) and **Remote** (origin). See [Getting the result](./getting-the-result.md).
 
-Good to know: the New goal form remembers your last choices in this browser and sends them with each goal. So **Default goal view**, **Pace**, **TDD** and the delivery defaults here matter for goals created without the form (for example from the command line), while the form keeps your own last choice. **Interview**, **Effort** and the model preset do follow Settings whenever the form is left at its default.
+Good to know: the New goal form starts from these defaults. **Default goal view**, **Pace**, **TDD**, and the delivery **Mode for new goals** and **Granularity** are filled in from here, and the form picks the **Remote** named here when the project has it. A field you change on the form keeps your choice for that goal. **Interview**, **Effort** and the model preset follow Settings whenever the form is left at its default. The form itself remembers, in this browser, the kind of goal, the budget and the finer delivery options (such as the merge method).
 
 When to change: set **Interview before the Brief** to **always** if you like to be asked; set **Effort** lower if most of your goals are small; lower **Goal-level fix cycles** to 0 if you would rather see failed reviews yourself.
 
@@ -46,7 +46,7 @@ A preset is a table: for each job, which model does it. The jobs are:
 | **Clarify** | Reads your project, interviews you, writes the Brief. |
 | **Planner** | Splits the goal into tasks while clarifying. |
 | **Simple tasks**, **Standard tasks**, **Complex tasks** | The workers, by the difficulty set on the Brief. |
-| **Merge attempts** | Combines two tasks that changed the same lines. |
+| **Merge attempts** | Combines two tasks that changed the same lines, and resolves conflicts when the base branch has moved. |
 | **Goal reviewer** | The final review of the whole result. The most expensive single session. |
 | **Task reviewer** | The short review of each task. |
 | **Documenter** | Writes the completion documents. |
@@ -182,7 +182,7 @@ The six switches, all on by default:
 
 | Switch | You get a message when | What to do |
 |---|---|---|
-| **Needs you** | A goal or task is waiting for you: a question, a failed task, a budget reached, a milestone to look at. | Open the Inbox or the goal and answer. Until you do, that part waits. See [When Foundry needs you](./when-foundry-needs-you.md). |
+| **Needs you** | A goal or task is waiting for you: a failed task, a blocked command, a budget reached, a milestone to look at. | Open the Inbox or the goal and answer. Until you do, that part waits. See [When Foundry needs you](./when-foundry-needs-you.md). |
 | **Interview round** | Foundry asks a round of questions before writing the Brief. | Answer them; the goal waits for you. |
 | **Goal finished** | A goal ended done, over-delivered or failed. Never when you cancelled it yourself. | Look at the result, or at what failed. |
 | **Delivery** | A pull request was opened or merged, or the delivery failed. | Review the pull request, or look at the Delivery tab. |
@@ -193,7 +193,7 @@ Turn off what you do not want. The switches apply to every channel alike.
 
 ## Safety
 
-- **Extra boundary patterns**: commands Foundry must never let a session run on its own, on top of pushes, deploys and paid services, for example `terraform apply|kubectl`. A blocked command comes to your Inbox for approval.
+- **Extra boundary patterns**: commands Foundry must never let a session run on its own, on top of the built-in ones (pushes, pull requests, releases, publishing, deploys, cloud tools), for example `terraform apply|kubectl`. A blocked command comes to your Inbox for approval.
 - **Folder browser roots**: which folders the **Select folder…** picker may open. Empty means your home folder and external drives.
 
 ## Engine (install)

@@ -12,7 +12,7 @@ Foundry 写 Brief 之前，会先读你的项目和附件。大部分问题它�
 
 - 小而清楚的 goal 通常没有访谈。Foundry 直接写 Brief。
 - 更大或更模糊的 goal，在有值得问的事时，会有一轮或多轮访谈。
-- 如果你在 New goal 表单上勾了 **Interview me before planning**，至少总会有一轮。
+- 如果你在 New goal 表单上勾了 **Interview me before planning**，至少会有一轮，除非已经没有需要你决定的事。
 - Settings 可以把访谈完全关掉，也可以让每个 goal 都有访谈：[Settings → New goal defaults](./settings.zh.md#new-goal-defaults)。
 
 访谈会出现在 goal 页面和它的 Brief 页面上，是一张标题为 **Round N — K questions** 的卡片。如果你设置了通知，还会收到一条消息（**Interview round** 开关）。
@@ -39,11 +39,11 @@ Foundry 写 Brief 之前，会先读你的项目和附件。大部分问题它�
 
 ### 承接的问题
 
-有些问题会写着 **follows from …**，后面跟着一个前面问题的简称。这个问题之所以有意义，是因为你对前面那个问题的回答。依赖于你还没给出的答案的问题，会等到下一轮再问。
+有些问题会写着 **follows from …**，后面跟着前面某个问题的编号，比如 `R1Q2`（第 1 轮第 2 题）。这个问题之所以有意义，是因为你对前面那个问题的回答。依赖于你还没给出的答案的问题，会等到下一轮再问。
 
 ### blocking 问题
 
-标着 **blocking** 的问题必须先回答，**Send answers** 才能用。鼠标悬停在变灰的按钮上，可以看到还有哪些没答。即使还有 blocking 问题没答，**Accept all recommended** 和 **Enough — write the Brief** 也能用。
+标着 **blocking** 的问题必须先回答，**Send answers** 才能用。鼠标悬停在变灰的按钮上，可以看到还有哪些没答：它会列出这些问题的编号，比如 `R2Q1`。即使还有 blocking 问题没答，**Accept all recommended** 和 **Enough — write the Brief** 也能用。
 
 ## 三个按钮
 

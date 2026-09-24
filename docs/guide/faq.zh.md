@@ -4,7 +4,7 @@
 
 ## 为什么停下来了？
 
-Foundry 只在少数几种情况下停下来问你：一个只有你能回答的问题、一个失败了好几次的任务、两个改了同一段代码的任务、最终审查没通过、一条会离开你电脑的命令、预算用完，或者一个里程碑要看。每一种都会出现在 **Inbox**（顶栏上的数字）里，带着继续用的按钮。
+goal 运行起来后，Foundry 只在少数几种情况下停下来问你：一个失败了好几次的任务、两个改了同一段代码的任务、最终审查没通过、一条会离开你电脑的命令、一个被拒绝的工具、预算用完，或者一个里程碑要看。每一种都会出现在 **Inbox**（顶栏上的数字）里，带着继续用的按钮。只有你能回答的问题来得更早，在 Brief 页面上。
 
 ![只有一项的 Inbox：一个用完了所有尝试次数的任务，带 Suggest a hint 和 Retry with hint](images/inbox.png)
 
@@ -20,7 +20,7 @@ Foundry 只在少数几种情况下停下来问你：一个只有你能回答的
 4. **Agents 页面。** 标着 working 的会话就是在工作。
 5. **顶栏**显示 **live**。如果显示 **reconnecting…**，说明页面和 Foundry 失去了联系；刷新页面，并检查 Foundry 是否还在运行。
 
-看似卡住的会话默认 20 分钟后会被停止并续接，所以真正的卡死不会一直持续。
+看似卡住的任务尝试默认 20 分钟后会被停止并续接（Settings 里的 **Attempt timeout**），所以真正的卡死不会一直持续。Clarify 会话 15 分钟后停止，最终审查 30 分钟后停止。
 
 ## 批准后还能改计划吗？
 
@@ -39,7 +39,7 @@ Brief 本身不能改：一经批准就固定了。但你可以调整方向：
 - 选 **Economy** 或 **Balanced** 模型预设（New goal 表单上的 **Models**，或 [Settings → Models & limits](./settings.zh.md#preset-per-goal-type)）。
 - 常规 goal 勾选 **Fast mode**。
 - 小 goal 把 **Effort** 设为 **low**。
-- 在 Brief 上把简单任务标成 **simple**；它们用最便宜的模型运行。
+- 在 Brief 上把简单任务标成 **simple**；它们用预设里的 **Simple tasks** 模型运行（在 Production 里是 Sonnet 而不是 Opus；Balanced 的代码类 goal 里，它和 Standard 是同一个模型）。
 - 设预算；达到时 goal 会停下来问你。
 
 更多见 [费用与用量](./costs-and-usage.zh.md#怎样少花钱)。
@@ -74,7 +74,7 @@ Brief 本身不能改：一经批准就固定了。但你可以调整方向：
 
 ## 为什么任务是 "standard"？
 
-Foundry 写计划时，会把每个任务评为 **simple**、**standard** 或 **complex**，**standard** 是常规情况：典型的功能开发。评级决定用哪个模型：简单任务用预设里最便宜的模型，复杂任务用最强的。你可以在批准前在 Brief 上改。见 [Difficulty](./approving-the-brief.zh.md#difficulty)。
+Foundry 写计划时，会把每个任务评为 **simple**、**standard** 或 **complex**，**standard** 是常规情况：典型的功能开发。评级决定用哪个模型：简单任务用预设里的 **Simple tasks** 模型（在 Production 里是 Sonnet；Balanced 的代码类 goal 里，它和 Standard 一样），复杂任务用它的 **Complex tasks** 模型。你可以在批准前在 Brief 上改。见 [Difficulty](./approving-the-brief.zh.md#difficulty)。
 
 ## 能在手机上用吗？
 

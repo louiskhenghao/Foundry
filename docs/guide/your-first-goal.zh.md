@@ -33,7 +33,9 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 
 ## The New goal form
 
-按顶栏上的 **New goal**。右上角的四个编号步骤（**Goal**、**Repository**、**Budget**、**Delivery**）会随着你填表逐个变绿。表单开头是两张选项卡片，后面是编号 **1** 到 **4** 的卡片。
+按顶栏上的 **New goal**。右上角的四个编号步骤（**Goal**、**Repository**、**Budget**、**Delivery**）显示你填到哪了。描述了 goal，**Goal** 就变绿；选好一个可用的文件夹，**Repository** 就变绿。**Budget** 和 **Delivery** 一直是绿的：它们的默认值就能用。表单开头是两张选项卡片，后面是编号 **1** 到 **4** 的卡片。
+
+有几项选择从 [Settings → New goal defaults](./settings.zh.md#new-goal-defaults) 开始：视图、**Fast mode**、TDD，以及交付方式和粒度。你可以在这里为这个 goal 改其中任何一项。你在页面上改过的字段会保留你的选择。
 
 ![New goal 表单，已经描述了 goal 并选好了仓库](images/new-goal.png)
 
@@ -61,23 +63,23 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 | **Simple** | 一份大白话写的 Brief。你回答它的问题，然后批准。之后你会看到一个进度条，以及需要你处理的事。 |
 | **Expert** | 所有控制项：Area、任务图、验收检查、每次尝试的日志、合并处理。 |
 
-底层做的工作是一样的。任何 goal 之后都能一键切到另一种视图。本指南两种都会讲。
+一开始选中哪个，来自 Settings（**Default goal view**）。底层做的工作是一样的。任何 goal 之后都能一键切到另一种视图。本指南两种都会讲。
 
 ### Fast mode
 
 勾上：你批准 Brief 后，Foundry 会跳过它自己额外的 AI 审查。你批准的验收检查照常运行。适合图片、视频和快活儿，也更省钱。
 
-不勾（代码类的默认）：除了你的检查，Foundry 还会审查每个任务和整体结果，并且可以追加修复任务。
+不勾（代码类的默认，除非 Settings 把节奏设成了 fast）：除了你的检查，Foundry 还会审查每个任务和整体结果，并且可以追加修复任务。
 
 ### Interview me before planning
 
-勾上：Foundry 写 Brief 之前，至少会问你一轮问题。
+勾上：Foundry 写 Brief 之前，至少会问你一轮问题，除非已经没有需要你决定的事。
 
 不勾：只有项目本身回答不了某件事时它才会问；小 goal 会直接写 Brief。这个默认值可以在 Settings 里改（见 [设置说明](./settings.zh.md#new-goal-defaults)）。更多内容见 [回答访谈](./answering-the-interview.zh.md)。
 
 ### Effort
 
-这个 goal 的每个 Claude 会话思考得有多用力。点其中一个按钮；鼠标停在按钮上会有简短说明。
+这个 goal 的每个 Claude 会话思考得有多用力。点其中一个按钮；有说明的按钮，鼠标停在上面会显示简短说明。
 
 | 选项 | 什么时候用 |
 |---|---|
@@ -96,11 +98,11 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 
 | 选项 | 意思 |
 |---|---|
-| **required** | 执行者必须遵守；没遵守时审查员会被告知。这是默认。 |
+| **required** | 执行者必须遵守；没遵守时审查员会被告知。这是默认，除非 Settings 里另有设置。 |
 | **preferred** | 只是建议。Simple 视图的 goal 总是用这个。 |
 | **off** | 完全不提。 |
 
-文档、环境搭建和调研类任务从来不加 TDD 规则；单个任务也可以在 Brief 里关掉它。勾上 **Fast mode** 时，TDD 是关闭的。
+docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单个任务也可以在 Brief 里关掉它。勾上 **Fast mode** 时，TDD 是关闭的。
 
 ### What do you want done
 
@@ -140,7 +142,7 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 
 ### Delivery
 
-**4 · Delivery — what may the engine do with the result?** 默认的 **Local only** 把工作留在你的电脑上。其它选项允许 Foundry 在 goal 完成后推送代码或开 pull request。这方面的一切都在 [拿到结果](./getting-the-result.zh.md)。之后你也可以在 goal 页面上改。
+**4 · Delivery — what may the engine do with the result?** 它从 Settings → New goal defaults 开始：除非有人在那里改过，否则就是 **Local only**。**Local only** 把工作留在你的电脑上。其它选项允许 Foundry 在 goal 完成后推送代码或开 pull request。这方面的一切都在 [拿到结果](./getting-the-result.zh.md)。之后你也可以在 goal 页面上改。
 
 ### Advanced: skip Clarify
 
@@ -154,11 +156,11 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 
 按钮上写的是 **Create & clarify**（如果你跳过了 Clarify，就是 **Create & run**）。如果按钮是灰的，旁边的文字会说明原因：**Describe the goal**、**Select a repository folder** 或 **Repository is not ready (see above)**。
 
-Foundry 会在这个浏览器里记住你对 goal 类型、视图、节奏、TDD、预算和交付方式的选择，下一个 goal 就从这些选择开始。
+这个浏览器会记住 goal 类型、预算，以及更细的交付选项（比如合并方式和 CI 相关的开关），下一个 goal 就从这些开始。视图、Fast mode、TDD，以及交付方式和粒度，每次都从 Settings → New goal defaults 开始。
 
 然后你会进入 goal 的 Brief 页面，Foundry 开始读你的项目：
 
 - 如果它有问题，你会看到 **Round 1 — N questions**。回答它们：[回答访谈](./answering-the-interview.zh.md)。
-- 如果没有，你会看到 **Clarifying…**，下面是它正在读什么的实时日志。通常要几分钟。Brief 准备好后页面会自己更新。
+- 如果没有，你会看到 **Reading the repository…**，下面是它正在读什么的实时日志（如果 Settings 关掉了访谈，显示的是 **Clarifying…**）。通常要几分钟。Brief 准备好后页面会自己更新。
 
 然后阅读并批准 Brief：[批准 Brief](./approving-the-brief.zh.md)。你批准之前，什么都不会开始做。

@@ -14,7 +14,7 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 - 项目文件夹（**copy** 复制它的路径）和分支：goal 起步的分支 → goal 自己的分支。
 - 两个计量条：**cost** 是已花的费用对比预算，**time** 是已用的分钟数对比时间上限。
 - **Open ▾**：在你的电脑上打开项目或进度文件夹（见 [进度文件夹](#进度文件夹)）。
-- 一个随状态变化的主按钮：Brief 等你时是 **Review brief →**，运行时是 **Cancel**，完成后是 **Deliver…** 或 **Delivery**。
+- 一个随状态变化的主按钮：Brief 等你时是 **Review brief →**，运行时是 **Cancel**，完成后是 **Deliver…**、**Delivering…** 或 **Delivery**。
 - **⋯**（More actions）：**Restart…**、**Re-run Clarify**、**Cancel goal**、**Delete goal…**，视情况出现。
 
 再往下，卡片只在需要时出现：goal 等你查看时的里程碑卡片，Foundry 提问时的访谈，以及最终审查运行时带实时日志的 **Goal review…**。
@@ -26,7 +26,7 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 在 Simple view 里，goal 页面显示：
 
 - 一句话说明正在发生什么，比如 "Working." 或 "Paused — something needs you (see below)."
-- **Needs you**：所有等你处理的事，带回应用的按钮。
+- **Needs you**：所有等你处理的事，并附有用来回应的按钮。
 - **Progress**：一个进度条，显示完成了 **N/M pieces**，以及此刻进行中的任务：**in progress**、**checking** 或 **combining with the rest**。
 - **Cost**：目前花了多少、上限是多少，以及已经运行了多久。
 - **Result**（goal 完成时）：工作在哪里、**Open ▾** 和 **Deliver…**。
@@ -77,7 +77,7 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 - 标题、状态、标签，完成后还有它的提交。
 - **Task total**：到目前为止的尝试次数、费用（分成 worker 和 reviewer）、轮数和分钟数。
 - **spec**、它的 **Checks** 及最新结果，以及 **Relevant files**。
-- **This task is waiting for you**（任务 blocked 时出现），带回应用的按钮。
+- **This task is waiting for you**（任务 blocked 时出现），并附有用来回应的按钮。
 - 每次尝试一个标签：**#1**、**#2** …… 带结果和费用。**↻1** 表示会话被续接了一次，而不是从头开始，这样更便宜。
 - 选中的那次尝试：结果、worker 模型、轮数、费用、开始时间、时长、用了哪些 skill，然后是为它运行过的每个会话。
 - 按钮：**Restart from here**（这个任务和之后的所有任务重新运行）、**Open worktree**（任务运行时它自己的文件夹），以及合并冲突需要你时的 **Resolve manually**。
@@ -99,7 +99,7 @@ Projects/
     Add dark mode-a1b2c3/ ← the progress folder of one goal
 ```
 
-进度文件夹以 goal 的标题（第一句话，最多 40 个字符）加一个短代码命名。里面是你的整个项目加上 goal 目前的工作：也就是 goal 的分支，已经检出。随时都可以打开、运行、阅读。并行运行的任务在各自隐藏的文件夹里工作，检查通过后再合并到这里。你可以在 [Settings → Engine (install)](./settings.zh.md#engine-install) 里改变进度文件夹的创建位置。
+进度文件夹以 goal 的标题（到第一个标点为止，最多 40 个字符）加上 goal id 的最后 6 个字符命名。里面是你的整个项目加上 goal 目前的工作：也就是 goal 的分支，已经检出。随时都可以打开、运行、阅读。并行运行的任务在各自隐藏的文件夹里工作，检查通过后再合并到这里。你可以在 [Settings → Engine (install)](./settings.zh.md#engine-install) 里改变进度文件夹的创建位置。
 
 Overview 标签上的 **Try the work in progress** 卡片显示文件夹路径（带 **copy**）、最新提交，以及现成可复制的命令：在那里打开终端并启动项目。
 
@@ -119,7 +119,7 @@ Overview 标签上的 **Try the work in progress** 卡片显示文件夹路径�
 
 如果卡片显示 **Nothing to run yet**，说明还没有启动命令。等某个任务加上一条就会出现，或者你可以在 Brief 的 **How to run it** 下设一条。
 
-Foundry 也会在里程碑时自己启动预览，每个任务并入后重启它，并在一段时间没人打开（默认 60 分钟）或 goal 结束时停止它。
+Foundry 也会在里程碑时自己启动预览；预览在运行时，每个任务并入后都会重启它；一段时间没人打开（默认 60 分钟）或 goal 结束时，它会停止预览。
 
 ### Self-check
 
@@ -156,10 +156,10 @@ goal 相对起点改过的每个文件，标出新增的行（绿色，+）和�
 | 你想 | 这样做 |
 |---|---|
 | 立刻停止 goal | 顶部的 **Cancel**。运行中的会话会停止。已完成的工作留在 goal 的分支上。 |
-| 停止后再运行一次 | **⋯ → Restart…**。选 **All tasks from the beginning** 或某一个任务；那个任务和之后的所有任务会用新的尝试重新运行。之前的任务保留结果，重启的任务在已有工作的基础上继续。goal 处于 blocked、done、failed 或 cancelled 时可用。 |
+| 停止后再运行一次 | **⋯ → Restart…**。选 **All tasks from the beginning** 或某一个任务；那个任务和之后的所有任务会用新的尝试重新运行。之前的任务保留结果，重启的任务在已有工作的基础上继续。goal 处于 blocked、done、over-delivered、failed 或 cancelled 时可用。 |
 | 重做一个任务 | 在 **Tasks** 标签打开它，按 **Restart from here**。 |
 | 批准前重新规划 | **⋯ → Re-run Clarify**（Brief 页面上也有）。 |
-| 删除 goal | **⋯ → Delete goal…**。运行中的会话停止，任务文件夹和附件移到废纸篓，goal 从列表中消失。勾选 **Also delete the branch** 会连 goal 的分支一起删除；如果你从没交付过，这些工作就没了。 |
+| 删除 goal | **⋯ → Delete goal…**。运行中的会话停止。进度文件夹、任务文件夹和 goal 的分层交付分支会被永久删除；附件移到废纸篓。goal 从列表中消失，它的事件历史会保留。勾选 **Also delete the branch** 会连 goal 的分支一起删除；如果你从没推送过，这些工作就没了。 |
 
 ## The Agents page
 

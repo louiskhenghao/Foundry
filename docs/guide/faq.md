@@ -4,7 +4,7 @@
 
 ## Why did it stop?
 
-Foundry stops and asks you only for a short list of reasons: a question only you can answer, a task that failed several times, two tasks that changed the same lines, a failed final review, a command that would leave your computer, a budget reached, or a milestone to look at. Each one appears in the **Inbox** (the number in the top bar) with the buttons to continue.
+Once the goal runs, Foundry stops and asks you only for a short list of reasons: a task that failed several times, two tasks that changed the same lines, a failed final review, a command that would leave your computer, a tool that was denied, a budget reached, or a milestone to look at. Each one appears in the **Inbox** (the number in the top bar) with the buttons to continue. Questions only you can answer come earlier, on the Brief page.
 
 ![The Inbox with one item: a task that used all its attempts, with Suggest a hint and Retry with hint](images/inbox.png)
 
@@ -20,7 +20,7 @@ Probably not. Check in this order:
 4. **The Agents page.** A session marked working is working.
 5. **The top bar** says **live**. If it says **reconnecting…**, the page lost contact with Foundry; reload it, and check that Foundry is still running.
 
-A session that seems stuck is stopped after 20 minutes by default and resumed, so a real hang does not last.
+A task attempt that seems stuck is stopped after 20 minutes by default (**Attempt timeout** in Settings) and resumed, so a real hang does not last. A Clarify session stops after 15 minutes, the final review after 30.
 
 ## Can I change the plan after approving?
 
@@ -39,7 +39,7 @@ Before approving, everything is editable: [Approving the Brief](./approving-the-
 - Pick the **Economy** or **Balanced** model preset (**Models** on the New goal form, or [Settings → Models & limits](./settings.md#preset-per-goal-type)).
 - Tick **Fast mode** for routine goals.
 - Set **Effort** to **low** for small goals.
-- Mark easy tasks **simple** on the Brief; they run on the cheapest model.
+- Mark easy tasks **simple** on the Brief; they run on the preset's **Simple tasks** model (Sonnet instead of Opus in Production; for code goals in Balanced it is the same model as Standard).
 - Set a budget; the goal stops and asks when it is reached.
 
 More in [Costs and usage](./costs-and-usage.md#ways-to-spend-less).
@@ -74,7 +74,7 @@ No. With the default **Local only**, nothing leaves your computer. It pushes or 
 
 ## Why is a task "standard"?
 
-Foundry rates each task **simple**, **standard** or **complex** when it writes the plan, and **standard** is the normal case: typical feature work. The rating picks the model: simple tasks run on the cheapest model of the preset, complex ones on the strongest. You can change it on the Brief before approving. See [Difficulty](./approving-the-brief.md#difficulty).
+Foundry rates each task **simple**, **standard** or **complex** when it writes the plan, and **standard** is the normal case: typical feature work. The rating picks the model: simple tasks run on the preset's **Simple tasks** model (Sonnet in Production; for code goals in Balanced it is the same as Standard), complex ones on its **Complex tasks** model. You can change it on the Brief before approving. See [Difficulty](./approving-the-brief.md#difficulty).
 
 ## Can I use it from my phone?
 

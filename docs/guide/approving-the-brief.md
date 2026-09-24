@@ -21,7 +21,7 @@ The Brief opens in the view you chose on the New goal form. Switch with **Expert
 - The badge next to the title reads **approve brief** while the Brief waits for you.
 - Under the title: the project folder, the branch the goal starts from, and the goal's own branch.
 - A small line says which version of your project Foundry read, for example "Explored origin/main (your local main was 3 behind)". If it warns that the remote was not fetched and you know others changed the project since, press **Re-run Clarify**.
-- **Re-run Clarify** throws this Brief away, fetches the latest version of your project and plans again. Attachments, budget and delivery settings are kept, and so are your decisions.
+- **Re-run Clarify** throws this Brief away, fetches the latest version of your project and plans again. Attachments, budget and delivery settings are kept. Your decisions are handed to the new Clarify as text: it plans with them and does not ask again, but they do not come back as items in the **Decisions** card. You land on the goal page while it works.
 - The **goal** panel shows your original description.
 
 ## Understanding
@@ -85,7 +85,7 @@ You can also approve with decisions not applied. Workers still receive them; the
 
 - Rename an Area or change its one-line description in place.
 - **Add Area** adds one.
-- The trash icon deletes one. Its tasks become unassigned.
+- The trash icon deletes one. Its tasks become unassigned, and its questions are removed.
 - An Area with no tasks is outlined in red: that part would not be built. Press **Draft tasks for this Area** to have Foundry propose one to six tasks for it, or delete the Area.
 
 ## Plan
@@ -94,7 +94,7 @@ You can also approve with decisions not applied. Workers still receive them; the
 
 ### Stages and the graph
 
-At the top is a graph of the tasks, coloured by Area, with arrows for "this waits for that". Below it the tasks are listed by **Stage**. Tasks in one stage do not depend on each other and can run at the same time (**Stage 2 · 3 in parallel · after the previous stage**). A stage starts when the one before it is done.
+At the top is a graph of the tasks, coloured by Area, with arrows for "this waits for that". Below it the tasks are listed by **Stage**. Tasks in one stage do not depend on each other and can run at the same time (**Stage 2 · 3 in parallel · after the previous stage**). The stages are a way to read the plan: in fact a task starts as soon as the tasks it waits for are done, as far as the goal's parallel limit allows.
 
 With several Areas, the chips above the list filter it (**all Areas** shows everything). A very large goal gets a yellow note suggesting you split it into one goal per Area.
 
@@ -142,7 +142,7 @@ Difficulty picks which model does the task, from the goal's [model preset](./set
 | **standard — typical feature work** | a new page with its form, an API endpoint with tests, most tasks | the **Standard tasks** model |
 | **complex — cross-cutting, risky** | changes across many parts, architecture, data migrations, concurrency, large refactors | the **Complex tasks** model (usually the strongest) |
 
-Raising a task to complex makes it more likely to succeed on the first try, and more expensive. The last attempt of a task that keeps failing runs on the Complex model anyway (see [Settings](./settings.md#last-attempt-on-the-complex-task-model)).
+Raising a task to complex makes it more likely to succeed on the first try, and more expensive. The last attempt of a task that keeps failing runs on the Complex model anyway, when the task is allowed two or more attempts (see [Settings](./settings.md#last-attempt-on-the-complex-task-model)).
 
 ### Milestones
 
@@ -154,8 +154,8 @@ When a milestone task lands, Foundry starts nothing new, lets running tasks fini
 
 ### Parallel and runs after
 
-- **runs after …** (or **runs first (no dependencies)**) opens a list: tick the tasks this one must wait for. A loop ("A after B, B after A") is refused.
-- **parallel**: ticked means the task may run at the same time as other ready tasks. Untick it for a task that must run alone.
+- **runs after …** (or **runs first (no dependencies)**) opens a list: tick the tasks this one must wait for. A loop ("A after B, B after A") is accepted, but the graph flags it and **Approve & run** stays greyed out ("task graph has a cycle") until you remove it.
+- **parallel**: ticked means the task may run at the same time as other ready tasks. Untick it for a task that must not start while others run: it waits until nothing else of the goal is running. Once it has started, parallel tasks can start beside it.
 
 ### Draft with AI
 
@@ -213,7 +213,7 @@ Documents are written after the final review passes and saved on the goal's bran
 
 The card shows **Estimated cost** and **Estimated time**, with your budget next to them.
 
-With the **Auto** budget, the card is titled **Estimate → proposed budget**: Foundry proposes twice the estimate as the limit. Edit **max cost $** and **max minutes**, press **Keep unlimited** for no limit, or **Use estimate ×2** to go back to the proposal. With a budget you set yourself, the card warns in yellow if the estimate is higher. The change is applied when you approve.
+With the **Auto** budget, the card is titled **Estimate → proposed budget**: Foundry proposes twice the estimate as the limit, rounded up, and never less than $3 and 30 minutes. Edit **max cost $** and **max minutes**, press **Keep unlimited** for no limit, or **Use estimate ×2** to go back to the proposal. With a budget you set yourself, the card warns in yellow if the estimate is higher. The change is applied when you approve.
 
 Reaching a limit never destroys work: the goal pauses and asks you. See [When Foundry needs you](./when-foundry-needs-you.md#the-budget-ran-out).
 

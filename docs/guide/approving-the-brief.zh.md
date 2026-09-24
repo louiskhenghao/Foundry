@@ -21,7 +21,7 @@ Brief 会以你在 New goal 表单上选的视图打开。用顶部的 **Expert 
 - Brief 等你处理时，标题旁边的徽标显示 **approve brief**。
 - 标题下面：项目文件夹、goal 从哪个分支开始，以及 goal 自己的分支。
 - 有一行小字说明 Foundry 读的是你项目的哪个版本，比如 "Explored origin/main (your local main was 3 behind)"。如果它提示没有拉取远端（remote），而你知道之后别人改过项目，就按 **Re-run Clarify**。
-- **Re-run Clarify** 会丢掉这份 Brief，拉取你项目的最新版本，然后重新规划。附件、预算和交付设置都会保留，你的决定也会保留。
+- **Re-run Clarify** 会丢掉这份 Brief，拉取你项目的最新版本，然后重新规划。附件、预算和交付设置都会保留。你的决定会以文字形式交给新的 Clarify：它会按这些决定来规划，不会再问一遍，但它们不会作为条目回到 **Decisions** 卡片里。它工作期间，你会回到 goal 页面。
 - **goal** 面板显示你最初的描述。
 
 ## Understanding
@@ -85,7 +85,7 @@ Foundry 用自己的话说它理解了什么。先读这个：如果这里错了
 
 - 直接在原处改 Area 的名字或它的一行说明。
 - **Add Area** 新增一个。
-- 垃圾桶图标删除一个。它的任务会变成未分配。
+- 垃圾桶图标删除一个。它的任务会变成未分配，它的问题会被删掉。
 - 没有任务的 Area 会用红框标出：这部分将不会被做出来。按 **Draft tasks for this Area**，让 Foundry 为它提议一到六个任务，或者删掉这个 Area。
 
 ## Plan
@@ -94,7 +94,7 @@ Foundry 用自己的话说它理解了什么。先读这个：如果这里错了
 
 ### 阶段和任务图
 
-最上面是任务图，按 Area 着色，箭头表示"这个要等那个"。下面按 **Stage** 列出任务。同一阶段的任务互不依赖，可以同时跑（**Stage 2 · 3 in parallel · after the previous stage**）。前一个阶段完成后，下一个阶段才开始。
+最上面是任务图，按 Area 着色，箭头表示"这个要等那个"。下面按 **Stage** 列出任务。同一阶段的任务互不依赖，可以同时跑（**Stage 2 · 3 in parallel · after the previous stage**）。阶段只是方便你阅读计划：实际上，一个任务等的那些任务一完成，它就会开始，只受 goal 并行上限的限制。
 
 有多个 Area 时，列表上方的标签可以筛选（**all Areas** 显示全部）。非常大的 goal 会出现一条黄色提示，建议你按 Area 拆成多个 goal。
 
@@ -142,7 +142,7 @@ Foundry 用自己的话说它理解了什么。先读这个：如果这里错了
 | **standard — typical feature work** | 一个带表单的新页面、一个带测试的 API 接口、大多数任务 | **Standard tasks** 模型 |
 | **complex — cross-cutting, risky** | 跨很多部分的改动、架构、数据迁移、并发、大型重构 | **Complex tasks** 模型（通常最强） |
 
-把任务调到 complex，第一次就成功的可能性更大，也更贵。一个任务老是失败时，它的最后一次尝试无论如何都会用 Complex 模型来跑（见 [设置说明](./settings.zh.md#最后一次尝试换用-complex-tasks-模型)）。
+把任务调到 complex，第一次就成功的可能性更大，也更贵。一个任务老是失败时，只要它允许两次或更多尝试，最后一次尝试无论如何都会用 Complex 模型来跑（见 [设置说明](./settings.zh.md#最后一次尝试换用-complex-tasks-模型)）。
 
 ### Milestones
 
@@ -154,8 +154,8 @@ Foundry 用自己的话说它理解了什么。先读这个：如果这里错了
 
 ### 并行和先后顺序
 
-- **runs after …**（或 **runs first (no dependencies)**）会打开一个列表：勾选这个任务必须等待的任务。循环（"A 在 B 之后，B 在 A 之后"）会被拒绝。
-- **parallel**：勾上表示这个任务可以和其它就绪的任务同时跑。必须单独跑的任务就取消勾选。
+- **runs after …**（或 **runs first (no dependencies)**）会打开一个列表：勾选这个任务必须等待的任务。循环（"A 在 B 之后，B 在 A 之后"）不会被拒绝，但任务图会标出来，而且在你去掉它之前，**Approve & run** 一直是灰的（"task graph has a cycle"）。
+- **parallel**：勾上表示这个任务可以和其它就绪的任务同时跑。如果某个任务不能在别的任务运行时开始，就取消勾选：它会等到这个 goal 没有别的任务在运行时才开始。它开始之后，勾了 parallel 的任务仍可以和它同时跑。
 
 ### Draft with AI
 
@@ -213,7 +213,7 @@ Foundry 从不自作主张扩大范围：stretch 检查存在，只是因为它�
 
 卡片显示 **Estimated cost** 和 **Estimated time**，旁边是你的预算。
 
-用 **Auto** 预算时，卡片标题是 **Estimate → proposed budget**：Foundry 提议把估算的两倍作为上限。你可以改 **max cost $** 和 **max minutes**，按 **Keep unlimited** 表示不设上限，或者按 **Use estimate ×2** 回到提议值。如果是你自己设的预算，而估算比它高，卡片会用黄色提醒。改动在你批准时生效。
+用 **Auto** 预算时，卡片标题是 **Estimate → proposed budget**：Foundry 提议把估算的两倍作为上限，向上取整，而且不少于 $3 和 30 分钟。你可以改 **max cost $** 和 **max minutes**，按 **Keep unlimited** 表示不设上限，或者按 **Use estimate ×2** 回到提议值。如果是你自己设的预算，而估算比它高，卡片会用黄色提醒。改动在你批准时生效。
 
 碰到上限从不会毁掉已做的工作：goal 会暂停并问你。见 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md#预算用完了)。
 

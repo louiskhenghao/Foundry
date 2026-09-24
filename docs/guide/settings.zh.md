@@ -27,7 +27,7 @@
 
 在 **Delivery — what happens to the branch when a goal finishes** 下：**Mode for new goals**（local only）、**Granularity**（one PR per goal）和 **Remote**（origin）。见 [拿到结果](./getting-the-result.zh.md)。
 
-值得知道：New goal 表单会在这个浏览器里记住你上次的选择，并随每个 goal 一起发送。所以这里的 **Default goal view**、**Pace**、**TDD** 和交付默认值，影响的是不通过表单创建的 goal（比如从命令行创建的），而表单会保留你自己上次的选择。**Interview**、**Effort** 和模型预设则不同：只要表单保持默认，就跟随 Settings。
+值得知道：New goal 表单就从这些默认值开始。**Default goal view**、**Pace**、**TDD**，以及交付的 **Mode for new goals** 和 **Granularity** 都从这里填入；项目里有这里写的 **Remote** 时，表单也会选它。你在表单上改过的字段，会为这个 goal 保留你的选择。**Interview**、**Effort** 和模型预设只要在表单上保持默认，就跟随 Settings。表单自己会在这个浏览器里记住 goal 类型、预算，以及更细的交付选项（比如合并方式）。
 
 什么时候改：喜欢被提问的话，把 **Interview before the Brief** 设为 **always**；大多数 goal 都很小的话，调低 **Effort**；如果你宁愿自己看没通过的审查，把 **Goal-level fix cycles** 降到 0。
 
@@ -46,7 +46,7 @@
 | **Clarify** | 读你的项目、访谈你、写 Brief。 |
 | **Planner** | 在澄清阶段把 goal 拆成任务。 |
 | **Simple tasks**, **Standard tasks**, **Complex tasks** | 干活的 worker，按 Brief 上设的难度区分。 |
-| **Merge attempts** | 合并两个改了同一段代码的任务。 |
+| **Merge attempts** | 合并两个改了同一段代码的任务；基础分支有了新进展而产生冲突时，也由它来解决。 |
 | **Goal reviewer** | 对整个结果的最终审查。单个会话里最贵的一个。 |
 | **Task reviewer** | 对每个任务的简短审查。 |
 | **Documenter** | 写完成文档。 |
@@ -182,7 +182,7 @@ key 对下一个会话生效，不用重启。更多见 [费用与用量](./cost
 
 | 开关 | 什么时候收到消息 | 该做什么 |
 |---|---|---|
-| **Needs you** | 某个 goal 或任务在等你：一个问题、一个失败的任务、预算用完、一个里程碑要看。 | 打开 Inbox 或 goal 回应。你回应之前，那一部分会一直等着。见 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md)。 |
+| **Needs you** | 某个 goal 或任务在等你：一个失败的任务、一条被拦下的命令、预算用完、一个里程碑要看。 | 打开 Inbox 或 goal 回应。你回应之前，那一部分会一直等着。见 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md)。 |
 | **Interview round** | Foundry 写 Brief 前问一轮问题。 | 回答它们；goal 在等你。 |
 | **Goal finished** | 某个 goal 以 done、over-delivered 或 failed 结束。你自己取消的不会发。 | 看结果，或看哪里失败了。 |
 | **Delivery** | 有 pull request 开出或合并了，或者交付失败了。 | 审查 pull request，或看 Delivery 标签。 |
@@ -193,7 +193,7 @@ key 对下一个会话生效，不用重启。更多见 [费用与用量](./cost
 
 ## Safety
 
-- **Extra boundary patterns**：除了推送、部署和付费服务之外，Foundry 绝不能让会话自己执行的命令，比如 `terraform apply|kubectl`。被拦下的命令会进入你的 Inbox 等你批准。
+- **Extra boundary patterns**：除了内置的那些（推送、pull request、发布版本、发布包、部署、云工具）之外，Foundry 绝不能让会话自己执行的命令，比如 `terraform apply|kubectl`。被拦下的命令会进入你的 Inbox 等你批准。
 - **Folder browser roots**：**Select folder…** 选择器可以打开哪些文件夹。留空表示你的主文件夹和外接硬盘。
 
 ## Engine (install)
