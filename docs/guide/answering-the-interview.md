@@ -39,11 +39,11 @@ The small grey text under the question. It says what Foundry found in your proje
 
 ### Follows from
 
-Some questions say **follows from …**, followed by the key of an earlier question, such as `R1Q2` (round 1, question 2). That question only makes sense because of how you answered the earlier one. Questions that depend on answers you have not given yet wait for the next round.
+Some questions say **follows from …**, followed by the earlier question: "question 2" in the same round, or "round 1, question 2" with the start of its text. That question only makes sense because of how you answered the earlier one. Questions that depend on answers you have not given yet wait for the next round.
 
 ### Blocking questions
 
-A question marked **blocking** must be answered before **Send answers** works. Hover over the greyed-out button to see which are still open: it lists their keys, such as `R2Q1`. **Accept all recommended** and **Enough — write the Brief** work even with blocking questions open.
+A question marked **blocking** must be answered before **Send answers** works. Hover over the greyed-out button to see which are still open: it lists their numbers. **Accept all recommended** and **Enough — write the Brief** work even with blocking questions open.
 
 ## The three buttons
 
@@ -65,7 +65,7 @@ Stops the questions. Foundry writes the Brief with the answers you gave so far, 
 
 At most four rounds in total. Usually it is one or two. After the fourth round Foundry writes the Brief whatever is left open.
 
-Earlier rounds fold up under the current one: **▸ N earlier rounds** shows what was asked and what you answered.
+Earlier rounds fold up under the current one: **▸ N earlier rounds** shows what was asked and what you answered. A question you left unanswered says so: the Clarifier went with its recommendation and listed it under Assumptions on the Brief.
 
 ## While it plans
 

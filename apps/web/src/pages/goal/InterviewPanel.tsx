@@ -68,7 +68,7 @@ export function InterviewPanel({ goal }: { goal: Goal }) {
                         {q.blocking && <span className="ml-2 text-[10px] uppercase tracking-wide text-amber-300">blocking</span>}
                       </div>
                       {q.reason && <div className="text-[11px] text-zinc-500 mt-1 whitespace-pre-wrap">{q.reason}</div>}
-                      {q.dependsOn && <div className="text-[11px] text-zinc-600 mt-0.5">follows from {q.dependsOn}</div>}
+                      {q.dependsOn && <div className="text-[11px] text-zinc-600 mt-0.5">follows from {questionRef(iv.rounds, q.dependsOn, open.round)}</div>}
                     </div>
                   </div>
                   <div className="flex flex-col gap-1 pl-5">
@@ -91,7 +91,7 @@ export function InterviewPanel({ goal }: { goal: Goal }) {
             </ol>
             {err && <div className="text-rose-300">{err}</div>}
             <div className="flex items-center gap-2 flex-wrap">
-              <Button size="sm" variant="primary" disabled={busy !== null || missing.length > 0} onClick={() => submit('send', false, collected())} title={missing.length ? `answer the blocking question(s) first: ${missing.map((q) => q.key).join(', ')}` : 'Send these answers; the Clarifier asks the next round or writes the Brief'}>
+              <Button size="sm" variant="primary" disabled={busy !== null || missing.length > 0} onClick={() => submit('send', false, collected())} title={missing.length ? `answer the blocking question${missing.length === 1 ? '' : 's'} first: ${missing.map((q) => open.questions.indexOf(q) + 1).join(', ')}` : 'Send these answers; the Clarifier asks the next round or writes the Brief'}>
                 <Send size={12} /> {busy === 'send' ? 'Sending…' : 'Send answers'}
               </Button>
               <Button size="sm" variant="default" disabled={busy !== null} onClick={() => submit('all', false, recommended())} title="Unanswered questions take the recommended option">
@@ -125,7 +125,7 @@ export function InterviewPanel({ goal }: { goal: Goal }) {
                     <ul className="space-y-1">
                       {r.questions.map((q) => (
                         <li key={q.key} className="text-[11px]">
-                          <span className="text-zinc-400">{q.text}</span> <span className="text-zinc-200">— {r.answers?.[q.key] ?? <span className="text-zinc-600">(recommended)</span>}</span>
+                          <span className="text-zinc-400">{q.text}</span> <span className="text-zinc-200">— {r.answers?.[q.key] ?? <span className="text-zinc-600">not answered: the Clarifier went with its recommendation and listed it under Assumptions</span>}</span>
                         </li>
                       ))}
                     </ul>
@@ -138,6 +138,18 @@ export function InterviewPanel({ goal }: { goal: Goal }) {
       </div>
     </Card>
   );
+}
+
+/** a question key (R1Q2) as a person reads it: "question 2" in the round on screen, "round 1, question 2 (…)" otherwise */
+function questionRef(rounds: { round: number; questions: { key: string; text: string }[] }[], key: string, current: number): string {
+  for (const r of rounds) {
+    const i = r.questions.findIndex((q) => q.key === key);
+    if (i < 0) continue;
+    if (r.round === current) return `question ${i + 1}`;
+    const text = r.questions[i]!.text;
+    return `round ${r.round}, question ${i + 1} ("${text.length > 60 ? `${text.slice(0, 60)}…` : text}")`;
+  }
+  return 'an earlier answer';
 }
 
 /** "Planning with your answers · 3m 20s", ticking */

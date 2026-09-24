@@ -39,11 +39,11 @@ Foundry 写 Brief 之前，会先读你的项目和附件。大部分问题它�
 
 ### 承接的问题
 
-有些问题会写着 **follows from …**，后面跟着前面某个问题的编号，比如 `R1Q2`（第 1 轮第 2 题）。这个问题之所以有意义，是因为你对前面那个问题的回答。依赖于你还没给出的答案的问题，会等到下一轮再问。
+有些问题会写着 **follows from …**，后面跟着前面那个问题：同一轮里写 "question 2"，前面的轮次写 "round 1, question 2" 再加上那个问题的开头。这个问题之所以有意义，是因为你对前面那个问题的回答。依赖于你还没给出的答案的问题，会等到下一轮再问。
 
 ### blocking 问题
 
-标着 **blocking** 的问题必须先回答，**Send answers** 才能用。鼠标悬停在变灰的按钮上，可以看到还有哪些没答：它会列出这些问题的编号，比如 `R2Q1`。即使还有 blocking 问题没答，**Accept all recommended** 和 **Enough — write the Brief** 也能用。
+标着 **blocking** 的问题必须先回答，**Send answers** 才能用。鼠标悬停在变灰的按钮上，可以看到还有哪些没答：它会列出这些问题的序号。即使还有 blocking 问题没答，**Accept all recommended** 和 **Enough — write the Brief** 也能用。
 
 ## 三个按钮
 
@@ -65,7 +65,7 @@ Foundry 写 Brief 之前，会先读你的项目和附件。大部分问题它�
 
 总共最多四轮。通常是一两轮。第四轮之后，不管还剩什么没定，Foundry 都会开始写 Brief。
 
-之前的轮次会折叠在当前这一轮下面：**▸ N earlier rounds** 显示问过什么、你答了什么。
+之前的轮次会折叠在当前这一轮下面：**▸ N earlier rounds** 显示问过什么、你答了什么。你没回答的问题也会注明：Clarifier 按它的推荐处理，并把它列在 Brief 的 Assumptions 里。
 
 ## 规划期间
 
