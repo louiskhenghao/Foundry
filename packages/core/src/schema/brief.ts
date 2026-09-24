@@ -66,6 +66,8 @@ export const BriefTask = z.object({
   dependsOnKeys: z.array(z.string()).default([]),
   parallelizable: z.boolean().default(true),
   relevantFiles: z.array(z.string()).default([]),
+  /** routine / normal / hard: picks the worker model route; absent = normal */
+  difficulty: z.enum(['routine', 'normal', 'hard']).optional(),
   /** what to look at or try when this task lands; set = milestone, the goal pauses there for a human look */
   milestone: z.string().nullable().optional(),
 });
@@ -142,6 +144,9 @@ const OutputTask = z.object({
   dependsOnKeys: z.array(z.string()),
   parallelizable: z.boolean(),
   relevantFiles: z.array(z.string()).describe('Repo-relative paths the worker should start from.'),
+  difficulty: z
+    .enum(['routine', 'normal', 'hard'])
+    .describe('How hard this task is for one engineer-session. routine = mechanical, well-trodden (scaffold from a template, copy edits, config, one small component); normal = typical feature work; hard = cross-cutting, subtle or high-risk (architecture, concurrency, data migration, tricky algorithms, a large refactor). It picks the model the worker runs on: be honest, most tasks are normal.'),
   milestone: z
     .string()
     .nullable()

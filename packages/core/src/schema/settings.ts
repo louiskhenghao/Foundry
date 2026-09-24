@@ -32,6 +32,19 @@ export const ModelSettings = z.object({
   worker: z.string().min(1).default('opus'),
   /** tried in order when a tier's model is unavailable (deprecated, unknown alias …) */
   fallbacks: z.array(z.string().min(1)).default(['opus', 'sonnet', 'haiku']),
+  /** per-role overrides: a tier name (strong / worker / cheap) or a model id; null = the role's default tier */
+  clarifier: z.string().min(1).nullable().default(null),
+  planner: z.string().min(1).nullable().default(null),
+  merger: z.string().min(1).nullable().default(null),
+  taskReviewer: z.string().min(1).nullable().default(null),
+  documenter: z.string().min(1).nullable().default(null),
+  feedback: z.string().min(1).nullable().default(null),
+  /** worker model per task difficulty: a tier name or a model id */
+  routeRoutine: z.string().min(1).default('worker'),
+  routeNormal: z.string().min(1).default('worker'),
+  routeHard: z.string().min(1).default('strong'),
+  /** the last attempt of a budget ≥ 2, and every attempt you grant beyond the budget, run on the strong tier */
+  escalateLastAttempt: z.boolean().default(true),
 });
 export const SessionSettings = z.object({
   /** how many times one attempt may resume its session (interrupted, capped, or checks still failing with progress) before a fresh attempt; 0 = never */

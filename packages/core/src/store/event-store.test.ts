@@ -58,7 +58,7 @@ function task(id: string, goalId: string): Task {
     origin: 'brief',
     milestone: null,
     milestoneVisits: 0,
-    checkpointOf: null,
+    checkpointOf: null, difficulty: 'normal' as const,
     state: 'pending',
     branch: null,
     worktreePath: null,
