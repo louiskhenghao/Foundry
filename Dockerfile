@@ -59,6 +59,12 @@ COPY packages/server/package.json packages/server/
 COPY apps/cli/package.json apps/cli/
 COPY apps/web/package.json apps/web/
 RUN bun install --frozen-lockfile --production
+# Chromium's system libraries and fonts for the headless self-check, from the same Playwright the engine imports.
+# install-deps needs root, so it happens here; the browser itself is downloaded on demand (Settings → Preview &
+# self-check). Xvfb (headed runs only) and the Mesa/LLVM stack it pulls in are removed again: ~150 MB never used.
+RUN node packages/engine/node_modules/playwright/cli.js install-deps chromium \
+ && apt-get purge -y --auto-remove xvfb \
+ && rm -rf /var/lib/apt/lists/*
 
 COPY tsconfig.base.json tsconfig.json ./
 COPY packages ./packages
@@ -74,11 +80,13 @@ COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 COPY --from=build /app/apps/web/dist ./apps/web/dist
 
 # everything Claude Code keeps (login, sessions, skills) lives in one mounted directory
+# Chromium goes to one fixed, node-owned folder whatever HOME is; the compose file keeps it in a volume across updates
 ENV CLAUDE_CONFIG_DIR=/home/node/.claude \
+    PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright \
     FOUNDRY_HOST=0.0.0.0 \
     FOUNDRY_PORT=4111 \
     FOUNDRY_DOCKER=1
-RUN mkdir -p /app/data /home/node/.claude /repos && chown -R node:node /app /home/node /repos
+RUN mkdir -p /app/data /home/node/.claude /home/node/.cache/ms-playwright /repos && chown -R node:node /app /home/node /repos
 USER node
 EXPOSE 4111
 VOLUME ["/app/data", "/home/node/.claude"]
