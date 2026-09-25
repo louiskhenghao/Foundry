@@ -6,8 +6,8 @@ const CWD = '/Users/u/foundry/data/worktrees/g_1/_goal';
 describe('rm-guard judge', () => {
   // the real denied commands from a live worker transcript, minimised
   test('allows rm on workspace paths behind a simple VAR assignment', () => {
-    expect(judge(`ROOT=${CWD}/apps/stickman-arena; rm -rf "$ROOT/.git" "$ROOT/.claude"; ls -a "$ROOT"`, CWD).allow).toBe(true);
-    expect(judge(`set -e\nROOT=${CWD}\nmkdir -p "$ROOT/apps"\nrm -rf /tmp/stickman-tpl`, CWD).allow).toBe(true);
+    expect(judge(`ROOT=${CWD}/apps/demo-game; rm -rf "$ROOT/.git" "$ROOT/.claude"; ls -a "$ROOT"`, CWD).allow).toBe(true);
+    expect(judge(`set -e\nROOT=${CWD}\nmkdir -p "$ROOT/apps"\nrm -rf /tmp/demo-game-tpl`, CWD).allow).toBe(true);
   });
   test('allows relative rm inside the workspace', () => {
     expect(judge('rm -rf node_modules dist', CWD).allow).toBe(true);

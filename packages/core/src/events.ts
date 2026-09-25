@@ -198,6 +198,12 @@ export const EngineEvent = z.discriminatedUnion('type', [
   /** something the pipeline decided on its own (e.g. fell back from a stack to one PR) */
   ev('delivery.note', { message: z.string() }),
   ev('delivery.completed', { outcome: DeliveryOutcome }),
+  /** after a merge: whether the user's local base branch now contains the work, and why not when it does not */
+  ev('delivery.local_synced', { upToDate: z.boolean(), detail: z.string() }),
+  /** after a merge: the progress folder, worktrees and local goal branches removed (done) or kept, with the reason */
+  ev('delivery.cleaned', { done: z.boolean(), detail: z.string() }),
+  /** a pull request was closed on GitHub without being merged (noticed after the delivery finished) */
+  ev('delivery.pr_closed', { prNumber: z.number().int() }),
   ev('delivery.failed', { step: DeliveryStep, reason: z.string() }),
   ev('rate_limit.paused', { rateLimitType: z.string().nullable(), until: z.string(), reason: z.string() }),
   ev('rate_limit.resumed', { reason: z.string() }),

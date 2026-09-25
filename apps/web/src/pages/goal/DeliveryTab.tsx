@@ -3,6 +3,7 @@ import { CheckCircle2, CircleDashed, ExternalLink, Loader2, XCircle } from 'luci
 import { useEffect, useState } from 'react';
 import { api, type GoalDetail, type RepoInfo } from '../../api.ts';
 import { DeliveryPolicyForm, type PolicyDraft } from '../../components/DeliveryPolicyForm.tsx';
+import { MergeStatus } from '../../components/MergeStatus.tsx';
 import { Badge, Button, Card, cn } from '../../ui.tsx';
 
 const STEP_LABEL: Record<string, string> = { preflight: 'Preflight', 'ensure-remote': 'Remote', 'sync-base': 'Sync with base', 'build-stack': 'Build stack', push: 'Push', 'open-pr': 'Open PR', 'wait-checks': 'CI checks', 'fix-ci': 'Fix CI', merge: 'Merge', cleanup: 'Cleanup' };
@@ -119,6 +120,7 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
             {del.mergedRef && <span className="mono text-zinc-500">merged {del.mergedRef.slice(0, 7)}</span>}
             {del.fixCycles > 0 && <span className="text-zinc-400">fix-CI cycles: {del.fixCycles}</span>}
           </div>
+          <MergeStatus goal={g} className="mt-3" />
           {del.error && <div className="mt-2 text-xs text-rose-300 whitespace-pre-wrap">{del.error}</div>}
           {commands.length > 0 && (
             <details className="mt-3">

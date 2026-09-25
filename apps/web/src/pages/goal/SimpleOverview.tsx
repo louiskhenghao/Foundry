@@ -1,3 +1,4 @@
+import { MergeStatus } from '../../components/MergeStatus.tsx';
 import { Check, Settings2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { GoalDetail } from '../../api.ts';
@@ -104,8 +105,14 @@ export function SimpleOverview({ d, onExpert, onDeliver }: { d: GoalDetail; onEx
           <div className="flex items-center gap-3 flex-wrap text-sm text-zinc-300">
             <Check size={14} className="text-emerald-300" />
             <span>
-              The work is on branch <span className="mono text-zinc-100">{g.branch}</span> in your repository.
-              {g.delivery.status === 'delivered' ? ' It has been delivered as configured.' : ' Nothing has left your machine.'}
+              {g.delivery.cleanup?.done ? (
+                <>The work is in your repository on <span className="mono text-zinc-100">{g.delivery.policy.baseBranch ?? g.baseBranch}</span>.</>
+              ) : (
+                <>
+                  The work is on branch <span className="mono text-zinc-100">{g.branch}</span> in your repository.
+                  {g.delivery.status === 'delivered' ? ' It has been delivered as configured.' : ' Nothing has left your machine.'}
+                </>
+              )}
             </span>
             <span className="ml-auto flex items-center gap-2">
               <OpenMenu goalId={g.id} places={[...(d.paths.workspace ? [{ which: 'workspace' as const, label: 'The result', path: d.paths.workspace, hint: `branch ${g.branch}` }] : []), { which: 'repo' as const, label: 'Your repository', path: d.paths.repo }]} label="Open" />
@@ -116,6 +123,7 @@ export function SimpleOverview({ d, onExpert, onDeliver }: { d: GoalDetail; onEx
               )}
             </span>
           </div>
+          <MergeStatus goal={g} className="mt-3" />
         </Card>
       )}
       <div className="text-[11px] text-zinc-600">

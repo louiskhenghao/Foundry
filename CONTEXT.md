@@ -118,7 +118,7 @@ The single commit a finished Task becomes on the Goal branch. Whatever a Task's 
 A *task*-unit Delivery: the Task Commits are re-applied one by one on top of the remote base branch, each step becoming a branch and a pull request based on the one below it, titled with the Task Commit's header. The stack is merged bottom-up; a Task Commit that cannot be re-applied makes the engine fall back to one pull request for the whole Goal and say so.
 
 **Delivery**
-The engine carrying out a Delivery Policy after a Goal is finished: syncing the Goal branch with the base branch (conflicts are resolved by a Merge Attempt), pushing, opening the pull request, waiting for its checks, fixing them a bounded number of times, merging, and tidying the remote branch. Every remote action is recorded with the exact command. A Delivery can be *delivered*, *failed* (and re-run), or cancelled; it never force-pushes and never pushes to the base branch.
+The engine carrying out a Delivery Policy after a Goal is finished: syncing the Goal branch with the base branch (conflicts are resolved by a Merge Attempt), pushing, opening the pull request, waiting for its checks, fixing them a bounded number of times, merging, and tidying the remote branch. Every remote action is recorded with the exact command. A Delivery can be *delivered*, *failed* (and re-run), or cancelled; it never force-pushes and never pushes to the base branch. Once its pull request has merged — during the Delivery or noticed later — the merged work is brought to the user's own base branch by a fast-forward when that is safe, and the Goal's Progress folder and local branches are then removed, unless anything in them is not in the base branch yet.
 
 ## Workspace
 

@@ -80,6 +80,21 @@ export class FakeGh implements GhClient {
     if (this.closeDependentsOnMerge) for (const other of this.prs.values()) if (other.state === 'OPEN' && other.base === pr.head) other.state = 'CLOSED';
     return { code: 0, stdout: 'merged', stderr: '' };
   }
+  /** a merge done on GitHub after the delivery finished (auto-merge that took long, or a human pressing Merge) */
+  async mergeOnGitHub(number: number): Promise<void> {
+    const pr = this.prs.get(number)!;
+    if (this.bareRemote) {
+      const head = (await git(['rev-parse', `refs/heads/${pr.head}`], this.bareRemote)).stdout.trim();
+      await git(['update-ref', `refs/heads/${pr.base}`, head], this.bareRemote);
+      pr.mergeCommit = head;
+    }
+    pr.state = 'MERGED';
+    pr.mergedAt = new Date().toISOString();
+  }
+  /** a PR closed on GitHub without merging */
+  closeOnGitHub(number: number): void {
+    this.prs.get(number)!.state = 'CLOSED';
+  }
   /** GitHub closes a PR whose base branch disappears; simulate that right after its base PR merges */
   closeDependentsOnMerge = false;
   async prEdit(_cwd: string, i: { repo: string; number: number; base: string }): Promise<ExecResult> {

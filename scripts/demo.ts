@@ -114,7 +114,7 @@ const waitFor = async (pred: () => boolean, ms = 20_000) => {
 };
 
 /** start the demo; resolves once every seeded goal reached its state */
-export async function startDemo(): Promise<{ url: string; goals: Record<string, string>; stop: () => Promise<void> }> {
+export async function startDemo(): Promise<{ url: string; goals: Record<string, string>; engine: Engine; stop: () => Promise<void> }> {
   const tmp = mkdtempSync(join(tmpdir(), 'foundry-demo-'));
   const repo = join(tmp, 'studio-site');
   await Bun.$`mkdir -p ${repo}`.quiet();
@@ -141,6 +141,8 @@ export async function startDemo(): Promise<{ url: string; goals: Record<string, 
   return {
     url: `http://127.0.0.1:${DEMO_PORT}`,
     goals: { done: done.id, interview: interview.id, brief: brief.id, milestone: milestone.id, running: running.id, blocked: blocked.id },
+    // for QA scripts that need to record an event the scripted sessions never produce (e.g. a merged delivery)
+    engine,
     stop: async () => {
       server.stop(true);
       await engine.stop().catch(() => {});
