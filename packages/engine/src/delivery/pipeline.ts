@@ -1,3 +1,4 @@
+import { afterMerge } from './after-merge.ts';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Check, DeliveryPolicy, DeliveryStep, Goal, Task } from '@foundry/core';
@@ -101,9 +102,11 @@ export async function runDelivery(engine: Engine, goalIn: Goal, signal: AbortSig
       throw err instanceof DeliveryFailed ? err : new DeliveryFailed(s, msg);
     }
   };
-  const done = (outcome: 'pushed' | 'pr_open' | 'automerge_armed' | 'merged') => {
+  const done = async (outcome: 'pushed' | 'pr_open' | 'automerge_armed' | 'merged') => {
     ev({ type: 'delivery.completed', goalId: goal.id, payload: { outcome } });
     config.log(`[delivery] ${goal.id}: ${outcome}`);
+    // the work is on the remote base now: bring it to the user's checkout and tidy up (ADR-0015); never fails the delivery
+    if (outcome === 'merged') await afterMerge(engine, goal.id).catch((err) => config.log(`[delivery] ${goal.id}: after-merge failed: ${String((err as Error).message ?? err)}`));
   };
 
   try {
@@ -344,7 +347,7 @@ async function buildStack(ctx: Ctx, step: StepFn): Promise<StackBranch[] | null>
   return result ?? null;
 }
 
-async function runStacked(ctx: Ctx, stack: StackBranch[], step: StepFn, done: (o: 'pushed' | 'pr_open' | 'automerge_armed' | 'merged') => void): Promise<void> {
+async function runStacked(ctx: Ctx, stack: StackBranch[], step: StepFn, done: (o: 'pushed' | 'pr_open' | 'automerge_armed' | 'merged') => Promise<void>): Promise<void> {
   const { engine, goal, policy } = ctx;
   const { store } = engine;
   const ev = <T extends Parameters<typeof store.append>[0]>(e: T) => store.append(e);

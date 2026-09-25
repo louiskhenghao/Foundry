@@ -1,7 +1,8 @@
 /**
  * Keeping a goal in step with upstream without ever touching the user's checkout:
  * `fetchBase` only updates remote-tracking refs; `startRef` decides where the goal branch should start;
- * `pullFastForward` is the one explicit, user-triggered action that moves the local base branch (ff-only).
+ * `pullFastForward` is the one operation that moves the local base branch (ff-only): on the user's request, or after a
+ * delivery merged when `delivery.updateLocalBase` is on (ADR-0015).
  */
 import { exec, git } from './git.ts';
 
@@ -61,8 +62,8 @@ export function startRef(s: BaseSync, mode: 'auto' | 'local' = 'auto'): { ref: s
 }
 
 /**
- * Fast-forward the local base branch to its remote — the only operation that touches the user's checkout,
- * and only on request. Refuses when the branch is checked out with uncommitted changes or has diverged.
+ * Fast-forward the local base branch to its remote — the only operation that touches the user's checkout: on request,
+ * or after a merge (ADR-0015). Refuses when the branch is checked out with uncommitted changes or has diverged.
  */
 export async function pullFastForward(repoPath: string, base: string): Promise<{ ok: boolean; detail: string; before: string | null; after: string | null }> {
   const s = await fetchBase(repoPath, base);

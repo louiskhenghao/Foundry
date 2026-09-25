@@ -42,6 +42,7 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'workflow.autoskills': { name: 'FOUNDRY_AUTOSKILLS', parse: bool },
   'delivery.defaultMode': { name: 'FOUNDRY_DELIVERY_MODE', parse: str },
   'sync.fetchBeforeGoal': { name: 'FOUNDRY_SYNC_FETCH', parse: bool },
+  'delivery.updateLocalBase': { name: 'FOUNDRY_UPDATE_LOCAL_BASE', parse: bool },
   'sync.startFrom': { name: 'FOUNDRY_SYNC_START', parse: str },
   'sync.refreshBetweenTasks': { name: 'FOUNDRY_SYNC_REFRESH', parse: bool },
   'tools.markitdownBin': { name: 'FOUNDRY_MARKITDOWN', parse: str },
@@ -240,6 +241,7 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('delivery.noChecksGraceSec')) config.delivery.noChecksGraceMs = s.delivery.noChecksGraceSec * 1000;
   if (on('delivery.checksTimeoutMin')) config.delivery.checksTimeoutMs = s.delivery.checksTimeoutMin * 60_000;
   if (on('delivery.automergeWaitMin')) config.delivery.automergeWaitMs = s.delivery.automergeWaitMin * 60_000;
+  if (on('delivery.updateLocalBase')) config.delivery.updateLocalBase = s.delivery.updateLocalBase;
   if (on('sync.fetchBeforeGoal')) config.sync.fetchBeforeGoal = s.sync.fetchBeforeGoal;
   if (on('sync.startFrom')) config.sync.startFrom = s.sync.startFrom;
   if (on('sync.refreshBetweenTasks')) config.sync.refreshBetweenTasks = s.sync.refreshBetweenTasks;

@@ -49,6 +49,7 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'delivery.noChecksGraceSec': { section: 'Git & delivery', help: 'How long to wait for CI checks to appear on a PR in a repository that runs CI.' },
   'delivery.checksTimeoutMin': { section: 'Git & delivery', help: 'Give up waiting for pending checks after this long; the PR stays open.' },
   'delivery.automergeWaitMin': { section: 'Git & delivery', help: 'How long to wait for GitHub auto-merge under branch protection before leaving it armed.' },
+  'delivery.updateLocalBase': { section: 'Git & delivery', help: 'After a pull request merges, fast-forward your local base branch when it is safe (no uncommitted changes, no diverging commits), then remove the goal\'s progress folder, worktrees and local branches. Off: you pull yourself and delete the goal to tidy up.' },
   // Tools & keys
   'tools.useGraphify': { section: 'Tools & keys', help: 'Use the graphify code graph for relevant-file discovery when installed.' },
   'tools.markitdownBin': { section: 'Tools & keys', help: 'Path to markitdown (converts attachments to markdown); empty = auto-detect.' },
