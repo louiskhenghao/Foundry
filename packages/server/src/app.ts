@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { Brief, EscalationAnswer, getAttempt, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, PreviewError, classifyFeedback, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, detectTelegramChatId, type Engine, type OpenTargetId } from '@foundry/engine';
+import { Brief, EscalationAnswer, listFollowUps, getAttempt, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, PreviewError, classifyFeedback, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, type Engine, type OpenTargetId } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { listGuide, readGuide } from './guide.ts';
@@ -52,6 +52,8 @@ const CreateGoalBody = z.object({
   interview: z.enum(['auto', 'always', 'never']).optional(),
   effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).nullable().optional(),
   modelPreset: z.string().min(1).nullable().optional(),
+  /** create the goal as a Follow-up of an earlier finished goal of the same repository */
+  follows: z.object({ goalId: z.string().min(1), startFrom: z.enum(['base', 'previous']).optional(), attachments: z.boolean().optional(), style: z.boolean().optional() }).optional(),
 });
 
 export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
@@ -63,6 +65,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     if (err instanceof InstallError) return c.json({ error: err.message, code: err.code, ...err.extra }, err.code === 'conflict' ? 409 : err.code === 'manual' ? 422 : err.code === 'not-found' ? 404 : 400);
     if (err instanceof UninstallRefused) return c.json({ error: err.message, reason: err.reason }, err.reason === 'not-found' ? 404 : 409);
     if (err instanceof UpdateBusy) return c.json({ error: err.message }, 409);
+    if (err instanceof FollowUpError) return c.json({ error: err.message }, err.status);
     if (err instanceof TrashError) return c.json({ error: err.message, code: err.code }, err.code === 'not-found' ? 404 : 409);
     return c.json({ error: String(err.message ?? err) }, 400);
   });
@@ -418,7 +421,19 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       brief: getBrief(db, id),
       escalations: listEscalations(db, { goalId: id }),
       events: engine.store.listByGoal(id, 300),
+      // Follows / Followed by: the earlier goal may have been deleted since (then only its title remains)
+      followUps: {
+        followsExists: goal.follows ? !!getGoal(db, goal.follows.goalId) : false,
+        followedBy: listFollowUps(db, id).map((g) => ({ id: g.id, title: g.title, state: g.state })),
+      },
     });
+  });
+
+  // Follow-ups: the prefill and start point for "Continue with a follow-up…", and "Mark as follow-up of…"
+  app.get('/api/goals/:id/follow-up-draft', async (c) => c.json(await engine.followUpDraft(c.req.param('id'))));
+  app.post('/api/goals/:id/follows', async (c) => {
+    const { goalId } = z.object({ goalId: z.string().min(1) }).parse(await c.req.json());
+    return c.json(engine.markFollowUp(c.req.param('id'), goalId));
   });
 
   app.patch('/api/goals/:id/brief', async (c) => {
