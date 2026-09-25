@@ -452,6 +452,7 @@ export function SettingsPage() {
             </Field>,
           )}
           {bool('sync.refreshBetweenTasks', 'Refresh between tasks', 'When nothing is running, fetch again and merge a moved base branch into the goal branch (conflicts go to a Merge Attempt). Useful for long goals on busy repositories; off by default because mid-goal merges can surprise workers.')}
+          {bool('delivery.updateLocalBase', 'Update my local base branch after a merge', 'When a pull request merges, Foundry fetches and fast-forwards your local base branch (only when that is safe: no uncommitted changes, no commits of your own on it), then removes the goal\'s progress folder, worktrees and local branches. Screenshots and the goal itself stay.')}
           <details className="pt-1">
             <summary className="text-xs text-zinc-400 cursor-pointer">Delivery timings (advanced)</summary>
             <div className="mt-3">

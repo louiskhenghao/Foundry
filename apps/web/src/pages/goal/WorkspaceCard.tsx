@@ -109,7 +109,9 @@ export function WorkspaceCard({ d }: { d: GoalDetail }) {
             <p className="text-[11px] text-zinc-500">This folder <em>is</em> the branch <span className="mono">{g.branch}</span>, checked out here — it cannot also be switched to in your main checkout. {DELIVERY_NOTE[g.delivery.policy.mode]}</p>
           </>
         ) : (
-          <div className="text-[11px] text-zinc-500">The workspace has not been created yet (it appears when the Brief is approved).</div>
+          <div className="text-[11px] text-zinc-500">
+            {g.delivery.cleanup?.done ? `Cleaned up after the merge: the work is in your repository on ${g.delivery.policy.baseBranch ?? g.baseBranch}.` : 'The workspace has not been created yet (it appears when the Brief is approved).'}
+          </div>
         )}
       </div>
     </Card>

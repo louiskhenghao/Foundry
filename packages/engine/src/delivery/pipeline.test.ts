@@ -19,7 +19,7 @@ beforeEach(async () => {
 });
 // temp dirs are intentionally not removed: background ticks may still be writing when a test ends
 
-const cfg = () => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, log: () => {}, delivery: { pollMs: 10, noChecksGraceMs: 30, checksTimeoutMs: 3000, automergeWaitMs: 200 } });
+const cfg = () => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, log: () => {}, delivery: { pollMs: 10, noChecksGraceMs: 30, checksTimeoutMs: 3000, automergeWaitMs: 200, updateLocalBase: true, prWatchMs: 60_000 } });
 const worker = () => new FakeRunner((spec) => writeFileSync(join(spec.cwd, 'done.txt'), 'ok'));
 const eventsOf = (engine: Engine, goalId: string): string[] => engine.store.listByGoal(goalId, 5000).map((e) => e.type as string);
 const deliveredStatus = (engine: Engine, goalId: string) => getGoal(engine.store.db, goalId)!.delivery;
@@ -53,8 +53,10 @@ describe('delivery pipeline', () => {
     const ev = eventsOf(engine, goal.id);
     for (const t of ['delivery.started', 'delivery.pushed', 'delivery.pr_opened', 'delivery.checks', 'delivery.merged', 'delivery.completed']) expect(ev).toContain(t);
     expect(ev.indexOf('delivery.pr_opened')).toBeLessThan(ev.indexOf('delivery.merged'));
-    const goalHead = await sh('git rev-parse HEAD', goalWorkspacePath(dataDir, goal));
-    expect(await sh('git rev-parse main', bare)).toBe(goalHead);
+    // after the merge the local base is fast-forwarded and the progress folder removed: compare the checkout instead
+    await waitFor(() => deliveredStatus(engine, goal.id).cleanup != null);
+    expect(await sh('git rev-parse main', bare)).toBe(await sh('git rev-parse main', repo));
+    expect(await sh('cat done.txt', repo)).toBe('ok');
     expect((await sh("git branch --format='%(refname:short)'", bare)).split('\n')).not.toContain(goal.branch);
     expect(gh.calls.some((c) => c[0] === 'prMerge' && c[3] === 'now')).toBe(true);
   });
@@ -330,7 +332,7 @@ describe('delivery pipeline', () => {
   test('a repository without CI skips the no-checks grace period; a PR retargeted at cleanup is not retargeted again', async () => {
     const gh = new FakeGh(bare);
     (gh as unknown as { hasCi: () => Promise<boolean> }).hasCi = async () => false;
-    const engine = new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, log: () => {}, delivery: { pollMs: 200, noChecksGraceMs: 60_000, checksTimeoutMs: 60_000, automergeWaitMs: 1000 } }), titleWorker(), gh);
+    const engine = new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, log: () => {}, delivery: { pollMs: 200, noChecksGraceMs: 60_000, checksTimeoutMs: 60_000, automergeWaitMs: 1000, updateLocalBase: true, prWatchMs: 60_000 } }), titleWorker(), gh);
     const t0 = Date.now();
     const goal = await engine.createGoal({ prompt: 'fast', repoPath: repo, brief: twoTasks(), delivery: { mode: 'pr-automerge', unit: 'task' } });
     await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 40_000);
@@ -344,4 +346,102 @@ describe('delivery pipeline', () => {
     expect(edits.length).toBeLessThanOrEqual(2);
     await engine.stop();
   }, 60_000);
+});
+
+describe('after a merge (ADR-0015)', () => {
+  const cfgWith = (updateLocalBase: boolean) => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, log: () => {}, delivery: { pollMs: 10, noChecksGraceMs: 30, checksTimeoutMs: 3000, automergeWaitMs: 200, updateLocalBase, prWatchMs: 60_000 } });
+  const branchExists = async (b: string) => (await sh(`git branch --list '${b}'`, repo)).trim() !== '';
+  const mergedGoal = async (engine: Engine) => {
+    const goal = await engine.createGoal({ prompt: 'merge me', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status) && (deliveredStatus(engine, goal.id).outcome !== 'merged' || deliveredStatus(engine, goal.id).cleanup != null), 20_000);
+    return getGoal(engine.store.db, goal.id)!;
+  };
+
+  test('the local base is fast-forwarded, then the progress folder, worktrees and local branches are removed', async () => {
+    const engine = new Engine(cfgWith(true), worker(), new FakeGh(bare));
+    const goal = await mergedGoal(engine);
+    const d = goal.delivery;
+    expect(d).toMatchObject({ status: 'delivered', outcome: 'merged' });
+    expect(d.local?.upToDate).toBe(true);
+    expect(d.cleanup?.done).toBe(true);
+    expect(await sh('git rev-parse main', repo)).toBe(await sh('git rev-parse main', bare));
+    expect(await sh('cat done.txt', repo)).toBe('ok');
+    expect(existsSync(goalWorkspacePath(dataDir, goal))).toBe(false);
+    expect(await branchExists(goal.branch)).toBe(false);
+    expect(await sh('git worktree list --porcelain', repo)).not.toContain(goal.workspaceDir ?? '_goal');
+    await engine.stop();
+  });
+
+  test('uncommitted files in the progress folder keep it until "clean up anyway"; a merge noticed later runs the same steps', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'protected';
+    const engine = new Engine(cfgWith(true), worker(), gh);
+    const goal = await mergedGoal(engine);
+    expect(goal.delivery.outcome).toBe('automerge_armed');
+    const ws = goalWorkspacePath(dataDir, goal);
+    writeFileSync(join(ws, 'notes.txt'), 'mine');
+    await gh.mergeOnGitHub(1);
+    await engine.refreshDelivery(goal.id);
+    let d = deliveredStatus(engine, goal.id);
+    expect(d.outcome).toBe('merged');
+    expect(d.prs[0]!.state).toBe('merged');
+    expect(d.local?.upToDate).toBe(true);
+    expect(d.cleanup).toMatchObject({ done: false });
+    expect(d.cleanup!.detail).toContain('uncommitted');
+    expect(existsSync(ws)).toBe(true);
+    expect(eventsOf(engine, goal.id)).toContain('delivery.merged');
+    await engine.finishAfterMerge(goal.id, { force: true });
+    d = deliveredStatus(engine, goal.id);
+    expect(d.cleanup?.done).toBe(true);
+    expect(existsSync(ws)).toBe(false);
+    await engine.stop();
+  });
+
+  test('a PR closed without merging is recorded and nothing is removed', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'protected';
+    const engine = new Engine(cfgWith(true), worker(), gh);
+    const goal = await mergedGoal(engine);
+    gh.closeOnGitHub(1);
+    await engine.refreshDelivery(goal.id);
+    const d = deliveredStatus(engine, goal.id);
+    expect(d.outcome).toBe('automerge_armed');
+    expect(d.prs[0]!.state).toBe('closed');
+    expect(d.cleanup).toBeNull();
+    expect(existsSync(goalWorkspacePath(dataDir, goal))).toBe(true);
+    await engine.stop();
+  });
+
+  test('a local base with commits of its own is not moved, and the folders stay', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'protected';
+    const engine = new Engine(cfgWith(true), worker(), gh);
+    const goal = await mergedGoal(engine);
+    await sh('git commit --allow-empty -qm "mine"', repo);
+    const mine = await sh('git rev-parse main', repo);
+    await gh.mergeOnGitHub(1);
+    await engine.refreshDelivery(goal.id);
+    const d = deliveredStatus(engine, goal.id);
+    expect(d.local?.upToDate).toBe(false);
+    expect(d.local!.detail).toContain('diverged');
+    expect(d.cleanup).toMatchObject({ done: false });
+    expect(await sh('git rev-parse main', repo)).toBe(mine);
+    expect(existsSync(goalWorkspacePath(dataDir, goal))).toBe(true);
+    await engine.stop();
+  });
+
+  test('with the setting off nothing on the machine changes until "Pull into my checkout"', async () => {
+    const engine = new Engine(cfgWith(false), worker(), new FakeGh(bare));
+    const goal = await mergedGoal(engine);
+    const before = await sh('git rev-parse main', repo);
+    let d = deliveredStatus(engine, goal.id);
+    expect(d.local?.upToDate).toBe(false);
+    expect(d.cleanup).toMatchObject({ done: false });
+    expect(await sh('git rev-parse main', repo)).toBe(before);
+    await engine.finishAfterMerge(goal.id, { pull: true });
+    d = deliveredStatus(engine, goal.id);
+    expect(d.local?.upToDate).toBe(true);
+    expect(await sh('git rev-parse main', repo)).toBe(await sh('git rev-parse main', bare));
+    await engine.stop();
+  });
 });

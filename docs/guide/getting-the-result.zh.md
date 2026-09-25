@@ -87,6 +87,8 @@ pull request 类的方式需要 GitHub CLI 和一个已连接的账户：见 [�
 
 **pull request** 以列表显示，带标题、CI 结果（**passing**、**failing**、**pending**）、状态（**open**、**merged** ……）和一个链接 **#123**，点开可以在 GitHub 上查看。Overview 标签的时间线也会显示 **Deliver · mode · N PRs · N merged**。
 
+**合并之后**，有三行显示工作是否已在 GitHub 上合并、是否已在你自己的文件夹里，以及 goal 的文件夹是否已清理。见 [pull request 合并之后](#pull-request-合并之后)。
+
 **N remote command(s) — full audit** 列出 Foundry 对线上副本执行过的每条命令及其结果。
 
 **Change delivery**（Local only 的 goal 则是 **Deliver this goal**）是你选择方式、查看确切计划的地方：Foundry 会按顺序执行的每一条命令。除此之外什么都不会执行。按钮随后会说明它要做什么：**Push now**、**Open PR now**、**Open PRs now**、**Open PR and merge when green** 或 **Open PRs and merge when green**。
@@ -129,11 +131,21 @@ Overview 标签的 **Completion** 卡片显示每一项的结果。这里失败�
 
 ### 不用 git
 
-你不必碰 git。进度文件夹*就是*完成的项目：用 **Open ▾ → Goal workspace**（在 Simple view 里是 **The result**）打开它，直接用，或者复制你需要的东西。goal 结束后它还在那里。
+你不必碰 git。进度文件夹*就是*完成的项目：用 **Open ▾ → Goal workspace**（在 Simple view 里是 **The result**）打开它，直接用，或者复制你需要的东西。goal 结束后它还在那里，直到这个 goal 的 pull request 合并、而且工作已经到了你自己的文件夹（见下文）。
 
 ### pull request 合并之后
 
-你自己的文件夹现在落后于线上副本。在 Overview 标签上，**Try the work in progress** 卡片显示 "Your checkout is still N behind"，还有一个按钮 **pull into my checkout**：它会安全地更新你的文件夹（你有未保存的改动时它会拒绝，而且只在你自己没有未推送的工作时才运行）。或者你自己运行 `git pull`。
+Foundry 会自己把合并后的工作带进你自己的文件夹：先 fetch，再把你的基础分支（比如 `main`）fast-forward。只有在不会碰到你任何东西时它才这样做：你的文件夹里没有未保存的改动，这个分支上也没有你自己还没推送的提交。等你的文件夹有了这些工作，Foundry 会清掉 goal 留下的东西：进度文件夹、它的 worktree 和本地的 `goal/…` 分支。截图、goal 页面和它的历史都会保留。
+
+goal 页面会显示现在的情况，在 Delivery 标签和 Simple view 的 Result 卡片上：
+
+| 这一行 | 意思 |
+|---|---|
+| **Merged into main on GitHub** | pull request 已经合并。合并之前显示 **Waiting for the pull request to merge**；如果它被关闭了，显示 **closed without merging**（什么都不改、不删）。 |
+| **Your local main is up to date** | 你自己的文件夹已经有这些工作。如果 Foundry 没能更新它，这一行会说明原因，并有一个 **Pull into my checkout** 按钮可以再试（比如你提交或暂存了自己的改动之后）。你也可以自己运行 `git pull`。 |
+| **Workspace cleaned up** | 进度文件夹和本地分支已经删掉。如果它们还在，这一行会说明原因（你的文件夹还没有这些工作，或者进度文件夹里有未保存的改动），并有一个 **Clean up anyway** 按钮。 |
+
+之后才合并的 pull request —— auto-merge 超过了 Foundry 等待的时间，或者你自己在 GitHub 上合并的 —— 会在几分钟内、或者你一打开 goal 页面就被发现，然后跑同样的步骤。这一切都可以在 [Settings → Git & delivery](./settings.zh.md#git--delivery) 里关掉；关掉后，只有你按 **Pull into my checkout** 时你的文件夹才会改变，文件夹也会一直留到你删除这个 goal。
 
 ### Local only 的 goal
 

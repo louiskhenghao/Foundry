@@ -56,6 +56,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `delivery.noChecksGraceSec` | `90` | — | How long to wait for CI checks to appear on a PR in a repository that runs CI. |
 | `delivery.checksTimeoutMin` | `30` | — | Give up waiting for pending checks after this long; the PR stays open. |
 | `delivery.automergeWaitMin` | `10` | — | How long to wait for GitHub auto-merge under branch protection before leaving it armed. |
+| `delivery.updateLocalBase` | `true` | `FOUNDRY_UPDATE_LOCAL_BASE` | After a pull request merges, fast-forward your local base branch when it is safe (no uncommitted changes, no diverging commits), then remove the goal's progress folder, worktrees and local branches. Off: you pull yourself and delete the goal to tidy up. |
 | `sync.fetchBeforeGoal` | `true` | `FOUNDRY_SYNC_FETCH` | Fetch the remote before a goal branch is created. |
 | `sync.startFrom` | `auto` | `FOUNDRY_SYNC_START` | Where a goal branch starts: auto (the remote base when the local one is behind it) or local (always the local base). |
 | `sync.refreshBetweenTasks` | `false` | `FOUNDRY_SYNC_REFRESH` | Merge a moved base branch into the goal branch between tasks. |

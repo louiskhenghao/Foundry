@@ -46,7 +46,7 @@ More in [Costs and usage](./costs-and-usage.md#ways-to-spend-less).
 
 ## Where are my files?
 
-- **Your own project folder** is never changed while a goal runs.
+- **Your own project folder** is never changed while a goal runs. After a pull request of the goal merges, Foundry brings the work into it (when that is safe) and removes the progress folder.
 - **The work** is in the progress folder next to it, `<project>-foundry/<goal>/`, and on a branch named `goal/…` in your project. Open it with **Open ▾** on the goal page.
 - **Images and videos** go to the output folder you chose, or stay in the progress folder's `artifacts` folder.
 - **Attachments** are kept by Foundry itself, never in your project.

@@ -543,6 +543,17 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const g = await engine.deliver(c.req.param('id'), policy);
     return c.json({ ok: true, delivery: g.delivery });
   });
+  // fresh facts for the goal page: a PR merged or closed on GitHub since, a base branch pulled by hand (ADR-0015)
+  app.post('/api/goals/:id/delivery/refresh', async (c) => {
+    await engine.refreshDelivery(goalOr404(c).id);
+    return c.json({ ok: true, delivery: getGoal(db, c.req.param('id'))!.delivery });
+  });
+  // "Pull into my checkout" (pull) and "Clean up anyway" (force) on a merged goal
+  app.post('/api/goals/:id/delivery/after-merge', async (c) => {
+    const opts = z.object({ pull: z.boolean().optional(), force: z.boolean().optional() }).parse(await c.req.json().catch(() => ({})));
+    await engine.finishAfterMerge(goalOr404(c).id, opts);
+    return c.json({ ok: true, delivery: getGoal(db, c.req.param('id'))!.delivery });
+  });
   app.get('/api/goals/:id/delivery/plan', async (c) => {
     const q = c.req.query();
     const policy: Record<string, unknown> = {};

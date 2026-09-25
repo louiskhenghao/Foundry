@@ -87,6 +87,8 @@ On the goal page, open the **Delivery** tab (in Simple view, **Deliver…** on t
 
 **The pull requests** appear in a list with their title, their CI result (**passing**, **failing**, **pending**), their state (**open**, **merged** …) and a link **#123** to open them on GitHub. The Overview tab's timeline also shows **Deliver · mode · N PRs · N merged**.
 
+**After a merge**, three lines show whether the work is merged on GitHub, in your own folder, and whether the goal's folders were cleaned up. See [After a pull request merged](#after-a-pull-request-merged).
+
 **N remote command(s) — full audit** lists every command Foundry ran against the online copy, with its result.
 
 **Change delivery** (or **Deliver this goal** for a Local only goal) is where you pick a mode and see the exact plan: every command Foundry will run, in order. Nothing else runs. The button then says what it will do: **Push now**, **Open PR now**, **Open PRs now**, **Open PR and merge when green** or **Open PRs and merge when green**.
@@ -129,11 +131,21 @@ The Overview tab's **Completion** card shows how each went. A failure here never
 
 ### Without git
 
-You do not have to touch git. The progress folder *is* the finished project: open it with **Open ▾ → Goal workspace** (or **The result** in Simple view), use it, or copy what you need. It stays there after the goal finishes.
+You do not have to touch git. The progress folder *is* the finished project: open it with **Open ▾ → Goal workspace** (or **The result** in Simple view), use it, or copy what you need. It stays there after the goal finishes, until a pull request of the goal merges and the work has reached your own folder (see below).
 
 ### After a pull request merged
 
-Your own folder is now behind the online copy. On the Overview tab, the **Try the work in progress** card says "Your checkout is still N behind" with a button **pull into my checkout**: it updates your folder safely (it refuses when you have unsaved changes, and only runs when you have no unpushed work of your own). Or run `git pull` yourself.
+Foundry brings the merged work into your own folder by itself: it fetches and fast-forwards your base branch (for example `main`). It only does this when nothing of yours can be touched: no unsaved changes in your folder, and no commits of your own on that branch that are not online. Once your folder has the work, Foundry removes what the goal left behind: the progress folder, its worktrees and the local `goal/…` branches. Screenshots and the goal's page and history stay.
+
+The goal page shows where things stand, on the Delivery tab and on the Simple view's Result card:
+
+| Line | Meaning |
+|---|---|
+| **Merged into main on GitHub** | The pull request merged. Before that it says **Waiting for the pull request to merge**; if it was closed instead, **closed without merging** (nothing is changed or removed). |
+| **Your local main is up to date** | Your own folder has the work. If Foundry could not update it, the line says why, with a button **Pull into my checkout** that tries again (for example after you committed or stashed your changes). You can also run `git pull` yourself. |
+| **Workspace cleaned up** | The progress folder and local branches are gone. If they stay, the line says why (your folder does not have the work yet, or the progress folder has unsaved changes) with a button **Clean up anyway**. |
+
+A pull request that merges later — auto-merge that took longer than Foundry waits, or one you merged yourself on GitHub — is noticed within a few minutes, or as soon as you open the goal page, and the same steps run. You can turn all of this off in [Settings → Git & delivery](./settings.md#git--delivery); then your folder only changes when you press **Pull into my checkout**, and the folders stay until you delete the goal.
 
 ### A Local only goal
 

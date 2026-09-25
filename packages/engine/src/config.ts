@@ -69,7 +69,16 @@ export interface EngineConfig {
   /** fetch the base branch before a goal starts; start the goal branch from the remote tip when local is behind; re-fetch between tasks */
   sync: { fetchBeforeGoal: boolean; startFrom: 'auto' | 'local'; refreshBetweenTasks: boolean };
   /** Delivery pipeline timings (tests shrink these). */
-  delivery: { pollMs: number; noChecksGraceMs: number; checksTimeoutMs: number; automergeWaitMs: number };
+  delivery: {
+    pollMs: number;
+    noChecksGraceMs: number;
+    checksTimeoutMs: number;
+    automergeWaitMs: number;
+    /** after a merge: fast-forward the local base branch when safe, then remove the goal's folders and branches */
+    updateLocalBase: boolean;
+    /** how often goals with an open pull request are checked for a merge or close done on GitHub later */
+    prWatchMs: number;
+  };
   /** Roots the folder browser may enter (default: home, /Volumes). */
   allowedRoots?: string[];
   /**
@@ -132,7 +141,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     videoPack: process.env.FOUNDRY_VIDEO_PACK ?? 'web-video-presentation',
     autoskills: process.env.FOUNDRY_AUTOSKILLS ? !/^(0|false|off|no)$/i.test(process.env.FOUNDRY_AUTOSKILLS) : true,
     sync: { fetchBeforeGoal: process.env.FOUNDRY_SYNC_FETCH ? !/^(0|false|off|no)$/i.test(process.env.FOUNDRY_SYNC_FETCH) : true, startFrom: process.env.FOUNDRY_SYNC_START === 'local' ? 'local' : 'auto', refreshBetweenTasks: /^(1|true|on|yes)$/i.test(process.env.FOUNDRY_SYNC_REFRESH ?? '') },
-    delivery: { pollMs: 30_000, noChecksGraceMs: 90_000, checksTimeoutMs: 30 * 60_000, automergeWaitMs: 10 * 60_000 },
+    delivery: { pollMs: 30_000, noChecksGraceMs: 90_000, checksTimeoutMs: 30 * 60_000, automergeWaitMs: 10 * 60_000, updateLocalBase: true, prWatchMs: 5 * 60_000 },
     workflowProfile: process.env.FOUNDRY_WORKFLOW === 'plain' ? 'plain' : 'mattpocock',
     workflowTdd: (['required', 'preferred', 'off'].includes(process.env.FOUNDRY_TDD ?? '') ? process.env.FOUNDRY_TDD : 'required') as 'required' | 'preferred' | 'off',
     defaultGoalMode: process.env.FOUNDRY_GOAL_MODE === 'simple' ? 'simple' : 'expert',

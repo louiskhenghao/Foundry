@@ -56,6 +56,8 @@ import { defaultWorkspaceDir, deliveryWorkspacePath, dropTaskWorkspace, ensureGo
 import { relocateLegacyWorkspaces } from './workspace-migrate.ts';
 import { PreviewManager } from './preview/manager.ts';
 import { ensureSelfCheck, playwrightInstallCommand, playwrightStatus, runSelfCheck } from './checks/selfcheck.ts';
+import { afterMerge, type AfterMergeOptions } from './delivery/after-merge.ts';
+import { checkGoalPrs, checkOpenPrs } from './delivery/pr-watch.ts';
 import { attachmentDir, claimStaged, conversionTmpPath, markdownFileName, sweepStaging, trashAttachment } from './attachments.ts';
 import { Markitdown } from './convert/markitdown.ts';
 import { SettingsStore, applySettingsToConfig } from './settings.ts';
@@ -463,7 +465,38 @@ export class Engine {
     this.migrateModelTiersToPresets();
     void this.syncModelsIfCliChanged();
     this.preview.startSweeper();
+    // pull requests merged or closed on GitHub after their delivery finished (ADR-0015)
+    this.prWatchTimer = setInterval(() => {
+      if (!this.stopped) void checkOpenPrs(this);
+    }, this.config.delivery.prWatchMs);
+    this.prWatchTimer.unref?.();
+    void checkOpenPrs(this);
     for (const g of listGoals(this.store.db)) this.tick(g.id);
+  }
+
+  private prWatchTimer: ReturnType<typeof setInterval> | null = null;
+  private deliveryRefreshAt = new Map<string, number>();
+
+  /**
+   * The goal page asks for fresh delivery facts: a PR merged or closed on GitHub since, or a base branch the human
+   * pulled by hand (then the after-merge steps can finish). At most once a minute per goal for the local part.
+   */
+  async refreshDelivery(goalId: string): Promise<void> {
+    this.mustGoal(goalId);
+    if (await checkGoalPrs(this, goalId)) return;
+    const d = getGoal(this.store.db, goalId)!.delivery;
+    if (d.outcome !== 'merged' || d.cleanup?.done) return;
+    const last = this.deliveryRefreshAt.get(goalId) ?? 0;
+    if (Date.now() - last < 60_000) return;
+    this.deliveryRefreshAt.set(goalId, Date.now());
+    await afterMerge(this, goalId);
+  }
+
+  /** "Pull into my checkout" / "Clean up anyway" on a merged goal */
+  async finishAfterMerge(goalId: string, opts: AfterMergeOptions): Promise<void> {
+    const g = this.mustGoal(goalId);
+    if (g.delivery.outcome !== 'merged') throw new Error('this goal has not been merged');
+    await afterMerge(this, goalId, opts);
   }
 
   /** set by stop(): no new ticks run, so nothing writes to the store after shutdown (tests delete it right after) */
@@ -472,6 +505,7 @@ export class Engine {
   async stop(): Promise<void> {
     this.stopped = true;
     this.updater.stopSchedule();
+    if (this.prWatchTimer) clearInterval(this.prWatchTimer);
     if (this.resumeTimer) {
       clearTimeout(this.resumeTimer);
       this.resumeTimer = null;
