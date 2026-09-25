@@ -73,6 +73,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs
 import { removeWorktree } from './git/git.ts';
 import { BaselineChecks } from './checks/baseline.ts';
 import { relative, resolve } from 'node:path';
+import { type FollowUpDraft, type FollowUpInput, followUpDraft, linkFollowUp, prepareFollowUp } from './follow-up.ts';
 
 export interface CreateGoalInput {
   title?: string;
@@ -107,6 +108,8 @@ export interface CreateGoalInput {
   nature?: GoalNature;
   /** where media artifacts are copied at done; null = they stay in the goal workspace */
   outputDir?: string | null;
+  /** create the goal as a Follow-up of an earlier finished goal of the same repository (see follow-up.ts) */
+  follows?: FollowUpInput;
 }
 
 interface InFlight {
@@ -347,11 +350,17 @@ export class Engine {
     const path = goalWorkspacePath(this.config.dataDir, goal);
     if (goal.baseSync || existsSync(path) || (await branchExists(goal.branch, goal.repoPath).catch(() => false))) return ensureGoalWorkspace(this.config.dataDir, goal);
     const s = await fetchBase(goal.repoPath, goal.baseBranch, { fetch: this.config.sync.fetchBeforeGoal });
-    const start = startRef(s, this.config.sync.startFrom);
+    let start: { ref: string; from: 'local' | 'remote' | 'previous'; reason: string } = startRef(s, this.config.sync.startFrom);
+    // a Follow-up whose previous goal's work is not on the base yet starts from that goal's branch
+    const f = goal.follows;
+    if (f?.via === 'created' && f.startFrom === 'previous' && f.branch) {
+      if (await branchExists(f.branch, goal.repoPath).catch(() => false)) start = { ref: f.branch, from: 'previous', reason: `follows "${f.title}": starts from its goal branch ${f.branch}, whose work is not on ${goal.baseBranch} yet` };
+      else start = { ...start, reason: `follows "${f.title}", but its goal branch ${f.branch} no longer exists; ${start.reason}` };
+    }
     const ws = await ensureGoalWorkspace(this.config.dataDir, goal, { startRef: start.ref });
     const detail = `${start.reason}${s.error ? ` (${s.error})` : ''}`;
     this.store.append({ type: 'goal.base_synced', goalId: goal.id, payload: { remote: s.remote, base: s.base, localRef: s.localRef, remoteRef: s.remoteRef, ahead: s.ahead, behind: s.behind, fetched: s.fetched, startedFrom: start.from, detail } });
-    if (start.from === 'remote' || s.error) this.config.log(`[sync] ${goal.id}: goal branch starts from ${start.ref} — ${detail}`);
+    if (start.from !== 'local' || s.error) this.config.log(`[sync] ${goal.id}: goal branch starts from ${start.ref} — ${detail}`);
     return ws;
   }
 
@@ -931,10 +940,12 @@ export class Engine {
       if (!known.includes(input.modelPreset)) throw new Error(`unknown model preset "${input.modelPreset}"; use one of: ${known.join(', ')}`);
     }
     if (!(await isGitRepo(input.repoPath))) throw new Error(`${input.repoPath} is not a git repository`);
-    const baseBranch = input.baseBranch ?? (await currentBranch(input.repoPath));
+    const id = newId(IdPrefix.goal);
+    // a Follow-up snapshots what it needs from the earlier goal now, and delivers to the same base branch
+    const followUp = input.follows ? await prepareFollowUp(this, input.follows, input.repoPath, id, input.attachments?.length ?? 0) : null;
+    const baseBranch = input.baseBranch ?? followUp?.baseBranch ?? (await currentBranch(input.repoPath));
     if (baseBranch === 'HEAD') throw new Error('repository is in detached HEAD state; pass --base <branch>');
     const now = new Date().toISOString();
-    const id = newId(IdPrefix.goal);
     const nature: GoalNature = input.nature ?? 'auto';
     // anyone-facing default: a goal that produces prose or media opens in the plain-language view
     const mode: GoalMode = input.mode ?? (nature !== 'auto' && nature !== 'code' ? 'simple' : this.config.defaultGoalMode);
@@ -974,11 +985,11 @@ export class Engine {
       costUsd: 0,
       fixCycles: 0,
       delivery: { ...IDLE_DELIVERY, policy: DeliveryPolicy.parse({ ...(this.config.defaultDelivery ?? {}), ...(input.delivery ?? {}) }) },
-      attachments: input.attachments?.length ? claimStaged(this.config.dataDir, id, input.attachments.map((a) => this.latestStaged(a))) : [],
+      attachments: [...(input.attachments?.length ? claimStaged(this.config.dataDir, id, input.attachments.map((a) => this.latestStaged(a))) : []), ...(followUp?.attachments ?? [])],
       baseSync: null,
       autoskills: null,
       completion: { ...IDLE_COMPLETION },
-      follows: null,
+      follows: followUp?.follows ?? null,
       runningSince: null,
       createdAt: now,
       updatedAt: now,
@@ -1288,6 +1299,16 @@ export class Engine {
     if (!ac) return false;
     ac.abort();
     return true;
+  }
+
+  /** Prefill and start point for a Follow-up of this goal (the New goal form, `goal new --follows`). */
+  followUpDraft(goalId: string): Promise<FollowUpDraft> {
+    return followUpDraft(this, goalId);
+  }
+
+  /** "Mark as follow-up of…": record that a goal follows an earlier goal of the same repository (relationship only). */
+  markFollowUp(goalId: string, previousGoalId: string): Goal {
+    return linkFollowUp(this, goalId, previousGoalId);
   }
 
   cancelGoal(goalId: string): void {
