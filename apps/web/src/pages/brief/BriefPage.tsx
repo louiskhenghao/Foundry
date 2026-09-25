@@ -4,6 +4,7 @@ import { RotateCcw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, type GoalDetail } from '../../api.ts';
+import { FollowLinks } from '../goal/FollowUps.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { useLive } from '../../store.ts';
 import { Badge, Button, Card, Empty, Input, Textarea, cn, fmtLimitMin, fmtLimitUsd } from '../../ui.tsx';
@@ -363,6 +364,7 @@ function Header({ detail, onSimple }: { detail: GoalDetail; onSimple?: () => voi
         )}
       </div>
       <div className="text-xs text-zinc-500 mono">{g.repoPath} · {g.baseBranch} → {g.branch}</div>
+      <FollowLinks d={detail} />
       {g.state === 'awaiting_brief_approval' && (
         <div className="text-[11px] text-zinc-500 mt-1">
           {sync ? (
@@ -370,6 +372,8 @@ function Header({ detail, onSimple }: { detail: GoalDetail; onSimple?: () => voi
               <>
                 Explored <span className="mono text-zinc-300">{sync.remote}/{sync.base}</span> (your local {sync.base} was {sync.behind} behind).
               </>
+            ) : sync.startedFrom === 'previous' ? (
+              <>Explored the previous goal's branch — {sync.detail}.</>
             ) : (
               <>Explored local {sync.base} — {sync.detail}.</>
             )

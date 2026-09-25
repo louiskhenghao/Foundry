@@ -1,5 +1,5 @@
 import type { FeedbackPlan } from '@foundry/core/browser';
-import type { Attachment, Attempt, Brief, BriefCheck, BriefDiff, BriefTask, Budgets, Check, CheckResult, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, SettingsPatch, SettingsView, Task, TaskUsage } from '@foundry/core/browser';
+import type { Attachment, Attempt, Brief, BriefCheck, BriefDiff, BriefStyleOption, BriefTask, Budgets, Check, CheckResult, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, Effort, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, SettingsPatch, SettingsView, Task, TaskUsage } from '@foundry/core/browser';
 
 /** Mirrors the engine's PreviewStatus (preview/manager.ts). */
 export interface PreviewStatus {
@@ -217,6 +217,19 @@ export interface GoalDetail {
   brief: { brief: Brief; approved: boolean } | null;
   escalations: Escalation[];
   events: (EngineEvent & { seq: number })[];
+  /** Follows / Followed by (goal.follows holds the earlier goal; it may have been deleted since) */
+  followUps: { followsExists: boolean; followedBy: { id: string; title: string; state: GoalState }[] };
+}
+
+/** Mirrors the engine's FollowUpDraft (follow-up.ts): prefill and start point for a Follow-up of a goal. */
+export interface FollowUpDraft {
+  previous: { id: string; title: string; state: GoalState; repoPath: string; baseBranch: string; branch: string; branchExists: boolean };
+  followable: boolean;
+  reason: string | null;
+  prefill: { repoPath: string; baseBranch: string; nature: GoalNature; modelPreset: string | null; effort: Effort | null; pace: 'thorough' | 'fast'; mode: GoalMode; delivery: DeliveryPolicy };
+  start: { recommended: 'base' | 'previous'; onBase: boolean; detail: string; baseBranch: string; previousBranch: string | null };
+  attachments: Attachment[];
+  style: BriefStyleOption | null;
 }
 
 export interface UpdateReportView {
@@ -256,6 +269,8 @@ export const api = {
   goals: () => req<GoalRow[]>('/api/goals'),
   goal: (id: string) => req<GoalDetail>(`/api/goals/${id}`),
   createGoal: (body: unknown) => req<Goal>('/api/goals', { method: 'POST', body: JSON.stringify(body) }),
+  followUpDraft: (id: string) => req<FollowUpDraft>(`/api/goals/${id}/follow-up-draft`),
+  markFollowUp: (id: string, goalId: string) => req<Goal>(`/api/goals/${id}/follows`, { method: 'POST', body: JSON.stringify({ goalId }) }),
   validateRepo: (repoPath: string) => req<RepoInfo>('/api/validate-repo', { method: 'POST', body: JSON.stringify({ repoPath }) }),
   /** Upload one file with progress; resolves to the staged Attachment. goalId → attach directly to that goal. */
   upload: (file: File, opts: { goalId?: string; onProgress?: (pct: number) => void } = {}) =>

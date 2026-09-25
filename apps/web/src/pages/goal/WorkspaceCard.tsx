@@ -66,6 +66,8 @@ export function WorkspaceCard({ d }: { d: GoalDetail }) {
                   <>
                     Started from <span className="mono text-zinc-300">{sync.remote}/{sync.base}</span> — your local <span className="mono">{sync.base}</span> was {sync.behind} commit{sync.behind === 1 ? '' : 's'} behind when the goal began.
                   </>
+                ) : sync.startedFrom === 'previous' ? (
+                  <>Started from the previous goal's branch ({sync.detail}).</>
                 ) : (
                   <>
                     Started from local <span className="mono text-zinc-300">{sync.base}</span> ({sync.detail}).
