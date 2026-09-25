@@ -149,6 +149,7 @@ Foundry 怎样跟上你项目的线上副本，以及交付要等多久。
 - **Fetch the base branch before a goal starts**（开）：Foundry 规划前先看线上的最新版本。你自己的文件夹从不改动。
 - **Where the goal branch starts**：**auto — remote tip when local is behind**（默认）在你的文件夹落后时，从更新的线上版本开始；**always the local branch** 完全从你文件夹里的内容开始。
 - **Refresh between tasks**（关）：在繁忙项目里的长 goal 上，在任务之间把基础分支上的新工作并进来。默认关闭，因为 goal 中途的变化可能让 worker 措手不及。
+- **Update my local base branch after a merge**（开）：pull request 合并后，Foundry 在安全的时候把你自己的基础分支 fast-forward，然后删掉 goal 的进度文件夹、worktree 和本地分支。关掉：你自己 pull，文件夹一直留到你删除这个 goal。见 [拿到结果](./getting-the-result.zh.md#pull-request-合并之后)。
 - **Delivery timings (advanced)**：Foundry 多久查看一次 pull request（**Poll interval (s)**，30），等 CI 出现要等多久（**Grace before "no checks" (s)**，90）、等它跑完要等多久（**Checks timeout (min)**，30），以及分支受保护时等 auto-merge 要等多久（**Auto-merge wait under branch protection (min)**，10）。如果你的 CI 要跑半小时以上，调高 **Checks timeout**。
 
 ## Tools & keys

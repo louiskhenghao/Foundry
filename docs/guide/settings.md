@@ -149,6 +149,7 @@ How Foundry keeps up with the online copy of your project, and how long delivery
 - **Fetch the base branch before a goal starts** (on): Foundry looks at the newest version online before it plans. Your own folder is never changed.
 - **Where the goal branch starts**: **auto — remote tip when local is behind** (default) starts from the newer online version when your folder is behind; **always the local branch** starts from exactly what is in your folder.
 - **Refresh between tasks** (off): on long goals in busy projects, brings in newer work from the base branch between tasks. Off by default because mid-goal changes can surprise the workers.
+- **Update my local base branch after a merge** (on): when a pull request merges, Foundry fast-forwards your own base branch when that is safe, then removes the goal's progress folder, worktrees and local branches. Off: you pull yourself, and the folders stay until you delete the goal. See [Getting the result](./getting-the-result.md#after-a-pull-request-merged).
 - **Delivery timings (advanced)**: how often Foundry checks a pull request (**Poll interval (s)**, 30), how long it waits for CI to appear (**Grace before "no checks" (s)**, 90) and to finish (**Checks timeout (min)**, 30), and how long it waits for auto-merge when the branch is protected (**Auto-merge wait under branch protection (min)**, 10). Raise **Checks timeout** if your CI takes longer than half an hour.
 
 ## Tools & keys
