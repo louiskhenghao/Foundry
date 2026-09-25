@@ -51,6 +51,11 @@ export function GoalPage() {
     const t = setTimeout(() => api.goal(id).then(setD).catch((e) => setErr(e.message)), 200);
     return () => clearTimeout(t);
   }, [id, version]);
+  // a delivered goal asks for fresh facts once per visit: a PR merged or closed on GitHub, a base branch pulled by hand
+  const delivered = d?.goal.delivery.status === 'delivered' && !d.goal.delivery.cleanup?.done;
+  useEffect(() => {
+    if (delivered) void api.refreshDelivery(id).catch(() => {});
+  }, [id, delivered]);
   // /goals/:id?task=<taskId>#tasks (Inbox links) opens that task's view directly
   useEffect(() => {
     const t = new URLSearchParams(loc.search).get('task');
