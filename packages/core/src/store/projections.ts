@@ -81,6 +81,9 @@ export function applyEvent(db: Database, e: EngineEvent): void {
     case 'delivery.checks':
     case 'delivery.merged':
     case 'delivery.completed':
+    case 'delivery.local_synced':
+    case 'delivery.cleaned':
+    case 'delivery.pr_closed':
     case 'delivery.failed': {
       const g = getGoal(db, e.goalId!);
       if (!g) break;
@@ -108,6 +111,8 @@ export function applyEvent(db: Database, e: EngineEvent): void {
           d.startedAt = e.ts;
           d.finishedAt = null;
           d.prs = [];
+          d.local = null;
+          d.cleanup = null;
           break;
         case 'delivery.step':
           d.step = e.payload.step;
@@ -136,6 +141,15 @@ export function applyEvent(db: Database, e: EngineEvent): void {
           d.outcome = e.payload.outcome;
           d.step = null;
           d.finishedAt = e.ts;
+          break;
+        case 'delivery.local_synced':
+          d.local = { upToDate: e.payload.upToDate, detail: e.payload.detail, at: e.ts };
+          break;
+        case 'delivery.cleaned':
+          d.cleanup = { done: e.payload.done, detail: e.payload.detail, at: e.ts };
+          break;
+        case 'delivery.pr_closed':
+          prAt((p) => p.number === e.payload.prNumber, { state: 'closed' });
           break;
         case 'delivery.failed':
           d.status = 'failed';
