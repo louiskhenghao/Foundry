@@ -78,8 +78,8 @@ If it keeps happening in one file, a new test almost certainly creates an `Engin
 ## The seeded demo and the guide's screenshots
 
 `scripts/demo.ts` starts a complete Foundry on port 4198 with a scripted runner in place of the Claude CLI. It creates a
-throwaway repository and seeds five goals, one in each state a user meets: an interview round, a Brief waiting for
-approval, a milestone pause, a running goal and a blocked task. No model is called, so it is free and gives the same
+throwaway repository and seeds six goals, one in each state a user meets: a finished goal (to follow up on), an
+interview round, a Brief waiting for approval, a milestone pause, a running goal and a blocked task. No model is called, so it is free and gives the same
 screens every time. Build the web app first:
 
 ```sh

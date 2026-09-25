@@ -129,6 +129,8 @@ Any non-terminal state can also go to `cancelled` (`Engine.cancelGoal`) or `fail
 
 `Engine.createGoal` checks that the repo is a git repository, assigns `goal/<id>` as the branch, and fixes the **Progress folder** path (`defaultWorkspaceDir`, `workspace.ts`). It snapshots the Budget Preset, mode, nature, pace, TDD discipline, effort, `modelPreset` and delivery policy, claims staged Attachments, and appends `goal.created`. `autoBrief` or `brief` inputs skip Clarify: the engine proposes and approves the Brief itself.
 
+A **Follow-up** (`follows` input, `follow-up.ts`) is validated here (the earlier goal is finished and in the same repository) and snapshotted into `Goal.follows`: the rendered `# Previous goal` section Clarify receives, the kept style, and the start point. `previousWorkOnBase` compares content, so a squash-merged goal counts as on the base; otherwise `ensureSyncedWorkspace` starts the goal branch from the earlier goal branch (`baseSync.startedFrom: 'previous'`). Its attachments are copied under new ids. "Followed by" is derived (`listFollowUps`), and `goal.follow_up_linked` records a link made afterwards.
+
 ### 2. Clarify and the Interview: `clarifying`
 
 `runClarify` (`clarify.ts`):
@@ -224,7 +226,7 @@ A few sessions still read the older `Goal.models` / `config.models` fields (`str
 
 | Prefix | Purpose |
 |---|---|
-| `/api/goals`, `/api/goals/:id/...` | create, read, brief edit/draft/approve, style samples, reclarify, interview answer, feedback classify, cancel/restart/delete, diff, deliver and delivery plan, preview, self-check, attachments, screenshots, artifacts, workspace, open-in-editor, manual resolve (`/tasks/:taskId/resolve/*`) |
+| `/api/goals`, `/api/goals/:id/...` | create, read, follow-up draft and link (`/follow-up-draft`, `/follows`), brief edit/draft/approve, style samples, reclarify, interview answer, feedback classify, cancel/restart/delete, diff, deliver and delivery plan, preview, self-check, attachments, screenshots, artifacts, workspace, open-in-editor, manual resolve (`/tasks/:taskId/resolve/*`) |
 | `/api/escalations` | list, `:id/suggest`, `:id/answer` |
 | `/api/stream/:id/history` | decoded transcript tail for a live channel (the Live log after a page refresh) |
 | `/api/attempts/:id/transcript`, `/prompt` | raw session transcript and worker prompt |
@@ -263,6 +265,7 @@ The history endpoint looks up an attempt's transcript first, and otherwise the c
 | Feature | Main files |
 |---|---|
 | Goal creation, restart, cancel, delete | `engine/src/engine.ts` (`createGoal`, `restartGoal`, `cancelGoal`, `deleteGoal`) |
+| Follow-ups (start point, Previous goal section, links) | `engine/src/follow-up.ts`, `core/src/schema/goal.ts` (`GoalFollows`) |
 | Tick and per-state dispatch | `engine/src/engine.ts` (`tick`, `runTick`) |
 | Scheduling, parallelism, file-overlap waits | `engine/src/scheduler.ts`, `engine/src/catchup.ts` |
 | Attempt loop, Continuations, Observation Report | `engine/src/attempt-loop.ts`, `engine/src/attempt-prompt.ts` |

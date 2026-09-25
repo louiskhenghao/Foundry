@@ -8,6 +8,9 @@ export const help = `foundry — drive the host Claude Code to over-deliver on g
        [--models max|production|balanced|economy|<your preset>]   model preset (default: Settings' preset for the goal type)
        [--nature auto|code|docs|research|image|video] [--pace thorough|fast] [--interview auto|always|never]
        [--effort low|medium|high|xhigh|max] [--self-check]
+       [--follows <goalId> [--start-from base|previous] [--no-attachments] [--no-style]]
+                                          a Follow-up of a finished goal: its repository and settings are the defaults,
+                                          Clarify gets its prompt, Brief and outcomes; starts from its branch unless merged
        [--follow]                         tail the goal's live stream after creating it
        [--deliver push|pr|pr-automerge [--remote origin] [--remote-url URL]]   delivery policy (default local)
   status [goalId]                         list goals, or show one goal's tasks/attempts/checks

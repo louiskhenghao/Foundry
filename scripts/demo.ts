@@ -124,6 +124,9 @@ export async function startDemo(): Promise<{ url: string; goals: Record<string, 
   const { getGoal, listEscalations } = await import('../packages/core/src/index.ts');
   const state = (id: string) => getGoal(engine.store.db, id)!.state;
 
+  // a finished goal first: it can be followed (Continue with a follow-up…)
+  const done = await engine.createGoal({ prompt: 'Put the studio logo in the site header', title: 'Studio logo in the header', repoPath: repo, autoBrief: { mustChecks: ['true'] }, workflow: { pace: 'fast' } });
+  await waitFor(() => state(done.id) === 'done');
   const interview = await engine.createGoal({ prompt: 'Add a dark mode toggle to the settings page', repoPath: repo, interview: 'always', workflow: { pace: 'fast' } });
   const brief = await engine.createGoal({ prompt: 'A landing page for our game studio', title: 'Studio landing page', repoPath: repo, interview: 'never', workflow: { pace: 'fast' } });
   const milestone = await engine.createGoal({ prompt: 'Studio site: hero and value cards', title: 'Studio site — first look', repoPath: repo, brief: briefFrom(landingBrief, landingBrief.tasks.slice(0, 3)) as never, workflow: { pace: 'fast' } });
@@ -137,7 +140,7 @@ export async function startDemo(): Promise<{ url: string; goals: Record<string, 
   await waitFor(() => state(running.id) === 'running');
   return {
     url: `http://127.0.0.1:${DEMO_PORT}`,
-    goals: { interview: interview.id, brief: brief.id, milestone: milestone.id, running: running.id, blocked: blocked.id },
+    goals: { done: done.id, interview: interview.id, brief: brief.id, milestone: milestone.id, running: running.id, blocked: blocked.id },
     // for QA scripts that need to record an event the scripted sessions never produce (e.g. a merged delivery)
     engine,
     stop: async () => {

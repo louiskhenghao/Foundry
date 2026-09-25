@@ -126,6 +126,14 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 
 如果文件夹还不是仓库，按 **Initialize git here**。如果你选的是某个仓库里面的子文件夹，Foundry 会改为提供这个仓库的顶层文件夹。
 
+### Follows
+
+仓库下面，当这个仓库已经有结束了的 goal 时：**Follows** 用来选这个 goal 接着做的是哪一个更早的 goal（或者选 **Nothing — a new line of work**）。这样 Clarifier 会拿到那个 goal 当时要求了什么、做了哪些决定、结果如何，你不用再解释一遍。
+
+选择器下面的卡片会说明新 goal 从哪里开始。如果之前那个 goal 的工作已经在你的基础分支上（它的 pull request 已经合并），就从那里开始。如果还没有（Local only 的 goal、没合并的 pull request、失败的 goal），就从之前那个 goal 的分支开始，那些改动会随着这个 goal 的 pull request 一起交付。**Start from** 可以在两者之间切换。勾选或取消 **Bring its attachments** 和 **Keep its style direction**，决定是否把附件和风格方向一起带过来。
+
+在一个已结束的 goal 上按 **Continue with a follow-up…**，会打开已经填好的这个表单；见 [Continue with a follow-up](./getting-the-result.zh.md#continue-with-a-follow-up)。
+
 ### Budget
 
 **3 · Budget.** goal 运行时不能超过的上限。碰到上限时，goal 会暂停并问你；它从不悄无声息地失败。

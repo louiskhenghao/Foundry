@@ -11,6 +11,7 @@ import type { Engine } from './engine.ts';
 import { git, isDirty } from './git/git.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
 import { hasStackManifest } from './skills/autoskills.ts';
+import { startSentence } from './follow-up.ts';
 import { readdirSync } from 'node:fs';
 
 /** Files that do not make a repository "have code": a freshly initialised repo may carry any of these. */
@@ -119,7 +120,10 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
   // a re-run keeps the human's Decisions from the discarded Brief
   const reclarified = store.listByGoal(goal.id, 5000).filter((e) => e.type === 'goal.reclarified').at(-1);
   const decisions = reclarified ? ((reclarified.payload as { decisions?: string }).decisions ?? '') : '';
-  const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview?.mode ?? null);
+  // a Follow-up: the earlier goal's snapshot, plus where this checkout actually started (recorded by the Base Sync)
+  const synced = getGoal(store.db, goal.id) ?? goal;
+  const previous = goal.follows?.context ? [goal.follows.context, startSentence(synced)].filter(Boolean).join('\n') : '';
+  const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview?.mode ?? null, previous);
   const addDirs = goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined;
   const schema = zodToJsonSchema(goal.interview ? InterviewOutput : BriefOutput, { $refStrategy: 'none' });
   const transcriptPath = join(config.dataDir, 'transcripts', `clarify-${goal.id}.jsonl`);
@@ -387,11 +391,12 @@ function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true): string 
   }
 }
 
-function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: string | null = null, attachments = '', decisions = '', emptyRepo = false, imageGen = true, interview: 'auto' | 'always' | null = null): string {
+function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: string | null = null, attachments = '', decisions = '', emptyRepo = false, imageGen = true, interview: 'auto' | 'always' | null = null, previous = ''): string {
   return [
     interview ? interviewSection(interview) : '',
     `# Goal from the user\n${goal.prompt}`,
     decisions ? `${decisions}\nTreat these as settled: plan with them, record them as assumptions, and do not ask about them again.` : '',
+    previous,
     natureSection(goal, emptyRepo, imageGen),
     attachments ? `${attachments}\nWhen an attachment matters for a specific task, name it (by file name) in that task's spec.` : '',
     overview ? `# Repository overview\n${overview}` : '',
@@ -428,7 +433,11 @@ export function materializeCheck(c: { type: 'command' | 'reviewer'; cmd: string 
 export function toBrief(goal: Goal, o: BriefOutput, extraQuestions: Brief['questions']): Brief {
   const areaKeys = new Set(o.areas.map((a) => a.key));
   const area = (k: string | null | undefined) => (k && areaKeys.has(k) ? k : null);
-  const styleOptions = (o.styleOptions ?? []).map((s) => ({ key: s.key, name: s.name, palette: s.palette ?? [], fonts: s.fonts ?? [], keywords: s.keywords ?? [], description: s.description ?? '', samples: [], chosenSample: null }));
+  const styleOptions = (o.styleOptions ?? []).map((s) => ({ key: s.key, name: s.name, palette: s.palette ?? [], fonts: s.fonts ?? [], keywords: s.keywords ?? [], description: s.description ?? '', samples: [] as string[], chosenSample: null as string | null }));
+  // a Follow-up that kept its predecessor's style: when this goal has a look at all, that direction comes first and is already picked
+  const kept = goal.follows?.style ?? null;
+  if (kept && styleOptions.length && !styleOptions.some((s) => s.name === kept.name)) styleOptions.unshift({ ...kept, key: styleOptions.some((s) => s.key === kept.key) ? `${kept.key}-kept` : kept.key, samples: [], chosenSample: null });
+  const keptAnswer = kept && styleOptions.some((s) => s.name === kept.name) ? kept.name : null;
   return {
     goalId: goal.id,
     title: o.title?.trim() ?? '',
@@ -445,7 +454,7 @@ export function toBrief(goal: Goal, o: BriefOutput, extraQuestions: Brief['quest
       ...o.questions.map((q) => ({ id: newId('q'), text: q.text, answer: null, blocking: q.blocking, areaKey: area(q.areaKey), options: q.options ?? [], kind: 'text' as const, applied: false })),
       // the style question is engine-generated (never left to the LLM to remember): its options are the proposal names, recommendation first
       ...(styleOptions.length
-        ? [{ id: newId('q'), text: 'Which style direction should the deliverables follow? Pick a card — you can generate a sample image for any of them before deciding.', answer: null, blocking: true, areaKey: null, options: styleOptions.map((s) => s.name), kind: 'style' as const, applied: false }]
+        ? [{ id: newId('q'), text: 'Which style direction should the deliverables follow? Pick a card — you can generate a sample image for any of them before deciding.', answer: keptAnswer, blocking: true, areaKey: null, options: styleOptions.map((s) => s.name), kind: 'style' as const, applied: !!keptAnswer }]
         : []),
     ],
     styleOptions,

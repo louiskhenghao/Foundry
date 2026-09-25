@@ -1,14 +1,15 @@
 import type { Attachment } from '@foundry/core/browser';
 import { BUDGET_PRESETS } from '@foundry/core/browser';
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { CornerDownRight, X } from 'lucide-react';
 import { effectivePresets, natureKey, type ModelNature, type ModelPreset } from '@foundry/core/browser';
-import { api, type RepoInfo } from '../api.ts';
+import { api, type FollowUpDraft, type GoalRow, type RepoInfo } from '../api.ts';
 import { AttachmentInput } from '../components/Attachments.tsx';
 import { BudgetPicker, type BudgetDraft } from '../components/BudgetPicker.tsx';
 import { DeliveryPolicyForm, type PolicyDraft } from '../components/DeliveryPolicyForm.tsx';
 import { RepoCard } from '../components/RepoCard.tsx';
-import { Button, ButtonGroup, Card, Input, Textarea, cn } from '../ui.tsx';
+import { Button, ButtonGroup, Card, Input, Select, Textarea, cn } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
 
 const DELIVERY_KEY = 'foundry.delivery';
@@ -42,6 +43,15 @@ function loadBudget(): BudgetDraft {
 }
 
 const STEPS = ['Goal', 'Repository', 'Budget', 'Delivery'] as const;
+const FINISHED = ['done', 'over_delivered', 'failed', 'cancelled'];
+
+/** The Follow-up this goal is being created as: the earlier goal's draft plus the human's choices on it. */
+interface FollowChoice {
+  draft: FollowUpDraft;
+  startFrom: 'base' | 'previous';
+  attachments: boolean;
+  style: boolean;
+}
 
 export function NewGoalPage() {
   const nav = useNavigate();
@@ -102,6 +112,47 @@ export function NewGoalPage() {
       })
       .catch(() => {});
   }, []);
+  // Follow-up: /goals/new?follows=<id> prefills the form from the earlier goal; the Follows picker only links
+  const [params] = useSearchParams();
+  const [follow, setFollow] = useState<FollowChoice | null>(null);
+  const [finishedGoals, setFinishedGoals] = useState<GoalRow[]>([]);
+  const [repoKey, setRepoKey] = useState(0);
+  const chooseFollow = async (goalId: string, prefill: boolean) => {
+    if (!goalId) return setFollow(null);
+    try {
+      const dr = await api.followUpDraft(goalId);
+      setFollow({ draft: dr, startFrom: dr.start.recommended, attachments: true, style: true });
+      if (!prefill) return;
+      const p = dr.prefill;
+      setRepoPath(p.repoPath);
+      setRepoKey((k) => k + 1);
+      api.validateRepo(p.repoPath).then(setRepoInfo).catch(() => {});
+      setNature(p.nature);
+      setModelPreset(p.modelPreset ?? '');
+      setEffort(p.effort ?? '');
+      choosePace(p.pace);
+      setMode(p.mode);
+      changed.current.add('deliveryMode');
+      changed.current.add('deliveryUnit');
+      setTouched((t) => new Set([...t, 'remote']));
+      setDelivery({ ...p.delivery, createRepo: null, remoteUrl: null });
+    } catch (e: any) {
+      setErr(e.message);
+    }
+  };
+  useEffect(() => {
+    const id = params.get('follows');
+    if (id) void chooseFollow(id, true);
+    api
+      .goals()
+      .then((gs) => setFinishedGoals(gs.filter((g) => FINISHED.includes(g.state))))
+      .catch(() => {});
+  }, []);
+  // the Follows picker lists finished goals of the chosen repository; another repository drops the link
+  const followCandidates = finishedGoals.filter((g) => g.repoPath === repoPath.trim());
+  useEffect(() => {
+    if (follow && follow.draft.previous.repoPath !== repoPath.trim()) setFollow(null);
+  }, [repoPath]);
   const [checks, setChecks] = useState('');
   const [stretch, setStretch] = useState('');
   const [busy, setBusy] = useState(false);
@@ -149,6 +200,7 @@ export function NewGoalPage() {
         interview: interview ? 'always' : undefined,
         effort: effort ? (effort as 'low' | 'medium' | 'high' | 'xhigh' | 'max') : undefined,
         modelPreset: modelPreset || undefined,
+        follows: follow ? { goalId: follow.draft.previous.id, startFrom: follow.startFrom, attachments: follow.attachments, style: follow.style } : undefined,
       });
       try {
         localStorage.setItem(DELIVERY_KEY, JSON.stringify({ remote: delivery.remote, mergeMethod: delivery.mergeMethod, requireChecks: delivery.requireChecks, autoResolveConflicts: delivery.autoResolveConflicts, fixCiCycles: delivery.fixCiCycles, deleteRemoteBranch: delivery.deleteRemoteBranch }));
@@ -179,6 +231,18 @@ export function NewGoalPage() {
           ))}
         </ol>
       </div>
+      {follow && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-800 bg-sky-950/40 text-sky-200 text-xs pl-2.5 pr-1 py-1 max-w-full">
+            <CornerDownRight size={12} className="shrink-0" />
+            <span className="truncate">Follows: {follow.draft.previous.title}</span>
+            <button type="button" className="rounded-full p-0.5 hover:bg-sky-900 shrink-0" aria-label="Remove follows" title="This goal will not follow it" onClick={() => setFollow(null)}>
+              <X size={12} />
+            </button>
+          </span>
+          <span className="text-[11px] text-zinc-500">Settings are prefilled from it; Clarify gets what it asked, decided and delivered as background.</span>
+        </div>
+      )}
 
       <Card title={<>What kind of goal is this?<HelpLink to="your-first-goal#what-kind-of-goal-is-this" className="ml-1.5" /></>}>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -310,7 +374,8 @@ export function NewGoalPage() {
       </Card>
 
       <Card title={<>2 · Repository<HelpLink to="your-first-goal#repository" className="ml-1.5" /></>}>
-        <RepoCard path={repoPath} info={repoInfo} onPath={setRepoPath} onInfo={setRepoInfo} />
+        <RepoCard key={repoKey} path={repoPath} info={repoInfo} onPath={setRepoPath} onInfo={setRepoInfo} />
+        {repoInfo?.ok && (followCandidates.length > 0 || follow) && <FollowsPicker follow={follow} candidates={followCandidates} onPick={(id) => void chooseFollow(id, false)} onChange={setFollow} />}
       </Card>
 
       <Card title={<>3 · Budget<HelpLink to="your-first-goal#budget" className="ml-1.5" /></>}>
@@ -360,6 +425,80 @@ export function NewGoalPage() {
           {busy ? 'Creating…' : auto ? 'Create & run' : 'Create & clarify'}
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** Follows (optional): which finished goal of this repository the new goal continues, where it starts, and what it takes along. */
+function FollowsPicker({ follow, candidates, onPick, onChange }: { follow: FollowChoice | null; candidates: GoalRow[]; onPick: (id: string) => void; onChange: (f: FollowChoice) => void }) {
+  const d = follow?.draft;
+  const options = d && !candidates.some((c) => c.id === d.previous.id) ? [{ id: d.previous.id, title: d.previous.title, state: d.previous.state }, ...candidates] : candidates;
+  return (
+    <div className="mt-4 border-t border-zinc-800 pt-3 space-y-2.5">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-zinc-300">
+          Follows<HelpLink to="your-first-goal#follows" className="ml-1.5" />
+        </span>
+        <Select aria-label="Follows" className="flex-1 min-w-0 max-w-md" value={d?.previous.id ?? ''} onChange={(e) => onPick(e.target.value)}>
+          <option value="">Nothing — a new line of work</option>
+          {options.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.title} ({g.state.replace('_', ' ')})
+            </option>
+          ))}
+        </Select>
+      </div>
+      {follow && d && (
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 space-y-2 text-xs">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="text-zinc-300">Start from</span>
+            <ButtonGroup
+              label="Start from"
+              value={follow.startFrom}
+              onChange={(v) => onChange({ ...follow, startFrom: v })}
+              options={[
+                { id: 'base' as const, label: <span className="mono">{d.start.baseBranch}</span>, title: 'The base branch' },
+                ...(d.start.previousBranch ? [{ id: 'previous' as const, label: "its goal branch", title: d.start.previousBranch }] : []),
+              ]}
+            />
+          </div>
+          <p className="text-zinc-400 leading-snug">
+            {follow.startFrom === 'previous' ? (
+              <>
+                Its work is not on <span className="mono">{d.start.baseBranch}</span> yet, so this goal starts from its goal branch <span className="mono">{d.start.previousBranch}</span>. Its changes go along in this goal's delivery (and pull request); the delivery still targets <span className="mono">{d.start.baseBranch}</span>.
+              </>
+            ) : d.start.onBase ? (
+              <>
+                Its work is already on <span className="mono">{d.start.baseBranch}</span> ({d.start.detail}); this goal starts from there.
+              </>
+            ) : (
+              <>
+                This goal starts from <span className="mono">{d.start.baseBranch}</span> without its changes — they are not on <span className="mono">{d.start.baseBranch}</span> yet.
+              </>
+            )}
+          </p>
+          {d.attachments.length > 0 && (
+            <label className="flex items-start gap-2">
+              <input type="checkbox" className="mt-0.5" checked={follow.attachments} onChange={(e) => onChange({ ...follow, attachments: e.target.checked })} />
+              <span>
+                Bring its attachments <span className="text-zinc-500">({d.attachments.map((a) => a.name).join(', ')})</span>
+              </span>
+            </label>
+          )}
+          {d.style && (
+            <label className="flex items-start gap-2">
+              <input type="checkbox" className="mt-0.5" checked={follow.style} onChange={(e) => onChange({ ...follow, style: e.target.checked })} />
+              <span className="flex items-center gap-1.5 flex-wrap">
+                Keep its style direction <span className="text-zinc-200">{d.style.name}</span>
+                {d.style.palette.slice(0, 6).map((c) => (
+                  <span key={c} className="inline-block h-3 w-3 rounded-sm border border-zinc-700" style={{ background: c }} title={c} />
+                ))}
+                <span className="text-zinc-500">and its reference sample</span>
+              </span>
+            </label>
+          )}
+        </div>
+      )}
     </div>
   );
 }

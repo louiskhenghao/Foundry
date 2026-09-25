@@ -158,3 +158,21 @@ git merge goal/abc123
 分支名用 goal 页面顶部显示的那个。或者把交付方式改成 **Push branch** 或 **Open a PR**，让 Foundry 通过 GitHub 来做。
 
 不再需要这个 goal 时，**⋯ → Delete goal…** 会删除它和它的进度文件夹；只有在工作已经合并或推送之后，才勾选 **Also delete the branch**。
+
+## Continue with a follow-up
+
+一个 goal 很少是最后一步。goal 结束后（done、over-delivered、failed 或 cancelled），它的页面会显示 **Continue with a follow-up…**。它会打开 New goal 表单，带着一个 **Follows: …** 标签，并且已经填好之前那个 goal 的仓库、goal 类型、模型、effort、Fast mode、视图和交付方式。你只要写接下来要做什么；改主意了就把标签去掉。表单里的 [Follows](./your-first-goal.zh.md#follows) 部分会说明新 goal 从哪里开始，也可以选择不带附件或风格方向。
+
+后续 goal 从之前的 goal 拿到的东西：
+
+- **给 Clarifier 的背景：** 你当时要求了什么、已批准 Brief 的理解和决定、每个任务的结果、最终审查，以及没达到的 Stretch 检查。这些在创建后续 goal 时就复制下来了，所以之后删掉之前的 goal 也不会有影响。
+- **从哪里开始：** 之前的工作已经在你的基础分支上时，就从基础分支开始；否则从之前那个 goal 的分支开始。这种情况下，Delivery 标签会说明之前那个 goal 的改动会随着这个 goal 的 pull request 一起交付。pull request 的目标仍然是你的基础分支。
+- **附件和风格**（除非你取消了勾选）：附件的副本，以及选定的风格方向和它的参考样图，在新的 Brief 上已经选好。
+
+之后 goal 页面会显示 **Follows: …**，之前那个 goal 上会显示 **Followed by: …**，都是链接。如果之前的 goal 被删除了，后续 goal 会显示 "follows a deleted goal" 和它的标题。在 goal 列表里，后续 goal 的标题下面有一小行 "↳ follows …"。
+
+在命令行里：`foundry goal new "<prompt>" --follows <goal id>`。
+
+### Mark as follow-up of…
+
+如果你单独开了一个 goal，但它其实是接着之前某个 goal 做的，在它的页面上打开 **⋯ → Mark as follow-up of…**，选同一个仓库里更早的一个 goal。这只会记录这个关联：代码、分支和 Brief 都不会有任何变化。

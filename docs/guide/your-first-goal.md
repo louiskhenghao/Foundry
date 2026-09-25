@@ -126,6 +126,14 @@ Foundry then shows what it found: the branch, whether there are uncommitted chan
 
 If the folder is not a repository, press **Initialize git here**. If you picked a folder inside a repository, Foundry offers the repository's top folder instead.
 
+### Follows
+
+Under the repository, when it already has finished goals: **Follows** picks the earlier goal this one continues (or **Nothing — a new line of work**). The Clarifier then gets what that goal asked for, what was decided and how it ended, so you do not have to explain it again.
+
+The card below the picker says where the new goal starts. If the earlier goal's work is already on your base branch (its pull request was merged), it starts from there. If not (a Local only goal, an unmerged pull request, a failed goal), it starts from the earlier goal's branch, and those changes go along in this goal's pull request. **Start from** switches between the two. Tick or untick **Bring its attachments** and **Keep its style direction** to take them along or leave them.
+
+**Continue with a follow-up…** on a finished goal opens this form already filled in; see [Continue with a follow-up](./getting-the-result.md#continue-with-a-follow-up).
+
 ### Budget
 
 **3 · Budget.** Limits the goal runs within. Reaching a limit pauses the goal and asks you; it never fails silently.

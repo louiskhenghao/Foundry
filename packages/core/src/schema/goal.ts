@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Attachment } from './attachment.ts';
+import { BriefStyleOption } from './brief.ts';
 import { DeliveryState, IDLE_DELIVERY } from './delivery.ts';
 import { Interview } from './interview.ts';
 
@@ -114,6 +115,32 @@ export const GoalCompletion = z.object({
 export type GoalCompletion = z.infer<typeof GoalCompletion>;
 export const IDLE_COMPLETION: GoalCompletion = { graphRefresh: false, docs: [], docsRun: null, graphRun: null, artifactsRun: null };
 
+/** Goal states a Follow-up can be created from: the earlier goal is finished, whatever the outcome. */
+export const FOLLOWABLE_STATES: GoalState[] = ['done', 'over_delivered', 'failed', 'cancelled'];
+
+/**
+ * A Follow-up: this goal continues an earlier goal of the same repository (B follows A). Kept on B, so deleting A
+ * later breaks nothing: everything B needs from A is snapshotted here. "Followed by" is derived (goals whose
+ * `follows.goalId` is A).
+ */
+export const GoalFollows = z.object({
+  goalId: z.string(),
+  /** A's title when the link was made; shown as-is once A has been deleted */
+  title: z.string(),
+  /** created = B was created to follow A (context snapshotted, start point chosen); linked = marked afterwards, relationship only */
+  via: z.enum(['created', 'linked']),
+  /** where B's goal branch starts: the base branch (A's work is already on it) or A's goal branch; null when linked */
+  startFrom: z.enum(['base', 'previous']).nullable(),
+  /** A's goal branch when B was created (B starts from it when startFrom = previous) */
+  branch: z.string().nullable(),
+  /** the "# Previous goal" section rendered from A at creation, handed to Clarify; '' when linked */
+  context: z.string(),
+  /** A's chosen Style Proposal, kept for B; null = none, or the human opted out */
+  style: BriefStyleOption.nullable(),
+  at: z.string(),
+});
+export type GoalFollows = z.infer<typeof GoalFollows>;
+
 export const Goal = z.object({
   id: z.string(),
   title: z.string().min(1),
@@ -166,7 +193,8 @@ export const Goal = z.object({
       ahead: z.number().int().nonnegative(),
       behind: z.number().int().nonnegative(),
       fetched: z.boolean(),
-      startedFrom: z.enum(['local', 'remote']),
+      /** previous = a Follow-up started from the earlier goal's branch */
+      startedFrom: z.enum(['local', 'remote', 'previous']),
       detail: z.string(),
       at: z.string(),
     })
@@ -176,6 +204,8 @@ export const Goal = z.object({
   autoskills: z.object({ status: z.enum(['installed', 'skipped', 'failed']), skills: z.array(z.string()), detail: z.string(), at: z.string() }).nullable().default(null),
   /** completion actions chosen at Brief approval; default keeps pre-completion `goal.created` events replayable */
   completion: GoalCompletion.default(() => ({ ...IDLE_COMPLETION })),
+  /** the earlier goal this one follows; default keeps pre-follow-up `goal.created` events replayable */
+  follows: GoalFollows.nullable().default(null),
   runningSince: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),

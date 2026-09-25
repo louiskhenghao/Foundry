@@ -50,8 +50,15 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
     }
   };
 
+  // a Follow-up that started from the earlier goal's branch carries that goal's unmerged changes along
+  const ridesAlong = g.follows?.via === 'created' && (g.baseSync ? g.baseSync.startedFrom === 'previous' : g.follows.startFrom === 'previous');
   return (
     <div className="space-y-4">
+      {ridesAlong && (
+        <div className="rounded-lg border border-sky-900 bg-sky-950/30 px-3 py-2 text-xs text-sky-200">
+          This goal follows <span className="font-medium">{g.follows!.title}</span> and started from its goal branch <span className="mono">{g.follows!.branch}</span>, whose work is not on <span className="mono">{g.baseBranch}</span>. Its changes go along in this goal's delivery{del.policy.mode === 'local' ? '' : ' and pull request'}.
+        </div>
+      )}
       {(del.status !== 'idle' || del.policy.mode !== 'local') && (
         <Card
           title={

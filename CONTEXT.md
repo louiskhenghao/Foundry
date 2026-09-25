@@ -16,6 +16,10 @@ One Plan → Act → Observe pass at a Task, performed in a fresh Claude session
 **Continuation**
 The next segment of the same Attempt: its Claude session is resumed with everything it already knows, instead of a fresh session that must understand the Task again. The engine continues an Attempt when its session was cut (engine restart, turn or cost cap, timeout) or when the Checks still fail but the segment made progress; a Continuation consumes no retry, and an Attempt is continued at most a few times before a genuine new Attempt (fresh session, Observation Report) takes over. A Merge Attempt's second try is a Continuation of its first.
 
+**Follow-up**
+A Goal that continues an earlier, finished Goal of the same repository: B *follows* A, and A is *followed by* B; chains are allowed (A → B → C). A Follow-up is given what A asked for, what was understood and decided, and how it ended, as background for its Clarify; that background is copied when the Follow-up is created, so it survives A being deleted. It starts from the base branch when A's work is already there, otherwise from A's Goal branch — then A's changes travel in B's Delivery. A Goal can also be marked as a Follow-up afterwards, which records the relationship and nothing else.
+_Avoid_: continuation (a resumed session inside an Attempt), child goal, sub-goal
+
 **Check**
 A decidable acceptance item. Every Check belongs to a *tier*:
 - **Must** — something the user explicitly asked for. All Must Checks passing means the Goal (or Task) is *done*.

@@ -1,8 +1,9 @@
 import { taskUsage } from '@foundry/core/browser';
-import { Ban, Folder, GitBranch, RotateCcw, Trash2 } from 'lucide-react';
+import { Ban, CornerDownRight, Folder, GitBranch, Link2, RotateCcw, Trash2 } from 'lucide-react';
 import { RestartDialog } from '../../components/RestartDialog.tsx';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { FollowLinks, MarkFollowUpDialog } from './FollowUps.tsx';
 import { InterviewPanel } from './InterviewPanel.tsx';
 import { MilestoneCard } from './MilestoneCard.tsx';
 import { api, type GoalDetail } from '../../api.ts';
@@ -35,6 +36,7 @@ export function GoalPage() {
   /** false = closed; true = open (all); string = open, preselect that task */
   const [restart, setRestart] = useState<boolean | string>(false);
   const [delBranch, setDelBranch] = useState(false);
+  const [markFollow, setMarkFollow] = useState(false);
   const [expert, setExpert] = useState<boolean | null>(() => {
     const v = localStorage.getItem(`foundry.expert.${id}`);
     return v === null ? null : v === '1';
@@ -85,6 +87,7 @@ export function GoalPage() {
     ...(terminal || g.state === 'blocked' ? [{ label: 'Restart…', icon: <RotateCcw size={13} />, onClick: () => setRestart(true), title: 'Restart from a task of your choice (or from the beginning)' }] : []),
     ...(awaiting ? [{ label: 'Re-run Clarify', icon: <RotateCcw size={13} />, onClick: () => api.reclarify(id, 'fetch the latest base branch and explore again').catch((e) => setErr(e.message)), title: 'Fetch the base branch again and rebuild the Brief from the fresh tip' }] : []),
     ...(!terminal && awaiting ? [{ label: 'Cancel goal', icon: <Ban size={13} />, onClick: () => api.cancelGoal(id) }] : []),
+    ...(!g.follows ? [{ label: 'Mark as follow-up of…', icon: <Link2 size={13} />, onClick: () => setMarkFollow(true), title: 'Record that this goal continues an earlier goal of the same repository' }] : []),
     { label: 'Delete goal…', icon: <Trash2 size={13} />, onClick: () => setDel(true), danger: true },
   ];
 
@@ -112,6 +115,7 @@ export function GoalPage() {
               {g.baseBranch} → {g.branch}
             </span>
           </div>
+          <FollowLinks d={d} />
         </div>
         <div className="space-y-2.5">
           <div className="grid grid-cols-2 gap-3">
@@ -139,10 +143,18 @@ export function GoalPage() {
                 <Ban size={13} /> Cancel
               </Button>
             ) : null}
+            {terminal && (
+              <Link to={`/goals/new?follows=${id}`}>
+                <Button size="sm" variant={finished ? 'default' : 'primary'} title="Start a new goal that builds on this one">
+                  <CornerDownRight size={13} /> Continue with a follow-up…
+                </Button>
+              </Link>
+            )}
             <MoreMenu items={more} />
           </div>
         </div>
       </div>
+      <MarkFollowUpDialog d={d} open={markFollow} onClose={() => setMarkFollow(false)} />
       {restart !== false && <RestartDialog goalId={id} tasks={d.tasks} initial={typeof restart === 'string' ? restart : null} open onClose={() => setRestart(false)} onDone={() => { setRestart(false); setTab('tasks'); }} />}
       <ConfirmDialog
         open={del}

@@ -158,3 +158,21 @@ git merge goal/abc123
 with the branch name shown at the top of the goal page. Or change the delivery to **Push branch** or **Open a PR** and let Foundry do it through GitHub.
 
 When you no longer need the goal, **⋯ → Delete goal…** removes it and its progress folder; tick **Also delete the branch** only once the work is merged or pushed.
+
+## Continue with a follow-up
+
+A goal is rarely the last word. When a goal has finished (done, over-delivered, failed or cancelled), its page shows **Continue with a follow-up…**. It opens the New goal form with a **Follows: …** chip and the earlier goal's repository, goal type, models, effort, Fast mode, view and delivery already filled in. You write what should happen next; remove the chip if you change your mind. The form's [Follows](./your-first-goal.md#follows) section says where the new goal starts and lets you leave the attachments or the style direction behind.
+
+What the follow-up gets from the earlier goal:
+
+- **Background for the Clarifier:** what you asked for then, the approved Brief's understanding and decisions, how each task ended, the final review and any Stretch checks it did not meet. This is copied when the follow-up is created, so deleting the earlier goal later changes nothing.
+- **Where it starts:** from your base branch when the earlier work is already there, otherwise from the earlier goal's branch. In that case the Delivery tab says that the earlier goal's changes go along in this goal's pull request. The pull request still targets your base branch.
+- **Attachments and style,** unless you unticked them: copies of the attachments, and the chosen style direction with its reference sample, already picked on the new Brief.
+
+The goal page then shows **Follows: …** and, on the earlier goal, **Followed by: …**, as links. If the earlier goal was deleted, the follow-up says "follows a deleted goal" with its title. In the goals list, a follow-up has a small "↳ follows …" line under its title.
+
+From the command line: `foundry goal new "<prompt>" --follows <goal id>`.
+
+### Mark as follow-up of…
+
+If you started a goal on its own and it really continues an earlier one, open **⋯ → Mark as follow-up of…** on its page and pick an earlier goal of the same repository. This only records the link: nothing about the code, the branch or the Brief changes.

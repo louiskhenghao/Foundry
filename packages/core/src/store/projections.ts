@@ -236,6 +236,11 @@ export function applyEvent(db: Database, e: EngineEvent): void {
       if (g) upsertGoal(db, { ...g, baseSync: e.payload.workspaceRebuilt ? null : g.baseSync, autoskills: e.payload.workspaceRebuilt ? null : g.autoskills, interview: g.interview ? { mode: g.interview.mode, status: 'thinking', sessionId: null, rounds: [] } : null, updatedAt: e.ts });
       break;
     }
+    case 'goal.follow_up_linked': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, follows: { goalId: e.payload.follows.goalId, title: e.payload.follows.title, via: 'linked', startFrom: null, branch: null, context: '', style: null, at: e.ts }, updatedAt: e.ts });
+      break;
+    }
     case 'goal.base_synced': {
       const g = getGoal(db, e.goalId!);
       if (g) upsertGoal(db, { ...g, baseSync: { ...e.payload, at: e.ts } });
@@ -381,6 +386,10 @@ export function getGoal(db: Database, id: string): Goal | null {
 }
 export function listGoals(db: Database): Goal[] {
   return (db.query('SELECT data FROM goals ORDER BY created_at DESC').all() as { data: string }[]).map((r) => JSON.parse(r.data));
+}
+/** "Followed by": the goals that follow this one (oldest first). */
+export function listFollowUps(db: Database, goalId: string): Goal[] {
+  return (db.query("SELECT data FROM goals WHERE json_extract(data, '$.follows.goalId') = ? ORDER BY created_at").all(goalId) as { data: string }[]).map((r) => JSON.parse(r.data));
 }
 export function upsertGoal(db: Database, g: Goal): void {
   db.run(

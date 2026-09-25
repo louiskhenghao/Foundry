@@ -30,7 +30,7 @@ function opts(name: string): string[] {
 }
 const has = (name: string) => rest.includes(name);
 const positional = () => rest.filter((a, i) => !a.startsWith('--') && !(i > 0 && rest[i - 1]!.startsWith('--') && !FLAGS.has(rest[i - 1]!)));
-const FLAGS = new Set(['--auto-approve', '--approve', '--verify', '--json', '--follow', '--force', '--self-check']);
+const FLAGS = new Set(['--auto-approve', '--approve', '--verify', '--json', '--follow', '--force', '--self-check', '--no-attachments', '--no-style']);
 const BASE = process.env.FOUNDRY_URL ?? `http://127.0.0.1:${process.env.FOUNDRY_PORT ?? 4111}`;
 
 async function api(path: string, init?: RequestInit): Promise<any> {
@@ -98,8 +98,12 @@ switch (cmd) {
   case 'goal': {
     if (rest[0] !== 'new') return usage();
     const prompt = rest[1];
-    const repoPath = opt('--repo');
-    if (!prompt || !repoPath) return usage('goal new needs "<prompt>" and --repo <path>');
+    // a Follow-up: the earlier goal's repository and settings are the defaults, any flag given wins
+    const followsId = opt('--follows');
+    const draft = followsId ? await api(`/api/goals/${followsId}/follow-up-draft`) : null;
+    if (draft && !draft.followable) return usage(`goal ${followsId} cannot be followed: ${draft.reason}`);
+    const repoPath = opt('--repo') ?? draft?.prefill.repoPath;
+    if (!prompt || !repoPath) return usage('goal new needs "<prompt>" and --repo <path> (or --follows <goal id>)');
     const body: any = {
       prompt,
       repoPath: resolve(repoPath),
@@ -122,8 +126,19 @@ switch (cmd) {
     };
     if (has('--auto-approve')) body.autoBrief = { mustChecks: opts('--check'), stretchChecks: opts('--stretch') };
     if (opt('--deliver')) body.delivery = { mode: opt('--deliver'), remote: opt('--remote') ?? 'origin', remoteUrl: opt('--remote-url') ?? null };
+    if (draft) {
+      const p = draft.prefill;
+      body.nature ??= p.nature;
+      body.modelPreset ??= p.modelPreset ?? undefined;
+      body.effort ??= p.effort ?? undefined;
+      body.workflow ??= { pace: p.pace };
+      body.mode = p.mode;
+      body.delivery ??= { ...p.delivery, createRepo: null, remoteUrl: null };
+      body.follows = { goalId: followsId, startFrom: opt('--start-from'), attachments: !has('--no-attachments'), style: !has('--no-style') };
+    }
     const goal = await api('/api/goals', { method: 'POST', body: JSON.stringify(body) });
     console.log(`created goal ${goal.id} [${goal.state}] ${goal.title}`);
+    if (goal.follows) console.log(`  follows ${goal.follows.title} (${goal.follows.goalId}), starting from ${goal.follows.startFrom === 'previous' ? `its goal branch ${goal.follows.branch}` : goal.baseBranch}`);
     console.log(`  ui: ${BASE}/goals/${goal.id}`);
     if (has('--follow')) await watch(goal.id);
     break;

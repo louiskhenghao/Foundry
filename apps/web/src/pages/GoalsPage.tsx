@@ -30,6 +30,13 @@ export function GoalsPage() {
       {g.openEscalations > 0 && <span className="text-orange-400 text-xs whitespace-nowrap">⚠ {g.openEscalations}</span>}
     </span>
   );
+  /** the list stays flat by time; a Follow-up names the goal it follows */
+  const followsTag = (g: GoalRow) =>
+    g.follows ? (
+      <div className="text-[11px] text-zinc-500 truncate max-w-[70vw] sm:max-w-[40vw]" title={`follows ${g.follows.title}`}>
+        ↳ follows {g.follows.title}
+      </div>
+    ) : null;
   const taskSummary = (g: GoalRow) =>
     Object.entries(g.taskCounts)
       .map(([k, v]) => `${v} ${k}`)
@@ -58,7 +65,10 @@ export function GoalsPage() {
             {goals.map((g) => (
               <Link key={g.id} to={href(g)} className="surface-card block rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 hover:border-zinc-600">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="text-sm text-zinc-100 leading-snug">{g.title}</div>
+                  <div className="min-w-0">
+                    <div className="text-sm text-zinc-100 leading-snug">{g.title}</div>
+                    {followsTag(g)}
+                  </div>
                   <span className="shrink-0">{stateCell(g, true)}</span>
                 </div>
                 <div className="text-[11px] text-zinc-500 mono truncate mt-1">{g.repoPath}</div>
@@ -91,6 +101,7 @@ export function GoalsPage() {
                       <Link to={href(g)} className="text-zinc-100 hover:underline">
                         {g.title}
                       </Link>
+                      {followsTag(g)}
                       <div className="text-xs text-zinc-500 mono truncate max-w-[40vw]">{g.repoPath}</div>
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">{stateCell(g)}</td>
