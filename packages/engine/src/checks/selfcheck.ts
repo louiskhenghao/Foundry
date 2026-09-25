@@ -1,11 +1,21 @@
 import { existsSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import type { Check, CheckResult, Goal } from '@foundry/core';
 import { IdPrefix, listChecks, newId } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { screenshotsDir } from '../workspace.ts';
 
 export const SELF_CHECK_NAME = 'self-check: the preview loads without errors';
+
+/**
+ * The command that downloads Chromium for the Playwright Foundry ships. It runs that package's own CLI: `bunx playwright`
+ * finds no bin at the repo root (bun links it under packages/engine) and would fetch playwright@latest, whose browser
+ * revision stops matching the installed package as soon as Playwright releases a new version.
+ */
+export function playwrightInstallCommand(): string[] {
+  const cli = join(dirname(Bun.resolveSync('playwright/package.json', import.meta.dir)), 'cli.js');
+  return [process.execPath, cli, 'install', 'chromium'];
+}
 
 /** Is Playwright usable here: the package resolves and Chromium is installed. */
 export async function playwrightStatus(): Promise<{ installed: boolean; browser: boolean; detail: string }> {

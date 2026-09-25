@@ -131,8 +131,8 @@ What the compose file sets up:
 |---|---|
 | Container name | `foundry` (the updater sidecar looks for this exact name) |
 | UI port | `127.0.0.1:4111:4111` |
-| Preview ports | `127.0.0.1:4200-4299:4200-4299`, commented out (see [Previews](#6-previews-from-the-host)) |
-| Volumes | `engine-data` → `/app/data`, `claude-home` → `/home/node/.claude`, `${FOUNDRY_REPOS:-${HOME}/Projects}` → `/repos` |
+| Preview ports | `127.0.0.1:4200-4299:4200-4299` (see [Previews](#6-previews-from-the-host)) |
+| Volumes | `engine-data` → `/app/data`, `claude-home` → `/home/node/.claude`, `playwright-browsers` → `/home/node/.cache/ms-playwright` (Chromium for the self-check), `${FOUNDRY_REPOS:-${HOME}/Projects}` → `/repos` |
 | Environment passed through | `FOUNDRY_MODEL_CHEAP` (default `haiku`), `FOUNDRY_MAX_CONCURRENT` (default `3`) |
 | Updater | `FOUNDRY_WATCHTOWER_URL=http://watchtower:8080`, `FOUNDRY_WATCHTOWER_TOKEN` (default `foundry-watchtower`) |
 | Sidecar | `containrrr/watchtower`, container `foundry-watchtower`, its API never published to the host |
@@ -285,16 +285,27 @@ you, and `gh auth login`, `npx autoskills` and `uv` all need to write under it (
 ### 6. Previews from the host
 
 A goal's preview (its dev server, started at milestones and from the goal page) listens on a port from 4200–4299
-inside the container. To open previews from your machine, publish that range:
+inside the container. The link Foundry shows (on the goal page, in milestone notifications and on Telegram) is
+`http://localhost:<port>`, so publish the range with the same numbers on both sides:
 
-- Compose: uncomment `- '127.0.0.1:4200-4299:4200-4299'` under `ports:` and run `docker compose up -d`.
+- Compose: the shipped file already publishes `127.0.0.1:4200-4299:4200-4299`. A `docker-compose.yml` from image 0.4.1
+  or older has that line commented out: uncomment it and run `docker compose up -d`.
 - `docker run`: add `-p 127.0.0.1:4200-4299:4200-4299`.
 
 **Settings → Preview & self-check → First port / Last port** changes the range. Publish the same range.
 
-The headless self-check needs Chromium in the container. **Settings → Preview & self-check → Install Chromium** runs
-`bunx playwright install chromium` (a few hundred MB). The download goes into the container's own file system, not
-into a volume, so a re-created container (every update does that) needs it again.
+Inside the image (`FOUNDRY_DOCKER=1`) a preview listens on every interface, because a published port cannot reach a
+server that only listens on the container's own loopback. Foundry adds `--host 0.0.0.0` to a detected Vite command
+and `-H 0.0.0.0` to a detected Next command, and sets `HOST=0.0.0.0` and `HOSTNAME=0.0.0.0` for every preview. Expo's
+web server already listens on every interface. A run command you give in the Brief is used as written: if its server
+ignores `HOST`, add its own flag for listening on `0.0.0.0`. A local install (no Docker) keeps previews on localhost.
+
+The headless self-check needs Chromium. The image already has the system libraries and fonts Chromium needs;
+**Settings → Preview & self-check → Install Chromium** downloads the browser itself (about 650 MB on disk) with the
+Playwright version Foundry ships. It goes to `/home/node/.cache/ms-playwright` (`PLAYWRIGHT_BROWSERS_PATH`), which
+the compose file keeps in the `playwright-browsers` volume, so updates do not lose it. With `docker run`, add
+`-v playwright-browsers:/home/node/.cache/ms-playwright` to keep it; without that volume a re-created container
+needs the install again.
 
 ### 7. GitHub for delivery (optional)
 
@@ -327,6 +338,8 @@ With the uid ≠ 1000 recipe this is already covered: the whole home folder is m
   (`graphify install --platform claude`). `FOUNDRY_SKIP_SETUP=1` skips that. A mounted `~/.claude` that already has a
   `skills/` folder is never touched.
 - The container has a health check: `curl -fsS http://127.0.0.1:4111/api/health`.
+- The image carries Chromium's system libraries (from `playwright install-deps chromium`, minus Xvfb), but not the
+  browser: it is downloaded on demand (see [Previews](#6-previews-from-the-host)).
 - Build your own image: `docker build -t foundry .`. Add `--build-arg CLAUDE_CODE_VERSION=x.y.z` to pin another
   Claude Code version.
 

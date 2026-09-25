@@ -666,7 +666,7 @@ function PlaywrightInstall() {
                 }, 60_000);
               }
             }}
-            title="bunx playwright install chromium (a few hundred MB, once)"
+            title="playwright install chromium, with the Playwright version Foundry ships (a few hundred MB, once)"
           >
             Install Chromium
           </Button>
