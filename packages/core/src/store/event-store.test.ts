@@ -28,7 +28,7 @@ function goal(id: string): Goal {
     delivery: IDLE_DELIVERY,
     attachments: [],
     baseSync: null,
-    autoskills: null,
+    autoskills: null, follows: null,
     completion: { graphRefresh: false, docs: [], docsRun: null, graphRun: null, artifactsRun: null },
     nature: 'auto',
     outputDir: null,

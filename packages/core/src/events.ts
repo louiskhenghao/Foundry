@@ -60,7 +60,9 @@ export const EngineEvent = z.discriminatedUnion('type', [
   /** Clarify is being run again from scratch (fresh fetch, workspace rebuilt); the next brief.proposed replaces the Brief */
   ev('goal.reclarified', { reason: z.string(), workspaceRebuilt: z.boolean(), /** rendered Decisions of the discarded Brief, carried into the new Clarify */ decisions: z.string().default('') }),
   /** the base branch was fetched before the goal branch was created; says where the goal started from */
-  ev('goal.base_synced', { remote: z.string().nullable(), base: z.string(), localRef: z.string().nullable(), remoteRef: z.string().nullable(), ahead: z.number().int(), behind: z.number().int(), fetched: z.boolean(), startedFrom: z.enum(['local', 'remote']), detail: z.string() }),
+  ev('goal.base_synced', { remote: z.string().nullable(), base: z.string(), localRef: z.string().nullable(), remoteRef: z.string().nullable(), ahead: z.number().int(), behind: z.number().int(), fetched: z.boolean(), startedFrom: z.enum(['local', 'remote', 'previous']), detail: z.string() }),
+  /** the human marked the goal as a Follow-up of an earlier goal of the same repository (relationship only, no code or branch change) */
+  ev('goal.follow_up_linked', { follows: z.object({ goalId: z.string(), title: z.string() }) }),
   /** the goal's progress folder was chosen at creation, or the goal was moved there from the legacy data-dir layout */
   ev('goal.workspace_set', { dir: z.string(), reason: z.enum(['created', 'migrated']) }),
   /** the goal paused at a milestone task for the human to look (state awaiting_feedback); recheck = the one second look after feedback fixes */

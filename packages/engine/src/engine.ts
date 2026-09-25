@@ -978,6 +978,7 @@ export class Engine {
       baseSync: null,
       autoskills: null,
       completion: { ...IDLE_COMPLETION },
+      follows: null,
       runningSince: null,
       createdAt: now,
       updatedAt: now,
