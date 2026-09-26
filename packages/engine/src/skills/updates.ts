@@ -9,7 +9,7 @@ import { exec as defaultExec } from '../git/git.ts';
 import { CACHE_DEPTH, ensureCache } from './installer.ts';
 import type { SkillsPaths } from './paths.ts';
 import { readMarketplaces, type MarketplaceInfo } from './scanner.ts';
-import { candidatesFor, dirFingerprint, localDirOf, pathInRepoOf, skillMdBlob, sourceOf, type Candidate, type SourceKey } from './sources.ts';
+import { candidatesFor, dirFiles, dirFingerprint, localDirOf, pathInRepoOf, skillMdBlob, sourceOf, type Candidate, type SourceKey } from './sources.ts';
 import type { Catalog, InstalledSkill, ScanResult, SkillSource, SkillSourceRow, SkillsUpdateReport, UpdaterKind } from './types.ts';
 
 interface PathFact {
@@ -166,7 +166,8 @@ export class SkillsUpdateChecker {
         local,
         upstream: facts?.head ? { commit: facts.head, committedAt: facts.headAt, checkedAt: facts.checkedAt } : null,
         updateAvailable: determinable.length ? rows.some((r) => r.status === 'outdated') : null,
-        updater,
+        // unreleased upstream changes: say why the Update button is gone instead of offering one that changes nothing
+        updater: g.key.manager === 'plugin' && rows.some((r) => r.status === 'unreleased') && !rows.some((r) => r.status === 'outdated') ? { ...updater, hint: `Upstream has changes that are not released yet: the plugin is still${local.version ? ` v${local.version}` : ' at the same version'}, and the CLI only updates a plugin when its version number goes up.` } : updater,
         error: facts?.error ?? null,
         skills: rows.sort((a, b) => a.name.localeCompare(b.name)),
       });
@@ -206,6 +207,13 @@ export class SkillsUpdateChecker {
     const fact: PathFact = { commit, at, exact: forPath < total };
     facts.paths[pathInRepo] = fact;
     return fact;
+  }
+
+  /** A commit of the cached clone (it may be missing from a shallow clone). */
+  private async commitAt(repo: string, sha: string): Promise<{ commit: string; at: string } | null> {
+    const r = await this.exec(['git', 'log', '-1', '--format=%H%x09%cI', sha], this.cacheDir(repo), { timeoutMs: 30_000 }).catch(() => null);
+    const [commit = '', at = ''] = r?.code === 0 ? r.stdout.trim().split('\t') : [];
+    return commit ? { commit, at } : null;
   }
 
   /** Does the local SKILL.md match any historical version of the upstream path? Returns that commit. */
@@ -261,12 +269,23 @@ export class SkillsUpdateChecker {
     if (localFp && upFp && localFp === upFp) {
       out.status = 'up-to-date';
       if (candidate) out.match = { relation: 'identical', olderCommit: null, olderAt: null };
+    } else if (upFp && upstreamDir && onlyDocsDiffer(localDir, upstreamDir)) {
+      // the skill itself is current; only its README / changelog / licence text moved on
+      out.status = 'up-to-date';
+      if (candidate) out.match = { relation: 'identical', olderCommit: null, olderAt: null };
     } else if (upFp) {
-      const blob = skillMdBlob(localDir);
-      const older = key.repo && rel && blob && gitOk && facts?.head ? await this.olderCommit(key.repo, rel, blob).catch(() => null) : null;
+      // a plugin records the exact commit it was installed from: that is what the local copy equals
+      const installed = key.manager === 'plugin' && local.commit && key.repo && gitOk ? await this.commitAt(key.repo, local.commit) : null;
+      const blob = installed ? null : skillMdBlob(localDir);
+      const skillMdMatch = key.repo && rel && blob && gitOk && facts?.head ? await this.olderCommit(key.repo, rel, blob).catch(() => null) : null;
+      // SKILL.md matching the path's NEWEST commit only says SKILL.md is current; other files of the skill differ
+      const older = installed ?? (skillMdMatch && skillMdMatch.commit !== upstream?.commit ? skillMdMatch : null);
       if (older) {
         out.status = 'outdated';
         out.match = { relation: 'older', olderCommit: older.commit, olderAt: older.at };
+      } else if (skillMdMatch) {
+        out.status = 'outdated';
+        out.match = { relation: 'differs', olderCommit: null, olderAt: null };
       } else if (upstream && local.installedAt && Date.parse(upstream.committedAt) > Date.parse(local.updatedAt ?? local.installedAt)) {
         out.status = 'outdated';
         if (candidate) out.match = { relation: 'differs', olderCommit: null, olderAt: null };
@@ -280,10 +299,18 @@ export class SkillsUpdateChecker {
       out.status = 'unknown';
     }
 
+    // a plugin only updates when its version number goes up: upstream changes under the same version are not released yet
+    if (out.status === 'outdated' && key.manager === 'plugin' && local.version && cache) {
+      const upstreamVersion = pluginVersionIn(cache, row.plugin?.name ?? null);
+      if (upstreamVersion && upstreamVersion === local.version) out.status = 'unreleased';
+    }
+
     // actions
     const actions: SkillSourceRow['actions'] = [];
     if (out.status === 'outdated' && (key.manager === 'foundry' || key.manager === 'agents-cli' || key.manager === 'plugin')) actions.push('update');
-    if (key.manager === 'hand' && catalogId && out.status !== 'up-to-date') actions.push('adopt');
+    // adopting reinstalls from the catalog: only entries Foundry can install by itself (git, plugin)
+    const adoptable = catalogId ? ['git', 'plugin'].includes(catalog.entries.find((e) => e.id === catalogId)?.source.type ?? '') : false;
+    if (key.manager === 'hand' && adoptable && out.status !== 'up-to-date') actions.push('adopt');
     if (shadowedBy && (out.status === 'outdated' || out.status === 'modified' || out.match?.relation === 'older')) actions.push('trash-shadow');
     if (row.canUninstall) actions.push('uninstall');
     out.actions = actions;
@@ -303,8 +330,31 @@ export class SkillsUpdateChecker {
   }
 }
 
+/** Files a skill carries only for people (README, changelog, licence): a difference in them alone is not an update. */
+const DOC_FILE = /^(readme|changelog|license|licence|notice)([._-][\w.-]*)?$/i;
+function onlyDocsDiffer(localDir: string, upstreamDir: string): boolean {
+  const a = new Map(dirFiles(localDir));
+  const b = new Map(dirFiles(upstreamDir));
+  const differing = [...new Set([...a.keys(), ...b.keys()])].filter((p) => a.get(p) !== b.get(p));
+  return differing.length > 0 && differing.every((p) => !p.includes('/') && DOC_FILE.test(p));
+}
+
+/** The version a plugin's own repository currently declares (.claude-plugin/marketplace.json or plugin.json). */
+function pluginVersionIn(repoDir: string, pluginName: string | null): string | null {
+  const read = (p: string) => {
+    try {
+      return JSON.parse(readFileSync(join(repoDir, p), 'utf8')) as { version?: string; plugins?: { name?: string; version?: string }[] };
+    } catch {
+      return null;
+    }
+  };
+  const mkt = read('.claude-plugin/marketplace.json');
+  const inMkt = mkt?.plugins?.find((p) => !pluginName || p.name === pluginName)?.version;
+  return inMkt ?? read('.claude-plugin/plugin.json')?.version ?? null;
+}
+
 function updaterFor(key: SourceKey, rows: SkillSourceRow[]): SkillSource['updater'] {
-  const kind: UpdaterKind = key.manager === 'foundry' ? 'foundry' : key.manager === 'agents-cli' ? 'agents-cli' : key.manager === 'plugin' ? 'plugin' : key.manager === 'gstack' ? 'hint' : key.manager === 'hand' ? (rows.some((r) => r.catalogId) ? 'adopt' : 'none') : 'none';
+  const kind: UpdaterKind = key.manager === 'foundry' ? 'foundry' : key.manager === 'agents-cli' ? 'agents-cli' : key.manager === 'plugin' ? 'plugin' : key.manager === 'gstack' ? 'hint' : key.manager === 'hand' ? (rows.some((r) => r.actions.includes('adopt')) ? 'adopt' : 'none') : 'none';
   const pluginId = key.id.startsWith('plugin:') ? key.id.slice('plugin:'.length) : null;
   const mkt = pluginId?.includes('@') ? pluginId.split('@').slice(1).join('@') : null;
   switch (kind) {

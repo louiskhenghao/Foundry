@@ -242,7 +242,8 @@ export const SkillManager = z.enum(['foundry', 'agents-cli', 'plugin', 'gstack',
 export type SkillManager = z.infer<typeof SkillManager>;
 export const UpdaterKind = z.enum(['foundry', 'agents-cli', 'plugin', 'adopt', 'hint', 'none']);
 export type UpdaterKind = z.infer<typeof UpdaterKind>;
-export const SkillRowStatus = z.enum(['up-to-date', 'outdated', 'modified', 'unknown', 'broken']);
+/** `unreleased`: upstream changed, but a plugin's version number did not, so the CLI will not deliver it yet */
+export const SkillRowStatus = z.enum(['up-to-date', 'outdated', 'unreleased', 'modified', 'unknown', 'broken']);
 export type SkillRowStatus = z.infer<typeof SkillRowStatus>;
 
 export const SkillSourceRow = z.object({
