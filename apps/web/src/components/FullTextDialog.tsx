@@ -1,5 +1,6 @@
 import { Check, Copy } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Modal } from '../ui.tsx';
 import { MarkdownPanel } from './Markdown.tsx';
 
@@ -51,12 +52,18 @@ function CopyTextButton({ text }: { text: string }) {
 export function FullTextDialog({ value, onClose }: { value: FullText | null; onClose: () => void }) {
   useEffect(() => {
     if (!value) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    // captured first and stopped, so Escape closes only this dialog, not the task panel it opened over
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [value, onClose]);
   if (!value) return null;
-  return (
+  // portalled to <body>: it opens from inside the task panel, whose backdrop blur would otherwise pin a fixed overlay to the panel's scroll
+  return createPortal(
     <Modal open title={value.title} onClose={onClose} wide>
       {value.note && <div className="mb-2 text-xs text-amber-300/90">{value.note}</div>}
       <MarkdownPanel
@@ -67,6 +74,7 @@ export function FullTextDialog({ value, onClose }: { value: FullText | null; onC
         defaultRaw={value.raw}
         actions={<CopyTextButton text={value.text} />}
       />
-    </Modal>
+    </Modal>,
+    document.body,
   );
 }
