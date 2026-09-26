@@ -36,7 +36,9 @@ export function SourceGroup({ s, busy, updating, running, filter, a }: { s: Skil
   const canUpdate = (s.updater.kind === 'foundry' || s.updater.kind === 'agents-cli' || s.updater.kind === 'plugin') && !(s.manager === 'plugin' && s.updateAvailable === false && s.skills.some((r) => r.status === 'unreleased'));
   const [confirmPlugin, setConfirmPlugin] = useState(false);
   const pluginRemovable = s.manager === 'plugin' && !!a.onUninstallPlugin;
-  const state = s.updateAvailable === true ? 'update-available' : s.updateAvailable === false ? 'up-to-date' : 'unknown';
+  // nothing to install, but upstream moved on under the same version: not "up to date" either
+  const unreleased = s.updateAvailable !== true && s.skills.some((r) => r.status === 'unreleased');
+  const state = s.updateAvailable === true ? 'update-available' : unreleased ? 'unreleased' : s.updateAvailable === false ? 'up-to-date' : 'unknown';
   const allSelected = removable.length > 0 && removable.every((n) => a.selected.has(n));
   if (!rows.length) return null;
 
@@ -51,7 +53,7 @@ export function SourceGroup({ s, busy, updating, running, filter, a }: { s: Skil
 
   const stateBadge = (
     <Badge state={state} className="shrink-0">
-      {state === 'update-available' ? 'update available' : state === 'up-to-date' ? 'up to date' : 'unknown'}
+      {state === 'update-available' ? 'update available' : state === 'unreleased' ? 'unreleased changes' : state === 'up-to-date' ? 'up to date' : 'unknown'}
     </Badge>
   );
   const countsEl = (
@@ -151,7 +153,8 @@ export function SourceGroup({ s, busy, updating, running, filter, a }: { s: Skil
           </span>
         </div>
       </header>
-      {s.updater.command && open && (
+      {unreleased && s.updater.hint && <div className="px-3 sm:px-4 pb-1 sm:pl-10 text-[11px] text-violet-300">{s.updater.hint}</div>}
+      {s.updater.command && open && canUpdate && (
         <div className="px-3 sm:px-4 pb-1 sm:pl-10 text-[10px] text-zinc-600 mono truncate">
           {s.updater.command.join(' ')} <CopyButton text={s.updater.command.join(' ')} />
         </div>
