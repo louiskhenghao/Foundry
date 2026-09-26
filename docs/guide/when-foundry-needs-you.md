@@ -6,7 +6,7 @@ Once you approve the Brief, Foundry works on its own. It stops and asks you only
 
 Everything else you see while a goal runs is normal and needs nothing from you. The second half of this page explains those messages.
 
-## The seven reasons Foundry stops
+## The eight reasons Foundry stops
 
 ### A piece could not be finished
 
@@ -57,6 +57,17 @@ A task used all its attempts, and Claude Code refused a tool the task needed (no
 **Inbox:** *Budget exceeded*.
 
 The goal reached the cost or time limit you set. **Raise budget** (empty fields double it) or **Abort goal**.
+
+### The delivery stopped
+
+**Inbox:** *Delivery stopped* — where it stopped and why, with the failing checks named, for example "Deploy preview — Deployment was blocked", and a link to each.
+
+The work is done, but pushing it or getting the pull request merged did not go through. Fix the cause (the link shows it), then:
+
+- **Retry delivery** runs the delivery again from the first pull request that is not merged: merged ones are skipped, open ones reused, and fixing CI gets a fresh budget.
+- **Mark as delivered** if you finished it yourself. Foundry reads the pull requests first: if they are merged it finishes as merged (your own folder is updated and the goal tidied up); otherwise it only records it as delivered by you.
+
+If you merge the pull request on GitHub yourself, Foundry notices within a few minutes (or when you open the goal) and closes this item. A check that is not a CI run Foundry can read — a deploy integration's status, for example — is never "fixed" by a fix task; Foundry stops and tells you which check it is. A common cause: a deploy integration that only accepts commits from members of its team. See **Commit author** in [Settings → Git & delivery](./settings.md#git--delivery).
 
 ### A milestone is ready to look at
 
