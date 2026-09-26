@@ -57,6 +57,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `delivery.checksTimeoutMin` | `30` | — | Give up waiting for pending checks after this long; the PR stays open. |
 | `delivery.automergeWaitMin` | `10` | — | How long to wait for GitHub auto-merge under branch protection before leaving it armed. |
 | `delivery.updateLocalBase` | `true` | `FOUNDRY_UPDATE_LOCAL_BASE` | After a pull request merges, fast-forward your local base branch when it is safe (no uncommitted changes, no diverging commits), then remove the goal's progress folder, worktrees and local branches. Off: you pull yourself and delete the goal to tidy up. |
+| `delivery.commitAuthor` | `you-coauthor` | `FOUNDRY_COMMIT_AUTHOR` | Who the engine's commits are written by: you-coauthor (your git identity — the repository's, else the global one, else your GitHub account via gh — with a Co-authored-by: Foundry trailer), you (your identity only) or foundry (foundry <foundry@local>; deploy integrations such as Vercel teams may refuse it). Applies to commits made from now on. |
 | `sync.fetchBeforeGoal` | `true` | `FOUNDRY_SYNC_FETCH` | Fetch the remote before a goal branch is created. |
 | `sync.startFrom` | `auto` | `FOUNDRY_SYNC_START` | Where a goal branch starts: auto (the remote base when the local one is behind it) or local (always the local base). |
 | `sync.refreshBetweenTasks` | `false` | `FOUNDRY_SYNC_REFRESH` | Merge a moved base branch into the goal branch between tasks. |

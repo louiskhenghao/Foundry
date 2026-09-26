@@ -87,6 +87,8 @@ export const DeliverySettings = z.object({
   automergeWaitMin: z.number().int().min(1).max(720).default(10),
   /** after a merge: fast-forward the user's local base branch when it is safe, then tidy the goal's folders and branches */
   updateLocalBase: z.boolean().default(true),
+  /** who the engine's commits are written by: your git identity with Foundry as co-author, only you, or only Foundry */
+  commitAuthor: z.enum(['you-coauthor', 'you', 'foundry']).default('you-coauthor'),
 });
 export const SyncSettings = z.object({
   /** fetch the base branch from its remote before a goal starts exploring / before the goal branch is created */

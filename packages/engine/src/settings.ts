@@ -2,6 +2,7 @@
  * Persisted, user-editable settings (`data/settings.json`) layered over the environment and the
  * built-in defaults: file > env > default. The file stores only the leaves the user changed.
  */
+import { setCommitAuthorMode } from './git/git.ts';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DEFAULT_SETTINGS, RESTART_SETTINGS, Settings, SettingsPatch, type SettingMeta, type SettingsView } from '@foundry/core';
@@ -43,6 +44,7 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'delivery.defaultMode': { name: 'FOUNDRY_DELIVERY_MODE', parse: str },
   'sync.fetchBeforeGoal': { name: 'FOUNDRY_SYNC_FETCH', parse: bool },
   'delivery.updateLocalBase': { name: 'FOUNDRY_UPDATE_LOCAL_BASE', parse: bool },
+  'delivery.commitAuthor': { name: 'FOUNDRY_COMMIT_AUTHOR', parse: str },
   'sync.startFrom': { name: 'FOUNDRY_SYNC_START', parse: str },
   'sync.refreshBetweenTasks': { name: 'FOUNDRY_SYNC_REFRESH', parse: bool },
   'tools.markitdownBin': { name: 'FOUNDRY_MARKITDOWN', parse: str },
@@ -242,6 +244,7 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('delivery.checksTimeoutMin')) config.delivery.checksTimeoutMs = s.delivery.checksTimeoutMin * 60_000;
   if (on('delivery.automergeWaitMin')) config.delivery.automergeWaitMs = s.delivery.automergeWaitMin * 60_000;
   if (on('delivery.updateLocalBase')) config.delivery.updateLocalBase = s.delivery.updateLocalBase;
+  if (on('delivery.commitAuthor')) setCommitAuthorMode(s.delivery.commitAuthor);
   if (on('sync.fetchBeforeGoal')) config.sync.fetchBeforeGoal = s.sync.fetchBeforeGoal;
   if (on('sync.startFrom')) config.sync.startFrom = s.sync.startFrom;
   if (on('sync.refreshBetweenTasks')) config.sync.refreshBetweenTasks = s.sync.refreshBetweenTasks;
