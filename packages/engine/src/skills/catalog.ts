@@ -61,6 +61,8 @@ function statusOf(entry: CatalogEntry, scan: ScanResult, paths: SkillsPaths, whi
 
     if (entry.source.type === 'cli') {
       const bin = which(entry.source.detect);
+      // a command-line tool with no skill folder of its own is installed as soon as its binary is on PATH
+      if (!entry.source.skill) return bin ? { entry, status: 'installed', installedInvoke: null, commit: null, detail: `${entry.source.detect} at ${bin}`, manual } : { entry, status: 'missing', installedInvoke: null, commit: null, detail: `${entry.source.detect} not installed`, manual };
       const skill = !!user || !!plugin;
       if (bin && skill) return { entry, status: 'installed', installedInvoke, commit: null, detail: `${entry.source.detect} at ${bin}; skill present`, manual };
       if (bin || skill) return { entry, status: 'partial', installedInvoke, commit: null, detail: bin ? `${entry.source.detect} found but skill dir missing` : `skill present but ${entry.source.detect} not on PATH`, manual };
@@ -85,6 +87,17 @@ function statusOf(entry: CatalogEntry, scan: ScanResult, paths: SkillsPaths, whi
 }
 
 export const SATISFIED: CatalogEntryStatus['status'][] = ['installed', 'installed-unmanaged', 'installed-via-plugin'];
+
+/** The binary of a catalog entry that is only a command-line tool (no skill to invoke), else null. */
+export function cliOnly(entry: CatalogEntry): string | null {
+  return entry.source.type === 'cli' && !entry.source.skill ? entry.source.detect : null;
+}
+
+/** How a session should be told to use an entry: invoke a skill, or run a command-line tool. */
+export function useLabel(s: CatalogEntryStatus): string {
+  const bin = cliOnly(s.entry);
+  return bin ? `the \`${bin}\` command-line tool` : (s.entry.invoke ?? s.installedInvoke ?? `/${s.entry.name}`);
+}
 
 /** The two `claude plugin` commands that install a marketplace plugin (also what the human is told to run). */
 export function pluginInstallCommand(src: Extract<CatalogEntry['source'], { type: 'plugin' }>): string {

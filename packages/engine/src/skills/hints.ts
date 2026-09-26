@@ -1,5 +1,5 @@
 import type { TaskKind, TaskScenario } from '@foundry/core';
-import { SATISFIED } from './catalog.ts';
+import { SATISFIED, useLabel } from './catalog.ts';
 import type { CatalogEntryStatus, SkillRole } from './types.ts';
 import { formatWorkflowSection, mandatedSkillsFor, type MandatedSkill } from './workflow.ts';
 
@@ -9,7 +9,7 @@ const MAX = 8;
 export function formatSkillsHint(role: SkillRole, statuses: CatalogEntryStatus[]): string | null {
   const invokes = statuses
     .filter((s) => SATISFIED.includes(s.status) && s.entry.roles.includes(role))
-    .map((s) => s.entry.invoke ?? s.installedInvoke ?? `/${s.entry.name}`)
+    .map(useLabel)
     .slice(0, MAX);
   if (!invokes.length) return null;
   return `Installed skills relevant to this role (use when appropriate): ${invokes.join(', ')}`;

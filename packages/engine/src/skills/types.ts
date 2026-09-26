@@ -28,6 +28,11 @@ export const CatalogSource = z.discriminatedUnion('type', [
     /** copy-paste install command (we never run it ourselves) */
     install: z.string(),
     docs: z.string().url().optional(),
+    /**
+     * true when the tool also ships a skill folder of the same name (graphify): installed needs both halves.
+     * false (default): a command-line tool only (ffmpeg, mmx) — installed as soon as the binary is found.
+     */
+    skill: z.boolean().default(false),
   }),
   z.object({
     type: z.literal('manual'),

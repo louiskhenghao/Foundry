@@ -10,6 +10,7 @@
       "source": {
         "type": "cli",
         "detect": "graphify",
+        "skill": true,
         "install": "uv tool install graphifyy && graphify install --platform claude",
         "docs": "https://github.com/safishamsi/graphify"
       },
