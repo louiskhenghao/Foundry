@@ -46,10 +46,13 @@ export function Markdown({ source, className }: { source: string; className?: st
   );
 }
 
-/** Markdown with a Preview / Raw toggle in the corner. `local` keeps the toggle per panel instead of global. */
-export function MarkdownPanel({ source, title, className, maxHeight, local, actions }: { source: string; title?: ReactNode; className?: string; maxHeight?: number | string; local?: boolean; actions?: ReactNode }) {
+/**
+ * Markdown with a Preview / Raw toggle in the corner. `local` keeps the toggle per panel instead of global;
+ * `defaultRaw` is where a local toggle starts (tool output reads better raw, prose as a preview).
+ */
+export function MarkdownPanel({ source, title, className, maxHeight, local, defaultRaw, actions }: { source: string; title?: ReactNode; className?: string; maxHeight?: number | string; local?: boolean; defaultRaw?: boolean; actions?: ReactNode }) {
   const [globalRaw, setGlobalRaw] = useRawPref();
-  const [localRaw, setLocalRaw] = useState(false);
+  const [localRaw, setLocalRaw] = useState(defaultRaw ?? false);
   const raw = local ? localRaw : globalRaw;
   const setRaw = local ? setLocalRaw : setGlobalRaw;
   return (
@@ -67,7 +70,7 @@ export function MarkdownPanel({ source, title, className, maxHeight, local, acti
         </div>
       </div>
       <div className="p-3 overflow-auto" style={maxHeight ? { maxHeight } : undefined}>
-        {source.trim() ? raw ? <pre className="mono text-xs whitespace-pre-wrap text-zinc-300">{source}</pre> : <Markdown source={source} /> : <span className="text-xs text-zinc-600">—</span>}
+        {source.trim() ? raw ? <pre className="mono text-xs whitespace-pre-wrap [overflow-wrap:anywhere] text-zinc-300">{source}</pre> : <Markdown source={source} /> : <span className="text-xs text-zinc-600">—</span>}
       </div>
     </div>
   );
