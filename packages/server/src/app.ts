@@ -563,6 +563,21 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     await engine.refreshDelivery(goalOr404(c).id);
     return c.json({ ok: true, delivery: getGoal(db, c.req.param('id'))!.delivery });
   });
+  // a stopped delivery: run it again from the first unmerged PR, with a fresh fix-CI budget
+  app.post('/api/goals/:id/delivery/retry', async (c) => {
+    const g = await engine.retryDelivery(goalOr404(c).id);
+    return c.json({ ok: true, delivery: g.delivery });
+  });
+  // read one PR on GitHub again (merged, closed, or its checks); a passing PR of a stopped delivery carries on
+  app.post('/api/goals/:id/delivery/prs/:number/recheck', async (c) => {
+    await engine.recheckDeliveryPr(goalOr404(c).id, Number(c.req.param('number')));
+    return c.json({ ok: true, delivery: getGoal(db, c.req.param('id'))!.delivery });
+  });
+  // the human finished the delivery themselves: merged on GitHub → finished as merged, otherwise delivered by them
+  app.post('/api/goals/:id/delivery/mark-delivered', async (c) => {
+    await engine.markDelivered(goalOr404(c).id);
+    return c.json({ ok: true, delivery: getGoal(db, c.req.param('id'))!.delivery });
+  });
   // "Pull into my checkout" (pull) and "Clean up anyway" (force) on a merged goal
   app.post('/api/goals/:id/delivery/after-merge', async (c) => {
     const opts = z.object({ pull: z.boolean().optional(), force: z.boolean().optional() }).parse(await c.req.json().catch(() => ({})));

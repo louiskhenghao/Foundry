@@ -17,6 +17,7 @@ const TRIGGER_LABEL: Record<string, string> = {
   budget_exceeded: 'Budget exceeded',
   permission_denial: 'Tool denied',
   milestone: 'Have a look',
+  delivery_failed: 'Delivery stopped',
 };
 /** one plain sentence per trigger, for people who do not want to read the details */
 const PLAIN: Record<string, string> = {
@@ -26,6 +27,7 @@ const PLAIN: Record<string, string> = {
   budget_exceeded: 'It reached the money or time limit you set.',
   permission_denial: 'Claude refused one of the tools it needed.',
   milestone: 'A milestone landed. Look at the result, then continue or say what to change.',
+  delivery_failed: 'The delivery stopped. The reason is below; fix it, then retry — or mark it delivered if you finished it yourself.',
 };
 const ACTION_LABEL: Record<EscalationAction, string> = {
   retry_with_hint: 'Retry with hint',
@@ -37,6 +39,8 @@ const ACTION_LABEL: Record<EscalationAction, string> = {
   resolve_manually: 'Resolve manually',
   continue: 'Continue',
   feedback: 'Give feedback',
+  retry_delivery: 'Retry delivery',
+  mark_delivered: 'Mark as delivered',
 };
 
 export function InboxPage() {
@@ -193,7 +197,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
             </Link>
           )}
           {actions.filter((a) => a !== 'resolve_manually' && a !== 'feedback').map((a) => (
-            <Button key={a} size="sm" disabled={busy} variant={a === 'abort_goal' || a === 'deny' ? 'danger' : a === 'retry_with_hint' || a === 'approve' || a === 'raise_budget' ? 'primary' : 'default'} onClick={() => answer(a)} title={!e.taskId && a === 'skip_task' ? 'Finish the goal with what is there; the failing checks are waived (no more review runs)' : !e.taskId && a === 'retry_with_hint' ? "Turn the reviewer's findings into fix tasks (your hint rides along), run them, then review again" : undefined}>
+            <Button key={a} size="sm" disabled={busy} variant={a === 'abort_goal' || a === 'deny' ? 'danger' : a === 'retry_with_hint' || a === 'approve' || a === 'raise_budget' || a === 'retry_delivery' ? 'primary' : 'default'} onClick={() => answer(a)} title={!e.taskId && a === 'skip_task' ? 'Finish the goal with what is there; the failing checks are waived (no more review runs)' : !e.taskId && a === 'retry_with_hint' ? "Turn the reviewer's findings into fix tasks (your hint rides along), run them, then review again" : undefined}>
               {a === 'skip_task' && !e.taskId ? 'Accept as-is (finish goal)' : ACTION_LABEL[a]}
             </Button>
           ))}
