@@ -10,6 +10,8 @@ Foundry reads your project, asks what only you can decide, and writes a plan cal
 Once you approve the Brief, it drives Claude Code to do the work, checks it and reviews it.
 You get the finished work on a separate branch, and nothing leaves your computer unless you said so.
 
+![The Goals page: six goals, one in each state, each with its tasks and its cost against the budget](images/goals.png)
+
 ## The life of a goal
 
 1. **You describe it.** Press **New goal**, write what you want, pick the project folder, press **Create & clarify**. See [Your first goal](./your-first-goal.md).

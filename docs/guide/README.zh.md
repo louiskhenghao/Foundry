@@ -10,6 +10,8 @@ Foundry 读你的项目，问你只有你能决定的事，然后写一份叫 **
 你批准 Brief 之后，它就驱动 Claude Code 去干活，并检查、审查做出来的结果。
 做好的东西放在一个单独的分支上；除非你同意，否则什么都不会离开你的电脑。
 
+![Goals 页面：六个 goal，各处在一个状态，每个都显示任务进度和相对预算的花费](images/goals.png)
+
 ## 一个 goal 的一生
 
 1. **你来描述。** 按 **New goal**，写下你想要什么，选好项目文件夹，按 **Create & clarify**。见 [你的第一个 goal](./your-first-goal.zh.md)。
