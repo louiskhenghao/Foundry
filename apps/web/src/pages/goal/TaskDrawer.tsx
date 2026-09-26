@@ -3,6 +3,7 @@ import { GitMerge, RotateCcw, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { type ReactNode, useEffect, useState } from 'react';
 import { api, type GoalDetail } from '../../api.ts';
+import { type FullText, FullTextDialog } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { OpenMenu } from '../../components/OpenMenu.tsx';
 import { TaskTags } from '../../components/TaskTags.tsx';
@@ -16,6 +17,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
   const [ai, setAi] = useState(attempts.length - 1);
   const [view, setView] = useState<'log' | 'report' | 'prompt'>('log');
   const [prompt, setPrompt] = useState<string | null>(null);
+  const [fullText, setFullText] = useState<FullText | null>(null);
   const a: Attempt | undefined = attempts[Math.min(Math.max(ai, 0), attempts.length - 1)];
   const results: CheckResult[] = a ? d.checkResults.filter((r) => r.attemptId === a.id) : [];
   const checks = d.checks.filter((c) => c.taskId === task.id);
@@ -38,9 +40,16 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
           <TaskTags kind={task.kind} scenario={task.scenario} area={task.area} difficulty={task.difficulty} />
           {task.origin !== 'brief' && <span className="text-[10px] text-zinc-500">{task.origin}</span>}
           {task.commitRef && (
-            <span className="text-[11px] font-normal text-zinc-500 basis-full min-w-0 truncate" title={task.commitMessage ?? undefined}>
+            // one line here; the whole commit message opens in the full-text dialog
+            <button
+              type="button"
+              className="text-[11px] font-normal text-zinc-500 basis-full min-w-0 truncate text-left hover:text-zinc-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-zinc-500 rounded-sm cursor-pointer disabled:cursor-default disabled:hover:text-zinc-500"
+              title={task.commitMessage ? 'Show the full commit message' : undefined}
+              disabled={!task.commitMessage}
+              onClick={() => task.commitMessage && setFullText({ title: `Commit ${task.commitRef!.slice(0, 7)}`, text: task.commitMessage, raw: true })}
+            >
               <span className="mono text-zinc-400">{task.commitRef.slice(0, 7)}</span> {task.commitMessage?.split('\n')[0]}
-            </span>
+            </button>
           )}
         </span>
       }
@@ -154,6 +163,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
           )}
         </div>
       </div>
+      <FullTextDialog value={fullText} onClose={() => setFullText(null)} />
     </Card>
   );
 }
