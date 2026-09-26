@@ -95,6 +95,8 @@ export function applyEvent(db: Database, e: EngineEvent): void {
       switch (e.type) {
         case 'delivery.policy_set':
           d.policy = e.payload.policy;
+          // "Retry delivery" gets a fresh fix-CI budget: a spent one made every retry fail within seconds
+          if (e.payload.source === 'retry') d.fixCycles = 0;
           if (d.status !== 'running') {
             d.status = 'idle';
             d.step = null;
@@ -118,19 +120,19 @@ export function applyEvent(db: Database, e: EngineEvent): void {
           d.step = e.payload.step;
           break;
         case 'delivery.stack_built':
-          d.prs = e.payload.branches.map((b) => ({ taskId: b.taskId, index: b.index, branch: b.branch, base: b.base, title: b.title, number: null, url: null, state: 'pending' as const, checks: null, mergedRef: null }));
+          d.prs = e.payload.branches.map((b) => ({ taskId: b.taskId, index: b.index, branch: b.branch, base: b.base, title: b.title, number: null, url: null, state: 'pending' as const, checks: null, mergedRef: null, failing: [] }));
           break;
         case 'delivery.pr_opened': {
           if (!d.pr) d.pr = { number: e.payload.number, url: e.payload.url };
           const i = d.prs.findIndex((p) => p.branch === e.payload.head);
           if (i >= 0) d.prs[i] = { ...d.prs[i]!, number: e.payload.number, url: e.payload.url, base: e.payload.base, state: 'open', title: e.payload.title || d.prs[i]!.title };
-          else d.prs.push({ taskId: e.payload.taskId, index: d.prs.length + 1, branch: e.payload.head, base: e.payload.base, title: e.payload.title, number: e.payload.number, url: e.payload.url, state: 'open', checks: null, mergedRef: null });
+          else d.prs.push({ taskId: e.payload.taskId, index: d.prs.length + 1, branch: e.payload.head, base: e.payload.base, title: e.payload.title, number: e.payload.number, url: e.payload.url, state: 'open', checks: null, mergedRef: null, failing: [] });
           break;
         }
         case 'delivery.checks':
           d.checks = e.payload.state;
-          if (e.payload.prNumber != null) prAt((p) => p.number === e.payload.prNumber, { checks: e.payload.state });
-          else if (d.prs.length === 1) prAt(() => true, { checks: e.payload.state });
+          if (e.payload.prNumber != null) prAt((p) => p.number === e.payload.prNumber, { checks: e.payload.state, failing: e.payload.failing });
+          else if (d.prs.length === 1) prAt(() => true, { checks: e.payload.state, failing: e.payload.failing });
           break;
         case 'delivery.merged':
           d.mergedRef = e.payload.ref;

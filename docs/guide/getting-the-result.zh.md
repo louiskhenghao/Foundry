@@ -98,9 +98,15 @@ pull request 类的方式需要 GitHub CLI 和一个已连接的账户：见 [�
 CI 是你的线上仓库对每个 pull request 运行的一组自动检查。交付前 Foundry 自己的检查已经通过了，但 CI 可能测得更多。
 
 - 用 **Open a PR** 时，Foundry 不等 CI。你在 pull request 上看结果，自己决定。
-- 用 **PR + auto-merge** 时，Foundry 会等。如果 CI 失败且 **Fix failing CI** 允许，一个小的修复任务会读失败日志，修好 goal 的分支，再推送一次。如果 CI 仍然失败，或者关了修复，交付会以 **failed** 停下：原因在 Delivery 标签上，pull request 保持打开；如果 **Delivery** 开关开着，你还会收到通知。如果修复任务自己也放弃了，Inbox 里还会出现一张 *Retries exhausted* 卡片。
+- 用 **PR + auto-merge** 时，Foundry 会等。如果 CI 失败且 **Fix failing CI** 允许，一个小的修复任务会读失败日志，修好 goal 的分支，再推送一次。没有 Foundry 能读取的 CI 日志的失败检查（比如部署集成的状态）不会交给修复任务；修复任务找不到要改的东西时，也不会把同一个提交再推一次。这两种情况，以及 CI 仍然失败时，交付都会以 **failed** 停下。
 
-交付失败后，你可以先修好原因（比如连接 GitHub，或修好 CI 配置），再按一次交付按钮。或者自己在 GitHub 上合并 pull request。
+停下来时，Delivery 标签会在每个 pull request 下面列出失败的检查，带上检查自己的说明（比如 "Deployment was blocked"）和一个 **details** 链接；Inbox 里也会出现一项 *Delivery stopped*，写着同样的原因。修好原因后：
+
+- **Retry delivery** 从第一个还没合并的 pull request 重新交付，修复 CI 的次数重新计算。
+- pull request 上的 **Re-check** 会重新读取它在 GitHub 上的状态；现在通过了，交付就继续并合并。
+- 如果你自己完成了交付，就按 **Mark as delivered**（已合并的 pull request 会被识别；见 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md#交付停下来了)）。
+
+如果你自己在 GitHub 上合并了 pull request，Foundry 会发现并完成交付；每个任务一个 pull request 时，剩下的会等你按 **Retry delivery**。
 
 ## 之后再改交付方式
 

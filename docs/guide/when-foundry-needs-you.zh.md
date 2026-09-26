@@ -6,7 +6,7 @@ Brief 一经批准，Foundry 就会自己往下做。只有本页列出的情况
 
 goal 运行时你看到的其它信息都属正常，不需要你做什么。本页后半部分解释这些信息。
 
-## Foundry 停下来的七种原因
+## Foundry 停下来的八种原因
 
 ### 某一部分做不完
 
@@ -57,6 +57,17 @@ Foundry 把一个任务试了好几次，验收检查仍然没过。你可以：
 **Inbox：** *Budget exceeded*。
 
 goal 达到了你设的费用或时间上限。按 **Raise budget**（留空就翻倍）或 **Abort goal**。
+
+### 交付停下来了
+
+**Inbox：** *Delivery stopped* —— 停在哪一步、为什么，并写出失败的检查，比如 "Deploy preview — Deployment was blocked"，每个都附链接。
+
+工作已经做完，但推送或合并 pull request 没有成功。先修好原因（链接里有说明），然后：
+
+- **Retry delivery** 从第一个还没合并的 pull request 重新交付：已合并的跳过，还开着的继续用，修复 CI 的次数重新计算。
+- 如果你自己完成了交付，就按 **Mark as delivered**。Foundry 会先读 pull request：已经合并的，就按合并完成（更新你自己的文件夹并清理 goal）；否则只记为由你完成。
+
+如果你自己在 GitHub 上合并了 pull request，Foundry 会在几分钟内（或你打开 goal 时）发现，并关掉这一项。不是 Foundry 能读取日志的 CI 检查 —— 比如部署集成的状态 —— 不会派修复任务去"修"；Foundry 会停下来告诉你是哪个检查。常见原因：部署集成只接受其团队成员的提交。见 [Settings → Git & delivery](./settings.zh.md#git--delivery) 里的 **Commit author**。
 
 ### 里程碑可以看了
 

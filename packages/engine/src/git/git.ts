@@ -37,17 +37,73 @@ export async function commitAll(cwd: string, message: string): Promise<{ ref: st
   await gitOk(['add', '-A'], cwd);
   const staged = await git(['diff', '--cached', '--quiet'], cwd);
   if (staged.code === 0) return { ref: await headRef(cwd), committed: false };
-  await gitOk([...GIT_IDENT, 'commit', '-q', '-m', message], cwd);
+  await gitOk([...(await gitIdent(cwd)), 'commit', '-q', '-m', withCoauthor(message)], cwd);
   return { ref: await headRef(cwd), committed: true };
 }
 
-export const GIT_IDENT = ['-c', 'user.name=foundry', '-c', 'user.email=foundry@local'];
+/**
+ * Who the engine's commits are written by (Settings → Git & delivery → commit author). Platforms that gate deploys on
+ * the commit author (Vercel teams, CLA bots) need a real account, so by default the person's own git identity is the
+ * author and Foundry is named as co-author in a trailer.
+ */
+export type CommitAuthorMode = 'you-coauthor' | 'you' | 'foundry';
+export interface CommitIdentity {
+  name: string;
+  email: string;
+  /** where it came from: the repository's or the global git config, the GitHub account gh is signed in to, or Foundry */
+  source: 'git-config' | 'gh' | 'foundry';
+}
+export const FOUNDRY_IDENTITY: CommitIdentity = { name: 'foundry', email: 'foundry@local', source: 'foundry' };
+export const FOUNDRY_COAUTHOR = 'Co-authored-by: Foundry <foundry@local>';
+let authorMode: CommitAuthorMode = 'you-coauthor';
+const identityCache = new Map<string, { at: number; id: CommitIdentity }>();
+export function setCommitAuthorMode(mode: CommitAuthorMode): void {
+  authorMode = mode;
+  identityCache.clear();
+}
+export const commitAuthorMode = () => authorMode;
+
+/** The identity commits in this repository (any of its worktrees) are written with. Cached per repository for ten minutes. */
+export async function resolveCommitIdentity(cwd: string): Promise<CommitIdentity> {
+  if (authorMode === 'foundry') return FOUNDRY_IDENTITY;
+  const key = (await git(['rev-parse', '--path-format=absolute', '--git-common-dir'], cwd)).stdout.trim() || cwd;
+  const hit = identityCache.get(key);
+  if (hit && Date.now() - hit.at < 10 * 60_000) return hit.id;
+  // `git config` without a scope reads the repository's value first, then the global one
+  const name = (await git(['config', 'user.name'], cwd)).stdout.trim();
+  const email = (await git(['config', 'user.email'], cwd)).stdout.trim();
+  let id: CommitIdentity = name && email ? { name, email, source: 'git-config' } : FOUNDRY_IDENTITY;
+  if (id.source === 'foundry') {
+    const gh = await exec(['gh', 'api', 'user', '--jq', '[.login, (.id|tostring), (.name // "")] | join("|")'], cwd, { timeoutMs: 8000 }).catch(() => null);
+    const [login, ghId, ...rest] = gh?.code === 0 ? gh.stdout.trim().split('|') : [];
+    const ghName = rest.join('|');
+    if (login && ghId) id = { name: ghName || login, email: `${ghId}+${login}@users.noreply.github.com`, source: 'gh' };
+  }
+  identityCache.set(key, { at: Date.now(), id });
+  return id;
+}
+
+/** `-c user.name=… -c user.email=…` for a commit, merge or cherry-pick run in `cwd` */
+export async function gitIdent(cwd: string): Promise<string[]> {
+  const id = await resolveCommitIdentity(cwd);
+  return ['-c', `user.name=${id.name}`, '-c', `user.email=${id.email}`];
+}
+
+/** Add the Foundry co-author trailer when the setting asks for it (and the author is not Foundry already). */
+export function withCoauthor(message: string, mode: CommitAuthorMode = authorMode): string {
+  if (mode !== 'you-coauthor' || message.includes(FOUNDRY_COAUTHOR)) return message;
+  const body = message.trimEnd();
+  const lastPara = body.split(/\n\s*\n/).pop() ?? '';
+  // join an existing trailer block (Task: … / Goal: …) instead of starting a new paragraph
+  const isTrailers = body.includes('\n') && lastPara.split('\n').every((l) => /^[A-Za-z][\w-]*: /.test(l));
+  return `${body}${isTrailers ? '\n' : '\n\n'}${FOUNDRY_COAUTHOR}`;
+}
 
 /** Commit whatever is staged (used after a squash merge / soft reset / resolved cherry-pick). */
 export async function commitStaged(cwd: string, message: string, opts: { allowEmpty?: boolean } = {}): Promise<{ ref: string; committed: boolean }> {
   const staged = await git(['diff', '--cached', '--quiet'], cwd);
   if (staged.code === 0 && !opts.allowEmpty) return { ref: await headRef(cwd), committed: false };
-  await gitOk([...GIT_IDENT, 'commit', '-q', ...(opts.allowEmpty ? ['--allow-empty'] : []), '-m', message], cwd);
+  await gitOk([...(await gitIdent(cwd)), 'commit', '-q', ...(opts.allowEmpty ? ['--allow-empty'] : []), '-m', withCoauthor(message)], cwd);
   return { ref: await headRef(cwd), committed: true };
 }
 

@@ -98,9 +98,15 @@ On the goal page, open the **Delivery** tab (in Simple view, **Deliver…** on t
 CI is the set of automatic checks your online repository runs on every pull request. Foundry's own checks passed before delivery, but CI may test more.
 
 - With **Open a PR**, Foundry does not wait for CI. You see the result on the pull request and decide.
-- With **PR + auto-merge**, Foundry waits. If CI fails and **Fix failing CI** allows it, a small fix task reads the failed log, fixes the goal's branch and pushes again. If CI still fails, or fixing is off, the delivery stops as **failed**: the reason is on the Delivery tab, the pull request stays open, and you get a notification if the **Delivery** switch is on. If the fix task itself gives up, a *Retries exhausted* card also appears in the Inbox.
+- With **PR + auto-merge**, Foundry waits. If CI fails and **Fix failing CI** allows it, a small fix task reads the failed log, fixes the goal's branch and pushes again. A failing check with no CI log Foundry can read (a deploy integration's status, for example) is not handed to a fix task, and a fix task that finds nothing to change does not push the same commit again: in both cases, and whenever CI still fails, the delivery stops as **failed**.
 
-After a failed delivery you can fix the cause (for example connect GitHub, or fix the CI setup) and press the delivery button again. Or merge the pull request yourself on GitHub.
+When it stops, the Delivery tab lists each failing check under its pull request, with the check's own description (for example "Deployment was blocked") and a **details** link, and a *Delivery stopped* item appears in the Inbox with the same reason. Fix the cause, then:
+
+- **Retry delivery** runs it again from the first pull request that is not merged, with a fresh budget for fixing CI.
+- **Re-check** on a pull request reads it on GitHub again; if it passes now, the delivery carries on and merges.
+- **Mark as delivered** if you finished it yourself (merged pull requests are recognised; see [When Foundry needs you](./when-foundry-needs-you.md#the-delivery-stopped)).
+
+If you merge the pull request on GitHub yourself, Foundry notices and finishes the delivery; with one pull request per task, the rest wait for **Retry delivery**.
 
 ## Changing delivery later
 

@@ -54,7 +54,9 @@ export function GoalPage() {
     return () => clearTimeout(t);
   }, [id, version]);
   // a delivered goal asks for fresh facts once per visit: a PR merged or closed on GitHub, a base branch pulled by hand
-  const delivered = d?.goal.delivery.status === 'delivered' && !d.goal.delivery.cleanup?.done;
+  const dv = d?.goal.delivery;
+  // a delivery that stopped with a PR still open counts too: the PR may have been merged by hand since
+  const delivered = !!dv && ((dv.status === 'delivered' && !dv.cleanup?.done) || (dv.status === 'failed' && dv.prs.some((p) => p.state === 'open')));
   useEffect(() => {
     if (delivered) void api.refreshDelivery(id).catch(() => {});
   }, [id, delivered]);

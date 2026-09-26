@@ -37,10 +37,16 @@ export const DeliveryStep = z.enum(['preflight', 'ensure-remote', 'sync-base', '
 export type DeliveryStep = z.infer<typeof DeliveryStep>;
 export const DeliveryStatus = z.enum(['idle', 'running', 'delivered', 'failed']);
 export type DeliveryStatus = z.infer<typeof DeliveryStatus>;
-export const DeliveryOutcome = z.enum(['pushed', 'pr_open', 'automerge_armed', 'merged']);
+/** `by_you`: the human marked the delivery done after handling it themselves (nothing on the machine is changed) */
+export const DeliveryOutcome = z.enum(['pushed', 'pr_open', 'automerge_armed', 'merged', 'by_you']);
 export type DeliveryOutcome = z.infer<typeof DeliveryOutcome>;
 export const ChecksState = z.enum(['pending', 'passing', 'failing', 'none']);
 export type ChecksState = z.infer<typeof ChecksState>;
+
+/** A check that failed on a pull request, as GitHub reports it: its name, the status description (e.g. a deploy
+ * integration's "Deployment was blocked") and where to read more. */
+export const FailingCheck = z.object({ name: z.string(), description: z.string().nullable(), url: z.string().nullable() });
+export type FailingCheck = z.infer<typeof FailingCheck>;
 
 /** One pull request of a delivery. Whole-goal deliveries have exactly one (taskId null); stacked deliveries one per task. */
 export const DeliveryPr = z.object({
@@ -55,6 +61,8 @@ export const DeliveryPr = z.object({
   state: z.enum(['pending', 'open', 'merged', 'closed', 'failed']),
   checks: ChecksState.nullable(),
   mergedRef: z.string().nullable(),
+  /** the checks failing on it at the last look (empty when none, or not known) */
+  failing: z.array(FailingCheck).default([]),
 });
 export type DeliveryPr = z.infer<typeof DeliveryPr>;
 

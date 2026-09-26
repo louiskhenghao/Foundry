@@ -18,6 +18,8 @@ export class FakeGh implements GhClient {
   private viewCount = 0;
   mergeBehavior: 'ok' | 'protected' | 'fail' = 'ok';
   failedLogText: string | null = null;
+  /** when set, a failing check is reported like this (e.g. a deploy integration's commit status) instead of an Actions run */
+  failingCheck: { name: string; description: string; url: string; kind: 'run' | 'status' } | null = null;
   calls: string[][] = [];
   /** path of the bare remote so merges can update refs */
   constructor(private bareRemote: string | null = null) {}
@@ -60,7 +62,12 @@ export class FakeGh implements GhClient {
     if (!pr) throw new Error('no such PR');
     const state = this.checksSequence[Math.min(this.viewCount, this.checksSequence.length - 1)]!;
     this.viewCount++;
-    const checks = state === 'none' ? [] : [{ name: 'ci', status: state === 'pending' ? 'IN_PROGRESS' : 'COMPLETED', conclusion: state === 'pending' ? null : state === 'passing' ? 'SUCCESS' : 'FAILURE' }];
+    const checks =
+      state === 'none'
+        ? []
+        : state === 'failing' && this.failingCheck
+          ? [{ name: this.failingCheck.name, status: 'FAILURE', conclusion: 'FAILURE', kind: this.failingCheck.kind, description: this.failingCheck.description, url: this.failingCheck.url }]
+          : [{ name: 'ci', status: state === 'pending' ? 'IN_PROGRESS' : 'COMPLETED', conclusion: state === 'pending' ? null : state === 'passing' ? 'SUCCESS' : 'FAILURE' }];
     return { ...pr, checks };
   }
   async prMerge(_cwd: string, i: { repo: string; number: number; method: string; auto: boolean }): Promise<ExecResult> {

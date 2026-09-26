@@ -68,12 +68,13 @@ The user asking the system to re-read the Brief in the light of the current Deci
 ## Human involvement
 
 **Escalation**
-The only way the system ever asks a human for anything after the Brief is approved. There are exactly five triggers, and nothing else interrupts the user:
+The only way the system ever asks a human for anything after the Brief is approved. There are exactly six triggers, and nothing else interrupts the user:
 1. a Task exhausted its retry budget with Must Checks still failing (including a failed Goal review);
 2. an action that would leave the local workspace (push, pull request, deploy, shared database, paid service);
 3. the Goal's cost or time budget was exceeded;
 4. the Claude runtime refused a tool call;
-5. a Milestone landed and the Goal waits for the human to look (a Checkpoint).
+5. a Milestone landed and the Goal waits for the human to look (a Checkpoint);
+6. a Delivery stopped (failing checks it cannot fix, a rejected push, …), answered by retrying the Delivery or marking it delivered.
 
 (The trigger enum also keeps `brief_question` so older events still read; nothing raises it any more.)
 
@@ -118,7 +119,7 @@ The single commit a finished Task becomes on the Goal branch. Whatever a Task's 
 A *task*-unit Delivery: the Task Commits are re-applied one by one on top of the remote base branch, each step becoming a branch and a pull request based on the one below it, titled with the Task Commit's header. The stack is merged bottom-up; a Task Commit that cannot be re-applied makes the engine fall back to one pull request for the whole Goal and say so.
 
 **Delivery**
-The engine carrying out a Delivery Policy after a Goal is finished: syncing the Goal branch with the base branch (conflicts are resolved by a Merge Attempt), pushing, opening the pull request, waiting for its checks, fixing them a bounded number of times, merging, and tidying the remote branch. Every remote action is recorded with the exact command. A Delivery can be *delivered*, *failed* (and re-run), or cancelled; it never force-pushes and never pushes to the base branch. Once its pull request has merged — during the Delivery or noticed later — the merged work is brought to the user's own base branch by a fast-forward when that is safe, and the Goal's Progress folder and local branches are then removed, unless anything in them is not in the base branch yet.
+The engine carrying out a Delivery Policy after a Goal is finished: syncing the Goal branch with the base branch (conflicts are resolved by a Merge Attempt), pushing, opening the pull request, waiting for its checks, fixing them a bounded number of times, merging, and tidying the remote branch. Every remote action is recorded with the exact command. A Delivery can be *delivered*, *failed* (and re-run), or cancelled; it never force-pushes and never pushes to the base branch. Once its pull request has merged — during the Delivery or noticed later — the merged work is brought to the user's own base branch by a fast-forward when that is safe, and the Goal's Progress folder and local branches are then removed, unless anything in them is not in the base branch yet. A Delivery that stops raises one Escalation naming the failing checks; it can be retried from the first unmerged pull request, or marked delivered when the human finished it — a pull request they merged by hand is noticed either way.
 
 ## Workspace
 

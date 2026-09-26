@@ -25,6 +25,7 @@ const TRIGGER_COPY: Record<EscalationTrigger, string> = {
   budget_exceeded: 'the goal hit its cost or time budget',
   permission_denial: 'the Claude runtime refused a tool call',
   milestone: 'a milestone landed — have a look, then continue or say what to change',
+  delivery_failed: 'the delivery stopped — the reason and a Retry are in the Inbox',
 };
 
 /** Event → message for the non-escalation families; null = nothing to say about this event. */

@@ -444,12 +444,21 @@ export function SettingsPage() {
         <div className="space-y-3">
           {bool('sync.fetchBeforeGoal', 'Fetch the base branch before a goal starts', 'Only remote-tracking refs are updated — your checkout is never touched. The Clarifier explores, and the goal branch starts from, the freshest tip.')}
           {grid(
+            <>
             <Field label="Where the goal branch starts" aside={aside('sync.startFrom')} help="auto: from <remote>/<base> when your local base is behind it (and not ahead); local: always from your local branch.">
               <Select value={draft.sync.startFrom} onChange={(e) => set('sync.startFrom', e.target.value)}>
                 <option value="auto">auto — remote tip when local is behind</option>
                 <option value="local">always the local branch</option>
               </Select>
-            </Field>,
+            </Field>
+            <Field label="Commit author" aside={aside('delivery.commitAuthor')} help="Who Foundry's commits are written by. Your identity comes from the repository's git config, else the global one, else your GitHub account (gh). Deploy integrations such as Vercel teams refuse commits by an unknown author. Applies to commits made from now on.">
+              <Select value={draft.delivery.commitAuthor} onChange={(e) => set('delivery.commitAuthor', e.target.value)}>
+                <option value="you-coauthor">you, with Foundry as co-author</option>
+                <option value="you">you only</option>
+                <option value="foundry">Foundry only</option>
+              </Select>
+            </Field>
+            </>,
           )}
           {bool('sync.refreshBetweenTasks', 'Refresh between tasks', 'When nothing is running, fetch again and merge a moved base branch into the goal branch (conflicts go to a Merge Attempt). Useful for long goals on busy repositories; off by default because mid-goal merges can surprise workers.')}
           {bool('delivery.updateLocalBase', 'Update my local base branch after a merge', 'When a pull request merges, Foundry fetches and fast-forwards your local base branch (only when that is safe: no uncommitted changes, no commits of your own on it), then removes the goal\'s progress folder, worktrees and local branches. Screenshots and the goal itself stay.')}

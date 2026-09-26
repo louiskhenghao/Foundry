@@ -38,6 +38,17 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
   const latestByStep = new Map<string, any>();
   for (const s of steps) latestByStep.set(s.step, s);
   const commands = d.events.filter((e) => e.type === 'delivery.command').map((e) => e.payload as any);
+  const act = async (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await fn();
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
   const run = async () => {
     setBusy(true);
     setErr(null);
@@ -91,7 +102,8 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
           {del.prs.length > 0 && (
             <div className="mt-3 rounded-md border border-zinc-800 divide-y divide-zinc-800/60">
               {del.prs.map((p) => (
-                <div key={p.branch} className="flex items-center gap-2 px-2.5 py-1.5 text-xs min-w-0">
+                <div key={p.branch} className="px-2.5 py-1.5 text-xs">
+                <div className="flex items-center gap-2 min-w-0">
                   <span className="mono text-zinc-600 w-5 shrink-0">{p.index}</span>
                   <span className="text-zinc-100 truncate min-w-0 flex-1" title={`${p.branch} → ${p.base}`}>
                     {p.title || p.branch}
@@ -105,6 +117,28 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
                   ) : (
                     <span className="mono text-zinc-600 shrink-0 hidden sm:inline">{p.branch.slice(-24)}</span>
                   )}
+                  {p.state === 'open' && p.number != null && (
+                    <Button size="sm" variant="ghost" disabled={busy} onClick={() => act(() => api.recheckPr(g.id, p.number!))} title="Read this pull request on GitHub again — merged, closed, or its checks. If it passes now, the delivery carries on.">
+                      Re-check
+                    </Button>
+                  )}
+                </div>
+                {p.failing.length > 0 && p.state === 'open' && (
+                  <ul className="mt-1 ml-7 space-y-0.5">
+                    {p.failing.map((c) => (
+                      <li key={c.name} className="text-rose-300 break-words">
+                        <XCircle size={11} className="inline mr-1 -mt-0.5" />
+                        <span className="text-zinc-200">{c.name}</span>
+                        {c.description && <span className="text-zinc-400"> — {c.description}</span>}
+                        {c.url && (
+                          <a className="ml-1 underline text-sky-300" href={c.url} target="_blank" rel="noreferrer">
+                            details
+                          </a>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 </div>
               ))}
             </div>
@@ -116,12 +150,25 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
               </a>
             )}
             {del.checks && del.prs.length <= 1 && <span className="text-zinc-400">checks: <Badge state={del.checks === 'passing' ? 'pass' : del.checks === 'failing' ? 'fail' : 'pending'}>{del.checks}</Badge></span>}
-            {del.outcome && <span className="text-emerald-300">outcome: {del.outcome.replace('_', ' ')}</span>}
+            {del.outcome && <span className="text-emerald-300">outcome: {del.outcome === 'by_you' ? 'delivered by you' : del.outcome.replace('_', ' ')}</span>}
             {del.mergedRef && <span className="mono text-zinc-500">merged {del.mergedRef.slice(0, 7)}</span>}
             {del.fixCycles > 0 && <span className="text-zinc-400">fix-CI cycles: {del.fixCycles}</span>}
           </div>
           <MergeStatus goal={g} className="mt-3" />
-          {del.error && <div className="mt-2 text-xs text-rose-300 whitespace-pre-wrap">{del.error}</div>}
+          {del.error && <div className="mt-2 text-xs text-rose-300 whitespace-pre-wrap break-words">{del.error}</div>}
+          {(del.status === 'failed' || (del.status === 'delivered' && (del.outcome === 'pr_open' || del.outcome === 'automerge_armed'))) && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {del.status === 'failed' && (
+                <Button size="sm" variant="primary" disabled={busy} onClick={() => act(() => api.retryDelivery(g.id))} title="Run the delivery again from the first pull request that is not merged; merged ones are skipped, open ones reused, and fixing CI gets a fresh budget">
+                  Retry delivery
+                </Button>
+              )}
+              <Button size="sm" disabled={busy} onClick={() => act(() => api.markDelivered(g.id))} title="You finished the delivery yourself. Foundry reads the pull requests first: merged → it finishes as merged (your main is updated and the workspace tidied); otherwise it is only marked delivered by you">
+                Mark as delivered
+              </Button>
+              {err && <span className="text-xs text-rose-400 self-center">{err}</span>}
+            </div>
+          )}
           {commands.length > 0 && (
             <details className="mt-3">
               <summary className="text-xs text-zinc-500 cursor-pointer">{commands.length} remote command(s) — full audit</summary>

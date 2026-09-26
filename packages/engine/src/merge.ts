@@ -5,7 +5,7 @@ import { runCommandCheck } from './checks/command.ts';
 import { metaFor, modelFor } from './models/roles.ts';
 import type { Engine } from './engine.ts';
 import { raiseEscalation } from './escalation.ts';
-import { GIT_IDENT, abortInProgress, commitAll, commitStaged, conflictedFiles, git, gitOk, headRef, refExists } from './git/git.ts';
+import { abortInProgress, commitAll, commitStaged, conflictedFiles, git, gitIdent, gitOk, headRef, refExists, withCoauthor } from './git/git.ts';
 import { ccHeader, taskCommitMessage } from './git/conventional.ts';
 import { READONLY_DISALLOWED, WORKER_TOOLS, boundarySettings } from './guards/boundary.ts';
 import { goalWorkspacePath } from './workspace.ts';
@@ -96,7 +96,7 @@ export async function mergeBranchInto(engine: Engine, goal: Goal, task: Task, sr
   const autoResolve = opts.autoResolve ?? true;
   const message = `${ccHeader({ type: 'chore', scope: 'sync', subject: `merge ${src.label} into ${into}` })}\n\nGoal: ${goal.id}`;
   store.append({ type: 'merge.started', goalId: goal.id, payload: { taskId: task.id, into } });
-  const merge = () => git([...GIT_IDENT, 'merge', '--no-ff', '-m', message, src.ref], goalWs);
+  const merge = async () => git([...(await gitIdent(goalWs)), 'merge', '--no-ff', '-m', withCoauthor(message), src.ref], goalWs);
   const r = await merge();
   if (r.code === 0) {
     store.append({ type: 'merge.completed', goalId: goal.id, payload: { taskId: task.id, ref: await headRef(goalWs) } });
@@ -247,7 +247,7 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
   if (ok) {
     await gitOk(['add', '-A'], cwd);
     // `git commit` concludes a merge, a squash merge and a cherry-pick alike
-    const c = await git([...GIT_IDENT, 'commit', '-q', '-m', `${op.commitMessage}\n\nResolved by merge attempt ${n}`], cwd);
+    const c = await git([...(await gitIdent(cwd)), 'commit', '-q', '-m', withCoauthor(`${op.commitMessage}\n\nResolved by merge attempt ${n}`)], cwd);
     ok = c.code === 0;
     if (!ok) reason = `commit failed: ${c.stderr.slice(0, 200)}`;
   }
