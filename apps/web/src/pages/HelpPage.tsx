@@ -79,9 +79,9 @@ export function HelpPage() {
       const h = href ?? '';
       if (/^https?:|^mailto:/.test(h)) return <a href={h} target="_blank" rel="noreferrer">{children}</a>;
       if (h.startsWith('#')) return <a href={h}>{children}</a>;
-      // another guide page: ./approving-the-brief.md#milestones (or its .zh twin) → /help/approving-the-brief#milestones
-      const m = h.match(/^(?:\.\/)?([a-z0-9-]+)(?:\.zh)?\.md(#.*)?$/);
-      if (m) return <Link to={`/help/${m[1]}${m[2] ?? ''}`}>{children}</Link>;
+      // another guide page: ./approving-the-brief.md#milestones (or its .zh twin) → /help/approving-the-brief#milestones; README is the first page, "index"
+      const m = h.match(/^(?:\.\/)?([a-z0-9-]+|README)(?:\.zh)?\.md(#.*)?$/);
+      if (m) return <Link to={`/help/${m[1] === 'README' ? 'index' : m[1]}${m[2] ?? ''}`}>{children}</Link>;
       // operator and contributor docs are not bundled in the app: name them instead of linking nowhere
       return (
         <span title={`${h} — in the Foundry repository`} className="underline decoration-dotted">

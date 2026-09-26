@@ -19,7 +19,7 @@ const demo = await startDemo();
 const browser = await chromium.launch({ channel: 'chrome' }).catch(() => chromium.launch());
 const page = await browser.newPage({ viewport: { width: 1280, height: 860 }, deviceScaleFactor: 2 });
 mkdirSync(OUT, { recursive: true });
-const shot = async (name: string, path: string, prepare?: () => Promise<void>) => {
+const shot = async (name: string, path: string, prepare?: () => Promise<void>, height?: number) => {
   await page.goto(demo.url + path, { waitUntil: 'networkidle' });
   await page.waitForTimeout(600);
   // the header shows the signed-in account and live usage of whoever runs this script: never ship those in a screenshot
@@ -30,12 +30,17 @@ const shot = async (name: string, path: string, prepare?: () => Promise<void>) =
     }
   });
   if (prepare) await prepare();
-  await page.screenshot({ path: join(OUT, `${name}.png`) });
+  await page.screenshot({ path: join(OUT, `${name}.png`), clip: height ? { x: 0, y: 0, width: 1280, height } : undefined });
   console.log(`  ${name}.png`);
 };
 
 try {
   const g = demo.goals;
+  // the README's first picture: every goal of the demo, one in each state. The Setup banner reports this machine's
+  // missing tools, not the demo's, and the empty page below the list is cut off.
+  await shot('goals', '/', async () => {
+    await page.evaluate(() => Array.from(document.querySelectorAll('div')).find((d) => d.textContent?.startsWith('Setup incomplete') && d.parentElement?.textContent !== d.textContent)?.remove());
+  }, 560);
   await shot('new-goal', '/goals/new', async () => {
     await page.locator('textarea').first().fill('Add CSV export to the orders page, with the date range the user is looking at.');
   });

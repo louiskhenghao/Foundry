@@ -1,6 +1,6 @@
 # Foundry 是做什么的
 
-> [English](./index.md) · 中文
+> [English](./README.md) · 中文
 
 ## 五句话说清楚
 
@@ -9,6 +9,8 @@ Foundry 是一个在你自己电脑上运行的网页应用，地址是 <http://
 Foundry 读你的项目，问你只有你能决定的事，然后写一份叫 **Brief** 的计划。
 你批准 Brief 之后，它就驱动 Claude Code 去干活，并检查、审查做出来的结果。
 做好的东西放在一个单独的分支上；除非你同意，否则什么都不会离开你的电脑。
+
+![Goals 页面：六个 goal，各处在一个状态，每个都显示任务进度和相对预算的花费](images/goals.png)
 
 ## 一个 goal 的一生
 
@@ -39,7 +41,7 @@ Foundry 读你的项目，问你只有你能决定的事，然后写一份叫 **
 
 ## 本指南的各页
 
-1. [Foundry 是做什么的](./index.zh.md)：就是本页。
+1. [Foundry 是做什么的](./README.zh.md)：就是本页。
 2. [你的第一个 goal](./your-first-goal.zh.md)：Setup 页面，以及从上到下的 New goal 表单。
 3. [回答访谈](./answering-the-interview.zh.md)：Foundry 在规划前问你的问题。
 4. [批准 Brief](./approving-the-brief.zh.md)：计划的每个部分，以及你能改什么。

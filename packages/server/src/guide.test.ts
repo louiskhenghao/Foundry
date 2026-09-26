@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { headingAnchor } from '@foundry/core';
-import { GUIDE_ORDER, listGuide, readGuide } from './guide.ts';
+import { GUIDE_ORDER, guideFile, listGuide, readGuide } from './guide.ts';
 
 const ROOT = resolve(import.meta.dir, '../../..');
 const GUIDE = join(ROOT, 'docs/guide');
@@ -21,8 +21,8 @@ const images = (md: string) => [...prose(md).matchAll(/!\[[^\]]*\]\(([^)\s]+)\)/
 describe('user guide (docs/guide)', () => {
   test('every page in the reading order exists, in English and 中文', () => {
     for (const slug of GUIDE_ORDER) {
-      expect(existsSync(join(GUIDE, `${slug}.md`)), `${slug}.md`).toBe(true);
-      expect(existsSync(join(GUIDE, `${slug}.zh.md`)), `${slug}.zh.md`).toBe(true);
+      expect(existsSync(join(GUIDE, `${guideFile(slug)}.md`)), `${guideFile(slug)}.md`).toBe(true);
+      expect(existsSync(join(GUIDE, `${guideFile(slug)}.zh.md`)), `${guideFile(slug)}.zh.md`).toBe(true);
     }
   });
 
@@ -78,7 +78,7 @@ describe('user guide (docs/guide)', () => {
     const broken: string[] = [];
     for (const { file, to } of targets) {
       const [slug, hash] = to.split('#') as [string, string | undefined];
-      for (const page of [`${slug}.md`, `${slug}.zh.md`]) {
+      for (const page of [`${guideFile(slug)}.md`, `${guideFile(slug)}.zh.md`]) {
         const path = join(GUIDE, page);
         if (!existsSync(path)) broken.push(`${file}: ${to} (no ${page})`);
         else if (hash && !anchors(path).has(hash)) broken.push(`${file}: ${to} (no heading in ${page})`);
@@ -98,6 +98,7 @@ describe('guide pages served to the Help page', () => {
   test('falls back to English and refuses paths outside the guide', () => {
     expect(readGuide(GUIDE, 'index', 'zh')?.lang).toBe('zh');
     expect(readGuide(GUIDE, 'index', 'en')?.lang).toBe('en');
+    expect(readGuide(GUIDE, 'README', 'en')).toBeNull();
     expect(readGuide(GUIDE, '../README', 'en')).toBeNull();
     expect(readGuide(GUIDE, 'no-such-page', 'en')).toBeNull();
   });
