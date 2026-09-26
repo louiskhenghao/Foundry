@@ -339,6 +339,8 @@ export const api = {
   installPlaywright: () => req<{ started: true; channel: string; id: string }>('/api/tools/playwright/install', { method: 'POST' }),
   reclarify: (id: string, reason?: string) => req<{ ok: true }>(`/api/goals/${id}/reclarify`, { method: 'POST', body: JSON.stringify({ reason }) }),
   streamHistory: (id: string) => req<{ events: any[] }>(`/api/stream/${encodeURIComponent(id)}/history`),
+  /** one live-log event in full, read back from the transcript line its `ref` names */
+  streamEvent: (ref: { file: string; line: number; block: number }) => req<{ event: any }>(`/api/transcripts/${encodeURIComponent(ref.file)}/event?line=${ref.line}&block=${ref.block}`),
   workspace: (id: string) => req<{ path: string; exists: boolean; branch: string; head: string | null; packageManager: string | null; install: string | null; scripts: { name: string; command: string }[]; baseSync: Goal['baseSync']; upstream: BaseSync | null; tasks: { id: string; title: string; path: string; branch: string | null }[] }>(`/api/goals/${id}/workspace`),
   restartGoal: (id: string, fromTaskId?: string) => req<{ restarted: string[] }>(`/api/goals/${id}/restart`, { method: 'POST', body: JSON.stringify({ fromTaskId }) }),
   deleteGoal: (id: string, deleteBranch: boolean) => req<{ ok: true; deletedBranch: string | null }>(`/api/goals/${id}${deleteBranch ? '?deleteBranch=1' : ''}`, { method: 'DELETE' }),
