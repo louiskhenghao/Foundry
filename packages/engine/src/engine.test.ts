@@ -6,7 +6,7 @@ import { getGoal, listAttempts, listChecks, listEscalations, listTasks } from '@
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
 import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
-import { raiseEscalation } from './escalation.ts';
+import { ESCALATION_MESSAGE_MAX, raiseEscalation } from './escalation.ts';
 
 /** Scripted stand-in for claude: runs `behave(spec, callIndex)` then returns a success result. */
 class FakeRunner implements ClaudeRunner {
@@ -138,6 +138,19 @@ describe('Engine loop (fake runner)', () => {
     const esc = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).find((e) => e.taskId === null)!;
     await engine.answerEscalation(esc.id, { action: 'skip_task' });
     expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+  });
+
+  test('an escalation keeps its full message; only a runaway one is cut at the safety cap', async () => {
+    const engine = track(new Engine(cfg(), new FakeRunner(() => {})));
+    const goal = await engine.createGoal({ prompt: 'impossible', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f never.txt'] } });
+    await waitFor(() => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).length > 0);
+    const g = getGoal(engine.store.db, goal.id)!;
+    const report = `Goal review failed\n\n${'a failing check printed this line\n'.repeat(200)}`;
+    expect(raiseEscalation(engine, { goal: g, trigger: 'retries_exhausted', message: report, payload: { kind: 'goal-review' } }).message).toBe(report);
+    const runaway = 'x'.repeat(ESCALATION_MESSAGE_MAX + 5000);
+    const cut = raiseEscalation(engine, { goal: g, trigger: 'budget_exceeded', message: runaway }).message;
+    expect(cut.startsWith('x'.repeat(ESCALATION_MESSAGE_MAX))).toBe(true);
+    expect(cut).toEndWith('(5000 more characters cut)');
   });
 
   test('retry_with_hint grants an extra attempt and injects the hint', async () => {

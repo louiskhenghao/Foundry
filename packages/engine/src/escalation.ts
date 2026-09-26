@@ -17,6 +17,13 @@ export interface RaiseInput {
   blockGoal?: boolean;
 }
 
+/** Escalation messages keep their full text (reports, stderr); this cap only protects the database and the Inbox from a runaway log. */
+export const ESCALATION_MESSAGE_MAX = 20_000;
+export function capEscalationMessage(message: string): string {
+  if (message.length <= ESCALATION_MESSAGE_MAX) return message;
+  return `${message.slice(0, ESCALATION_MESSAGE_MAX)}\n\n… (${message.length - ESCALATION_MESSAGE_MAX} more characters cut)`;
+}
+
 export function raiseEscalation(engine: Engine, i: RaiseInput): Escalation {
   const { store } = engine;
   // de-dup: one open escalation per (goal, task, trigger)
@@ -28,7 +35,7 @@ export function raiseEscalation(engine: Engine, i: RaiseInput): Escalation {
     taskId: i.task?.id ?? null,
     attemptId: i.attemptId ?? null,
     trigger: i.trigger,
-    message: i.message,
+    message: capEscalationMessage(i.message),
     payload: i.payload ?? {},
     state: 'open',
     answer: null,

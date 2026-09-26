@@ -123,7 +123,7 @@ export async function resolveConflicts(engine: Engine, goal: Goal, task: Task, f
   if (!files.length) {
     await abortInProgress(op.cwd);
     store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'error', message: `merge of ${src.label} failed without conflicts: ${stderr.slice(0, 500)}` } });
-    if (op.escalate !== false) raiseEscalation(engine, { goal, task, trigger: 'retries_exhausted', message: `Could not merge ${src.label}: ${stderr.slice(0, 300)}`, payload: { kind: 'merge' } });
+    if (op.escalate !== false) raiseEscalation(engine, { goal, task, trigger: 'retries_exhausted', message: `Could not merge ${src.label}: ${stderr}`, payload: { kind: 'merge' } });
     return false;
   }
   const reasons: string[] = [];
