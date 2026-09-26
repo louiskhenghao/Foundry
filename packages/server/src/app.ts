@@ -2,11 +2,11 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Brief, EscalationAnswer, listFollowUps, getAttempt, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, decodeLine, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, PreviewError, classifyFeedback, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, type Engine, type OpenTargetId } from '@foundry/engine';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, PreviewError, classifyFeedback, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, type Engine, type OpenTargetId } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { listGuide, readGuide } from './guide.ts';
-import { channelTranscript } from './transcripts.ts';
+import { channelTranscript, readHistory, readTranscriptEvent } from './transcripts.ts';
 import { z } from 'zod';
 
 /** Errors that carry their own HTTP status (409/422…) instead of the default 400. */
@@ -584,23 +584,17 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
 
   /**
    * Decoded history of a live channel (attempt id, or pseudo ids such as clarify-<goal>, goal-review-<goal>-<n>),
-   * so the Live log survives a page refresh. Last 400 events, slimmed like the WebSocket feed.
+   * so the Live log survives a page refresh. Last 400 events, slimmed like the WebSocket feed; each names its transcript line.
    */
-  app.get('/api/stream/:id/history', async (c) => {
+  app.get('/api/stream/:id/history', (c) => {
     const id = c.req.param('id');
-    const a = getAttempt(db, id);
-    let path = a?.transcriptPath ?? null;
-    if (!path) path = channelTranscript(engine.config.dataDir, id);
-    if (!path || !existsSync(path)) return c.json({ events: [] });
-    const text = await Bun.file(path).text();
-    const events: unknown[] = [];
-    for (const line of text.split('\n')) {
-      for (const ev of decodeLine(line)) {
-        if (ev.kind === 'unknown' || ev.kind === 'stderr') continue;
-        events.push(ev.kind === 'thinking' ? { kind: 'thinking', text: ev.text.slice(0, 300) } : ev.kind === 'tool_result' ? { ...ev, content: ev.content.slice(0, 1500) } : ev);
-      }
-    }
-    return c.json({ events: events.slice(-400) });
+    const path = getAttempt(db, id)?.transcriptPath ?? channelTranscript(engine.config.dataDir, id);
+    return c.json({ events: path ? readHistory(path) : [] });
+  });
+  /** One live-log event in full (the feed shortens long ones), read back from the transcript line its `ref` names. */
+  app.get('/api/transcripts/:file/event', (c) => {
+    const ev = readTranscriptEvent(engine.config.dataDir, c.req.param('file'), Number(c.req.query('line')), Number(c.req.query('block') ?? 0));
+    return ev ? c.json({ event: ev }) : c.json({ error: 'event not found in the transcript' }, 404);
   });
   /** What the goal's work looks like right now: worktree path, branch, and how to try it. */
   app.get('/api/goals/:id/workspace', async (c) => {

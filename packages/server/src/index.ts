@@ -2,6 +2,7 @@ import type { Engine, StreamEvent } from '@foundry/engine';
 import type { EngineEvent } from '@foundry/core';
 import type { ServerWebSocket } from 'bun';
 import { createApp } from './app.ts';
+import { slimEvent } from './transcripts.ts';
 
 export interface ServeOptions {
   webDist?: string;
@@ -22,11 +23,9 @@ export function startServer(engine: Engine, opts: ServeOptions = {}) {
   };
   engine.store.subscribe((event) => send({ kind: 'event', event }));
   engine.onStream((stream) => {
-    const ev = stream.event;
-    // keep the live feed light: truncate thinking/text blocks, drop unknowns
-    if (ev.kind === 'unknown') return;
-    const slim: StreamEvent = ev.kind === 'thinking' ? { ...stream, event: { kind: 'thinking', text: ev.text.slice(0, 300) } } : ev.kind === 'tool_result' ? { ...stream, event: { ...ev, content: ev.content.slice(0, 1500) } } : stream;
-    send({ kind: 'stream', stream: slim });
+    // keep the live feed light: long thinking / tool output shortened (the full event is read back on demand), unknowns dropped
+    const event = slimEvent(stream.event);
+    if (event) send({ kind: 'stream', stream: { ...stream, event } });
   });
 
   const server = Bun.serve({
