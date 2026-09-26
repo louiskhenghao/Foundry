@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { catalogStatus, defaultEnvProbe, findEntry, loadCatalog, type EnvProbe, type WhichFn, defaultWhich } from './catalog.ts';
 import { runDoctor } from './doctor.ts';
@@ -145,6 +146,26 @@ export class SkillsManager {
       } finally {
         this.updating = null;
       }
+    });
+  }
+
+  /**
+   * Remove a whole Claude plugin with the CLI's own command: a plugin's skills cannot be removed one by one, they
+   * come and go with their plugin.
+   */
+  uninstallPlugin(sourceId: string, onLine?: (l: string) => void): Promise<{ ok: boolean; error: string | null }> {
+    return this.serial(async () => {
+      if (!sourceId.startsWith('plugin:')) throw new Error(`${sourceId} is not a Claude plugin`);
+      const pluginId = sourceId.slice('plugin:'.length);
+      const claude = this.opts.claudeBin ?? Bun.which('claude');
+      if (!claude) return { ok: false, error: 'claude not found on PATH' };
+      const argv = [claude, 'plugin', 'uninstall', pluginId];
+      const say = onLine ?? (() => {});
+      say(`$ ${argv.join(' ')}`);
+      const r = await (this.opts.updater?.spawn ?? spawnStreaming)(argv, homedir(), say, { timeoutMs: 120_000 });
+      say(r.code === 0 ? `■ removed ${pluginId} — restart Claude sessions to apply` : `■ failed (exit ${r.code})`);
+      await this.checker.report(this.scan(), this.catalog(), { offline: true }).catch(() => {});
+      return r.code === 0 ? { ok: true, error: null } : { ok: false, error: `claude plugin uninstall exited ${r.code}` };
     });
   }
 

@@ -711,6 +711,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const { names } = z.object({ names: z.array(z.string()).min(1) }).parse(await c.req.json());
     return c.json({ runs: await engine.skills.adopt(names, stream('skills-update')) });
   });
+  // a Claude plugin goes as a whole (its skills cannot be removed one by one)
+  app.post('/api/skills/plugins/uninstall', async (c) => {
+    const { sourceId } = z.object({ sourceId: z.string().startsWith('plugin:') }).parse(await c.req.json());
+    return c.json(await engine.skills.uninstallPlugin(sourceId, stream('skills-update')));
+  });
   app.post('/api/skills/cleanup-shadows', async (c) => {
     const { names } = z.object({ names: z.array(z.string()).min(1) }).parse(await c.req.json());
     return c.json(await engine.skills.cleanupShadows(names));

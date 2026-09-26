@@ -5,8 +5,8 @@ import { Badge, Button, CopyButton, ago, cn } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 
 const MANAGER_LABEL: Record<SkillSource['manager'], string> = { 'foundry': 'Foundry', 'agents-cli': 'npx skills', plugin: 'Claude plugin', gstack: 'gstack', hand: 'hand-installed', project: 'project' };
-const STATUS_LABEL: Record<SkillSourceRow['status'], string> = { 'up-to-date': 'up to date', outdated: 'outdated', modified: 'modified', unknown: 'unknown', broken: 'broken' };
-const DOT: Record<string, string> = { 'up-to-date': 'bg-emerald-400', outdated: 'bg-amber-400', modified: 'bg-sky-400', broken: 'bg-rose-400', unknown: 'bg-zinc-600' };
+const STATUS_LABEL: Record<SkillSourceRow['status'], string> = { 'up-to-date': 'up to date', outdated: 'outdated', unreleased: 'unreleased', modified: 'modified', unknown: 'unknown', broken: 'broken' };
+const DOT: Record<string, string> = { 'up-to-date': 'bg-emerald-400', outdated: 'bg-amber-400', unreleased: 'bg-violet-400', modified: 'bg-sky-400', broken: 'bg-rose-400', unknown: 'bg-zinc-600' };
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: new Date(iso).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }) : null);
 
 export interface SourceGroupActions {
@@ -14,6 +14,8 @@ export interface SourceGroupActions {
   onAdopt: (names: string[]) => void;
   onTrashShadows: (names: string[]) => void;
   onUninstall: (names: string[]) => void;
+  /** remove a whole Claude plugin (its skills come and go together) */
+  onUninstallPlugin?: (sourceId: string) => void;
   onView: (row: SkillSourceRow) => void;
   selected: Set<string>;
   onSelect: (names: string[], on: boolean) => void;
@@ -31,7 +33,10 @@ export function SourceGroup({ s, busy, updating, filter, a }: { s: SkillSource; 
   const shadows = s.skills.filter((r) => r.actions.includes('trash-shadow')).map((r) => r.name);
   const adoptable = s.skills.filter((r) => r.actions.includes('adopt')).map((r) => r.name);
   const removable = s.skills.filter((r) => r.actions.includes('uninstall')).map((r) => r.name);
-  const canUpdate = s.updater.kind === 'foundry' || s.updater.kind === 'agents-cli' || s.updater.kind === 'plugin';
+  // a plugin whose upstream changes are unreleased: Update would only confirm the same version
+  const canUpdate = (s.updater.kind === 'foundry' || s.updater.kind === 'agents-cli' || s.updater.kind === 'plugin') && !(s.manager === 'plugin' && s.updateAvailable === false && s.skills.some((r) => r.status === 'unreleased'));
+  const [confirmPlugin, setConfirmPlugin] = useState(false);
+  const pluginRemovable = s.manager === 'plugin' && !!a.onUninstallPlugin;
   const state = s.updateAvailable === true ? 'update-available' : s.updateAvailable === false ? 'up-to-date' : 'unknown';
   const allSelected = removable.length > 0 && removable.every((n) => a.selected.has(n));
   if (!rows.length) return null;
@@ -52,7 +57,7 @@ export function SourceGroup({ s, busy, updating, filter, a }: { s: SkillSource; 
   );
   const countsEl = (
     <div className="flex items-center gap-3 text-[10px] text-zinc-500 whitespace-nowrap">
-      {(['outdated', 'modified', 'up-to-date', 'unknown', 'broken'] as const)
+      {(['outdated', 'unreleased', 'modified', 'up-to-date', 'unknown', 'broken'] as const)
         .filter((k) => counts[k])
         .map((k) => (
           <span key={k}>
@@ -84,9 +89,24 @@ export function SourceGroup({ s, busy, updating, filter, a }: { s: SkillSource; 
           Uninstall all
         </Button>
       )}
+      {pluginRemovable &&
+        (confirmPlugin ? (
+          <>
+            <Button size="sm" variant="danger" disabled={busy} onClick={() => (setConfirmPlugin(false), a.onUninstallPlugin!(s.id))} title="Runs the CLI's own plugin uninstall: every skill of this plugin goes">
+              Remove {s.skills.length} skill{s.skills.length === 1 ? '' : 's'}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setConfirmPlugin(false)}>
+              Keep
+            </Button>
+          </>
+        ) : (
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirmPlugin(true)} title="A plugin's skills cannot be removed one by one; this removes the whole plugin">
+            Uninstall plugin
+          </Button>
+        ))}
     </>
   );
-  const hasActions = canUpdate || adoptable.length > 0 || shadows.length > 0 || removable.length > 0;
+  const hasActions = canUpdate || adoptable.length > 0 || shadows.length > 0 || removable.length > 0 || pluginRemovable;
 
   return (
     <section className={cn('rounded-lg border bg-zinc-900/60', s.updateAvailable ? 'border-amber-500/30' : 'border-zinc-800')}>
@@ -177,7 +197,8 @@ function Row({ r, odd, busy, selected, onSelect, onView, onAdopt, onTrashShadow,
               {r.upstream.exact ? '' : '*'}
             </span>
           )}
-          {r.match?.relation === 'older' && r.match.olderCommit && <span>= upstream @ {r.match.olderCommit.slice(0, 7)}</span>}
+          {r.match?.relation === 'older' && r.match.olderCommit && <span title="the installed copy equals upstream at this commit">installed = upstream @ {r.match.olderCommit.slice(0, 7)}</span>}
+          {r.status === 'unreleased' && <span title="upstream changed this skill, but the plugin's version number did not go up, so the CLI will not install it yet">changed upstream, not released</span>}
           {r.match?.relation === 'differs' && <span>differs from upstream</span>}
           {r.shadowedBy && (
             <span className="text-amber-300" title={`${r.invoke} hides ${r.shadowedBy}; both load, prompts use the plugin one`}>

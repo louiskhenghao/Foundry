@@ -223,7 +223,7 @@ export function SkillsPage() {
               {report.sources
                 .filter((s) => s.manager === m)
                 .map((s) => (
-                  <SourceGroup key={s.id} s={s} busy={actionsBusy} updating={report.updating === s.id} filter={filter} a={{ onUpdate: (names) => updateSource(s.id, names), onAdopt: adopt, onTrashShadows: trashShadows, onUninstall: (names) => setConfirmNames(names), onView: openView, selected, onSelect: select }} />
+                  <SourceGroup key={s.id} s={s} busy={actionsBusy} updating={report.updating === s.id} filter={filter} a={{ onUpdate: (names) => updateSource(s.id, names), onAdopt: adopt, onTrashShadows: trashShadows, onUninstall: (names) => setConfirmNames(names), onUninstallPlugin: (id) => void run(`plugin:${id}`, `Removing ${id.slice('plugin:'.length)}…`, () => api.uninstallPlugin(id).then((r) => (r.ok ? `Removed ${id.slice('plugin:'.length)}` : Promise.reject(new Error(r.error ?? 'uninstall failed'))))), onView: openView, selected, onSelect: select }} />
                 ))}
             </div>
           ))}

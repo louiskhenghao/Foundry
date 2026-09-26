@@ -377,6 +377,7 @@ export const api = {
   trash: () => req<TrashEntry[]>('/api/skills/trash'),
   skillsUpdates: (refresh = false, repo?: string) => req<SkillsUpdateReport & { updating: string | null; refreshing: boolean }>(`/api/skills/updates?${new URLSearchParams({ ...(refresh ? { refresh: '1' } : {}), ...(repo ? { repo } : {}) })}`),
   updateSource: (id: string, names?: string[]) => req<{ started: true; channel: string }>(`/api/skills/sources/${encodeURIComponent(id)}/update`, { method: 'POST', body: JSON.stringify({ names }) }),
+  uninstallPlugin: (sourceId: string) => req<{ ok: boolean; error: string | null }>('/api/skills/plugins/uninstall', { method: 'POST', body: JSON.stringify({ sourceId }) }),
   adoptSkills: (names: string[]) => req<{ runs: SkillUpdateRun[] }>('/api/skills/adopt', { method: 'POST', body: JSON.stringify({ names }) }),
   cleanupShadows: (names: string[]) => req<{ trashed: TrashEntry[]; skipped: { name: string; reason: string }[] }>('/api/skills/cleanup-shadows', { method: 'POST', body: JSON.stringify({ names }) }),
   installBundle: (bundle: string) => req<{ results: { id: string; name: string; action: 'plugin' | 'updated' | 'adopted' | 'installed' | 'kept' | 'failed'; detail: string }[] }>('/api/skills/install-bundle', { method: 'POST', body: JSON.stringify({ bundle }) }),
