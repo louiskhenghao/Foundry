@@ -9,7 +9,7 @@ This track is for people who change Foundry's own code: the engine, the server, 
 3. **[Roles](roles.md)**: what each prompt in `roles/*.md` drives, which session loads it, which Model Preset row picks its model, what it gets as input and what it must return. Also how skill hints are put into prompts.
 4. **[Testing](testing.md)**: running the suite and the typechecker, the fake runners the tests are built on, a known flake, and how to do manual QA against a throwaway server without touching your live instance.
 5. **[Releasing](release.md)**: `bun run release`, the order it does things in, the prerequisites, and how to resume after a failed image push.
-6. **[Architecture decision records](adr/)**: why things are the way they are. [adr/index.md](adr/index.md) lists them with their status. Read an ADR before you change the decision it records.
+6. **[Architecture decision records](adr/)**: why things are the way they are. [adr/README.md](adr/) lists them with their status. Read an ADR before you change the decision it records.
 
 ## Getting a working tree
 

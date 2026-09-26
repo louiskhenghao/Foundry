@@ -1,6 +1,6 @@
 # What Foundry does
 
-> English · [中文](./index.zh.md)
+> English · [中文](./README.zh.md)
 
 ## In five lines
 
@@ -39,7 +39,7 @@ The full glossary, for the curious, is `CONTEXT.md` in the Foundry repository.
 
 ## The pages of this guide
 
-1. [What Foundry does](./index.md): this page.
+1. [What Foundry does](./README.md): this page.
 2. [Your first goal](./your-first-goal.md): the Setup page, and the New goal form from top to bottom.
 3. [Answering the interview](./answering-the-interview.md): the questions Foundry asks before it plans.
 4. [Approving the Brief](./approving-the-brief.md): every part of the plan, and what you can change.

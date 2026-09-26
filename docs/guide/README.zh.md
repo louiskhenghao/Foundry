@@ -1,6 +1,6 @@
 # Foundry 是做什么的
 
-> [English](./index.md) · 中文
+> [English](./README.md) · 中文
 
 ## 五句话说清楚
 
@@ -39,7 +39,7 @@ Foundry 读你的项目，问你只有你能决定的事，然后写一份叫 **
 
 ## 本指南的各页
 
-1. [Foundry 是做什么的](./index.zh.md)：就是本页。
+1. [Foundry 是做什么的](./README.zh.md)：就是本页。
 2. [你的第一个 goal](./your-first-goal.zh.md)：Setup 页面，以及从上到下的 New goal 表单。
 3. [回答访谈](./answering-the-interview.zh.md)：Foundry 在规划前问你的问题。
 4. [批准 Brief](./approving-the-brief.zh.md)：计划的每个部分，以及你能改什么。

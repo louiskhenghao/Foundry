@@ -31,7 +31,7 @@ Open the UI, press **New goal**, point it at a repository and describe what you 
 | I want to… | Read |
 |---|---|
 | **use Foundry** — create goals, read the Brief, answer the interview, handle the Inbox | [User guide](docs/guide/) |
-| **install and run it** — Docker, remote access, notifications, updates, every setting | [Operator docs](docs/operate/index.md) |
-| **change its code** — architecture, roles, testing, releasing, design decisions | [Contributor docs](docs/develop/index.md) · [CONTRIBUTING](CONTRIBUTING.md) |
+| **install and run it** — Docker, remote access, notifications, updates, every setting | [Operator docs](docs/operate/) |
+| **change its code** — architecture, roles, testing, releasing, design decisions | [Contributor docs](docs/develop/) · [CONTRIBUTING](CONTRIBUTING.md) |
 
 Words Foundry uses (Goal, Brief, Milestone, Model Preset …) are defined in the [glossary](CONTEXT.md).

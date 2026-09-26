@@ -1,6 +1,6 @@
 # Contributing to Foundry
 
-Start with [docs/develop/](docs/develop/index.md): the architecture, the roles, testing and releasing. The glossary is
+Start with [docs/develop/](docs/develop/): the architecture, the roles, testing and releasing. The glossary is
 [CONTEXT.md](CONTEXT.md) — use its words in code, docs and commit messages.
 
 ## Every change
@@ -18,8 +18,8 @@ The docs have three audiences, in three folders:
 | Folder | Reader | Languages |
 |---|---|---|
 | [docs/guide/](docs/guide/) | people who use Foundry through the web UI | English + 中文 |
-| [docs/operate/](docs/operate/index.md) | whoever installs, configures and updates Foundry | English |
-| [docs/develop/](docs/develop/index.md) | people who change Foundry's code | English |
+| [docs/operate/](docs/operate/) | whoever installs, configures and updates Foundry | English |
+| [docs/develop/](docs/develop/) | people who change Foundry's code | English |
 
 In the same pull request as the code:
 
@@ -34,7 +34,7 @@ In the same pull request as the code:
 3. **A new domain word, or a word whose meaning changed** → [CONTEXT.md](CONTEXT.md). It is a glossary: meanings, not
    implementation.
 4. **A decision that is hard to reverse, surprising without context, and the result of a real trade-off** → a new ADR in
-   [docs/develop/adr/](docs/develop/adr/index.md). Never rewrite an old ADR; mark it amended or superseded.
+   [docs/develop/adr/](docs/develop/adr/). Never rewrite an old ADR; mark it amended or superseded.
 
 ## Trying a change in the real UI
 

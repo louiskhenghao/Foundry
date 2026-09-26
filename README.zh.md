@@ -26,7 +26,7 @@ bun run serve                 # 然后打开 http://127.0.0.1:4111
 | 我想要…… | 去看 |
 |---|---|
 | **使用 Foundry** —— 创建 goal、看 Brief、回答访谈、处理 Inbox | [用户指南](docs/guide/) |
-| **安装和运行** —— Docker、远程访问、通知、更新、所有设置 | [运维文档](docs/operate/index.md)（英文） |
-| **修改代码** —— 架构、角色、测试、发布、设计决策 | [开发文档](docs/develop/index.md) · [CONTRIBUTING](CONTRIBUTING.md)（英文） |
+| **安装和运行** —— Docker、远程访问、通知、更新、所有设置 | [运维文档](docs/operate/)（英文） |
+| **修改代码** —— 架构、角色、测试、发布、设计决策 | [开发文档](docs/develop/) · [CONTRIBUTING](CONTRIBUTING.md)（英文） |
 
 Foundry 用到的词（Goal、Brief、Milestone、Model Preset……）在 [术语表](CONTEXT.md)（英文）里有定义。
