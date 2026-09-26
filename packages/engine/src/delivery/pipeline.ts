@@ -10,7 +10,7 @@ import type { Engine } from '../engine.ts';
 import { raiseEscalation } from '../escalation.ts';
 import { branchSlug, goalHeader, headerOf, taskCommitMessage } from '../git/conventional.ts';
 import { detectRun } from '../preview/detect.ts';
-import { abortInProgress, commitStaged, conflictedFiles, ensureDetachedWorktree, exec, git, gitOk, headRef, isGitRepo, removeWorktree, type ExecResult } from '../git/git.ts';
+import { abortInProgress, commitAuthorMode, commitStaged, conflictedFiles, ensureDetachedWorktree, exec, git, gitIdent, gitOk, headRef, isGitRepo, removeWorktree, withCoauthor, type ExecResult } from '../git/git.ts';
 import { mergeBranchInto, resolveConflicts } from '../merge.ts';
 import { deliveryWorkspacePath, ensureGoalWorkspace, goalWorkspacePath, isStackBranch, listStackBranches, stackBranchName } from '../workspace.ts';
 import { reduceChecks, type GhClient, type PrView } from './gh.ts';
@@ -312,7 +312,7 @@ async function buildStack(ctx: Ctx, step: StepFn): Promise<StackBranch[] | null>
       return { status: 'skipped' as const, detail: why, value: null };
     };
     for (const [i, { task: t, index }] of tasks.entries()) {
-      const pick = () => git(['cherry-pick', '-x', '--keep-redundant-commits', t.commitRef!], ctx.deliveryWs);
+      const pick = async () => git([...(await gitIdent(ctx.deliveryWs)), 'cherry-pick', '-x', '--keep-redundant-commits', t.commitRef!], ctx.deliveryWs);
       const r = await pick();
       if (r.code !== 0) {
         const files = await conflictedFiles(ctx.deliveryWs);
@@ -336,6 +336,11 @@ async function buildStack(ctx: Ctx, step: StepFn): Promise<StackBranch[] | null>
           r.stderr,
         );
         if (!ok) return bail(`commit ${t.commitRef!.slice(0, 7)} conflicts with ${baseRef} in ${files.join(', ')} and the merge attempts could not resolve it`);
+      }
+      // a rebuilt commit is written by the commit author Settings ask for, whoever wrote the original
+      if (commitAuthorMode() !== 'foundry') {
+        const msg = (await git(['log', '-1', '--format=%B'], ctx.deliveryWs)).stdout.trimEnd();
+        await git([...(await gitIdent(ctx.deliveryWs)), 'commit', '--amend', '-q', '--allow-empty', '--reset-author', '-m', withCoauthor(msg)], ctx.deliveryWs);
       }
       const commit = await headRef(ctx.deliveryWs);
       await gitOk(['branch', '-f', expected[i]!, commit], ctx.deliveryWs);

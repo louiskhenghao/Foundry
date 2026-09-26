@@ -5,7 +5,7 @@ import { getEscalation, getGoal, getTask, listChecks, listEscalations } from '@f
 import { runCommandCheck } from './checks/command.ts';
 import type { Engine } from './engine.ts';
 import { taskCommitMessage } from './git/conventional.ts';
-import { GIT_IDENT, abortInProgress, conflictedFiles, ensureDetachedWorktree, git, gitOk, headRef, removeWorktree } from './git/git.ts';
+import { abortInProgress, conflictedFiles, ensureDetachedWorktree, git, gitIdent, gitOk, headRef, removeWorktree, withCoauthor } from './git/git.ts';
 import { dropTaskWorkspace, goalWorkspacePath, resolveWorkspacePath } from './workspace.ts';
 
 /**
@@ -192,7 +192,7 @@ export async function finishResolution(engine: Engine, goalId: string, taskId: s
     // nothing staged: the resolution produced no change against the goal branch
     ref = await headRef(path);
   } else {
-    const c = await git([...GIT_IDENT, 'commit', '-q', '-m', message], path);
+    const c = await git([...(await gitIdent(path)), 'commit', '-q', '-m', withCoauthor(message)], path);
     if (c.code !== 0) return { ok: false, ref: null, checks: [], reason: `commit failed: ${c.stderr.slice(0, 300)}` };
     ref = await headRef(path);
   }
@@ -218,7 +218,7 @@ export async function finishResolution(engine: Engine, goalId: string, taskId: s
     if (existing.code === 0) return { ok: true, ref: await headRef(goalWs) };
     const ff = await git(['merge', '--ff-only', ref], goalWs);
     if (ff.code === 0) return { ok: true, ref: await headRef(goalWs) };
-    const cp = await git([...GIT_IDENT, 'cherry-pick', '--allow-empty', ref], goalWs);
+    const cp = await git([...(await gitIdent(goalWs)), 'cherry-pick', '--allow-empty', ref], goalWs);
     if (cp.code === 0) return { ok: true, ref: await headRef(goalWs) };
     await abortInProgress(goalWs);
     return { ok: false, ref: null, error: `the goal branch moved and the resolution no longer applies cleanly: ${cp.stderr.slice(0, 300)}` };
