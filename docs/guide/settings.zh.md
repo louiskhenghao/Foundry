@@ -140,7 +140,7 @@ skill 是 Claude Code 可以遵循的打包指令。在这里选择 Foundry 把�
 - **autoskills per goal**（开）：你批准 Brief 后，把匹配你项目技术栈（React、Tailwind……）的 skill 加到 goal 的文件夹里。它们不会进入你的提交。
 - **Design skills**、**Image skills**、**Video skills**：每类选一个包；只有这个包会交给前端、图片或视频任务。每个包显示 **installed** 或 **N missing**，并带一个 **Install** 按钮。选包会立即保存。图片包只有在 [Tools & keys](#tools--keys) 里有 key 时，才能生成真正的图片。
 
-顶栏上的 **Skills** 页面显示所有已安装的内容，并可以更新。
+顶栏上的 **Skills** 页面显示所有已安装的内容，并可以更新。你在那里发起的每次安装、更新、接管（adopt）或卸载，都会在页面底部的 **Operations** 栏里打开一个标签页，带着它自己的日志；几个操作可以同时进行。完成的标签页会一直留着，直到你关掉它；这个栏也可以收起成一行计数。
 
 ## Git & delivery
 

@@ -140,7 +140,7 @@ Skills are packaged instructions Claude Code can follow. Here you choose which o
 - **autoskills per goal** (on): after you approve a Brief, adds skills matching your project's technology (React, Tailwind…) to the goal's folder. They never reach your commits.
 - **Design skills**, **Image skills**, **Video skills**: pick one pack for each; only that pack is given to frontend, image or video tasks. A pack shows **installed** or **N missing** with an **Install** button. Choosing a pack saves immediately. Image packs only produce real images with a key under [Tools & keys](#tools--keys).
 
-The **Skills** page in the top bar shows everything installed and can update it.
+The **Skills** page in the top bar shows everything installed and can update it. Every install, update, adoption or uninstall you start there opens a tab in the **Operations** bar at the bottom of the page, with its own log; several can run side by side. A finished tab stays until you close it, and the bar folds down to a line with counts.
 
 ## Git & delivery
 
