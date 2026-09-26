@@ -10,6 +10,7 @@
       "source": {
         "type": "cli",
         "detect": "graphify",
+        "skill": true,
         "install": "uv tool install graphifyy && graphify install --platform claude",
         "docs": "https://github.com/safishamsi/graphify"
       },
@@ -890,9 +891,9 @@
       "why": "The image pack: image tasks need a disciplined prompt + generation flow instead of ad-hoc API calls.",
       "tier": "optional",
       "source": {
-        "type": "manual",
-        "install": "Copy the gpt-image-2 skill folder into ~/.claude/skills (it is distributed as a skill directory).",
-        "detectDir": "gpt-image-2"
+        "type": "git",
+        "repo": "ConardLi/garden-skills",
+        "path": "skills/gpt-image-2"
       },
       "roles": [
         "worker"
@@ -921,7 +922,28 @@
           ],
           "instruction": "Invoke it first: pick the matching template, engineer the prompt, then generate. Independent images MUST be generated in parallel (launch the API calls together — several Bash calls in one message or background jobs), never one after another, with at most one regeneration pass per image. Save every file into artifacts/ and record its prompt/parameters in the task manifest."
         }
-      ]
+      ],
+      "bundle": "garden",
+      "homepage": "https://github.com/ConardLi/garden-skills"
+    },
+    {
+      "id": "kb-retriever",
+      "name": "kb-retriever",
+      "summary": "Search and answer questions over a local knowledge-base folder: layered index navigation, then grep/read (PDF and spreadsheet handling included) instead of loading whole files.",
+      "why": "Lets a session answer from a folder of documents without reading everything into context.",
+      "tier": "optional",
+      "bundle": "garden",
+      "source": {
+        "type": "git",
+        "repo": "ConardLi/garden-skills",
+        "path": "skills/kb-retriever"
+      },
+      "roles": [],
+      "tags": [
+        "research",
+        "documents"
+      ],
+      "homepage": "https://github.com/ConardLi/garden-skills"
     },
     {
       "id": "mmx-cli",

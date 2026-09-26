@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { catalogStatus, defaultEnvProbe, findEntry, loadCatalog, type EnvProbe, type WhichFn, defaultWhich } from './catalog.ts';
 import { runDoctor } from './doctor.ts';
@@ -149,6 +150,26 @@ export class SkillsManager {
   }
 
   /**
+   * Remove a whole Claude plugin with the CLI's own command: a plugin's skills cannot be removed one by one, they
+   * come and go with their plugin.
+   */
+  uninstallPlugin(sourceId: string, onLine?: (l: string) => void): Promise<{ ok: boolean; error: string | null }> {
+    return this.serial(async () => {
+      if (!sourceId.startsWith('plugin:')) throw new Error(`${sourceId} is not a Claude plugin`);
+      const pluginId = sourceId.slice('plugin:'.length);
+      const claude = this.opts.claudeBin ?? Bun.which('claude');
+      if (!claude) return { ok: false, error: 'claude not found on PATH' };
+      const argv = [claude, 'plugin', 'uninstall', pluginId];
+      const say = onLine ?? (() => {});
+      say(`$ ${argv.join(' ')}`);
+      const r = await (this.opts.updater?.spawn ?? spawnStreaming)(argv, homedir(), say, { timeoutMs: 120_000 });
+      say(r.code === 0 ? `■ removed ${pluginId} — restart Claude sessions to apply` : `■ failed (exit ${r.code})`);
+      await this.checker.report(this.scan(), this.catalog(), { offline: true }).catch(() => {});
+      return r.code === 0 ? { ok: true, error: null } : { ok: false, error: `claude plugin uninstall exited ${r.code}` };
+    });
+  }
+
+  /**
    * Make a bundle (e.g. "mattpocock") fully available: entries satisfied via a plugin are left alone,
    * foundry-managed ones are refreshed, loose older copies are adopted, missing ones installed.
    */
@@ -245,19 +266,25 @@ export class SkillsManager {
     });
   }
 
-  installTier(tiers: SkillTier[]): Promise<{ results: (InstallResult & { conflict?: boolean })[] }> {
+  /** Install every missing entry of the tiers; `onLine` gets one line per entry (and the plugin CLI's output). */
+  installTier(tiers: SkillTier[], onLine?: (l: string) => void): Promise<{ results: (InstallResult & { conflict?: boolean })[] }> {
     return this.serial(async () => {
       const results: (InstallResult & { conflict?: boolean })[] = [];
       const statuses = await this.status();
       for (const s of statuses) {
         if (!tiers.includes(s.entry.tier)) continue;
         if (s.status === 'installed' || s.status === 'installed-via-plugin' || s.status === 'installed-unmanaged') {
+          onLine?.(`· ${s.entry.name}: already installed`);
           results.push({ ok: true, id: s.entry.id, name: s.entry.name, path: null, commit: s.commit, manual: null, error: null });
           continue;
         }
+        onLine?.(`installing ${s.entry.name}…`);
         try {
-          results.push(await installEntry(s.entry, { paths: this.paths, log: this.opts.log }));
+          const r = await installEntry(s.entry, { paths: this.paths, log: this.opts.log, onLine });
+          onLine?.(r.ok ? `✔ ${r.name}${r.commit ? ` @ ${r.commit.slice(0, 7)}` : ''}` : r.manual ? `→ ${r.name}: run this yourself: ${r.manual.command}` : `✘ ${r.name}: ${r.error}`);
+          results.push(r);
         } catch (err) {
+          onLine?.(`✘ ${s.entry.name}: ${String((err as Error).message ?? err)}`);
           results.push({ ok: false, id: s.entry.id, name: s.entry.name, path: null, commit: null, manual: null, error: String((err as Error).message ?? err), conflict: err instanceof InstallError && err.code === 'conflict' });
         }
       }

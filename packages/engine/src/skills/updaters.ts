@@ -145,7 +145,7 @@ export async function runSourceUpdate(source: SkillSource, names: string[] | und
       }
       const after = pluginShas(ctx.paths)[pluginId] ?? null;
       const changed = before !== after ? [{ name: pluginId, from: before, to: after }] : [];
-      line(code === 0 ? (changed.length ? `■ updated ${before?.slice(0, 7) ?? '?'} → ${after?.slice(0, 7) ?? '?'} — restart Claude sessions to apply` : '■ already up to date') : `■ failed (exit ${code})`);
+      line(code === 0 ? (changed.length ? `■ updated ${before?.slice(0, 7) ?? '?'} → ${after?.slice(0, 7) ?? '?'} — restart Claude sessions to apply` : '■ the CLI kept the installed version: a plugin only updates when its author raises the version number') : `■ failed (exit ${code})`);
       return base({ command: cmds.flat(), cwd: homedir(), exitCode: code, outputTail: tailOf.join('\n'), changed, error: code === 0 ? null : `claude plugin update exited ${code}` });
     }
     case 'adopt': {
@@ -160,6 +160,12 @@ export async function runSourceUpdate(source: SkillSource, names: string[] | und
         try {
           line(`↻ adopting ${s.name} → ${entry.name} from ${entry.source.type === 'git' ? entry.source.repo : entry.id}`);
           const r = await installEntry(entry, { paths: ctx.paths, log: ctx.log }, { force: true, refresh: true });
+          // a catalog entry that cannot be installed automatically (manual, cli) says so instead of throwing
+          if (!r.ok) {
+            error = `${s.name}: ${r.error ?? 'could not be installed'}${r.manual ? ` — ${r.manual.command}` : ''}`;
+            line(`✗ ${error}`);
+            continue;
+          }
           if (entry.name !== s.name && existsSync(join(ctx.paths.skillsDir, s.name))) {
             trashSkill(s.name, ctx.paths, `superseded by ${entry.name} (renamed upstream)`);
             line(`  trashed old copy ${s.name}`);

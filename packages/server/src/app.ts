@@ -6,6 +6,7 @@ import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, 
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { listGuide, readGuide } from './guide.ts';
+import { OP_ID, SkillOpError, SkillOps, opIdOfChannel, opOf } from './skill-ops.ts';
 import { channelTranscript, readHistory, readTranscriptEvent } from './transcripts.ts';
 import { z } from 'zod';
 
@@ -18,6 +19,9 @@ export class HttpError extends Error {
     super(String(body.error ?? 'error'));
   }
 }
+
+/** Optional id a caller picks for its Skills operation, so it can follow `skills-op:<id>` before the request returns. */
+const OpId = z.string().regex(OP_ID).optional();
 
 /** Partial budgets; null on a limit means "no limit". */
 const BudgetsBody = z.object({
@@ -59,15 +63,21 @@ const CreateGoalBody = z.object({
 export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   const app = new Hono();
   const db = engine.store.db;
+  // Skills page operations: one live channel + one pollable record each (skill-ops.ts)
+  const ops = new SkillOps((s) => engine.broadcast(s));
 
   app.onError((err, c) => {
-    if (err instanceof HttpError) return c.json(err.body, err.status as 400);
-    if (err instanceof InstallError) return c.json({ error: err.message, code: err.code, ...err.extra }, err.code === 'conflict' ? 409 : err.code === 'manual' ? 422 : err.code === 'not-found' ? 404 : 400);
-    if (err instanceof UninstallRefused) return c.json({ error: err.message, reason: err.reason }, err.reason === 'not-found' ? 404 : 409);
-    if (err instanceof UpdateBusy) return c.json({ error: err.message }, 409);
-    if (err instanceof FollowUpError) return c.json({ error: err.message }, err.status);
-    if (err instanceof TrashError) return c.json({ error: err.message, code: err.code }, err.code === 'not-found' ? 404 : 409);
-    return c.json({ error: String(err.message ?? err) }, 400);
+    // an error that ended a Skills page operation names it, so the page can show that operation as failed
+    const op = opOf(err);
+    const json = (body: Record<string, unknown>, status: number) => c.json(op ? { ...body, op } : body, status as 400);
+    if (err instanceof HttpError) return json(err.body, err.status);
+    if (err instanceof SkillOpError) return json({ error: err.message }, err.status);
+    if (err instanceof InstallError) return json({ error: err.message, code: err.code, ...err.extra }, err.code === 'conflict' ? 409 : err.code === 'manual' ? 422 : err.code === 'not-found' ? 404 : 400);
+    if (err instanceof UninstallRefused) return json({ error: err.message, reason: err.reason }, err.reason === 'not-found' ? 404 : 409);
+    if (err instanceof UpdateBusy) return json({ error: err.message }, 409);
+    if (err instanceof FollowUpError) return json({ error: err.message }, err.status);
+    if (err instanceof TrashError) return json({ error: err.message, code: err.code }, err.code === 'not-found' ? 404 : 409);
+    return json({ error: String(err.message ?? err) }, 400);
   });
 
   // `active` = everything a restart would interrupt (sessions + attempts between sessions + clarify/review/delivery); `busy` breaks it down
@@ -194,11 +204,12 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     }
   });
   app.post('/api/goals/:id/attachments/:attId/convert', async (c) => c.json({ markdown: await engine.reconvertAttachment(c.req.param('id'), c.req.param('attId')) }));
-  // one-click tool installs (markitdown, catalog cli entries such as graphify) — stream to the `tool-install` live channel
-  const toolInstall = async (c: any, id: string) => {
-    const say = (line: string) => engine.broadcast({ goalId: '', taskId: null, attemptId: 'tool-install', event: { kind: 'text', text: line }, ts: new Date().toISOString() });
-    void engine.installTool(id, say).catch((e) => say(`✘ ${String(e.message ?? e)}`));
-    return c.json({ started: true, channel: 'tool-install', id }, 202);
+  // one-click tool installs (markitdown, catalog cli entries such as graphify), in the background as a Skills operation.
+  // A caller that names its own operation (`opId`, the Skills page) follows `skills-op:<id>`; the others (Setup,
+  // Settings) keep following the shared `tool-install` channel, which gets the same lines.
+  const toolInstall = async (c: any, id: string, opId?: string) => {
+    const op = ops.start('tool-install', `Install ${id}`, { id: opId, mirror: opId ? undefined : 'tool-install' }, (say) => engine.installTool(id, say), (r) => ({ ok: r.ok, summary: r.ok ? `${id} installed` : `${id}: \`${r.command}\` exited ${r.exitCode ?? 'without a code'}` }));
+    return c.json({ started: true, channel: opId ? op.channel : 'tool-install', id, op }, 202);
   };
   app.post('/api/tools/markitdown/install', (c) => toolInstall(c, 'markitdown'));
 
@@ -297,7 +308,10 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   app.get('/api/tools/playwright', async (c) => c.json(await engine.playwrightStatus()));
   app.post('/api/tools/playwright/install', (c) => toolInstall(c, 'playwright'));
-  app.post('/api/tools/install', async (c) => toolInstall(c, z.object({ id: z.string().min(1) }).parse(await c.req.json()).id));
+  app.post('/api/tools/install', async (c) => {
+    const { id, opId } = z.object({ id: z.string().min(1), opId: OpId }).parse(await c.req.json());
+    return toolInstall(c, id, opId);
+  });
   app.delete('/api/goals/:id/attachments/:attId', (c) => {
     engine.removeAttachment(c.req.param('id'), c.req.param('attId'));
     return c.json({ ok: true });
@@ -603,6 +617,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
    */
   app.get('/api/stream/:id/history', (c) => {
     const id = c.req.param('id');
+    // a Skills page operation keeps its own output in memory
+    const opId = opIdOfChannel(id);
+    if (opId) return c.json({ events: ops.history(opId) ?? [] });
     const path = getAttempt(db, id)?.transcriptPath ?? channelTranscript(engine.config.dataDir, id);
     return c.json({ events: path ? readHistory(path) : [] });
   });
@@ -695,21 +712,38 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json({ ...offline, stale: true, ...meta() });
   });
   const stream = (channel: string) => (line: string) => engine.broadcast({ goalId: '', taskId: null, attemptId: channel, event: { kind: 'text', text: line }, ts: new Date().toISOString() });
+  // the page's operations: status of one (the page polls the running ones) and the recent ones (to pick up after a reload)
+  app.get('/api/skills/ops', (c) => c.json({ ops: ops.list() }));
+  app.get('/api/skills/ops/:id', (c) => {
+    const op = ops.get(c.req.param('id'));
+    if (!op) throw new HttpError(404, { error: 'unknown operation (the server may have restarted)' });
+    return c.json(op);
+  });
   app.post('/api/skills/sources/:id/update', async (c) => {
     const id = decodeURIComponent(c.req.param('id'));
     const body = await c.req.json().catch(() => ({}));
     const names: string[] | undefined = Array.isArray(body?.names) ? body.names.map(String) : undefined;
+    const opId = OpId.parse(body?.opId);
+    // one source update at a time, server-wide
     if (engine.skills.updatingSource()) throw new HttpError(409, { error: `update of ${engine.skills.updatingSource()} is still running` });
-    // runs in the background; the UI follows the `skills-update` live channel and re-fetches /api/skills/updates when it ends
-    void engine.skills
-      .updateSource(id, { names, onLine: stream('skills-update') })
-      .then((run) => stream('skills-update')(run.error ? `✘ ${run.error}` : `✔ finished`))
-      .catch((e) => stream('skills-update')(`✘ ${String(e.message ?? e)}`));
-    return c.json({ started: true, channel: 'skills-update' }, 202);
+    // runs in the background on the operation's channel; the page polls /api/skills/ops/:id until it ends
+    const op = ops.start('update', `Update ${id}${names?.length ? ` (${names.join(', ')})` : ''}`, { id: opId }, (say) => engine.skills.updateSource(id, { names, onLine: say }), (run) => ({ ok: !run.error, summary: run.error ?? `${id}: ${run.changed.length ? `${run.changed.length} changed (${run.changed.map((x) => x.name).join(', ')})` : 'no change'}` }));
+    return c.json({ started: true, channel: op.channel, op }, 202);
   });
   app.post('/api/skills/adopt', async (c) => {
-    const { names } = z.object({ names: z.array(z.string()).min(1) }).parse(await c.req.json());
-    return c.json({ runs: await engine.skills.adopt(names, stream('skills-update')) });
+    const { names, opId } = z.object({ names: z.array(z.string()).min(1), opId: OpId }).parse(await c.req.json());
+    const { op, result } = await ops.run('adopt', `Adopt ${names.join(', ')}`, { id: opId }, (say) => engine.skills.adopt(names, say), (runs) => {
+      const errs = runs.filter((r) => r.error).map((r) => r.error);
+      return { ok: !errs.length, summary: `${runs.flatMap((r) => r.changed).length} adopted${errs.length ? `; ${errs.join('; ')}` : ''}` };
+    });
+    return c.json({ runs: result, op });
+  });
+  // a plugin goes as a whole (its skills cannot be removed one by one)
+  app.post('/api/skills/plugins/uninstall', async (c) => {
+    const { sourceId, opId } = z.object({ sourceId: z.string().startsWith('plugin:'), opId: OpId }).parse(await c.req.json());
+    const name = sourceId.slice('plugin:'.length);
+    const { op, result } = await ops.run('uninstall', `Uninstall plugin ${name}`, { id: opId }, (say) => engine.skills.uninstallPlugin(sourceId, say), (r) => ({ ok: r.ok, summary: r.ok ? `removed ${name}` : (r.error ?? 'uninstall failed') }));
+    return c.json({ ...result, op });
   });
   app.post('/api/skills/cleanup-shadows', async (c) => {
     const { names } = z.object({ names: z.array(z.string()).min(1) }).parse(await c.req.json());
@@ -722,8 +756,22 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json(v);
   });
   app.post('/api/skills/uninstall-many', async (c) => {
-    const { names, force } = z.object({ names: z.array(z.string()).min(1), force: z.boolean().optional() }).parse(await c.req.json());
-    return c.json(await engine.skills.uninstallMany(names, { force }));
+    const { names, force, opId } = z.object({ names: z.array(z.string()).min(1), force: z.boolean().optional(), opId: OpId }).parse(await c.req.json());
+    const { op, result } = await ops.run(
+      'uninstall',
+      `Uninstall ${names.length === 1 ? names[0] : `${names.length} skills`}`,
+      { id: opId },
+      async (say) => {
+        const r = await engine.skills.uninstallMany(names, { force });
+        for (const x of r.results) say(x.ok ? `✔ ${x.name} → trash${x.note ? ` (${x.note})` : ''}` : `✘ ${x.name}: ${x.error}`);
+        return r;
+      },
+      ({ results }) => {
+        const bad = results.filter((r) => !r.ok);
+        return { ok: !bad.length, summary: `${results.length - bad.length} moved to the trash${bad.length ? `; not removed: ${bad.map((r) => `${r.name} (${r.error})`).join(', ')}` : ''}` };
+      },
+    );
+    return c.json({ ...result, op });
   });
   app.post('/api/skills/install-bundle', async (c) => {
     const { bundle } = z.object({ bundle: z.string().min(1) }).parse(await c.req.json());
@@ -812,14 +860,22 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
 
   app.post('/api/skills/install', async (c) => {
-    const { id, force } = z.object({ id: z.string(), force: z.boolean().optional() }).parse(await c.req.json());
-    const r = await engine.skills.install(id, { force });
-    if (r.manual) return c.json({ error: r.error, manual: r.manual, id: r.id, name: r.name }, 422);
-    return c.json(r);
+    const { id, force, opId } = z.object({ id: z.string(), force: z.boolean().optional(), opId: OpId }).parse(await c.req.json());
+    const { op, result: r } = await ops.run('install', `Install ${id}${force ? ' (replace)' : ''}`, { id: opId }, (say) => engine.skills.install(id, { force, onLine: say }), (r) => ({
+      ok: r.ok,
+      summary: r.manual ? `${r.name}: run this yourself → ${r.manual.command}` : r.ok ? `${r.name} installed${r.commit ? ` @ ${r.commit.slice(0, 7)}` : ''}` : `${r.name}: ${r.error}`,
+    }));
+    if (r.manual) return c.json({ error: r.error, manual: r.manual, id: r.id, name: r.name, op }, 422);
+    return c.json({ ...r, op });
   });
   app.post('/api/skills/install-tier', async (c) => {
-    const { tiers } = z.object({ tiers: z.array(z.enum(['required', 'recommended', 'optional'])).min(1) }).parse(await c.req.json());
-    return c.json(await engine.skills.installTier(tiers));
+    const { tiers, opId } = z.object({ tiers: z.array(z.enum(['required', 'recommended', 'optional'])).min(1), opId: OpId }).parse(await c.req.json());
+    const { op, result } = await ops.run('install-tier', `Install ${tiers.join(' + ')} skills`, { id: opId }, (say) => engine.skills.installTier(tiers, say), ({ results }) => {
+      const failed = results.filter((r) => !r.ok && !r.manual);
+      const manual = results.filter((r) => r.manual);
+      return { ok: !failed.length, summary: `${results.filter((r) => r.ok).length}/${results.length} satisfied${manual.length ? `; run yourself: ${manual.map((m) => m.manual!.command).join(' ; ')}` : ''}${failed.length ? `; failed: ${failed.map((f) => `${f.name} (${f.error})`).join(', ')}` : ''}` };
+    });
+    return c.json({ ...result, op });
   });
   app.post('/api/skills/update', async (c) => {
     const { name } = z.object({ name: z.string().optional() }).parse(await c.req.json().catch(() => ({})));

@@ -4,7 +4,7 @@
  * Replaces the one-line hint when the workflow profile is `mattpocock`; falls back to it otherwise.
  */
 import type { Goal, Task, TaskKind, TaskScenario } from '@foundry/core';
-import { SATISFIED } from './catalog.ts';
+import { SATISFIED, cliOnly, useLabel } from './catalog.ts';
 import { formatSkillsHint } from './hints.ts';
 import { packAllows } from './packs.ts';
 import type { CatalogEntryStatus, SkillRole, WorkflowRule } from './types.ts';
@@ -39,6 +39,8 @@ export interface MandatedSkill {
   instruction: string;
   /** requiresEnv vars this session will not have — the skill runs degraded */
   missingEnv: string[];
+  /** a command-line tool (no skill to invoke): the binary to run */
+  cli?: string | null;
 }
 
 const NEVER_RUN = ['/setup-matt-pocock-skills', '/to-spec', '/to-tickets', '/triage', '/implement', '/wayfinder'];
@@ -71,7 +73,7 @@ export function applicableRules(i: WorkflowSectionInput): MandatedSkill[] {
         if (i.discipline.tdd === 'off') continue;
         if (i.discipline.tdd === 'preferred') mandate = 'prefer';
       }
-      out.push({ name: s.entry.name, invoke, mandate, instruction: r.instruction, missingEnv: s.missingEnv });
+      out.push({ name: s.entry.name, invoke, mandate, instruction: r.instruction, missingEnv: s.missingEnv, cli: cliOnly(s.entry) });
     }
   }
   // must before prefer, stable otherwise
@@ -111,8 +113,8 @@ export function formatWorkflowSection(i: WorkflowSectionInput): string | null {
     .filter((s) => s.entry.roles.includes(i.role) && scenarioOk(s.entry.scenarios, i.scenario))
     // discipline off = not mentioned at all, not even as "installed"
     .filter((s) => !(s.entry.name === 'tdd' && i.discipline?.tdd === 'off'))
-    .map((s) => s.entry.invoke ?? s.installedInvoke ?? `/${s.entry.name}`)
-    .filter((inv) => !ruleNames.has(inv))
+    .filter((s) => !ruleNames.has(s.entry.invoke ?? s.installedInvoke ?? `/${s.entry.name}`))
+    .map(useLabel)
     .slice(0, 8);
   const project = i.projectSkills ?? [];
   if (!rules.length && !others.length && !project.length) return null;
@@ -122,7 +124,7 @@ export function formatWorkflowSection(i: WorkflowSectionInput): string | null {
     lines.push("This engine follows Matt Pocock's engineering workflow. The skills below are loaded in this session; invoke them with the Skill tool.");
     for (const r of rules) {
       const degraded = r.missingEnv.length ? ` ⚠ ${r.missingEnv.join(', ')} is NOT set in this session, so the skill's API/generation mode is unavailable and it can only advise. If the deliverable depends on it, build the best fallback you can and say so explicitly in your result and manifests — never present the fallback as the real output.` : '';
-      lines.push(`- ${r.mandate === 'must' ? 'MUST' : 'Prefer'}: invoke \`${r.invoke}\` — ${r.instruction}${degraded}`);
+      lines.push(`- ${r.mandate === 'must' ? 'MUST' : 'Prefer'}: ${r.cli ? `use the \`${r.cli}\` command-line tool` : `invoke \`${r.invoke}\``} — ${r.instruction}${degraded}`);
     }
     lines.push(`- Do NOT run ${NEVER_RUN.join(', ')}: Foundry is the tracker and has already done that work. Never write docs/agents/*.`);
     lines.push('- The engine records which skills you invoked; the reviewer sees it.');

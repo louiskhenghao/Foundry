@@ -27,18 +27,19 @@ describe('catalog', () => {
     expect(() => loadCatalog(p2)).toThrow(/invalid/);
   });
 
-  test('status: installed / unmanaged / via-plugin / partial / missing / manual', () => {
+  test('status: installed / unmanaged / via-plugin / partial / missing / manual; a command-line tool alone is installed', () => {
     const p = writeCatalog(join(fake.home, 'cat'), [
       { id: 'managed', name: 'managed', summary: '', why: '', tier: 'recommended', source: { type: 'git', repo: 'o/r' }, roles: ['worker'] },
       { id: 'plain', name: 'plain', summary: '', why: '', tier: 'recommended', source: { type: 'git', repo: 'o/r' }, roles: ['worker'] },
       { id: 'diagnosing-bugs', name: 'diagnosing-bugs', summary: '', why: '', tier: 'recommended', source: { type: 'git', repo: 'o/r' }, roles: ['worker'] },
       { id: 'nothere', name: 'nothere', summary: '', why: '', tier: 'recommended', source: { type: 'git', repo: 'o/r' }, roles: ['merger'] },
-      { id: 'graphify', name: 'graphify', summary: '', why: '', tier: 'required', source: { type: 'cli', detect: 'graphify', install: 'uv tool install graphifyy' }, roles: ['clarifier'] },
+      { id: 'graphify', name: 'graphify', summary: '', why: '', tier: 'required', source: { type: 'cli', detect: 'graphify', install: 'uv tool install graphifyy', skill: true }, roles: ['clarifier'] },
+      { id: 'ffmpeg', name: 'ffmpeg', summary: '', why: '', tier: 'optional', source: { type: 'cli', detect: 'ffprobe', install: 'brew install ffmpeg' }, roles: ['reviewer-task'] },
       { id: 'gstack', name: 'gstack', summary: '', why: '', tier: 'optional', source: { type: 'manual', install: 'git clone …', detectDir: 'gstack' } },
     ]);
     const catalog = loadCatalog(p);
     const scan = scanSkills(fake.paths);
-    const st = catalogStatus(catalog, scan, fake.paths, (bin) => (bin === 'graphify' ? '/usr/local/bin/graphify' : null));
+    const st = catalogStatus(catalog, scan, fake.paths, (bin) => (bin === 'graphify' ? '/usr/local/bin/graphify' : bin === 'ffprobe' ? '/opt/homebrew/bin/ffprobe' : null));
     const s = (id: string) => st.find((x) => x.entry.id === id)!;
     expect(s('managed')).toMatchObject({ status: 'installed', commit: 'abc1234', installedInvoke: '/managed' });
     expect(s('plain').status).toBe('installed-unmanaged');
@@ -46,8 +47,12 @@ describe('catalog', () => {
     expect(s('nothere').status).toBe('missing');
     expect(s('graphify')).toMatchObject({ status: 'partial', manual: { command: 'uv tool install graphifyy' } });
     expect(s('gstack').status).toBe('installed-unmanaged');
+    // a binary with no skill folder of its own is installed once found, and sessions are told to run it, not invoke it
+    expect(s('ffmpeg')).toMatchObject({ status: 'installed', installedInvoke: null });
+    expect(formatSkillsHint('reviewer-task', st)).toContain('the `ffprobe` command-line tool');
     const none = catalogStatus(catalog, scan, fake.paths, () => null);
     expect(none.find((x) => x.entry.id === 'graphify')!.status).toBe('missing');
+    expect(none.find((x) => x.entry.id === 'ffmpeg')!.status).toBe('missing');
 
     // hints: worker gets the three satisfied worker skills, merger gets nothing
     expect(formatSkillsHint('worker', st)).toBe('Installed skills relevant to this role (use when appropriate): /managed, /plain, /mp-skills:diagnosing-bugs');
