@@ -43,7 +43,18 @@ export interface RunSpec {
   label?: string;
 }
 
-export type RunnerEvent =
+/**
+ * Where a decoded event came from: the transcript file (its name inside the transcripts folder), the 0-based line
+ * in that file and the block within the line (one assistant message can carry several). The live feed shortens long
+ * events; this is how the full one is read back.
+ */
+export interface TranscriptRef {
+  file: string;
+  line: number;
+  block: number;
+}
+
+export type RunnerEvent = (
   | { kind: 'init'; sessionId: string; model: string | null; tools: string[]; raw: unknown }
   | { kind: 'text'; text: string }
   | { kind: 'thinking'; text: string }
@@ -55,7 +66,8 @@ export type RunnerEvent =
   | { kind: 'progress'; toolUseId: string; tool: string; elapsedSeconds: number }
   | { kind: 'result'; result: RunResult }
   | { kind: 'stderr'; text: string }
-  | { kind: 'unknown'; raw: unknown };
+  | { kind: 'unknown'; raw: unknown }
+) & { ref?: TranscriptRef };
 
 export interface RateLimitInfo {
   status: string;
