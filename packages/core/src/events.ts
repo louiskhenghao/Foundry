@@ -7,6 +7,7 @@ import {
   Brief,
   Budgets,
   ChecksState,
+  FailingCheck,
   DeliveryOutcome,
   DeliveryPolicy,
   DeliveryStep,
@@ -193,7 +194,7 @@ export const EngineEvent = z.discriminatedUnion('type', [
   /** the stacked branches built from the tasks' commits (unit = task), bottom first */
   ev('delivery.stack_built', { branches: z.array(z.object({ taskId: z.string().nullable(), index: z.number().int(), branch: z.string(), base: z.string(), commit: z.string(), title: z.string() })) }),
   ev('delivery.pr_opened', { number: z.number().int(), url: z.string(), base: z.string(), head: z.string(), taskId: z.string().nullable().default(null), title: z.string().default('') }),
-  ev('delivery.checks', { state: ChecksState, summary: z.string(), prNumber: z.number().int().nullable().default(null) }),
+  ev('delivery.checks', { state: ChecksState, summary: z.string(), prNumber: z.number().int().nullable().default(null), failing: z.array(FailingCheck).default([]) }),
   ev('delivery.merged', { prNumber: z.number().int().nullable(), method: z.string(), ref: z.string().nullable(), taskId: z.string().nullable().default(null) }),
   /** something the pipeline decided on its own (e.g. fell back from a stack to one PR) */
   ev('delivery.note', { message: z.string() }),

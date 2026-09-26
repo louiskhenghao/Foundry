@@ -10,6 +10,8 @@ export const EscalationTrigger = z.enum([
   'permission_denial',
   /** the goal paused at a milestone: look at the work, then continue or give feedback */
   'milestone',
+  /** a delivery stopped (failing checks it cannot fix, a rejected push, …): the reason and what to do about it */
+  'delivery_failed',
 ]);
 export type EscalationTrigger = z.infer<typeof EscalationTrigger>;
 
@@ -28,6 +30,10 @@ export const EscalationAction = z.enum([
   'continue',
   /** milestone: what the human saw becomes a hint, fix tasks or a Decision (the confirmed plan rides along) */
   'feedback',
+  /** delivery failed: run it again from the first unmerged pull request, with a fresh fix-CI budget */
+  'retry_delivery',
+  /** delivery failed: the human handled it; record it as delivered (merged when GitHub says so) */
+  'mark_delivered',
 ]);
 export type EscalationAction = z.infer<typeof EscalationAction>;
 
@@ -79,4 +85,5 @@ export const ACTIONS_BY_TRIGGER: Record<EscalationTrigger, EscalationAction[]> =
   budget_exceeded: ['raise_budget', 'abort_goal'],
   permission_denial: ['retry_with_hint', 'skip_task', 'abort_goal'],
   milestone: ['continue', 'feedback'],
+  delivery_failed: ['retry_delivery', 'mark_delivered'],
 };
