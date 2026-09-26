@@ -2,7 +2,8 @@ import type { EngineEvent } from '@foundry/core/browser';
 
 export type Tone = 'info' | 'ok' | 'warn' | 'err' | 'muted';
 
-export function describe(e: EngineEvent): { text: string; tone: Tone } {
+/** `full` is the whole text when `text` shows only part of it (the Activity row then opens it); `raw` = start the dialog in Raw. */
+export function describe(e: EngineEvent): { text: string; tone: Tone; full?: string; raw?: boolean } {
   const p: any = e.payload;
   switch (e.type) {
     case 'goal.state_changed':
@@ -18,13 +19,13 @@ export function describe(e: EngineEvent): { text: string; tone: Tone } {
     case 'attempt.concluded':
       return { text: `Attempt ${p.state}: ${p.reason}`, tone: p.state === 'passed' ? 'ok' : 'warn' };
     case 'check.finished':
-      return { text: `Check ${p.result.status}: ${p.result.summary.split('\n')[0]?.slice(0, 100)}`, tone: p.result.status === 'pass' ? 'ok' : 'err' };
+      return { text: `Check ${p.result.status}: ${p.result.summary.split('\n')[0]?.slice(0, 100)}`, tone: p.result.status === 'pass' ? 'ok' : 'err', ...cut(p.result.summary, 100, true) };
     case 'review.task.finished':
       return { text: p.verdict.pass ? 'Task reviewer: no blockers' : `Task reviewer blockers: ${p.verdict.blockers.join(' | ')}`, tone: p.verdict.pass ? 'ok' : 'warn' };
     case 'review.goal.finished':
       return { text: p.passed ? (p.overDelivered ? 'Goal review: over-delivered ✨' : 'Goal review: passed') : `Goal review failed; ${p.fixTaskIds.length} fix task(s)`, tone: p.passed ? 'ok' : 'warn' };
     case 'escalation.raised':
-      return { text: `Needs you: ${p.escalation.trigger.replace(/_/g, ' ')} — ${p.escalation.message.split('\n')[0]}`, tone: 'warn' };
+      return { text: `Needs you: ${p.escalation.trigger.replace(/_/g, ' ')} — ${p.escalation.message.split('\n')[0]}`, tone: 'warn', ...cut(p.escalation.message) };
     case 'escalation.answered':
       return { text: `You answered: ${p.answer.action}${p.answer.hint ? ` — "${p.answer.hint}"` : ''}`, tone: 'info' };
     case 'merge.started':
@@ -48,7 +49,7 @@ export function describe(e: EngineEvent): { text: string; tone: Tone } {
     case 'goal.budgets_changed':
       return { text: `Budget ${p.reason === 'auto-from-brief' ? 'proposed from the Brief estimate' : 'changed'}: ${p.budgets.maxCostUsd == null ? 'no cost cap' : `$${p.budgets.maxCostUsd}`} / ${p.budgets.maxDurationMin == null ? 'no time cap' : `${p.budgets.maxDurationMin} min`}`, tone: 'info' };
     case 'engine.note':
-      return { text: p.message.split('\n')[0], tone: p.level === 'error' ? 'err' : p.level === 'warn' ? 'warn' : 'muted' };
+      return { text: p.message.split('\n')[0], tone: p.level === 'error' ? 'err' : p.level === 'warn' ? 'warn' : 'muted', ...cut(p.message, Infinity, true) };
     case 'boundary.blocked':
       return { text: `Blocked command: ${p.command}`, tone: 'warn' };
     case 'session.usage':
@@ -56,6 +57,12 @@ export function describe(e: EngineEvent): { text: string; tone: Tone } {
     default:
       return { text: e.type, tone: 'muted' };
   }
+}
+
+/** the whole text, when the one-line description keeps only its first line (up to `max` characters) */
+function cut(text: string, max = Infinity, raw = false): { full?: string; raw?: boolean } {
+  const first = text.split('\n')[0] ?? '';
+  return text.trim() !== first.trim() || first.length > max ? { full: text, raw } : {};
 }
 
 export const NOISY = new Set(['goal.cost_added', 'workspace.committed', 'session.usage', 'attempt.session', 'check.created', 'task.workspace_assigned']);

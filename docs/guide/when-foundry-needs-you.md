@@ -4,6 +4,8 @@
 
 Once you approve the Brief, Foundry works on its own. It stops and asks you only in the situations on this page. Each one shows up in the **Inbox** (the number in the top bar) and on the goal's page. If you set up notifications, you also get a Telegram or Discord message: the **Needs you** switch covers everything in the Inbox, and **Interview round**, **Goal finished**, **Delivery**, **Usage pause** and **New version** have their own switches. See [Settings → Notifications](./settings.md#notifications).
 
+Each Inbox card carries the full report under **details**. The box scrolls; for a long report, **Open full** shows it in a larger window with **Copy**.
+
 Everything else you see while a goal runs is normal and needs nothing from you. The second half of this page explains those messages.
 
 ## The eight reasons Foundry stops
@@ -99,6 +101,7 @@ Before the Brief exists, the goal page may show **Round N — K questions**. Thi
 | `● session 1a2b3c4d · claude-…` | A session started. A second `●` in the same attempt means the session was resumed (a *continuation*), which is cheaper than starting over. |
 | `[reviewer] …` after the work finished | The task reviewer is checking the change. |
 | `[reviewer] ✗ Output does not match required schema …` | The reviewer sent its verdict in the wrong shape and resends it. Harmless. |
+| `■ success · $0.420 · 7 turns — …` | The session finished. The text after the dash is the worker's final message; click the line to read all of it. |
 | `■ error_max_turns`, `■ error_max_budget_usd`, `■ killed_timeout` | The session hit a limit. Foundry resumes it with a fresh allowance, up to twice, before starting a new attempt. |
 | `⏳ rate limit rejected` | Your Claude plan's usage limit was reached. Foundry pauses and continues when it resets. Nothing is lost. |
 | `⏱ sub-agent still working · 3m 30s` | A helper (for example the planner) is still busy. Long pauses in the log are normal while this line updates. |

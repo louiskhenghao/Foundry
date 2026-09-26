@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
 import { api, type EscalationRow } from '../api.ts';
+import { FullTextDialog } from '../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../components/Markdown.tsx';
 import { useLive } from '../store.ts';
 import { UsagePausedBanner } from '../components/UsageBanner.tsx';
@@ -77,6 +78,9 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
   const [err, setErr] = useState<string | null>(null);
   const [suggesting, setSuggesting] = useState<null | 'suggest' | 'apply'>(null);
   const [suggestion, setSuggestion] = useState(e.suggestion ?? null);
+  const [full, setFull] = useState(false);
+  // the details panel scrolls at 260px; a long report also opens in the full-text dialog
+  const long = e.message.length > 1200 || e.message.split('\n').length > 12;
   const actions = ACTIONS_BY_TRIGGER[e.trigger];
   const canSuggest = e.taskId && (e.trigger === 'retries_exhausted' || e.trigger === 'permission_denial');
   const suggest = async (apply: boolean) => {
@@ -141,7 +145,19 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
           )}
         </div>
       )}
-      <MarkdownPanel title="details" source={e.message} maxHeight={260} />
+      <MarkdownPanel
+        title="details"
+        source={e.message}
+        maxHeight={260}
+        actions={
+          long && (
+            <button type="button" className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-300 hover:text-zinc-100 hover:border-zinc-500" onClick={() => setFull(true)} title="Read the whole report in a larger window">
+              Open full
+            </button>
+          )
+        }
+      />
+      <FullTextDialog value={full ? { title: TRIGGER_LABEL[e.trigger] ?? e.trigger, text: e.message } : null} onClose={() => setFull(false)} />
       {suggestion && (
         <div className="mt-2 rounded-md border border-sky-500/30 bg-sky-500/5 p-2.5 text-xs space-y-1">
           <div className="flex items-center gap-2">

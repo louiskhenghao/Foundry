@@ -123,7 +123,7 @@ export async function runGoalReview(engine: Engine, goal: Goal): Promise<void> {
       : `Goal review failed after ${goal.fixCycles} fix cycle(s). Failing Must checks: ${mustResults
           .filter((r) => r.status !== 'pass')
           .map((r) => checks.find((c) => c.id === r.checkId)?.name)
-          .join(', ')}${review ? `\n\n${review.notes.slice(0, 800)}` : ''}`,
+          .join(', ')}${review ? `\n\n${review.notes}` : ''}`,
     // the findings ride on the escalation: a human "Retry with hint" turns them into fix tasks instead of re-rolling the review
     payload: { kind: 'goal-review', fixTasks: fixSpecs, failing },
     blockGoal: true,

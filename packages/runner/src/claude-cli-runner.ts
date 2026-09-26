@@ -1,5 +1,5 @@
-import { appendFileSync, mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { basename, dirname } from 'node:path';
 import { Semaphore } from './semaphore.ts';
 import { LineSplitter, decodeLine, skillNameFromToolUse } from './stream-codec.ts';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from './types.ts';
@@ -102,6 +102,9 @@ export class ClaudeCliRunner implements ClaudeRunner {
     const transcript = (line: string) => {
       if (spec.transcriptPath) appendFileSync(spec.transcriptPath, line + '\n');
     };
+    // events point back at their transcript line; a continuation appends to the same file, so count on from its end
+    const refFile = spec.transcriptPath ? basename(spec.transcriptPath) : null;
+    let lineNo = spec.transcriptPath ? countLines(spec.transcriptPath) : 0;
 
     let proc: ReturnType<typeof Bun.spawn> | null = null;
     let killReason: string | null = null;
@@ -178,7 +181,9 @@ export class ClaudeCliRunner implements ClaudeRunner {
       const reader = (proc!.stdout as ReadableStream<Uint8Array>).getReader();
       const handle = (line: string) => {
         transcript(line);
-        for (const ev of decodeLine(line)) {
+        const at = lineNo++;
+        for (const [block, decoded] of decodeLine(line).entries()) {
+          const ev: RunnerEvent = refFile ? { ...decoded, ref: { file: refFile, line: at, block } } : decoded;
           if (ev.kind === 'init') sessionId = ev.sessionId;
           if (ev.kind === 'rate_limit') rateLimit = ev.info;
           if (ev.kind === 'result') lastResult = ev.result;
@@ -235,4 +240,13 @@ export class ClaudeCliRunner implements ClaudeRunner {
 
     return { pid: proc.pid, events: queue, kill, result };
   }
+}
+
+/** lines already in a transcript (each written line ends with a newline) */
+function countLines(path: string): number {
+  if (!existsSync(path)) return 0;
+  const buf = readFileSync(path);
+  let n = 0;
+  for (let i = 0; i < buf.length; i++) if (buf[i] === 10) n++;
+  return n;
 }

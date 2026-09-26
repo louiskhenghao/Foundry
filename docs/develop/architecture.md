@@ -233,6 +233,7 @@ A few sessions still read the older `Goal.models` / `config.models` fields (`str
 | `/api/goals`, `/api/goals/:id/...` | create, read, follow-up draft and link (`/follow-up-draft`, `/follows`), brief edit/draft/approve, style samples, reclarify, interview answer, feedback classify, cancel/restart/delete, diff, deliver and delivery plan, preview, self-check, attachments, screenshots, artifacts, workspace, open-in-editor, manual resolve (`/tasks/:taskId/resolve/*`) |
 | `/api/escalations` | list, `:id/suggest`, `:id/answer` |
 | `/api/stream/:id/history` | decoded transcript tail for a live channel (the Live log after a page refresh) |
+| `/api/transcripts/:file/event?line=&block=` | one live-log event in full, read back from the transcript line its `ref` names |
 | `/api/attempts/:id/transcript`, `/prompt` | raw session transcript and worker prompt |
 | `/api/skills/*`, `/api/tools/*` | skills view, catalog, install/uninstall/update, packs; markitdown, playwright and CLI tool installs |
 | `/api/models`, `/api/settings`, `/api/notifications/*` | model list/sync/probe, settings get/put/reset, notification tests |
@@ -245,7 +246,7 @@ A few sessions still read the older `Goal.models` / `config.models` fields (`str
 **WebSocket.** `startServer` (`packages/server/src/index.ts`) upgrades `/ws` and broadcasts two kinds of message to every client:
 
 - `{ kind: 'event', event }` for every appended engine event
-- `{ kind: 'stream', stream }` for every live session event from `Engine.broadcast`, slimmed down: thinking truncated to 300 characters, tool results to 1500, unknown events dropped
+- `{ kind: 'stream', stream }` for every live session event from `Engine.broadcast`, slimmed down by `slimEvent` (`packages/server/src/transcripts.ts`): thinking truncated to 300 characters and tool results to 1500, each flagged `truncated: true`; unknown events dropped
 
 `apps/web/src/store.ts` (`connectWs`, zustand `useLive`) reconnects on close, bumps a per-goal revision on events so pages refetch, and buffers stream events per channel.
 
@@ -260,7 +261,9 @@ A few sessions still read the older `Goal.models` / `config.models` fields (`str
 | `docs-<goalId>`, `feedback-<goalId>`, `suggest-<escalationId>`, `style-sample-<goalId>` | Documenter, feedback triage, Suggestion, Style Samples |
 | `autoskills-<goalId>`, `preview-<goalId>` | autoskills install output, preview server output |
 
-The history endpoint looks up an attempt's transcript first, and otherwise the channel's own file, `data/transcripts/<channel>.jsonl` (`channelTranscript` in `packages/server/src/transcripts.ts`). The `draft-<goalId>` channel carries every Draft and Revise session, saved as `draft-<goal>-<n>` / `revise-<goal>-<n>`, so its history is the newest of those.
+The history endpoint returns the last 400 events, slimmed the same way, including `stderr` (lines of the transcript that are not JSON). It looks up an attempt's transcript first, and otherwise the channel's own file, `data/transcripts/<channel>.jsonl` (`channelTranscript` in `packages/server/src/transcripts.ts`). The `draft-<goalId>` channel carries every Draft and Revise session, saved as `draft-<goal>-<n>` / `revise-<goal>-<n>`, so its history is the newest of those.
+
+**Full text on demand.** The runner stamps every decoded event with `ref: { file, line, block }`: the transcript's file name inside `data/transcripts/`, the 0-based line and the block within that line (one assistant message can carry several). A continuation appends to the same transcript, so the runner counts on from the end of the file. The ref names a file rather than a channel because a channel can span several files (the Task reviewer writes `<attemptId>.review.jsonl` but streams on the attempt's channel; style samples run one file per option). Every live-log line is one line; a click opens `FullTextDialog` (`apps/web/src/components/FullTextDialog.tsx`, Preview/Raw and Copy). For an event flagged `truncated`, `LiveLog` fetches `/api/transcripts/:file/event` (`readTranscriptEvent`) and shows the whole event; without a ref, or when the line cannot be read, it shows what the page has with a note. Events the engine makes up itself (Brief-page notes, preview and install output) have no ref and are never shortened. The same dialog opens the Activity tab's cut rows, a task's commit message and long Escalation reports (`raiseEscalation` keeps messages whole up to a 20 000-character safety cap).
 
 **Web pages** (`apps/web/src/App.tsx`): Goals `/`, New goal `/goals/new`, Brief `/goals/:id/brief` (`pages/brief/*`), Goal `/goals/:id` (`pages/goal/*`: overview, DAG, diff, delivery, activity, interview, milestone, preview), Manual Resolution, Agents, Inbox, Skills, Setup, Usage, Settings (`pages/settings/ModelPresets.tsx` for presets) and Help `/help`, `/help/:slug` (`pages/HelpPage.tsx`, the user guide).
 

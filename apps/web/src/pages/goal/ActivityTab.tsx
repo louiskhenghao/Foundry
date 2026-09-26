@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { GoalDetail } from '../../api.ts';
+import { type FullText, FullTextDialog } from '../../components/FullTextDialog.tsx';
 import { useLive } from '../../store.ts';
 import { cn } from '../../ui.tsx';
 import { NOISY, describe, type Tone } from './describe.ts';
@@ -10,6 +11,7 @@ const DOT: Record<Tone, string> = { info: 'bg-sky-400', ok: 'bg-emerald-400', wa
 export function ActivityTab({ d }: { d: GoalDetail }) {
   const [showNoisy, setShowNoisy] = useState(false);
   const [onlyImportant, setOnlyImportant] = useState(false);
+  const [open, setOpen] = useState<FullText | null>(null);
   const streams = useLive((s) => s.streams);
   const items = useMemo(() => {
     const ev = d.events
@@ -19,7 +21,15 @@ export function ActivityTab({ d }: { d: GoalDetail }) {
     // fold worker text from live streams of this goal's attempts
     const texts = Object.entries(streams)
       .filter(([id]) => d.attempts.some((a) => a.id === id))
-      .flatMap(([id, list]) => list.filter((s) => s.event.kind === 'text').map((s, i) => ({ ts: s.ts, key: `${id}-${i}`, text: s.event.text.split('\n')[0].slice(0, 160), tone: 'muted' as Tone, kind: 'text' as const, type: 'worker' })));
+      .flatMap(([id, list]) =>
+        list
+          .filter((s) => s.event.kind === 'text')
+          .map((s, i) => {
+            const text: string = s.event.text;
+            const first = text.split('\n')[0]!.slice(0, 160);
+            return { ts: s.ts, key: `${id}-${i}`, text: first, full: first === text.trim() ? undefined : text, raw: false, tone: 'muted' as Tone, kind: 'text' as const, type: 'worker' };
+          }),
+      );
     return [...ev, ...(onlyImportant ? [] : texts)].sort((a, b) => b.ts.localeCompare(a.ts));
   }, [d.events, streams, showNoisy, onlyImportant]);
 
@@ -35,16 +45,30 @@ export function ActivityTab({ d }: { d: GoalDetail }) {
         <span className="ml-auto">{items.length} entries</span>
       </div>
       <div className="surface-card rounded-lg border border-zinc-800 divide-y divide-zinc-800/60 max-h-[70vh] overflow-auto">
-        {items.map((it) => (
-          <div key={it.key} className="flex gap-3 px-3 py-1.5 text-xs">
-            <span className="mono text-zinc-600 w-16 shrink-0">{it.ts.slice(11, 19)}</span>
-            <span className={cn('mt-1.5 h-1.5 w-1.5 rounded-full shrink-0', DOT[it.tone])} />
-            <span className={cn('flex-1 break-words', it.kind === 'text' ? 'text-zinc-500 italic' : TONE[it.tone])}>{it.text}</span>
-            <span className="mono text-[10px] text-zinc-600 shrink-0">{it.type}</span>
-          </div>
-        ))}
+        {items.map((it) => {
+          const row = (
+            <>
+              <span className="mono text-zinc-600 w-16 shrink-0">{it.ts.slice(11, 19)}</span>
+              <span className={cn('mt-1.5 h-1.5 w-1.5 rounded-full shrink-0', DOT[it.tone])} />
+              <span className={cn('flex-1 min-w-0 break-words', it.kind === 'text' ? 'text-zinc-500 italic' : TONE[it.tone])}>
+                {it.text}
+                {it.full && <span className="not-italic text-zinc-500"> …</span>}
+              </span>
+              <span className="mono text-[10px] text-zinc-600 shrink-0">{it.type}</span>
+            </>
+          );
+          // a row that shows only part of its text opens the whole of it
+          if (!it.full) return <div key={it.key} className="flex gap-3 px-3 py-1.5 text-xs">{row}</div>;
+          const full = it.full;
+          return (
+            <button key={it.key} type="button" title="Show the full text" onClick={() => setOpen({ title: it.kind === 'text' ? 'Worker message' : it.type, text: full, raw: it.raw })} className="flex w-full gap-3 px-3 py-1.5 text-xs text-left hover:bg-zinc-900/60 focus-visible:outline focus-visible:outline-1 focus-visible:outline-zinc-500 cursor-pointer">
+              {row}
+            </button>
+          );
+        })}
         {items.length === 0 && <div className="text-sm text-zinc-500 py-8 text-center">Nothing yet.</div>}
       </div>
+      <FullTextDialog value={open} onClose={() => setOpen(null)} />
     </div>
   );
 }

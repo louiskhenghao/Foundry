@@ -214,7 +214,7 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
         task: fresh,
         attemptId: outcome.attempt.id,
         trigger: 'retries_exhausted',
-        message: `Task "${task.title}" used ${used}/${max} attempts; Must checks still failing.\n\n${outcome.report.summary.slice(0, 1200)}`,
+        message: `Task "${task.title}" used ${used}/${max} attempts; Must checks still failing.\n\n${outcome.report.summary}`,
         payload: { attempts: used, lastAttemptId: outcome.attempt.id },
       });
     }

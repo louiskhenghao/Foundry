@@ -74,7 +74,7 @@ What each state and message means, and which ones need nothing from you, is in [
 
 Click a task to open it full screen (Escape or × closes it). You see:
 
-- Its title, state, tags and, once done, its commit.
+- Its title, state, tags and, once done, its commit. Click the commit line to read the whole commit message.
 - **Task total**: attempts, cost (split into worker and reviewer), turns and minutes so far.
 - **spec**, its **Checks** with their latest result, and **Relevant files**.
 - **This task is waiting for you**, if it is blocked, with the buttons to answer.
@@ -84,7 +84,11 @@ Click a task to open it full screen (Escape or × closes it). You see:
 
 ### Live logs
 
-Inside a task, **Live log** shows what the worker is doing right now: what it says, the tools it uses (⚙), their results, and a line per session. **Observation** shows the summary handed to the next attempt. **Prompt** shows exactly what the worker was told.
+Inside a task, **Live log** shows what the worker is doing right now: what it says, the tools it uses (⚙), their results, and a line per session. At the end of a session, the `■` line also shows the worker's final message.
+
+Every entry is one line, cut off at the edge of the box. Click a line (or Tab to it and press Enter) to read the whole message in a window. **Preview** shows it formatted and **Raw** shows the exact text; **Copy** copies all of it. Messages and thinking open as **Preview**; tool calls, tool results and errors open as **Raw**. The log itself shortens long thinking and tool results, so the window reads the full text from the session's saved transcript.
+
+**Observation** shows the summary handed to the next attempt. **Prompt** shows exactly what the worker was told.
 
 The meaning of the lines you will see (`●`, `■ error_max_turns`, `⏱ sub-agent still working` …) is in [When Foundry needs you](./when-foundry-needs-you.md#in-a-tasks-live-log). Most of them need nothing from you.
 
@@ -145,7 +149,7 @@ Then either press **Continue**, or write what you saw and press **Turn into a pl
 
 ## Activity
 
-Everything that happened to the goal, newest first, one line each: stages, tasks starting and finishing, checks, decisions, delivery steps. **important only** hides routine lines; **show bookkeeping events** shows even more.
+Everything that happened to the goal, newest first, one line each: stages, tasks starting and finishing, checks, decisions, delivery steps. **important only** hides routine lines; **show bookkeeping events** shows even more. A line ending in **…** shows only the start of a longer text, such as a worker message, a check result or a note; click it to read all of it.
 
 ## Diff
 
