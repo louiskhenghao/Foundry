@@ -16,7 +16,9 @@ export interface PrView extends PrRef {
   mergeStateStatus: string | null;
   mergedAt: string | null;
   mergeCommit: string | null;
-  checks: { name: string; status: string; conclusion: string | null }[];
+  /** `run` = a GitHub check run (Actions or an app); `status` = a commit status another service posted (e.g. a deploy
+   * integration). `description` is the status text; `url` where to read more. */
+  checks: { name: string; status: string; conclusion: string | null; kind?: 'run' | 'status'; description?: string | null; url?: string | null }[];
 }
 export type ChecksReduced = 'pending' | 'passing' | 'failing' | 'none';
 
@@ -40,6 +42,16 @@ export interface GhClient {
   prFindAny(cwd: string, i: { repo: string; head: string }): Promise<(PrRef & { state: 'OPEN' | 'MERGED' | 'CLOSED' | string; base: string }) | null>;
   prReopen(cwd: string, i: { repo: string; number: number }): Promise<ExecResult>;
   failedLog(cwd: string, i: { repo: string; branch: string }): Promise<string | null>;
+}
+
+const FAILED = ['FAILURE', 'ERROR', 'TIMED_OUT', 'CANCELLED', 'ACTION_REQUIRED', 'STARTUP_FAILURE'];
+/** the checks that fail, as the delivery records and shows them */
+export function failingChecks(checks: PrView['checks']): { name: string; description: string | null; url: string | null; kind: 'run' | 'status' }[] {
+  return checks.filter((c) => FAILED.includes((c.conclusion ?? c.status ?? '').toUpperCase())).map((c) => ({ name: c.name, description: c.description ?? null, url: c.url ?? null, kind: c.kind ?? 'run' }));
+}
+/** one line per failing check: "Vercel — Deployment was blocked (https://…)" */
+export function describeFailing(f: { name: string; description: string | null; url: string | null }[]): string {
+  return f.map((c) => `${c.name}${c.description ? ` — ${c.description}` : ''}${c.url ? ` (${c.url})` : ''}`).join('\n');
 }
 
 export function reduceChecks(checks: PrView['checks']): ChecksReduced {
@@ -145,7 +157,14 @@ export class CliGh implements GhClient {
     const r = await this.run(['pr', 'view', String(i.number), '-R', i.repo, '--json', 'number,url,state,mergeable,mergeStateStatus,mergedAt,mergeCommit,statusCheckRollup'], cwd);
     if (r.code !== 0) throw new Error(`gh pr view failed: ${(r.stderr || r.stdout).trim().slice(0, 300)}`);
     const j = JSON.parse(r.stdout);
-    const checks = (Array.isArray(j.statusCheckRollup) ? j.statusCheckRollup : []).map((c: any) => ({ name: c.name ?? c.context ?? '?', status: c.status ?? c.state ?? '', conclusion: c.conclusion ?? c.state ?? null }));
+    const checks = (Array.isArray(j.statusCheckRollup) ? j.statusCheckRollup : []).map((c: any) => ({
+      name: c.name ?? c.context ?? '?',
+      status: c.status ?? c.state ?? '',
+      conclusion: c.conclusion ?? c.state ?? null,
+      kind: c.__typename === 'StatusContext' || (c.context && !c.name) ? ('status' as const) : ('run' as const),
+      description: c.description ?? c.title ?? null,
+      url: c.detailsUrl ?? c.targetUrl ?? null,
+    }));
     return { number: j.number, url: j.url, state: j.state, mergeable: j.mergeable ?? 'UNKNOWN', mergeStateStatus: j.mergeStateStatus ?? null, mergedAt: j.mergedAt ?? null, mergeCommit: j.mergeCommit?.oid ?? null, checks };
   }
   async hasCi(cwd: string, i: { repo: string; base: string }): Promise<boolean | null> {

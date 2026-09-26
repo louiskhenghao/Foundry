@@ -7,13 +7,13 @@ import { maxAttemptsFor, runAttempt } from '../attempt-loop.ts';
 import { runCommandCheck } from '../checks/command.ts';
 import { truncateOutput } from '../distill/truncate.ts';
 import type { Engine } from '../engine.ts';
-import { raiseEscalation } from '../escalation.ts';
 import { branchSlug, goalHeader, headerOf, taskCommitMessage } from '../git/conventional.ts';
 import { detectRun } from '../preview/detect.ts';
 import { abortInProgress, commitAuthorMode, commitStaged, conflictedFiles, ensureDetachedWorktree, exec, git, gitIdent, gitOk, headRef, isGitRepo, removeWorktree, withCoauthor, type ExecResult } from '../git/git.ts';
 import { mergeBranchInto, resolveConflicts } from '../merge.ts';
 import { deliveryWorkspacePath, ensureGoalWorkspace, goalWorkspacePath, isStackBranch, listStackBranches, stackBranchName } from '../workspace.ts';
-import { reduceChecks, type GhClient, type PrView } from './gh.ts';
+import { describeFailing, failingChecks, reduceChecks, type GhClient, type PrView } from './gh.ts';
+import { closeDeliveryFailures, raiseDeliveryFailure } from './inbox.ts';
 import { baseOf, buildPrBody, buildTaskPrBody, needsGh, planDelivery, repoSlug } from './policy.ts';
 
 export interface DeliveryOptions {
@@ -114,6 +114,8 @@ export async function runDelivery(engine: Engine, goalIn: Goal, signal: AbortSig
     const probes = await probe(ctx);
     const plan = planDelivery(goal, policy, probes);
     ev({ type: 'delivery.started', goalId: goal.id, payload: { policy, plan: plan.map((p) => `${p.step}: ${p.command ?? p.note}`) } });
+    // a new run settles the Inbox item the last failure raised
+    closeDeliveryFailures(engine, goal.id, 'retry_delivery');
     await step('preflight', async () => {
       if (!(await isGitRepo(ctx.repoPath))) throw new DeliveryFailed('preflight', `${ctx.repoPath} is not a git repository`);
       await ensureGoalWorkspace(config.dataDir, goal);
@@ -228,6 +230,7 @@ export async function runDelivery(engine: Engine, goalIn: Goal, signal: AbortSig
     const f = err instanceof DeliveryFailed ? err : new DeliveryFailed(getGoal(store.db, goal.id)!.delivery.step ?? 'preflight', String((err as Error).stack ?? err));
     ev({ type: 'delivery.failed', goalId: goal.id, payload: { step: f.step, reason: f.message } });
     config.log(`[delivery] ${goal.id} failed at ${f.step}: ${f.message}`);
+    raiseDeliveryFailure(engine, goal.id, f.step, f.message);
   }
 }
 
@@ -510,11 +513,22 @@ async function settlePr(ctx: Ctx, step: StepFn, repo: string, number: number, un
       continue;
     }
     if (state === 'failing') {
+      const failing = failingChecks(view.checks);
+      const which = describeFailing(failing) || 'a check reported a failure';
       const g = getGoal(store.db, goal.id)!;
-      if (g.delivery.fixCycles >= policy.fixCiCycles) throw new DeliveryFailed('wait-checks', `CI checks are failing on PR #${number} and the fix budget (${policy.fixCiCycles}) is used up`);
+      if (g.delivery.fixCycles >= policy.fixCiCycles) throw new DeliveryFailed('wait-checks', `Checks failing on PR #${number}:\n${which}\n\nThe fix-CI budget (${policy.fixCiCycles}) is used up.`);
+      // a failure with no CI log to read (a status another service posted, such as a deploy integration) is not
+      // something a code change can be aimed at: say which check and why, instead of spending a fix on nothing
+      const log = await ctx.gh.failedLog(ctx.goalWs, { repo, branch: unit.branch }).catch(() => null);
+      if (!log)
+        throw new DeliveryFailed(
+          'wait-checks',
+          `Checks failing on PR #${number}:\n${which}\n\nFoundry has no CI log it can read for ${failing.length === 1 ? 'this check' : 'these checks'}, so it did not try to fix ${failing.length === 1 ? 'it' : 'them'}. Open the link and fix the cause — a deploy integration may only accept commits by a member of its team (Settings → Git & delivery → Commit author) — then press Retry delivery, or Re-check on the pull request.`,
+        );
       await step('fix-ci', async () => {
-        const ok = await fixCi(ctx, repo, number, unit);
-        if (!ok) throw new DeliveryFailed('fix-ci', 'the fix-CI task could not make the goal-level checks pass');
+        const r = await fixCi(ctx, repo, number, unit, log);
+        if (r === 'failed') throw new DeliveryFailed('fix-ci', `the fix-CI task could not make the goal-level checks pass. Failing on PR #${number}:\n${which}`);
+        if (r === 'nochange') throw new DeliveryFailed('fix-ci', `the fix-CI task found nothing to change, so pushing again would only re-run the same failing checks. Failing on PR #${number}:\n${which}`);
         return { status: 'ok', detail: 'fix task passed; pushing again' };
       });
       await step('push', async () => ({ status: 'ok', detail: `pushed fix @ ${(await pushRef(ctx, unit.branch, unit.taskId)).slice(0, 7)}` }));
@@ -680,7 +694,8 @@ async function waitForChecks(ctx: Ctx, repo: string, number: number): Promise<Pr
     let state = reduceChecks(v.checks);
     if (state === 'none' && ctx.ci !== false && Date.now() - start < ctx.opts.noChecksGraceMs) state = 'pending';
     if (state !== last) {
-      ctx.engine.store.append({ type: 'delivery.checks', goalId: ctx.goal.id, payload: { state, summary: v.checks.map((c) => `${c.name}: ${c.conclusion ?? c.status}`).join(', ') || 'no checks reported', prNumber: number } });
+      const failing = failingChecks(v.checks).map(({ name, description, url }) => ({ name, description, url }));
+      ctx.engine.store.append({ type: 'delivery.checks', goalId: ctx.goal.id, payload: { state, summary: v.checks.map((c) => `${c.name}: ${c.conclusion ?? c.status}`).join(', ') || 'no checks reported', prNumber: number, failing } });
       last = state;
     }
     if (state !== 'pending' || v.mergedAt) return v;
@@ -691,10 +706,9 @@ async function waitForChecks(ctx: Ctx, repo: string, number: number): Promise<Pr
 }
 
 /** Bounded "fix CI" task: runs directly in the unit's checkout (the goal is terminal, the scheduler is not involved). Its attempts end as one `fix(ci)` commit. */
-async function fixCi(ctx: Ctx, repo: string, prNumber: number, unit: PrUnit): Promise<boolean> {
+async function fixCi(ctx: Ctx, repo: string, prNumber: number, unit: PrUnit, log: string | null): Promise<'fixed' | 'nochange' | 'failed'> {
   const { engine, goal } = ctx;
   const { store } = engine;
-  const log = await ctx.gh.failedLog(ctx.goalWs, { repo, branch: unit.branch }).catch(() => null);
   const goalChecks = listChecks(store.db, goal.id).filter((c) => c.taskId === null && c.tier === 'must' && c.spec.type === 'command');
   const now = new Date().toISOString();
   const base = await headRef(unit.cwd);
@@ -740,7 +754,7 @@ async function fixCi(ctx: Ctx, repo: string, prNumber: number, unit: PrUnit): Pr
         for (const c of goalChecks) {
           const r = await runCommandCheck(c, { cwd: unit.cwd, outputDir: join(engine.config.dataDir, 'check-output'), attemptId: out.attempt.id });
           store.append({ type: 'check.finished', goalId: goal.id, payload: { result: r } });
-          if (r.status !== 'pass') return false;
+          if (r.status !== 'pass') return 'failed';
         }
         // squash the attempt snapshots into one Conventional Commit
         const message = taskCommitMessage(goal, task);
@@ -748,14 +762,18 @@ async function fixCi(ctx: Ctx, repo: string, prNumber: number, unit: PrUnit): Pr
           await gitOk(['reset', '--soft', base], unit.cwd);
           const c = await commitStaged(unit.cwd, message);
           store.append({ type: 'task.committed', goalId: goal.id, payload: { taskId: task.id, ref: c.committed ? c.ref : null, message } });
-        } else store.append({ type: 'task.committed', goalId: goal.id, payload: { taskId: task.id, ref: null, message } });
-        store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'observing', to: 'done', reason: 'CI fix applied' } });
-        return true;
+          store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'observing', to: 'done', reason: c.committed ? 'CI fix applied' : 'no change needed locally' } });
+          return c.committed ? 'fixed' : 'nochange';
+        }
+        // nothing changed: pushing the same commit again would only re-run the same failing checks
+        store.append({ type: 'task.committed', goalId: goal.id, payload: { taskId: task.id, ref: null, message } });
+        store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'observing', to: 'done', reason: 'no change needed locally' } });
+        return 'nochange';
       }
     }
+    // the delivery stops with this reason and raises one Inbox item for it (delivery_failed)
     store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'running', to: 'blocked', reason: 'fix attempts exhausted' } });
-    raiseEscalation(engine, { goal, task: getTask(store.db, task.id)!, trigger: 'retries_exhausted', message: `Could not make CI pass for PR #${prNumber} within ${maxAttemptsFor(task)} attempts.`, payload: { kind: 'delivery-fix', prNumber } });
-    return false;
+    return 'failed';
   } finally {
     engine.release(task.id);
   }

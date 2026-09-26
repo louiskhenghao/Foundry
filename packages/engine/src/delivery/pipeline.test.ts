@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from 'bun:test';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { getGoal, listTasks } from '@foundry/core';
+import { getGoal, listEscalations, listTasks } from '@foundry/core';
 import { deliveryWorkspacePath, goalWorkspacePath } from '../workspace.ts';
 import { defaultConfig } from '../config.ts';
 import { Engine } from '../engine.ts';
@@ -442,6 +442,94 @@ describe('after a merge (ADR-0015)', () => {
     d = deliveredStatus(engine, goal.id);
     expect(d.local?.upToDate).toBe(true);
     expect(await sh('git rev-parse main', repo)).toBe(await sh('git rev-parse main', bare));
+    await engine.stop();
+  });
+});
+
+describe('a delivery that stops says why and can be finished (Inbox, Retry, Re-check, Mark as delivered)', () => {
+  const failingStatus = (gh: FakeGh) => {
+    gh.checksSequence = ['failing'];
+    gh.failingCheck = { name: 'Deploy preview', description: 'Deployment was blocked', url: 'https://deploy.example/abc', kind: 'status' };
+  };
+  const failedGoal = async (engine: Engine) => {
+    const goal = await engine.createGoal({ prompt: 'ship it', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 20_000);
+    return goal;
+  };
+  const inbox = (engine: Engine, goalId: string) => listEscalations(engine.store.db, { goalId, openOnly: true }).filter((e) => e.trigger === 'delivery_failed');
+
+  test('a failing check with no CI log is not "fixed": the delivery stops, naming the check, its description and link, in one Inbox item', async () => {
+    const gh = new FakeGh(bare);
+    failingStatus(gh);
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await failedGoal(engine);
+    const d = deliveredStatus(engine, goal.id);
+    expect(d).toMatchObject({ status: 'failed', step: 'wait-checks' });
+    expect(d.error).toContain('Deploy preview — Deployment was blocked (https://deploy.example/abc)');
+    expect(d.prs[0]!.failing).toEqual([{ name: 'Deploy preview', description: 'Deployment was blocked', url: 'https://deploy.example/abc' }]);
+    expect(listTasks(engine.store.db, goal.id).some((t) => t.origin === 'delivery-fix')).toBe(false);
+    const open = inbox(engine, goal.id);
+    expect(open).toHaveLength(1);
+    expect(open[0]!.message).toContain('Deployment was blocked');
+    await engine.stop();
+  });
+
+  test('a fix task that changes nothing stops the delivery instead of pushing the same commit again', async () => {
+    const gh = new FakeGh(bare);
+    gh.checksSequence = ['failing'];
+    gh.failedLogText = 'Error: something outside the code';
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await failedGoal(engine);
+    const d = deliveredStatus(engine, goal.id);
+    expect(d).toMatchObject({ status: 'failed', step: 'fix-ci' });
+    expect(d.error).toContain('found nothing to change');
+    expect(eventsOf(engine, goal.id).filter((t) => t === 'delivery.pushed').length).toBe(1);
+    expect(inbox(engine, goal.id)).toHaveLength(1);
+    await engine.stop();
+  });
+
+  test('a PR merged by hand after the delivery failed is noticed: the delivery finishes as merged and the Inbox item closes', async () => {
+    const gh = new FakeGh(bare);
+    failingStatus(gh);
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await failedGoal(engine);
+    await gh.mergeOnGitHub(1);
+    await engine.refreshDelivery(goal.id);
+    const d = deliveredStatus(engine, goal.id);
+    expect(d).toMatchObject({ status: 'delivered', outcome: 'merged' });
+    expect(inbox(engine, goal.id)).toHaveLength(0);
+    expect(d.local?.upToDate).toBe(true);
+    await engine.stop();
+  });
+
+  test('Re-check after the cause was fixed carries on and merges; Retry delivery gets a fresh fix budget', async () => {
+    const gh = new FakeGh(bare);
+    failingStatus(gh);
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await failedGoal(engine);
+    engine.store.append({ type: 'task.created', goalId: goal.id, payload: { task: { ...listTasks(engine.store.db, goal.id)[0]!, id: 't_fake_fix', origin: 'delivery-fix' } } });
+    expect(deliveredStatus(engine, goal.id).fixCycles).toBe(1);
+    gh.checksSequence = ['passing'];
+    await engine.recheckDeliveryPr(goal.id, 1);
+    expect(deliveredStatus(engine, goal.id).fixCycles).toBe(0);
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status) && deliveredStatus(engine, goal.id).outcome !== null, 20_000);
+    expect(deliveredStatus(engine, goal.id)).toMatchObject({ status: 'delivered', outcome: 'merged' });
+    expect(inbox(engine, goal.id)).toHaveLength(0);
+    await engine.stop();
+  });
+
+  test('Mark as delivered on an unmerged PR records it as delivered by you and changes nothing on the machine', async () => {
+    const gh = new FakeGh(bare);
+    failingStatus(gh);
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await failedGoal(engine);
+    const ws = goalWorkspacePath(dataDir, getGoal(engine.store.db, goal.id)!);
+    await engine.markDelivered(goal.id);
+    const d = deliveredStatus(engine, goal.id);
+    expect(d).toMatchObject({ status: 'delivered', outcome: 'by_you' });
+    expect(d.cleanup).toBeNull();
+    expect(existsSync(ws)).toBe(true);
+    expect(inbox(engine, goal.id)).toHaveLength(0);
     await engine.stop();
   });
 });

@@ -57,7 +57,7 @@ import { relocateLegacyWorkspaces } from './workspace-migrate.ts';
 import { PreviewManager } from './preview/manager.ts';
 import { ensureSelfCheck, playwrightInstallCommand, playwrightStatus, runSelfCheck } from './checks/selfcheck.ts';
 import { afterMerge, type AfterMergeOptions } from './delivery/after-merge.ts';
-import { checkGoalPrs, checkOpenPrs } from './delivery/pr-watch.ts';
+import { checkGoalPrs, checkOpenPrs, markDelivered, recheckPr } from './delivery/pr-watch.ts';
 import { attachmentDir, claimStaged, conversionTmpPath, markdownFileName, sweepStaging, trashAttachment } from './attachments.ts';
 import { Markitdown } from './convert/markitdown.ts';
 import { SettingsStore, applySettingsToConfig } from './settings.ts';
@@ -499,6 +499,28 @@ export class Engine {
     if (Date.now() - last < 60_000) return;
     this.deliveryRefreshAt.set(goalId, Date.now());
     await afterMerge(this, goalId);
+  }
+
+  /** "Retry delivery": run the delivery again from the first unmerged PR (merged ones are skipped, open ones reused) with a fresh fix-CI budget */
+  async retryDelivery(goalId: string): Promise<Goal> {
+    const g = this.mustGoal(goalId);
+    if (g.delivery.policy.mode === 'local') throw new Error('this goal is delivered Local only — pick a delivery on the Delivery tab first');
+    return this.deliver(goalId, {}, 'retry');
+  }
+
+  /** "Re-check" on one PR: read it on GitHub now; a passing PR of a stopped delivery carries on with the delivery */
+  async recheckDeliveryPr(goalId: string, prNumber: number): Promise<void> {
+    this.mustGoal(goalId);
+    const state = await recheckPr(this, goalId, prNumber);
+    const d = getGoal(this.store.db, goalId)!.delivery;
+    if (d.status === 'failed' && (state === 'passing' || state === 'none')) await this.retryDelivery(goalId);
+  }
+
+  /** "Mark as delivered": the human handled the delivery; merged on GitHub → finished as merged, otherwise recorded as delivered by them */
+  async markDelivered(goalId: string): Promise<void> {
+    const g = this.mustGoal(goalId);
+    if (g.delivery.status === 'running') throw new Error('delivery is running — cancel it first');
+    await markDelivered(this, goalId);
   }
 
   /** "Pull into my checkout" / "Clean up anyway" on a merged goal */

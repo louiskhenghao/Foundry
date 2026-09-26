@@ -135,6 +135,12 @@ export async function answerEscalation(engine: Engine, id: string, answer: Escal
       closeCheckpoint(engine, goal, { action: 'continue', feedback: null, plan: null });
       break;
     }
+    case 'retry_delivery':
+      await engine.retryDelivery(goal.id);
+      break;
+    case 'mark_delivered':
+      await engine.markDelivered(goal.id);
+      break;
     case 'feedback': {
       if (!answer.plan) throw new Error('feedback needs a confirmed plan: classify it first (POST /api/goals/:id/feedback/classify)');
       const plan = applyFeedback(engine, goal, answer.feedback ?? '', answer.plan);
