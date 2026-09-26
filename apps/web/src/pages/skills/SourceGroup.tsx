@@ -1,8 +1,7 @@
 import type { SkillSource, SkillSourceRow } from '@foundry/engine/skills-types';
 import { ChevronDown, ChevronRight, ExternalLink, Eye, RefreshCw } from 'lucide-react';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Badge, Button, CopyButton, ago, cn } from '../../ui.tsx';
-import { LiveLog } from '../LiveLog.tsx';
 
 const MANAGER_LABEL: Record<SkillSource['manager'], string> = { 'foundry': 'Foundry', 'agents-cli': 'npx skills', plugin: 'Claude plugin', gstack: 'gstack', hand: 'hand-installed', project: 'project' };
 const STATUS_LABEL: Record<SkillSourceRow['status'], string> = { 'up-to-date': 'up to date', outdated: 'outdated', unreleased: 'unreleased', modified: 'modified', unknown: 'unknown', broken: 'broken' };
@@ -26,7 +25,7 @@ export interface SourceGroupActions {
  * Desktop: one row — identity (label truncates) · state badge at a fixed x · actions column of fixed width.
  * Mobile: identity, then state + counts, then actions — all left-aligned, nothing floating.
  */
-export function SourceGroup({ s, busy, updating, filter, a }: { s: SkillSource; busy: boolean; updating: boolean; filter: (r: SkillSourceRow) => boolean; a: SourceGroupActions }) {
+export function SourceGroup({ s, busy, updating, running, filter, a }: { s: SkillSource; busy: boolean; updating: boolean; /** "running…" link to the operation's tab in the operations dock */ running?: ReactNode; filter: (r: SkillSourceRow) => boolean; a: SourceGroupActions }) {
   const [open, setOpen] = useState(s.skills.length <= 12);
   const rows = s.skills.filter(filter);
   const counts = s.skills.reduce<Record<string, number>>((m, r) => ((m[r.status] = (m[r.status] ?? 0) + 1), m), {});
@@ -157,11 +156,7 @@ export function SourceGroup({ s, busy, updating, filter, a }: { s: SkillSource; 
           {s.updater.command.join(' ')} <CopyButton text={s.updater.command.join(' ')} />
         </div>
       )}
-      {updating && (
-        <div className="px-3 sm:px-4 pb-3">
-          <LiveLog attemptId="skills-update" className="max-h-56" />
-        </div>
-      )}
+      {running && <div className="px-3 sm:px-4 pb-2 sm:pl-10">{running}</div>}
       {open && (
         <div className="border-t border-zinc-800">
           {rows.map((r, i) => (

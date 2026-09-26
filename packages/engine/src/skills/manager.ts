@@ -266,19 +266,25 @@ export class SkillsManager {
     });
   }
 
-  installTier(tiers: SkillTier[]): Promise<{ results: (InstallResult & { conflict?: boolean })[] }> {
+  /** Install every missing entry of the tiers; `onLine` gets one line per entry (and the plugin CLI's output). */
+  installTier(tiers: SkillTier[], onLine?: (l: string) => void): Promise<{ results: (InstallResult & { conflict?: boolean })[] }> {
     return this.serial(async () => {
       const results: (InstallResult & { conflict?: boolean })[] = [];
       const statuses = await this.status();
       for (const s of statuses) {
         if (!tiers.includes(s.entry.tier)) continue;
         if (s.status === 'installed' || s.status === 'installed-via-plugin' || s.status === 'installed-unmanaged') {
+          onLine?.(`· ${s.entry.name}: already installed`);
           results.push({ ok: true, id: s.entry.id, name: s.entry.name, path: null, commit: s.commit, manual: null, error: null });
           continue;
         }
+        onLine?.(`installing ${s.entry.name}…`);
         try {
-          results.push(await installEntry(s.entry, { paths: this.paths, log: this.opts.log }));
+          const r = await installEntry(s.entry, { paths: this.paths, log: this.opts.log, onLine });
+          onLine?.(r.ok ? `✔ ${r.name}${r.commit ? ` @ ${r.commit.slice(0, 7)}` : ''}` : r.manual ? `→ ${r.name}: run this yourself: ${r.manual.command}` : `✘ ${r.name}: ${r.error}`);
+          results.push(r);
         } catch (err) {
+          onLine?.(`✘ ${s.entry.name}: ${String((err as Error).message ?? err)}`);
           results.push({ ok: false, id: s.entry.id, name: s.entry.name, path: null, commit: null, manual: null, error: String((err as Error).message ?? err), conflict: err instanceof InstallError && err.code === 'conflict' });
         }
       }

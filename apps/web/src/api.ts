@@ -17,6 +17,18 @@ export interface PreviewStatus {
   error: string | null;
 }
 
+/** A Skills page operation (mirrors the server's skill-ops.ts): its own live channel and how it ended. */
+export interface SkillOp {
+  id: string;
+  channel: string;
+  kind: 'install' | 'install-tier' | 'update' | 'adopt' | 'uninstall' | 'tool-install';
+  label: string;
+  status: 'running' | 'ok' | 'failed';
+  startedAt: string;
+  endedAt: string | null;
+  summary: string | null;
+}
+
 /** Manual merge resolution (mirrors engine's merge-resolve.ts). */
 export interface ResolveFile {
   path: string;
@@ -348,8 +360,9 @@ export const api = {
   restartGoal: (id: string, fromTaskId?: string) => req<{ restarted: string[] }>(`/api/goals/${id}/restart`, { method: 'POST', body: JSON.stringify({ fromTaskId }) }),
   deleteGoal: (id: string, deleteBranch: boolean) => req<{ ok: true; deletedBranch: string | null }>(`/api/goals/${id}${deleteBranch ? '?deleteBranch=1' : ''}`, { method: 'DELETE' }),
   viewSkill: (dir: string) => req<{ name: string; dir: string; invoke: string; skillMd: string | null; files: { path: string; size: number }[] }>(`/api/skills/view?dir=${encodeURIComponent(dir)}`),
-  uninstallMany: (names: string[], force = true) => req<{ results: { name: string; ok: boolean; error: string | null; note: string | null }[] }>('/api/skills/uninstall-many', { method: 'POST', body: JSON.stringify({ names, force }) }),
-  installTool: (id: string) => req<{ started: true; channel: string; id: string }>('/api/tools/install', { method: 'POST', body: JSON.stringify({ id }) }),
+  uninstallMany: (names: string[], force = true, opId?: string) => req<{ results: { name: string; ok: boolean; error: string | null; note: string | null }[]; op: SkillOp }>('/api/skills/uninstall-many', { method: 'POST', body: JSON.stringify({ names, force, opId }) }),
+  /** `opId`: run it as the caller's own Skills operation (its own channel) instead of on the shared tool-install log */
+  installTool: (id: string, opId?: string) => req<{ started: true; channel: string; id: string; op: SkillOp }>('/api/tools/install', { method: 'POST', body: JSON.stringify({ id, opId }) }),
   diff: (id: string) => fetch(`/api/goals/${id}/diff`).then((r) => r.text()),
   push: (id: string, remote = 'origin') => req<{ ok: boolean; output: string }>(`/api/goals/${id}/push`, { method: 'POST', body: JSON.stringify({ remote }) }),
   transcript: (attemptId: string) => fetch(`/api/attempts/${attemptId}/transcript`).then((r) => r.text()),
@@ -369,16 +382,18 @@ export const api = {
   suggest: (id: string, apply = false) => req<{ suggestion: EscalationSuggestion; applied: boolean }>(`/api/escalations/${id}/suggest`, { method: 'POST', body: JSON.stringify({ apply }) }),
   // skills & setup
   skills: (repo?: string) => req<SkillsOverview>(`/api/skills${repo ? `?repo=${encodeURIComponent(repo)}` : ''}`),
-  installSkill: (id: string, force = false) => req<InstallResult>('/api/skills/install', { method: 'POST', body: JSON.stringify({ id, force }) }),
-  installTier: (tiers: SkillTier[]) => req<{ results: (InstallResult & { conflict?: boolean })[] }>('/api/skills/install-tier', { method: 'POST', body: JSON.stringify({ tiers }) }),
+  installSkill: (id: string, force = false, opId?: string) => req<InstallResult & { op: SkillOp }>('/api/skills/install', { method: 'POST', body: JSON.stringify({ id, force, opId }) }),
+  installTier: (tiers: SkillTier[], opId?: string) => req<{ results: (InstallResult & { conflict?: boolean })[]; op: SkillOp }>('/api/skills/install-tier', { method: 'POST', body: JSON.stringify({ tiers, opId }) }),
   uninstallSkill: (name: string, force = false) => req<{ ok: true; trash: TrashEntry; note: string | null }>(`/api/skills/${encodeURIComponent(name)}/uninstall`, { method: 'POST', body: JSON.stringify({ force }) }),
   restoreSkill: (name: string, trashPath?: string) => req<{ ok: true; path: string }>(`/api/skills/${encodeURIComponent(name)}/restore`, { method: 'POST', body: JSON.stringify({ trashPath }) }),
   updateSkills: (name?: string) => req<{ updated: { name: string; from: string | null; to: string | null }[]; unchanged: string[]; errors: { name: string; error: string }[] }>('/api/skills/update', { method: 'POST', body: JSON.stringify({ name }) }),
   trash: () => req<TrashEntry[]>('/api/skills/trash'),
   skillsUpdates: (refresh = false, repo?: string) => req<SkillsUpdateReport & { updating: string | null; refreshing: boolean }>(`/api/skills/updates?${new URLSearchParams({ ...(refresh ? { refresh: '1' } : {}), ...(repo ? { repo } : {}) })}`),
-  updateSource: (id: string, names?: string[]) => req<{ started: true; channel: string }>(`/api/skills/sources/${encodeURIComponent(id)}/update`, { method: 'POST', body: JSON.stringify({ names }) }),
-  uninstallPlugin: (sourceId: string) => req<{ ok: boolean; error: string | null }>('/api/skills/plugins/uninstall', { method: 'POST', body: JSON.stringify({ sourceId }) }),
-  adoptSkills: (names: string[]) => req<{ runs: SkillUpdateRun[] }>('/api/skills/adopt', { method: 'POST', body: JSON.stringify({ names }) }),
+  updateSource: (id: string, names?: string[], opId?: string) => req<{ started: true; channel: string; op: SkillOp }>(`/api/skills/sources/${encodeURIComponent(id)}/update`, { method: 'POST', body: JSON.stringify({ names, opId }) }),
+  adoptSkills: (names: string[], opId?: string) => req<{ runs: SkillUpdateRun[]; op: SkillOp }>('/api/skills/adopt', { method: 'POST', body: JSON.stringify({ names, opId }) }),
+  skillOp: (id: string) => req<SkillOp>(`/api/skills/ops/${encodeURIComponent(id)}`),
+  skillOps: () => req<{ ops: SkillOp[] }>('/api/skills/ops'),
+  uninstallPlugin: (sourceId: string, opId?: string) => req<{ ok: boolean; error: string | null; op: SkillOp }>('/api/skills/plugins/uninstall', { method: 'POST', body: JSON.stringify({ sourceId, opId }) }),
   cleanupShadows: (names: string[]) => req<{ trashed: TrashEntry[]; skipped: { name: string; reason: string }[] }>('/api/skills/cleanup-shadows', { method: 'POST', body: JSON.stringify({ names }) }),
   installBundle: (bundle: string) => req<{ results: { id: string; name: string; action: 'plugin' | 'updated' | 'adopted' | 'installed' | 'kept' | 'failed'; detail: string }[] }>('/api/skills/install-bundle', { method: 'POST', body: JSON.stringify({ bundle }) }),
   updateRuns: () => req<(EngineEvent & { seq: number })[]>('/api/skills/update-runs'),

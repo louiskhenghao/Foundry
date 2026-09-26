@@ -1,10 +1,12 @@
 import type { EngineEvent } from '@foundry/core/browser';
 import type { SkillScope, SkillSourceRow, SkillTier, SkillsOverview, SkillsUpdateReport, TrashEntry } from '@foundry/engine/skills-types';
 import { RefreshCw, Search, Trash2 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-import { ApiError, api } from '../../api.ts';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { api } from '../../api.ts';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { Button, ConfirmDialog, Empty, Input, Modal, ago, cn } from '../../ui.tsx';
+import { OpsDock } from './OpsDock.tsx';
+import { startOp, useRunningOp, useSkillOps } from './ops.ts';
 import { SessionLine, SidePanelTabs } from './SidePanels.tsx';
 import { SourceGroup } from './SourceGroup.tsx';
 
@@ -34,7 +36,8 @@ export function SkillsPage() {
   const [scope, setScope] = useState<SkillScope | 'all'>('all');
   const [q, setQ] = useState('');
   const [onlyOutdated, setOnlyOutdated] = useState(false);
-  const [busy, setBusy] = useState<string | null>(null);
+  /** quick actions that are not operations (check for updates, trash shadows, restore): what each one is working on */
+  const [pending, setPending] = useState<Set<string>>(new Set());
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err' | 'info'; text: string } | null>(null);
   const [showCatalog, setShowCatalog] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -75,69 +78,69 @@ export function SkillsPage() {
       if (poll.current) clearInterval(poll.current);
     };
   }, []);
+  // every operation that ends (here, after a reload, or in another tab) refreshes the page
+  const finished = useSkillOps((s) => s.finished);
+  const firstFinished = useRef(finished);
+  useEffect(() => {
+    if (finished !== firstFinished.current) void load();
+  }, [finished]);
+  const runningOp = useRunningOp();
+  const showOp = useSkillOps((s) => s.show);
 
-  /** Run an action with immediate feedback; never leaves the page "busy" on failure. */
-  const run = async (label: string, pending: string, fn: () => Promise<string | null>) => {
-    setBusy(label);
-    setMsg({ kind: 'info', text: pending });
+  /** A quick action (not an operation): banner feedback, and only its own key is busy meanwhile. */
+  const quick = async (key: string, pendingText: string, fn: () => Promise<string | null>) => {
+    setPending((p) => new Set(p).add(key));
+    setMsg({ kind: 'info', text: pendingText });
     try {
       const text = await fn();
       setMsg(text ? { kind: 'ok', text } : null);
     } catch (e: any) {
-      if (e instanceof ApiError && e.status === 422 && e.body?.manual) setMsg({ kind: 'err', text: `${e.body.name}: run this yourself → ${e.body.manual.command}` });
-      else setMsg({ kind: 'err', text: e.message });
+      setMsg({ kind: 'err', text: e.message });
     } finally {
-      setBusy(null);
+      setPending((p) => {
+        const n = new Set(p);
+        n.delete(key);
+        return n;
+      });
       void load();
     }
   };
 
   const checkUpdates = () =>
-    run('refresh', 'Checking upstream repositories…', async () => {
+    quick('refresh', 'Checking upstream repositories…', async () => {
       setReport(await api.skillsUpdates(true));
       watch();
       return null;
     });
-  const updateSource = (id: string, names?: string[]) =>
-    run(id, `Starting update of ${id}…`, async () => {
-      await api.updateSource(id, names);
-      setReport((r) => (r ? { ...r, updating: id } : r));
-      watch();
-      return null;
+  // operations: each opens its own tab in the operations dock; the server decides what may run together (one source update at a time)
+  const updateSource = (id: string, label: string, names?: string[]) =>
+    startOp({
+      kind: 'update',
+      label: `Update ${label}${names?.length ? ` (${names.join(', ')})` : ''}`,
+      targets: [id, ...(names ?? [])],
+      call: async (opId) => {
+        const r = await api.updateSource(id, names, opId);
+        setReport((x) => (x ? { ...x, updating: id } : x));
+        watch();
+        return r;
+      },
     });
-  const adopt = (names: string[]) =>
-    run('adopt', `Adopting ${names.join(', ')}…`, async () => {
-      const r = await api.adoptSkills(names);
-      const n = r.runs.flatMap((x) => x.changed).length;
-      const errs = r.runs.filter((x) => x.error).map((x) => x.error);
-      return `${n} adopted${errs.length ? `; ${errs.join('; ')}` : ''}`;
-    });
+  const adopt = (names: string[]) => startOp({ kind: 'adopt', label: `Adopt ${names.length === 1 ? names[0] : `${names.length} skills`}`, targets: names, call: (opId) => api.adoptSkills(names, opId) });
+  // a plugin's skills go together: the CLI's own plugin uninstall
+  const uninstallPlugin = (sourceId: string) => startOp({ kind: 'uninstall', label: `Uninstall plugin ${sourceId.slice('plugin:'.length)}`, targets: [sourceId], call: (opId) => api.uninstallPlugin(sourceId, opId) });
   const trashShadows = (names: string[]) =>
-    run('shadows', `Moving ${names.length} shadow cop${names.length === 1 ? 'y' : 'ies'} to the trash…`, async () => {
+    quick('shadows', `Moving ${names.length} shadow cop${names.length === 1 ? 'y' : 'ies'} to the trash…`, async () => {
       const r = await api.cleanupShadows(names);
       return `${r.trashed.length} moved to trash${r.skipped.length ? `; skipped ${r.skipped.map((s) => `${s.name} (${s.reason})`).join(', ')}` : ''}`;
     });
-  const uninstall = (names: string[]) =>
-    run('uninstall', `Uninstalling ${names.length === 1 ? names[0] : `${names.length} skills`}…`, async () => {
-      const { results } = await api.uninstallMany(names, true);
-      const ok = results.filter((r) => r.ok);
-      const bad = results.filter((r) => !r.ok);
-      setSelected(new Set());
-      return `${ok.length} moved to the trash${ok.some((r) => r.note) ? ` (${[...new Set(ok.map((r) => r.note).filter(Boolean))].join(' · ')})` : ''}${bad.length ? `; not removed: ${bad.map((r) => `${r.name} — ${r.error}`).join(', ')}` : ''}`;
-    });
-  const install = (id: string, force: boolean) =>
-    run(id, `Installing ${id}…`, async () => {
-      const r = await api.installSkill(id, force);
-      return r.manual ? `${r.name}: run this yourself → ${r.manual.command}` : r.ok ? `${r.name} installed${r.commit ? ` @ ${r.commit.slice(0, 7)}` : ''}` : `${r.name}: ${r.error}`;
-    });
-  const installTier = (tiers: SkillTier[]) =>
-    run('tier', `Installing ${tiers.join(' + ')} skills…`, async () => {
-      const { results } = await api.installTier(tiers);
-      const ok = results.filter((r) => r.ok).length;
-      const manual = results.filter((r) => r.manual);
-      return `${ok}/${results.length} satisfied${manual.length ? `; run yourself: ${manual.map((m) => m.manual!.command).join(' ; ')}` : ''}`;
-    });
-  const restore = (name: string, path: string) => run(name, `Restoring ${name}…`, async () => `${name} restored to ${(await api.restoreSkill(name, path)).path}`);
+  const uninstall = (names: string[]) => {
+    setSelected((s) => new Set([...s].filter((n) => !names.includes(n))));
+    return startOp({ kind: 'uninstall', label: `Uninstall ${names.length === 1 ? names[0] : `${names.length} skills`}`, targets: names, call: (opId) => api.uninstallMany(names, true, opId) });
+  };
+  const install = (id: string, force: boolean) => startOp({ kind: 'install', label: `${force ? 'Replace' : 'Install'} ${id}`, targets: [id], call: (opId) => api.installSkill(id, force, opId) });
+  const installTier = (tiers: SkillTier[]) => startOp({ kind: 'install-tier', label: `Install ${tiers.join(' + ')}`, targets: ['tier'], call: (opId) => api.installTier(tiers, opId) });
+  const installTool = (id: string) => startOp({ kind: 'tool-install', label: `Install ${id}`, targets: [id], call: (opId) => api.installTool(id, opId) });
+  const restore = (name: string, path: string) => quick(`restore:${path}`, `Restoring ${name}…`, async () => `${name} restored to ${(await api.restoreSkill(name, path)).path}`);
   const openView = async (row: SkillSourceRow) => {
     setView('loading');
     try {
@@ -162,10 +165,18 @@ export function SkillsPage() {
   const updates = report.sources.filter((s) => s.updateAvailable === true).length;
   const outdatedSkills = report.sources.flatMap((s) => s.skills).filter((r) => r.status === 'outdated').length;
   const counts = { all: total, user: overview.installed.filter((r) => r.scope === 'user').length, plugin: overview.installed.filter((r) => r.scope === 'plugin').length, project: overview.installed.filter((r) => r.scope === 'project').length };
-  const actionsBusy = busy !== null; // a running *source update* only disables that source's Update button
+  /** a row is busy while an operation on it runs; the link opens that operation's tab */
+  const opLink = (key: string): ReactNode => {
+    const t = runningOp(key);
+    return t ? (
+      <button type="button" className="inline-flex items-center gap-1 text-[11px] text-sky-300 hover:text-sky-200 underline decoration-dotted" onClick={() => showOp(t.id)} title={`${t.label} — show its log`}>
+        <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse" /> running…
+      </button>
+    ) : null;
+  };
 
   return (
-    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4 pb-24">
+    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-lg font-semibold">Skills</h1>
         <span className="text-xs text-zinc-500">
@@ -179,7 +190,7 @@ export function SkillsPage() {
         </span>
         <div className="ml-auto flex items-center gap-2">
           <span className="text-[11px] text-zinc-500">{report.refreshing ? 'checking upstream…' : `checked ${ago(report.checkedAt)}${report.stale ? ' (stale)' : ''}`}</span>
-          <Button size="sm" disabled={actionsBusy || report.refreshing} onClick={checkUpdates}>
+          <Button size="sm" disabled={pending.has('refresh') || report.refreshing} onClick={checkUpdates}>
             <RefreshCw size={13} className={cn(report.refreshing && 'animate-spin')} /> Check for updates
           </Button>
         </div>
@@ -223,40 +234,42 @@ export function SkillsPage() {
               {report.sources
                 .filter((s) => s.manager === m)
                 .map((s) => (
-                  <SourceGroup key={s.id} s={s} busy={actionsBusy} updating={report.updating === s.id} filter={filter} a={{ onUpdate: (names) => updateSource(s.id, names), onAdopt: adopt, onTrashShadows: trashShadows, onUninstall: (names) => setConfirmNames(names), onUninstallPlugin: (id) => void run(`plugin:${id}`, `Removing ${id.slice('plugin:'.length)}…`, () => api.uninstallPlugin(id).then((r) => (r.ok ? `Removed ${id.slice('plugin:'.length)}` : Promise.reject(new Error(r.error ?? 'uninstall failed'))))), onView: openView, selected, onSelect: select }} />
+                  <SourceGroup key={s.id} s={s} busy={pending.has('shadows') || s.skills.some((r) => runningOp(r.name))} updating={report.updating === s.id || !!runningOp(s.id)} running={opLink(s.id) ?? s.skills.map((r) => opLink(r.name)).find(Boolean) ?? null} filter={filter} a={{ onUpdate: (names) => void updateSource(s.id, s.label, names), onAdopt: (names) => void adopt(names), onTrashShadows: trashShadows, onUninstallPlugin: (id) => void uninstallPlugin(id), onUninstall: (names) => setConfirmNames(names), onView: openView, selected, onSelect: select }} />
                 ))}
             </div>
           ))}
           {report.sources.every((s) => !s.skills.some(filter)) && <Empty>Nothing matches.</Empty>}
         </div>
         <div className={cn(showCatalog ? 'block' : 'hidden lg:block')}>
-          <SidePanelTabs catalog={overview.catalog} trash={trash} runs={runs} busy={busy} onInstall={install} onInstallTier={installTier} onRestore={restore} onRefresh={() => void load()} />
+          <SidePanelTabs catalog={overview.catalog} trash={trash} runs={runs} busy={(key) => pending.has(key) || !!runningOp(key)} opLink={opLink} onInstall={(id, force) => void install(id, force)} onInstallTier={(tiers) => void installTier(tiers)} onInstallTool={(id) => void installTool(id)} onRestore={restore} />
         </div>
       </div>
 
-      {/* bulk action bar */}
-      {selected.size > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur px-4 py-2.5 flex items-center gap-3 flex-wrap">
-          <span className="text-xs text-zinc-300">
-            {selected.size} selected: <span className="text-zinc-500">{[...selected].slice(0, 6).join(', ')}{selected.size > 6 ? '…' : ''}</span>
-          </span>
-          <div className="ml-auto flex items-center gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
-              clear
-            </Button>
-            <Button size="sm" variant="danger" disabled={actionsBusy} onClick={() => setConfirmNames([...selected])}>
-              <Trash2 size={13} /> Uninstall {selected.size}
-            </Button>
+      {/* docked at the bottom: the operations (one tab each), and under them the bulk action bar */}
+      <BottomDock>
+        <OpsDock />
+        {selected.size > 0 && (
+          <div className="border-t border-zinc-800 bg-zinc-950/95 backdrop-blur px-4 py-2.5 flex items-center gap-3 flex-wrap">
+            <span className="text-xs text-zinc-300">
+              {selected.size} selected: <span className="text-zinc-500">{[...selected].slice(0, 6).join(', ')}{selected.size > 6 ? '…' : ''}</span>
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+                clear
+              </Button>
+              <Button size="sm" variant="danger" onClick={() => setConfirmNames([...selected])}>
+                <Trash2 size={13} /> Uninstall {selected.size}
+              </Button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </BottomDock>
 
       <ConfirmDialog
         open={confirmNames !== null}
         title={confirmNames && confirmNames.length === 1 ? `Uninstall ${confirmNames[0]}?` : `Uninstall ${confirmNames?.length ?? 0} skills?`}
         confirmLabel="Move to trash"
         danger
-        busy={busy === 'uninstall'}
         onClose={() => setConfirmNames(null)}
         onConfirm={() => {
           const names = confirmNames ?? [];
@@ -320,5 +333,26 @@ export function SkillsPage() {
         ) : null}
       </Modal>
     </div>
+  );
+}
+
+/** Fixed to the bottom of the window; an in-flow spacer of the same height keeps the page's end reachable above it. */
+function BottomDock({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [h, setH] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setH(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <>
+      <div style={{ height: h }} aria-hidden />
+      <div ref={ref} className="fixed bottom-0 left-0 right-0 z-30">
+        {children}
+      </div>
+    </>
   );
 }
