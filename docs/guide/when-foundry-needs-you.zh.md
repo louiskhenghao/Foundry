@@ -4,6 +4,8 @@
 
 Brief 一经批准，Foundry 就会自己往下做。只有本页列出的情况才会停下来问你。每一种都会出现在 **Inbox**（顶栏上的数字）和 goal 页面上。如果你设置了通知，还会收到 Telegram 或 Discord 消息：**Needs you** 开关管 Inbox 里的所有事项，**Interview round**、**Goal finished**、**Delivery**、**Usage pause** 和 **New version** 各有自己的开关。见 [Settings → Notifications](./settings.zh.md#notifications)。
 
+每张 Inbox 卡片的 **details** 里是完整的报告。这个框可以滚动；报告较长时，**Open full** 会在更大的窗口里显示它，并带 **Copy**。
+
 goal 运行时你看到的其它信息都属正常，不需要你做什么。本页后半部分解释这些信息。
 
 ## Foundry 停下来的七种原因
@@ -88,6 +90,7 @@ Brief 出来之前，goal 页面可能显示 **Round N — K questions**。这�
 | `● session 1a2b3c4d · claude-…` | 一个会话开始了。同一次尝试里出现第二个 `●` 表示会话被续接（*continuation*），比重新开始便宜。 |
 | 工作完成后出现 `[reviewer] …` | 任务审查员在检查改动。 |
 | `[reviewer] ✗ Output does not match required schema …` | 审查员的结论格式不对，会重新发送。无害。 |
+| `■ success · $0.420 · 7 turns — …` | 会话结束了。破折号后面是 worker 最后说的话；点这一行可以看全文。 |
 | `■ error_max_turns`、`■ error_max_budget_usd`、`■ killed_timeout` | 会话碰到了上限。Foundry 会给它新的额度续接，最多两次，然后才开新的尝试。 |
 | `⏳ rate limit rejected` | 你的 Claude 套餐用量到了上限。Foundry 会暂停，额度重置后继续。不会丢任何东西。 |
 | `⏱ sub-agent still working · 3m 30s` | 一个助手（比如规划器）还在忙。这一行在更新时，日志长时间没动静是正常的。 |

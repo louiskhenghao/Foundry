@@ -74,7 +74,7 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 
 点一个任务，会全屏打开（Escape 或 × 关闭）。你会看到：
 
-- 标题、状态、标签，完成后还有它的提交。
+- 标题、状态、标签，完成后还有它的提交。点提交那一行，可以看完整的提交信息。
 - **Task total**：到目前为止的尝试次数、费用（分成 worker 和 reviewer）、轮数和分钟数。
 - **spec**、它的 **Checks** 及最新结果，以及 **Relevant files**。
 - **This task is waiting for you**（任务 blocked 时出现），并附有用来回应的按钮。
@@ -84,7 +84,11 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 
 ### 实时日志
 
-在任务里，**Live log** 显示 worker 此刻在做什么：它说的话、用的工具（⚙）、工具的结果，以及每个会话一行。**Observation** 显示交给下一次尝试的摘要。**Prompt** 显示 worker 收到的原话。
+在任务里，**Live log** 显示 worker 此刻在做什么：它说的话、用的工具（⚙）、工具的结果，以及每个会话一行。会话结束时，`■` 那一行还会显示 worker 最后说的话。
+
+每条都只占一行，超出框的部分被截掉。点一行（或用 Tab 移到它上面再按 Enter），会在一个窗口里显示完整内容。**Preview** 显示排好版的样子，**Raw** 显示原文；**Copy** 复制全部内容。消息和思考默认用 **Preview** 打开；工具调用、工具结果和错误默认用 **Raw** 打开。日志本身会缩短较长的思考和工具结果，所以窗口会从会话保存的记录里读出全文。
+
+**Observation** 显示交给下一次尝试的摘要。**Prompt** 显示 worker 收到的原话。
 
 你会看到的那些行（`●`、`■ error_max_turns`、`⏱ sub-agent still working` ……）是什么意思，见 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md#任务的实时日志)。大多数都不需要你做什么。
 
@@ -145,7 +149,7 @@ Foundry 也会在里程碑时自己启动预览；预览在运行时，每个任
 
 ## Activity
 
-goal 发生过的所有事，最新的在前，每件一行：阶段、任务开始和结束、检查、决定、交付步骤。**important only** 隐藏常规的行；**show bookkeeping events** 显示更多。
+goal 发生过的所有事，最新的在前，每件一行：阶段、任务开始和结束、检查、决定、交付步骤。**important only** 隐藏常规的行；**show bookkeeping events** 显示更多。以 **…** 结尾的行只显示了一段较长文字的开头，比如 worker 的消息、检查结果或一条说明；点它可以看全文。
 
 ## Diff
 
