@@ -27,6 +27,7 @@ import {
   Brief as BriefSchema,
 } from '@foundry/core';
 import { ClaudeCliRunner, type ClaudeRunner, type RunHandle } from '@foundry/runner';
+import { McpManager } from './mcp/manager.ts';
 import { mmxConfigDir, mmxSignedIn, writeMmxConfig } from './mmx.ts';
 import { fetchMinimaxQuota } from './usage/minimax.ts';
 import type { MinimaxQuota } from './usage/types.ts';
@@ -128,6 +129,7 @@ export class Engine {
   readonly runner: ClaudeRunner;
   readonly roles: Roles;
   readonly skills: SkillsManager;
+  readonly mcp: McpManager;
   readonly agents: AgentsMonitor;
   readonly auth: ClaudeAuth;
   readonly gh: GhClient;
@@ -221,6 +223,14 @@ export class Engine {
       envProbe: (name) => !!(process.env[name] ?? this.sessionEnvExtra()[name]) || (name === 'MINIMAX_API_KEY' && mmxSignedIn()),
       // every updater run is an audit event (goalId null, informational)
       onRun: (run) => this.store.append({ type: 'skills.update_run', goalId: null, payload: { sourceId: run.sourceId, updater: run.updater, command: run.command, cwd: run.cwd, exitCode: run.exitCode, durationMs: run.durationMs, outputTail: run.outputTail, changed: run.changed, error: run.error } }),
+    });
+    this.mcp = new McpManager({
+      claudeHome: config.claudeHome,
+      catalogPath: join(dirname(config.catalogPath), 'mcp.json'),
+      claudeBin: config.claudeBin,
+      allowed: () => this.config.mcpAllowed,
+      setAllowed: (mcpAllowed) => void this.updateSettings({ workflow: { mcpAllowed } }),
+      log: config.log,
     });
     this.auth = new ClaudeAuth({ claudeBin: config.claudeBin ?? Bun.which('claude'), log: config.log });
     this.agents = new AgentsMonitor(
@@ -1241,7 +1251,7 @@ export class Engine {
     const notif = notifChannels.length
       ? { id: 'notifications', label: 'Notifications (optional)', ok: true, severity: 'warn' as const, detail: `${notifChannels.join(' + ')} configured — you get pinged when a goal needs you, finishes, delivers, or usage pauses`, fix: null }
       : { id: 'notifications', label: 'Notifications (optional)', ok: false, severity: 'warn' as const, detail: 'not configured — get a Telegram or Discord ping when a goal needs you, finishes, or a delivery fails', fix: { url: '/settings' } };
-    return this.skills.doctor([check, this.modelsCheck(), notif]);
+    return this.skills.doctor([check, this.modelsCheck(), notif, ...this.mcp.doctorChecks()]);
   }
 
   /** Attach a staged upload or a link to an existing goal; later sessions see it. */
