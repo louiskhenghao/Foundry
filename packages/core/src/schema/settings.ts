@@ -113,7 +113,7 @@ export const ToolSettings = z.object({
   minimaxApiKey: z.string().nullable().default(null),
   /** ElevenLabs key handed to sessions as ELEVENLABS_API_KEY (narration voices); null = whatever the engine's own environment has */
   elevenlabsApiKey: z.string().nullable().default(null),
-  /** Groq key handed to sessions as GROQ_API_KEY (speech-to-text for captions); null = whatever the engine's own environment has */
+  /** Groq key handed to sessions as GROQ_API_KEY (speech-to-text fallback for captions); null = whatever the engine's own environment has */
   groqApiKey: z.string().nullable().default(null),
 });
 export const NotificationSettings = z.object({

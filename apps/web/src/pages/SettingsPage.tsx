@@ -509,7 +509,7 @@ export function SettingsPage() {
               <Field label="ElevenLabs API key" aside={aside('tools.elevenlabsApiKey')} help="Handed to sessions as ELEVENLABS_API_KEY — narration voices for web-video-presentation. Empty = whatever the engine's own environment has.">
                 <Input type="password" autoComplete="off" value={(get(draft, 'tools.elevenlabsApiKey') as string | null) ?? ''} placeholder="sk_…" onChange={(e) => set('tools.elevenlabsApiKey', e.target.value === '' ? null : e.target.value)} />
               </Field>
-              <Field label="Groq API key" aside={aside('tools.groqApiKey')} help="Handed to sessions as GROQ_API_KEY — speech-to-text for hyperframes captions (its OpenAI mode uses the OpenAI key). Empty = whatever the engine's own environment has.">
+              <Field label="Groq API key" aside={aside('tools.groqApiKey')} help="Handed to sessions as GROQ_API_KEY — hyperframes transcribes captions locally and falls back to Groq (or the OpenAI key) when the audio is too noisy. Empty = whatever the engine's own environment has.">
                 <Input type="password" autoComplete="off" value={(get(draft, 'tools.groqApiKey') as string | null) ?? ''} placeholder="gsk_…" onChange={(e) => set('tools.groqApiKey', e.target.value === '' ? null : e.target.value)} />
               </Field>
               <Field label="markitdown binary" aside={aside('tools.markitdownBin')} help="Converts attachments and repository documents to markdown before sessions read them. Empty = auto-detect on PATH and ~/.local/bin.">

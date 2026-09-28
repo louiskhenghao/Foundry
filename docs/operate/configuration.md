@@ -74,7 +74,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `tools.geminiApiKey` | — | `GEMINI_API_KEY` | Handed to sessions as GEMINI_API_KEY. |
 | `tools.minimaxApiKey` | — | `MINIMAX_API_KEY` | MiniMax key for mmx-cli (video and narration). mmx ignores MINIMAX_API_KEY when a session runs it, so Foundry writes the key to data/mmx/config.json (mode 600) and points sessions at it with MMX_CONFIG_DIR; sessions also get MINIMAX_API_KEY. Empty = the engine's environment, or your own `mmx auth login`. |
 | `tools.elevenlabsApiKey` | — | `ELEVENLABS_API_KEY` | Handed to sessions as ELEVENLABS_API_KEY (narration voices). |
-| `tools.groqApiKey` | — | `GROQ_API_KEY` | Handed to sessions as GROQ_API_KEY (speech-to-text for captions). |
+| `tools.groqApiKey` | — | `GROQ_API_KEY` | Handed to sessions as GROQ_API_KEY (speech-to-text fallback for captions when local transcription struggles). |
 
 ## Preview & self-check
 
