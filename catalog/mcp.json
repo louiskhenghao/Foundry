@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "context7",
+      "name": "context7",
+      "tier": "recommended",
+      "summary": "Current documentation for libraries and frameworks, looked up by name and version.",
+      "why": "Workers read the docs of the library version the project uses instead of what the model remembers.",
+      "suits": ["code"],
+      "homepage": "https://github.com/upstash/context7",
+      "config": { "type": "http", "url": "https://mcp.context7.com/mcp" },
+      "keys": []
+    },
+    {
+      "id": "playwright",
+      "name": "playwright",
+      "tier": "recommended",
+      "summary": "Drives a real browser: open pages, click, fill forms, read the page and take screenshots.",
+      "why": "A worker can try the web UI it just built, step by step, beyond the headless self-check.",
+      "suits": ["code"],
+      "homepage": "https://github.com/microsoft/playwright-mcp",
+      "config": { "type": "stdio", "command": "npx", "args": ["-y", "@playwright/mcp@latest"] },
+      "keys": []
+    },
+    {
+      "id": "exa",
+      "name": "exa",
+      "tier": "optional",
+      "pack": "web-search",
+      "summary": "Web search built for AI: returns the content of the pages it finds.",
+      "why": "Research and document goals get fresh, citable sources beyond the built-in web search.",
+      "suits": ["research", "docs"],
+      "homepage": "https://github.com/exa-labs/exa-mcp-server",
+      "config": { "type": "stdio", "command": "npx", "args": ["-y", "exa-mcp-server"] },
+      "keys": [{ "name": "EXA_API_KEY", "label": "Exa API key", "url": "https://dashboard.exa.ai/api-keys" }]
+    },
+    {
+      "id": "brave-search",
+      "name": "brave-search",
+      "tier": "optional",
+      "pack": "web-search",
+      "summary": "Brave's independent web index: web, news and image search.",
+      "why": "Research and document goals get fresh sources beyond the built-in web search.",
+      "suits": ["research", "docs"],
+      "homepage": "https://github.com/brave/brave-search-mcp-server",
+      "config": { "type": "stdio", "command": "npx", "args": ["-y", "@brave/brave-search-mcp-server"] },
+      "keys": [{ "name": "BRAVE_API_KEY", "label": "Brave Search API key", "url": "https://api-dashboard.search.brave.com/app/keys" }]
+    }
+  ]
+}

@@ -83,6 +83,21 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
   const long = e.message.length > 1200 || e.message.split('\n').length > 12;
   const actions = ACTIONS_BY_TRIGGER[e.trigger];
   const canSuggest = e.taskId && (e.trigger === 'retries_exhausted' || e.trigger === 'permission_denial');
+  // the MCP servers whose tools were refused (ADR-0016): mcp__<server>__<tool> → mcp__<server>
+  const mcpDenied = e.trigger === 'permission_denial' ? [...new Set(((e.payload as { denials?: { tool_name?: string }[] }).denials ?? []).map((d) => d.tool_name ?? '').filter((t) => t.startsWith('mcp__')).map((t) => t.split('__').slice(0, 2).join('__')))] : [];
+  const mcpNames = mcpDenied.map((p) => p.slice('mcp__'.length)).join(', ');
+  const allowAndRetry = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      for (const p of mcpDenied) await api.mcpAllow(p, true);
+      await api.answer(e.id, { action: 'retry_with_hint', hint: hint || `The MCP server ${mcpNames} is now allowed in this goal; use it.`, extraAttempts: attempts });
+    } catch (x: any) {
+      setErr(x.message);
+    } finally {
+      setBusy(false);
+    }
+  };
   const suggest = async (apply: boolean) => {
     setSuggesting(apply ? 'apply' : 'suggest');
     setErr(null);
@@ -172,6 +187,16 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
           {suggestion.action === 'retry_with_hint' && suggestion.hint && <div className="text-zinc-400">Hint filled in below — press <b>Retry with hint</b> to use it.</div>}
           {suggestion.action === 'resolve_manually' && <div className="text-zinc-400">Open <b>Resolve manually</b> and settle the conflict yourself.</div>}
           {suggestion.action === 'skip_task' && <div className="text-zinc-400">The AI thinks this part is not worth pursuing here — your call: <b>Skip task</b>.</div>}
+        </div>
+      )}
+      {e.state === 'open' && mcpDenied.length > 0 && e.taskId && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2">
+          <span className="text-xs text-zinc-300">
+            Refused MCP server: <span className="mono">{mcpNames}</span> — goals may only use servers you allowed.
+          </span>
+          <Button size="sm" variant="primary" disabled={busy} onClick={allowAndRetry} title="Ticks Allowed in goals for this server (Skills → MCP servers) and retries the task">
+            Allow this server and retry
+          </Button>
         </div>
       )}
       {e.state === 'open' ? (

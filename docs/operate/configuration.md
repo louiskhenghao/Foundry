@@ -47,6 +47,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `workflow.videoPack` | `web-video-presentation` | `FOUNDRY_VIDEO_PACK` | Video skill set for video tasks. |
 | `workflow.autoskills` | `true` | `FOUNDRY_AUTOSKILLS` | Install project skills matched to each goal repository's stack. |
 | `workflow.settingSources` | — | — | Which Claude settings sources sessions load (e.g. user, project, local); empty = all of them. |
+| `workflow.mcpAllowed` | `mcp__plugin_media-pipeline_media-pipeline` | — | MCP servers worker sessions may use, as tool prefixes (`mcp__<server>`, `mcp__plugin_<plugin>_<server>`, `mcp__claude_ai_<name>`). Set with the switches on the Skills page's MCP tab; sessions run without asking, so an unlisted server's tools are refused. |
 
 ## Git & delivery
 

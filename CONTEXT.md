@@ -215,6 +215,9 @@ How hard the engine pushes an engineering practice on its sessions. For TDD: *re
 **Settings**
 The engine's user-editable configuration: concurrency, models, session caps, workflow profile, Design Pack, autoskills, review and delivery defaults, tools, safety limits. A saved value beats an environment variable, which beats the default; most changes apply immediately, a few only after the engine restarts.
 
+**MCP Server**
+A program that gives Claude Code extra tools (library docs, a browser, web search, a mail account). Foundry sees the ones configured on the host (the user's own, those a plugin ships, claude.ai connectors), installs curated ones from its MCP catalog at the user's scope, and lets a Goal use only the servers the user **allowed in goals**, and only in the sessions that do the work.
+
 ## Goal natures
 
 **Nature**

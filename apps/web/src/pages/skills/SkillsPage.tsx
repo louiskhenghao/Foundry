@@ -337,7 +337,7 @@ export function SkillsPage() {
 }
 
 /** Fixed to the bottom of the window; an in-flow spacer of the same height keeps the page's end reachable above it. */
-function BottomDock({ children }: { children: ReactNode }) {
+export function BottomDock({ children }: { children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const [h, setH] = useState(0);
   useEffect(() => {

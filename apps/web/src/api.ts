@@ -193,6 +193,11 @@ export interface AuthInfo {
   login: LoginSession | null;
 }
 
+import type { McpHealth, McpView } from '@foundry/engine/mcp-types';
+export type { McpHealth, McpView };
+/** a server added by hand on the MCP tab */
+export type McpCustomServer = { name: string; config: { type: 'stdio'; command: string; args?: string[] } | { type: 'http' | 'sse'; url: string } };
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -397,6 +402,11 @@ export const api = {
   adoptSkills: (names: string[], opId?: string) => req<{ runs: SkillUpdateRun[]; op: SkillOp }>('/api/skills/adopt', { method: 'POST', body: JSON.stringify({ names, opId }) }),
   skillOp: (id: string) => req<SkillOp>(`/api/skills/ops/${encodeURIComponent(id)}`),
   skillOps: () => req<{ ops: SkillOp[] }>('/api/skills/ops'),
+  mcp: () => req<McpView>('/api/mcp'),
+  mcpCheck: () => req<{ health: McpHealth[] }>('/api/mcp/check', { method: 'POST' }),
+  mcpAllow: (prefix: string, on: boolean) => req<{ allowed: string[] }>('/api/mcp/allowed', { method: 'PUT', body: JSON.stringify({ prefix, on }) }),
+  mcpInstall: (what: { catalogId: string } | { custom: McpCustomServer }, keys: Record<string, string>, opId?: string) => req<{ ok: boolean; error: string | null; op: SkillOp }>('/api/mcp/install', { method: 'POST', body: JSON.stringify({ ...what, keys, opId }) }),
+  mcpRemove: (name: string, opId?: string) => req<{ ok: boolean; error: string | null; op: SkillOp }>('/api/mcp/remove', { method: 'POST', body: JSON.stringify({ name, opId }) }),
   uninstallPlugin: (sourceId: string, opId?: string) => req<{ ok: boolean; error: string | null; op: SkillOp }>('/api/skills/plugins/uninstall', { method: 'POST', body: JSON.stringify({ sourceId, opId }) }),
   cleanupShadows: (names: string[]) => req<{ trashed: TrashEntry[]; skipped: { name: string; reason: string }[] }>('/api/skills/cleanup-shadows', { method: 'POST', body: JSON.stringify({ names }) }),
   installBundle: (bundle: string) => req<{ results: { id: string; name: string; action: 'plugin' | 'updated' | 'adopted' | 'installed' | 'kept' | 'failed'; detail: string }[] }>('/api/skills/install-bundle', { method: 'POST', body: JSON.stringify({ bundle }) }),

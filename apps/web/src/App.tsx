@@ -15,7 +15,7 @@ import { GoalsPage } from './pages/GoalsPage.tsx';
 import { InboxPage } from './pages/InboxPage.tsx';
 import { NewGoalPage } from './pages/NewGoalPage.tsx';
 import { SetupPage } from './pages/SetupPage.tsx';
-import { SkillsPage } from './pages/SkillsPage.tsx';
+import { SkillsTabs } from './pages/skills/SkillsTabs.tsx';
 import { UsagePage, UsagePill } from './pages/UsagePage.tsx';
 import { useLive } from './store.ts';
 import { Button, cn } from './ui.tsx';
@@ -122,7 +122,7 @@ export function App() {
           <Route path="/goals/:id" element={<GoalPage />} />
           <Route path="/agents" element={<AgentsPage />} />
           <Route path="/inbox" element={<InboxPage />} />
-          <Route path="/skills" element={<SkillsPage />} />
+          <Route path="/skills" element={<SkillsTabs />} />
           <Route path="/setup" element={<SetupPage />} />
           <Route path="/usage" element={<UsagePage />} />
           <Route path="/settings" element={<SettingsPage />} />

@@ -242,6 +242,7 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('workflow.videoPack')) config.videoPack = s.workflow.videoPack;
   if (on('workflow.autoskills')) config.autoskills = s.workflow.autoskills;
   if (on('workflow.settingSources')) config.settingSources = s.workflow.settingSources ?? undefined;
+  if (on('workflow.mcpAllowed')) config.mcpAllowed = s.workflow.mcpAllowed;
   if (on('reviews.alwaysReviewTasks')) config.alwaysReviewTasks = s.reviews.alwaysReviewTasks;
   if (on('reviews.maxFixCycles')) config.maxFixCycles = s.reviews.maxFixCycles;
   if (on('delivery.defaultMode') || on('delivery.defaultUnit') || on('delivery.defaultRemote')) {

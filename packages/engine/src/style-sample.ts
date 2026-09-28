@@ -9,7 +9,7 @@ import type { BriefStyleOption } from '@foundry/core';
 import { getBrief, getGoal } from '@foundry/core';
 import { renderStyle } from './attempt-prompt.ts';
 import type { Engine } from './engine.ts';
-import { WORKER_TOOLS, boundarySettings } from './guards/boundary.ts';
+import { workerTools, boundarySettings } from './guards/boundary.ts';
 import { excludeFromGit } from './skills/autoskills.ts';
 import { goalWorkspacePath } from './workspace.ts';
 import { metaFor, modelFor } from './models/roles.ts';
@@ -75,7 +75,7 @@ async function generate(engine: Engine, goalId: string, opt: BriefStyleOption, f
     maxTurns: 15,
     maxBudgetUsd: STYLE_SAMPLE_BUDGET_USD,
     permissionMode: 'dontAsk',
-    allowedTools: WORKER_TOOLS,
+    allowedTools: workerTools(engine.config.mcpAllowed),
     settings: boundarySettings(config.hooksDir),
     settingSources: config.settingSources,
     timeoutMs: 5 * 60_000,
