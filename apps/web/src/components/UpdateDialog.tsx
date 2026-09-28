@@ -1,5 +1,6 @@
 import { ArrowUpCircle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api, type UpdateStatusView } from '../api.ts';
 import { LiveLog } from '../pages/LiveLog.tsx';
 import { Button, CopyButton, Modal, cn } from '../ui.tsx';
@@ -68,7 +69,8 @@ export function UpdateDialog({ open, onClose, status }: { open: boolean; onClose
       setErr(e.message);
     }
   };
-  return (
+  // portalled to <body>: opened from the header's update pill, whose backdrop blur would pin a fixed overlay to the 48px header
+  return createPortal(
     <Modal open={open} title={`Update to ${status.latest ?? '…'}`} onClose={phase === 'running' ? () => {} : onClose} wide>
       <div className="space-y-3 text-sm">
         <p className="text-xs text-zinc-400">
@@ -144,6 +146,7 @@ export function UpdateDialog({ open, onClose, status }: { open: boolean; onClose
           </div>
         )}
       </div>
-    </Modal>
+    </Modal>,
+    document.body,
   );
 }
