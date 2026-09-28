@@ -45,3 +45,21 @@ export interface UsageSummary {
   limited: { rateLimitType: string; until: string } | null;
   note: string;
 }
+
+/** One MiniMax Token Plan model: what is left of its current and weekly window. */
+export interface MinimaxModelQuota {
+  name: string;
+  /** percent left in the current window; null = unknown */
+  remainingPercent: number | null;
+  /** percent left this week; null = no weekly limit or unknown */
+  weeklyRemainingPercent: number | null;
+  /** when the current window resets (ISO); null = unknown */
+  resetsAt: string | null;
+}
+
+/** MiniMax quota as `mmx quota show` reports it. `low` = under 10% left on any model, or under 1 of balance. */
+export type MinimaxQuota =
+  | { state: 'unavailable'; reason: 'no-cli' | 'no-key'; checkedAt: string }
+  | { state: 'error'; message: string; checkedAt: string }
+  | { state: 'plan'; models: MinimaxModelQuota[]; low: boolean; checkedAt: string }
+  | { state: 'balance'; available: number; low: boolean; checkedAt: string };

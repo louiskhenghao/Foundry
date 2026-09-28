@@ -910,6 +910,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
 
   app.get('/api/usage', (c) => c.json(engine.usage()));
   app.post('/api/usage/probe', async (c) => c.json(await engine.probeUsage()));
+  app.get('/api/usage/minimax', async (c) => c.json(await engine.minimaxQuota(c.req.query('refresh') === '1')));
 
   app.post('/internal/boundary', async (c) => {
     const payload = await c.req.json().catch(() => ({}));

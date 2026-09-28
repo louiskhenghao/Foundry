@@ -161,7 +161,7 @@ export interface FsRecent {
 }
 import type { AgentLogChunk, AgentsList, AgentsSummary } from '@foundry/engine/agents-types';
 import type { DoctorReport, InstallResult, SkillTier, SkillUpdateRun, SkillsOverview, SkillsUpdateReport, TrashEntry } from '@foundry/engine/skills-types';
-import type { UsageSummary } from '@foundry/engine/usage-types';
+import type { MinimaxQuota, UsageSummary } from '@foundry/engine/usage-types';
 
 export type Usage = UsageSummary & { pausedUntil: string | null };
 
@@ -425,4 +425,5 @@ export const api = {
   logout: () => req<ClaudeAuthStatus>('/api/auth/logout', { method: 'POST' }),
   usage: () => req<Usage>('/api/usage'),
   probeUsage: () => req<Usage>('/api/usage/probe', { method: 'POST' }),
+  minimaxQuota: (refresh = false) => req<MinimaxQuota>(`/api/usage/minimax${refresh ? '?refresh=1' : ''}`),
 };

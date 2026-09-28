@@ -28,6 +28,8 @@ import {
 } from '@foundry/core';
 import { ClaudeCliRunner, type ClaudeRunner, type RunHandle } from '@foundry/runner';
 import { mmxConfigDir, mmxSignedIn, writeMmxConfig } from './mmx.ts';
+import { fetchMinimaxQuota } from './usage/minimax.ts';
+import type { MinimaxQuota } from './usage/types.ts';
 import { answerInterview, continueInterview, runClarify } from './clarify.ts';
 import { type DraftProposal, type DraftRequest, runDraft } from './brief-draft.ts';
 import { runSuggest } from './escalation-suggest.ts';
@@ -161,6 +163,8 @@ export class Engine {
   readonly preview: PreviewManager;
   /** self-update drain: no new sessions start; in-flight work finishes (mirror of the rate-limit gate) */
   private updateDraining = false;
+  private minimax: { quota: MinimaxQuota; at: number } | null = null;
+  private minimaxRun: Promise<MinimaxQuota> | null = null;
   /** what this machine has learned about model names (requested → resolved id, last ok/fail) */
   readonly models: ModelRegistry;
   /** autoskills runs in progress, per goal (tasks wait for them before their first attempt) */
@@ -828,6 +832,23 @@ export class Engine {
   }
 
   /** One minimal cheap-model session purely to refresh the rate-limit signal (~$0.02). */
+  /**
+   * MiniMax quota, read with `mmx quota show` using the credentials sessions get. Kept for 10 minutes: the header asks
+   * often, and each read is a MiniMax API call. `force` reads it now (the Usage page's Refresh).
+   */
+  async minimaxQuota(force = false): Promise<MinimaxQuota> {
+    if (!force && this.minimax && Date.now() - this.minimax.at < 10 * 60_000) return this.minimax.quota;
+    this.minimaxRun ??= fetchMinimaxQuota({ bin: Bun.which('mmx'), signedIn: !!this.minimaxKey() || mmxSignedIn(), env: this.sessionEnvExtra(), cwd: this.config.dataDir })
+      .then((quota) => {
+        this.minimax = { quota, at: Date.now() };
+        return quota;
+      })
+      .finally(() => {
+        this.minimaxRun = null;
+      });
+    return this.minimaxRun;
+  }
+
   async probeUsage(): Promise<UsageSummary & { pausedUntil: string | null }> {
     const handle = await this.runner.run({ prompt: 'Reply with the single word OK.', cwd: this.config.dataDir, model: this.config.models.cheap, maxTurns: 1, maxBudgetUsd: 0.05, permissionMode: 'dontAsk', allowedTools: [], timeoutMs: 60_000, label: 'usage probe' });
     for await (const _ of handle.events) {

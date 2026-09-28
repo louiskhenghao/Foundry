@@ -1,4 +1,4 @@
-import type { UsageBucket, WindowSummary } from '@foundry/engine/usage-types';
+import type { MinimaxQuota, UsageBucket, WindowSummary } from '@foundry/engine/usage-types';
 import { Gauge, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -100,7 +100,74 @@ export function UsagePage() {
         </Card>
       </div>
       <p className="text-xs text-zinc-500">{u.note}</p>
+      <MinimaxCard />
     </div>
+  );
+}
+
+/** MiniMax quota (video and narration through mmx), read when the page opens; hidden when mmx is not installed. */
+function MinimaxCard() {
+  const [q, setQ] = useState<MinimaxQuota | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = (refresh: boolean) => {
+    setBusy(true);
+    api
+      .minimaxQuota(refresh)
+      .then(setQ)
+      .catch((e) => setQ({ state: 'error', message: e.message, checkedAt: new Date().toISOString() }))
+      .finally(() => setBusy(false));
+  };
+  useEffect(() => load(true), []);
+  if (!q || (q.state === 'unavailable' && q.reason === 'no-cli')) return null;
+  const low = (q.state === 'plan' || q.state === 'balance') && q.low;
+  return (
+    <Card
+      title={
+        <span className="flex items-center gap-2">
+          MiniMax
+          {low && <Badge state="warn">low</Badge>}
+        </span>
+      }
+      actions={
+        <>
+          <span className="text-[11px] text-zinc-500">checked {new Date(q.checkedAt).toLocaleTimeString()}</span>
+          <Button size="sm" disabled={busy} onClick={() => load(true)} title="Runs mmx quota show">
+            <RefreshCw size={13} className={cn(busy && 'animate-spin')} /> Refresh
+          </Button>
+        </>
+      }
+    >
+      {q.state === 'unavailable' && (
+        <div className="text-xs text-zinc-400">
+          mmx is installed but has no key. Add one under <Link className="underline" to="/settings#tools">Settings → Tools &amp; keys</Link>, or run <span className="mono">mmx auth login</span>.
+        </div>
+      )}
+      {q.state === 'error' && <div className="text-xs text-rose-400">{q.message}</div>}
+      {q.state === 'balance' && (
+        <div>
+          <div className={cn('text-2xl font-semibold mono', q.low ? 'text-amber-300' : 'text-zinc-100')}>{q.available.toFixed(2)}</div>
+          <div className="text-[11px] text-zinc-500">pay-as-you-go balance available</div>
+        </div>
+      )}
+      {q.state === 'plan' && (
+        <div className="space-y-2">
+          {q.models.length === 0 && <div className="text-xs text-zinc-500">no models in this plan</div>}
+          {q.models.map((m) => (
+            <div key={m.name} className="text-xs">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-zinc-200 truncate flex-1">{m.name}</span>
+                <span className="mono text-zinc-300">{m.remainingPercent == null ? '—' : `${m.remainingPercent}% left`}</span>
+                {m.weeklyRemainingPercent != null && <span className="text-zinc-500">· week {m.weeklyRemainingPercent}%</span>}
+                {m.resetsAt && <span className="text-zinc-500">· resets in {untilText(m.resetsAt)}</span>}
+              </div>
+              <div className="h-1.5 rounded bg-zinc-800 overflow-hidden">
+                <div className={cn('h-full', (m.remainingPercent ?? 100) < 10 ? 'bg-amber-400' : 'bg-emerald-500')} style={{ width: `${Math.max(0, Math.min(100, m.remainingPercent ?? 0))}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -205,6 +272,17 @@ function Rows({ rows }: { rows: (string | JSX.Element)[][] }) {
 export function UsagePill() {
   const version = useLive((s) => s.globalVersion);
   const [u, setU] = useState<Usage | null>(null);
+  const [minimaxLow, setMinimaxLow] = useState(false);
+  // the engine keeps the MiniMax quota for 10 minutes; asking more often costs nothing
+  useEffect(() => {
+    const load = () => api.minimaxQuota().then((q) => setMinimaxLow((q.state === 'plan' || q.state === 'balance') && q.low)).catch(() => {});
+    const t = setTimeout(load, 2000);
+    const i = setInterval(load, 5 * 60_000);
+    return () => {
+      clearTimeout(t);
+      clearInterval(i);
+    };
+  }, []);
   useEffect(() => {
     const load = () => api.usage().then(setU).catch(() => {});
     const t = setTimeout(load, 300);
@@ -218,10 +296,17 @@ export function UsagePill() {
   const w = u.fiveHour;
   const color = u.pausedUntil ? 'text-amber-300 border-amber-500/40' : w.status === 'allowed' || !w.status ? 'text-zinc-300 border-zinc-700' : 'text-rose-300 border-rose-500/40';
   return (
-    <Link to="/usage" className={cn('flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] mono', color)} title={u.note}>
+    <Link to="/usage" className={cn('flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] mono', color)} title={minimaxLow ? `MiniMax quota low: under 10% of a window left, or a balance under 1 — see Usage\n${u.note}` : u.note}>
       <Gauge size={12} />
       <span className="whitespace-nowrap">{u.pausedUntil ? `paused ${untilText(u.pausedUntil)}` : `5h ${fmtUsd(w.costUsd)}`}</span>
       {w.resetsAt && !u.pausedUntil && <span className="text-zinc-500 hidden lg:inline whitespace-nowrap">· reset {untilText(w.resetsAt)}</span>}
+      {/* the header has little room: an amber dot, and words only on wide screens */}
+      {minimaxLow && (
+        <span className="flex items-center gap-1 text-amber-300 whitespace-nowrap">
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+          <span className="hidden 2xl:inline">MiniMax low</span>
+        </span>
+      )}
     </Link>
   );
 }

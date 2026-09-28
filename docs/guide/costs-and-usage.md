@@ -38,6 +38,7 @@ Which model each of these uses — and so how much it really costs — is set by
 - **Each goal** shows its running cost at the top of its page, and each task shows its own.
 - **Usage** (top bar) shows spending over time, by kind of session and by model. For each of your plan's usage windows it shows its status (**allowed**, or a warning when it gets close to the limit) and when it resets, not a percentage; for exact percentages, run `/usage` in Claude Code. **Refresh signal** runs one tiny session to update that status.
 - When a usage limit is reached, Foundry pauses every goal and continues when the limit resets. A banner says when.
+- **MiniMax** (video and narration through mmx) has its own card at the bottom of **Usage**, read when the page opens: what is left of each model's window and week on a Token Plan, or the balance of a pay-as-you-go key. **Refresh** reads it again. When under 10% of a window is left, or the balance is under 1, the usage pill in the top bar shows an amber dot. The card only appears when mmx is installed.
 
 ## Image goals need an image key
 
