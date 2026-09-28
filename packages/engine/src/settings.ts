@@ -5,7 +5,7 @@
 import { setCommitAuthorMode } from './git/git.ts';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEFAULT_SETTINGS, RESTART_SETTINGS, Settings, SettingsPatch, type SettingMeta, type SettingsView } from '@foundry/core';
+import { DEFAULT_SETTINGS, RESTART_SETTINGS, SECRET_SETTINGS, Settings, SettingsPatch, maskSecret, type SecretState, type SettingMeta, type SettingsView } from '@foundry/core';
 import type { EngineConfig } from './config.ts';
 
 export const SETTINGS_FILE = 'settings.json';
@@ -151,9 +151,17 @@ export class SettingsStore {
     const now = this.values();
     return (RESTART_SETTINGS as readonly string[]).filter((p) => JSON.stringify(get(now, p)) !== JSON.stringify(get(this.boot, p)));
   }
+  /** what the Settings page gets: credentials only as set / not set and a masked hint (values() keeps them for the engine) */
   view(): SettingsView {
     const { values, meta } = this.resolve();
-    return { values, meta, restartNeeded: this.restartNeeded(), file: this.path, fileExists: existsSync(this.path) };
+    const shown = structuredClone(values);
+    const secrets: Record<string, SecretState> = {};
+    for (const p of SECRET_SETTINGS) {
+      const v = get(values, p);
+      secrets[p] = { set: typeof v === 'string' && v !== '', hint: typeof v === 'string' && v !== '' ? maskSecret(v) : null };
+      set(shown, p, null);
+    }
+    return { values: shown, meta, secrets, restartNeeded: this.restartNeeded(), file: this.path, fileExists: existsSync(this.path) };
   }
   /** Merge a deep-partial patch into the file; returns the leaves whose effective value changed. */
   update(patch: SettingsPatch): { changed: string[]; view: SettingsView } {

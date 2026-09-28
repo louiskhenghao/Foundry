@@ -195,6 +195,19 @@ export type SettingsPatch = z.infer<typeof SettingsPatch>;
 /** dotted leaf paths whose change only takes effect after the engine restarts */
 export const RESTART_SETTINGS = ['engine.port', 'engine.host', 'engine.claudeBin', 'engine.claudeHome'] as const;
 
+/**
+ * leaves that hold a credential: the settings view sent to the browser carries them as null, with only whether each is
+ * set and a masked hint, so a key never travels back to a page (or a phone over Tailscale) after it was saved
+ */
+export const SECRET_SETTINGS = ['tools.openaiApiKey', 'tools.kimiApiKey', 'tools.geminiApiKey', 'tools.minimaxApiKey', 'tools.elevenlabsApiKey', 'tools.groqApiKey', 'notifications.telegramBotToken', 'notifications.discordWebhookUrl'] as const;
+export interface SecretState {
+  set: boolean;
+  /** e.g. "sk-c…a3f9"; null = not set */
+  hint: string | null;
+}
+/** enough of a credential to recognise it, never enough to use it */
+export const maskSecret = (v: string): string => (v.length >= 12 ? `${v.slice(0, 4)}…${v.slice(-4)}` : '••••');
+
 export type SettingSource = 'file' | 'env' | 'default';
 export interface SettingMeta {
   source: SettingSource;
@@ -204,7 +217,10 @@ export interface SettingMeta {
   default: unknown;
 }
 export interface SettingsView {
+  /** every value, except SECRET_SETTINGS, which are null here */
   values: Settings;
+  /** SECRET_SETTINGS: set or not, and a masked hint */
+  secrets: Record<string, SecretState>;
   meta: Record<string, SettingMeta>;
   /** restart-only settings whose file value differs from what this process booted with */
   restartNeeded: string[];

@@ -836,7 +836,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.post('/api/settings/reset', (c) => c.json(engine.resetSettings()));
   // ---------- notifications (test / telegram chat-id detection use the draft credentials, saved ones as fallback) ----------
   app.post('/api/notifications/test', async (c) => {
-    const override = NotificationSettings.partial().parse(await c.req.json().catch(() => ({})));
+    // the page never holds saved credentials: an empty draft field means "the saved one", not "none"
+    const draft = NotificationSettings.partial().parse(await c.req.json().catch(() => ({})));
+    const override = Object.fromEntries(Object.entries(draft).filter(([, v]) => v != null));
     return c.json({ results: await engine.notifications.test(override) });
   });
   app.post('/api/notifications/telegram/chat-id', async (c) => {

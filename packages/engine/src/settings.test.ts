@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
-import { SettingsStore, applySettingsToConfig, resolveSettings } from './settings.ts';
+import { SECRET_SETTINGS } from '@foundry/core';
+import { SETTING_PATHS, SettingsStore, applySettingsToConfig, resolveSettings } from './settings.ts';
 import { FakeRunner } from './test-helpers.ts';
 
 const ROOT = resolve(import.meta.dir, '../../..');
@@ -114,5 +115,28 @@ describe('engine + settings', () => {
     } finally {
       if (saved !== undefined) process.env.MINIMAX_API_KEY = saved;
     }
+  });
+
+  test('the settings view never carries a saved credential, only whether it is set and a masked hint', () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'foundry-settings-secrets-'));
+    const engine = new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'ch'), log: () => {} }), new FakeRunner(() => {}));
+    const v = engine.updateSettings({ tools: { openaiApiKey: 'sk-proj-abcdefghijklmnop1234', kimiApiKey: 'short' }, notifications: { discordWebhookUrl: 'https://discord.com/api/webhooks/1/secret-part' } });
+    const json = JSON.stringify(v);
+    for (const s of ['sk-proj-abcdefghijklmnop1234', 'short', 'secret-part']) expect(json).not.toContain(s);
+    expect(v.values.tools.openaiApiKey).toBeNull();
+    expect(v.secrets['tools.openaiApiKey']).toEqual({ set: true, hint: 'sk-p…1234' });
+    expect(v.secrets['tools.kimiApiKey']).toEqual({ set: true, hint: '••••' });
+    expect(v.secrets['tools.geminiApiKey']).toEqual({ set: false, hint: null });
+    expect(JSON.stringify(engine.settingsView())).not.toContain('sk-proj-abcdefghijklmnop1234');
+    // the engine itself still has them
+    expect(engine.sessionEnvExtra().OPENAI_API_KEY).toBe('sk-proj-abcdefghijklmnop1234');
+    // an unrelated save leaves a saved key alone
+    engine.updateSettings({ engine: { maxConcurrent: 2 } });
+    expect(engine.sessionEnvExtra().OPENAI_API_KEY).toBe('sk-proj-abcdefghijklmnop1234');
+  });
+
+  test('every setting that looks like a credential is listed as secret', () => {
+    const looksSecret = SETTING_PATHS.filter((p) => /(ApiKey|Token|Secret|Password|WebhookUrl)$/.test(p));
+    expect(looksSecret.filter((p) => !(SECRET_SETTINGS as readonly string[]).includes(p))).toEqual([]);
   });
 });
