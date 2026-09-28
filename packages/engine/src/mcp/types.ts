@@ -77,8 +77,10 @@ export interface McpLoginSession {
   connector: boolean;
   url: string | null;
   lines: string[];
-  /** the CLI waits for the redirected URL (no browser on this machine, e.g. Docker) */
+  /** the CLI waits for the address the browser was redirected to (it also finishes by itself when a browser here completes) */
   needsCode: boolean;
+  /** the same sign-in typed into a terminal, for when it cannot finish here */
+  command: string;
   done: boolean;
   ok: boolean | null;
   error: string | null;
