@@ -28,7 +28,7 @@ flowchart LR
 | `apps/web` | The UI: React 18, react-router, zustand, Tailwind v4, built by Vite into `apps/web/dist`. | `src/App.tsx` (routes), `src/store.ts` (WS client + live store), `src/api.ts` |
 | `apps/cli` | The `foundry` CLI. Most commands are a thin HTTP client of the server. `serve` builds `Engine` + server in-process, `replay` opens the store directly, and `doctor`/`skills` work without a server. | `src/main.ts` |
 
-Around them: `roles/*.md` are the role prompts (see [roles.md](roles.md)). `catalog/skills.json` is the curated skill catalog. `scripts/` holds `dev.ts`, `release.ts`, `gen-docs.ts` (the generated references), `demo.ts` and `screenshots.ts` (the seeded demo and the guide's screenshots), `e2e-conflict.ts` and fixture helpers. `data/` (git-ignored) is the engine's state directory. `defaultConfig` always resolves it to `<repo root>/data` (`packages/engine/src/config.ts`).
+Around them: `roles/*.md` are the role prompts (see [roles.md](roles.md)). `catalog/skills.json` is the curated skill catalog and `catalog/mcp.json` the recommended MCP servers. `scripts/` holds `dev.ts`, `release.ts`, `gen-docs.ts` (the generated references), `demo.ts` and `screenshots.ts` (the seeded demo and the guide's screenshots), `e2e-conflict.ts` and fixture helpers. `data/` (git-ignored) is the engine's state directory. `defaultConfig` always resolves it to `<repo root>/data` (`packages/engine/src/config.ts`).
 
 ### What lives in `data/`
 
@@ -235,6 +235,7 @@ A few sessions still read the older `Goal.models` / `config.models` fields (`str
 | `/api/stream/:id/history` | decoded transcript tail for a live channel (the Live log after a page refresh) |
 | `/api/transcripts/:file/event?line=&block=` | one live-log event in full, read back from the transcript line its `ref` names |
 | `/api/attempts/:id/transcript`, `/prompt` | raw session transcript and worker prompt |
+| `/api/mcp`, `/api/mcp/check`, `/api/mcp/install`, `/api/mcp/remove`, `/api/mcp/allowed` | MCP servers read from Claude Code's config, the on-demand health check, installs and removals as Skills operations, the Allowed in goals switch (ADR-0016) |
 | `/api/skills/*`, `/api/tools/*` | skills view, catalog, install/uninstall/update, packs; markitdown, playwright and CLI tool installs; the Skills page's operations (`/api/skills/ops`, `/api/skills/ops/:id`) |
 | `/api/models`, `/api/settings`, `/api/notifications/*` | model list/sync/probe, settings get/put/reset, notification tests |
 | `/api/agents`, `/api/usage` (+ `/api/usage/minimax`: `mmx quota show`, kept 10 min), `/api/auth`, `/api/github`, `/api/update`, `/api/doctor`, `/api/health` | Agents monitor, usage and probe, Claude sign-in, gh status/login, self-update, environment report |
@@ -301,6 +302,7 @@ The history endpoint returns the last 400 events, slimmed the same way, includin
 | Effort | `engine/src/effort-runner.ts` |
 | Role prompts | `roles/*.md`, `engine/src/roles.ts` (see [roles.md](roles.md)) |
 | Skills: catalog, hints, workflow, packs, autoskills, updates | `engine/src/skills/*`, `catalog/skills.json` |
+| MCP servers: listing, catalog, install/remove, allowed in goals | `engine/src/mcp/*`, `catalog/mcp.json`, `workerTools` in `engine/src/guards/boundary.ts` |
 | Boundary, rm guard, hook canary | `engine/src/guards/*`, `packages/runner/hooks/*`, `packages/runner/src/settings-builder.ts` |
 | Claude CLI process and stream decoding | `packages/runner/src/{claude-cli-runner,stream-codec}.ts` |
 | Attachments and markdown renditions | `engine/src/attachments.ts`, `engine/src/convert/markitdown.ts` |
