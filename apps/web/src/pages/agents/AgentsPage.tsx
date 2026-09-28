@@ -96,7 +96,7 @@ export function AgentsPage() {
                 <div className="flex items-center gap-3 text-[11px] text-zinc-500">
                   {s.model && <span className="mono">{shortModel(s.model)}</span>}
                   <ContextGauge used={s.contextUsedTokens} window={s.contextWindowTokens} />
-                  {s.lastActivityAt && <span>{ago(s.lastActivityAt)} ago</span>}
+                  {s.lastActivityAt && <span>{ago(s.lastActivityAt)}</span>}
                 </div>
               </button>
             ))}
@@ -130,8 +130,8 @@ export function AgentsPage() {
                       </td>
                       <td className="py-2 pr-3 mono text-xs text-zinc-400 whitespace-nowrap">{s.model ? shortModel(s.model) : '—'}</td>
                       <td className="py-2 pr-3"><ContextGauge used={s.contextUsedTokens} window={s.contextWindowTokens} /></td>
-                      <td className="py-2 pr-3 text-xs text-zinc-500 whitespace-nowrap" title={s.startedAt ? `started ${ago(s.startedAt)} ago` : undefined}>
-                        {s.lastActivityAt ? `${ago(s.lastActivityAt)} ago` : '—'}
+                      <td className="py-2 pr-3 text-xs text-zinc-500 whitespace-nowrap" title={s.startedAt ? `started ${ago(s.startedAt)}` : undefined}>
+                        {s.lastActivityAt ? ago(s.lastActivityAt) : '—'}
                       </td>
                       <td className="py-2 pr-3 mono text-xs text-zinc-500 max-w-[16rem]"><span className="truncate block" title={s.cwd ?? undefined}>{s.cwd ? shortCwd(s.cwd) : '—'}</span></td>
                       <td className="py-2">
@@ -155,7 +155,7 @@ export function AgentsPage() {
                         <td className="py-1.5 pr-3 text-[11px] whitespace-nowrap" colSpan={2}>
                           {a.status === 'running' ? <span className="text-emerald-400">● running</span> : <span className="text-zinc-600">done</span>}
                         </td>
-                        <td className="py-1.5 pr-3 text-xs text-zinc-600 whitespace-nowrap" colSpan={3}>{a.lastActivityAt ? `${ago(a.lastActivityAt)} ago` : ''}</td>
+                        <td className="py-1.5 pr-3 text-xs text-zinc-600 whitespace-nowrap" colSpan={3}>{a.lastActivityAt ? ago(a.lastActivityAt) : ''}</td>
                       </tr>
                     ))}
                   </Fragment>
