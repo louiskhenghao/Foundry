@@ -1,4 +1,4 @@
-import type { McpCatalogStatus, McpHealth, McpServerRow } from '@foundry/engine/mcp-types';
+import type { McpCatalogStatus, McpHealth, McpKey, McpServerRow } from '@foundry/engine/mcp-types';
 import { ExternalLink, RefreshCw, Stethoscope } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { api, type McpCustomServer, type McpView } from '../../api.ts';
@@ -60,8 +60,8 @@ export function McpPanel() {
         }),
     );
   };
-  const install = (what: { catalogId: string } | { custom: McpCustomServer }, name: string, keys: Record<string, string>) =>
-    startOp({ kind: 'install', label: `Install MCP server ${name}`, targets: [`mcp:${name}`], call: (opId) => api.mcpInstall(what, keys, opId) });
+  const install = (what: { catalogId: string } | { custom: McpCustomServer }, name: string, keys: Record<string, string>, replace = false) =>
+    startOp({ kind: 'install', label: `${replace ? 'Change the key of' : 'Install'} MCP server ${name}`, targets: [`mcp:${name}`], call: (opId) => api.mcpInstall(what, keys, opId, replace) });
   const remove = (name: string) => startOp({ kind: 'uninstall', label: `Remove MCP server ${name}`, targets: [`mcp:${name}`], call: (opId) => api.mcpRemove(name, opId) });
 
   if (!view) return <Empty>{err ?? 'Reading MCP servers…'}</Empty>;
@@ -92,7 +92,7 @@ export function McpPanel() {
             ) : (
               <div className="divide-y divide-zinc-800">
                 {view.servers.map((s) => (
-                  <ServerRow key={`${s.source}:${s.plugin ?? ''}:${s.name}`} s={s} health={healthOf(s)} running={!!runningOp(`mcp:${s.name}`)} onAllow={(on) => allow(s, on)} onRemove={() => setRemoving(s.name)} onConnect={() => setConnecting(s.name)} />
+                  <ServerRow key={`${s.source}:${s.plugin ?? ''}:${s.name}`} s={s} health={healthOf(s)} running={!!runningOp(`mcp:${s.name}`)} onAllow={(on) => allow(s, on)} onRemove={() => setRemoving(s.name)} onConnect={() => setConnecting(s.name)} keys={view.catalog.find((c) => c.entry.id === s.catalogId)?.entry.keys ?? []} onChangeKey={(k) => s.catalogId && void install({ catalogId: s.catalogId }, s.name, k, true)} />
                 ))}
               </div>
             )}
@@ -139,7 +139,8 @@ export function McpPanel() {
   );
 }
 
-function ServerRow({ s, health, running, onAllow, onRemove, onConnect }: { s: McpServerRow; health: McpHealth | null; running: boolean; onAllow: (on: boolean) => void; onRemove: () => void; onConnect: () => void }) {
+function ServerRow({ s, health, running, onAllow, onRemove, onConnect, keys, onChangeKey }: { s: McpServerRow; health: McpHealth | null; running: boolean; onAllow: (on: boolean) => void; onRemove: () => void; onConnect: () => void; keys: McpKey[]; onChangeKey: (keys: Record<string, string>) => void }) {
+  const [newKeys, setNewKeys] = useState<Record<string, string> | null>(null);
   // connectors authorize on claude.ai, HTTP servers may sign in (OAuth); a stdio server takes its keys at install
   const canConnect = s.source === 'connector' || (s.source === 'user' && (s.transport === 'http' || s.transport === 'sse'));
   const needsAuth = health?.status === 'needs-auth';
@@ -162,6 +163,27 @@ function ServerRow({ s, health, running, onAllow, onRemove, onConnect }: { s: Mc
         <div className="mono text-[11px] text-zinc-500 truncate" title={s.target ?? undefined}>
           {s.source === 'plugin' ? `from plugin ${s.plugin}` : s.source === 'connector' ? 'connected in your claude.ai account' : s.target}
         </div>
+        {newKeys !== null && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {keys.map((k) => (
+              <Input key={k.name} type="password" autoComplete="off" aria-label={k.label} className="max-w-xs" placeholder={`new ${k.label} (${k.name})`} value={newKeys[k.name] ?? ''} onChange={(e) => setNewKeys({ ...newKeys, [k.name]: e.target.value })} />
+            ))}
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={running || keys.some((k) => !newKeys[k.name]?.trim())}
+              onClick={() => {
+                onChangeKey(newKeys);
+                setNewKeys(null);
+              }}
+            >
+              Save key
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setNewKeys(null)}>
+              Cancel
+            </Button>
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-3 flex-wrap shrink-0">
         {canConnect && (
@@ -172,6 +194,11 @@ function ServerRow({ s, health, running, onAllow, onRemove, onConnect }: { s: Mc
         <label className="flex items-center gap-1.5 text-xs text-zinc-300 shrink-0 cursor-pointer" title={risky && !s.allowed ? 'Goals will call its tools without asking you' : 'Worker sessions may use its tools'}>
           <input type="checkbox" checked={s.allowed} onChange={(e) => onAllow(e.target.checked)} /> Allowed in goals
         </label>
+        {keys.length > 0 && newKeys === null && (
+          <Button size="sm" variant="ghost" disabled={running} onClick={() => setNewKeys({})} title="Replace the key this server was installed with">
+            Change key…
+          </Button>
+        )}
         {s.source === 'user' ? (
           <Button size="sm" variant="ghost" disabled={running} onClick={onRemove}>
             Remove
@@ -257,7 +284,8 @@ function CustomForm({ onAdd, running, installed }: { onAdd: (c: McpCustomServer,
   const lines = type === 'stdio' ? env.split('\n').map((l) => l.trim()).filter(Boolean) : [];
   const keys = Object.fromEntries(lines.map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()]));
   const envOk = lines.every((l) => /^[A-Z][A-Z0-9_]*=.+$/.test(l));
-  const valid = /^[A-Za-z0-9_.-]{1,64}$/.test(name) && target.trim().length > 0 && (type === 'stdio' || /^https?:\/\//.test(target.trim())) && envOk;
+  // the names Claude Code accepts, without "__" (it would split the server's tool rules)
+  const valid = /^(?=.{1,64}$)[A-Za-z0-9-]+(?:_[A-Za-z0-9-]+)*$/.test(name) && target.trim().length > 0 && (type === 'stdio' || /^https?:\/\//.test(target.trim())) && envOk;
   const add = () => {
     const [command, ...args] = target.trim().split(/\s+/);
     onAdd({ name, config: type === 'stdio' ? { type: 'stdio', command: command!, args } : { type: 'http', url: target.trim() } }, keys);

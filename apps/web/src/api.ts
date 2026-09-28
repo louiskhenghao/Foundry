@@ -405,7 +405,7 @@ export const api = {
   mcp: () => req<McpView>('/api/mcp'),
   mcpCheck: () => req<{ health: McpHealth[] }>('/api/mcp/check', { method: 'POST' }),
   mcpAllow: (prefix: string, on: boolean) => req<{ allowed: string[] }>('/api/mcp/allowed', { method: 'PUT', body: JSON.stringify({ prefix, on }) }),
-  mcpInstall: (what: { catalogId: string } | { custom: McpCustomServer }, keys: Record<string, string>, opId?: string) => req<{ ok: boolean; error: string | null; op: SkillOp }>('/api/mcp/install', { method: 'POST', body: JSON.stringify({ ...what, keys, opId }) }),
+  mcpInstall: (what: { catalogId: string } | { custom: McpCustomServer }, keys: Record<string, string>, opId?: string, replace = false) => req<{ ok: boolean; error: string | null; op: SkillOp }>('/api/mcp/install', { method: 'POST', body: JSON.stringify({ ...what, keys, opId, replace }) }),
   mcpLogin: (name: string) => req<McpLoginSession>('/api/mcp/login', { method: 'POST', body: JSON.stringify({ name }) }),
   mcpLoginSession: () => req<McpLoginSession | null>('/api/mcp/login'),
   mcpLoginSubmit: (url: string) => req<McpLoginSession>('/api/mcp/login/code', { method: 'POST', body: JSON.stringify({ url }) }),
