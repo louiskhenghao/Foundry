@@ -1,11 +1,12 @@
-import type { McpCatalogStatus, McpHealth, McpServerRow } from '@foundry/engine/mcp-types';
+import type { McpCatalogStatus, McpHealth, McpKey, McpServerRow } from '@foundry/engine/mcp-types';
 import { ExternalLink, RefreshCw, Stethoscope } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, type McpCustomServer, type McpView } from '../../api.ts';
 import { Badge, Button, Card, ConfirmDialog, Empty, Input, Select, cn } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
+import { McpConnectDialog } from './McpConnectDialog.tsx';
 import { OpsDock } from './OpsDock.tsx';
-import { startOp, useRunningOp } from './ops.ts';
+import { startOp, useRunningOp, useSkillOps } from './ops.ts';
 import { BottomDock } from './SkillsPage.tsx';
 
 const SOURCE_LABEL: Record<McpServerRow['source'], string> = { user: 'yours', plugin: 'plugin', connector: 'claude.ai' };
@@ -18,23 +19,25 @@ export function McpPanel() {
   const [checking, setChecking] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState<string | null>(null);
   const runningOp = useRunningOp();
   const load = () =>
     api
       .mcp()
-      .then(setView)
+      .then((v) => {
+        setView(v);
+        setErr(null);
+      })
       .catch((e) => setErr(e.message));
+  // an install or removal changes the list: reload whenever an MCP operation ends (a new custom name included)
+  const mcpOpsEnded = useSkillOps((s) => s.tabs.filter((t) => t.status !== 'running' && t.targets.some((x) => x.startsWith('mcp:'))).length);
   useEffect(() => {
     void load();
-  }, []);
-  // an install or removal changes the list: reload when an MCP operation ends
-  const busy = view?.servers.some((s) => runningOp(`mcp:${s.name}`)) || view?.catalog.some((c) => runningOp(`mcp:${c.entry.name}`));
-  useEffect(() => {
-    if (!busy) void load();
-  }, [busy]);
+  }, [mcpOpsEnded]);
 
   const check = async () => {
     setChecking(true);
+    setErr(null);
     try {
       setHealth((await api.mcpCheck()).health);
     } catch (e: any) {
@@ -43,13 +46,22 @@ export function McpPanel() {
       setChecking(false);
     }
   };
-  const allow = async (s: McpServerRow, on: boolean) => {
+  // switches are sent one after another, and the server's list is the answer: quick toggles never flip back
+  const allowing = useRef<Promise<unknown>>(Promise.resolve());
+  const allow = (s: McpServerRow, on: boolean) => {
     setView((v) => (v ? { ...v, servers: v.servers.map((x) => (x.prefix === s.prefix ? { ...x, allowed: on } : x)) } : v));
-    await api.mcpAllow(s.prefix, on).catch((e) => setErr(e.message));
-    void load();
+    allowing.current = allowing.current.then(() =>
+      api
+        .mcpAllow(s.prefix, on)
+        .then(({ allowed }) => setView((v) => (v ? { ...v, servers: v.servers.map((x) => ({ ...x, allowed: allowed.includes(x.prefix) })) } : v)))
+        .catch((e) => {
+          setErr(e.message);
+          void load();
+        }),
+    );
   };
-  const install = (what: { catalogId: string } | { custom: McpCustomServer }, name: string, keys: Record<string, string>) =>
-    startOp({ kind: 'install', label: `Install MCP server ${name}`, targets: [`mcp:${name}`], call: (opId) => api.mcpInstall(what, keys, opId) });
+  const install = (what: { catalogId: string } | { custom: McpCustomServer }, name: string, keys: Record<string, string>, replace = false) =>
+    startOp({ kind: 'install', label: `${replace ? 'Change the key of' : 'Install'} MCP server ${name}`, targets: [`mcp:${name}`], call: (opId) => api.mcpInstall(what, keys, opId, replace) });
   const remove = (name: string) => startOp({ kind: 'uninstall', label: `Remove MCP server ${name}`, targets: [`mcp:${name}`], call: (opId) => api.mcpRemove(name, opId) });
 
   if (!view) return <Empty>{err ?? 'Reading MCP servers…'}</Empty>;
@@ -80,12 +92,12 @@ export function McpPanel() {
             ) : (
               <div className="divide-y divide-zinc-800">
                 {view.servers.map((s) => (
-                  <ServerRow key={`${s.source}:${s.plugin ?? ''}:${s.name}`} s={s} health={healthOf(s)} running={!!runningOp(`mcp:${s.name}`)} onAllow={(on) => void allow(s, on)} onRemove={() => setRemoving(s.name)} />
+                  <ServerRow key={`${s.source}:${s.plugin ?? ''}:${s.name}`} s={s} health={healthOf(s)} running={!!runningOp(`mcp:${s.name}`)} onAllow={(on) => allow(s, on)} onRemove={() => setRemoving(s.name)} onConnect={() => setConnecting(s.name)} keys={view.catalog.find((c) => c.entry.id === s.catalogId)?.entry.keys ?? []} onChangeKey={(k) => s.catalogId && void install({ catalogId: s.catalogId }, s.name, k, true)} />
                 ))}
               </div>
             )}
           </Card>
-          <CustomForm onAdd={(c, keys) => void install({ custom: c }, c.name, keys)} running={(n) => !!runningOp(`mcp:${n}`)} />
+          <CustomForm onAdd={(c, keys) => void install({ custom: c }, c.name, keys)} running={(n) => !!runningOp(`mcp:${n}`)} installed={(n) => view.servers.some((s) => s.source === 'user' && s.name === n)} />
         </div>
         <Card title="Recommended by Foundry">
           <p className="text-[11px] text-zinc-500 mb-3">Curated in catalog/mcp.json. Installed from here, a server is allowed in goals right away.</p>
@@ -98,6 +110,15 @@ export function McpPanel() {
         </Card>
       </div>
 
+      {connecting && (
+        <McpConnectDialog
+          name={connecting}
+          onClose={(signedIn) => {
+            setConnecting(null);
+            if (signedIn) void check();
+          }}
+        />
+      )}
       <ConfirmDialog
         open={removing !== null}
         title={`Remove ${removing}?`}
@@ -118,10 +139,14 @@ export function McpPanel() {
   );
 }
 
-function ServerRow({ s, health, running, onAllow, onRemove }: { s: McpServerRow; health: McpHealth | null; running: boolean; onAllow: (on: boolean) => void; onRemove: () => void }) {
+function ServerRow({ s, health, running, onAllow, onRemove, onConnect, keys, onChangeKey }: { s: McpServerRow; health: McpHealth | null; running: boolean; onAllow: (on: boolean) => void; onRemove: () => void; onConnect: () => void; keys: McpKey[]; onChangeKey: (keys: Record<string, string>) => void }) {
+  const [newKeys, setNewKeys] = useState<Record<string, string> | null>(null);
+  // connectors authorize on claude.ai, HTTP servers may sign in (OAuth); a stdio server takes its keys at install
+  const canConnect = s.source === 'connector' || (s.source === 'user' && (s.transport === 'http' || s.transport === 'sse'));
+  const needsAuth = health?.status === 'needs-auth';
   const risky = s.source === 'connector' || (s.source === 'user' && !s.catalogId);
   return (
-    <div className="py-2.5 flex items-start gap-3 flex-wrap sm:flex-nowrap">
+    <div className="py-2.5 flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="mono text-sm text-zinc-100">{s.name}</span>
@@ -134,22 +159,56 @@ function ServerRow({ s, health, running, onAllow, onRemove }: { s: McpServerRow;
           )}
           {running && <span className="text-[11px] text-sky-300">working…</span>}
         </div>
+        {health && health.status !== 'connected' && <div className="text-[11px] text-amber-300/90">{health.detail}{needsAuth ? ' — press Set up to connect it' : ''}</div>}
         <div className="mono text-[11px] text-zinc-500 truncate" title={s.target ?? undefined}>
           {s.source === 'plugin' ? `from plugin ${s.plugin}` : s.source === 'connector' ? 'connected in your claude.ai account' : s.target}
         </div>
+        {newKeys !== null && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {keys.map((k) => (
+              <Input key={k.name} type="password" autoComplete="off" aria-label={k.label} className="max-w-xs" placeholder={`new ${k.label} (${k.name})`} value={newKeys[k.name] ?? ''} onChange={(e) => setNewKeys({ ...newKeys, [k.name]: e.target.value })} />
+            ))}
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={running || keys.some((k) => !newKeys[k.name]?.trim())}
+              onClick={() => {
+                onChangeKey(newKeys);
+                setNewKeys(null);
+              }}
+            >
+              Save key
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setNewKeys(null)}>
+              Cancel
+            </Button>
+          </div>
+        )}
       </div>
-      <label className="flex items-center gap-1.5 text-xs text-zinc-300 shrink-0 cursor-pointer" title={risky && !s.allowed ? 'Goals will call its tools without asking you' : 'Worker sessions may use its tools'}>
-        <input type="checkbox" checked={s.allowed} onChange={(e) => onAllow(e.target.checked)} /> Allowed in goals
-      </label>
-      {s.source === 'user' ? (
-        <Button size="sm" variant="ghost" disabled={running} onClick={onRemove}>
-          Remove
-        </Button>
-      ) : (
-        <span className="text-[11px] text-zinc-600 shrink-0 w-16 text-right" title={s.source === 'plugin' ? 'removed with its plugin, on the Skills tab' : 'managed in your claude.ai settings'}>
-          {s.source === 'plugin' ? 'with plugin' : 'on claude.ai'}
-        </span>
-      )}
+      <div className="flex items-center gap-3 flex-wrap shrink-0">
+        {canConnect && (
+          <Button size="sm" variant={needsAuth ? 'primary' : 'default'} className="shrink-0" onClick={onConnect} title={s.source === 'connector' ? 'Authorize it on claude.ai with the account it should use' : 'Sign in to this server'}>
+            {needsAuth ? 'Set up' : s.source === 'connector' ? 'Connect' : 'Sign in'}
+          </Button>
+        )}
+        <label className="flex items-center gap-1.5 text-xs text-zinc-300 shrink-0 cursor-pointer" title={risky && !s.allowed ? 'Goals will call its tools without asking you' : 'Worker sessions may use its tools'}>
+          <input type="checkbox" checked={s.allowed} onChange={(e) => onAllow(e.target.checked)} /> Allowed in goals
+        </label>
+        {keys.length > 0 && newKeys === null && (
+          <Button size="sm" variant="ghost" disabled={running} onClick={() => setNewKeys({})} title="Replace the key this server was installed with">
+            Change key…
+          </Button>
+        )}
+        {s.source === 'user' ? (
+          <Button size="sm" variant="ghost" disabled={running} onClick={onRemove}>
+            Remove
+          </Button>
+        ) : (
+          <span className="text-[11px] text-zinc-600 shrink-0 w-16 text-right" title={s.source === 'plugin' ? 'removed with its plugin, on the Skills tab' : 'managed in your claude.ai settings'}>
+            {s.source === 'plugin' ? 'with plugin' : 'on claude.ai'}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -204,24 +263,33 @@ function CatalogCard({ c, others, running, onInstall }: { c: McpCatalogStatus; o
   );
 }
 
-/** Add a server by hand: a command (stdio) or a URL (http), plus environment variables. */
-function CustomForm({ onAdd, running }: { onAdd: (c: McpCustomServer, keys: Record<string, string>) => void; running: (name: string) => boolean }) {
+/** Add a server by hand: a command (stdio) with its environment, or a URL (http) that signs in afterwards. */
+function CustomForm({ onAdd, running, installed }: { onAdd: (c: McpCustomServer, keys: Record<string, string>) => void; running: (name: string) => boolean; installed: (name: string) => boolean }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [type, setType] = useState<'stdio' | 'http'>('stdio');
   const [target, setTarget] = useState('');
   const [env, setEnv] = useState('');
-  // KEY=value, one per line
-  const keys = Object.fromEntries(env.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()]));
-  const envOk = env.split('\n').every((l) => !l.trim() || /^[A-Z][A-Z0-9_]*=.+$/.test(l.trim()));
-  const valid = /^[A-Za-z0-9_.-]{1,64}$/.test(name) && target.trim().length > 0 && (type === 'stdio' || /^https?:\/\//.test(target.trim())) && envOk;
-  const add = () => {
-    const [command, ...args] = target.trim().split(/\s+/);
-    onAdd({ name, config: type === 'stdio' ? { type: 'stdio', command: command!, args } : { type: 'http', url: target.trim() } }, keys);
+  // the name that was sent: the form stays filled in until that server appears, so a failed install loses nothing
+  const [sent, setSent] = useState<string | null>(null);
+  useEffect(() => {
+    if (!sent || !installed(sent)) return;
     setName('');
     setTarget('');
     setEnv('');
+    setSent(null);
     setOpen(false);
+  });
+  // KEY=value, one per line (a command's environment; URL servers sign in instead)
+  const lines = type === 'stdio' ? env.split('\n').map((l) => l.trim()).filter(Boolean) : [];
+  const keys = Object.fromEntries(lines.map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()]));
+  const envOk = lines.every((l) => /^[A-Z][A-Z0-9_]*=.+$/.test(l));
+  // the names Claude Code accepts, without "__" (it would split the server's tool rules)
+  const valid = /^(?=.{1,64}$)[A-Za-z0-9-]+(?:_[A-Za-z0-9-]+)*$/.test(name) && target.trim().length > 0 && (type === 'stdio' || /^https?:\/\//.test(target.trim())) && envOk;
+  const add = () => {
+    const [command, ...args] = target.trim().split(/\s+/);
+    onAdd({ name, config: type === 'stdio' ? { type: 'stdio', command: command!, args } : { type: 'http', url: target.trim() } }, keys);
+    setSent(name);
   };
   if (!open)
     return (
@@ -229,26 +297,34 @@ function CustomForm({ onAdd, running }: { onAdd: (c: McpCustomServer, keys: Reco
         + add your own server
       </button>
     );
+  const busy = running(name);
   return (
     <Card title="Add your own server">
       <div className="grid grid-cols-1 sm:grid-cols-[10rem_7rem_1fr] gap-2">
-        <Input placeholder="name" value={name} onChange={(e) => setName(e.target.value)} />
-        <Select value={type} onChange={(e) => setType(e.target.value as 'stdio' | 'http')}>
+        <Input aria-label="server name" placeholder="name" value={name} onChange={(e) => setName(e.target.value)} />
+        <Select aria-label="kind" value={type} onChange={(e) => setType(e.target.value as 'stdio' | 'http')}>
           <option value="stdio">command</option>
           <option value="http">URL</option>
         </Select>
-        <Input className="mono" placeholder={type === 'stdio' ? 'npx -y some-mcp-server' : 'https://example.com/mcp'} value={target} onChange={(e) => setTarget(e.target.value)} />
+        <Input aria-label={type === 'stdio' ? 'command' : 'URL'} className="mono" placeholder={type === 'stdio' ? 'npx -y some-mcp-server' : 'https://example.com/mcp'} value={target} onChange={(e) => setTarget(e.target.value)} />
       </div>
-      <textarea className="mt-2 w-full mono text-xs bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 [-webkit-text-security:disc] focus:[-webkit-text-security:none]" rows={2} autoComplete="off" spellCheck={false} placeholder="environment, one per line: API_KEY=…" value={env} onChange={(e) => setEnv(e.target.value)} />
-      {!envOk && <div className="text-[11px] text-rose-400">Each line is NAME=value, with NAME in capitals.</div>}
-      <p className="text-[11px] text-zinc-500 mt-1">Added at user scope and off in goals until you switch it on. Keys go to Claude Code with the server; Foundry keeps no copy.</p>
-      <div className="flex gap-2 mt-2">
-        <Button size="sm" variant="primary" disabled={!valid || running(name)} onClick={add}>
-          <RefreshCw size={12} className={cn(running(name) ? 'animate-spin' : 'hidden')} /> Add
+      {type === 'stdio' ? (
+        <>
+          <textarea aria-label="environment" className="mt-2 w-full mono text-xs bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 [-webkit-text-security:disc] focus:[-webkit-text-security:none]" rows={2} autoComplete="off" spellCheck={false} placeholder="environment, one per line: API_KEY=…" value={env} onChange={(e) => setEnv(e.target.value)} />
+          {!envOk && <div className="text-[11px] text-rose-400">Each line is NAME=value, with NAME in capitals.</div>}
+          <p className="text-[11px] text-zinc-500 mt-1">Added at user scope and off in goals until you switch it on. Keys go to Claude Code with the server; Foundry keeps no copy.</p>
+        </>
+      ) : (
+        <p className="text-[11px] text-zinc-500 mt-2">Added at user scope and off in goals until you switch it on. If it needs an account, press <span className="text-zinc-300">Sign in</span> on its row once it is added.</p>
+      )}
+      <div className="flex items-center gap-2 mt-2">
+        <Button size="sm" variant="primary" disabled={!valid || busy} onClick={add}>
+          <RefreshCw size={12} className={cn(busy ? 'animate-spin' : 'hidden')} /> Add
         </Button>
         <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
           Cancel
         </Button>
+        {sent && !busy && !installed(sent) && <span className="text-[11px] text-rose-300">Not added — see the log in Operations below; the form keeps what you typed.</span>}
       </div>
     </Card>
   );

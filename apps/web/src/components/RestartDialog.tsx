@@ -1,5 +1,6 @@
 import type { Task } from '@foundry/core/browser';
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../api.ts';
 import { Badge, ConfirmDialog, cn } from '../ui.tsx';
 
@@ -19,7 +20,8 @@ export function RestartDialog({ goalId, tasks, initial, open, onClose, onDone }:
     return set;
   };
   const affected = from === 'all' ? new Set(tasks.map((t) => t.id)) : downstream(from);
-  return (
+  // portalled to <body>: opened from the task panel, a later full-screen overlay at the same z-index that would cover it
+  return createPortal(
     <ConfirmDialog
       open={open}
       title="Restart goal"
@@ -54,6 +56,7 @@ export function RestartDialog({ goalId, tasks, initial, open, onClose, onDone }:
         ))}
       </div>
       {err && <div className="text-rose-300">{err}</div>}
-    </ConfirmDialog>
+    </ConfirmDialog>,
+    document.body,
   );
 }

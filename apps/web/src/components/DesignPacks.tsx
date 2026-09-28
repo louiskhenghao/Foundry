@@ -56,7 +56,7 @@ export function DesignPacks({ onInstallStarted, compact, pack = 'design' }: { on
           clearInterval(poll.current!);
           poll.current = null;
           setInstalling(null);
-          setMsg(done ? `${id} installed ✓` : `${id} is not fully installed yet — see the log above or the Skills page for what happened.`);
+          setMsg(done ? `${id} installed ✓` : `${id} is not fully installed yet — see the log above or the Extensions page for what happened.`);
         }
       }, 3000);
     } catch (e: any) {

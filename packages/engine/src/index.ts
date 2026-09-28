@@ -37,7 +37,7 @@ export { DraftRequest, type DraftProposal, DRAFT_MAX_BUDGET_USD } from './brief-
 export { startStyleSample, StyleSampleError, STYLE_SAMPLE_MAX, STYLE_SAMPLE_BUDGET_USD } from './style-sample.ts';
 export { CLARIFY_MAX_BUDGET_USD, CLARIFY_MAX_TURNS, coverageRepairMessage } from './clarify.ts';
 export * from './skills/packs.ts';
-export { McpManager, SERVER_NAME, type CustomServer } from './mcp/manager.ts';
+export { MCP_PREFIX, McpManager, SERVER_NAME, type CustomServer } from './mcp/manager.ts';
 export type * from './mcp/types.ts';
 export { goalScenario } from './skills/workflow.ts';
 export { runAutoskills, hasStackManifest } from './skills/autoskills.ts';

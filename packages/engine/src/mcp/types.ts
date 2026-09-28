@@ -68,3 +68,20 @@ export interface McpHealth {
   status: 'connected' | 'failed' | 'needs-auth' | 'pending' | 'unknown';
   detail: string;
 }
+
+/** `claude mcp login` for one server, driven from the MCP tab */
+export interface McpLoginSession {
+  id: string;
+  name: string;
+  /** a claude.ai connector: the CLI only prints a claude.ai link and exits; authorizing there is the whole job */
+  connector: boolean;
+  url: string | null;
+  lines: string[];
+  /** the CLI waits for the redirected URL (no browser on this machine, e.g. Docker) */
+  needsCode: boolean;
+  done: boolean;
+  ok: boolean | null;
+  error: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+}

@@ -54,7 +54,7 @@ A session tried to push, create or merge a pull request, make a release, publish
 
 A task used all its attempts, and Claude Code refused a tool the task needed (not one of the commands above). Trying again the same way would fail the same way. You can **Suggest a hint** or **Let AI handle it** as above, **Retry with hint** (for example "do it without the web search"), **Skip task (dependents continue)** or **Abort goal**.
 
-When the refused tool belongs to an MCP server you have not allowed in goals, the item names the server and offers **Allow this server and retry**: it ticks the server's box on the Skills page's MCP servers tab and retries the task. See [MCP servers](./settings.md#mcp-servers).
+When the refused tool belongs to an MCP server you have not allowed in goals, the item names the server and offers **Allow this server and retry**: it ticks the server's box on the Extensions page's MCP servers tab and retries the task. See [MCP servers](./settings.md#mcp-servers).
 
 ### The budget ran out
 

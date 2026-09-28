@@ -46,7 +46,8 @@ export function TranscriptView({ sessionId, agentId, className }: { sessionId: s
   const [items, setItems] = useState<AgentLogItem[]>([]);
   const [status, setStatus] = useState<AgentStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [open, setOpen] = useState<FullText | null>(null);
+  // which entry is open, not a copy of it: a tool result that arrives later shows up in the open window
+  const [open, setOpen] = useState<number | null>(null);
   const offsetRef = useRef(0);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -103,7 +104,7 @@ export function TranscriptView({ sessionId, agentId, className }: { sessionId: s
             const body = <span className="min-w-0 flex-1 truncate">{node}</span>;
             if (!full) return <div key={i} className={cn('flex gap-1.5 min-w-0', cls)}>{body}</div>;
             return (
-              <button key={i} type="button" onClick={() => setOpen(full)} title="Show the full message" className={cn('flex gap-1.5 min-w-0 w-full text-left rounded-sm hover:bg-zinc-900 focus-visible:outline focus-visible:outline-1 focus-visible:outline-zinc-500 cursor-pointer', cls)}>
+              <button key={i} type="button" onClick={() => setOpen(i)} title="Show the full message" className={cn('flex gap-1.5 min-w-0 w-full text-left rounded-sm hover:bg-zinc-900 focus-visible:outline focus-visible:outline-1 focus-visible:outline-zinc-500 cursor-pointer', cls)}>
                 {body}
               </button>
             );
@@ -124,7 +125,7 @@ export function TranscriptView({ sessionId, agentId, className }: { sessionId: s
         })}
         {status && status !== 'finished' && <div className="text-zinc-600 animate-pulse">● {status === 'busy' ? 'working…' : 'waiting for input…'}</div>}
       </div>
-      <FullTextDialog value={open} onClose={() => setOpen(null)} />
+      <FullTextDialog value={open !== null && items[open] ? fullOf(items[open]!, resultFor) : null} onClose={() => setOpen(null)} />
     </>
   );
 }
