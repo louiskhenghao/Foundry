@@ -465,7 +465,10 @@ describe('sessions per attempt and AI suggestions', () => {
     const goal = await engine.createGoal({ prompt: 'stuck', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f never.txt'] } });
     await waitFor(() => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).length > 0);
     const esc = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true })[0]!;
-    const s = await engine.suggestForEscalation(esc.id);
+    // the card on another screen asks while this one runs: both get the one analysis, one session is paid for
+    const [s, joined] = await Promise.all([engine.suggestForEscalation(esc.id), engine.suggestForEscalation(esc.id)]);
+    expect(joined).toBe(s);
+    expect(runner.calls.filter((c) => c.label?.startsWith('suggest')).length).toBe(1);
     expect(s.action).toBe('retry_with_hint');
     expect(s.hint).toContain('touch never.txt');
     const stored = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true })[0]!;

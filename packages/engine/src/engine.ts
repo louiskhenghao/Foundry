@@ -135,6 +135,8 @@ export class Engine {
   readonly gh: GhClient;
   context: ContextProvider;
   private delivering = new Map<string, AbortController>();
+  /** escalation id → the analysis running for it */
+  private suggesting = new Map<string, Promise<EscalationSuggestion>>();
   /** post-completion graph refreshes in progress, per goal */
   private completing = new Set<string>();
   /** artifact deliveries in progress, per goal */
@@ -1274,7 +1276,12 @@ export class Engine {
 
   /** The AI analyses a blocked task and proposes an action + hint (recorded on the escalation; nothing is applied here). */
   async suggestForEscalation(escalationId: string): Promise<EscalationSuggestion> {
-    return runSuggest(this, escalationId);
+    // the same card is on several screens (and tabs): a second click joins the running analysis instead of paying for another
+    const running = this.suggesting.get(escalationId);
+    if (running) return running;
+    const p = runSuggest(this, escalationId).finally(() => this.suggesting.delete(escalationId));
+    this.suggesting.set(escalationId, p);
+    return p;
   }
 
   /** Draft with AI on the Brief page: a read-only strong session proposes spec/checks/tasks; nothing is written to the Brief. */
