@@ -1,17 +1,21 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, isAbsolute, join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { isAbsolute, join } from 'node:path';
 import type { McpServerRow, McpHealth } from './types.ts';
 
-/** Claude Code's tool-name form of a server name: anything outside [A-Za-z0-9_-] becomes "_" */
-const toolName = (s: string) => s.replace(/[^A-Za-z0-9_-]/g, '_');
+/**
+ * Claude Code's tool-name form of a server name (its own normaliser, copied): anything outside [A-Za-z0-9_-] becomes
+ * "_", and for claude.ai connectors runs of "_" collapse and none lead or trail ("claude.ai Slack (beta)" → claude_ai_Slack_beta).
+ */
+export const toolName = (s: string): string => {
+  const t = s.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return s.startsWith('claude.ai ') ? t.replace(/_+/g, '_').replace(/^_|_$/g, '') : t;
+};
 export const userPrefix = (name: string) => `mcp__${toolName(name)}`;
 export const pluginPrefix = (plugin: string, server: string) => `mcp__plugin_${toolName(plugin)}_${toolName(server)}`;
 
-/** ~/.claude.json, or $CLAUDE_CONFIG_DIR/.claude.json when the Claude home is not the default one (Docker) */
-export function claudeJsonPath(claudeHome: string): string {
-  const inside = join(claudeHome, '.claude.json');
-  return existsSync(inside) ? inside : join(dirname(claudeHome), '.claude.json');
-}
+/** the .claude.json the `claude` Foundry spawns reads: $CLAUDE_CONFIG_DIR/.claude.json, else ~/.claude.json */
+export const defaultClaudeJson = (): string => (process.env.CLAUDE_CONFIG_DIR ? join(process.env.CLAUDE_CONFIG_DIR, '.claude.json') : join(homedir(), '.claude.json'));
 
 const readJson = (file: string): any => {
   try {
@@ -45,17 +49,18 @@ function pluginServers(installPath: string): Record<string, Config> {
  * Every MCP server Claude Code would load, read from its files (ADR-0016): user scope in .claude.json, servers shipped
  * by enabled plugins, and claude.ai connectors. No server is started.
  */
-export function listServers(claudeHome: string, allowed: readonly string[]): McpServerRow[] {
+export function listServers(claudeHome: string, allowed: readonly string[], claudeJson = defaultClaudeJson()): McpServerRow[] {
   const out: McpServerRow[] = [];
   const row = (r: Omit<McpServerRow, 'allowed' | 'catalogId'>): McpServerRow => ({ ...r, allowed: allowed.includes(r.prefix), catalogId: null });
-  const cfg = readJson(claudeJsonPath(claudeHome)) ?? {};
+  const cfg = readJson(claudeJson) ?? {};
   for (const [name, c] of Object.entries<Config>(cfg.mcpServers ?? {})) out.push(row({ name, source: 'user', plugin: null, prefix: userPrefix(name), ...describe(c) }));
 
   const registry = readJson(join(claudeHome, 'plugins', 'installed_plugins.json'));
   const enabled = readJson(join(claudeHome, 'settings.json'))?.enabledPlugins ?? {};
   for (const [id, recs] of Object.entries<any>(registry?.plugins ?? registry ?? {})) {
     if (enabled[id] === false) continue;
-    const rec = (Array.isArray(recs) ? recs : [recs]).find((r) => r?.installPath);
+    // a plugin installed for one project (scope project/local) is not loaded everywhere
+    const rec = (Array.isArray(recs) ? recs : [recs]).find((r) => r?.installPath && (r.scope ?? 'user') === 'user');
     if (!rec) continue;
     const path = isAbsolute(rec.installPath) ? rec.installPath : join(claudeHome, 'plugins', rec.installPath);
     const plugin = id.split('@')[0]!;
@@ -78,7 +83,8 @@ export function parseHealth(out: string): McpHealth[] {
     const m = /^(.+?): (.*) - (\S+)\s+(.+)$/.exec(line.trim());
     if (!m) continue;
     const text = m[4]!.trim();
-    const status: McpHealth['status'] = /connected/i.test(text) ? 'connected' : /auth/i.test(text) ? 'needs-auth' : /pending|approval/i.test(text) ? 'pending' : /fail|error/i.test(text) ? 'failed' : 'unknown';
+    // \"Connected · tools fetch failed\" is not working: look for trouble before success
+    const status: McpHealth['status'] = /auth/i.test(text) ? 'needs-auth' : /fail|error/i.test(text) ? 'failed' : /pending|approval/i.test(text) ? 'pending' : /connected/i.test(text) ? 'connected' : 'unknown';
     rows.push({ name: m[1]!, status, detail: text });
   }
   return rows;

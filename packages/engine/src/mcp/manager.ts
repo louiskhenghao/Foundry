@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import type { DoctorCheck } from '../skills/types.ts';
 import { spawnStreaming } from '../skills/updaters.ts';
 import { McpLogin, type LoginSpawn } from './login.ts';
-import { listName, listServers, parseHealth, userPrefix } from './servers.ts';
+import { defaultClaudeJson, listName, listServers, parseHealth, userPrefix } from './servers.ts';
 import { McpCatalog, type McpCatalogEntry, type McpHealth, type McpView } from './types.ts';
 
 type Spawn = (argv: string[], cwd: string, onLine: (l: string) => void, opts?: { timeoutMs?: number }) => Promise<{ code: number | null; tail: string }>;
@@ -15,6 +15,8 @@ export interface McpManagerOptions {
   /** the MCP tool prefixes allowed in goals (Settings → workflow.mcpAllowed) */
   allowed: () => string[];
   setAllowed: (prefixes: string[]) => void;
+  /** the .claude.json the spawned `claude` reads (tests point it elsewhere) */
+  claudeJson?: string;
   spawn?: Spawn;
   loginSpawn?: LoginSpawn;
   log: (msg: string) => void;
@@ -26,7 +28,10 @@ export interface CustomServer {
   config: { type: 'stdio'; command: string; args?: string[] } | { type: 'http' | 'sse'; url: string };
 }
 
-export const SERVER_NAME = /^[A-Za-z0-9_.-]{1,64}$/;
+/** what Claude Code accepts as a server name, minus "__", which would split its tool rules (mcp__a__b = tool b of a) */
+export const SERVER_NAME = /^(?=.{1,64}$)[A-Za-z0-9-]+(?:_[A-Za-z0-9-]+)*$/;
+/** an allowed-in-goals entry: one server's tool prefix, nothing a tool list could split or extend */
+export const MCP_PREFIX = /^mcp__[A-Za-z0-9_-]+$/;
 type Result = { ok: boolean; error: string | null };
 
 /** MCP servers as Claude Code has them, the recommendations Foundry ships, and which ones goals may use (ADR-0016). */
@@ -44,7 +49,7 @@ export class McpManager {
    * printed its link, finished, or 5 s passed, so the page opens on the link rather than on a spinner.
    */
   async startLogin(name: string) {
-    const row = listServers(this.o.claudeHome, []).find((s) => s.name === name);
+    const row = this.servers([]).find((s) => s.name === name);
     if (!row) throw new Error(`no MCP server named ${name}`);
     if (row.source === 'plugin' || row.transport === 'stdio') throw new Error(`${name} does not sign in: it runs on this computer`);
     const s = this.login.start(name, row.source === 'connector');
@@ -59,37 +64,53 @@ export class McpManager {
 
   view(): McpView {
     const entries = this.catalog().entries;
-    const servers = listServers(this.o.claudeHome, this.o.allowed()).map((s) => ({ ...s, catalogId: s.source === 'user' ? (entries.find((e) => e.name === s.name)?.id ?? null) : null }));
-    return { servers, catalog: entries.map((entry) => ({ entry, installed: servers.some((s) => s.source === 'user' && s.name === entry.name) })) };
+    const servers = this.servers(this.o.allowed()).map((s) => ({ ...s, catalogId: s.source === 'user' ? (entries.find((e) => e.name === s.name)?.id ?? null) : null }));
+    // a plugin can ship the same server (the official marketplace has context7 and playwright): that counts too
+    return { servers, catalog: entries.map((entry) => ({ entry, installed: servers.some((s) => (s.source === 'user' || s.source === 'plugin') && s.name === entry.name) })) };
   }
 
   /** `claude mcp list`: connects to every server, so it only runs when asked. */
   async check(): Promise<McpHealth[]> {
     const claude = this.claude();
-    if (!claude) return [];
+    if (!claude) throw new Error('claude not found on PATH');
     const lines: string[] = [];
     await (this.o.spawn ?? spawnStreaming)([claude, 'mcp', 'list'], homedir(), (l) => lines.push(l), { timeoutMs: 120_000 });
     const health = parseHealth(lines.join('\n'));
     // report under the names the page lists
-    const rows = listServers(this.o.claudeHome, []);
+    const rows = this.servers([]);
     return health.map((h) => ({ ...h, name: rows.find((r) => listName(r) === h.name)?.name ?? h.name }));
   }
 
-  /** Install a catalog entry (then allowed in goals) or a custom server (off until switched on), at user scope. */
-  install(what: { catalogId: string } | { custom: CustomServer }, keys: Record<string, string>, say: (l: string) => void = () => {}): Promise<Result> {
+  /**
+   * Install a catalog entry (then allowed in goals) or a custom server (off until switched on), at user scope.
+   * `replace` swaps an installed server for this one (a changed key): Claude Code refuses a name it already has, so the
+   * old one is removed first, and whether goals may use it stays as it was.
+   */
+  install(what: { catalogId: string } | { custom: CustomServer }, keys: Record<string, string>, say: (l: string) => void = () => {}, replace = false): Promise<Result> {
     return this.serial(async () => {
       const entry = 'catalogId' in what ? this.catalog().entries.find((e) => e.id === what.catalogId) : undefined;
       if ('catalogId' in what && !entry) return { ok: false, error: `no MCP catalog entry ${what.catalogId}` };
       const name = entry?.name ?? ('custom' in what ? what.custom.name : '');
-      if (!SERVER_NAME.test(name)) return { ok: false, error: 'a server name is letters, digits, "_", "-" or "." (up to 64)' };
+      if (!SERVER_NAME.test(name)) return { ok: false, error: 'a server name is letters, digits and "-", with single "_" between them (up to 64)' };
+      const base = (entry ? entry.config : 'custom' in what ? what.custom.config : {}) as { type?: string };
       const missing = (entry?.keys ?? []).filter((k) => !keys[k.name]?.trim()).map((k) => k.name);
       if (missing.length) return { ok: false, error: `${missing.join(', ')} is needed` };
       const env = Object.fromEntries(Object.entries(keys).filter(([, v]) => v.trim()).map(([k, v]) => [k, v.trim()]));
-      const config = { ...(entry ? (entry.config as object) : 'custom' in what ? what.custom.config : {}), ...(Object.keys(env).length ? { env } : {}) };
+      // an HTTP server has no environment (Claude Code would drop it): it signs in instead
+      if (Object.keys(env).length && (base.type === 'http' || base.type === 'sse')) return { ok: false, error: 'a URL server takes no environment: add it, then press Sign in on its row' };
+      const existing = this.servers([]).some((s) => s.source === 'user' && s.name === name);
+      if (existing && !replace) return { ok: false, error: `${name} is already installed` };
+      const wasAllowed = this.o.allowed().includes(userPrefix(name));
+      if (existing) {
+        const gone = await this.run(['mcp', 'remove', '--scope', 'user', name], say);
+        if (!gone.ok) return gone;
+      }
+      const config = { ...base, ...(Object.keys(env).length ? { env } : {}) };
       const r = await this.run(['mcp', 'add-json', '--scope', 'user', name, JSON.stringify(config)], say, Object.values(env));
       if (!r.ok) return r;
-      if (entry) this.allow(userPrefix(name), true);
-      say(`■ installed ${name}${entry ? ' — allowed in goals' : ' — switch on "Allowed in goals" to let goals use it'}`);
+      const allowed = existing ? wasAllowed : !!entry;
+      this.allow(userPrefix(name), allowed);
+      say(`■ ${existing ? 'updated' : 'installed'} ${name}${allowed ? ' — allowed in goals' : ' — switch on "Allowed in goals" to let goals use it'}`);
       return r;
     });
   }
@@ -97,7 +118,7 @@ export class McpManager {
   /** Remove a user-scope server; it also leaves the user's own Claude Code. */
   remove(name: string, say: (l: string) => void = () => {}): Promise<Result> {
     return this.serial(async () => {
-      if (!listServers(this.o.claudeHome, []).some((s) => s.source === 'user' && s.name === name)) return { ok: false, error: `${name} is not a user-scope MCP server` };
+      if (!this.servers([]).some((s) => s.source === 'user' && s.name === name)) return { ok: false, error: `${name} is not a user-scope MCP server` };
       const r = await this.run(['mcp', 'remove', '--scope', 'user', name], say);
       if (r.ok) {
         this.allow(userPrefix(name), false);
@@ -109,7 +130,7 @@ export class McpManager {
 
   /** The "Allowed in goals" switch. */
   allow(prefix: string, on: boolean): string[] {
-    if (!prefix.startsWith('mcp__')) throw new Error(`${prefix} is not an MCP tool prefix`);
+    if (!MCP_PREFIX.test(prefix)) throw new Error(`${prefix} is not an MCP tool prefix`);
     const now = this.o.allowed().filter((p) => p !== prefix);
     const next = on ? [...now, prefix] : now;
     this.o.setAllowed(next);
@@ -133,6 +154,10 @@ export class McpManager {
       );
   }
 
+  private servers(allowed: readonly string[]) {
+    return listServers(this.o.claudeHome, allowed, this.o.claudeJson ?? defaultClaudeJson());
+  }
+
   private claude(): string | null {
     return this.o.claudeBin ?? Bun.which('claude');
   }
@@ -141,7 +166,9 @@ export class McpManager {
   private async run(args: string[], say: (l: string) => void, secrets: string[] = []): Promise<Result> {
     const claude = this.claude();
     if (!claude) return { ok: false, error: 'claude not found on PATH' };
-    const hide = (s: string) => secrets.reduce((t, k) => t.split(k).join('••••'), s);
+    // a key appears raw in output and JSON-escaped in the add-json argument: hide both forms
+    const forms = secrets.flatMap((k) => [k, JSON.stringify(k).slice(1, -1)]).filter(Boolean);
+    const hide = (s: string) => forms.reduce((t, k) => t.split(k).join('••••'), s);
     say(`$ claude ${hide(args.join(' '))}`);
     const r = await (this.o.spawn ?? spawnStreaming)([claude, ...args], homedir(), (l) => say(hide(l)), { timeoutMs: 120_000 });
     this.o.log(`[mcp] claude ${args.slice(0, 4).join(' ')} → ${r.code}`);

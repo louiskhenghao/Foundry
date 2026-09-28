@@ -72,7 +72,7 @@ export const WorkflowSettings = z.object({
   /** `--setting-sources` for sessions; null = inherit everything */
   settingSources: z.array(z.string()).nullable().default(null),
   /** MCP tool prefixes worker sessions may use (ADR-0016): mcp__<server>, mcp__plugin_<plugin>_<server>, mcp__claude_ai_<name> */
-  mcpAllowed: z.array(z.string()).default(() => [...DEFAULT_MCP_ALLOWED]),
+  mcpAllowed: z.array(z.string().regex(/^mcp__[A-Za-z0-9_-]+$/)).default(() => [...DEFAULT_MCP_ALLOWED]),
 });
 export const ReviewSettings = z.object({
   alwaysReviewTasks: z.boolean().default(true),
