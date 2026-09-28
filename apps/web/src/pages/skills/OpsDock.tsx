@@ -76,9 +76,9 @@ export function OpsDock() {
         </div>
         {open && (
           <div className="pb-3">
-            <div className="flex items-stretch gap-1 overflow-x-auto border-b border-zinc-800 -mx-1 px-1" role="tablist">
+            <div className="flex items-stretch gap-1 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_var(--color-zinc-800)] -mx-1 px-1" role="tablist">
               {tabs.map((t) => (
-                <div key={t.id} className={cn('flex items-center shrink-0 -mb-px border-b-2 max-w-[16rem]', t.id === tab.id ? 'border-emerald-500' : 'border-transparent')}>
+                <div key={t.id} className={cn('flex items-center shrink-0 border-b-2 max-w-[16rem]', t.id === tab.id ? 'border-emerald-500' : 'border-transparent')}>
                   <button type="button" role="tab" aria-selected={t.id === tab.id} className={cn('flex items-center gap-1.5 pl-2 pr-1 py-1.5 text-xs min-w-0', t.id === tab.id ? 'text-zinc-100' : 'text-zinc-400 hover:text-zinc-200')} onClick={() => show(t.id)} title={`${t.label} — ${t.status}${t.summary ? `: ${t.summary}` : ''}`}>
                     <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', DOT[t.status])} />
                     <span className="truncate">{t.label}</span>
