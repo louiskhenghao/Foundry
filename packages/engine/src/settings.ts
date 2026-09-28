@@ -3,7 +3,7 @@
  * built-in defaults: file > env > default. The file stores only the leaves the user changed.
  */
 import { setCommitAuthorMode } from './git/git.ts';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DEFAULT_SETTINGS, RESTART_SETTINGS, SECRET_SETTINGS, Settings, SettingsPatch, maskSecret, type SecretState, type SettingMeta, type SettingsView } from '@foundry/core';
 import type { EngineConfig } from './config.ts';
@@ -135,7 +135,9 @@ export class SettingsStore {
   }
   private save(): void {
     mkdirSync(join(this.path, '..'), { recursive: true });
-    writeFileSync(this.path, JSON.stringify(this.file, null, 2) + '\n');
+    // it holds API keys and tokens: readable by its owner only
+    writeFileSync(this.path, JSON.stringify(this.file, null, 2) + '\n', { mode: 0o600 });
+    chmodSync(this.path, 0o600);
   }
   resolve(): Resolved {
     return resolveSettings(this.file, this.env, this.log);

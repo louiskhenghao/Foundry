@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
 import { SECRET_SETTINGS } from '@foundry/core';
+import { writeMmxConfig } from './mmx.ts';
 import { SETTING_PATHS, SettingsStore, applySettingsToConfig, resolveSettings } from './settings.ts';
 import { FakeRunner } from './test-helpers.ts';
 
@@ -138,5 +139,55 @@ describe('engine + settings', () => {
   test('every setting that looks like a credential is listed as secret', () => {
     const looksSecret = SETTING_PATHS.filter((p) => /(ApiKey|Token|Secret|Password|WebhookUrl)$/.test(p));
     expect(looksSecret.filter((p) => !(SECRET_SETTINGS as readonly string[]).includes(p))).toEqual([]);
+  });
+
+  test('settings.json, which holds the keys, is readable by its owner only', () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'foundry-settings-mode-'));
+    const engine = new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'ch'), log: () => {} }), new FakeRunner(() => {}));
+    engine.updateSettings({ tools: { openaiApiKey: 'sk-1' } });
+    expect(statSync(join(dataDir, 'settings.json')).mode & 0o777).toBe(0o600);
+  });
+
+  test('the mmx config keeps the region mmx saved while the key stays, and a new key carries over only the user\'s own non-secret settings', () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'foundry-mmx-keep-'));
+    const own = mkdtempSync(join(tmpdir(), 'foundry-mmx-own-'));
+    writeFileSync(join(own, 'config.json'), JSON.stringify({ api_key: 'sk-theirs', proxy: 'http://proxy:8080', default_video_model: 'hailuo', oauth: { t: 1 } }));
+    const file = join(dataDir, 'mmx', 'config.json');
+    expect(writeMmxConfig(dataDir, 'sk-cp-1', () => {}, own)).toBe(true);
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ proxy: 'http://proxy:8080', default_video_model: 'hailuo', api_key: 'sk-cp-1' });
+    // mmx detects the region and saves it: the same key must not wipe it
+    writeFileSync(file, JSON.stringify({ api_key: 'sk-cp-1', region: 'cn' }));
+    expect(writeMmxConfig(dataDir, 'sk-cp-1', () => {}, own)).toBe(true);
+    expect(JSON.parse(readFileSync(file, 'utf8')).region).toBe('cn');
+    expect(writeMmxConfig(dataDir, 'sk-cp-2', () => {}, own)).toBe(true);
+    expect(JSON.parse(readFileSync(file, 'utf8')).region).toBeUndefined();
+  });
+
+  test('sessions are only pointed at the mmx config when it could be written', () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'foundry-mmx-fail-'));
+    writeFileSync(join(dataDir, 'mmx'), 'a file where the directory should be');
+    const saved = process.env.MINIMAX_API_KEY;
+    delete process.env.MINIMAX_API_KEY;
+    try {
+      const engine = new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'ch'), log: () => {} }), new FakeRunner(() => {}));
+      engine.updateSettings({ tools: { minimaxApiKey: 'sk-cp-1' } });
+      expect(engine.sessionEnvExtra()).toEqual({ MINIMAX_API_KEY: 'sk-cp-1' });
+    } finally {
+      if (saved !== undefined) process.env.MINIMAX_API_KEY = saved;
+    }
+  });
+
+  test('an empty variable in the engine\'s environment does not hide a key from Settings', () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'foundry-empty-env-'));
+    const saved = process.env.OPENAI_API_KEY;
+    process.env.OPENAI_API_KEY = '';
+    try {
+      const engine = new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'ch'), log: () => {} }), new FakeRunner(() => {}));
+      engine.updateSettings({ tools: { openaiApiKey: 'sk-o', geminiApiKey: null } });
+      expect(engine.imageGenAvailable()).toBe(true);
+    } finally {
+      if (saved === undefined) delete process.env.OPENAI_API_KEY;
+      else process.env.OPENAI_API_KEY = saved;
+    }
   });
 });
