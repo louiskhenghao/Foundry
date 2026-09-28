@@ -73,6 +73,10 @@
 :root.light .surface-inset {
   background-color: #f4f4f5;
 }
+:root.light .surface-card .log-row:hover {
+  /* hover:bg-zinc-900 is white in light — invisible on a white card (the Agents log), so rows tint instead (a step past the inset tint, so the "you" rows still react) */
+  background-color: #e9e9ed;
+}
 :root.light ::-webkit-scrollbar-thumb {
   background-color: #c4c4c9;
 }

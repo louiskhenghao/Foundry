@@ -96,7 +96,7 @@ export function LiveLog({ attemptId, className }: { attemptId: string; className
             );
             if (!hasFull(ev)) return <div key={i} className={cn('flex gap-1.5 min-w-0', cls)}>{body}</div>;
             return (
-              <button key={i} type="button" onClick={() => show(ev)} title="Show the full message" className={cn('flex gap-1.5 min-w-0 w-full text-left rounded-sm hover:bg-zinc-900 focus-visible:outline focus-visible:outline-1 focus-visible:outline-zinc-500 cursor-pointer', cls)}>
+              <button key={i} type="button" onClick={() => show(ev)} title="Show the full message" className={cn('log-row flex gap-1.5 min-w-0 w-full text-left rounded-sm hover:bg-zinc-900 focus-visible:outline focus-visible:outline-1 focus-visible:outline-zinc-500 cursor-pointer', cls)}>
                 {body}
               </button>
             );

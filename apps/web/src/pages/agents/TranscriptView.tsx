@@ -103,7 +103,7 @@ export function TranscriptView({ sessionId, agentId, className }: { sessionId: s
             const body = <span className="min-w-0 flex-1 truncate">{node}</span>;
             if (!full) return <div key={i} className={cn('flex gap-1.5 min-w-0', cls)}>{body}</div>;
             return (
-              <button key={i} type="button" onClick={() => setOpen(full)} title="Show the full message" className={cn('flex gap-1.5 min-w-0 w-full text-left rounded-sm hover:bg-zinc-900 focus-visible:outline focus-visible:outline-1 focus-visible:outline-zinc-500 cursor-pointer', cls)}>
+              <button key={i} type="button" onClick={() => setOpen(full)} title="Show the full message" className={cn('log-row flex gap-1.5 min-w-0 w-full text-left rounded-sm hover:bg-zinc-900 focus-visible:outline focus-visible:outline-1 focus-visible:outline-zinc-500 cursor-pointer', cls)}>
                 {body}
               </button>
             );
