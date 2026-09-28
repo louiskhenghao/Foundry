@@ -33,6 +33,8 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 
 右上角的 **Expert view** 显示其余所有内容。标签栏上的 **Simple view** 切换回来。
 
+![运行中 goal 的 Simple view：一句话说明正在做什么、带进行中任务的进度条，以及目前的花费](images/goal-simple.png)
+
 ## Expert view 的标签页
 
 | 标签 | 显示什么 |
@@ -44,6 +46,8 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 | **Delivery** | 结果会怎样处理，以及进度。见 [拿到结果](./getting-the-result.zh.md#the-delivery-tab)。 |
 
 ## Overview
+
+![已完成 goal 的 Overview 标签：时间线各阶段全部完成、四个 pull request 已合并、goal 描述、进度文件夹，以及全部通过的验收检查](images/goal-overview.png)
 
 从上到下：
 
@@ -64,6 +68,8 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 
 **Tasks** 标签把计划画成一张图。每张卡片是一个任务，显示状态、已用的尝试次数和允许的次数（比如 2/3），以及这个任务到目前为止所有尝试加起来的费用。箭头表示哪个任务在等哪个。在手机上，这张图会变成列表。
 
+![Tasks 标签：计划画成一张图，一个任务已完成，两个并排（其中一个仍在运行），一个在等它们两个](images/goal-tasks.png)
+
 ### 任务状态
 
 任务从 **pending**（等其它任务）依次到 **ready**、**running**、**observing**（跑检查和审查）、**merging**（并入 goal 的分支）和 **done**。任务也可能是 **blocked**（需要你）、**failed** 或 **skipped**。
@@ -71,6 +77,8 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 每个状态和消息是什么意思，以及哪些不需要你做什么，见 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md#任务状态)。
 
 ### 任务内部
+
+![全屏打开的任务：它的 spec、通过的那次尝试及其花费和轮数，以及会话的实时日志——读代码、写文件、跑测试](images/task-drawer.png)
 
 点一个任务，会全屏打开（Escape 或 × 关闭）。你会看到：
 
@@ -151,9 +159,13 @@ Foundry 也会在里程碑时自己启动预览；预览在运行时，每个任
 
 goal 发生过的所有事，最新的在前，每件一行：阶段、任务开始和结束、检查、决定、交付步骤。**important only** 隐藏常规的行；**show bookkeeping events** 显示更多。以 **…** 结尾的行只显示了一段较长文字的开头，比如 worker 的消息、检查结果或一条说明；点它可以看全文。
 
+![勾选 important only 的 Activity 标签：goal 通过审查、每项检查、每个任务的合并，最新的在最上面](images/goal-activity.png)
+
 ## Diff
 
 goal 相对起点改过的每个文件，标出新增的行（绿色，+）和删除的行（红色，−）。点一个文件展开或收起；**expand all** 全部展开。这正是会进入 pull request 的内容。
+
+![Diff 标签：goal 改动的每个文件，新增的行为绿色，删除的行为红色](images/goal-diff.png)
 
 ## 取消、重启、删除
 

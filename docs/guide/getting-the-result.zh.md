@@ -81,6 +81,8 @@ pull request 类的方式需要 GitHub CLI 和一个已连接的账户：见 [�
 
 在 goal 页面上打开 **Delivery** 标签（在 Simple view 里，Result 卡片上的 **Deliver…** 会切换到 Expert view 并直接打开它）。
 
+![每个任务一个 pull request 交付完成后的 Delivery 标签：每一步都打勾、四个叠放的 pull request 均通过 CI 并已合并、你的 main 已更新、工作区已清理](images/goal-delivery.png)
+
 **goal 完成之前**，它显示 **Will deliver automatically when the goal is done**（方式是 Local only 时不显示）。你可以改交付方式，然后按 **Save policy (runs when done)**。选着 **Local only** 时，这个按钮是灰的。
 
 **交付过程中**，卡片用勾、转圈或叉显示每一步：**Preflight**、**Remote**、**Sync with base**、**Build stack**、**Push**、**Open PR**、**CI checks**、**Fix CI**、**Merge**、**Cleanup**（只显示你的方式需要的步骤）。**Cancel** 停止交付。

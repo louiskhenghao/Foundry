@@ -49,6 +49,25 @@ try {
   await shot('interview', `/goals/${g.interview}`);
   await shot('brief', `/goals/${g.brief}/brief`);
   await shot('goal-running', `/goals/${g.running}`);
+  // one picture per tab of the goal page: the finished goal (delivered as four merged PRs) and the running one
+  await shot('goal-overview', `/goals/${g.done}#overview`);
+  await shot('goal-tasks', `/goals/${g.running}#tasks`, undefined, 520);
+  await shot('task-drawer', `/goals/${g.running}#tasks`, async () => {
+    await page.getByText('add the export endpoint', { exact: true }).first().click();
+    await page.getByRole('button', { name: 'Live log' }).click();
+    await page.waitForTimeout(800);
+  });
+  await shot('goal-activity', `/goals/${g.done}#activity`, async () => {
+    await page.getByLabel('important only').check();
+    await page.waitForTimeout(300);
+  });
+  await shot('goal-diff', `/goals/${g.done}#diff`);
+  await shot('goal-delivery', `/goals/${g.done}#delivery`);
+  // last on this goal: the view choice is remembered per goal
+  await shot('goal-simple', `/goals/${g.running}`, async () => {
+    await page.getByRole('button', { name: 'Simple view' }).click();
+    await page.waitForTimeout(500);
+  });
   await shot('milestone', `/goals/${g.milestone}`);
   // the guide's caption names Suggest a hint and Retry with hint: bring the retries item's buttons into the frame
   await shot('inbox', '/inbox', async () => {
