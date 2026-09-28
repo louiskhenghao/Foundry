@@ -33,6 +33,8 @@ In Simple view the goal page shows:
 
 **Expert view** at the top right shows everything else. **Simple view** on the tab bar switches back.
 
+![Simple view of a running goal: one sentence on what is happening, the progress bar with the task in progress, and the cost so far](images/goal-simple.png)
+
 ## Expert view tabs
 
 | Tab | What it shows |
@@ -44,6 +46,8 @@ In Simple view the goal page shows:
 | **Delivery** | What happens to the result, and its progress. See [Getting the result](./getting-the-result.md#the-delivery-tab). |
 
 ## Overview
+
+![The Overview tab of a finished goal: every stage of the timeline done, four pull requests merged, the goal, the progress folder, and all acceptance checks passing](images/goal-overview.png)
 
 From top to bottom:
 
@@ -64,6 +68,8 @@ From top to bottom:
 
 The **Tasks** tab draws the plan as a graph. Each card is a task with its state, its attempts so far out of those allowed (for example 2/3) and what the task has cost so far, all attempts together. Arrows show which task waits for which. On a phone the graph becomes a list.
 
+![The Tasks tab: the plan as a graph, with one task done, two side by side (one still running) and one waiting for both](images/goal-tasks.png)
+
 ### Task states
 
 A task moves from **pending** (waiting for other tasks) to **ready**, **running**, **observing** (its checks and review run), **merging** (joining the goal's branch) and **done**. A task can also be **blocked** (it needs you), **failed** or **skipped**.
@@ -71,6 +77,8 @@ A task moves from **pending** (waiting for other tasks) to **ready**, **running*
 What each state and message means, and which ones need nothing from you, is in [When Foundry needs you](./when-foundry-needs-you.md#task-states).
 
 ### Inside a task
+
+![A task opened full screen: its spec, the attempt that passed with its cost and turns, and the live log of the session — reading the code, writing the files, running the tests](images/task-drawer.png)
 
 Click a task to open it full screen (Escape or × closes it). You see:
 
@@ -151,9 +159,13 @@ Then either press **Continue**, or write what you saw and press **Turn into a pl
 
 Everything that happened to the goal, newest first, one line each: stages, tasks starting and finishing, checks, decisions, delivery steps. **important only** hides routine lines; **show bookkeeping events** shows even more. A line ending in **…** shows only the start of a longer text, such as a worker message, a check result or a note; click it to read all of it.
 
+![The Activity tab with important only ticked: the goal passing its review, every check, each task merging, newest first](images/goal-activity.png)
+
 ## Diff
 
 Every file the goal changed compared with where it started, with lines added (green, +) and removed (red, −). Click a file to open or close it; **expand all** opens them all. This is exactly what would go into a pull request.
+
+![The Diff tab: every file the goal changed, with added lines in green and removed lines in red](images/goal-diff.png)
 
 ## Cancelling, restarting, deleting
 

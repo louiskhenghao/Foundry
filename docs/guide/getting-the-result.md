@@ -81,6 +81,8 @@ At the bottom of the delivery choices is a GitHub line:
 
 On the goal page, open the **Delivery** tab (in Simple view, **Deliver…** on the Result card switches to Expert view and opens it).
 
+![The Delivery tab after a delivery with one pull request per task: every step ticked, four stacked pull requests passing CI and merged, your main updated and the workspace cleaned up](images/goal-delivery.png)
+
 **Before the goal is done**, it says **Will deliver automatically when the goal is done** (unless the mode is Local only). You can change the delivery and press **Save policy (runs when done)**. That button is greyed out while **Local only** is selected.
 
 **While it delivers**, the card shows each step with a tick, a spinner or a cross: **Preflight**, **Remote**, **Sync with base**, **Build stack**, **Push**, **Open PR**, **CI checks**, **Fix CI**, **Merge**, **Cleanup** (only the steps your mode needs). **Cancel** stops it.
