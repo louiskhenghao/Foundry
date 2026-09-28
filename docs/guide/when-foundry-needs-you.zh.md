@@ -18,7 +18,9 @@ Foundry 把一个任务试了好几次，验收检查仍然没过。你可以：
 
 - **Suggest a hint** —— Foundry 读任务、失败的检查和上一次尝试，用大白话说明原因，并填好一条提示。你看过后按 **Retry with hint**。
 - **Let AI handle it** —— 同上，但如果结论是"带着这条提示重试"，就直接执行。
-- 自己 **Retry with hint** —— 写下要换的做法（"用现有的日期工具函数""测试文件在 tests/ 不在 spec/"），并选择再给几次尝试。
+
+同一条事项会出现在 Inbox、goal 概览和任务抽屉里。你正在写的提示、extra attempts 的选择和正在进行的分析，在这几个界面之间切换时都会保留。
+- 自己 **Retry with hint** —— 写下要换的做法（"用现有的日期工具函数""测试文件在 tests/ 不在 spec/"），写进提示框，并在 **extra attempts** 里选再给几次尝试。
 - **Skip task (dependents continue)** —— 跳过它继续。依赖它的任务照样运行，最终审查会评估整体结果。
 - **Abort goal** —— 停掉整个 goal。它会以 failed 结束；目前的工作留在它的分支上。
 

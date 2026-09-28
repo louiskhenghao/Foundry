@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { Brief, EscalationAnswer, listFollowUps, getAttempt, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
+import { Brief, EscalationAnswer, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
 import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, PreviewError, classifyFeedback, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, type Engine, type OpenTargetId } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
@@ -680,7 +680,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const body = await c.req.json().catch(() => ({}));
     const suggestion = await engine.suggestForEscalation(c.req.param('id'));
     let applied = false;
-    if (body?.apply === true && suggestion.action === 'retry_with_hint') {
+    // a joined request may find the escalation already answered by the one it joined
+    if (body?.apply === true && suggestion.action === 'retry_with_hint' && getEscalation(db, c.req.param('id'))?.state === 'open') {
       await engine.answerEscalation(c.req.param('id'), { action: 'retry_with_hint', hint: suggestion.hint, extraAttempts: 1 });
       applied = true;
     }
@@ -951,7 +952,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   // ---------- claude account ----------
   app.get('/api/auth', async (c) => c.json({ status: await engine.auth.status(c.req.query('force') === '1'), login: engine.auth.loginSession() }));
   app.post('/api/auth/login', async (c) => {
-    const body = z.object({ mode: z.enum(['claudeai', 'console']).optional(), email: z.string().optional() }).parse(await c.req.json().catch(() => ({})));
+    const body = z.object({ email: z.string().optional() }).parse(await c.req.json().catch(() => ({})));
     return c.json(engine.auth.startLogin(body));
   });
   app.get('/api/auth/login', (c) => c.json(engine.auth.loginSession()));

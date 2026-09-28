@@ -2,7 +2,7 @@
 
 > English · [中文](./costs-and-usage.zh.md)
 
-Foundry runs on your Claude subscription or API account. It spends only when a Claude session runs. Everything it does in git, running your tests, preparing folders and reading check results is free — it costs time, not money.
+Foundry runs on your Claude subscription (Pro or Max). It spends only when a Claude session runs. Everything it does in git, running your tests, preparing folders and reading check results is free — it costs time, not money.
 
 ## What costs money
 

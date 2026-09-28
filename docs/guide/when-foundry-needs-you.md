@@ -18,7 +18,9 @@ Foundry tried a task several times and its acceptance checks still fail. You can
 
 - **Suggest a hint** — Foundry reads the task, the failing checks and the last attempt, explains the cause in plain words and fills in a hint. You read it and press **Retry with hint**.
 - **Let AI handle it** — the same, but when the answer is "retry with this hint" it is applied straight away.
-- **Retry with hint** yourself — write what to do differently ("use the existing date helper", "the test file is in tests/, not spec/") and choose how many more attempts to allow.
+
+The same item shows in the Inbox, on the goal overview and in the task drawer. A hint you are writing, the extra attempts and a running analysis carry over when you switch between them.
+- **Retry with hint** yourself — write what to do differently ("use the existing date helper", "the test file is in tests/, not spec/") in the hint box and pick how many **extra attempts** to allow.
 - **Skip task (dependents continue)** — move on without it. Tasks that depended on it still run; the final review judges the whole.
 - **Abort goal** — stop the whole goal. It ends as failed; the work so far stays on its branch.
 

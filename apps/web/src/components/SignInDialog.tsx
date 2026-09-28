@@ -6,7 +6,6 @@ import { Button, CopyButton, Input, cn } from '../ui.tsx';
 
 /** Runs `claude auth login` through the engine; the browser opens on this machine, the URL is shown too. */
 export function SignInDialog({ onClose }: { onClose: () => void }) {
-  const [mode, setMode] = useState<'claudeai' | 'console'>('claudeai');
   const [email, setEmail] = useState('');
   const [session, setSession] = useState<LoginSession | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -35,7 +34,7 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
   const start = async () => {
     setErr(null);
     try {
-      setSession(await api.startLogin({ mode, email: email.trim() || undefined }));
+      setSession(await api.startLogin({ email: email.trim() || undefined }));
     } catch (e: any) {
       setErr(e.message);
     }
@@ -54,13 +53,7 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
         <p className="text-xs text-zinc-400">Same flow as Claude Code: a browser window opens on this machine, you sign in, and this page updates by itself. When the engine runs where there is no browser (a container, a remote host), open the link yourself and paste the code it gives you. Foundry never sees your password or token — Claude Code stores the credential.</p>
         {!session ? (
           <>
-            <div className="flex gap-2 text-xs">
-              {(['claudeai', 'console'] as const).map((m) => (
-                <button key={m} onClick={() => setMode(m)} className={cn('rounded px-2.5 py-1 border', mode === m ? 'border-emerald-500 text-emerald-300' : 'border-zinc-700 text-zinc-400')}>
-                  {m === 'claudeai' ? 'Claude subscription (Pro / Max)' : 'Anthropic Console (API billing)'}
-                </button>
-              ))}
-            </div>
+            <p className="text-xs text-zinc-400">Sign in with your Claude subscription (Pro or Max). Foundry does not use Anthropic Console API billing.</p>
             <Input placeholder="email (optional, pre-fills the login page)" value={email} onChange={(e) => setEmail(e.target.value)} />
             {err && <div className="text-xs text-rose-400">{err}</div>}
             <div className="flex justify-end">

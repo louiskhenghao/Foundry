@@ -50,7 +50,12 @@ try {
   await shot('brief', `/goals/${g.brief}/brief`);
   await shot('goal-running', `/goals/${g.running}`);
   await shot('milestone', `/goals/${g.milestone}`);
-  await shot('inbox', '/inbox');
+  // the guide's caption names Suggest a hint and Retry with hint: bring the retries item's buttons into the frame
+  await shot('inbox', '/inbox', async () => {
+    await page.getByRole('button', { name: 'Retry with hint' }).first().scrollIntoViewIfNeeded();
+    await page.evaluate(() => window.scrollBy(0, 24));
+    await page.waitForTimeout(300);
+  });
   await shot('settings-models', '/settings', async () => {
     await page.evaluate(() => document.getElementById('models')?.scrollIntoView({ block: 'start' }));
     await page.waitForTimeout(300);
