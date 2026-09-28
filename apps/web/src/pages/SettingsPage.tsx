@@ -62,12 +62,17 @@ export function SettingsPage() {
   const [upd, setUpd] = useState<UpdateStatusView | null>(null);
   const [updBusy, setUpdBusy] = useState(false);
   const [updOpen, setUpdOpen] = useState(false);
-  const { hash } = useLocation();
-  // a link to one section (/settings#tools) lands on it once the page has rendered
+  const { hash, key } = useLocation();
+  // a link to one section (/settings#tools) lands on it once the page has rendered, also when the page is already there
   const loaded = !!draft;
   useEffect(() => {
-    if (loaded && hash) document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView({ block: 'start' });
-  }, [loaded, hash]);
+    if (!loaded || !hash) return;
+    let id = hash.slice(1);
+    try {
+      id = decodeURIComponent(id);
+    } catch {}
+    document.getElementById(id)?.scrollIntoView({ block: 'start' });
+  }, [loaded, hash, key]);
   const loadUpdate = () => api.updateStatus().then(setUpd).catch(() => {});
   const checkUpdate = async () => {
     setUpdBusy(true);
@@ -191,7 +196,9 @@ export function SettingsPage() {
   // type is saved; ↺ forgets the saved one
   const secret = (path: Leaf, placeholder: string) => {
     const saved = view.secrets[path];
-    return <Input type="password" autoComplete="off" value={(get(draft, path) as string | null) ?? ''} placeholder={saved?.set ? `saved: ${saved.hint} — type to replace` : placeholder} onChange={(e) => set(path, e.target.value === '' ? null : e.target.value)} />;
+    // a value from the environment is not "saved": say where it comes from, like the badge beside it
+    const from = view.meta[path]?.source === 'env' ? `from ${view.meta[path]?.env}` : 'saved';
+    return <Input type="password" autoComplete="off" value={(get(draft, path) as string | null) ?? ''} placeholder={saved?.set ? `${from}: ${saved.hint} — type to replace` : placeholder} onChange={(e) => set(path, e.target.value === '' ? null : e.target.value)} />;
   };
   const aside = (path: Leaf) => (
     <>

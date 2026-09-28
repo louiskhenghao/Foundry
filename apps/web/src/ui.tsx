@@ -180,9 +180,10 @@ const STATE_COLORS: Record<string, string> = {
 
 export function Tabs<T extends string>({ tabs, value, onChange, right }: { tabs: { id: T; label: ReactNode; badge?: ReactNode }[]; value: T; onChange: (t: T) => void; right?: ReactNode }) {
   return (
-    <div className="flex items-center gap-1 border-b border-zinc-800 overflow-x-auto whitespace-nowrap -mx-1 px-1">
+    // the hairline is an inset shadow, not a border the tabs overlap with -mb-px: that 1px overflow gave the row a vertical scrollbar
+    <div className="flex items-center gap-1 shadow-[inset_0_-1px_0_var(--color-zinc-800)] overflow-x-auto overflow-y-hidden whitespace-nowrap -mx-1 px-1">
       {tabs.map((t) => (
-        <button key={t.id} onClick={() => onChange(t.id)} className={cn('px-3 py-2 text-sm -mb-px border-b-2 flex items-center gap-1.5 shrink-0', value === t.id ? 'border-emerald-500 text-zinc-100' : 'border-transparent text-zinc-400 hover:text-zinc-200')}>
+        <button key={t.id} onClick={() => onChange(t.id)} className={cn('px-3 py-2 text-sm border-b-2 flex items-center gap-1.5 shrink-0', value === t.id ? 'border-emerald-500 text-zinc-100' : 'border-transparent text-zinc-400 hover:text-zinc-200')}>
           {t.label}
           {t.badge}
         </button>

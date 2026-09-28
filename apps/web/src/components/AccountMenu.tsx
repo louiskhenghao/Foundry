@@ -21,8 +21,11 @@ export function AccountMenu() {
   if (!st.loggedIn) {
     return (
       <>
-        <button onClick={() => setSignIn(true)} className="flex items-center gap-1.5 rounded-md border border-rose-500/50 text-rose-300 px-2 py-1 text-[11px]">
-          <UserCircle2 size={13} /> Sign in to Claude
+        <button onClick={() => setSignIn(true)} className="flex items-center gap-1.5 rounded-md border border-rose-500/50 text-rose-300 px-2 py-1 text-[11px] whitespace-nowrap" title="Sign in to Claude" aria-label="Sign in to Claude">
+          <UserCircle2 size={13} />
+          {/* the header is full: words only where there is room (none on a phone, "Sign in" until very wide), the tooltip spells it out */}
+          <span className="hidden sm:inline">Sign in</span>
+          <span className="hidden 2xl:inline -ml-1">to Claude</span>
         </button>
         {signIn && <SignInDialog onClose={() => { setSignIn(false); load(true); }} />}
       </>

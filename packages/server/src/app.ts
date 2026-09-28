@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Brief, EscalationAnswer, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, PreviewError, classifyFeedback, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, SERVER_NAME, type Engine, type OpenTargetId } from '@foundry/engine';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, PreviewError, classifyFeedback, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, type Engine, type OpenTargetId } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { listGuide, readGuide } from './guide.ts';
@@ -748,15 +748,22 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   // ---------- MCP servers (ADR-0016): read from Claude Code's config; install/remove run as Skills operations ----------
   app.get('/api/mcp', (c) => c.json(engine.mcp.view()));
-  app.post('/api/mcp/check', async (c) => c.json({ health: await engine.mcp.check() }));
+  app.post('/api/mcp/check', async (c) => {
+    try {
+      return c.json({ health: await engine.mcp.check() });
+    } catch (e) {
+      throw new HttpError(400, { error: (e as Error).message });
+    }
+  });
   app.put('/api/mcp/allowed', async (c) => {
-    const { prefix, on } = z.object({ prefix: z.string().startsWith('mcp__').max(200), on: z.boolean() }).parse(await c.req.json());
+    const { prefix, on } = z.object({ prefix: z.string().regex(MCP_PREFIX).max(200), on: z.boolean() }).parse(await c.req.json());
     return c.json({ allowed: engine.mcp.allow(prefix, on) });
   });
   app.post('/api/mcp/install', async (c) => {
     const body = z
       .object({
         catalogId: z.string().optional(),
+        replace: z.boolean().default(false),
         custom: z.object({ name: z.string().regex(SERVER_NAME), config: z.union([z.object({ type: z.literal('stdio'), command: z.string().min(1), args: z.array(z.string()).optional() }), z.object({ type: z.enum(['http', 'sse']), url: z.string().url() })]) }).optional(),
         keys: z.record(z.string().regex(/^[A-Z][A-Z0-9_]*$/), z.string().max(2000)).default({}),
         opId: OpId,
@@ -765,8 +772,30 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       .parse(await c.req.json());
     const what = body.catalogId ? { catalogId: body.catalogId } : { custom: body.custom! };
     const name = body.catalogId ?? body.custom!.name;
-    const { op, result } = await ops.run('install', `Install MCP server ${name}`, { id: body.opId }, (say) => engine.mcp.install(what, body.keys, say), (r) => ({ ok: r.ok, summary: r.ok ? `installed ${name}` : (r.error ?? 'install failed') }));
+    const { op, result } = await ops.run('install', `Install MCP server ${name}`, { id: body.opId }, (say) => engine.mcp.install(what, body.keys, say, body.replace), (r) => ({ ok: r.ok, summary: r.ok ? `installed ${name}` : (r.error ?? 'install failed') }));
     return c.json({ ...result, op });
+  });
+  // sign-in for claude.ai connectors and HTTP servers (`claude mcp login`), polled by the page
+  app.get('/api/mcp/login', (c) => c.json(engine.mcp.login.session()));
+  app.post('/api/mcp/login', async (c) => {
+    const { name } = z.object({ name: z.string().min(1).max(120) }).parse(await c.req.json());
+    try {
+      return c.json(await engine.mcp.startLogin(name));
+    } catch (e) {
+      throw new HttpError(400, { error: (e as Error).message });
+    }
+  });
+  app.post('/api/mcp/login/code', async (c) => {
+    const { url } = z.object({ url: z.string().min(1).max(4000) }).parse(await c.req.json());
+    try {
+      return c.json(engine.mcp.login.submit(url));
+    } catch (e) {
+      throw new HttpError(400, { error: (e as Error).message });
+    }
+  });
+  app.post('/api/mcp/login/cancel', (c) => {
+    engine.mcp.login.cancel();
+    return c.json({ ok: true });
   });
   app.post('/api/mcp/remove', async (c) => {
     const { name, opId } = z.object({ name: z.string().regex(SERVER_NAME), opId: OpId }).parse(await c.req.json());

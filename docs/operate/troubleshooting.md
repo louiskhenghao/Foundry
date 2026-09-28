@@ -39,7 +39,7 @@ buttons.
 | Models (presets in use) (⚠) | every model named in the presets in use has resolved on this machine and did not fail last time | test the model in **Settings → Models & limits**, or pick another |
 | Notifications (optional) (⚠) | Telegram or Discord is configured | [notifications.md](./notifications.md) |
 | Stale skill copies (⚠) | no loose copy in `~/.claude/skills` hides a newer plugin skill of the same name | **Trash N stale copies** on the Setup page (goes to the skills trash, restorable) |
-| Skill updates (⚠) | installed skill sources are up to date | open the **Skills** page |
+| Skill updates (⚠) | installed skill sources are up to date | open the **Extensions** page (Skills tab) |
 | Skills directory writable | Foundry can write to `~/.claude/skills` | fix the folder's permissions |
 | settings.json (⚠) | Claude Code's `settings.json` parses and its hook commands exist | fix the file; a missing hook command makes every session log hook errors |
 

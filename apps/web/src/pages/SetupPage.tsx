@@ -40,7 +40,7 @@ function BundleStatus({ bundle, busy, onInstall }: { bundle: string; busy: strin
           <span className="text-emerald-300">bundle complete{viaPlugin.length ? ` · ${viaPlugin.length} via plugin` : ''}</span>
         )}
         <Link to="/skills" className="underline text-zinc-400">
-          details on Skills →
+          details on Extensions →
         </Link>
       </div>
     </div>
