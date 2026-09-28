@@ -48,7 +48,12 @@ export function McpConnectDialog({ name, onClose }: { name: string; onClose: (si
     if (!s) return <div className="text-sm text-zinc-400">Asking Claude Code how to connect {name}…</div>;
     if (s.connector)
       return s.done && !s.ok ? (
-        <div className="text-sm text-rose-400">{s.error ?? 'Claude Code gave no link to connect this connector.'}</div>
+        <div className="space-y-2">
+          <div className="text-sm text-rose-400">{s.error ?? 'Claude Code gave no link to connect this connector.'}</div>
+          <div className="text-xs text-zinc-300">
+            Or run this in a terminal and open the link it prints: <code className="mono bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5">{s.command}</code> <CopyButton text={s.command} />
+          </div>
+        </div>
       ) : s.url ? (
         <div className="space-y-3">
           <p className="text-sm text-zinc-300">
@@ -68,7 +73,7 @@ export function McpConnectDialog({ name, onClose }: { name: string; onClose: (si
     return (
       <div className="space-y-3">
         <div className={cn('rounded-md border p-3 text-sm', s.done ? (s.ok ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-rose-500/40 bg-rose-500/5') : s.needsCode ? 'border-sky-500/40 bg-sky-500/5' : 'border-zinc-800')}>
-          {s.done ? (s.ok ? `✔ Signed in to ${name}.` : `✘ ${s.error ?? 'Sign-in failed'}`) : s.needsCode ? 'Open the link below and sign in. The browser then lands on an address that may not load: copy that whole address and paste it here.' : 'A browser window opened on this computer: sign in there. This updates by itself.'}
+          {s.done ? (s.ok ? `✔ Signed in to ${name}.` : `✘ ${s.error ?? 'Sign-in failed'}`) : s.needsCode ? 'Open the link below and sign in. If a browser on this computer finishes it, this updates by itself; otherwise the browser lands on an address that may not load: copy that whole address and paste it here.' : 'Starting the sign-in…'}
         </div>
         {s.needsCode && !s.done && (
           <div className="flex gap-2">
@@ -90,6 +95,14 @@ export function McpConnectDialog({ name, onClose }: { name: string; onClose: (si
           </div>
         )}
         {err && <div className="text-xs text-rose-400">{err}</div>}
+        {/* the way out when it cannot finish here: the same sign-in in the user's own terminal */}
+        <div className={cn('text-xs rounded-md border px-3 py-2', s.done && !s.ok ? 'border-amber-500/40 bg-amber-500/5 text-zinc-200' : 'border-zinc-800 text-zinc-400')}>
+          <div className="mb-1">{s.done && !s.ok ? 'Sign in from a terminal instead: run this, open the link it prints, and paste back the address when it asks.' : 'Or run it in a terminal yourself:'}</div>
+          <div className="flex items-center gap-2">
+            <code className="mono text-zinc-100 bg-zinc-900 border border-zinc-800 rounded px-2 py-1 break-all">{s.command}</code>
+            <CopyButton text={s.command} />
+          </div>
+        </div>
         {s.lines.length > 0 && <pre className="mono text-[11px] text-zinc-500 bg-zinc-900 border border-zinc-800 rounded p-2 max-h-32 overflow-auto whitespace-pre-wrap">{s.lines.slice(-8).join('\n')}</pre>}
       </div>
     );
