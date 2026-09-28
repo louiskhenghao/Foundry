@@ -72,4 +72,14 @@ describe('catalog', () => {
     const all = catalogStatus(catalog, scan, fake.paths, () => null, () => true);
     expect(all[0]!.missingEnv).toEqual([]);
   });
+
+  test('requiresEnv "A|B": any one of the keys is enough', () => {
+    const p = writeCatalog(join(fake.home, 'cat-env-any'), [
+      { id: 'managed', name: 'managed', summary: '', why: '', tier: 'recommended', source: { type: 'git', repo: 'o/r' }, roles: ['worker'], requiresEnv: ['MINIMAX_API_KEY|ELEVENLABS_API_KEY'] },
+    ]);
+    const catalog = loadCatalog(p);
+    const scan = scanSkills(fake.paths);
+    expect(catalogStatus(catalog, scan, fake.paths, () => null, (n) => n === 'ELEVENLABS_API_KEY')[0]!.missingEnv).toEqual([]);
+    expect(catalogStatus(catalog, scan, fake.paths, () => null, () => false)[0]!.missingEnv).toEqual(['MINIMAX_API_KEY|ELEVENLABS_API_KEY']);
+  });
 });

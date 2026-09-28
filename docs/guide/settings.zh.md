@@ -138,7 +138,7 @@ skill 是 Claude Code 可以遵循的打包指令。在这里选择 Foundry 把�
 - **Profile**：**mattpocock (mandated + observed)**（默认）告诉 worker 要遵循哪种工作方法（功能先写测试，bug 先诊断），并记录它们有没有照做。**plain (hint only)** 只是提一下。
 - **Setting sources**：会话加载哪些 Claude Code 设置。留空。
 - **autoskills per goal**（开）：你批准 Brief 后，把匹配你项目技术栈（React、Tailwind……）的 skill 加到 goal 的文件夹里。它们不会进入你的提交。
-- **Design skills**、**Image skills**、**Video skills**：每类选一个包；只有这个包会交给前端、图片或视频任务。每个包显示 **installed** 或 **N missing**，并带一个 **Install** 按钮。选包会立即保存。图片包只有在 [Tools & keys](#tools--keys) 里有 key 时，才能生成真正的图片。
+- **Design skills**、**Image skills**、**Video skills**：每类选一个包；只有这个包会交给前端、图片或视频任务。每个包显示 **installed** 或 **N missing**，并带一个 **Install** 按钮。选包会立即保存。图片包只有在 [Tools & keys](#tools--keys) 里有 key 时，才能生成真正的图片。已安装的技能缺少它需要的 key 时，它的卡片上会显示 **⚠ key missing**，写明是哪个 key、缺了它会少什么；点它就会跳到 **Tools & keys**。
 
 顶栏上的 **Skills** 页面显示所有已安装的内容，并可以更新。每个技能都有一个状态：**outdated**（有新版本 —— 按 **Update**）、**unreleased**（插件作者在上游改了它，但没有提高版本号，所以 CLI 暂时没有新东西可装）、**modified**（你的副本被改过）或 **up to date**（只有 README 或 changelog 不同不算）。像 ffmpeg 这样的命令行工具，只要找得到它的命令就算已安装。插件的技能只能一起删除，用 **Uninstall plugin**。你手动安装的副本，如果 Foundry 自己能安装这个技能，就会出现 **Adopt**：用一个由 Foundry 负责更新的副本替换它。你在那里发起的每次安装、更新、接管（adopt）或卸载，都会在页面底部的 **Operations** 栏里打开一个标签页，带着它自己的日志；几个操作可以同时进行。完成的标签页会一直留着，直到你关掉它；这个栏也可以收起成一行计数。
 
@@ -159,6 +159,8 @@ Foundry 怎样跟上你项目的线上副本，以及交付要等多久。
 - **OpenAI-compatible API key**：图片 goal 要生成真正的图片就需要它。没有它，图片任务只能退回到手绘的 SVG 渲染。**OpenAI-compatible base URL**：只在用代理或其它兼容服务商时需要。
 - **Gemini API key**：某个图片包的替代选择。
 - **Kimi (Moonshot) API key**：某个设计包的模型会用到，在 skill 调用它们的时候。
+- **MiniMax API key**：通过 mmx 做视频和配音时用。如果你已经在这台电脑上用 `mmx auth login` 登录过，就留空；用 Docker 的话要填。
+- **ElevenLabs API key** 和 **Groq API key**：视频包用到时，分别用于配音声音和视频字幕的语音转文字。
 - **markitdown binary**：把附件文档转成文字的转换器。留空。
 
 key 对下一个会话生效，不用重启。更多见 [费用与用量](./costs-and-usage.zh.md#图片类-goal-需要图片-key)。

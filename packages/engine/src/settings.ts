@@ -52,6 +52,9 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'tools.openaiBaseUrl': { name: 'OPENAI_BASE_URL', parse: str },
   'tools.kimiApiKey': { name: 'KIMI_API_KEY', parse: str },
   'tools.geminiApiKey': { name: 'GEMINI_API_KEY', parse: str },
+  'tools.minimaxApiKey': { name: 'MINIMAX_API_KEY', parse: str },
+  'tools.elevenlabsApiKey': { name: 'ELEVENLABS_API_KEY', parse: str },
+  'tools.groqApiKey': { name: 'GROQ_API_KEY', parse: str },
   'notifications.telegramBotToken': { name: 'FOUNDRY_TELEGRAM_BOT_TOKEN', parse: str },
   'notifications.telegramChatId': { name: 'FOUNDRY_TELEGRAM_CHAT_ID', parse: str },
   'notifications.discordWebhookUrl': { name: 'FOUNDRY_DISCORD_WEBHOOK', parse: str },
@@ -254,6 +257,9 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('tools.openaiBaseUrl')) config.openaiBaseUrl = s.tools.openaiBaseUrl ?? undefined;
   if (on('tools.kimiApiKey')) config.kimiApiKey = s.tools.kimiApiKey ?? undefined;
   if (on('tools.geminiApiKey')) config.geminiApiKey = s.tools.geminiApiKey ?? undefined;
+  if (on('tools.minimaxApiKey')) config.minimaxApiKey = s.tools.minimaxApiKey ?? undefined;
+  if (on('tools.elevenlabsApiKey')) config.elevenlabsApiKey = s.tools.elevenlabsApiKey ?? undefined;
+  if (on('tools.groqApiKey')) config.groqApiKey = s.tools.groqApiKey ?? undefined;
   if (on('safety.extraBoundaryPatterns')) config.extraBoundaryPatterns = s.safety.extraBoundaryPatterns ?? undefined;
   if (on('safety.allowedRoots')) config.allowedRoots = s.safety.allowedRoots ?? undefined;
 }

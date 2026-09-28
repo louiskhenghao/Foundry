@@ -2,6 +2,7 @@ import { ExternalLink } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { api, type PacksView } from '../api.ts';
 import { LiveLog } from '../pages/LiveLog.tsx';
+import { KeyMissing } from './KeyMissing.tsx';
 import { Button, CopyButton, cn } from '../ui.tsx';
 
 /**
@@ -101,6 +102,11 @@ export function DesignPacks({ onInstallStarted, compact, pack = 'design' }: { on
                   ))}
                 </div>
               )}
+              {o.entries
+                .filter((e) => e.status !== 'missing' && e.status !== 'partial' && e.missingEnv.length)
+                .map((e) => (
+                  <KeyMissing key={e.id} keys={e.missingEnv} envFor={e.envFor} />
+                ))}
               {missing.length > 0 && !manualOnly && (
                 <div>
                   <Button size="sm" variant={chosen ? 'primary' : 'default'} disabled={busy !== null || installing === o.id} onClick={() => install(o.id)}>

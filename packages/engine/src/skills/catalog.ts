@@ -40,9 +40,11 @@ export const defaultWhich: WhichFn = (bin) => Bun.which(bin);
 /** does a session spawned by this engine see this env var? (the engine may add settings-sourced vars on top of process.env) */
 export type EnvProbe = (name: string) => boolean;
 export const defaultEnvProbe: EnvProbe = (name) => !!process.env[name];
+/** a requiresEnv item as people read it: "A|B" → "A or B" */
+export const envLabel = (item: string) => item.split('|').join(' or ');
 
 export function catalogStatus(catalog: Catalog, scan: ScanResult, paths: SkillsPaths, which: WhichFn = defaultWhich, envProbe: EnvProbe = defaultEnvProbe): CatalogEntryStatus[] {
-  const withEnv = (s: Omit<CatalogEntryStatus, 'missingEnv'>): CatalogEntryStatus => ({ ...s, missingEnv: s.entry.requiresEnv.filter((n) => !envProbe(n)) });
+  const withEnv = (s: Omit<CatalogEntryStatus, 'missingEnv'>): CatalogEntryStatus => ({ ...s, missingEnv: s.entry.requiresEnv.filter((item) => !item.split('|').some(envProbe)) });
   return catalog.entries.map((entry) => withEnv(statusOf(entry, scan, paths, which)));
 }
 

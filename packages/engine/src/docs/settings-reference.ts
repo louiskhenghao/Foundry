@@ -58,6 +58,9 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'tools.openaiBaseUrl': { section: 'Tools & keys', help: 'Handed to sessions as OPENAI_BASE_URL (proxies, compatible providers).' },
   'tools.kimiApiKey': { section: 'Tools & keys', help: 'Handed to sessions as MOONSHOT_API_KEY and KIMI_API_KEY.' },
   'tools.geminiApiKey': { section: 'Tools & keys', help: 'Handed to sessions as GEMINI_API_KEY.' },
+  'tools.minimaxApiKey': { section: 'Tools & keys', help: 'MiniMax key for mmx-cli (video and narration). mmx ignores MINIMAX_API_KEY when a session runs it, so Foundry writes the key to data/mmx/config.json (mode 600) and points sessions at it with MMX_CONFIG_DIR; sessions also get MINIMAX_API_KEY. Empty = the engine\'s environment, or your own `mmx auth login`.' },
+  'tools.elevenlabsApiKey': { section: 'Tools & keys', help: 'Handed to sessions as ELEVENLABS_API_KEY (narration voices).' },
+  'tools.groqApiKey': { section: 'Tools & keys', help: 'Handed to sessions as GROQ_API_KEY (speech-to-text fallback for captions when local transcription struggles).' },
   // Preview & self-check
   'preview.portFrom': { section: 'Preview & self-check', help: 'First port handed to goal previews.' },
   'preview.portTo': { section: 'Preview & self-check', help: 'Last port handed to goal previews (Docker: publish the range).' },

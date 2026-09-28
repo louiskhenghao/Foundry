@@ -51,6 +51,12 @@ describe('workflow section', () => {
     expect(ok).toContain('MUST: invoke `/gpt-image-2` — generate');
     expect(ok).not.toContain('⚠');
   });
+  test('a skill that only loses one part without its key says which, and names any-of keys as alternatives', () => {
+    const video = st(entry({ id: 'web-video-presentation', roles: ['worker'], requiresEnv: ['MINIMAX_API_KEY|OPENAI_API_KEY'], envFor: 'narration audio', workflow: [{ role: 'worker', mandate: 'must', when: 'any', scenarios: ['video'], instruction: 'build the deck' }] }), 'installed', '/web-video-presentation');
+    const s = formatWorkflowSection({ role: 'worker', scenario: 'video', profile: 'mattpocock', statuses: [{ ...video, missingEnv: ['MINIMAX_API_KEY|OPENAI_API_KEY'] }] })!;
+    expect(s).toContain('⚠ MINIMAX_API_KEY or OPENAI_API_KEY is NOT set in this session, so narration audio is unavailable. Do the rest of the work, leave narration audio out');
+    expect(s).not.toContain('can only advise');
+  });
   test('worker/bug mandates diagnosing-bugs, not tdd', () => {
     const m = mandatedSkillsFor({ role: 'worker', taskKind: 'bug', profile: 'mattpocock', statuses });
     expect(m.map((x) => x.name)).toEqual(['diagnosing-bugs']);

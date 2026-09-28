@@ -109,6 +109,10 @@ export interface PackEntry {
   detail: string;
   manual: { command: string; docs: string | null } | null;
   sourceType: 'git' | 'cli' | 'manual' | 'plugin';
+  /** keys sessions lack for this skill ("A|B" = any one of them) */
+  missingEnv: string[];
+  /** what the skill loses without them; null = its whole API/generation mode */
+  envFor: string | null;
 }
 export interface PackOptionView {
   id: string;
@@ -157,7 +161,7 @@ export interface FsRecent {
 }
 import type { AgentLogChunk, AgentsList, AgentsSummary } from '@foundry/engine/agents-types';
 import type { DoctorReport, InstallResult, SkillTier, SkillUpdateRun, SkillsOverview, SkillsUpdateReport, TrashEntry } from '@foundry/engine/skills-types';
-import type { UsageSummary } from '@foundry/engine/usage-types';
+import type { MinimaxQuota, UsageSummary } from '@foundry/engine/usage-types';
 
 export type Usage = UsageSummary & { pausedUntil: string | null };
 
@@ -421,4 +425,5 @@ export const api = {
   logout: () => req<ClaudeAuthStatus>('/api/auth/logout', { method: 'POST' }),
   usage: () => req<Usage>('/api/usage'),
   probeUsage: () => req<Usage>('/api/usage/probe', { method: 'POST' }),
+  minimaxQuota: (refresh = false) => req<MinimaxQuota>(`/api/usage/minimax${refresh ? '?refresh=1' : ''}`),
 };

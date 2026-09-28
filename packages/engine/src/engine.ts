@@ -27,6 +27,9 @@ import {
   Brief as BriefSchema,
 } from '@foundry/core';
 import { ClaudeCliRunner, type ClaudeRunner, type RunHandle } from '@foundry/runner';
+import { mmxConfigDir, mmxSignedIn, writeMmxConfig } from './mmx.ts';
+import { fetchMinimaxQuota } from './usage/minimax.ts';
+import type { MinimaxQuota } from './usage/types.ts';
 import { answerInterview, continueInterview, runClarify } from './clarify.ts';
 import { type DraftProposal, type DraftRequest, runDraft } from './brief-draft.ts';
 import { runSuggest } from './escalation-suggest.ts';
@@ -160,6 +163,8 @@ export class Engine {
   readonly preview: PreviewManager;
   /** self-update drain: no new sessions start; in-flight work finishes (mirror of the rate-limit gate) */
   private updateDraining = false;
+  private minimax: { quota: MinimaxQuota; at: number } | null = null;
+  private minimaxRun: Promise<MinimaxQuota> | null = null;
   /** what this machine has learned about model names (requested → resolved id, last ok/fail) */
   readonly models: ModelRegistry;
   /** autoskills runs in progress, per goal (tasks wait for them before their first attempt) */
@@ -177,6 +182,7 @@ export class Engine {
     // settings file > env > defaults: only file-sourced leaves override the env-built config (code overrides stay)
     this.settings = new SettingsStore(config.dataDir, process.env, config.log);
     applySettingsToConfig(config, this.settings.values(), this.settings.fileLeaves());
+    writeMmxConfig(config.dataDir, this.minimaxKey(), config.log);
     this.gh = gh ?? new CliGh({ onCommand: (cmd, cwd, r, ms) => config.log(`[gh] ${cmd.slice(0, 4).join(' ')} → ${r.code} (${ms}ms) ${cwd}`) });
     this.store = new EventStore(openDatabase(join(config.dataDir, 'engine.db')));
     const baseRunner =
@@ -211,7 +217,8 @@ export class Engine {
       hintsEnabled: () => !config.settingSources || config.settingSources.includes('user'),
       workflowProfile: () => config.workflowProfile ?? 'mattpocock',
       packs: () => ({ design: config.designPack, image: config.imagePack, video: config.videoPack }),
-      envProbe: (name) => !!(process.env[name] ?? this.sessionEnvExtra()[name]),
+      // mmx signed in with `mmx auth login` needs no key from Foundry
+      envProbe: (name) => !!(process.env[name] ?? this.sessionEnvExtra()[name]) || (name === 'MINIMAX_API_KEY' && mmxSignedIn()),
       // every updater run is an audit event (goalId null, informational)
       onRun: (run) => this.store.append({ type: 'skills.update_run', goalId: null, payload: { sourceId: run.sourceId, updater: run.updater, command: run.command, cwd: run.cwd, exitCode: run.exitCode, durationMs: run.durationMs, outputTail: run.outputTail, changed: run.changed, error: run.error } }),
     });
@@ -257,7 +264,16 @@ export class Engine {
       ...(this.config.openaiBaseUrl ? { OPENAI_BASE_URL: this.config.openaiBaseUrl } : {}),
       ...(this.config.kimiApiKey ? { MOONSHOT_API_KEY: this.config.kimiApiKey, KIMI_API_KEY: this.config.kimiApiKey } : {}),
       ...(this.config.geminiApiKey ? { GEMINI_API_KEY: this.config.geminiApiKey } : {}),
+      // mmx only reads a config file when a session runs it: point it at the one writeMmxConfig keeps
+      ...(this.minimaxKey() ? { MINIMAX_API_KEY: this.minimaxKey()!, MMX_CONFIG_DIR: mmxConfigDir(this.config.dataDir) } : {}),
+      ...(this.config.elevenlabsApiKey ? { ELEVENLABS_API_KEY: this.config.elevenlabsApiKey } : {}),
+      ...(this.config.groqApiKey ? { GROQ_API_KEY: this.config.groqApiKey } : {}),
     };
+  }
+
+  /** the MiniMax key sessions get: Settings first, else the engine's own environment; undefined = mmx uses the user's ~/.mmx login */
+  private minimaxKey(): string | undefined {
+    return this.config.minimaxApiKey ?? (process.env.MINIMAX_API_KEY || undefined);
   }
 
   /** can media sessions actually generate images here (key present in the env sessions inherit)? */
@@ -298,8 +314,9 @@ export class Engine {
     }
     if (changed.includes('tools.markitdownBin')) this.markitdown = new Markitdown({ bin: this.config.markitdownBin, log: this.config.log });
     if (changed.some((k) => k.startsWith('workflow.'))) this.skills.hints.invalidate();
-    // the key feeds the skills env probe (degraded-mode warnings) — refresh the cached statuses right away
-    if (changed.includes('tools.openaiApiKey') || changed.includes('tools.openaiBaseUrl')) this.skills.hints.invalidate();
+    if (changed.includes('tools.minimaxApiKey')) writeMmxConfig(this.config.dataDir, this.minimaxKey(), this.config.log);
+    // keys feed the skills env probe ("key missing" warnings) — refresh the cached statuses right away
+    if (changed.some((k) => /^tools\.\w+(ApiKey|BaseUrl)$/.test(k))) this.skills.hints.invalidate();
     const restartNeeded = this.settings.restartNeeded();
     this.store.append({ type: 'settings.changed', goalId: null, payload: { keys: changed, restartNeeded } });
     this.config.log(`[settings] changed ${changed.join(', ')}${restartNeeded.length ? ` (restart needed for ${restartNeeded.join(', ')})` : ''}`);
@@ -815,6 +832,23 @@ export class Engine {
   }
 
   /** One minimal cheap-model session purely to refresh the rate-limit signal (~$0.02). */
+  /**
+   * MiniMax quota, read with `mmx quota show` using the credentials sessions get. Kept for 10 minutes: the header asks
+   * often, and each read is a MiniMax API call. `force` reads it now (the Usage page's Refresh).
+   */
+  async minimaxQuota(force = false): Promise<MinimaxQuota> {
+    if (!force && this.minimax && Date.now() - this.minimax.at < 10 * 60_000) return this.minimax.quota;
+    this.minimaxRun ??= fetchMinimaxQuota({ bin: Bun.which('mmx'), signedIn: !!this.minimaxKey() || mmxSignedIn(), env: this.sessionEnvExtra(), cwd: this.config.dataDir })
+      .then((quota) => {
+        this.minimax = { quota, at: Date.now() };
+        return quota;
+      })
+      .finally(() => {
+        this.minimaxRun = null;
+      });
+    return this.minimaxRun;
+  }
+
   async probeUsage(): Promise<UsageSummary & { pausedUntil: string | null }> {
     const handle = await this.runner.run({ prompt: 'Reply with the single word OK.', cwd: this.config.dataDir, model: this.config.models.cheap, maxTurns: 1, maxBudgetUsd: 0.05, permissionMode: 'dontAsk', allowedTools: [], timeoutMs: 60_000, label: 'usage probe' });
     for await (const _ of handle.events) {

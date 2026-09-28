@@ -237,7 +237,7 @@ A few sessions still read the older `Goal.models` / `config.models` fields (`str
 | `/api/attempts/:id/transcript`, `/prompt` | raw session transcript and worker prompt |
 | `/api/skills/*`, `/api/tools/*` | skills view, catalog, install/uninstall/update, packs; markitdown, playwright and CLI tool installs; the Skills page's operations (`/api/skills/ops`, `/api/skills/ops/:id`) |
 | `/api/models`, `/api/settings`, `/api/notifications/*` | model list/sync/probe, settings get/put/reset, notification tests |
-| `/api/agents`, `/api/usage`, `/api/auth`, `/api/github`, `/api/update`, `/api/doctor`, `/api/health` | Agents monitor, usage and probe, Claude sign-in, gh status/login, self-update, environment report |
+| `/api/agents`, `/api/usage` (+ `/api/usage/minimax`: `mmx quota show`, kept 10 min), `/api/auth`, `/api/github`, `/api/update`, `/api/doctor`, `/api/health` | Agents monitor, usage and probe, Claude sign-in, gh status/login, self-update, environment report |
 | `/api/fs/*`, `/api/repos/*`, `/api/uploads`, `/api/validate-repo`, `/api/open/targets` | folder picker, repo init/upstream/pull, staged uploads, repository check for the New goal form, the editors and file managers a goal folder can be opened in |
 | `/api/guide`, `/api/guide/page/:slug`, `/api/guide/images/:file` | the user guide for the Help page (`packages/server/src/guide.ts`) |
 | `/internal/boundary` | the boundary hook's callback |
