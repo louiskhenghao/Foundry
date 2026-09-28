@@ -142,6 +142,18 @@ skill 是 Claude Code 可以遵循的打包指令。在这里选择 Foundry 把�
 
 顶栏上的 **Skills** 页面显示所有已安装的内容，并可以更新。每个技能都有一个状态：**outdated**（有新版本 —— 按 **Update**）、**unreleased**（插件作者在上游改了它，但没有提高版本号，所以 CLI 暂时没有新东西可装）、**modified**（你的副本被改过）或 **up to date**（只有 README 或 changelog 不同不算）。像 ffmpeg 这样的命令行工具，只要找得到它的命令就算已安装。插件的技能只能一起删除，用 **Uninstall plugin**。你手动安装的副本，如果 Foundry 自己能安装这个技能，就会出现 **Adopt**：用一个由 Foundry 负责更新的副本替换它。你在那里发起的每次安装、更新、接管（adopt）或卸载，都会在页面底部的 **Operations** 栏里打开一个标签页，带着它自己的日志；几个操作可以同时进行。完成的标签页会一直留着，直到你关掉它；这个栏也可以收起成一行计数。
 
+### MCP servers
+
+MCP server 让 Claude Code 能用文件和命令行以外的工具，比如最新的库文档、一个真的浏览器、网页搜索、你的邮箱。**Skills** 页面有一个 **MCP servers** 标签页，列出这台电脑上所有的 server：你自己装的（**yours**）、插件带来的（**plugin**）和你的 claude.ai 连接器（**claude.ai**）。**Check** 会逐个连上去，看它能不能用；它不会自动运行，因为它会启动每一个 server。
+
+goal 运行时不会问你，所以只有勾上 **Allowed in goals** 的 server，它的工具才会被 goal 用到，而且只在真正干活的会话里，Clarify 和审查都不会用。你自己装的 server 和 claude.ai 连接器默认不勾：邮箱连接器可能会自己发邮件。
+
+**Recommended by Foundry** 列出值得装的 server。**context7**（库的最新文档）和 **playwright**（一个真的浏览器）不需要 key，是推荐项；它们没装时 Setup 会提醒你。**exa** 和 **brave-search** 给调研类 goal 加上网页搜索，需要 key：按 **Install…**，贴上 key，再按 **Install**。两个装一个就够了。从这里装的 server 会直接允许 goal 使用。
+
+**+ add your own server** 填一个名字、一个命令或 URL，需要的 key 按 `NAME=value` 一行一个填；装好后默认不勾。server 是给你整个用户账号装的，所以你终端里的 Claude Code 也能用，**Remove** 也会把它从那里删掉。key 由 Claude Code 跟 server 一起保存，Foundry 不留副本。插件带来的 server 随插件一起删；claude.ai 连接器在 claude.ai 上管理。
+
+如果某个任务因为某个 server 的工具被拒绝而失败，Inbox 会告诉你是哪个 server，并提供 **Allow this server and retry**。
+
 ## Git & delivery
 
 Foundry 怎样跟上你项目的线上副本，以及交付要等多久。

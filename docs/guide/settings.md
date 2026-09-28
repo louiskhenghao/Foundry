@@ -142,6 +142,18 @@ Skills are packaged instructions Claude Code can follow. Here you choose which o
 
 The **Skills** page in the top bar shows everything installed and can update it. Each skill has a state: **outdated** (a newer version is out — press **Update**), **unreleased** (a plugin's author changed it upstream without raising the version number, so the CLI has nothing new to install yet), **modified** (your copy was edited) or **up to date** (a difference in a README or changelog alone does not count). A command-line tool such as ffmpeg counts as installed as soon as its command is found. A plugin's skills can only be removed together, with **Uninstall plugin**. A copy you installed by hand offers **Adopt** when Foundry can install that skill itself: the copy is replaced by one Foundry keeps up to date. Every install, update, adoption or uninstall you start there opens a tab in the **Operations** bar at the bottom of the page, with its own log; several can run side by side. A finished tab stays until you close it, and the bar folds down to a line with counts.
 
+### MCP servers
+
+MCP servers give Claude Code tools beyond files and the shell: current library docs, a real browser, web search, your mail. The **Skills** page has an **MCP servers** tab that lists every server on this computer: the ones you installed (**yours**), the ones a plugin brings (**plugin**) and your claude.ai connectors (**claude.ai**). **Check** connects to each one and shows whether it works; it is not automatic because it starts every server.
+
+Goals run without asking you, so a server's tools reach a goal only when its **Allowed in goals** box is ticked, and only in the sessions that do the work, never in Clarify or reviews. Servers you installed yourself and claude.ai connectors start unticked: a mail connector could send mail on its own.
+
+**Recommended by Foundry** lists servers worth having. **context7** (current documentation for libraries) and **playwright** (a real browser) need no key and are recommended; Setup reminds you while they are missing. **exa** and **brave-search** add web search for research goals and need a key: press **Install…**, paste the key, then **Install**. One of the two is enough. A server installed from here is allowed in goals right away.
+
+**+ add your own server** takes a name, a command or a URL, and any keys as `NAME=value` lines; it starts unticked. Servers are installed for your whole user account, so they also work in the Claude Code in your terminal, and **Remove** takes them out of it too. Keys are kept by Claude Code with the server; Foundry keeps no copy. A plugin's server goes with its plugin; claude.ai connectors are managed on claude.ai.
+
+If a task fails because a server's tool was refused, the Inbox says which server and offers **Allow this server and retry**.
+
 ## Git & delivery
 
 How Foundry keeps up with the online copy of your project, and how long delivery waits.

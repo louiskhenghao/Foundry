@@ -15,7 +15,8 @@
       "@foundry/core/browser": ["../../packages/core/src/browser.ts"],
       "@foundry/engine/agents-types": ["../../packages/engine/src/agents/types.ts"],
       "@foundry/engine/skills-types": ["../../packages/engine/src/skills/types.ts"],
-      "@foundry/engine/usage-types": ["../../packages/engine/src/usage/types.ts"]
+      "@foundry/engine/usage-types": ["../../packages/engine/src/usage/types.ts"],
+      "@foundry/engine/mcp-types": ["../../packages/engine/src/mcp/types.ts"]
     }
   },
   "include": ["src"]
