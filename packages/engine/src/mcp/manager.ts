@@ -1,7 +1,8 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import type { DoctorCheck } from '../skills/types.ts';
 import { spawnStreaming } from '../skills/updaters.ts';
+import { McpLogin, type LoginSpawn } from './login.ts';
 import { listName, listServers, parseHealth, userPrefix } from './servers.ts';
 import { McpCatalog, type McpCatalogEntry, type McpHealth, type McpView } from './types.ts';
 
@@ -15,6 +16,7 @@ export interface McpManagerOptions {
   allowed: () => string[];
   setAllowed: (prefixes: string[]) => void;
   spawn?: Spawn;
+  loginSpawn?: LoginSpawn;
   log: (msg: string) => void;
 }
 
@@ -31,7 +33,19 @@ type Result = { ok: boolean; error: string | null };
 export class McpManager {
   private queue: Promise<unknown> = Promise.resolve();
   private cached: McpCatalog | null = null;
-  constructor(private o: McpManagerOptions) {}
+  /** `claude mcp login`: connectors get their claude.ai link; other HTTP servers their OAuth sign-in */
+  readonly login: McpLogin;
+  constructor(private o: McpManagerOptions) {
+    this.login = new McpLogin({ claudeBin: () => this.claude(), headless: () => !!process.env.FOUNDRY_DOCKER || existsSync('/.dockerenv'), spawn: o.loginSpawn, log: o.log });
+  }
+
+  /** Sign in to a connector or an HTTP server; stdio servers take their keys at install instead. */
+  startLogin(name: string) {
+    const row = listServers(this.o.claudeHome, []).find((s) => s.name === name);
+    if (!row) throw new Error(`no MCP server named ${name}`);
+    if (row.source === 'plugin' || row.transport === 'stdio') throw new Error(`${name} does not sign in: it runs on this computer`);
+    return this.login.start(name, row.source === 'connector');
+  }
 
   catalog(): McpCatalog {
     this.cached ??= McpCatalog.parse(JSON.parse(readFileSync(this.o.catalogPath, 'utf8')));

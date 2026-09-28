@@ -767,6 +767,28 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const { op, result } = await ops.run('install', `Install MCP server ${name}`, { id: body.opId }, (say) => engine.mcp.install(what, body.keys, say), (r) => ({ ok: r.ok, summary: r.ok ? `installed ${name}` : (r.error ?? 'install failed') }));
     return c.json({ ...result, op });
   });
+  // sign-in for claude.ai connectors and HTTP servers (`claude mcp login`), polled by the page
+  app.get('/api/mcp/login', (c) => c.json(engine.mcp.login.session()));
+  app.post('/api/mcp/login', async (c) => {
+    const { name } = z.object({ name: z.string().min(1).max(120) }).parse(await c.req.json());
+    try {
+      return c.json(engine.mcp.startLogin(name));
+    } catch (e) {
+      throw new HttpError(400, { error: (e as Error).message });
+    }
+  });
+  app.post('/api/mcp/login/code', async (c) => {
+    const { url } = z.object({ url: z.string().min(1).max(4000) }).parse(await c.req.json());
+    try {
+      return c.json(engine.mcp.login.submit(url));
+    } catch (e) {
+      throw new HttpError(400, { error: (e as Error).message });
+    }
+  });
+  app.post('/api/mcp/login/cancel', (c) => {
+    engine.mcp.login.cancel();
+    return c.json({ ok: true });
+  });
   app.post('/api/mcp/remove', async (c) => {
     const { name, opId } = z.object({ name: z.string().regex(SERVER_NAME), opId: OpId }).parse(await c.req.json());
     const { op, result } = await ops.run('uninstall', `Remove MCP server ${name}`, { id: opId }, (say) => engine.mcp.remove(name, say), (r) => ({ ok: r.ok, summary: r.ok ? `removed ${name}` : (r.error ?? 'remove failed') }));

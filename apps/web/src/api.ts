@@ -193,8 +193,8 @@ export interface AuthInfo {
   login: LoginSession | null;
 }
 
-import type { McpHealth, McpView } from '@foundry/engine/mcp-types';
-export type { McpHealth, McpView };
+import type { McpHealth, McpLoginSession, McpView } from '@foundry/engine/mcp-types';
+export type { McpHealth, McpLoginSession, McpView };
 /** a server added by hand on the MCP tab */
 export type McpCustomServer = { name: string; config: { type: 'stdio'; command: string; args?: string[] } | { type: 'http' | 'sse'; url: string } };
 
@@ -406,6 +406,10 @@ export const api = {
   mcpCheck: () => req<{ health: McpHealth[] }>('/api/mcp/check', { method: 'POST' }),
   mcpAllow: (prefix: string, on: boolean) => req<{ allowed: string[] }>('/api/mcp/allowed', { method: 'PUT', body: JSON.stringify({ prefix, on }) }),
   mcpInstall: (what: { catalogId: string } | { custom: McpCustomServer }, keys: Record<string, string>, opId?: string) => req<{ ok: boolean; error: string | null; op: SkillOp }>('/api/mcp/install', { method: 'POST', body: JSON.stringify({ ...what, keys, opId }) }),
+  mcpLogin: (name: string) => req<McpLoginSession>('/api/mcp/login', { method: 'POST', body: JSON.stringify({ name }) }),
+  mcpLoginSession: () => req<McpLoginSession | null>('/api/mcp/login'),
+  mcpLoginSubmit: (url: string) => req<McpLoginSession>('/api/mcp/login/code', { method: 'POST', body: JSON.stringify({ url }) }),
+  mcpLoginCancel: () => req<{ ok: boolean }>('/api/mcp/login/cancel', { method: 'POST' }),
   mcpRemove: (name: string, opId?: string) => req<{ ok: boolean; error: string | null; op: SkillOp }>('/api/mcp/remove', { method: 'POST', body: JSON.stringify({ name, opId }) }),
   uninstallPlugin: (sourceId: string, opId?: string) => req<{ ok: boolean; error: string | null; op: SkillOp }>('/api/skills/plugins/uninstall', { method: 'POST', body: JSON.stringify({ sourceId, opId }) }),
   cleanupShadows: (names: string[]) => req<{ trashed: TrashEntry[]; skipped: { name: string; reason: string }[] }>('/api/skills/cleanup-shadows', { method: 'POST', body: JSON.stringify({ names }) }),
