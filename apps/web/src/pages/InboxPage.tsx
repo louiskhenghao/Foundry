@@ -194,7 +194,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
           <span className="text-xs text-zinc-300">
             Refused MCP server: <span className="mono">{mcpNames}</span> — goals may only use servers you allowed.
           </span>
-          <Button size="sm" variant="primary" disabled={busy} onClick={allowAndRetry} title="Ticks Allowed in goals for this server (Skills → MCP servers) and retries the task">
+          <Button size="sm" variant="primary" disabled={busy} onClick={allowAndRetry} title="Ticks Allowed in goals for this server (Extensions → MCP servers) and retries the task">
             Allow this server and retry
           </Button>
         </div>

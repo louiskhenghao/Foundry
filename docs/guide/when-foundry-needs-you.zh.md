@@ -54,7 +54,7 @@ Foundry 把一个任务试了好几次，验收检查仍然没过。你可以：
 
 一个任务用完了所有尝试，而且 Claude Code 拒绝了这个任务需要的某个工具（不是上面那些命令）。照原样再试，还会以同样的方式失败。你可以像上面一样用 **Suggest a hint** 或 **Let AI handle it**，也可以 **Retry with hint**（比如"不用网页搜索也能做"）、**Skip task (dependents continue)** 或 **Abort goal**。
 
-如果被拒绝的工具属于一个你还没允许 goal 使用的 MCP server，这一项会写明是哪个 server，并提供 **Allow this server and retry**：它会在 Skills 页面的 MCP servers 标签页里勾上这个 server，然后重试任务。见 [MCP servers](./settings.zh.md#mcp-servers)。
+如果被拒绝的工具属于一个你还没允许 goal 使用的 MCP server，这一项会写明是哪个 server，并提供 **Allow this server and retry**：它会在 Extensions 页面的 MCP servers 标签页里勾上这个 server，然后重试任务。见 [MCP servers](./settings.zh.md#mcp-servers)。
 
 ### 预算用完了
 

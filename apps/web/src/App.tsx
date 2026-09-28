@@ -61,8 +61,8 @@ export function App() {
       <NavLink to="/agents" className={link} title="Agents">
         <Bot size={15} /> <span className={label}>Agents</span>
       </NavLink>
-      <NavLink to="/skills" className={link} title="Skills">
-        <Puzzle size={15} /> <span className={label}>Skills</span>
+      <NavLink to="/skills" className={link} title="Extensions: skills and MCP servers">
+        <Puzzle size={15} /> <span className={label}>Extensions</span>
       </NavLink>
       <NavLink to="/setup" className={link} title="Setup">
         <Wrench size={15} /> <span className={label}>Setup</span>
