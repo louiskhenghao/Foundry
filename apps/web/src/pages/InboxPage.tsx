@@ -6,9 +6,9 @@ import { Sparkles } from 'lucide-react';
 import { api, type EscalationRow } from '../api.ts';
 import { FullTextDialog } from '../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../components/Markdown.tsx';
-import { useLive } from '../store.ts';
+import { suggestEscalation, useEscalationDraft, useEscalationDrafts, useLive } from '../store.ts';
 import { UsagePausedBanner } from '../components/UsageBanner.tsx';
-import { Badge, Button, Empty, Input, ago } from '../ui.tsx';
+import { Badge, Button, Empty, Input, Textarea, ago } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
 
 const TRIGGER_LABEL: Record<string, string> = {
@@ -70,14 +70,19 @@ export function InboxPage() {
 
 /** `embedded` = shown inside the task view: no goal/task links, tighter frame. */
 export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: boolean }) {
-  const [hint, setHint] = useState('');
-  const [attempts, setAttempts] = useState(1);
+  // hint, attempts and a running analysis are shared with this card on the other screens
+  const draft = useEscalationDraft(e.id);
+  const patch = useEscalationDrafts((s) => s.patch);
+  const { attempts, suggesting } = draft;
+  // the newer of what this tab received and what the refetched escalation carries
+  const suggestion = draft.suggestion && (!e.suggestion || draft.suggestion.at > e.suggestion.at) ? draft.suggestion : (e.suggestion ?? null);
+  const hint = draft.hint ?? (suggestion?.action === 'retry_with_hint' ? suggestion.hint : '');
+  const setHint = (v: string) => patch(e.id, { hint: v });
   const [cost, setCost] = useState('');
   const [minutes, setMinutes] = useState('');
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [suggesting, setSuggesting] = useState<null | 'suggest' | 'apply'>(null);
-  const [suggestion, setSuggestion] = useState(e.suggestion ?? null);
+  const [answerErr, setErr] = useState<string | null>(null);
+  const err = answerErr ?? draft.error;
   const [full, setFull] = useState(false);
   // the details panel scrolls at 260px; a long report also opens in the full-text dialog
   const long = e.message.length > 1200 || e.message.split('\n').length > 12;
@@ -98,22 +103,14 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
       setBusy(false);
     }
   };
-  const suggest = async (apply: boolean) => {
-    setSuggesting(apply ? 'apply' : 'suggest');
+  const suggest = (apply: boolean) => {
     setErr(null);
-    try {
-      const r = await api.suggest(e.id, apply);
-      setSuggestion(r.suggestion);
-      if (r.suggestion.action === 'retry_with_hint') setHint(r.suggestion.hint);
-    } catch (x: any) {
-      setErr(x.message);
-    } finally {
-      setSuggesting(null);
-    }
+    suggestEscalation(e.id, apply);
   };
   const answer = async (action: EscalationAction) => {
     setBusy(true);
     setErr(null);
+    patch(e.id, { error: null });
     try {
       await api.answer(e.id, {
         action,
@@ -199,8 +196,17 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
           </Button>
         </div>
       )}
+      {e.state === 'open' && actions.includes('retry_with_hint') && (
+        <Textarea
+          className="mt-3 min-h-[76px] resize-y"
+          rows={3}
+          placeholder="Hint for the next attempt (optional): the real cause, the files, the command to run, the decision to take…"
+          value={hint}
+          onChange={(x) => setHint(x.target.value)}
+        />
+      )}
       {e.state === 'open' ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="mt-2 flex flex-wrap items-center gap-2">
           {canSuggest && (
             <>
               <Button size="sm" disabled={busy || !!suggesting} onClick={() => suggest(false)} title="The AI reads the task, the failing checks and the last session, explains the cause and writes a hint for you (≤ $1)">
@@ -212,10 +218,16 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
             </>
           )}
           {actions.includes('retry_with_hint') && (
-            <>
-              <Input className="flex-1 min-w-[240px]" placeholder="hint for the next attempt (optional)" value={hint} onChange={(x) => setHint(x.target.value)} />
-              <Input type="number" className="w-20" value={attempts} onChange={(x) => setAttempts(Number(x.target.value))} title="extra attempts" />
-            </>
+            <label className="ml-auto flex items-center gap-1.5 whitespace-nowrap text-xs text-zinc-400" title="How many more tries the task gets with this hint">
+              extra attempts
+              <select className="rounded-md bg-zinc-900 border border-zinc-700 px-1.5 py-1 text-xs text-zinc-100 focus:outline-none focus:border-emerald-500" value={attempts} onChange={(x) => patch(e.id, { attempts: Number(x.target.value) })}>
+                {[1, 2, 3, 5].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
           )}
           {actions.includes('raise_budget') && (
             <>

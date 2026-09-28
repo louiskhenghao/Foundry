@@ -1,5 +1,6 @@
-import type { EngineEvent } from '@foundry/core/browser';
+import type { EngineEvent, EscalationSuggestion } from '@foundry/core/browser';
 import { create } from 'zustand';
+import { api } from './api.ts';
 
 export interface StreamItem {
   goalId: string;
@@ -73,4 +74,41 @@ export function connectWs() {
     };
   };
   open();
+}
+
+/**
+ * What the human is doing on one escalation card — the typed hint, the extra attempts, a running
+ * AI analysis — shared by every screen that shows the card (Inbox, goal overview, task drawer),
+ * so leaving one screen for another keeps it. Lives for the tab; the answer itself is the server's.
+ */
+export interface EscalationDraft {
+  /** undefined = untouched: the card shows the AI's hint, if it suggested one */
+  hint?: string;
+  attempts: number;
+  suggesting: null | 'suggest' | 'apply';
+  /** the latest suggestion this tab received, until the refetched escalation carries it */
+  suggestion: EscalationSuggestion | null;
+  error: string | null;
+}
+
+const EMPTY_DRAFT: EscalationDraft = { attempts: 1, suggesting: null, suggestion: null, error: null };
+
+export const useEscalationDrafts = create<{ drafts: Record<string, EscalationDraft>; patch: (id: string, p: Partial<EscalationDraft>) => void }>((set) => ({
+  drafts: {},
+  patch: (id, p) => set((s) => ({ drafts: { ...s.drafts, [id]: { ...(s.drafts[id] ?? EMPTY_DRAFT), ...p } } })),
+}));
+
+export const useEscalationDraft = (id: string) => useEscalationDrafts((s) => s.drafts[id]) ?? EMPTY_DRAFT;
+
+/** Runs outside any component, so the screen that started it may unmount and every card still sees it finish. */
+export async function suggestEscalation(id: string, apply: boolean): Promise<void> {
+  const { patch } = useEscalationDrafts.getState();
+  if (useEscalationDrafts.getState().drafts[id]?.suggesting) return;
+  patch(id, { suggesting: apply ? 'apply' : 'suggest', error: null });
+  try {
+    const { suggestion } = await api.suggest(id, apply);
+    patch(id, { suggesting: null, suggestion, ...(suggestion.action === 'retry_with_hint' ? { hint: suggestion.hint } : {}) });
+  } catch (x: any) {
+    patch(id, { suggesting: null, error: x.message });
+  }
 }
