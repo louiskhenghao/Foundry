@@ -144,7 +144,7 @@ The **Extensions** page in the top bar holds your skills and your MCP servers. I
 
 ### MCP servers
 
-MCP servers give Claude Code tools beyond files and the shell: current library docs, a real browser, web search, your mail. The **Extensions** page has an **MCP servers** tab that lists every server on this computer: the ones you installed (**yours**), the ones a plugin brings (**plugin**) and your claude.ai connectors (**claude.ai**). **Check** connects to each one and shows whether it works; it is not automatic because it starts every server.
+MCP servers give Claude Code tools beyond files and the shell: current library docs, a real browser, web search, your mail. The **Extensions** page has an **MCP servers** tab that lists the servers Claude Code loads for your account: the ones you installed (**yours**), the ones a plugin brings (**plugin**) and your claude.ai connectors (**claude.ai**). **Check** connects to each one and shows whether it works; it is not automatic because it starts every server.
 
 Some servers need an account before they work. A claude.ai connector (Gmail, Google Drive, …) has a **Connect** button: it opens claude.ai, where you authorize it with the account it should use; Claude Code and Foundry share that connection. A server reached by URL has **Sign in**: a browser opens on the computer running Foundry, or, when there is none (Docker), you open the link yourself and paste back the address the browser ends on. After **Check**, a server that still needs this shows **needs auth** and a **Set up** button.
 
@@ -152,7 +152,7 @@ Goals run without asking you, so a server's tools reach a goal only when its **A
 
 **Recommended by Foundry** lists servers worth having. **context7** (current documentation for libraries) and **playwright** (a real browser) need no key and are recommended; Setup reminds you while they are missing. **exa** and **brave-search** add web search for research goals and need a key: press **Install…**, paste the key, then **Install**. One of the two is enough. A server installed from here is allowed in goals right away.
 
-**+ add your own server** takes a name, a command or a URL, and any keys as `NAME=value` lines; it starts unticked. Servers are installed for your whole user account, so they also work in the Claude Code in your terminal, and **Remove** takes them out of it too. Keys are kept by Claude Code with the server; Foundry keeps no copy. A plugin's server goes with its plugin; claude.ai connectors are managed on claude.ai.
+**+ add your own server** takes a name and a command or a URL. A command server can get its keys as `NAME=value` lines; a URL server signs in instead, with **Sign in** on its row. It starts unticked, and **Change key…** on an installed server's row replaces its key. Servers are installed for your whole user account, so they also work in the Claude Code in your terminal, and **Remove** takes them out of it too. Keys are kept by Claude Code with the server; Foundry keeps no copy. A plugin's server goes with its plugin; claude.ai connectors are managed on claude.ai.
 
 If a task fails because a server's tool was refused, the Inbox says which server and offers **Allow this server and retry**.
 

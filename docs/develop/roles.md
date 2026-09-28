@@ -26,11 +26,11 @@ roles.text(name) // → file contents (only the Planner, which is a sub-agent pr
 |---|---|---|---|---|
 | `clarifier.md` | Clarify + Interview (`clarify.ts` `prepareClarify`); Draft and Revise (`brief-draft.ts` `runDraft`) | `clarifier` | read-only | `InterviewOutput` or `BriefOutput`; Draft: `TaskDraftOutput` / `AreaDraftOutput` / `RevisionOutput` |
 | `planner.md` | sub-agent `planner` inside the Clarify session (`--agents`) | `planner` | inherits Clarify's | task list JSON handed back to the Clarifier (not parsed by the engine) |
-| `worker.md` | every work Attempt (`attempt-loop.ts` `runAttempt`), including fix tasks and delivery `fix-ci` tasks | `simple` / `standard` / `complex` by Difficulty | `WORKER_TOOLS` | free text summary; the engine commits and runs the Checks |
+| `worker.md` | every work Attempt (`attempt-loop.ts` `runAttempt`), including fix tasks and delivery `fix-ci` tasks | `simple` / `standard` / `complex` by Difficulty | `workerTools(mcpAllowed)` | free text summary; the engine commits and runs the Checks |
 | `reviewer-task.md` | Task reviewer (`checks/reviewer.ts` `reviewTaskDiff`) | `taskReviewer` | read-only | `ReviewerVerdict` `{ pass, blockers[], notes? }` |
 | `reviewer-goal.md` | Goal reviewer (`goal-review.ts` `reviewGoal`) | `goalReviewer`, or `taskReviewer` for small goals | read-only | `GoalReviewOutput` `{ mustVerdicts[], stretchVerdicts[], fixTasks[], notes }` |
-| `merger.md` | Merge Attempt (`merge.ts` `runMergeAttempt`): integrate, Catch-up, base refresh, delivery sync and PR Stack | `merger` | `WORKER_TOOLS` | resolved, `git add`-ed files and a short summary |
-| `documenter.md` | Completion docs (`docs-generate.ts` `runDocsGeneration`) | `documenter` | `WORKER_TOOLS` | markdown files; the engine commits only doc files |
+| `merger.md` | Merge Attempt (`merge.ts` `runMergeAttempt`): integrate, Catch-up, base refresh, delivery sync and PR Stack | `merger` | `workerTools(mcpAllowed)` | resolved, `git add`-ed files and a short summary |
+| `documenter.md` | Completion docs (`docs-generate.ts` `runDocsGeneration`) | `documenter` | `workerTools(mcpAllowed)` | markdown files; the engine commits only doc files |
 | `feedback.md` | Milestone feedback triage (`feedback.ts` `classifyFeedback`) | `feedback` | read-only | `FeedbackPlan` `{ kind, rationale, hint, fixTasks[], decision }` |
 
 "Read-only" means `READONLY_TOOLS` plus `disallowedTools: READONLY_DISALLOWED` (no Write/Edit/MultiEdit/NotebookEdit), from `engine/src/guards/boundary.ts`. Every session, read-only or not, also gets `boundarySettings(hooksDir)`: the hook canary, the boundary guard and the rm guard.

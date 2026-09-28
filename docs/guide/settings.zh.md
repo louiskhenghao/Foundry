@@ -144,7 +144,7 @@ skill 是 Claude Code 可以遵循的打包指令。在这里选择 Foundry 把�
 
 ### MCP servers
 
-MCP server 让 Claude Code 能用文件和命令行以外的工具，比如最新的库文档、一个真的浏览器、网页搜索、你的邮箱。**Extensions** 页面有一个 **MCP servers** 标签页，列出这台电脑上所有的 server：你自己装的（**yours**）、插件带来的（**plugin**）和你的 claude.ai 连接器（**claude.ai**）。**Check** 会逐个连上去，看它能不能用；它不会自动运行，因为它会启动每一个 server。
+MCP server 让 Claude Code 能用文件和命令行以外的工具，比如最新的库文档、一个真的浏览器、网页搜索、你的邮箱。**Extensions** 页面有一个 **MCP servers** 标签页，列出 Claude Code 为你的账号加载的 server：你自己装的（**yours**）、插件带来的（**plugin**）和你的 claude.ai 连接器（**claude.ai**）。**Check** 会逐个连上去，看它能不能用；它不会自动运行，因为它会启动每一个 server。
 
 有些 server 要先连上账号才能用。claude.ai 连接器（Gmail、Google Drive……）有一个 **Connect** 按钮：它会打开 claude.ai，你在那里用它该用的账号授权；Claude Code 和 Foundry 共用这个连接。通过 URL 访问的 server 有 **Sign in**：会在运行 Foundry 的电脑上打开浏览器；如果那里没有浏览器（Docker），你就自己打开链接，再把浏览器最后停在的地址贴回来。按过 **Check** 之后，还需要这样做的 server 会显示 **needs auth** 和一个 **Set up** 按钮。
 
@@ -152,7 +152,7 @@ goal 运行时不会问你，所以只有勾上 **Allowed in goals** 的 server�
 
 **Recommended by Foundry** 列出值得装的 server。**context7**（库的最新文档）和 **playwright**（一个真的浏览器）不需要 key，是推荐项；它们没装时 Setup 会提醒你。**exa** 和 **brave-search** 给调研类 goal 加上网页搜索，需要 key：按 **Install…**，贴上 key，再按 **Install**。两个装一个就够了。从这里装的 server 会直接允许 goal 使用。
 
-**+ add your own server** 填一个名字、一个命令或 URL，需要的 key 按 `NAME=value` 一行一个填；装好后默认不勾。server 是给你整个用户账号装的，所以你终端里的 Claude Code 也能用，**Remove** 也会把它从那里删掉。key 由 Claude Code 跟 server 一起保存，Foundry 不留副本。插件带来的 server 随插件一起删；claude.ai 连接器在 claude.ai 上管理。
+**+ add your own server** 填一个名字和一个命令或 URL。命令类的 server 可以按 `NAME=value` 一行一个填 key；URL 类的 server 不填 key，而是在它那一行按 **Sign in** 登录。装好后默认不勾；已装的 server 那一行的 **Change key…** 可以换掉它的 key。server 是给你整个用户账号装的，所以你终端里的 Claude Code 也能用，**Remove** 也会把它从那里删掉。key 由 Claude Code 跟 server 一起保存，Foundry 不留副本。插件带来的 server 随插件一起删；claude.ai 连接器在 claude.ai 上管理。
 
 如果某个任务因为某个 server 的工具被拒绝而失败，Inbox 会告诉你是哪个 server，并提供 **Allow this server and retry**。
 

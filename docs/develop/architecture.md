@@ -152,7 +152,7 @@ The Brief page edits (`Engine.editBrief`, `brief.edited`), drafts and revises (`
 
 An **Attempt** (`runAttempt`, `attempt-loop.ts`) goes through Plan → Act → Observe:
 
-- **Plan/Act.** A worker session runs in the task's workspace with `roles/worker.md`, the prompt from `buildAttemptPrompt` (`attempt-prompt.ts`), `WORKER_TOOLS`, and the boundary hooks (`guards/boundary.ts`). Its model comes from `workerModelFor` (see below). A Continuation resumes the same session with a short message (`continuationMessage`) instead of a full prompt. If the hook canary is not seen before `init`, the run is killed: it fails closed.
+- **Plan/Act.** A worker session runs in the task's workspace with `roles/worker.md`, the prompt from `buildAttemptPrompt` (`attempt-prompt.ts`), `workerTools(mcpAllowed)`, and the boundary hooks (`guards/boundary.ts`). Its model comes from `workerModelFor` (see below). A Continuation resumes the same session with a short message (`continuationMessage`) instead of a full prompt. If the hook canary is not seen before `init`, the run is killed: it fails closed.
 - **Snapshot.** The engine commits whatever the session changed (`commitAll`). The model never commits.
 - **Observe.** Task-level command Checks run (`checks/command.ts`), and large outputs are distilled (`distill/`). If every Must command check passes and the task has reviewer checks (or `alwaysReviewTasks` is on and the pace is not `fast`), the **Task reviewer** runs (`checks/reviewer.ts`). The result is an `ObservationReport`, which the next Attempt receives.
 - **Regression fallback.** If two consecutive attempts are worse than the best one, the workspace is reset to the best attempt's end ref (`workspace.rolled_back`).
