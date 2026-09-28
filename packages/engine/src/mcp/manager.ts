@@ -39,12 +39,17 @@ export class McpManager {
     this.login = new McpLogin({ claudeBin: () => this.claude(), headless: () => !!process.env.FOUNDRY_DOCKER || existsSync('/.dockerenv'), spawn: o.loginSpawn, log: o.log });
   }
 
-  /** Sign in to a connector or an HTTP server; stdio servers take their keys at install instead. */
-  startLogin(name: string) {
+  /**
+   * Sign in to a connector or an HTTP server (stdio servers take their keys at install instead). Answers once the CLI
+   * printed its link, finished, or 5 s passed, so the page opens on the link rather than on a spinner.
+   */
+  async startLogin(name: string) {
     const row = listServers(this.o.claudeHome, []).find((s) => s.name === name);
     if (!row) throw new Error(`no MCP server named ${name}`);
     if (row.source === 'plugin' || row.transport === 'stdio') throw new Error(`${name} does not sign in: it runs on this computer`);
-    return this.login.start(name, row.source === 'connector');
+    const s = this.login.start(name, row.source === 'connector');
+    for (let waited = 0; !s.url && !s.done && waited < 5000; waited += 100) await Bun.sleep(100);
+    return s;
   }
 
   catalog(): McpCatalog {

@@ -772,7 +772,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.post('/api/mcp/login', async (c) => {
     const { name } = z.object({ name: z.string().min(1).max(120) }).parse(await c.req.json());
     try {
-      return c.json(engine.mcp.startLogin(name));
+      return c.json(await engine.mcp.startLogin(name));
     } catch (e) {
       throw new HttpError(400, { error: (e as Error).message });
     }

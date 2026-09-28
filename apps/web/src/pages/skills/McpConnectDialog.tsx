@@ -22,7 +22,7 @@ export function McpConnectDialog({ name, onClose }: { name: string; onClose: (si
   }, [name]);
   useEffect(() => {
     if (!s || s.done) return;
-    const t = setInterval(() => api.mcpLoginSession().then((x) => x && x.id === s.id && setS(x)).catch(() => {}), 1500);
+    const t = setInterval(() => api.mcpLoginSession().then((x) => x && x.id === s.id && setS(x)).catch(() => {}), 1000);
     return () => clearInterval(t);
   }, [s?.id, s?.done]);
 
