@@ -15,8 +15,8 @@ export function SessionDetail({ row, agentId, onOpen, onBack }: { row: AgentSess
     ['Context', <ContextGauge used={row.contextUsedTokens} window={row.contextWindowTokens} />],
     ['Directory', row.cwd ? <span className="mono" title={row.cwd}>{shortCwd(row.cwd)}</span> : '—'],
     ['Branch', row.gitBranch ? <span className="mono">{row.gitBranch}</span> : '—'],
-    ['Started', row.startedAt ? `${ago(row.startedAt)} ago` : '—'],
-    ['Last activity', row.lastActivityAt ? `${ago(row.lastActivityAt)} ago` : '—'],
+    ['Started', row.startedAt ? ago(row.startedAt) : '—'],
+    ['Last activity', row.lastActivityAt ? ago(row.lastActivityAt) : '—'],
   ];
   return (
     <div className="space-y-3">
