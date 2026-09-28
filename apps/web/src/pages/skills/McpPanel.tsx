@@ -145,7 +145,7 @@ function ServerRow({ s, health, running, onAllow, onRemove, onConnect }: { s: Mc
   const needsAuth = health?.status === 'needs-auth';
   const risky = s.source === 'connector' || (s.source === 'user' && !s.catalogId);
   return (
-    <div className="py-2.5 flex items-start gap-3 flex-wrap sm:flex-nowrap">
+    <div className="py-2.5 flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="mono text-sm text-zinc-100">{s.name}</span>
@@ -163,23 +163,25 @@ function ServerRow({ s, health, running, onAllow, onRemove, onConnect }: { s: Mc
           {s.source === 'plugin' ? `from plugin ${s.plugin}` : s.source === 'connector' ? 'connected in your claude.ai account' : s.target}
         </div>
       </div>
-      {canConnect && (
-        <Button size="sm" variant={needsAuth ? 'primary' : 'default'} className="shrink-0" onClick={onConnect} title={s.source === 'connector' ? 'Authorize it on claude.ai with the account it should use' : 'Sign in to this server'}>
-          {needsAuth ? 'Set up' : s.source === 'connector' ? 'Connect' : 'Sign in'}
-        </Button>
-      )}
-      <label className="flex items-center gap-1.5 text-xs text-zinc-300 shrink-0 cursor-pointer" title={risky && !s.allowed ? 'Goals will call its tools without asking you' : 'Worker sessions may use its tools'}>
-        <input type="checkbox" checked={s.allowed} onChange={(e) => onAllow(e.target.checked)} /> Allowed in goals
-      </label>
-      {s.source === 'user' ? (
-        <Button size="sm" variant="ghost" disabled={running} onClick={onRemove}>
-          Remove
-        </Button>
-      ) : (
-        <span className="text-[11px] text-zinc-600 shrink-0 w-16 text-right" title={s.source === 'plugin' ? 'removed with its plugin, on the Skills tab' : 'managed in your claude.ai settings'}>
-          {s.source === 'plugin' ? 'with plugin' : 'on claude.ai'}
-        </span>
-      )}
+      <div className="flex items-center gap-3 flex-wrap shrink-0">
+        {canConnect && (
+          <Button size="sm" variant={needsAuth ? 'primary' : 'default'} className="shrink-0" onClick={onConnect} title={s.source === 'connector' ? 'Authorize it on claude.ai with the account it should use' : 'Sign in to this server'}>
+            {needsAuth ? 'Set up' : s.source === 'connector' ? 'Connect' : 'Sign in'}
+          </Button>
+        )}
+        <label className="flex items-center gap-1.5 text-xs text-zinc-300 shrink-0 cursor-pointer" title={risky && !s.allowed ? 'Goals will call its tools without asking you' : 'Worker sessions may use its tools'}>
+          <input type="checkbox" checked={s.allowed} onChange={(e) => onAllow(e.target.checked)} /> Allowed in goals
+        </label>
+        {s.source === 'user' ? (
+          <Button size="sm" variant="ghost" disabled={running} onClick={onRemove}>
+            Remove
+          </Button>
+        ) : (
+          <span className="text-[11px] text-zinc-600 shrink-0 w-16 text-right" title={s.source === 'plugin' ? 'removed with its plugin, on the Skills tab' : 'managed in your claude.ai settings'}>
+            {s.source === 'plugin' ? 'with plugin' : 'on claude.ai'}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
