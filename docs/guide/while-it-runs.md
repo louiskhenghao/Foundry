@@ -172,6 +172,6 @@ Every file the goal changed compared with where it started, with lines added (gr
 - **Foundry agents**: sessions Foundry started for your goals, with the goal they belong to. These can be stopped with the ■ button.
 - **Your sessions**: sessions you opened yourself (in a terminal, in VS Code). Foundry only watches them, never touches them.
 
-Each row shows the model, how full its context is, when it was last active and in which folder. Helper agents appear indented under the session that started them. Click a row to follow its conversation. The header counts sessions **working**, **idle** and **finished** in the last 24 hours. While any session is working, a small **N busy** pill in the top bar says how many.
+Each row shows the model, how full its context is, when it was last active and in which folder. Helper agents appear indented under the session that started them. Click a row to follow its conversation: like a task's live log, every message is one line, and clicking a line opens the whole message in a window. The header counts sessions **working**, **idle** and **finished** in the last 24 hours. While any session is working, a small **N busy** pill in the top bar says how many.
 
 A session that is **idle** for a long time while its goal says running is worth a look; the task's live log usually says why.
