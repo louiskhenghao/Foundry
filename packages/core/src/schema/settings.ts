@@ -48,6 +48,8 @@ export const SessionSettings = z.object({
   attemptMaxCostUsd: z.number().min(0.5).max(500).default(10),
   attemptTimeoutMin: z.number().int().min(5).max(240).default(20),
 });
+/** media-pipeline is the image packs' MCP server (claude-image-gen): allowed unless switched off */
+export const DEFAULT_MCP_ALLOWED = ['mcp__plugin_media-pipeline_media-pipeline'] as const;
 export const WorkflowSettings = z.object({
   profile: z.enum(['mattpocock', 'plain']).default('mattpocock'),
   /** TDD discipline new goals start with (Expert mode); Simple mode starts with `preferred` */
@@ -69,6 +71,8 @@ export const WorkflowSettings = z.object({
   autoskills: z.boolean().default(true),
   /** `--setting-sources` for sessions; null = inherit everything */
   settingSources: z.array(z.string()).nullable().default(null),
+  /** MCP tool prefixes worker sessions may use (ADR-0016): mcp__<server>, mcp__plugin_<plugin>_<server>, mcp__claude_ai_<name> */
+  mcpAllowed: z.array(z.string()).default(() => [...DEFAULT_MCP_ALLOWED]),
 });
 export const ReviewSettings = z.object({
   alwaysReviewTasks: z.boolean().default(true),

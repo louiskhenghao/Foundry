@@ -1,4 +1,4 @@
-import { DEFAULT_NATURE_PRESETS, Effort, type ModelNature, type ModelPreset } from '@foundry/core';
+import { DEFAULT_MCP_ALLOWED, DEFAULT_NATURE_PRESETS, Effort, type ModelNature, type ModelPreset } from '@foundry/core';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -22,6 +22,8 @@ export interface EngineConfig {
   maxConcurrent: number;
   /** `--setting-sources`; undefined = inherit everything (user skills included). */
   settingSources?: string[];
+  /** MCP tool prefixes worker sessions may use (Settings → workflow.mcpAllowed, ADR-0016) */
+  mcpAllowed: string[];
   /** progress-folder root (Settings → engine.workspacesRoot); null = next to each repository */
   workspacesRoot: string | null;
   /** ports handed to goal previews (inclusive) and how long an unvisited preview lives */
@@ -120,6 +122,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     port: Number(process.env.FOUNDRY_PORT ?? 4111),
     host: process.env.FOUNDRY_HOST ?? '127.0.0.1',
     maxConcurrent: Number(process.env.FOUNDRY_MAX_CONCURRENT ?? 3),
+    mcpAllowed: [...DEFAULT_MCP_ALLOWED],
     workspacesRoot: process.env.FOUNDRY_WORKSPACES_ROOT ?? null,
     preview: { portFrom: Number(process.env.FOUNDRY_PREVIEW_PORT_FROM ?? 4200), portTo: Number(process.env.FOUNDRY_PREVIEW_PORT_TO ?? 4299), idleMinutes: Number(process.env.FOUNDRY_PREVIEW_IDLE_MIN ?? 60) },
     selfCheck: process.env.FOUNDRY_SELF_CHECK === '1' || process.env.FOUNDRY_SELF_CHECK === 'true',
