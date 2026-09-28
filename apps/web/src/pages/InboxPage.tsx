@@ -85,13 +85,19 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
   const canSuggest = e.taskId && (e.trigger === 'retries_exhausted' || e.trigger === 'permission_denial');
   // the MCP servers whose tools were refused (ADR-0016): mcp__<server>__<tool> → mcp__<server>
   const mcpDenied = e.trigger === 'permission_denial' ? [...new Set(((e.payload as { denials?: { tool_name?: string }[] }).denials ?? []).map((d) => d.tool_name ?? '').filter((t) => t.startsWith('mcp__')).map((t) => t.split('__').slice(0, 2).join('__')))] : [];
+  // which of them goals may already use: those were refused for another reason (often a sign-in), so allowing is no fix
+  const [mcpAllowed, setMcpAllowed] = useState<string[] | null>(null);
+  useEffect(() => {
+    if (mcpDenied.length) void api.mcp().then((v) => setMcpAllowed(v.servers.filter((s) => s.allowed).map((s) => s.prefix))).catch(() => setMcpAllowed([]));
+  }, [mcpDenied.join(',')]);
+  const mcpToAllow = mcpDenied.filter((p) => !mcpAllowed?.includes(p));
   const mcpNames = mcpDenied.map((p) => p.slice('mcp__'.length)).join(', ');
   const allowAndRetry = async () => {
     setBusy(true);
     setErr(null);
     try {
-      for (const p of mcpDenied) await api.mcpAllow(p, true);
-      await api.answer(e.id, { action: 'retry_with_hint', hint: hint || `The MCP server ${mcpNames} is now allowed in this goal; use it.`, extraAttempts: attempts });
+      for (const p of mcpToAllow) await api.mcpAllow(p, true);
+      await api.answer(e.id, { action: 'retry_with_hint', hint: hint || `The MCP server ${mcpNames} is now allowed in goals; use it.`, extraAttempts: attempts });
     } catch (x: any) {
       setErr(x.message);
     } finally {
@@ -189,7 +195,16 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
           {suggestion.action === 'skip_task' && <div className="text-zinc-400">The AI thinks this part is not worth pursuing here — your call: <b>Skip task</b>.</div>}
         </div>
       )}
-      {e.state === 'open' && mcpDenied.length > 0 && e.taskId && (
+      {e.state === 'open' && mcpDenied.length > 0 && e.taskId && mcpAllowed && mcpToAllow.length === 0 && (
+        <div className="mt-3 rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-xs text-zinc-300">
+          Refused MCP server: <span className="mono">{mcpNames}</span>. It is already allowed in goals, so something else stopped it — often it needs signing in.{' '}
+          <Link to="/skills#mcp" className="underline">
+            Check it under Extensions → MCP servers
+          </Link>
+          , then retry.
+        </div>
+      )}
+      {e.state === 'open' && mcpToAllow.length > 0 && e.taskId && mcpAllowed && (
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2">
           <span className="text-xs text-zinc-300">
             Refused MCP server: <span className="mono">{mcpNames}</span> — goals may only use servers you allowed.
