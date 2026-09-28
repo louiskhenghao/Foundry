@@ -159,6 +159,8 @@ Foundry 怎样跟上你项目的线上副本，以及交付要等多久。
 - **OpenAI-compatible API key**：图片 goal 要生成真正的图片就需要它。没有它，图片任务只能退回到手绘的 SVG 渲染。**OpenAI-compatible base URL**：只在用代理或其它兼容服务商时需要。
 - **Gemini API key**：某个图片包的替代选择。
 - **Kimi (Moonshot) API key**：某个设计包的模型会用到，在 skill 调用它们的时候。
+- **MiniMax API key**：通过 mmx 做视频和配音时用。如果你已经在这台电脑上用 `mmx auth login` 登录过，就留空；用 Docker 的话要填。
+- **ElevenLabs API key** 和 **Groq API key**：视频包用到时，分别用于配音声音和视频字幕的语音转文字。
 - **markitdown binary**：把附件文档转成文字的转换器。留空。
 
 key 对下一个会话生效，不用重启。更多见 [费用与用量](./costs-and-usage.zh.md#图片类-goal-需要图片-key)。

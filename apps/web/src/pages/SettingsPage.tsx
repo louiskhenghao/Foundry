@@ -503,6 +503,15 @@ export function SettingsPage() {
               <Field label="Kimi (Moonshot) API key" aside={aside('tools.kimiApiKey')} help="Handed to sessions as MOONSHOT_API_KEY and KIMI_API_KEY — used by taste-skill's sponsored Kimi models where a skill calls them. Empty = whatever the engine's own environment has.">
                 <Input type="password" autoComplete="off" value={(get(draft, 'tools.kimiApiKey') as string | null) ?? ''} placeholder="sk-…" onChange={(e) => set('tools.kimiApiKey', e.target.value === '' ? null : e.target.value)} />
               </Field>
+              <Field label="MiniMax API key" aside={aside('tools.minimaxApiKey')} help="For mmx-cli (video and narration). Foundry saves it where mmx reads it and hands it to sessions as MINIMAX_API_KEY. Empty = the engine's own environment, or your own `mmx auth login`.">
+                <Input type="password" autoComplete="off" value={(get(draft, 'tools.minimaxApiKey') as string | null) ?? ''} placeholder="sk-cp-… or sk-api-…" onChange={(e) => set('tools.minimaxApiKey', e.target.value === '' ? null : e.target.value)} />
+              </Field>
+              <Field label="ElevenLabs API key" aside={aside('tools.elevenlabsApiKey')} help="Handed to sessions as ELEVENLABS_API_KEY — narration voices for web-video-presentation. Empty = whatever the engine's own environment has.">
+                <Input type="password" autoComplete="off" value={(get(draft, 'tools.elevenlabsApiKey') as string | null) ?? ''} placeholder="sk_…" onChange={(e) => set('tools.elevenlabsApiKey', e.target.value === '' ? null : e.target.value)} />
+              </Field>
+              <Field label="Groq API key" aside={aside('tools.groqApiKey')} help="Handed to sessions as GROQ_API_KEY — speech-to-text for hyperframes captions (its OpenAI mode uses the OpenAI key). Empty = whatever the engine's own environment has.">
+                <Input type="password" autoComplete="off" value={(get(draft, 'tools.groqApiKey') as string | null) ?? ''} placeholder="gsk_…" onChange={(e) => set('tools.groqApiKey', e.target.value === '' ? null : e.target.value)} />
+              </Field>
               <Field label="markitdown binary" aside={aside('tools.markitdownBin')} help="Converts attachments and repository documents to markdown before sessions read them. Empty = auto-detect on PATH and ~/.local/bin.">
                 {text('tools.markitdownBin', 'markitdown', true)}
               </Field>

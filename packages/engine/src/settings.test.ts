@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { defaultConfig } from './config.ts';
@@ -93,5 +93,26 @@ describe('engine + settings', () => {
     expect(engine.sessionEnvExtra()).toEqual({ OPENAI_API_KEY: 'sk-o', MOONSHOT_API_KEY: 'sk-k', KIMI_API_KEY: 'sk-k', GEMINI_API_KEY: 'g-1' });
     engine.updateSettings({ tools: { kimiApiKey: null, geminiApiKey: null } });
     expect(engine.sessionEnvExtra()).toEqual({ OPENAI_API_KEY: 'sk-o' });
+    engine.updateSettings({ tools: { elevenlabsApiKey: 'el-1', groqApiKey: 'gsk-1' } });
+    expect(engine.sessionEnvExtra()).toEqual({ OPENAI_API_KEY: 'sk-o', ELEVENLABS_API_KEY: 'el-1', GROQ_API_KEY: 'gsk-1' });
+  });
+
+  test('a MiniMax key is written where mmx reads it, and removed with the setting', () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'foundry-settings-mmx-'));
+    const engine = new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'ch'), log: () => {} }), new FakeRunner(() => {}));
+    const file = join(dataDir, 'mmx', 'config.json');
+    const saved = process.env.MINIMAX_API_KEY;
+    delete process.env.MINIMAX_API_KEY;
+    try {
+      engine.updateSettings({ tools: { minimaxApiKey: 'sk-cp-1' } });
+      expect(engine.sessionEnvExtra()).toEqual({ MINIMAX_API_KEY: 'sk-cp-1', MMX_CONFIG_DIR: join(dataDir, 'mmx') });
+      expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ api_key: 'sk-cp-1' });
+      expect(statSync(file).mode & 0o777).toBe(0o600);
+      engine.updateSettings({ tools: { minimaxApiKey: null } });
+      expect(engine.sessionEnvExtra()).toEqual({});
+      expect(existsSync(file)).toBe(false);
+    } finally {
+      if (saved !== undefined) process.env.MINIMAX_API_KEY = saved;
+    }
   });
 });

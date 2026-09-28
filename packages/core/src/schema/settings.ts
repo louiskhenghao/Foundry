@@ -109,6 +109,12 @@ export const ToolSettings = z.object({
   kimiApiKey: z.string().nullable().default(null),
   /** Gemini key handed to sessions as GEMINI_API_KEY (claude-image-gen's default provider); null = whatever the engine's own environment has */
   geminiApiKey: z.string().nullable().default(null),
+  /** MiniMax key for mmx-cli (video, narration): written to Foundry's own mmx config (mmx ignores MINIMAX_API_KEY when run by a session) and handed to sessions as MINIMAX_API_KEY; null = whatever the engine's environment or `mmx auth login` has */
+  minimaxApiKey: z.string().nullable().default(null),
+  /** ElevenLabs key handed to sessions as ELEVENLABS_API_KEY (narration voices); null = whatever the engine's own environment has */
+  elevenlabsApiKey: z.string().nullable().default(null),
+  /** Groq key handed to sessions as GROQ_API_KEY (speech-to-text for captions); null = whatever the engine's own environment has */
+  groqApiKey: z.string().nullable().default(null),
 });
 export const NotificationSettings = z.object({
   /** Telegram bot token from @BotFather; null = Telegram channel off */

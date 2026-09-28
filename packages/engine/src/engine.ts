@@ -27,6 +27,7 @@ import {
   Brief as BriefSchema,
 } from '@foundry/core';
 import { ClaudeCliRunner, type ClaudeRunner, type RunHandle } from '@foundry/runner';
+import { mmxConfigDir, writeMmxConfig } from './mmx.ts';
 import { answerInterview, continueInterview, runClarify } from './clarify.ts';
 import { type DraftProposal, type DraftRequest, runDraft } from './brief-draft.ts';
 import { runSuggest } from './escalation-suggest.ts';
@@ -177,6 +178,7 @@ export class Engine {
     // settings file > env > defaults: only file-sourced leaves override the env-built config (code overrides stay)
     this.settings = new SettingsStore(config.dataDir, process.env, config.log);
     applySettingsToConfig(config, this.settings.values(), this.settings.fileLeaves());
+    writeMmxConfig(config.dataDir, this.minimaxKey(), config.log);
     this.gh = gh ?? new CliGh({ onCommand: (cmd, cwd, r, ms) => config.log(`[gh] ${cmd.slice(0, 4).join(' ')} → ${r.code} (${ms}ms) ${cwd}`) });
     this.store = new EventStore(openDatabase(join(config.dataDir, 'engine.db')));
     const baseRunner =
@@ -257,7 +259,16 @@ export class Engine {
       ...(this.config.openaiBaseUrl ? { OPENAI_BASE_URL: this.config.openaiBaseUrl } : {}),
       ...(this.config.kimiApiKey ? { MOONSHOT_API_KEY: this.config.kimiApiKey, KIMI_API_KEY: this.config.kimiApiKey } : {}),
       ...(this.config.geminiApiKey ? { GEMINI_API_KEY: this.config.geminiApiKey } : {}),
+      // mmx only reads a config file when a session runs it: point it at the one writeMmxConfig keeps
+      ...(this.minimaxKey() ? { MINIMAX_API_KEY: this.minimaxKey()!, MMX_CONFIG_DIR: mmxConfigDir(this.config.dataDir) } : {}),
+      ...(this.config.elevenlabsApiKey ? { ELEVENLABS_API_KEY: this.config.elevenlabsApiKey } : {}),
+      ...(this.config.groqApiKey ? { GROQ_API_KEY: this.config.groqApiKey } : {}),
     };
+  }
+
+  /** the MiniMax key sessions get: Settings first, else the engine's own environment; undefined = mmx uses the user's ~/.mmx login */
+  private minimaxKey(): string | undefined {
+    return this.config.minimaxApiKey ?? (process.env.MINIMAX_API_KEY || undefined);
   }
 
   /** can media sessions actually generate images here (key present in the env sessions inherit)? */
@@ -298,8 +309,9 @@ export class Engine {
     }
     if (changed.includes('tools.markitdownBin')) this.markitdown = new Markitdown({ bin: this.config.markitdownBin, log: this.config.log });
     if (changed.some((k) => k.startsWith('workflow.'))) this.skills.hints.invalidate();
-    // the key feeds the skills env probe (degraded-mode warnings) — refresh the cached statuses right away
-    if (changed.includes('tools.openaiApiKey') || changed.includes('tools.openaiBaseUrl')) this.skills.hints.invalidate();
+    if (changed.includes('tools.minimaxApiKey')) writeMmxConfig(this.config.dataDir, this.minimaxKey(), this.config.log);
+    // keys feed the skills env probe ("key missing" warnings) — refresh the cached statuses right away
+    if (changed.some((k) => /^tools\.\w+(ApiKey|BaseUrl)$/.test(k))) this.skills.hints.invalidate();
     const restartNeeded = this.settings.restartNeeded();
     this.store.append({ type: 'settings.changed', goalId: null, payload: { keys: changed, restartNeeded } });
     this.config.log(`[settings] changed ${changed.join(', ')}${restartNeeded.length ? ` (restart needed for ${restartNeeded.join(', ')})` : ''}`);

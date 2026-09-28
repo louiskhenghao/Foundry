@@ -159,6 +159,8 @@ How Foundry keeps up with the online copy of your project, and how long delivery
 - **OpenAI-compatible API key**: needed for image goals to produce real images. Without it, image tasks fall back to hand-drawn SVG renders. **OpenAI-compatible base URL**: only for a proxy or another compatible provider.
 - **Gemini API key**: an alternative for one of the image packs.
 - **Kimi (Moonshot) API key**: used by one design pack's models, where a skill calls them.
+- **MiniMax API key**: for video and narration through mmx. Leave it empty if you already signed in with `mmx auth login` on this computer; in Docker, fill it in.
+- **ElevenLabs API key** and **Groq API key**: narration voices, and speech-to-text for video captions, when a video pack uses them.
 - **markitdown binary**: the converter that turns attached documents into text. Leave empty.
 
 Keys apply to the next session, no restart. More in [Costs and usage](./costs-and-usage.md#image-goals-need-an-image-key).

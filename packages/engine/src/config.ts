@@ -100,6 +100,12 @@ export interface EngineConfig {
   kimiApiKey?: string;
   /** Gemini key handed to sessions as GEMINI_API_KEY */
   geminiApiKey?: string;
+  /** MiniMax key for mmx-cli, written to Foundry's mmx config and handed to sessions as MINIMAX_API_KEY */
+  minimaxApiKey?: string;
+  /** ElevenLabs key handed to sessions as ELEVENLABS_API_KEY */
+  elevenlabsApiKey?: string;
+  /** Groq key handed to sessions as GROQ_API_KEY */
+  groqApiKey?: string;
   log: (msg: string) => void;
 }
 
