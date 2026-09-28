@@ -784,7 +784,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       chosen,
       options: opts.map((o) => ({
         ...o,
-        entries: statuses.filter((s) => s.entry.pack === pack && s.entry.packOption === o.id).map((s) => ({ id: s.entry.id, name: s.entry.name, invoke: s.entry.invoke ?? s.installedInvoke ?? `/${s.entry.name}`, status: s.status, detail: s.detail, manual: s.manual, sourceType: s.entry.source.type })),
+        entries: statuses.filter((s) => s.entry.pack === pack && s.entry.packOption === o.id).map((s) => ({ id: s.entry.id, name: s.entry.name, invoke: s.entry.invoke ?? s.installedInvoke ?? `/${s.entry.name}`, status: s.status, detail: s.detail, manual: s.manual, sourceType: s.entry.source.type, missingEnv: s.missingEnv, envFor: s.entry.envFor ?? null })),
       })),
     });
     return c.json({

@@ -109,6 +109,10 @@ export interface PackEntry {
   detail: string;
   manual: { command: string; docs: string | null } | null;
   sourceType: 'git' | 'cli' | 'manual' | 'plugin';
+  /** keys sessions lack for this skill ("A|B" = any one of them) */
+  missingEnv: string[];
+  /** what the skill loses without them; null = its whole API/generation mode */
+  envFor: string | null;
 }
 export interface PackOptionView {
   id: string;

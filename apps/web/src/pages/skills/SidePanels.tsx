@@ -2,6 +2,7 @@ import type { EngineEvent } from '@foundry/core/browser';
 import type { CatalogEntryStatus, SessionView, SkillTier, TrashEntry } from '@foundry/engine/skills-types';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
+import { KeyMissing } from '../../components/KeyMissing.tsx';
 import { Badge, Button, Card, CopyButton, Tabs, ago, cn } from '../../ui.tsx';
 
 const TIERS: SkillTier[] = ['required', 'recommended', 'optional'];
@@ -132,6 +133,7 @@ function CatalogRow({ c, busy, running, onInstall, onInstallTool }: { c: Catalog
       {type === 'manual' && !satisfied && c.manual && <div className="text-[11px] text-amber-300/80 mt-1">manual install — copy the command/instructions and run them yourself</div>}
       {running && <div className="mt-1">{running}</div>}
       <div className="text-[11px] text-zinc-500 mt-1">{c.entry.summary}</div>
+      {satisfied && <KeyMissing keys={c.missingEnv} envFor={c.entry.envFor} />}
       {open && (
         <div className="text-[11px] text-zinc-400 mt-2 space-y-1">
           <div>

@@ -1,6 +1,7 @@
 import type { Settings, SettingsView } from '@foundry/core/browser';
 import { RotateCcw } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { api, type ModelRecordView, type UpdateStatusView } from '../api.ts';
 import { LiveLog } from './LiveLog.tsx';
 import { ModelPresetsSection } from './settings/ModelPresets.tsx';
@@ -61,6 +62,12 @@ export function SettingsPage() {
   const [upd, setUpd] = useState<UpdateStatusView | null>(null);
   const [updBusy, setUpdBusy] = useState(false);
   const [updOpen, setUpdOpen] = useState(false);
+  const { hash } = useLocation();
+  // a link to one section (/settings#tools) lands on it once the page has rendered
+  const loaded = !!draft;
+  useEffect(() => {
+    if (loaded && hash) document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView({ block: 'start' });
+  }, [loaded, hash]);
   const loadUpdate = () => api.updateStatus().then(setUpd).catch(() => {});
   const checkUpdate = async () => {
     setUpdBusy(true);
