@@ -19,6 +19,8 @@ const demo = await startDemo();
 const browser = await chromium.launch({ channel: 'chrome' }).catch(() => chromium.launch());
 const page = await browser.newPage({ viewport: { width: 1280, height: 860 }, deviceScaleFactor: 2 });
 mkdirSync(OUT, { recursive: true });
+// the MiniMax card reports whether this machine has mmx and a key: the guide shows the page without it
+await page.route('**/api/usage/minimax*', (r) => r.fulfill({ json: { state: 'unavailable', reason: 'no-cli', checkedAt: new Date().toISOString() } }));
 const shot = async (name: string, path: string, prepare?: () => Promise<void>, height?: number) => {
   await page.goto(demo.url + path, { waitUntil: 'networkidle' });
   await page.waitForTimeout(600);
