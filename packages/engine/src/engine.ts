@@ -27,7 +27,7 @@ import {
   Brief as BriefSchema,
 } from '@foundry/core';
 import { ClaudeCliRunner, type ClaudeRunner, type RunHandle } from '@foundry/runner';
-import { mmxConfigDir, writeMmxConfig } from './mmx.ts';
+import { mmxConfigDir, mmxSignedIn, writeMmxConfig } from './mmx.ts';
 import { answerInterview, continueInterview, runClarify } from './clarify.ts';
 import { type DraftProposal, type DraftRequest, runDraft } from './brief-draft.ts';
 import { runSuggest } from './escalation-suggest.ts';
@@ -213,7 +213,8 @@ export class Engine {
       hintsEnabled: () => !config.settingSources || config.settingSources.includes('user'),
       workflowProfile: () => config.workflowProfile ?? 'mattpocock',
       packs: () => ({ design: config.designPack, image: config.imagePack, video: config.videoPack }),
-      envProbe: (name) => !!(process.env[name] ?? this.sessionEnvExtra()[name]),
+      // mmx signed in with `mmx auth login` needs no key from Foundry
+      envProbe: (name) => !!(process.env[name] ?? this.sessionEnvExtra()[name]) || (name === 'MINIMAX_API_KEY' && mmxSignedIn()),
       // every updater run is an audit event (goalId null, informational)
       onRun: (run) => this.store.append({ type: 'skills.update_run', goalId: null, payload: { sourceId: run.sourceId, updater: run.updater, command: run.command, cwd: run.cwd, exitCode: run.exitCode, durationMs: run.durationMs, outputTail: run.outputTail, changed: run.changed, error: run.error } }),
     });

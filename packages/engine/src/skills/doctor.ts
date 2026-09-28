@@ -1,7 +1,7 @@
 import { accessSync, constants, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { claudeAuthStatus } from '../auth/claude-auth.ts';
 import { exec } from '../git/git.ts';
-import { SATISFIED, type WhichFn, defaultWhich } from './catalog.ts';
+import { SATISFIED, type WhichFn, defaultWhich, envLabel } from './catalog.ts';
 import { packAllows } from './packs.ts';
 import type { SkillsPaths } from './paths.ts';
 import type { Catalog, CatalogEntryStatus, DoctorCheck, DoctorReport, SkillsUpdateReport } from './types.ts';
@@ -57,7 +57,9 @@ export async function runDoctor(ctx: DoctorContext): Promise<DoctorReport> {
 
   // installed skills whose API mode is dead because sessions lack a required env var (e.g. the image pack without OPENAI_API_KEY)
   for (const s of ctx.statuses.filter((x) => SATISFIED.includes(x.status) && x.missingEnv.length && packAllows(x.entry, ctx.packs ?? {}))) {
-    checks.push(warn(`env:${s.entry.id}`, `${s.entry.name} backend`, `${s.missingEnv.join(', ')} not set — sessions get the skill in degraded (advisory-only) mode; media deliverables fall back to hand-authored renders`, { url: '/settings' }));
+    const keys = s.missingEnv.map(envLabel).join(', ');
+    const effect = s.entry.envFor ? `sessions get ${s.entry.name} without ${s.entry.envFor}` : 'sessions get the skill in degraded (advisory-only) mode; media deliverables fall back to hand-authored renders';
+    checks.push(warn(`env:${s.entry.id}`, `${s.entry.name} backend`, `${keys} not set — ${effect}`, { url: '/settings' }));
   }
 
   // GitHub CLI (optional: only delivery modes pr / pr-automerge need it)

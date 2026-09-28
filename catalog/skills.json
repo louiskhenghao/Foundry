@@ -716,7 +716,11 @@
         }
       ],
       "pack": "video",
-      "packOption": "web-video-presentation"
+      "packOption": "web-video-presentation",
+      "requiresEnv": [
+        "MINIMAX_API_KEY|OPENAI_API_KEY|ELEVENLABS_API_KEY"
+      ],
+      "envFor": "narration audio"
     },
     {
       "id": "autoskills",
@@ -980,6 +984,9 @@
           ],
           "instruction": "Generate video/audio with the mmx CLI. Save every rendered file into artifacts/ and record its prompt/parameters in the task manifest."
         }
+      ],
+      "requiresEnv": [
+        "MINIMAX_API_KEY"
       ]
     },
     {
@@ -1034,7 +1041,7 @@
         "image"
       ],
       "requiresEnv": [
-        "GEMINI_API_KEY"
+        "GEMINI_API_KEY|OPENAI_API_KEY"
       ],
       "workflow": [
         {
