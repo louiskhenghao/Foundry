@@ -1,5 +1,6 @@
 import { ExternalLink, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api, type LoginSession } from '../api.ts';
 import { Button, CopyButton, Input, cn } from '../ui.tsx';
 
@@ -40,7 +41,8 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
     }
   };
 
-  return (
+  // portalled to <body>: the header's backdrop blur would otherwise pin this fixed overlay to the 48px header, cutting the dialog off
+  return createPortal(
     <div className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
       <div className="w-full max-w-lg rounded-lg border border-zinc-800 bg-zinc-950 p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
@@ -115,6 +117,7 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
