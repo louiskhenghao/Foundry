@@ -163,7 +163,7 @@ Foundry 怎样跟上你项目的线上副本，以及交付要等多久。
 - **ElevenLabs API key** 和 **Groq API key**：视频包用到时，分别用于配音声音和视频字幕的语音转文字。
 - **markitdown binary**：把附件文档转成文字的转换器。留空。
 
-key 对下一个会话生效，不用重启。更多见 [费用与用量](./costs-and-usage.zh.md#图片类-goal-需要图片-key)。
+key 对下一个会话生效，不用重启。保存过的 key 不会再显示出来，连这个页面也拿不到：输入框里只显示 `saved: sk-p…9f3a — type to replace`。输入新的 key 就会替换它，按输入框旁边的 ↺ 就会删掉它。Notifications 里的 Telegram token 和 Discord webhook 也一样。更多见 [费用与用量](./costs-and-usage.zh.md#图片类-goal-需要图片-key)。
 
 ## Preview & self-check
 

@@ -187,6 +187,12 @@ export function SettingsPage() {
       setBusy(false);
     }
   };
+  // a saved credential never comes back from the server: the field starts empty, shows a masked hint, and only what you
+  // type is saved; ↺ forgets the saved one
+  const secret = (path: Leaf, placeholder: string) => {
+    const saved = view.secrets[path];
+    return <Input type="password" autoComplete="off" value={(get(draft, path) as string | null) ?? ''} placeholder={saved?.set ? `saved: ${saved.hint} — type to replace` : placeholder} onChange={(e) => set(path, e.target.value === '' ? null : e.target.value)} />;
+  };
   const aside = (path: Leaf) => (
     <>
       <SourceBadge view={view} path={path} />
@@ -499,25 +505,25 @@ export function SettingsPage() {
           {grid(
             <>
               <Field label="OpenAI-compatible API key" aside={aside('tools.openaiApiKey')} help="Handed to every session as OPENAI_API_KEY — the image pack needs it to actually generate images (without it, image tasks fall back to hand-authored SVG renders). Empty = whatever the engine's own environment has.">
-                <Input type="password" autoComplete="off" value={(get(draft, 'tools.openaiApiKey') as string | null) ?? ''} placeholder="sk-…" onChange={(e) => set('tools.openaiApiKey', e.target.value === '' ? null : e.target.value)} />
+                {secret('tools.openaiApiKey', 'sk-…')}
               </Field>
               <Field label="OpenAI-compatible base URL" aside={aside('tools.openaiBaseUrl')} help="Handed to sessions as OPENAI_BASE_URL for proxies / compatible providers; empty = the provider's default endpoint.">
                 {text('tools.openaiBaseUrl', 'https://api.openai.com/v1', true)}
               </Field>
               <Field label="Gemini API key" aside={aside('tools.geminiApiKey')} help="Handed to sessions as GEMINI_API_KEY — the claude-image-gen image pack option uses Gemini by default (its OpenAI mode uses the key above). Empty = whatever the engine's own environment has.">
-                <Input type="password" autoComplete="off" value={(get(draft, 'tools.geminiApiKey') as string | null) ?? ''} placeholder="AIza…" onChange={(e) => set('tools.geminiApiKey', e.target.value === '' ? null : e.target.value)} />
+                {secret('tools.geminiApiKey', 'AIza…')}
               </Field>
               <Field label="Kimi (Moonshot) API key" aside={aside('tools.kimiApiKey')} help="Handed to sessions as MOONSHOT_API_KEY and KIMI_API_KEY — used by taste-skill's sponsored Kimi models where a skill calls them. Empty = whatever the engine's own environment has.">
-                <Input type="password" autoComplete="off" value={(get(draft, 'tools.kimiApiKey') as string | null) ?? ''} placeholder="sk-…" onChange={(e) => set('tools.kimiApiKey', e.target.value === '' ? null : e.target.value)} />
+                {secret('tools.kimiApiKey', 'sk-…')}
               </Field>
               <Field label="MiniMax API key" aside={aside('tools.minimaxApiKey')} help="For mmx-cli (video and narration). Foundry saves it where mmx reads it and hands it to sessions as MINIMAX_API_KEY. Empty = the engine's own environment, or your own `mmx auth login`.">
-                <Input type="password" autoComplete="off" value={(get(draft, 'tools.minimaxApiKey') as string | null) ?? ''} placeholder="sk-cp-… or sk-api-…" onChange={(e) => set('tools.minimaxApiKey', e.target.value === '' ? null : e.target.value)} />
+                {secret('tools.minimaxApiKey', 'sk-cp-… or sk-api-…')}
               </Field>
               <Field label="ElevenLabs API key" aside={aside('tools.elevenlabsApiKey')} help="Handed to sessions as ELEVENLABS_API_KEY — narration voices for web-video-presentation. Empty = whatever the engine's own environment has.">
-                <Input type="password" autoComplete="off" value={(get(draft, 'tools.elevenlabsApiKey') as string | null) ?? ''} placeholder="sk_…" onChange={(e) => set('tools.elevenlabsApiKey', e.target.value === '' ? null : e.target.value)} />
+                {secret('tools.elevenlabsApiKey', 'sk_…')}
               </Field>
               <Field label="Groq API key" aside={aside('tools.groqApiKey')} help="Handed to sessions as GROQ_API_KEY — hyperframes transcribes captions locally and falls back to Groq (or the OpenAI key) when the audio is too noisy. Empty = whatever the engine's own environment has.">
-                <Input type="password" autoComplete="off" value={(get(draft, 'tools.groqApiKey') as string | null) ?? ''} placeholder="gsk_…" onChange={(e) => set('tools.groqApiKey', e.target.value === '' ? null : e.target.value)} />
+                {secret('tools.groqApiKey', 'gsk_…')}
               </Field>
               <Field label="markitdown binary" aside={aside('tools.markitdownBin')} help="Converts attachments and repository documents to markdown before sessions read them. Empty = auto-detect on PATH and ~/.local/bin.">
                 {text('tools.markitdownBin', 'markitdown', true)}
@@ -554,18 +560,18 @@ export function SettingsPage() {
           {grid(
             <>
               <Field label="Telegram bot token" aside={aside('notifications.telegramBotToken')} help="Create a bot with @BotFather in Telegram and paste its token here.">
-                <Input type="password" autoComplete="off" value={(get(draft, 'notifications.telegramBotToken') as string | null) ?? ''} placeholder="123456:ABC-DEF…" onChange={(e) => set('notifications.telegramBotToken', e.target.value === '' ? null : e.target.value)} />
+                {secret('notifications.telegramBotToken', '123456:ABC-DEF…')}
               </Field>
               <Field label="Telegram chat id" aside={aside('notifications.telegramChatId')} help="Open your bot in Telegram and send it any message, then Detect fills this in.">
                 <div className="flex gap-1">
                   <Input className="mono" value={(get(draft, 'notifications.telegramChatId') as string | null) ?? ''} placeholder="123456789" onChange={(e) => set('notifications.telegramChatId', e.target.value === '' ? null : e.target.value)} />
-                  <Button size="sm" variant="ghost" className="shrink-0" disabled={busy || !get(draft, 'notifications.telegramBotToken')} onClick={() => detectChatId(draft.notifications.telegramBotToken)} title="Asks Telegram which chat last messaged your bot and fills in its id">
+                  <Button size="sm" variant="ghost" className="shrink-0" disabled={busy || (!get(draft, 'notifications.telegramBotToken') && !view.secrets['notifications.telegramBotToken']?.set)} onClick={() => detectChatId(draft.notifications.telegramBotToken)} title="Asks Telegram which chat last messaged your bot and fills in its id">
                     Detect
                   </Button>
                 </div>
               </Field>
               <Field label="Discord webhook URL" aside={aside('notifications.discordWebhookUrl')} help="In your Discord channel: Settings → Integrations → Webhooks → New Webhook, then copy its URL.">
-                <Input type="password" autoComplete="off" value={(get(draft, 'notifications.discordWebhookUrl') as string | null) ?? ''} placeholder="https://discord.com/api/webhooks/…" onChange={(e) => set('notifications.discordWebhookUrl', e.target.value === '' ? null : e.target.value)} />
+                {secret('notifications.discordWebhookUrl', 'https://discord.com/api/webhooks/…')}
               </Field>
               <Field label="Link base URL" aside={aside('notifications.baseUrl')} help="Where this UI is reachable from your phone (a Tailscale or LAN address). Empty = messages carry no links, since 127.0.0.1 would not open elsewhere.">
                 {text('notifications.baseUrl', 'http://my-mac.tailnet:4111', true)}
