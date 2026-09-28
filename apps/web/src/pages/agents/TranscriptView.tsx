@@ -1,10 +1,42 @@
 import type { AgentLogChunk, AgentLogItem, AgentStatus } from '@foundry/engine/agents-types';
-import { ChevronDown, ChevronRight } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { api } from '../../api.ts';
+import { type FullText, FullTextDialog } from '../../components/FullTextDialog.tsx';
 import { cn } from '../../ui.tsx';
 
 const POLL_MS = 2500;
+
+type ToolUse = Extract<AgentLogItem, { kind: 'tool_use' }>;
+type ToolResult = Extract<AgentLogItem, { kind: 'tool_result' }>;
+
+/** A tool call and, once it arrived, its result: one entry in the log, one text in the dialog. */
+function toolText(use: ToolUse, result?: ToolResult): string {
+  return result ? `${use.input}\n\n── ${result.isError ? 'error' : 'result'} ──\n${result.content}` : use.input;
+}
+
+/** The full content of a transcript entry for the dialog; null when the line already says everything. */
+function fullOf(it: AgentLogItem, resultFor: Map<string, ToolResult>): FullText | null {
+  switch (it.kind) {
+    case 'user':
+      return { title: 'You', text: it.text };
+    case 'command':
+      return it.args ? { title: `/${it.name}`, text: it.args, raw: true } : null;
+    case 'notice':
+      return { title: 'Notice', text: it.text, raw: true };
+    case 'assistant':
+      return { title: 'Assistant message', text: it.text };
+    case 'thinking':
+      return { title: 'Thinking', text: it.text };
+    case 'tool_use':
+      return { title: `Tool call · ${it.name}`, text: toolText(it, it.id ? resultFor.get(it.id) : undefined), raw: true };
+    case 'tool_result':
+      return { title: it.isError ? 'Tool error' : 'Tool result', text: it.content, raw: true };
+    default:
+      return null;
+  }
+}
+
+const oneLine = (s: string) => s.slice(0, 400).replace(/\s+/g, ' ');
 
 /**
  * Parsed conversation view for a session Foundry did not spawn (or a Task subagent), fed by
@@ -14,6 +46,7 @@ export function TranscriptView({ sessionId, agentId, className }: { sessionId: s
   const [items, setItems] = useState<AgentLogItem[]>([]);
   const [status, setStatus] = useState<AgentStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState<FullText | null>(null);
   const offsetRef = useRef(0);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -54,59 +87,44 @@ export function TranscriptView({ sessionId, agentId, className }: { sessionId: s
     if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 120) el.scrollTop = el.scrollHeight;
   }, [items.length]);
 
-  // pair each tool_use with its result so one collapsible row shows both
-  const resultFor = new Map<string, Extract<AgentLogItem, { kind: 'tool_result' }>>();
+  // pair each tool_use with its result so one line (and one dialog) shows both
+  const resultFor = new Map<string, ToolResult>();
   for (const it of items) if (it.kind === 'tool_result' && it.forId) resultFor.set(it.forId, it);
+  const called = new Set(items.flatMap((it) => (it.kind === 'tool_use' && it.id ? [it.id] : [])));
 
   return (
-    <div ref={ref} className={cn('surface-card mono text-[12px] leading-5 bg-zinc-950 border border-zinc-800 rounded-md p-3 overflow-auto max-h-[70vh] space-y-1.5', className)}>
-      {items.length === 0 && <div className="text-zinc-600">{error ? `log unavailable: ${error}` : status === null ? 'loading…' : 'no renderable output in this transcript…'}</div>}
-      {items.map((it, i) => {
-        if (it.kind === 'user')
-          return (
-            <div key={i} className="surface-inset border border-zinc-800 bg-zinc-900 rounded-md px-3 py-2 my-2">
-              <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-0.5">you</div>
-              <div className="text-zinc-100 whitespace-pre-wrap">{it.text}</div>
-            </div>
-          );
-        if (it.kind === 'command')
-          return (
-            <div key={i} className="my-2">
-              <span className="inline-flex items-baseline gap-1.5 rounded-md border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-violet-300 max-w-full">
-                <span className="shrink-0">/{it.name}</span>
-                {it.args && <span className="text-zinc-400 truncate" title={it.args}>{it.args.replace(/\s+/g, ' ')}</span>}
-              </span>
-            </div>
-          );
-        if (it.kind === 'notice') return <div key={i} className="text-zinc-600 italic whitespace-pre-wrap">{it.text}</div>;
-        if (it.kind === 'assistant') return <div key={i} className="text-zinc-200 whitespace-pre-wrap">{it.text}</div>;
-        if (it.kind === 'thinking') return <div key={i} className="text-zinc-600 italic whitespace-pre-wrap">{it.text.length > 400 ? `${it.text.slice(0, 400)}…` : it.text}</div>;
-        if (it.kind === 'tool_use') return <ToolRow key={i} use={it} result={it.id ? resultFor.get(it.id) : undefined} />;
-        if (it.kind === 'tool_result') return it.forId && items.some((o) => o.kind === 'tool_use' && o.id === it.forId) ? null : <div key={i} className={cn('truncate', it.isError ? 'text-rose-400' : 'text-zinc-500')}>{it.isError ? '✗ ' : '↳ '}{it.content.slice(0, 200)}</div>;
-        if (it.kind === 'compact') return <div key={i} className="text-amber-400/80 border-t border-amber-500/20 pt-1 mt-1">⇅ context compacted · {Math.round(it.preTokens / 1000)}k → {Math.round(it.postTokens / 1000)}k tokens</div>;
-        return null;
-      })}
-      {status && status !== 'finished' && <div className="text-zinc-600 animate-pulse">● {status === 'busy' ? 'working…' : 'waiting for input…'}</div>}
-    </div>
-  );
-}
-
-function ToolRow({ use, result }: { use: Extract<AgentLogItem, { kind: 'tool_use' }>; result?: Extract<AgentLogItem, { kind: 'tool_result' }> }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="min-w-0">
-      <button onClick={() => setOpen(!open)} className="flex items-center gap-1 text-sky-400 hover:text-sky-300 min-w-0 max-w-full">
-        {open ? <ChevronDown size={12} className="shrink-0" /> : <ChevronRight size={12} className="shrink-0" />}
-        <span className="shrink-0">⚙ {use.name}</span>
-        {!open && <span className="text-zinc-500 truncate">{use.input.slice(0, 140)}</span>}
-        {result?.isError && <span className="text-rose-400 shrink-0">✗</span>}
-      </button>
-      {open && (
-        <div className="ml-4 border-l border-zinc-800 pl-2 space-y-1">
-          <pre className="text-zinc-500 whitespace-pre-wrap break-all max-h-48 overflow-auto">{use.input}</pre>
-          {result && <pre className={cn('whitespace-pre-wrap break-all max-h-64 overflow-auto', result.isError ? 'text-rose-400' : 'text-zinc-400')}>{result.content}</pre>}
-        </div>
-      )}
-    </div>
+    <>
+      <div ref={ref} className={cn('surface-card mono text-[12px] leading-5 bg-zinc-950 border border-zinc-800 rounded-md p-3 overflow-auto max-h-[70vh] space-y-0.5', className)}>
+        {items.length === 0 && <div className="text-zinc-600">{error ? `log unavailable: ${error}` : status === null ? 'loading…' : 'no renderable output in this transcript…'}</div>}
+        {items.map((it, i) => {
+          // one line per entry, like the live log; entries with more behind them are buttons that open the full text
+          const line = (cls: string, node: ReactNode) => {
+            const full = fullOf(it, resultFor);
+            const body = <span className="min-w-0 flex-1 truncate">{node}</span>;
+            if (!full) return <div key={i} className={cn('flex gap-1.5 min-w-0', cls)}>{body}</div>;
+            return (
+              <button key={i} type="button" onClick={() => setOpen(full)} title="Show the full message" className={cn('flex gap-1.5 min-w-0 w-full text-left rounded-sm hover:bg-zinc-900 focus-visible:outline focus-visible:outline-1 focus-visible:outline-zinc-500 cursor-pointer', cls)}>
+                {body}
+              </button>
+            );
+          };
+          if (it.kind === 'user') return line('text-zinc-100 surface-inset bg-zinc-900 border border-zinc-800 px-2 py-0.5 my-1', <><span className="text-[10px] uppercase tracking-wide text-zinc-500 mr-1.5">you</span>{oneLine(it.text)}</>);
+          if (it.kind === 'command') return line('text-violet-300', <>/{it.name} {it.args && <span className="text-zinc-400">{oneLine(it.args)}</span>}</>);
+          if (it.kind === 'notice') return line('text-zinc-600 italic', oneLine(it.text));
+          if (it.kind === 'assistant') return line('text-zinc-200', oneLine(it.text));
+          if (it.kind === 'thinking') return line('text-zinc-600 italic', oneLine(it.text));
+          if (it.kind === 'tool_use') {
+            const result = it.id ? resultFor.get(it.id) : undefined;
+            return line('text-sky-400', <>{result?.isError && <span className="text-rose-400">✗ </span>}⚙ {it.name} <span className="text-zinc-500">{oneLine(it.input)}</span></>);
+          }
+          // a result whose call is on the page is shown with that call
+          if (it.kind === 'tool_result') return it.forId && called.has(it.forId) ? null : line(it.isError ? 'text-rose-400' : 'text-zinc-500', <>{it.isError ? '✗ ' : '↳ '}{oneLine(it.content)}</>);
+          if (it.kind === 'compact') return line('text-amber-400/80 border-t border-amber-500/20 pt-1 mt-1', <>⇅ context compacted · {Math.round(it.preTokens / 1000)}k → {Math.round(it.postTokens / 1000)}k tokens</>);
+          return null;
+        })}
+        {status && status !== 'finished' && <div className="text-zinc-600 animate-pulse">● {status === 'busy' ? 'working…' : 'waiting for input…'}</div>}
+      </div>
+      <FullTextDialog value={open} onClose={() => setOpen(null)} />
+    </>
   );
 }
