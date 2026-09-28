@@ -2,7 +2,7 @@
 
 > [English](./costs-and-usage.md) · 中文
 
-Foundry 用的是你的 Claude 订阅或 API 账户。只有在 Claude 会话运行时才花钱。它在 git 里做的事、跑你的测试、准备文件夹、读取检查结果都是免费的 —— 只花时间，不花钱。
+Foundry 用的是你的 Claude 订阅（Pro 或 Max）。只有在 Claude 会话运行时才花钱。它在 git 里做的事、跑你的测试、准备文件夹、读取检查结果都是免费的 —— 只花时间，不花钱。
 
 ## 哪些要花钱
 

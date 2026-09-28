@@ -42,7 +42,7 @@ describe('in-app Claude sign-in', () => {
   test('headless machine: the CLI asks for a code, the UI can post it, the login completes', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'auth-'));
     const auth = new ClaudeAuth({ claudeBin: fakeClaude(dir) });
-    const s = auth.startLogin({ mode: 'claudeai' });
+    const s = auth.startLogin();
     expect(s.done).toBe(false);
     // the prompt has no newline: it must still be detected
     await settle(() => auth.loginSession()!.needsCode);

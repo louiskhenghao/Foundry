@@ -13,7 +13,6 @@ export interface ClaudeAuthStatus {
 
 export interface LoginSession {
   id: string;
-  mode: 'claudeai' | 'console';
   startedAt: string;
   url: string | null;
   lines: string[];
@@ -78,13 +77,13 @@ export class ClaudeAuth {
     if (this.current) for (const l of this.listeners) l(this.current);
   }
 
-  startLogin(input: { mode?: 'claudeai' | 'console'; email?: string } = {}): LoginSession {
+  /** Always the claude.ai (Pro / Max) login: Foundry runs on a subscription, never on Console API billing (ADR-0001). */
+  startLogin(input: { email?: string } = {}): LoginSession {
     if (!this.opts.claudeBin) throw new Error('claude CLI not installed');
     if (this.current && !this.current.done) return this.current;
-    const mode = input.mode ?? 'claudeai';
-    const session: LoginSession = { id: `login_${Date.now().toString(36)}`, mode, startedAt: new Date().toISOString(), url: null, lines: [], done: false, ok: null, error: null, finishedAt: null, needsCode: false };
+    const session: LoginSession = { id: `login_${Date.now().toString(36)}`, startedAt: new Date().toISOString(), url: null, lines: [], done: false, ok: null, error: null, finishedAt: null, needsCode: false };
     this.current = session;
-    const args = [this.opts.claudeBin, 'auth', 'login', mode === 'console' ? '--console' : '--claudeai', ...(input.email ? ['--email', input.email] : [])];
+    const args = [this.opts.claudeBin, 'auth', 'login', '--claudeai', ...(input.email ? ['--email', input.email] : [])];
     let proc: ReturnType<typeof Bun.spawn>;
     try {
       // stdin stays open: on a machine without a browser the CLI asks for the code from the browser instead

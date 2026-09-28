@@ -177,7 +177,6 @@ export interface ClaudeAuthStatus {
 }
 export interface LoginSession {
   id: string;
-  mode: 'claudeai' | 'console';
   startedAt: string;
   url: string | null;
   lines: string[];
@@ -428,7 +427,7 @@ export const api = {
   updateCheck: () => req<UpdateReportView>('/api/update/check', { method: 'POST' }),
   updateApply: (force = false) => req<{ started: true; channel: string }>('/api/update/apply', { method: 'POST', body: JSON.stringify({ force }) }),
   auth: (force = false) => req<AuthInfo>(`/api/auth${force ? '?force=1' : ''}`),
-  startLogin: (body: { mode?: 'claudeai' | 'console'; email?: string }) => req<LoginSession>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
+  startLogin: (body: { email?: string }) => req<LoginSession>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   loginSession: () => req<LoginSession | null>('/api/auth/login'),
   cancelLogin: () => req<{ ok: true }>('/api/auth/login/cancel', { method: 'POST' }),
   submitLoginCode: (code: string) => req<LoginSession>('/api/auth/login/code', { method: 'POST', body: JSON.stringify({ code }) }),

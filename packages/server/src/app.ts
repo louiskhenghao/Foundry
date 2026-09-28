@@ -922,7 +922,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   // ---------- claude account ----------
   app.get('/api/auth', async (c) => c.json({ status: await engine.auth.status(c.req.query('force') === '1'), login: engine.auth.loginSession() }));
   app.post('/api/auth/login', async (c) => {
-    const body = z.object({ mode: z.enum(['claudeai', 'console']).optional(), email: z.string().optional() }).parse(await c.req.json().catch(() => ({})));
+    const body = z.object({ email: z.string().optional() }).parse(await c.req.json().catch(() => ({})));
     return c.json(engine.auth.startLogin(body));
   });
   app.get('/api/auth/login', (c) => c.json(engine.auth.loginSession()));
