@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { exec } from '@foundry/engine';
-import { FileRefused, fileKind, landedPath, parseNameStatus, parsePorcelain, resolveServable, servedType, taskFiles } from './files.ts';
+import { FileRefused, commitTree, fileKind, goalFileSource, landedPath, parseNameStatus, parsePorcelain, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
 
 const tmp = () => realpathSync(mkdtempSync(join(tmpdir(), 'files-')));
 const refused = (fn: () => unknown) => {
@@ -65,28 +65,71 @@ describe("a task's files", () => {
     expect(parsePorcelain('?? out/shot 1.png\0 M src/a.ts\0 D gone.ts\0R  new.ts\0old.ts\0')).toEqual(['out/shot 1.png', 'src/a.ts', 'new.ts']);
   });
 
-  test('a merged task lists its commit; a running one its worktree changes and new files', async () => {
-    const repo = tmp();
+  test('a finished task is read from its commit once its folders are gone; a running one from its worktree', async () => {
+    const base = tmp();
+    const repo = join(base, 'repo');
+    mkdirSync(repo);
     const git = (...args: string[]) => exec(['git', ...args], repo);
     await git('init', '-q', '-b', 'main');
     writeFileSync(join(repo, 'a.ts'), 'a');
     await git('add', '-A');
     await git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'init');
-    const base = (await git('rev-parse', 'HEAD')).stdout.trim();
+    const baseRef = (await git('rev-parse', 'HEAD')).stdout.trim();
     mkdirSync(join(repo, 'art'));
-    writeFileSync(join(repo, 'art', 'hero image.png'), 'png');
+    writeFileSync(join(repo, 'art', 'hero image.png'), 'png-bytes');
     writeFileSync(join(repo, 'a.ts'), 'b');
     await git('add', '-A');
     await git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'work');
-    const commit = (await git('rev-parse', 'HEAD')).stdout.trim();
-    const goal = { id: 'g1', workspaceDir: repo, repoPath: repo } as never;
+    const commitRef = (await git('rev-parse', 'HEAD')).stdout.trim();
+    // the user's checkout moves on: the file the task wrote is changed afterwards
+    writeFileSync(join(repo, 'a.ts'), 'later');
+    const workspaceDir = join(base, 'Goal-x');
+    const goal = { id: 'g1', workspaceDir, repoPath: repo } as never;
+    const gone = join(base, '.foundry', 'Goal-x', 'tasks', 't1');
+    const task = { id: 't1', state: 'done', worktreePath: gone, commitRef, baseRef, updatedAt: new Date().toISOString(), relevantFiles: [] } as never;
 
-    const merged = await taskFiles('/nowhere', goal, { worktreePath: null, commitRef: commit, baseRef: base } as never, exec);
-    expect(merged.sort()).toEqual([join(repo, 'a.ts'), join(repo, 'art', 'hero image.png')]);
+    const tree = await commitTree(repo, commitRef, exec);
+    expect([...tree.keys()].sort()).toEqual(['a.ts', 'art/hero image.png']);
+    expect(await taskFileSource('/data', goal, task, 'a.ts', exec)).toEqual({ kind: 'commit', repo, ref: commitRef, rel: 'a.ts', size: 1 });
+    expect(await taskFileSource('/data', goal, task, 'art/hero image.png', exec)).toMatchObject({ kind: 'commit', size: 9 });
+    expect(await taskFileSource('/data', goal, task, 'never-made.ts', exec)).toBeNull();
+    expect(await taskFileSource('/data', goal, task, '../secret', exec)).toBeNull();
+    expect(await taskFileSource('/data', goal, task, '.env', exec)).toBeNull();
 
+    const made = await taskMadeFiles('/data', goal, task, [], exec);
+    expect(made.rels.sort()).toEqual(['a.ts', 'art/hero image.png']);
+
+    // a live-log path into the removed worktree names the task and the file
+    const hit = pathInGoal(join(gone, 'art', 'hero image.png'), '/data', [{ goal, tasks: [task] }]);
+    expect(hit).toMatchObject({ rel: 'art/hero image.png' });
+    expect(hit!.task).toBe(task);
+    expect(await goalFileSource(goal, [task], 'a.ts', exec)).toMatchObject({ kind: 'commit', ref: commitRef });
+
+    // while it runs, its worktree has the newest bytes
+    const running = { ...(task as object), state: 'running', worktreePath: repo, commitRef: null } as never;
+    expect(await taskFileSource('/data', goal, running, 'a.ts', exec)).toMatchObject({ kind: 'folder', size: 5 });
     writeFileSync(join(repo, 'draft.md'), '# wip');
-    const running = await taskFiles('/nowhere', goal, { worktreePath: repo, commitRef: null, baseRef: base } as never, exec);
-    expect(running.sort()).toEqual([join(repo, 'a.ts'), join(repo, 'art', 'hero image.png'), join(repo, 'draft.md')]);
+    expect((await taskMadeFiles('/data', goal, running, [], exec)).rels.sort()).toEqual(['a.ts', 'art/hero image.png', 'draft.md']);
+  });
+
+  test('images an image goal wrote outside git belong to the task that ran when they were written', async () => {
+    const workspaceDir = join(tmp(), 'Goal-img');
+    mkdirSync(join(workspaceDir, 'artifacts', 'posters'), { recursive: true });
+    const poster = join(workspaceDir, 'artifacts', 'posters', 'v1.png');
+    const older = join(workspaceDir, 'artifacts', 'old.png');
+    writeFileSync(poster, 'p');
+    writeFileSync(older, 'o');
+    const hourAgo = new Date(Date.now() - 3600_000);
+    utimesSync(older, hourAgo, hourAgo);
+    const goal = { id: 'g2', workspaceDir, repoPath: workspaceDir } as never;
+    const sibling = join(workspaceDir, 'artifacts', 'story.png');
+    writeFileSync(sibling, 's');
+    const window = [{ startedAt: new Date(Date.now() - 60_000).toISOString(), endedAt: new Date().toISOString() }];
+    const task = { id: 't2', state: 'done', worktreePath: null, commitRef: null, updatedAt: new Date().toISOString(), spec: 'Make the poster', relevantFiles: [] } as never;
+    expect((await taskMadeFiles('/data', goal, task, window, exec)).artifacts.sort()).toEqual([poster, sibling].sort());
+    // a task that ran beside another: the files its plan names are its own
+    const named = { ...(task as object), relevantFiles: ['artifacts/posters/v1.png'] } as never;
+    expect((await taskMadeFiles('/data', goal, named, window, exec)).artifacts).toEqual([poster]);
   });
 });
 

@@ -1,11 +1,11 @@
-import { existsSync, realpathSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Brief, EscalationAnswer, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
 import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, PreviewError, classifyFeedback, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, type Engine, type OpenTargetId } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
-import { FileRefused, fileKind, goalRoots, landedPath, resolveServable, servedType, taskFiles } from './files.ts';
+import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
 import { listGuide, readGuide } from './guide.ts';
 import { OP_ID, SkillOpError, SkillOps, opIdOfChannel, opOf } from './skill-ops.ts';
 import { channelTranscript, readHistory, readTranscriptEvent } from './transcripts.ts';
@@ -277,44 +277,78 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   // ---- any file inside a goal's folders, by absolute path: the live log's file paths and a task's files open in the UI ----
   const allRoots = () => listGoals(db).flatMap((g) => goalRoots(engine.config.dataDir, g, listTasks(db, g.id)));
-  const servable = (path: string | undefined) => {
-    try {
-      // a merged task's worktree is gone: its files are read where the work landed, in the progress folder
-      const landed = path ? landedPath(path, engine.config.dataDir, listGoals(db)) : null;
-      return { ...resolveServable(landed ?? path ?? '', allRoots()), landed: !!landed };
-    } catch (e) {
-      if (e instanceof FileRefused) throw new HttpError(e.status, { error: e.message });
-      throw e;
-    }
+  const refused = (e: unknown): never => {
+    if (e instanceof FileRefused) throw new HttpError(e.status, { error: e.message });
+    throw e;
   };
-  const describe = (abs: string, size: number, root?: string) => ({ path: abs, name: abs.split('/').pop()!, rel: root && abs.startsWith(root + '/') ? abs.slice(root.length + 1) : abs, kind: fileKind(abs), size });
-  app.get('/api/files/stat', (c) => {
-    const { abs, size, landed } = servable(c.req.query('path'));
-    return c.json({ ...describe(abs, size), landed });
+  /**
+   * The file a request names — `path` (absolute), or `goal` + `task` + `rel` (a task's file) — and where it can be read
+   * now. A path into a removed task worktree or progress folder falls back to the progress folder, then to the commit.
+   */
+  const locate = async (q: (k: string) => string | undefined): Promise<{ source: FileSource; name: string; rel: string; note: 'landed' | 'commit' | null }> => {
+    const dataDir = engine.config.dataDir;
+    const goalId = q('goal');
+    if (goalId) {
+      const goal = getGoal(db, goalId);
+      const task = goal ? listTasks(db, goal.id).find((t) => t.id === q('task')) : null;
+      const rel = q('rel') ?? '';
+      if (!goal || !task) throw new HttpError(404, { error: 'task not found' });
+      const source = await taskFileSource(dataDir, goal, task, rel, exec);
+      if (!source) throw new HttpError(404, { error: "not in this task's commit or in any folder of the goal" });
+      return { source, name: rel.split('/').pop()!, rel, note: source.kind === 'commit' ? 'commit' : null };
+    }
+    const path = q('path') ?? '';
+    const landed = path ? landedPath(path, dataDir, listGoals(db)) : null;
+    if (existsSync(landed ?? path)) {
+      try {
+        const { abs, size } = resolveServable(landed ?? path, allRoots());
+        return { source: { kind: 'folder', abs, size }, name: abs.split('/').pop()!, rel: abs, note: landed ? 'landed' : null };
+      } catch (e) {
+        return refused(e);
+      }
+    }
+    // the folder is gone: the goal's task commits still hold the file
+    const hit = path ? pathInGoal(path, dataDir, listGoals(db).map((goal) => ({ goal, tasks: listTasks(db, goal.id) }))) : null;
+    const source = hit ? (hit.task ? await taskFileSource(dataDir, hit.goal, hit.task, hit.rel, exec) : await goalFileSource(hit.goal, listTasks(db, hit.goal.id), hit.rel, exec)) : null;
+    if (!source) throw new HttpError(404, { error: 'file not found' });
+    return { source, name: path.split('/').pop()!, rel: hit!.rel, note: source.kind === 'commit' ? 'commit' : null };
+  };
+  app.get('/api/files/stat', async (c) => {
+    const { source, name, rel, note } = await locate((k) => c.req.query(k));
+    return c.json({ path: source.kind === 'folder' ? source.abs : null, name, rel, kind: fileKind(name), size: source.size, landed: note === 'landed', commit: source.kind === 'commit' ? source.ref : null });
   });
-  app.get('/api/files', (c) => {
-    const { abs } = servable(c.req.query('path'));
-    const type = servedType(abs);
+  app.get('/api/files', async (c) => {
+    const { source, name } = await locate((k) => c.req.query(k));
+    const type = servedType(name);
     const headers: Record<string, string> = { 'content-type': type, 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff' };
     // opened on its own the file never runs as this site (an SVG's scripts, say); PDFs keep the browser's viewer
     if (type !== 'application/pdf') headers['content-security-policy'] = 'sandbox';
-    if (c.req.query('download') === '1') headers['content-disposition'] = `attachment; filename="${encodeURIComponent(abs.split('/').pop()!)}"`;
-    return new Response(Bun.file(abs), { headers });
+    if (c.req.query('download') === '1') headers['content-disposition'] = `attachment; filename="${encodeURIComponent(name)}"`;
+    if (source.kind === 'folder') return new Response(Bun.file(source.abs), { headers });
+    // a blob of the task's commit, streamed as bytes (images and PDFs included)
+    const proc = Bun.spawn(['git', 'show', `${source.ref}:${source.rel}`], { cwd: source.repo, stdout: 'pipe', stderr: 'ignore' });
+    return new Response(proc.stdout, { headers: { ...headers, 'content-length': String(source.size) } });
   });
+  // what a task made (its commit, or its worktree while it runs; plus media written outside git) and which of its
+  // relevant files can be opened
   app.get('/api/goals/:id/tasks/:taskId/files', async (c) => {
     const goal = goalOr404(c);
     const task = listTasks(db, goal.id).find((t) => t.id === c.req.param('taskId'));
     if (!task) throw new HttpError(404, { error: 'task not found' });
-    const root = task.worktreePath && existsSync(task.worktreePath) ? task.worktreePath : goalWorkspacePath(engine.config.dataDir, goal);
-    const files = (await taskFiles(engine.config.dataDir, goal, task, exec)).flatMap((p) => {
-      try {
-        const { abs, size } = resolveServable(p, goalRoots(engine.config.dataDir, goal, [task]));
-        return [describe(abs, size, existsSync(root) ? realpathSync(root) : root)];
-      } catch {
-        return [];
-      }
-    });
-    return c.json({ files });
+    const dataDir = engine.config.dataDir;
+    const tree = task.commitRef ? await commitTree(goal.repoPath, task.commitRef, exec) : undefined;
+    const made = await taskMadeFiles(dataDir, goal, task, listAttempts(db, task.id), exec);
+    const open = (rel: string) => ({ goal: goal.id, task: task.id, rel });
+    const files = [];
+    for (const rel of made.rels) {
+      const source = await taskFileSource(dataDir, goal, task, rel, exec, tree);
+      if (source) files.push({ name: rel.split('/').pop()!, rel, kind: fileKind(rel), size: source.size, open: open(rel) });
+    }
+    const ws = goalWorkspacePath(dataDir, goal);
+    for (const abs of made.artifacts) files.push({ name: abs.split('/').pop()!, rel: abs.slice(ws.length + 1), kind: fileKind(abs), size: statSync(abs).size, open: { path: abs } });
+    const relevant = [];
+    for (const rel of task.relevantFiles) relevant.push({ rel, open: (await taskFileSource(dataDir, goal, task, rel, exec, tree)) ? open(rel) : null });
+    return c.json({ files, relevant });
   });
   app.get('/api/goals/:id/screenshots/:file', (c) => {
     const goal = goalOr404(c);
