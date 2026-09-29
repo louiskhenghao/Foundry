@@ -45,6 +45,22 @@ export function goalRoots(dataDir: string, goal: Goal, tasks: Pick<Task, 'worktr
   return [goal.repoPath, goalWorkspacePath(dataDir, goal), internalWorkspaceDir(goal) ?? legacyWorkspaceRoot(dataDir, goal.id), attachmentsDir(dataDir, goal.id), screenshotsDir(dataDir, goal), ...tasks.map((t) => t.worktreePath)].filter((p): p is string => !!p);
 }
 
+/**
+ * A path inside a task worktree that is gone (removed once the task merged) → the same file in the goal's progress
+ * folder, where the task's work now lives; null when the path is not in a removed task worktree of these goals.
+ */
+export function landedPath(path: string, dataDir: string, goals: Goal[]): string | null {
+  if (existsSync(path)) return null;
+  for (const g of goals) {
+    const tasksDir = join(internalWorkspaceDir(g) ?? legacyWorkspaceRoot(dataDir, g.id), 'tasks');
+    if (!path.startsWith(tasksDir + sep)) continue;
+    const rest = path.slice(tasksDir.length + 1).split(sep).slice(1).join(sep);
+    const landed = rest && join(goalWorkspacePath(dataDir, g), rest);
+    return landed && existsSync(landed) ? landed : null;
+  }
+  return null;
+}
+
 export class FileRefused extends Error {
   constructor(
     readonly status: 400 | 403 | 404,

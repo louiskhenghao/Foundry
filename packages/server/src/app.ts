@@ -5,7 +5,7 @@ import { Brief, EscalationAnswer, listFollowUps, getAttempt, getEscalation, getB
 import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, PreviewError, classifyFeedback, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, type Engine, type OpenTargetId } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
-import { FileRefused, fileKind, goalRoots, resolveServable, servedType, taskFiles } from './files.ts';
+import { FileRefused, fileKind, goalRoots, landedPath, resolveServable, servedType, taskFiles } from './files.ts';
 import { listGuide, readGuide } from './guide.ts';
 import { OP_ID, SkillOpError, SkillOps, opIdOfChannel, opOf } from './skill-ops.ts';
 import { channelTranscript, readHistory, readTranscriptEvent } from './transcripts.ts';
@@ -279,7 +279,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   const allRoots = () => listGoals(db).flatMap((g) => goalRoots(engine.config.dataDir, g, listTasks(db, g.id)));
   const servable = (path: string | undefined) => {
     try {
-      return resolveServable(path ?? '', allRoots());
+      // a merged task's worktree is gone: its files are read where the work landed, in the progress folder
+      const landed = path ? landedPath(path, engine.config.dataDir, listGoals(db)) : null;
+      return { ...resolveServable(landed ?? path ?? '', allRoots()), landed: !!landed };
     } catch (e) {
       if (e instanceof FileRefused) throw new HttpError(e.status, { error: e.message });
       throw e;
@@ -287,8 +289,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   };
   const describe = (abs: string, size: number, root?: string) => ({ path: abs, name: abs.split('/').pop()!, rel: root && abs.startsWith(root + '/') ? abs.slice(root.length + 1) : abs, kind: fileKind(abs), size });
   app.get('/api/files/stat', (c) => {
-    const { abs, size } = servable(c.req.query('path'));
-    return c.json(describe(abs, size));
+    const { abs, size, landed } = servable(c.req.query('path'));
+    return c.json({ ...describe(abs, size), landed });
   });
   app.get('/api/files', (c) => {
     const { abs } = servable(c.req.query('path'));

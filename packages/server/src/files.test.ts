@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { exec } from '@foundry/engine';
-import { FileRefused, fileKind, parseNameStatus, parsePorcelain, resolveServable, servedType, taskFiles } from './files.ts';
+import { FileRefused, fileKind, landedPath, parseNameStatus, parsePorcelain, resolveServable, servedType, taskFiles } from './files.ts';
 
 const tmp = () => realpathSync(mkdtempSync(join(tmpdir(), 'files-')));
 const refused = (fn: () => unknown) => {
@@ -87,5 +87,20 @@ describe("a task's files", () => {
     writeFileSync(join(repo, 'draft.md'), '# wip');
     const running = await taskFiles('/nowhere', goal, { worktreePath: repo, commitRef: null, baseRef: base } as never, exec);
     expect(running.sort()).toEqual([join(repo, 'a.ts'), join(repo, 'art', 'hero image.png'), join(repo, 'draft.md')]);
+  });
+});
+
+describe('a path in a merged task', () => {
+  test("a removed task worktree's file is read from the progress folder", () => {
+    const base = tmp();
+    const workspaceDir = join(base, 'Goal-abc');
+    mkdirSync(join(workspaceDir, 'public'), { recursive: true });
+    writeFileSync(join(workspaceDir, 'public', 'card.svg'), '<svg/>');
+    const goal = { id: 'g1', workspaceDir, repoPath: base } as never;
+    const gone = join(base, '.foundry', 'Goal-abc', 'tasks', 't_1', 'public', 'card.svg');
+    expect(landedPath(gone, '/data', [goal])).toBe(join(workspaceDir, 'public', 'card.svg'));
+    expect(landedPath(join(base, '.foundry', 'Goal-abc', 'tasks', 't_1', 'nope.txt'), '/data', [goal])).toBeNull();
+    expect(landedPath(join(workspaceDir, 'public', 'card.svg'), '/data', [goal])).toBeNull();
+    expect(landedPath('/elsewhere/tasks/t_1/public/card.svg', '/data', [goal])).toBeNull();
   });
 });
