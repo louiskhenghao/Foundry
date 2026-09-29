@@ -1,10 +1,11 @@
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Brief, EscalationAnswer, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
 import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, PreviewError, classifyFeedback, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, type Engine, type OpenTargetId } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
+import { FileRefused, fileKind, goalRoots, landedPath, resolveServable, servedType, taskFiles } from './files.ts';
 import { listGuide, readGuide } from './guide.ts';
 import { OP_ID, SkillOpError, SkillOps, opIdOfChannel, opOf } from './skill-ops.ts';
 import { channelTranscript, readHistory, readTranscriptEvent } from './transcripts.ts';
@@ -273,6 +274,47 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       .reverse()
       .slice(0, 20);
     return c.json({ screenshots: shots });
+  });
+  // ---- any file inside a goal's folders, by absolute path: the live log's file paths and a task's files open in the UI ----
+  const allRoots = () => listGoals(db).flatMap((g) => goalRoots(engine.config.dataDir, g, listTasks(db, g.id)));
+  const servable = (path: string | undefined) => {
+    try {
+      // a merged task's worktree is gone: its files are read where the work landed, in the progress folder
+      const landed = path ? landedPath(path, engine.config.dataDir, listGoals(db)) : null;
+      return { ...resolveServable(landed ?? path ?? '', allRoots()), landed: !!landed };
+    } catch (e) {
+      if (e instanceof FileRefused) throw new HttpError(e.status, { error: e.message });
+      throw e;
+    }
+  };
+  const describe = (abs: string, size: number, root?: string) => ({ path: abs, name: abs.split('/').pop()!, rel: root && abs.startsWith(root + '/') ? abs.slice(root.length + 1) : abs, kind: fileKind(abs), size });
+  app.get('/api/files/stat', (c) => {
+    const { abs, size, landed } = servable(c.req.query('path'));
+    return c.json({ ...describe(abs, size), landed });
+  });
+  app.get('/api/files', (c) => {
+    const { abs } = servable(c.req.query('path'));
+    const type = servedType(abs);
+    const headers: Record<string, string> = { 'content-type': type, 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff' };
+    // opened on its own the file never runs as this site (an SVG's scripts, say); PDFs keep the browser's viewer
+    if (type !== 'application/pdf') headers['content-security-policy'] = 'sandbox';
+    if (c.req.query('download') === '1') headers['content-disposition'] = `attachment; filename="${encodeURIComponent(abs.split('/').pop()!)}"`;
+    return new Response(Bun.file(abs), { headers });
+  });
+  app.get('/api/goals/:id/tasks/:taskId/files', async (c) => {
+    const goal = goalOr404(c);
+    const task = listTasks(db, goal.id).find((t) => t.id === c.req.param('taskId'));
+    if (!task) throw new HttpError(404, { error: 'task not found' });
+    const root = task.worktreePath && existsSync(task.worktreePath) ? task.worktreePath : goalWorkspacePath(engine.config.dataDir, goal);
+    const files = (await taskFiles(engine.config.dataDir, goal, task, exec)).flatMap((p) => {
+      try {
+        const { abs, size } = resolveServable(p, goalRoots(engine.config.dataDir, goal, [task]));
+        return [describe(abs, size, existsSync(root) ? realpathSync(root) : root)];
+      } catch {
+        return [];
+      }
+    });
+    return c.json({ files });
   });
   app.get('/api/goals/:id/screenshots/:file', (c) => {
     const goal = goalOr404(c);

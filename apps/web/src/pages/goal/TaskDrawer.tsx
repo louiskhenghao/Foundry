@@ -2,7 +2,8 @@ import type { Attempt, CheckResult, Task } from '@foundry/core/browser';
 import { GitMerge, RotateCcw, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { type ReactNode, useEffect, useState } from 'react';
-import { api, type GoalDetail } from '../../api.ts';
+import { api, fileUrl, type FileInfo, type GoalDetail } from '../../api.ts';
+import { openFile } from '../../components/FilePreview.tsx';
 import { type FullText, FullTextDialog } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { OpenMenu } from '../../components/OpenMenu.tsx';
@@ -115,6 +116,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
               </div>
             </div>
           )}
+          <TaskFiles goalId={d.goal.id} task={task} />
           {task.hint && <MarkdownPanel title="human hint" source={task.hint} local />}
         </div>
         <div className="lg:col-span-2 min-w-0">
@@ -226,6 +228,50 @@ function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; conclude
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * What the task added or changed, shown here so nobody needs an editor on the host (a phone, a Tailscale visitor):
+ * images as thumbnails, everything else as a list; each opens in the file preview.
+ */
+function TaskFiles({ goalId, task }: { goalId: string; task: Task }) {
+  const [files, setFiles] = useState<FileInfo[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api
+      .taskFiles(goalId, task.id)
+      .then((r) => alive && setFiles(r.files))
+      .catch(() => alive && setFiles([]));
+    return () => {
+      alive = false;
+    };
+  }, [goalId, task.id, task.state, task.commitRef]);
+  if (!files?.length) return null;
+  const images = files.filter((f) => f.kind === 'image');
+  const others = files.filter((f) => f.kind !== 'image');
+  return (
+    <div>
+      <div className="text-xs text-zinc-500 mb-1">
+        Files{task.commitRef ? '' : ' so far'} ({files.length})
+      </div>
+      {images.length > 0 && (
+        <div className="grid grid-cols-3 gap-1.5 mb-1.5">
+          {images.map((f) => (
+            <button key={f.path} type="button" onClick={() => openFile(f.path)} title={f.rel} className="aspect-square overflow-hidden rounded border border-zinc-800 bg-[repeating-conic-gradient(#8881_0_25%,transparent_0_50%)] bg-[length:12px_12px] hover:border-zinc-500">
+              <img src={fileUrl(f.path)} alt={f.rel} loading="lazy" className="h-full w-full object-contain" />
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="mono text-[11px] space-y-0.5">
+        {others.map((f) => (
+          <button key={f.path} type="button" onClick={() => openFile(f.path)} title={`Open ${f.rel}`} className="block w-full truncate text-left text-sky-300 hover:underline">
+            {f.rel}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

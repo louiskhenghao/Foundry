@@ -80,11 +80,12 @@ What each state and message means, and which ones need nothing from you, is in [
 
 ![A task opened full screen: its spec, the attempt that passed with its cost and turns, and the live log of the session — reading the code, writing the files, running the tests](images/task-drawer.png)
 
-Click a task to open it full screen (Escape or × closes it). You see:
+Click a task to open it over the goal page (Escape, × or a click beside it closes it). You see:
 
 - Its title, state, tags and, once done, its commit. Click the commit line to read the whole commit message.
 - **Task total**: attempts, cost (split into worker and reviewer), turns and minutes so far.
 - **spec**, its **Checks** with their latest result, and **Relevant files**.
+- **Files**: what the task added or changed (**Files so far** while it runs). Images show as thumbnails. Click any file to see it in the page: pictures, PDFs, video and audio play right there, and code, Markdown and JSON are shown formatted. You need no editor on the computer Foundry runs on, so this works from a phone or over [remote access](../operate/remote-access.md) too.
 - **This task is waiting for you**, if it is blocked, with the buttons to answer.
 - One chip per attempt: **#1**, **#2** … with its result and cost. **↻1** means the session was resumed once instead of starting over, which is cheaper.
 - For the chosen attempt: the result, the worker model, turns, cost, start time, duration, and which skills it used, then every session that ran for it.
@@ -95,6 +96,10 @@ Click a task to open it full screen (Escape or × closes it). You see:
 Inside a task, **Live log** shows what the worker is doing right now: what it says, the tools it uses (⚙), their results, and a line per session. At the end of a session, the `■` line also shows the worker's final message.
 
 Every entry is one line, cut off at the edge of the box. Click a line (or Tab to it and press Enter) to read the whole message in a window. **Preview** shows it formatted and **Raw** shows the exact text; **Copy** copies all of it. Messages and thinking open as **Preview**; tool calls, tool results and errors open as **Raw**. The log itself shortens long thinking and tool results, so the window reads the full text from the session's saved transcript.
+
+A tool call, and any result that is JSON, opens as a **Tree**: every object and list folds, **Expand all** and **Collapse all** open or close them all, and the search box marks every key and value that contains your words and opens the branches that hold them. **Text** shows it as plain text. A file path in the tree has an **open** button: the file opens in the same viewer as a task's **Files**. After a task merged, its own folder is removed, so the file is shown as it is now in the progress folder, and the window says so.
+
+![An image a task made, opened from the task's Files: the preview shows it in the page, with its path, copy, open in a new tab and download](images/file-preview.png)
 
 **Observation** shows the summary handed to the next attempt. **Prompt** shows exactly what the worker was told.
 

@@ -163,6 +163,18 @@ export function emailError(value: string): string | null {
 `,
   },
   'build the sign-up form in the footer': {
+    // an image the task made: the card shared when someone posts the sign-up link
+    'public/newsletter-card.svg': `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0b0f1a"/><stop offset="1" stop-color="#2b1055"/></linearGradient></defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="1010" cy="130" r="190" fill="#ff3d7f" opacity=".35"/>
+  <circle cx="1100" cy="520" r="120" fill="#35e0ff" opacity=".3"/>
+  <text x="80" y="250" font-family="Helvetica, Arial, sans-serif" font-size="84" font-weight="700" fill="#f5f5f5">Get new games first</text>
+  <text x="80" y="330" font-family="Helvetica, Arial, sans-serif" font-size="36" fill="#c9c9d6">One email a month from a small studio. No spam.</text>
+  <rect x="80" y="400" width="300" height="76" rx="38" fill="#ff3d7f"/>
+  <text x="230" y="449" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="30" font-weight="700" fill="#0b0f1a">Subscribe</text>
+</svg>
+`,
     'src/components/Footer.tsx': [
       ['export function Footer() {\n  return (', `import { useState } from 'react';
 import { emailError } from '../lib/email';
@@ -290,7 +302,7 @@ function applyEdits(cwd: string, title: string): boolean {
 }
 
 /** a worker session as the live log shows it: reading, editing, running the tests */
-function workerEvents(title: string, sessionId: string, result: RunResult): RunnerEvent[] {
+function workerEvents(title: string, sessionId: string, result: RunResult, cwd: string): RunnerEvent[] {
   const files = Object.keys(TASK_EDITS[title] ?? { 'src/app/layout.tsx': '' });
   return [
     { kind: 'hook', name: 'SessionStart:startup', outcome: 'success' },
@@ -300,8 +312,8 @@ function workerEvents(title: string, sessionId: string, result: RunResult): Runn
     { kind: 'tool_use', id: 't1', name: 'Grep', input: { pattern: 'app.route|export function', path: 'src' } },
     { kind: 'tool_result', toolUseId: 't1', isError: false, content: "src/server.ts:7: app.route('/orders', orders);\nsrc/components/Footer.tsx:1: export function Footer() {" },
     ...files.flatMap((f, i): RunnerEvent[] => [
-      { kind: 'tool_use', id: `e${i}`, name: f in REPO_FILES ? 'Edit' : 'Write', input: { file_path: f } },
-      { kind: 'tool_result', toolUseId: `e${i}`, isError: false, content: `The file ${f} has been updated.` },
+      { kind: 'tool_use', id: `e${i}`, name: f in REPO_FILES ? 'Edit' : 'Write', input: { file_path: join(cwd, f) } },
+      { kind: 'tool_result', toolUseId: `e${i}`, isError: false, content: `The file ${join(cwd, f)} has been updated.` },
     ]),
     { kind: 'tool_use', id: 't2', name: 'Bash', input: { command: 'bun test', description: 'Run the test suite' } },
     { kind: 'tool_result', toolUseId: 't2', isError: false, content: 'bun test v1.2.20\n\n 14 pass\n 0 fail\n 31 expect() calls\nRan 14 tests across 5 files. [412ms]' },
@@ -341,13 +353,13 @@ class DemoRunner implements ClaudeRunner {
     if (title) {
       if (title.includes('games section') || title.includes('export button')) {
         // still working: the log so far, up to the test run, then a wait the demo never sees the end of
-        writeTranscript(spec.transcriptPath, workerEvents(title, sessionId, {} as RunResult).slice(0, -2));
+        writeTranscript(spec.transcriptPath, workerEvents(title, sessionId, {} as RunResult, spec.cwd).slice(0, -2));
         await new Promise((r) => setTimeout(r, 10 * 60_000));
       }
       if (!applyEdits(spec.cwd, title)) writeFileSync(join(spec.cwd, `${label.replace(/\W+/g, '-')}.txt`), 'demo');
     }
     const result: RunResult = { sessionId, subtype: 'success', isError: false, costUsd: 0.42, numTurns: 7, durationMs: 90_000, usage: null, modelUsage: null, permissionDenials: [], finalText: title ? `Done: ${title}. The change is in place with its tests; bun test passes (14 tests) and the build is clean.` : 'done', structuredOutput, exitCode: 0, pid: null, rateLimit: null, errorMessage: null, skillsUsed: [], toolsUsed: {} };
-    const events: RunnerEvent[] = title ? workerEvents(title, result.sessionId!, result) : [
+    const events: RunnerEvent[] = title ? workerEvents(title, result.sessionId!, result, spec.cwd) : [
       { kind: 'hook', name: 'SessionStart:startup', outcome: 'success' },
       { kind: 'init', sessionId: result.sessionId!, model: 'claude-opus-5', tools: [], raw: {} },
       { kind: 'text', text: label.startsWith('attempt') ? 'Reading the layout and the existing components, then writing the section and its test.' : 'Exploring the repository…' },
