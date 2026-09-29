@@ -121,8 +121,8 @@ export function FilePreviewHost() {
   const shown = typeof file === 'string' ? file : 'path' in file ? file.path : file.rel;
   const name = shown.split('/').pop();
   return createPortal(
-    <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <div className="w-full sm:max-w-5xl max-h-[94vh] rounded-t-xl sm:rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl flex flex-col">
+    <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+      <div className="w-full sm:max-w-5xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[94vh] rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl flex flex-col">
         <header className="flex items-center gap-2 px-4 py-2.5 border-b border-zinc-800 min-w-0">
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-semibold text-zinc-100 truncate">{name}</h3>

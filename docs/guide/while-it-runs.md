@@ -80,11 +80,11 @@ What each state and message means, and which ones need nothing from you, is in [
 
 ![A task opened full screen: its spec, the attempt that passed with its cost and turns, and the live log of the session — reading the code, writing the files, running the tests](images/task-drawer.png)
 
-Click a task to open it over the goal page (Escape, × or a click beside it closes it). You see:
+Click a task to open it over the goal page (Escape, × or a click beside it closes it). The panel always fills the window's height; on a wide screen the left column and the attempt beside it scroll separately, so a long list of files never scrolls the live log away. You see:
 
 - Its title, state, tags and, once done, its commit. Click the commit line to read the whole commit message.
 - **Task total**: attempts, cost (split into worker and reviewer), turns and minutes so far.
-- **spec** (**Open full** reads it in a larger window), its **Checks** with their latest result, and **Relevant files** (click one to open it; a grey one exists nowhere yet, usually a file the plan meant the task to create).
+- **spec** and, if you gave one, the **human hint** right under it (**Open full** reads either in a larger window), its **Checks** with their latest result, and **Relevant files** (click one to open it; a grey one exists nowhere yet, usually a file the plan meant the task to create).
 - **Files**: what the task added or changed (**Files so far** while it runs). Images show as thumbnails. Click any file to see it in the page: pictures, PDFs, video and audio play right there, and code (coloured by language, with line numbers), Markdown and JSON are shown formatted. You need no editor on the computer Foundry runs on, so this works from a phone or over [remote access](../operate/remote-access.md) too. A finished task's files are read from its commit in your repository, so they stay after delivery removes the task's folders; images and video of an image or video goal, which are never committed, are listed with the task that made them.
 - **This task is waiting for you**, if it is blocked, with the buttons to answer.
 - One chip per attempt: **#1**, **#2** … with its result and cost. **↻1** means the session was resumed once instead of starting over, which is cheaper.

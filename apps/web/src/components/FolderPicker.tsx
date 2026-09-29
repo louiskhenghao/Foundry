@@ -57,8 +57,8 @@ export function FolderPicker({ initial, onPick, onClose }: { initial?: string; o
   const crumbPath = (i: number) => '/' + crumbs.slice(0, i + 1).join('/');
 
   return (
-    <div className="fixed inset-0 z-40 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="w-full sm:max-w-3xl max-h-[92vh] sm:max-h-[80vh] rounded-t-xl sm:rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl flex flex-col">
+    <div className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-3 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="w-full sm:max-w-3xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[80vh] rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl flex flex-col">
         <header className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800">
           <FolderOpen size={16} className="text-emerald-400" />
           <h3 className="text-sm font-semibold">Select a folder</h3>

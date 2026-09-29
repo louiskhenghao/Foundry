@@ -34,8 +34,17 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
   }, [view, a?.id]);
   useEffect(() => setAi(attempts.length - 1), [attempts.length]);
 
+  const openFull = (title: string, text: string, what: string) => (
+    <button type="button" className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-300 hover:text-zinc-100 hover:border-zinc-500" onClick={() => setFullText({ title, text })} title={`Read the ${what} in a larger window`}>
+      Open full
+    </button>
+  );
+
   return (
     <Card
+      // fills the full-height panel: on wide screens each column scrolls on its own, so a long file list never scrolls the attempt away
+      className="h-full flex flex-col"
+      bodyClassName="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden lg:flex lg:flex-col"
       title={
         <span className="flex items-center gap-2 flex-wrap">
           <span className="min-w-0 break-words">{task.title}</span> <Badge state={task.state} />
@@ -77,7 +86,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
       }
     >
       {usage && usage.attempts > 0 && (
-        <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400 rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2" title="everything this task has cost so far — all attempts, all their sessions">
+        <div className="mb-3 shrink-0 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400 rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2" title="everything this task has cost so far — all attempts, all their sessions">
           <span className="text-zinc-500">Task total</span>
           <span><b className="text-zinc-200">{usage.attempts}</b> attempt{usage.attempts === 1 ? '' : 's'}</span>
           <span><b className="text-zinc-200">{fmtUsd(usage.costUsd)}</b> <span className="text-zinc-500">(worker {fmtUsd(usage.byRole.worker.costUsd)} · reviewer {fmtUsd(usage.byRole.reviewer.costUsd)}{usage.byRole.merger.sessions ? ` · merger ${fmtUsd(usage.byRole.merger.costUsd)}` : ''})</span></span>
@@ -86,18 +95,10 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
           {usage.models.length > 0 && <span className="mono">{usage.models.join(' · ')}</span>}
         </div>
       )}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-1 space-y-3">
-          <MarkdownPanel
-            title="spec"
-            source={task.spec}
-            maxHeight={260}
-            actions={
-              <button type="button" className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-300 hover:text-zinc-100 hover:border-zinc-500" onClick={() => setFullText({ title: `Spec · ${task.title}`, text: task.spec })} title="Read the spec in a larger window">
-                Open full
-              </button>
-            }
-          />
+      <div className="grid grid-cols-1 lg:grid-cols-3 lg:grid-rows-1 lg:flex-1 lg:min-h-0 gap-4">
+        <div className="lg:col-span-1 lg:overflow-y-auto lg:pr-1 space-y-3">
+          <MarkdownPanel title="spec" source={task.spec} maxHeight={260} actions={openFull(`Spec · ${task.title}`, task.spec, 'spec')} />
+          {task.hint && <MarkdownPanel title="human hint" source={task.hint} local maxHeight={160} actions={openFull(`Human hint · ${task.title}`, task.hint, 'hint')} />}
           <div>
             <div className="text-xs text-zinc-500 mb-1">Checks</div>
             {checks.length === 0 && <div className="text-xs text-zinc-600">none (goal-level only)</div>}
@@ -135,9 +136,8 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
             </div>
           )}
           {made && <TaskFiles task={task} files={made.files} />}
-          {task.hint && <MarkdownPanel title="human hint" source={task.hint} local />}
         </div>
-        <div className="lg:col-span-2 min-w-0">
+        <div className="lg:col-span-2 min-w-0 lg:overflow-y-auto lg:pr-1">
           {openEsc.length > 0 && (
             <div className="mb-3 space-y-2">
               <div className="text-xs text-orange-300 font-medium">This task is waiting for you</div>
