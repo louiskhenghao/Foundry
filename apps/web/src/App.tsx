@@ -19,7 +19,7 @@ import { SetupPage } from './pages/SetupPage.tsx';
 import { SkillsTabs } from './pages/skills/SkillsTabs.tsx';
 import { UsagePage, UsagePill } from './pages/UsagePage.tsx';
 import { useLive } from './store.ts';
-import { Button, cn } from './ui.tsx';
+import { Button, Menu as DropMenu, MenuItem, cn } from './ui.tsx';
 
 export function App() {
   const connected = useLive((s) => s.connected);
@@ -65,16 +65,6 @@ export function App() {
       <NavLink to="/skills" className={link} title="Extensions: skills and MCP servers">
         <Puzzle size={15} /> <span className={label}>Extensions</span>
       </NavLink>
-      <NavLink to="/setup" className={link} title="Setup">
-        <Wrench size={15} /> <span className={label}>Setup</span>
-        {setupBad && <span className="ml-1 h-2 w-2 rounded-full bg-rose-500 inline-block" />}
-      </NavLink>
-      <NavLink to="/settings" className={link} title="Settings">
-        <Settings2 size={15} /> <span className={label}>Settings</span>
-      </NavLink>
-      <NavLink to="/help" className={link} title="Guide — how to use Foundry">
-        <HelpCircle size={15} /> <span className={label}>Help</span>
-      </NavLink>
     </>
   );
   return (
@@ -85,7 +75,7 @@ export function App() {
         </button>
         <NavLink to="/" className="font-semibold tracking-tight text-zinc-100 flex items-center gap-2">
           Foundry
-          {(open > 0 || setupBad) && <span className={cn('lg:hidden h-2 w-2 rounded-full', open > 0 ? 'bg-orange-500' : 'bg-rose-500')} />}
+          {open > 0 && <span className="lg:hidden h-2 w-2 rounded-full bg-orange-500" />}
         </NavLink>
         <nav className="hidden lg:flex items-center gap-1">{links}</nav>
         <div className="ml-auto flex items-center gap-2 md:gap-3 text-xs text-zinc-500 min-w-0">
@@ -102,11 +92,7 @@ export function App() {
           </span>
           <UsagePill />
           <AccountMenu />
-          <span className="hidden sm:flex items-center gap-1.5">
-            <Radio size={13} className={connected ? 'text-emerald-400' : 'text-rose-400'} /> {connected ? 'live' : 'reconnecting…'}
-          </span>
-          <Radio size={13} className={cn('sm:hidden', connected ? 'text-emerald-400' : 'text-rose-400')} />
-          <ThemeToggle />
+          <AppMenu setupBad={setupBad} connected={connected} />
         </div>
         {menu && (
           <nav className="lg:hidden absolute left-0 right-0 top-12 border-b border-zinc-800 bg-zinc-950 p-2 flex flex-col gap-0.5 shadow-xl" onClick={() => setMenu(false)}>
@@ -136,10 +122,15 @@ export function App() {
   );
 }
 
-/** Light/dark toggle; the choice is remembered, first visit follows the system (see index.html). */
-function ThemeToggle() {
+/**
+ * Settings, Setup, Help, the light/dark switch and the connection state, behind one button so the header keeps room
+ * for what changes (inbox, agents, usage). A dot on the button: Setup is incomplete, or the live connection dropped.
+ */
+function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolean }) {
+  const nav = useNavigate();
+  const loc = useLocation();
   const [light, setLight] = useState(() => document.documentElement.classList.contains('light'));
-  const toggle = () => {
+  const toggleTheme = () => {
     const next = !light;
     setLight(next);
     document.documentElement.classList.toggle('light', next);
@@ -147,9 +138,44 @@ function ThemeToggle() {
       localStorage.setItem('foundry.theme', next ? 'light' : 'dark');
     } catch {}
   };
+  const here = ['/settings', '/setup', '/help'].some((p) => loc.pathname.startsWith(p));
+  const go = (close: () => void, to: string) => {
+    close();
+    nav(to);
+  };
   return (
-    <button onClick={toggle} className="p-1.5 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900" title={light ? 'Switch to dark mode' : 'Switch to light mode'}>
-      {light ? <Moon size={14} /> : <Sun size={14} />}
-    </button>
+    <DropMenu
+      width="w-60"
+      trigger={({ open, toggle }) => (
+        <button onClick={toggle} className={cn('relative p-1.5 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900', (open || here) && 'bg-zinc-900 text-zinc-100')} title="Settings, setup, help and theme" aria-label="Settings, setup, help and theme">
+          <Settings2 size={16} />
+          {(setupBad || !connected) && <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-zinc-950" />}
+        </button>
+      )}
+    >
+      {(close) => (
+        <>
+          <MenuItem icon={<Settings2 size={13} />} onClick={() => go(close, '/settings')}>
+            Settings
+          </MenuItem>
+          <MenuItem icon={<Wrench size={13} />} onClick={() => go(close, '/setup')}>
+            <span className="flex items-center gap-2">
+              Setup {setupBad && <span className="text-[10px] text-rose-400">incomplete</span>}
+            </span>
+          </MenuItem>
+          <MenuItem icon={<HelpCircle size={13} />} onClick={() => go(close, '/help')}>
+            Help — how to use Foundry
+          </MenuItem>
+          <div className="my-1 border-t border-zinc-800" />
+          <MenuItem icon={light ? <Moon size={13} /> : <Sun size={13} />} onClick={toggleTheme}>
+            {light ? 'Dark mode' : 'Light mode'}
+          </MenuItem>
+          <div className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-zinc-500">
+            <Radio size={12} className={connected ? 'text-emerald-400' : 'text-rose-400'} />
+            {connected ? 'Live — updates arrive as they happen' : 'Reconnecting…'}
+          </div>
+        </>
+      )}
+    </DropMenu>
   );
 }
