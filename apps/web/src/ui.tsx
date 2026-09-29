@@ -108,7 +108,7 @@ export function ButtonGroup<T extends string>({ value, onChange, options, label 
   );
 }
 
-export function Card({ children, className, title, actions, id }: { children: ReactNode; className?: string; title?: ReactNode; actions?: ReactNode; id?: string }) {
+export function Card({ children, className, bodyClassName, title, actions, id }: { children: ReactNode; className?: string; bodyClassName?: string; title?: ReactNode; actions?: ReactNode; id?: string }) {
   return (
     <section id={id} className={cn('rounded-lg border border-zinc-800 bg-zinc-900/60', className)}>
       {(title || actions) && (
@@ -117,7 +117,7 @@ export function Card({ children, className, title, actions, id }: { children: Re
           {actions && <div className="flex items-center gap-2 shrink-0 ml-auto">{actions}</div>}
         </header>
       )}
-      <div className="p-4">{children}</div>
+      <div className={cn('p-4', bodyClassName)}>{children}</div>
     </section>
   );
 }
