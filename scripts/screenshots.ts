@@ -21,9 +21,7 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 860 }, dev
 mkdirSync(OUT, { recursive: true });
 // the MiniMax card reports whether this machine has mmx and a key: the guide shows the page without it
 await page.route('**/api/usage/minimax*', (r) => r.fulfill({ json: { state: 'unavailable', reason: 'no-cli', checkedAt: new Date().toISOString() } }));
-const shot = async (name: string, path: string, prepare?: () => Promise<void>, height?: number) => {
-  await page.goto(demo.url + path, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(600);
+const mask = async () => {
   // the header shows the signed-in account and live usage of whoever runs this script: never ship those in a screenshot
   await page.evaluate(() => {
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -31,7 +29,16 @@ const shot = async (name: string, path: string, prepare?: () => Promise<void>, h
       n.textContent = (n.textContent ?? '').replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, 'you@example.com').replace(/\/(?:private\/)?var\/folders\/[^\s·]*?\/foundry-demo-[^/\s]+\//g, '~/Projects/');
     }
   });
+};
+const shot = async (name: string, path: string, prepare?: () => Promise<void>, height?: number) => {
+  // a fresh load each time: a dialog left open by the shot before would otherwise cover this one (same page, new hash)
+  await page.goto('about:blank');
+  await page.goto(demo.url + path, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(600);
+  await mask();
   if (prepare) await prepare();
+  // again: dialogs and logs opened by `prepare` show paths too
+  await mask();
   await page.screenshot({ path: join(OUT, `${name}.png`), clip: height ? { x: 0, y: 0, width: 1280, height } : undefined });
   console.log(`  ${name}.png`);
 };
@@ -55,6 +62,12 @@ try {
   await shot('task-drawer', `/goals/${g.running}#tasks`, async () => {
     await page.getByText('add the export endpoint', { exact: true }).first().click();
     await page.getByRole('button', { name: 'Live log' }).click();
+    await page.waitForTimeout(800);
+  });
+  // a file the task made, opened from the task's Files without an editor
+  await shot('file-preview', `/goals/${g.done}#tasks`, async () => {
+    await page.getByText('build the sign-up form in the footer', { exact: true }).first().click();
+    await page.locator('img[alt="public/newsletter-card.svg"]').click();
     await page.waitForTimeout(800);
   });
   await shot('goal-activity', `/goals/${g.done}#activity`, async () => {
