@@ -18,7 +18,7 @@ goal 运行起来后，Foundry 只在少数几种情况下停下来问你：一�
 2. **Inbox。** 顶栏上有数字，说明有事在等你。
 3. **任务的实时日志**（goal 页面 → **Tasks** → 点正在运行的任务）。像 `⏱ sub-agent still working · 5m 10s` 这样一直在计时的行，说明它在工作。规划常常要 2 到 8 分钟，期间输出很少。
 4. **Agents 页面。** 标着 working 的会话就是在工作。
-5. **顶栏**显示 **live**。如果显示 **reconnecting…**，说明页面和 Foundry 失去了联系；刷新页面，并检查 Foundry 是否还在运行。
+5. 顶栏右侧的 **⚙ 菜单**显示 **Live**。如果 ⚙ 按钮上有红点、菜单里显示 **Reconnecting…**，说明页面和 Foundry 失去了联系；刷新页面，并检查 Foundry 是否还在运行。
 
 看似卡住的任务尝试默认 20 分钟后会被停止并续接（Settings 里的 **Attempt timeout**），所以真正的卡死不会一直持续。Clarify 会话 15 分钟后停止，最终审查 30 分钟后停止。
 

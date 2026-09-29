@@ -52,4 +52,4 @@ The full glossary, for the curious, is `CONTEXT.md` in the Foundry repository.
 9. [Costs and usage](./costs-and-usage.md): what costs money and how to spend less.
 10. [FAQ](./faq.md): short answers to common questions.
 
-There is also a **Help** link in the top bar: it shows this guide inside Foundry.
+**Help** in the ⚙ menu at the right of the top bar shows this guide inside Foundry. The same menu holds **Settings**, **Setup** and the light or dark mode.

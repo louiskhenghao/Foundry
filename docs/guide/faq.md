@@ -18,7 +18,7 @@ Probably not. Check in this order:
 2. **The Inbox.** A number in the top bar means something waits for you.
 3. **The task's live log** (goal page → **Tasks** → click the running task). A line like `⏱ sub-agent still working · 5m 10s` that keeps counting means it is working. Planning often takes 2 to 8 minutes with little output.
 4. **The Agents page.** A session marked working is working.
-5. **The top bar** says **live**. If it says **reconnecting…**, the page lost contact with Foundry; reload it, and check that Foundry is still running.
+5. **The ⚙ menu** at the right of the top bar says **Live**. A red dot on the ⚙ button and **Reconnecting…** in the menu mean the page lost contact with Foundry; reload it, and check that Foundry is still running.
 
 A task attempt that seems stuck is stopped after 20 minutes by default (**Attempt timeout** in Settings) and resumed, so a real hang does not last. A Clarify session stops after 15 minutes, the final review after 30.
 

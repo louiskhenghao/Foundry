@@ -66,7 +66,7 @@ From top to bottom:
 
 ## Tasks
 
-The **Tasks** tab draws the plan as a graph. Each card is a task with its state, its attempts so far out of those allowed (for example 2/3) and what the task has cost so far, all attempts together. Arrows show which task waits for which. On a phone the graph becomes a list.
+The **Tasks** tab draws the plan as a graph. Each card is a task with its state, its attempts so far out of those allowed (for example 2/3) what the task has cost so far, all attempts together, its difficulty (**simple**, **standard** or **complex**, which picks the model from the preset) and the model its latest attempt ran on. Arrows show which task waits for which. On a phone the graph becomes a list.
 
 ![The Tasks tab: the plan as a graph, with one task done, two side by side (one still running) and one waiting for both](images/goal-tasks.png)
 
@@ -84,8 +84,8 @@ Click a task to open it over the goal page (Escape, × or a click beside it clos
 
 - Its title, state, tags and, once done, its commit. Click the commit line to read the whole commit message.
 - **Task total**: attempts, cost (split into worker and reviewer), turns and minutes so far.
-- **spec**, its **Checks** with their latest result, and **Relevant files**.
-- **Files**: what the task added or changed (**Files so far** while it runs). Images show as thumbnails. Click any file to see it in the page: pictures, PDFs, video and audio play right there, and code, Markdown and JSON are shown formatted. You need no editor on the computer Foundry runs on, so this works from a phone or over [remote access](../operate/remote-access.md) too.
+- **spec** (**Open full** reads it in a larger window), its **Checks** with their latest result, and **Relevant files** (click one to open it).
+- **Files**: what the task added or changed (**Files so far** while it runs). Images show as thumbnails. Click any file to see it in the page: pictures, PDFs, video and audio play right there, and code (coloured by language, with line numbers), Markdown and JSON are shown formatted. You need no editor on the computer Foundry runs on, so this works from a phone or over [remote access](../operate/remote-access.md) too.
 - **This task is waiting for you**, if it is blocked, with the buttons to answer.
 - One chip per attempt: **#1**, **#2** … with its result and cost. **↻1** means the session was resumed once instead of starting over, which is cheaper.
 - For the chosen attempt: the result, the worker model, turns, cost, start time, duration, and which skills it used, then every session that ran for it.

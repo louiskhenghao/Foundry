@@ -2,7 +2,7 @@
 
 > English · [中文](./settings.zh.md)
 
-Open **Settings** in the top bar. The sections are listed on the left; this page follows them in order and explains, in plain words, the controls you might want to touch and when. The exact keys, defaults and environment variables are in the operator reference, [configuration.md](../operate/configuration.md).
+Open the ⚙ menu at the right of the top bar and choose **Settings**. The sections are listed on the left; this page follows them in order and explains, in plain words, the controls you might want to touch and when. The exact keys, defaults and environment variables are in the operator reference, [configuration.md](../operate/configuration.md).
 
 ## How Settings works
 
