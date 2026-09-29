@@ -238,8 +238,8 @@ export function Meter({ value, max, label, warn }: { value: number; max: number 
 export function ConfirmDialog({ open, title, children, confirmLabel = 'Confirm', danger, busy, onConfirm, onClose }: { open: boolean; title: ReactNode; children?: ReactNode; confirmLabel?: string; danger?: boolean; busy?: boolean; onConfirm: () => void; onClose: () => void }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
-      <div className="w-full sm:max-w-md rounded-t-xl sm:rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl p-4 space-y-3">
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-3 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
+      <div className="w-full sm:max-w-md rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl p-4 space-y-3">
         <h3 className="text-sm font-semibold text-zinc-100">{title}</h3>
         {children && <div className="text-xs text-zinc-300 space-y-2">{children}</div>}
         <div className="flex justify-end gap-2 pt-1">
@@ -259,8 +259,8 @@ export function ConfirmDialog({ open, title, children, confirmLabel = 'Confirm',
 export function Modal({ open, title, onClose, children, wide }: { open: boolean; title: ReactNode; onClose: () => void; children: ReactNode; wide?: boolean }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={cn('w-full max-h-[92vh] sm:max-h-[85vh] rounded-t-xl sm:rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl flex flex-col', wide ? 'sm:max-w-4xl' : 'sm:max-w-2xl')}>
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-3 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className={cn('w-full max-h-[calc(100dvh-1.5rem)] sm:max-h-[85vh] rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl flex flex-col', wide ? 'sm:max-w-4xl' : 'sm:max-w-2xl')}>
         <header className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800">
           <h3 className="text-sm font-semibold text-zinc-100 min-w-0 truncate">{title}</h3>
           <button className="ml-auto text-zinc-400 hover:text-zinc-100 text-lg leading-none px-1" onClick={onClose} aria-label="close">

@@ -110,8 +110,8 @@ export function McpConnectDialog({ name, onClose }: { name: string; onClose: (si
 
   // portalled to <body>: the page's sticky header and the operations dock would otherwise contain or cover a fixed overlay
   return createPortal(
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <div className="w-full sm:max-w-lg rounded-t-xl sm:rounded-lg border border-zinc-800 bg-zinc-950 p-5 space-y-4">
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-3 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+      <div className="w-full sm:max-w-lg max-h-[calc(100dvh-1.5rem)] overflow-auto rounded-lg border border-zinc-800 bg-zinc-950 p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold">Connect {name}</h2>
           <Button size="sm" variant="ghost" onClick={close} aria-label="close">
