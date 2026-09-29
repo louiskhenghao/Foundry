@@ -21,6 +21,8 @@ export interface DagTask extends Task {
   maxAttempts: number;
   /** every attempt and review of the task so far, as in the task drawer */
   totalCost: number | null;
+  /** the model the latest worker session ran on (short name), once one ran */
+  model?: string | null;
   /** Brief mode: no run state yet — show this chip (the Area) instead of the state badge and attempt count */
   plain?: { label: string | null; color: string };
 }
@@ -185,7 +187,8 @@ function TaskNode({ t, selected, linked, dim, onSelect, className, style, after 
       </div>
       <div className="text-[13px] mt-1.5 text-zinc-100 leading-snug">{t.title}</div>
       <div className="mt-1 flex items-center gap-x-1.5 gap-y-1 flex-wrap">
-        <TaskTags kind={t.kind} scenario={t.scenario} area={t.plain ? null : t.area} />
+        <TaskTags kind={t.kind} scenario={t.scenario} area={t.plain ? null : t.area} difficulty={t.difficulty} />
+        {t.model && <span className="mono text-[10px] text-zinc-500 whitespace-nowrap" title="The model the latest attempt ran on (the difficulty picks it from the preset)">{t.model}</span>}
         {t.worktreePath && t.state !== 'done' && <span className="text-[10px] text-zinc-500 whitespace-nowrap">own worktree</span>}
       </div>
       {after && after.length > 0 && <div className="text-[10px] text-zinc-500 mt-1 truncate">after: {after.join(', ')}</div>}
