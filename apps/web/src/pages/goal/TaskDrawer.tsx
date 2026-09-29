@@ -19,6 +19,8 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
   const [view, setView] = useState<'log' | 'report' | 'prompt'>('log');
   const [prompt, setPrompt] = useState<string | null>(null);
   const [fullText, setFullText] = useState<FullText | null>(null);
+  // where the task's relative paths live: its worktree (read from the progress folder once removed), else the progress folder
+  const filesRoot = task.worktreePath ?? d.goal.workspaceDir;
   const a: Attempt | undefined = attempts[Math.min(Math.max(ai, 0), attempts.length - 1)];
   const results: CheckResult[] = a ? d.checkResults.filter((r) => r.attemptId === a.id) : [];
   const checks = d.checks.filter((c) => c.taskId === task.id);
@@ -87,7 +89,16 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
       )}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-1 space-y-3">
-          <MarkdownPanel title="spec" source={task.spec} maxHeight={260} />
+          <MarkdownPanel
+            title="spec"
+            source={task.spec}
+            maxHeight={260}
+            actions={
+              <button type="button" className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-300 hover:text-zinc-100 hover:border-zinc-500" onClick={() => setFullText({ title: `Spec · ${task.title}`, text: task.spec })} title="Read the spec in a larger window">
+                Open full
+              </button>
+            }
+          />
           <div>
             <div className="text-xs text-zinc-500 mb-1">Checks</div>
             {checks.length === 0 && <div className="text-xs text-zinc-600">none (goal-level only)</div>}
@@ -108,11 +119,18 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
             <div>
               <div className="text-xs text-zinc-500 mb-1">Relevant files</div>
               <div className="mono text-[11px] text-zinc-400 space-y-0.5">
-                {task.relevantFiles.map((f) => (
-                  <div key={f} className="truncate">
-                    {f}
-                  </div>
-                ))}
+                {task.relevantFiles.map((f) =>
+                  // relative to the task's folder while it has one, else to the progress folder the work lands in
+                  filesRoot ? (
+                    <button key={f} type="button" onClick={() => openFile(f.startsWith('/') ? f : `${filesRoot}/${f}`)} className="block w-full truncate text-left text-sky-300 hover:underline" title={`Open ${f}`}>
+                      {f}
+                    </button>
+                  ) : (
+                    <div key={f} className="truncate">
+                      {f}
+                    </div>
+                  ),
+                )}
               </div>
             </div>
           )}
