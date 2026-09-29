@@ -259,8 +259,11 @@ function FullScreen({ children, onClose }: { children: ReactNode; onClose: () =>
     };
   }, [onClose]);
   return (
-    <div className="fixed inset-0 z-50 bg-zinc-950/95 backdrop-blur-sm overflow-auto">
-      <div className="max-w-6xl mx-auto p-3 sm:p-6 min-h-full">{children}</div>
+    // translucent and blurred: the goal page stays in view behind the panel; a click beside the panel closes it
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[3px] overflow-auto" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="max-w-6xl mx-auto p-3 sm:p-6 min-h-full" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+        <div className="rounded-lg bg-zinc-950 shadow-2xl">{children}</div>
+      </div>
     </div>
   );
 }
