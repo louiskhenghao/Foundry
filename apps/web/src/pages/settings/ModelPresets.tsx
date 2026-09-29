@@ -189,26 +189,39 @@ export function ModelPresetsSection({ draft, set, known, reloadModels }: { draft
             <Plus size={12} /> New from this
           </Button>
         </div>
-        <div className="flex items-start gap-3 flex-wrap">
+        {/* one row: name and description as labelled fields (your presets) or as text (built-ins); actions sit on the inputs' line */}
+        <div className="flex items-end gap-3 flex-wrap">
           {own ? (
-            <Field label="Name" className="w-56">
-              <Input value={current.label} onChange={(e) => writePreset(editing, { ...current, label: e.target.value || 'Untitled' })} />
-            </Field>
+            <>
+              <Field label="Name" className="w-full sm:w-56">
+                <Input value={current.label} onChange={(e) => writePreset(editing, { ...current, label: e.target.value || 'Untitled' })} />
+              </Field>
+              <Field label="Description" className="flex-1 min-w-[16rem]">
+                <Input value={current.description} placeholder="what this preset is for" onChange={(e) => writePreset(editing, { ...current, description: e.target.value })} />
+              </Field>
+            </>
           ) : (
-            <div className="text-zinc-100 text-sm pt-1">
-              {current.label} {status.modified && <Badge state="blocked">modified</Badge>} {status.newerDefault && <Badge state="awaiting_brief_approval">newer default available</Badge>}
+            <div className="flex-1 min-w-[16rem] space-y-1">
+              <div className="text-zinc-100 text-sm flex items-center gap-2 flex-wrap">
+                {current.label} {status.modified && <Badge state="blocked">modified</Badge>} {status.newerDefault && <Badge state="awaiting_brief_approval">newer default available</Badge>}
+              </div>
+              <p className="text-xs text-zinc-400">{current.description}</p>
             </div>
           )}
-          <p className="text-xs text-zinc-400 flex-1 min-w-[16rem] pt-1">{own ? <Input className="text-xs" value={current.description} placeholder="what this preset is for" onChange={(e) => writePreset(editing, { ...current, description: e.target.value })} /> : current.description}</p>
-          {status.modified && (
-            <Button size="sm" variant="ghost" onClick={reset} title="Restore the values Foundry ships for this preset">
-              <RotateCcw size={12} /> Reset
-            </Button>
-          )}
-          {own && (
-            <Button size="sm" variant="danger" onClick={askDelete}>
-              <Trash2 size={12} /> Delete
-            </Button>
+          {(status.modified || own) && (
+            <div className="flex items-center gap-2 shrink-0">
+              {status.modified && (
+                <Button size="sm" variant="ghost" onClick={reset} title="Restore the values Foundry ships for this preset">
+                  <RotateCcw size={12} /> Reset
+                </Button>
+              )}
+              {own && (
+                // the height of an input, so it lines up with the fields beside it
+                <Button size="sm" variant="danger" className="h-[34px]" onClick={askDelete}>
+                  <Trash2 size={12} /> Delete
+                </Button>
+              )}
+            </div>
           )}
         </div>
         <div className="flex gap-1">
