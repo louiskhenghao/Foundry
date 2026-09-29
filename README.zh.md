@@ -43,7 +43,7 @@ Foundry 做的就是这部分。
 <tr>
 <td width="50%" valign="top">
 
-**1 · 说出来**<br>
+**[1 · 说出来](docs/guide/your-first-goal.zh.md#the-new-goal-form)**<br>
 按 **New goal**，选项目文件夹，写下你想要的。代码、文档、调研、图片、视频都行。
 
 <img src="docs/guide/images/new-goal.png" alt="New goal 表单：goal 类型 Auto、Code、Documents、Research、Images、Video，以及目标描述">
@@ -51,7 +51,7 @@ Foundry 做的就是这部分。
 </td>
 <td width="50%" valign="top">
 
-**2 · 回答几个问题**<br>
+**[2 · 回答几个问题](docs/guide/answering-the-interview.zh.md)**<br>
 只问仓库里定不下来的事，每题附理由和推荐答案。也可以直接按 **Accept all recommended**。
 
 <img src="docs/guide/images/interview.png" alt="访谈第 1 轮：关于深色模式开关的三个问题，每题都有推荐选项和理由">
@@ -61,7 +61,7 @@ Foundry 做的就是这部分。
 <tr>
 <td width="50%" valign="top">
 
-**3 · 批准 Brief**<br>
+**[3 · 批准 Brief](docs/guide/approving-the-brief.zh.md)**<br>
 一页大白话写成的计划。想改就改，然后按 **Approve & run**。
 
 <img src="docs/guide/images/brief.png" alt="工作室官网的 Brief：它的理解、PR 标题，以及一个带配色方案的风格问题">
@@ -69,7 +69,7 @@ Foundry 做的就是这部分。
 </td>
 <td width="50%" valign="top">
 
-**4 · 在里程碑看一眼**<br>
+**[4 · 在里程碑看一眼](docs/guide/while-it-runs.zh.md#milestones)**<br>
 goal 暂停，预览已经跑起来了。按 **Continue**，或者说要改什么。
 
 <img src="docs/guide/images/milestone.png" alt="一个里程碑：预览运行在 4200 端口，下面有反馈框和 Continue 按钮">
@@ -79,7 +79,7 @@ goal 暂停，预览已经跑起来了。按 **Continue**，或者说要改什�
 <tr>
 <td width="50%" valign="top">
 
-**5 · 让它跑**<br>
+**[5 · 让它跑](docs/guide/while-it-runs.zh.md)**<br>
 能并行的任务就并行，每个任务检查通过才合进来。可以盯着看，也可以走开。
 
 <img src="docs/guide/images/goal-running.png" alt="运行中的 goal：Clarify 和 Brief 已完成，Run 进行中，右侧是验收检查，下面是工作所在的文件夹">
@@ -87,7 +87,7 @@ goal 暂停，预览已经跑起来了。按 **Continue**，或者说要改什�
 </td>
 <td width="50%" valign="top">
 
-**6 · 只在要紧时打扰你**<br>
+**[6 · 只在要紧时打扰你](docs/guide/when-foundry-needs-you.zh.md)**<br>
 任务受阻、改动冲突、预算到顶：都会进 **Inbox**，带着处理按钮——也可以推送到 Telegram 或 Discord。
 
 <img src="docs/guide/images/inbox.png" alt="Inbox 里有一个用完所有尝试次数的任务，以及 Suggest a hint 和 Retry with hint 按钮">
@@ -96,7 +96,7 @@ goal 暂停，预览已经跑起来了。按 **Continue**，或者说要改什�
 </tr>
 </table>
 
-做完后，成果在独立分支上；如果你选了，还会帮你推送，或者开一个 pull request。
+做完后，成果在独立分支上；如果你选了，还会帮你推送，或者开一个 pull request。见[拿到结果](docs/guide/getting-the-result.zh.md)。
 
 ## 快速开始
 

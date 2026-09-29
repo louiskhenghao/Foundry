@@ -14,7 +14,7 @@ for (const e of ['md', 'markdown', 'mdx']) KIND[e] = 'markdown';
 for (const e of ['json', 'jsonl', 'geojson', 'webmanifest']) KIND[e] = 'json';
 KIND.pdf = 'pdf';
 // source and plain text; anything unknown is shown as text only when it has no extension (Dockerfile, Makefile…)
-for (const e of ['txt', 'log', 'csv', 'tsv', 'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'css', 'scss', 'less', 'html', 'htm', 'xml', 'yml', 'yaml', 'toml', 'ini', 'conf', 'sh', 'bash', 'zsh', 'py', 'rb', 'go', 'rs', 'java', 'kt', 'swift', 'c', 'h', 'cpp', 'hpp', 'cs', 'php', 'sql', 'graphql', 'gql', 'vue', 'svelte', 'astro', 'prisma', 'proto', 'lock', 'gitignore', 'dockerignore', 'editorconfig'])
+for (const e of ['txt', 'log', 'csv', 'tsv', 'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'css', 'scss', 'less', 'html', 'htm', 'xml', 'yml', 'yaml', 'toml', 'ini', 'conf', 'sh', 'bash', 'zsh', 'py', 'rb', 'go', 'rs', 'java', 'kt', 'swift', 'c', 'h', 'cpp', 'hpp', 'cs', 'php', 'sql', 'graphql', 'gql', 'vue', 'svelte', 'astro', 'prisma', 'proto', 'lock', 'gitignore', 'dockerignore', 'editorconfig', 'mts', 'cts', 'dart', 'lua', 'r', 'scala', 'ex', 'exs', 'erl', 'hs', 'clj', 'pl', 'ps1', 'bat', 'cmd', 'nix', 'zig', 'sol', 'tf', 'hcl', 'gradle', 'properties', 'example', 'sample', 'env', 'diff', 'patch'])
   KIND[e] = 'text';
 
 export function fileKind(name: string): FileKind {

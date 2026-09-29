@@ -44,7 +44,7 @@ Foundry does that part.
 <tr>
 <td width="50%" valign="top">
 
-**1 · Describe it**<br>
+**[1 · Describe it](docs/guide/your-first-goal.md#the-new-goal-form)**<br>
 Press **New goal**, pick the project folder and write what you want. Code, documents, research, images or video.
 
 <img src="docs/guide/images/new-goal.png" alt="The New goal form: goal kinds Auto, Code, Documents, Research, Images and Video, and the goal text">
@@ -52,7 +52,7 @@ Press **New goal**, pick the project folder and write what you want. Code, docum
 </td>
 <td width="50%" valign="top">
 
-**2 · Answer a few questions**<br>
+**[2 · Answer a few questions](docs/guide/answering-the-interview.md)**<br>
 Only what the repository can't settle, each with the reason and a recommendation. Or press **Accept all recommended**.
 
 <img src="docs/guide/images/interview.png" alt="Round 1 of the interview: three questions about a dark mode toggle, each with a recommended option and the reason">
@@ -62,7 +62,7 @@ Only what the repository can't settle, each with the reason and a recommendation
 <tr>
 <td width="50%" valign="top">
 
-**3 · Approve the Brief**<br>
+**[3 · Approve the Brief](docs/guide/approving-the-brief.md)**<br>
 One page with the plan in plain words. Change what you want, then **Approve & run**.
 
 <img src="docs/guide/images/brief.png" alt="The Brief of a studio landing page: its understanding, the pull request title and a style question with colour palettes">
@@ -70,7 +70,7 @@ One page with the plan in plain words. Change what you want, then **Approve & ru
 </td>
 <td width="50%" valign="top">
 
-**4 · Have a look at milestones**<br>
+**[4 · Have a look at milestones](docs/guide/while-it-runs.md#milestones)**<br>
 The goal pauses, the preview is already running. Press **Continue**, or say what to change.
 
 <img src="docs/guide/images/milestone.png" alt="A milestone: the preview runs on port 4200, with a box for feedback and a Continue button">
@@ -80,7 +80,7 @@ The goal pauses, the preview is already running. Press **Continue**, or say what
 <tr>
 <td width="50%" valign="top">
 
-**5 · Let it run**<br>
+**[5 · Let it run](docs/guide/while-it-runs.md)**<br>
 Tasks run in parallel when they can, each one checked before it joins the rest. Watch it live, or walk away.
 
 <img src="docs/guide/images/goal-running.png" alt="A running goal: Clarify and Brief done, Run in progress, acceptance checks and the folder where the work is">
@@ -88,7 +88,7 @@ Tasks run in parallel when they can, each one checked before it joins the rest. 
 </td>
 <td width="50%" valign="top">
 
-**6 · Only interrupted when it matters**<br>
+**[6 · Only interrupted when it matters](docs/guide/when-foundry-needs-you.md)**<br>
 A blocked task, a conflict, a budget reached: it lands in the **Inbox** with the buttons to fix it — also on Telegram or Discord.
 
 <img src="docs/guide/images/inbox.png" alt="The Inbox with a task that used all its attempts, and the Suggest a hint and Retry with hint buttons">
@@ -97,7 +97,7 @@ A blocked task, a conflict, a budget reached: it lands in the **Inbox** with the
 </tr>
 </table>
 
-When it is done you get the work on its own branch, and — if you chose it — pushed, or as a pull request.
+When it is done you get the work on its own branch, and — if you chose it — pushed, or as a pull request. See [Getting the result](docs/guide/getting-the-result.md).
 
 ## Quick start
 

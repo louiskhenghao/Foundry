@@ -2,7 +2,7 @@
 
 > [English](./settings.md) · 中文
 
-打开顶栏上的 **Settings**。各个部分列在左侧；本页按顺序介绍，用大白话讲你可能想动的控件，以及什么时候动。确切的键名、默认值和环境变量在运维参考 [configuration.md](../operate/configuration.md) 里。
+打开顶栏右侧的 ⚙ 菜单，选 **Settings**。各个部分列在左侧；本页按顺序介绍，用大白话讲你可能想动的控件，以及什么时候动。确切的键名、默认值和环境变量在运维参考 [configuration.md](../operate/configuration.md) 里。
 
 ## Settings 怎么用
 

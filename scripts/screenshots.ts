@@ -24,6 +24,8 @@ await page.route('**/api/usage/minimax*', (r) => r.fulfill({ json: { state: 'una
 const mask = async () => {
   // the header shows the signed-in account and live usage of whoever runs this script: never ship those in a screenshot
   await page.evaluate(() => {
+    // the dot on the ⚙ menu reports this machine's missing tools, not the demo's
+    document.querySelector('button[aria-label="Settings, setup, help and theme"] span.bg-rose-500')?.remove();
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
       n.textContent = (n.textContent ?? '').replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, 'you@example.com').replace(/\/(?:private\/)?var\/folders\/[^\s·]*?\/foundry-demo-[^/\s]+\//g, '~/Projects/');

@@ -70,7 +70,8 @@ export function GoalPage() {
     () =>
       (d?.tasks ?? []).map((t) => {
         const attempts = d!.attempts.filter((a) => a.taskId === t.id);
-        return { ...t, attempts: attempts.length, maxAttempts: t.retryBudget + t.extraAttempts, totalCost: attempts.length ? taskUsage(attempts).costUsd : null };
+        const model = attempts.flatMap((a) => a.sessions).filter((s) => s.role === 'worker' && s.model).at(-1)?.model ?? null;
+        return { ...t, attempts: attempts.length, maxAttempts: t.retryBudget + t.extraAttempts, totalCost: attempts.length ? taskUsage(attempts).costUsd : null, model: model?.replace(/^claude-/, '').replace(/\[1m\]$/, '') ?? null };
       }),
     [d],
   );

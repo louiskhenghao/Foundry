@@ -56,6 +56,22 @@ function Body({ info }: { info: FileInfo }) {
   const json = info.kind === 'json' ? parseJsonDoc(text) : undefined;
   if (json !== undefined) return <JsonTree value={json} />;
   if (info.kind === 'markdown') return <MarkdownPanel source={text} title={fmtSize(info.size)} local />;
+  return <CodeView text={text} name={info.name} />;
+}
+
+/** Source with line numbers, coloured by language once the highlighter has loaded (plain until then, or when unknown). */
+function CodeView({ text, name }: { text: string; name: string }) {
+  const [html, setHtml] = useState<string[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setHtml(null);
+    import('./highlight.ts')
+      .then(({ highlightLines, languageOf }) => alive && setHtml(highlightLines(text, languageOf(name))))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [text, name]);
   const lines = text.split('\n');
   return (
     <div className="surface-card rounded-md border border-zinc-800 bg-zinc-950/60 overflow-auto max-h-[70vh]">
@@ -64,7 +80,8 @@ function Body({ info }: { info: FileInfo }) {
           {lines.map((l, i) => (
             <tr key={i}>
               <td className="select-none pr-3 pl-3 text-right align-top text-zinc-600">{i + 1}</td>
-              <td className="pr-3 whitespace-pre-wrap [overflow-wrap:anywhere] text-zinc-300">{l || ' '}</td>
+              {/* highlight.js escapes the source; its output is only span tags */}
+              {html?.[i] != null ? <td className="hl pr-3 whitespace-pre-wrap [overflow-wrap:anywhere] text-zinc-300" dangerouslySetInnerHTML={{ __html: html[i] || ' ' }} /> : <td className="pr-3 whitespace-pre-wrap [overflow-wrap:anywhere] text-zinc-300">{l || ' '}</td>}
             </tr>
           ))}
         </tbody>

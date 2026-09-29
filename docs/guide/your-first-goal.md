@@ -8,7 +8,7 @@ This page walks through the **New goal** form from top to bottom. Most fields ca
 
 ### Check the Setup page
 
-Open **Setup** in the top bar. Foundry checks what it needs on this computer and shows a green or red line for each:
+Open the ⚙ menu at the right of the top bar and choose **Setup** (a red dot on ⚙ means something is still missing). Foundry checks what it needs on this computer and shows a green or red line for each:
 
 | Check | What it is | If it is red |
 |---|---|---|

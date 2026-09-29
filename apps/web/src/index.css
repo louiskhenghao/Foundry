@@ -198,3 +198,42 @@ main {
     height: 16px;
   }
 }
+
+/*
+ * Syntax colours for the file preview (highlight.js classes), taken from the app's own ramps so light mode's
+ * remapped accents keep them readable on white.
+ */
+.hl .hljs-keyword,
+.hl .hljs-selector-tag,
+.hl .hljs-meta .hljs-keyword,
+.hl .hljs-doctag { color: var(--color-violet-400); }
+.hl .hljs-string,
+.hl .hljs-regexp,
+.hl .hljs-addition,
+.hl .hljs-template-tag { color: var(--color-emerald-400); }
+.hl .hljs-number,
+.hl .hljs-literal,
+.hl .hljs-symbol,
+.hl .hljs-bullet { color: var(--color-amber-400); }
+.hl .hljs-title,
+.hl .hljs-title.function_,
+.hl .hljs-section { color: var(--color-sky-400); }
+.hl .hljs-type,
+.hl .hljs-built_in,
+.hl .hljs-title.class_,
+.hl .hljs-selector-class { color: var(--color-orange-400); }
+.hl .hljs-attr,
+.hl .hljs-attribute,
+.hl .hljs-property,
+.hl .hljs-variable,
+.hl .hljs-template-variable,
+.hl .hljs-selector-attr,
+.hl .hljs-selector-id { color: var(--color-blue-400); }
+.hl .hljs-tag,
+.hl .hljs-name { color: var(--color-rose-400); }
+.hl .hljs-comment,
+.hl .hljs-quote,
+.hl .hljs-meta { color: var(--color-zinc-500); font-style: italic; }
+.hl .hljs-deletion { color: var(--color-rose-400); }
+.hl .hljs-emphasis { font-style: italic; }
+.hl .hljs-strong { font-weight: 600; }
