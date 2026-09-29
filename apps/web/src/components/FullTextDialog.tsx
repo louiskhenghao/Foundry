@@ -1,7 +1,9 @@
 import { Check, Copy } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Modal } from '../ui.tsx';
+import { Modal, cn } from '../ui.tsx';
+import { useFilePreview } from './FilePreview.tsx';
+import { JsonTree, parseJsonDoc } from './JsonTree.tsx';
 import { MarkdownPanel } from './Markdown.tsx';
 
 /** What a one-line entry stands for in full. */
@@ -54,18 +56,40 @@ export function FullTextDialog({ value, onClose }: { value: FullText | null; onC
     if (!value) return;
     // captured first and stopped, so Escape closes only this dialog, not the task panel it opened over
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
+      // a file preview opened from this dialog takes Escape first
+      if (e.key !== 'Escape' || useFilePreview.getState().path) return;
       e.stopPropagation();
       onClose();
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, [value, onClose]);
+  const json = value ? parseJsonDoc(value.text) : undefined;
+  const [tree, setTree] = useState(true);
+  useEffect(() => setTree(true), [value?.text]);
   if (!value) return null;
   // portalled to <body>: it opens from inside the task panel, whose backdrop blur would otherwise pin a fixed overlay to the panel's scroll
   return createPortal(
     <Modal open title={value.title} onClose={onClose} wide>
       {value.note && <div className="mb-2 text-xs text-amber-300/90">{value.note}</div>}
+      {json !== undefined && (
+        // a JSON object or array (a tool call, most tool results) reads as a tree; the text view stays one click away
+        <div className="mb-2 flex items-center gap-2">
+          <div className="flex rounded border border-zinc-700 overflow-hidden text-[10px]">
+            <button className={cn('px-2 py-0.5', tree ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400')} onClick={() => setTree(true)}>
+              Tree
+            </button>
+            <button className={cn('px-2 py-0.5', !tree ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400')} onClick={() => setTree(false)}>
+              Text
+            </button>
+          </div>
+          <span className="flex-1" />
+          {tree && <CopyTextButton text={value.text} />}
+        </div>
+      )}
+      {json !== undefined && tree ? (
+        <JsonTree key={value.text} value={json} />
+      ) : (
       <MarkdownPanel
         key={String(value.raw)}
         source={value.text}
@@ -74,6 +98,7 @@ export function FullTextDialog({ value, onClose }: { value: FullText | null; onC
         defaultRaw={value.raw}
         actions={<CopyTextButton text={value.text} />}
       />
+      )}
     </Modal>,
     document.body,
   );

@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api } from './api.ts';
 import { AccountMenu } from './components/AccountMenu.tsx';
+import { FilePreviewHost } from './components/FilePreview.tsx';
 import { UpdatePill } from './components/UpdateDialog.tsx';
 import { BriefPage } from './pages/BriefPage.tsx';
 import { MergeResolvePage } from './pages/MergeResolvePage.tsx';
@@ -130,6 +131,7 @@ export function App() {
           <Route path="/help/:slug" element={<HelpPage />} />
         </Routes>
       </main>
+      <FilePreviewHost />
     </div>
   );
 }

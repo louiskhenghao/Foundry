@@ -266,6 +266,20 @@ export interface UpdateStatusView extends UpdateReportView {
   applying: boolean;
 }
 
+/** A file inside a goal's folders, as /api/files/stat describes it. */
+export interface FileInfo {
+  path: string;
+  name: string;
+  /** relative to the task's folder in a task's file list; the absolute path otherwise */
+  rel: string;
+  kind: 'image' | 'pdf' | 'video' | 'audio' | 'markdown' | 'json' | 'text' | 'binary';
+  size: number;
+  /** the path named a task worktree that is gone; this is the same file where the task's work landed */
+  landed?: boolean;
+}
+/** where the browser loads a file by its absolute path (served only inside a goal's folders) */
+export const fileUrl = (path: string) => `/api/files?path=${encodeURIComponent(path)}`;
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) } });
   const text = await res.text();
@@ -363,6 +377,8 @@ export const api = {
   reclarify: (id: string, reason?: string) => req<{ ok: true }>(`/api/goals/${id}/reclarify`, { method: 'POST', body: JSON.stringify({ reason }) }),
   streamHistory: (id: string) => req<{ events: any[] }>(`/api/stream/${encodeURIComponent(id)}/history`),
   /** one live-log event in full, read back from the transcript line its `ref` names */
+  fileStat: (path: string) => req<FileInfo>(`/api/files/stat?path=${encodeURIComponent(path)}`),
+  taskFiles: (goalId: string, taskId: string) => req<{ files: FileInfo[] }>(`/api/goals/${goalId}/tasks/${taskId}/files`),
   streamEvent: (ref: { file: string; line: number; block: number }) => req<{ event: any }>(`/api/transcripts/${encodeURIComponent(ref.file)}/event?line=${ref.line}&block=${ref.block}`),
   workspace: (id: string) => req<{ path: string; exists: boolean; branch: string; head: string | null; packageManager: string | null; install: string | null; scripts: { name: string; command: string }[]; baseSync: Goal['baseSync']; upstream: BaseSync | null; tasks: { id: string; title: string; path: string; branch: string | null }[] }>(`/api/goals/${id}/workspace`),
   restartGoal: (id: string, fromTaskId?: string) => req<{ restarted: string[] }>(`/api/goals/${id}/restart`, { method: 'POST', body: JSON.stringify({ fromTaskId }) }),
