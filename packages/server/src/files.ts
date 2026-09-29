@@ -1,4 +1,4 @@
-import { existsSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { basename, extname, isAbsolute, join, sep } from 'node:path';
 import type { Goal, Task } from '@foundry/core';
 import { attachmentsDir, goalWorkspacePath, internalWorkspaceDir, legacyWorkspaceRoot, screenshotsDir } from '@foundry/engine';
@@ -113,16 +113,125 @@ export function parsePorcelain(z: string): string[] {
   return out;
 }
 
-/** Absolute paths of the files a task added or changed: its commit once it merged, its worktree while it runs. */
-export async function taskFiles(dataDir: string, goal: Goal, task: Task, exec: (cmd: string[], cwd: string) => Promise<{ code: number; stdout: string }>): Promise<string[]> {
-  if (task.worktreePath && existsSync(task.worktreePath)) {
+// ---- a task's files after its folders are gone: its commit in the repository ----
+
+type Exec = (cmd: string[], cwd: string) => Promise<{ code: number; stdout: string }>;
+
+/** Where one file can be read now: a folder on disk, or a blob in the task's commit (which outlives every folder). */
+export type FileSource = { kind: 'folder'; abs: string; size: number } | { kind: 'commit'; repo: string; ref: string; rel: string; size: number };
+
+/** a repository-relative path the UI may ask for: no absolute path, no `..`, nothing in .git, no .env file */
+export function safeRel(rel: string): boolean {
+  return !!rel && !rel.startsWith('/') && !rel.includes('\0') && !rel.split('/').some((s) => s === '..' || s === '' || s === '.git') && !/^\.env(\.|$)/.test(basename(rel));
+}
+
+/** Every file of a commit with its size (`git ls-tree -r -l -z`); empty when the commit is not in the repository. */
+export async function commitTree(repo: string, ref: string, exec: Exec): Promise<Map<string, number>> {
+  const r = await exec(['git', 'ls-tree', '-r', '-l', '-z', ref], repo);
+  const out = new Map<string, number>();
+  if (r.code !== 0) return out;
+  for (const entry of r.stdout.split('\0')) {
+    const tab = entry.indexOf('\t');
+    if (tab < 0) continue;
+    const [, type, , size] = entry.slice(0, tab).split(/\s+/);
+    if (type === 'blob') out.set(entry.slice(tab + 1), Number(size) || 0);
+  }
+  return out;
+}
+
+const finished = (t: Pick<Task, 'state'>) => t.state === 'done' || t.state === 'skipped' || t.state === 'failed';
+
+/**
+ * Where a file of a task (path relative to the repository) can be read now: a running task's own worktree; for a
+ * finished one, the version its commit holds; else the progress folder, else the user's checkout. Null when none has it.
+ */
+export async function taskFileSource(dataDir: string, goal: Goal, task: Task, rel: string, exec: Exec, tree?: Map<string, number>): Promise<FileSource | null> {
+  if (!safeRel(rel)) return null;
+  const roots = goalRoots(dataDir, goal, [task]);
+  const folder = (dir: string | null): FileSource | null => {
+    if (!dir || !existsSync(join(dir, rel))) return null;
+    try {
+      const { abs, size } = resolveServable(join(dir, rel), roots);
+      return { kind: 'folder', abs, size };
+    } catch {
+      return null;
+    }
+  };
+  if (task.worktreePath && !finished(task)) {
+    const live = folder(task.worktreePath);
+    if (live) return live;
+  }
+  if (task.commitRef) {
+    const files = tree ?? (await commitTree(goal.repoPath, task.commitRef, exec));
+    if (files.has(rel)) return { kind: 'commit', repo: goal.repoPath, ref: task.commitRef, rel, size: files.get(rel)! };
+  }
+  return folder(goalWorkspacePath(dataDir, goal)) ?? folder(goal.repoPath);
+}
+
+/**
+ * The goal, task and repository-relative path an absolute path names when it points into a task worktree (current
+ * `<.foundry>/tasks/<task>/…` or legacy `<data>/worktrees/<goal>/<task>/…` layout) or into a goal's progress folder.
+ */
+export function pathInGoal(path: string, dataDir: string, goals: { goal: Goal; tasks: Task[] }[]): { goal: Goal; task: Task | null; rel: string } | null {
+  const under = (dir: string | null) => (dir && path.startsWith(dir + sep) ? path.slice(dir.length + 1) : null);
+  for (const { goal, tasks } of goals) {
+    for (const t of tasks) {
+      const rel = under(t.worktreePath) ?? under(join(internalWorkspaceDir(goal) ?? legacyWorkspaceRoot(dataDir, goal.id), 'tasks', t.id)) ?? under(join(legacyWorkspaceRoot(dataDir, goal.id), t.id));
+      if (rel) return { goal, task: t, rel };
+    }
+    const rel = under(goalWorkspacePath(dataDir, goal));
+    if (rel) return { goal, task: null, rel };
+  }
+  return null;
+}
+
+/** A goal-level path (the progress folder is gone): the newest task commit that holds the file. */
+export async function goalFileSource(goal: Goal, tasks: Task[], rel: string, exec: Exec): Promise<FileSource | null> {
+  if (!safeRel(rel)) return null;
+  for (const t of [...tasks].filter((x) => x.commitRef).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))) {
+    const r = await exec(['git', 'cat-file', '-s', `${t.commitRef}:${rel}`], goal.repoPath);
+    if (r.code === 0) return { kind: 'commit', repo: goal.repoPath, ref: t.commitRef!, rel, size: Number(r.stdout.trim()) || 0 };
+  }
+  return null;
+}
+
+/**
+ * What a task made, as repository-relative paths plus media written outside git: for a finished task the files its
+ * commit added or changed; for a running one its worktree's changes; and, for image and video goals, the artifacts
+ * written while the task ran (they are never committed).
+ */
+export async function taskMadeFiles(dataDir: string, goal: Goal, task: Task, attempts: { startedAt: string; endedAt: string | null }[], exec: Exec): Promise<{ rels: string[]; artifacts: string[] }> {
+  let rels: string[] = [];
+  if (task.worktreePath && existsSync(task.worktreePath) && !finished(task)) {
     const wt = task.worktreePath;
     const committed = task.baseRef ? parseNameStatus((await exec(['git', 'diff', '--name-status', '-z', `${task.baseRef}..HEAD`], wt)).stdout) : [];
     const pending = parsePorcelain((await exec(['git', 'status', '--porcelain', '-z', '--untracked-files=all'], wt)).stdout);
-    return [...new Set([...committed, ...pending])].map((r) => join(wt, r)).filter((p) => existsSync(p));
+    rels = [...new Set([...committed, ...pending])];
+  } else if (task.commitRef) {
+    const r = await exec(['git', 'show', '--name-status', '-z', '--format=', task.commitRef], goal.repoPath);
+    if (r.code === 0) rels = parseNameStatus(r.stdout);
   }
-  const ws = goalWorkspacePath(dataDir, goal);
-  if (!task.commitRef || !existsSync(ws)) return [];
-  const r = await exec(['git', 'show', '--name-status', '-z', '--format=', task.commitRef], ws);
-  return r.code === 0 ? parseNameStatus(r.stdout).map((p) => join(ws, p)).filter((p) => existsSync(p)) : [];
+  const artifactsDir = join(goalWorkspacePath(dataDir, goal), 'artifacts');
+  const from = attempts.length ? Date.parse(attempts[0]!.startedAt) : NaN;
+  const last = attempts.at(-1);
+  const to = last?.endedAt ? Date.parse(last.endedAt) + 60_000 : finished(task) ? Date.parse(task.updatedAt) + 60_000 : Date.now();
+  const inWindow = Number.isNaN(from) || !existsSync(artifactsDir) ? [] : walkFiles(artifactsDir).filter((p) => {
+    const m = statSync(p).mtimeMs;
+    return m >= from && m <= to;
+  });
+  // tasks that ran side by side share a window: when the task's plan names some of these files, those are its own
+  const plan = [task.spec ?? '', ...(task.relevantFiles ?? [])].join('\n');
+  const named = inWindow.filter((p) => plan.includes(basename(p)));
+  return { rels, artifacts: named.length ? named : inWindow };
+}
+
+function walkFiles(dir: string): string[] {
+  const out: string[] = [];
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    if (e.name.startsWith('.')) continue;
+    const p = join(dir, e.name);
+    if (e.isDirectory()) out.push(...walkFiles(p));
+    else if (e.isFile()) out.push(p);
+  }
+  return out;
 }

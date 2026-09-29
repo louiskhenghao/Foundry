@@ -57,7 +57,7 @@ export function FullTextDialog({ value, onClose }: { value: FullText | null; onC
     // captured first and stopped, so Escape closes only this dialog, not the task panel it opened over
     const onKey = (e: KeyboardEvent) => {
       // a file preview opened from this dialog takes Escape first
-      if (e.key !== 'Escape' || useFilePreview.getState().path) return;
+      if (e.key !== 'Escape' || useFilePreview.getState().file) return;
       e.stopPropagation();
       onClose();
     };

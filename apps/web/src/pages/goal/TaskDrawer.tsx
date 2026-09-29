@@ -2,7 +2,7 @@ import type { Attempt, CheckResult, Task } from '@foundry/core/browser';
 import { GitMerge, RotateCcw, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { type ReactNode, useEffect, useState } from 'react';
-import { api, fileUrl, type FileInfo, type GoalDetail } from '../../api.ts';
+import { api, fileKey, fileUrl, type FileRef, type GoalDetail, type TaskFile } from '../../api.ts';
 import { openFile } from '../../components/FilePreview.tsx';
 import { type FullText, FullTextDialog } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
@@ -19,8 +19,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
   const [view, setView] = useState<'log' | 'report' | 'prompt'>('log');
   const [prompt, setPrompt] = useState<string | null>(null);
   const [fullText, setFullText] = useState<FullText | null>(null);
-  // where the task's relative paths live: its worktree (read from the progress folder once removed), else the progress folder
-  const filesRoot = task.worktreePath ?? d.goal.workspaceDir;
+  const made = useTaskFiles(d.goal.id, task);
   const a: Attempt | undefined = attempts[Math.min(Math.max(ai, 0), attempts.length - 1)];
   const results: CheckResult[] = a ? d.checkResults.filter((r) => r.attemptId === a.id) : [];
   const checks = d.checks.filter((c) => c.taskId === task.id);
@@ -119,22 +118,23 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
             <div>
               <div className="text-xs text-zinc-500 mb-1">Relevant files</div>
               <div className="mono text-[11px] text-zinc-400 space-y-0.5">
-                {task.relevantFiles.map((f) =>
-                  // relative to the task's folder while it has one, else to the progress folder the work lands in
-                  filesRoot ? (
-                    <button key={f} type="button" onClick={() => openFile(f.startsWith('/') ? f : `${filesRoot}/${f}`)} className="block w-full truncate text-left text-sky-300 hover:underline" title={`Open ${f}`}>
+                {task.relevantFiles.map((f) => {
+                  // openable when the task's commit or one of the goal's folders has it; a file the plan only meant to create does not exist
+                  const open = made?.relevant.find((r) => r.rel === f)?.open;
+                  return open ? (
+                    <button key={f} type="button" onClick={() => openFile(open)} className="block w-full truncate text-left text-sky-300 hover:underline" title={`Open ${f}`}>
                       {f}
                     </button>
                   ) : (
-                    <div key={f} className="truncate">
+                    <div key={f} className="truncate" title={made ? "Not in this task's commit or in any folder of the goal" : undefined}>
                       {f}
                     </div>
-                  ),
-                )}
+                  );
+                })}
               </div>
             </div>
           )}
-          <TaskFiles goalId={d.goal.id} task={task} />
+          {made && <TaskFiles task={task} files={made.files} />}
           {task.hint && <MarkdownPanel title="human hint" source={task.hint} local />}
         </div>
         <div className="lg:col-span-2 min-w-0">
@@ -250,23 +250,29 @@ function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; conclude
   );
 }
 
-/**
- * What the task added or changed, shown here so nobody needs an editor on the host (a phone, a Tailscale visitor):
- * images as thumbnails, everything else as a list; each opens in the file preview.
- */
-function TaskFiles({ goalId, task }: { goalId: string; task: Task }) {
-  const [files, setFiles] = useState<FileInfo[] | null>(null);
+/** What the task made and which of its relevant files open, reloaded as the task moves on. */
+function useTaskFiles(goalId: string, task: Task) {
+  const [made, setMade] = useState<{ files: TaskFile[]; relevant: { rel: string; open: FileRef | null }[] } | null>(null);
   useEffect(() => {
     let alive = true;
     api
       .taskFiles(goalId, task.id)
-      .then((r) => alive && setFiles(r.files))
-      .catch(() => alive && setFiles([]));
+      .then((r) => alive && setMade(r))
+      .catch(() => alive && setMade({ files: [], relevant: [] }));
     return () => {
       alive = false;
     };
   }, [goalId, task.id, task.state, task.commitRef]);
-  if (!files?.length) return null;
+  return made;
+}
+
+/**
+ * What the task added or changed, shown here so nobody needs an editor on the host (a phone, a Tailscale visitor):
+ * images as thumbnails, everything else as a list; each opens in the file preview. A finished task's files are read
+ * from its commit, so they stay after delivery removed its folders.
+ */
+function TaskFiles({ task, files }: { task: Task; files: TaskFile[] }) {
+  if (!files.length) return null;
   const images = files.filter((f) => f.kind === 'image');
   const others = files.filter((f) => f.kind !== 'image');
   return (
@@ -277,15 +283,15 @@ function TaskFiles({ goalId, task }: { goalId: string; task: Task }) {
       {images.length > 0 && (
         <div className="grid grid-cols-3 gap-1.5 mb-1.5">
           {images.map((f) => (
-            <button key={f.path} type="button" onClick={() => openFile(f.path)} title={f.rel} className="aspect-square overflow-hidden rounded border border-zinc-800 bg-[repeating-conic-gradient(#8881_0_25%,transparent_0_50%)] bg-[length:12px_12px] hover:border-zinc-500">
-              <img src={fileUrl(f.path)} alt={f.rel} loading="lazy" className="h-full w-full object-contain" />
+            <button key={fileKey(f.open)} type="button" onClick={() => openFile(f.open)} title={f.rel} className="aspect-square overflow-hidden rounded border border-zinc-800 bg-[repeating-conic-gradient(#8881_0_25%,transparent_0_50%)] bg-[length:12px_12px] hover:border-zinc-500">
+              <img src={fileUrl(f.open)} alt={f.rel} loading="lazy" className="h-full w-full object-contain" />
             </button>
           ))}
         </div>
       )}
       <div className="mono text-[11px] space-y-0.5">
         {others.map((f) => (
-          <button key={f.path} type="button" onClick={() => openFile(f.path)} title={`Open ${f.rel}`} className="block w-full truncate text-left text-sky-300 hover:underline">
+          <button key={fileKey(f.open)} type="button" onClick={() => openFile(f.open)} title={`Open ${f.rel}`} className="block w-full truncate text-left text-sky-300 hover:underline">
             {f.rel}
           </button>
         ))}
