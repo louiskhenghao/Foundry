@@ -126,18 +126,13 @@ export function SimpleBrief(p: {
         <p className="text-[11px] text-zinc-500 mt-3">To change the plan itself (add, remove or reorder pieces, set acceptance checks), open Expert view.</p>
       </Card>
 
-      <Card title="Price">
-        <div className="text-sm text-zinc-300">
-          Estimated <span className="mono text-zinc-100">${brief.costEstimateUsd}</span> and about <span className="mono text-zinc-100">{brief.timeEstimateMin} min</span>.
-          {editable && (
-            <>
-              {' '}
-              The engine will stop and ask you at{' '}
-              <Input type="number" min={0.5} step={0.5} className="w-24 inline-block mx-1" value={p.budgetDraft.maxCostUsd ?? ''} placeholder="∞" onChange={(e) => p.setBudgetEdit({ ...p.budgetDraft, maxCostUsd: e.target.value === '' ? null : Number(e.target.value) })} />
-              $ (blank = no limit; suggested {fmtLimitUsd(p.proposed.maxCostUsd)} / {fmtLimitMin(p.proposed.maxDurationMin)}).
-            </>
-          )}
-        </div>
+      <Card title={g.provider === 'codex' ? 'Time & limits' : 'Price & time'}>
+        <p className="text-sm text-zinc-300">{g.provider !== 'codex' && <>Estimated ${brief.costEstimateUsd} and </>}about {brief.timeEstimateMin} min.</p>
+        {g.provider === 'codex' && <p className="text-xs text-zinc-400 mt-2">Dollar cost is unavailable. Time, attempts and concurrency still apply.</p>}
+        {editable && <div className="flex flex-wrap gap-3 mt-3">
+          {g.provider !== 'codex' && <label className="text-xs text-zinc-400">Max cost (USD)<Input type="number" min={0.5} step={0.5} value={p.budgetDraft.maxCostUsd ?? ''} placeholder="No limit" onChange={(e) => p.setBudgetEdit({ ...p.budgetDraft, maxCostUsd: e.target.value === '' ? null : Number(e.target.value) })} /></label>}
+          <label className="text-xs text-zinc-400">Max minutes<Input type="number" min={5} step={5} value={p.budgetDraft.maxDurationMin ?? ''} placeholder="No limit" onChange={(e) => p.setBudgetEdit({ ...p.budgetDraft, maxDurationMin: e.target.value === '' ? null : Number(e.target.value) })} /></label>
+        </div>}
       </Card>
 
       {p.err && <div className="text-sm text-rose-400">{p.err}</div>}

@@ -181,7 +181,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
           <div className="flex items-center gap-2">
             <Sparkles size={12} className="text-sky-300" />
             <span className="text-sky-200 font-medium">AI diagnosis</span>
-            <span className="text-zinc-500">{suggestion.confidence} confidence · ${suggestion.costUsd.toFixed(2)}</span>
+            <span className="text-zinc-500">{suggestion.confidence} confidence · {suggestion.costAvailable === false ? 'cost unavailable' : `$${suggestion.costUsd.toFixed(2)}`}</span>
             <span className="ml-auto text-zinc-400">
               suggests: <b className="text-zinc-200">{ACTION_LABEL[suggestion.action as EscalationAction] ?? suggestion.action}</b>
             </span>

@@ -75,7 +75,7 @@ export function GoalsPage() {
                 <div className="flex items-center gap-3 text-[11px] text-zinc-400 mt-2 flex-wrap">
                   <span>{taskSummary(g)}</span>
                   <span className="mono">
-                    {fmtUsd(g.costUsd)} <span className="text-zinc-500">/ {fmtLimitUsd(g.budgets.maxCostUsd)}</span>
+                    {g.provider === 'codex' ? 'Codex · cost unavailable' : <>{fmtUsd(g.costUsd)} <span className="text-zinc-500">/ {fmtLimitUsd(g.budgets.maxCostUsd)}</span></>}
                   </span>
                   <span className="text-zinc-500">{ago(g.updatedAt)}</span>
                 </div>
@@ -107,7 +107,7 @@ export function GoalsPage() {
                     <td className="px-3 py-2 whitespace-nowrap">{stateCell(g)}</td>
                     <td className="px-3 py-2 text-xs text-zinc-400 hidden md:table-cell">{taskSummary(g)}</td>
                     <td className="px-3 py-2 mono text-xs whitespace-nowrap">
-                      {fmtUsd(g.costUsd)} <span className="text-zinc-500">/ {fmtLimitUsd(g.budgets.maxCostUsd)}</span>
+                      {g.provider === 'codex' ? 'Codex · cost unavailable' : <>{fmtUsd(g.costUsd)} <span className="text-zinc-500">/ {fmtLimitUsd(g.budgets.maxCostUsd)}</span></>}
                     </td>
                     <td className="px-3 py-2 text-xs text-zinc-500 whitespace-nowrap">{ago(g.updatedAt)}</td>
                   </tr>

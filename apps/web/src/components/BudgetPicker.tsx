@@ -18,12 +18,14 @@ export interface BudgetDraft {
 /** Preset tiles + the four limits (editable under Custom, read-only summary otherwise). */
 export function BudgetPicker({
   value,
+  costAvailable = true,
   onChange
 }: {
   value: BudgetDraft;
+  costAvailable?: boolean;
   onChange: (v: BudgetDraft) => void;
 }) {
-  const b = value.budgets;
+  const b = { ...value.budgets, ...(!costAvailable ? { maxCostUsd: null } : {}) };
   const setField = (k: keyof Budgets, raw: string) => {
     const n = raw === "" ? null : Number(raw);
     const next: Budgets = {
@@ -53,7 +55,7 @@ export function BudgetPicker({
               onClick={() =>
                 onChange({
                   preset: p,
-                  budgets: p === "custom" ? b : def.budgets
+                  budgets: { ...(p === "custom" ? b : def.budgets), ...(!costAvailable ? { maxCostUsd: null } : {}) }
                 })
               }
               className={cn(
@@ -72,7 +74,7 @@ export function BudgetPicker({
                 )}
               </div>
               <div className="text-[11px] text-zinc-500 mt-0.5 leading-snug">
-                {def.blurb}
+                {costAvailable ? def.blurb : ({ auto: 'The Brief proposes a time limit for your approval. Attempts and concurrency still apply.', quick: 'Small fix · 30 min · 2 parallel · 2 attempts per task.', thorough: 'Feature with review · 8 h · 3 parallel · 4 attempts per task.', unlimited: 'No time cap. Attempts and concurrency still apply.', custom: 'Set time, concurrency and attempts.' })[p]}
               </div>
             </button>
           );
@@ -80,7 +82,7 @@ export function BudgetPicker({
       </div>
       {value.preset === "custom" ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Field label="Max cost (USD est.)" hint="blank = no limit">
+          {costAvailable && <Field label="Max cost (USD est.)" hint="blank = no limit">
             <Input
               type="number"
               min={0.5}
@@ -89,7 +91,7 @@ export function BudgetPicker({
               placeholder="∞"
               onChange={(e) => setField("maxCostUsd", e.target.value)}
             />
-          </Field>
+          </Field>}
           <Field label="Max minutes" hint="blank = no limit">
             <Input
               type="number"
@@ -123,7 +125,7 @@ export function BudgetPicker({
         </div>
       ) : (
         <div className="text-xs text-zinc-400 flex flex-wrap gap-x-4 gap-y-1">
-          <span>
+          {costAvailable && <span>
             cost{" "}
             <span className="text-zinc-200 mono">
               {b.maxCostUsd == null
@@ -132,7 +134,7 @@ export function BudgetPicker({
                   : "no limit"
                 : `$${b.maxCostUsd}`}
             </span>
-          </span>
+          </span>}
           <span>
             time{" "}
             <span className="text-zinc-200 mono">
@@ -160,6 +162,7 @@ export function BudgetPicker({
           </button>
         </div>
       )}
+      {!costAvailable && <p className="text-xs text-amber-300">Codex reports tokens, not dollar cost. USD budgets are unavailable.</p>}
       {invalid && (
         <div className="text-xs text-rose-400">
           Limits must be positive (leave blank for no limit).
@@ -167,7 +170,7 @@ export function BudgetPicker({
       )}
       <p className="text-xs text-zinc-500">
         Exceeding a limit pauses the goal and asks you — it never fails
-        silently. Rate limits pause the engine regardless of budget.
+        silently. Rate limits pause the affected backend regardless of budget.
       </p>
     </div>
   );

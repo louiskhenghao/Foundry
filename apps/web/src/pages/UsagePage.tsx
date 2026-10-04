@@ -1,7 +1,7 @@
 import type { MinimaxQuota, UsageBucket, WindowSummary } from '@foundry/engine/usage-types';
 import { Gauge, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, type Usage } from '../api.ts';
 import { useLive } from '../store.ts';
 import { Badge, Button, Card, Empty, cn, fmtUsd } from '../ui.tsx';
@@ -17,19 +17,22 @@ export const untilText = (iso: string) => {
 const fmtDur = (ms: number | null) => (ms == null ? '—' : ms < 1000 ? `${ms} ms` : ms < 60_000 ? `${(ms / 1000).toFixed(0)} s` : `${(ms / 60_000).toFixed(1)} min`);
 
 export function UsagePage() {
+  const [query] = useSearchParams();
+  const [provider, setProvider] = useState<'claude' | 'codex'>(() => query.get('provider') === 'codex' ? 'codex' : 'claude');
   const version = useLive((s) => s.globalVersion);
   const [u, setU] = useState<Usage | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
-    const t = setTimeout(() => api.usage().then(setU).catch((e) => setErr(e.message)), 150);
-    return () => clearTimeout(t);
-  }, [version]);
+    let current = true;
+    const t = setTimeout(() => api.usage(provider).then((value) => { if (current) { setU(value); setErr(null); } }).catch((e) => { if (current) setErr(e.message); }), 150);
+    return () => { current = false; clearTimeout(t); };
+  }, [version, provider]);
   const probe = async () => {
     setBusy(true);
     setErr(null);
     try {
-      setU(await api.probeUsage());
+      setU(await api.probeUsage(provider));
     } catch (e: any) {
       setErr(e.message);
     } finally {
@@ -43,18 +46,19 @@ export function UsagePage() {
   return (
     <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
+        <select aria-label="Usage backend" disabled={busy} value={provider} onChange={(e) => setProvider(e.target.value as typeof provider)} className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1"><option value="claude">Claude Code</option><option value="codex">Codex</option></select>
         <h1 className="text-lg font-semibold flex items-center gap-2">
           <Gauge size={18} /> {u.provider === 'codex' ? 'Codex' : 'Claude'} usage <HelpLink to="costs-and-usage" label="What costs money and how to spend less (new tab)" />
         </h1>
         <span className="text-xs text-zinc-500 hidden md:inline">Foundry activity on this machine</span>
-        {u.provider !== 'codex' && <Button size="sm" variant="primary" className="ml-auto" disabled={busy} onClick={probe} title="Runs one tiny haiku session (~$0.02) to refresh the rate-limit signal">
+        {u.provider === 'claude' && provider === 'claude' && <Button size="sm" variant="primary" className="ml-auto" disabled={busy} onClick={probe} title="Runs one tiny haiku session (~$0.02) to refresh the rate-limit signal">
           <RefreshCw size={13} className={cn(busy && 'animate-spin')} /> Refresh signal
         </Button>}
         {err && <span className="text-xs text-rose-400 basis-full">{err}</span>}
       </div>
       {u.pausedUntil && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-4 py-2.5 text-sm">
-          ⏸ Rate limited — the engine is not starting new sessions and will resume automatically in {untilText(u.pausedUntil)} ({new Date(u.pausedUntil).toLocaleTimeString()}). Goals stay where they are.
+          ⏸ Rate limited — this backend is not starting new sessions and will resume automatically in {untilText(u.pausedUntil)} ({new Date(u.pausedUntil).toLocaleTimeString()}). Goals stay where they are.
         </div>
       )}
 
@@ -209,21 +213,22 @@ function WindowCard({ w, series, now, costAvailable = true }: { costAvailable?: 
           <div className="h-full bg-zinc-500" style={{ width: `${elapsed}%` }} />
         </div>
       </div>
-      <Bars buckets={series} />
+      <Bars buckets={series} costAvailable={costAvailable} />
       {w.lastSignalAt && <div className="text-[10px] text-zinc-600 mt-2">last rate-limit signal {new Date(w.lastSignalAt).toLocaleTimeString()}</div>}
     </Card>
   );
 }
 
 /** Cost per bucket as plain divs; hover shows the detail. */
-function Bars({ buckets }: { buckets: UsageBucket[] }) {
-  const max = Math.max(0.0001, ...buckets.map((b) => b.costUsd));
+function Bars({ buckets, costAvailable }: { buckets: UsageBucket[]; costAvailable: boolean }) {
+  const value = (b: UsageBucket) => costAvailable ? b.costUsd : b.outputTokens;
+  const max = Math.max(0.0001, ...buckets.map(value));
   return (
     <div className="mt-3">
       <div className="flex items-end gap-1 h-16">
         {buckets.map((b) => (
-          <div key={b.t} className="flex-1 flex flex-col items-center justify-end h-full group" title={`${b.label}: ${fmtUsd(b.costUsd)} · ${b.sessions} session${b.sessions === 1 ? '' : 's'} · ${fmtK(b.outputTokens)} output tokens`}>
-            <div className={cn('w-full rounded-t transition-colors', b.costUsd > 0 ? 'bg-emerald-500/70 group-hover:bg-emerald-400' : 'bg-zinc-800')} style={{ height: `${b.costUsd > 0 ? Math.max(6, (b.costUsd / max) * 100) : 2}%` }} />
+          <div key={b.t} className="flex-1 flex flex-col items-center justify-end h-full group" title={`${b.label}: ${costAvailable ? fmtUsd(b.costUsd) : 'cost unavailable'} · ${b.sessions} session${b.sessions === 1 ? '' : 's'} · ${fmtK(b.outputTokens)} output tokens`}>
+            <div className={cn('w-full rounded-t transition-colors', value(b) > 0 ? 'bg-emerald-500/70 group-hover:bg-emerald-400' : 'bg-zinc-800')} style={{ height: `${value(b) > 0 ? Math.max(6, (value(b) / max) * 100) : 2}%` }} />
           </div>
         ))}
       </div>
@@ -297,9 +302,9 @@ export function UsagePill() {
   const w = u.fiveHour;
   const color = u.pausedUntil ? 'text-amber-300 border-amber-500/40' : w.status === 'allowed' || !w.status ? 'text-zinc-300 border-zinc-700' : 'text-rose-300 border-rose-500/40';
   return (
-    <Link to="/usage" className={cn('flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] mono', color)} title={minimaxLow ? `MiniMax quota low: under 10% of a window left, or a balance under 1 — see Usage\n${u.note}` : u.note}>
+    <Link to={`/usage?provider=${u.provider ?? 'claude'}`} className={cn('flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] mono', color)} title={minimaxLow ? `MiniMax quota low: under 10% of a window left, or a balance under 1 — see Usage\n${u.note}` : u.note}>
       <Gauge size={12} />
-      <span className="whitespace-nowrap">{u.pausedUntil ? `paused ${untilText(u.pausedUntil)}` : u.costAvailable === false ? `5h ${fmtK(w.outputTokens)} tokens` : `5h ${fmtUsd(w.costUsd)}`}</span>
+      <span className="whitespace-nowrap">{u.provider === 'codex' ? 'Codex' : 'Claude'} · {u.pausedUntil ? `paused ${untilText(u.pausedUntil)}` : u.costAvailable === false ? `5h ${fmtK(w.outputTokens)} tokens` : `5h ${fmtUsd(w.costUsd)}`}</span>
       {w.resetsAt && !u.pausedUntil && <span className="text-zinc-500 hidden lg:inline whitespace-nowrap">· reset {untilText(w.resetsAt)}</span>}
       {/* the header has little room: an amber dot, and words only on wide screens */}
       {minimaxLow && (

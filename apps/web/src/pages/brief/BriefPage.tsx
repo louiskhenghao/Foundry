@@ -123,7 +123,8 @@ export function BriefPage() {
     }
   };
   const isAuto = g.budgetPreset === 'auto';
-  const proposed = proposeBudgetFromEstimate(brief);
+  const costAvailable = g.provider !== 'codex';
+  const proposed = { ...proposeBudgetFromEstimate(brief), ...(!costAvailable ? { maxCostUsd: null } : {}) };
   // Auto: start from the proposal; otherwise from the goal's own budget
   const budgetDraft = budgetEdit ?? (isAuto && g.budgets.maxCostUsd == null && g.budgets.maxDurationMin == null ? proposed : { maxCostUsd: g.budgets.maxCostUsd, maxDurationMin: g.budgets.maxDurationMin });
   const budgetChanged = budgetDraft.maxCostUsd !== g.budgets.maxCostUsd || budgetDraft.maxDurationMin !== g.budgets.maxDurationMin;
@@ -243,17 +244,17 @@ export function BriefPage() {
 
       <DecisionsBar brief={brief} goalId={id} editable={editable} edit={edit} />
       <AreasCard brief={brief} goalId={id} editable={editable} edit={edit} />
-      <PlanSection brief={brief} goalId={id} editable={editable} edit={edit} />
+      <PlanSection costAvailable={costAvailable} brief={brief} goalId={id} editable={editable} edit={edit} />
       <GoalAcceptanceCard brief={brief} editable={editable} edit={edit} />
       <RunCard brief={brief} editable={editable} edit={edit} goalId={g.id} selfCheck={g.selfCheck} />
       <CompletionCard brief={brief} editable={editable} value={completionEdit} onChange={setCompletionEdit} />
 
       <Card title={isAuto && editable ? 'Estimate → proposed budget' : 'Estimate & budget'}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-          <div>
+          {costAvailable ? <div>
             Estimated cost <span className="mono">${brief.costEstimateUsd}</span>
             <span className={cn('ml-1', overCost ? 'text-amber-300' : 'text-zinc-500')}>(budget {fmtLimitUsd(g.budgets.maxCostUsd)})</span>
-          </div>
+          </div> : <p className="text-zinc-400">Codex dollar costs are unavailable. Time and attempt limits apply.</p>}
           <div>
             Estimated time <span className="mono">{brief.timeEstimateMin} min</span>
             <span className={cn('ml-1', overTime ? 'text-amber-300' : 'text-zinc-500')}>(budget {fmtLimitMin(g.budgets.maxDurationMin)})</span>
@@ -273,17 +274,17 @@ export function BriefPage() {
               )}
             </div>
             <div className="flex flex-wrap items-end gap-3">
-              <label className="text-xs text-zinc-400">
+              {costAvailable && <label className="text-xs text-zinc-400">
                 max cost $
                 <Input type="number" min={0.5} step={0.5} className="w-28 mt-1" value={budgetDraft.maxCostUsd ?? ''} placeholder="∞" onChange={(e) => setBudgetEdit({ ...budgetDraft, maxCostUsd: e.target.value === '' ? null : Number(e.target.value) })} />
-              </label>
+              </label>}
               <label className="text-xs text-zinc-400">
                 max minutes
                 <Input type="number" min={5} step={5} className="w-28 mt-1" value={budgetDraft.maxDurationMin ?? ''} placeholder="∞" onChange={(e) => setBudgetEdit({ ...budgetDraft, maxDurationMin: e.target.value === '' ? null : Number(e.target.value) })} />
               </label>
               {(overCost || overTime || budgetChanged) && (
                 <Button size="sm" variant="ghost" onClick={() => setBudgetEdit(proposed)}>
-                  Use estimate ×2 (${proposed.maxCostUsd} / {proposed.maxDurationMin} min)
+                  Use estimate ×2 ({costAvailable && <>${proposed.maxCostUsd} / </>}{proposed.maxDurationMin} min)
                 </Button>
               )}
               {isAuto && (budgetDraft.maxCostUsd != null || budgetDraft.maxDurationMin != null) && (
@@ -314,7 +315,7 @@ export function BriefPage() {
             Save edits
           </Button>
           <Button variant="primary" disabled={busy || blockers.length > 0} onClick={approve} title={blockers.join('; ')}>
-            Approve & run{editable && budgetChanged ? ` · budget ${fmtLimitUsd(budgetDraft.maxCostUsd)} / ${fmtLimitMin(budgetDraft.maxDurationMin)}` : ''}
+            Approve & run{editable && budgetChanged ? ` · budget ${costAvailable ? fmtLimitUsd(budgetDraft.maxCostUsd) + ' / ' : ''}${fmtLimitMin(budgetDraft.maxDurationMin)}` : ''}
           </Button>
         </div>
       ) : (

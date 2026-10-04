@@ -1,13 +1,13 @@
 import { ExternalLink, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { api, type LoginSession } from '../api.ts';
+import { api, type LoginSession, type AgentProvider } from '../api.ts';
 import { Button, CopyButton, Input, cn } from '../ui.tsx';
 
 /** Runs `claude auth login` through the engine; the browser opens on this machine, the URL is shown too. */
-export function SignInDialog({ onClose }: { onClose: () => void }) {
-  const [provider, setProvider] = useState<'claude' | 'codex' | null>(null);
-  useEffect(() => { api.auth().then((info) => setProvider(info.provider)).catch((e) => setErr(e.message)); }, []);
+export function SignInDialog({ onClose, provider: selectedProvider }: { onClose: () => void; provider?: AgentProvider }) {
+  const [provider, setProvider] = useState<AgentProvider | null>(selectedProvider ?? null);
+  useEffect(() => { api.auth(false, selectedProvider).then((info) => setProvider(info.provider)).catch((e) => setErr(e.message)); }, []);
   const [email, setEmail] = useState('');
   const [session, setSession] = useState<LoginSession | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -16,7 +16,7 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     if (!session || session.done) return;
-    const t = setInterval(() => api.loginSession().then((s) => s && setSession(s)).catch(() => {}), 1500);
+    const t = setInterval(() => api.loginSession(provider ?? undefined).then((s) => s && setSession(s)).catch(() => {}), 1500);
     return () => clearInterval(t);
   }, [session?.id, session?.done]);
 
@@ -24,7 +24,7 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
     setSending(true);
     setErr(null);
     try {
-      setSession(await api.submitLoginCode(code));
+      setSession(await api.submitLoginCode(code, provider ?? undefined));
       setCode('');
     } catch (e: any) {
       setErr(e.message);
@@ -36,7 +36,7 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
   const start = async () => {
     setErr(null);
     try {
-      setSession(await api.startLogin({ email: email.trim() || undefined }));
+      setSession(await api.startLogin({ email: email.trim() || undefined }, provider ?? undefined));
     } catch (e: any) {
       setErr(e.message);
     }
@@ -99,7 +99,7 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
             {session.lines.length > 0 && <pre className="mono text-[11px] text-zinc-500 bg-zinc-900 border border-zinc-800 rounded p-2 max-h-40 overflow-auto whitespace-pre-wrap">{session.lines.slice(-12).join('\n')}</pre>}
             <div className="flex justify-end gap-2">
               {!session.done && (
-                <Button size="sm" variant="ghost" onClick={() => api.cancelLogin().then(onClose)}>
+                <Button size="sm" variant="ghost" onClick={() => api.cancelLogin(provider ?? undefined).then(onClose)}>
                   Cancel
                 </Button>
               )}

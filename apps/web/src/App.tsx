@@ -1,3 +1,4 @@
+import { AccountsPage } from './pages/AccountsPage.tsx';
 import { Bot, Inbox, ListTodo, Menu, Moon, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X, HelpCircle } from 'lucide-react';
 import { HelpPage } from './pages/HelpPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
@@ -112,6 +113,7 @@ export function App() {
           <Route path="/skills" element={<SkillsTabs />} />
           <Route path="/setup" element={<SetupPage />} />
           <Route path="/usage" element={<UsagePage />} />
+          <Route path="/accounts" element={<AccountsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/help/:slug" element={<HelpPage />} />

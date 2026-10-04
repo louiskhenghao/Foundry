@@ -377,12 +377,14 @@ export function SettingsPage() {
       </Card>
 
       <Card id="models" title={<>Models & limits<HelpLink to="settings#models--limits" className="ml-1.5" /></>} className="scroll-mt-16">
-        {draft.engine.provider === 'codex' ? <>
-          <Field label="Codex model" aside={aside('models.codexModel')} help="Used for every role. codex-default follows your Codex configuration; enter a model ID to pin it.">
+        {<>
+          <Field label="Codex model" aside={aside('models.codexModel')} help="Default for new Codex goals. Each goal keeps its chosen model. codex-default follows your Codex configuration.">
             {text('models.codexModel', 'codex-default')}
           </Field>
           <p className="text-xs text-amber-300 mt-3">Codex reports tokens but no USD cost. Dollar caps cannot be enforced. Time, concurrency and attempt limits still apply. The turn cap bounds tool calls for Codex.</p>
-        </> : <>
+        </>}
+        <h3 className="text-sm mt-5 mb-3">Claude Code models</h3>
+        <>
         <ModelPresetsSection draft={draft} set={set as (p: `models.${string}`, v: unknown) => void} known={known} reloadModels={loadModels} />
         <div className="border-t border-zinc-800 my-4" />
         {grid(
@@ -399,12 +401,12 @@ export function SettingsPage() {
           </>,
         )}
         <p className="text-[11px] text-zinc-500 mt-3">The list is what this machine has seen resolve (family aliases follow the latest release through Claude Code; a full model id pins a version). A new family is one custom entry away — after its first session it shows up here with its resolved id. Preset changes reach running goals too, at their next session.</p>
-        </>}
+        </>
         <div className="border-t border-zinc-800 mt-4 pt-4">
           <div className="text-xs text-zinc-300 mb-2">Limits — what one session may spend before the engine stops it</div>
           {grid(
             <>
-              {draft.engine.provider !== 'codex' && <Field label="Cost cap per session (USD)" aside={aside('sessions.attemptMaxCostUsd')} help="The real guard: a worker session stops at this spend (also bounded by the goal's remaining budget).">
+              {<Field label="Claude cost cap per session (USD)" aside={aside('sessions.attemptMaxCostUsd')} help="The real guard: a worker session stops at this spend (also bounded by the goal's remaining budget).">
                 {num('sessions.attemptMaxCostUsd', { min: 0.5, max: 500, step: 0.5 })}
               </Field>}
               <Field label="Attempt timeout (minutes)" aside={aside('sessions.attemptTimeoutMin')} help="A session killed at this mark keeps what it committed; the attempt then continues or restarts.">
@@ -413,7 +415,7 @@ export function SettingsPage() {
               <Field label="Continuations per attempt" aside={aside('sessions.maxContinuations')} help="How often one attempt may resume its own session (after a restart, a turn/cost cap, a timeout, or failing checks with progress) before a fresh attempt is started. Resuming keeps the session's context — far cheaper than starting over. 0 = always start fresh.">
                 {num('sessions.maxContinuations', { min: 0, max: 5 })}
               </Field>
-              <Field label="Turn cap per session" aside={aside('sessions.attemptMaxTurns')} help="Only stops runaway loops; keep it generous so a session is not cut mid-work.">
+              <Field label="Turn cap per session" aside={aside('sessions.attemptMaxTurns')} help="Claude: model turns. Codex: tool calls. Keep it generous; wall-clock timeout remains the hard stop.">
                 {num('sessions.attemptMaxTurns', { min: 10, max: 2000 })}
               </Field>
               <Field label="Concurrent agent sessions" aside={aside('engine.maxConcurrent')} help="Global cap across all goals (workers, reviewers, clarify) — the throughput knob, and the one that decides how fast the bill grows. Applies immediately.">
@@ -597,7 +599,7 @@ export function SettingsPage() {
             {bool('notifications.onInterview', 'Interview round', 'The Clarifier asked a round of questions before writing the Brief; the goal waits for your answers.')}
             {bool('notifications.onGoalFinished', 'Goal finished', 'A goal ended done, over-delivered, or failed. Cancelling a goal yourself never notifies.')}
             {bool('notifications.onDelivery', 'Delivery', 'A pull request was opened or merged, or the delivery failed.')}
-            {bool('notifications.onRateLimit', 'Usage pause', 'A Claude usage limit paused the engine, and when the pause lifts.')}
+            {bool('notifications.onRateLimit', 'Usage pause', 'A provider usage limit paused its goals, and when the retry pause lifts.')}
             {bool('notifications.onUpdateAvailable', 'New version', 'A Foundry release newer than this instance exists — once per version. Update from the header pill or Settings → About & updates.')}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -631,18 +633,18 @@ export function SettingsPage() {
             <Field label="Host" aside={aside('engine.host')} help="Bind address; keep 127.0.0.1 unless you know why.">
               {text('engine.host')}
             </Field>
-            <Field label="Agent backend" help="Choose at launch with FOUNDRY_PROVIDER=claude or codex. Each backend uses its own data directory so saved sessions remain compatible.">
+            <Field label="Default agent backend" help="Default for new goals in this data directory. Choose either backend on New goal; existing goals keep their backend.">
               <div className="text-sm">{draft.engine.provider === 'codex' ? 'Codex' : 'Claude Code'}</div>
             </Field>
-            {draft.engine.provider === 'codex' ? <>
+            {<>
               <Field label="Codex binary" aside={aside('engine.codexBin')} help="Empty = codex on PATH.">{text('engine.codexBin', 'codex', true)}</Field>
               <Field label="Codex home" aside={aside('engine.codexHome')} help="Empty = CODEX_HOME or ~/.codex.">{text('engine.codexHome', '~/.codex', true)}</Field>
-            </> : <><Field label="claude binary" aside={aside('engine.claudeBin')} help="Path to the Claude Code CLI; empty = first `claude` on PATH.">
+            </>}<><Field label="Claude binary" aside={aside('engine.claudeBin')} help="Path to the Claude Code CLI; empty = first `claude` on PATH.">
               {text('engine.claudeBin', 'claude', true)}
             </Field>
             <Field label="Claude Code home" aside={aside('engine.claudeHome')} help="Where skills, plugins and settings.json live; empty = ~/.claude (or CLAUDE_CONFIG_DIR).">
               {text('engine.claudeHome', '~/.claude', true)}
-            </Field></>}
+            </Field></>
             <Field label="Progress folders" aside={aside('engine.workspacesRoot')} help="Where each goal's working folder is created. Empty = next to the repository, as <repo>-foundry/<goal>. A folder here = <folder>/<repo>/<goal>. Applies to goals created from now on.">
               {text('engine.workspacesRoot', '/Users/you/Foundry', true)}
             </Field>

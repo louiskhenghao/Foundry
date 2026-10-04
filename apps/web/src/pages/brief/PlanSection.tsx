@@ -12,7 +12,7 @@ import { HelpLink } from '../HelpPage.tsx';
  * The plan: a graph of the tasks (coloured by Area) and the same tasks listed by Stage —
  * tasks of one stage run in parallel, a stage starts when the previous one is done.
  */
-export function PlanSection({ brief, goalId, editable, edit }: { brief: Brief; goalId: string; editable: boolean; edit: (fn: (b: Brief) => Brief) => void }) {
+export function PlanSection({ costAvailable = true, brief, goalId, editable, edit }: { costAvailable?: boolean; brief: Brief; goalId: string; editable: boolean; edit: (fn: (b: Brief) => Brief) => void }) {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [areaFilter, setAreaFilter] = useState<string | null>(null);
   const stages = useMemo(() => {
@@ -43,7 +43,7 @@ export function PlanSection({ brief, goalId, editable, edit }: { brief: Brief; g
     >
       {large && (
         <div className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-200">
-          This is a large goal: {brief.tasks.length} tasks, estimated {fmtUsd(brief.costEstimateUsd)} / {brief.timeEstimateMin} min. It will run, but consider splitting it into one goal per Area for smaller pull requests and easier review.
+          This is a large goal: {brief.tasks.length} tasks, estimated {costAvailable && <>{fmtUsd(brief.costEstimateUsd)} / </>} {brief.timeEstimateMin} min. It will run, but consider splitting it into one goal per Area for smaller pull requests and easier review.
         </div>
       )}
       {!stages.ok && <div className="text-xs text-rose-300 mb-2">Graph error: {stages.error}</div>}

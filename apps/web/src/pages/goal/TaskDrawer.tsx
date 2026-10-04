@@ -13,6 +13,7 @@ import { LiveLog } from '../LiveLog.tsx';
 import { EscalationCard } from '../InboxPage.tsx';
 
 export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; task: Task; onClose: () => void; onRestart?: () => void }) {
+  const cost = (value: number) => d.goal.provider === 'codex' ? 'unavailable' : fmtUsd(value);
   const attempts = d.attempts.filter((a) => a.taskId === task.id);
   const usage = d.tasks.find((t) => t.id === task.id)?.usage ?? null;
   const [ai, setAi] = useState(attempts.length - 1);
@@ -89,8 +90,8 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
         <div className="mb-3 shrink-0 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400 rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2" title="everything this task has cost so far — all attempts, all their sessions">
           <span className="text-zinc-500">Task total</span>
           <span><b className="text-zinc-200">{usage.attempts}</b> attempt{usage.attempts === 1 ? '' : 's'}</span>
-          <span><b className="text-zinc-200">{fmtUsd(usage.costUsd)}</b> <span className="text-zinc-500">(worker {fmtUsd(usage.byRole.worker.costUsd)} · reviewer {fmtUsd(usage.byRole.reviewer.costUsd)}{usage.byRole.merger.sessions ? ` · merger ${fmtUsd(usage.byRole.merger.costUsd)}` : ''})</span></span>
-          <span><b className="text-zinc-200">{usage.turns}</b> turns</span>
+          <span><b className="text-zinc-200">{cost(usage.costUsd)}</b> <span className="text-zinc-500">(worker {cost(usage.byRole.worker.costUsd)} · reviewer {cost(usage.byRole.reviewer.costUsd)}{usage.byRole.merger.sessions ? ` · merger ${cost(usage.byRole.merger.costUsd)}` : ''})</span></span>
+          <span><b className="text-zinc-200">{d.goal.provider === 'codex' ? '—' : usage.turns}</b> turns</span>
           <span><b className="text-zinc-200">{usage.wallMin.toFixed(0)}</b> min wall</span>
           {usage.models.length > 0 && <span className="mono">{usage.models.join(' · ')}</span>}
         </div>
@@ -153,7 +154,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
               <button key={x.id} onClick={() => setAi(i)} className={cn('text-xs rounded px-2 py-1 border flex items-center gap-1', i === Math.min(Math.max(ai, 0), attempts.length - 1) ? 'border-emerald-500 text-emerald-300' : 'border-zinc-700 text-zinc-400')}>
                 #{x.index} {x.kind === 'merge' ? 'merge' : ''} <Badge state={x.state} />
                 {x.continuations > 0 && <span className="text-[10px] text-emerald-300/80" title={`${x.continuations} continuation(s): the same session was resumed instead of a fresh attempt`}>↻{x.continuations}</span>}
-                <span className="text-zinc-500 mono">{fmtUsd(x.costUsd)}</span>
+                <span className="text-zinc-500 mono">{cost(x.costUsd)}</span>
               </button>
             ))}
             {attempts.length === 0 && <span className="text-xs text-zinc-500">no attempts yet</span>}
@@ -192,6 +193,7 @@ const fmtDur = (ms: number) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${M
 
 /** Labelled facts about one attempt, then every session that ran for it (worker segments, reviewer, merger). */
 function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; concluded: { state?: string; reason?: string } | null }) {
+  const cost = (value: number) => d.goal.provider === 'codex' ? 'unavailable' : fmtUsd(value);
   const reviewerCost = a.sessions.filter((s) => s.role === 'reviewer').reduce((n, s) => n + s.costUsd, 0);
   const workerModels = [...new Set(a.sessions.filter((s) => s.role === 'worker').map((s) => s.model).filter(Boolean))] as string[];
   const fallbacks = d.events.filter((e) => e.type === 'goal.models_changed').map((e) => e.payload as { from: string; to: string });
@@ -207,12 +209,12 @@ function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; conclude
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 rounded-md border border-zinc-800 bg-zinc-950/50 p-2.5">
         {cell('Result', <span className="flex items-center gap-1.5"><Badge state={running ? 'running' : a.state} />{a.resultSubtype && !running ? <span className="mono text-zinc-500">{a.resultSubtype}</span> : null}</span>)}
         {cell('Worker model', <span className="mono">{(workerModels.length ? workerModels : [a.model ?? '?']).join(' → ')}</span>, fallbacks.length ? `model fallback(s) on this goal: ${fallbacks.map((f) => `${f.from} → ${f.to}`).join(', ')}` : undefined)}
-        {cell('Turns', `${a.numTurns}${a.continuations > 0 ? ` over ${a.continuations + 1} segments` : ''}`)}
-        {cell('Cost', <>{fmtUsd(a.costUsd)} <span className="text-zinc-500">worker</span>{reviewerCost > 0 ? <> + {fmtUsd(reviewerCost)} <span className="text-zinc-500">reviewer</span></> : null}</>)}
+        {cell('Turns', d.goal.provider === 'codex' ? 'unavailable' : `${a.numTurns}${a.continuations > 0 ? ` over ${a.continuations + 1} segments` : ''}`)}
+        {cell('Cost', <>{cost(a.costUsd)} <span className="text-zinc-500">worker</span>{reviewerCost > 0 ? <> + {cost(reviewerCost)} <span className="text-zinc-500">reviewer</span></> : null}</>)}
         {cell('Started', ago(a.startedAt))}
         {cell('Duration', a.endedAt ? fmtDur(Date.parse(a.endedAt) - Date.parse(a.startedAt)) : 'running…')}
         {cell('Session', a.sessionId ? <span className="mono">{a.sessionId.slice(0, 8)}</span> : '—', a.sessionId ?? undefined)}
-        {cell('Skills', a.skillsUsed.length ? a.skillsUsed.join(', ') : '—', 'skills invoked with the Skill tool')}
+        {cell('Skills', d.goal.provider === 'codex' ? 'not observable' : a.skillsUsed.length ? a.skillsUsed.join(', ') : '—', 'skills invoked with the Skill tool')}
       </div>
       {!running && concluded?.reason && <div className={cn('text-xs', concluded.state === 'passed' ? 'text-emerald-300/80' : 'text-orange-300/90')}>→ {concluded.reason}</div>}
       {a.sessions.length > 0 && (
@@ -236,8 +238,8 @@ function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; conclude
                     {s.role === 'worker' && s.segment > 0 && <span className="text-zinc-500"> · continuation {s.segment}</span>}
                   </td>
                   <td className="pr-3 mono">{s.model ?? '—'}</td>
-                  <td className="pr-3 text-right">{s.numTurns}</td>
-                  <td className="pr-3 text-right mono">{fmtUsd(s.costUsd)}</td>
+                  <td className="pr-3 text-right">{d.goal.provider === 'codex' ? '—' : s.numTurns}</td>
+                  <td className="pr-3 text-right mono">{cost(s.costUsd)}</td>
                   <td className="pr-3 text-right">{fmtDur(s.durationMs)}</td>
                   <td className="mono text-zinc-500">{s.subtype === 'success' ? 'ok' : (s.subtype ?? '—')}{s.subtype === 'error_max_turns' || s.subtype === 'error_max_budget_usd' ? ' → continued' : ''}</td>
                 </tr>

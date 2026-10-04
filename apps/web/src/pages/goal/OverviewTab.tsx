@@ -139,7 +139,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
                   </>
                 )}
               </div>
-              <p className="text-[11px] text-zinc-500 mt-2">Written to the goal workspace's .claude/skills and git-excluded; they never reach a commit or PR.</p>
+              <p className="text-[11px] text-zinc-500 mt-2">Written to the goal workspace's {d.goal.provider === 'codex' ? '.agents/skills' : '.claude/skills'} and git-excluded; they never reach a commit or PR.</p>
             </Card>
           )}
           {(g.completion.graphRefresh || g.completion.docs.length > 0 || g.completion.artifactsRun) && (
@@ -208,7 +208,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
                 </span>
                 <span>{d.brief.brief.questions.filter((q) => q.answer).length}/{d.brief.brief.questions.length} questions answered</span>
                 <span>
-                  est. ${d.brief.brief.costEstimateUsd} / {d.brief.brief.timeEstimateMin} min
+                  est. {d.goal.provider !== 'codex' && <>${d.brief.brief.costEstimateUsd} / </>} {d.brief.brief.timeEstimateMin} min
                 </span>
               </div>
             </Card>

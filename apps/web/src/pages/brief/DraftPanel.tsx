@@ -99,7 +99,7 @@ export function DraftPanel({ proposal, onApply, onClose }: { proposal: DraftProp
       <div className="flex items-center gap-2 text-xs">
         <Sparkles size={13} className="text-emerald-300" />
         <span className="text-emerald-200 font-medium">Proposal</span>
-        <span className="text-zinc-500">{fmtCost(proposal.costUsd)} · accept what you want; nothing is written until you do</span>
+        <span className="text-zinc-500">{proposal.costAvailable === false ? 'cost unavailable' : fmtCost(proposal.costUsd)} · accept what you want; nothing is written until you do</span>
         <span className="ml-auto flex gap-1">
           {items.length > 1 && (
             <Button size="sm" onClick={acceptAll}>

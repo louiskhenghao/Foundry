@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CornerDownRight, X } from 'lucide-react';
 import { effectivePresets, natureKey, type ModelNature, type ModelPreset } from '@foundry/core/browser';
-import { api, type FollowUpDraft, type GoalRow, type RepoInfo } from '../api.ts';
+import { api, type AccountsInfo, type AgentProvider, type FollowUpDraft, type GoalRow, type RepoInfo } from '../api.ts';
 import { AttachmentInput } from '../components/Attachments.tsx';
 import { BudgetPicker, type BudgetDraft } from '../components/BudgetPicker.tsx';
 import { DeliveryPolicyForm, type PolicyDraft } from '../components/DeliveryPolicyForm.tsx';
@@ -69,7 +69,11 @@ export function NewGoalPage() {
   const [outputDir, setOutputDir] = useState('');
   const [interview, setInterview] = useState(false);
   const [effort, setEffort] = useState('');
-  const [codexModel, setCodexModel] = useState<string | null>(null);
+  const [provider, setProvider] = useState<AgentProvider>('claude');
+  const [accountError, setAccountError] = useState<string | null>(null);
+  const [accounts, setAccounts] = useState<AccountsInfo | null>(null);
+  const [codexModel, setCodexModel] = useState('codex-default');
+  useEffect(() => { api.accounts().then(setAccounts).catch((e) => setAccountError(e.message)); }, []);
   const [modelPreset, setModelPreset] = useState('');
   const [presetInfo, setPresetInfo] = useState<{ ids: { id: string; label: string }[]; picks: Record<ModelNature, string> } | null>(null);
   useEffect(() => localStorage.setItem(NATURE_KEY, nature), [nature]);
@@ -100,7 +104,8 @@ export function NewGoalPage() {
     api
       .settings()
       .then((v) => {
-        if (v.values.engine.provider === 'codex') setCodexModel(v.values.models.codexModel);
+        if (!changed.current.has('codexModel')) setCodexModel(v.values.models.codexModel);
+        if (!changed.current.has('provider')) setProvider(v.values.engine.provider);
         const presets = effectivePresets((v.values.models.presets ?? {}) as Record<string, ModelPreset>);
         setPresetInfo({ ids: Object.entries(presets).map(([id, p]) => ({ id, label: p.label })), picks: { code: v.values.models.presetCode, docs: v.values.models.presetDocs, media: v.values.models.presetMedia } });
         const d = v.values;
@@ -126,6 +131,10 @@ export function NewGoalPage() {
       setFollow({ draft: dr, startFrom: dr.start.recommended, attachments: true, style: true });
       if (!prefill) return;
       const p = dr.prefill;
+      changed.current.add('provider');
+      changed.current.add('codexModel');
+      setProvider(p.provider);
+      if (p.codexModel) setCodexModel(p.codexModel);
       setRepoPath(p.repoPath);
       setRepoKey((k) => k + 1);
       api.validateRepo(p.repoPath).then(setRepoInfo).catch(() => {});
@@ -178,7 +187,7 @@ export function NewGoalPage() {
     setDelivery(next);
   };
 
-  const ready = prompt.trim().length > 0 && repoPath.trim().length > 0 && (repoInfo?.ok ?? false);
+  const ready = !!accounts?.accounts.find((a) => a.provider === provider)?.status.loggedIn && prompt.trim().length > 0 && repoPath.trim().length > 0 && (repoInfo?.ok ?? false);
   const done = [prompt.trim().length > 0, repoInfo?.ok ?? false, true, true];
 
   const submit = async () => {
@@ -186,10 +195,12 @@ export function NewGoalPage() {
     setErr(null);
     try {
       const goal = await api.createGoal({
+        provider,
+        codexModel: provider === 'codex' ? codexModel : undefined,
         prompt,
         repoPath: repoPath.trim(),
         title: title.trim() || undefined,
-        budgets: budget.budgets,
+        budgets: { ...budget.budgets, ...(provider === 'codex' ? { maxCostUsd: null } : {}) },
         budgetPreset: budget.preset,
         autoBrief: auto ? { mustChecks: checks.split('\n').map((s) => s.trim()).filter(Boolean), stretchChecks: stretch.split('\n').map((s) => s.trim()).filter(Boolean) } : undefined,
         delivery,
@@ -201,7 +212,7 @@ export function NewGoalPage() {
         outputDir: (nature === 'image' || nature === 'video') && outputDir.trim() ? outputDir.trim() : undefined,
         interview: interview ? 'always' : undefined,
         effort: effort ? (effort as 'low' | 'medium' | 'high' | 'xhigh' | 'max') : undefined,
-        modelPreset: codexModel ? undefined : modelPreset || undefined,
+        modelPreset: provider === 'codex' ? undefined : modelPreset || undefined,
         follows: follow ? { goalId: follow.draft.previous.id, startFrom: follow.startFrom, attachments: follow.attachments, style: follow.style } : undefined,
       });
       try {
@@ -246,6 +257,17 @@ export function NewGoalPage() {
         </div>
       )}
 
+      <Card title="Agent backend">
+        <div className="grid sm:grid-cols-2 gap-3">{(['claude', 'codex'] as const).map((id) => {
+          const account = accounts?.accounts.find((a) => a.provider === id);
+          return <button key={id} type="button" aria-pressed={provider === id} onClick={() => { changed.current.add('provider'); setProvider(id); }} className={cn('rounded-md border p-3 text-left', provider === id ? 'border-emerald-500 bg-emerald-500/5' : 'border-zinc-800 hover:border-zinc-600')}>
+            <span className="font-medium">{id === 'codex' ? 'Codex' : 'Claude Code'}</span><span className="block text-xs text-zinc-400 mt-1">{!account ? 'Checking account…' : account.status.loggedIn ? 'Connected' : account.installed ? 'Sign in required' : 'CLI not installed'}</span>
+          </button>;
+        })}</div>
+        {accountError && <p role="alert" className="mt-3 text-xs text-rose-400">Unable to check accounts: {accountError}. Open Manage accounts to retry.</p>}
+        <p className="text-xs text-zinc-400 mt-3">This choice stays fixed for the goal, including retries and reviews. <a href="/accounts" className="text-emerald-400">Manage accounts</a></p>
+        {provider === 'codex' && <label className="block text-xs text-zinc-400 mt-3">Codex model<Input aria-label="Codex model" value={codexModel} onChange={(e) => { changed.current.add('codexModel'); setCodexModel(e.target.value); }} placeholder="codex-default" /><span>codex-default follows your Codex configuration.</span></label>}
+      </Card>
       <Card title={<>What kind of goal is this?<HelpLink to="your-first-goal#what-kind-of-goal-is-this" className="ml-1.5" /></>}>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {NATURES.map((n) => (
@@ -333,7 +355,7 @@ export function NewGoalPage() {
           </div>
           <div className="flex items-center gap-2.5 flex-wrap">
             <span className="text-xs text-zinc-300">Models<HelpLink to="your-first-goal#models" className="ml-1.5" /></span>
-            {codexModel ? <span className="text-xs text-zinc-400">Codex · {codexModel} (Settings → Models)</span> : <ButtonGroup
+            {provider === 'codex' ? <span className="text-xs text-zinc-400">Codex · {codexModel}</span> : <ButtonGroup
               label="Models"
               value={modelPreset}
               onChange={setModelPreset}
@@ -348,7 +370,7 @@ export function NewGoalPage() {
             />}
           </div>
         </div>
-        {codexModel && <p className="text-xs text-amber-300 mt-3">Codex dollar costs are unavailable; dollar budgets do not stop runs. Use duration and attempt limits.</p>}
+        {provider === 'codex' && <p className="text-xs text-amber-300 mt-3">Codex dollar costs are unavailable; dollar budgets do not stop runs. Use duration and attempt limits.</p>}
         {mode === 'expert' && (
           <div className="mt-3 flex items-center gap-2.5 flex-wrap">
             <span className="text-xs text-zinc-300">Engineering discipline — TDD<HelpLink to="your-first-goal#engineering-discipline-tdd" className="ml-1.5" /></span>
@@ -382,7 +404,7 @@ export function NewGoalPage() {
       </Card>
 
       <Card title={<>3 · Budget<HelpLink to="your-first-goal#budget" className="ml-1.5" /></>}>
-        <BudgetPicker value={budget} onChange={setBudget} />
+        <BudgetPicker costAvailable={provider === 'claude'} value={budget} onChange={setBudget} />
       </Card>
 
       <Card title={<>4 · Delivery — what may the engine do with the result?<HelpLink to="your-first-goal#delivery" className="ml-1.5" /></>}>
@@ -416,7 +438,7 @@ export function NewGoalPage() {
                 </div>
               </div>
             )}
-            {auto && budget.preset === 'auto' && <p className="text-xs text-zinc-500 mt-2">With Auto budget and no Brief, the engine applies the minimum proposal ($3 / 30 min) and pauses to ask if it is exceeded.</p>}
+            {auto && budget.preset === 'auto' && <p className="text-xs text-zinc-500 mt-2">With Auto budget and no Brief, the engine applies the minimum proposal ({provider === 'codex' ? '30 min' : '$3 / 30 min'}) and pauses to ask if it is exceeded.</p>}
           </Card>
         )}
       </div>

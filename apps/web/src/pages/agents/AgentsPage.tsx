@@ -9,7 +9,7 @@ import { ContextGauge } from './ContextGauge.tsx';
 import { SessionDetail } from './SessionDetail.tsx';
 import { SourceBadge, StatusDot, shortCwd, shortModel } from './rows.tsx';
 
-/** Every Claude session on this machine (Foundry-spawned and external), read live from the engine — nothing stored. */
+/** Foundry agent sessions and supported external Claude sessions, read live from the engine — nothing stored. */
 export function AgentsPage() {
   const version = useLive((s) => s.globalVersion);
   const [list, setList] = useState<AgentsList | null>(null);
@@ -71,10 +71,10 @@ export function AgentsPage() {
         )}
       </div>
       <p className="text-xs text-zinc-500 mb-4 max-w-2xl">
-        Live view of every Claude Code session on this machine — Foundry's own agents and the ones you open yourself. Read straight from Claude Code, nothing is stored. Click a session to follow its conversation.
+        Live Foundry sessions from both backends, plus external Claude Code sessions when enabled by the launch profile. External Codex sessions are not imported. Click a session to follow its conversation.
       </p>
       {!list && <Empty>Loading…</Empty>}
-      {list && sessions.length === 0 && <Empty>No Claude sessions in the last 24 hours.</Empty>}
+      {list && sessions.length === 0 && <Empty>No agent sessions in the last 24 hours.</Empty>}
 
       {groups.map((g) => (
         <section key={g.key} className="mb-6">
@@ -167,7 +167,7 @@ export function AgentsPage() {
       ))}
 
       <ConfirmDialog open={!!kill} danger busy={killing} title="Stop this session?" confirmLabel="Stop session" onConfirm={doKill} onClose={() => setKill(null)}>
-        The running Claude process for {kill?.foundry?.goalTitle ? <b>{kill.foundry.goalTitle}</b> : 'this task'} is killed. The engine may retry the task per its normal policy.
+        The running agent process for {kill?.foundry?.goalTitle ? <b>{kill.foundry.goalTitle}</b> : 'this task'} is killed. The engine may retry the task per its normal policy.
       </ConfirmDialog>
     </Page>
   );
