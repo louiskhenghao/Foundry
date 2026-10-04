@@ -18,7 +18,7 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 从 **Goals**（顶栏上的列表）打开一个 goal。页面顶部有：
 
 - 标题、状态标记（比如 **running**、**have a look**、**reviewing**、**done**）；goal 以 fast 模式运行时还有一个 **fast** 标签。
-- 项目文件夹（**copy** 复制它的路径）、goal 的编码智能体（**Claude Code** 或 **Codex**）和分支：goal 起步的分支 → goal 自己的分支。**Goals** 列表也在每个项目路径旁显示同样的编码智能体。
+- 项目文件夹（**copy** 复制它的路径）、goal 的编码智能体（**Claude Code** 或 **Codex**）和分支：goal 起步的分支 → goal 自己的分支。**Goals** 列表也在每个项目路径旁显示同样的编码智能体。列表的每一行把相关信息叠在一起：标题、编码智能体和文件夹；状态和任务数；费用和时间对比上限；最近更新和创建日期。每页显示 20 个 goal，最新创建的在前；页码记在地址栏里。
 - **time** 显示已用分钟数对比时间上限；Claude 还显示 **cost** 对比美元预算。Codex 美元费用不可用。
 - **Open ▾**：在你的电脑上打开项目或进度文件夹（见 [进度文件夹](#进度文件夹)）。
 - 一个随状态变化的主按钮：Brief 等你时是 **Review brief →**，运行时是 **Cancel**，完成后是 **Deliver…**、**Delivering…** 或 **Delivery**。
