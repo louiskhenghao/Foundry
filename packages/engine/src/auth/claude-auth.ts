@@ -1,4 +1,6 @@
 import { exec } from '../git/git.ts';
+import { readCodexAccount } from './codex-account.ts';
+import { CodexAccountReadError } from './codex-app-server.ts';
 
 export interface ClaudeAuthStatus {
   provider?: 'claude' | 'codex';
@@ -48,6 +50,16 @@ export async function claudeAuthStatus(claudeBin: string | null, run: typeof exe
 export async function codexAuthStatus(bin: string | null, run: typeof exec = exec, codexHome?: string): Promise<ClaudeAuthStatus> {
   const base: ClaudeAuthStatus = { provider: 'codex', loggedIn: false, authMethod: null, apiProvider: 'openai', email: null, orgName: null, subscriptionType: null, checkedAt: new Date().toISOString(), error: null };
   if (!bin) return { ...base, error: 'codex not installed' };
+  // A custom command runner retains the legacy status protocol; native reads own their stdio process.
+  if (run === exec) {
+    try {
+      const account = await readCodexAccount(bin, codexHome);
+      return account ? { ...base, loggedIn: true, authMethod: 'ChatGPT', email: account.email, subscriptionType: account.planType } : { ...base, error: 'Not signed in to Codex. Run codex login.' };
+    } catch (error) {
+      // Older CLIs may lack account/read. An authoritative signed-out or non-ChatGPT account never falls back.
+      if (!(error instanceof CodexAccountReadError) || error.kind !== 'unavailable') return { ...base, error: error instanceof CodexAccountReadError ? error.message : 'Could not read Codex account status.' };
+    }
+  }
   const r = await run([bin, 'login', 'status'], process.cwd(), { timeoutMs: 20_000, env: codexHome ? { CODEX_HOME: codexHome } : undefined }).catch((e) => ({ code: 1, stdout: '', stderr: String(e) }));
   const text = `${r.stdout} ${r.stderr}`;
   const chatgpt = /logged in.*chatgpt/is.test(text);
