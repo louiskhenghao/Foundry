@@ -120,3 +120,47 @@ describe('autoskills with symlinked skills', () => {
     expect(existsSync(join(repo, '.claude', 'skills', 'vitest', 'SKILL.md'))).toBe(true);
   });
 });
+
+describe('Codex project skills', () => {
+  test('installs into the native path, preserves instructions and keeps generated skills out of task commits', async () => {
+    const repo = await makeRepo();
+    writeFileSync(join(repo, 'package.json'), '{}');
+    writeFileSync(join(repo, 'CLAUDE.md'), '# existing instructions\n');
+    writeFileSync(join(repo, 'AGENTS.md'), '# native instructions\n');
+    await sh('git add -A && git -c user.name=t -c user.email=t@t commit -qm "chore: fixture"', repo);
+    const r = await runAutoskills(repo, {
+      provider: 'codex', nodeVersion: async () => 'v22.1.0',
+      spawn: async (args, cwd) => {
+        expect(args.slice(-2)).toEqual(['--agent', 'codex']);
+        mkdirSync(join(cwd, '.agents/skills/react'), { recursive: true });
+        writeFileSync(join(cwd, '.agents/skills/react/SKILL.md'), 'react instructions');
+        writeFileSync(join(cwd, 'CLAUDE.md'), 'generated');
+        writeFileSync(join(cwd, 'skills-lock.json'), '{}');
+        return { code: 0, tail: 'installed' };
+      },
+    });
+    expect(r.status).toBe('installed');
+    expect(r.skills).toEqual(['react']);
+    expect(readFileSync(join(repo, 'AGENTS.md'), 'utf8')).toBe('# native instructions\n');
+    expect(readFileSync(join(repo, 'CLAUDE.md'), 'utf8')).toBe('# existing instructions\n');
+    expect(await sh('git status --porcelain', repo)).toBe('');
+    const other = mkdtempSync(join(tmpdir(), 'as-codex-task-'));
+    expect(copyProjectSkills(repo, other, 'codex')).toBe(1);
+    expect(readFileSync(join(other, '.agents/skills/react/SKILL.md'), 'utf8')).toBe('react instructions');
+    expect(existsSync(join(other, '.claude'))).toBe(false);
+  });
+});
+
+test('Codex autoskills preserves existing tracked native skill symlinks', async () => {
+  const { symlinkSync } = await import('node:fs');
+  const repo = await makeRepo();
+  mkdirSync(join(repo, 'team-skills/custom'), { recursive: true });
+  mkdirSync(join(repo, '.agents/skills'), { recursive: true });
+  writeFileSync(join(repo, 'team-skills/custom/SKILL.md'), 'team instructions');
+  symlinkSync('../../team-skills/custom', join(repo, '.agents/skills/custom'));
+  writeFileSync(join(repo, 'package.json'), '{}');
+  await sh('git add -A && git -c user.name=t -c user.email=t@t commit -qm "chore: team skill"', repo);
+  await runAutoskills(repo, { provider: 'codex', nodeVersion: async () => 'v22.1.0', spawn: async () => ({ code: 0, tail: 'nothing to install' }) });
+  expect(await sh('git status --porcelain', repo)).toBe('');
+  expect(await sh('git ls-files .agents/skills/custom', repo)).toBe('.agents/skills/custom');
+});

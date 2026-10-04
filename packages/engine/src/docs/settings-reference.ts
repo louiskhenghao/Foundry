@@ -50,7 +50,8 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'workflow.videoPack': { section: 'Skills', help: 'Video skill set for video tasks.' },
   'workflow.autoskills': { section: 'Skills', help: "Install project skills matched to each goal repository's stack." },
   'workflow.settingSources': { section: 'Skills', help: 'Which Claude settings sources sessions load (e.g. user, project, local); empty = all of them.' },
-  'workflow.mcpAllowed': { section: 'Skills', help: 'MCP servers worker sessions may use, as tool prefixes (`mcp__<server>`, `mcp__plugin_<plugin>_<server>`, `mcp__claude_ai_<name>`). Set with the switches on the Skills page\'s MCP tab; sessions run without asking, so an unlisted server\'s tools are refused.' },
+  'workflow.codexMcpAllowed': { section: 'Skills', help: 'Codex MCP servers worker sessions may use, as `mcp__<server>` prefixes. Managed in Extensions → Codex → MCP servers. Independent of the Claude allow list; empty by default.' },
+  'workflow.mcpAllowed': { section: 'Skills', help: 'Claude MCP servers worker sessions may use, as tool prefixes (`mcp__<server>`, `mcp__plugin_<plugin>_<server>`, `mcp__claude_ai_<name>`). Set with the switches on the Skills page\'s MCP tab; sessions run without asking, so an unlisted server\'s tools are refused.' },
   // Git & delivery
   'sync.fetchBeforeGoal': { section: 'Git & delivery', help: 'Fetch the remote before a goal branch is created.' },
   'sync.startFrom': { section: 'Git & delivery', help: 'Where a goal branch starts: auto (the remote base when the local one is behind it) or local (always the local base).' },

@@ -84,6 +84,8 @@ export const WorkflowSettings = z.object({
   settingSources: z.array(z.string()).nullable().default(null),
   /** MCP tool prefixes worker sessions may use (ADR-0016): mcp__<server>, mcp__plugin_<plugin>_<server>, mcp__claude_ai_<name> */
   mcpAllowed: z.array(z.string().regex(/^mcp__[A-Za-z0-9_-]+$/)).default(() => [...DEFAULT_MCP_ALLOWED]),
+  /** Codex server permissions are independent of Claude server permissions. */
+  codexMcpAllowed: z.array(z.string().regex(/^mcp__[A-Za-z0-9_-]+$/)).default([]),
 });
 export const ReviewSettings = z.object({
   alwaysReviewTasks: z.boolean().default(true),

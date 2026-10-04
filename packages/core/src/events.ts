@@ -43,6 +43,7 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.attachment_added', { attachment: Attachment }),
   /** one executed skills updater run (informational audit, goalId null; not projected) */
   ev('skills.update_run', {
+    provider: z.enum(['claude', 'codex']).optional(),
     sourceId: z.string(),
     updater: z.string(),
     command: z.array(z.string()),

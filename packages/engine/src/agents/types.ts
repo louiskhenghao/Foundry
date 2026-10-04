@@ -2,18 +2,19 @@
 
 export type AgentSource = 'foundry' | 'external';
 /** busy = output within the last minute (or a Foundry in-flight session); idle = process alive but waiting */
-export type AgentStatus = 'busy' | 'idle' | 'finished';
+export type AgentStatus = 'busy' | 'idle' | 'finished' | 'unknown';
 
 export interface AgentSubagentRow {
   agentId: string;
   agentType: string;
   description: string;
-  status: 'running' | 'done';
+  status: 'running' | 'done' | 'unknown';
   lastActivityAt: string | null;
 }
 
 export interface AgentSessionRow {
   sessionId: string;
+  provider?: 'claude' | 'codex';
   source: AgentSource;
   /** 'cli' | 'claude-vscode' | … from the session registry/transcript; 'foundry' for engine-spawned rows */
   entrypoint: string | null;
@@ -39,12 +40,14 @@ export interface AgentsSummary {
   idle: number;
   finished: number;
   total: number;
+  unknown?: number;
 }
 
 export interface AgentsList {
   sessions: AgentSessionRow[];
   summary: AgentsSummary;
   generatedAt: string;
+  warnings?: string[];
 }
 
 export type AgentLogItem =
@@ -61,7 +64,7 @@ export type AgentLogItem =
 
 export interface AgentLogChunk {
   items: AgentLogItem[];
-  /** byte offset to pass on the next poll (end of the last complete line consumed) */
+  /** Opaque numeric continuation offset: bytes for Claude; parsed item position for Codex. */
   offset: number;
   /** file size at read time */
   size: number;

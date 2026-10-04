@@ -75,7 +75,7 @@ async function generate(engine: Engine, goalId: string, opt: BriefStyleOption, f
     maxTurns: 15,
     maxBudgetUsd: STYLE_SAMPLE_BUDGET_USD,
     permissionMode: 'dontAsk',
-    allowedTools: workerTools(engine.config.mcpAllowed),
+    allowedTools: workerTools(engine.mcpAllowedFor(goal)),
     settings: boundarySettings(config.hooksDir),
     settingSources: config.settingSources,
     timeoutMs: 5 * 60_000,

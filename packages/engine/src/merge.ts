@@ -217,7 +217,7 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
     maxTurns: 50,
     maxBudgetUsd: 2,
     permissionMode: 'dontAsk',
-    allowedTools: workerTools(engine.config.mcpAllowed),
+    allowedTools: workerTools(engine.mcpAllowedFor(goal)),
     appendSystemPromptFile: engine.roles.path('merger'),
     settings: boundarySettings(config.hooksDir),
     settingSources: config.settingSources,

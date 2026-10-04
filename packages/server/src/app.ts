@@ -68,6 +68,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   const db = engine.store.db;
   // Skills page operations: one live channel + one pollable record each (skill-ops.ts)
   const ops = new SkillOps((s) => engine.broadcast(s));
+  const authProvider = (c: any): 'claude' | 'codex' => z.enum(['claude', 'codex']).parse(c.req.query('provider') ?? engine.config.provider ?? 'claude');
+  const skillsFor = (c: any) => engine.skillsForProvider(authProvider(c));
+  const mcpFor = (c: any) => engine.mcpFor(authProvider(c));
 
   app.onError((err, c) => {
     // an error that ended a Skills page operation names it, so the page can show that operation as failed
@@ -104,16 +107,16 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   const FOUNDRY_ROW_ID = /^foundry-[A-Za-z0-9_-]{1,64}$/; // placeholder id for rows whose session hasn't reported its id yet
   const AGENT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
-  app.get('/api/agents', (c) => c.json(engine.agents.list()));
-  app.get('/api/agents/summary', (c) => c.json(engine.agents.summary()));
+  app.get('/api/agents', async (c) => c.json(await engine.agents.list()));
+  app.get('/api/agents/summary', async (c) => c.json(await engine.agents.summary()));
 
-  app.get('/api/agents/:sessionId/log', (c) => {
+  app.get('/api/agents/:sessionId/log', async (c) => {
     const sid = c.req.param('sessionId');
     if (!SESSION_ID.test(sid)) throw new HttpError(400, { error: 'bad session id' });
     const agent = c.req.query('agent') ?? null;
     if (agent && !AGENT_ID.test(agent)) throw new HttpError(400, { error: 'bad agent id' });
     const offset = Math.max(0, Math.floor(Number(c.req.query('offset') ?? 0) || 0));
-    const chunk = engine.agents.log(sid, agent, offset);
+    const chunk = await engine.agents.log(sid, agent, offset);
     if (!chunk) throw new HttpError(404, { error: 'no transcript for this session' });
     return c.json(chunk);
   });
@@ -211,7 +214,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   // A caller that names its own operation (`opId`, the Skills page) follows `skills-op:<id>`; the others (Setup,
   // Settings) keep following the shared `tool-install` channel, which gets the same lines.
   const toolInstall = async (c: any, id: string, opId?: string) => {
-    const op = ops.start('tool-install', `Install ${id}`, { id: opId, mirror: opId ? undefined : 'tool-install' }, (say) => engine.installTool(id, say), (r) => ({ ok: r.ok, summary: r.ok ? `${id} installed` : `${id}: \`${r.command}\` exited ${r.exitCode ?? 'without a code'}` }));
+    const op = ops.start('tool-install', `Install ${id}`, { id: opId, mirror: opId ? undefined : 'tool-install' }, (say) => engine.installTool(id, say, authProvider(c)), (r) => ({ ok: r.ok, summary: r.ok ? `${id} installed` : `${id}: \`${r.command}\` exited ${r.exitCode ?? 'without a code'}` }));
     return c.json({ started: true, channel: opId ? op.channel : 'tool-install', id, op }, 202);
   };
   app.post('/api/tools/markitdown/install', (c) => toolInstall(c, 'markitdown'));
@@ -773,21 +776,21 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
 
   // ---------- skills & setup ----------
-  app.get('/api/skills', async (c) => c.json(await engine.skills.overview(c.req.query('repo') || undefined)));
-  app.get('/api/skills/trash', (c) => c.json(engine.skills.trash()));
+  app.get('/api/skills', async (c) => c.json(await skillsFor(c).overview(c.req.query('repo') || undefined)));
+  app.get('/api/skills/trash', (c) => c.json(skillsFor(c).trash()));
   // Grouped-by-source update report. ?refresh=1 starts an upstream fetch in the background and returns the
   // current (possibly stale) report with refreshing=true; the page polls until it flips back. Fetches can take minutes.
   app.get('/api/skills/updates', async (c) => {
     const refresh = c.req.query('refresh') === '1';
     const repoPath = c.req.query('repo') || undefined;
-    const meta = () => ({ updating: engine.skills.updatingSource(), refreshing: engine.skills.refreshing() });
-    if (refresh || (!engine.skills.cachedUpdates() && !engine.skills.refreshing())) {
-      void engine.skills.updates({ refresh: true, repoPath }).catch((e) => engine.config.log(`[skills] update check failed: ${e}`));
+    const meta = () => ({ updating: skillsFor(c).updatingSource(), refreshing: skillsFor(c).refreshing() });
+    if (refresh || (!skillsFor(c).cachedUpdates() && !skillsFor(c).refreshing())) {
+      void skillsFor(c).updates({ refresh: true, repoPath }).catch((e) => engine.config.log(`[skills] update check failed: ${e}`));
     }
-    const cached = engine.skills.cachedUpdates();
+    const cached = skillsFor(c).cachedUpdates();
     if (cached) return c.json({ ...cached, ...meta() });
     // nothing cached yet: give the offline (filesystem-only) view right away
-    const offline = await engine.skills.updates({ offline: true, repoPath });
+    const offline = await skillsFor(c).updates({ offline: true, repoPath });
     return c.json({ ...offline, stale: true, ...meta() });
   });
   const stream = (channel: string) => (line: string) => engine.broadcast({ goalId: '', taskId: null, attemptId: channel, event: { kind: 'text', text: line }, ts: new Date().toISOString() });
@@ -804,14 +807,14 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const names: string[] | undefined = Array.isArray(body?.names) ? body.names.map(String) : undefined;
     const opId = OpId.parse(body?.opId);
     // one source update at a time, server-wide
-    if (engine.skills.updatingSource()) throw new HttpError(409, { error: `update of ${engine.skills.updatingSource()} is still running` });
+    if (skillsFor(c).updatingSource()) throw new HttpError(409, { error: `update of ${skillsFor(c).updatingSource()} is still running` });
     // runs in the background on the operation's channel; the page polls /api/skills/ops/:id until it ends
-    const op = ops.start('update', `Update ${id}${names?.length ? ` (${names.join(', ')})` : ''}`, { id: opId }, (say) => engine.skills.updateSource(id, { names, onLine: say }), (run) => ({ ok: !run.error, summary: run.error ?? `${id}: ${run.changed.length ? `${run.changed.length} changed (${run.changed.map((x) => x.name).join(', ')})` : 'no change'}` }));
+    const op = ops.start('update', `Update ${id}${names?.length ? ` (${names.join(', ')})` : ''}`, { id: opId }, (say) => skillsFor(c).updateSource(id, { names, onLine: say }), (run) => ({ ok: !run.error, summary: run.error ?? `${id}: ${run.changed.length ? `${run.changed.length} changed (${run.changed.map((x) => x.name).join(', ')})` : 'no change'}` }));
     return c.json({ started: true, channel: op.channel, op }, 202);
   });
   app.post('/api/skills/adopt', async (c) => {
     const { names, opId } = z.object({ names: z.array(z.string()).min(1), opId: OpId }).parse(await c.req.json());
-    const { op, result } = await ops.run('adopt', `Adopt ${names.join(', ')}`, { id: opId }, (say) => engine.skills.adopt(names, say), (runs) => {
+    const { op, result } = await ops.run('adopt', `Adopt ${names.join(', ')}`, { id: opId }, (say) => skillsFor(c).adopt(names, say), (runs) => {
       const errs = runs.filter((r) => r.error).map((r) => r.error);
       return { ok: !errs.length, summary: `${runs.flatMap((r) => r.changed).length} adopted${errs.length ? `; ${errs.join('; ')}` : ''}` };
     });
@@ -821,30 +824,21 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.post('/api/skills/plugins/uninstall', async (c) => {
     const { sourceId, opId } = z.object({ sourceId: z.string().startsWith('plugin:'), opId: OpId }).parse(await c.req.json());
     const name = sourceId.slice('plugin:'.length);
-    const { op, result } = await ops.run('uninstall', `Uninstall plugin ${name}`, { id: opId }, (say) => engine.skills.uninstallPlugin(sourceId, say), (r) => ({ ok: r.ok, summary: r.ok ? `removed ${name}` : (r.error ?? 'uninstall failed') }));
+    const { op, result } = await ops.run('uninstall', `Uninstall plugin ${name}`, { id: opId }, (say) => skillsFor(c).uninstallPlugin(sourceId, say), (r) => ({ ok: r.ok, summary: r.ok ? `removed ${name}` : (r.error ?? 'uninstall failed') }));
     return c.json({ ...result, op });
   });
-  app.use('/api/mcp/*', async (c, next) => {
-    if (engine.config.provider === 'codex') return c.json({ error: 'Manage MCP servers with codex mcp; Foundry uses the Codex configuration.' }, 409);
-    await next();
-  });
-  app.use('/api/mcp', async (c, next) => {
-    if (engine.config.provider === 'codex') return c.json({ error: 'Manage MCP servers with codex mcp; Foundry uses the Codex configuration.' }, 409);
-    await next();
-  });
-
   // ---------- MCP servers (ADR-0016): read from Claude Code's config; install/remove run as Skills operations ----------
-  app.get('/api/mcp', (c) => c.json(engine.mcp.view()));
+  app.get('/api/mcp', async (c) => c.json(await mcpFor(c).view()));
   app.post('/api/mcp/check', async (c) => {
     try {
-      return c.json({ health: await engine.mcp.check() });
+      return c.json({ health: await mcpFor(c).check() });
     } catch (e) {
       throw new HttpError(400, { error: (e as Error).message });
     }
   });
   app.put('/api/mcp/allowed', async (c) => {
     const { prefix, on } = z.object({ prefix: z.string().regex(MCP_PREFIX).max(200), on: z.boolean() }).parse(await c.req.json());
-    return c.json({ allowed: engine.mcp.allow(prefix, on) });
+    return c.json({ allowed: await mcpFor(c).allow(prefix, on) });
   });
   app.post('/api/mcp/install', async (c) => {
     const body = z
@@ -859,15 +853,15 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       .parse(await c.req.json());
     const what = body.catalogId ? { catalogId: body.catalogId } : { custom: body.custom! };
     const name = body.catalogId ?? body.custom!.name;
-    const { op, result } = await ops.run('install', `Install MCP server ${name}`, { id: body.opId }, (say) => engine.mcp.install(what, body.keys, say, body.replace), (r) => ({ ok: r.ok, summary: r.ok ? `installed ${name}` : (r.error ?? 'install failed') }));
+    const { op, result } = await ops.run('install', `Install MCP server ${name}`, { id: body.opId }, (say) => mcpFor(c).install(what, body.keys, say, body.replace), (r) => ({ ok: r.ok, summary: r.ok ? `installed ${name}` : (r.error ?? 'install failed') }));
     return c.json({ ...result, op });
   });
   // sign-in for claude.ai connectors and HTTP servers (`claude mcp login`), polled by the page
-  app.get('/api/mcp/login', (c) => c.json(engine.mcp.login.session()));
+  app.get('/api/mcp/login', (c) => c.json(mcpFor(c).login.session()));
   app.post('/api/mcp/login', async (c) => {
     const { name } = z.object({ name: z.string().min(1).max(120) }).parse(await c.req.json());
     try {
-      return c.json(await engine.mcp.startLogin(name));
+      return c.json(await mcpFor(c).startLogin(name));
     } catch (e) {
       throw new HttpError(400, { error: (e as Error).message });
     }
@@ -875,27 +869,27 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.post('/api/mcp/login/code', async (c) => {
     const { url } = z.object({ url: z.string().min(1).max(4000) }).parse(await c.req.json());
     try {
-      return c.json(engine.mcp.login.submit(url));
+      return c.json(await mcpFor(c).login.submit(url));
     } catch (e) {
       throw new HttpError(400, { error: (e as Error).message });
     }
   });
   app.post('/api/mcp/login/cancel', (c) => {
-    engine.mcp.login.cancel();
+    mcpFor(c).login.cancel();
     return c.json({ ok: true });
   });
   app.post('/api/mcp/remove', async (c) => {
     const { name, opId } = z.object({ name: z.string().regex(SERVER_NAME), opId: OpId }).parse(await c.req.json());
-    const { op, result } = await ops.run('uninstall', `Remove MCP server ${name}`, { id: opId }, (say) => engine.mcp.remove(name, say), (r) => ({ ok: r.ok, summary: r.ok ? `removed ${name}` : (r.error ?? 'remove failed') }));
+    const { op, result } = await ops.run('uninstall', `Remove MCP server ${name}`, { id: opId }, (say) => mcpFor(c).remove(name, say), (r) => ({ ok: r.ok, summary: r.ok ? `removed ${name}` : (r.error ?? 'remove failed') }));
     return c.json({ ...result, op });
   });
   app.post('/api/skills/cleanup-shadows', async (c) => {
     const { names } = z.object({ names: z.array(z.string()).min(1) }).parse(await c.req.json());
-    return c.json(await engine.skills.cleanupShadows(names));
+    return c.json(await skillsFor(c).cleanupShadows(names));
   });
-  app.get('/api/skills/update-runs', (c) => c.json(engine.store.listByType('skills.update_run', 50)));
+  app.get('/api/skills/update-runs', (c) => c.json(engine.store.listByType('skills.update_run', 100).filter((event) => (('provider' in event.payload ? event.payload.provider : undefined) ?? engine.config.provider) === authProvider(c)).slice(0, 50)));
   app.get('/api/skills/view', (c) => {
-    const v = engine.skills.viewSkill(c.req.query('dir') ?? '');
+    const v = skillsFor(c).viewSkill(c.req.query('dir') ?? '');
     if (!v) throw new HttpError(404, { error: 'skill not found in the current scan' });
     return c.json(v);
   });
@@ -906,7 +900,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       `Uninstall ${names.length === 1 ? names[0] : `${names.length} skills`}`,
       { id: opId },
       async (say) => {
-        const r = await engine.skills.uninstallMany(names, { force });
+        const r = await skillsFor(c).uninstallMany(names, { force });
         for (const x of r.results) say(x.ok ? `✔ ${x.name} → trash${x.note ? ` (${x.note})` : ''}` : `✘ ${x.name}: ${x.error}`);
         return r;
       },
@@ -919,11 +913,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   app.post('/api/skills/install-bundle', async (c) => {
     const { bundle } = z.object({ bundle: z.string().min(1) }).parse(await c.req.json());
-    return c.json(await engine.skills.installBundle(bundle));
+    return c.json(await skillsFor(c).installBundle(bundle));
   });
   // mutually exclusive packs (design / image / video skills): options + install status, and a streamed one-click install
   app.get('/api/skills/packs', async (c) => {
-    const statuses = await engine.skills.status();
+    const statuses = await skillsFor(c).status();
     const view = (pack: string, opts: typeof DESIGN_PACK_OPTIONS, chosen: string) => ({
       chosen,
       options: opts.map((o) => ({
@@ -941,7 +935,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const { pack, option } = z.object({ pack: z.string().min(1), option: z.string().min(1) }).parse(await c.req.json());
     const channel = 'tool-install';
     const line = (text: string) => engine.broadcast({ goalId: '', taskId: null, attemptId: channel, event: { kind: 'text', text }, ts: new Date().toISOString() });
-    void engine.skills
+    void skillsFor(c)
       .installPack(pack, option, line)
       .then((r) => r.results.forEach((x) => line(`${x.action}: ${x.name} — ${x.detail}`)))
       .catch((e) => line(`error: ${String((e as Error).message ?? e)}`));
@@ -1011,7 +1005,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
 
   app.post('/api/skills/install', async (c) => {
     const { id, force, opId } = z.object({ id: z.string(), force: z.boolean().optional(), opId: OpId }).parse(await c.req.json());
-    const { op, result: r } = await ops.run('install', `Install ${id}${force ? ' (replace)' : ''}`, { id: opId }, (say) => engine.skills.install(id, { force, onLine: say }), (r) => ({
+    const { op, result: r } = await ops.run('install', `Install ${id}${force ? ' (replace)' : ''}`, { id: opId }, (say) => skillsFor(c).install(id, { force, onLine: say }), (r) => ({
       ok: r.ok,
       summary: r.manual ? `${r.name}: run this yourself → ${r.manual.command}` : r.ok ? `${r.name} installed${r.commit ? ` @ ${r.commit.slice(0, 7)}` : ''}` : `${r.name}: ${r.error}`,
     }));
@@ -1020,7 +1014,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   app.post('/api/skills/install-tier', async (c) => {
     const { tiers, opId } = z.object({ tiers: z.array(z.enum(['required', 'recommended', 'optional'])).min(1), opId: OpId }).parse(await c.req.json());
-    const { op, result } = await ops.run('install-tier', `Install ${tiers.join(' + ')} skills`, { id: opId }, (say) => engine.skills.installTier(tiers, say), ({ results }) => {
+    const { op, result } = await ops.run('install-tier', `Install ${tiers.join(' + ')} skills`, { id: opId }, (say) => skillsFor(c).installTier(tiers, say), ({ results }) => {
       const failed = results.filter((r) => !r.ok && !r.manual);
       const manual = results.filter((r) => r.manual);
       return { ok: !failed.length, summary: `${results.filter((r) => r.ok).length}/${results.length} satisfied${manual.length ? `; run yourself: ${manual.map((m) => m.manual!.command).join(' ; ')}` : ''}${failed.length ? `; failed: ${failed.map((f) => `${f.name} (${f.error})`).join(', ')}` : ''}` };
@@ -1029,23 +1023,22 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   app.post('/api/skills/update', async (c) => {
     const { name } = z.object({ name: z.string().optional() }).parse(await c.req.json().catch(() => ({})));
-    return c.json(await engine.skills.update(name));
+    return c.json(await skillsFor(c).update(name));
   });
   app.post('/api/skills/:name/uninstall', async (c) => {
     const { force } = z.object({ force: z.boolean().optional() }).parse(await c.req.json().catch(() => ({})));
-    return c.json({ ok: true, ...(await engine.skills.uninstall(c.req.param('name'), { force })) });
+    return c.json({ ok: true, ...(await skillsFor(c).uninstall(c.req.param('name'), { force })) });
   });
   app.post('/api/skills/:name/restore', async (c) => {
     const { force, trashPath } = z.object({ force: z.boolean().optional(), trashPath: z.string().optional() }).parse(await c.req.json().catch(() => ({})));
-    return c.json({ ok: true, ...(await engine.skills.restore(c.req.param('name'), { force, trashPath })) });
+    return c.json({ ok: true, ...(await skillsFor(c).restore(c.req.param('name'), { force, trashPath })) });
   });
-  app.get('/api/doctor', async (c) => c.json(await engine.doctor()));
+  app.get('/api/doctor', async (c) => c.json(await engine.doctor(authProvider(c))));
   // Every account operation is explicitly scoped; omitted provider preserves CLI compatibility.
-  const authProvider = (c: any): 'claude' | 'codex' => z.enum(['claude', 'codex']).parse(c.req.query('provider') ?? engine.config.provider);
   app.get('/api/accounts', async (c) => c.json({ defaultProvider: engine.config.provider, accounts: await Promise.all((['claude', 'codex'] as const).map(async (provider) => ({
     provider, status: await engine.accounts[provider].status(c.req.query('force') === '1'),
     installed: !!(provider === 'codex' ? engine.config.codexBin ?? Bun.which('codex') : engine.config.claudeBin ?? Bun.which('claude')),
-    capabilities: { dollarCosts: provider === 'claude', skillTelemetry: provider === 'claude', nativeSubagents: provider === 'claude', managedMcp: provider === 'claude', externalSessions: provider === 'claude' },
+    capabilities: { dollarCosts: provider === 'claude', skillTelemetry: provider === 'claude', nativeSubagents: provider === 'claude', managedMcp: true, externalSessions: true },
   }))) }));
   app.get('/api/auth', async (c) => { const provider = authProvider(c); const auth = engine.accounts[provider]; return c.json({ provider, status: await auth.status(c.req.query('force') === '1'), login: auth.loginSession() }); });
   app.post('/api/auth/login', async (c) => {
@@ -1061,13 +1054,14 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.post('/api/auth/logout', async (c) => {
     const provider = authProvider(c);
     if (engine.busy().total > 0) throw new HttpError(409, { error: 'Wait for active work to finish before signing out. Credentials are shared with the local CLI.' });
-    return c.json(await engine.accounts[provider].logout());
+    const status = await engine.accounts[provider].logout();
+    if (provider === 'codex') engine.codexQuota.invalidate();
+    return c.json(status);
   });
 
-  app.get('/api/usage', (c) => c.json(engine.usage(authProvider(c))));
+  app.get('/api/usage', async (c) => c.json(await engine.readUsage(authProvider(c))));
   app.post('/api/usage/probe', async (c) => {
     const provider = authProvider(c);
-    if (provider === 'codex') throw new HttpError(400, { error: 'Codex does not expose a quota refresh signal.' });
     return c.json(await engine.probeUsage(provider));
   });
   app.get('/api/usage/minimax', async (c) => c.json(await engine.minimaxQuota(c.req.query('refresh') === '1')));

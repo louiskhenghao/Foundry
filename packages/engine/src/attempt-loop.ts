@@ -170,7 +170,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
     maxTurns: config.attemptMaxTurns,
     maxBudgetUsd: Math.max(0.05, remaining == null ? config.attemptMaxCostUsd : Math.min(config.attemptMaxCostUsd, remaining)),
     permissionMode: 'dontAsk',
-    allowedTools: workerTools(engine.config.mcpAllowed),
+    allowedTools: workerTools(engine.mcpAllowedFor(goal)),
     appendSystemPromptFile: engine.roles.path('worker'),
     settings: boundarySettings(config.hooksDir),
     settingSources: config.settingSources,

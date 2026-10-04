@@ -10,6 +10,8 @@ import { modelFor } from './models/roles.ts';
 import { formatWorkflowObservation } from './checks/reviewer.ts';
 import { ProviderRunner } from './provider-runner.ts';
 import { createApp } from '../../server/src/app.ts';
+import { CodexQuotaReader } from './usage/codex-quota.ts';
+import { parseCodexUsage } from './usage/codex-usage.ts';
 
 const dirs: string[] = [];
 const engines: Engine[] = [];
@@ -103,18 +105,34 @@ test('global concurrency limits both providers and releases completed slots', as
 });
 
 
-test('usage probes never cross providers and Codex rejects unsupported refreshes', async () => {
+test('usage refreshes use native Codex quota reads while inference probes stay scoped to Claude', async () => {
   const { engine, claude, codex } = await setup();
   engine.config.provider = 'codex';
+  const nativeReads: { bin: string; home: string | undefined; aborted: boolean | undefined }[] = [];
+  Object.defineProperty(engine, 'codexQuota', { value: new CodexQuotaReader({
+    bin: () => 'codex-fixture', home: engine.config.codexHome,
+    read: async (bin, home, options) => {
+      nativeReads.push({ bin, home, aborted: options?.signal?.aborted });
+      return parseCodexUsage({ ordinaryUsageAllowed: false, rateLimits: { limitId: 'codex', primary: { usedPercent: 25, windowDurationMins: 300, resetsAt: 1 } } });
+    },
+  }) });
   const app = createApp(engine);
-  expect((await app.request('/api/usage/probe?provider=codex', { method: 'POST' })).status).toBe(400);
+  expect((await app.request('/api/usage?provider=codex')).status).toBe(200);
+  expect(nativeReads).toHaveLength(1);
+  const refreshed = await app.request('/api/usage/probe?provider=codex', { method: 'POST' });
+  expect(refreshed.status).toBe(200);
+  expect(nativeReads).toEqual(Array(2).fill({ bin: 'codex-fixture', home: engine.config.codexHome, aborted: false }));
+  expect(await refreshed.json()).toMatchObject({ provider: 'codex', costAvailable: false, codexQuota: { state: 'available', ordinaryUsageAllowed: false, buckets: [{ id: 'codex', primary: { usedPercent: 25 } }] } });
+  expect(claude.calls).toHaveLength(0);
   expect(codex.calls).toHaveLength(0);
+  expect(engine.usage('codex').fiveHour.sessions).toBe(0);
   const result = await app.request('/api/usage/probe?provider=claude', { method: 'POST' });
   expect(result.status).toBe(200);
   expect(claude.calls).toHaveLength(1);
   expect(codex.calls).toHaveLength(0);
   expect((await result.json() as any).provider).toBe('claude');
   expect(engine.usage('claude').fiveHour.sessions).toBe(1);
+  expect(nativeReads).toHaveLength(2);
 });
 
 test('a failed provider startup releases the shared concurrency slot', async () => {

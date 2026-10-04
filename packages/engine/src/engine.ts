@@ -1,4 +1,5 @@
 import { CODEX_MODEL_ACTIONS, CodexEffort, Effort, effectiveCodexPresets, natureKey, type CodexModelPreset } from '@foundry/core';
+import { CodexQuotaReader } from './usage/codex-quota.ts';
 import { discoverCodexModels } from './models/codex-discover.ts';
 import { dirname, join } from 'node:path';
 import type { Attachment, Brief, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalWorkflow, ModelConfig, Task, Check } from '@foundry/core';
@@ -31,6 +32,7 @@ import {
 import { ProviderRunner } from './provider-runner.ts';
 import { CodexCliRunner, ClaudeCliRunner, type ClaudeRunner, type RunHandle } from '@foundry/runner';
 import { McpManager } from './mcp/manager.ts';
+import { CodexMcpManager } from './mcp/codex-manager.ts';
 import { mmxConfigDir, mmxSignedIn, writeMmxConfig } from './mmx.ts';
 import { fetchMinimaxQuota } from './usage/minimax.ts';
 import type { MinimaxQuota } from './usage/types.ts';
@@ -135,6 +137,8 @@ export class Engine {
   readonly roles: Roles;
   readonly skills: SkillsManager;
   readonly mcp: McpManager;
+  readonly codexMcp: CodexMcpManager;
+  readonly codexQuota: CodexQuotaReader;
   readonly agents: AgentsMonitor;
   readonly auth: ClaudeAuth;
   readonly accounts: Record<'claude' | 'codex', ClaudeAuth>;
@@ -162,6 +166,7 @@ export class Engine {
   /** must checks already failing on a goal-branch commit (merges are judged on regressions only) */
   readonly baseline = new BaselineChecks(this);
   private reviewing = new Set<string>();
+  private ownedSessionIds = new Set<string>();
   private rateLimitedUntil = new Map<'claude' | 'codex', number>();
   private resumeTimers = new Map<'claude' | 'codex', ReturnType<typeof setTimeout>>();
 
@@ -204,6 +209,9 @@ export class Engine {
     this.mmxReady = writeMmxConfig(config.dataDir, this.minimaxKey(), config.log);
     this.gh = gh ?? new CliGh({ onCommand: (cmd, cwd, r, ms) => config.log(`[gh] ${cmd.slice(0, 4).join(' ')} → ${r.code} (${ms}ms) ${cwd}`) });
     this.store = new EventStore(openDatabase(join(config.dataDir, 'engine.db')));
+    for (const row of this.store.db.query("SELECT DISTINCT json_extract(payload, '$.sessionId') AS id FROM events WHERE type = 'session.usage'").all() as { id: string | null }[]) {
+      if (row.id) this.ownedSessionIds.add(row.id);
+    }
     // Freeze the owner of old goals before either backend may create new work in this store.
     for (const goal of listGoals(this.store.db)) if (!goal.provider) this.store.append({ type: 'goal.provider_assigned', goalId: goal.id, payload: { provider: config.provider } });
     this.providerModels = {
@@ -257,7 +265,7 @@ export class Engine {
       // `||`, not `??`: an empty variable in the engine's environment must not hide a key from Settings
       envProbe: (name) => !!(process.env[name] || this.sessionEnvExtra()[name]) || (name === 'MINIMAX_API_KEY' && mmxSignedIn()),
       // every updater run is an audit event (goalId null, informational)
-      onRun: (run) => this.store.append({ type: 'skills.update_run', goalId: null, payload: { sourceId: run.sourceId, updater: run.updater, command: run.command, cwd: run.cwd, exitCode: run.exitCode, durationMs: run.durationMs, outputTail: run.outputTail, changed: run.changed, error: run.error } }),
+      onRun: (run) => this.store.append({ type: 'skills.update_run', goalId: null, payload: { provider, sourceId: run.sourceId, updater: run.updater, command: run.command, cwd: run.cwd, exitCode: run.exitCode, durationMs: run.durationMs, outputTail: run.outputTail, changed: run.changed, error: run.error } }),
     });
     this.providerSkills = { claude: makeSkills('claude'), codex: makeSkills('codex') };
     this.skills = this.providerSkills[config.provider];
@@ -269,23 +277,35 @@ export class Engine {
       setAllowed: (mcpAllowed) => void this.updateSettings({ workflow: { mcpAllowed } }),
       log: config.log,
     });
+    this.codexMcp = new CodexMcpManager({
+      codexHome: config.codexHome, codexBin: config.codexBin,
+      catalogPath: join(dirname(config.catalogPath), 'mcp.json'),
+      allowed: () => this.config.codexMcpAllowed,
+      setAllowed: (codexMcpAllowed) => void this.updateSettings({ workflow: { codexMcpAllowed } }),
+      log: config.log,
+    });
+    this.codexQuota = new CodexQuotaReader({ bin: () => config.codexBin ?? Bun.which('codex'), home: config.codexHome });
     this.accounts = {
       claude: new ClaudeAuth({ provider: 'claude', claudeHome: config.claudeHome, claudeBin: config.claudeBin ?? Bun.which('claude'), log: config.log }),
       codex: new ClaudeAuth({ provider: 'codex', claudeBin: config.codexBin ?? Bun.which('codex'), codexHome: config.codexHome, log: config.log }),
     };
+    this.accounts.codex.onLoginUpdate(() => this.codexQuota.invalidate());
     this.auth = this.accounts[config.provider];
     this.agents = new AgentsMonitor(
-      { claudeHome: config.claudeHome, includeExternal: config.provider !== 'codex', dataDir: config.dataDir, workspaceRoots: () => [...new Set(listGoals(this.store.db).flatMap((g) => (g.workspaceDir ? [dirname(g.workspaceDir)] : [])))] },
+      { claudeHome: config.claudeHome, codexHome: config.codexHome, codexBin: config.codexBin, includeExternal: true, dataDir: config.dataDir, workspaceRoots: () => [...new Set(listGoals(this.store.db).flatMap((g) => (g.workspaceDir ? [dirname(g.workspaceDir)] : [])))] },
       {
         foundryLive: () => this.foundryLiveSessions(),
         foundryRecent: (sinceIso) => listAttemptsEndedSince(this.store.db, sinceIso),
         goalTitle: (goalId) => getGoal(this.store.db, goalId)?.title ?? null,
+        goalProvider: (goalId) => getGoal(this.store.db, goalId)?.provider ?? config.provider,
+        foundrySessionIds: () => this.ownedSessionIds,
       },
     );
     this.markitdown = new Markitdown({ bin: config.markitdownBin, log: config.log });
     this.context = this.buildContext();
     config.log(`[engine] context provider: ${this.context.name}`);
     this.store.subscribe((e) => {
+      if (e.type === 'session.usage' && e.payload.sessionId) this.ownedSessionIds.add(e.payload.sessionId);
       if (e.goalId) this.tick(e.goalId);
     });
     this.notifications = new NotificationDispatcher(this);
@@ -502,7 +522,6 @@ export class Engine {
    * one — `retryAutoskillsAfterTask` calls back in after every task lands.
    */
   startAutoskills(goal: Goal, ws: string): void {
-    if (goal.provider === 'codex') return; // install native project skills in .agents/skills
     if (!this.config.autoskills || this.autoskillsRuns.has(goal.id)) return;
     if (goal.autoskills && !(goal.autoskills.status === 'skipped' && goal.autoskills.detail.startsWith('no stack manifest') && hasStackManifest(ws))) return;
     const channel = `autoskills-${goal.id}`;
@@ -515,7 +534,7 @@ export class Engine {
     };
     const run = (async () => {
       const onLine = (text: string) => this.broadcast({ goalId: goal.id, taskId: null, attemptId: channel, event: { kind: 'text', text }, ts: new Date().toISOString() });
-      const r = await runAutoskills(ws, { log: this.config.log, ...this.autoskillsDeps }, onLine);
+      const r = await runAutoskills(ws, { log: this.config.log, ...this.autoskillsDeps, provider: goal.provider ?? this.config.provider }, onLine);
       record(r);
       this.config.log(`[autoskills] ${goal.id}: ${r.status} — ${r.detail}`);
     })().catch((err) => record({ status: 'failed', skills: [], detail: String((err as Error).message ?? err) }));
@@ -544,7 +563,7 @@ export class Engine {
       for (const t of listTasks(this.store.db, goalId)) {
         if (t.worktreePath && existsSync(t.worktreePath)) {
           try {
-            copyProjectSkills(ws, t.worktreePath);
+            copyProjectSkills(ws, t.worktreePath, goal.provider ?? this.config.provider);
           } catch {}
         }
       }
@@ -629,6 +648,10 @@ export class Engine {
     for (const timer of this.resumeTimers.values()) clearTimeout(timer);
     this.resumeTimers.clear();
     for (const account of Object.values(this.accounts)) account.cancelLogin();
+    this.mcp.login.cancel();
+    this.codexMcp.login.cancel();
+    this.codexQuota.invalidate();
+    this.agents.stop();
     this.preview.stopSweeper();
     await this.preview.stopAll('engine shutdown');
     for (const [, f] of this.inFlight) f.handle?.kill('killed_manual');
@@ -789,7 +812,7 @@ export class Engine {
   rateLimitedUntilIso(provider = this.config.provider): string | null { return this.isRateLimited(provider) ? new Date(this.rateLimitedUntil.get(provider)!).toISOString() : null; }
 
   usage(provider = this.config.provider): UsageSummary & { pausedUntil: string | null } {
-    return { ...usageSummary(this.store.db, Date.now(), provider, this.config.provider), provider, costAvailable: provider !== 'codex', ...(provider === 'codex' ? { note: 'Codex reports tokens, not USD cost or subscription quota. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. The windows show Foundry activity only.' } : {}), pausedUntil: this.rateLimitedUntilIso(provider) };
+    return { ...usageSummary(this.store.db, Date.now(), provider, this.config.provider), provider, costAvailable: provider !== 'codex', ...(provider === 'codex' ? { codexQuota: this.codexQuota.current(), note: 'Codex reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. The windows show Foundry activity only.' } : {}), pausedUntil: this.rateLimitedUntilIso(provider) };
   }
 
   // ---------- models ----------
@@ -821,7 +844,12 @@ export class Engine {
     const rec = this.providerModels[provider].get(name);
     return { ok, name, resolvedId: resolved ?? rec?.resolvedId ?? null, costUsd: r.costUsd, costAvailable: provider === 'claude' && r.costStatus !== 'unavailable', error: ok ? null : (r.errorMessage ?? r.subtype) };
   }
-  /** Doctor check: are the configured tiers names this machine has seen resolve? */
+  /** Read native account metadata separately from local activity; never start inference. */
+  async readUsage(provider = this.config.provider, force = false): Promise<UsageSummary & { pausedUntil: string | null }> {
+    if (provider === 'codex') await this.codexQuota.read(force);
+    return this.usage(provider);
+  }
+
   /** the models the presets Settings picks actually use, with where: "opus" → ["Code: Standard tasks", …] */
   modelsInUse(provider: 'claude' | 'codex' = this.config.provider): Map<string, string[]> {
     const presets = effectivePresets(this.config.modelPresets);
@@ -844,15 +872,16 @@ export class Engine {
     return used;
   }
 
-  private modelsCheck() {
+  private modelsCheck(provider: 'claude' | 'codex' = this.config.provider) {
+    const registry = this.providerModels[provider];
     const issues: string[] = [];
-    for (const [name, where] of this.modelsInUse()) {
-      const r = this.models.get(name);
+    for (const [name, where] of this.modelsInUse(provider)) {
+      const r = registry.get(name);
       if (r?.lastFailAt && (!r.lastOkAt || r.lastFailAt > r.lastOkAt)) issues.push(`${name} (${where.length} action${where.length === 1 ? '' : 's'}): last failed ${r.lastFailAt.slice(0, 16).replace('T', ' ')} (${r.lastError ?? 'model unavailable'})`);
-      else if (!r || (!r.seed && !r.discovered && !this.models.known(name))) issues.push(`${name} (${where.length} action${where.length === 1 ? '' : 's'}): never seen resolving on this machine`);
+      else if (!r || (!r.seed && !r.discovered && !registry.known(name))) issues.push(`${name} (${where.length} action${where.length === 1 ? '' : 's'}): never seen resolving on this machine`);
     }
-    const picks = this.config.provider === 'codex' ? `Codex: ${this.config.codexModel}` : MODEL_NATURES.map((n) => `${NATURE_LABEL[n]} ${effectivePresets(this.config.modelPresets)[this.config.naturePreset[n]]?.label ?? this.config.naturePreset[n]}`).join(' · ');
-    const detail = issues.length ? issues.join('; ') : `${picks}${this.config.provider === 'codex' ? '' : '; fallbacks ' + this.config.modelFallbacks.join(' → ')}`;
+    const picks = provider === 'codex' ? `Codex: ${this.config.codexModel}` : MODEL_NATURES.map((n) => `${NATURE_LABEL[n]} ${effectivePresets(this.config.modelPresets)[this.config.naturePreset[n]]?.label ?? this.config.naturePreset[n]}`).join(' · ');
+    const detail = issues.length ? issues.join('; ') : `${picks}${provider === 'codex' ? '' : '; fallbacks ' + this.config.modelFallbacks.join(' → ')}`;
     return { id: 'models', label: 'Models (presets in use)', ok: issues.length === 0, severity: 'warn' as const, detail, fix: issues.length ? { action: 'test-models' as const } : null };
   }
 
@@ -942,7 +971,7 @@ export class Engine {
   }
 
   async probeUsage(provider: 'claude' | 'codex' = this.config.provider): Promise<UsageSummary & { pausedUntil: string | null }> {
-    if (provider !== 'claude') throw new Error('Codex does not expose a quota refresh signal.');
+    if (provider === 'codex') return this.readUsage(provider, true);
     const handle = await this.runner.run({ prompt: 'Reply with the single word OK.', cwd: this.config.dataDir, model: this.config.models.cheap, maxTurns: 1, maxBudgetUsd: 0.05, permissionMode: 'dontAsk', allowedTools: [], timeoutMs: 60_000, label: 'usage probe', meta: { provider } });
     for await (const _ of handle.events) {
       /* drain */
@@ -1112,6 +1141,18 @@ export class Engine {
       default:
         return;
     }
+  }
+
+  skillsForProvider(provider: 'claude' | 'codex' = this.config.provider): SkillsManager {
+    return this.providerSkills[provider];
+  }
+
+  mcpFor(provider: 'claude' | 'codex' = this.config.provider) {
+    return provider === 'codex' ? this.codexMcp : this.mcp;
+  }
+
+  mcpAllowedFor(goal: Goal): string[] {
+    return (goal.provider ?? this.config.provider) === 'codex' ? this.config.codexMcpAllowed : this.config.mcpAllowed;
   }
 
   skillsFor(goal: Goal): SkillsManager {
@@ -1329,7 +1370,7 @@ export class Engine {
     return playwrightStatus();
   }
 
-  async installTool(id: string, onLine: (l: string) => void): Promise<{ ok: boolean; command: string; exitCode: number | null }> {
+  async installTool(id: string, onLine: (l: string) => void, provider: 'claude' | 'codex' = this.config.provider): Promise<{ ok: boolean; command: string; exitCode: number | null }> {
     if (id === 'playwright') {
       const r = await this.installPlaywright(onLine);
       return { ok: r.ok, command: r.command.join(' '), exitCode: r.exitCode };
@@ -1338,7 +1379,7 @@ export class Engine {
       const r = await this.installMarkitdown(onLine);
       return { ok: r.ok, command: r.command.join(' '), exitCode: r.exitCode };
     }
-    const entry = this.skills.catalog().entries.find((e) => e.id === id);
+    const entry = this.skillsForProvider(provider).catalog().entries.find((e) => e.id === id);
     if (!entry || entry.source.type !== 'cli') throw new Error(`${id} is not a CLI tool in the catalog`);
     const command = entry.source.install;
     const first = command.trim().split(/\s+/)[0]!;
@@ -1354,7 +1395,7 @@ export class Engine {
   }
 
   /** Doctor report including engine-level optional tools. */
-  async doctor() {
+  async doctor(provider: 'claude' | 'codex' = this.config.provider) {
     const available = this.markitdown.available();
     const cmd = this.markitdown.installCommand();
     const check = available
@@ -1365,7 +1406,7 @@ export class Engine {
     const notif = notifChannels.length
       ? { id: 'notifications', label: 'Notifications (optional)', ok: true, severity: 'warn' as const, detail: `${notifChannels.join(' + ')} configured — you get pinged when a goal needs you, finishes, delivers, or usage pauses`, fix: null }
       : { id: 'notifications', label: 'Notifications (optional)', ok: false, severity: 'warn' as const, detail: 'not configured — get a Telegram or Discord ping when a goal needs you, finishes, or a delivery fails', fix: { url: '/settings' } };
-    return this.skills.doctor([check, this.modelsCheck(), notif, ...(this.config.provider === 'codex' ? [] : this.mcp.doctorChecks())]);
+    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...await this.mcpFor(provider).doctorChecks()]);
   }
 
   /** Attach a staged upload or a link to an existing goal; later sessions see it. */
