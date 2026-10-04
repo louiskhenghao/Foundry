@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, type GoalRow } from '../api.ts';
 import { SetupBanner } from '../components/SetupBanner.tsx';
 import { UsagePausedBanner } from '../components/UsageBanner.tsx';
+import { ProviderBadge } from './agents/rows.tsx';
 import { useLive } from '../store.ts';
 import { Badge, Button, Empty, ago, fmtLimitUsd, fmtUsd } from '../ui.tsx';
 
@@ -71,7 +72,7 @@ export function GoalsPage() {
                   </div>
                   <span className="shrink-0">{stateCell(g, true)}</span>
                 </div>
-                <div className="text-[11px] text-zinc-500 mono truncate mt-1">{g.repoPath}</div>
+                <div className="flex items-center gap-2 mt-1 min-w-0"><ProviderBadge provider={g.provider} /><span className="text-[11px] text-zinc-500 mono truncate">{g.repoPath}</span></div>
                 <div className="flex items-center gap-3 text-[11px] text-zinc-400 mt-2 flex-wrap">
                   <span>{taskSummary(g)}</span>
                   <span className="mono">
@@ -102,7 +103,7 @@ export function GoalsPage() {
                         {g.title}
                       </Link>
                       {followsTag(g)}
-                      <div className="text-xs text-zinc-500 mono truncate max-w-[40vw]">{g.repoPath}</div>
+                      <div className="flex items-center gap-2 mt-0.5 min-w-0"><ProviderBadge provider={g.provider} /><span className="text-xs text-zinc-500 mono truncate max-w-[40vw]">{g.repoPath}</span></div>
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">{stateCell(g)}</td>
                     <td className="px-3 py-2 text-xs text-zinc-400 hidden md:table-cell">{taskSummary(g)}</td>

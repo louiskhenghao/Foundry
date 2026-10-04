@@ -20,6 +20,7 @@ import { OverviewTab } from './OverviewTab.tsx';
 import { TaskDrawer } from './TaskDrawer.tsx';
 import { SimpleOverview } from './SimpleOverview.tsx';
 import { UsagePausedBanner } from '../../components/UsageBanner.tsx';
+import { ProviderBadge } from '../agents/rows.tsx';
 
 type Tab = 'overview' | 'tasks' | 'activity' | 'diff' | 'delivery';
 const TABS: Tab[] = ['overview', 'tasks', 'activity', 'diff', 'delivery'];
@@ -112,6 +113,8 @@ export function GoalPage() {
               {repoName}
             </span>
             <CopyButton text={g.repoPath} />
+            <span className="text-zinc-600">·</span>
+            <ProviderBadge provider={g.provider} />
             <span className="text-zinc-600">·</span>
             <GitBranch size={12} className="shrink-0" />
             <span className="mono truncate" title={`${g.baseBranch} → ${g.branch}`}>

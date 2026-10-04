@@ -19,6 +19,7 @@ import { InterviewPanel } from '../goal/InterviewPanel.tsx';
 import { PlanSection } from './PlanSection.tsx';
 import { SimpleBrief } from './SimpleBrief.tsx';
 import { areaOf, areaStyle, checkProblem, taskProblem } from './shared.ts';
+import { ProviderBadge } from '../agents/rows.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 
 export function BriefPage() {
@@ -364,7 +365,7 @@ function Header({ detail, onSimple }: { detail: GoalDetail; onSimple?: () => voi
           </Button>
         )}
       </div>
-      <div className="text-xs text-zinc-500 mono">{g.repoPath} · {g.baseBranch} → {g.branch}</div>
+      <div className="flex items-center gap-2 flex-wrap"><ProviderBadge provider={g.provider} /><span className="text-xs text-zinc-500 mono">{g.repoPath} · {g.baseBranch} → {g.branch}</span></div>
       <FollowLinks d={detail} />
       {g.state === 'awaiting_brief_approval' && (
         <div className="text-[11px] text-zinc-500 mt-1">
