@@ -1,10 +1,12 @@
 import { createServer } from 'node:net';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { spawnStreaming } from '../skills/updaters.ts';
 import type { BriefApp, BriefRun, Goal } from '@foundry/core';
 import { getBrief, getGoal } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { goalWorkspacePath } from '../workspace.ts';
-import { detectApps, detectRun, previewBindHost } from './detect.ts';
+import { detectApps, detectRun, packageManager, previewBindHost } from './detect.ts';
 import { ServicesManager } from './services.ts';
 
 export type PreviewStarter = 'human' | 'milestone' | 'integration';
@@ -208,11 +210,34 @@ export class PreviewManager {
       if (port != null) urls[appUrlVar(a.key)] = live?.url ?? (a.url ?? 'http://localhost:{port}').replaceAll('{port}', String(port));
     }
     const note = services?.error ? `[services] ${services.error}` : services && services.docker !== 'available' ? `[services] ${services.docker === 'in-container' ? 'Foundry runs in Docker without access to Docker' : 'docker is not installed'}; start them yourself: ${services.command}` : null;
-    await Promise.all(targets.map((a) => this.startApp(goal, a, ws, ports.get(a.key)!, urls, by, note)));
+    const installed = await this.installDependencies(goal, ws, targets);
+    await Promise.all(targets.map((a) => this.startApp(goal, a, ws, ports.get(a.key)!, urls, by, [...(note ? [note] : []), ...installed])));
     return this.status(goal.id);
   }
 
-  private async startApp(goal: Goal, app: BriefApp, ws: string, port: number, urls: Record<string, string>, by: PreviewStarter, note: string | null): Promise<void> {
+  /**
+   * A fresh progress folder may have no node_modules yet (nothing installed them, or a task changed the manifest and
+   * removed them), and a dev server then fails at once. Before apps start, run each app's install command, or the
+   * repository's package-manager install, wherever a package.json has no node_modules beside it or at the root.
+   * Output streams to the apps' logs; the returned tail is kept at the top of each app's log.
+   */
+  private async installDependencies(goal: Goal, ws: string, apps: BriefApp[]): Promise<string[]> {
+    const steps = installSteps(ws, apps);
+    const lines: string[] = [];
+    const say = (line: string) => {
+      lines.push(line);
+      for (const a of apps) this.engine.broadcast({ goalId: goal.id, taskId: null, attemptId: `preview-${goal.id}-${a.key}`, event: { kind: 'text', text: line }, ts: new Date().toISOString() });
+    };
+    for (const step of steps) {
+      say(`$ ${step.command}${step.dir ? `  (in ${step.dir})` : ''}  — installing dependencies first`);
+      const r = await spawnStreaming(['sh', '-lc', step.command], join(ws, step.dir), say, { timeoutMs: 10 * 60_000 }).catch((e) => ({ code: 1, error: String(e) }) as { code: number });
+      say(r.code === 0 ? '[install done]' : `[install failed: exit ${r.code}] the app may not start; fix the install command in the Brief's How to run it`);
+      this.engine.config.log(`[preview] ${goal.id}: ${step.command} exited ${r.code}`);
+    }
+    return lines.slice(-40);
+  }
+
+  private async startApp(goal: Goal, app: BriefApp, ws: string, port: number, urls: Record<string, string>, by: PreviewStarter, preface: string[]): Promise<void> {
     const { store, config } = this.engine;
     const key = id(goal.id, app.key);
     const command = app.command!.replaceAll('{port}', String(port));
@@ -225,7 +250,7 @@ export class PreviewManager {
       if (entry.log.length > LOG_LINES) entry.log.splice(0, entry.log.length - LOG_LINES);
       this.engine.broadcast({ goalId: goal.id, taskId: null, attemptId: channel, event: { kind: 'text', text: line }, ts: new Date().toISOString() });
     };
-    if (note) push(note);
+    for (const line of preface) push(line);
     push(`$ ${command}  (port ${port}${app.dir ? `, in ${app.dir}` : ''})`);
     // in Docker, servers that read HOST (or HOSTNAME, Next's standalone server) listen on every interface too
     const host = previewBindHost();
@@ -321,6 +346,20 @@ export class PreviewManager {
     }
     throw new PreviewError(`no free port between ${portFrom} and ${portTo} (Settings → Preview)`, 409);
   }
+}
+
+/**
+ * The installs a set of apps needs before starting: each app's own install command where its folder has a package.json
+ * but no node_modules (neither beside it nor at the root, where workspaces hoist them); without any app install command,
+ * the repository's package-manager install when the root has a package.json and no node_modules. Folders without a
+ * package.json are left alone: their install command, if any, is the person's to run.
+ */
+export function installSteps(ws: string, apps: BriefApp[]): { dir: string; command: string }[] {
+  const missing = (dir: string) => existsSync(join(ws, dir, 'package.json')) && !existsSync(join(ws, dir, 'node_modules')) && !existsSync(join(ws, 'node_modules'));
+  const steps = new Map<string, { dir: string; command: string }>();
+  for (const a of apps) if (a.install && missing(a.dir)) steps.set(`${a.dir}\0${a.install}`, { dir: a.dir, command: a.install });
+  if (!steps.size && !apps.some((a) => a.install) && missing('')) steps.set('root', { dir: '', command: `${packageManager(ws)} install` });
+  return [...steps.values()];
 }
 
 async function pump(stream: ReadableStream<Uint8Array>, onLine: (l: string) => void): Promise<void> {

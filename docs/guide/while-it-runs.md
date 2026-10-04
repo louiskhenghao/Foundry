@@ -137,7 +137,7 @@ Note: because this folder *is* the goal's branch, you cannot also switch to that
 
 The **Preview** card starts the result so you can try it in your browser.
 
-- **Start preview** runs the project's start command in the progress folder. The card shows which command, and whether it comes from the Brief's **How to run it** or from `package.json`.
+- **Start preview** runs the project's start command in the progress folder. The card shows which command, and whether it comes from the Brief's **How to run it** or from `package.json`. If the project's dependencies are not installed yet (a `package.json` without `node_modules`), Foundry installs them first; the output shows the install too.
 - **Running on port N**, then **Open preview** opens it. **Stop** stops it.
 - **▸ server output** shows what the server prints.
 
