@@ -54,13 +54,15 @@ export function usageSummary(db: Database, now = Date.now(), provider?: 'claude'
   const fiveRows = inWin(fiveStart, fiveEnd);
   const weekRows = inWin(weekStart, weekEnd);
 
+  // a signal describes the window it was sent in: once that window has reset it says nothing about the current one
+  const current = (st: typeof five) => !!st && (!st.resets_at || st.resets_at * 1000 > now);
   const mk = (label: string, start: number, end: number, st: typeof five, r: UsageRow[]): WindowSummary => ({
     label,
     windowStart: new Date(start).toISOString(),
     windowEnd: new Date(end).toISOString(),
     resetsAt: st?.resets_at ? new Date(st.resets_at * 1000).toISOString() : null,
-    status: st?.status ?? null,
-    isUsingOverage: !!st?.is_using_overage,
+    status: current(st) ? st!.status : null,
+    isUsingOverage: current(st) && !!st!.is_using_overage,
     lastSignalAt: st?.seen_at ?? null,
     ...sum(r),
   });

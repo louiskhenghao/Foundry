@@ -138,6 +138,22 @@ describe('AgentsMonitor.list', () => {
     expect(summary).toEqual({ busy: 2, idle: 0, finished: 2, total: 4 });
   });
 
+  test('foundry rows name their task and attempt; subagents carry their own model and start', async () => {
+    const { home, dataDir, proj } = fixture();
+    writeFileSync(join(proj, SID_LIVE, 'subagents', 'agent-run1.jsonl'), line({ type: 'user', timestamp: '2026-10-05T01:00:00.000Z', isSidechain: true, message: { content: 'sub work' } }) + line(assistant('claude-haiku-4-5')));
+    const recent = { id: 'at2', goalId: 'g1', taskId: 't2', index: 2, kind: 'merge', sessionId: null, model: 'claude-opus-5', state: 'succeeded', costUsd: 0, numTurns: 1, resultSubtype: null, baseRef: null, endRef: null, pid: null, cwd: '/x/delivery', transcriptPath: null, startedAt: new Date().toISOString(), endedAt: new Date().toISOString(), skillsUsed: [], continuations: 0, sessions: [] } as const;
+    const m = new AgentsMonitor({ claudeHome: home, dataDir }, deps({
+      foundryLive: () => [{ taskId: 't1', goalId: 'g1', attemptId: 'at1', kind: 'work', attemptIndex: 1, sessionId: SID_FOUNDRY, pid: 123, model: 'claude-opus-5', cwd: '/w', startedAt: new Date().toISOString(), killable: true }],
+      foundryRecent: () => [recent as any],
+      taskTitle: (id) => ({ t1: 'Add the export button', t2: 'Sync the PR branch' })[id] ?? null,
+    }));
+    const { sessions } = await m.list();
+    expect(sessions.find((s) => s.foundry?.taskId === 't1')!.foundry).toMatchObject({ taskTitle: 'Add the export button', kind: 'work', attempt: 1 });
+    expect(sessions.find((s) => s.foundry?.taskId === 't2')!.foundry).toMatchObject({ taskTitle: 'Sync the PR branch', kind: 'merge', attempt: 2 });
+    const sub = sessions.find((s) => s.sessionId === SID_LIVE)!.subagents.find((a) => a.agentId === 'run1')!;
+    expect(sub).toMatchObject({ model: 'claude-haiku-4-5', startedAt: '2026-10-05T01:00:00.000Z', contextUsedTokens: 600, contextWindowTokens: 200_000 });
+  });
+
   test('a live process with a stale transcript reads idle, not busy', async () => {
     const { home, dataDir, proj } = fixture();
     ageFile(join(proj, `${SID_LIVE}.jsonl`), 120);
