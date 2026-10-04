@@ -104,12 +104,14 @@ export function classifyFailure(errorMessage: string | null | undefined, subtype
   const text = (errorMessage ?? '').trim();
   if (!text && (!subtype || subtype === 'success')) return null;
   if (MODEL_UNAVAILABLE.test(text)) return 'model_unavailable';
-  if (/rate[ _-]?limit|overloaded|429/i.test(text)) return 'rate_limit';
+  if (/rate[ _-]?limit|usage[ _-]?limit|overloaded|429/i.test(text)) return 'rate_limit';
   if (/authentication|unauthori[sz]ed|not logged in|invalid api key|401|403/i.test(text)) return 'auth';
   return text || (subtype && subtype !== 'success') ? 'other' : null;
 }
 
 export interface RunResult {
+  /** CLI-reported cost is unavailable for Codex subscription sessions. */
+  costStatus?: 'reported' | 'unavailable';
   sessionId: string | null;
   subtype: RunSubtype;
   isError: boolean;
@@ -141,10 +143,13 @@ export interface RunHandle {
   result: Promise<RunResult>;
 }
 
-export interface ClaudeRunner {
+export interface AgentRunner {
   run(spec: RunSpec): Promise<RunHandle>;
   /** Number of runs currently executing (not queued). */
   active(): number;
   /** Change the concurrency cap at runtime (Settings page); optional for fakes. */
   setMaxConcurrent?(n: number): void;
 }
+
+/** Backwards-compatible name for integrations written before multiple backends. */
+export type ClaudeRunner = AgentRunner;
