@@ -7,13 +7,14 @@ import { CodexPlugins, parsePlugins } from './codex-plugins.ts';
 const row = { pluginId: 'example@fixture', name: 'Example', marketplaceName: 'fixture', version: '1.0', installed: false, enabled: false, installPolicy: 'AVAILABLE', authPolicy: 'ON_INSTALL', source: { path: '/private/fixture' } };
 const cleanup: (() => Promise<void>)[] = [];
 afterEach(async () => { for (const clean of cleanup.splice(0)) await clean(); });
-function fixture(mode = 'ok') {
+function fixture(mode = 'ok', options: { startupDelayMs?: number; timeoutMs?: number } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'foundry-plugin-test-'));
   const bin = join(home, 'codex');
   writeFileSync(join(home, 'state.json'), JSON.stringify({ mode, installed: false }));
   writeFileSync(bin, `#!${process.execPath}
 import {appendFileSync,readFileSync,writeFileSync} from 'node:fs';
 const home=process.env.CODEX_HOME, args=process.argv.slice(2), path=home+'/state.json';
+if (${options.startupDelayMs ?? 0}) await Bun.sleep(${options.startupDelayMs ?? 0});
 appendFileSync(home+'/calls',JSON.stringify({args,home:process.env.HOME,codexHome:home})+'\\n');
 const state=JSON.parse(readFileSync(path,'utf8'));
 if(state.mode==='hang') await Bun.sleep(60000);
@@ -29,7 +30,7 @@ if(args[1]==='list'){
 }
 `);
   chmodSync(bin, 0o755);
-  const manager = new CodexPlugins({ codexHome: home, processHome: home, codexBin: bin, timeoutMs: 1000 });
+  const manager = new CodexPlugins({ codexHome: home, processHome: home, codexBin: bin, timeoutMs: options.timeoutMs ?? 1000 });
   cleanup.push(async () => { await manager.stop(); rmSync(home, { recursive: true, force: true }); });
   return { manager, home, calls: () => { try { return readFileSync(join(home, 'calls'), 'utf8').trim().split('\n').map(s => JSON.parse(s)); } catch { return []; } } };
 }
@@ -101,10 +102,13 @@ describe('native plugin lifecycle', () => {
     expect(await pending).toMatchObject({ state:'unavailable',message:expect.stringContaining('changed') });
     expect(await manager.view()).toMatchObject({ state:'available' });
   });
-  test('shutdown waits for active native children and rejects queued mutations', async () => {
-    const { manager, calls } = fixture('hang');
+  for (const startupDelayMs of [0, 300]) test(`shutdown waits for active native children and rejects queued mutations (${startupDelayMs}ms startup delay)`, async () => {
+    const { manager, calls } = fixture('hang', { startupDelayMs, timeoutMs: 5000 });
     const pending = manager.view();
-    for (let i=0; i<20 && !calls().length; i++) await Bun.sleep(10);
+    // Wait for the fixture's readiness signal; native process startup can exceed 200ms.
+    // The command timeout stays longer so this exercises shutdown, not timeout cleanup.
+    const readyDeadline = Date.now() + 2000;
+    while (!calls().length && Date.now() < readyDeadline) await Bun.sleep(10);
     expect(calls()).toHaveLength(1);
     const mutation = manager.change(row.pluginId, 'install').catch(error => error.message);
     await manager.stop();
