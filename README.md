@@ -4,7 +4,7 @@
 
 **Write the goal in one sentence. Get back finished, checked, reviewed work.**
 
-Foundry runs on your own computer and drives your Claude Code from a web page:<br>
+Foundry runs on your own computer and drives your Claude Code or Codex CLI from a web page:<br>
 it asks what only you can decide, shows you the plan once, then builds, tests, reviews and delivers on its own.
 
 English · [中文](./README.zh.md)
@@ -98,6 +98,18 @@ A blocked task, a conflict, a budget reached: it lands in the **Inbox** with the
 </table>
 
 When it is done you get the work on its own branch, and — if you chose it — pushed, or as a pull request. See [Getting the result](docs/guide/getting-the-result.md).
+
+## Codex backend
+
+Use your Codex CLI with ChatGPT sign-in:
+
+```sh
+codex login
+bun install --frozen-lockfile && bun run web:build
+bun run serve:codex
+```
+
+Codex uses a separate `data-codex/` directory and the same goal workflow. Select its model in Settings. Codex reports tokens, not USD cost; use duration and attempt limits. See [Codex setup and differences](docs/operate/codex.md), including Docker. The Claude quick start follows below.
 
 ## Quick start
 

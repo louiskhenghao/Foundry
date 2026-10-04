@@ -17,6 +17,19 @@ Foundry 在你自己的电脑上运行，从网页驱动你的 Claude Code：<br
 
 </div>
 
+## Codex 版本
+
+现在也可使用 Codex CLI + ChatGPT 登录运行同一套 Foundry 流程：
+
+```sh
+codex login
+bun install --frozen-lockfile && bun run web:build
+bun run serve:codex
+```
+
+默认使用独立的 `data-codex/`，保留原有 Claude 数据。模型在设置页选择；Codex 不提供美元费用，美元预算无法执行，请使用时长和尝试次数限制。[完整安装与使用说明](docs/operate/codex.md)。
+
+
 ## 为什么用 Foundry
 
 Claude Code 很会照你说的去做。可要让一件真正的工作不跑偏，剩下的活都落在你身上：把真正的意思说清楚、拆开、每一步都检查、发现它跑偏、别让它把额度烧光。

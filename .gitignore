@@ -1,5 +1,6 @@
 node_modules/
 data/
+data-codex/
 dist/
 # knowledge-graph indexes (graphify update / gitnexus analyze) — regenerated, never committed
 graphify-out/

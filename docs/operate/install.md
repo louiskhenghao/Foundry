@@ -1,5 +1,8 @@
 # Install Foundry
 
+For the Codex backend (ChatGPT login, separate session data), see [Run Foundry with Codex](codex.md).
+
+
 Foundry drives Claude Code against git repositories you already have. You can run it in two ways:
 
 | | Locally, from source | In Docker |
