@@ -49,8 +49,8 @@ Which model each of these uses — and so how much it really costs — is set by
 ## Where to see what was spent
 
 - **Claude goals** show running cost estimates and task totals. Codex marks dollar cost unavailable.
-- **Usage → Claude Code** shows spending estimates over time, by kind of session and by model. For each of your plan's usage windows it shows its status (**allowed**, or a warning when it gets close to the limit) and when it resets, not a percentage; for exact percentages, run `/usage` in Claude Code. **Refresh signal** runs one tiny session to update that status.
-- When a usage limit is reached, Foundry pauses new sessions only on that backend and retries later. A banner shows the retry time; it is not proof of recovered quota.
+- **Usage → Claude Code** shows spending estimates over time, by kind of session and by model. For each of your plan's usage windows it shows its status — **within limit**, **nearing limit** (still allowed, but Claude warns the window is close to its limit) or **limit reached** — and when it resets, not a percentage; for exact percentages, run `/usage` in Claude Code. **Refresh signal** runs one tiny session to update that status.
+- When a usage limit is reached, Foundry pauses new sessions only on that coding agent and retries later. A banner shows the retry time; it is not proof of recovered quota.
 - **MiniMax** (video and narration through mmx) has its own card at the bottom of **Usage**, read when the page opens: what is left of each model's window and week on a Token Plan, or the balance of a pay-as-you-go key. **Refresh** reads it again. When under 10% of a window is left, or the balance is under 1, the usage pill in the top bar shows an amber dot. The card only appears when mmx is installed.
 
 ## Image goals need an image key
