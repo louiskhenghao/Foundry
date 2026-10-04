@@ -37,6 +37,20 @@ describe('compose', () => {
     expect(compose(ev('rate_limit.resumed', { reason: 'window reset' }, null), title)!.text).toContain('resume');
   });
 
+  test('quota notifications use the event backend and do not promise a reset', () => {
+    for (const provider of ['claude', 'codex'] as const) {
+      const paused = compose(ev('rate_limit.paused', { provider, until: '2026-10-05T00:00:00Z', reason: 'limit', rateLimitType: null }, null), title, provider === 'codex' ? 'claude' : 'codex')!;
+      expect(paused.path).toBe(`/usage?provider=${provider}`);
+      expect(paused.text).toContain(provider === 'codex' ? 'Codex' : 'Claude Code');
+      expect(paused.text).toContain('retry at');
+      const resumed = compose(ev('rate_limit.resumed', { provider, reason: 'retry time reached' }, null), title)!;
+      expect(resumed.path).toBe(paused.path);
+      expect(resumed.text).toContain('retries resume');
+      expect(resumed.text).not.toContain('lifted');
+    }
+    expect(compose(ev('rate_limit.resumed', { reason: 'legacy' }, null), title, 'codex')!.path).toBe('/usage?provider=codex');
+  });
+
   test('unrelated events stay silent', () => {
     expect(compose(ev('engine.note', { level: 'warn', message: 'notification via telegram failed' }, null), title)).toBeNull();
     expect(compose(ev('task.state_changed', { taskId: 't1', from: 'running', to: 'blocked', reason: 'escalation retries_exhausted' }), title)).toBeNull();

@@ -23,13 +23,13 @@ const TRIGGER_COPY: Record<EscalationTrigger, string> = {
   retries_exhausted: 'a task ran out of attempts with checks still failing',
   boundary_action: 'an action wants to leave the local workspace',
   budget_exceeded: 'the goal hit its cost or time budget',
-  permission_denial: 'the Claude runtime refused a tool call',
+  permission_denial: 'the agent backend refused a tool call',
   milestone: 'a milestone landed — have a look, then continue or say what to change',
   delivery_failed: 'the delivery stopped — the reason and a Retry are in the Inbox',
 };
 
 /** Event → message for the non-escalation families; null = nothing to say about this event. */
-export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => string): Composed | null {
+export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => string, defaultProvider: 'claude' | 'codex' = 'claude'): Composed | null {
   switch (e.type) {
     case 'interview.round_asked': {
       const qs = e.payload.questions;
@@ -48,10 +48,14 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
       return { family: 'delivery', text: `🎉 PR ${e.payload.prNumber != null ? `#${e.payload.prNumber} ` : ''}merged — ${goalTitle(e.goalId)}`, path: e.goalId ? `/goals/${e.goalId}` : null };
     case 'delivery.failed':
       return { family: 'delivery', text: `⚠️ Delivery failed at ${e.payload.step} — ${goalTitle(e.goalId)}\n${e.payload.reason.slice(0, 300)}`, path: e.goalId ? `/goals/${e.goalId}` : null };
-    case 'rate_limit.paused':
-      return { family: 'rateLimit', text: `⏸️ Claude usage limit — goals paused until ${e.payload.until}`, path: '/usage' };
-    case 'rate_limit.resumed':
-      return { family: 'rateLimit', text: '▶️ Claude usage limit lifted — goals resume', path: '/usage' };
+    case 'rate_limit.paused': {
+      const provider = e.payload.provider ?? defaultProvider;
+      return { family: 'rateLimit', text: `⏸️ ${provider === 'codex' ? 'Codex' : 'Claude Code'} usage limit — new sessions paused; retry at ${e.payload.until}`, path: `/usage?provider=${provider}` };
+    }
+    case 'rate_limit.resumed': {
+      const provider = e.payload.provider ?? defaultProvider;
+      return { family: 'rateLimit', text: `▶️ ${provider === 'codex' ? 'Codex' : 'Claude Code'} session retries resume`, path: `/usage?provider=${provider}` };
+    }
     case 'update.available':
       // the checker announces once per version, so this family never repeats itself
       return { family: 'updateAvailable', text: `⬆️ Foundry ${e.payload.latest} is available — you run ${e.payload.current}`, path: '/settings' };
@@ -93,7 +97,7 @@ export class NotificationDispatcher {
   private goalTitle = (goalId: string | null): string => (goalId ? (getGoal(this.engine.store.db, goalId)?.title ?? goalId) : '');
 
   private onEvent(e: EngineEvent): void {
-    const c = compose(e, this.goalTitle);
+    const c = compose(e, this.goalTitle, this.engine.config.provider);
     if (!c) return;
     const s = this.settings();
     const on = { goalFinished: s.onGoalFinished, delivery: s.onDelivery, rateLimit: s.onRateLimit, updateAvailable: s.onUpdateAvailable, interview: s.onInterview }[c.family];
