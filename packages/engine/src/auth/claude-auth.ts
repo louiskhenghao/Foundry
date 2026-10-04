@@ -75,20 +75,32 @@ export class ClaudeAuth {
   private cached: ClaudeAuthStatus | null = null;
   private pending: Promise<ClaudeAuthStatus> | null = null;
   private generation = 0;
+  private resolvedBin: string | null | undefined;
   private current: LoginSession | null = null;
   private proc: ReturnType<typeof Bun.spawn> | null = null;
   private arm: ((ms: number) => void) | null = null;
   private listeners = new Set<(s: LoginSession) => void>();
 
   constructor(
-    private opts: { provider?: 'claude' | 'codex'; codexHome?: string; claudeHome?: string; claudeBin: string | null; timeoutMs?: number; codeTimeoutMs?: number; run?: typeof exec; log?: (m: string) => void },
+    private opts: { provider?: 'claude' | 'codex'; codexHome?: string; claudeHome?: string; claudeBin: string | null | (() => string | null); timeoutMs?: number; codeTimeoutMs?: number; run?: typeof exec; log?: (m: string) => void },
   ) {}
 
+  /** A CLI can be installed or moved while Foundry is running. Never cache its absence for the process lifetime. */
+  private binary(): string | null {
+    const bin = typeof this.opts.claudeBin === 'function' ? this.opts.claudeBin() : this.opts.claudeBin;
+    if (this.resolvedBin !== bin) {
+      this.resolvedBin = bin;
+      this.invalidate();
+    }
+    return bin;
+  }
+
   async status(force = false): Promise<ClaudeAuthStatus> {
+    const bin = this.binary();
     if (this.pending) return this.pending;
     if (!force && this.cached && Date.now() - Date.parse(this.cached.checkedAt) < 60_000) return this.cached;
     const generation = this.generation;
-    const read = this.opts.provider === 'codex' ? codexAuthStatus(this.opts.claudeBin, this.opts.run, this.opts.codexHome) : claudeAuthStatus(this.opts.claudeBin, this.opts.run, this.opts.claudeHome);
+    const read = this.opts.provider === 'codex' ? codexAuthStatus(bin, this.opts.run, this.opts.codexHome) : claudeAuthStatus(bin, this.opts.run, this.opts.claudeHome);
     const pending = read.then(value => {
       // An earlier account poll must neither repopulate the cache nor return stale identity to the UI.
       if (generation !== this.generation) return this.status();
@@ -114,13 +126,14 @@ export class ClaudeAuth {
     if (this.current) for (const l of this.listeners) l(this.current);
   }
 
-  /** Always the claude.ai (Pro / Max) login: Foundry runs on a subscription, never on Console API billing (ADR-0001). */
+  /** Subscription sign-in: Claude uses claude.ai; Codex uses ChatGPT device authorization. */
   startLogin(input: { email?: string } = {}): LoginSession {
-    if (!this.opts.claudeBin) throw new Error(`${this.opts.provider ?? 'claude'} CLI not installed`);
+    const bin = this.binary();
+    if (!bin) throw new Error(`${this.opts.provider ?? 'claude'} CLI not installed`);
     if (this.current && !this.current.done) return this.current;
     const session: LoginSession = { id: `login_${Date.now().toString(36)}`, startedAt: new Date().toISOString(), url: null, lines: [], done: false, ok: null, error: null, finishedAt: null, needsCode: false };
     this.current = session;
-    const args = this.opts.provider === 'codex' ? [this.opts.claudeBin, 'login', '--device-auth'] : [this.opts.claudeBin, 'auth', 'login', '--claudeai', ...(input.email ? ['--email', input.email] : [])];
+    const args = this.opts.provider === 'codex' ? [bin, 'login', '--device-auth'] : [bin, 'auth', 'login', '--claudeai', ...(input.email ? ['--email', input.email] : [])];
     let proc: ReturnType<typeof Bun.spawn>;
     try {
       // stdin stays open: on a machine without a browser the CLI asks for the code from the browser instead
@@ -242,9 +255,10 @@ export class ClaudeAuth {
   }
 
   async logout(): Promise<ClaudeAuthStatus> {
-    if (!this.opts.claudeBin) throw new Error(`${this.opts.provider ?? 'claude'} CLI not installed`);
+    const bin = this.binary();
+    if (!bin) throw new Error(`${this.opts.provider ?? 'claude'} CLI not installed`);
     const run = this.opts.run ?? exec;
-    const r = await run([this.opts.claudeBin, ...(this.opts.provider === 'codex' ? ['logout'] : ['auth', 'logout'])], process.cwd(), { timeoutMs: 30_000, env: this.opts.codexHome ? { CODEX_HOME: this.opts.codexHome } : this.opts.claudeHome ? { CLAUDE_CONFIG_DIR: this.opts.claudeHome } : undefined });
+    const r = await run([bin, ...(this.opts.provider === 'codex' ? ['logout'] : ['auth', 'logout'])], process.cwd(), { timeoutMs: 30_000, env: this.opts.codexHome ? { CODEX_HOME: this.opts.codexHome } : this.opts.claudeHome ? { CLAUDE_CONFIG_DIR: this.opts.claudeHome } : undefined });
     this.invalidate();
     const st = await this.status(true);
     if (st.loggedIn && r.code !== 0) throw new Error(`logout failed: ${(r.stderr || r.stdout).trim().slice(0, 200)}`);

@@ -289,8 +289,8 @@ export class Engine {
     this.codexPlugins = new CodexPlugins({ codexHome: config.codexHome, codexBin: config.codexBin });
     this.codexQuota = new CodexQuotaReader({ bin: () => config.codexBin ?? Bun.which('codex'), home: config.codexHome });
     this.accounts = {
-      claude: new ClaudeAuth({ provider: 'claude', claudeHome: config.claudeHome, claudeBin: config.claudeBin ?? Bun.which('claude'), log: config.log }),
-      codex: new ClaudeAuth({ provider: 'codex', claudeBin: config.codexBin ?? Bun.which('codex'), codexHome: config.codexHome, log: config.log }),
+      claude: new ClaudeAuth({ provider: 'claude', claudeHome: config.claudeHome, claudeBin: () => config.claudeBin ?? Bun.which('claude'), log: config.log }),
+      codex: new ClaudeAuth({ provider: 'codex', claudeBin: () => config.codexBin ?? Bun.which('codex'), codexHome: config.codexHome, log: config.log }),
     };
     this.accounts.codex.onLoginUpdate(() => { this.codexQuota.invalidate(); this.codexPlugins.invalidate(); });
     this.auth = this.accounts[config.provider];
