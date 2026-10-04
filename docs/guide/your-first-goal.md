@@ -13,7 +13,7 @@
 
 ## Agent accounts and backend
 
-Open **Accounts** in the header to see Claude Code and Codex separately. **Sign in to Codex** uses ChatGPT device authorization; enter the displayed code on the linked page. **Sign in to Claude Code** uses Claude's native login. Credentials belong to the local CLI: signing out here also signs out that CLI, but does not sign out the other provider. Foundry refuses sign-in and sign-out while work is active, including requests from the CLI. Codex supports ChatGPT sign-in only; API-key login is not used. The account card shows the native email and plan when available.
+Open **Accounts** in the header to see Claude Code and Codex separately. **Sign in to Codex** uses ChatGPT device authorization; enter the displayed code on the linked page. **Sign in to Claude Code** uses Claude's native login. Credentials belong to the local CLI: signing out here also signs out that CLI, but does not sign out the other provider. Foundry refuses sign-in and sign-out while work is active, including requests from the CLI. Codex supports ChatGPT sign-in only; API-key login is not used. The account card shows the native email and plan when available. Installing a CLI while Foundry is running is detected on the next account check; Setup and Accounts use the current executable. Changes to a configured binary path or native home still require a restart.
 
 On **New goal**, choose **Agent backend** before creating the goal. Both providers can run in one Foundry instance. The selected backend stays fixed through clarification, workers, retries, reviews and delivery assistance; sessions never resume on another provider. Each backend has independent model presets under **Models**. Codex captures the preset's role models, reasoning efforts and fallback order when you create the goal.
 
@@ -39,7 +39,7 @@ Open the ⚙ menu at the right of the top bar and choose **Setup** (a red dot on
 
 When everything needed is in place the page says **Everything is in place** and offers **Create your first goal →**. **Re-run** checks again. If something is missing later, a red **Setup incomplete** banner appears with **Fix in Setup →**.
 
-The card **Development workflow — Matt Pocock's engineering skills** lists the skills Foundry's workers follow (for example writing tests first). If some are missing, press **Install N missing**.
+The card **Development workflow — Matt Pocock's engineering skills** lists the skills Foundry's workers follow (for example writing tests first). If some are missing, press **Install N missing**. The bundle contains eight current upstream skills. The removed `resolving-merge-conflicts` skill is no longer requested; Foundry’s built-in Merger instructions still handle conflicts.
 
 ### Pick a repository folder
 

@@ -185,7 +185,7 @@ Where an installed Skill comes from and who updates it: a GitHub repository mana
 A user-level Skill that has the same name as a Skill provided by a plugin. Both load; prompts use the plugin's copy because it is the one that gets updated. Shadow copies are reported and can be moved to the trash in one click.
 
 **Workflow Skill**
-A Skill a Role is told to follow for a kind of work — *must* or *prefer* — because the engine follows Matt Pocock's engineering workflow: `tdd` for features and refactors, `diagnosing-bugs` for bugs, `resolving-merge-conflicts` for the Merger, `code-review` for the Goal Reviewer. Claude invocation telemetry records which Skills a session invoked; a missing mandated invocation is a note for the next Attempt, never a failure on its own. Codex reads native skill instructions without invocation telemetry, so compliance is assessed from the work and tests rather than a missing event.
+A Skill a Role is told to follow for a kind of work — *must* or *prefer* — because the engine follows Matt Pocock's engineering workflow: `tdd` for features and refactors, `diagnosing-bugs` for bugs, `code-review` for the Goal Reviewer. Claude invocation telemetry records which Skills a session invoked; a missing mandated invocation is a note for the next Attempt, never a failure on its own. Codex reads native skill instructions without invocation telemetry, so compliance is assessed from the work and tests rather than a missing event. The Merger follows built-in conflict-resolution instructions; it does not require an external merge skill.
 
 **Task Kind**
 The nature of a Task — feature, bug, refactor, research or chore — set in the Brief. It selects the Workflow Skills the Worker is asked to follow.

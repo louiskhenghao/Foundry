@@ -21,7 +21,16 @@
         "context",
         "graph"
       ],
-      "homepage": "https://github.com/safishamsi/graphify"
+      "homepage": "https://github.com/safishamsi/graphify",
+      "providerSources": {
+        "codex": {
+          "type": "cli",
+          "detect": "graphify",
+          "skill": true,
+          "install": "uv tool install graphifyy && graphify install --platform codex",
+          "docs": "https://github.com/safishamsi/graphify"
+        }
+      }
     },
     {
       "id": "tdd",
@@ -260,34 +269,6 @@
       ]
     },
     {
-      "id": "resolving-merge-conflicts",
-      "name": "resolving-merge-conflicts",
-      "summary": "Intent-preserving conflict resolution procedure.",
-      "why": "The Merger role exists only to resolve conflicts between parallel tasks; this skill is its playbook.",
-      "tier": "recommended",
-      "source": {
-        "type": "git",
-        "repo": "mattpocock/skills",
-        "path": "skills/engineering/resolving-merge-conflicts"
-      },
-      "roles": [
-        "merger"
-      ],
-      "tags": [
-        "git"
-      ],
-      "homepage": "https://github.com/mattpocock/skills",
-      "bundle": "mattpocock",
-      "workflow": [
-        {
-          "role": "merger",
-          "mandate": "must",
-          "when": "any",
-          "instruction": "Invoke it and resolve hunk by hunk; never abort the merge."
-        }
-      ]
-    },
-    {
       "id": "codebase-design",
       "name": "codebase-design",
       "summary": "Deep modules, simple interfaces, code an AI can navigate.",
@@ -352,7 +333,7 @@
     {
       "id": "webapp-testing",
       "name": "webapp-testing",
-      "summary": "Anthropic's skill for driving and testing local web apps with Playwright.",
+      "summary": "Portable Playwright guidance from Anthropic; requires Python, Python Playwright and Chromium.",
       "why": "Lets a worker actually exercise a UI change end-to-end instead of declaring victory after unit tests.",
       "tier": "recommended",
       "source": {
@@ -377,7 +358,7 @@
       "id": "frontend-design",
       "name": "frontend-design",
       "summary": "Anthropic's guidance for producing distinctive, production-grade frontends.",
-      "why": "Useful when goals include UI work; not needed for backend-only repositories.",
+      "why": "Useful when goals include UI work; not needed for backend-only repositories. Portable design instructions; compatible with Claude Code and Codex without an Anthropic account.",
       "tier": "optional",
       "source": {
         "type": "git",
@@ -468,12 +449,12 @@
       "id": "impeccable",
       "name": "impeccable",
       "summary": "/impeccable: craft, polish, critique, audit and 19 more sub-commands for intentional, non-generic frontends.",
-      "why": "One command family for building UI and for reviewing it; its critique doubles as a design review.",
+      "why": "One command family for building UI and for reviewing it; its critique doubles as a design review. Uses the selected backend’s native skill. Foundry sessions do not enable Codex child agents; use the skill’s documented serial fallback when delegation is unavailable.",
       "tier": "optional",
       "source": {
         "type": "git",
         "repo": "pbakaus/impeccable",
-        "path": "skill"
+        "path": ".claude/skills/impeccable"
       },
       "roles": [
         "worker",
@@ -511,7 +492,14 @@
           ],
           "instruction": "Run `/impeccable critique` on the delivered UI and turn its findings into concrete pass/fail notes."
         }
-      ]
+      ],
+      "providerSources": {
+        "codex": {
+          "type": "git",
+          "repo": "pbakaus/impeccable",
+          "path": ".agents/skills/impeccable"
+        }
+      }
     },
     {
       "id": "bencium-impact-designer",
@@ -725,7 +713,7 @@
     {
       "id": "autoskills",
       "name": "autoskills",
-      "summary": "Detects the repository's stack (package.json, Gradle, …) and installs matching skills into its .claude/skills.",
+      "summary": "Detects the repository stack and installs matching project skills (.claude/skills for Claude; .agents/skills for Codex).",
       "why": "Workers get framework-specific house rules for the exact stack they are editing; Foundry runs it per goal in the goal workspace.",
       "tier": "optional",
       "source": {
@@ -744,17 +732,15 @@
     {
       "id": "claude-api",
       "name": "claude-api",
-      "summary": "Reference for building on the Claude API / Anthropic SDK.",
-      "why": "Only relevant when the goal itself builds an LLM feature; keeps model ids, pricing and tool-use patterns accurate.",
+      "summary": "Optional reference for projects using the Anthropic API / SDK; usable by either engine.",
+      "why": "Use only when the project itself integrates Anthropic services. This is SDK reference material, not a Claude runtime requirement or a Foundry login mode. Project API credentials are separate from Foundry’s ChatGPT subscription login.",
       "tier": "optional",
       "source": {
         "type": "git",
         "repo": "anthropics/skills",
         "path": "skills/claude-api"
       },
-      "roles": [
-        "worker"
-      ],
+      "roles": [],
       "tags": [
         "llm"
       ],
@@ -773,7 +759,7 @@
       "id": "skill-creator",
       "name": "skill-creator",
       "summary": "Anthropic's skill for writing new skills well.",
-      "why": "For people who want to add their own entries to this catalog.",
+      "why": "For people who want to add their own entries to this catalog. Its evaluation and description-optimization flows depend on Claude CLI; Codex uses the separate OpenAI skill-creator entry.",
       "tier": "optional",
       "source": {
         "type": "git",
@@ -784,13 +770,36 @@
       "tags": [
         "meta"
       ],
-      "homepage": "https://github.com/anthropics/skills"
+      "homepage": "https://github.com/anthropics/skills",
+      "providers": [
+        "claude"
+      ]
+    },
+    {
+      "id": "openai-skill-creator",
+      "name": "skill-creator",
+      "summary": "OpenAI’s Codex-native guide for creating and maintaining skills.",
+      "why": "For adding skills to Codex without requiring Claude CLI or Claude-specific evaluation tooling. If an older Anthropic copy is already installed, use Replace to select this version; the old copy goes to trash.",
+      "tier": "optional",
+      "source": {
+        "type": "git",
+        "repo": "openai/skills",
+        "path": "skills/.system/skill-creator"
+      },
+      "roles": [],
+      "tags": [
+        "meta"
+      ],
+      "homepage": "https://github.com/openai/skills",
+      "providers": [
+        "codex"
+      ]
     },
     {
       "id": "gstack",
       "name": "gstack",
       "summary": "Garry Tan's large skill suite (review, QA, ship, design…).",
-      "why": "Powerful but heavyweight: it is a git clone that flattens ~60 skills into ~/.claude/skills and installs its own hooks, so it must be installed and upgraded with its own tooling, not copied by Foundry.",
+      "why": "Powerful but heavyweight: it is a git clone that flattens ~60 skills into ~/.claude/skills and installs its own hooks, so it must be installed and upgraded with its own tooling, not copied by Foundry. This catalog recipe is for Claude only. Upstream’s experimental Codex port uses separate setup and requires authenticated Claude CLI for outside reviews; it is not part of Foundry’s ChatGPT-only setup.",
       "tier": "optional",
       "source": {
         "type": "manual",
@@ -802,7 +811,10 @@
       "tags": [
         "suite"
       ],
-      "homepage": "https://github.com/garrytan/gstack"
+      "homepage": "https://github.com/garrytan/gstack",
+      "providers": [
+        "claude"
+      ]
     },
     {
       "id": "prototype",
@@ -892,7 +904,7 @@
       "id": "gpt-image-2",
       "name": "gpt-image-2",
       "summary": "Image generation/editing skill for GPT Image 2: 80+ structured prompt templates (posters, UI, product shots, infographics, comics), generates via an OpenAI-compatible endpoint or hands the engineered prompt to the host agent.",
-      "why": "The image pack: image tasks need a disciplined prompt + generation flow instead of ad-hoc API calls.",
+      "why": "The image pack: image tasks need a disciplined prompt + generation flow instead of ad-hoc API calls. ChatGPT sign-in does not supply image API credentials or desktop-only image tools; without a configured image backend, use its prompt-only mode.",
       "tier": "optional",
       "source": {
         "type": "git",
@@ -1058,8 +1070,8 @@
     {
       "id": "taste-imagegen-web",
       "name": "imagegen-frontend-web",
-      "summary": "taste-skill's art-direction framework for generating web UI/product reference visuals: composition rules, section-by-section imagery, an opinionated design language.",
-      "why": "The taste image pack option: strong visual direction for UI-flavoured imagery instead of generic renders.",
+      "summary": "taste-skill's art-direction framework for generating web UI/product reference visuals: composition rules, section-by-section imagery, an opinionated design language. Requires an image-generation tool; instructions alone do not generate images.",
+      "why": "The taste image pack option: strong visual direction for UI-flavoured imagery instead of generic renders. Headless Foundry sessions do not inherit image tools from the Codex desktop app. Configure a permitted image tool separately or use prompt-only output; ChatGPT sign-in does not supply API credentials.",
       "tier": "optional",
       "source": {
         "type": "git",
@@ -1088,15 +1100,15 @@
           "scenarios": [
             "image"
           ],
-          "instruction": "Follow its art direction when composing and generating web-oriented visuals. Save every file into artifacts/ and record its prompt/parameters in the task manifest."
+          "instruction": "Follow its art direction when composing and generating web-oriented visuals. Save every file into artifacts/ and record its prompt/parameters in the task manifest. First verify that an image-generation tool is available; otherwise produce prompts and report generation unavailable without claiming images were created."
         }
       ]
     },
     {
       "id": "taste-imagegen-mobile",
       "name": "imagegen-frontend-mobile",
-      "summary": "taste-skill's art-direction framework for generating mobile UI/product reference visuals: composition rules, section-by-section imagery, an opinionated design language.",
-      "why": "The taste image pack option: strong visual direction for UI-flavoured imagery instead of generic renders.",
+      "summary": "taste-skill's art-direction framework for generating mobile UI/product reference visuals: composition rules, section-by-section imagery, an opinionated design language. Requires an image-generation tool; instructions alone do not generate images.",
+      "why": "The taste image pack option: strong visual direction for UI-flavoured imagery instead of generic renders. Headless Foundry sessions do not inherit image tools from the Codex desktop app. Configure a permitted image tool separately or use prompt-only output; ChatGPT sign-in does not supply API credentials.",
       "tier": "optional",
       "source": {
         "type": "git",
@@ -1125,7 +1137,7 @@
           "scenarios": [
             "image"
           ],
-          "instruction": "Follow its art direction when composing and generating mobile-oriented visuals. Save every file into artifacts/ and record its prompt/parameters in the task manifest."
+          "instruction": "Follow its art direction when composing and generating mobile-oriented visuals. Save every file into artifacts/ and record its prompt/parameters in the task manifest. First verify that an image-generation tool is available; otherwise produce prompts and report generation unavailable without claiming images were created."
         }
       ]
     },
@@ -1273,7 +1285,7 @@
       "id": "hyperframes-short-form-video",
       "name": "short-form-video",
       "summary": "Short-form (vertical/social) video conventions on the same pipeline.",
-      "why": "The hyperframes video pack: motion-graphics editing/rendering (HTML+GSAP → real video) — the deliberate alternative to API text-to-video for demos, lessons and brand clips.",
+      "why": "The hyperframes video pack: motion-graphics editing/rendering (HTML+GSAP → real video) — the deliberate alternative to API text-to-video for demos, lessons and brand clips. Requires a scaffolded Hyperframes student-kit project, including its root scripts/docs; copying this skill alone does not install those project dependencies.",
       "tier": "optional",
       "bundle": "hyperframes",
       "source": {

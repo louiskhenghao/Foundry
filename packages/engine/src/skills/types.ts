@@ -73,12 +73,16 @@ export type WorkflowRule = z.infer<typeof WorkflowRule>;
 
 export const CatalogEntry = z.object({
   id: z.string().min(1),
-  /** skill directory name (what Claude Code sees) */
+  /** skill directory name in the selected backend */
   name: z.string().min(1),
   summary: z.string(),
   why: z.string(),
   tier: SkillTier,
   source: CatalogSource,
+  /** Omitted means both backends; restrict recipes that depend on a particular native runtime. */
+  providers: z.array(z.enum(['claude', 'codex'])).min(1).optional(),
+  /** Complete source recipes, selected before status, install, update and workflow hints. */
+  providerSources: z.object({ claude: CatalogSource.optional(), codex: CatalogSource.optional() }).optional(),
   roles: z.array(SkillRole).default([]),
   /** slash name; defaults to `/${name}` */
   invoke: z.string().optional(),

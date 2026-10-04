@@ -1,6 +1,6 @@
 # Codex integration validation
 
-This record accompanies PR #52 before merge. It describes evidence for the shared Claude/Codex implementation, not a guarantee that every account, native CLI version or container host behaves identically. Current setup and capability limits are in [the operator guide](../operate/codex.md).
+This record retains the PR #52 baseline and records the post-merge account-discovery and skill-catalog follow-up. It describes evidence for the shared Claude/Codex implementation, not a guarantee that every account, native CLI version or container host behaves identically. Current setup and capability limits are in [the operator guide](../operate/codex.md).
 
 ## Repeatable checks
 
@@ -25,6 +25,15 @@ The full test command includes package, CLI and web regressions; plain `bun test
 - Native smoke checks exercised ChatGPT account/quota reads and structured new/resumed sessions with host CLI `0.158.0-alpha.2`. Native plugin list/install/refresh/remove checks passed in an isolated local fixture marketplace on the host and Docker-pinned `0.160.0` CLI. A metadata-only account check confirmed a weekly-only account shape (two 10,080-minute groups, no short window) without capturing identity or usage percentages. Populated external history uses protocol fixtures; the native history smoke covered an isolated empty home. The Docker build pins the latter version; this does not imply every future CLI protocol is compatible.
 - Browser checks use temporary repositories and fixture identities/quota. Guide screenshots show examples, not a measurement of a personal account. The UI follow-up checks Setup, Settings, Extensions, Usage and New goal with the shared backend selector, native keyboard navigation and padded select arrows in light/dark themes and at narrow widths.
 - The UI follow-up also adds provider-specific health pause data and verifies notification names/links against mixed-provider and legacy events. Retry times are not described as guaranteed account resets.
+
+### Account discovery and skill compatibility follow-up (2026-10-05)
+
+- **543 tests passed, 0 failed, 2,841 assertions across 89 files**, with backend/frontend type checking and a production web build. Generated CLI/settings references remain unchanged. The initial sandboxed run could not bind local test servers (17 failures); rerunning the same suite with local networking permitted produced the passing result. The Vite large-chunk warning remains.
+- The local source-run symptom was reproduced read-only: Setup found an authenticated CLI while Accounts returned installed=true with “codex not installed”, including after force refresh. Two regression fixtures start an actual Engine/API before installing a fake CLI on an isolated PATH, then check Setup, Accounts, forced refresh, sign-in, sign-out and removal for each backend. They failed before the fix and pass after it. No personal account credentials were changed; the running source instance must be updated/restarted to use this code.
+- Provider-catalog regressions exercise actual git fixture installations, bundle filtering, rejected direct installs, role hints and native manual commands. A missing explicit native path fails without overwriting an existing skill; path-less discovery remains supported.
+- **24 real git skill installations** succeeded in disposable native homes: eight Matt Pocock skills plus frontend-design, webapp-testing, Impeccable and the appropriate skill-creator for each backend. Checks verified SKILL.md and the exact installed source marker path. No downloaded skill scripts were executed; this validates installation and dependencies documented by inspection, not every skill’s runtime workflow.
+- Upstream snapshots: `mattpocock/skills` at `24fe0ef7737efae15c87225755e9f6f5965e4888`, `anthropics/skills` at `8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4`, `openai/skills` at `49f948faa9258a0c61caceaf225e179651397431`; Impeccable uses the native `.claude/skills/impeccable` and `.agents/skills/impeccable` directories. [Upstream removal](https://github.com/mattpocock/skills/commit/daa01d8aa68ad5c61b68970ec2018d0ce9567be6) explains the removed merge skill. Graphify’s current upstream CLI advertises `--platform codex`; its system-level installer was not run on the personal machine.
+- Browser checks confirmed Setup’s eight-skill bundle and built-in Merger description, the Codex Graphify command and OpenAI skill-creator catalog entry. The refreshed Setup screenshot uses demonstration account data. The compatibility audit and migration advice are in the [operator guide](../operate/codex.md#skill-catalog-compatibility) and bilingual [settings guide](../guide/settings.md#skill-compatibility).
 
 ### Timing observations
 

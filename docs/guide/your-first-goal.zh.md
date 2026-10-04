@@ -13,7 +13,7 @@
 
 ## 账户与执行后端
 
-点击顶栏 **Accounts**，分别查看 Claude Code 和 Codex。**Sign in to Codex** 使用 ChatGPT 设备授权：在链接页面输入显示的验证码；**Sign in to Claude Code** 使用 Claude 原生登录。凭据与本机 CLI 共用，在这里退出也会退出对应 CLI，但不会影响另一个提供商。执行期间不能登录或退出，CLI 请求也遵守同样的保护。Codex 只支持 ChatGPT 登录，不使用 API-key 模式；原生 CLI 提供邮箱和方案时会显示在账户卡片。
+点击顶栏 **Accounts**，分别查看 Claude Code 和 Codex。**Sign in to Codex** 使用 ChatGPT 设备授权：在链接页面输入显示的验证码；**Sign in to Claude Code** 使用 Claude 原生登录。凭据与本机 CLI 共用，在这里退出也会退出对应 CLI，但不会影响另一个提供商。执行期间不能登录或退出，CLI 请求也遵守同样的保护。Codex 只支持 ChatGPT 登录，不使用 API-key 模式；原生 CLI 提供邮箱和方案时会显示在账户卡片。Foundry 运行期间安装 CLI 后，下次账户检查即可识别；Setup 与 Accounts 都使用当前可执行文件。修改配置中的程序路径或原生配置目录仍需重启。
 
 **Setup** 可选择 **Claude Code** 或 **Codex**；检查、登录、修复及技能安装均针对所选后端。**Create your first goal** 会保留该选择。
 
@@ -41,7 +41,7 @@ Codex 的预算选项只有时间、尝试次数和并发限制，没有美元�
 
 需要的东西都齐了，页面会显示 **Everything is in place**，并提供 **Create your first goal →**。**Re-run** 会再检查一次。之后如果缺了什么，会出现红色横幅 **Setup incomplete**，上面有 **Fix in Setup →**。
 
-**Development workflow — Matt Pocock's engineering skills** 这张卡片列出 Foundry 的执行者遵循的技能（比如先写测试）。如果缺了一些，按 **Install N missing**。
+**Development workflow — Matt Pocock's engineering skills** 这张卡片列出 Foundry 的执行者遵循的技能（比如先写测试）。如果缺了一些，按 **Install N missing**。该包包含上游现有的八项技能，不再安装已被删除的 `resolving-merge-conflicts`；冲突处理仍由 Foundry 内置的 Merger 指令负责。
 
 ### 选一个仓库文件夹
 
