@@ -1,5 +1,14 @@
 # 设置说明
 
+## 双后端设置
+
+**Models & limits** 同时包含 Codex 默认模型和 Claude 模型预设。Codex 任务保存创建时选择的模型，修改默认模型只影响新任务。**Claude cost cap per session (USD)** 只适用于 Claude。**Concurrent agent sessions** 是两种后端共用的总并发上限。
+
+**Engine (install)** 显示两种 CLI 路径和配置目录。**Default agent backend** 在启动时选择，不限制新建任务的后端选择。打开旧数据目录时保留原启动配置，以正确识别历史记录。现有分开的数据目录不会自动合并。
+
+Extensions 管理页面暂时跟随启动配置。Codex 使用自己的技能目录和共享 `.agents/skills`，项目技能放在 `.agents/skills`。Codex 插件与 MCP 通过 Codex 管理；Claude 的 autoskills 安装器不会为 Codex 运行。Codex 的技能调用不可观测，审核应依据代码和测试，不能据此判定没有使用技能。
+
+
 > [English](./settings.md) · 中文
 
 打开顶栏右侧的 ⚙ 菜单，选 **Settings**。各个部分列在左侧；本页按顺序介绍，用大白话讲你可能想动的控件，以及什么时候动。确切的键名、默认值和环境变量在运维参考 [configuration.md](../operate/configuration.md) 里。

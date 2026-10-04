@@ -2,6 +2,15 @@
 
 > English · [中文](./settings.zh.md)
 
+## Two backends
+
+**Models & limits** contains a Codex default model and Claude model presets. Codex goals save their own model when created; changes to the default affect new goals. **Claude cost cap per session (USD)** applies only to Claude. **Concurrent agent sessions** is one total limit across both providers.
+
+**Engine (install)** exposes both CLI paths and homes. The **Default agent backend** is chosen at launch; it does not restrict the **New goal** selector. Keep the original launch profile when opening an existing data directory so legacy records retain their provenance. Existing separate directories are not automatically merged.
+
+Extensions management currently follows the launch profile. Codex goals load native skills from their own home/shared `.agents/skills`; project skills belong in `.agents/skills`. Manage Codex plugins and MCP in Codex itself. Claude's autoskills installer does not run for Codex. Skill invocation telemetry is unavailable for Codex, so reviewers must judge the work rather than infer a skipped invocation.
+
+
 Open the ⚙ menu at the right of the top bar and choose **Settings**. The sections are listed on the left; this page follows them in order and explains, in plain words, the controls you might want to touch and when. The exact keys, defaults and environment variables are in the operator reference, [configuration.md](../operate/configuration.md).
 
 ## How Settings works

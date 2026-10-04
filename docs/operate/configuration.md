@@ -25,7 +25,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
 | `engine.maxConcurrent` | `3` | `FOUNDRY_MAX_CONCURRENT` | Claude sessions running at the same time, across all goals. |
-| `models.codexModel` | `codex-default` | `FOUNDRY_CODEX_MODEL` | Model for all Codex roles. codex-default follows the Codex CLI configuration; a model ID pins it. |
+| `models.codexModel` | `codex-default` | `FOUNDRY_CODEX_MODEL` | Default for new Codex goals, copied to every role at creation. codex-default follows the CLI configuration; an explicit model ID pins it. |
 | `models.cheap` | `haiku` | `FOUNDRY_MODEL_CHEAP` | Housekeeping model: one-turn engine chores (classifying a goal, summarising logs, the rate-limit probe). |
 | `models.fallbacks` | `opus, sonnet, haiku` | `FOUNDRY_MODEL_FALLBACKS` | Tried in order when a model is unavailable; the replacement is remembered for that goal. |
 | `models.presets` | — | — | Presets you edited or created (edit them in the Presets editor, not by hand). Built-ins you never touched are not stored. |
@@ -113,7 +113,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
-| `engine.provider` *(restart)* | `claude` | `FOUNDRY_PROVIDER` | claude or codex. Use a separate FOUNDRY_DATA_DIR for each backend; session IDs are not interchangeable. |
+| `engine.provider` *(restart)* | `claude` | `FOUNDRY_PROVIDER` | Installation default (claude or codex), fixed at launch. Each new goal can select either backend; existing goals keep their provider. |
 | `engine.codexBin` *(restart)* | — | `FOUNDRY_CODEX_BIN` | Codex CLI path; empty uses codex on PATH. Requires hooks support. |
 | `engine.codexHome` *(restart)* | — | `FOUNDRY_CODEX_HOME (or CODEX_HOME)` | Codex configuration and login directory; empty uses CODEX_HOME or ~/.codex. |
 | `engine.port` *(restart)* | `4111` | `FOUNDRY_PORT` | Port the UI and API listen on. |

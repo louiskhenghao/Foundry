@@ -1,5 +1,18 @@
 # 你的第一个 goal
 
+![账户管理（演示账户）](images/accounts.png)
+
+![新建 Codex 任务](images/new-goal-codex.png)
+
+## 账户与执行后端
+
+点击顶栏 **Accounts**，分别查看 Claude Code 和 Codex。**Sign in to Codex** 使用 ChatGPT 设备授权：在链接页面输入显示的验证码；**Sign in to Claude Code** 使用 Claude 原生登录。凭据与本机 CLI 共用，在这里退出也会退出对应 CLI，但不会影响另一个提供商。执行期间不能退出登录。
+
+创建任务时，在 **Agent backend** 选择后端。同一 Foundry 实例可以运行两种后端；选定后，澄清、执行、重试、审核等会话始终使用该后端，不会把会话交给另一种 CLI 恢复。**Codex model** 随任务保存；`codex-default` 跟随 Codex 配置，填写具体 ID 可固定模型版本。
+
+Codex 的预算选项只有时间、尝试次数和并发限制，没有美元上限。**Accounts** 列出了目前的适配限制。
+
+
 > [English](./your-first-goal.md) · 中文
 
 本页从上到下带你过一遍 **New goal** 表单。大多数字段保持原样就行。你必须填的只有两样：想做什么，以及项目文件夹。

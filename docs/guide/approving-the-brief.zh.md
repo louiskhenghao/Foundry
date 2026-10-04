@@ -1,5 +1,10 @@
 # 批准 Brief
 
+## 不同后端的限制
+
+Codex 的 Brief 在 Simple 与 Expert 视图都显示时间及执行限制，隐藏美元估算与美元上限。批准或修改 Brief 不会改变任务创建时选择的后端。
+
+
 > [English](./approving-the-brief.md) · 中文
 
 Brief 就是计划。Foundry 读完你的项目、听完你的回答后写出它。你批准之前什么都不会开始做；你批准之后，Foundry 就自己往下做。

@@ -2,6 +2,19 @@
 
 > English · [中文](./your-first-goal.zh.md)
 
+![Agent accounts — demonstration accounts](images/accounts.png)
+
+![New Codex goal](images/new-goal-codex.png)
+
+## Agent accounts and backend
+
+Open **Accounts** in the header to see Claude Code and Codex separately. **Sign in to Codex** uses ChatGPT device authorization; enter the displayed code on the linked page. **Sign in to Claude Code** uses Claude's native login. Credentials belong to the local CLI: signing out here also signs out that CLI, but does not sign out the other provider. Foundry refuses sign-out while work is active.
+
+On **New goal**, choose **Agent backend** before creating the goal. Both providers can run in one Foundry instance. The selected backend stays fixed through clarification, workers, retries, reviews and delivery assistance; sessions never resume on another provider. **Codex model** is saved on the goal. `codex-default` follows Codex's configuration; use a concrete ID to pin a version.
+
+For Codex, budget presets cover time, attempts and concurrency. No USD budget is available. **Accounts** lists the current integration limits before you start.
+
+
 This page walks through the **New goal** form from top to bottom. Most fields can stay as they are. The only things you must fill in are what you want done and the project folder.
 
 ## Before you start

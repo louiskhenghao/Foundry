@@ -2,6 +2,11 @@
 
 > English · [中文](./while-it-runs.zh.md)
 
+## Provider-aware reporting
+
+Codex task details and activity mark dollar costs, model-turn counts and skill telemetry as unavailable. Its live tool logs, saved transcripts and Foundry sessions remain visible. The Agents monitor does not discover unrelated external Codex sessions. Claude's existing external-session monitor remains scoped to the launch profile.
+
+
 After you approve the Brief, Foundry works on its own. You can close the browser; the work continues on your computer. This page explains the goal page, so you can follow along when you want to.
 
 ![A goal page while tasks run: cost and time meters, the stage timeline, and the task graph](images/goal-running.png)

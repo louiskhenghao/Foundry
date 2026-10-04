@@ -13,7 +13,7 @@ record is never rewritten when a later decision changes it; its status says what
 | [0006](0006-model-registry-and-fallback.md) | No hard-coded model knowledge: a learned registry and a fallback chain | accepted · 2026-08-22 · partly superseded by ADR-0014 (goal model snapshot per tier; doctor checks tiers) |
 | [0007](0007-completion-actions.md) | Completion actions: docs on the goal branch, graph refresh after delivery | accepted · 2026-08-26 |
 | [0008](0008-non-code-goals.md) | Non-code goals: nature, git substrate, media artifacts outside git | accepted · 2026-08-26 |
-| [0009](0009-multi-engine-roadmap.md) | Multi-engine roadmap: codex (and others) as swappable runners | proposed · 2026-08-27 · deferred, nothing implemented |
+| [0009](0009-multi-engine-roadmap.md) | Multi-engine roadmap: codex (and others) as swappable runners | superseded by ADR-0017 |
 | [0010](0010-self-update-via-docker-hub-and-watchtower.md) | Self-update: Docker Hub as version source, watchtower as the docker updater | accepted · 2026-08-28 |
 | [0011](0011-progress-folders-next-to-the-repo.md) | Progress folders next to the repository | accepted · 2026-09-14 |
 | [0012](0012-milestones-previews-and-the-self-check.md) | Milestones, previews and the headless self-check | accepted · 2026-09-14 |
@@ -21,3 +21,4 @@ record is never rewritten when a later decision changes it; its status says what
 | [0014](0014-model-presets-per-goal-nature.md) | Model presets per goal nature | accepted · 2026-09-24 · supersedes the tier parts of ADR-0006 |
 | [0015](0015-bring-merged-work-to-the-local-checkout.md) | Bring merged work to the local checkout, then tidy up | accepted · 2026-09-25 · amends the user-only base-branch rule |
 | [0016](0016-mcp-servers-allowed-per-server.md) | MCP servers: listed from Claude Code's config, installed at user scope, allowed in goals per server | accepted · 2026-09-28 |
+| [0017](0017-goal-provider-and-account-isolation.md) | Fixed goal providers, independent accounts and capability-aware reporting | accepted · 2026-10-04 |

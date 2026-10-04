@@ -4,6 +4,10 @@ This file is a glossary. It defines the language used across the codebase, the U
 
 ## Core concepts
 
+**Agent backend**
+The provider chosen for a Goal: Claude Code or Codex. It stays fixed for that Goal, including retries and reviews. Accounts are independent; goals can share one Foundry instance. An unavailable measurement (cost, quota, turns or skill telemetry) is unknown, never zero.
+
+
 **Goal**
 A user-set objective stated in natural language against a repository. A Goal is finished when all of its Must Checks pass; it is *over-delivered* when its Stretch Checks pass as well. A Goal's output is a local branch. Nothing leaves the machine unless the user chose a Delivery Policy — and then it is the *engine*, never the model, that pushes, opens or merges exactly what the policy says.
 

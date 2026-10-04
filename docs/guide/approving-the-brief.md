@@ -2,6 +2,11 @@
 
 > English · [中文](./approving-the-brief.zh.md)
 
+## Backend-specific limits
+
+A Codex Brief shows time and execution limits, with dollar estimates and USD controls hidden. This applies to Simple and Expert views. The provider chosen at goal creation stays fixed when you approve or revise the Brief.
+
+
 The Brief is the plan. Foundry writes it after reading your project and hearing your answers. Nothing is built until you approve it, and after you approve, Foundry works on its own.
 
 You can edit almost everything on the Brief. Take five minutes: this is the cheapest moment to change your mind.

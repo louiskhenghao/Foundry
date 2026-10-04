@@ -9,9 +9,10 @@ foundry — drive the host Claude Code or Codex CLI to deliver on goals
 
   serve                                   start engine + server (http://127.0.0.1:4111)
   goal new "<prompt>" --repo <path>       create a goal (Clarify → Brief → approve in UI or via `brief`)
+       [--provider claude|codex] [--codex-model <model ID>]   backend fixed for this goal; follow-ups inherit it
        [--title t] [--base branch] [--preset auto|quick|thorough|unlimited|custom] [--max-cost 5|none] [--max-min 120|none] [--concurrency 3] [--attempts 3]
        [--auto-approve --check "<cmd>"]... [--stretch "<cmd>"]...   skip Clarify: one task + command checks
-       [--models max|production|balanced|economy|<your preset>]   model preset (default: Settings' preset for the goal type)
+       [--models max|production|balanced|economy|<your preset>]   Claude model preset (default: Settings' preset for the goal type)
        [--nature auto|code|docs|research|image|video] [--pace thorough|fast] [--interview auto|always|never]
        [--effort low|medium|high|xhigh|max] [--self-check]
        [--follows <goalId> [--start-from base|previous] [--no-attachments] [--no-style]]
@@ -36,11 +37,14 @@ foundry — drive the host Claude Code or Codex CLI to deliver on goals
   skills restore <name> · skills update [name] · skills trash
   deliver <goalId> [--mode push|pr|pr-automerge ...]   deliver a finished goal (no --mode: print the plan)
   github [status|login]                   GitHub CLI status / device-flow login (needed for PR modes)
-  auth [status|login|logout]              Selected agent account; login/logout hand over to its CLI
-  usage [--json] [--probe]                Agent activity seen by Foundry; --probe runs a short session (consumes quota)
+  auth [status|login|logout] [--provider claude|codex]
+                                          Independent agent account; login/logout hand over to its CLI
+  usage [--provider claude|codex] [--json] [--probe]
+                                          Activity for one backend; --probe refreshes Claude only (consumes quota)
 
 (doctor and skills work without the server running.)
-Codex: set FOUNDRY_PROVIDER=codex (separate data-codex directory).
+Both backends share one Foundry; select --provider when creating a goal.
+FOUNDRY_PROVIDER=codex changes the installation default (data-codex directory).
 Codex model: FOUNDRY_CODEX_MODEL=codex-default or Settings → Codex model.
 Codex reports tokens, not USD cost; dollar caps are unavailable.
 ```

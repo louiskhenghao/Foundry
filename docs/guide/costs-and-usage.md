@@ -2,6 +2,15 @@
 
 > English · [中文](./costs-and-usage.zh.md)
 
+![Codex usage — demonstration data](images/usage-codex.png)
+
+## Codex accounting
+
+Use the **Usage backend** selector to view each provider independently. Counts include only Foundry sessions. Codex's 5-hour and 7-day charts show activity, not subscription quota or remaining allowance. Dollar cost, turn count and skill-invocation telemetry are unavailable in this adapter; unavailable never means free or unused.
+
+Codex USD caps are removed on creation, Brief approval and budget increases. Timeouts, tool-call allowance, attempts and concurrency remain effective. Its turn-cap setting counts tool calls, not model turns. A detected usage-limit error pauses only that provider; without a reset signal Foundry retries after five minutes, which is not a claim that the account quota has reset.
+
+
 Foundry runs on your Claude subscription (Pro or Max). It spends only when a Claude session runs. Everything it does in git, running your tests, preparing folders and reading check results is free — it costs time, not money.
 
 ## What costs money

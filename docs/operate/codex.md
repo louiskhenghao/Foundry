@@ -1,6 +1,6 @@
 # Run Foundry with Codex
 
-Foundry can drive either Claude Code or Codex CLI. Both use the same goal, interview, Brief, worktree, acceptance-check, review and delivery engine. The backend is selected when Foundry starts.
+Foundry can drive either Claude Code or Codex CLI. Both use the same goal, interview, Brief, worktree, acceptance-check, review and delivery engine. The launch profile selects defaults and the data directory. Each new goal can select either backend in the same instance; all of its sessions keep that backend.
 
 ## From source
 
@@ -18,7 +18,7 @@ Open <http://127.0.0.1:4111>. Setup checks **Codex CLI** and **Codex login**; th
 
 `bun run dev:codex` starts the development watcher. The equivalent production command is `FOUNDRY_PROVIDER=codex bun run serve`.
 
-Codex goals default to `data-codex/`; Claude goals remain in `data/`. To choose another location, set `FOUNDRY_DATA_DIR`. Foundry records the backend owning each data directory and refuses to open it through the other backend, preventing incompatible session resumes. To run both simultaneously, also give one instance a different `FOUNDRY_PORT` and preview port range.
+The Codex launch profile defaults to `data-codex/`; the Claude launch profile uses `data/`. All goals in an instance share its selected directory. To choose another location, set `FOUNDRY_DATA_DIR`. Foundry records the backend owning each data directory and refuses to open it through the other backend, preventing incompatible session resumes. Both providers can now run within one instance. Existing separate data directories are not merged automatically. If you keep separate instances, use distinct `FOUNDRY_PORT` values and preview port ranges.
 
 ```sh
 FOUNDRY_PROVIDER=codex FOUNDRY_PORT=4112 FOUNDRY_PREVIEW_PORT_FROM=4300 FOUNDRY_PREVIEW_PORT_TO=4399 bun run serve
@@ -27,7 +27,7 @@ FOUNDRY_PROVIDER=codex FOUNDRY_PORT=4112 bun run cli auth status
 
 ## Models and configuration
 
-Settings → Models & limits provides a **Codex model** field. `codex-default` follows the default in your Codex configuration. Enter a concrete model ID to pin it. All Foundry roles use this selection, including housekeeping; Claude model presets and fallback aliases are not sent to Codex. Effort is passed as `model_reasoning_effort`; `max` maps to `xhigh`.
+Settings → Models & limits provides a **Codex model** field. `codex-default` follows the default in your Codex configuration. Enter a concrete model ID to pin it. New Codex goals copy this selection to all roles, including housekeeping; Claude model presets and fallback aliases are not sent to Codex. Effort is passed as `model_reasoning_effort`; `max` maps to `xhigh`.
 
 | Variable | Purpose |
 | --- | --- |
@@ -37,7 +37,7 @@ Settings → Models & limits provides a **Codex model** field. `codex-default` f
 | `FOUNDRY_CODEX_HOME` | Configuration/login home; falls back to `CODEX_HOME`, then `~/.codex` |
 | `FOUNDRY_CODEX_MODEL` | Default model; defaults to `codex-default` |
 
-Saved settings override the corresponding environment defaults. Binary and home changes require restarting Foundry. Model changes apply to subsequent sessions.
+Saved settings override the corresponding environment defaults. Binary and home changes require restarting Foundry. The default model applies to new Codex goals. Each goal snapshots its selection; codex-default still follows the native Codex configuration.
 
 ## Permissions, skills and accounting
 
@@ -65,3 +65,7 @@ docker run --rm --init -p 127.0.0.1:4111:4111 \
 For Compose, set its `image` to the locally built tag and run with `FOUNDRY_PROVIDER=codex`. The compose file persists both backends' homes and data separately. Container hosts must support Codex's sandbox; a sandbox initialization failure is reported rather than retried with unrestricted access.
 
 Protocol references: [non-interactive execution](https://learn.chatgpt.com/docs/non-interactive-mode), [Codex hooks](https://learn.chatgpt.com/docs/hooks).
+
+## Product capabilities
+
+See the bilingual [first-goal guide](../guide/your-first-goal.md) and [accounting guide](../guide/costs-and-usage.md). Account APIs accept `?provider=claude|codex`; `/api/accounts` reports both account states and adapter capabilities. `POST /api/goals` accepts `provider` and optional `codexModel`. Usage is filtered with the same provider query. Old goals receive an append-only provider assignment event before work starts. Do not run an older binary against a directory containing mixed-provider goals.
