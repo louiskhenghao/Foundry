@@ -375,6 +375,8 @@ docker exec foundry bun apps/cli/src/main.ts doctor   # Docker
 | Codex CLI (Codex) | yes | **Install** on the Setup page (Homebrew on macOS, else npm, else the release binary), or `npm install -g @openai/codex` |
 | Codex login (Codex) | yes | **Sign in to Codex**, or `codex login` with ChatGPT |
 | git | yes | install git |
+- Node.js, npm and corepack's `pnpm` and `yarn` are in the image, so repositories that use any of them install and
+  preview without anything on your computer; corepack fetches the pnpm or yarn version a repository asks for on first use.
 | Bun runtime | yes | `curl -fsSL https://bun.sh/install \| bash` |
 | Required: graphify | yes | **Install** on the Setup page, or `uv tool install graphifyy && graphify install --platform claude` |
 | Skills directory writable | yes | make the selected native home’s `skills/` directory writable |
