@@ -1,4 +1,4 @@
-import { Check, Copy } from 'lucide-react';
+import { Check, Copy, Maximize2 } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Modal, cn } from '../ui.tsx';
@@ -101,5 +101,25 @@ export function FullTextDialog({ value, onClose }: { value: FullText | null; onC
       )}
     </Modal>,
     document.body,
+  );
+}
+
+/** The icon-only "Open full" button every panel uses to open its text in the FullTextDialog. */
+export function OpenFullButton({ onClick, className }: { onClick: () => void; className?: string }) {
+  return (
+    <button type="button" className={cn('inline-flex items-center justify-center rounded border border-zinc-700 p-1 text-zinc-400 hover:text-zinc-100 hover:border-zinc-500', className)} onClick={onClick} title="Open full" aria-label="Open full">
+      <Maximize2 size={11} />
+    </button>
+  );
+}
+
+/** An OpenFullButton with its own dialog, for a panel that has no full-text dialog of its own. */
+export function OpenFull({ value }: { value: FullText }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <OpenFullButton onClick={() => setOpen(true)} />
+      <FullTextDialog value={open ? value : null} onClose={() => setOpen(false)} />
+    </>
   );
 }

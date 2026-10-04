@@ -27,14 +27,14 @@ The Brief opens in the view you chose on the New goal form. Switch with **Expert
 - Under the title: the project folder, the branch the goal starts from, and the goal's own branch.
 - A small line says which version of your project Foundry read, for example "Explored origin/main (your local main was 3 behind)". If it warns that the remote was not fetched and you know others changed the project since, press **Re-run Clarify**.
 - **Re-run Clarify** throws this Brief away, fetches the latest version of your project and plans again. Attachments, budget and delivery settings are kept. Your decisions are handed to the new Clarify as text: it plans with them and does not ask again, but they do not come back as items in the **Decisions** card. You land on the goal page while it works.
-- The **goal** panel shows your original description.
+- The **goal** panel shows your original description. **Open full**, the icon with two diagonal arrows in its corner, reads it in a larger window with **Preview**, **Raw** and **Copy**.
 
 ## Understanding
 
 What Foundry understood, in its own words. Read this first: if it is wrong, everything after it is too.
 
 - **pull request title**: one line that names the whole goal, in the form `feat(scope): what this goal adds`. It becomes the title of the pull request if you deliver one. You can leave it.
-- The text box on the left is editable; the right side shows how it reads.
+- The text box on the left is editable; the right side shows how it reads. Its **Open full** icon reads it in a larger window.
 
 ## Questions
 
@@ -244,7 +244,7 @@ The Simple view shows the same Brief in plain words:
 
 | Card | What to do |
 |---|---|
-| **What I understood** | Read it. If it is wrong, answer the questions accordingly or switch to Expert view to edit it. |
+| **What I understood** | Read it; the **Open full** icon shows it in a larger window. If it is wrong, answer the questions accordingly or switch to Expert view to edit it. |
 | **Please answer (N)** or **Questions** | Pick an answer (★ is recommended) or type your own. Questions marked **needed** must be answered. Style cards work as above. |
 | **I will assume… (untick anything that is wrong)** | Untick what is wrong. |
 | **What you will get (N pieces of work)** | The tasks, grouped by Area. To change them, open **Expert view**. |

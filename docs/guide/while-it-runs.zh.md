@@ -60,13 +60,13 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 
 - **时间线**：**Clarify → Brief → Run → Review → Done**（或 **Over-delivered**）；goal 要推送或开 pull request 时还有 **Deliver · mode**。当前阶段会闪动。点一个阶段，就跳到显示它工作内容的地方。
 - **What needs you**：和 Inbox 里一样的卡片，带按钮。
-- **goal**：你最初的描述。
+- **goal**：你最初的描述。面板角上的 **Open full**（两个斜向箭头的图标）会在更大的窗口里显示它。
+- **Attachments**：紧跟在 goal 下面，和 New goal 表单上一样。随时可以再加；新的会话会收到。
 - **Try the work in progress**：进度文件夹。见 [下文](#进度文件夹)。
 - **Preview**：启动并打开运行中的结果。见 [Preview](#preview)。
 - **Model fallback**：只在某个模型不可用、Foundry 换了另一个模型时出现。
 - **Project skills (autoskills)**：Foundry 为你项目的技术栈添加的 skill。它们不会进入你的提交。
 - **Completion**：你在 Brief 上选的文档和知识图谱刷新，以及它们的状态。
-- **Attachments**：随时可以再加；新的会话会收到。
 - **Brief**：你批准的内容摘要，按 **open** 看全文。
 - **Goal review**：最终审查员的结论和意见（运行过之后才有）。
 - **Acceptance**（右侧）：每个 **must** 和 **stretch** 检查及其最新结果，比如 **3/4 passing**。点一个检查可以看它的输出。
@@ -91,7 +91,7 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 
 - 标题、状态、标签，完成后还有它的提交。点提交那一行，可以看完整的提交信息。
 - **Task total**：到目前为止的尝试次数、费用（分成 worker 和 reviewer）、轮数和分钟数。
-- **spec**，以及你给过的 **human hint**（紧跟在 spec 下面；两者都可以用 **Open full** 在更大的窗口里阅读）、它的 **Checks** 及最新结果，以及 **Relevant files**（点一个就能打开；灰色的表示哪里都还没有这个文件，通常是计划里要这个任务新建的文件）。
+- **spec**，以及你给过的 **human hint**（紧跟在 spec 下面；两者都可以用 **Open full** 图标在更大的窗口里阅读）、它的 **Checks** 及最新结果，以及 **Relevant files**（点一个就能打开；灰色的表示哪里都还没有这个文件，通常是计划里要这个任务新建的文件）。
 - **Files**：这个任务新增或改动的文件（运行中显示为 **Files so far**）。图片以缩略图显示。点任何一个文件，就在页面里查看：图片、PDF、视频和音频直接播放，代码（按语言上色、带行号）、Markdown 和 JSON 排好版显示。不需要在运行 Foundry 的电脑上打开编辑器，所以用手机或通过[远程访问](../operate/remote-access.md)也能看。已完成任务的文件从它在你仓库里的提交读取，所以交付清理掉任务的文件夹之后也还能看；图片、视频类 goal 生成的图片和视频从不提交，会列在生成它们的那个任务下。
 - **This task is waiting for you**（任务 blocked 时出现），并附有用来回应的按钮。
 - 每次尝试一个标签：**#1**、**#2** …… 带结果和费用。**↻1** 表示会话被续接了一次，而不是从头开始，保留已有上下文。
