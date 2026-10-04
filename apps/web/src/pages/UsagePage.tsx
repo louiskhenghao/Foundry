@@ -215,13 +215,12 @@ function WindowCard({ w, series, now, costAvailable = true, showSignal = true }:
       title={
         <span className="flex items-center gap-2">
           {w.label}
-          {showSignal && <Badge state={state}>{w.status ? signalLabel(w.status) : 'no signal yet'}</Badge>}
+          {showSignal && <Badge state={state}>{w.status ? signalLabel(w.status) : w.lastSignalAt ? 'no current signal' : 'no signal yet'}</Badge>}
           {showSignal && w.isUsingOverage && <Badge state="warn">overage</Badge>}
         </span>
       }
       actions={<span className="text-[11px] text-zinc-500">{showSignal ? (w.resetsAt ? (Date.parse(w.resetsAt) > Date.parse(now) ? `resets in ${untilText(w.resetsAt)}` : 'rolled over — next signal sets the window') : 'no reset signal yet') : 'Foundry activity'}</span>}
     >
-      {showSignal && w.status && SIGNAL[w.status]?.hint && <p className={cn('text-[11px] mb-3', state === 'warn' ? 'text-amber-300' : 'text-rose-300')}>{SIGNAL[w.status]!.hint}</p>}
       <div className="flex items-end gap-4 flex-wrap">
         <div>
           <div className="text-2xl font-semibold mono text-zinc-100">{costAvailable ? fmtUsd(w.costUsd) : fmtK(w.outputTokens) + ' tokens'}</div>
@@ -236,14 +235,15 @@ function WindowCard({ w, series, now, costAvailable = true, showSignal = true }:
       {showSignal && <div className="mt-3">
         <div className="flex justify-between text-[10px] text-zinc-500 mb-1">
           <span>window {new Date(start).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-          <span>{w.resetsAt ? `resets ${new Date(w.resetsAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : 'rolling'}</span>
+          <span>{w.resetsAt && Date.parse(w.resetsAt) > Date.parse(now) ? `resets ${new Date(w.resetsAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : 'rolling'}</span>
         </div>
         <div className="h-1.5 rounded bg-zinc-800 overflow-hidden" title={`${elapsed.toFixed(0)}% of the window elapsed (time, not quota)`}>
           <div className="h-full bg-zinc-500" style={{ width: `${elapsed}%` }} />
         </div>
       </div>}
       <Bars buckets={series} costAvailable={costAvailable} />
-      {showSignal && w.lastSignalAt && <div className="text-[10px] text-zinc-600 mt-2">last rate-limit signal {new Date(w.lastSignalAt).toLocaleTimeString()}</div>}
+      {showSignal && w.status && SIGNAL[w.status]?.hint && <p className={cn('text-[11px] mt-3', state === 'warn' ? 'text-amber-300' : 'text-rose-300')}>{SIGNAL[w.status]!.hint}</p>}
+      {showSignal && w.lastSignalAt && <div className="text-[10px] text-zinc-600 mt-2">last rate-limit signal {new Date(w.lastSignalAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}{!w.status && ' · that window has since reset; Claude sends a new one when this window nears its limit'}</div>}
     </Card>
   );
 }
