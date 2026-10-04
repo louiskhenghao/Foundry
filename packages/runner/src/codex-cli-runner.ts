@@ -37,12 +37,12 @@ export function codexOutputSchema(schema: any): any {
 /** Native CLI backend. Auth stays with Codex; Foundry owns process lifetime and transcripts. */
 export class CodexCliRunner implements AgentRunner {
   private sem: Semaphore;
-  private procs = new Set<ReturnType<typeof Bun.spawn>>();
+  private procs = new Map<ReturnType<typeof Bun.spawn>, (signal: 'SIGTERM' | 'SIGKILL') => void>();
   constructor(private opts: CodexCliRunnerOptions = {}) { this.sem = new Semaphore(opts.maxConcurrent ?? 3); }
   active(): number { return this.procs.size; }
   setMaxConcurrent(n: number): void { this.sem.setLimit(n); }
   killAll(signal: 'SIGTERM' | 'SIGKILL' = 'SIGTERM'): number {
-    for (const p of this.procs) { try { p.kill(signal); } catch {} }
+    for (const kill of this.procs.values()) kill(signal);
     return this.procs.size;
   }
 
@@ -83,6 +83,7 @@ export class CodexCliRunner implements AgentRunner {
     const started = Date.now();
     let dir: string | null = null;
     let proc: ReturnType<typeof Bun.spawn> | null = null;
+    let terminate: ((signal?: 'SIGTERM' | 'SIGKILL') => Promise<void>) | null = null;
     let sessionId: string | null = null;
     let model: string | null = spec.model === CODEX_DEFAULT_MODEL ? null : spec.model ?? null;
     let killed: string | null = null;
@@ -92,18 +93,20 @@ export class CodexCliRunner implements AgentRunner {
     let usage: any = null;
     let stderr = '';
     const toolsUsed: Record<string, number> = {};
+    const permissionDenials: RunResult['permissionDenials'] = [];
     const makeResult = (subtype: string, exitCode: number | null = null): RunResult => ({
       sessionId, subtype, isError: subtype !== 'success', costUsd: 0, costStatus: 'unavailable', numTurns: completed ? 1 : 0,
       durationMs: Date.now() - started, usage, modelUsage: model ? { [model]: usage ?? {} } : null,
-      permissionDenials: [], finalText, structuredOutput: null, exitCode, pid: proc?.pid ?? null,
+      permissionDenials, finalText, structuredOutput: null, exitCode, pid: proc?.pid ?? null,
       rateLimit: null, errorMessage, failureClass: classifyFailure(errorMessage, subtype), skillsUsed: [], toolsUsed,
     });
     try {
       dir = mkdtempSync(join(tmpdir(), 'foundry-codex-'));
       const canary = join(dir, 'canary.json');
       const policy = join(dir, 'policy.json');
+      const denials = join(dir, 'denials.jsonl');
       const hooksDir = fileURLToPath(new URL('../hooks/', import.meta.url));
-      writeFileSync(policy, JSON.stringify({ canary, counter: join(dir, 'calls'), boundary: join(hooksDir, 'boundary-guard.sh'), readOnly: this.readOnly(spec), noTools: spec.allowedTools?.length === 0, mcpAllowed: (spec.allowedTools ?? []).filter((t) => t.startsWith('mcp__')), maxToolCalls: spec.maxTurns }));
+      writeFileSync(policy, JSON.stringify({ canary, denials, counter: join(dir, 'calls'), boundary: join(hooksDir, 'boundary-guard.sh'), readOnly: this.readOnly(spec), noTools: spec.allowedTools?.length === 0, mcpAllowed: (spec.allowedTools ?? []).filter((t) => t.startsWith('mcp__')), maxToolCalls: spec.maxTurns }));
       const schema = spec.jsonSchema ? join(dir, 'schema.json') : undefined;
       if (schema) writeFileSync(schema, JSON.stringify(codexOutputSchema(spec.jsonSchema)));
       if (spec.transcriptPath) mkdirSync(dirname(spec.transcriptPath), { recursive: true });
@@ -112,19 +115,35 @@ export class CodexCliRunner implements AgentRunner {
       const env: Record<string, string | undefined> = { ...process.env, ...(typeof this.opts.env === 'function' ? this.opts.env() : this.opts.env), ...spec.env, ...(this.opts.codexHome ? { CODEX_HOME: this.opts.codexHome } : {}), FOUNDRY_CODEX_POLICY: policy };
       // Image tools can still receive OPENAI_API_KEY. Codex itself must use the saved ChatGPT login.
       delete env.CODEX_API_KEY;
-      proc = Bun.spawn([this.opts.codexBin ?? Bun.which('codex') ?? 'codex', ...args], { cwd: spec.cwd, env, stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
-      this.procs.add(proc);
+      proc = Bun.spawn([this.opts.codexBin ?? Bun.which('codex') ?? 'codex', ...args], { cwd: spec.cwd, env, stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', detached: process.platform !== 'win32' });
       const child = proc;
+      const group = process.platform !== 'win32';
+      const signalOwned = (signal: 'SIGTERM' | 'SIGKILL') => {
+        try { if (group) process.kill(-child.pid, signal); else child.kill(signal); } catch {}
+      };
+      const alive = () => {
+        if (!group) return child.exitCode === null;
+        try { process.kill(-child.pid, 0); return true; } catch { return false; }
+      };
+      let cleanup: Promise<void> | null = null;
+      terminate = (signal = 'SIGTERM') => {
+        if (cleanup) return cleanup;
+        if (!alive()) return cleanup = Promise.resolve();
+        signalOwned(signal);
+        // Keep the forced group cleanup armed even if the CLI exits before a tool/MCP child.
+        cleanup = signal === 'SIGKILL' ? Promise.resolve() : new Promise(resolve => {
+          setTimeout(() => { signalOwned('SIGKILL'); resolve(); }, 1000);
+        });
+        return cleanup;
+      };
+      const kill = (reason: string, signal: 'SIGTERM' | 'SIGKILL' = 'SIGTERM') => {
+        killed ??= reason;
+        void terminate!(signal);
+      };
+      this.procs.set(child, signal => kill('killed_manual', signal));
       (child.stdin as Bun.FileSink).write(spec.prompt);
       (child.stdin as Bun.FileSink).end();
       this.opts.log?.(`[codex] spawned pid=${child.pid} ${spec.label ?? ''}`);
-      let hardKill: ReturnType<typeof setTimeout> | undefined;
-      const kill = (reason: string) => {
-        if (killed) return;
-        killed = reason;
-        try { child.kill('SIGTERM'); } catch {}
-        hardKill = setTimeout(() => { try { child.kill('SIGKILL'); } catch {} }, 5000);
-      };
       const wall = setTimeout(() => kill('killed_timeout'), spec.timeoutMs ?? this.opts.defaultTimeoutMs ?? 20 * 60_000);
       const idleMs = spec.idleTimeoutMs ?? this.opts.defaultIdleTimeoutMs ?? 5 * 60_000;
       let idle = setTimeout(() => kill('killed_idle'), idleMs);
@@ -184,6 +203,13 @@ export class CodexCliRunner implements AgentRunner {
           let subtype = killed ?? (exitCode === 0 && completed && !errorMessage ? 'success' : 'error_during_execution');
           if (!verified && !killed) { subtype = 'error_during_execution'; errorMessage ??= stderr.trim() || 'Codex SessionStart guard was not observed. Install a Codex CLI with hooks support.'; }
           if (subtype !== 'success') errorMessage ??= stderr.trim() || subtype;
+          if (existsSync(denials)) {
+            const names = new Set<string>();
+            for (const line of readFileSync(denials, 'utf8').split('\n')) {
+              try { const name: unknown = JSON.parse(line); if (typeof name === 'string' && name.startsWith('mcp__') && name.length <= 512) names.add(name); } catch {}
+            }
+            for (const name of names) permissionDenials.push({ tool_name: name, tool_input: {} });
+          }
           const r = makeResult(subtype, exitCode);
           if (spec.jsonSchema && !r.isError) {
             try { r.structuredOutput = JSON.parse(finalText ?? ''); }
@@ -195,14 +221,15 @@ export class CodexCliRunner implements AgentRunner {
           errorMessage = String(error); kill('error_during_execution'); await child.exited;
           return makeResult(killed!);
         } finally {
-          clearTimeout(wall); clearTimeout(idle); clearTimeout(hardKill);
+          clearTimeout(wall); clearTimeout(idle);
+          await terminate!();
           this.procs.delete(child); release(); queue.close();
           if (dir) rmSync(dir, { recursive: true, force: true });
         }
       })();
       return { pid: child.pid, events: queue, kill, result };
     } catch (error) {
-      if (proc) { try { proc.kill('SIGKILL'); await proc.exited; } catch {} this.procs.delete(proc); }
+      if (proc) { try { await terminate?.('SIGKILL'); await proc.exited; } catch {} this.procs.delete(proc); }
       if (dir) rmSync(dir, { recursive: true, force: true });
       release(); queue.close(); errorMessage = String(error);
       return { pid: null, events: queue, kill() {}, result: Promise.resolve(makeResult('spawn_error')) };

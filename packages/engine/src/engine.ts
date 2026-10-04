@@ -643,25 +643,27 @@ export class Engine {
 
   /** set by stop(): no new ticks run, so nothing writes to the store after shutdown (tests delete it right after) */
   private stopped = false;
+  private modelDiscoveryAbort = new AbortController();
+  private modelDiscoveries = new Set<Promise<unknown>>();
 
   async stop(): Promise<void> {
     this.stopped = true;
+    this.modelDiscoveryAbort.abort();
     this.updater.stopSchedule();
     if (this.prWatchTimer) clearInterval(this.prWatchTimer);
     for (const timer of this.resumeTimers.values()) clearTimeout(timer);
     this.resumeTimers.clear();
     for (const account of Object.values(this.accounts)) account.cancelLogin();
     this.mcp.login.cancel();
-    this.codexMcp.login.cancel();
     this.codexQuota.invalidate();
-    await this.codexPlugins.stop();
+    await Promise.all([this.codexMcp.stop(), this.codexPlugins.stop(), Promise.allSettled([...this.modelDiscoveries])]);
     this.agents.stop();
     this.preview.stopSweeper();
     await this.preview.stopAll('engine shutdown');
     for (const [, f] of this.inFlight) f.handle?.kill('killed_manual');
     // reviews, clarify, merges and probes are not in `inFlight`: kill every child the runner still owns
     const n = (this.runner as { killAll?: () => number }).killAll?.() ?? 0;
-    if (n) this.config.log(`[engine] stopped ${n} claude session(s) on shutdown`);
+    if (n) this.config.log(`[engine] stopped ${n} agent session(s) on shutdown`);
     // drain what is already in flight (bounded): a tick writing to a database the caller is about to delete
     // was the source of cross-file test flakes
     const t0 = Date.now();
@@ -898,9 +900,14 @@ export class Engine {
     const provider = opts.provider ?? this.config.provider;
     const registry = this.providerModels[provider];
     if (provider === 'codex') {
+      if (this.stopped) throw new Error('Foundry is stopped; model discovery cannot start.');
       const bin = this.config.codexBin ?? Bun.which('codex');
       if (!bin) throw new Error('Codex CLI is not installed. Set the CLI path in Accounts and restart Foundry.');
-      const result = await discoverCodexModels(bin, this.config.codexHome);
+      const discovery = discoverCodexModels(bin, this.config.codexHome, { signal: this.modelDiscoveryAbort.signal });
+      this.modelDiscoveries.add(discovery);
+      let result: Awaited<typeof discovery>;
+      try { result = await discovery; } finally { this.modelDiscoveries.delete(discovery); }
+      if (this.stopped) throw new Error('Foundry stopped during model discovery.');
       registry.noteCodexDiscovered(result.models);
       const cliVersion = result.cliVersion ?? null;
       registry.noteSync({ cliVersion, at: new Date().toISOString(), found: result.models.length });

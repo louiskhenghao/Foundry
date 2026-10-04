@@ -12,6 +12,7 @@ export interface CodexDiscoveredModel {
 }
 
 export interface CodexDiscoveryOptions {
+  signal?: AbortSignal;
   /** One deadline for initialization and every catalog page. */
   timeoutMs?: number;
   includeHidden?: boolean;
@@ -35,6 +36,7 @@ export async function discoverCodexModels(
 ): Promise<{ models: CodexDiscoveredModel[]; cliVersion?: string }> {
   const timeoutMs = opts.timeoutMs ?? 20_000;
   const maxModels = opts.maxModels ?? 1_000;
+  if (opts.signal?.aborted) throw new Error('Codex model discovery cancelled');
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new Error('Codex model discovery requires a positive timeout');
   if (!Number.isSafeInteger(maxModels) || maxModels <= 0) throw new Error('Codex model discovery requires a positive model limit');
   const proc = spawn(bin, ['app-server', '--listen', 'stdio://'], {
@@ -42,7 +44,9 @@ export async function discoverCodexModels(
     cwd: tmpdir(),
     env: { ...process.env, CODEX_HOME: home, NO_COLOR: '1', FORCE_COLOR: '0' },
     stdio: ['pipe', 'pipe', 'pipe'],
+    detached: process.platform !== 'win32',
   });
+  const reaped = new Promise<void>(resolve => { proc.once('exit', () => resolve()); proc.once('error', () => resolve()); });
   const pending = new Map<number, { method: string; resolve(value: unknown): void; reject(error: Error): void }>();
   let nextId = 0;
   let failure: Error | null = null;
@@ -55,6 +59,8 @@ export async function discoverCodexModels(
     pending.clear();
   };
   const timeout = setTimeout(() => fail(new Error(`Codex model discovery timed out after ${timeoutMs} ms`)), timeoutMs);
+  const cancel = () => fail(new Error('Codex model discovery cancelled'));
+  opts.signal?.addEventListener('abort', cancel, { once: true });
   proc.on('error', (error) => fail(new Error(`Cannot start Codex model discovery: ${error.message}`)));
   proc.stdin.on('error', (error) => fail(new Error(`Cannot write to Codex app-server: ${error.message}`)));
   proc.stdout.on('error', (error) => fail(new Error(`Cannot read from Codex app-server: ${error.message}`)));
@@ -141,13 +147,26 @@ export async function discoverCodexModels(
     throw new Error('Codex model discovery exceeded the pagination limit');
   } finally {
     clearTimeout(timeout);
-    // app-server is long-lived. Always reap our child, including on malformed data and timeouts.
-    if (proc.pid && proc.exitCode === null && proc.signalCode === null) {
+    opts.signal?.removeEventListener('abort', cancel);
+    // The app-server can start MCP sidecars. Reap the entire owned group even if its parent exits first.
+    if (proc.pid) {
+      const group = process.platform !== 'win32';
+      const signal = (value: NodeJS.Signals) => {
+        try { if (group) process.kill(-proc.pid!, value); else proc.kill(value); } catch {}
+      };
+      const alive = () => {
+        if (!group) return proc.exitCode === null && proc.signalCode === null;
+        try { process.kill(-proc.pid!, 0); return true; } catch { return false; }
+      };
       await new Promise<void>((resolve) => {
-        const kill = setTimeout(() => { proc.kill('SIGKILL'); resolve(); }, 250);
-        proc.once('exit', () => { clearTimeout(kill); resolve(); });
-        proc.kill('SIGTERM');
+        const finish = () => { clearTimeout(force); proc.off('exit', exited); resolve(); };
+        const exited = () => { if (!alive()) finish(); };
+        const force = setTimeout(() => { signal('SIGKILL'); finish(); }, 250);
+        proc.once('exit', exited);
+        signal('SIGTERM');
+        if (!alive()) finish();
       });
+      await reaped;
     }
     proc.stdin.destroy();
     proc.stdout.destroy();

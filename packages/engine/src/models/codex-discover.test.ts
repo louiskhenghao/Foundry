@@ -34,6 +34,23 @@ const initialize = `
 const visible = { id: 'catalog-id', model: 'model-one', displayName: 'Model one', description: 'A model', supportedReasoningEfforts: [{ reasoningEffort: 'low' }, { reasoningEffort: 'max' }, { reasoningEffort: 'max' }], defaultReasoningEffort: 'low', isDefault: true };
 
 describe('discoverCodexModels', () => {
+  test.skipIf(process.platform === 'win32')('catalog completion cleans up a sidecar that ignores termination after the parent exits', async () => {
+    const fixture = server(`${initialize}
+      const child = require('node:child_process').spawn(process.execPath,['-e',"process.on('SIGTERM',()=>{});require('node:fs').writeFileSync(process.env.CODEX_HOME+'/sidecar.pid',String(process.pid));setInterval(()=>{},1000)"],{stdio:'ignore',env:process.env});
+      process.on('SIGTERM',()=>process.exit(0));
+      const ready=setInterval(()=>{if(require('node:fs').existsSync(process.env.CODEX_HOME+'/sidecar.pid')){clearInterval(ready);send(msg.id,{data:[],nextCursor:null});}},10);
+    `);
+    let pid: number | null = null;
+    try {
+      await discoverCodexModels(fixture.bin,fixture.home);
+      pid = Number(readFileSync(join(fixture.home,'sidecar.pid'),'utf8'));
+      let alive = true;
+      for (let i=0;alive && i<100;i++) {
+        try { process.kill(pid,0); await Bun.sleep(10); } catch { alive=false; }
+      }
+      expect(alive).toBe(false);
+    } finally { if (pid) try { process.kill(pid,'SIGKILL'); } catch {} }
+  });
   test('initializes, follows all pages, preserves dynamic efforts and filters hidden models', async () => {
     const fixture = server(`${initialize}
       process.stdout.write(JSON.stringify({method:'catalog/progress',params:{}})+'\\n');

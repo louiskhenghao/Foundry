@@ -24,8 +24,22 @@ export interface CodexMcpManagerOptions extends CodexProcessOptions {
 export class CodexMcpManager {
   private queue: Promise<unknown> = Promise.resolve();
   private cached: McpCatalog | null = null;
+  private shutdown = new AbortController();
+  private active = new Set<{ result: Promise<unknown>; kill: () => void }>();
   readonly login: CodexMcpLogin;
-  constructor(private options: CodexMcpManagerOptions) { this.login = new CodexMcpLogin(options); }
+  constructor(private options: CodexMcpManagerOptions) {
+    this.options = { ...options, signal: this.shutdown.signal, onProcess: proc => {
+      this.active.add(proc);
+      void proc.result.finally(() => this.active.delete(proc));
+    } };
+    this.login = new CodexMcpLogin(this.options);
+  }
+
+  async stop(): Promise<void> {
+    this.shutdown.abort();
+    this.login.cancel();
+    await Promise.allSettled([this.queue, ...[...this.active].map(proc => proc.result)]);
+  }
 
   catalog(): McpCatalog {
     this.cached ??= McpCatalog.parse(JSON.parse(readFileSync(this.options.catalogPath, 'utf8')));
@@ -122,6 +136,7 @@ export class CodexMcpManager {
   }
 
   allow(prefix: string, on: boolean): string[] {
+    if (this.shutdown.signal.aborted) throw new Error('Codex MCP manager is stopped');
     if (!MCP_PREFIX.test(prefix)) throw new Error('Invalid MCP tool prefix');
     const next = this.options.allowed().filter((value) => value !== prefix);
     if (on) next.push(prefix);
@@ -158,7 +173,12 @@ export class CodexMcpManager {
     if (!Array.isArray(rows) || rows.some((row) => !row || typeof row.name !== 'string' || !row.transport || typeof row.transport.type !== 'string')) throw new Error('Codex MCP returned an invalid server list');
     return rows;
   }
-  private serial<T>(work: () => Promise<T>): Promise<T> { const next = this.queue.then(work, work); this.queue = next.catch(() => {}); return next; }
+  private serial<T>(work: () => Promise<T>): Promise<T> {
+    const run = () => { if (this.shutdown.signal.aborted) throw new Error('Codex MCP manager is stopped'); return work(); };
+    const next = this.queue.then(run, run);
+    this.queue = next.catch(() => {});
+    return next;
+  }
 }
 
 /** Native --no-browser flow uses a pipe, prints its link, and accepts the complete callback URL. */

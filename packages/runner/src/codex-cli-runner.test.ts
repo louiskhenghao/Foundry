@@ -15,7 +15,13 @@ function fixture() {
 const args = process.argv.slice(2);
 const fs = require('node:fs');
 const policy = JSON.parse(fs.readFileSync(process.env.FOUNDRY_CODEX_POLICY, 'utf8'));
+if (process.env.CHILD_PID) require('node:child_process').spawn(process.execPath, ['-e', "process.on('SIGTERM',()=>{});require('node:fs').writeFileSync(process.env.CHILD_PID,String(process.pid));setInterval(()=>{},1000)"], {stdio:'ignore',env:process.env});
 if (!process.env.SKIP_CANARY) fs.writeFileSync(policy.canary, JSON.stringify({hook_event_name:'SessionStart',model:'test-model'}));
+if (process.env.TEST_GUARD) {
+  const hook=Bun.spawn([process.execPath,process.env.TEST_GUARD],{stdin:'pipe',stdout:'pipe',stderr:'pipe',env:process.env});
+  hook.stdin.write(JSON.stringify({tool_name:'mcp__example__search',tool_input:{token:'private-fixture-secret'}}));hook.stdin.end();
+  await Promise.all([new Response(hook.stdout).text(),new Response(hook.stderr).text(),hook.exited]);
+}
 if (process.env.CAPTURE) fs.writeFileSync(process.env.CAPTURE, JSON.stringify({args, prompt:await Bun.stdin.text(), policy, schema:args.includes('--output-schema') ? JSON.parse(fs.readFileSync(args[args.indexOf('--output-schema')+1],'utf8')) : null}));
 for(const event of JSON.parse(process.env.EVENTS ?? '[]')) console.log(JSON.stringify(event));
 if(process.env.HANG) await Bun.sleep(60000);
@@ -38,6 +44,39 @@ async function collect(runner: CodexCliRunner, dir: string, extra: any = {}) {
 }
 
 describe('Codex CLI adapter', () => {
+  test('native MCP denial reaches recovery metadata without storing tool arguments', async () => {
+    const {dir,bin}=fixture();
+    const runner=new CodexCliRunner({codexBin:bin,env:{TEST_GUARD:join(import.meta.dir,'../hooks/codex-guard.ts'),EVENTS:JSON.stringify(stream)}});
+    const {result}=await collect(runner,dir,{allowedTools:['Read']});
+    expect(result.permissionDenials).toEqual([{tool_name:'mcp__example__search',tool_input:{}}]);
+    expect(JSON.stringify(result)).not.toContain('private-fixture-secret');
+  });
+  for (const action of ['cancel', 'timeout', 'shutdown'] as const) test.skipIf(process.platform === 'win32')(`${action} stops owned tool descendants before releasing the session`, async () => {
+    const { dir, bin } = fixture();
+    const pidFile = join(dir, 'child.pid');
+    const runner = new CodexCliRunner({ codexBin: bin, env: { CHILD_PID: pidFile, HANG: '1' } });
+    // Leave time for both native processes to start; the deadline must exercise cleanup after readiness.
+    const handle = await runner.run({ prompt:'task',cwd:dir,timeoutMs:action === 'timeout' ? 2500 : 5000 });
+    let pid: number | null = null;
+    try {
+      for (let i = 0; !existsSync(pidFile) && i < 200; i++) await Bun.sleep(10);
+      pid = Number(readFileSync(pidFile, 'utf8'));
+      if (action === 'cancel') handle.kill('killed_manual');
+      if (action === 'shutdown') expect(runner.killAll()).toBe(1);
+      const result = await handle.result;
+      expect(result.subtype).toBe(action === 'timeout' ? 'killed_timeout' : 'killed_manual');
+      let alive = true;
+      for (let i = 0; alive && i < 100; i++) {
+        try { process.kill(pid, 0); await Bun.sleep(10); } catch { alive = false; }
+      }
+      expect(alive).toBe(false);
+      expect(runner.active()).toBe(0);
+    } finally {
+      handle.kill('killed_manual');
+      if (pid) try { process.kill(pid, 'SIGKILL'); } catch {}
+      await handle.result;
+    }
+  }, 8000);
   test('structured output, actual model, usage and raw transcript references survive resume', async () => {
     const { dir, bin } = fixture();
     const capture = join(dir, 'capture.json'); const transcriptPath = join(dir, 'run.jsonl');

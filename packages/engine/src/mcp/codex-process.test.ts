@@ -4,19 +4,19 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { codexProcess } from './codex-process.ts';
 
-test.skipIf(process.platform === 'win32')('native process cleanup kills a grandchild after its parent exits on SIGTERM', async () => {
+for (const earlyExit of [false,true]) test.skipIf(process.platform === 'win32')(`native process cleanup kills a grandchild after ${earlyExit ? 'unexpected parent exit' : 'cancellation'}`, async () => {
   const home = mkdtempSync(join(tmpdir(), 'foundry-mcp-process-group-'));
   let grandchildPid: number | null = null;
   const bin = join(home, 'parent');
   const grandchild = join(home, 'grandchild.ts');
   writeFileSync(grandchild, `import {writeFileSync} from 'node:fs';process.on('SIGTERM',()=>{});writeFileSync(process.env.CODEX_HOME+'/grandchild.pid',String(process.pid));setInterval(()=>{},1000);`);
-  writeFileSync(bin, `#!${process.execPath}\nimport {spawn} from 'node:child_process';spawn(process.execPath,[${JSON.stringify(grandchild)}],{stdio:'ignore',env:process.env});process.on('SIGTERM',()=>process.exit(0));setInterval(()=>{},1000);`);
+  writeFileSync(bin, `#!${process.execPath}\nimport {spawn} from 'node:child_process';spawn(process.execPath,[${JSON.stringify(grandchild)}],{stdio:'ignore',env:process.env});process.on('SIGTERM',()=>process.exit(0));setInterval(()=>{if(${earlyExit} && require('node:fs').existsSync(process.env.CODEX_HOME+'/grandchild.pid'))process.exit(1)},10);`);
   chmodSync(bin, 0o755);
   const proc = codexProcess({ codexBin: bin, codexHome: home, processHome: home, timeoutMs: 4_000 }, []);
   try {
     for (let i = 0; !existsSync(join(home, 'grandchild.pid')) && i < 200; i++) await Bun.sleep(10);
     grandchildPid = Number(readFileSync(join(home, 'grandchild.pid'), 'utf8'));
-    proc.kill();
+    if (!earlyExit) proc.kill();
     await proc.result;
     let alive = true;
     for (let i = 0; alive && i < 100; i++) {

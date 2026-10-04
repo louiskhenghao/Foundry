@@ -1,5 +1,5 @@
 /** Codex PreToolUse adapter: keep Foundry's boundary and MCP allowlist. */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 
 const deny = (reason: string): never => {
   console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }));
@@ -13,7 +13,11 @@ if (!existsSync(policy.canary)) deny('Foundry session guard did not initialize. 
 const name = String(payload.tool_name ?? '');
 if (policy.noTools) deny('This Foundry session does not permit tools.');
 if (policy.readOnly && /^(apply_patch|Edit|Write|MultiEdit|NotebookEdit)$/.test(name)) deny('This Foundry role is read-only.');
-if (name.startsWith('mcp__') && !policy.mcpAllowed.some((prefix: string) => name === prefix || name.startsWith(prefix + '__'))) deny('This MCP server is not enabled for Foundry sessions.');
+if (name.startsWith('mcp__') && !policy.mcpAllowed.some((prefix: string) => name === prefix || name.startsWith(prefix + '__'))) {
+  // Preserve the denied tool identity for Inbox recovery, never its potentially sensitive arguments.
+  if (policy.denials && name.length <= 512 && (!existsSync(policy.denials) || statSync(policy.denials).size < 64 * 1024)) appendFileSync(policy.denials, JSON.stringify(name) + '\n');
+  deny('This MCP server is not enabled for Foundry sessions.');
+}
 // Bound tool calls because codex exec has no Claude-style --max-turns switch.
 if (policy.maxToolCalls) {
   let count = 0;

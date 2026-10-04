@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { CodexMcpManager } from './codex-manager.ts';
 
 const dirs: string[] = [];
-afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
+const managers: CodexMcpManager[] = [];
+afterEach(async () => { for (const manager of managers.splice(0)) await manager.stop(); for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 const catalogPath = resolve(import.meta.dir, '../../../../catalog/mcp.json');
 function setup(servers: any[] = [], status?: any[]) {
   const dir = mkdtempSync(join(tmpdir(), 'foundry-native-mcp-')); dirs.push(dir);
@@ -20,6 +21,7 @@ import { createInterface } from 'node:readline';
 const home = process.env.CODEX_HOME;
 const args = process.argv.slice(2);
 appendFileSync(home + '/calls.jsonl', JSON.stringify({args, home, processHome:process.env.HOME}) + '\\n');
+if (existsSync(home+'/hang')) { writeFileSync(home+'/active.pid',String(process.pid)); process.on('SIGTERM',()=>{}); await Bun.sleep(60000); }
 const state = JSON.parse(readFileSync(home + '/fixture.json', 'utf8'));
 const save = () => writeFileSync(home + '/fixture.json', JSON.stringify(state));
 if (args[0] === 'app-server') {
@@ -50,12 +52,29 @@ else if (args[1] === 'login') {
   let allowed: string[] = [];
   const logs: string[] = [];
   const manager = new CodexMcpManager({ codexBin, codexHome, processHome, catalogPath, allowed: () => allowed, setAllowed: (value) => { allowed = value; }, log: (line) => logs.push(line), timeoutMs: 2_000 });
+  managers.push(manager);
   return { dir, codexHome, processHome, manager, logs, allowed: () => allowed, calls: () => readFileSync(join(codexHome, 'calls.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line)) };
 }
 const local = { name: 'local', enabled: true, transport: { type: 'stdio', command: '/usr/bin/node', args: ['server.js', '--token', 'sensitive-key'], env: { PRIVATE: 'sensitive-key' } }, auth_status: 'unsupported' };
 const remote = { name: 'remote', enabled: true, transport: { type: 'streamable_http', url: 'https://user:sensitive-key@example.com/private-token?api_key=sensitive-key', http_headers: { Authorization: 'Bearer sensitive-key' } } };
 
 describe('CodexMcpManager', () => {
+  test('shutdown awaits native cleanup, cancels queued writes and rejects new work', async () => {
+    const t=setup();
+    writeFileSync(join(t.codexHome,'hang'),'');
+    const listing=t.manager.view().catch(error=>error);
+    for(let i=0;!existsSync(join(t.codexHome,'active.pid')) && i<100;i++) await Bun.sleep(10);
+    const pid=Number(readFileSync(join(t.codexHome,'active.pid'),'utf8'));
+    const queued=t.manager.install({custom:{name:'queued',config:{type:'stdio',command:'node'}}},{}).catch(error=>error);
+    await t.manager.stop();
+    expect(await listing).toBeInstanceOf(Error);
+    expect(await queued).toBeInstanceOf(Error);
+    expect(()=>process.kill(pid,0)).toThrow();
+    expect(t.calls()).toHaveLength(1);
+    await expect(t.manager.view()).rejects.toThrow('stopped');
+    await expect(t.manager.check()).rejects.toThrow('stopped');
+    expect(()=>t.manager.allow('mcp__queued',true)).toThrow('stopped');
+  });
   test('lists native servers without exposing environment, arguments, headers or URL secrets', async () => {
     const t = setup([local, remote]);
     const view = await t.manager.view();

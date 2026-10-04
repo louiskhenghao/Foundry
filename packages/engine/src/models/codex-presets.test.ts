@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { BUILTIN_CODEX_PRESETS, BUILTIN_PRESETS, CODEX_MODEL_ACTIONS, CodexEffort, Goal, MODEL_ACTIONS, MODEL_NATURES, getGoal, listTasks, type CodexModelPreset } from '@foundry/core';
@@ -51,6 +51,20 @@ async function drain(handle: RunHandle) {
 }
 
 describe('Codex preset integration', () => {
+  test('shutdown cancels and awaits active native model discovery', async () => {
+    const bin=join(dataDir,'hanging-catalog');
+    const pidFile=join(dataDir,'catalog.pid');
+    writeFileSync(bin,`#!${process.execPath}\nrequire('node:fs').writeFileSync(${JSON.stringify(pidFile)},String(process.pid));process.on('SIGTERM',()=>{});setInterval(()=>{},1000);`);
+    chmodSync(bin,0o755);
+    const {engine}=setup({codexBin:bin});
+    const pending=engine.syncModels({provider:'codex'}).catch(error=>error);
+    await waitFor(()=>existsSync(pidFile));
+    const pid=Number(readFileSync(pidFile,'utf8'));
+    await engine.stop();
+    expect(await pending).toBeInstanceOf(Error);
+    expect(()=>process.kill(pid,0)).toThrow();
+    await expect(engine.syncModels({provider:'codex'})).rejects.toThrow('stopped');
+  });
   test('created goal keeps its preset and fallbacks through edits, deletion, replay and restart', async () => {
     const { engine: e, config } = setup();
     const selected = savePreset(e);

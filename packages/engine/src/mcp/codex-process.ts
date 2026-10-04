@@ -6,10 +6,13 @@ export interface CodexProcessOptions {
   codexHome: string;
   processHome?: string;
   timeoutMs?: number;
+  signal?: AbortSignal;
+  onProcess?: (process: { result: Promise<unknown>; kill: () => void }) => void;
 }
 
 /** Native CLI boundary. Raw output stays internal because MCP config can contain credentials. */
 export function codexProcess(options: CodexProcessOptions, args: string[], onOutput?: (text: string, stream: 'stdout' | 'stderr') => void) {
+  if (options.signal?.aborted) throw new Error('Codex MCP manager is stopped');
   const child = spawn(options.codexBin ?? Bun.which('codex') ?? 'codex', args, {
     cwd: tmpdir(),
     env: { ...process.env, HOME: options.processHome ?? homedir(), CODEX_HOME: options.codexHome, NO_COLOR: '1', FORCE_COLOR: '0', BROWSER: 'true' },
@@ -41,6 +44,15 @@ export function codexProcess(options: CodexProcessOptions, args: string[], onOut
       done = true;
       clearTimeout(timer);
       const complete = () => resolve({ code, stdout, stderr, failure });
+      // Natural/early parent exit can leave sidecars whose stdio is detached from the CLI.
+      if (!killTimer && process.platform !== 'win32' && child.pid) {
+        let alive = false;
+        try { process.kill(-child.pid, 0); alive = true; } catch {}
+        if (alive) {
+          signal('SIGTERM');
+          killTimer = setTimeout(() => { signal('SIGKILL'); killTimer = null; afterGroupKill?.(); }, 250);
+        }
+      }
       // A parent can exit on SIGTERM while its stdio-detached MCP children keep running. Preserve
       // the group SIGKILL deadline and await it before reporting cleanup complete.
       if (killTimer && process.platform !== 'win32') afterGroupKill = complete;
@@ -60,7 +72,11 @@ export function codexProcess(options: CodexProcessOptions, args: string[], onOut
     child.stderr.on('data', (text: string) => { stderr = (stderr + text).slice(-64_000); onOutput?.(text, 'stderr'); });
     child.on('close', finish);
   });
-  return { result, kill, write: (text: string) => child.stdin.write(text), end: () => child.stdin.end() };
+  options.signal?.addEventListener('abort', kill, { once: true });
+  void result.finally(() => options.signal?.removeEventListener('abort', kill));
+  const handle = { result, kill, write: (text: string) => child.stdin.write(text), end: () => child.stdin.end() };
+  options.onProcess?.(handle);
+  return handle;
 }
 
 /** A fresh app-server connection performs tool discovery, not model inference or tool execution. */
