@@ -143,6 +143,25 @@ Overview 标签上的 **Try the work in progress** 卡片显示文件夹路径�
 
 如果卡片显示 **Nothing to run yet**，说明还没有启动命令。等某个任务加上一条就会出现，或者你可以在 Brief 的 **How to run it** 下设一条。
 
+### Several apps
+
+一个仓库里可能有几个要一起运行的应用，比如网站、管理后台和 API。Foundry 会从 `package.json` 的 workspaces 里找到它们，或者由 Brief 在 **How to run it** 下列出。这时卡片每个应用一行，第一个排在最上面：
+
+- 一个圆点（绿色：已响应，黄色：启动中，红色：上次运行失败，灰色：已停止）、应用的名字和它所在的文件夹；
+- 运行时显示 **Open**，以及它自己的 **Start** 或 **Stop**；
+- **▸ output** 显示这个应用打印的内容。
+
+**Start all** 启动所有还没运行的应用；**Stop all** 把它们全部停掉。每个应用有自己的端口，并会在环境变量里拿到其它应用的地址，名字是 `FOUNDRY_APP_<KEY>_URL`，例如 `FOUNDRY_APP_API_URL`，这样网站就能找到 API。
+
+### Services
+
+如果仓库里有 Docker Compose 文件，里面有应用需要的服务（比如 Postgres 这样的数据库、MinIO 这样的文件存储），卡片会显示 **Services** 部分，列出每个服务、它的端口和状态。启动预览时会先启动这些服务。**Start services** 和 **Stop services** 作用于全部服务；每个服务也有自己的 **Start** 或 **Stop**。
+
+- 同一个仓库的所有 goal 共用这些服务，所以两个 goal 不会在同一个端口上各启动一个数据库。
+- 如果某个服务的端口在你电脑上已经被占用（比如你自己的 Postgres），它会显示 **in use elsewhere**：Foundry 不会启动它，应用直接用已经在运行的那个。
+- 预览停止时服务继续运行，所以数据会保留。**Stop services** 会停掉它们，数据仍然保留。
+- 需要装好 Docker。没有 Docker，或者 Foundry 本身运行在 Docker 里时，卡片会显示自己启动这些服务的命令，并带 **copy**。
+
 Foundry 也会在里程碑时自己启动预览；预览在运行时，每个任务并入后都会重启它；一段时间没人打开（默认 60 分钟）或 goal 结束时，它会停止预览。
 
 ### Self-check

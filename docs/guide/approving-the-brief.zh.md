@@ -194,7 +194,7 @@ Foundry 从不自作主张扩大范围：stretch 检查存在，只是因为它�
 
 ## How to run it
 
-**How to run it** 告诉 Foundry 怎么启动结果，用于里程碑的预览和自检。大多数项目留空就行：Foundry 会从 `package.json` 读启动脚本。最后一行是这个 goal 的 **Self-check after each task** 开关，所以在工作开始前就可以打开自检。
+**How to run it** 告诉 Foundry 怎么启动结果，用于里程碑的预览和自检。大多数项目留空就行：Foundry 会从 `package.json` 读启动脚本，或者从它的 workspaces 里为每个应用各读一个。最后一行是这个 goal 的 **Self-check after each task** 开关，所以在工作开始前就可以打开自检。
 
 | 字段 | 是什么 |
 |---|---|
@@ -203,7 +203,9 @@ Foundry 从不自作主张扩大范围：stretch 检查存在，只是因为它�
 | **Start command** | 例如 `npm run dev -- --port {port}`。`{port}` 是 Foundry 填入端口的位置。 |
 | **URL** | 结果在哪里打开，例如 `http://localhost:{port}`。 |
 
-**Use package.json** 会清掉这些字段，回到从 `package.json` 读取。
+仓库里有几个应用时（网站、管理后台、API……），**Several apps…** 会把这些字段换成一个应用列表，并填入 Foundry 在 `package.json` 里找到的应用。每个应用有 **Name**、**Folder**（相对于仓库，留空表示仓库根目录）、**Start command** 和 **URL**。**Add app** 添加一个，**Remove** 删除一个。第一个应用是里程碑和自检会打开的那个。每个应用下面显示它的 key，也就是其它应用读取它地址的环境变量，例如 `FOUNDRY_APP_API_URL`。
+
+**Use package.json** 会清掉这些字段或应用列表，回到从 `package.json` 读取。
 
 ## Completion
 

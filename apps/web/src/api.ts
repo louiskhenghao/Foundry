@@ -1,7 +1,28 @@
 import type { FeedbackPlan } from '@foundry/core/browser';
-import type { Attachment, Attempt, Brief, BriefCheck, BriefDiff, BriefStyleOption, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, SettingsPatch, SettingsView, Task, TaskUsage } from '@foundry/core/browser';
+import type { Attachment, Attempt, Brief, BriefApp, BriefCheck, BriefDiff, BriefRun, BriefStyleOption, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, SettingsPatch, SettingsView, Task, TaskUsage } from '@foundry/core/browser';
 
-/** Mirrors the engine's PreviewStatus (preview/manager.ts). */
+/** Mirrors the engine's PreviewAppStatus (preview/manager.ts): one app of the goal's preview. */
+export interface PreviewAppStatus {
+  key: string;
+  name: string;
+  /** folder relative to the progress folder; '' = its root */
+  dir: string;
+  running: boolean;
+  ready: boolean;
+  port: number | null;
+  url: string | null;
+  command: string | null;
+  startedAt: string | null;
+  startedBy: 'human' | 'milestone' | 'integration' | null;
+  lastVisitAt: string | null;
+  log: string[];
+  /** the live-log channel of this app's output */
+  channel: string;
+  run: BriefApp;
+  error: string | null;
+}
+
+/** Mirrors the engine's PreviewStatus (preview/manager.ts). The top-level fields describe the primary app (apps[0]). */
 export interface PreviewStatus {
   running: boolean;
   ready: boolean;
@@ -12,8 +33,22 @@ export interface PreviewStatus {
   startedBy: 'human' | 'milestone' | 'integration' | null;
   lastVisitAt: string | null;
   log: string[];
-  run: { install: string | null; command: string | null; url: string | null; platform: 'web' | 'expo' | 'none' } | null;
+  run: BriefRun | null;
   source: 'brief' | 'detected' | null;
+  error: string | null;
+  apps: PreviewAppStatus[];
+}
+
+/** Mirrors the engine's ServicesStatus (preview/services.ts): the Docker services from the repository's compose file. */
+export interface ServicesStatus {
+  /** the compose file, relative to the progress folder */
+  file: string;
+  /** the compose project shared by every goal of this repository */
+  project: string;
+  docker: 'available' | 'unavailable' | 'in-container';
+  services: { name: string; image: string; ports: number[]; state: 'running' | 'stopped' | 'external' | 'unknown'; health: string | null }[];
+  /** the command to start the services by hand */
+  command: string;
   error: string | null;
 }
 
@@ -402,8 +437,14 @@ export function apiForProvider(provider?: AgentProvider) {
   guidePage: (slug: string, lang: 'en' | 'zh') => req<{ slug: string; markdown: string; lang: 'en' | 'zh' }>(`/api/guide/page/${encodeURIComponent(slug)}?lang=${lang}`),
   interviewAnswer: (id: string, answers: Record<string, string>, finish = false) => req<{ ok: true }>(`/api/goals/${id}/interview/answer`, { method: 'POST', body: JSON.stringify({ answers, finish }) }),
   preview: (id: string) => req<PreviewStatus>(`/api/goals/${id}/preview`),
-  previewStart: (id: string) => req<PreviewStatus>(`/api/goals/${id}/preview/start`, { method: 'POST' }),
-  previewStop: (id: string) => req<{ ok: true }>(`/api/goals/${id}/preview/stop`, { method: 'POST' }),
+  /** without `app`, starts every app that is not running (Docker services first) */
+  previewStart: (id: string, app?: string) => req<PreviewStatus>(`/api/goals/${id}/preview/start${app ? `?app=${encodeURIComponent(app)}` : ''}`, { method: 'POST' }),
+  /** without `app`, stops every app; Docker services keep running */
+  previewStop: (id: string, app?: string) => req<{ ok: true }>(`/api/goals/${id}/preview/stop${app ? `?app=${encodeURIComponent(app)}` : ''}`, { method: 'POST' }),
+  /** null = the repository has no compose file with services the apps depend on */
+  previewServices: (id: string) => req<ServicesStatus | null>(`/api/goals/${id}/preview/services`),
+  previewServicesStart: (id: string, names?: string[]) => req<ServicesStatus | null>(`/api/goals/${id}/preview/services/start`, { method: 'POST', body: JSON.stringify(names ? { names } : {}) }),
+  previewServicesStop: (id: string, names?: string[]) => req<ServicesStatus | null>(`/api/goals/${id}/preview/services/stop`, { method: 'POST', body: JSON.stringify(names ? { names } : {}) }),
   previewVisit: (id: string) => req<{ ok: true }>(`/api/goals/${id}/preview/visit`, { method: 'POST' }),
   setSelfCheck: (id: string, on: boolean) => req<{ ok: true }>(`/api/goals/${id}/selfcheck`, { method: 'POST', body: JSON.stringify({ on }) }),
   feedbackClassify: (id: string, text: string) => req<{ plan: FeedbackPlan }>(`/api/goals/${id}/feedback/classify`, { method: 'POST', body: JSON.stringify({ text }) }),
