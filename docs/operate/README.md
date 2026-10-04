@@ -5,7 +5,7 @@ something goes wrong. You work with terminals, Docker and config files, but you 
 
 Foundry is a local orchestrator. It drives the Claude Code and Codex CLIs on one machine to plan and deliver goals in your
 repositories. The web UI runs on `http://127.0.0.1:4111`. You can run it from source with Bun, or in Docker
-(image `imlouiskhenghao/foundry`). These pages describe this source revision. A published image may lag the branch; build this revision to try unreleased features.
+(image `imlouiskhenghao/foundry`). These pages describe this source revision; what each published release contains is in the [changelog](https://github.com/louiskhenghao/foundry-releases/blob/main/CHANGELOG.md).
 
 ## Pages
 
