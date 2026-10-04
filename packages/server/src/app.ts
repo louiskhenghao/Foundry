@@ -514,7 +514,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       checks: listChecks(db, id),
       checkResults: listCheckResultsByGoal(db, id),
       brief: getBrief(db, id),
-      escalations: listEscalations(db, { goalId: id }),
+      escalations: listEscalations(db, { goalId: id }).map(e => ({ ...e, provider: goal.provider ?? engine.config.provider })),
       events: engine.store.listByGoal(id, 300),
       // Follows / Followed by: the earlier goal may have been deleted since (then only its title remains)
       followUps: {
@@ -750,8 +750,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.get('/api/escalations', (c) =>
     c.json(
       listEscalations(db, { openOnly: c.req.query('open') === '1' }).map((e) => {
+        const goal = getGoal(db, e.goalId);
         const t = e.taskId ? listTasks(db, e.goalId).find((x) => x.id === e.taskId) : null;
-        return { ...e, goalTitle: getGoal(db, e.goalId)?.title ?? e.goalId, taskTitle: t?.title ?? null, taskState: t?.state ?? null };
+        return { ...e, provider: goal ? goal.provider ?? engine.config.provider : null, goalTitle: goal?.title ?? e.goalId, taskTitle: t?.title ?? null, taskState: t?.state ?? null };
       }),
     ),
   );

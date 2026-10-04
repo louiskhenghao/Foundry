@@ -3,7 +3,7 @@ import { ACTIONS_BY_TRIGGER } from '@foundry/core/browser';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
-import { api, type EscalationRow } from '../api.ts';
+import { api, apiForProvider, type EscalationRow } from '../api.ts';
 import { FullTextDialog } from '../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../components/Markdown.tsx';
 import { suggestEscalation, useEscalationDraft, useEscalationDrafts, useLive } from '../store.ts';
@@ -26,7 +26,7 @@ const PLAIN: Record<string, string> = {
   retries_exhausted: 'It tried several times and could not finish this part on its own.',
   boundary_action: 'It wants to do something outside the workspace (push, deploy…) and needs your OK.',
   budget_exceeded: 'It reached the money or time limit you set.',
-  permission_denial: 'Claude refused one of the tools it needed.',
+  permission_denial: 'The agent could not use one of the tools it needed.',
   milestone: 'A milestone landed. Look at the result, then continue or say what to change.',
   delivery_failed: 'The delivery stopped. The reason is below; fix it, then retry — or mark it delivered if you finished it yourself.',
 };
@@ -92,16 +92,24 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
   const mcpDenied = e.trigger === 'permission_denial' ? [...new Set(((e.payload as { denials?: { tool_name?: string }[] }).denials ?? []).map((d) => d.tool_name ?? '').filter((t) => t.startsWith('mcp__')).map((t) => t.split('__').slice(0, 2).join('__')))] : [];
   // which of them goals may already use: those were refused for another reason (often a sign-in), so allowing is no fix
   const [mcpAllowed, setMcpAllowed] = useState<string[] | null>(null);
+  const [mcpError, setMcpError] = useState<string | null>(null);
   useEffect(() => {
-    if (mcpDenied.length) void api.mcp().then((v) => setMcpAllowed(v.servers.filter((s) => s.allowed).map((s) => s.prefix))).catch(() => setMcpAllowed([]));
-  }, [mcpDenied.join(',')]);
+    let alive = true;
+    setMcpAllowed(null);
+    setMcpError(null);
+    if (mcpDenied.length && e.provider) void apiForProvider(e.provider).mcp().then((v) => {
+      if (alive) setMcpAllowed(v.servers.filter((s) => s.allowed).map((s) => s.prefix));
+    }).catch(() => { if (alive) setMcpError('Could not read this backend’s MCP permissions. Check Extensions before retrying.'); });
+    return () => { alive = false; };
+  }, [e.provider, mcpDenied.join(',')]);
   const mcpToAllow = mcpDenied.filter((p) => !mcpAllowed?.includes(p));
   const mcpNames = mcpDenied.map((p) => p.slice('mcp__'.length)).join(', ');
   const allowAndRetry = async () => {
     setBusy(true);
     setErr(null);
     try {
-      for (const p of mcpToAllow) await api.mcpAllow(p, true);
+      if (!e.provider || !mcpAllowed) throw new Error('The goal backend and its MCP permissions must be available before allowing a server.');
+      for (const p of mcpToAllow) await apiForProvider(e.provider).mcpAllow(p, true);
       await api.answer(e.id, { action: 'retry_with_hint', hint: hint || `The MCP server ${mcpNames} is now allowed in goals; use it.`, extraAttempts: attempts });
     } catch (x: any) {
       setErr(x.message);
@@ -122,7 +130,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
         action,
         hint: hint || undefined,
         extraAttempts: action === 'retry_with_hint' ? attempts : undefined,
-        newMaxCostUsd: action === 'raise_budget' && cost ? Number(cost) : undefined,
+        newMaxCostUsd: e.provider !== 'codex' && action === 'raise_budget' && cost ? Number(cost) : undefined,
         newMaxDurationMin: action === 'raise_budget' && minutes ? Number(minutes) : undefined,
       });
     } catch (x: any) {
@@ -136,6 +144,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
       <div className="flex items-center gap-2 mb-1 flex-wrap">
         <Badge state={e.state} />
         <span className="text-sm font-medium">{TRIGGER_LABEL[e.trigger] ?? e.trigger}</span>
+        {e.provider && <span className="text-[10px] rounded border border-zinc-700 px-1.5 text-zinc-400">{e.provider === 'codex' ? 'Codex' : 'Claude Code'}</span>}
         {(e.payload as { kind?: string }).kind === 'merge' && <span className="text-[10px] uppercase rounded border border-orange-500/50 text-orange-300 px-1">merge conflict</span>}
         <span className="text-xs text-zinc-500">{ago(e.createdAt)}</span>
         {!embedded && (
@@ -195,12 +204,13 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
       {e.state === 'open' && mcpDenied.length > 0 && e.taskId && mcpAllowed && mcpToAllow.length === 0 && (
         <div className="mt-3 rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-xs text-zinc-300">
           Refused MCP server: <span className="mono">{mcpNames}</span>. It is already allowed in goals, so something else stopped it — often it needs signing in.{' '}
-          <Link to="/skills#mcp" className="underline">
+          <Link to={`/skills?provider=${e.provider}#mcp`} className="underline">
             Check it under Extensions → MCP servers
           </Link>
           , then retry.
         </div>
       )}
+      {e.state === 'open' && mcpDenied.length > 0 && (mcpError || !e.provider) && <p className="mt-3 text-xs text-amber-300">{mcpError ?? 'The goal backend is unavailable; MCP permissions cannot be changed here.'}</p>}
       {e.state === 'open' && mcpToAllow.length > 0 && e.taskId && mcpAllowed && (
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2">
           <span className="text-xs text-zinc-300">
@@ -224,7 +234,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
         <div className="mt-2 flex flex-wrap items-center gap-2">
           {canSuggest && (
             <>
-              <Button size="sm" disabled={busy || !!suggesting} onClick={() => suggest(false)} title="The AI reads the task, the failing checks and the last session, explains the cause and writes a hint for you (≤ $1)">
+              <Button size="sm" disabled={busy || !!suggesting} onClick={() => suggest(false)} title={`The AI reads the task, the failing checks and the last session, explains the cause and writes a hint for you (${e.provider === 'codex' ? 'uses ChatGPT quota; USD cost unavailable' : '≤ $1'})`}>
                 <Sparkles size={12} /> {suggesting === 'suggest' ? 'Analysing…' : 'Suggest a hint'}
               </Button>
               <Button size="sm" variant="primary" disabled={busy || !!suggesting} onClick={() => suggest(true)} title="Same analysis; when the answer is 'retry with this hint' it is applied immediately (one extra attempt). Skipping, budget and manual merges are never applied for you.">
@@ -246,7 +256,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
           )}
           {actions.includes('raise_budget') && (
             <>
-              <Input type="number" min={0.5} step={0.5} className="w-32" placeholder="new max $ (blank = ×2)" value={cost} onChange={(x) => setCost(x.target.value)} />
+              {e.provider !== 'codex' && <Input type="number" min={0.5} step={0.5} className="w-32" placeholder="new max $ (blank = ×2)" value={cost} onChange={(x) => setCost(x.target.value)} />}
               <Input type="number" min={5} step={5} className="w-36" placeholder="new max min (blank = ×2)" value={minutes} onChange={(x) => setMinutes(x.target.value)} />
             </>
           )}

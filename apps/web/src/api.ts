@@ -216,7 +216,7 @@ export class ApiError extends Error {
 }
 
 /** an Escalation with the names of what it is about */
-export type EscalationRow = Escalation & { goalTitle?: string; taskTitle?: string | null; taskState?: string | null };
+export type EscalationRow = Escalation & { provider: AgentProvider | null; goalTitle?: string; taskTitle?: string | null; taskState?: string | null };
 
 export interface BudgetStatus {
   costUsd: number;
@@ -243,7 +243,7 @@ export interface GoalDetail {
   checks: Check[];
   checkResults: CheckResult[];
   brief: { brief: Brief; approved: boolean } | null;
-  escalations: Escalation[];
+  escalations: EscalationRow[];
   events: (EngineEvent & { seq: number })[];
   /** Follows / Followed by (goal.follows holds the earlier goal; it may have been deleted since) */
   followUps: { followsExists: boolean; followedBy: { id: string; title: string; state: GoalState }[] };
