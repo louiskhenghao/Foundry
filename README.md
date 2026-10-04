@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="apps/web/public/logo.png" alt="Foundry logo" width="96">
+
 # Foundry
 
 **Write the goal in one sentence. Get back finished, checked, reviewed work.**
