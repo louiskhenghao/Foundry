@@ -304,3 +304,7 @@ Refusing new sessions while active Agents finish, so an update never kills runni
 
 **Account quota**
 The native account’s reported allowance and usage windows, including activity outside Foundry. Separate from Foundry’s local token totals. Unknown is not zero; a percentage or reset timestamp does not prove that another session is allowed.
+
+
+### Native plugin
+A package of skills, tools or hooks owned by an Agent backend's native client and marketplace. Codex packages are listed separately from loose Skills. Foundry can install or remove available user packages through Codex; native policy, marketplace setup, updates and enablement remain Codex's responsibility. Installation is shared with the local CLI and does not itself authorize a connected service or allow its MCP tools in Goals.

@@ -11,7 +11,7 @@
 
 ## 账户与执行后端
 
-点击顶栏 **Accounts**，分别查看 Claude Code 和 Codex。**Sign in to Codex** 使用 ChatGPT 设备授权：在链接页面输入显示的验证码；**Sign in to Claude Code** 使用 Claude 原生登录。凭据与本机 CLI 共用，在这里退出也会退出对应 CLI，但不会影响另一个提供商。执行期间不能退出登录。Codex 只支持 ChatGPT 登录，不使用 API-key 模式；原生 CLI 提供邮箱和方案时会显示在账户卡片。
+点击顶栏 **Accounts**，分别查看 Claude Code 和 Codex。**Sign in to Codex** 使用 ChatGPT 设备授权：在链接页面输入显示的验证码；**Sign in to Claude Code** 使用 Claude 原生登录。凭据与本机 CLI 共用，在这里退出也会退出对应 CLI，但不会影响另一个提供商。执行期间不能登录或退出，CLI 请求也遵守同样的保护。Codex 只支持 ChatGPT 登录，不使用 API-key 模式；原生 CLI 提供邮箱和方案时会显示在账户卡片。
 
 **Setup** 可选择 **Claude Code** 或 **Codex**；检查、登录、修复及技能安装均针对所选后端。**Create your first goal** 会保留该选择。
 

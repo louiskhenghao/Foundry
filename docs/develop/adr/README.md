@@ -23,4 +23,5 @@ record is never rewritten when a later decision changes it; its status says what
 | [0016](0016-mcp-servers-allowed-per-server.md) | MCP servers: listed from Claude Code's config, installed at user scope, allowed in goals per server | accepted · 2026-09-28 · amended by ADR-0019 |
 | [0017](0017-goal-provider-and-account-isolation.md) | Fixed goal providers, independent accounts and capability-aware reporting | accepted · 2026-10-04 · amended by ADR-0018 and ADR-0019 |
 | [0018](0018-codex-role-presets-and-model-discovery.md) | Codex role presets, native model discovery and captured goal settings | accepted · 2026-10-04 |
-| [0019](0019-provider-scoped-extensions-and-native-status.md) | Provider-scoped extensions, native account quota and read-only history | accepted · 2026-10-04 |
+| [0019](0019-provider-scoped-extensions-and-native-status.md) | Provider-scoped extensions, native account quota and read-only history | accepted · 2026-10-04 · amended by ADR-0020 |
+| [0020](0020-native-plugin-lifecycle-and-account-ownership.md) | Native plugin lifecycle and server-owned account commands | accepted · 2026-10-04 |

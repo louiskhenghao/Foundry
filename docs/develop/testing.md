@@ -150,3 +150,8 @@ cd ../foundry-qa/packages/engine && bun /path/to/qa.ts
 Stop the server (Ctrl-C), then `git worktree remove ../foundry-qa`, and delete the throwaway repo and its `-foundry` folder.
 
 `scripts/e2e-conflict.ts` is an older scripted end-to-end run (two parallel tasks forced into a merge conflict) against a running server. It honours `FOUNDRY_PORT` / `FOUNDRY_URL`, so run it against the throwaway server too.
+
+
+### Native plugin smoke check
+
+`bun scripts/verify-codex-plugins.ts [path-to-codex]` checks native list → install → refreshed state → remove using an isolated temporary home and a local fixture marketplace. It does not use personal credentials, network access or model inference, and cleans up its fixture. Run it with the installed host CLI and the Docker-pinned CLI. Use `--init` when running subprocess tests in Docker so detached child processes are reaped.

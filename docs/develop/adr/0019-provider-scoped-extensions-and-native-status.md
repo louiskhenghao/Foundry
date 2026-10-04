@@ -1,6 +1,6 @@
 # ADR-0019: Provider-scoped extensions, native account quota and read-only history
 
-**Status:** accepted · 2026-10-04 · amends ADR-0016 and ADR-0017
+**Status:** accepted · 2026-10-04 · amends ADR-0016 and ADR-0017; amended by ADR-0020
 
 ## Decision
 

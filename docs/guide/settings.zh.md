@@ -6,7 +6,7 @@
 
 **Engine (install)** 显示两种 CLI 路径和配置目录。**Default agent backend** 在启动时选择，不限制新建任务的后端选择。打开旧数据目录时保留原启动配置，以正确识别历史记录。现有分开的数据目录不会自动合并。
 
-**Setup** 和 **Extensions** 都可独立选择 **Claude Code** 或 **Codex**，不再跟随启动配置。安装、更新、回收站、OAuth 和 MCP 权限都操作所选后端。Codex 使用自己的技能目录和共享 `.agents/skills`；autoskills 会把项目技能安装到 `.agents/skills` 并复制到任务 worktree，不进入提交。原生 Codex 插件仍由 Codex 管理。Codex 技能调用记录不可用，审核依据成果，不能据此判定没有使用技能。
+**Setup** 和 **Extensions** 都可独立选择 **Claude Code** 或 **Codex**，不再跟随启动配置。安装、更新、回收站、OAuth 和 MCP 权限都操作所选后端。Codex 使用自己的技能目录和共享 `.agents/skills`；autoskills 会把项目技能安装到 `.agents/skills` 并复制到任务 worktree，不进入提交。原生插件的安装和移除改在 **Extensions → Codex → Plugins** 管理。Codex 技能调用记录不可用，审核依据成果，不能据此判定没有使用技能。
 
 
 > [English](./settings.md) · 中文
@@ -178,7 +178,17 @@ skill 是 Claude Code 可以遵循的打包指令。在这里选择 Foundry 把�
 - **autoskills per goal**（开）：你批准 Brief 后，把匹配你项目技术栈（React、Tailwind……）的 skill 加到 goal 的文件夹里。它们不会进入你的提交。
 - **Design skills**、**Image skills**、**Video skills**：每类选一个包；只有这个包会交给前端、图片或视频任务。每个包显示 **installed** 或 **N missing**，并带一个 **Install** 按钮。选包会立即保存。图片包只有在 [Tools & keys](#tools--keys) 里有 key 时，才能生成真正的图片。已安装的技能缺少它需要的 key 时，它的卡片上会显示 **⚠ key missing**，写明是哪个 key、缺了它会少什么；点它就会跳到 **Tools & keys**。
 
-顶栏上的 **Extensions** 页面放着你的 skill 和 MCP server。它的 **Skills** 标签页显示所有已安装的 skill，并可以更新。每个技能都有一个状态：**outdated**（有新版本 —— 按 **Update**）、**unreleased**（插件作者在上游改了它，但没有提高版本号，所以 CLI 暂时没有新东西可装）、**modified**（你的副本被改过）或 **up to date**（只有 README 或 changelog 不同不算）。像 ffmpeg 这样的命令行工具，只要找得到它的命令就算已安装。插件的技能只能一起删除，用 **Uninstall plugin**。你手动安装的副本，如果 Foundry 自己能安装这个技能，就会出现 **Adopt**：用一个由 Foundry 负责更新的副本替换它。你在那里发起的每次安装、更新、接管（adopt）或卸载，都会在页面底部的 **Operations** 栏里打开一个标签页，带着它自己的日志；几个操作可以同时进行。完成的标签页会一直留着，直到你关掉它；这个栏也可以收起成一行计数。
+顶栏上的 **Extensions** 页面放着 skill、MCP server 和原生 Codex 插件。下述技能更新状态及整包卸载细节适用于 Claude。Codex 的 **Skills** 清单显示独立的原生及共享技能，插件包另在 **Plugins** 显示。每个技能都有一个状态：**outdated**（有新版本 —— 按 **Update**）、**unreleased**（插件作者在上游改了它，但没有提高版本号，所以 CLI 暂时没有新东西可装）、**modified**（你的副本被改过）或 **up to date**（只有 README 或 changelog 不同不算）。像 ffmpeg 这样的命令行工具，只要找得到它的命令就算已安装。插件的技能只能一起删除，用 **Uninstall plugin**。你手动安装的副本，如果 Foundry 自己能安装这个技能，就会出现 **Adopt**：用一个由 Foundry 负责更新的副本替换它。你在那里发起的每次安装、更新、接管（adopt）或卸载，都会在页面底部的 **Operations** 栏里打开一个标签页，带着它自己的日志；几个操作可以同时进行。完成的标签页会一直留着，直到你关掉它；这个栏也可以收起成一行计数。
+
+### Codex plugins
+
+![Codex 原生插件管理——隔离的本地示例](images/codex-native-plugins.png)
+
+选择 **Codex** 后打开 **Plugins**。**Installed** 和 **Available** 分别显示原生 marketplace 返回的已安装及可安装插件；可按插件或 marketplace 过滤，在 CLI 修改后按 **Refresh plugins** 刷新。**Install** 和 **Remove** 会先显示确认弹窗，再在 **Operations** 显示进度；完成后刷新清单，原生安装状态确认成功才会报告成功。
+
+安装使用配置的 Codex 目录，与本机 CLI 共用；新会话加载已启用的组件。插件可以含 skills、工具和 hooks，请选择信任的来源。移除会删除原生用户安装及缓存包，需要恢复时从 marketplace 重新安装。Foundry 检测到有工作正在运行时会拒绝变更。Claude 插件保持独立。
+
+**Installed · disabled by native configuration** 表示已安装但被原生配置停用；**Managed in Codex** 表示 marketplace 策略不允许此页面变更。Marketplace 设置、插件更新及启用／停用仍在原生 CLI 处理。外部服务仍须独立授权，安装不会自动授予 MCP 工具的 **Allowed in goals** 权限。CLI 不支持兼容的插件 JSON 命令时，页面显示 **Native plugin list unavailable**，可更新 CLI 后重试。
 
 ### MCP servers
 
