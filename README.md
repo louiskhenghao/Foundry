@@ -13,7 +13,7 @@ English · [中文](./README.zh.md)
 
 <br>
 
-<img src="docs/guide/images/goals.png" alt="The Foundry goals list: six goals, one in each state — running, blocked, waiting for a look, waiting for Brief approval, clarifying, done — each with its tasks and cost against its budget" width="900">
+<img src="docs/guide/images/goals.png" alt="Foundry goals across Claude Code and Codex: progress, backend, and the controls available for each goal" width="900">
 
 </div>
 
@@ -40,14 +40,16 @@ Foundry does that part.
 
 ## How it works
 
+One workflow for **Claude Code and Codex**. Connect the native accounts independently in **Accounts**, then choose the backend for each new goal. The screenshots below use demonstration data.
+
 <table>
 <tr>
 <td width="50%" valign="top">
 
 **[1 · Describe it](docs/guide/your-first-goal.md#the-new-goal-form)**<br>
-Press **New goal**, pick the project folder and write what you want. Code, documents, research, images or video.
+Press **New goal**, choose **Claude Code** or **Codex**, select its model preset, and describe the result. Pick a project folder when you are ready to start.
 
-<img src="docs/guide/images/new-goal.png" alt="The New goal form: goal kinds Auto, Code, Documents, Research, Images and Video, and the goal text">
+<img src="docs/guide/images/new-goal.png" alt="New goal with the shared backend selector, Codex selected, goal types and view options">
 
 </td>
 <td width="50%" valign="top">
@@ -63,9 +65,9 @@ Only what the repository can't settle, each with the reason and a recommendation
 <td width="50%" valign="top">
 
 **[3 · Approve the Brief](docs/guide/approving-the-brief.md)**<br>
-One page with the plan in plain words. Change what you want, then **Approve & run**.
+Review the plan, tasks and acceptance checks. Change what you want, then **Approve & run**. Codex uses time and attempt limits; Claude also supports USD budgets.
 
-<img src="docs/guide/images/brief.png" alt="The Brief of a studio landing page: its understanding, the pull request title and a style question with colour palettes">
+<img src="docs/guide/images/brief.png" alt="A Codex goal’s Brief with its understanding, pull request title and approval controls">
 
 </td>
 <td width="50%" valign="top">
@@ -81,7 +83,7 @@ The goal pauses, the preview is already running. Press **Continue**, or say what
 <td width="50%" valign="top">
 
 **[5 · Let it run](docs/guide/while-it-runs.md)**<br>
-Tasks run in parallel when they can, each one checked before it joins the rest. Watch it live, or walk away.
+Tasks run in parallel when they can, each checked before it joins the rest. **Agents** brings both engines’ sessions together; **Usage** keeps their limits separate.
 
 <img src="docs/guide/images/goal-running.png" alt="A running goal: Clarify and Brief done, Run in progress, acceptance checks and the folder where the work is">
 

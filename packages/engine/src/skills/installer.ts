@@ -63,12 +63,13 @@ export async function ensureCache(src: Extract<CatalogEntry['source'], { type: '
   return dir;
 }
 
-/** Find the skill directory inside the cache: explicit path first, else `**\/<name>/SKILL.md`. */
+/** Honor an explicit native path; only path-less entries may discover `**\/<name>/SKILL.md`. */
 export function locateSkillDir(cacheDir: string, entry: CatalogEntry): string {
   if (entry.source.type !== 'git') throw new InstallError('not a git entry', 'manual');
   if (entry.source.path) {
     const d = join(cacheDir, entry.source.path);
     if (existsSync(join(d, 'SKILL.md'))) return d;
+    throw new InstallError(`SKILL.md for ${entry.name} not found in ${entry.source.repo} (path ${entry.source.path})`, 'not-found');
   }
   const glob = new Bun.Glob(`**/${entry.name}/SKILL.md`);
   const hits = [...glob.scanSync({ cwd: cacheDir, dot: false })].filter((h) => !h.includes('node_modules/')).sort((a, b) => a.length - b.length);

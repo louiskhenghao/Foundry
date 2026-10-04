@@ -13,7 +13,7 @@ Foundry 在你自己的电脑上运行，从网页驱动你的 Claude Code 或 C
 
 <br>
 
-<img src="docs/guide/images/goals.png" alt="Foundry 的 goal 列表：六个 goal，各处在一个状态——运行中、受阻、等你看、等你批准 Brief、访谈中、已完成——每个都显示任务进度和相对预算的花费" width="900">
+<img src="docs/guide/images/goals.png" alt="Foundry 的 Claude Code 与 Codex 目标列表：进度、后端和每个目标可用的操作" width="900">
 
 </div>
 
@@ -54,14 +54,16 @@ Foundry 做的就是这部分。
 
 ## 怎么运作
 
+**Claude Code 与 Codex 共用同一套流程**。先在 **Accounts** 分别连接原生账户，再为每个新目标选择后端。以下截图均使用演示数据。
+
 <table>
 <tr>
 <td width="50%" valign="top">
 
 **[1 · 说出来](docs/guide/your-first-goal.zh.md#the-new-goal-form)**<br>
-按 **New goal**，选项目文件夹，写下你想要的。代码、文档、调研、图片、视频都行。
+按 **New goal**，选择 **Claude Code** 或 **Codex** 及对应模型预设，描述想要的结果。准备开始时选好项目文件夹。
 
-<img src="docs/guide/images/new-goal.png" alt="New goal 表单：goal 类型 Auto、Code、Documents、Research、Images、Video，以及目标描述">
+<img src="docs/guide/images/new-goal.png" alt="New goal 表单：统一的后端选择器选中 Codex，下方是目标类型和视图选项">
 
 </td>
 <td width="50%" valign="top">
@@ -77,9 +79,9 @@ Foundry 做的就是这部分。
 <td width="50%" valign="top">
 
 **[3 · 批准 Brief](docs/guide/approving-the-brief.zh.md)**<br>
-一页大白话写成的计划。想改就改，然后按 **Approve & run**。
+查看计划、任务和验收检查。想改就改，然后按 **Approve & run**。Codex 使用时间和尝试次数限制；Claude 还支持美元预算。
 
-<img src="docs/guide/images/brief.png" alt="工作室官网的 Brief：它的理解、PR 标题，以及一个带配色方案的风格问题">
+<img src="docs/guide/images/brief.png" alt="Codex 目标的 Brief：需求理解、PR 标题和批准按钮">
 
 </td>
 <td width="50%" valign="top">
@@ -95,7 +97,7 @@ goal 暂停，预览已经跑起来了。按 **Continue**，或者说要改什�
 <td width="50%" valign="top">
 
 **[5 · 让它跑](docs/guide/while-it-runs.zh.md)**<br>
-能并行的任务就并行，每个任务检查通过才合进来。可以盯着看，也可以走开。
+能并行的任务就并行，每个任务检查通过才合进来。**Agents** 汇集两种引擎的会话；**Usage** 分别展示各自的额度。
 
 <img src="docs/guide/images/goal-running.png" alt="运行中的 goal：Clarify 和 Brief 已完成，Run 进行中，右侧是验收检查，下面是工作所在的文件夹">
 

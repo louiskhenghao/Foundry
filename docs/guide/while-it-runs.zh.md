@@ -191,6 +191,10 @@ goal 相对起点改过的每个文件，标出新增的行（绿色，+）和�
 
 ## The Agents page
 
+![Claude Code 和 Codex 会话（演示数据）](images/agents.png)
+
+使用 **All engines**、**Claude Code** 或 **Codex** 筛选会话。引擎旁的数量表示已加载的近 24 小时会话。**Search sessions** 在所选引擎内匹配标题、目标名称、模型、目录及会话 ID。列表自动刷新，外部会话仍只读。
+
 顶栏上的 **Agents** 合并显示 Foundry 自己的会话和近期原生 Claude Code、Codex 历史，每行标明后端。读取数量有限，不是全部历史会话的清单。
 
 - **Foundry agents**：Foundry 为你的 goal 启动的会话，带所属的 goal。可以用 ■ 按钮停止。

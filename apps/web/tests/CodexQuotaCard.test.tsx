@@ -18,8 +18,11 @@ describe('Codex account quota', () => {
     const html = render(fixture());
     expect(html).toContain('codex-main');
     expect(html).toContain('codex-fast');
-    expect(html).toContain('100% used');
-    expect(html).toContain('6.5% used');
+    expect(html).toContain('0% remaining');
+    expect(html).toContain('93.5% remaining');
+    expect(html).toContain('aria-label="5-hour limit remaining"');
+    expect(html).toContain('aria-valuenow="93.5"');
+    expect(html).toContain('width:93.5%');
     expect(html).toContain('5-hour limit');
     expect(html).toContain('Weekly limit');
     expect(html).toContain('Reported reset:');
@@ -48,11 +51,11 @@ describe('Codex account quota', () => {
     }] };
     const u = localUsage(quota);
     const card = render(quota);
-    const header = renderToStaticMarkup(<StaticRouter location="/"><UsagePillView u={u} /></StaticRouter>);
+    const header = renderToStaticMarkup(<StaticRouter location="/"><UsagePillView usages={{codex:u}} /></StaticRouter>);
     const activity = renderToStaticMarkup(<UsageActivity provider="codex" u={u} />);
     expect(card).toContain('Weekly limit');
     expect(card.match(/role="meter"/g)).toHaveLength(1);
-    expect(header).toContain('Codex · Weekly 38% used');
+    expect(header).toContain('Codex · Weekly 62% remaining');
     expect(activity).toContain('Foundry activity · last 7 days');
     expect(activity).toContain('reporting period is not an account limit');
     for (const html of [card,header,activity]) {
@@ -76,7 +79,7 @@ describe('Codex account quota', () => {
     const quota = { ...fixture(),buckets:[{id:'one',label:'Models',primary:{usedPercent:null,windowDurationMins:null,resetsAt:null},secondary:null}] } as Quota;
     expect(render(quota)).toContain('duration unknown');
     for (const q of [undefined, { ...fixture(),buckets:[] } as Quota,quota]) {
-      const html = renderToStaticMarkup(<StaticRouter location="/"><UsagePillView u={localUsage(q)} /></StaticRouter>);
+      const html = renderToStaticMarkup(<StaticRouter location="/"><UsagePillView usages={{codex:localUsage(q)}} /></StaticRouter>);
       expect(html).not.toMatch(/5h|5-hour|Weekly|unlimited/);
       expect(html).not.toContain('0% used');
     }
@@ -84,11 +87,11 @@ describe('Codex account quota', () => {
 
   test('multiple windows stay distinct and a full window never implies a blocked account', () => {
     const u = localUsage(fixture());
-    const html = renderToStaticMarkup(<StaticRouter location="/"><UsagePillView u={u} /></StaticRouter>);
+    const html = renderToStaticMarkup(<StaticRouter location="/"><UsagePillView usages={{codex:u}} /></StaticRouter>);
     expect(html).toContain('3 quota windows');
     expect(html).not.toContain('blocked');
     u.codexQuota = { ...fixture(),ordinaryUsageAllowed:false } as Quota;
-    expect(renderToStaticMarkup(<StaticRouter location="/"><UsagePillView u={u} /></StaticRouter>)).toContain('blocked');
+    expect(renderToStaticMarkup(<StaticRouter location="/"><UsagePillView usages={{codex:u}} /></StaticRouter>)).toContain('blocked');
   });
 
   test('multiple weekly quota groups retain their names and report weekly limits in the header', () => {
@@ -99,9 +102,37 @@ describe('Codex account quota', () => {
     expect(html).toContain('base_model_inference');
     expect(html).toContain('codex');
     expect(html.match(/role="meter"/g)).toHaveLength(2);
-    const header = renderToStaticMarkup(<StaticRouter location="/"><UsagePillView u={localUsage(quota)} /></StaticRouter>);
+    const header = renderToStaticMarkup(<StaticRouter location="/"><UsagePillView usages={{codex:localUsage(quota)}} /></StaticRouter>);
     expect(header).toContain('Codex · 2 weekly limits');
     expect(html + header).not.toMatch(/5-hour|5h/);
+  });
+
+  test('the header stays general while reporting both engines and independently paused sessions', () => {
+    const renderHeader = (usages: Partial<Record<'claude' | 'codex', Usage>>) => renderToStaticMarkup(<StaticRouter location="/"><UsagePillView usages={usages} /></StaticRouter>);
+    expect(renderHeader({})).toContain('>Usage</span>');
+    expect(renderHeader({})).toContain('href="/usage"');
+    expect(renderHeader({})).not.toContain('needs attention');
+    const codex = { ...localUsage(fixture()), pausedUntil: '2999-01-01T00:00:00Z' };
+    const claude = { ...localUsage(), provider: 'claude' as const };
+    const html = renderHeader({ claude, codex });
+    expect(html).toContain('Claude Code · Foundry activity (5h)');
+    expect(html).toContain('Codex · sessions paused');
+    expect(html).toContain('needs attention');
+    expect(html).toContain('>Usage</span>');
+    expect(html).not.toContain('reset now');
+    expect(renderHeader({ claude })).toContain('Codex · usage unavailable');
+  });
+
+  test('remaining meters clamp invalid bounds and do not turn missing usage into a full bar', () => {
+    for (const [used, remaining] of [[-10, 100], [120, 0], [25, 75]]) {
+      const html = render({ ...fixture(), buckets: [{ id:'one', label:'Models', primary:{usedPercent:used, windowDurationMins:10080, resetsAt:null}, secondary:null }] } as Quota);
+      expect(html).toContain(`aria-valuenow="${remaining}"`);
+      expect(html).toContain(`width:${remaining}%`);
+      expect(html).toContain(`${remaining}% remaining`);
+    }
+    const html = render({ ...fixture(), buckets: [{ id:'one', label:'Models', primary:{usedPercent:null, windowDurationMins:10080, resetsAt:null}, secondary:null }] } as Quota);
+    expect(html).not.toContain('role="meter"');
+    expect(html).not.toContain('100% remaining');
   });
 
   test('Claude keeps its native signals and existing activity windows', () => {

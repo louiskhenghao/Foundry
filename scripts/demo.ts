@@ -346,6 +346,7 @@ class DemoRunner implements ClaudeRunner {
     const label = spec.label ?? '';
     let structuredOutput: unknown = null;
     if (label.startsWith('classify nature')) structuredOutput = { nature: 'code' };
+    else if (label.startsWith('planner ')) structuredOutput = { tasks: landingBrief.tasks };
     // a goal with an interview answers in the interview shape; one without gets the bare Brief
     else if (label.startsWith('clarify')) structuredOutput = spec.prompt.includes('dark mode') ? interviewRound : spec.prompt.includes('# Interview before the Brief') ? { questions: [], brief: landingBrief } : landingBrief;
     const title = label.startsWith('attempt') ? label.slice('attempt '.length).replace(/ #\d+.*$/, '') : '';
@@ -361,7 +362,7 @@ class DemoRunner implements ClaudeRunner {
     const result: RunResult = { sessionId, subtype: 'success', isError: false, costUsd: 0.42, numTurns: 7, durationMs: 90_000, usage: null, modelUsage: null, permissionDenials: [], finalText: title ? `Done: ${title}. The change is in place with its tests; bun test passes (14 tests) and the build is clean.` : 'done', structuredOutput, exitCode: 0, pid: null, rateLimit: null, errorMessage: null, skillsUsed: [], toolsUsed: {} };
     const events: RunnerEvent[] = title ? workerEvents(title, result.sessionId!, result, spec.cwd) : [
       { kind: 'hook', name: 'SessionStart:startup', outcome: 'success' },
-      { kind: 'init', sessionId: result.sessionId!, model: 'claude-opus-5', tools: [], raw: {} },
+      { kind: 'init', sessionId: result.sessionId!, model: spec.model ?? null, tools: [], raw: {} },
       { kind: 'text', text: label.startsWith('attempt') ? 'Reading the layout and the existing components, then writing the section and its test.' : 'Exploring the repository…' },
       { kind: 'tool_use', id: 't1', name: 'Read', input: { file_path: 'src/app/layout.tsx' } },
       { kind: 'result', result },
@@ -448,7 +449,11 @@ export async function startDemo(): Promise<{ url: string; goals: Record<string, 
   const repo = join(tmp, 'studio-site');
   await Bun.$`mkdir -p ${repo}`.quiet();
   await makeRepo(repo);
-  const engine = new Engine(defaultConfig(ROOT, { dataDir: join(tmp, 'data'), claudeHome: join(tmp, 'claude-home'), codexHome: join(tmp, 'codex-home'), port: DEMO_PORT, alwaysReviewTasks: false, autoskills: false, log: () => {} }), new DemoRunner());
+  const engine = new Engine(defaultConfig(ROOT, { provider: 'claude', dataDir: join(tmp, 'data'), claudeHome: join(tmp, 'claude-home'), codexHome: join(tmp, 'codex-home'), port: DEMO_PORT, alwaysReviewTasks: false, autoskills: false, log: () => {} }), new DemoRunner());
+  // Keep shared Codex skills isolated as well as its native home.
+  const skills = engine.skillsForProvider('codex');
+  skills.paths.agentsSkillsDir = join(tmp, '.agents', 'skills');
+  skills.paths.agentsLock = join(tmp, '.agents', '.skill-lock.json');
   // the completion's graph refresh reports graphify and gitnexus as run, without touching this machine's tools
   engine.graphRefreshDeps = { which: (n) => `/usr/local/bin/${n}`, exec: async () => ({ code: 0, stdout: '', stderr: '' }) as never };
   const server = startServer(engine, { webDist: join(ROOT, 'apps/web/dist') });
@@ -473,7 +478,7 @@ export async function startDemo(): Promise<{ url: string; goals: Record<string, 
   await waitFor(() => ['done', 'over_delivered'].includes(state(done.id)));
   await recordMergedDelivery(engine, done.id);
   const interview = await engine.createGoal({ prompt: 'Add a dark mode toggle to the settings page', repoPath: repo, interview: 'always', workflow: { pace: 'fast' } });
-  const brief = await engine.createGoal({ prompt: 'A landing page for our game studio', title: 'Studio landing page', repoPath: repo, interview: 'never', workflow: { pace: 'fast' } });
+  const brief = await engine.createGoal({ prompt: 'A landing page for our game studio', title: 'Studio landing page', provider: 'codex', repoPath: repo, interview: 'never', workflow: { pace: 'fast' } });
   const milestone = await engine.createGoal({ prompt: 'Studio site: hero and value cards', title: 'Studio site — first look', repoPath: repo, brief: briefFrom(landingBrief, landingBrief.tasks.slice(0, 3)) as never, workflow: { pace: 'fast' } });
   const running = await engine.createGoal({
     prompt: 'Add CSV export to the orders page, with the date range the user is looking at.',

@@ -180,6 +180,21 @@ skill 是所选后端可以遵循的打包指令。在这里选择 Foundry 把�
 
 顶栏上的 **Extensions** 页面放着 skill、MCP server 和原生 Codex 插件。下述技能更新状态及整包卸载细节适用于 Claude。Codex 的 **Skills** 清单显示独立的原生及共享技能，插件包另在 **Plugins** 显示。每个技能都有一个状态：**outdated**（有新版本 —— 按 **Update**）、**unreleased**（插件作者在上游改了它，但没有提高版本号，所以 CLI 暂时没有新东西可装）、**modified**（你的副本被改过）或 **up to date**（只有 README 或 changelog 不同不算）。像 ffmpeg 这样的命令行工具，只要找得到它的命令就算已安装。插件的技能只能一起删除，用 **Uninstall plugin**。你手动安装的副本，如果 Foundry 自己能安装这个技能，就会出现 **Adopt**：用一个由 Foundry 负责更新的副本替换它。你在那里发起的每次安装、更新、接管（adopt）或卸载，都会在页面底部的 **Operations** 栏里打开一个标签页，带着它自己的日志；几个操作可以同时进行。完成的标签页会一直留着，直到你关掉它；这个栏也可以收起成一行计数。
 
+### Skill compatibility
+
+兼容性取决于技能实际使用的工具及依赖，而不是作者。目录会按 **Agent backend** 选择安装方案；Claude 专属方案不会进入 Codex 的推荐目录或工作流提示。
+
+| 技能 | Codex 下的行为 |
+|---|---|
+| Anthropic `frontend-design` / `webapp-testing` | 通用指令，可使用。网页测试另需 Python、Python Playwright 和 Chromium。 |
+| `skill-creator` | 使用 OpenAI 版本。如果已有 Anthropic 旧副本，展开 **Catalog**，找到 `skill-creator` 并按 **Replace**；旧副本放入回收站。共享技能仍在原位置管理。 |
+| `claude-api` | 给使用 Anthropic SDK 的项目参考，不会改变 Foundry 登录方式，也不要求由 Claude 执行；不会再自动推荐给所有 worker。 |
+| Graphify / Impeccable | 分别使用 Codex 安装命令及原生技能目录。旧的 Foundry 管理的 Impeccable 副本需执行更新，以换成当前原生版本。 |
+| gstack / Claude 插件安装方案 | 不在 Codex 技能目录推荐。上游 gstack 的 Codex 适配仍属实验性，外部评审需要 Claude CLI；Codex 原生插件使用独立的 **Plugins** 标签。 |
+| 图片 / 视频技能 | 仍需渲染工具、项目依赖及相关服务凭据。ChatGPT 登录不会为后台会话提供图片 API key 或桌面应用的图片工具。 |
+
+**installed** 表示找到了技能，不代表它需要的每个工具或服务都已配置。个人及共享技能仍然可见，不会因推荐目录改变被删除。若上游明确指定的技能路径消失，安装会指出缺失路径，不会改装另一种 agent 的同名技能。
+
 ### Codex plugins
 
 ![Codex 原生插件管理——演示数据](images/codex-native-plugins.png)

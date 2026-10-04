@@ -180,6 +180,21 @@ Skills are packaged instructions the coding agent can follow. **Agent backend** 
 
 The **Extensions** page in the top bar holds your skills, MCP servers and native Codex plugins. The following skill update and plugin-bundle details describe Claude. For Codex, **Skills** lists loose native and shared skills; **Plugins** lists native packages separately. Each skill has a state: **outdated** (a newer version is out — press **Update**), **unreleased** (a plugin's author changed it upstream without raising the version number, so the CLI has nothing new to install yet), **modified** (your copy was edited) or **up to date** (a difference in a README or changelog alone does not count). A command-line tool such as ffmpeg counts as installed as soon as its command is found. A plugin's skills can only be removed together, with **Uninstall plugin**. A copy you installed by hand offers **Adopt** when Foundry can install that skill itself: the copy is replaced by one Foundry keeps up to date. Every install, update, adoption or uninstall you start there opens a tab in the **Operations** bar at the bottom of the page, with its own log; several can run side by side. A finished tab stays until you close it, and the bar folds down to a line with counts.
 
+### Skill compatibility
+
+Compatibility depends on a skill’s tools and dependencies, not its author. The catalog selects installation recipes for **Agent backend**; Claude-only recipes do not appear in the Codex catalog or its workflow hints.
+
+| Skill | Codex behavior |
+|---|---|
+| Anthropic `frontend-design` / `webapp-testing` | Portable instructions. Web testing additionally needs Python, Python Playwright and Chromium. |
+| `skill-creator` | Uses OpenAI’s version. If an older Anthropic copy is present, expand **Catalog**, find `skill-creator` and use **Replace**; the old copy goes to trash. Shared skills remain managed at their original location. |
+| `claude-api` | Optional reference for projects using the Anthropic SDK. It does not switch Foundry’s login or require Claude as the executing agent; it is not automatically suggested to every worker. |
+| Graphify / Impeccable | Use the Codex installation recipe / native skill directory. Update an older Foundry-managed Impeccable copy to select the current native variant. |
+| gstack / Claude plugin recipes | Not recommended through the Codex skill catalog. gstack’s upstream Codex port is experimental and outside reviews need Claude CLI; native Codex plugins have their own **Plugins** tab. |
+| Image / video skills | Still need their rendering tools, project dependencies and any service credentials. ChatGPT login does not provide image API keys or the desktop app’s image tools to headless sessions. |
+
+An **installed** label means the skill was found, not that every optional tool or service has been configured. Personal/shared skills are still visible; Foundry does not remove them when the selected catalog changes. If an explicit upstream skill path disappears, installation reports the missing path rather than choosing a same-named skill for another agent.
+
 ### Codex plugins
 
 ![Codex native plugin management — demonstration data](images/codex-native-plugins.png)

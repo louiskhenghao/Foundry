@@ -294,52 +294,46 @@ function Rows({ rows }: { rows: (string | JSX.Element)[][] }) {
   );
 }
 
-/** Header pill: account-derived Codex quota, or Claude's local cost and native signal. */
+/** A stable, provider-neutral entry point; independent native summaries live in the tooltip. */
 export function UsagePill() {
   const version = useLive((s) => s.globalVersion);
-  const [u, setU] = useState<Usage | null>(null);
+  const [usages, setUsages] = useState<Partial<Record<AgentProvider, Usage>>>({});
   const [minimaxLow, setMinimaxLow] = useState(false);
-  // the engine keeps the MiniMax quota for 10 minutes; asking more often costs nothing
   useEffect(() => {
-    const load = () => api.minimaxQuota().then((q) => setMinimaxLow((q.state === 'plan' || q.state === 'balance') && q.low)).catch(() => {});
+    let alive = true;
+    const load = () => api.minimaxQuota().then((q) => { if (alive) setMinimaxLow((q.state === 'plan' || q.state === 'balance') && q.low); }).catch(() => {});
     const t = setTimeout(load, 2000);
     const i = setInterval(load, 5 * 60_000);
-    return () => {
-      clearTimeout(t);
-      clearInterval(i);
-    };
+    return () => { alive = false; clearTimeout(t); clearInterval(i); };
   }, []);
   useEffect(() => {
-    const load = () => api.usage().then(setU).catch(() => {});
+    let alive = true;
+    const load = async () => {
+      const providers = ['claude', 'codex'] as const;
+      const results = await Promise.allSettled(providers.map(provider => api.usage(provider)));
+      if (alive) setUsages(Object.fromEntries(results.flatMap((result, index) => result.status === 'fulfilled' ? [[providers[index], result.value]] : [])));
+    };
     const t = setTimeout(load, 300);
     const i = setInterval(load, 30_000);
-    return () => {
-      clearTimeout(t);
-      clearInterval(i);
-    };
+    return () => { alive = false; clearTimeout(t); clearInterval(i); };
   }, [version]);
-  if (!u) return null;
-  return <UsagePillView u={u} minimaxLow={minimaxLow} />;
+  return <UsagePillView usages={usages} minimaxLow={minimaxLow} />;
 }
 
-export function UsagePillView({ u, minimaxLow = false }: { u: Usage; minimaxLow?: boolean }) {
-  const w = u.fiveHour;
-  const codex = u.provider === 'codex';
-  const blocked = codex ? u.codexQuota?.state === 'available' && u.codexQuota.ordinaryUsageAllowed === false : !!w.status && w.status !== 'allowed';
-  const color = u.pausedUntil ? 'text-amber-300 border-amber-500/40' : blocked ? 'text-rose-300 border-rose-500/40' : 'text-zinc-300 border-zinc-700';
-  const summary = `${codex ? 'Codex' : 'Claude'} · ${u.pausedUntil ? `paused ${untilText(u.pausedUntil)}` : codex ? codexQuotaSummary(u.codexQuota) : `5h ${fmtUsd(w.costUsd)}`}`;
-  return (
-    <Link to={`/usage?provider=${u.provider ?? 'claude'}`} aria-label={`Usage: ${summary}${minimaxLow ? '. MiniMax quota low' : ''}`} className={cn('flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] mono', color)} title={`${summary}\n${minimaxLow ? `MiniMax quota low: under 10% of a window left, or a balance under 1 — see Usage\n${u.note}` : u.note}`}>
-      <Gauge size={12} />
-      <span className="hidden sm:inline whitespace-nowrap">{summary}</span>
-      {!codex && w.resetsAt && !u.pausedUntil && <span className="text-zinc-500 hidden lg:inline whitespace-nowrap">· reset {untilText(w.resetsAt)}</span>}
-      {/* the header has little room: an amber dot, and words only on wide screens */}
-      {minimaxLow && (
-        <span className="flex items-center gap-1 text-amber-300 whitespace-nowrap">
-          <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-          <span className="hidden 2xl:inline">MiniMax low</span>
-        </span>
-      )}
-    </Link>
-  );
+export function UsagePillView({ usages, minimaxLow = false }: { usages: Partial<Record<AgentProvider, Usage>>; minimaxLow?: boolean }) {
+  const values = Object.values(usages);
+  const paused = values.some(u => u.pausedUntil && Date.parse(u.pausedUntil) > Date.now());
+  const blocked = values.some(u => u.provider === 'codex' ? u.codexQuota?.state === 'available' && u.codexQuota.ordinaryUsageAllowed === false : !!u.fiveHour.status && u.fiveHour.status !== 'allowed');
+  const attention = paused || blocked || minimaxLow;
+  const summaries = (['claude', 'codex'] as const).map(provider => {
+    const u = usages[provider];
+    const name = provider === 'codex' ? 'Codex' : 'Claude Code';
+    if (!u) return `${name} · usage unavailable`;
+    return `${name} · ${u.pausedUntil && Date.parse(u.pausedUntil) > Date.now() ? 'sessions paused · ' : ''}${provider === 'codex' ? codexQuotaSummary(u.codexQuota) : `Foundry activity (5h) ${fmtUsd(u.fiveHour.costUsd)}`}`;
+  });
+  const title = [...summaries, ...(minimaxLow ? ['MiniMax quota low'] : []), 'Open Usage to view each backend separately.'].join('\n');
+  return <Link to="/usage" aria-label={`Usage across Claude Code and Codex${attention ? ' · needs attention' : ''}`} title={title} className={cn('flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs', attention ? 'text-amber-300 border-amber-500/40' : 'text-zinc-300 border-zinc-700 hover:bg-zinc-900')}>
+    <Gauge size={14} /><span className="hidden sm:inline">Usage</span>
+    {attention && <span className="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true" />}
+  </Link>;
 }

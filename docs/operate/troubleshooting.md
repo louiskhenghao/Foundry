@@ -16,6 +16,16 @@ Where to look:
 
 ---
 
+## Setup and Accounts disagree about an installed CLI
+
+Older versions captured the CLI path when Foundry started. A later CLI installation could make Setup pass while Accounts still reported `codex CLI not installed` (or the Claude equivalent), even after a forced account refresh. Accounts now resolves the binary again for status, sign-in and sign-out and invalidates its cached result when the resolved path changes.
+
+Update Foundry and restart when idle. On an older version, an idle restart is also a workaround; reinstalling the CLI or clearing credentials is unnecessary. If it persists, compare **Settings → Engine (install)** with the environment that launches the server: an explicit binary override takes precedence over PATH, and Setup/Accounts must use the same configured native home. A change to PATH in another terminal does not change an already-running server’s environment.
+
+## A recommended skill path no longer exists
+
+`resolving-merge-conflicts` was removed by Matt Pocock upstream. The current **Development workflow — Matt Pocock's engineering skills** bundle has eight entries and no longer requests it; built-in Merger instructions cover conflicts. Update Foundry and retry the bundle. For other missing paths, inspect the install log and current upstream layout. Foundry will not silently substitute another agent’s same-named skill. See [skill compatibility](../guide/settings.md#skill-compatibility).
+
 ## Doctor checks
 
 ```bash

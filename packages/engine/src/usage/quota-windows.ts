@@ -27,8 +27,8 @@ export function codexQuotaSummary(quota?: CodexQuota): string {
   let summary = 'quota windows unavailable';
   if (windows.length === 1) {
     const { label, window } = windows[0]!;
-    const percent = window.usedPercent;
-    summary = `${label.replace(/ limit$/, '')} ${percent == null || !Number.isFinite(percent) ? 'usage unknown' : `${Math.round(percent * 10) / 10}% used`}`;
+    const percent = window.usedPercent == null ? null : 100 - Math.max(0, Math.min(100, window.usedPercent));
+    summary = `${label.replace(/ limit$/, '')} ${percent == null || !Number.isFinite(percent) ? 'remaining unknown' : `${Math.round(percent * 10) / 10}% remaining`}`;
   } else if (windows.length > 1) {
     const label = windows[0]!.label;
     summary = label.endsWith(' limit') && windows.every(window => window.label === label)

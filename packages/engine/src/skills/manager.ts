@@ -86,7 +86,11 @@ export class SkillsManager {
     } catch {}
     if (!this.catalogCache || mtime !== this.catalogMtime) {
       this.catalogCache = loadCatalog(this.opts.catalogPath);
-      if (this.opts.provider === 'codex') this.catalogCache.entries = this.catalogCache.entries.filter((entry) => entry.source.type !== 'plugin');
+      const provider = this.opts.provider ?? 'claude';
+      this.catalogCache.entries = this.catalogCache.entries
+        .filter((entry) => !entry.providers || entry.providers.includes(provider))
+        .map((entry) => ({ ...entry, source: entry.providerSources?.[provider] ?? entry.source }))
+        .filter((entry) => provider !== 'codex' || entry.source.type !== 'plugin');
       this.catalogMtime = mtime;
       this.hints.invalidate();
     }

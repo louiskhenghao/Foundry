@@ -191,6 +191,10 @@ Every file the goal changed compared with where it started, with lines added (gr
 
 ## The Agents page
 
+![Claude Code and Codex sessions — demonstration data](images/agents.png)
+
+Use **All engines**, **Claude Code** or **Codex** to filter the list. Counts beside each engine refer to the loaded last-24-hour inventory. **Search sessions** matches titles, goal names, models, directories and session IDs within that engine. The list refreshes automatically; external sessions remain read-only.
+
 **Agents** combines Foundry-owned sessions with recent native Claude Code and Codex history. Each row identifies its backend; retrieval is bounded, so this is not an inventory of every conversation ever created.
 
 - **Foundry agents**: sessions Foundry started for your goals, with the goal they belong to. These can be stopped with the ■ button.

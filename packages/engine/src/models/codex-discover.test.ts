@@ -69,6 +69,12 @@ describe('discoverCodexModels', () => {
     expect(() => process.kill(fixture.pid(), 0)).toThrow();
   });
 
+  test('records the CLI version from a normal terminal client-name handshake', async () => {
+    const fixture = server(`${initialize.replace('Codex Desktop/1.2.3', 'foundry_model_catalog/0.160.0')} send(msg.id, {data:[],nextCursor:null});`);
+    const result = await discoverCodexModels(fixture.bin, fixture.home);
+    expect(result.cliVersion).toBe('0.160.0');
+  });
+
   test('can explicitly include hidden models and handles a response split across chunks', async () => {
     const fixture = server(`${initialize}
       const response=JSON.stringify({id:msg.id,result:{data:[{id:'hidden',hidden:true}],nextCursor:null}})+'\\n';
