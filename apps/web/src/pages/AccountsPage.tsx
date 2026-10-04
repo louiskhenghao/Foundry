@@ -28,14 +28,14 @@ export function AccountsPage() {
       return <Card key={account.provider} title={<span>{name}{info.defaultProvider === account.provider && <span className="ml-2 text-xs text-zinc-500">default for new goals</span>}</span>}>
         <p className={account.status.loggedIn ? 'text-emerald-400' : 'text-amber-300'}>{account.status.loggedIn ? 'Connected' : account.installed ? 'Sign in required' : 'CLI not installed'}</p>
         <p className="text-sm text-zinc-400 mt-2">{account.status.email ?? account.status.authMethod ?? (account.provider === 'codex' ? 'Use your ChatGPT account' : 'Use your Claude subscription')}</p>
-        <p className="text-xs text-zinc-500 mt-2">Credentials are managed by {name} and shared with the local CLI. Signing out here also signs out that CLI.</p>
+        <p className="text-xs text-zinc-500 mt-2">{account.status.subscriptionType ? `Plan: ${account.status.subscriptionType}. ` : null}Credentials are managed by {name} and shared with the local CLI. Signing out here also signs out that CLI.</p>
         <div className="flex gap-2 my-4"><Button disabled={busy || !account.installed} onClick={() => account.status.loggedIn ? setLogout(account.provider) : setLogin(account.provider)}>{account.status.loggedIn ? 'Sign out' : `Sign in to ${name}`}</Button></div>
         {account.status.error && <p className="text-xs text-zinc-400 mb-3">{account.status.error}</p>}
         <dl className="text-sm space-y-2 border-t border-zinc-800 pt-3">
-          <div><dt className="text-zinc-500">Usage & limits</dt><dd>{account.capabilities.dollarCosts ? 'Estimated cost, tokens and USD budgets' : 'Tokens, time, attempts and concurrency. USD cost and account quota are unavailable.'}</dd></div>
-          <div><dt className="text-zinc-500">Extensions</dt><dd>{account.capabilities.managedMcp ? 'Manage skills and MCP servers in Extensions when Claude is the launch profile' : 'Native skills; manage plugins and MCP in Codex. Allow MCP servers in Settings → Safety.'}</dd></div>
-          <div><dt className="text-zinc-500">Observability</dt><dd>{account.capabilities.skillTelemetry ? 'Skill invocations; external sessions when Claude is the launch profile' : 'Foundry sessions and tool logs. Skill invocation telemetry and external Codex sessions are unavailable.'}</dd></div>
-          {!account.capabilities.nativeSubagents && <div><dt className="text-zinc-500">Planning</dt><dd>Foundry schedules parallel tasks; the planner works within the clarification session.</dd></div>}
+          <div><dt className="text-zinc-500">Usage & limits</dt><dd>{account.capabilities.dollarCosts ? 'Estimated cost, tokens and USD budgets' : 'Native ChatGPT account quota, plus Foundry tokens, time, attempts and concurrency. USD cost is unavailable.'}</dd></div>
+          <div><dt className="text-zinc-500">Extensions</dt><dd>{'Select Claude or Codex in Extensions to manage its skills and MCP servers independently.'}</dd></div>
+          <div><dt className="text-zinc-500">Observability</dt><dd>{account.capabilities.skillTelemetry ? 'Skill invocations and external Claude sessions' : 'Foundry sessions, tool logs and read-only external Codex history. External process status and skill invocation telemetry are unavailable.'}</dd></div>
+          {!account.capabilities.nativeSubagents && <div><dt className="text-zinc-500">Planning</dt><dd>Foundry schedules parallel tasks; the planner runs a separate read-only session before the Brief is approved.</dd></div>}
         </dl>
       </Card>;
     })}</div>

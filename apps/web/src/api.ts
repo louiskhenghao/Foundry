@@ -310,7 +310,7 @@ export const fileUrl = (ref: FileRef) => `/api/files?${fileQuery(ref)}`;
 /** a stable string for a FileRef (React keys, comparisons) */
 export const fileKey = (ref: FileRef) => fileQuery(ref);
 
-async function req<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) } });
   const text = await res.text();
   const body = text ? safeJson(text) : null;
@@ -325,7 +325,13 @@ const safeJson = (t: string) => {
   }
 };
 
-export const api = {
+/** An immutable client scope keeps in-flight extension operations on their selected provider. */
+export function apiForProvider(provider?: AgentProvider) {
+  const req = <T>(path: string, init?: RequestInit) => {
+    const scoped = provider && /^\/api\/(skills|mcp|doctor|tools)(?:[/?]|$)/.test(path);
+    return request<T>(scoped ? `${path}${path.includes('?') ? '&' : '?'}provider=${provider}` : path, init);
+  };
+  return {
   agents: () => req<AgentsList>('/api/agents'),
   agentsSummary: () => req<AgentsSummary>('/api/agents/summary'),
   agentLog: (sessionId: string, offset = 0, agent?: string) => req<AgentLogChunk>(`/api/agents/${sessionId}/log?offset=${offset}${agent ? `&agent=${encodeURIComponent(agent)}` : ''}`),
@@ -487,3 +493,6 @@ export const api = {
   probeUsage: (provider?: AgentProvider) => req<Usage>(`/api/usage/probe${provider ? `?provider=${provider}` : ''}`, { method: 'POST' }),
   minimaxQuota: (refresh = false) => req<MinimaxQuota>(`/api/usage/minimax${refresh ? '?refresh=1' : ''}`),
 };
+}
+
+export const api = apiForProvider();

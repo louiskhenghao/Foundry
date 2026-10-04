@@ -2,7 +2,8 @@ import type { MinimaxQuota, UsageBucket, WindowSummary } from '@foundry/engine/u
 import { Gauge, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { api, type Usage } from '../api.ts';
+import { api, type AgentProvider, type Usage } from '../api.ts';
+import { CodexQuotaCard } from '../components/CodexQuotaCard.tsx';
 import { useLive } from '../store.ts';
 import { Badge, Button, Card, Empty, cn, fmtUsd } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
@@ -17,8 +18,19 @@ export const untilText = (iso: string) => {
 const fmtDur = (ms: number | null) => (ms == null ? '—' : ms < 1000 ? `${ms} ms` : ms < 60_000 ? `${(ms / 1000).toFixed(0)} s` : `${(ms / 60_000).toFixed(1)} min`);
 
 export function UsagePage() {
-  const [query] = useSearchParams();
-  const [provider, setProvider] = useState<'claude' | 'codex'>(() => query.get('provider') === 'codex' ? 'codex' : 'claude');
+  const [query, setQuery] = useSearchParams();
+  const provider: AgentProvider = query.get('provider') === 'codex' ? 'codex' : 'claude';
+  return <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
+    <div className="flex items-center gap-3 flex-wrap">
+      <select aria-label="Usage backend" value={provider} onChange={(e) => setQuery((current) => { const next = new URLSearchParams(current); next.set('provider', e.target.value); return next; }, { replace: true })} className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1"><option value="claude">Claude Code</option><option value="codex">Codex</option></select>
+      <h1 className="text-lg font-semibold flex items-center gap-2"><Gauge size={18} /> {provider === 'codex' ? 'Codex' : 'Claude'} usage <HelpLink to="costs-and-usage" label="What costs money and how to spend less (new tab)" /></h1>
+    </div>
+    <ProviderUsage key={provider} provider={provider} />
+  </div>;
+}
+
+/** Remount on backend changes so late reads and refreshes cannot replace another backend's data. */
+function ProviderUsage({ provider }: { provider: AgentProvider }) {
   const version = useLive((s) => s.globalVersion);
   const [u, setU] = useState<Usage | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,31 +56,28 @@ export function UsagePage() {
   const cost = (value: number) => u.costAvailable === false ? '—' : fmtUsd(value);
 
   return (
-    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
-        <select aria-label="Usage backend" disabled={busy} value={provider} onChange={(e) => setProvider(e.target.value as typeof provider)} className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1"><option value="claude">Claude Code</option><option value="codex">Codex</option></select>
-        <h1 className="text-lg font-semibold flex items-center gap-2">
-          <Gauge size={18} /> {u.provider === 'codex' ? 'Codex' : 'Claude'} usage <HelpLink to="costs-and-usage" label="What costs money and how to spend less (new tab)" />
-        </h1>
-        <span className="text-xs text-zinc-500 hidden md:inline">Foundry activity on this machine</span>
-        {u.provider === 'claude' && provider === 'claude' && <Button size="sm" variant="primary" className="ml-auto" disabled={busy} onClick={probe} title="Runs one tiny haiku session (~$0.02) to refresh the rate-limit signal">
-          <RefreshCw size={13} className={cn(busy && 'animate-spin')} /> Refresh signal
-        </Button>}
+        <span className="text-xs text-zinc-500">{provider === 'codex' ? 'Account quota and Foundry activity on this machine' : 'Foundry activity on this machine'}</span>
+        <Button size="sm" variant="primary" className="ml-auto" disabled={busy} onClick={probe} title={provider === 'codex' ? 'Reads native Codex account limits without running inference' : 'Runs one tiny haiku session (~$0.02) to refresh the rate-limit signal'}>
+          <RefreshCw size={13} className={cn(busy && 'animate-spin')} /> {provider === 'codex' ? 'Refresh quota' : 'Refresh signal'}
+        </Button>
         {err && <span className="text-xs text-rose-400 basis-full">{err}</span>}
       </div>
+      {provider === 'codex' && <CodexQuotaCard quota={u.codexQuota} />}
       {u.pausedUntil && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-4 py-2.5 text-sm">
-          ⏸ Rate limited — this backend is not starting new sessions and will resume automatically in {untilText(u.pausedUntil)} ({new Date(u.pausedUntil).toLocaleTimeString()}). Goals stay where they are.
+          {provider === 'codex' ? <>⏸ New Codex sessions are paused after a rate-limit response. Foundry's next retry is scheduled for {new Date(u.pausedUntil).toLocaleString()}; account availability is checked independently.</> : <>⏸ Rate limited — this backend is not starting new sessions and will resume automatically in {untilText(u.pausedUntil)} ({new Date(u.pausedUntil).toLocaleTimeString()}). Goals stay where they are.</>}
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <WindowCard costAvailable={u.costAvailable} w={u.fiveHour} series={u.series.hourly} now={u.now} />
-        <WindowCard costAvailable={u.costAvailable} w={u.sevenDay} series={u.series.daily} now={u.now} />
+        <WindowCard showSignal={provider === 'claude'} costAvailable={u.costAvailable} w={u.fiveHour} series={u.series.hourly} now={u.now} />
+        <WindowCard showSignal={provider === 'claude'} costAvailable={u.costAvailable} w={u.sevenDay} series={u.series.daily} now={u.now} />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Kpi label="cache hit rate (7d)" value={t.cacheHitRate == null ? '—' : `${(t.cacheHitRate * 100).toFixed(0)}%`} hint="cache-read tokens ÷ all input tokens — higher is cheaper" good={t.cacheHitRate != null && t.cacheHitRate > 0.6} />
+        <Kpi label="cache hit rate (7d)" value={t.cacheHitRate == null ? '—' : `${(t.cacheHitRate * 100).toFixed(0)}%`} hint="cache-read tokens ÷ all input tokens" good={t.cacheHitRate != null && t.cacheHitRate > 0.6} />
         <Kpi label="avg cost / session (7d)" value={t.avgCostPerSession == null ? '—' : cost(t.avgCostPerSession)} />
         <Kpi label="avg session length (7d)" value={fmtDur(t.avgDurationMs)} />
         <Kpi label="sessions not successful (7d)" value={String(t.errorSessions)} hint="ended with an error, timeout or kill" good={t.errorSessions === 0} bad={t.errorSessions > 0} />
@@ -177,7 +186,7 @@ function MinimaxCard() {
 }
 
 /** One rate-limit window: cost, token split, elapsed-time bar with reset countdown, and the cost-per-bucket bars. */
-function WindowCard({ w, series, now, costAvailable = true }: { costAvailable?: boolean; w: WindowSummary; series: UsageBucket[]; now: string }) {
+function WindowCard({ w, series, now, costAvailable = true, showSignal = true }: { costAvailable?: boolean; showSignal?: boolean; w: WindowSummary; series: UsageBucket[]; now: string }) {
   const state = !w.status ? 'pending' : w.status === 'allowed' ? 'pass' : w.status === 'allowed_warning' ? 'warn' : 'fail';
   const start = Date.parse(w.windowStart);
   const end = Date.parse(w.windowEnd);
@@ -187,11 +196,11 @@ function WindowCard({ w, series, now, costAvailable = true }: { costAvailable?: 
       title={
         <span className="flex items-center gap-2">
           {w.label}
-          <Badge state={state}>{w.status ?? 'no signal yet'}</Badge>
+          {showSignal && <Badge state={state}>{w.status ?? 'no signal yet'}</Badge>}
           {w.isUsingOverage && <Badge state="warn">overage</Badge>}
         </span>
       }
-      actions={<span className="text-[11px] text-zinc-500">{w.resetsAt ? (Date.parse(w.resetsAt) > Date.parse(now) ? `resets in ${untilText(w.resetsAt)}` : 'rolled over — next signal sets the window') : 'no reset signal yet'}</span>}
+      actions={<span className="text-[11px] text-zinc-500">{showSignal ? (w.resetsAt ? (Date.parse(w.resetsAt) > Date.parse(now) ? `resets in ${untilText(w.resetsAt)}` : 'rolled over — next signal sets the window') : 'no reset signal yet') : 'Foundry activity'}</span>}
     >
       <div className="flex items-end gap-4 flex-wrap">
         <div>

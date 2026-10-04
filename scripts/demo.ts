@@ -448,7 +448,7 @@ export async function startDemo(): Promise<{ url: string; goals: Record<string, 
   const repo = join(tmp, 'studio-site');
   await Bun.$`mkdir -p ${repo}`.quiet();
   await makeRepo(repo);
-  const engine = new Engine(defaultConfig(ROOT, { dataDir: join(tmp, 'data'), claudeHome: join(tmp, 'claude-home'), port: DEMO_PORT, alwaysReviewTasks: false, autoskills: false, log: () => {} }), new DemoRunner());
+  const engine = new Engine(defaultConfig(ROOT, { dataDir: join(tmp, 'data'), claudeHome: join(tmp, 'claude-home'), codexHome: join(tmp, 'codex-home'), port: DEMO_PORT, alwaysReviewTasks: false, autoskills: false, log: () => {} }), new DemoRunner());
   // the completion's graph refresh reports graphify and gitnexus as run, without touching this machine's tools
   engine.graphRefreshDeps = { which: (n) => `/usr/local/bin/${n}`, exec: async () => ({ code: 0, stdout: '', stderr: '' }) as never };
   const server = startServer(engine, { webDist: join(ROOT, 'apps/web/dist') });

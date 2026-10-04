@@ -6,23 +6,26 @@ import { api } from '../../api.ts';
 import { useLive } from '../../store.ts';
 import { ago, Button, cn, ConfirmDialog, Empty, Page } from '../../ui.tsx';
 import { ContextGauge } from './ContextGauge.tsx';
-import { SessionDetail } from './SessionDetail.tsx';
-import { SourceBadge, StatusDot, shortCwd, shortModel } from './rows.tsx';
+import { SessionDetail, SubagentStatus } from './SessionDetail.tsx';
+import { ProviderBadge, SourceBadge, StatusDot, shortCwd, shortModel } from './rows.tsx';
 
-/** Foundry agent sessions and supported external Claude sessions, read live from the engine — nothing stored. */
+/** Foundry agent sessions and external native sessions; outside sessions are only observed. */
 export function AgentsPage() {
   const version = useLive((s) => s.globalVersion);
   const [list, setList] = useState<AgentsList | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [kill, setKill] = useState<AgentSessionRow | null>(null);
   const [killing, setKilling] = useState(false);
   const loc = useLocation();
   const nav = useNavigate();
 
   useEffect(() => {
-    const load = () => api.agents().then(setList).catch(() => {});
+    let alive = true;
+    const load = () => api.agents().then((value) => { if (alive) { setList(value); setError(null); } }).catch((e) => { if (alive) setError(e.message); });
     const t = setTimeout(load, 150);
     const i = setInterval(load, 5_000);
     return () => {
+      alive = false;
       clearTimeout(t);
       clearInterval(i);
     };
@@ -34,21 +37,23 @@ export function AgentsPage() {
   const selected = selId ? list?.sessions.find((s) => s.sessionId === selId) : null;
 
   const doKill = () => {
-    if (!kill) return;
+    if (!kill || kill.source !== 'foundry' || !kill.foundry?.killable) return;
     setKilling(true);
     api
       .killAgent(kill.sessionId)
       .then(() => api.agents().then(setList).catch(() => {}))
-      .catch(() => {})
+      .catch((e) => setError(e.message))
       .finally(() => {
         setKilling(false);
         setKill(null);
       });
   };
 
+  const warnings = <>{error && <div role="alert" className="text-xs text-rose-300 mb-3">{error}</div>}{list?.warnings?.map((warning, index) => <div key={index} className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-200 mb-3">{warning}</div>)}</>;
   if (selId) {
     return (
       <Page width="lg">
+        {warnings}
         {selected ? <SessionDetail row={selected} agentId={selAgent ?? null} onOpen={open} onBack={() => nav({ hash: '' }, { replace: false })} /> : <Empty>{list ? 'This session is no longer in the last-24h window.' : 'Loading…'}</Empty>}
       </Page>
     );
@@ -62,23 +67,24 @@ export function AgentsPage() {
   ].filter((g) => g.rows.length > 0);
   return (
     <Page width="lg">
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
         <h1 className="text-lg font-semibold text-zinc-100">Agents</h1>
         {list && (
           <span className="text-xs text-zinc-500">
-            {list.summary.busy} working · {list.summary.idle} idle · {list.summary.finished} finished (24h)
+            {list.summary.busy} working · {list.summary.idle} idle · {list.summary.finished} finished{(list.summary.unknown ?? 0) > 0 && <> · {list.summary.unknown} unknown</>} (24h)
           </span>
         )}
       </div>
       <p className="text-xs text-zinc-500 mb-4 max-w-2xl">
-        Live Foundry sessions from both backends, plus external Claude Code sessions when enabled by the launch profile. External Codex sessions are not imported. Click a session to follow its conversation.
+        Foundry sessions and recent external Claude Code and Codex sessions. Click a session to read its conversation. External Codex process state is unknown; reading its history does not resume or change the session.
       </p>
-      {!list && <Empty>Loading…</Empty>}
+      {warnings}
+      {!list && <Empty>{error ? 'Session list unavailable; retrying…' : 'Loading…'}</Empty>}
       {list && sessions.length === 0 && <Empty>No agent sessions in the last 24 hours.</Empty>}
 
       {groups.map((g) => (
         <section key={g.key} className="mb-6">
-          <div className="flex items-baseline gap-2 mb-2">
+          <div className="flex items-baseline gap-2 flex-wrap mb-2">
             <span className={cn('h-2 w-2 rounded-full self-center shrink-0', g.accent)} />
             <h2 className="text-sm font-medium text-zinc-200">{g.label}</h2>
             <span className="text-[11px] text-zinc-600">{g.rows.length} · {g.hint}</span>
@@ -91,10 +97,10 @@ export function AgentsPage() {
                 <div className="flex items-center gap-2 min-w-0">
                   <StatusDot status={s.status} />
                   <span className="text-sm text-zinc-100 truncate flex-1">{s.title ?? s.foundry?.goalTitle ?? s.sessionId.slice(0, 8)}</span>
-                  {s.source === 'external' && <SourceBadge row={s} />}
                 </div>
-                <div className="flex items-center gap-3 text-[11px] text-zinc-500">
-                  {s.model && <span className="mono">{shortModel(s.model)}</span>}
+                <div className="flex items-center gap-2 flex-wrap"><ProviderBadge provider={s.provider} />{s.source === 'external' && <SourceBadge row={s} />}{s.status === 'unknown' && <span className="text-[10px] text-sky-400">status unknown</span>}</div>
+                <div className="flex items-center gap-3 flex-wrap text-[11px] text-zinc-500">
+                  {s.model && <span className="mono break-all">{shortModel(s.model)}</span>}
                   <ContextGauge used={s.contextUsedTokens} window={s.contextWindowTokens} />
                   {s.lastActivityAt && <span>{ago(s.lastActivityAt)}</span>}
                 </div>
@@ -124,6 +130,7 @@ export function AgentsPage() {
                       <td className="py-2 pr-3"><StatusDot status={s.status} /></td>
                       <td className="py-2 pr-3 max-w-88">
                         <span className="text-zinc-100 truncate block" title={s.sessionId}>{s.title ?? s.foundry?.goalTitle ?? s.sessionId.slice(0, 8)}</span>
+                        <div className="mt-1 flex items-center gap-2 flex-wrap"><ProviderBadge provider={s.provider} />{s.status === 'unknown' && <span className="text-[10px] text-sky-400">status unknown</span>}</div>
                       </td>
                       <td className="py-2 pr-3 max-w-40">
                         {s.source === 'foundry' ? <span className="text-xs text-violet-300 truncate block">{s.foundry?.goalTitle ?? '—'}</span> : <SourceBadge row={s} />}
@@ -135,7 +142,7 @@ export function AgentsPage() {
                       </td>
                       <td className="py-2 pr-3 mono text-xs text-zinc-500 max-w-[16rem]"><span className="truncate block" title={s.cwd ?? undefined}>{s.cwd ? shortCwd(s.cwd) : '—'}</span></td>
                       <td className="py-2">
-                        {s.foundry?.killable && (
+                        {s.source === 'foundry' && s.foundry?.killable && (
                           <Button size="sm" variant="ghost" title="Stop this session" onClick={(e) => { e.stopPropagation(); setKill(s); }}>
                             <Square size={12} className="text-rose-400" />
                           </Button>
@@ -153,7 +160,7 @@ export function AgentsPage() {
                           </span>
                         </td>
                         <td className="py-1.5 pr-3 text-[11px] whitespace-nowrap" colSpan={2}>
-                          {a.status === 'running' ? <span className="text-emerald-400">● running</span> : <span className="text-zinc-600">done</span>}
+                          <SubagentStatus status={a.status} />
                         </td>
                         <td className="py-1.5 pr-3 text-xs text-zinc-600 whitespace-nowrap" colSpan={3}>{a.lastActivityAt ? ago(a.lastActivityAt) : ''}</td>
                       </tr>

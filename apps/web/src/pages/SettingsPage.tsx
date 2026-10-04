@@ -436,11 +436,14 @@ export function SettingsPage() {
 
       <Card id="skills" title={<>Skills<HelpLink to="settings#skills" className="ml-1.5" /></>} className="scroll-mt-16">
         <div className="space-y-4">
+          <Field label="Install skills for" help="Installation status and actions target the selected agent. Workflow pack choices are shared by both agents.">
+            <Select aria-label="Skills backend" value={modelProvider} onChange={(e) => setModelProvider(e.target.value as typeof modelProvider)}><option value="claude">Claude Code</option><option value="codex">Codex</option></Select>
+          </Field>
           {grid(
             <>
-              <Field label="Profile" aside={aside('workflow.profile')} help="mattpocock: roles are told which workflow skills to invoke (tdd, diagnosing-bugs, code-review…) and the engine records what they used. plain: a one-line hint only.">
+              <Field label="Profile" aside={aside('workflow.profile')} help="mattpocock: roles are told which workflow skills to invoke (tdd, diagnosing-bugs, code-review…) and Claude sessions report which they used. Codex skill invocation telemetry is unavailable. plain: a one-line hint only.">
                 <Select value={draft.workflow.profile} onChange={(e) => set('workflow.profile', e.target.value)}>
-                  <option value="mattpocock">mattpocock (mandated + observed)</option>
+                  <option value="mattpocock">mattpocock (workflow skills)</option>
                   <option value="plain">plain (hint only)</option>
                 </Select>
               </Field>
@@ -449,13 +452,13 @@ export function SettingsPage() {
               </Field>}
             </>,
           )}
-          {draft.engine.provider === 'codex' ? <p className="text-xs text-zinc-400">Install Codex project skills in .agents/skills. Codex manages its own plugins and MCP configuration.</p> : bool('workflow.autoskills', 'autoskills per goal', 'After the Brief is approved, run `npx autoskills` in the goal workspace to install skills matching the repository’s stack (needs Node ≥ 22). The generated CLAUDE.md is restored and the skills are git-excluded.')}
+          {bool('workflow.autoskills', 'autoskills per goal', 'After the Brief is approved, run `npx autoskills` in the goal workspace to install skills matching the repository’s stack (needs Node ≥ 22). Uses .claude/skills for Claude and .agents/skills for Codex. The generated CLAUDE.md is restored and the skills are git-excluded.')}
           <div>
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-xs text-zinc-300">Design skills</span>
               <span className="ml-auto flex items-center gap-1.5">{aside('workflow.designPack')}</span>
             </div>
-            <DesignPacks compact />
+            <DesignPacks key={`${modelProvider}:design`} provider={modelProvider} compact />
             <p className="text-[11px] text-zinc-500 mt-1.5">Choosing a pack saves immediately; only that pack is shown to sessions working on frontend / fullstack tasks.</p>
           </div>
           <div>
@@ -463,7 +466,7 @@ export function SettingsPage() {
               <span className="text-xs text-zinc-300">Image skills</span>
               <span className="ml-auto flex items-center gap-1.5">{aside('workflow.imagePack')}</span>
             </div>
-            <DesignPacks compact pack="image" />
+            <DesignPacks key={`${modelProvider}:image`} provider={modelProvider} compact pack="image" />
             <p className="text-[11px] text-zinc-500 mt-1.5">Mandated to workers on image tasks (scenario `image`). The pack only generates when a key is set under Tools &amp; keys.</p>
           </div>
           <div>
@@ -471,7 +474,7 @@ export function SettingsPage() {
               <span className="text-xs text-zinc-300">Video skills</span>
               <span className="ml-auto flex items-center gap-1.5">{aside('workflow.videoPack')}</span>
             </div>
-            <DesignPacks compact pack="video" />
+            <DesignPacks key={`${modelProvider}:video`} provider={modelProvider} compact pack="video" />
             <p className="text-[11px] text-zinc-500 mt-1.5">Mandated to workers on video tasks (scenario `video`).</p>
           </div>
         </div>

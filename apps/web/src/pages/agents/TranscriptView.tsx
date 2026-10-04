@@ -68,7 +68,7 @@ export function TranscriptView({ sessionId, agentId, className }: { sessionId: s
           setStatus(c.status);
           setError(null);
           if (!c.eof) poll();
-          else if (c.status !== 'finished') timer = setTimeout(poll, POLL_MS);
+          else if (c.status !== 'finished') timer = setTimeout(poll, c.status === 'unknown' ? 15_000 : POLL_MS);
         })
         .catch((e) => {
           if (!alive) return;
@@ -97,6 +97,7 @@ export function TranscriptView({ sessionId, agentId, className }: { sessionId: s
     <>
       <div ref={ref} className={cn('surface-card mono text-[12px] leading-5 bg-zinc-950 border border-zinc-800 rounded-md p-3 overflow-auto max-h-[70vh] space-y-0.5', className)}>
         {items.length === 0 && <div className="text-zinc-600">{error ? `log unavailable: ${error}` : status === null ? 'loading…' : 'no renderable output in this transcript…'}</div>}
+        {error && items.length > 0 && <div className="text-amber-300">Could not refresh this conversation: {error}</div>}
         {items.map((it, i) => {
           // one line per entry, like the live log; entries with more behind them are buttons that open the full text
           const line = (cls: string, node: ReactNode) => {
@@ -123,7 +124,7 @@ export function TranscriptView({ sessionId, agentId, className }: { sessionId: s
           if (it.kind === 'compact') return line('text-amber-400/80 border-t border-amber-500/20 pt-1 mt-1', <>⇅ context compacted · {Math.round(it.preTokens / 1000)}k → {Math.round(it.postTokens / 1000)}k tokens</>);
           return null;
         })}
-        {status && status !== 'finished' && <div className="text-zinc-600 animate-pulse">● {status === 'busy' ? 'working…' : 'waiting for input…'}</div>}
+        {status && status !== 'finished' && <div className={cn('text-zinc-500', status !== 'unknown' && 'animate-pulse')}>{status === 'unknown' ? 'Live process state unknown · checking for new history periodically' : `● ${status === 'busy' ? 'working…' : 'waiting for input…'}`}</div>}
       </div>
       <FullTextDialog value={open !== null && items[open] ? fullOf(items[open]!, resultFor) : null} onClose={() => setOpen(null)} />
     </>

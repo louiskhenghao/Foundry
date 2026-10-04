@@ -56,6 +56,9 @@ interface FollowChoice {
 
 export function NewGoalPage() {
   const nav = useNavigate();
+  const [params] = useSearchParams();
+  const requestedProvider = params.get('provider');
+  const initialProvider = requestedProvider === 'claude' || requestedProvider === 'codex' ? requestedProvider : null;
   const [prompt, setPrompt] = useState('');
   const [repoPath, setRepoPath] = useState('');
   const [title, setTitle] = useState('');
@@ -70,7 +73,7 @@ export function NewGoalPage() {
   const [outputDir, setOutputDir] = useState('');
   const [interview, setInterview] = useState(false);
   const [effort, setEffort] = useState('');
-  const [provider, setProvider] = useState<AgentProvider>('claude');
+  const [provider, setProvider] = useState<AgentProvider>(initialProvider ?? 'claude');
   const [accountError, setAccountError] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<AccountsInfo | null>(null);
   const [codexModel, setCodexModel] = useState('codex-default');
@@ -88,7 +91,7 @@ export function NewGoalPage() {
   const [pace, setPace] = useState<'thorough' | 'fast'>('thorough');
   const [defaultRemote, setDefaultRemote] = useState('origin');
   /** fields the human changed on this page: the Settings defaults arriving later never overwrite them */
-  const changed = useRef(new Set<string>());
+  const changed = useRef(new Set<string>(initialProvider ? ['provider'] : []));
   const setMode = (v: 'simple' | 'expert') => {
     changed.current.add('mode');
     setModeState(v);
@@ -129,7 +132,6 @@ export function NewGoalPage() {
       .catch(() => {});
   }, []);
   // Follow-up: /goals/new?follows=<id> prefills the form from the earlier goal; the Follows picker only links
-  const [params] = useSearchParams();
   const [follow, setFollow] = useState<FollowChoice | null>(null);
   const [finishedGoals, setFinishedGoals] = useState<GoalRow[]>([]);
   const [repoKey, setRepoKey] = useState(0);
