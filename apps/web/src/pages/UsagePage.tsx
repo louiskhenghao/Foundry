@@ -9,6 +9,7 @@ import { CodexQuotaCard } from '../components/CodexQuotaCard.tsx';
 import { useLive } from '../store.ts';
 import { Badge, Button, Card, Empty, cn, fmtUsd } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
+import { ProviderBadge } from './agents/rows.tsx';
 
 export const fmtK = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 export const untilText = (iso: string) => {
@@ -24,10 +25,12 @@ export function UsagePage() {
   const provider: AgentProvider = query.get('provider') === 'codex' ? 'codex' : 'claude';
   return <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
     <div className="flex items-center gap-3 flex-wrap">
-      <h1 className="text-lg font-semibold flex items-center gap-2"><Gauge size={18} /> {provider === 'codex' ? 'Codex' : 'Claude'} usage <HelpLink to="costs-and-usage" label="What costs money and how to spend less (new tab)" /></h1>
+      <h1 className="text-lg font-semibold flex items-center gap-2"><Gauge size={18} /> Usage <HelpLink to="costs-and-usage" label="What costs money and how to spend less (new tab)" /></h1>
     </div>
     <ProviderSelector value={provider} onChange={(id) => setQuery((current) => { const next = new URLSearchParams(current); next.set('provider', id); return next; }, { replace: true })} />
     <ProviderUsage key={provider} provider={provider} />
+    <FoundryActivity />
+    <MinimaxCard />
   </div>;
 }
 
@@ -54,8 +57,6 @@ function ProviderUsage({ provider }: { provider: AgentProvider }) {
     }
   };
   if (!u) return <Empty>{err ?? 'Loading usage…'}</Empty>;
-  const t = u.totals;
-  const cost = (value: number) => u.costAvailable === false ? '—' : fmtUsd(value);
 
   return (
     <div className="space-y-4">
@@ -74,21 +75,48 @@ function ProviderUsage({ provider }: { provider: AgentProvider }) {
       )}
 
       <UsageActivity provider={provider} u={u} />
+    </div>
+  );
+}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Kpi label="cache hit rate (7d)" value={t.cacheHitRate == null ? '—' : `${(t.cacheHitRate * 100).toFixed(0)}%`} hint="cache-read tokens ÷ all input tokens" good={t.cacheHitRate != null && t.cacheHitRate > 0.6} />
-        <Kpi label="avg cost / session (7d)" value={t.avgCostPerSession == null ? '—' : cost(t.avgCostPerSession)} />
-        <Kpi label="avg session length (7d)" value={fmtDur(t.avgDurationMs)} />
-        <Kpi label="sessions not successful (7d)" value={String(t.errorSessions)} hint="ended with an error, timeout or kill" good={t.errorSessions === 0} bad={t.errorSessions > 0} />
+/**
+ * What Foundry recorded over the last 7 days, for both coding agents together: these numbers come from
+ * Foundry's own session ledger, not from either account. Codex reports no dollar cost, so its cost reads —.
+ */
+function FoundryActivity() {
+  const version = useLive((s) => s.globalVersion);
+  const [both, setBoth] = useState<Partial<Record<AgentProvider, Usage>> | null>(null);
+  useEffect(() => {
+    let current = true;
+    const t = setTimeout(async () => {
+      const providers = ['claude', 'codex'] as const;
+      const results = await Promise.allSettled(providers.map((p) => api.usage(p)));
+      if (current) setBoth(Object.fromEntries(results.flatMap((r, i) => (r.status === 'fulfilled' ? [[providers[i], r.value]] : []))));
+    }, 200);
+    return () => { current = false; clearTimeout(t); };
+  }, [version]);
+  if (!both) return null;
+  const m = mergeActivity(both);
+  const cost = (value: number | null) => (value == null ? '—' : fmtUsd(value));
+  return (
+    <section className="space-y-3 pt-2" aria-labelledby="foundry-activity">
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <h2 id="foundry-activity" className="text-sm font-medium text-zinc-200">Foundry activity · last 7 days</h2>
+        <span className="text-xs text-zinc-500">Claude Code and Codex together, as recorded by Foundry. Dollar cost covers Claude Code only.</span>
       </div>
-
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Kpi label="cache hit rate" value={m.cacheHitRate == null ? '—' : `${(m.cacheHitRate * 100).toFixed(0)}%`} hint="cache-read tokens ÷ all input tokens" good={m.cacheHitRate != null && m.cacheHitRate > 0.6} />
+        <Kpi label="avg cost / Claude session" value={cost(m.avgCostPerSession)} />
+        <Kpi label="avg session length" value={fmtDur(m.avgDurationMs)} />
+        <Kpi label="sessions not successful" value={String(m.errorSessions)} hint="ended with an error, timeout or kill" good={m.errorSessions === 0} bad={m.errorSessions > 0} />
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card title="By goal (7d, top 10)">
-          {u.byGoal.length === 0 ? (
+        <Card title="By goal (top 10)">
+          {m.byGoal.length === 0 ? (
             <div className="text-xs text-zinc-500">nothing yet</div>
           ) : (
             <div className="text-xs space-y-1.5">
-              {u.byGoal.map((g) => (
+              {m.byGoal.map((g) => (
                 <div key={g.goalId ?? 'none'} className="flex items-center gap-2">
                   {g.goalId ? (
                     <Link className="truncate flex-1 text-zinc-200 hover:underline" to={`/goals/${g.goalId}`} title={g.goalId}>
@@ -105,17 +133,51 @@ function ProviderUsage({ provider }: { provider: AgentProvider }) {
             </div>
           )}
         </Card>
-        <Card title="By session kind (7d)">
-          <Rows rows={u.byKind.map((k) => [k.kind, `${k.sessions}× · ${fmtDur(k.avgDurationMs)}`, cost(k.costUsd)])} />
+        <Card title="By session kind">
+          <Rows rows={m.byKind.map((k) => [k.kind, `${k.sessions}× · ${fmtDur(k.avgDurationMs)}`, cost(k.costUsd)])} />
         </Card>
-        <Card title="By model (7d)">
-          <Rows rows={u.byModel.map((m) => [m.model, `${m.sessions}× · ${fmtK(m.outputTokens)} out`, cost(m.costUsd)])} />
+        <Card title="By model">
+          <Rows rows={m.byModel.map((x) => [<span className="flex items-center gap-1.5 min-w-0"><ProviderBadge provider={x.provider} compact /><span className="truncate">{x.model}</span></span>, `${x.sessions}× · ${fmtK(x.outputTokens)} out`, cost(x.costUsd)])} />
         </Card>
       </div>
-      <p className="text-xs text-zinc-500">{u.note}</p>
-      <MinimaxCard />
-    </div>
+      <p className="text-xs text-zinc-500">Counts only sessions started by Foundry on this machine. Account limits are above, per coding agent; for exact Claude percentages run /usage inside Claude Code.</p>
+    </section>
   );
+}
+
+/** Both agents' 7-day breakdowns as one; Codex contributes sessions, tokens and durations but no cost. */
+export function mergeActivity(both: Partial<Record<AgentProvider, Pick<Usage, 'sevenDay' | 'byGoal' | 'byKind' | 'byModel' | 'totals'>>>) {
+  const parts = (['claude', 'codex'] as const).flatMap((p) => (both[p] ? [{ p, u: both[p]! }] : []));
+  const costOf = (p: AgentProvider, v: number) => (p === 'codex' ? null : v);
+  const add = (a: number | null, b: number | null) => (a == null ? b : b == null ? a : a + b);
+  const goals = new Map<string, { goalId: string | null; title: string | null; state: string | null; sessions: number; costUsd: number | null }>();
+  const kinds = new Map<string, { kind: string; sessions: number; costUsd: number | null; durMs: number }>();
+  for (const { p, u } of parts) {
+    for (const g of u.byGoal) {
+      const k = g.goalId ?? '';
+      const cur = goals.get(k) ?? { goalId: g.goalId, title: g.title, state: g.state, sessions: 0, costUsd: null };
+      goals.set(k, { ...cur, sessions: cur.sessions + g.sessions, costUsd: add(cur.costUsd, costOf(p, g.costUsd)) });
+    }
+    for (const k of u.byKind) {
+      const cur = kinds.get(k.kind) ?? { kind: k.kind, sessions: 0, costUsd: null, durMs: 0 };
+      kinds.set(k.kind, { kind: k.kind, sessions: cur.sessions + k.sessions, costUsd: add(cur.costUsd, costOf(p, k.costUsd)), durMs: cur.durMs + k.avgDurationMs * k.sessions });
+    }
+  }
+  const byCost = (a: { costUsd: number | null; sessions: number }, b: { costUsd: number | null; sessions: number }) => (b.costUsd ?? 0) - (a.costUsd ?? 0) || b.sessions - a.sessions;
+  const sessions = parts.reduce((n, { u }) => n + u.sevenDay.sessions, 0);
+  const claude = both.claude;
+  const read = parts.reduce((n, { u }) => n + u.sevenDay.cacheReadTokens, 0);
+  const input = parts.reduce((n, { u }) => n + u.sevenDay.inputTokens + u.sevenDay.cacheReadTokens, 0);
+  const durTotal = parts.reduce((n, { u }) => n + (u.totals.avgDurationMs ?? 0) * u.sevenDay.sessions, 0);
+  return {
+    byGoal: [...goals.values()].sort(byCost).slice(0, 10),
+    byKind: [...kinds.values()].sort(byCost).map((k) => ({ kind: k.kind, sessions: k.sessions, costUsd: k.costUsd, avgDurationMs: k.sessions ? Math.round(k.durMs / k.sessions) : 0 })),
+    byModel: parts.flatMap(({ p, u }) => u.byModel.map((x) => ({ ...x, provider: p, costUsd: costOf(p, x.costUsd) }))).sort(byCost),
+    cacheHitRate: input > 0 ? read / input : null,
+    avgCostPerSession: claude?.totals.avgCostPerSession ?? null,
+    avgDurationMs: sessions ? Math.round(durTotal / sessions) : null,
+    errorSessions: parts.reduce((n, { u }) => n + u.totals.errorSessions, 0),
+  };
 }
 
 /** MiniMax quota (video and narration through mmx), read when the page opens; hidden when mmx is not installed. */
