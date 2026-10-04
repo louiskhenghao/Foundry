@@ -98,7 +98,7 @@ export function SetupPage() {
       <div>
         <h1 className="text-lg font-semibold">Setup</h1>
         <p className="text-sm text-zinc-400 mt-1">
-          Foundry drives the Claude Code already installed on this machine. This page checks everything it needs and installs the recommended skills for you. Nothing here touches your code.
+          Foundry drives the selected coding agent installed on this machine. This page checks everything it needs and installs the recommended skills for you. Nothing here touches your code.
         </p>
       </div>
       <div className={cn('rounded-lg border p-4 flex items-center gap-3', report.ok ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-rose-500/40 bg-rose-500/5')}>
@@ -126,7 +126,7 @@ export function SetupPage() {
                 <div className="text-xs text-zinc-400 mt-0.5">{c.detail}</div>
                 {!c.ok && c.fix && (
                   <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
-                    {c.id === 'claude-auth' && (
+                    {['claude-auth', 'codex-auth'].includes(c.id) && (
                       <Button size="sm" variant="primary" onClick={() => setSignIn(true)}>
                         Sign in
                       </Button>

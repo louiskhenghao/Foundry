@@ -69,6 +69,7 @@ export function NewGoalPage() {
   const [outputDir, setOutputDir] = useState('');
   const [interview, setInterview] = useState(false);
   const [effort, setEffort] = useState('');
+  const [codexModel, setCodexModel] = useState<string | null>(null);
   const [modelPreset, setModelPreset] = useState('');
   const [presetInfo, setPresetInfo] = useState<{ ids: { id: string; label: string }[]; picks: Record<ModelNature, string> } | null>(null);
   useEffect(() => localStorage.setItem(NATURE_KEY, nature), [nature]);
@@ -99,6 +100,7 @@ export function NewGoalPage() {
     api
       .settings()
       .then((v) => {
+        if (v.values.engine.provider === 'codex') setCodexModel(v.values.models.codexModel);
         const presets = effectivePresets((v.values.models.presets ?? {}) as Record<string, ModelPreset>);
         setPresetInfo({ ids: Object.entries(presets).map(([id, p]) => ({ id, label: p.label })), picks: { code: v.values.models.presetCode, docs: v.values.models.presetDocs, media: v.values.models.presetMedia } });
         const d = v.values;
@@ -199,7 +201,7 @@ export function NewGoalPage() {
         outputDir: (nature === 'image' || nature === 'video') && outputDir.trim() ? outputDir.trim() : undefined,
         interview: interview ? 'always' : undefined,
         effort: effort ? (effort as 'low' | 'medium' | 'high' | 'xhigh' | 'max') : undefined,
-        modelPreset: modelPreset || undefined,
+        modelPreset: codexModel ? undefined : modelPreset || undefined,
         follows: follow ? { goalId: follow.draft.previous.id, startFrom: follow.startFrom, attachments: follow.attachments, style: follow.style } : undefined,
       });
       try {
@@ -331,7 +333,7 @@ export function NewGoalPage() {
           </div>
           <div className="flex items-center gap-2.5 flex-wrap">
             <span className="text-xs text-zinc-300">Models<HelpLink to="your-first-goal#models" className="ml-1.5" /></span>
-            <ButtonGroup
+            {codexModel ? <span className="text-xs text-zinc-400">Codex · {codexModel} (Settings → Models)</span> : <ButtonGroup
               label="Models"
               value={modelPreset}
               onChange={setModelPreset}
@@ -343,9 +345,10 @@ export function NewGoalPage() {
                 },
                 ...(presetInfo?.ids ?? []).map((p) => ({ id: p.id, label: p.label })),
               ]}
-            />
+            />}
           </div>
         </div>
+        {codexModel && <p className="text-xs text-amber-300 mt-3">Codex dollar costs are unavailable; dollar budgets do not stop runs. Use duration and attempt limits.</p>}
         {mode === 'expert' && (
           <div className="mt-3 flex items-center gap-2.5 flex-wrap">
             <span className="text-xs text-zinc-300">Engineering discipline — TDD<HelpLink to="your-first-goal#engineering-discipline-tdd" className="ml-1.5" /></span>

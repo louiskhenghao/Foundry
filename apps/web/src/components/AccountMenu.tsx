@@ -18,14 +18,15 @@ export function AccountMenu() {
 
   if (!info) return null;
   const st = info.status;
+  const provider = info.provider === 'codex' ? 'Codex' : 'Claude Code';
   if (!st.loggedIn) {
     return (
       <>
-        <button onClick={() => setSignIn(true)} className="flex items-center gap-1.5 rounded-md border border-rose-500/50 text-rose-300 px-2 py-1 text-[11px] whitespace-nowrap" title="Sign in to Claude" aria-label="Sign in to Claude">
+        <button onClick={() => setSignIn(true)} className="flex items-center gap-1.5 rounded-md border border-rose-500/50 text-rose-300 px-2 py-1 text-[11px] whitespace-nowrap" title={`Sign in to ${provider}`} aria-label={`Sign in to ${provider}`}>
           <UserCircle2 size={13} />
           {/* the header is full: words only where there is room (none on a phone, "Sign in" until very wide), the tooltip spells it out */}
           <span className="hidden sm:inline">Sign in</span>
-          <span className="hidden 2xl:inline -ml-1">to Claude</span>
+          <span className="hidden 2xl:inline -ml-1">to {provider}</span>
         </button>
         {signIn && <SignInDialog onClose={() => { setSignIn(false); load(true); }} />}
       </>
@@ -52,12 +53,12 @@ export function AccountMenu() {
     >
       {(close) => (
         <div className="p-1.5 space-y-2">
-          <div className="text-zinc-400">Signed in to Claude Code as</div>
-          <div className="mono text-zinc-100">{st.email}</div>
+          <div className="text-zinc-400">Signed in to {provider}</div>
+          <div className="mono text-zinc-100">{st.email ?? st.authMethod}</div>
           <div className="text-zinc-500">
             {st.subscriptionType ? `${st.subscriptionType} subscription` : st.authMethod} {st.orgName ? `· ${st.orgName}` : ''}
           </div>
-          <div className="text-[10px] text-zinc-600">checked {new Date(st.checkedAt).toLocaleTimeString()} · credentials are managed by Claude Code, not by Foundry</div>
+          <div className="text-[10px] text-zinc-600">checked {new Date(st.checkedAt).toLocaleTimeString()} · credentials are managed by {provider}</div>
           <div className="flex gap-2 pt-1">
             {confirmOut ? (
               <>

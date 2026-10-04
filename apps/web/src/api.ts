@@ -188,6 +188,7 @@ export interface LoginSession {
   needsCode: boolean;
 }
 export interface AuthInfo {
+  provider: 'claude' | 'codex';
   status: ClaudeAuthStatus;
   login: LoginSession | null;
 }

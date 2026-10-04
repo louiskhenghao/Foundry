@@ -6,6 +6,8 @@ import { Button, CopyButton, Input, cn } from '../ui.tsx';
 
 /** Runs `claude auth login` through the engine; the browser opens on this machine, the URL is shown too. */
 export function SignInDialog({ onClose }: { onClose: () => void }) {
+  const [provider, setProvider] = useState<'claude' | 'codex' | null>(null);
+  useEffect(() => { api.auth().then((info) => setProvider(info.provider)).catch((e) => setErr(e.message)); }, []);
   const [email, setEmail] = useState('');
   const [session, setSession] = useState<LoginSession | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -45,20 +47,20 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
       <div className="w-full max-w-lg rounded-lg border border-zinc-800 bg-zinc-950 p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">Sign in to Claude</h2>
+          <h2 className="text-base font-semibold">Sign in to {provider === 'codex' ? 'Codex' : 'Claude'}</h2>
           <Button size="sm" variant="ghost" onClick={onClose}>
             <X size={14} />
           </Button>
         </div>
-        <p className="text-xs text-zinc-400">Same flow as Claude Code: a browser window opens on this machine, you sign in, and this page updates by itself. When the engine runs where there is no browser (a container, a remote host), open the link yourself and paste the code it gives you. Foundry never sees your password or token — Claude Code stores the credential.</p>
+        {provider === 'codex' ? <p className="text-xs text-zinc-400">Sign in with ChatGPT. Open the device login link below and enter the code shown in the log on that page. Codex stores your credentials.</p> : <p className="text-xs text-zinc-400">Same flow as Claude Code: a browser window opens on this machine, you sign in, and this page updates by itself. When the engine runs where there is no browser (a container, a remote host), open the link yourself and paste the code it gives you. Foundry never sees your password or token — Claude Code stores the credential.</p>}
         {!session ? (
           <>
-            <p className="text-xs text-zinc-400">Sign in with your Claude subscription (Pro or Max). Foundry does not use Anthropic Console API billing.</p>
-            <Input placeholder="email (optional, pre-fills the login page)" value={email} onChange={(e) => setEmail(e.target.value)} />
+            {provider !== 'codex' && <><p className="text-xs text-zinc-400">Sign in with your Claude subscription (Pro or Max). Foundry does not use Anthropic Console API billing.</p>
+            <Input placeholder="email (optional, pre-fills the login page)" value={email} onChange={(e) => setEmail(e.target.value)} /></>}
             {err && <div className="text-xs text-rose-400">{err}</div>}
             <div className="flex justify-end">
-              <Button variant="primary" onClick={start}>
-                Open browser & sign in
+              <Button variant="primary" disabled={!provider} onClick={start}>
+                Start sign in
               </Button>
             </div>
           </>

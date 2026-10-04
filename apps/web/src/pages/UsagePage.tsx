@@ -38,17 +38,18 @@ export function UsagePage() {
   };
   if (!u) return <Empty>{err ?? 'Loading usage…'}</Empty>;
   const t = u.totals;
+  const cost = (value: number) => u.costAvailable === false ? '—' : fmtUsd(value);
 
   return (
     <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-lg font-semibold flex items-center gap-2">
-          <Gauge size={18} /> Claude usage <HelpLink to="costs-and-usage" label="What costs money and how to spend less (new tab)" />
+          <Gauge size={18} /> {u.provider === 'codex' ? 'Codex' : 'Claude'} usage <HelpLink to="costs-and-usage" label="What costs money and how to spend less (new tab)" />
         </h1>
-        <span className="text-xs text-zinc-500 hidden md:inline">what Foundry spent on this machine · for your account's percentages run /usage inside Claude Code</span>
-        <Button size="sm" variant="primary" className="ml-auto" disabled={busy} onClick={probe} title="Runs one tiny haiku session (~$0.02) to refresh the rate-limit signal">
+        <span className="text-xs text-zinc-500 hidden md:inline">Foundry activity on this machine</span>
+        {u.provider !== 'codex' && <Button size="sm" variant="primary" className="ml-auto" disabled={busy} onClick={probe} title="Runs one tiny haiku session (~$0.02) to refresh the rate-limit signal">
           <RefreshCw size={13} className={cn(busy && 'animate-spin')} /> Refresh signal
-        </Button>
+        </Button>}
         {err && <span className="text-xs text-rose-400 basis-full">{err}</span>}
       </div>
       {u.pausedUntil && (
@@ -58,13 +59,13 @@ export function UsagePage() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <WindowCard w={u.fiveHour} series={u.series.hourly} now={u.now} />
-        <WindowCard w={u.sevenDay} series={u.series.daily} now={u.now} />
+        <WindowCard costAvailable={u.costAvailable} w={u.fiveHour} series={u.series.hourly} now={u.now} />
+        <WindowCard costAvailable={u.costAvailable} w={u.sevenDay} series={u.series.daily} now={u.now} />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Kpi label="cache hit rate (7d)" value={t.cacheHitRate == null ? '—' : `${(t.cacheHitRate * 100).toFixed(0)}%`} hint="cache-read tokens ÷ all input tokens — higher is cheaper" good={t.cacheHitRate != null && t.cacheHitRate > 0.6} />
-        <Kpi label="avg cost / session (7d)" value={t.avgCostPerSession == null ? '—' : fmtUsd(t.avgCostPerSession)} />
+        <Kpi label="avg cost / session (7d)" value={t.avgCostPerSession == null ? '—' : cost(t.avgCostPerSession)} />
         <Kpi label="avg session length (7d)" value={fmtDur(t.avgDurationMs)} />
         <Kpi label="sessions not successful (7d)" value={String(t.errorSessions)} hint="ended with an error, timeout or kill" good={t.errorSessions === 0} bad={t.errorSessions > 0} />
       </div>
@@ -86,17 +87,17 @@ export function UsagePage() {
                   )}
                   {g.state && <Badge state={g.state} className="shrink-0" />}
                   <span className="text-zinc-500 shrink-0">{g.sessions}×</span>
-                  <span className="mono text-zinc-300 w-14 text-right shrink-0">{fmtUsd(g.costUsd)}</span>
+                  <span className="mono text-zinc-300 w-14 text-right shrink-0">{cost(g.costUsd)}</span>
                 </div>
               ))}
             </div>
           )}
         </Card>
         <Card title="By session kind (7d)">
-          <Rows rows={u.byKind.map((k) => [k.kind, `${k.sessions}× · ${fmtDur(k.avgDurationMs)}`, fmtUsd(k.costUsd)])} />
+          <Rows rows={u.byKind.map((k) => [k.kind, `${k.sessions}× · ${fmtDur(k.avgDurationMs)}`, cost(k.costUsd)])} />
         </Card>
         <Card title="By model (7d)">
-          <Rows rows={u.byModel.map((m) => [m.model, `${m.sessions}× · ${fmtK(m.outputTokens)} out`, fmtUsd(m.costUsd)])} />
+          <Rows rows={u.byModel.map((m) => [m.model, `${m.sessions}× · ${fmtK(m.outputTokens)} out`, cost(m.costUsd)])} />
         </Card>
       </div>
       <p className="text-xs text-zinc-500">{u.note}</p>
@@ -172,7 +173,7 @@ function MinimaxCard() {
 }
 
 /** One rate-limit window: cost, token split, elapsed-time bar with reset countdown, and the cost-per-bucket bars. */
-function WindowCard({ w, series, now }: { w: WindowSummary; series: UsageBucket[]; now: string }) {
+function WindowCard({ w, series, now, costAvailable = true }: { costAvailable?: boolean; w: WindowSummary; series: UsageBucket[]; now: string }) {
   const state = !w.status ? 'pending' : w.status === 'allowed' ? 'pass' : w.status === 'allowed_warning' ? 'warn' : 'fail';
   const start = Date.parse(w.windowStart);
   const end = Date.parse(w.windowEnd);
@@ -190,8 +191,8 @@ function WindowCard({ w, series, now }: { w: WindowSummary; series: UsageBucket[
     >
       <div className="flex items-end gap-4 flex-wrap">
         <div>
-          <div className="text-2xl font-semibold mono text-zinc-100">{fmtUsd(w.costUsd)}</div>
-          <div className="text-[11px] text-zinc-500">{w.sessions} session{w.sessions === 1 ? '' : 's'} · est. cost</div>
+          <div className="text-2xl font-semibold mono text-zinc-100">{costAvailable ? fmtUsd(w.costUsd) : fmtK(w.outputTokens) + ' tokens'}</div>
+          <div className="text-[11px] text-zinc-500">{w.sessions} session{w.sessions === 1 ? '' : 's'} · {costAvailable ? 'est. cost' : 'output tokens'}</div>
         </div>
         <div className="grid grid-cols-3 gap-x-4 text-[11px] ml-auto">
           <Stat label="output" value={fmtK(w.outputTokens)} />
@@ -298,7 +299,7 @@ export function UsagePill() {
   return (
     <Link to="/usage" className={cn('flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] mono', color)} title={minimaxLow ? `MiniMax quota low: under 10% of a window left, or a balance under 1 — see Usage\n${u.note}` : u.note}>
       <Gauge size={12} />
-      <span className="whitespace-nowrap">{u.pausedUntil ? `paused ${untilText(u.pausedUntil)}` : `5h ${fmtUsd(w.costUsd)}`}</span>
+      <span className="whitespace-nowrap">{u.pausedUntil ? `paused ${untilText(u.pausedUntil)}` : u.costAvailable === false ? `5h ${fmtK(w.outputTokens)} tokens` : `5h ${fmtUsd(w.costUsd)}`}</span>
       {w.resetsAt && !u.pausedUntil && <span className="text-zinc-500 hidden lg:inline whitespace-nowrap">· reset {untilText(w.resetsAt)}</span>}
       {/* the header has little room: an amber dot, and words only on wide screens */}
       {minimaxLow && (
