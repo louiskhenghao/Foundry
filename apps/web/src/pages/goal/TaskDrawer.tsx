@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { type ReactNode, useEffect, useState } from 'react';
 import { api, fileKey, fileUrl, type FileRef, type GoalDetail, type TaskFile } from '../../api.ts';
 import { openFile } from '../../components/FilePreview.tsx';
-import { type FullText, FullTextDialog } from '../../components/FullTextDialog.tsx';
+import { type FullText, FullTextDialog, OpenFullButton } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { OpenMenu } from '../../components/OpenMenu.tsx';
 import { TaskTags } from '../../components/TaskTags.tsx';
@@ -35,11 +35,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
   }, [view, a?.id]);
   useEffect(() => setAi(attempts.length - 1), [attempts.length]);
 
-  const openFull = (title: string, text: string, what: string) => (
-    <button type="button" className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-300 hover:text-zinc-100 hover:border-zinc-500" onClick={() => setFullText({ title, text })} title={`Read the ${what} in a larger window`}>
-      Open full
-    </button>
-  );
+  const openFull = (title: string, text: string) => <OpenFullButton onClick={() => setFullText({ title, text })} />;
 
   return (
     <Card
@@ -98,8 +94,8 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
       )}
       <div className="grid grid-cols-1 lg:grid-cols-3 lg:grid-rows-1 lg:flex-1 lg:min-h-0 gap-4">
         <div className="lg:col-span-1 lg:overflow-y-auto lg:pr-1 space-y-3">
-          <MarkdownPanel title="spec" source={task.spec} maxHeight={260} actions={openFull(`Spec · ${task.title}`, task.spec, 'spec')} />
-          {task.hint && <MarkdownPanel title="human hint" source={task.hint} local maxHeight={160} actions={openFull(`Human hint · ${task.title}`, task.hint, 'hint')} />}
+          <MarkdownPanel title="spec" source={task.spec} maxHeight={260} actions={openFull(`Spec · ${task.title}`, task.spec)} />
+          {task.hint && <MarkdownPanel title="human hint" source={task.hint} local maxHeight={160} actions={openFull(`Human hint · ${task.title}`, task.hint)} />}
           <div>
             <div className="text-xs text-zinc-500 mb-1">Checks</div>
             {checks.length === 0 && <div className="text-xs text-zinc-600">none (goal-level only)</div>}
