@@ -156,7 +156,7 @@ simple, standard or complex — the Clarifier's rating of a Task, the human's to
 _Avoid_: routine / normal / hard (the first names) The last Attempt of a budget of two or more, and every Attempt the human grants beyond the budget, run on the Complex row before the Task is handed back.
 
 **Model Preset**
-A named choice of model for every action — Clarify, Planner, Simple / Standard / Complex tasks, merges, reviews, docs, triage, hints, style samples — with one table per goal nature (Code, Docs & research, Media). Four ship with Foundry (Max, Production, Balanced, Economy); they can be edited and reset, and your own can be added. Settings picks one per nature; a Goal may pick another at creation. Sessions read it when they start.
+A named choice of model for every action — Clarify, Planner, Simple / Standard / Complex tasks, merges, reviews, docs, triage, hints, style samples — with one table per goal nature (Code, Docs & research, Media). Claude and Codex have independent presets. Four ship for each provider (Max, Production, Balanced, Economy); they can be edited and reset, and custom presets can be added. Settings picks defaults per nature; a Goal may pick another at creation. Claude sessions read the current preset when they start. Codex captures model and reasoning effort for every role, including Housekeeping, with its fallback order when the Goal is created; later preset edits do not alter it. A goal-wide Codex effort overrides role efforts. Default model and CLI-default effort deliberately follow the native configuration.
 _Avoid_: strong / worker / cheap model, tier (the model tiers Presets replaced)
 
 **Interview**
@@ -166,7 +166,7 @@ How Clarify talks to the human before the Brief exists: rounds of questions, eac
 Off by default. After each integration the engine opens the Preview in headless Chromium, screenshots it and collects console, page and network errors; the result is a goal-level Must Check (re-run at Goal Review) and the screenshot reaches the timeline and the Milestone notification. No model involved.
 
 **Role**
-A named set of instructions given to a Claude session: Clarifier, Planner, Worker, Task Reviewer, Goal Reviewer, Merger, Documenter, Feedback Triage. Roles are versioned text, not code. Which model a Role's session runs on is set by the Goal's Model Preset.
+A named set of instructions given to an agent session: Clarifier, Planner, Worker, Task Reviewer, Goal Reviewer, Merger, Documenter, Feedback Triage. Roles are versioned text, not code. The Goal's Model Preset selects the Role's model and, for Codex, reasoning effort. Codex planning uses a separate Foundry-managed Planner session; it does not imply native Codex subagent support.
 
 **Context Provider**
 A source the system consults to decide which parts of a repository are relevant to a Task, so that sessions are given only what they need.

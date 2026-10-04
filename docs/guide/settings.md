@@ -4,7 +4,7 @@
 
 ## Two backends
 
-**Models & limits** contains a Codex default model and Claude model presets. Codex goals save their own model when created; changes to the default affect new goals. **Claude cost cap per session (USD)** applies only to Claude. **Concurrent agent sessions** is one total limit across both providers.
+**Models & limits** has separate **Claude Code** and **Codex** tabs. Each provider has its own presets and model choices. Codex goals capture their role models, reasoning effort and fallback order when created; edits affect new goals. **Claude cost cap per session (USD)** applies only to Claude. **Concurrent agent sessions** is one total limit across both providers.
 
 **Engine (install)** exposes both CLI paths and homes. The **Default agent backend** is chosen at launch; it does not restrict the **New goal** selector. Keep the original launch profile when opening an existing data directory so legacy records retain their provenance. Existing separate directories are not automatically merged.
 
@@ -28,7 +28,7 @@ What a new goal starts with. Most of them can be changed for one goal on the New
 | **Default goal view** | expert | Which view a goal opens in: simple or expert. |
 | **Pace for new goals** | thorough | **thorough — engine reviews the work**, or **fast — approved checks only**. Image and video goals always start fast. |
 | **Interview before the Brief** | auto | **auto** asks only when something is worth asking; **always** asks at least one round; **never** goes straight to the Brief. |
-| **Effort for new goals** | CLI default | How hard sessions think, **low** to **max**. |
+| **Effort for new goals** | Role preset / CLI default | A goal-wide override, **low** to **max**. Default uses Codex role presets or Claude's CLI default. |
 | **TDD for new Expert goals** | required | Test-first: **required**, **preferred** or **off**. |
 | **Goal-level fix cycles** | 1 | How many times the final review may send fix tasks before asking you. Thorough pace only. |
 | **Small goal (diff lines)** | 400 | A goal that changed this many lines or fewer gets a lighter, cheaper final review. 0 = never. |
@@ -36,17 +36,46 @@ What a new goal starts with. Most of them can be changed for one goal on the New
 
 Under **Delivery — what happens to the branch when a goal finishes**: **Mode for new goals** (local only), **Granularity** (one PR per goal) and **Remote** (origin). See [Getting the result](./getting-the-result.md).
 
-Good to know: the New goal form starts from these defaults. **Default goal view**, **Pace**, **TDD**, and the delivery **Mode for new goals** and **Granularity** are filled in from here, and the form picks the **Remote** named here when the project has it. A field you change on the form keeps your choice for that goal. **Interview**, **Effort** and the model preset follow Settings whenever the form is left at its default. The form itself remembers, in this browser, the kind of goal, the budget and the finer delivery options (such as the merge method).
+Good to know: the New goal form starts from these defaults. **Default goal view**, **Pace**, **TDD**, **Effort**, and the delivery **Mode for new goals** and **Granularity** are filled in from here, and the form picks the **Remote** named here when the project has it. A field you change on the form keeps your choice for that goal. **Interview** and the model preset follow Settings whenever the form is left at its default. Selecting **Default** effort for Codex explicitly uses role preset efforts. The form itself remembers, in this browser, the kind of goal, the budget and the finer delivery options (such as the merge method).
 
 When to change: set **Interview before the Brief** to **always** if you like to be asked; set **Effort** lower if most of your goals are small; lower **Goal-level fix cycles** to 0 if you would rather see failed reviews yourself.
 
 ## Models & limits
 
-This section decides which Claude model does which job, and how much one session may spend.
+This section decides which model does each job. Choose the **Claude Code** or **Codex** tab; their presets and catalogs are independent. Session limits appear below both tabs.
 
 ![Settings, Models & limits: the Sync models button and one preset per goal type with its model grid](images/settings-models.png)
 
+![Codex presets and native model catalog](images/codex-presets-settings.png)
+
+![Per-role models and reasoning effort](images/codex-role-models.png)
+
+### Codex presets and models
+
+On the **Codex** tab, choose **Code preset**, **Docs & research preset** and **Media preset**. The defaults are Production for code and Balanced for the other goal types. These names are independent from Claude presets:
+
+| Preset | Reasoning profile |
+|---|---|
+| **Max** | `xhigh` for every role; requires a compatible model. |
+| **Production** | Mostly `high`; `xhigh` for Planner, Complex tasks and Goal reviewer, `medium` for Simple tasks and Feedback triage, `low` for Housekeeping. |
+| **Balanced** | Mostly `medium`; `high` for Planner, Complex tasks and Goal reviewer, `low` for Housekeeping. |
+| **Economy** | `low` for every role. |
+
+These profiles initially use **Default model · from Settings**. **Default Codex model** selects what that means for new goals. Leaving it as **CLI default model** follows the local Codex configuration; an explicit ID pins a model. Actual speed, quota use and availability depend on that model and your account. Foundry does not infer USD prices from preset names.
+
+An Auto goal with the Default preset captures all three goal-type defaults at creation. It starts from the Code table for classification, then uses the captured table for its inferred type. Choosing an explicit preset instead keeps that preset across goal types.
+
+Under **Edit preset**, select a preset and the **Code**, **Docs & research** or **Media** table. Every role has a model dropdown and **Reasoning effort** selection. **Housekeeping** is part of the Codex preset. **Planner** runs in a separate Foundry planning session. Model metadata narrows the effort choices when available; **CLI default** leaves the effort unset. **Custom model ID…** accepts a newer or private model absent from the catalog.
+
+**Duplicate preset** creates an editable copy with a **Preset name** and **Description**. Editing a built-in marks it **modified**; **Reset to built-in** restores its shipped tables. **Delete preset** removes a custom preset and returns goal types using it to their built-in defaults. Press **Save** to apply these changes to new Codex goals. Existing goals retain their captured settings even if the original preset is renamed or deleted.
+
+**Sync Codex models** reads the local CLI catalog without running inference. A listed model is not proof of account access. **Test** deliberately runs a short session for the chosen model and effort; it consumes account quota. The result reports availability, with USD cost unavailable. It does not run automatically when you select or save a model.
+
+Under **Fallback models, in order**, use **Add fallback**, the arrow buttons and the remove button to choose an ordered chain. **CLI default model** here follows native Codex configuration, independently of the base model in Settings. New goals capture that order. Only a model-unavailability error triggers fallback; account, quota and unsupported-effort errors do not silently change models. With an empty chain, an unavailable model asks for your decision.
+
 ### Presets
+
+The following preset controls describe the **Claude Code** tab. Its existing model profiles and behavior are unchanged.
 
 A preset is a table: for each job, which model does it. The jobs are:
 
@@ -132,13 +161,13 @@ On by default. When a task is allowed two or more attempts, its last attempt, an
 
 | Setting | Default | What it does |
 |---|---|---|
-| **Cost cap per session (USD)** | 10 | A worker session stops at this spend (and never spends more than the goal has left). |
+| **Claude cost cap per session (USD)** | 10 | A Claude worker stops at this spend (and never spends more than the goal has left). Codex has no USD cap. |
 | **Attempt timeout (minutes)** | 20 | A session running longer is stopped. What it committed stays; Foundry resumes or retries. |
 | **Continuations per attempt** | 2 | How often a stopped session is resumed (cheaper, it keeps what it read) before a fresh attempt starts. |
-| **Turn cap per session** | 150 | Only stops runaway loops. Keep it generous. |
-| **Concurrent Claude sessions** | 3 | How many sessions run at once across all goals. Higher is faster, and spends faster. |
+| **Turn cap per session** | 150 | Model turns for Claude; tool calls for Codex. Keep it generous. |
+| **Concurrent agent sessions** | 3 | Total simultaneous sessions across both providers and all goals. |
 
-When to change: raise the cost cap or timeout if big tasks keep getting cut off; lower **Concurrent Claude sessions** if you hit your plan's usage limit often.
+When to change: raise the timeout or Claude cost cap if big tasks keep getting cut off; lower **Concurrent agent sessions** if you hit your plan's usage limit often.
 
 ## Skills
 

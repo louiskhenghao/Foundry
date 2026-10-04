@@ -12,7 +12,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `workflow.defaultMode` | `expert` | `FOUNDRY_GOAL_MODE` | Which view a new goal opens in: simple (plain-language Brief and progress) or expert (every control). |
 | `workflow.defaultPace` | `thorough` | `FOUNDRY_PACE` | thorough = the engine adds its own task and goal reviews and can spawn fix tasks; fast = only the checks you approved run. Image and video goals start fast. |
 | `workflow.interview` | `auto` | `FOUNDRY_INTERVIEW` | Whether Clarify interviews you before writing the Brief: auto (when something is worth asking), always (at least one round), never (one-shot Brief). |
-| `workflow.effort` | — | `FOUNDRY_EFFORT` | Effort level handed to every session of new goals (low … max); empty = the CLI default. |
+| `workflow.effort` | — | `FOUNDRY_EFFORT` | Default goal-wide effort override (low … max). Empty uses each Codex role preset or the Claude CLI default. New goals can override it. |
 | `reviews.alwaysReviewTasks` | `true` | — | Run the task reviewer on every task, not only tasks that ask for a reviewer check (thorough pace). |
 | `reviews.maxFixCycles` | `1` | — | Goal review → fix-task rounds before the goal asks you. |
 | `reviews.smallGoalLines` | `400` | `FOUNDRY_SMALL_GOAL_LINES` | A goal whose whole diff is at most this many lines is reviewed by the Task reviewer model without review skills; 0 = never. |
@@ -24,8 +24,13 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
-| `engine.maxConcurrent` | `3` | `FOUNDRY_MAX_CONCURRENT` | Claude sessions running at the same time, across all goals. |
-| `models.codexModel` | `codex-default` | `FOUNDRY_CODEX_MODEL` | Default for new Codex goals, copied to every role at creation. codex-default follows the CLI configuration; an explicit model ID pins it. |
+| `engine.maxConcurrent` | `3` | `FOUNDRY_MAX_CONCURRENT` | Total concurrent agent sessions across Claude and Codex goals. |
+| `models.codexModel` | `codex-default` | `FOUNDRY_CODEX_MODEL` | Base model substituted for codex-default in new Codex goal presets. codex-default leaves model choice to the native CLI; an explicit model ID pins it. |
+| `models.codexPresets` | — | — | Independent Codex presets: model and reasoning effort per role and goal type, including housekeeping. Saved changes affect new Codex goals only. |
+| `models.codexPresetCode` | `production` | — | Codex preset for code and unclassified goals; its complete tables are captured when a goal is created. |
+| `models.codexPresetDocs` | `balanced` | — | Codex preset for document and research goals. |
+| `models.codexPresetMedia` | `balanced` | — | Codex preset for image and video goals. |
+| `models.codexFallbacks` | — | — | Codex fallback model IDs, tried in order only for model-unavailability errors. Captured per new goal; empty pauses for a decision. Does not switch providers or retry authentication and quota errors with another model. |
 | `models.cheap` | `haiku` | `FOUNDRY_MODEL_CHEAP` | Housekeeping model: one-turn engine chores (classifying a goal, summarising logs, the rate-limit probe). |
 | `models.fallbacks` | `opus, sonnet, haiku` | `FOUNDRY_MODEL_FALLBACKS` | Tried in order when a model is unavailable; the replacement is remembered for that goal. |
 | `models.presets` | — | — | Presets you edited or created (edit them in the Presets editor, not by hand). Built-ins you never touched are not stored. |
@@ -34,8 +39,8 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `models.presetMedia` | `balanced` | — | Model preset for image and video goals. |
 | `models.escalateLastAttempt` | `true` | — | A task's last attempt (budget ≥ 2) and every retry you grant run on the preset's Complex-task model. |
 | `sessions.maxContinuations` | `2` | `FOUNDRY_MAX_CONTINUATIONS` | How often one attempt may resume its session before a fresh attempt starts; 0 = never. |
-| `sessions.attemptMaxTurns` | `150` | `FOUNDRY_ATTEMPT_MAX_TURNS` | Turn cap for one attempt session. |
-| `sessions.attemptMaxCostUsd` | `10` | `FOUNDRY_ATTEMPT_MAX_COST` | Cost cap (USD) for one attempt session, also bounded by what is left of the goal budget. |
+| `sessions.attemptMaxTurns` | `150` | `FOUNDRY_ATTEMPT_MAX_TURNS` | Model-turn cap for a Claude attempt; tool-call cap for a Codex attempt. |
+| `sessions.attemptMaxCostUsd` | `10` | `FOUNDRY_ATTEMPT_MAX_COST` | Claude-only cost cap (USD) for one attempt session, also bounded by the goal budget. Codex does not report USD costs. |
 | `sessions.attemptTimeoutMin` | `20` | — | Wall-clock cap for one attempt session. |
 
 ## Skills

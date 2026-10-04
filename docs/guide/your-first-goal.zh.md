@@ -4,11 +4,13 @@
 
 ![新建 Codex 任务](images/new-goal-codex.png)
 
+![新目标的角色配置](images/codex-new-goal-presets.png)
+
 ## 账户与执行后端
 
 点击顶栏 **Accounts**，分别查看 Claude Code 和 Codex。**Sign in to Codex** 使用 ChatGPT 设备授权：在链接页面输入显示的验证码；**Sign in to Claude Code** 使用 Claude 原生登录。凭据与本机 CLI 共用，在这里退出也会退出对应 CLI，但不会影响另一个提供商。执行期间不能退出登录。
 
-创建任务时，在 **Agent backend** 选择后端。同一 Foundry 实例可以运行两种后端；选定后，澄清、执行、重试、审核等会话始终使用该后端，不会把会话交给另一种 CLI 恢复。**Codex model** 随任务保存；`codex-default` 跟随 Codex 配置，填写具体 ID 可固定模型版本。
+创建任务时，在 **Agent backend** 选择后端。同一 Foundry 实例可以运行两种后端；选定后，澄清、执行、重试、审核等会话始终使用该后端，不会把会话交给另一种 CLI 恢复。两种后端在 **Models** 下各有独立预设。Codex 创建任务时会保存预设中的各角色模型、推理强度和备用模型顺序。
 
 Codex 的预算选项只有时间、尝试次数和并发限制，没有美元上限。**Accounts** 列出了目前的适配限制。
 
@@ -92,18 +94,24 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 
 ### Effort
 
-这个 goal 的每个 Claude 会话思考得有多用力。点其中一个按钮；有说明的按钮，鼠标停在上面会显示简短说明。
+这个 goal 的会话思考得有多用力。明确选择一个值会覆盖所有角色。Codex 的 **Default** 使用预设中各角色的强度；当模型支持时，也可选择 **none**、**minimal** 或 **ultra**。表单初始填入 Settings 中配置的强度；主动选 **Default** 会恢复 Codex 角色设置。已知不兼容的模型与强度组合必须修正后才能创建任务。
 
 | 选项 | 什么时候用 |
 |---|---|
-| **Default** | 大多数时候。使用 Settings 里设的 effort。 |
-| **low** | 小而明显的改动。快，也便宜。 |
+| **Default** | Codex：各角色预设强度。Claude：Settings 中设置的 effort。 |
+| **low** | 小而明显、需要较少推理的改动。 |
 | **medium**、**high** | 介于两者之间。 |
-| **xhigh**、**max** | 牵涉项目很多部分的难活。更慢，也更贵。 |
+| **xhigh**、**max** | 给牵涉项目多部分的难活分配更多推理。需要模型支持。 |
 
 ### Models
 
-这个 goal 用哪个 [模型预设](./settings.zh.md#presets)。**Default** 使用 Settings 为代码、文档或媒体类 goal 选定的预设；后面的名字就是那个预设，例如 **Default · Production**。换 goal 类型时它会跟着变。选 **Max**、**Production**、**Balanced**、**Economy**（或者你自己建的预设），就只对这个 goal 覆盖默认值。便宜的预设只要 Max 的一小部分。
+这个 goal 用哪个模型预设，由 **Agent backend** 决定使用 [Claude 预设](./settings.zh.md#presets) 还是 [Codex 预设](./settings.zh.md#codex-预设与模型)。**Default** 使用 Settings 为代码、文档或媒体类 goal 选定的预设；后面的名字就是那个预设，例如 **Default · Production**。换 goal 类型时它会跟着变。选 **Max**、**Production**、**Balanced**、**Economy** 或自定义预设，只为这个 goal 覆盖默认值。切换后端会分别保留各自的选择。
+
+Codex 的 **View … role assignments** 展开各角色将使用的模型与强度。勾选 **Use one model for every role in this goal**，才会把所有角色改为同一个模型；不勾选就保留预设中的各角色模型。可以从本机目录选择模型，也可用 **Custom model ID…** 输入具体 ID。覆盖选项中的 **CLI default model** 使用本机 Codex 配置。不覆盖时，预设中的 **Default model · from Settings** 使用 Settings 的 **Default Codex model**。覆盖模型后，仍保留各角色强度，除非你同时选择全任务 effort。
+
+Codex 任务创建后保留这些设置；以后编辑或删除预设不会改变已有任务。如果后续任务引用的预设已被删除，表单会要求重新选择可用预设。Codex 预设名称表示推理强度分配，不表示美元价格，也不保证账户一定可用。
+
+**Auto** 类型的 **Default · By goal type** 会保存 Code、Docs & research 和 Media 的配置默认表。角色预览初始显示 Code；分类后使用对应类型的已保存表。明确选择一个预设时，分类不会改变所选预设。
 
 ### Engineering discipline (TDD)
 

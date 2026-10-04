@@ -18,7 +18,8 @@ record is never rewritten when a later decision changes it; its status says what
 | [0011](0011-progress-folders-next-to-the-repo.md) | Progress folders next to the repository | accepted · 2026-09-14 |
 | [0012](0012-milestones-previews-and-the-self-check.md) | Milestones, previews and the headless self-check | accepted · 2026-09-14 |
 | [0013](0013-clarify-interview-in-rounds.md) | Clarify interviews the human in rounds | accepted · 2026-09-14 |
-| [0014](0014-model-presets-per-goal-nature.md) | Model presets per goal nature | accepted · 2026-09-24 · supersedes the tier parts of ADR-0006 |
+| [0014](0014-model-presets-per-goal-nature.md) | Model presets per goal nature | accepted · 2026-09-24 · supersedes the tier parts of ADR-0006; amended by ADR-0018 |
 | [0015](0015-bring-merged-work-to-the-local-checkout.md) | Bring merged work to the local checkout, then tidy up | accepted · 2026-09-25 · amends the user-only base-branch rule |
 | [0016](0016-mcp-servers-allowed-per-server.md) | MCP servers: listed from Claude Code's config, installed at user scope, allowed in goals per server | accepted · 2026-09-28 |
-| [0017](0017-goal-provider-and-account-isolation.md) | Fixed goal providers, independent accounts and capability-aware reporting | accepted · 2026-10-04 |
+| [0017](0017-goal-provider-and-account-isolation.md) | Fixed goal providers, independent accounts and capability-aware reporting | accepted · 2026-10-04 · amended by ADR-0018 |
+| [0018](0018-codex-role-presets-and-model-discovery.md) | Codex role presets, native model discovery and captured goal settings | accepted · 2026-10-04 |

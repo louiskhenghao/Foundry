@@ -1,6 +1,6 @@
 # ADR-0017: Fixed goal providers and independent accounts
 
-**Status:** accepted · 2026-10-04 · supersedes ADR-0009; amends ADR-0001 and ADR-0004
+**Status:** accepted · 2026-10-04 · supersedes ADR-0009; amends ADR-0001 and ADR-0004; amended by [ADR-0018](0018-codex-role-presets-and-model-discovery.md) (Codex role presets, fallback and separate planning)
 
 ## Decision
 

@@ -2,7 +2,7 @@
 
 ## 双后端设置
 
-**Models & limits** 同时包含 Codex 默认模型和 Claude 模型预设。Codex 任务保存创建时选择的模型，修改默认模型只影响新任务。**Claude cost cap per session (USD)** 只适用于 Claude。**Concurrent agent sessions** 是两种后端共用的总并发上限。
+**Models & limits** 分为 **Claude Code** 和 **Codex** 两个页签，各自拥有独立的预设和模型选项。Codex 任务在创建时保存各角色模型、推理强度和备用模型顺序；修改设置只影响新任务。**Claude cost cap per session (USD)** 只适用于 Claude。**Concurrent agent sessions** 是两种后端共用的总并发上限。
 
 **Engine (install)** 显示两种 CLI 路径和配置目录。**Default agent backend** 在启动时选择，不限制新建任务的后端选择。打开旧数据目录时保留原启动配置，以正确识别历史记录。现有分开的数据目录不会自动合并。
 
@@ -28,7 +28,7 @@ Extensions 管理页面暂时跟随启动配置。Codex 使用自己的技能目
 | **Default goal view** | expert | goal 打开时用哪个视图：simple 或 expert。 |
 | **Pace for new goals** | thorough | **thorough — engine reviews the work** 或 **fast — approved checks only**。图片和视频 goal 总是以 fast 开始。 |
 | **Interview before the Brief** | auto | **auto** 只在有值得问的事时才问；**always** 至少问一轮；**never** 直接写 Brief。 |
-| **Effort for new goals** | CLI default | 会话思考得多用力，从 **low** 到 **max**。 |
+| **Effort for new goals** | Role preset / CLI default | 从 **low** 到 **max** 的全任务覆盖。默认使用 Codex 各角色预设，或 Claude CLI 默认值。 |
 | **TDD for new Expert goals** | required | 测试先行：**required**、**preferred** 或 **off**。 |
 | **Goal-level fix cycles** | 1 | 最终审查在问你之前，最多可以派几轮修复任务。只用于 thorough 节奏。 |
 | **Small goal (diff lines)** | 400 | 改动行数不超过这个数的 goal，最终审查更轻、更便宜。0 = 从不。 |
@@ -36,17 +36,46 @@ Extensions 管理页面暂时跟随启动配置。Codex 使用自己的技能目
 
 在 **Delivery — what happens to the branch when a goal finishes** 下：**Mode for new goals**（local only）、**Granularity**（one PR per goal）和 **Remote**（origin）。见 [拿到结果](./getting-the-result.zh.md)。
 
-值得知道：New goal 表单就从这些默认值开始。**Default goal view**、**Pace**、**TDD**，以及交付的 **Mode for new goals** 和 **Granularity** 都从这里填入；项目里有这里写的 **Remote** 时，表单也会选它。你在表单上改过的字段，会为这个 goal 保留你的选择。**Interview**、**Effort** 和模型预设只要在表单上保持默认，就跟随 Settings。表单自己会在这个浏览器里记住 goal 类型、预算，以及更细的交付选项（比如合并方式）。
+值得知道：New goal 表单就从这些默认值开始。**Default goal view**、**Pace**、**TDD**、**Effort**，以及交付的 **Mode for new goals** 和 **Granularity** 都从这里填入；项目里有这里写的 **Remote** 时，表单也会选它。你在表单上改过的字段，会为这个 goal 保留你的选择。**Interview** 和模型预设只要在表单上保持默认，就跟随 Settings。Codex 主动选择 **Default** effort 则明确使用各角色的预设强度。表单自己会在这个浏览器里记住 goal 类型、预算，以及更细的交付选项（比如合并方式）。
 
 什么时候改：喜欢被提问的话，把 **Interview before the Brief** 设为 **always**；大多数 goal 都很小的话，调低 **Effort**；如果你宁愿自己看没通过的审查，把 **Goal-level fix cycles** 降到 0。
 
 ## Models & limits
 
-这一部分决定哪个 Claude 模型做哪件事，以及一个会话最多能花多少。
+这一部分决定哪个模型做哪件事。先选 **Claude Code** 或 **Codex** 页签；两者的预设和模型目录互相独立。会话限制位于两个页签下方。
 
 ![Settings 的 Models & limits：Sync models 按钮，以及每种 goal 类型一个预设和它的模型表](images/settings-models.png)
 
+![Codex 预设与原生模型清单](images/codex-presets-settings.png)
+
+![各角色模型与推理强度](images/codex-role-models.png)
+
+### Codex 预设与模型
+
+在 **Codex** 页签，分别选择 **Code preset**、**Docs & research preset** 和 **Media preset**。代码默认 Production，其他类型默认 Balanced。这些名字与 Claude 的预设互相独立：
+
+| 预设 | 推理强度分配 |
+|---|---|
+| **Max** | 所有角色使用 `xhigh`；需要模型支持。 |
+| **Production** | 大部分使用 `high`；Planner、Complex tasks、Goal reviewer 使用 `xhigh`，Simple tasks、Feedback triage 使用 `medium`，Housekeeping 使用 `low`。 |
+| **Balanced** | 大部分使用 `medium`；Planner、Complex tasks、Goal reviewer 使用 `high`，Housekeeping 使用 `low`。 |
+| **Economy** | 所有角色使用 `low`。 |
+
+这些预设初始都使用 **Default model · from Settings**。**Default Codex model** 决定新任务如何解析这个默认模型；仍选 **CLI default model** 就跟随本机 Codex 配置，填写明确 ID 则固定模型。实际速度、额度消耗和可用性取决于模型与账户；Foundry 不会根据预设名称推算美元费用。
+
+Auto 类型任务选择 Default 预设时，会在创建时保存三种任务类型的默认表。分类阶段先用 Code 表，判定类型后再使用对应的已保存表。明确选择某个预设，则各种任务类型始终使用该预设。
+
+在 **Edit preset** 选择预设，再选 **Code**、**Docs & research** 或 **Media** 表。每个角色都有模型下拉框和 **Reasoning effort**。Codex 的 **Housekeeping** 也由预设控制。**Planner** 使用独立的 Foundry 规划会话。已同步的模型资料会限制可选推理强度；**CLI default** 不指定强度，交给 Codex。**Custom model ID…** 可输入目录中尚未出现的新模型或私有模型。
+
+**Duplicate preset** 复制当前预设，随后可编辑 **Preset name** 和 **Description**。修改内置预设后会显示 **modified**；**Reset to built-in** 恢复出厂表格。**Delete preset** 删除自定义预设，使用它的任务类型会回到内置默认值。按 **Save** 后只影响新 Codex 任务。已有任务保留创建时的设置，即使原预设后来改名或删除，也不会被改变。
+
+**Sync Codex models** 读取本机 CLI 模型目录，不运行推理。出现在目录中不代表当前账户一定能用。**Test** 会明确运行一次简短会话，检查所选模型和推理强度；它消耗账户额度。结果显示可用性，美元费用显示不可用。选择或保存模型不会自动执行 Test。
+
+在 **Fallback models, in order**，用 **Add fallback**、上下箭头和移除按钮设置备用模型顺序。这里的 **CLI default model** 跟随本机 Codex 配置，不使用 Settings 中的基础模型。新任务会保存这个顺序。只有模型不可用时才切换备用模型；登录、额度或不支持的推理强度错误不会静默切换模型。没有备用模型时，模型不可用会请求你处理。
+
 ### Presets
+
+以下预设说明对应 **Claude Code** 页签；已有模型配置和行为保留不变。
 
 预设是一张表：每项工作由哪个模型来做。这些工作是：
 
@@ -132,13 +161,13 @@ Foundry 启动时，如果发现 Claude Code 自上次同步后更新过，也�
 
 | 设置 | 默认 | 作用 |
 |---|---|---|
-| **Cost cap per session (USD)** | 10 | worker 会话花到这个数就停（也绝不会超过 goal 剩余的预算）。 |
+| **Claude cost cap per session (USD)** | 10 | Claude worker 花到这个数就停（也不会超过 goal 剩余预算）。Codex 没有美元上限。 |
 | **Attempt timeout (minutes)** | 20 | 运行超过这个时间的会话会被停止。它已提交的内容会保留；Foundry 会续接或重试。 |
 | **Continuations per attempt** | 2 | 被停止的会话在开始新尝试之前最多续接几次（续接更便宜，会保留它读过的内容）。 |
-| **Turn cap per session** | 150 | 只用来拦住失控的循环。设宽松一点。 |
-| **Concurrent Claude sessions** | 3 | 所有 goal 加起来同时运行几个会话。越高越快，花钱也越快。 |
+| **Turn cap per session** | 150 | Claude 的模型轮数；Codex 的工具调用次数。设宽松一点。 |
+| **Concurrent agent sessions** | 3 | 两种后端的所有 goal 加起来同时运行的会话总数。 |
 
-什么时候改：如果大任务总是被中途截断，调高费用上限或超时；如果你经常碰到套餐的用量上限，调低 **Concurrent Claude sessions**。
+什么时候改：如果大任务总是被中途截断，调高超时或 Claude 费用上限；如果你经常碰到套餐的用量上限，调低 **Concurrent agent sessions**。
 
 ## Skills
 
