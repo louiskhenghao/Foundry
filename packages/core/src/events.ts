@@ -36,12 +36,14 @@ function ev<T extends string, P extends z.ZodRawShape>(type: T, payload: P) {
 
 export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.created', { goal: Goal }),
+  ev('goal.provider_assigned', { provider: z.enum(['claude', 'codex']) }),
   ev('goal.state_changed', { from: GoalState, to: GoalState, reason: z.string() }),
   ev('goal.budgets_changed', { budgets: Budgets, reason: z.string().optional() }),
   ev('goal.cost_added', { costUsd: z.number(), source: z.string() }),
   ev('goal.attachment_added', { attachment: Attachment }),
   /** one executed skills updater run (informational audit, goalId null; not projected) */
   ev('skills.update_run', {
+    provider: z.enum(['claude', 'codex']).optional(),
     sourceId: z.string(),
     updater: z.string(),
     command: z.array(z.string()),
@@ -172,6 +174,7 @@ export const EngineEvent = z.discriminatedUnion('type', [
 
   ev('budget.snapshot', { costUsd: z.number(), elapsedMin: z.number() }),
   ev('session.usage', {
+    provider: z.enum(['claude', 'codex']).optional(),
     sessionId: z.string().nullable(),
     kind: z.string(),
     model: z.string().nullable(),
@@ -206,8 +209,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   /** a pull request was closed on GitHub without being merged (noticed after the delivery finished) */
   ev('delivery.pr_closed', { prNumber: z.number().int() }),
   ev('delivery.failed', { step: DeliveryStep, reason: z.string() }),
-  ev('rate_limit.paused', { rateLimitType: z.string().nullable(), until: z.string(), reason: z.string() }),
-  ev('rate_limit.resumed', { reason: z.string() }),
+  ev('rate_limit.paused', { provider: z.enum(['claude', 'codex']).optional(), rateLimitType: z.string().nullable(), until: z.string(), reason: z.string() }),
+  ev('rate_limit.resumed', { provider: z.enum(['claude', 'codex']).optional(), reason: z.string() }),
   /** a Release newer than this instance appeared on the version source (announced once per version) */
   ev('update.available', { current: z.string(), latest: z.string(), mode: z.enum(['docker', 'local', 'unknown']) }),
   /** one self-update attempt ran to its end (success or rolled back) */

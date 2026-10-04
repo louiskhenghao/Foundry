@@ -150,7 +150,7 @@ export class McpManager {
       .map((c) =>
         c.installed
           ? { id: `mcp:${c.entry.id}`, label: `${c.entry.name} MCP`, ok: true, severity: 'warn' as const, detail: c.entry.summary, fix: null }
-          : { id: `mcp:${c.entry.id}`, label: `${c.entry.name} MCP (recommended)`, ok: false, severity: 'warn' as const, detail: `not installed — ${c.entry.why}`, fix: { url: '/skills#mcp' } },
+          : { id: `mcp:${c.entry.id}`, label: `${c.entry.name} MCP (recommended)`, ok: false, severity: 'warn' as const, detail: `not installed — ${c.entry.why}`, fix: { url: '/skills?provider=claude#mcp' } },
       );
   }
 

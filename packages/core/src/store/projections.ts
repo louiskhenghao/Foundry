@@ -9,6 +9,11 @@ import type { ObservationReport } from '../schema/observation.ts';
  */
 export function applyEvent(db: Database, e: EngineEvent): void {
   switch (e.type) {
+    case 'goal.provider_assigned': {
+      const g = getGoal(db, e.goalId!);
+      if (g && !g.provider) upsertGoal(db, { ...g, provider: e.payload.provider, budgets: { ...g.budgets, ...(e.payload.provider === 'codex' ? { maxCostUsd: null } : {}) } });
+      break;
+    }
     case 'goal.created':
       upsertGoal(db, e.payload.goal);
       break;
@@ -513,6 +518,7 @@ export function getStatAvg(db: Database, key: string): number | null {
 }
 
 export interface UsageRow {
+  provider?: 'claude' | 'codex';
   ts: string;
   goal_id: string | null;
   kind: string;
@@ -526,7 +532,7 @@ export interface UsageRow {
   subtype: string;
 }
 export function listUsageSince(db: Database, sinceIso: string): UsageRow[] {
-  return db.query('SELECT ts, goal_id, kind, model, input_tokens, output_tokens, cache_read_tokens, cache_create_tokens, cost_usd, duration_ms, subtype FROM usage_ledger WHERE ts >= ? ORDER BY ts').all(sinceIso) as UsageRow[];
+  return db.query(`SELECT u.*, COALESCE(json_extract(e.payload, '$.provider'), json_extract(g.data, '$.provider')) AS provider FROM usage_ledger u LEFT JOIN events e ON e.id = u.event_id LEFT JOIN goals g ON g.id = u.goal_id WHERE u.ts >= ? ORDER BY u.ts`).all(sinceIso) as UsageRow[];
 }
 export interface RateLimitRow {
   rate_limit_type: string;

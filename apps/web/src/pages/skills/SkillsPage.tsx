@@ -2,7 +2,7 @@ import type { EngineEvent } from '@foundry/core/browser';
 import type { SkillScope, SkillSourceRow, SkillTier, SkillsOverview, SkillsUpdateReport, TrashEntry } from '@foundry/engine/skills-types';
 import { RefreshCw, Search, Trash2 } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { api } from '../../api.ts';
+import { apiForProvider, type AgentProvider } from '../../api.ts';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { Button, ConfirmDialog, Empty, Input, Modal, ago, cn } from '../../ui.tsx';
 import { OpsDock } from './OpsDock.tsx';
@@ -28,7 +28,10 @@ const MANAGER_HEADING: Record<(typeof MANAGER_ORDER)[number], string> = {
  * Skills, grouped by where they come from, with update status per source and per skill,
  * one-click updaters, adoption of loose copies, shadow-copy cleanup, bulk uninstall and SKILL.md viewing.
  */
-export function SkillsPage() {
+export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }) {
+  const api = apiForProvider(provider);
+  const backend = provider === 'codex' ? 'Codex' : 'Claude Code';
+  const startProviderOp = (operation: Parameters<typeof startOp>[0]) => startOp({ ...operation, label: `${backend} · ${operation.label}`, targets: operation.targets.map((target) => `${provider}:${target}`) });
   const [overview, setOverview] = useState<SkillsOverview | null>(null);
   const [report, setReport] = useState<Report | null>(null);
   const [trash, setTrash] = useState<TrashEntry[]>([]);
@@ -44,10 +47,13 @@ export function SkillsPage() {
   const [confirmNames, setConfirmNames] = useState<string[] | null>(null);
   const [view, setView] = useState<View | null | 'loading'>(null);
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
+  const alive = useRef(true);
 
   const load = async (refresh = false) => {
+    if (!alive.current) return null;
     try {
       const [o, r, t, h] = await Promise.all([api.skills(), api.skillsUpdates(refresh), api.trash(), api.updateRuns().catch(() => [])]);
+      if (!alive.current) return null;
       setOverview(o);
       setReport(r);
       setTrash(t);
@@ -56,14 +62,15 @@ export function SkillsPage() {
       setSelected((s) => new Set([...s].filter((n) => o.installed.some((x) => x.name === n && x.scope === 'user'))));
       return r;
     } catch (e: any) {
-      setMsg({ kind: 'err', text: e.message });
+      if (alive.current) setMsg({ kind: 'err', text: e.message });
       return null;
     }
   };
   const watch = () => {
-    if (poll.current) return;
+    if (!alive.current || poll.current) return;
     poll.current = setInterval(async () => {
       const r = await api.skillsUpdates().catch(() => null);
+      if (!alive.current) return;
       if (r) setReport(r);
       if (r && !r.refreshing && !r.updating) {
         clearInterval(poll.current!);
@@ -73,9 +80,12 @@ export function SkillsPage() {
     }, 2500);
   };
   useEffect(() => {
+    alive.current = true;
     void load().then((r) => r && (r.refreshing || r.updating) && watch());
     return () => {
+      alive.current = false;
       if (poll.current) clearInterval(poll.current);
+      poll.current = null;
     };
   }, []);
   // every operation that ends (here, after a reload, or in another tab) refreshes the page
@@ -84,7 +94,8 @@ export function SkillsPage() {
   useEffect(() => {
     if (finished !== firstFinished.current) void load();
   }, [finished]);
-  const runningOp = useRunningOp();
+  const running = useRunningOp();
+  const runningOp = (target: string) => running(`${provider}:${target}`);
   const showOp = useSkillOps((s) => s.show);
 
   /** A quick action (not an operation): banner feedback, and only its own key is busy meanwhile. */
@@ -114,7 +125,7 @@ export function SkillsPage() {
     });
   // operations: each opens its own tab in the operations dock; the server decides what may run together (one source update at a time)
   const updateSource = (id: string, label: string, names?: string[]) =>
-    startOp({
+    startProviderOp({
       kind: 'update',
       label: `Update ${label}${names?.length ? ` (${names.join(', ')})` : ''}`,
       targets: [id, ...(names ?? [])],
@@ -125,9 +136,9 @@ export function SkillsPage() {
         return r;
       },
     });
-  const adopt = (names: string[]) => startOp({ kind: 'adopt', label: `Adopt ${names.length === 1 ? names[0] : `${names.length} skills`}`, targets: names, call: (opId) => api.adoptSkills(names, opId) });
+  const adopt = (names: string[]) => startProviderOp({ kind: 'adopt', label: `Adopt ${names.length === 1 ? names[0] : `${names.length} skills`}`, targets: names, call: (opId) => api.adoptSkills(names, opId) });
   // a plugin's skills go together: the CLI's own plugin uninstall
-  const uninstallPlugin = (sourceId: string) => startOp({ kind: 'uninstall', label: `Uninstall plugin ${sourceId.slice('plugin:'.length)}`, targets: [sourceId], call: (opId) => api.uninstallPlugin(sourceId, opId) });
+  const uninstallPlugin = (sourceId: string) => startProviderOp({ kind: 'uninstall', label: `Uninstall plugin ${sourceId.slice('plugin:'.length)}`, targets: [sourceId], call: (opId) => api.uninstallPlugin(sourceId, opId) });
   const trashShadows = (names: string[]) =>
     quick('shadows', `Moving ${names.length} shadow cop${names.length === 1 ? 'y' : 'ies'} to the trash…`, async () => {
       const r = await api.cleanupShadows(names);
@@ -135,11 +146,11 @@ export function SkillsPage() {
     });
   const uninstall = (names: string[]) => {
     setSelected((s) => new Set([...s].filter((n) => !names.includes(n))));
-    return startOp({ kind: 'uninstall', label: `Uninstall ${names.length === 1 ? names[0] : `${names.length} skills`}`, targets: names, call: (opId) => api.uninstallMany(names, true, opId) });
+    return startProviderOp({ kind: 'uninstall', label: `Uninstall ${names.length === 1 ? names[0] : `${names.length} skills`}`, targets: names, call: (opId) => api.uninstallMany(names, true, opId) });
   };
-  const install = (id: string, force: boolean) => startOp({ kind: 'install', label: `${force ? 'Replace' : 'Install'} ${id}`, targets: [id], call: (opId) => api.installSkill(id, force, opId) });
-  const installTier = (tiers: SkillTier[]) => startOp({ kind: 'install-tier', label: `Install ${tiers.join(' + ')}`, targets: ['tier'], call: (opId) => api.installTier(tiers, opId) });
-  const installTool = (id: string) => startOp({ kind: 'tool-install', label: `Install ${id}`, targets: [id], call: (opId) => api.installTool(id, opId) });
+  const install = (id: string, force: boolean) => startProviderOp({ kind: 'install', label: `${force ? 'Replace' : 'Install'} ${id}`, targets: [id], call: (opId) => api.installSkill(id, force, opId) });
+  const installTier = (tiers: SkillTier[]) => startProviderOp({ kind: 'install-tier', label: `Install ${tiers.join(' + ')}`, targets: ['tier'], call: (opId) => api.installTier(tiers, opId) });
+  const installTool = (id: string) => startProviderOp({ kind: 'tool-install', label: `Install ${id}`, targets: [id], call: (opId) => api.installTool(id, opId) });
   const restore = (name: string, path: string) => quick(`restore:${path}`, `Restoring ${name}…`, async () => `${name} restored to ${(await api.restoreSkill(name, path)).path}`);
   const openView = async (row: SkillSourceRow) => {
     setView('loading');
@@ -196,10 +207,10 @@ export function SkillsPage() {
         </div>
       </div>
       <p className="text-xs text-zinc-500 -mt-2">
-        Grouped by where each skill comes from. Updates run the source's own tool (npx skills, claude plugin) or Foundry's installer; every run is recorded in History. Uninstall never deletes — copies go to the Trash tab.
+        {provider === 'codex' ? 'Codex skills are grouped by their native source. Foundry manages supported standalone installs and updates; manage native Codex plugins in the Plugins tab. Shared .agents/skills directories stay shared and cannot be uninstalled here.' : "Grouped by where each skill comes from. Updates run the source's own tool (npx skills, claude plugin) or Foundry's installer; every run is recorded in History. Uninstall never deletes — copies go to the Trash tab."}
       </p>
       <div className="-mt-1">
-        <SessionLine view={overview.lastSession} />
+        {provider === 'codex' ? <p className="text-[11px] text-zinc-500">Skill invocation telemetry is unavailable for Codex. Installed or listed skills do not prove a session used them; review the work and tests.</p> : <SessionLine view={overview.lastSession} />}
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
@@ -227,14 +238,14 @@ export function SkillsPage() {
           {MANAGER_ORDER.filter((m) => report.sources.some((s) => s.manager === m && s.skills.some(filter))).map((m) => (
             <div key={m} className="space-y-2">
               <div className="flex items-center gap-2 pt-1">
-                <span className="text-[10px] uppercase tracking-wide text-zinc-500">{MANAGER_HEADING[m]}</span>
+                <span className="text-[10px] uppercase tracking-wide text-zinc-500">{m === 'plugin' ? `${backend} plugins` : MANAGER_HEADING[m]}</span>
                 <span className="text-[10px] text-zinc-600">{report.sources.filter((s) => s.manager === m).reduce((n, s) => n + s.skills.length, 0)}</span>
                 <span className="flex-1 h-px bg-zinc-800/70" />
               </div>
               {report.sources
                 .filter((s) => s.manager === m)
                 .map((s) => (
-                  <SourceGroup key={s.id} s={s} busy={pending.has('shadows') || s.skills.some((r) => runningOp(r.name))} updating={report.updating === s.id || !!runningOp(s.id)} running={opLink(s.id) ?? s.skills.map((r) => opLink(r.name)).find(Boolean) ?? null} filter={filter} a={{ onUpdate: (names) => void updateSource(s.id, s.label, names), onAdopt: (names) => void adopt(names), onTrashShadows: trashShadows, onUninstallPlugin: (id) => void uninstallPlugin(id), onUninstall: (names) => setConfirmNames(names), onView: openView, selected, onSelect: select }} />
+                  <SourceGroup key={s.id} s={s} busy={pending.has('shadows') || s.skills.some((r) => runningOp(r.name))} updating={report.updating === s.id || !!runningOp(s.id)} running={opLink(s.id) ?? s.skills.map((r) => opLink(r.name)).find(Boolean) ?? null} filter={filter} a={{ onUpdate: (names) => void updateSource(s.id, s.label, names), onAdopt: (names) => void adopt(names), onTrashShadows: trashShadows, onUninstallPlugin: provider === 'claude' ? (id) => void uninstallPlugin(id) : undefined, onUninstall: (names) => setConfirmNames(names), onView: openView, selected, onSelect: select }} />
                 ))}
             </div>
           ))}
@@ -277,7 +288,7 @@ export function SkillsPage() {
           void uninstall(names);
         }}
       >
-        <p>The skill director{(confirmNames?.length ?? 0) === 1 ? 'y is' : 'ies are'} moved to <span className="mono">data/skills-trash</span> (restorable from the Trash panel). Symlinked skills lose only the link; plugin skills cannot be removed here.</p>
+        <p>The skill director{(confirmNames?.length ?? 0) === 1 ? 'y is' : 'ies are'} moved to this backend's trash (restorable from the Trash panel). Symlinked skills lose only the link; plugin skills cannot be removed here.</p>
         {confirmNames && confirmNames.length > 1 && <div className="mono text-[11px] text-zinc-400 max-h-32 overflow-auto">{confirmNames.join('\n')}</div>}
       </ConfirmDialog>
 

@@ -2,7 +2,20 @@
 
 > [English](./costs-and-usage.md) · 中文
 
-Foundry 用的是你的 Claude 订阅（Pro 或 Max）。只有在 Claude 会话运行时才花钱。它在 git 里做的事、跑你的测试、准备文件夹、读取检查结果都是免费的 —— 只花时间，不花钱。
+![Codex 仅周限额账户（演示数据）](images/usage-codex.png)
+
+## Codex 用量
+
+**Codex account quota** 通过原生 CLI 读取已登录 ChatGPT 账户的额度，与本机活动统计分开。卡片展示返回的所有额度分组、已用百分比、时间窗口和报告的重置时间。**Refresh quota** 只读元数据，不运行推理；普通轮询缓存 60 秒。**Reported ordinary usage allowance** 忠实显示原生的 allowed／blocked／unknown 信号，不能根据百分比或已过去的重置时间推断恢复。缺失的额度和重置时间保持未知；读取失败不会伪装成零用量。原生 CLI 提供邮箱和订阅方案时，Accounts 也会显示。
+
+不预设每个账户都有「五小时＋每周」两种限制。只有周限额的账户只显示 **Weekly limit**；两者都有的账户显示 **5-hour limit** 和 **Weekly limit**。名称根据原生回传的时长判断，primary 或 secondary 都可能是周限额。其他时长按实际数据显示，未知时长保持未知；未回传的窗口不显示、不补零。多个额度分组保持独立，顶栏使用相同的账户数据，不再固定写 `5h`；例如两个分组均为周限额时显示 **2 weekly limits**。
+
+通过 **Agent backend** 分别查看两种后端的用量，仅统计 Foundry 启动的会话。**Foundry activity · last 7 days** 只表示本机最近七天的活动统计，与账户额度分开，不显示配额状态或重置倒计时。当前适配器不提供美元费用、模型回合数及技能调用记录；“不可用”不代表免费或未使用。
+
+Codex 在创建、批准 Brief、提高预算时都会移除美元上限。超时、工具调用次数、尝试次数和并发限制仍然有效。回合上限在 Codex 中限制工具调用次数。检测到限流只暂停对应后端；没有重置时间信号时，五分钟后重试，不代表账户额度已恢复。
+
+
+下方美元数值只适用于 Claude 会话，表示用量估算，不是 Foundry 额外收取的账单。本机 git 操作和检查本身不调用模型；命令或媒体工具调用付费服务时，费用由对应服务计算。
 
 ## 哪些要花钱
 
@@ -27,19 +40,19 @@ Foundry 用的是你的 Claude 订阅（Pro 或 Max）。只有在 Claude 会话
 
 ## 怎样少花钱
 
-- **选更便宜的预设。** Balanced 或 Economy 只要 Max 的一小部分。可以在 New goal 表单里按 goal 选，也可以在 Settings 里按 goal 类型选。
+- **选更便宜的预设。** 请比较实际选择的模型与推理强度；预设名称不保证价格或额度节省。可以在 New goal 表单里按 goal 选，也可以在 Settings 里按 goal 类型选。
 - 常规 goal 用 **fast pace**。它跳过 Foundry 自己额外的审查；你批准的检查照常运行。
 - 简单的 goal 在 New goal 表单里**调低 effort**。
-- **设预算。** goal 达到费用或时间上限时会停下来问你。
-- 续接的会话比新的尝试便宜，因为它复用已经读过的内容。所以 Foundry 会优先续接。
+- **设预算。** goal 达到时间上限时会停下来问你；Claude 还支持美元上限。Codex 使用时间、尝试次数和并发限制。
+- Foundry 会尽量先续接被中断的会话以保留上下文，再考虑新的尝试；实际额度消耗取决于后端和工作内容。
 
 ## 在哪里看花了多少
 
-- **每个 goal** 页面顶部显示它目前的费用，每个任务也显示自己的。
-- **Usage**（顶栏）按时间、会话类型和模型显示花费。对你套餐的每个用量窗口，它显示状态（**allowed**，或者快到上限时的警告）和重置时间，而不是百分比；想看确切的百分比，在 Claude Code 里运行 `/usage`。**Refresh signal** 会运行一个很小的会话来更新这个状态。
-- 用量到了上限时，Foundry 会暂停所有 goal，额度重置后继续。横幅会告诉你什么时候。
+- **Claude goal** 显示费用估算及每个任务的累计费用；Codex 将美元费用标为不可用。
+- **Usage → Claude Code** 按时间、会话类型和模型显示费用估算。对你套餐的每个用量窗口，它显示状态（**allowed**，或者快到上限时的警告）和重置时间，而不是百分比；想看确切的百分比，在 Claude Code 里运行 `/usage`。**Refresh signal** 会运行一个很小的会话来更新这个状态。
+- 用量到了上限时，Foundry 只暂停对应后端的新会话，之后重试。横幅显示的是重试时间，不保证额度已经恢复。
 - **MiniMax**（通过 mmx 做视频和配音）在 **Usage** 页面底部有自己的卡片，打开页面时读取：Token Plan 下每个模型当前窗口和本周还剩多少，或者按量付费 key 的余额。**Refresh** 会重新读取。某个窗口剩下不到 10%，或者余额不到 1 时，顶栏的用量标签上会出现一个琥珀色小点。只有装了 mmx 时才会显示这张卡片。
 
 ## 图片类 goal 需要图片 key
 
-只有 Foundry 有图片 API key 时才能生成图片：OpenAI 兼容的 key，或 Gemini key。在 **Settings → Tools & keys** 里添加；下一个会话就生效，不用重启。没有 key 时，图片任务只能做出手绘的 SVG 或 HTML 渲染，质量低很多 —— Brief 会在你批准前告诉你。
+配置的图片技能使用独立的媒体服务 API key：OpenAI 兼容的 key，或 Gemini key。这个 key 不会启用 Codex API-key 推理，也不会代替 ChatGPT 登录。在 **Settings → Tools & keys** 里添加；下一个会话就生效，不用重启。没有 key 时，图片任务只能做出手绘的 SVG 或 HTML 渲染，质量低很多 —— Brief 会在你批准前告诉你。

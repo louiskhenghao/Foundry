@@ -3,8 +3,9 @@ import type { EngineEvent } from '@foundry/core/browser';
 export type Tone = 'info' | 'ok' | 'warn' | 'err' | 'muted';
 
 /** `full` is the whole text when `text` shows only part of it (the Activity row then opens it); `raw` = start the dialog in Raw. */
-export function describe(e: EngineEvent): { text: string; tone: Tone; full?: string; raw?: boolean } {
+export function describe(e: EngineEvent, costAvailable = true): { text: string; tone: Tone; full?: string; raw?: boolean } {
   const p: any = e.payload;
+  const cost = (n: number) => costAvailable ? `$${n.toFixed(3)}` : 'cost unavailable';
   switch (e.type) {
     case 'goal.state_changed':
       return { text: `Goal ${p.from} → ${p.to} (${p.reason})`, tone: ['done', 'over_delivered'].includes(p.to) ? 'ok' : ['failed', 'cancelled'].includes(p.to) ? 'err' : p.to === 'blocked' ? 'warn' : 'info' };
@@ -15,7 +16,7 @@ export function describe(e: EngineEvent): { text: string; tone: Tone; full?: str
     case 'attempt.started':
       return { text: `Attempt #${p.attempt.index}${p.attempt.kind === 'merge' ? ' (merge)' : ''} started`, tone: 'muted' };
     case 'attempt.finished':
-      return { text: `Session ended: ${p.resultSubtype} · $${p.costUsd.toFixed(3)} · ${p.numTurns} turns${p.skillsUsed?.length ? ` · used ${p.skillsUsed.map((s: string) => `/${s}`).join(', ')}` : ''}`, tone: p.resultSubtype === 'success' ? 'muted' : 'warn' };
+      return { text: `Session ended: ${p.resultSubtype} · ${cost(p.costUsd)} · ${costAvailable ? p.numTurns + ' turns' : 'turn count unavailable'}${p.skillsUsed?.length ? ` · used ${p.skillsUsed.map((s: string) => `/${s}`).join(', ')}` : ''}`, tone: p.resultSubtype === 'success' ? 'muted' : 'warn' };
     case 'attempt.concluded':
       return { text: `Attempt ${p.state}: ${p.reason}`, tone: p.state === 'passed' ? 'ok' : 'warn' };
     case 'check.finished':
@@ -45,7 +46,7 @@ export function describe(e: EngineEvent): { text: string; tone: Tone; full?: str
     case 'clarify.started':
       return { text: 'Clarifier exploring the repository', tone: 'muted' };
     case 'goal.cost_added':
-      return { text: `+$${p.costUsd.toFixed(3)} ${p.source}`, tone: 'muted' };
+      return { text: `+${cost(p.costUsd)} ${p.source}`, tone: 'muted' };
     case 'goal.budgets_changed':
       return { text: `Budget ${p.reason === 'auto-from-brief' ? 'proposed from the Brief estimate' : 'changed'}: ${p.budgets.maxCostUsd == null ? 'no cost cap' : `$${p.budgets.maxCostUsd}`} / ${p.budgets.maxDurationMin == null ? 'no time cap' : `${p.budgets.maxDurationMin} min`}`, tone: 'info' };
     case 'engine.note':
@@ -53,7 +54,7 @@ export function describe(e: EngineEvent): { text: string; tone: Tone; full?: str
     case 'boundary.blocked':
       return { text: `Blocked command: ${p.command}`, tone: 'warn' };
     case 'session.usage':
-      return { text: `${p.kind} session · ${p.model ?? '?'} · $${p.costUsd.toFixed(3)}`, tone: 'muted' };
+      return { text: `${p.kind} session · ${p.model ?? '?'} · ${cost(p.costUsd)}`, tone: 'muted' };
     default:
       return { text: e.type, tone: 'muted' };
   }

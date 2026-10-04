@@ -1,10 +1,10 @@
-import type { AgentSessionRow } from '@foundry/engine/agents-types';
+import type { AgentSessionRow, AgentSubagentRow } from '@foundry/engine/agents-types';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { LiveLog } from '../LiveLog.tsx';
 import { ago, Card, cn } from '../../ui.tsx';
 import { ContextGauge } from './ContextGauge.tsx';
-import { SourceBadge, StatusDot, shortCwd, shortModel } from './rows.tsx';
+import { ProviderBadge, SourceBadge, StatusDot, shortCwd, shortModel } from './rows.tsx';
 import { TranscriptView } from './TranscriptView.tsx';
 
 /** Detail for one session: metadata header + the conversation (LiveLog for Foundry rows, polled transcript otherwise). */
@@ -28,12 +28,14 @@ export function SessionDetail({ row, agentId, onOpen, onBack }: { row: AgentSess
           <StatusDot status={row.status} />
           <span className="font-medium text-zinc-100 min-w-0 truncate">{sub ? `${sub.agentType}: ${sub.description || sub.agentId}` : (row.title ?? row.sessionId)}</span>
           <SourceBadge row={row} />
+          <ProviderBadge provider={row.provider} />
           {row.foundry && (
             <Link to={`/goals/${row.foundry.goalId}`} className="flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300">
               <ExternalLink size={12} /> {row.foundry.goalTitle ?? 'Open goal'}
             </Link>
           )}
         </div>
+        {row.source === 'external' && row.provider === 'codex' && <p className="text-xs text-zinc-400 mb-3">External Codex conversation, shown for reading only. Its live process state is unknown. Foundry does not resume, stop or modify this session.</p>}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1.5 text-xs">
           {facts.map(([k, v]) => (
             <div key={k} className="flex items-center gap-2 min-w-0">
@@ -49,7 +51,7 @@ export function SessionDetail({ row, agentId, onOpen, onBack }: { row: AgentSess
             {row.subagents.map((s) => (
               <SubTab key={s.agentId} active={agentId === s.agentId} onClick={() => onOpen(row.sessionId, s.agentId)}>
                 {s.agentType}: {(s.description || s.agentId).slice(0, 40)}
-                {s.status === 'running' && <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+                <span className="ml-1"><SubagentStatus status={s.status} /></span>
               </SubTab>
             ))}
           </div>
@@ -59,6 +61,11 @@ export function SessionDetail({ row, agentId, onOpen, onBack }: { row: AgentSess
       {!agentId && row.foundry?.attemptId ? <LiveLog attemptId={row.foundry.attemptId} className="surface-card max-h-[70vh]" /> : <TranscriptView sessionId={row.sessionId} agentId={agentId ?? undefined} />}
     </div>
   );
+}
+
+/** Native history can identify a child without proving whether its process is still alive. */
+export function SubagentStatus({ status }: { status: AgentSubagentRow['status'] }) {
+  return status === 'running' ? <span className="text-emerald-400">● running</span> : status === 'unknown' ? <span className="text-sky-400" title="Live process state unknown">status unknown</span> : <span className="text-zinc-600">done</span>;
 }
 
 function SubTab({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {

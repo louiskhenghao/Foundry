@@ -15,7 +15,9 @@
     "fixture": "bun scripts/make-fixture.ts",
     "release": "bun scripts/release.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc --noEmit -p apps/web",
-    "test": "bun test packages"
+    "test": "bun test packages",
+    "serve:codex": "FOUNDRY_PROVIDER=codex bun apps/cli/src/main.ts serve",
+    "dev:codex": "FOUNDRY_PROVIDER=codex bun scripts/dev.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

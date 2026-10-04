@@ -1,3 +1,4 @@
+import { CodexModelPreset } from './codex-presets.ts';
 import { DEFAULT_NATURE_PRESETS, ModelPreset } from './model-presets.ts';
 import { z } from 'zod';
 import { Discipline, GoalMode } from './goal.ts';
@@ -17,6 +18,9 @@ export const VideoPack = z.enum(['web-video-presentation', 'mmx-cli', 'hyperfram
 export type VideoPack = z.infer<typeof VideoPack>;
 
 export const EngineSettings = z.object({
+  provider: z.enum(['claude', 'codex']).default('claude'),
+  codexBin: z.string().nullable().default(null),
+  codexHome: z.string().nullable().default(null),
   port: z.number().int().min(1).max(65535).default(4111),
   host: z.string().min(1).default('127.0.0.1'),
   maxConcurrent: z.number().int().min(1).max(16).default(3),
@@ -28,6 +32,13 @@ export const EngineSettings = z.object({
   workspacesRoot: z.string().nullable().default(null),
 });
 export const ModelSettings = z.object({
+  /** codex-default uses the model configured in Codex itself. */
+  codexModel: z.string().trim().min(1).default('codex-default'),
+  codexPresets: z.record(z.string(), CodexModelPreset).default({}),
+  codexPresetCode: z.string().min(1).default('production'),
+  codexPresetDocs: z.string().min(1).default('balanced'),
+  codexPresetMedia: z.string().min(1).default('balanced'),
+  codexFallbacks: z.array(z.string().trim().min(1)).default([]),
   /** the housekeeping model: one-turn engine chores (classifying a goal, summarising logs, the rate-limit probe) */
   cheap: z.string().min(1).default('haiku'),
   /** tried in order when a tier's model is unavailable (deprecated, unknown alias …) */
@@ -73,6 +84,8 @@ export const WorkflowSettings = z.object({
   settingSources: z.array(z.string()).nullable().default(null),
   /** MCP tool prefixes worker sessions may use (ADR-0016): mcp__<server>, mcp__plugin_<plugin>_<server>, mcp__claude_ai_<name> */
   mcpAllowed: z.array(z.string().regex(/^mcp__[A-Za-z0-9_-]+$/)).default(() => [...DEFAULT_MCP_ALLOWED]),
+  /** Codex server permissions are independent of Claude server permissions. */
+  codexMcpAllowed: z.array(z.string().regex(/^mcp__[A-Za-z0-9_-]+$/)).default([]),
 });
 export const ReviewSettings = z.object({
   alwaysReviewTasks: z.boolean().default(true),
@@ -197,7 +210,7 @@ export const SettingsPatch = z.object({
 export type SettingsPatch = z.infer<typeof SettingsPatch>;
 
 /** dotted leaf paths whose change only takes effect after the engine restarts */
-export const RESTART_SETTINGS = ['engine.port', 'engine.host', 'engine.claudeBin', 'engine.claudeHome'] as const;
+export const RESTART_SETTINGS = ['engine.provider', 'engine.codexBin', 'engine.codexHome', 'engine.port', 'engine.host', 'engine.claudeBin', 'engine.claudeHome'] as const;
 
 /**
  * leaves that hold a credential: the settings view sent to the browser carries them as null, with only whether each is

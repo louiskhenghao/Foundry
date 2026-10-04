@@ -1,10 +1,12 @@
+import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Settings, SettingsView } from '@foundry/core/browser';
 import { RotateCcw } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { api, type ModelRecordView, type UpdateStatusView } from '../api.ts';
 import { LiveLog } from './LiveLog.tsx';
 import { ModelPresetsSection } from './settings/ModelPresets.tsx';
+import { CodexModelPresetsSection } from './settings/CodexModelPresets.tsx';
 import { DesignPacks } from '../components/DesignPacks.tsx';
 import { UpdateDialog } from '../components/UpdateDialog.tsx';
 import { Button, Card, CopyButton, Empty, Field, Input, Select, cn } from '../ui.tsx';
@@ -62,8 +64,16 @@ export function SettingsPage() {
   const [upd, setUpd] = useState<UpdateStatusView | null>(null);
   const [updBusy, setUpdBusy] = useState(false);
   const [updOpen, setUpdOpen] = useState(false);
-  const { hash, key } = useLocation();
-  // a link to one section (/settings#tools) lands on it once the page has rendered, also when the page is already there
+  const { hash, search } = useLocation();
+  const navigate = useNavigate();
+  const requestedProvider = new URLSearchParams(search).get('provider');
+  const modelProvider = requestedProvider === 'claude' || requestedProvider === 'codex' ? requestedProvider : view?.values.engine.provider ?? 'claude';
+  const setModelProvider = (provider: 'claude' | 'codex') => {
+    const params = new URLSearchParams(search);
+    params.set('provider', provider);
+    navigate({ search: params.toString(), hash }, { replace: true });
+  };
+  // Section links land once content is ready; a backend query change must not reset the scroll.
   const loaded = !!draft;
   useEffect(() => {
     if (!loaded || !hash) return;
@@ -72,7 +82,7 @@ export function SettingsPage() {
       id = decodeURIComponent(id);
     } catch {}
     document.getElementById(id)?.scrollIntoView({ block: 'start' });
-  }, [loaded, hash, key]);
+  }, [loaded, hash]);
   const loadUpdate = () => api.updateStatus().then(setUpd).catch(() => {});
   const checkUpdate = async () => {
     setUpdBusy(true);
@@ -172,7 +182,7 @@ export function SettingsPage() {
       const v = await api.updateSettings(patch);
       setView(v);
       setDraft(structuredClone(v.values));
-      setMsg(`Saved ${changed.length} setting${changed.length === 1 ? '' : 's'}${v.restartNeeded.length ? ` — restart the engine to apply ${v.restartNeeded.join(', ')}` : ' — applied immediately'}.`);
+      setMsg(`Saved ${changed.length} setting${changed.length === 1 ? '' : 's'}${v.restartNeeded.length ? ` — restart the engine to apply ${v.restartNeeded.join(', ')}` : ' — applied immediately'}.${changed.some((p) => p.startsWith('models.codex')) ? ' Codex model changes apply to new goals; existing goals keep their settings.' : ''}`);
     } catch (e: any) {
       setErr(e.message);
     } finally {
@@ -266,7 +276,7 @@ export function SettingsPage() {
       <div className="min-w-0 mb-4">
         <h1 className="text-lg font-semibold">Settings</h1>
         <p className="text-sm text-zinc-400 mt-1">
-          Saved to <span className="mono">{view.file}</span>. Precedence: saved value › environment variable › default. Most settings apply immediately; the ones marked <span className="text-amber-300">restart</span> after the engine restarts.
+          Saved to <span className="mono break-all">{view.file}</span>. Precedence: saved value › environment variable › default. Most settings apply immediately; the ones marked <span className="text-amber-300">restart</span> after the engine restarts.
         </p>
       </div>
       <div className="grid lg:grid-cols-[11rem_minmax(0,1fr)] gap-x-6">
@@ -323,9 +333,9 @@ export function SettingsPage() {
                   <option value="never">never — one-shot Brief</option>
                 </Select>
               </Field>
-              <Field label="Effort for new goals" aside={aside('workflow.effort')} help="Claude Code's effort level for every session of a goal (attempts, reviews, clarify, merges). Empty = the CLI default. Lower is faster and cheaper; xhigh / max for hard, cross-cutting work. Switchable per goal when creating it.">
+              <Field label="Effort for new goals" aside={aside('workflow.effort')} help="An explicit level overrides every role's effort. Default uses each Codex role's preset effort, or the Claude CLI default. Switchable per goal when creating it.">
                 <Select value={(draft.workflow.effort as string | null) ?? ''} onChange={(e) => set('workflow.effort', e.target.value || null)}>
-                  <option value="">CLI default</option>
+                  <option value="">Role preset / CLI default</option>
                   <option value="low">low</option>
                   <option value="medium">medium</option>
                   <option value="high">high</option>
@@ -377,6 +387,11 @@ export function SettingsPage() {
       </Card>
 
       <Card id="models" title={<>Models & limits<HelpLink to="settings#models--limits" className="ml-1.5" /></>} className="scroll-mt-16">
+        <ProviderSelector className="mb-5" value={modelProvider} onChange={setModelProvider} controls={{ claude: 'models-claude', codex: 'models-codex' }} />
+        <div id="models-codex" role="region" aria-label="Codex models" hidden={modelProvider !== 'codex'}>
+          <CodexModelPresetsSection draft={draft} setFields={(patch) => setDraft((previous) => previous ? { ...previous, models: { ...previous.models, ...patch } } : previous)} />
+        </div>
+        <div id="models-claude" role="region" aria-label="Claude Code models" hidden={modelProvider !== 'claude'}>
         <ModelPresetsSection draft={draft} set={set as (p: `models.${string}`, v: unknown) => void} known={known} reloadModels={loadModels} />
         <div className="border-t border-zinc-800 my-4" />
         {grid(
@@ -393,23 +408,24 @@ export function SettingsPage() {
           </>,
         )}
         <p className="text-[11px] text-zinc-500 mt-3">The list is what this machine has seen resolve (family aliases follow the latest release through Claude Code; a full model id pins a version). A new family is one custom entry away — after its first session it shows up here with its resolved id. Preset changes reach running goals too, at their next session.</p>
+        </div>
         <div className="border-t border-zinc-800 mt-4 pt-4">
           <div className="text-xs text-zinc-300 mb-2">Limits — what one session may spend before the engine stops it</div>
           {grid(
             <>
-              <Field label="Cost cap per session (USD)" aside={aside('sessions.attemptMaxCostUsd')} help="The real guard: a worker session stops at this spend (also bounded by the goal's remaining budget).">
+              {<Field label="Claude cost cap per session (USD)" aside={aside('sessions.attemptMaxCostUsd')} help="The real guard: a worker session stops at this spend (also bounded by the goal's remaining budget).">
                 {num('sessions.attemptMaxCostUsd', { min: 0.5, max: 500, step: 0.5 })}
-              </Field>
+              </Field>}
               <Field label="Attempt timeout (minutes)" aside={aside('sessions.attemptTimeoutMin')} help="A session killed at this mark keeps what it committed; the attempt then continues or restarts.">
                 {num('sessions.attemptTimeoutMin', { min: 5, max: 240 })}
               </Field>
-              <Field label="Continuations per attempt" aside={aside('sessions.maxContinuations')} help="How often one attempt may resume its own Claude session (after a restart, a turn/cost cap, a timeout, or failing checks with progress) before a fresh attempt is started. Resuming keeps the session's context — far cheaper than starting over. 0 = always start fresh.">
+              <Field label="Continuations per attempt" aside={aside('sessions.maxContinuations')} help="How often one attempt may resume its own session (after a restart, a turn/cost cap, a timeout, or failing checks with progress) before a fresh attempt is started. Resuming keeps the session's context — far cheaper than starting over. 0 = always start fresh.">
                 {num('sessions.maxContinuations', { min: 0, max: 5 })}
               </Field>
-              <Field label="Turn cap per session" aside={aside('sessions.attemptMaxTurns')} help="Only stops runaway loops; keep it generous so a session is not cut mid-work.">
+              <Field label="Turn cap per session" aside={aside('sessions.attemptMaxTurns')} help="Claude: model turns. Codex: tool calls. Keep it generous; wall-clock timeout remains the hard stop.">
                 {num('sessions.attemptMaxTurns', { min: 10, max: 2000 })}
               </Field>
-              <Field label="Concurrent Claude sessions" aside={aside('engine.maxConcurrent')} help="Global cap across all goals (workers, reviewers, clarify) — the throughput knob, and the one that decides how fast the bill grows. Applies immediately.">
+              <Field label="Concurrent agent sessions" aside={aside('engine.maxConcurrent')} help="Global cap across all goals (workers, reviewers, clarify) — the throughput knob, and the one that decides how fast the bill grows. Applies immediately.">
                 {num('engine.maxConcurrent', { min: 1, max: 16 })}
               </Field>
             </>,
@@ -419,26 +435,30 @@ export function SettingsPage() {
 
       <Card id="skills" title={<>Skills<HelpLink to="settings#skills" className="ml-1.5" /></>} className="scroll-mt-16">
         <div className="space-y-4">
+          <div>
+            <ProviderSelector value={modelProvider} onChange={setModelProvider} />
+            <p className="mt-1 text-[11px] text-zinc-500">Installation status and actions target the selected agent. Workflow pack choices are shared by both agents.</p>
+          </div>
           {grid(
             <>
-              <Field label="Profile" aside={aside('workflow.profile')} help="mattpocock: roles are told which workflow skills to invoke (tdd, diagnosing-bugs, code-review…) and the engine records what they used. plain: a one-line hint only.">
+              <Field label="Profile" aside={aside('workflow.profile')} help="mattpocock: roles are told which workflow skills to invoke (tdd, diagnosing-bugs, code-review…) and Claude sessions report which they used. Codex skill invocation telemetry is unavailable. plain: a one-line hint only.">
                 <Select value={draft.workflow.profile} onChange={(e) => set('workflow.profile', e.target.value)}>
-                  <option value="mattpocock">mattpocock (mandated + observed)</option>
+                  <option value="mattpocock">mattpocock (workflow skills)</option>
                   <option value="plain">plain (hint only)</option>
                 </Select>
               </Field>
-              <Field label="Setting sources" aside={aside('workflow.settingSources')} help="`--setting-sources` for sessions, comma-separated (user, project, local); empty = inherit everything. Without `user`, your own skills never load.">
+              {draft.engine.provider !== 'codex' && <Field label="Setting sources" aside={aside('workflow.settingSources')} help="`--setting-sources` for sessions, comma-separated (user, project, local); empty = inherit everything. Without `user`, your own skills never load.">
                 {list('workflow.settingSources', 'user, project')}
-              </Field>
+              </Field>}
             </>,
           )}
-          {bool('workflow.autoskills', 'autoskills per goal', 'After the Brief is approved, run `npx autoskills` in the goal workspace to install skills matching the repository’s stack (needs Node ≥ 22). The generated CLAUDE.md is restored and the skills are git-excluded.')}
+          {bool('workflow.autoskills', 'autoskills per goal', 'After the Brief is approved, run `npx autoskills` in the goal workspace to install skills matching the repository’s stack (needs Node ≥ 22). Uses .claude/skills for Claude and .agents/skills for Codex. The generated CLAUDE.md is restored and the skills are git-excluded.')}
           <div>
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-xs text-zinc-300">Design skills</span>
               <span className="ml-auto flex items-center gap-1.5">{aside('workflow.designPack')}</span>
             </div>
-            <DesignPacks compact />
+            <DesignPacks key={`${modelProvider}:design`} provider={modelProvider} compact />
             <p className="text-[11px] text-zinc-500 mt-1.5">Choosing a pack saves immediately; only that pack is shown to sessions working on frontend / fullstack tasks.</p>
           </div>
           <div>
@@ -446,7 +466,7 @@ export function SettingsPage() {
               <span className="text-xs text-zinc-300">Image skills</span>
               <span className="ml-auto flex items-center gap-1.5">{aside('workflow.imagePack')}</span>
             </div>
-            <DesignPacks compact pack="image" />
+            <DesignPacks key={`${modelProvider}:image`} provider={modelProvider} compact pack="image" />
             <p className="text-[11px] text-zinc-500 mt-1.5">Mandated to workers on image tasks (scenario `image`). The pack only generates when a key is set under Tools &amp; keys.</p>
           </div>
           <div>
@@ -454,7 +474,7 @@ export function SettingsPage() {
               <span className="text-xs text-zinc-300">Video skills</span>
               <span className="ml-auto flex items-center gap-1.5">{aside('workflow.videoPack')}</span>
             </div>
-            <DesignPacks compact pack="video" />
+            <DesignPacks key={`${modelProvider}:video`} provider={modelProvider} compact pack="video" />
             <p className="text-[11px] text-zinc-500 mt-1.5">Mandated to workers on video tasks (scenario `video`).</p>
           </div>
         </div>
@@ -590,7 +610,7 @@ export function SettingsPage() {
             {bool('notifications.onInterview', 'Interview round', 'The Clarifier asked a round of questions before writing the Brief; the goal waits for your answers.')}
             {bool('notifications.onGoalFinished', 'Goal finished', 'A goal ended done, over-delivered, or failed. Cancelling a goal yourself never notifies.')}
             {bool('notifications.onDelivery', 'Delivery', 'A pull request was opened or merged, or the delivery failed.')}
-            {bool('notifications.onRateLimit', 'Usage pause', 'A Claude usage limit paused the engine, and when the pause lifts.')}
+            {bool('notifications.onRateLimit', 'Usage pause', 'A provider usage limit paused its goals, and when the retry pause lifts.')}
             {bool('notifications.onUpdateAvailable', 'New version', 'A Foundry release newer than this instance exists — once per version. Update from the header pill or Settings → About & updates.')}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -624,12 +644,18 @@ export function SettingsPage() {
             <Field label="Host" aside={aside('engine.host')} help="Bind address; keep 127.0.0.1 unless you know why.">
               {text('engine.host')}
             </Field>
-            <Field label="claude binary" aside={aside('engine.claudeBin')} help="Path to the Claude Code CLI; empty = first `claude` on PATH.">
+            <Field label="Default agent backend" help="Default for new goals in this data directory. Choose either backend on New goal; existing goals keep their backend.">
+              <div className="text-sm">{draft.engine.provider === 'codex' ? 'Codex' : 'Claude Code'}</div>
+            </Field>
+            {<>
+              <Field label="Codex binary" aside={aside('engine.codexBin')} help="Empty = codex on PATH.">{text('engine.codexBin', 'codex', true)}</Field>
+              <Field label="Codex home" aside={aside('engine.codexHome')} help="Empty = CODEX_HOME or ~/.codex.">{text('engine.codexHome', '~/.codex', true)}</Field>
+            </>}<><Field label="Claude binary" aside={aside('engine.claudeBin')} help="Path to the Claude Code CLI; empty = first `claude` on PATH.">
               {text('engine.claudeBin', 'claude', true)}
             </Field>
             <Field label="Claude Code home" aside={aside('engine.claudeHome')} help="Where skills, plugins and settings.json live; empty = ~/.claude (or CLAUDE_CONFIG_DIR).">
               {text('engine.claudeHome', '~/.claude', true)}
-            </Field>
+            </Field></>
             <Field label="Progress folders" aside={aside('engine.workspacesRoot')} help="Where each goal's working folder is created. Empty = next to the repository, as <repo>-foundry/<goal>. A folder here = <folder>/<repo>/<goal>. Applies to goals created from now on.">
               {text('engine.workspacesRoot', '/Users/you/Foundry', true)}
             </Field>

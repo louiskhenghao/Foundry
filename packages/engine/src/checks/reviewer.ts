@@ -17,6 +17,7 @@ export interface WorkflowObservation {
   mandated: { name: string; invoke: string }[];
   /** skills the worker actually invoked (observed) */
   used: string[];
+  observable?: boolean;
 }
 
 /** Did the session invoke this skill? Matches bare names and plugin-qualified names. */
@@ -24,6 +25,7 @@ export const usedSkill = (used: string[], name: string): boolean => used.some((u
 
 export function formatWorkflowObservation(w: WorkflowObservation | null | undefined): string {
   if (!w?.mandated.length) return '';
+  if (w.observable === false) return '# Workflow\nSkill invocation telemetry is unavailable for this backend. Do not infer that required skills were skipped. Review the diff and test evidence on their merits.';
   const lines = w.mandated.map((m) => `- ${m.invoke}: ${usedSkill(w.used, m.name) ? 'invoked ✓' : 'NOT invoked'}`);
   return `# Workflow\nThe worker was required to invoke these skills for this kind of task; observed Skill-tool invocations: ${w.used.length ? w.used.join(', ') : 'none'}.\n${lines.join('\n')}\nA missing invocation is worth a note (the next attempt will read it), not a blocker — judge the diff on its merits.`;
 }
@@ -35,7 +37,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
     .map((c) => (c.spec.type === 'reviewer' ? `- ${c.name}: ${c.spec.rubric}` : ''))
     .filter(Boolean)
     .join('\n');
-  const reviewerHint = await engine.skills.hints.sectionFor('reviewer-task', { scenario: task.scenario });
+  const reviewerHint = await engine.skillsFor(goal).hints.sectionFor('reviewer-task', { scenario: task.scenario });
   const media =
     task.scenario === 'image'
       ? `# Media review\nThe artifacts themselves are the deliverable and they are NOT in the diff (the \`artifacts/\` folder is kept out of git). Read the task's manifest (\`docs/artifacts/…\` in the diff), then open each listed image under \`artifacts/\` with the Read tool — it renders images — and judge what you see against the task and rubric. An artifact listed in the manifest but missing on disk, or clearly not matching its description, is a blocker.`

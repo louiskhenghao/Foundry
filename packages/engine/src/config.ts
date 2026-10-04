@@ -1,8 +1,15 @@
-import { DEFAULT_MCP_ALLOWED, DEFAULT_NATURE_PRESETS, Effort, type ModelNature, type ModelPreset } from '@foundry/core';
+import { DEFAULT_MCP_ALLOWED, DEFAULT_NATURE_PRESETS, Effort, type CodexModelPreset, type ModelNature, type ModelPreset } from '@foundry/core';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 export interface EngineConfig {
+  provider: 'claude' | 'codex';
+  codexBin?: string;
+  codexHome: string;
+  codexModel: string;
+  codexPresets: Record<string, CodexModelPreset>;
+  codexNaturePreset: Record<ModelNature, string>;
+  codexFallbacks: string[];
   /** The Foundry checkout/install itself (root package.json = the product version; local self-update runs git here). */
   rootDir: string;
   /** Where engine.db, transcripts, worktrees, check outputs live. */
@@ -24,6 +31,7 @@ export interface EngineConfig {
   settingSources?: string[];
   /** MCP tool prefixes worker sessions may use (Settings → workflow.mcpAllowed, ADR-0016) */
   mcpAllowed: string[];
+  codexMcpAllowed: string[];
   /** progress-folder root (Settings → engine.workspacesRoot); null = next to each repository */
   workspacesRoot: string | null;
   /** ports handed to goal previews (inclusive) and how long an unvisited preview lives */
@@ -112,9 +120,14 @@ export interface EngineConfig {
 }
 
 export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {}): EngineConfig {
+  const provider = overrides.provider ?? (process.env.FOUNDRY_PROVIDER === 'codex' ? 'codex' : 'claude');
   return {
     rootDir: resolve(root),
-    dataDir: resolve(root, 'data'),
+    provider,
+    codexBin: process.env.FOUNDRY_CODEX_BIN,
+    codexHome: process.env.FOUNDRY_CODEX_HOME ?? process.env.CODEX_HOME ?? join(homedir(), '.codex'),
+    codexModel: process.env.FOUNDRY_CODEX_MODEL ?? 'codex-default',
+    dataDir: resolve(process.env.FOUNDRY_DATA_DIR ?? resolve(root, provider === 'codex' ? 'data-codex' : 'data')),
     claudeHome: process.env.FOUNDRY_CLAUDE_HOME ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'),
     catalogPath: resolve(root, 'catalog/skills.json'),
     rolesDir: resolve(root, 'roles'),
@@ -123,11 +136,15 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     host: process.env.FOUNDRY_HOST ?? '127.0.0.1',
     maxConcurrent: Number(process.env.FOUNDRY_MAX_CONCURRENT ?? 3),
     mcpAllowed: [...DEFAULT_MCP_ALLOWED],
+    codexMcpAllowed: [],
     workspacesRoot: process.env.FOUNDRY_WORKSPACES_ROOT ?? null,
     preview: { portFrom: Number(process.env.FOUNDRY_PREVIEW_PORT_FROM ?? 4200), portTo: Number(process.env.FOUNDRY_PREVIEW_PORT_TO ?? 4299), idleMinutes: Number(process.env.FOUNDRY_PREVIEW_IDLE_MIN ?? 60) },
     selfCheck: process.env.FOUNDRY_SELF_CHECK === '1' || process.env.FOUNDRY_SELF_CHECK === 'true',
     interview: (['auto', 'always', 'never'] as const).find((m) => m === process.env.FOUNDRY_INTERVIEW) ?? 'auto',
     effort: Effort.options.find((e) => e === process.env.FOUNDRY_EFFORT) ?? null,
+    codexPresets: {},
+    codexNaturePreset: { ...DEFAULT_NATURE_PRESETS },
+    codexFallbacks: [],
     modelPresets: {},
     naturePreset: { ...DEFAULT_NATURE_PRESETS },
     escalateLastAttempt: true,

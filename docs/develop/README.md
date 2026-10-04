@@ -14,12 +14,14 @@ This track is for people who change Foundry's own code: the engine, the server, 
 ## Getting a working tree
 
 ```sh
-bun install
+bun install --frozen-lockfile
 bun run dev          # engine under bun --watch + `vite build --watch`; UI at http://127.0.0.1:4111
 bun run web:dev      # optional: Vite HMR on :5173, proxying /api and /ws to the engine port
 ```
 
 `bun run dev` is `scripts/dev.ts`. It runs the engine with `bun --watch`, so **any file edit restarts the engine**. Don't edit engine code while that server has a goal running. See the warning in [testing.md](testing.md#manual-qa-against-a-throwaway-server).
+
+Use `bun run dev:codex` for Codex launch defaults. Either profile can run both backends. Keep the QA data directory separate from live goals and use the matching native account; see [Codex operation](../operate/codex.md). The [validation record](codex-validation.md) separates automated coverage from real-service checks still needed before release.
 
 ## Working rules
 
@@ -28,5 +30,5 @@ The full rules are in [CONTRIBUTING.md](../../CONTRIBUTING.md). In short:
 - **Commits** follow Conventional Commits. Keep each one small and focused on one logical change. The message is a short paragraph saying what changed and why.
 - **No AI attribution** of any kind in commits or pull requests: no `Co-Authored-By` trailer for an assistant, no "generated with" footer.
 - **Impact before edits.** If you have the GitNexus index locally (`CLAUDE.md` / `AGENTS.md` at the repo root are git-ignored, local-only guidance), run impact analysis on a symbol before you change it, and `detect_changes` before you commit.
-- **Tests and types pass** before you push: `bun test packages` and `bun run typecheck`, both from the repo root.
+- **Tests and types pass** before you push: `bun test packages ./apps/cli/src ./apps/web/tests` and `bun run typecheck`, both from the repo root.
 - **The glossary is the language.** When you add a concept, add its term to `CONTEXT.md`. When you make a hard-to-reverse decision, add an ADR.

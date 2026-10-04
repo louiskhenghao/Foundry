@@ -2,6 +2,26 @@
 
 > [English](./your-first-goal.md) · 中文
 
+![账户管理（演示账户）](images/accounts.png)
+
+![新建 Codex 任务](images/new-goal-codex.png)
+
+![新目标的角色配置](images/codex-new-goal-presets.png)
+
+
+![Codex 初始化检查 — 演示数据](images/codex-setup.png)
+
+## 账户与执行后端
+
+点击顶栏 **Accounts**，分别查看 Claude Code 和 Codex。**Sign in to Codex** 使用 ChatGPT 设备授权：在链接页面输入显示的验证码；**Sign in to Claude Code** 使用 Claude 原生登录。凭据与本机 CLI 共用，在这里退出也会退出对应 CLI，但不会影响另一个提供商。执行期间不能登录或退出，CLI 请求也遵守同样的保护。Codex 只支持 ChatGPT 登录，不使用 API-key 模式；原生 CLI 提供邮箱和方案时会显示在账户卡片。
+
+**Setup** 可选择 **Claude Code** 或 **Codex**；检查、登录、修复及技能安装均针对所选后端。**Create your first goal** 会保留该选择。
+
+创建任务时，在 **Agent backend** 选择后端。同一 Foundry 实例可以运行两种后端；选定后，澄清、执行、重试、审核等会话始终使用该后端，不会把会话交给另一种 CLI 恢复。两种后端在 **Models** 下各有独立预设。Codex 创建任务时会保存预设中的各角色模型、推理强度和备用模型顺序。
+
+Codex 的预算选项只有时间、尝试次数和并发限制，没有美元上限。**Accounts** 列出了目前的适配限制。
+
+
 本页从上到下带你过一遍 **New goal** 表单。大多数字段保持原样就行。你必须填的只有两样：想做什么，以及项目文件夹。
 
 ## 开始之前
@@ -12,8 +32,8 @@
 
 | 检查项 | 是什么 | 如果是红色 |
 |---|---|---|
-| **Claude Code CLI** | Foundry 驱动的程序。 | 复制显示的安装命令并运行，或者找帮你安装 Foundry 的人。 |
-| **Claude login** | 你的 Claude 账户。 | 按 **Sign in**。 |
+| **Claude Code CLI** / **Codex CLI** | 当前所选后端的程序。 | 复制显示的安装命令并运行，或者找帮你安装 Foundry 的人。 |
+| **Claude login** / **Codex login** | 当前所选后端的账户。 | 按 **Sign in**。 |
 | **git** | 保存你文件的每一个版本。 | 复制显示的命令。 |
 | **Bun runtime** | Foundry 自己运行所需的环境。 | 复制显示的命令。 |
 | **Required: …** | Foundry 的会话需要的技能（skills）。 | 按 **Install**。 |
@@ -37,7 +57,7 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 
 有几项选择从 [Settings → New goal defaults](./settings.zh.md#new-goal-defaults) 开始：视图、**Fast mode**、TDD，以及交付方式和粒度。你可以在这里为这个 goal 改其中任何一项。你在页面上改过的字段会保留你的选择。
 
-![New goal 表单，已经描述了 goal 并选好了仓库](images/new-goal.png)
+![New goal 表单，使用统一的 Agent backend 选择控件](images/new-goal.png)
 
 ### What kind of goal is this
 
@@ -79,18 +99,24 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 
 ### Effort
 
-这个 goal 的每个 Claude 会话思考得有多用力。点其中一个按钮；有说明的按钮，鼠标停在上面会显示简短说明。
+这个 goal 的会话思考得有多用力。明确选择一个值会覆盖所有角色。Codex 的 **Default** 使用预设中各角色的强度；当模型支持时，也可选择 **none**、**minimal** 或 **ultra**。表单初始填入 Settings 中配置的强度；主动选 **Default** 会恢复 Codex 角色设置。已知不兼容的模型与强度组合必须修正后才能创建任务。
 
 | 选项 | 什么时候用 |
 |---|---|
-| **Default** | 大多数时候。使用 Settings 里设的 effort。 |
-| **low** | 小而明显的改动。快，也便宜。 |
+| **Default** | Codex：各角色预设强度。Claude：Settings 中设置的 effort。 |
+| **low** | 小而明显、需要较少推理的改动。 |
 | **medium**、**high** | 介于两者之间。 |
-| **xhigh**、**max** | 牵涉项目很多部分的难活。更慢，也更贵。 |
+| **xhigh**、**max** | 给牵涉项目多部分的难活分配更多推理。需要模型支持。 |
 
 ### Models
 
-这个 goal 用哪个 [模型预设](./settings.zh.md#presets)。**Default** 使用 Settings 为代码、文档或媒体类 goal 选定的预设；后面的名字就是那个预设，例如 **Default · Production**。换 goal 类型时它会跟着变。选 **Max**、**Production**、**Balanced**、**Economy**（或者你自己建的预设），就只对这个 goal 覆盖默认值。便宜的预设只要 Max 的一小部分。
+这个 goal 用哪个模型预设，由 **Agent backend** 决定使用 [Claude 预设](./settings.zh.md#presets) 还是 [Codex 预设](./settings.zh.md#codex-预设与模型)。**Default** 使用 Settings 为代码、文档或媒体类 goal 选定的预设；后面的名字就是那个预设，例如 **Default · Production**。换 goal 类型时它会跟着变。选 **Max**、**Production**、**Balanced**、**Economy** 或自定义预设，只为这个 goal 覆盖默认值。切换后端会分别保留各自的选择。
+
+Codex 的 **View … role assignments** 展开各角色将使用的模型与强度。勾选 **Use one model for every role in this goal**，才会把所有角色改为同一个模型；不勾选就保留预设中的各角色模型。可以从本机目录选择模型，也可用 **Custom model ID…** 输入具体 ID。覆盖选项中的 **CLI default model** 使用本机 Codex 配置。不覆盖时，预设中的 **Default model · from Settings** 使用 Settings 的 **Default Codex model**。覆盖模型后，仍保留各角色强度，除非你同时选择全任务 effort。
+
+Codex 任务创建后保留这些设置；以后编辑或删除预设不会改变已有任务。如果后续任务引用的预设已被删除，表单会要求重新选择可用预设。Codex 预设名称表示推理强度分配，不表示美元价格，也不保证账户一定可用。
+
+**Auto** 类型的 **Default · By goal type** 会保存 Code、Docs & research 和 Media 的配置默认表。角色预览初始显示 Code；分类后使用对应类型的已保存表。明确选择一个预设时，分类不会改变所选预设。
 
 ### Engineering discipline (TDD)
 
@@ -98,7 +124,7 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 
 | 选项 | 意思 |
 |---|---|
-| **required** | 执行者必须遵守；没遵守时审查员会被告知。这是默认，除非 Settings 里另有设置。 |
+| **required** | 执行者必须遵守；Claude 会提供技能调用证据，Codex 根据工作与测试结果审查。这是默认，除非 Settings 里另有设置。 |
 | **preferred** | 只是建议。Simple 视图的 goal 总是用这个。 |
 | **off** | 完全不提。 |
 
@@ -136,7 +162,7 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 
 ### Budget
 
-**3 · Budget.** goal 运行时不能超过的上限。碰到上限时，goal 会暂停并问你；它从不悄无声息地失败。
+**3 · Budget.** goal 运行时不能超过的上限。碰到上限时，goal 会暂停并问你；它从不悄无声息地失败。下表美元数值和 **Max cost (USD est.)** 字段只适用于 Claude；Codex 的相同预设保留时间、并发和尝试次数，隐藏美元上限。
 
 | 预设 | 上限 |
 |---|---|

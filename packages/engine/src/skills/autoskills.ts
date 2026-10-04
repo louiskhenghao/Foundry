@@ -10,6 +10,7 @@ import { exec, git } from '../git/git.ts';
 import { spawnStreaming } from './updaters.ts';
 
 export interface AutoskillsDeps {
+  provider?: 'claude' | 'codex';
   spawn?: typeof spawnStreaming;
   /** `node -v` → "v22.3.0"; injected in tests */
   nodeVersion?: () => Promise<string | null>;
@@ -42,8 +43,8 @@ export async function nodeMajor(deps: AutoskillsDeps = {}): Promise<number | nul
  * (`.claude/skills/<n>` → `../../.agents/skills/<n>`), and `Dirent.isDirectory()` is false for a symlink —
  * so the only reliable test is whether `<n>/SKILL.md` resolves.
  */
-function skillDirs(ws: string): string[] {
-  const d = join(ws, '.claude', 'skills');
+function skillDirs(ws: string, folder = ".claude"): string[] {
+  const d = join(ws, folder, 'skills');
   if (!existsSync(d)) return [];
   try {
     return readdirSync(d, { withFileTypes: true })
@@ -55,9 +56,9 @@ function skillDirs(ws: string): string[] {
   }
 }
 
-function isLink(ws: string, name: string): boolean {
+function isLink(ws: string, name: string, folder = ".claude"): boolean {
   try {
-    return lstatSync(join(ws, '.claude', 'skills', name)).isSymbolicLink();
+    return lstatSync(join(ws, folder, 'skills', name)).isSymbolicLink();
   } catch {
     return false;
   }
@@ -68,8 +69,8 @@ function isLink(ws: string, name: string): boolean {
  * content in `.agents/skills/…` and symlinks it). They must be excluded too, or the links become dangling
  * for anyone who checks the branch out.
  */
-function linkTargetRoots(ws: string, names: string[]): string[] {
-  const d = join(ws, '.claude', 'skills');
+function linkTargetRoots(ws: string, names: string[], folder = ".claude"): string[] {
+  const d = join(ws, folder, 'skills');
   const roots = new Set<string>();
   // both sides through realpath: the workspace path itself may run through symlinks (/var → /private/var on macOS)
   const base = (() => {
@@ -85,7 +86,7 @@ function linkTargetRoots(ws: string, names: string[]): string[] {
       if (!lstatSync(p).isSymbolicLink()) continue;
       const rel = relative(base, realpathSync(p));
       const top = rel.split('/')[0];
-      if (top && !rel.startsWith('..') && top !== '.claude') roots.add(top);
+      if (top && !rel.startsWith('..') && top !== folder) roots.add(top);
     } catch {}
   }
   return [...roots].sort();
@@ -97,7 +98,8 @@ export async function runAutoskills(ws: string, deps: AutoskillsDeps = {}, onLin
   const major = await nodeMajor(deps);
   if (major == null || major < 22) return { status: 'skipped', skills: [], detail: major == null ? 'node is not on PATH (autoskills needs Node ≥ 22)' : `node v${major} is too old for autoskills (needs ≥ 22)` };
 
-  const before = new Set(skillDirs(ws));
+  const folder = deps.provider === 'codex' ? '.agents' : '.claude';
+  const before = new Set(skillDirs(ws, folder));
   const claudeMd = join(ws, 'CLAUDE.md');
   const hadClaudeMd = existsSync(claudeMd);
   const claudeMdBefore = hadClaudeMd ? readFileSync(claudeMd, 'utf8') : null;
@@ -105,24 +107,26 @@ export async function runAutoskills(ws: string, deps: AutoskillsDeps = {}, onLin
   const hadLock = existsSync(lockPath);
 
   const spawn = deps.spawn ?? spawnStreaming;
-  const r = await spawn(['npx', '-y', 'autoskills@latest', '-y', '--agent', 'claude-code'], ws, onLine, { timeoutMs: deps.timeoutMs ?? 4 * 60_000 });
+  const r = await spawn(['npx', '-y', 'autoskills@latest', '-y', '--agent', deps.provider === 'codex' ? 'codex' : 'claude-code'], ws, onLine, { timeoutMs: deps.timeoutMs ?? 4 * 60_000 });
 
   // 1. CLAUDE.md: autoskills generates/edits it; the skills themselves are what matters, so put it back
   if (existsSync(claudeMd)) {
     if (!hadClaudeMd) rmSync(claudeMd, { force: true });
     else if (readFileSync(claudeMd, 'utf8') !== claudeMdBefore) writeFileSync(claudeMd, claudeMdBefore!);
   }
-  const after = skillDirs(ws);
+  const after = skillDirs(ws, folder);
   const added = after.filter((n) => !before.has(n));
 
   // 2. keep the installed skills out of git: per-skill excludes (never the whole .claude/skills, the repo may track its own)
-  const targets = linkTargetRoots(ws, added);
+  const targets = linkTargetRoots(ws, added, folder);
   // a trailing slash only matches directories, and a symlinked skill is a *file* to git — so pattern by kind
-  const skillPatterns = added.map((n) => `.claude/skills/${n}${isLink(ws, n) ? '' : '/'}`);
+  const skillPatterns = added.map((n) => `${folder}/skills/${n}${isLink(ws, n, folder) ? '' : '/'}`);
   const excluded = await excludeFromGit(ws, [...skillPatterns, ...targets.map((t) => `${t}/`), ...(hadLock ? [] : ['skills-lock.json'])], deps.log);
   // a previous (buggy) run may have let these reach the index: a tracked symlink into an excluded dir is a
   // dangling link for everyone who checks the branch out, so drop it from the index (the file stays on disk)
-  const untracked = await untrackSkillLinks(ws, after, deps.log);
+  // Codex writes native directories, so it has no legacy Foundry symlink migration.
+  // Existing tracked .agents links belong to the repository and must never be staged for deletion.
+  const untracked = deps.provider === 'codex' ? 0 : await untrackSkillLinks(ws, after, deps.log, folder);
 
   if (r.code !== 0 && !added.length) return { status: 'failed', skills: [], detail: `npx autoskills exited ${r.code}: ${r.tail.split('\n').slice(-3).join(' | ').slice(0, 300)}` };
   if (!added.length) return { status: 'skipped', skills: after, detail: `${after.length ? `nothing new to install (${after.length} project skill(s) already present)` : 'autoskills found no skills for this stack'}${untracked ? `; ${untracked} stale tracked link(s) removed from the index` : ''}` };
@@ -152,13 +156,13 @@ export async function excludeFromGit(ws: string, patterns: string[], log?: (m: s
 }
 
 /** Drop project-skill symlinks from the index when git still tracks them (leftovers of a run that failed to exclude them). */
-export async function untrackSkillLinks(ws: string, names: string[], log?: (m: string) => void): Promise<number> {
-  const tracked = await git(['ls-files', '--', '.claude/skills'], ws);
+export async function untrackSkillLinks(ws: string, names: string[], log?: (m: string) => void, folder = ".claude"): Promise<number> {
+  const tracked = await git(['ls-files', '--', `${folder}/skills`], ws);
   if (tracked.code !== 0) return 0;
   const inIndex = new Set(tracked.stdout.split('\n').filter(Boolean));
-  const stale = names.filter((n) => inIndex.has(`.claude/skills/${n}`) && isLink(ws, n));
+  const stale = names.filter((n) => inIndex.has(`${folder}/skills/${n}`) && isLink(ws, n, folder));
   if (!stale.length) return 0;
-  const r = await git(['rm', '-r', '--cached', '-q', '--', ...stale.map((n) => `.claude/skills/${n}`)], ws);
+  const r = await git(['rm', '-r', '--cached', '-q', '--', ...stale.map((n) => `${folder}/skills/${n}`)], ws);
   if (r.code !== 0) {
     log?.(`[autoskills] could not untrack stale skill links: ${r.stderr.slice(0, 200)}`);
     return 0;
@@ -167,12 +171,13 @@ export async function untrackSkillLinks(ws: string, names: string[], log?: (m: s
 }
 
 /** Give a task worktree the goal workspace's project skills (they are git-excluded, so a checkout lacks them). */
-export function copyProjectSkills(fromWs: string, toWs: string): number {
-  const src = join(fromWs, '.claude', 'skills');
+export function copyProjectSkills(fromWs: string, toWs: string, provider: 'claude' | 'codex' = 'claude'): number {
+  const folder = provider === 'codex' ? '.agents' : '.claude';
+  const src = join(fromWs, folder, 'skills');
   if (!existsSync(src)) return 0;
-  const dest = join(toWs, '.claude', 'skills');
+  const dest = join(toWs, folder, 'skills');
   let n = 0;
-  for (const name of skillDirs(fromWs)) {
+  for (const name of skillDirs(fromWs, folder)) {
     if (existsSync(join(dest, name))) continue;
     cpSync(join(src, name), join(dest, name), { recursive: true, dereference: true });
     n++;

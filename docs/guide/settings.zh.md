@@ -1,5 +1,14 @@
 # 设置说明
 
+## 双后端设置
+
+**Models & limits** 使用统一的 **Agent backend** 控件选择 **Claude Code** 或 **Codex**，各自拥有独立的预设和模型选项。Codex 任务在创建时保存各角色模型、推理强度和备用模型顺序；修改设置只影响新任务。**Claude cost cap per session (USD)** 只适用于 Claude。**Concurrent agent sessions** 是两种后端共用的总并发上限。
+
+**Engine (install)** 显示两种 CLI 路径和配置目录。**Default agent backend** 在启动时选择，不限制新建任务的后端选择。打开旧数据目录时保留原启动配置，以正确识别历史记录。现有分开的数据目录不会自动合并。
+
+**Setup** 和 **Extensions** 都可独立选择 **Claude Code** 或 **Codex**，不再跟随启动配置。安装、更新、回收站、OAuth 和 MCP 权限都操作所选后端。Codex 使用自己的技能目录和共享 `.agents/skills`；autoskills 会把项目技能安装到 `.agents/skills` 并复制到任务 worktree，不进入提交。原生插件的安装和移除改在 **Extensions → Codex → Plugins** 管理。Codex 技能调用记录不可用，审核依据成果，不能据此判定没有使用技能。
+
+
 > [English](./settings.md) · 中文
 
 打开顶栏右侧的 ⚙ 菜单，选 **Settings**。各个部分列在左侧；本页按顺序介绍，用大白话讲你可能想动的控件，以及什么时候动。确切的键名、默认值和环境变量在运维参考 [configuration.md](../operate/configuration.md) 里。
@@ -19,7 +28,7 @@
 | **Default goal view** | expert | goal 打开时用哪个视图：simple 或 expert。 |
 | **Pace for new goals** | thorough | **thorough — engine reviews the work** 或 **fast — approved checks only**。图片和视频 goal 总是以 fast 开始。 |
 | **Interview before the Brief** | auto | **auto** 只在有值得问的事时才问；**always** 至少问一轮；**never** 直接写 Brief。 |
-| **Effort for new goals** | CLI default | 会话思考得多用力，从 **low** 到 **max**。 |
+| **Effort for new goals** | Role preset / CLI default | 从 **low** 到 **max** 的全任务覆盖。默认使用 Codex 各角色预设，或 Claude CLI 默认值。 |
 | **TDD for new Expert goals** | required | 测试先行：**required**、**preferred** 或 **off**。 |
 | **Goal-level fix cycles** | 1 | 最终审查在问你之前，最多可以派几轮修复任务。只用于 thorough 节奏。 |
 | **Small goal (diff lines)** | 400 | 改动行数不超过这个数的 goal，最终审查更轻、更便宜。0 = 从不。 |
@@ -27,17 +36,46 @@
 
 在 **Delivery — what happens to the branch when a goal finishes** 下：**Mode for new goals**（local only）、**Granularity**（one PR per goal）和 **Remote**（origin）。见 [拿到结果](./getting-the-result.zh.md)。
 
-值得知道：New goal 表单就从这些默认值开始。**Default goal view**、**Pace**、**TDD**，以及交付的 **Mode for new goals** 和 **Granularity** 都从这里填入；项目里有这里写的 **Remote** 时，表单也会选它。你在表单上改过的字段，会为这个 goal 保留你的选择。**Interview**、**Effort** 和模型预设只要在表单上保持默认，就跟随 Settings。表单自己会在这个浏览器里记住 goal 类型、预算，以及更细的交付选项（比如合并方式）。
+值得知道：New goal 表单就从这些默认值开始。**Default goal view**、**Pace**、**TDD**、**Effort**，以及交付的 **Mode for new goals** 和 **Granularity** 都从这里填入；项目里有这里写的 **Remote** 时，表单也会选它。你在表单上改过的字段，会为这个 goal 保留你的选择。**Interview** 和模型预设只要在表单上保持默认，就跟随 Settings。Codex 主动选择 **Default** effort 则明确使用各角色的预设强度。表单自己会在这个浏览器里记住 goal 类型、预算，以及更细的交付选项（比如合并方式）。
 
 什么时候改：喜欢被提问的话，把 **Interview before the Brief** 设为 **always**；大多数 goal 都很小的话，调低 **Effort**；如果你宁愿自己看没通过的审查，把 **Goal-level fix cycles** 降到 0。
 
 ## Models & limits
 
-这一部分决定哪个 Claude 模型做哪件事，以及一个会话最多能花多少。
+这一部分决定哪个模型做哪件事。先在 **Agent backend** 选择 **Claude Code** 或 **Codex**；两者的预设和模型目录互相独立。会话限制位于所选后端的模型设置下方。
 
 ![Settings 的 Models & limits：Sync models 按钮，以及每种 goal 类型一个预设和它的模型表](images/settings-models.png)
 
+![Codex 预设与模型设置](images/codex-presets-settings.png)
+
+![各角色模型与推理强度](images/codex-role-models.png)
+
+### Codex 预设与模型
+
+在 **Agent backend → Codex**，分别选择 **Code preset**、**Docs & research preset** 和 **Media preset**。代码默认 Production，其他类型默认 Balanced。这些名字与 Claude 的预设互相独立：
+
+| 预设 | 推理强度分配 |
+|---|---|
+| **Max** | 所有角色使用 `xhigh`；需要模型支持。 |
+| **Production** | 大部分使用 `high`；Planner、Complex tasks、Goal reviewer 使用 `xhigh`，Simple tasks、Feedback triage 使用 `medium`，Housekeeping 使用 `low`。 |
+| **Balanced** | 大部分使用 `medium`；Planner、Complex tasks、Goal reviewer 使用 `high`，Housekeeping 使用 `low`。 |
+| **Economy** | 所有角色使用 `low`。 |
+
+这些预设初始都使用 **Default model · from Settings**。**Default Codex model** 决定新任务如何解析这个默认模型；仍选 **CLI default model** 就跟随本机 Codex 配置，填写明确 ID 则固定模型。实际速度、额度消耗和可用性取决于模型与账户；Foundry 不会根据预设名称推算美元费用。
+
+Auto 类型任务选择 Default 预设时，会在创建时保存三种任务类型的默认表。分类阶段先用 Code 表，判定类型后再使用对应的已保存表。明确选择某个预设，则各种任务类型始终使用该预设。
+
+在 **Edit preset** 选择预设，再选 **Code**、**Docs & research** 或 **Media** 表。每个角色都有模型下拉框和 **Reasoning effort**。Codex 的 **Housekeeping** 也由预设控制。**Planner** 使用独立的 Foundry 规划会话。已同步的模型资料会限制可选推理强度；**CLI default** 不指定强度，交给 Codex。**Custom model ID…** 可输入目录中尚未出现的新模型或私有模型。
+
+**Duplicate preset** 复制当前预设，随后可编辑 **Preset name** 和 **Description**。修改内置预设后会显示 **modified**；**Reset to built-in** 恢复出厂表格。**Delete preset** 删除自定义预设，使用它的任务类型会回到内置默认值。按 **Save** 后只影响新 Codex 任务。已有任务保留创建时的设置，即使原预设后来改名或删除，也不会被改变。
+
+**Sync Codex models** 读取本机 CLI 模型目录，不运行推理。出现在目录中不代表当前账户一定能用。**Test** 会明确运行一次简短会话，检查所选模型和推理强度；它消耗账户额度。结果显示可用性，美元费用显示不可用。选择或保存模型不会自动执行 Test。
+
+在 **Fallback models, in order**，用 **Add fallback**、上下箭头和移除按钮设置备用模型顺序。这里的 **CLI default model** 跟随本机 Codex 配置，不使用 Settings 中的基础模型。新任务会保存这个顺序。只有模型不可用时才切换备用模型；登录、额度或不支持的推理强度错误不会静默切换模型。没有备用模型时，模型不可用会请求你处理。
+
 ### Presets
+
+以下预设说明对应 **Agent backend → Claude Code**；已有模型配置和行为保留不变。
 
 预设是一张表：每项工作由哪个模型来做。这些工作是：
 
@@ -123,26 +161,40 @@ Foundry 启动时，如果发现 Claude Code 自上次同步后更新过，也�
 
 | 设置 | 默认 | 作用 |
 |---|---|---|
-| **Cost cap per session (USD)** | 10 | worker 会话花到这个数就停（也绝不会超过 goal 剩余的预算）。 |
+| **Claude cost cap per session (USD)** | 10 | Claude worker 花到这个数就停（也不会超过 goal 剩余预算）。Codex 没有美元上限。 |
 | **Attempt timeout (minutes)** | 20 | 运行超过这个时间的会话会被停止。它已提交的内容会保留；Foundry 会续接或重试。 |
 | **Continuations per attempt** | 2 | 被停止的会话在开始新尝试之前最多续接几次（续接更便宜，会保留它读过的内容）。 |
-| **Turn cap per session** | 150 | 只用来拦住失控的循环。设宽松一点。 |
-| **Concurrent Claude sessions** | 3 | 所有 goal 加起来同时运行几个会话。越高越快，花钱也越快。 |
+| **Turn cap per session** | 150 | Claude 的模型轮数；Codex 的工具调用次数。设宽松一点。 |
+| **Concurrent agent sessions** | 3 | 两种后端的所有 goal 加起来同时运行的会话总数。 |
 
-什么时候改：如果大任务总是被中途截断，调高费用上限或超时；如果你经常碰到套餐的用量上限，调低 **Concurrent Claude sessions**。
+什么时候改：如果大任务总是被中途截断，调高超时或 Claude 费用上限；如果你经常碰到套餐的用量上限，调低 **Concurrent agent sessions**。
 
 ## Skills
 
-skill 是 Claude Code 可以遵循的打包指令。在这里选择 Foundry 把哪些交给它的会话。
+skill 是所选后端可以遵循的打包指令。在这里选择 Foundry 把哪些交给它的会话。
 
 - **Profile**：**mattpocock (mandated + observed)**（默认）告诉 worker 要遵循哪种工作方法（功能先写测试，bug 先诊断），并记录它们有没有照做。**plain (hint only)** 只是提一下。
-- **Setting sources**：会话加载哪些 Claude Code 设置。留空。
+- **Setting sources**（仅 Claude）：会话加载哪些 Claude Code 设置。留空。
 - **autoskills per goal**（开）：你批准 Brief 后，把匹配你项目技术栈（React、Tailwind……）的 skill 加到 goal 的文件夹里。它们不会进入你的提交。
 - **Design skills**、**Image skills**、**Video skills**：每类选一个包；只有这个包会交给前端、图片或视频任务。每个包显示 **installed** 或 **N missing**，并带一个 **Install** 按钮。选包会立即保存。图片包只有在 [Tools & keys](#tools--keys) 里有 key 时，才能生成真正的图片。已安装的技能缺少它需要的 key 时，它的卡片上会显示 **⚠ key missing**，写明是哪个 key、缺了它会少什么；点它就会跳到 **Tools & keys**。
 
-顶栏上的 **Extensions** 页面放着你的 skill 和 MCP server。它的 **Skills** 标签页显示所有已安装的 skill，并可以更新。每个技能都有一个状态：**outdated**（有新版本 —— 按 **Update**）、**unreleased**（插件作者在上游改了它，但没有提高版本号，所以 CLI 暂时没有新东西可装）、**modified**（你的副本被改过）或 **up to date**（只有 README 或 changelog 不同不算）。像 ffmpeg 这样的命令行工具，只要找得到它的命令就算已安装。插件的技能只能一起删除，用 **Uninstall plugin**。你手动安装的副本，如果 Foundry 自己能安装这个技能，就会出现 **Adopt**：用一个由 Foundry 负责更新的副本替换它。你在那里发起的每次安装、更新、接管（adopt）或卸载，都会在页面底部的 **Operations** 栏里打开一个标签页，带着它自己的日志；几个操作可以同时进行。完成的标签页会一直留着，直到你关掉它；这个栏也可以收起成一行计数。
+顶栏上的 **Extensions** 页面放着 skill、MCP server 和原生 Codex 插件。下述技能更新状态及整包卸载细节适用于 Claude。Codex 的 **Skills** 清单显示独立的原生及共享技能，插件包另在 **Plugins** 显示。每个技能都有一个状态：**outdated**（有新版本 —— 按 **Update**）、**unreleased**（插件作者在上游改了它，但没有提高版本号，所以 CLI 暂时没有新东西可装）、**modified**（你的副本被改过）或 **up to date**（只有 README 或 changelog 不同不算）。像 ffmpeg 这样的命令行工具，只要找得到它的命令就算已安装。插件的技能只能一起删除，用 **Uninstall plugin**。你手动安装的副本，如果 Foundry 自己能安装这个技能，就会出现 **Adopt**：用一个由 Foundry 负责更新的副本替换它。你在那里发起的每次安装、更新、接管（adopt）或卸载，都会在页面底部的 **Operations** 栏里打开一个标签页，带着它自己的日志；几个操作可以同时进行。完成的标签页会一直留着，直到你关掉它；这个栏也可以收起成一行计数。
+
+### Codex plugins
+
+![Codex 原生插件管理——演示数据](images/codex-native-plugins.png)
+
+选择 **Codex** 后打开 **Plugins**。**Installed** 和 **Available** 分别显示原生 marketplace 返回的已安装及可安装插件；可按插件或 marketplace 过滤，在 CLI 修改后按 **Refresh plugins** 刷新。**Install** 和 **Remove** 会先显示确认弹窗，再在 **Operations** 显示进度；完成后刷新清单，原生安装状态确认成功才会报告成功。
+
+安装使用配置的 Codex 目录，与本机 CLI 共用；新会话加载已启用的组件。插件可以含 skills、工具和 hooks，请选择信任的来源。移除会删除原生用户安装及缓存包，需要恢复时从 marketplace 重新安装。Foundry 检测到有工作正在运行时会拒绝变更。Claude 插件保持独立。
+
+**Installed · disabled by native configuration** 表示已安装但被原生配置停用；**Managed in Codex** 表示 marketplace 策略不允许此页面变更。Marketplace 设置、插件更新及启用／停用仍在原生 CLI 处理。外部服务仍须独立授权，安装不会自动授予 MCP 工具的 **Allowed in goals** 权限。CLI 不支持兼容的插件 JSON 命令时，页面显示 **Native plugin list unavailable**，可更新 CLI 后重试。
 
 ### MCP servers
+
+![Codex MCP 服务器 — 演示数据](images/codex-extensions-mcp.png)
+
+先在 **Extensions** 选择后端，再打开 **MCP servers**。Codex 使用原生配置；**Check** 建立新连接并发现工具，不运行推理。支持 stdio、streamable HTTP 及 HTTP OAuth 登录，不支持旧式 SSE。可在此新增、替换和移除原生用户级服务器。运行中的会话维持现有连接，新会话采用新配置。两种后端各有独立的 **Allowed in goals** 清单，Codex 默认不允许任何服务器。以下连接器和插件细节适用于 Claude 后端。
 
 MCP server 让 Claude Code 能用文件和命令行以外的工具，比如最新的库文档、一个真的浏览器、网页搜索、你的邮箱。**Extensions** 页面有一个 **MCP servers** 标签页，列出 Claude Code 为你的账号加载的 server：你自己装的（**yours**）、插件带来的（**plugin**）和你的 claude.ai 连接器（**claude.ai**）。**Check** 会逐个连上去，看它能不能用；它不会自动运行，因为它会启动每一个 server。
 
@@ -170,6 +222,8 @@ Foundry 怎样跟上你项目的线上副本，以及交付要等多久。
 ## Tools & keys
 
 - **Use graphify for relevant-file discovery**（开）：安装了这个工具时，用代码地图找相关文件。
+以下媒体服务 key 与执行后端登录无关。Codex 始终只用 ChatGPT 登录，填写图片 key 不会启用 API-key 推理。
+
 - **OpenAI-compatible API key**：图片 goal 要生成真正的图片就需要它。没有它，图片任务只能退回到手绘的 SVG 渲染。**OpenAI-compatible base URL**：只在用代理或其它兼容服务商时需要。
 - **Gemini API key**：某个图片包的替代选择。
 - **Kimi (Moonshot) API key**：某个设计包的模型会用到，在 skill 调用它们的时候。
@@ -204,7 +258,7 @@ key 对下一个会话生效，不用重启。保存过的 key 不会再显示�
 | **Interview round** | Foundry 写 Brief 前问一轮问题。 | 回答它们；goal 在等你。 |
 | **Goal finished** | 某个 goal 以 done、over-delivered 或 failed 结束。你自己取消的不会发。 | 看结果，或看哪里失败了。 |
 | **Delivery** | 有 pull request 开出或合并了，或者交付失败了。 | 审查 pull request，或看 Delivery 标签。 |
-| **Usage pause** | 你的 Claude 套餐用量上限让所有工作暂停了；恢复时会再发一次。 | 什么都不用做。工作会自己恢复。 |
+| **Usage pause** | 某后端达到用量上限而暂停新会话，重新尝试时再通知；另一后端仍可继续。 | Foundry 自动重试；持续失败时检查 Accounts 和 Usage。 |
 | **New version** | Foundry 出了新版本（每个版本一次）。 | 方便时更新，见 [About & updates](#about--updates)。 |
 
 关掉你不想要的。这些开关对所有渠道都一样生效。
@@ -220,6 +274,7 @@ key 对下一个会话生效，不用重启。保存过的 key 不会再显示�
 
 - **Port**（4111）和 **Host**（127.0.0.1）：在哪里访问 Foundry。除非你设置了远程访问，否则保持 127.0.0.1。需要重启。
 - **claude binary** 和 **Claude Code home**：Claude Code 及其 skill 所在的位置。留空会自动找到。需要重启。
+- **Codex binary** 和 **Codex home**：Codex 程序和原生账户／配置目录。留空使用 PATH 及 `CODEX_HOME` 或 `~/.codex`。需要重启。启动配置保持固定，每个 goal 的后端在 New goal 选择。
 - **Progress folders**：每个 goal 的文件夹在哪里创建。留空时放在你的项目旁边，即 `<project>-foundry/<goal>`。在这里填一个文件夹，就会变成 `<folder>/<project>/<goal>`。对今后创建的 goal 生效。
 
 ## About & updates
@@ -228,7 +283,7 @@ key 对下一个会话生效，不用重启。保存过的 key 不会再显示�
 
 更新对话框：
 
-- **Update**：不再启动新会话，运行中的会话跑完，然后 Foundry 更新并重启。页面会自己重新加载。如果出了任何问题，会回滚，旧版本继续运行。
+- **Update**：不再启动新会话，运行中的会话跑完，然后 Foundry 更新并重启。页面会自己重新加载。本机代码更新失败时会尝试恢复旧 checkout，这不等于数据库回退。升级混合后端数据前先备份；要运行旧程序，必须恢复匹配的升级前备份。
 - **Update immediately without waiting — interrupts running agents**：只有等不了时才勾选。
 - **Not now** 关闭对话框。
 - 如果这个安装没法自己更新，对话框会改为显示要运行的命令。

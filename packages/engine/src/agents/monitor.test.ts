@@ -104,10 +104,10 @@ describe('scan', () => {
 });
 
 describe('AgentsMonitor.list', () => {
-  test('merges foundry + external rows with status, metadata, and nested subagents', () => {
+  test('merges foundry + external rows with status, metadata, and nested subagents', async () => {
     const { home, dataDir } = fixture();
     const m = new AgentsMonitor({ claudeHome: home, dataDir }, deps());
-    const { sessions, summary } = m.list();
+    const { sessions, summary } = await m.list();
     const byId = Object.fromEntries(sessions.map((s) => [s.sessionId, s]));
 
     const foundry = byId[SID_FOUNDRY]!;
@@ -138,40 +138,40 @@ describe('AgentsMonitor.list', () => {
     expect(summary).toEqual({ busy: 2, idle: 0, finished: 2, total: 4 });
   });
 
-  test('a live process with a stale transcript reads idle, not busy', () => {
+  test('a live process with a stale transcript reads idle, not busy', async () => {
     const { home, dataDir, proj } = fixture();
     ageFile(join(proj, `${SID_LIVE}.jsonl`), 120);
     const m = new AgentsMonitor({ claudeHome: home, dataDir }, deps());
-    expect(m.list().sessions.find((s) => s.sessionId === SID_LIVE)!.status).toBe('idle');
+    expect((await m.list()).sessions.find((s) => s.sessionId === SID_LIVE)!.status).toBe('idle');
   });
 
-  test('a foundry-owned session in the registry is not duplicated as external', () => {
+  test('a foundry-owned session in the registry is not duplicated as external', async () => {
     const { home, dataDir } = fixture();
     // engine state wins: the registry knowing about this pid must not add a second, external row
     writeFileSync(join(home, 'sessions', `${process.pid}.json`), JSON.stringify({ pid: process.pid, sessionId: SID_FOUNDRY, cwd: '/x', startedAt: Date.now() }));
     const m = new AgentsMonitor({ claudeHome: home, dataDir }, deps());
-    const rows = m.list().sessions.filter((s) => s.sessionId === SID_FOUNDRY);
+    const rows = (await m.list()).sessions.filter((s) => s.sessionId === SID_FOUNDRY);
     expect(rows.length).toBe(1);
     expect(rows[0]!.source).toBe('foundry');
   });
 });
 
 describe('AgentsMonitor.log', () => {
-  test('incremental parsed log for sessions and subagents; unknown ids return null', () => {
+  test('incremental parsed log for sessions and subagents; unknown ids return null', async () => {
     const { home, dataDir } = fixture();
     const m = new AgentsMonitor({ claudeHome: home, dataDir }, deps());
-    const c1 = m.log(SID_LIVE, null, 0)!;
+    const c1 = (await m.log(SID_LIVE, null, 0))!;
     expect(c1.items.length).toBeGreaterThan(0);
     expect(c1.eof).toBe(true);
     expect(c1.status).toBe('busy');
-    expect(m.log(SID_LIVE, null, c1.offset)!.items).toEqual([]);
+    expect((await m.log(SID_LIVE, null, c1.offset))!.items).toEqual([]);
 
-    const sub = m.log(SID_LIVE, 'run1', 0)!;
+    const sub = (await m.log(SID_LIVE, 'run1', 0))!;
     expect(sub.items[0]).toMatchObject({ kind: 'user', text: 'sub work' });
 
-    expect(m.log('99999999-9999-4999-8999-999999999999', null, 0)).toBeNull();
-    expect(m.log(SID_LIVE, 'no-such-agent', 0)).toBeNull();
-    const finished = m.log(SID_DONE, null, 0)!;
+    expect(await m.log('99999999-9999-4999-8999-999999999999', null, 0)).toBeNull();
+    expect(await m.log(SID_LIVE, 'no-such-agent', 0)).toBeNull();
+    const finished = (await m.log(SID_DONE, null, 0))!;
     expect(finished.status).toBe('finished');
   });
 });

@@ -7,6 +7,7 @@ import { WorkspaceCard } from './WorkspaceCard.tsx';
 import { PreviewCard } from './PreviewCard.tsx';
 import { Badge, Card, cn } from '../../ui.tsx';
 import { EscalationCard } from '../InboxPage.tsx';
+import { CodexModelsCard } from './CodexModelsCard.tsx';
 
 const STAGES = ['clarifying', 'awaiting_brief_approval', 'running', 'goal_review', 'done'] as const;
 const STAGE_LABEL: Record<string, string> = { clarifying: 'Clarify', awaiting_brief_approval: 'Brief', running: 'Run', goal_review: 'Review', done: 'Done' };
@@ -95,6 +96,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
         <div className="lg:col-span-2 space-y-4">
           <MarkdownPanel title="goal" source={g.prompt} maxHeight={240} />
           <WorkspaceCard d={d} />
+          <CodexModelsCard goal={g} />
           {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <PreviewCard goalId={g.id} selfCheck={g.selfCheck} />}
           {d.events.some((e) => e.type === 'goal.models_changed') && (
             <Card title="Model fallback">
@@ -111,7 +113,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
                     );
                   })}
                 <div className="text-[11px] text-zinc-500">
-                  Preset: <span className="mono">{g.modelPreset ?? 'Settings default for this goal type'}</span>
+                  Preset: <span className="mono">{g.provider === 'codex' ? g.codexPreset?.label ?? 'Legacy single model' : g.modelPreset ?? 'Settings default for this goal type'}</span>
                   {Object.keys(g.modelSubstitutions ?? {}).length > 0 && (
                     <>
                       {' '}· replaced for this goal:{' '}
@@ -139,7 +141,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
                   </>
                 )}
               </div>
-              <p className="text-[11px] text-zinc-500 mt-2">Written to the goal workspace's .claude/skills and git-excluded; they never reach a commit or PR.</p>
+              <p className="text-[11px] text-zinc-500 mt-2">Written to the goal workspace's {d.goal.provider === 'codex' ? '.agents/skills' : '.claude/skills'} and git-excluded; they never reach a commit or PR.</p>
             </Card>
           )}
           {(g.completion.graphRefresh || g.completion.docs.length > 0 || g.completion.artifactsRun) && (
@@ -208,7 +210,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
                 </span>
                 <span>{d.brief.brief.questions.filter((q) => q.answer).length}/{d.brief.brief.questions.length} questions answered</span>
                 <span>
-                  est. ${d.brief.brief.costEstimateUsd} / {d.brief.brief.timeEstimateMin} min
+                  est. {d.goal.provider !== 'codex' && <>${d.brief.brief.costEstimateUsd} / </>} {d.brief.brief.timeEstimateMin} min
                 </span>
               </div>
             </Card>

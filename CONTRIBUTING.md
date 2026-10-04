@@ -8,7 +8,7 @@ Start with [docs/develop/](docs/develop/): the architecture, the roles, testing 
 - **Small, focused commits** in [Conventional Commits](https://www.conventionalcommits.org/) form. The message says what
   changed and why, in one short paragraph.
 - **No attribution lines.** No `Co-Authored-By`, no "generated with" footers, in commits or pull requests.
-- **Tests and types pass:** `bun test packages` and `bun run typecheck`, both from the repository root.
+- **Tests and types pass:** `bun test packages ./apps/cli/src ./apps/web/tests` and `bun run typecheck`, both from the repository root. Run `bun run web:build` for web changes. Plain `bun test` covers packages only.
 - **Check the blast radius** before editing a function or class if you have GitNexus installed (`gitnexus impact <name>`).
 
 ## Documentation is part of the change
@@ -25,8 +25,7 @@ In the same pull request as the code:
 
 1. **Anything a user can see changed** (a screen, a button, a setting, a notice, a default) → update the page in
    `docs/guide/` that describes it, **and its `.zh.md` twin**. Button and setting names are quoted exactly as the UI shows
-   them. If the screen appears in a screenshot, run `bun scripts/screenshots.ts` (free: it uses a scripted demo, no
-   model calls).
+   them. If the screen appears in a screenshot, regenerate that view with isolated demonstration data; `bun scripts/screenshots.ts` covers the original shared/Claude views without model calls. Provider-specific captures need their own fixtures; see [testing](docs/develop/testing.md#the-seeded-demo-and-the-guides-screenshots).
 2. **A setting, environment variable or CLI command changed** → describe it in
    `packages/engine/src/docs/settings-reference.ts` (settings) or `apps/cli/src/help.ts` (CLI), then run
    `bun scripts/gen-docs.ts`. The tests fail if `docs/operate/configuration.md` or `cli.md` is out of date, or if a
@@ -35,6 +34,8 @@ In the same pull request as the code:
    implementation.
 4. **A decision that is hard to reverse, surprising without context, and the result of a real trade-off** → a new ADR in
    [docs/develop/adr/](docs/develop/adr/). Never rewrite an old ADR; mark it amended or superseded.
+
+When a change touches execution, auth, models, usage or extensions, check both backends. Preserve a goal's provider, keep account/model/MCP state independent and represent unavailable native measurements as unknown. The [architecture](docs/develop/architecture.md#sessions-and-how-a-model-is-picked) and [validation record](docs/develop/codex-validation.md) identify the contracts and outstanding real-service checks.
 
 ## Trying a change in the real UI
 

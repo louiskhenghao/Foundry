@@ -110,7 +110,7 @@ export function LiveLog({ attemptId, className }: { attemptId: string; className
           if (ev.kind === 'result') {
             const r = ev.result;
             const said = r.finalText ?? r.errorMessage;
-            return line('text-emerald-400', <>■ {r.subtype} · ${r.costUsd.toFixed(3)} · {r.numTurns} turns{r.subtype === 'error_max_turns' || r.subtype === 'error_max_budget_usd' ? ' — the engine resumes this session (continuation)' : ''}{said ? <span className="text-zinc-300"> — {oneLine(said)}</span> : null}</>);
+            return line('text-emerald-400', <>■ {r.subtype} · {r.costStatus === 'unavailable' ? 'cost unavailable' : `$${r.costUsd.toFixed(3)}`} · {r.costStatus === 'unavailable' ? 'turn count unavailable' : `${r.numTurns} turns`}{r.subtype === 'error_max_turns' || r.subtype === 'error_max_budget_usd' ? ' — the engine resumes this session (continuation)' : ''}{said ? <span className="text-zinc-300"> — {oneLine(said)}</span> : null}</>);
           }
           if (ev.kind === 'progress') {
             // one line per running tool, kept current: consecutive heartbeats of the same call replace each other

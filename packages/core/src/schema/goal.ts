@@ -1,3 +1,4 @@
+import { CodexEffort, CodexModelPreset } from './codex-presets.ts';
 import { z } from 'zod';
 import { Attachment } from './attachment.ts';
 import { BriefStyleOption } from './brief.ts';
@@ -142,6 +143,8 @@ export const GoalFollows = z.object({
 export type GoalFollows = z.infer<typeof GoalFollows>;
 
 export const Goal = z.object({
+  /** Fixed at creation. Absent only in events written before provider support. */
+  provider: z.enum(['claude', 'codex']).optional(),
   id: z.string(),
   title: z.string().min(1),
   prompt: z.string().min(1),
@@ -167,8 +170,12 @@ export const Goal = z.object({
   /** the Clarify interview (rounds of questions before the Brief); null = the one-shot Clarify of before */
   interview: Interview.nullable().default(null),
   /** effort level for every session of this goal; null = Settings default / CLI default */
-  effort: Effort.nullable().default(null),
+  effort: CodexEffort.nullable().default(null),
   /** the model preset this goal uses; null = the preset Settings picks for its nature */
+  codexPreset: CodexModelPreset.optional(),
+  /** Explicit all-role model selection, retained separately from the captured role table for follow-ups. */
+  codexModelOverride: z.string().trim().min(1).optional(),
+  codexFallbacks: z.array(z.string().min(1)).optional(),
   modelPreset: z.string().nullable().default(null),
   /** models found unavailable during this goal and what replaced them (from → to), applied to every later session */
   modelSubstitutions: z.record(z.string(), z.string()).default({}),

@@ -1,12 +1,14 @@
 import type { Attempt } from '@foundry/core';
 import { statSync } from 'node:fs';
 import { contextWindowFor } from './context-windows.ts';
+import { CodexAgentsMonitor } from './codex-monitor.ts';
 import { liveRegistry, listSubagents, recentTranscripts, subagentDone, TranscriptIndex, type TranscriptRef } from './scan.ts';
 import { deriveMetaFromFile, firstLine, readSlice, tailLines, toLogItems, type Envelope, type TranscriptMeta } from './transcript.ts';
 import type { AgentLogChunk, AgentSessionRow, AgentStatus, AgentsList, AgentsSummary } from './types.ts';
 
 /** One engine-spawned Claude session that is currently in flight. */
 export interface FoundryLiveSession {
+  provider?: 'claude' | 'codex';
   taskId: string;
   goalId: string;
   attemptId: string | null;
@@ -23,6 +25,9 @@ export interface AgentsMonitorDeps {
   /** attempts that ended at/after the given ISO time */
   foundryRecent: (sinceIso: string) => Attempt[];
   goalTitle: (goalId: string) => string | null;
+  goalProvider?: (goalId: string) => 'claude' | 'codex';
+  /** All known Foundry sessions, including older attempts and auxiliary sessions. */
+  foundrySessionIds?: () => Iterable<string>;
   now?: () => number;
 }
 
@@ -42,24 +47,51 @@ export class AgentsMonitor {
   private index: TranscriptIndex;
   private metaCache = new Map<string, { mtimeMs: number; meta: TranscriptMeta; tail: Envelope[] }>();
   private cache: { at: number; list: AgentsList } | null = null;
+  private codex: CodexAgentsMonitor | null;
 
   constructor(
-    private opts: { claudeHome: string; dataDir: string; /** roots of the progress folders (`<repo>-foundry/`), so runs the engine spawned there count as Foundry too */ workspaceRoots?: () => string[] },
+    private opts: { includeExternal?: boolean; claudeHome: string; codexHome?: string; codexBin?: string; codexProcessHome?: string; codexTimeoutMs?: number; dataDir: string; /** roots of the progress folders (`<repo>-foundry/`), so runs the engine spawned there count as Foundry too */ workspaceRoots?: () => string[] },
     private deps: AgentsMonitorDeps,
   ) {
     this.index = new TranscriptIndex(opts.claudeHome);
+    this.codex = opts.codexHome && opts.includeExternal !== false ? new CodexAgentsMonitor({ codexHome: opts.codexHome, codexBin: opts.codexBin, processHome: opts.codexProcessHome, timeoutMs: opts.codexTimeoutMs }, () => this.now()) : null;
   }
 
   private now(): number {
     return this.deps.now?.() ?? Date.now();
   }
 
-  list(): AgentsList {
+  stop(): void { this.codex?.stop(); }
+
+  async list(): Promise<AgentsList> {
+    const local = this.localList();
+    if (!this.codex) return local;
+    const owned = this.ownedSessions();
+    for (const row of local.sessions) if (row.source === 'foundry') owned.add(row.sessionId);
+    const external = await this.codex.list(owned);
+    const order: Record<AgentStatus, number> = { busy: 0, idle: 1, unknown: 2, finished: 3 };
+    const sessions = [...local.sessions, ...external.sessions].sort((a, b) => order[a.status] - order[b.status] || (b.lastActivityAt ?? '').localeCompare(a.lastActivityAt ?? '')).slice(0, MAX_ROWS);
+    const summary: AgentsSummary = { busy: 0, idle: 0, finished: 0, total: sessions.length };
+    for (const row of sessions) summary[row.status] = (summary[row.status] ?? 0) + 1;
+    return { sessions, summary, generatedAt: iso(this.now())!, ...(external.warning ? { warnings: [external.warning] } : {}) };
+  }
+
+  private ownedSessions(): Set<string> {
+    const ids = new Set(this.deps.foundrySessionIds?.() ?? []);
+    for (const session of this.deps.foundryLive()) if (session.sessionId) ids.add(session.sessionId);
+    for (const attempt of this.deps.foundryRecent(new Date(this.now() - WINDOW_MS).toISOString())) {
+      if (attempt.sessionId) ids.add(attempt.sessionId);
+      for (const session of attempt.sessions ?? []) if (session.sessionId) ids.add(session.sessionId);
+    }
+    return ids;
+  }
+
+  private localList(): AgentsList {
     const now = this.now();
     if (this.cache && now - this.cache.at < CACHE_MS) return this.cache.list;
 
     const since = now - WINDOW_MS;
-    const foundryIds = new Set<string>();
+    const foundryIds = this.ownedSessions();
     const rows: AgentSessionRow[] = [];
 
     // Foundry in-flight — authoritative from engine state, no ~/.claude needed
@@ -69,6 +101,7 @@ export class AgentsMonitor {
       if (f.sessionId) foundryIds.add(f.sessionId);
       rows.push({
         sessionId: f.sessionId ?? `foundry-${f.taskId}`,
+        provider: f.provider ?? this.deps.goalProvider?.(f.goalId) ?? 'claude',
         source: 'foundry',
         entrypoint: 'foundry',
         status: 'busy',
@@ -95,6 +128,7 @@ export class AgentsMonitor {
       for (const s of a.sessions ?? []) if (s.sessionId) foundryIds.add(s.sessionId);
       rows.push({
         sessionId: a.sessionId ?? `foundry-${a.id}`,
+        provider: this.deps.goalProvider?.(a.goalId) ?? 'claude',
         source: 'foundry',
         entrypoint: 'foundry',
         status: 'finished',
@@ -116,13 +150,14 @@ export class AgentsMonitor {
 
     // External live — ~/.claude/sessions registry minus anything Foundry owns
     const externalLiveIds = new Set<string>();
-    for (const r of liveRegistry(this.opts.claudeHome)) {
+    for (const r of this.opts.includeExternal === false ? [] : liveRegistry(this.opts.claudeHome)) {
       if (foundryIds.has(r.sessionId)) continue;
       externalLiveIds.add(r.sessionId);
       const ref = this.index.find(r.sessionId);
       const mtime = ref?.mtimeMs ?? null;
       rows.push({
         sessionId: r.sessionId,
+        provider: 'claude',
         source: 'external',
         entrypoint: r.entrypoint,
         status: mtime !== null && now - mtime <= BUSY_MS ? 'busy' : 'idle',
@@ -143,11 +178,12 @@ export class AgentsMonitor {
     }
 
     // External finished — transcripts touched in the window that belong to no live process
-    for (const t of recentTranscripts(this.opts.claudeHome, since)) {
+    for (const t of this.opts.includeExternal === false ? [] : recentTranscripts(this.opts.claudeHome, since)) {
       if (externalLiveIds.has(t.sessionId) || foundryIds.has(t.sessionId)) continue;
       this.index.remember(t);
       rows.push({
         sessionId: t.sessionId,
+        provider: 'claude',
         source: 'external',
         entrypoint: null,
         status: 'finished',
@@ -167,28 +203,29 @@ export class AgentsMonitor {
       });
     }
 
-    const order: Record<AgentStatus, number> = { busy: 0, idle: 1, finished: 2 };
+    const order: Record<AgentStatus, number> = { busy: 0, idle: 1, finished: 2, unknown: 3 };
     rows.sort((a, b) => order[a.status] - order[b.status] || (b.lastActivityAt ?? '').localeCompare(a.lastActivityAt ?? ''));
     const capped = rows.slice(0, MAX_ROWS);
 
     // Tail-derive metadata only for rows that made the cut
-    for (const row of capped) this.enrich(row, now);
+    if (this.opts.includeExternal !== false) for (const row of capped) if (row.provider !== 'codex') this.enrich(row, now);
 
     const summary: AgentsSummary = { busy: 0, idle: 0, finished: 0, total: capped.length };
-    for (const r of capped) summary[r.status]++;
+    for (const r of capped) summary[r.status] = (summary[r.status] ?? 0) + 1;
     const list: AgentsList = { sessions: capped, summary, generatedAt: iso(now)! };
     this.cache = { at: now, list };
     return list;
   }
 
-  summary(): AgentsSummary {
-    return this.list().summary;
+  async summary(): Promise<AgentsSummary> {
+    return (await this.list()).summary;
   }
 
   /** Incremental parsed log for an external session or a Task subagent. null = unknown session/agent. */
-  log(sessionId: string, agentId: string | null, offset: number): AgentLogChunk | null {
+  async log(sessionId: string, agentId: string | null, offset: number): Promise<AgentLogChunk | null> {
+    if (this.opts.includeExternal === false) return null;
     const path = agentId ? this.index.findSubagentLog(sessionId, agentId) : (this.index.find(sessionId)?.path ?? null);
-    if (!path || !this.index.safe(path)) return null;
+    if (!path || !this.index.safe(path)) return this.codex?.log(sessionId, agentId, offset, this.ownedSessions()) ?? null;
     const slice = readSlice(path, offset);
     const alive = liveRegistry(this.opts.claudeHome).some((r) => r.sessionId === sessionId);
     let status: AgentStatus = 'finished';

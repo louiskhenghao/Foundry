@@ -2,9 +2,13 @@ import type { AgentSessionRow, AgentStatus } from '@foundry/engine/agents-types'
 import { cn } from '../../ui.tsx';
 
 export function StatusDot({ status }: { status: AgentStatus }) {
-  const cls = status === 'busy' ? 'bg-emerald-400 animate-pulse' : status === 'idle' ? 'bg-zinc-500' : 'bg-zinc-700';
-  const label = status === 'busy' ? 'working' : status === 'idle' ? 'waiting for input' : 'finished';
-  return <span className={cn('inline-block h-2 w-2 rounded-full shrink-0', cls)} title={label} />;
+  const cls = status === 'busy' ? 'bg-emerald-400 animate-pulse' : status === 'idle' ? 'bg-zinc-500' : status === 'unknown' ? 'border border-sky-400 bg-transparent' : 'bg-zinc-700';
+  const label = status === 'busy' ? 'working' : status === 'idle' ? 'waiting for input' : status === 'unknown' ? 'Live process state unknown' : 'finished';
+  return <span className={cn('inline-block h-2 w-2 rounded-full shrink-0', cls)} role="img" aria-label={label} title={label} />;
+}
+
+export function ProviderBadge({ provider }: { provider: AgentSessionRow['provider'] }) {
+  return <span className="rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-400 shrink-0">{provider === 'codex' ? 'Codex' : provider === 'claude' ? 'Claude Code' : 'Backend unknown'}</span>;
 }
 
 export function SourceBadge({ row }: { row: AgentSessionRow }) {

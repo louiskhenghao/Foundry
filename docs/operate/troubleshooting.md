@@ -1,6 +1,6 @@
 # Troubleshooting
 
-This page is for the person who runs Foundry: checks, Docker problems, engine log lines, restarts and API keys.
+This page is for the person who runs Foundry: native accounts, Docker problems, engine log lines, restarts and media-tool keys.
 What the messages on a goal mean for the person running it (task states, Inbox notices) is in
 [docs/guide/when-foundry-needs-you.md](../guide/when-foundry-needs-you.md); costs are in
 [docs/guide/costs-and-usage.md](../guide/costs-and-usage.md).
@@ -19,6 +19,7 @@ Where to look:
 ## Doctor checks
 
 ```bash
+bun run cli doctor --provider codex                   # use claude for Claude Code
 bun run cli doctor                                    # local install; without the server it skips the markitdown, Models and Notifications checks
 docker exec foundry bun apps/cli/src/main.ts doctor   # Docker
 ```
@@ -30,6 +31,8 @@ buttons.
 |---|---|---|
 | Claude Code CLI | `claude` is on the `PATH` (or at **Settings → Engine (install) → claude binary**) and runs | `npm install -g @anthropic-ai/claude-code` |
 | Claude login | Claude Code is signed in | **Sign in** on the Setup page, or `claude auth login` |
+| Codex CLI | selected executable supports native execution and required hooks | install/update `@openai/codex`, or use the pinned Docker build |
+| Codex login | the configured native home is signed in with ChatGPT | **Sign in** for Codex on Setup, or `codex login`; API-key inference is unsupported |
 | git | `git` is on the `PATH` | install git (`xcode-select --install` on macOS) |
 | Bun runtime | `bun` is on the `PATH` | `curl -fsSL https://bun.sh/install \| bash` |
 | Required: graphify | the graphify CLI is installed | **Install** on the Setup page, or `uv tool install graphifyy && graphify install --platform claude` |
@@ -40,7 +43,7 @@ buttons.
 | Notifications (optional) (⚠) | Telegram or Discord is configured | [notifications.md](./notifications.md) |
 | Stale skill copies (⚠) | no loose copy in `~/.claude/skills` hides a newer plugin skill of the same name | **Trash N stale copies** on the Setup page (goes to the skills trash, restorable) |
 | Skill updates (⚠) | installed skill sources are up to date | open the **Extensions** page (Skills tab) |
-| Skills directory writable | Foundry can write to `~/.claude/skills` | fix the folder's permissions |
+| Skills directory writable | Foundry can write to the selected backend’s user skill directory | fix the folder's permissions |
 | settings.json (⚠) | Claude Code's `settings.json` parses and its hook commands exist | fix the file; a missing hook command makes every session log hook errors |
 
 ---
@@ -51,7 +54,7 @@ buttons.
 |---|---|---|
 | `no configuration file provided: not found` | `docker compose` ran in a folder without `docker-compose.yml` | fetch it from the image ([install.md](./install.md#with-docker-compose)), or use `docker run` |
 | `Not logged in · Please run /login` | `claude login` is not a command | `claude auth login`, with `-it` |
-| **Sign in** on the Setup page shows a link and asks for a code | normal in Docker: there is no browser in the container | open the link, sign in, paste the code into the dialog within 15 minutes |
+| **Sign in** on the Setup page shows a link and asks for a code | normal in Docker: there is no browser in the container | Claude: paste its returned code into Foundry’s dialog. Codex: enter the displayed device code on the linked OpenAI page |
 | *not a git repository* under **New goal → Repository** | you typed a host path | type the container path, for example `/repos/acme-app` |
 | `Permission denied` in the repository, or worktrees fail (Linux) | your files are not owned by uid 1000 | use the `--user "$(id -u):$(id -g)"` recipe ([install.md](./install.md#5-linux-if-your-user-id-is-not-1000)) |
 | `port is already allocated` | something else uses 4111 on the host | publish another host port, for example `-p 127.0.0.1:4112:4111`, and open that |
@@ -64,6 +67,24 @@ buttons.
 | `gh` is logged out after an update | `/home/node/.config/gh` is not in a volume | log in again and add a volume for it ([install.md](./install.md#7-github-for-delivery-optional)) |
 
 ---
+
+## Codex account and compatibility problems
+
+Choose **Agent backend → Codex** in Setup, Settings, Extensions or Usage before diagnosing the native account. The backend switch filters that page; it does not move existing goals or sign out the other account.
+
+| What you see | What to do |
+|---|---|
+| Required hooks or hook canary unavailable | Update to a CLI supporting `SessionStart` and `PreToolUse` (Docker pins 0.160.0). Foundry deliberately refuses to start an unguarded session. |
+| Sandbox initialization fails in Docker | Check host/kernel sandbox support and container configuration. Foundry does not retry with unrestricted access. |
+| API-key login detected / ChatGPT sign-in required | Sign in through Setup’s Codex account or `codex login`. Media-tool keys in Settings do not authenticate Codex inference. |
+| Only a weekly quota appears | This is supported. Foundry shows windows the native account actually returns; a missing five-hour window is not an error. |
+| Quota or plugin inventory unavailable | Verify the configured binary/home and native sign-in, then Refresh. Unknown data is not an empty inventory or unlimited usage. |
+| A discovered model cannot run | Discovery describes CLI capabilities, not account entitlement. Test the model and effort under the correct account; invalid effort/auth/quota errors do not trigger model fallback. |
+| MCP tool denied | Open the goal’s Inbox and allow that server for Codex only if intended. Claude’s allowlist is separate; plugin installation does not grant permission. |
+| Account or extension change returns `409` | Wait for Foundry’s active sessions/goals to finish, then retry. Native account changes affect the shared CLI home. |
+| Data directory belongs to another backend | Keep the original launch profile and choose Codex per goal, or use a distinct `FOUNDRY_DATA_DIR`. Do not erase the ownership marker to force a migration. |
+
+See [Codex setup and limits](codex.md) and [mixed-provider upgrades](updates-and-backup.md#upgrading-to-mixed-provider-goals).
 
 ## Engine log lines and notes
 
@@ -91,8 +112,8 @@ buttons.
 
 | Line or note | Meaning | What to do |
 |---|---|---|
-| *usage limit reached (&lt;window&gt;): paused until …; goals resume automatically* | A Claude usage window (for example `five_hour`, or a weekly one) is used up. Nothing is killed; new sessions wait. The pause survives a restart and lifts itself at the reset time. | Nothing, or wait. `pausedUntil` on `/api/health` shows the time. |
-| *usage limit reset — goals resume* | The pause ended. Every unfinished goal was woken up. | Nothing. |
+| `rate_limit.paused` | New sessions for the event’s backend wait; the other backend continues. The pause survives restart. Its retry time comes from a reported reset or a short backoff when none is known. | Check `pausedUntilByProvider` on `/api/health` or the matching Usage page. |
+| `rate_limit.resumed` | The retry time was reached; unfinished goals for that backend are woken. It does not prove the account limit has reset. | A renewed rejection can pause that backend again. |
 
 ### Git and merges
 
@@ -109,7 +130,7 @@ buttons.
 | Line or note | Meaning | What to do |
 |---|---|---|
 | *N skill(s) installed for this stack (content in …)* | `npx autoskills` installed project skills into the goal workspace. They are git-excluded. | Nothing. Turn off in **Settings → Skills** (*autoskills per goal*). |
-| *…; N stale tracked link(s) removed from the index* | An older run let skill links into git. They were removed from the index; the files stay on disk. | If a branch already carries them: `git rm -r --cached .claude/skills && git commit`. |
+| *…; N stale tracked link(s) removed from the index* | An older run let skill links into git. They were removed from the index; the files stay on disk. | Inspect the diff and remove only Foundry-created stale links from tracking; preserve intentional project skills. Codex autoskills uses `.agents/skills`. |
 | *no stack manifest (package.json, pyproject.toml, go.mod, …) in the repository yet — retried after each task until one appears* | Empty repository: nothing to detect yet. The install runs once a task creates a manifest. | Nothing. |
 | *tool install …*, *markitdown install …*, *playwright install …* `exited N` | Result of an install started from the Setup or Settings page. | On a non-zero exit, read the install log on that page. |
 
@@ -143,25 +164,26 @@ If you restart by hand:
 
    ```json
    {"ok":true,"active":0,"busy":{"sessions":0,"attempts":0,"clarifying":0,"reviewing":0,"delivering":0,"total":0},
-    "events":1234,"pausedUntil":null,"restartNeeded":[],"version":"0.4.0","updateAvailable":false,"updating":false}
+    "events":1234,"pausedUntil":null,"pausedUntilByProvider":{"claude":null,"codex":null},"restartNeeded":[],"version":"0.4.0","updateAvailable":false,"updating":false}
    ```
 
    | Field | Meaning |
    |---|---|
    | `active` | same as `busy.total`: everything a restart would interrupt. It should be `0`. |
-   | `busy.sessions` | Claude processes running now |
+   | `busy.sessions` | owned agent sessions across both backends |
    | `busy.attempts` | task attempts in flight, including between two sessions |
    | `busy.clarifying`, `busy.reviewing` | Clarify and goal-review runs |
    | `busy.delivering` | deliveries in progress. **Never restart while this is not `0`.** |
-   | `pausedUntil` | end of a usage-limit pause, or `null` |
-   | `restartNeeded` | settings changed since start that only apply after a restart: `engine.port`, `engine.host`, `engine.claudeBin`, `engine.claudeHome` |
+   | `pausedUntil` | legacy launch-profile retry time, or `null` |
+   | `pausedUntilByProvider` | separate `claude` and `codex` retry times; absent pauses are `null` |
+   | `restartNeeded` | settings changed since start that only apply after a restart: `engine.port`, `engine.host`, `engine.claudeBin`, `engine.claudeHome`, `engine.codexBin`, `engine.codexHome` |
    | `updating` | a self-update is draining or running |
 
    A goal's state does not matter. A running goal with `active: 0` (waiting on a serial task, or paused by a usage
    limit) is safe to restart.
 
 2. **If `active` is not `0`,** a restart still loses little: a work session that already has a session id resumes as a
-   continuation, but the segment in flight is paid for twice. A merge session, or a session that had not started yet,
+   continuation, but replaying the segment consumes additional account usage. A merge session, or a session that had not started yet,
    is orphaned and costs a fresh attempt. A delivery is marked failed and must be started again.
 
 3. **Stop the right process.** Local install:
@@ -185,9 +207,11 @@ bun apps/cli/src/main.ts replay --verify
 
 # Docker (Compose or docker run): stop the container, then run a one-off container on the same volumes
 docker stop foundry
-docker run --rm --volumes-from foundry imlouiskhenghao/foundry bun apps/cli/src/main.ts replay --verify
+docker run --rm --init --volumes-from foundry <same-image-tag-as-foundry> bun apps/cli/src/main.ts replay --verify
 docker start foundry
 ```
+
+Use the same `FOUNDRY_PROVIDER` and `FOUNDRY_DATA_DIR` as the server for both commands; `--volumes-from` does not copy environment variables. Never use an older image to replay mixed-provider data.
 
 With the uid ≠ 1000 recipe, add the same `--user` and `-e HOME` flags to the one-off container.
 
@@ -201,7 +225,7 @@ print *identical*.
 
 ## Image-generation keys
 
-Foundry needs no Anthropic API key. Image goals are the exception: the image skill needs a key for its generation API.
+Claude uses its native login and Codex uses ChatGPT login only. Image/media skills are separate tools and may need their own generation API keys; these keys do not enable Codex API inference.
 
 | Image pack (**Settings → Skills → Image skills**) | Needs |
 |---|---|
@@ -209,7 +233,7 @@ Foundry needs no Anthropic API key. Image goals are the exception: the image ski
 | `claude-image-gen` | `GEMINI_API_KEY` by default (its OpenAI mode uses the OpenAI key) |
 
 Set the key in **Settings → Tools & keys** (*OpenAI-compatible API key*, *OpenAI-compatible base URL*,
-*Gemini API key*, *Kimi (Moonshot) API key*). It is stored in `data/settings.json` and applies to the next session,
+*Gemini API key*, *Kimi (Moonshot) API key*). It is stored in `settings.json` in the configured data directory and applies to the next session,
 without a restart. A local install can also put it in `.env` at the root of the Foundry checkout (git-ignored; Bun
 loads it when the engine starts). In Docker, use the Settings page or `-e`.
 

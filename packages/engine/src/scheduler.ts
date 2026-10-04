@@ -201,7 +201,7 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
         task: fresh,
         attemptId: outcome.attempt.id,
         trigger: 'permission_denial',
-        message: `Task "${task.title}" failed and Claude was denied: ${outcome.nonBoundaryDenials.map((d) => d.tool_name).join(', ')}.`,
+        message: `Task "${task.title}" failed and ${goal.provider === 'codex' ? 'Codex' : 'Claude'} was denied: ${outcome.nonBoundaryDenials.map((d) => d.tool_name).join(', ')}.`,
         payload: { denials: outcome.nonBoundaryDenials },
       });
       return;

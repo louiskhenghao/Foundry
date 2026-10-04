@@ -4,7 +4,7 @@
 
 **一句话写下目标，拿回做完、检查过、审查过的成果。**
 
-Foundry 在你自己的电脑上运行，从网页驱动你的 Claude Code：<br>
+Foundry 在你自己的电脑上运行，从网页驱动你的 Claude Code 或 Codex CLI：<br>
 先问只有你能决定的事，给你看一次计划，然后自己去做、测试、审查、交付。
 
 [English](./README.md) · 中文
@@ -17,9 +17,24 @@ Foundry 在你自己的电脑上运行，从网页驱动你的 Claude Code：<br
 
 </div>
 
+## Codex 后端
+
+现在也可使用 Codex CLI + ChatGPT 登录运行同一套 Foundry 流程：
+
+```sh
+codex login
+bun install --frozen-lockfile && bun run web:build
+bun run serve:codex
+```
+
+Codex 启动配置默认使用 `data-codex/`，Claude 启动配置默认使用 `data/`。两种实例都可以运行两种后端：创建 goal 时选择 **Agent backend**。数据目录属于整个实例，不按每个 goal 分开；账户、预设和 MCP 权限则保持独立。Codex 只支持 ChatGPT 登录，用量窗口按账户实际返回显示，包括只有 weekly limit 的账户。
+
+先安装支持 hooks 的 Codex CLI，再运行上述命令；Docker 构建固定使用 0.160.0。[完整安装、Docker 与能力限制](docs/operate/codex.md)。升级现有实例前，请阅读[备份与回退](docs/operate/updates-and-backup.md#upgrading-to-mixed-provider-goals)（英文）。
+
+
 ## 为什么用 Foundry
 
-Claude Code 很会照你说的去做。可要让一件真正的工作不跑偏，剩下的活都落在你身上：把真正的意思说清楚、拆开、每一步都检查、发现它跑偏、别让它把额度烧光。
+Claude Code 和 Codex 都能执行你的请求。可要让一件真正的工作不跑偏，剩下的活都落在你身上：把真正的意思说清楚、拆开、每一步都检查、发现它跑偏、别让它把额度烧光。
 Foundry 做的就是这部分。
 
 - **一句话就开始**  
@@ -33,9 +48,9 @@ Foundry 做的就是这部分。
 - **靠检查，不靠猜**  
   每个任务都有验收检查；交付前会按这些检查把整体结果再审查一遍。
 - **代码始终是你的**  
-  全部在你的电脑上跑，用你的 Claude 订阅（Pro 或 Max）——不需要 API key。工作在独立分支上进行，你自己的 checkout 不会被动到。
+  Foundry 在本机运行，使用所选 CLI 的账户：Claude 登录，或 Codex 的 ChatGPT 登录。执行任务不需要 API key。工作在独立分支上进行，运行期间不改动你自己的 checkout。
 - **花多少由你定**  
-  模型预设决定每项工作用哪个模型；每个 goal 都有预算，超支前就会停下。
+  两种后端各有独立模型预设。时间、尝试次数和并发限制对两者都有效；美元费用上限只适用于 Claude。
 
 ## 怎么运作
 
@@ -100,7 +115,7 @@ goal 暂停，预览已经跑起来了。按 **Continue**，或者说要改什�
 
 ## 快速开始
 
-你需要 Claude 订阅（Pro 或 Max）和 git。
+以下命令使用 Claude 登录和 git；使用 ChatGPT 登录请看 [Codex 安装说明](docs/operate/codex.md)。包含本分支改动的版本发布前，Codex 支持需要从源码构建，现有 `latest` 镜像不一定包含这些功能。
 
 **用 Docker** —— 所有工具都在镜像里：
 

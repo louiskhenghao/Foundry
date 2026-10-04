@@ -6,7 +6,7 @@ kind of message means for the person running goals is in [docs/guide/settings.md
 
 - Every enabled kind of message goes to every configured channel.
 - Leave a channel's fields empty to keep that channel off.
-- The credentials are stored only in your own `data/settings.json`.
+- The credentials are stored in `settings.json` under your instance’s data directory (`data/`, `data-codex/` or `FOUNDRY_DATA_DIR`).
 - The engine sends the messages, never the model.
 
 ---
@@ -101,7 +101,7 @@ want.
 | **Interview round** | `notifications.onInterview` | the Clarifier asks a round of questions before writing the Brief |
 | **Goal finished** | `notifications.onGoalFinished` | a goal ends done, over-delivered or failed (never when you cancel it) |
 | **Delivery** | `notifications.onDelivery` | a pull request is opened or merged, or a delivery fails |
-| **Usage pause** | `notifications.onRateLimit` | a Claude usage limit pauses the engine, and when the pause lifts |
+| **Usage pause** | `notifications.onRateLimit` | a backend’s usage limit pauses its new sessions, and when retrying resumes; other backends can continue |
 | **New version** | `notifications.onUpdateAvailable` | a newer Foundry release is out (once per version) |
 
 What each of these means for someone running goals, and what to do about it, is in

@@ -108,6 +108,7 @@ function fakeEngine() {
       },
     },
   };
+  Object.assign(engine, { skillsForProvider: () => engine.skills });
   const app = createApp(engine as unknown as Engine);
   const post = (path: string, body: unknown) => app.request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   return { app, post, events, finishUpdate: () => finishUpdate() };

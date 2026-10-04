@@ -117,7 +117,7 @@ export async function answerEscalation(engine: Engine, id: string, answer: Escal
       // null limits stay null (unlimited); otherwise double unless the human gave a number
       const budgets = {
         ...goal.budgets,
-        maxCostUsd: answer.newMaxCostUsd ?? (goal.budgets.maxCostUsd == null ? null : goal.budgets.maxCostUsd * 2),
+        maxCostUsd: goal.provider === 'codex' ? null : answer.newMaxCostUsd ?? (goal.budgets.maxCostUsd == null ? null : goal.budgets.maxCostUsd * 2),
         maxDurationMin: answer.newMaxDurationMin ?? (goal.budgets.maxDurationMin == null ? null : goal.budgets.maxDurationMin * 2),
       };
       store.append({ type: 'goal.budgets_changed', goalId: goal.id, payload: { budgets, reason: 'human: raise budget' } });

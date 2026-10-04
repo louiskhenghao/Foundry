@@ -1,7 +1,9 @@
+import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 /** The single place that knows how the host lays out Claude Code skills/plugins. */
 export interface SkillsPaths {
+  provider?: 'claude' | 'codex';
   claudeHome: string;
   skillsDir: string;
   pluginsDir: string;
@@ -18,9 +20,10 @@ export interface SkillsPaths {
   marketplacesFile: string;
 }
 
-export function skillsPaths(claudeHome: string, dataDir: string): SkillsPaths {
-  const home = dirname(claudeHome);
+export function skillsPaths(claudeHome: string, dataDir: string, provider: 'claude' | 'codex' = 'claude', sharedHome?: string): SkillsPaths {
+  const home = sharedHome ?? (provider === 'codex' ? homedir() : dirname(claudeHome));
   return {
+    provider,
     claudeHome,
     skillsDir: join(claudeHome, 'skills'),
     pluginsDir: join(claudeHome, 'plugins'),

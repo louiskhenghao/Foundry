@@ -1,24 +1,36 @@
 import { ExternalLink, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { api, type McpLoginSession } from '../../api.ts';
+import { apiForProvider, type AgentProvider, type McpLoginSession } from '../../api.ts';
 import { Button, CopyButton, Input, cn } from '../../ui.tsx';
 
 /**
  * Connect a claude.ai connector (open its claude.ai link and authorize there) or sign in to an HTTP MCP server
  * (a browser opens on this computer; without one, paste back the address the browser ended on).
  */
-export function McpConnectDialog({ name, onClose }: { name: string; onClose: (signedIn: boolean) => void }) {
+export function McpConnectDialog({ provider = 'claude', name, onClose }: { provider?: AgentProvider; name: string; onClose: (signedIn: boolean) => void }) {
+  const api = apiForProvider(provider);
+  const backend = provider === 'codex' ? 'Codex' : 'Claude Code';
   const [s, setS] = useState<McpLoginSession | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [url, setUrl] = useState('');
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
+    let alive = true;
     api
-      .mcpLogin(name)
-      .then(setS)
-      .catch((e) => setErr(e.message));
+      .mcpLoginSession()
+      .then((current) => {
+        if (!alive) return null;
+        if (current && !current.done) {
+          if (current.name !== name) throw new Error(`Finish or cancel the sign-in for ${current.name} in ${backend} first.`);
+          return current;
+        }
+        return api.mcpLogin(name);
+      })
+      .then((session) => { if (alive && session) setS(session); })
+      .catch((e) => { if (alive) setErr(e.message); });
+    return () => { alive = false; };
   }, [name]);
   useEffect(() => {
     if (!s || s.done) return;
@@ -45,11 +57,11 @@ export function McpConnectDialog({ name, onClose }: { name: string; onClose: (si
 
   const body = (() => {
     if (err && !s) return <div className="text-sm text-rose-400">{err}</div>;
-    if (!s) return <div className="text-sm text-zinc-400">Asking Claude Code how to connect {name}…</div>;
+    if (!s) return <div className="text-sm text-zinc-400">Asking {backend} how to connect {name}…</div>;
     if (s.connector)
       return s.done && !s.ok ? (
         <div className="space-y-2">
-          <div className="text-sm text-rose-400">{s.error ?? 'Claude Code gave no link to connect this connector.'}</div>
+          <div className="text-sm text-rose-400">{s.error ?? `${backend} gave no link to connect this connector.`}</div>
           <div className="text-xs text-zinc-300">
             Or run this in a terminal and open the link it prints: <code className="mono bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5">{s.command}</code> <CopyButton text={s.command} />
           </div>
@@ -113,7 +125,7 @@ export function McpConnectDialog({ name, onClose }: { name: string; onClose: (si
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-3 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <div className="w-full sm:max-w-lg max-h-[calc(100dvh-1.5rem)] overflow-auto rounded-lg border border-zinc-800 bg-zinc-950 p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">Connect {name}</h2>
+          <h2 className="text-base font-semibold">Connect {name} · {backend}</h2>
           <Button size="sm" variant="ghost" onClick={close} aria-label="close">
             <X size={14} />
           </Button>

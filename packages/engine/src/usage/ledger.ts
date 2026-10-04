@@ -39,8 +39,8 @@ const dayLabel = (t: number) => new Date(t).toLocaleDateString(undefined, { week
  * Aggregate our own ledger into the two windows Claude subscriptions use. The 5-hour window is
  * aligned to the CLI's `resetsAt` when we have seen one; otherwise it is "the last 5 hours".
  */
-export function usageSummary(db: Database, now = Date.now()): UsageSummary {
-  const state = listRateLimitState(db);
+export function usageSummary(db: Database, now = Date.now(), provider?: 'claude' | 'codex', legacyProvider: 'claude' | 'codex' = 'claude'): UsageSummary {
+  const state = provider === 'codex' ? [] : listRateLimitState(db);
   const five = state.find((s) => s.rate_limit_type === 'five_hour') ?? null;
   const week = state.find((s) => /seven_day|weekly/.test(s.rate_limit_type)) ?? null;
 
@@ -49,7 +49,7 @@ export function usageSummary(db: Database, now = Date.now()): UsageSummary {
   const weekEnd = week?.resets_at && week.resets_at * 1000 > now ? week.resets_at * 1000 : now;
   const weekStart = weekEnd - SEVEN_DAYS_MS;
 
-  const rows = listUsageSince(db, new Date(Math.min(fiveStart, weekStart)).toISOString());
+  const rows = listUsageSince(db, new Date(Math.min(fiveStart, weekStart)).toISOString()).filter((r) => !provider || (r.provider ?? legacyProvider) === provider);
   const inWin = (start: number, end: number) => rows.filter((r) => Date.parse(r.ts) >= start && Date.parse(r.ts) <= end);
   const fiveRows = inWin(fiveStart, fiveEnd);
   const weekRows = inWin(weekStart, weekEnd);

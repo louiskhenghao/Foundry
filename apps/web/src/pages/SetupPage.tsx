@@ -1,14 +1,16 @@
 import type { DoctorReport, SkillsOverview } from '@foundry/engine/skills-types';
 import { CheckCircle2, CircleAlert, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { api } from '../api.ts';
+import { Link, useSearchParams } from 'react-router-dom';
+import { api as baseApi, apiForProvider, type AgentProvider } from '../api.ts';
+import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import { SignInDialog } from '../components/SignInDialog.tsx';
 import { LiveLog } from './LiveLog.tsx';
 import { Button, Card, CopyButton, Empty, cn } from '../ui.tsx';
 
 /** Per-entry status of a catalog bundle + one-click install/adopt. */
-function BundleStatus({ bundle, busy, onInstall }: { bundle: string; busy: string | null; onInstall: () => void }) {
+function BundleStatus({ provider, bundle, busy, onInstall }: { provider: AgentProvider; bundle: string; busy: string | null; onInstall: () => void }) {
+  const api = apiForProvider(provider);
   const [entries, setEntries] = useState<SkillsOverview['catalog'] | null>(null);
   useEffect(() => {
     api
@@ -39,7 +41,7 @@ function BundleStatus({ bundle, busy, onInstall }: { bundle: string; busy: strin
         ) : (
           <span className="text-emerald-300">bundle complete{viaPlugin.length ? ` · ${viaPlugin.length} via plugin` : ''}</span>
         )}
-        <Link to="/skills" className="underline text-zinc-400">
+        <Link to={`/skills?provider=${provider}`} className="underline text-zinc-400">
           details on Extensions →
         </Link>
       </div>
@@ -48,6 +50,31 @@ function BundleStatus({ bundle, busy, onInstall }: { bundle: string; busy: strin
 }
 
 export function SetupPage() {
+  const [params, setParams] = useSearchParams();
+  const rawProvider = params.get('provider');
+  const provider: AgentProvider | null = rawProvider === 'claude' || rawProvider === 'codex' ? rawProvider : null;
+  useEffect(() => {
+    if (provider) return;
+    let alive = true;
+    const select = (value: AgentProvider) => alive && setParams((current) => {
+      if (['claude', 'codex'].includes(current.get('provider') ?? '')) return current;
+      const next = new URLSearchParams(current);
+      next.set('provider', value);
+      return next;
+    }, { replace: true });
+    void baseApi.settings().then((view) => select(view.values.engine.provider)).catch(() => select('claude'));
+    return () => { alive = false; };
+  }, [provider, setParams]);
+  if (!provider) return <Empty>Loading setup…</Empty>;
+  return <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
+    <div><h1 className="text-lg font-semibold">Setup</h1><p className="text-sm text-zinc-400 mt-1">Check the selected backend, sign in and install its recommended skills. Your project code is not changed.</p></div>
+    <ProviderSelector value={provider} onChange={(id) => setParams((current) => { const next = new URLSearchParams(current); next.set('provider', id); return next; }, { replace: true })} />
+    <SetupChecks key={provider} provider={provider} />
+  </div>;
+}
+
+function SetupChecks({ provider }: { provider: AgentProvider }) {
+  const api = apiForProvider(provider);
   const [report, setReport] = useState<DoctorReport | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -94,19 +121,13 @@ export function SetupPage() {
   const errors = report.checks.filter((c) => !c.ok && c.severity === 'error');
 
   return (
-    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
-      <div>
-        <h1 className="text-lg font-semibold">Setup</h1>
-        <p className="text-sm text-zinc-400 mt-1">
-          Foundry drives the Claude Code already installed on this machine. This page checks everything it needs and installs the recommended skills for you. Nothing here touches your code.
-        </p>
-      </div>
+    <div className="space-y-4">
       <div className={cn('rounded-lg border p-4 flex items-center gap-3', report.ok ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-rose-500/40 bg-rose-500/5')}>
         {report.ok ? <CheckCircle2 className="text-emerald-400" /> : <XCircle className="text-rose-400" />}
         <div className="flex-1 text-sm">
           {report.ok ? 'Everything is in place. ' : `${errors.length} thing${errors.length === 1 ? '' : 's'} to fix before goals can run well. `}
           {report.ok && (
-            <Link to="/goals/new" className="underline text-emerald-300">
+            <Link to={`/goals/new?provider=${provider}`} className="underline text-emerald-300">
               Create your first goal →
             </Link>
           )}
@@ -126,7 +147,7 @@ export function SetupPage() {
                 <div className="text-xs text-zinc-400 mt-0.5">{c.detail}</div>
                 {!c.ok && c.fix && (
                   <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
-                    {c.id === 'claude-auth' && (
+                    {['claude-auth', 'codex-auth'].includes(c.id) && (
                       <Button size="sm" variant="primary" onClick={() => setSignIn(true)}>
                         Sign in
                       </Button>
@@ -187,7 +208,7 @@ export function SetupPage() {
                       </Button>
                     )}
                     {c.fix.action === 'check-updates' && (
-                      <Link to="/skills" className="underline text-zinc-300">
+                      <Link to={`/skills?provider=${provider}`} className="underline text-zinc-300">
                         open Skills
                       </Link>
                     )}
@@ -219,19 +240,20 @@ export function SetupPage() {
 
       <Card title="Development workflow — Matt Pocock's engineering skills">
         <p className="text-xs text-zinc-400 mb-3">
-          Foundry's roles follow this workflow: workers invoke <span className="mono">tdd</span> for features and refactors and <span className="mono">diagnosing-bugs</span> for bugs, the merger uses <span className="mono">resolving-merge-conflicts</span>, the goal reviewer applies <span className="mono">code-review</span>'s two axes. The engine records which skills each session invoked. Skills provided by the <span className="mono">mattpocock-skills</span> plugin are used as-is; others are installed from the catalog.
+          Foundry's roles follow this workflow: workers use <span className="mono">tdd</span> for features and refactors and <span className="mono">diagnosing-bugs</span> for bugs, the merger uses <span className="mono">resolving-merge-conflicts</span>, and the goal reviewer applies <span className="mono">code-review</span>'s two axes. {provider === 'codex' ? 'Codex reads native SKILL.md instructions. Skill invocation telemetry is unavailable; reviews assess the work and tests instead of treating missing telemetry as a skipped skill.' : <>The engine records which skills each session invoked. Skills provided by the <span className="mono">mattpocock-skills</span> plugin are used as-is; others are installed from the catalog.</>}
         </p>
-        <BundleStatus bundle="mattpocock" busy={busy} onInstall={() => runAction('bundle', async () => {
+        <BundleStatus provider={provider} bundle="mattpocock" busy={busy} onInstall={() => runAction('bundle', async () => {
           const r = await api.installBundle('mattpocock');
           return r.results.map((x) => `${x.action}: ${x.name} — ${x.detail}`).join('\n');
         })} />
       </Card>
 
       <p className="text-xs text-zinc-500">
-        Design / image / video skill packs are chosen in <Link to="/settings" className="underline">Settings → Skills</Link>; the full catalog and everything installed is managed on the <Link to="/skills" className="underline">Skills page</Link> (missing required skills also show up in the Checks above).
+        Design / image / video skill packs are chosen in <Link to={`/settings?provider=${provider}#skills`} className="underline">Settings → Skills</Link>; the full catalog and installed skills for this backend are managed on the <Link to={`/skills?provider=${provider}`} className="underline">Skills page</Link> (missing required skills also show up in the Checks above).
       </p>
       {signIn && (
         <SignInDialog
+          provider={provider}
           onClose={() => {
             setSignIn(false);
             load();

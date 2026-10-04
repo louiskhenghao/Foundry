@@ -1,18 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../api.ts';
+import { api, type AgentProvider } from '../api.ts';
 import { useLive } from '../store.ts';
 
 /**
- * Prominent strip shown while the engine is paused on a usage limit. Goals stay where they are and
- * resume automatically when the limit resets (also after an engine restart); this only makes it visible.
+ * Each backend pauses independently. A retry time is not a promise that the account limit resets.
  */
 export function UsagePausedBanner() {
   const version = useLive((s) => s.globalVersion);
-  const [until, setUntil] = useState<string | null>(null);
+  const [pauses, setPauses] = useState<Partial<Record<AgentProvider, string | null>>>({});
   useEffect(() => {
     let alive = true;
-    const load = () => api.health().then((h) => alive && setUntil(h.pausedUntil)).catch(() => {});
+    const load = () => api.health().then((h) => alive && setPauses(h.pausedUntilByProvider)).catch(() => {});
     load();
     const i = setInterval(load, 30_000);
     return () => {
@@ -20,14 +19,16 @@ export function UsagePausedBanner() {
       clearInterval(i);
     };
   }, [version]);
-  if (!until) return null;
-  const mins = Math.max(1, Math.round((new Date(until).getTime() - Date.now()) / 60_000));
+  const active = (['claude', 'codex'] as const).filter((provider) => pauses[provider] && Date.parse(pauses[provider]!) > Date.now());
+  if (!active.length) return null;
   return (
-    <div className="rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-200 text-sm px-3 py-2 flex items-center gap-2 flex-wrap">
-      <span>⏸ Usage limit reached — paused until {new Date(until).toLocaleTimeString()} (~{mins} min). Goals resume automatically when it resets.</span>
-      <Link to="/usage" className="underline text-amber-300 ml-auto">
-        Usage
-      </Link>
+    <div className="space-y-2" role="status">
+      {active.map((provider) => (
+        <div key={provider} className="rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-200 text-sm px-3 py-2 flex items-center gap-2 flex-wrap">
+          <span>⏸ {provider === 'codex' ? 'Codex' : 'Claude Code'} usage limit — new sessions paused. Automatic retry at {new Date(pauses[provider]!).toLocaleTimeString()}.</span>
+          <Link to={`/usage?provider=${provider}`} className="underline text-amber-300 ml-auto">{provider === 'codex' ? 'Codex' : 'Claude Code'} usage</Link>
+        </div>
+      ))}
     </div>
   );
 }

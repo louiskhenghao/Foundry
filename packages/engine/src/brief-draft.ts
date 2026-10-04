@@ -35,6 +35,7 @@ export type DraftRequest = z.infer<typeof DraftRequest>;
 
 /** A proposal: nothing here is in the Brief until the human accepts it on the page. */
 export interface DraftProposal {
+  costAvailable?: boolean;
   mode: DraftRequest['mode'];
   taskKey: string | null;
   /** mode task: the fields to fill (spec only when empty on the page) */
@@ -63,7 +64,7 @@ export async function runDraft(engine: Engine, goal: Goal, req: DraftRequest): P
   say(req.mode === 'revise' ? '— revision requested: syncing the workspace, then the Clarifier re-reads the Brief and the repository…' : '— draft requested: syncing the workspace, then a read-only session explores the repository…');
   const ws = await engine.ensureSyncedWorkspace(goal);
   const overview = await engine.context.overview(ws).catch(() => null);
-  const hint = await engine.skills.hints.sectionFor('clarifier', { scenario: natureScenario(goal.nature) });
+  const hint = await engine.skillsFor(goal).hints.sectionFor('clarifier', { scenario: natureScenario(goal.nature) });
   const attachments = [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n');
   const outputSchema = req.mode === 'area' ? AreaDraftOutput : req.mode === 'revise' ? RevisionOutput : TaskDraftOutput;
   const schema = zodToJsonSchema(outputSchema, { $refStrategy: 'none' });
@@ -123,7 +124,7 @@ export async function runDraft(engine: Engine, goal: Goal, req: DraftRequest): P
     const out = parsed.data as RevisionOutput;
     const revised = toRevisedBrief(brief, out);
     const diff = diffBrief(brief, revised);
-    return { mode: req.mode, taskKey: null, task: null, tasks: [], checks: [], rationale: out.changeSummary, costUsd: cost, revision: { diff, revised, changeSummary: out.changeSummary } };
+    return { mode: req.mode, taskKey: null, task: null, tasks: [], checks: [], rationale: out.changeSummary, costUsd: cost, costAvailable: goal.provider !== 'codex', revision: { diff, revised, changeSummary: out.changeSummary } };
   }
   if (req.mode === 'area') {
     const out = parsed.data as AreaDraftOutput;
@@ -141,13 +142,13 @@ export async function runDraft(engine: Engine, goal: Goal, req: DraftRequest): P
       const taskKey = c.taskKey ? (rename.get(c.taskKey) ?? (known.has(c.taskKey) ? c.taskKey : null)) : null;
       return { key: nextKey('C'), name: c.name, tier: c.tier, taskKey, areaKey: taskKey ? null : area!.key, spec: materializeCheck(c, taskKey) };
     });
-    return { mode: req.mode, taskKey: null, task: null, tasks, checks, rationale: out.rationale, costUsd: cost };
+    return { mode: req.mode, taskKey: null, task: null, tasks, checks, rationale: out.rationale, costUsd: cost, costAvailable: goal.provider !== 'codex' };
   }
 
   const out = parsed.data as TaskDraftOutput;
   const taskKeys = new Set(brief.tasks.map((t) => t.key));
   const checks: BriefCheck[] = out.checks.map((c) => ({ key: nextKey('C'), name: c.name, tier: c.tier, taskKey: task!.key, areaKey: null, spec: materializeCheck(c, task!.key) }));
-  if (req.mode === 'acceptance') return { mode: req.mode, taskKey: task!.key, task: null, tasks: [], checks, rationale: out.rationale, costUsd: cost };
+  if (req.mode === 'acceptance') return { mode: req.mode, taskKey: task!.key, task: null, tasks: [], checks, rationale: out.rationale, costUsd: cost, costAvailable: goal.provider !== 'codex' };
   const fields: NonNullable<DraftProposal['task']> = {};
   if (out.spec && !task!.spec.trim()) fields.spec = out.spec;
   if (out.kind) fields.kind = out.kind;
@@ -156,7 +157,7 @@ export async function runDraft(engine: Engine, goal: Goal, req: DraftRequest): P
   if (out.areaKey && brief.areas.some((a) => a.key === out.areaKey)) fields.areaKey = out.areaKey;
   fields.dependsOnKeys = out.dependsOnKeys.filter((k) => taskKeys.has(k) && k !== task!.key);
   fields.relevantFiles = out.relevantFiles;
-  return { mode: req.mode, taskKey: task!.key, task: fields, tasks: [], checks, rationale: out.rationale, costUsd: cost };
+  return { mode: req.mode, taskKey: task!.key, task: fields, tasks: [], checks, rationale: out.rationale, costUsd: cost, costAvailable: goal.provider !== 'codex' };
 }
 
 /**

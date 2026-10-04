@@ -52,17 +52,19 @@ Foundry 把一个任务试了好几次，验收检查仍然没过。你可以：
 
 ### 某个工具被拒绝了
 
-**Inbox：** *Tool denied* ——"Claude refused one of the tools it needed."
+![按后端区分的工具恢复 — 演示数据](images/inbox-providers.png)
 
-一个任务用完了所有尝试，而且 Claude Code 拒绝了这个任务需要的某个工具（不是上面那些命令）。照原样再试，还会以同样的方式失败。你可以像上面一样用 **Suggest a hint** 或 **Let AI handle it**，也可以 **Retry with hint**（比如"不用网页搜索也能做"）、**Skip task (dependents continue)** 或 **Abort goal**。
+**Inbox：** *Tool denied* ——"The agent could not use one of the tools it needed."
 
-如果被拒绝的工具属于一个你还没允许 goal 使用的 MCP server，这一项会写明是哪个 server，并提供 **Allow this server and retry**：它会在 Extensions 页面的 MCP servers 标签页里勾上这个 server，然后重试任务。见 [MCP servers](./settings.zh.md#mcp-servers)。
+一个任务用完了所有尝试，而且对应后端拒绝了这个任务需要的某个工具（不是上面那些命令）。照原样再试，还会以同样的方式失败。你可以像上面一样用 **Suggest a hint** 或 **Let AI handle it**，也可以 **Retry with hint**（比如"不用网页搜索也能做"）、**Skip task (dependents continue)** 或 **Abort goal**。
+
+如果被拒绝的工具属于一个你还没允许 goal 使用的 MCP server，这一项会写明是哪个 server，并提供 **Allow this server and retry**：它只修改这个 goal 所属后端的权限，然后重试任务。每张卡片标明后端，Extensions 链接也会打开同一后端；读取权限失败时，不会提供授权按钮。Codex 的 Foundry guard 会回报被拒绝的 MCP 工具名称，不保留工具参数。见 [MCP servers](./settings.zh.md#mcp-servers)。
 
 ### 预算用完了
 
 **Inbox：** *Budget exceeded*。
 
-goal 达到了你设的费用或时间上限。按 **Raise budget**（留空就翻倍）或 **Abort goal**。
+goal 达到了你设的费用或时间上限。按 **Raise budget**（留空就翻倍）或 **Abort goal**。Codex 只提供时间上限，不提供美元上限；AI 诊断使用 ChatGPT 配额，不承诺美元费用限制。
 
 ### 交付停下来了
 
@@ -100,14 +102,16 @@ Brief 出来之前，goal 页面可能显示 **Round N — K questions**。这�
 
 ### 任务的实时日志
 
+下方美元费用、轮数和原生 sub-agent 示例对应 Claude。Codex 将美元费用及模型轮数标为不可用，使用工具调用上限，并由 Foundry 单独运行 Planner 会话，不开启原生子代理委派。
+
 | 你看到 | 意思 |
 |---|---|
-| `● session 1a2b3c4d · claude-…` | 一个会话开始了。同一次尝试里出现第二个 `●` 表示会话被续接（*continuation*），比重新开始便宜。 |
+| `● session 1a2b3c4d · claude-…` | 一个会话开始了。同一次尝试里出现第二个 `●` 表示会话被续接（*continuation*），保留已有上下文。 |
 | 工作完成后出现 `[reviewer] …` | 任务审查员在检查改动。 |
 | `[reviewer] ✗ Output does not match required schema …` | 审查员的结论格式不对，会重新发送。无害。 |
 | `■ success · $0.420 · 7 turns — …` | 会话结束了。破折号后面是 worker 最后说的话；点这一行可以看全文。 |
 | `■ error_max_turns`、`■ error_max_budget_usd`、`■ killed_timeout` | 会话碰到了上限。Foundry 会给它新的额度续接，最多两次，然后才开新的尝试。 |
-| `⏳ rate limit rejected` | 你的 Claude 套餐用量到了上限。Foundry 会暂停，额度重置后继续。不会丢任何东西。 |
+| `⏳ rate limit rejected` | 会话所属后端达到用量上限。Foundry 暂停该后端并稍后重试，另一后端仍可继续；重试时间不保证额度已经恢复。 |
 | `⏱ sub-agent still working · 3m 30s` | 一个助手（比如规划器）还在忙。这一行在更新时，日志长时间没动静是正常的。 |
 | `[claude-code:unrecognized_model] …` | 你的 Claude Code 比你选的模型旧。会话照常工作；更新 Claude Code 就不会再出现。 |
 

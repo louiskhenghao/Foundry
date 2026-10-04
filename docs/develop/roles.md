@@ -1,6 +1,6 @@
 # Roles
 
-A **Role** is a named set of instructions handed to a Claude session. The instructions are versioned text in `roles/*.md`, not code. This page lists what each Role drives: which session loads it, which Model Preset action picks that session's model, what the prompt contains, and what the session must return. It also covers the sessions that have no role file, and how skill hints are added to prompts.
+A **Role** is a named set of instructions handed to a session on the goal’s backend. The instructions are versioned text in `roles/*.md`, not code. This page lists what each Role drives: which session loads it, which Model Preset action picks that session's model, what the prompt contains, and what the session must return. It also covers the sessions that have no role file, and how skill hints are added to prompts.
 
 ## How a role reaches a session
 
@@ -8,24 +8,26 @@ A **Role** is a named set of instructions handed to a Claude session. The instru
 
 ```ts
 export type RoleName = 'clarifier' | 'planner' | 'worker' | 'reviewer-task' | 'reviewer-goal' | 'merger' | 'documenter' | 'feedback';
-roles.path(name) // → <rolesDir>/<name>.md, passed as --append-system-prompt-file
-roles.text(name) // → file contents (only the Planner, which is a sub-agent prompt)
+roles.path(name) // → <rolesDir>/<name>.md, read by the selected native adapter
+roles.text(name) // → file contents, including the Planner prompt
 ```
 
 - `rolesDir` defaults to `<repo root>/roles` (`defaultConfig`, `engine/src/config.ts`).
-- The role file is **appended** to Claude Code's own system prompt (`--append-system-prompt-file`). The task-specific content goes in the `-p` prompt, which the engine builds in code.
+- The role file is **appended** to Claude Code's own system prompt (`--append-system-prompt-file`). The task-specific content goes in the prompt the engine builds in code. Codex prepends the role instructions to its session prompt.
 - The file is read when a session starts. An edit to `roles/*.md` reaches the next session without a restart, but a `bun --watch` dev server does not watch these files either way.
-- Structured output is enforced with `--json-schema` (a Zod schema passed through `zodToJsonSchema`). The engine reads `result.structuredOutput`, falling back to `tryJson(finalText)` (`checks/reviewer.ts`). Sessions that must answer in JSON get **one** repair or nudge turn in the same session when the first answer does not parse.
+- Structured output uses Claude’s `--json-schema` or Codex’s `--output-schema` (a Zod schema passed through `zodToJsonSchema`). The engine reads `result.structuredOutput`, falling back to `tryJson(finalText)` (`checks/reviewer.ts`). Sessions that must answer in JSON get **one** repair or nudge turn in the same session when the first answer does not parse.
 - The model comes from the goal's Model Preset through `modelFor` / `workerModelFor` (`engine/src/models/roles.ts`, and [architecture.md](architecture.md#sessions-and-how-a-model-is-picked)).
 
-**Adding a role:** add the name to `RoleName`, add `roles/<name>.md`, and load it with `engine.roles.path(...)` where the session is built. If the session's model should be configurable, add an action to `MODEL_ACTIONS` and `ACTION_INFO` in `core/src/schema/model-presets.ts` and a column to every shipped preset. If it should get skill hints, add it to `SkillRole` in `engine/src/skills/types.ts`.
+**Adding a role:** add the name to `RoleName`, add `roles/<name>.md`, and load it with `engine.roles.path(...)` where the session is built. If the session's model should be configurable, add an action to `MODEL_ACTIONS` and `ACTION_INFO` in `core/src/schema/model-presets.ts` and a column to every shipped preset. Update `CODEX_MODEL_ACTIONS` / Codex preset tables as well when the role applies to that backend. If it should get skill hints, add it to `SkillRole` in `engine/src/skills/types.ts`.
+
+Dollar caps below apply only to Claude, whose native protocol reports cost. Codex reports tokens without USD cost; its session limits use wall time, idle time and tool-call count. The shared `maxTurns` setting bounds tool calls for Codex, not model turns. Native multi-agent creation and Skill-tool telemetry are unavailable there.
 
 ## Role reference
 
 | Role file | Session (code) | Preset action | Tools | Output |
 |---|---|---|---|---|
 | `clarifier.md` | Clarify + Interview (`clarify.ts` `prepareClarify`); Draft and Revise (`brief-draft.ts` `runDraft`) | `clarifier` | read-only | `InterviewOutput` or `BriefOutput`; Draft: `TaskDraftOutput` / `AreaDraftOutput` / `RevisionOutput` |
-| `planner.md` | sub-agent `planner` inside the Clarify session (`--agents`) | `planner` | inherits Clarify's | task list JSON handed back to the Clarifier (not parsed by the engine) |
+| `planner.md` | Claude: native `planner` sub-agent; Codex: separate Foundry-managed session | `planner` | read-only | Claude hands JSON to the Clarifier; Codex validates `PlannerOutput` and passes its task proposal to the Clarifier |
 | `worker.md` | every work Attempt (`attempt-loop.ts` `runAttempt`), including fix tasks and delivery `fix-ci` tasks | `simple` / `standard` / `complex` by Difficulty | `workerTools(mcpAllowed)` | free text summary; the engine commits and runs the Checks |
 | `reviewer-task.md` | Task reviewer (`checks/reviewer.ts` `reviewTaskDiff`) | `taskReviewer` | read-only | `ReviewerVerdict` `{ pass, blockers[], notes? }` |
 | `reviewer-goal.md` | Goal reviewer (`goal-review.ts` `reviewGoal`) | `goalReviewer`, or `taskReviewer` for small goals | read-only | `GoalReviewOutput` `{ mustVerdicts[], stretchVerdicts[], fixTasks[], notes }` |
@@ -33,11 +35,11 @@ roles.text(name) // → file contents (only the Planner, which is a sub-agent pr
 | `documenter.md` | Completion docs (`docs-generate.ts` `runDocsGeneration`) | `documenter` | `workerTools(mcpAllowed)` | markdown files; the engine commits only doc files |
 | `feedback.md` | Milestone feedback triage (`feedback.ts` `classifyFeedback`) | `feedback` | read-only | `FeedbackPlan` `{ kind, rationale, hint, fixTasks[], decision }` |
 
-"Read-only" means `READONLY_TOOLS` plus `disallowedTools: READONLY_DISALLOWED` (no Write/Edit/MultiEdit/NotebookEdit), from `engine/src/guards/boundary.ts`. Every session, read-only or not, also gets `boundarySettings(hooksDir)`: the hook canary, the boundary guard and the rm guard.
+"Read-only" means `READONLY_TOOLS` plus `disallowedTools: READONLY_DISALLOWED` (no Write/Edit/MultiEdit/NotebookEdit), from `engine/src/guards/boundary.ts`. Every session also gets boundary settings. Claude uses the hook canary, boundary guard and rm guard. Codex enforces the role through native sandboxing and its SessionStart/PreToolUse guards.
 
 ### Clarifier (`roles/clarifier.md`)
 
-**Drives** the only conversation with the human before approval. The session explores the repository read-only, runs the Interview in rounds when the goal has one, lists Areas, plans with the Planner sub-agent, defines Must and Stretch Checks, marks 1–3 milestones, rates Difficulty, sets Task Kind and Scenario, and estimates cost and time.
+**Drives** the only conversation with the human before approval. The session explores the repository read-only, runs the Interview in rounds when the goal has one, lists Areas, reviews the Planner’s task proposal, defines Must and Stretch Checks, marks 1–3 milestones, rates Difficulty, sets Task Kind and Scenario, and estimates time (plus Claude USD cost where available).
 
 **Input.** `buildClarifyPrompt` in `clarify.ts` assembles:
 
@@ -58,13 +60,13 @@ The session runs with `CLARIFY_MAX_TURNS = 90` and `CLARIFY_MAX_BUDGET_USD = 6`,
 
 ### Planner (`roles/planner.md`)
 
-**Drives** the Task DAG: 1–6 tasks per Area, tracer-bullet slices, explicit `dependsOnKeys`, disjoint `relevantFiles` for parallel tasks, groundwork in the `shared` Area. It is not a top-level session. `prepareClarify` registers it as a sub-agent:
+**Drives** the Task DAG: 1–6 tasks per Area, tracer-bullet slices, explicit `dependsOnKeys`, disjoint `relevantFiles` for parallel tasks, groundwork in the `shared` Area. For Claude, `prepareClarify` registers it as a native sub-agent:
 
 ```ts
 agents: { planner: { description: 'Plans the task DAG for a goal. ...', prompt: roles.text('planner') + plannerHint, model: modelFor(config, goal, 'planner').model } }
 ```
 
-Its JSON answer goes back to the Clarifier, which folds it into the Brief. Difficulty and milestones are the Clarifier's job; the planner's field list does not include them.
+Claude hands the JSON answer back to the Clarifier. For Codex, Foundry starts a separate read-only session with the Planner model and effort, validates `PlannerOutput` (`BriefOutput.pick({ tasks: true })`) and hands that proposal to the Clarifier. The Clarifier reviews the proposal and produces the final Brief; native Codex child-agent creation stays disabled.
 
 ### Worker (`roles/worker.md`)
 
@@ -83,7 +85,7 @@ Its JSON answer goes back to the Clarifier, which folds it into the Brief. Diffi
 
 A Continuation sends only `continuationMessage(reason)` into the resumed session. The prompt is saved beside the transcript as `data/transcripts/<attemptId>.prompt.md`.
 
-**Model.** `workerModelFor` picks the Difficulty row and escalates to `complex` on the last budgeted attempt or a human-granted retry. On top of that, a session running `opus` gets the CLI's own `--fallback-model sonnet`.
+**Model.** `workerModelFor` picks the Difficulty row and escalates to `complex` on the last budgeted attempt or a human-granted retry. On top of that, a Claude session running `opus` gets the CLI's own `--fallback-model sonnet`.
 
 **Caps.** `attemptMaxTurns` (default 150), `attemptMaxCostUsd` (default $10, clamped to the goal's remaining budget), `attemptTimeoutMs`.
 
@@ -133,11 +135,11 @@ A Continuation sends only `continuationMessage(reason)` into the resumed session
 
 | Session | Code | Model | Output |
 |---|---|---|---|
-| Nature classification (goals created as `auto`) | `clarify.ts` `classifyNature` | `goal.models.cheap` (legacy field, not a preset) | `{ nature }` |
+| Nature classification (goals created as `auto`) | `clarify.ts` `classifyNature` | Claude: `goal.models.cheap`; Codex: captured `housekeeping` choice | `{ nature }` |
 | Suggestion for a blocked task | `escalation-suggest.ts` `runSuggest` | preset `suggest` | `SuggestOutput` `{ diagnosis, action, hint, confidence }` |
 | Style Sample | `style-sample.ts` | preset `styleSample` | one image file at `artifacts/samples/<key>-<n>.png`; the prompt carries the *worker* skill hint for scenario `image` |
-| Check-output distillation | `distill/summarize.ts` via `Engine.summarizer` | `goal.models.cheap` (legacy field) | `{ summary, keyErrors[] }` |
-| Model probe, usage probe | `Engine.probeModel`, `Engine.probeUsage` | the probed model; `config.models.cheap` | none (reads `init` / the rate-limit signal) |
+| Check-output distillation | `distill/summarize.ts` via `Engine.summarizer` | Claude: `goal.models.cheap`; Codex: captured `housekeeping` choice | `{ summary, keyErrors[] }` |
+| Model probe, usage probe | `Engine.probeModel`, `Engine.probeUsage` | the probed model/effort; Claude quota probe uses `config.models.cheap`, Codex quota uses account metadata | none (reads `init` / the rate-limit signal) |
 
 ## Skill hints
 
@@ -145,7 +147,7 @@ Foundry does not define skills. It sees the ones installed on the host, and it t
 
 **Where the rules come from.** Each entry in `catalog/skills.json` can list `roles` (the roles it is relevant to), `scenarios`, and `workflow` rules of the form `{ role, mandate: 'must' | 'prefer', when: <task kind> | 'any', scenarios, instruction }`. `SkillRole` (`engine/src/skills/types.ts`) covers `clarifier`, `planner`, `worker`, `reviewer-task`, `reviewer-goal` and `merger`. The Documenter and feedback triage get no hints.
 
-**How a section is built.** `engine.skills.hints` is a `SkillsHints` (`engine/src/skills/hints.ts`). It caches catalog statuses for 10 seconds, and the cache is invalidated on install, uninstall and relevant Settings changes. Call sites ask for a prompt section:
+**How a section is built.** `engine.skillsFor(goal).hints` selects the goal’s native skill manager and its `SkillsHints` (`engine/src/skills/hints.ts`). It caches catalog statuses for 10 seconds, and the cache is invalidated on install, uninstall and relevant Settings changes. Call sites ask for a prompt section:
 
 | Call site | Call |
 |---|---|
@@ -166,6 +168,6 @@ Foundry does not define skills. It sees the ones installed on the host, and it t
 - The block always tells the session not to run the setup and ticketing skills (`NEVER_RUN`), then lists other relevant installed skills, then the goal's **Project Skills** from autoskills.
 - With the `plain` workflow profile (Settings), the block is a one-line list of installed skills.
 
-Hints are off entirely when `settingSources` excludes `user`, because user-level skills would not load in that session (`hintsEnabled` in the `Engine` constructor).
+For Claude, hints are off when `settingSources` excludes `user`, because user-level skills would not load in that session (`hintsEnabled` in the `Engine` constructor).
 
-**Observing use.** The runner records every Skill-tool invocation (`RunResult.skillsUsed`). After an attempt, `attempt-loop.ts` compares it with `mandatedFor(...)` and hands the result to the Task reviewer (the `# Workflow` section) and to the next attempt's Observation Report (`summarizeReport`). A skipped mandated skill is a note, never a failure on its own.
+**Observing use.** Claude’s runner records every Skill-tool invocation (`RunResult.skillsUsed`). After an attempt, `attempt-loop.ts` compares it with `mandatedFor(...)` and hands the result to the Task reviewer (the `# Workflow` section) and to the next attempt's Observation Report (`summarizeReport`). A skipped mandated skill is a note, never a failure on its own. Codex skill-use telemetry is unavailable; an empty telemetry list must not be interpreted as proof that a skill was skipped.

@@ -1,6 +1,8 @@
 # ADR-0001: Drive the host `claude` CLI rather than the Agent SDK
 
-**Status:** accepted · 2026-08-21
+**Status:** accepted · 2026-08-21 · amended by [ADR-0017](0017-goal-provider-and-account-isolation.md)
+
+> Current implementation: Native CLI dispatch now supports two fixed goal backends. See [ADR-0017](0017-goal-provider-and-account-isolation.md); the decision below records its original context.
 
 ## Context
 

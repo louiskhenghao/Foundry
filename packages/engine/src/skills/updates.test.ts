@@ -88,7 +88,8 @@ describe('skills sources & updates', () => {
   });
 
   test('report: up-to-date / older copy / differs / unknown, grouped by source', async () => {
-    const checker = new SkillsUpdateChecker(fh.paths, { ttlMs: 60_000, urlFor: (repo) => (repo === 'mattpocock/skills' ? upstream.url : undefined) });
+    const checker = new SkillsUpdateChecker(fh.paths, { ttlMs: 60_000, urlFor: () => upstream.url // All fixture repositories stay local; never contact GitHub from this test.
+ });
     const report = await checker.report(scanSkills(fh.paths), loadCatalog(catalogPath), { refresh: true });
     const src = (id: string) => report.sources.find((s) => s.id === id)!;
     const row = (s: string, n: string) => src(s).skills.find((k) => k.name === n)!;

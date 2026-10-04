@@ -6,6 +6,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { FailureClass, RunResult } from '@foundry/runner';
+import type { CodexDiscoveredModel } from './codex-discover.ts';
 
 export interface ModelRecord {
   name: string;
@@ -20,6 +21,16 @@ export interface ModelRecord {
   seed: boolean;
   /** found in the Claude Code binary by a model sync; `newest` = the latest id of its family */
   discovered?: { family: string; newest: boolean; at: string } | null;
+  /** Native Codex catalog metadata. Presence in the catalog does not prove account entitlement. */
+  codex?: {
+    displayName: string | null;
+    description: string | null;
+    reasoningEfforts: string[];
+    defaultReasoningEffort: string | null;
+    isDefault: boolean;
+    /** Present in the most recent successful catalog refresh; previously observed entries remain stored. */
+    available: boolean;
+  };
 }
 
 /** when the last model sync ran and against which Claude Code version (a new CLI version triggers one) */
@@ -48,13 +59,13 @@ export const isPinnedId = (name: string) => /^claude-/.test(name) || /\d{8}|\d+-
 export class ModelRegistry {
   readonly path: string;
   private records = new Map<string, ModelRecord>();
-  constructor(dataDir: string) {
+  constructor(dataDir: string, provider: 'claude' | 'codex' = 'claude') {
     this.path = join(dataDir, 'models.json');
     try {
       if (existsSync(this.path)) for (const r of JSON.parse(readFileSync(this.path, 'utf8')) as ModelRecord[]) this.records.set(r.name, r);
     } catch {}
     const now = new Date().toISOString();
-    for (const s of SEED_MODELS) if (!this.records.has(s.name)) this.records.set(s.name, { name: s.name, resolvedId: null, firstSeenAt: now, lastSeenAt: now, lastOkAt: null, lastFailAt: null, lastError: null, sessions: 0, seed: true });
+    for (const s of provider === 'codex' ? [{ name: 'codex-default' }] : SEED_MODELS) if (!this.records.has(s.name)) this.records.set(s.name, { name: s.name, resolvedId: null, firstSeenAt: now, lastSeenAt: now, lastOkAt: null, lastFailAt: null, lastError: null, sessions: 0, seed: true });
   }
   private save(): void {
     try {
@@ -79,6 +90,22 @@ export class ModelRegistry {
     for (const m of models) {
       const r = this.records.get(m.id) ?? this.upsert(m.id);
       r.discovered = { family: m.family, newest: m.newest, at };
+    }
+    this.save();
+  }
+  /** Refresh catalog capabilities without treating discovery as a successful inference session. */
+  noteCodexDiscovered(models: CodexDiscoveredModel[]): void {
+    for (const r of this.records.values()) if (r.codex) r.codex = { ...r.codex, available: false };
+    for (const model of models) {
+      const r = this.upsert(model.id);
+      r.codex = {
+        displayName: model.displayName,
+        description: model.description,
+        reasoningEfforts: [...model.reasoningEfforts],
+        defaultReasoningEffort: model.defaultReasoningEffort,
+        isDefault: model.isDefault,
+        available: true,
+      };
     }
     this.save();
   }

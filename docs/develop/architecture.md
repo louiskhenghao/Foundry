@@ -1,6 +1,6 @@
 # Architecture
 
-Foundry is a Bun/TypeScript monorepo. It drives the host's Claude Code CLI (`claude -p --output-format stream-json`) to turn a Goal into a Brief, the Brief into a Task DAG, and each Task into Attempts. Attempts are checked, reviewed and squashed onto a Goal branch, and the finished branch can be delivered as a push or pull request. This page explains how the pieces fit together, so you know where to make a change. Terms in **bold** or Capitalised are defined in [CONTEXT.md](../../CONTEXT.md).
+Foundry is a Bun/TypeScript monorepo. It drives the host's Claude Code CLI (`claude -p --output-format stream-json`) or Codex CLI (`codex exec --json`) to turn a Goal into a Brief, the Brief into a Task DAG, and each Task into Attempts. Attempts are checked, reviewed and squashed onto a Goal branch, and the finished branch can be delivered as a push or pull request. This page explains how the pieces fit together, so you know where to make a change. Terms in **bold** or Capitalised are defined in [CONTEXT.md](../../CONTEXT.md).
 
 ## Packages
 
@@ -13,22 +13,23 @@ flowchart LR
   server["packages/server<br/>Hono app + Bun.serve"] --> engine
   engine["packages/engine<br/>Engine, scheduler, sessions"] --> core
   engine --> runner
-  runner["packages/runner<br/>claude CLI wrapper, hooks"]
+  runner["packages/runner<br/>native CLI adapters, hooks"]
   core["packages/core<br/>schemas, events, store"]
   web -.->|"@foundry/core/browser"| core
   runner -->|spawns| claude(["claude -p (host CLI)"])
+  runner -->|spawns| codex(["codex exec (host CLI)"])
 ```
 
 | Workspace | Owns | Entry points |
 |---|---|---|
 | `packages/core` | Zod schemas for every entity (`src/schema/*`), the event union (`src/events.ts`), the SQLite event store and its projections (`src/store/*`), and pure domain helpers (`src/machine/*`: DAG sort and depths, Brief coverage, Decisions, transition tables). No I/O apart from SQLite. | `src/index.ts`; `src/browser.ts` is the browser-safe subset the web app imports |
-| `packages/runner` | `ClaudeCliRunner`, which spawns `claude -p` and turns stream-json into typed `RunnerEvent`s (`stream-codec.ts`). Also the concurrency semaphore, the `--settings` builder and the hook scripts in `hooks/` (`canary.sh`, `boundary-guard.sh`, `rm-guard.ts`). | `src/index.ts` |
+| `packages/runner` | `ClaudeCliRunner` and `CodexCliRunner`, which normalize native JSON streams to shared `RunnerEvent` / `RunResult` contracts. Owns process cancellation, hooks, sandbox configuration and the concurrency semaphore; Codex uses `codex-stream-codec.ts` and `codex-guard.ts`. | `src/index.ts` |
 | `packages/engine` | The `Engine` class and everything that decides what happens next: the tick, scheduler, attempt loop, Clarify/Interview, Draft/Revise, reviews, merges and catch-up, milestones, delivery, preview and self-check, notifications, models and presets, skills, settings, self-update, the agents monitor and the usage ledger. | `src/engine.ts`, `src/index.ts`, `src/config.ts` (`defaultConfig`) |
 | `packages/server` | The Hono HTTP API (`src/app.ts`) and the `Bun.serve` wrapper with the `/ws` WebSocket (`src/index.ts`). It also serves `apps/web/dist`. | `startServer(engine)` |
 | `apps/web` | The UI: React 18, react-router, zustand, Tailwind v4, built by Vite into `apps/web/dist`. | `src/App.tsx` (routes), `src/store.ts` (WS client + live store), `src/api.ts` |
 | `apps/cli` | The `foundry` CLI. Most commands are a thin HTTP client of the server. `serve` builds `Engine` + server in-process, `replay` opens the store directly, and `doctor`/`skills` work without a server. | `src/main.ts` |
 
-Around them: `roles/*.md` are the role prompts (see [roles.md](roles.md)). `catalog/skills.json` is the curated skill catalog and `catalog/mcp.json` the recommended MCP servers. `scripts/` holds `dev.ts`, `release.ts`, `gen-docs.ts` (the generated references), `demo.ts` and `screenshots.ts` (the seeded demo and the guide's screenshots), `e2e-conflict.ts` and fixture helpers. `data/` (git-ignored) is the engine's state directory. `defaultConfig` always resolves it to `<repo root>/data` (`packages/engine/src/config.ts`).
+Around them: `roles/*.md` are the role prompts (see [roles.md](roles.md)). `catalog/skills.json` is the curated skill catalog and `catalog/mcp.json` the recommended MCP servers. `scripts/` holds `dev.ts`, `release.ts`, `gen-docs.ts` (the generated references), `demo.ts` and `screenshots.ts` (the seeded demo and the guide's screenshots), `e2e-conflict.ts` and fixture helpers. The launch profile selects the default state directory: `<repo root>/data` for Claude or `<repo root>/data-codex` for Codex. `FOUNDRY_DATA_DIR` overrides it (`packages/engine/src/config.ts`). Both goal backends share that instance's event store; native account homes remain separate. See [the operator guide](../operate/codex.md) for authentication and migration.
 
 ### What lives in `data/`
 
@@ -36,7 +37,9 @@ Around them: `roles/*.md` are the role prompts (see [roles.md](roles.md)). `cata
 |---|---|
 | `engine.db` (+ WAL) | the event log and read models (`core/src/store/db.ts`) |
 | `settings.json` | Settings (`engine/src/settings.ts`): a saved value beats an env var, which beats the default |
-| `models.json` | the Model Registry (`engine/src/models/registry.ts`) |
+| `models.json`, `providers/<other-provider>/models.json` | independent native Model Registries (`engine/src/models/registry.ts`) |
+| `provider` | launch-profile ownership marker; opening the directory with the other launch profile is refused |
+| `providers/<other-provider>/` | model/skill manager caches for the backend other than the launch profile |
 | `transcripts/*.jsonl`, `*.prompt.md` | every session's raw stream-json, plus the worker prompt beside it |
 | `check-output/` | full output of command Checks |
 | `attachments/` | Attachments and their markdown renditions (`engine/src/attachments.ts`) |
@@ -49,7 +52,7 @@ Every state change is an event appended to one SQLite table ([ADR-0002](adr/0002
 
 - **`EventStore.append(e)`** (`core/src/store/event-store.ts`) validates the event against the `EngineEvent` discriminated union (`core/src/events.ts`). In **one transaction** it inserts the row and calls `applyEvent`. Listeners are notified only after the commit.
 - **`applyEvent`** (`core/src/store/projections.ts`) is a reducer from one event to the read-model tables: `goals`, `tasks`, `attempts`, `checks`, `check_results`, `briefs`, `observations`, `escalations`, `usage_ledger`, `rate_limit_state`. Entities are stored as JSON in a `data` column. Read them with the getters in the same file (`getGoal`, `listTasks`, `listAttempts`, `getBrief`, `listEscalations`, ...).
-- **`EventStore.replay()`** drops the read models and rebuilds them from the log. `bun run cli replay --verify` snapshots the tables, replays, and exits non-zero if anything differs. Use it after touching a reducer. (The CLI opens `<root>/data/engine.db`.)
+- **`EventStore.replay()`** drops the read models and rebuilds them from the log. `bun run cli replay --verify` snapshots the tables, replays, and exits non-zero if anything differs. Use it after touching a reducer. (The CLI opens `engine.db` in the configured data directory; use the same launch profile and `FOUNDRY_DATA_DIR` as the server.)
 - Schema changes to the tables go in `core/src/store/migrations.ts`.
 
 **Adding or changing an event.** Add it to `EngineEvent` in `core/src/events.ts`, handle it in `applyEvent`, and emit it from the engine. Old events are never rewritten, so a new field on an entity needs a Zod `.default(...)` that keeps older payloads parseable. Look for the "default keeps pre-X events replayable" comments in `core/src/schema/goal.ts`. `replay --verify` against a real `data/engine.db` is the check.
@@ -61,7 +64,7 @@ Every state change is an event appended to one SQLite table ([ADR-0002](adr/0002
 `Engine` (`engine/src/engine.ts`) subscribes to the store. **Every event that carries a `goalId` schedules a tick for that goal.**
 
 - `tick(goalId)` chains ticks per goal, so they never run concurrently for one goal, and coalesces bursts: a tick already pending is not queued twice.
-- `runTick` returns early when the engine is stopped, usage-paused (`isRateLimited`, see Usage Pause) or draining for a self-update. Then it switches on `goal.state`:
+- `runTick` returns early when the engine is stopped, usage-paused for that goal’s backend (`isRateLimited`, see Usage Pause) or draining for a self-update. Then it switches on `goal.state`:
 
 | State | What the tick does |
 |---|---|
@@ -76,7 +79,7 @@ Every state change is an event appended to one SQLite table ([ADR-0002](adr/0002
 
 Long-running work (Clarify, attempts, reviews, delivery) is started with `void` and tracked in in-memory sets (`clarifying`, `inFlight`, `reviewing`, `delivering`). A tick never awaits a whole session. The work appends events as it goes, and those events tick the goal again. `Engine.busy()` counts all of it; drains and `stop()` rely on that count.
 
-**Startup** (`Engine.start`): sweep stale uploads, `reconcile()`, `relocateLegacyWorkspaces` (`workspace-migrate.ts`), `migrateModelTiersToPresets`, a background model sync if the Claude Code version changed, start the preview sweeper, then tick every goal. `reconcile()` handles work that was cut off by the restart. It kills orphaned `claude` processes. Work attempts with a session become `interrupted` and are resumed as a **Continuation**; anything else becomes an `error` and gets its attempt budget back. Deliveries that were `running` become `failed` (every step is idempotent, so a re-run is safe).
+**Startup** (`Engine.start`): sweep stale uploads, `reconcile()`, `relocateLegacyWorkspaces` (`workspace-migrate.ts`), `migrateModelTiersToPresets`, a background model sync if the Claude Code version changed, start the preview sweeper, then tick every goal. `reconcile()` handles work that was cut off by the restart. It sends SIGTERM to the recorded PID of a still-running attempt. Owned Codex process-group cleanup is enforced during normal cancellation and shutdown; crash recovery must not be described as a guarantee to reap all orphaned descendants. Work attempts with a session become `interrupted` and are resumed as a **Continuation**; anything else becomes an `error` and gets its attempt budget back. Deliveries that were `running` become `failed` (every step is idempotent, so a re-run is safe).
 
 ### The scheduler
 
@@ -86,7 +89,7 @@ Long-running work (Clarify, attempts, reviews, delivery) is started with `void` 
 2. **Promote** pending tasks whose dependencies are all `done` or `skipped` to `ready`.
 3. **Milestone.** If a milestone task landed (`dueCheckpoint`, `checkpoint.ts`), start nothing new. Once nothing is in flight, `openCheckpoint` moves the goal to `awaiting_feedback`, starts the Preview and raises a `milestone` Escalation.
 4. **All terminal?** If every task is done or skipped, the goal goes to `goal_review`. If any task failed, the goal goes to `failed`.
-5. **Budget.** An exceeded cost or time budget raises a `budget_exceeded` Escalation and blocks the goal.
+5. **Budget.** An exceeded time budget (or reported USD cost budget for Claude) raises a `budget_exceeded` Escalation and blocks the goal.
 6. **Start ready tasks** within `budgets.maxConcurrent`. A task runs in the goal workspace only when it is alone. Otherwise it gets its own worktree, which it keeps for its lifetime. Non-parallelizable tasks wait for quiet. Two tasks whose `relevantFiles` overlap never run together (`filesOverlap`, `catchup.ts`).
 
 `startTask` then does the work: reserve the in-flight slot, await autoskills, optionally refresh the base, record `task.base_ref`, and assign a worktree. It runs **Catch-up**, which merges the goal branch into the task branch. Then it calls `runAttempt` and loops on Continuations while `decideNext` says so. On success it catches up once more, calls `integrateTask`, drops the task worktree, restarts the Preview and runs the Self-check. On failure it retries within the budget, or raises `retries_exhausted` / `permission_denial`. An engine-side crash (not the model's failure) sends the task back to `ready` without using an attempt; the third consecutive crash blocks it with an Escalation.
@@ -127,7 +130,7 @@ Any non-terminal state can also go to `cancelled` (`Engine.cancelGoal`) or `fail
 
 ### 1. Creation: `draft`
 
-`Engine.createGoal` checks that the repo is a git repository, assigns `goal/<id>` as the branch, and fixes the **Progress folder** path (`defaultWorkspaceDir`, `workspace.ts`). It snapshots the Budget Preset, mode, nature, pace, TDD discipline, effort, `modelPreset` and delivery policy, claims staged Attachments, and appends `goal.created`. `autoBrief` or `brief` inputs skip Clarify: the engine proposes and approves the Brief itself.
+`Engine.createGoal` checks that the repo is a git repository, assigns `goal/<id>` as the branch, and fixes the **Progress folder** path (`defaultWorkspaceDir`, `workspace.ts`). It snapshots the immutable `provider`, Budget Preset, mode, nature, pace, TDD discipline, effort, `modelPreset` and delivery policy. Codex goals also capture the complete role tables (`codexPreset`), ordered fallbacks (`codexFallbacks`) and any explicit all-role override (`codexModelOverride`). It then claims staged Attachments, and appends `goal.created`. `autoBrief` or `brief` inputs skip Clarify: the engine proposes and approves the Brief itself.
 
 A **Follow-up** (`follows` input, `follow-up.ts`) is validated here (the earlier goal is finished and in the same repository) and snapshotted into `Goal.follows`: the rendered `# Previous goal` section Clarify receives, the kept style, and the start point. `previousWorkOnBase` compares content, so a squash-merged goal counts as on the base; otherwise `ensureSyncedWorkspace` starts the goal branch from the earlier goal branch (`baseSync.startedFrom: 'previous'`). Its attachments are copied under new ids. "Followed by" is derived (`listFollowUps`), and `goal.follow_up_linked` records a link made afterwards.
 
@@ -136,7 +139,7 @@ A **Follow-up** (`follows` input, `follow-up.ts`) is validated here (the earlier
 `runClarify` (`clarify.ts`):
 
 1. `prepareClarify` adds an engine-made blocking question when the user's checkout is dirty. Then it creates the goal worktree through `Engine.ensureSyncedWorkspace`, which does the **Base Sync**: it fetches the base (remote-tracking refs only) and starts the goal branch from `<remote>/<base>` when the local base is behind. An `auto` nature goal gets a single-turn classification first (`classifyNature`). The context provider prepares an overview, and the clarifier and planner skill hints are loaded.
-2. One Clarify session runs read-only (`READONLY_TOOLS`) with `roles/clarifier.md` appended and the Planner available as a sub-agent (`--agents`). Its JSON schema is `InterviewOutput` when the goal has an interview and `BriefOutput` otherwise (`core/src/schema/interview.ts`, `brief.ts`).
+2. One Clarify session runs read-only (`READONLY_TOOLS`) with `roles/clarifier.md`. Claude exposes the Planner as a native sub-agent (`--agents`). Codex runs a separate Foundry-managed read-only Planner session with its own model and effort, validates its task proposal and gives it to the Clarifier for review. Its JSON schema is `InterviewOutput` when the goal has an interview and `BriefOutput` otherwise (`core/src/schema/interview.ts`, `brief.ts`).
 3. `settle()` interprets the output. **Questions** become `interview.round_asked`, and the goal waits for `Engine.answerInterview`, which resumes the same session with the answers (`continueInterview`). The limits are 8 questions per round and 4 rounds (`INTERVIEW_MAX_*`). A lost session starts over with the interview so far. A **Brief** gets one coverage repair turn if an Area has no task. Then `toBrief` turns it into the stored Brief, with the interview answers as applied Decisions, and the goal moves to `awaiting_brief_approval`.
 
 ### 3. The Brief: `awaiting_brief_approval`
@@ -177,29 +180,28 @@ The tick copies media Artifacts (`deliverArtifacts`), runs the Graph Refresh (`r
 
 ## Sessions and how a model is picked
 
-Every session goes through one runner stack, built in the `Engine` constructor:
+Every session goes through `ProviderRunner`, which selects the goal's immutable backend (or an explicit session provider, then the launch default) and shares one concurrency budget across both backends.
 
 ```mermaid
 flowchart LR
-  caller["engine code<br/>(clarify, attempt, review, merge...)"] --> F["ModelFallbackRunner<br/>models/fallback-runner.ts"]
-  F --> E["EffortRunner<br/>effort-runner.ts"]
-  E --> C["ClaudeCliRunner<br/>runner/src/claude-cli-runner.ts"]
-  C --> P(["claude -p --output-format stream-json<br/>--model --effort --json-schema --settings ..."])
-  P -. stream-json .-> C
-  C -. RunnerEvent + RunResult .-> caller
+  caller["engine sessions"] --> P["ProviderRunner: shared semaphore"]
+  P --> C["Claude EffortRunner → ModelFallbackRunner"]
+  P --> X["Codex EffortRunner → ModelFallbackRunner"]
+  C --> CC["ClaudeCliRunner: claude -p"]
+  X --> XC["CodexCliRunner: codex exec / resume"]
+  CC -. "RunnerEvent + RunResult" .-> caller
+  XC -. "RunnerEvent + RunResult" .-> caller
 ```
 
-- **`ClaudeCliRunner`** maps a `RunSpec` to CLI flags (`--model`, `--effort`, `--fallback-model`, `--max-turns`, `--max-budget-usd`, `--permission-mode`, `--allowedTools`, `--append-system-prompt-file`, `--agents`, `--json-schema`, `--settings`, `--setting-sources`, `--add-dir`, `--resume`). It limits concurrency with a semaphore, tees stdout to the transcript, and decodes events with `stream-codec.ts`. Every session gets `FOUNDRY_CALLBACK` in its environment, which is how the boundary hook reaches `POST /internal/boundary`.
-- **`EffortRunner`** fills in `--effort` from the goal (`Goal.effort`) or from Settings.
-- **`ModelFallbackRunner`** re-runs a session on the next model in `modelFallbacks` when the requested model is unavailable **before anything happened** (`failureClass === 'model_unavailable'`, 0 turns, $0). It records the swap as `goal.models_changed`. The projection stores that as `Goal.modelSubstitutions`, so later sessions of the goal skip the dead model. It also feeds the Model Registry. ([ADR-0006](adr/0006-model-registry-and-fallback.md))
+- **Native adapters** normalize text, tools, structured output, tokens, errors and process lifecycle. Claude uses native allowed-tool flags, settings and JSON schemas. Codex uses native sandboxing, generated hook configuration and output schemas; it does not translate Claude's `--agents` or Skill tool into native capabilities. All sessions carry the boundary callback. See [roles.md](roles.md) and [the capability limits](../operate/codex.md#product-capabilities).
+- **EffortRunner** resolves the goal-wide override before the selected role effort. Codex preserves native effort names; a null role effort delegates to native configuration. Legacy goals retain the earlier compatibility mapping.
+- **ModelFallbackRunner** retries only model-unavailability failures before productive work. Authentication, quota and invalid effort are not fallback triggers. Recorded substitutions let later sessions skip an unavailable model. Claude and Codex registries and fallback lists are separate.
 
-**Model Presets** ([ADR-0014](adr/0014-model-presets-per-goal-nature.md)) choose the model. `core/src/schema/model-presets.ts` defines the actions (`MODEL_ACTIONS`: `clarifier`, `planner`, `simple`, `standard`, `complex`, `merger`, `goalReviewer`, `taskReviewer`, `documenter`, `feedback`, `suggest`, `styleSample`), the three nature tables (`code`, `docs` for docs and research, `media` for image and video, via `natureKey`) and the shipped presets `max`, `production`, `balanced` and `economy`. `engine/src/models/roles.ts` resolves them:
+**Claude Model Presets** (`core/src/schema/model-presets.ts`) contain twelve actions: Clarifier, Planner, simple/standard/complex Worker, Merger, Goal reviewer, Task reviewer, Documenter, Feedback, Suggestion and Style Sample. Code, Docs & research and Media each select a default Max, Production, Balanced, Economy or custom preset. `tableFor` reads the selected preset when each session starts, so Settings edits apply to later Claude sessions of existing goals.
 
-- `tableFor(config, goal)` uses the goal's own `modelPreset`, then the preset Settings picks for the goal's nature, then the shipped default for that nature. Presets are read **when each session starts**, so an edit in Settings reaches goals that are already running. Any `modelSubstitutions` are applied on top.
-- `modelFor(config, goal, action)` returns the model for any action except the three worker rows.
-- `workerModelFor(config, goal, task, attemptIndex)` picks the task's **Difficulty** row. The last attempt of a budget of two or more, and every attempt the human grants beyond the budget, run on the `complex` row (`escalateLastAttempt`). A Continuation keeps the model its Attempt started with.
+**Codex Model Presets** (`core/src/schema/codex-model-presets.ts`) add Housekeeping and a model/effort choice for each role. A new goal captures all three nature tables and the fallback order; changing or deleting Settings presets does not alter that snapshot. An explicit all-role override is stored separately so a Follow-up can preserve that intent without flattening distinct preset roles. Captured `codex-default` entries still delegate to native Codex configuration. Model discovery reads the local app-server catalog without inference; a probe consumes quota and verifies the chosen model/effort. Discovery alone does not prove account entitlement.
 
-A few sessions still read the older `Goal.models` / `config.models` fields (`strong` / `worker` / `cheap`) instead of a preset: the pre-Clarify nature classification (`classifyNature` in `clarify.ts`), check-output distillation (`Engine.summarizer`), and the usage probe. [roles.md](roles.md) has the full table of which session uses which action.
+`modelFor` and `workerModelFor` in `engine/src/models/roles.ts` apply the backend's table and recorded substitutions. Workers use the task's Difficulty row, escalate to `complex` for the last budgeted attempt or an extra human-granted attempt, and keep their model during a Continuation. Claude housekeeping still uses legacy `models.cheap`; Codex classification and distillation use the captured Housekeeping choice. Codex quota refresh reads account metadata without a model session.
 
 ## Workspaces
 
@@ -221,8 +223,8 @@ A few sessions still read the older `Goal.models` / `config.models` fields (`str
 
 - `goalWorkspacePath` returns `goal.workspaceDir`, or `<data>/worktrees/<id>/_goal` for legacy goals. `internalWorkspaceDir` is the hidden sibling. Engine worktrees never live inside the progress folder, because docs generation and merges run `git add -A` there.
 - `ensureGoalWorkspace` / `ensureTaskWorkspace` / `dropTaskWorkspace` create and remove worktrees. Task worktrees branch from the goal branch's current HEAD.
-- `artifacts/` is git-excluded in every media workspace (`excludeFromGit`), and `copyArtifacts` rescues Artifacts from a task worktree before it is dropped. Project skills from autoskills live in the workspace's `.claude/skills` and are also git-excluded.
-- The **Boundary** is enforced by hooks, not by prompts. `boundary-guard.sh` (PreToolUse on Bash) denies push, publish, deploy and remote edits, and calls back to the engine, which raises a `boundary_action` Escalation. `rm-guard.ts` auto-approves an `rm` only when it provably stays inside the workspace. `canary.sh` proves the hooks loaded.
+- `artifacts/` is git-excluded in every media workspace (`excludeFromGit`), and `copyArtifacts` rescues Artifacts from a task worktree before it is dropped. Project skills from autoskills live in `.claude/skills` for Claude or `.agents/skills` for Codex. New installed contents are git-excluded; existing tracked project skills are preserved.
+- The **Boundary** is enforced by hooks, not by prompts. `boundary-guard.sh` (PreToolUse on Bash) denies push, publish, deploy and remote edits, and calls back to the engine, which raises a `boundary_action` Escalation. `rm-guard.ts` auto-approves an `rm` only when it provably stays inside the workspace. `canary.sh` proves the Claude hooks loaded. Codex uses its native SessionStart/PreToolUse hooks, a readiness canary and read-only/workspace-write OS sandboxing. Its guard enforces the same remote-action policy plus provider-specific MCP permissions. These command guards do not make arbitrary repository code a complete security boundary; see [Codex permissions](../operate/codex.md#permissions-skills-and-accounting).
 
 ## Server and web
 
@@ -235,10 +237,11 @@ A few sessions still read the older `Goal.models` / `config.models` fields (`str
 | `/api/stream/:id/history` | decoded transcript tail for a live channel (the Live log after a page refresh) |
 | `/api/transcripts/:file/event?line=&block=` | one live-log event in full, read back from the transcript line its `ref` names |
 | `/api/attempts/:id/transcript`, `/prompt` | raw session transcript and worker prompt |
-| `/api/mcp`, `/api/mcp/check`, `/api/mcp/install`, `/api/mcp/remove`, `/api/mcp/allowed` | MCP servers read from Claude Code's config, the on-demand health check, installs and removals as Skills operations, the Allowed in goals switch (ADR-0016) |
+| `/api/mcp`, `/api/mcp/check`, `/api/mcp/install`, `/api/mcp/remove`, `/api/mcp/allowed` | provider-specific native MCP configuration, health, install/remove, OAuth and Allowed in goals permissions; `provider` query selects `claude` or `codex` |
 | `/api/skills/*`, `/api/tools/*` | skills view, catalog, install/uninstall/update, packs; markitdown, playwright and CLI tool installs; the Skills page's operations (`/api/skills/ops`, `/api/skills/ops/:id`) |
-| `/api/models`, `/api/settings`, `/api/notifications/*` | model list/sync/probe, settings get/put/reset, notification tests |
-| `/api/agents`, `/api/usage` (+ `/api/usage/minimax`: `mmx quota show`, kept 10 min), `/api/auth`, `/api/github`, `/api/update`, `/api/doctor`, `/api/health` | Agents monitor, usage and probe, Claude sign-in, gh status/login, self-update, environment report |
+| `/api/models`, `/api/settings`, `/api/notifications/*` | provider-specific model list/sync/probe, settings get/put/reset, notification tests |
+| `/api/agents`, `/api/usage` (+ `/api/usage/minimax`: `mmx quota show`, kept 10 min), `/api/auth`, `/api/github`, `/api/update`, `/api/doctor`, `/api/health` | Agents monitor, provider-specific usage/probe and sign-in, gh status/login, self-update, environment report; health includes `pausedUntilByProvider` |
+| `/api/accounts`, `/api/plugins` | both native account states/capabilities; Codex native plugin inventory and install/remove |
 | `/api/fs/*`, `/api/repos/*`, `/api/uploads`, `/api/validate-repo`, `/api/open/targets` | folder picker, repo init/upstream/pull, staged uploads, repository check for the New goal form, the editors and file managers a goal folder can be opened in |
 | `/api/guide`, `/api/guide/page/:slug`, `/api/guide/images/:file` | the user guide for the Help page (`packages/server/src/guide.ts`) |
 | `/internal/boundary` | the boundary hook's callback |
@@ -269,6 +272,8 @@ A few sessions still read the older `Goal.models` / `config.models` fields (`str
 The history endpoint returns the last 400 events, slimmed the same way, including `stderr` (lines of the transcript that are not JSON). It looks up an attempt's transcript first, and otherwise the channel's own file, `data/transcripts/<channel>.jsonl` (`channelTranscript` in `packages/server/src/transcripts.ts`). The `draft-<goalId>` channel carries every Draft and Revise session, saved as `draft-<goal>-<n>` / `revise-<goal>-<n>`, so its history is the newest of those.
 
 **Full text on demand.** The runner stamps every decoded event with `ref: { file, line, block }`: the transcript's file name inside `data/transcripts/`, the 0-based line and the block within that line (one assistant message can carry several). A continuation appends to the same transcript, so the runner counts on from the end of the file. The ref names a file rather than a channel because a channel can span several files (the Task reviewer writes `<attemptId>.review.jsonl` but streams on the attempt's channel; style samples run one file per option). Every live-log line is one line; a click opens `FullTextDialog` (`apps/web/src/components/FullTextDialog.tsx`, Preview/Raw and Copy). For an event flagged `truncated`, `LiveLog` fetches `/api/transcripts/:file/event` (`readTranscriptEvent`) and shows the whole event; without a ref, or when the line cannot be read, it shows what the page has with a note. Events the engine makes up itself (Brief-page notes, preview and install output) have no ref and are never shortened. The same dialog opens the Activity tab's cut rows, a task's commit message and long Escalation reports (`raiseEscalation` keeps messages whole up to a 20 000-character safety cap).
+
+**Shared controls.** `components/ProviderSelector.tsx` is the native radio group used for **Agent backend** in Setup, Settings, Extensions, Usage and New goal. It provides a visible selected state and native keyboard navigation. Shared select styling in `index.css` reserves space for the chevron, including native selects outside `ui.tsx`; forced-colors mode retains the system arrow.
 
 **Web pages** (`apps/web/src/App.tsx`): Goals `/`, New goal `/goals/new`, Brief `/goals/:id/brief` (`pages/brief/*`), Goal `/goals/:id` (`pages/goal/*`: overview, DAG, diff, delivery, activity, interview, milestone, preview), Manual Resolution, Agents, Inbox, Skills, Setup, Usage, Settings (`pages/settings/ModelPresets.tsx` for presets) and Help `/help`, `/help/:slug` (`pages/HelpPage.tsx`, the user guide).
 
@@ -311,8 +316,12 @@ The history endpoint returns the last 400 events, slimmed the same way, includin
 | Settings | `engine/src/settings.ts`, `core/src/schema/settings.ts`, `apps/web/src/pages/SettingsPage.tsx` |
 | Notifications (Telegram, Discord) | `engine/src/notify/{dispatcher,channels}.ts` |
 | Self-update, Update Check, Drain | `engine/src/update/updater.ts`, `Engine.beginUpdateDrain` |
-| Agents monitor | `engine/src/agents/*`, `apps/web/src/pages/AgentsPage.tsx` |
-| Claude Sign-in | `engine/src/auth/claude-auth.ts` |
+| Agents monitor | `engine/src/agents/*`, `apps/web/src/pages/agents/AgentsPage.tsx` |
+| Native sign-in, ChatGPT quota | `engine/src/auth/{claude-auth,codex-account}.ts`, `engine/src/usage/codex-quota.ts` |
+| Backend dispatch, capability reporting | `packages/engine/src/provider-runner.ts`, `packages/server/src/app.ts` (`/api/accounts`) |
+| Codex native CLI, stream, hooks | `packages/runner/src/{codex-cli-runner,codex-stream-codec,codex-guard}.ts` |
+| Codex presets and discovery | `core/src/schema/codex-model-presets.ts`, `engine/src/models/codex-discover.ts` |
+| Native plugins | `engine/src/plugins/`, `apps/web/src/pages/skills/CodexPluginsPanel.tsx` |
 | Folder picker, open in editor | `engine/src/fs/*` |
 | HTTP routes, WebSocket | `packages/server/src/{app,index}.ts` |
 | Live log | `apps/web/src/pages/LiveLog.tsx`, `apps/web/src/store.ts` |

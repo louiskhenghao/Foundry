@@ -7,7 +7,7 @@
  */
 import { cpSync, existsSync, mkdirSync, realpathSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
-import type { Attachment, BriefStyleOption, DeliveryPolicy, Effort, Goal, GoalFollows, GoalMode, GoalNature, GoalState } from '@foundry/core';
+import type { Attachment, BriefStyleOption, DeliveryPolicy, CodexEffort, Goal, GoalFollows, GoalMode, GoalNature, GoalState } from '@foundry/core';
 import { ATTACHMENT_LIMITS, FOLLOWABLE_STATES, IdPrefix, chosenStyle, getBrief, getGoal, listCheckResultsByGoal, listChecks, listTasks, newId, renderDecisions } from '@foundry/core';
 import { renderStyle } from './attempt-prompt.ts';
 import { attachmentsDir } from './attachments.ts';
@@ -42,7 +42,7 @@ export interface FollowUpDraft {
   /** false = A is not finished; `reason` says why */
   followable: boolean;
   reason: string | null;
-  prefill: { repoPath: string; baseBranch: string; nature: GoalNature; modelPreset: string | null; effort: Effort | null; pace: 'thorough' | 'fast'; mode: GoalMode; delivery: DeliveryPolicy };
+  prefill: { provider: 'claude' | 'codex'; codexModel?: string; repoPath: string; baseBranch: string; nature: GoalNature; modelPreset: string | null; effort: CodexEffort | null; pace: 'thorough' | 'fast'; mode: GoalMode; delivery: DeliveryPolicy };
   start: {
     /** where B starts unless the human picks the other one */
     recommended: 'base' | 'previous';
@@ -109,7 +109,7 @@ export async function followUpDraft(engine: Engine, goalId: string): Promise<Fol
     previous: { id: a.id, title: a.title, state: a.state, repoPath: a.repoPath, baseBranch: a.baseBranch, branch: a.branch, branchExists: w.branchExists },
     followable,
     reason: followable ? null : `the goal is ${a.state}; it can be followed once it is finished`,
-    prefill: { repoPath: a.repoPath, baseBranch: a.baseBranch, nature: a.nature, modelPreset: a.modelPreset, effort: a.effort, pace: a.workflow.pace, mode: a.mode, delivery: a.delivery.policy },
+    prefill: { provider: a.provider ?? engine.config.provider, codexModel: a.provider === 'codex' ? a.codexModelOverride ?? (!a.codexPreset ? a.models.worker : undefined) : undefined, repoPath: a.repoPath, baseBranch: a.baseBranch, nature: a.nature, modelPreset: a.modelPreset, effort: a.provider === 'codex' && !a.codexPreset && a.effort === 'max' ? 'xhigh' : a.effort, pace: a.workflow.pace, mode: a.mode, delivery: a.delivery.policy },
     start: { recommended: w.onBase ? 'base' : 'previous', onBase: w.onBase, detail: w.detail, baseBranch: a.baseBranch, previousBranch: w.branchExists ? a.branch : null },
     attachments: a.attachments,
     style: styleOf(engine, a),

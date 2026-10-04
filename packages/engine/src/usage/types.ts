@@ -25,7 +25,20 @@ export interface UsageBucket {
   outputTokens: number;
 }
 
+/** Native ChatGPT account quotas, separate from Foundry's local session totals. */
+export interface CodexQuotaWindow {
+  usedPercent: number | null;
+  windowDurationMins: number | null;
+  resetsAt: number | null;
+}
+export type CodexQuota =
+  | { state: 'available'; checkedAt: string; ordinaryUsageAllowed: boolean | null; buckets: { id: string; label: string; primary: CodexQuotaWindow | null; secondary: CodexQuotaWindow | null }[] }
+  | { state: 'unavailable' | 'error'; checkedAt: string; message: string };
+
 export interface UsageSummary {
+  provider?: 'claude' | 'codex';
+  costAvailable?: boolean;
+  codexQuota?: CodexQuota;
   now: string;
   fiveHour: WindowSummary;
   sevenDay: WindowSummary;

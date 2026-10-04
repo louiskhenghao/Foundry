@@ -1,12 +1,12 @@
 # Remote access: run Foundry at home, use it from anywhere
 
-Foundry drives Claude Code against repositories on **one machine** — that machine does the work, and the web UI
+Foundry drives Claude Code or Codex against repositories on **one machine** — that machine does the work, and the web UI
 is how you steer it. This guide makes that machine reachable from your phone or laptop wherever you are, and
 keeps it working while you are away, using [Tailscale](https://tailscale.com) (a WireGuard mesh: only devices
 signed in to *your* tailnet can reach it — no port forwarding, no public exposure).
 
 **Why not just open the port?** The UI has no login. Anyone who can reach port 4111 can create goals, approve
-Briefs, push branches with your `gh` login and spend your Claude subscription. So the rule is simple: Foundry
+Briefs, push branches with your `gh` login and use either signed-in backend’s quota. So the rule is simple: Foundry
 stays on loopback, and Tailscale is the only door. Never publish it to the internet, never use `tailscale funnel`.
 
 You need: a machine that stays on (a Mac mini, a desktop, a home server, a VPS) with Foundry already working
@@ -94,7 +94,7 @@ launchctl kickstart -k gui/$(id -u)/com.foundry.serve                           
 tail -f ~/Projects/foundry/data/serve.log
 ```
 
-`PATH` must contain wherever `bun`, `claude`, `git`, `gh` and `graphify` live (`which claude` tells you); a
+`PATH` must contain wherever `bun`, the selected CLI (`claude` or `codex`), `git`, `gh` and `graphify` live; a
 LaunchAgent does not read your shell profile. Use plain `bun run serve`, not `bun --watch`.
 `FOUNDRY_SUPERVISED=1` tells a one-click update to simply exit when it is done, so the service manager
 brings the new version up — without it the engine restarts itself and the two would fight over the port
@@ -130,6 +130,8 @@ journalctl --user -u foundry -f
 reboot on its own. On a Mac, also turn on Docker Desktop → Settings → General → *Start Docker Desktop when you
 sign in*.
 
+For a Codex launch profile, add `FOUNDRY_PROVIDER=codex` to the service’s environment and use `data-codex/` for the example log directory. Set `FOUNDRY_DATA_DIR` and `FOUNDRY_CODEX_HOME` explicitly if needed. To add Codex goals to an existing Claude-profile service, keep its profile and data path; sign into Codex in **Accounts** instead. Services do not inherit your interactive shell’s variables.
+
 ### The machine itself must not sleep
 
 - **macOS**: System Settings → Energy (or Battery → Options) → *Prevent automatic sleeping when the display is
@@ -146,7 +148,7 @@ device should answer `{"ok":true,…}`.
 ## 4. Make notifications point back at the tailnet URL
 
 Foundry can ping you on Telegram or Discord when a goal needs you, when the Clarifier asks you an interview round,
-when a goal finishes or delivers, when a Claude usage limit pauses the engine, or when a new version is out
+when a goal finishes or delivers, when a backend usage limit pauses that backend’s goals, or when a new version is out
 (Settings → Notifications, one switch per kind; step-by-step in [notifications.md](./notifications.md)). Set
 **Link base URL** to `https://mac-mini.<tailnet>.ts.net` (scheme included — the field wants a full URL): every
 message then carries a link that opens the right page on your phone. Leave it empty and messages carry no link
@@ -173,7 +175,7 @@ delivery pushes with that machine's `gh` login — set it up once while you are 
   Docker image binds `0.0.0.0` inside the container, so publish its port on the host as `127.0.0.1:4111:4111`, never
   `0.0.0.0`. No router port-forward or `tailscale funnel` points at it. `tailscale serve status` must show the listener as
   *tailnet only* — never *Funnel on*.
-- The Foundry machine holds your Claude login, your repositories and a `gh` login that can push and open PRs.
+- The Foundry machine holds your native backend logins, your repositories and a `gh` login that can push and open PRs.
   Treat it like your laptop: disk encryption on, screen lock on, only your own devices on the tailnet.
 - Sharing the tailnet with other people (family, colleagues)? Restrict who can reach port 4111 with a
   Tailscale ACL (<https://login.tailscale.com/admin/acls>), e.g. only devices tagged as yours.
@@ -195,5 +197,5 @@ delivery pushes with that machine's `gh` login — set it up once while you are 
 | The header's live dot is red (*reconnecting…* on a wider screen) and nothing loads | the machine is asleep, or the engine stopped | `tailscale ping mac-mini` from another device; `curl …/api/health`; check the sleep settings and the service log |
 | `curl …/api/health` works, but messages carry no link or the link opens nothing | Link base URL empty (no links at all) or set to `127.0.0.1` | Settings → Notifications → Link base URL = the `https://…ts.net` URL |
 | After a one-click update the service log shows a port-in-use crash loop | the engine restarted itself instead of letting launchd/systemd do it | add `FOUNDRY_SUPERVISED=1` to the plist/unit (§3), then `launchctl kickstart -k …` / `systemctl --user restart foundry` |
-| Goals start but sessions fail immediately after a reboot | the service `PATH` lacks `claude` / `bun`, or the Keychain login is not available (macOS, user not logged in) | fix `PATH` in the plist/unit; enable automatic login |
+| Goals start but sessions fail immediately after a reboot | the service `PATH` lacks `claude` / `codex` / `bun`, or the Keychain login is not available (macOS, user not logged in) | fix `PATH` in the plist/unit; enable automatic login |
 | `tailscale serve` says the feature is not available | older client or plan without serve | update Tailscale, or use the bind-to-`100.x.y.z` alternative in §2 |

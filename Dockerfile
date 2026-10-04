@@ -3,6 +3,7 @@
 # The image brings the tools; the login and your repositories come from mounted volumes.
 ARG BUN_VERSION=1.3.13
 ARG CLAUDE_CODE_VERSION=2.1.259
+ARG CODEX_VERSION=0.160.0
 
 # ---------- base: node (for the Claude Code CLI and npx) + bun (the engine's runtime) ----------
 FROM node:22-bookworm-slim AS base
@@ -33,6 +34,7 @@ RUN bun run web:build
 # ---------- runtime ----------
 FROM base AS runtime
 ARG CLAUDE_CODE_VERSION
+ARG CODEX_VERSION
 # gh: the engine's only remote arm (push / PR / merge). uv: optional markitdown installs from the Setup page.
 RUN mkdir -p -m 755 /etc/apt/keyrings \
  && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /etc/apt/keyrings/githubcli-archive-keyring.gpg \
@@ -48,7 +50,7 @@ RUN uv tool install graphifyy && graphify --version
 # markitdown: converts attachments and repository documents to markdown. Baked in because the tool dirs above
 # are root-owned, so the Setup page's one-click install cannot write to them as the non-root user.
 RUN uv tool install --python 3.12 'markitdown[all]' && chmod -R a+rX /opt/uv && markitdown --version
-RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} && npm cache clean --force
+RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} @openai/codex@${CODEX_VERSION} && npm cache clean --force
 
 # production dependencies only (the UI is already built)
 COPY package.json bun.lock bunfig.toml ./
@@ -81,15 +83,16 @@ COPY --from=build /app/apps/web/dist ./apps/web/dist
 
 # everything Claude Code keeps (login, sessions, skills) lives in one mounted directory
 # Chromium goes to one fixed, node-owned folder whatever HOME is; the compose file keeps it in a volume across updates
-ENV CLAUDE_CONFIG_DIR=/home/node/.claude \
+ENV CODEX_HOME=/home/node/.codex \
+    CLAUDE_CONFIG_DIR=/home/node/.claude \
     PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright \
     FOUNDRY_HOST=0.0.0.0 \
     FOUNDRY_PORT=4111 \
     FOUNDRY_DOCKER=1
-RUN mkdir -p /app/data /home/node/.claude /home/node/.cache/ms-playwright /repos && chown -R node:node /app /home/node /repos
+RUN mkdir -p /app/data /app/data-codex /home/node/.codex /home/node/.claude /home/node/.cache/ms-playwright /repos && chown -R node:node /app /home/node /repos
 USER node
 EXPOSE 4111
-VOLUME ["/app/data", "/home/node/.claude"]
+VOLUME ["/app/data", "/app/data-codex", "/home/node/.claude", "/home/node/.codex"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
   CMD curl -fsS http://127.0.0.1:4111/api/health || exit 1
 ENTRYPOINT ["docker-entrypoint.sh"]

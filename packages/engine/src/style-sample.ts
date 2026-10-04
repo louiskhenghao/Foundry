@@ -58,7 +58,7 @@ async function generate(engine: Engine, goalId: string, opt: BriefStyleOption, f
   const ws = goalWorkspacePath(config.dataDir, goal);
   await excludeFromGit(ws, ['/artifacts/'], (m) => config.log(m));
   mkdirSync(join(ws, 'artifacts', 'samples'), { recursive: true });
-  const skillsHint = await engine.skills.hints.sectionFor('worker', { scenario: 'image' });
+  const skillsHint = await engine.skillsFor(goal).hints.sectionFor('worker', { scenario: 'image' });
   const prompt = [
     `# Goal (for context)\n${goal.prompt.slice(0, 2000)}`,
     renderStyle({ ...opt, chosenSample: null }),
@@ -75,7 +75,7 @@ async function generate(engine: Engine, goalId: string, opt: BriefStyleOption, f
     maxTurns: 15,
     maxBudgetUsd: STYLE_SAMPLE_BUDGET_USD,
     permissionMode: 'dontAsk',
-    allowedTools: workerTools(engine.config.mcpAllowed),
+    allowedTools: workerTools(engine.mcpAllowedFor(goal)),
     settings: boundarySettings(config.hooksDir),
     settingSources: config.settingSources,
     timeoutMs: 5 * 60_000,

@@ -55,7 +55,7 @@ export async function runDocsGeneration(engine: Engine, goalIn: Goal): Promise<v
       maxTurns: 50,
       maxBudgetUsd: DOCS_MAX_BUDGET_USD,
       permissionMode: 'dontAsk',
-      allowedTools: workerTools(engine.config.mcpAllowed),
+      allowedTools: workerTools(engine.mcpAllowedFor(goal)),
       appendSystemPromptFile: engine.roles.path('documenter'),
       settings: boundarySettings(config.hooksDir),
       settingSources: config.settingSources,

@@ -1,6 +1,6 @@
 # ADR-0014: Model presets per goal nature
 
-**Status:** accepted · 2026-09-24 · supersedes the tier parts of ADR-0006
+**Status:** accepted · 2026-09-24 · supersedes the tier parts of ADR-0006; amended by [ADR-0018](0018-codex-role-presets-and-model-discovery.md) (independent Codex presets)
 
 ## Context
 

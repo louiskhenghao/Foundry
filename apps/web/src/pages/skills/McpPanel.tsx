@@ -1,7 +1,7 @@
 import type { McpCatalogStatus, McpHealth, McpKey, McpServerRow } from '@foundry/engine/mcp-types';
 import { ExternalLink, RefreshCw, Stethoscope } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { api, type McpCustomServer, type McpView } from '../../api.ts';
+import { apiForProvider, type AgentProvider, type McpCustomServer, type McpView } from '../../api.ts';
 import { Badge, Button, Card, ConfirmDialog, Empty, Input, Select, cn } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 import { McpConnectDialog } from './McpConnectDialog.tsx';
@@ -12,15 +12,19 @@ import { BottomDock } from './SkillsPage.tsx';
 const SOURCE_LABEL: Record<McpServerRow['source'], string> = { user: 'yours', plugin: 'plugin', connector: 'claude.ai' };
 const HEALTH_STATE: Record<McpHealth['status'], string> = { connected: 'pass', failed: 'fail', 'needs-auth': 'warn', pending: 'pending', unknown: 'pending' };
 
-/** MCP servers (ADR-0016): what Claude Code has, which ones goals may use, and Foundry's recommendations. */
-export function McpPanel() {
+/** Native MCP servers for the selected backend, allowed goal access and installation controls. */
+export function McpPanel({ provider = 'claude' }: { provider?: AgentProvider }) {
+  const api = apiForProvider(provider);
+  const backend = provider === 'codex' ? 'Codex' : 'Claude Code';
+  const startProviderOp = (operation: Parameters<typeof startOp>[0]) => startOp({ ...operation, label: `${backend} · ${operation.label}`, targets: operation.targets.map((target) => `${provider}:${target}`) });
   const [view, setView] = useState<McpView | null>(null);
   const [health, setHealth] = useState<McpHealth[] | null>(null);
   const [checking, setChecking] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [connecting, setConnecting] = useState<string | null>(null);
-  const runningOp = useRunningOp();
+  const running = useRunningOp();
+  const runningOp = (target: string) => running(`${provider}:${target}`);
   const load = () =>
     api
       .mcp()
@@ -30,7 +34,7 @@ export function McpPanel() {
       })
       .catch((e) => setErr(e.message));
   // an install or removal changes the list: reload whenever an MCP operation ends (a new custom name included)
-  const mcpOpsEnded = useSkillOps((s) => s.tabs.filter((t) => t.status !== 'running' && t.targets.some((x) => x.startsWith('mcp:'))).length);
+  const mcpOpsEnded = useSkillOps((s) => s.tabs.filter((t) => t.status !== 'running' && t.targets.some((x) => x.startsWith(`${provider}:mcp:`))).length);
   useEffect(() => {
     void load();
   }, [mcpOpsEnded]);
@@ -61,8 +65,8 @@ export function McpPanel() {
     );
   };
   const install = (what: { catalogId: string } | { custom: McpCustomServer }, name: string, keys: Record<string, string>, replace = false) =>
-    startOp({ kind: 'install', label: `${replace ? 'Change the key of' : 'Install'} MCP server ${name}`, targets: [`mcp:${name}`], call: (opId) => api.mcpInstall(what, keys, opId, replace) });
-  const remove = (name: string) => startOp({ kind: 'uninstall', label: `Remove MCP server ${name}`, targets: [`mcp:${name}`], call: (opId) => api.mcpRemove(name, opId) });
+    startProviderOp({ kind: 'install', label: `${replace ? 'Change the key of' : 'Install'} MCP server ${name}`, targets: [`mcp:${name}`], call: (opId) => api.mcpInstall(what, keys, opId, replace) });
+  const remove = (name: string) => startProviderOp({ kind: 'uninstall', label: `Remove MCP server ${name}`, targets: [`mcp:${name}`], call: (opId) => api.mcpRemove(name, opId) });
 
   if (!view) return <Empty>{err ?? 'Reading MCP servers…'}</Empty>;
   const healthOf = (s: McpServerRow) => health?.find((h) => h.name === s.name) ?? null;
@@ -74,13 +78,13 @@ export function McpPanel() {
         <h1 className="text-lg font-semibold flex items-center gap-2">
           MCP servers <HelpLink to="settings#mcp-servers" />
         </h1>
-        <span className="text-xs text-zinc-500">tools Claude Code can call beyond files and the shell</span>
-        <Button size="sm" className="ml-auto" disabled={checking} onClick={check} title="Runs claude mcp list: starts or connects to every server">
+        <span className="text-xs text-zinc-500">tools {backend} can call beyond files and the shell</span>
+        <Button size="sm" className="ml-auto" disabled={checking} onClick={check} title={provider === 'codex' ? 'Checks real server connectivity through the native Codex app-server' : 'Runs claude mcp list: starts or connects to every server'}>
           <Stethoscope size={13} className={cn(checking && 'animate-pulse')} /> {checking ? 'Checking…' : 'Check'}
         </Button>
       </div>
       <p className="text-xs text-zinc-500 -mt-2">
-        Goals run without asking you, so they only use the servers switched to <span className="text-zinc-300">Allowed in goals</span>, and only in the sessions that do the work (never in Clarify or reviews). Servers installed here go to your user scope: they work in your own Claude Code too.
+        Goals run without asking you, so they only use the servers switched to <span className="text-zinc-300">Allowed in goals</span>, and only in the sessions that do the work (never in Clarify or reviews). Servers installed here go to your {backend} user configuration and also work in its CLI. Only the selected backend is changed.
       </p>
       {err && <div className="rounded-md border border-rose-500/40 bg-rose-500/5 px-3 py-2 text-xs text-rose-200">{err}</div>}
 
@@ -97,14 +101,14 @@ export function McpPanel() {
               </div>
             )}
           </Card>
-          <CustomForm onAdd={(c, keys) => void install({ custom: c }, c.name, keys)} running={(n) => !!runningOp(`mcp:${n}`)} installed={(n) => view.servers.some((s) => s.source === 'user' && s.name === n)} />
+          <CustomForm provider={provider} onAdd={(c, keys) => void install({ custom: c }, c.name, keys)} running={(n) => !!runningOp(`mcp:${n}`)} installed={(n) => view.servers.some((s) => s.source === 'user' && s.name === n)} />
         </div>
         <Card title="Recommended by Foundry">
           <p className="text-[11px] text-zinc-500 mb-3">Curated in catalog/mcp.json. Installed from here, a server is allowed in goals right away.</p>
           {missing.length === 0 && <div className="text-xs text-zinc-500">All installed.</div>}
           <div className="space-y-2">
             {missing.map((c) => (
-              <CatalogCard key={c.entry.id} c={c} others={view.catalog.filter((o) => o.entry.pack && o.entry.pack === c.entry.pack && o.entry.id !== c.entry.id)} running={!!runningOp(`mcp:${c.entry.name}`)} onInstall={(keys) => void install({ catalogId: c.entry.id }, c.entry.name, keys)} />
+              <CatalogCard key={c.entry.id} provider={provider} c={c} others={view.catalog.filter((o) => o.entry.pack && o.entry.pack === c.entry.pack && o.entry.id !== c.entry.id)} running={!!runningOp(`mcp:${c.entry.name}`)} onInstall={(keys) => void install({ catalogId: c.entry.id }, c.entry.name, keys)} />
             ))}
           </div>
         </Card>
@@ -112,6 +116,7 @@ export function McpPanel() {
 
       {connecting && (
         <McpConnectDialog
+          provider={provider}
           name={connecting}
           onClose={(signedIn) => {
             setConnecting(null);
@@ -130,7 +135,7 @@ export function McpPanel() {
           setRemoving(null);
         }}
       >
-        <p className="text-sm text-zinc-300">It is removed from your user scope, so it also disappears from the Claude Code in your terminal. Its key, if it had one, goes with it.</p>
+        <p className="text-sm text-zinc-300">It is removed from your {backend} user configuration, so it also disappears from that CLI. Its saved key, if it had one, goes with it.</p>
       </ConfirmDialog>
       <BottomDock>
         <OpsDock />
@@ -213,7 +218,7 @@ function ServerRow({ s, health, running, onAllow, onRemove, onConnect, keys, onC
   );
 }
 
-function CatalogCard({ c, others, running, onInstall }: { c: McpCatalogStatus; others: McpCatalogStatus[]; running: boolean; onInstall: (keys: Record<string, string>) => void }) {
+function CatalogCard({ provider, c, others, running, onInstall }: { provider: AgentProvider; c: McpCatalogStatus; others: McpCatalogStatus[]; running: boolean; onInstall: (keys: Record<string, string>) => void }) {
   const [keys, setKeys] = useState<Record<string, string>>({});
   const [open, setOpen] = useState(false);
   const e = c.entry;
@@ -253,7 +258,7 @@ function CatalogCard({ c, others, running, onInstall }: { c: McpCatalogStatus; o
               )}
             </div>
           ))}
-          <div className="text-[10px] text-zinc-500">Stored by Claude Code with the server, not by Foundry.</div>
+          <div className="text-[10px] text-zinc-500">Stored by {provider === 'codex' ? 'Codex' : 'Claude Code'} with the server, not in Foundry settings.</div>
         </div>
       )}
       <Button size="sm" variant={e.tier === 'recommended' ? 'primary' : 'default'} disabled={running || (open && !ready)} onClick={() => (e.keys.length && !open ? setOpen(true) : onInstall(keys))}>
@@ -264,7 +269,7 @@ function CatalogCard({ c, others, running, onInstall }: { c: McpCatalogStatus; o
 }
 
 /** Add a server by hand: a command (stdio) with its environment, or a URL (http) that signs in afterwards. */
-function CustomForm({ onAdd, running, installed }: { onAdd: (c: McpCustomServer, keys: Record<string, string>) => void; running: (name: string) => boolean; installed: (name: string) => boolean }) {
+function CustomForm({ provider, onAdd, running, installed }: { provider: AgentProvider; onAdd: (c: McpCustomServer, keys: Record<string, string>) => void; running: (name: string) => boolean; installed: (name: string) => boolean }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [type, setType] = useState<'stdio' | 'http'>('stdio');
@@ -312,7 +317,7 @@ function CustomForm({ onAdd, running, installed }: { onAdd: (c: McpCustomServer,
         <>
           <textarea aria-label="environment" className="mt-2 w-full mono text-xs bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 [-webkit-text-security:disc] focus:[-webkit-text-security:none]" rows={2} autoComplete="off" spellCheck={false} placeholder="environment, one per line: API_KEY=…" value={env} onChange={(e) => setEnv(e.target.value)} />
           {!envOk && <div className="text-[11px] text-rose-400">Each line is NAME=value, with NAME in capitals.</div>}
-          <p className="text-[11px] text-zinc-500 mt-1">Added at user scope and off in goals until you switch it on. Keys go to Claude Code with the server; Foundry keeps no copy.</p>
+          <p className="text-[11px] text-zinc-500 mt-1">Added at user scope and off in goals until you switch it on. Keys are stored with the server in {provider === 'codex' ? 'Codex' : 'Claude Code'} configuration.</p>
         </>
       ) : (
         <p className="text-[11px] text-zinc-500 mt-2">Added at user scope and off in goals until you switch it on. If it needs an account, press <span className="text-zinc-300">Sign in</span> on its row once it is added.</p>

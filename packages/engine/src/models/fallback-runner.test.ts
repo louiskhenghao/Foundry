@@ -16,14 +16,16 @@ const unavailable = (model: string): RunResult => base({ subtype: 'error_during_
 /** scripted inner runner: a map of model → result (missing = success) */
 class ScriptRunner implements ClaudeRunner {
   calls: string[] = [];
-  constructor(private byModel: Record<string, RunResult>) {}
+  specs: RunSpec[] = [];
+  constructor(private byModel: Record<string, RunResult>, private eventsByModel: Record<string, RunnerEvent[]> = {}) {}
   active() {
     return 0;
   }
   async run(spec: RunSpec): Promise<RunHandle> {
     this.calls.push(spec.model ?? '?');
+    this.specs.push(spec);
     const result = this.byModel[spec.model ?? ''] ?? base({ modelUsage: { [`resolved-${spec.model}`]: {} } });
-    const events: RunnerEvent[] = result.failureClass === 'model_unavailable' ? [{ kind: 'result', result }] : [{ kind: 'init', sessionId: 's', model: `resolved-${spec.model}`, tools: [], raw: {} }, { kind: 'text', text: 'hi' }, { kind: 'result', result }];
+    const events: RunnerEvent[] = this.eventsByModel[spec.model ?? ''] ?? (result.failureClass === 'model_unavailable' ? [{ kind: 'result', result }] : [{ kind: 'init', sessionId: 's', model: `resolved-${spec.model}`, tools: [], raw: {} }, { kind: 'text', text: 'hi' }, { kind: 'result', result }]);
     return { pid: null, events: (async function* () { for (const e of events) yield e; })(), kill() {}, result: Promise.resolve(result) };
   }
 }
@@ -84,6 +86,113 @@ describe('model fallback runner', () => {
     expect(isPinnedId('opus')).toBe(false);
     expect(isPinnedId('claude-opus-5')).toBe(true);
     expect(isPinnedId('claude-haiku-4-5-20251001')).toBe(true);
+  });
+
+  test('safely falls back for an unused Codex model and passes goal metadata into selection and replacement', async () => {
+    const unavailableCodex = { ...unavailable('retired'), costStatus: 'unavailable' as const, usage: { input_tokens: 0, output_tokens: 0 } };
+    const inner = new ScriptRunner({ retired: unavailableCodex });
+    const selected: RunSpec[] = [];
+    const runner = new ModelFallbackRunner(inner, { fallbacks: (spec) => { selected.push(spec); return spec.meta?.goalId === 'goal-one' ? ['replacement'] : []; } });
+    const handle = await runner.run({ prompt: 'x', cwd: tmpdir(), model: 'retired', meta: { goalId: 'goal-one', modelAction: 'standard' } });
+    expect((await handle.result).subtype).toBe('success');
+    expect(inner.calls).toEqual(['retired', 'replacement']);
+    expect(selected[0]!.model).toBe('retired');
+    expect(inner.specs[1]!.meta).toEqual({ goalId: 'goal-one', modelAction: 'standard', modelFallback: '1' });
+  });
+
+  test('never replays Codex sessions after text, reasoning, tools or usage despite zero reported turns and dollars', async () => {
+    const codex = { ...unavailable('retired'), costStatus: 'unavailable' as const };
+    const cases: { event?: RunnerEvent; result?: Partial<RunResult> }[] = [
+      { event: { kind: 'text', text: 'Already started work' } },
+      { event: { kind: 'thinking', text: 'Reasoned about the task' } },
+      { event: { kind: 'tool_use', id: 'tool-one', name: 'Bash', input: {} } },
+      { event: { kind: 'tool_result', toolUseId: 'tool-one', isError: false, content: '' } },
+      { event: { kind: 'unknown', raw: { type: 'item.completed', item: { type: 'new-native-tool' } } } },
+      { result: { usage: { input_tokens: 1 } } },
+      { result: { modelUsage: { model: { outputTokens: 1 } } } },
+      { result: { toolsUsed: { Bash: 1 } } },
+      { result: { finalText: 'Already wrote the file' } },
+      { result: { structuredOutput: { done: true } } },
+    ];
+    for (const entry of cases) {
+      const result = { ...codex, ...entry.result };
+      const events: RunnerEvent[] = [...(entry.event ? [entry.event] : []), { kind: 'result', result }];
+      const inner = new ScriptRunner({ retired: result }, { retired: events });
+      const runner = new ModelFallbackRunner(inner, { fallbacks: () => ['replacement'] });
+      const handle = await runner.run({ prompt: 'x', cwd: tmpdir(), model: 'retired' });
+      expect((await handle.result).failureClass).toBe('model_unavailable');
+      expect(inner.calls).toEqual(['retired']);
+    }
+  });
+
+  test('a model probe cannot succeed by silently testing a different model', async () => {
+    const inner = new ScriptRunner({ retired: unavailable('retired') });
+    const runner = new ModelFallbackRunner(inner, { fallbacks: () => { throw new Error('Probe must not request fallbacks'); } });
+    const handle = await runner.run({ prompt: 'x', cwd: tmpdir(), model: 'retired', meta: { tier: 'probe' } });
+    expect((await handle.result).failureClass).toBe('model_unavailable');
+    expect(inner.calls).toEqual(['retired']);
+  });
+
+  test('replacement spawn rejection settles result and events, including the unattended safety drain', async () => {
+    for (const readEvents of [true, false]) {
+      const inner = new ScriptRunner({ retired: unavailable('retired') });
+      const original = inner.run.bind(inner);
+      inner.run = async (spec) => {
+        if (spec.model === 'replacement') throw new Error('Replacement binary could not start');
+        return original(spec);
+      };
+      const runner = new ModelFallbackRunner(inner, { fallbacks: () => ['replacement'] });
+      const handle = await runner.run({ prompt: 'x', cwd: tmpdir(), model: 'retired' });
+      const events: RunnerEvent[] = [];
+      if (readEvents) for await (const event of handle.events) events.push(event);
+      expect(await handle.result).toMatchObject({ subtype: 'spawn_error', failureClass: 'other', errorMessage: 'Replacement binary could not start', isError: true });
+      if (readEvents) expect(events.at(-1)).toMatchObject({ kind: 'result', result: { subtype: 'spawn_error' } });
+    }
+  });
+
+  test('cancellation and killAll prevent a replacement from starting', async () => {
+    for (const cancelAll of [true, false]) {
+      const inner = new ScriptRunner({ retired: unavailable('retired') });
+      const runner = new ModelFallbackRunner(inner, { fallbacks: () => ['replacement'] });
+      const handle = await runner.run({ prompt: 'x', cwd: tmpdir(), model: 'retired' });
+      if (cancelAll) expect(runner.killAll()).toBe(1);
+      else handle.kill('user stopped');
+      await handle.result;
+      expect(inner.calls).toEqual(['retired']);
+    }
+  });
+
+  test('a failed event stream terminates its child and settles without retrying', async () => {
+    const killed: string[] = [];
+    const inner: ClaudeRunner = {
+      active: () => 1,
+      run: async () => ({ pid: null, events: (async function* () { throw new Error('Broken event stream'); })(), kill: (reason) => { killed.push(reason); }, result: Promise.resolve(unavailable('retired')) }),
+    };
+    const runner = new ModelFallbackRunner(inner, { fallbacks: () => { throw new Error('Must not retry after stream failure'); } });
+    const handle = await runner.run({ prompt: 'x', cwd: tmpdir(), model: 'retired' });
+    expect(await handle.result).toMatchObject({ subtype: 'error_during_execution', errorMessage: 'Broken event stream' });
+    expect(killed).toEqual(['runner_error']);
+  });
+
+  test('cancellation kills a replacement that was already queued and prevents another fallback', async () => {
+    let release!: (handle: RunHandle) => void;
+    const queued = new Promise<RunHandle>((resolve) => { release = resolve; });
+    const inner = new ScriptRunner({ retired: unavailable('retired') });
+    const original = inner.run.bind(inner);
+    inner.run = async (spec) => {
+      if (spec.model === 'replacement') { inner.calls.push('replacement'); return queued; }
+      return original(spec);
+    };
+    const runner = new ModelFallbackRunner(inner, { fallbacks: () => ['replacement', 'another'] });
+    const handle = await runner.run({ prompt: 'x', cwd: tmpdir(), model: 'retired' });
+    await waitFor(() => inner.calls.includes('replacement'));
+    handle.kill('cancel queued');
+    const killed: string[] = [];
+    const result = unavailable('replacement');
+    release({ pid: null, events: (async function* () { yield { kind: 'result', result } as RunnerEvent; })(), kill: (reason) => { killed.push(reason); }, result: Promise.resolve(result) });
+    await handle.result;
+    expect(killed).toEqual(['cancel queued']);
+    expect(inner.calls).toEqual(['retired', 'replacement']);
   });
 
   test('engine: a goal whose worker model is gone falls back, records goal.models_changed and updates the snapshot; doctor warns', async () => {

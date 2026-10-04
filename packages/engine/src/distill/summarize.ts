@@ -15,7 +15,7 @@ export const SUMMARIZE_ABOVE_BYTES = 12_000;
  * Cheap-model distillation of a huge check output. Returns the structural truncation if the
  * model is unavailable or fails — never throws.
  */
-export async function summarizeOutput(runner: ClaudeRunner, raw: string, opts: { model: string; cwd: string; onCost?: (usd: number) => void; onResult?: (r: RunResult) => void }): Promise<string> {
+export async function summarizeOutput(runner: ClaudeRunner, raw: string, opts: { goalId?: string; model: string; cwd: string; onCost?: (usd: number) => void; onResult?: (r: RunResult) => void }): Promise<string> {
   const structural = truncateOutput(raw);
   if (raw.length < SUMMARIZE_ABOVE_BYTES) return structural;
   try {
@@ -25,6 +25,7 @@ export async function summarizeOutput(runner: ClaudeRunner, raw: string, opts: {
       prompt: `Summarize this command output for an engineer who must fix the failure. Output JSON only.\n\n--- head ---\n${head}\n${raw.length > 60_000 ? `--- [${raw.length - 60_000} bytes omitted] ---\n` : ''}--- tail ---\n${tail}`,
       cwd: opts.cwd,
       model: opts.model,
+      meta: opts.goalId ? { goalId: opts.goalId } : undefined,
       maxTurns: 1,
       maxBudgetUsd: 0.1,
       permissionMode: 'dontAsk',

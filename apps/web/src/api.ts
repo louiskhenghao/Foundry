@@ -1,5 +1,5 @@
 import type { FeedbackPlan } from '@foundry/core/browser';
-import type { Attachment, Attempt, Brief, BriefCheck, BriefDiff, BriefStyleOption, BriefTask, Budgets, Check, CheckResult, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, Effort, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, SettingsPatch, SettingsView, Task, TaskUsage } from '@foundry/core/browser';
+import type { Attachment, Attempt, Brief, BriefCheck, BriefDiff, BriefStyleOption, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, SettingsPatch, SettingsView, Task, TaskUsage } from '@foundry/core/browser';
 
 /** Mirrors the engine's PreviewStatus (preview/manager.ts). */
 export interface PreviewStatus {
@@ -63,6 +63,7 @@ export interface DraftRequest {
   notes?: string;
 }
 export interface DraftProposal {
+  costAvailable?: boolean;
   mode: DraftRequest['mode'];
   taskKey: string | null;
   task: Partial<Pick<BriefTask, 'spec' | 'kind' | 'scope' | 'scenario' | 'areaKey' | 'dependsOnKeys' | 'relevantFiles'>> | null;
@@ -100,6 +101,8 @@ export interface ModelRecordView {
   inUse: string[];
   /** found in the Claude Code binary by a model sync */
   discovered?: { family: string; newest: boolean; at: string } | null;
+  /** Advertised by the local Codex CLI; discovery does not verify account access. */
+  codex?: { displayName: string | null; description: string | null; reasoningEfforts: string[]; defaultReasoningEffort: string | null; isDefault: boolean; available: boolean } | null;
 }
 export interface PackEntry {
   id: string;
@@ -187,11 +190,16 @@ export interface LoginSession {
   /** the CLI is waiting for the code shown in the browser (no browser on the engine's machine) */
   needsCode: boolean;
 }
+export type AgentProvider = 'claude' | 'codex';
+export interface AccountInfo { provider: AgentProvider; installed: boolean; status: ClaudeAuthStatus; capabilities: { dollarCosts: boolean; skillTelemetry: boolean; nativeSubagents: boolean; managedMcp: boolean; externalSessions: boolean } }
+export interface AccountsInfo { defaultProvider: AgentProvider; accounts: AccountInfo[] }
 export interface AuthInfo {
+  provider: 'claude' | 'codex';
   status: ClaudeAuthStatus;
   login: LoginSession | null;
 }
 
+import type { CodexPluginsView } from '@foundry/engine/plugins-types';
 import type { McpHealth, McpLoginSession, McpView } from '@foundry/engine/mcp-types';
 export type { McpHealth, McpLoginSession, McpView };
 /** a server added by hand on the MCP tab */
@@ -208,7 +216,7 @@ export class ApiError extends Error {
 }
 
 /** an Escalation with the names of what it is about */
-export type EscalationRow = Escalation & { goalTitle?: string; taskTitle?: string | null; taskState?: string | null };
+export type EscalationRow = Escalation & { provider: AgentProvider | null; goalTitle?: string; taskTitle?: string | null; taskState?: string | null };
 
 export interface BudgetStatus {
   costUsd: number;
@@ -235,7 +243,7 @@ export interface GoalDetail {
   checks: Check[];
   checkResults: CheckResult[];
   brief: { brief: Brief; approved: boolean } | null;
-  escalations: Escalation[];
+  escalations: EscalationRow[];
   events: (EngineEvent & { seq: number })[];
   /** Follows / Followed by (goal.follows holds the earlier goal; it may have been deleted since) */
   followUps: { followsExists: boolean; followedBy: { id: string; title: string; state: GoalState }[] };
@@ -246,7 +254,7 @@ export interface FollowUpDraft {
   previous: { id: string; title: string; state: GoalState; repoPath: string; baseBranch: string; branch: string; branchExists: boolean };
   followable: boolean;
   reason: string | null;
-  prefill: { repoPath: string; baseBranch: string; nature: GoalNature; modelPreset: string | null; effort: Effort | null; pace: 'thorough' | 'fast'; mode: GoalMode; delivery: DeliveryPolicy };
+  prefill: { provider: 'claude' | 'codex'; codexModel?: string; repoPath: string; baseBranch: string; nature: GoalNature; modelPreset: string | null; effort: CodexEffort | null; pace: 'thorough' | 'fast'; mode: GoalMode; delivery: DeliveryPolicy };
   start: { recommended: 'base' | 'previous'; onBase: boolean; detail: string; baseBranch: string; previousBranch: string | null };
   attachments: Attachment[];
   style: BriefStyleOption | null;
@@ -303,7 +311,7 @@ export const fileUrl = (ref: FileRef) => `/api/files?${fileQuery(ref)}`;
 /** a stable string for a FileRef (React keys, comparisons) */
 export const fileKey = (ref: FileRef) => fileQuery(ref);
 
-async function req<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) } });
   const text = await res.text();
   const body = text ? safeJson(text) : null;
@@ -318,7 +326,15 @@ const safeJson = (t: string) => {
   }
 };
 
-export const api = {
+/** An immutable client scope keeps in-flight extension operations on their selected provider. */
+export function apiForProvider(provider?: AgentProvider) {
+  const req = <T>(path: string, init?: RequestInit) => {
+    const scoped = provider && /^\/api\/(skills|mcp|plugins|doctor|tools)(?:[/?]|$)/.test(path);
+    return request<T>(scoped ? `${path}${path.includes('?') ? '&' : '?'}provider=${provider}` : path, init);
+  };
+  return {
+  plugins: (refresh = false) => req<CodexPluginsView>(`/api/plugins${refresh ? '?refresh=1' : ''}`),
+  changePlugin: (id: string, action: 'install' | 'remove', opId: string) => req<{ ok: boolean; op: SkillOp }>('/api/plugins/change', { method: 'POST', body: JSON.stringify({ id, action, opId }) }),
   agents: () => req<AgentsList>('/api/agents'),
   agentsSummary: () => req<AgentsSummary>('/api/agents/summary'),
   agentLog: (sessionId: string, offset = 0, agent?: string) => req<AgentLogChunk>(`/api/agents/${sessionId}/log?offset=${offset}${agent ? `&agent=${encodeURIComponent(agent)}` : ''}`),
@@ -455,9 +471,9 @@ export const api = {
   updateRuns: () => req<(EngineEvent & { seq: number })[]>('/api/skills/update-runs'),
   doctor: () => req<DoctorReport>('/api/doctor'),
   packs: () => req<PacksView>('/api/skills/packs'),
-  models: () => req<{ models: ModelRecordView[]; fallbacks: string[]; current: { strong: string; cheap: string; worker: string }; sync: { at: string | null; cliVersion: string | null; found: number } | null }>('/api/models'),
-  syncModels: () => req<{ found: number; newest: string[]; resolved: Record<string, string | null>; cliVersion: string | null }>('/api/models/sync', { method: 'POST' }),
-  probeModel: (name: string) => req<{ ok: boolean; name: string; resolvedId: string | null; costUsd: number; error: string | null }>('/api/models/probe', { method: 'POST', body: JSON.stringify({ name }) }),
+  models: (provider: AgentProvider = 'claude') => req<{ models: ModelRecordView[]; fallbacks: string[]; current: { strong: string; cheap: string; worker: string }; sync: { at: string | null; cliVersion: string | null; found: number } | null }>(`/api/models?provider=${provider}`),
+  syncModels: (provider: AgentProvider = 'claude') => req<{ found: number; newest: string[]; resolved: Record<string, string | null>; cliVersion: string | null }>(`/api/models/sync?provider=${provider}`, { method: 'POST' }),
+  probeModel: (name: string, provider: AgentProvider = 'claude', effort?: string) => req<{ ok: boolean; name: string; resolvedId: string | null; costUsd: number; costAvailable?: boolean; error: string | null }>(`/api/models/probe?provider=${provider}`, { method: 'POST', body: JSON.stringify({ name, effort }) }),
   installPack: (pack: string, option: string) => req<{ started: true; channel: string }>('/api/skills/install-pack', { method: 'POST', body: JSON.stringify({ pack, option }) }),
   settings: () => req<SettingsView>('/api/settings'),
   updateSettings: (patch: SettingsPatch) => req<SettingsView>('/api/settings', { method: 'PUT', body: JSON.stringify(patch) }),
@@ -465,17 +481,21 @@ export const api = {
   resetSettings: () => req<SettingsView>('/api/settings/reset', { method: 'POST' }),
   notifyTest: (override: { telegramBotToken?: string | null; telegramChatId?: string | null; discordWebhookUrl?: string | null }) => req<{ results: { channel: string; ok: boolean; error: string | null }[] }>('/api/notifications/test', { method: 'POST', body: JSON.stringify(override) }),
   telegramChatId: (token: string | null) => req<{ chatId: string; who: string }>('/api/notifications/telegram/chat-id', { method: 'POST', body: JSON.stringify({ token }) }),
-  health: () => req<{ ok: boolean; active: number; events: number; pausedUntil: string | null; restartNeeded: string[]; version: string; updateAvailable: boolean; updating: boolean }>('/api/health'),
+  health: () => req<{ ok: boolean; active: number; events: number; pausedUntil: string | null; pausedUntilByProvider: Record<AgentProvider, string | null>; restartNeeded: string[]; version: string; updateAvailable: boolean; updating: boolean }>('/api/health'),
   updateStatus: () => req<UpdateStatusView>('/api/update'),
   updateCheck: () => req<UpdateReportView>('/api/update/check', { method: 'POST' }),
   updateApply: (force = false) => req<{ started: true; channel: string }>('/api/update/apply', { method: 'POST', body: JSON.stringify({ force }) }),
-  auth: (force = false) => req<AuthInfo>(`/api/auth${force ? '?force=1' : ''}`),
-  startLogin: (body: { email?: string }) => req<LoginSession>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
-  loginSession: () => req<LoginSession | null>('/api/auth/login'),
-  cancelLogin: () => req<{ ok: true }>('/api/auth/login/cancel', { method: 'POST' }),
-  submitLoginCode: (code: string) => req<LoginSession>('/api/auth/login/code', { method: 'POST', body: JSON.stringify({ code }) }),
-  logout: () => req<ClaudeAuthStatus>('/api/auth/logout', { method: 'POST' }),
-  usage: () => req<Usage>('/api/usage'),
-  probeUsage: () => req<Usage>('/api/usage/probe', { method: 'POST' }),
+  accounts: (force = false) => req<AccountsInfo>(`/api/accounts?force=${force ? '1' : '0'}`),
+  auth: (force = false, provider?: AgentProvider) => req<AuthInfo>(`/api/auth?force=${force ? '1' : '0'}${provider ? '&provider=' + provider : ''}`),
+  startLogin: (body: { email?: string }, provider?: AgentProvider) => req<LoginSession>(`/api/auth/login${provider ? '?provider=' + provider : ''}`, { method: 'POST', body: JSON.stringify(body) }),
+  loginSession: (provider?: AgentProvider) => req<LoginSession | null>(`/api/auth/login${provider ? '?provider=' + provider : ''}`),
+  cancelLogin: (provider?: AgentProvider) => req<{ ok: true }>(`/api/auth/login/cancel${provider ? '?provider=' + provider : ''}`, { method: 'POST' }),
+  submitLoginCode: (code: string, provider?: AgentProvider) => req<LoginSession>(`/api/auth/login/code${provider ? '?provider=' + provider : ''}`, { method: 'POST', body: JSON.stringify({ code }) }),
+  logout: (provider?: AgentProvider) => req<ClaudeAuthStatus>(`/api/auth/logout${provider ? '?provider=' + provider : ''}`, { method: 'POST' }),
+  usage: (provider?: AgentProvider) => req<Usage>(`/api/usage${provider ? '?provider=' + provider : ''}`),
+  probeUsage: (provider?: AgentProvider) => req<Usage>(`/api/usage/probe${provider ? `?provider=${provider}` : ''}`, { method: 'POST' }),
   minimaxQuota: (refresh = false) => req<MinimaxQuota>(`/api/usage/minimax${refresh ? '?refresh=1' : ''}`),
 };
+}
+
+export const api = apiForProvider();

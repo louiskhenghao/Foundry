@@ -1,6 +1,8 @@
 # ADR-0006: No hard-coded model knowledge: a learned registry and a fallback chain
 
-**Status:** accepted · 2026-08-22 · partly superseded by ADR-0014 (goal model snapshot per tier; doctor checks tiers)
+**Status:** accepted · 2026-08-22 · partly superseded by ADR-0014 (goal model snapshot per tier; doctor checks tiers) · amended by [ADR-0018](0018-codex-role-presets-and-model-discovery.md)
+
+> Current implementation: Codex has a separate catalog, role/effort presets and captured fallback chain. See [ADR-0018](0018-codex-role-presets-and-model-discovery.md); the decision below records its original context.
 
 ## Context
 

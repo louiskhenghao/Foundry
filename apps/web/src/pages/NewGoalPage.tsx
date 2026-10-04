@@ -1,14 +1,16 @@
+import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Attachment } from '@foundry/core/browser';
 import { BUDGET_PRESETS } from '@foundry/core/browser';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CornerDownRight, X } from 'lucide-react';
-import { effectivePresets, natureKey, type ModelNature, type ModelPreset } from '@foundry/core/browser';
-import { api, type FollowUpDraft, type GoalRow, type RepoInfo } from '../api.ts';
+import { ACTION_INFO, CODEX_MODEL_ACTIONS, effectiveCodexPresets, effectivePresets, natureKey, type CodexModelPreset, type ModelNature, type ModelPreset } from '@foundry/core/browser';
+import { api, type AccountsInfo, type AgentProvider, type FollowUpDraft, type GoalRow, type ModelRecordView, type RepoInfo } from '../api.ts';
 import { AttachmentInput } from '../components/Attachments.tsx';
 import { BudgetPicker, type BudgetDraft } from '../components/BudgetPicker.tsx';
 import { DeliveryPolicyForm, type PolicyDraft } from '../components/DeliveryPolicyForm.tsx';
 import { RepoCard } from '../components/RepoCard.tsx';
+import { CodexModelSelect } from '../components/CodexModelSelect.tsx';
 import { Button, ButtonGroup, Card, Input, Select, Textarea, cn } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
 
@@ -55,6 +57,9 @@ interface FollowChoice {
 
 export function NewGoalPage() {
   const nav = useNavigate();
+  const [params] = useSearchParams();
+  const requestedProvider = params.get('provider');
+  const initialProvider = requestedProvider === 'claude' || requestedProvider === 'codex' ? requestedProvider : null;
   const [prompt, setPrompt] = useState('');
   const [repoPath, setRepoPath] = useState('');
   const [title, setTitle] = useState('');
@@ -69,15 +74,25 @@ export function NewGoalPage() {
   const [outputDir, setOutputDir] = useState('');
   const [interview, setInterview] = useState(false);
   const [effort, setEffort] = useState('');
+  const [provider, setProvider] = useState<AgentProvider>(initialProvider ?? 'claude');
+  const [accountError, setAccountError] = useState<string | null>(null);
+  const [accounts, setAccounts] = useState<AccountsInfo | null>(null);
+  const [codexModel, setCodexModel] = useState('codex-default');
+  const [codexOverride, setCodexOverride] = useState(false);
+  const [codexKnown, setCodexKnown] = useState<ModelRecordView[] | null>(null);
+  useEffect(() => { api.accounts().then(setAccounts).catch((e) => setAccountError(e.message)); }, []);
+  useEffect(() => { if (provider === 'codex' && !codexKnown) void api.models('codex').then((r) => setCodexKnown(r.models)).catch(() => setCodexKnown([])); }, [provider]);
   const [modelPreset, setModelPreset] = useState('');
+  const [codexPreset, setCodexPreset] = useState('');
   const [presetInfo, setPresetInfo] = useState<{ ids: { id: string; label: string }[]; picks: Record<ModelNature, string> } | null>(null);
+  const [codexPresetInfo, setCodexPresetInfo] = useState<{ ids: { id: string; label: string }[]; picks: Record<ModelNature, string>; presets: Record<string, CodexModelPreset> } | null>(null);
   useEffect(() => localStorage.setItem(NATURE_KEY, nature), [nature]);
   const [mode, setModeState] = useState<'simple' | 'expert'>('expert');
   const [tdd, setTddState] = useState<'required' | 'preferred' | 'off'>('required');
   const [pace, setPace] = useState<'thorough' | 'fast'>('thorough');
   const [defaultRemote, setDefaultRemote] = useState('origin');
   /** fields the human changed on this page: the Settings defaults arriving later never overwrite them */
-  const changed = useRef(new Set<string>());
+  const changed = useRef(new Set<string>(initialProvider ? ['provider'] : []));
   const setMode = (v: 'simple' | 'expert') => {
     changed.current.add('mode');
     setModeState(v);
@@ -99,9 +114,14 @@ export function NewGoalPage() {
     api
       .settings()
       .then((v) => {
+        if (!changed.current.has('codexModel')) setCodexModel(v.values.models.codexModel);
+        if (!changed.current.has('provider')) setProvider(v.values.engine.provider);
         const presets = effectivePresets((v.values.models.presets ?? {}) as Record<string, ModelPreset>);
         setPresetInfo({ ids: Object.entries(presets).map(([id, p]) => ({ id, label: p.label })), picks: { code: v.values.models.presetCode, docs: v.values.models.presetDocs, media: v.values.models.presetMedia } });
+        const codexPresets = effectiveCodexPresets((v.values.models.codexPresets ?? {}) as Record<string, CodexModelPreset>);
+        setCodexPresetInfo({ ids: Object.entries(codexPresets).map(([id, p]) => ({ id, label: p.label })), picks: { code: v.values.models.codexPresetCode, docs: v.values.models.codexPresetDocs, media: v.values.models.codexPresetMedia }, presets: codexPresets });
         const d = v.values;
+        if (!changed.current.has('effort')) setEffort(d.workflow.effort ?? '');
         if (!changed.current.has('mode')) setModeState(d.workflow.defaultMode);
         if (!changed.current.has('tdd')) setTddState(d.workflow.tdd);
         basePace.current = d.workflow.defaultPace;
@@ -113,7 +133,6 @@ export function NewGoalPage() {
       .catch(() => {});
   }, []);
   // Follow-up: /goals/new?follows=<id> prefills the form from the earlier goal; the Follows picker only links
-  const [params] = useSearchParams();
   const [follow, setFollow] = useState<FollowChoice | null>(null);
   const [finishedGoals, setFinishedGoals] = useState<GoalRow[]>([]);
   const [repoKey, setRepoKey] = useState(0);
@@ -124,11 +143,18 @@ export function NewGoalPage() {
       setFollow({ draft: dr, startFrom: dr.start.recommended, attachments: true, style: true });
       if (!prefill) return;
       const p = dr.prefill;
+      changed.current.add('provider');
+      changed.current.add('codexModel');
+      changed.current.add('effort');
+      setProvider(p.provider);
+      setCodexOverride(p.provider === 'codex' && !!p.codexModel);
+      if (p.codexModel) setCodexModel(p.codexModel);
       setRepoPath(p.repoPath);
       setRepoKey((k) => k + 1);
       api.validateRepo(p.repoPath).then(setRepoInfo).catch(() => {});
       setNature(p.nature);
-      setModelPreset(p.modelPreset ?? '');
+      if (p.provider === 'codex') setCodexPreset(p.modelPreset ?? '');
+      else setModelPreset(p.modelPreset ?? '');
       setEffort(p.effort ?? '');
       choosePace(p.pace);
       setMode(p.mode);
@@ -176,7 +202,20 @@ export function NewGoalPage() {
     setDelivery(next);
   };
 
-  const ready = prompt.trim().length > 0 && repoPath.trim().length > 0 && (repoInfo?.ok ?? false);
+  const activePresetInfo = provider === 'codex' ? codexPresetInfo : presetInfo;
+  const selectedAccount = accounts?.accounts.find((account) => account.provider === provider);
+  const selectedPreset = provider === 'codex' ? codexPreset : modelPreset;
+  const missingPreset = !!selectedPreset && !!activePresetInfo && !activePresetInfo.ids.some((p) => p.id === selectedPreset);
+  const codexPreview = codexPresetInfo?.presets[codexPreset || codexPresetInfo.picks[natureKey(nature)]];
+  const unsupportedCodexChoices = provider === 'codex' && codexPreview ? [...new Set(CODEX_MODEL_ACTIONS.flatMap((role) => {
+    const choice = codexPreview.tables[natureKey(nature)][role];
+    const model = codexOverride || choice.model === 'codex-default' ? codexModel : choice.model;
+    const wantedEffort = effort || choice.effort;
+    const metadata = codexKnown?.find((m) => m.name === model)?.codex;
+    const advertised = metadata?.available ? metadata.reasoningEfforts : undefined;
+    return wantedEffort && advertised?.length && !advertised.includes(wantedEffort) ? [`${model} does not advertise ${wantedEffort} reasoning`] : [];
+  }))] : [];
+  const ready = !!accounts?.accounts.find((a) => a.provider === provider)?.status.loggedIn && prompt.trim().length > 0 && repoPath.trim().length > 0 && (repoInfo?.ok ?? false) && !missingPreset && !unsupportedCodexChoices.length && (provider !== 'codex' || !codexOverride || !!codexModel.trim());
   const done = [prompt.trim().length > 0, repoInfo?.ok ?? false, true, true];
 
   const submit = async () => {
@@ -184,10 +223,12 @@ export function NewGoalPage() {
     setErr(null);
     try {
       const goal = await api.createGoal({
+        provider,
+        codexModel: provider === 'codex' && codexOverride ? codexModel.trim() : undefined,
         prompt,
         repoPath: repoPath.trim(),
         title: title.trim() || undefined,
-        budgets: budget.budgets,
+        budgets: { ...budget.budgets, ...(provider === 'codex' ? { maxCostUsd: null } : {}) },
         budgetPreset: budget.preset,
         autoBrief: auto ? { mustChecks: checks.split('\n').map((s) => s.trim()).filter(Boolean), stretchChecks: stretch.split('\n').map((s) => s.trim()).filter(Boolean) } : undefined,
         delivery,
@@ -198,8 +239,8 @@ export function NewGoalPage() {
         nature,
         outputDir: (nature === 'image' || nature === 'video') && outputDir.trim() ? outputDir.trim() : undefined,
         interview: interview ? 'always' : undefined,
-        effort: effort ? (effort as 'low' | 'medium' | 'high' | 'xhigh' | 'max') : undefined,
-        modelPreset: modelPreset || undefined,
+        effort: effort || (provider === 'codex' ? null : undefined),
+        modelPreset: (provider === 'codex' ? codexPreset : modelPreset) || undefined,
         follows: follow ? { goalId: follow.draft.previous.id, startFrom: follow.startFrom, attachments: follow.attachments, style: follow.style } : undefined,
       });
       try {
@@ -215,8 +256,8 @@ export function NewGoalPage() {
   };
 
   // the preset Settings picks for this goal type, named on the Default button
-  const defaultPick = presetInfo?.picks[natureKey(nature)];
-  const defaultPreset = defaultPick ? (presetInfo!.ids.find((p) => p.id === defaultPick)?.label ?? defaultPick) : null;
+  const defaultPick = activePresetInfo?.picks[natureKey(nature)];
+  const defaultPreset = provider === 'codex' && nature === 'auto' ? 'By goal type' : defaultPick ? (activePresetInfo!.ids.find((p) => p.id === defaultPick)?.label ?? defaultPick) : null;
   return (
     <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4 pb-24">
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -244,6 +285,12 @@ export function NewGoalPage() {
         </div>
       )}
 
+      <Card title="Agent backend">
+        <ProviderSelector hideLabel value={provider} onChange={(id) => { changed.current.add('provider'); setProvider(id); if (id === 'claude' && ['none', 'minimal', 'ultra'].includes(effort)) setEffort(''); }} />
+        <p className="mt-2 text-xs text-zinc-400">{provider === 'codex' ? 'Codex' : 'Claude Code'} · {!selectedAccount ? 'Checking account…' : selectedAccount.status.loggedIn ? 'Connected' : selectedAccount.installed ? 'Sign in required' : 'CLI not installed'}</p>
+        {accountError && <p role="alert" className="mt-3 text-xs text-rose-400">Unable to check accounts: {accountError}. Open Manage accounts to retry.</p>}
+        <p className="text-xs text-zinc-400 mt-3">This choice stays fixed for the goal, including retries and reviews. <a href="/accounts" className="text-emerald-400">Manage accounts</a></p>
+      </Card>
       <Card title={<>What kind of goal is this?<HelpLink to="your-first-goal#what-kind-of-goal-is-this" className="ml-1.5" /></>}>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {NATURES.map((n) => (
@@ -318,34 +365,46 @@ export function NewGoalPage() {
             <ButtonGroup
               label="Effort"
               value={effort}
-              onChange={setEffort}
+              onChange={(value) => { changed.current.add('effort'); setEffort(value); }}
               options={[
-                { id: '', label: 'Default', title: 'The effort level set in Settings' },
-                { id: 'low', label: 'low', title: 'Fast and cheap: simple, well-defined goals' },
+                { id: '', label: 'Default', title: provider === 'codex' ? 'Use each role’s preset effort' : 'The effort level set in Settings' },
+                ...(provider === 'codex' ? [{ id: 'none', label: 'none' }, { id: 'minimal', label: 'minimal' }] : []),
+                { id: 'low', label: 'low', title: 'Less reasoning for simple, well-defined goals' },
                 { id: 'medium', label: 'medium' },
                 { id: 'high', label: 'high' },
                 { id: 'xhigh', label: 'xhigh', title: 'Hard, cross-cutting work' },
-                { id: 'max', label: 'max', title: 'The hardest problems; slowest and most expensive' },
+                { id: 'max', label: 'max', title: 'More reasoning for the hardest problems' },
+                ...(provider === 'codex' ? [{ id: 'ultra', label: 'ultra' }] : []),
               ]}
             />
           </div>
           <div className="flex items-center gap-2.5 flex-wrap">
             <span className="text-xs text-zinc-300">Models<HelpLink to="your-first-goal#models" className="ml-1.5" /></span>
             <ButtonGroup
-              label="Models"
-              value={modelPreset}
-              onChange={setModelPreset}
+              label={provider === 'codex' ? 'Codex preset' : 'Models'}
+              value={provider === 'codex' ? codexPreset : modelPreset}
+              onChange={provider === 'codex' ? setCodexPreset : setModelPreset}
               options={[
                 {
                   id: '',
                   label: `Default${defaultPreset ? ` · ${defaultPreset}` : ''}`,
                   title: 'The preset Settings picks for this goal type (Settings → Models & limits)',
                 },
-                ...(presetInfo?.ids ?? []).map((p) => ({ id: p.id, label: p.label })),
+                ...(activePresetInfo?.ids ?? []).map((p) => ({ id: p.id, label: p.label })),
               ]}
             />
           </div>
         </div>
+        {missingPreset && <p role="alert" className="mt-3 text-xs text-amber-300">The earlier goal’s preset “{selectedPreset}” is no longer available. Choose a preset for this new goal.</p>}
+        {provider === 'codex' && <div className="mt-4 space-y-3 rounded-md border border-zinc-800 p-3">
+          <p className="text-xs text-zinc-400">This goal captures its Codex preset and fallback order when created. An explicit effort above overrides every role; Default uses each role’s preset.</p>
+          {nature === 'auto' && !codexPreset && <p className="text-xs text-zinc-400">Auto captures the defaults for every goal type. The preview shows Code roles until classification; the inferred type uses its captured Code, Docs & research or Media table.</p>}
+          <label className="flex items-start gap-2 text-xs text-zinc-300"><input type="checkbox" className="accent-emerald-500 mt-0.5" checked={codexOverride} onChange={(e) => setCodexOverride(e.target.checked)} />Use one model for every role in this goal</label>
+          {codexOverride && <div className="max-w-lg"><CodexModelSelect label="Codex goal model override" known={codexKnown} value={codexModel} defaultLabel="CLI default model" onChange={(value) => { changed.current.add('codexModel'); setCodexModel(value); }} /><p className="text-[11px] text-zinc-500 mt-1">This replaces each role’s model while keeping its preset effort unless you choose a goal-wide effort. CLI default model follows your native Codex configuration.</p></div>}
+          {codexPreview && <details className="text-xs"><summary className="cursor-pointer text-zinc-300">View {codexPreview.label} role assignments</summary><p className="text-zinc-500 mt-2">{codexPreview.description}</p><div className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5 mt-3">{CODEX_MODEL_ACTIONS.map((role) => { const choice = codexPreview.tables[natureKey(nature)][role]; const model = codexOverride || choice.model === 'codex-default' ? codexModel : choice.model; return <div key={role} className="flex justify-between gap-3 border-b border-zinc-800 py-1"><span className="text-zinc-400">{role === 'housekeeping' ? 'Housekeeping' : ACTION_INFO[role].label}</span><span className="text-right mono text-zinc-300">{model === 'codex-default' ? 'CLI default model' : model} · {effort || choice.effort || 'CLI effort'}</span></div>; })}</div></details>}
+          {unsupportedCodexChoices.length > 0 && <p role="alert" className="text-xs text-amber-300">{unsupportedCodexChoices.join('; ')}. Choose a supported goal effort or update the preset in Settings.</p>}
+          <p className="text-xs text-amber-300">Codex dollar costs are unavailable; dollar budgets do not stop runs. Use duration and attempt limits.</p>
+        </div>}
         {mode === 'expert' && (
           <div className="mt-3 flex items-center gap-2.5 flex-wrap">
             <span className="text-xs text-zinc-300">Engineering discipline — TDD<HelpLink to="your-first-goal#engineering-discipline-tdd" className="ml-1.5" /></span>
@@ -379,7 +438,7 @@ export function NewGoalPage() {
       </Card>
 
       <Card title={<>3 · Budget<HelpLink to="your-first-goal#budget" className="ml-1.5" /></>}>
-        <BudgetPicker value={budget} onChange={setBudget} />
+        <BudgetPicker costAvailable={provider === 'claude'} value={budget} onChange={setBudget} />
       </Card>
 
       <Card title={<>4 · Delivery — what may the engine do with the result?<HelpLink to="your-first-goal#delivery" className="ml-1.5" /></>}>
@@ -413,7 +472,7 @@ export function NewGoalPage() {
                 </div>
               </div>
             )}
-            {auto && budget.preset === 'auto' && <p className="text-xs text-zinc-500 mt-2">With Auto budget and no Brief, the engine applies the minimum proposal ($3 / 30 min) and pauses to ask if it is exceeded.</p>}
+            {auto && budget.preset === 'auto' && <p className="text-xs text-zinc-500 mt-2">With Auto budget and no Brief, the engine applies the minimum proposal ({provider === 'codex' ? '30 min' : '$3 / 30 min'}) and pauses to ask if it is exceeded.</p>}
           </Card>
         )}
       </div>

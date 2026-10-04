@@ -4,6 +4,23 @@
   color-scheme: dark;
 }
 
+/* Keep native dropdown behavior, with a consistent inset for the indicator and its text. */
+select:not([multiple]):is(:not([size]), [size='1']) {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem;
+  padding-right: 2.5rem;
+}
+
+@media (forced-colors: active) {
+  select:not([multiple]):is(:not([size]), [size='1']) {
+    appearance: auto;
+    background-image: none;
+  }
+}
+
 /*
  * Light mode: the app is authored dark-first against the zinc ramp, so `.light` on <html>
  * simply inverts that ramp (page ↔ text) and darkens the accent text steps (-200/-300/-400)

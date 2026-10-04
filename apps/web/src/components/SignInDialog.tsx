@@ -1,11 +1,13 @@
 import { ExternalLink, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { api, type LoginSession } from '../api.ts';
+import { api, type LoginSession, type AgentProvider } from '../api.ts';
 import { Button, CopyButton, Input, cn } from '../ui.tsx';
 
 /** Runs `claude auth login` through the engine; the browser opens on this machine, the URL is shown too. */
-export function SignInDialog({ onClose }: { onClose: () => void }) {
+export function SignInDialog({ onClose, provider: selectedProvider }: { onClose: () => void; provider?: AgentProvider }) {
+  const [provider, setProvider] = useState<AgentProvider | null>(selectedProvider ?? null);
+  useEffect(() => { api.auth(false, selectedProvider).then((info) => setProvider(info.provider)).catch((e) => setErr(e.message)); }, []);
   const [email, setEmail] = useState('');
   const [session, setSession] = useState<LoginSession | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -14,7 +16,7 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     if (!session || session.done) return;
-    const t = setInterval(() => api.loginSession().then((s) => s && setSession(s)).catch(() => {}), 1500);
+    const t = setInterval(() => api.loginSession(provider ?? undefined).then((s) => s && setSession(s)).catch(() => {}), 1500);
     return () => clearInterval(t);
   }, [session?.id, session?.done]);
 
@@ -22,7 +24,7 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
     setSending(true);
     setErr(null);
     try {
-      setSession(await api.submitLoginCode(code));
+      setSession(await api.submitLoginCode(code, provider ?? undefined));
       setCode('');
     } catch (e: any) {
       setErr(e.message);
@@ -34,7 +36,7 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
   const start = async () => {
     setErr(null);
     try {
-      setSession(await api.startLogin({ email: email.trim() || undefined }));
+      setSession(await api.startLogin({ email: email.trim() || undefined }, provider ?? undefined));
     } catch (e: any) {
       setErr(e.message);
     }
@@ -45,20 +47,20 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
       <div className="w-full max-w-lg rounded-lg border border-zinc-800 bg-zinc-950 p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">Sign in to Claude</h2>
+          <h2 className="text-base font-semibold">Sign in to {provider === 'codex' ? 'Codex' : 'Claude'}</h2>
           <Button size="sm" variant="ghost" onClick={onClose}>
             <X size={14} />
           </Button>
         </div>
-        <p className="text-xs text-zinc-400">Same flow as Claude Code: a browser window opens on this machine, you sign in, and this page updates by itself. When the engine runs where there is no browser (a container, a remote host), open the link yourself and paste the code it gives you. Foundry never sees your password or token — Claude Code stores the credential.</p>
+        {provider === 'codex' ? <p className="text-xs text-zinc-400">Sign in with ChatGPT. Open the device login link below and enter the code shown in the log on that page. Codex stores your credentials.</p> : <p className="text-xs text-zinc-400">Same flow as Claude Code: a browser window opens on this machine, you sign in, and this page updates by itself. When the engine runs where there is no browser (a container, a remote host), open the link yourself and paste the code it gives you. Foundry never sees your password or token — Claude Code stores the credential.</p>}
         {!session ? (
           <>
-            <p className="text-xs text-zinc-400">Sign in with your Claude subscription (Pro or Max). Foundry does not use Anthropic Console API billing.</p>
-            <Input placeholder="email (optional, pre-fills the login page)" value={email} onChange={(e) => setEmail(e.target.value)} />
+            {provider !== 'codex' && <><p className="text-xs text-zinc-400">Sign in with your Claude subscription (Pro or Max). Foundry does not use Anthropic Console API billing.</p>
+            <Input placeholder="email (optional, pre-fills the login page)" value={email} onChange={(e) => setEmail(e.target.value)} /></>}
             {err && <div className="text-xs text-rose-400">{err}</div>}
             <div className="flex justify-end">
-              <Button variant="primary" onClick={start}>
-                Open browser & sign in
+              <Button variant="primary" disabled={!provider} onClick={start}>
+                Start sign in
               </Button>
             </div>
           </>
@@ -97,7 +99,7 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
             {session.lines.length > 0 && <pre className="mono text-[11px] text-zinc-500 bg-zinc-900 border border-zinc-800 rounded p-2 max-h-40 overflow-auto whitespace-pre-wrap">{session.lines.slice(-12).join('\n')}</pre>}
             <div className="flex justify-end gap-2">
               {!session.done && (
-                <Button size="sm" variant="ghost" onClick={() => api.cancelLogin().then(onClose)}>
+                <Button size="sm" variant="ghost" onClick={() => api.cancelLogin(provider ?? undefined).then(onClose)}>
                   Cancel
                 </Button>
               )}

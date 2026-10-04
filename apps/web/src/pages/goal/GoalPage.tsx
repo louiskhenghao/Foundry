@@ -71,7 +71,7 @@ export function GoalPage() {
       (d?.tasks ?? []).map((t) => {
         const attempts = d!.attempts.filter((a) => a.taskId === t.id);
         const model = attempts.flatMap((a) => a.sessions).filter((s) => s.role === 'worker' && s.model).at(-1)?.model ?? null;
-        return { ...t, attempts: attempts.length, maxAttempts: t.retryBudget + t.extraAttempts, totalCost: attempts.length ? taskUsage(attempts).costUsd : null, model: model?.replace(/^claude-/, '').replace(/\[1m\]$/, '') ?? null };
+        return { ...t, attempts: attempts.length, maxAttempts: t.retryBudget + t.extraAttempts, totalCost: d!.goal.provider !== 'codex' && attempts.length ? taskUsage(attempts).costUsd : null, model: model?.replace(/^claude-/, '').replace(/\[1m\]$/, '') ?? null };
       }),
     [d],
   );
@@ -122,7 +122,7 @@ export function GoalPage() {
         </div>
         <div className="space-y-2.5">
           <div className="grid grid-cols-2 gap-3">
-            <Meter label={`cost ${fmtUsd(g.costUsd)} / ${fmtLimitUsd(g.budgets.maxCostUsd)}`} value={g.costUsd} max={g.budgets.maxCostUsd} />
+            {g.provider === 'codex' ? <span className="text-xs text-zinc-400">Codex · dollar cost unavailable</span> : <Meter label={`cost ${fmtUsd(g.costUsd)} / ${fmtLimitUsd(g.budgets.maxCostUsd)}`} value={g.costUsd} max={g.budgets.maxCostUsd} />}
             <Meter label={`time ${d.budget.elapsedMin.toFixed(0)} / ${fmtLimitMin(g.budgets.maxDurationMin)}`} value={d.budget.elapsedMin} max={g.budgets.maxDurationMin} />
           </div>
           <div className="flex items-center gap-2 flex-wrap md:justify-end">

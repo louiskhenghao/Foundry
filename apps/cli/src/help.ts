@@ -1,14 +1,17 @@
 /** The CLI's help text — also the source of docs/operate/cli.md (scripts/gen-docs.ts). */
-export const help = `foundry — drive the host Claude Code to over-deliver on goals
+export const help = `foundry — drive the host Claude Code or Codex CLI to deliver on goals
 
   serve                                   start engine + server (http://127.0.0.1:4111)
   goal new "<prompt>" --repo <path>       create a goal (Clarify → Brief → approve in UI or via \`brief\`)
+       [--provider claude|codex] [--codex-model <model ID>]   backend fixed for this goal; follow-ups inherit it
        [--title t] [--base branch] [--preset auto|quick|thorough|unlimited|custom] [--max-cost 5|none] [--max-min 120|none] [--concurrency 3] [--attempts 3]
        [--auto-approve --check "<cmd>"]... [--stretch "<cmd>"]...   skip Clarify: one task + command checks
-       [--models max|production|balanced|economy|<your preset>]   model preset (default: Settings' preset for the goal type)
+       [--models max|production|balanced|economy|<your preset>]   Selected agent model preset (default: Settings' preset for the goal type)
        [--nature auto|code|docs|research|image|video] [--pace thorough|fast] [--interview auto|always|never]
-       [--effort low|medium|high|xhigh|max] [--self-check]
+       [--effort default|none|minimal|low|medium|high|xhigh|max|ultra] [--self-check]
        [--follows <goalId> [--start-from base|previous] [--no-attachments] [--no-style]]
+         Follow-ups inherit the agent and preset; --effort default explicitly clears inherited effort.
+         none, minimal and ultra are Codex-only; available efforts depend on the native model.
                                           a Follow-up of a finished goal: its repository and settings are the defaults,
                                           Clarify gets its prompt, Brief and outcomes; starts from its branch unless merged
        [--follow]                         tail the goal's live stream after creating it
@@ -21,17 +24,26 @@ export const help = `foundry — drive the host Claude Code to over-deliver on g
   diff <goalId>                           print the goal branch diff
   cancel <goalId>
   replay --verify                         rebuild read models from the event log and compare
-  doctor [--json]                         environment check: claude, login, git, bun, required skills
+  doctor [--provider claude|codex] [--json]                         environment check: selected agent, login, git, bun, required skills
   skills list [--scope user|plugin|project|all] [--repo <path>] [--json]
   skills catalog                          required / recommended / optional skills and their status
-  skills install <id|name> [--force]      install from the catalog into ~/.claude/skills
+  skills install <id|name> [--force]      install into the selected agent's skills directory
   skills install --tier required|recommended
   skills uninstall <name> [--force]       move to trash (reversible)
   skills restore <name> · skills update [name] · skills trash
+       All skills commands accept --provider claude|codex (default: the running instance).
   deliver <goalId> [--mode push|pr|pr-automerge ...]   deliver a finished goal (no --mode: print the plan)
   github [status|login]                   GitHub CLI status / device-flow login (needed for PR modes)
-  auth [status|login|logout]              Claude account: who is logged in; login/logout hand over to \`claude auth\`
-  usage [--json] [--probe]                Claude usage as seen by foundry (5h / 7d windows, rate-limit signal); --probe spends ~$0.02 to refresh
+  auth [status|login|logout] [--provider claude|codex]
+                                          Independent account; running server owns login/logout and protects active work
+                                          An explicit FOUNDRY_URL must be reachable; it never falls back to local auth
+  usage [--provider claude|codex] [--json] [--probe]
+                                          Activity and available account quota; --probe refreshes status (Claude consumes quota)
+                                          Codex shows only reported account windows; weekly-only accounts are supported
 
-(doctor and skills work without the server running.)
+(doctor and skills work offline too; --provider keeps their native homes and caches separate.)
+Both backends share one Foundry; select --provider when creating a goal.
+FOUNDRY_PROVIDER=codex changes the installation default (data-codex directory).
+Codex model: FOUNDRY_CODEX_MODEL=codex-default or Settings → Codex model.
+Codex reports tokens, not USD cost; dollar caps are unavailable.
 `;

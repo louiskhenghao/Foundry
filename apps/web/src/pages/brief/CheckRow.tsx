@@ -16,7 +16,7 @@ export function CheckRow({ check, brief, editable, context, onChange, onRemove }
           <Badge state={check.tier} />
         </button>
         <span className="w-24 shrink-0">
-          <Select disabled={!editable} className="text-xs py-1" value={check.spec.type === 'reviewer' ? 'reviewer' : 'command'} onChange={(e) => onChange(convertCheck(check, e.target.value as 'command' | 'reviewer'))} title="Command: a shell command that must exit 0. Reviewer: a Claude session judges the diff against a rubric.">
+          <Select disabled={!editable} className="text-xs py-1" value={check.spec.type === 'reviewer' ? 'reviewer' : 'command'} onChange={(e) => onChange(convertCheck(check, e.target.value as 'command' | 'reviewer'))} title="Command: a shell command that must exit 0. Reviewer: a session with the goal’s backend judges the diff against a rubric.">
             <option value="command">Command</option>
             <option value="reviewer">Reviewer</option>
           </Select>

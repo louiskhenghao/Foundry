@@ -11,8 +11,12 @@ export interface ScanOptions {
 
 /** Pure filesystem scan of user, plugin and (optionally) project skills. */
 export function scanSkills(paths: SkillsPaths, opts: ScanOptions = {}): ScanResult {
-  const rows: InstalledSkill[] = [...scanUserDir(paths), ...scanPlugins(paths)];
-  if (opts.repoPath) rows.push(...scanProject(opts.repoPath));
+  const own = scanUserDir(paths);
+  const shared = paths.provider === 'codex' ? scanUserDir({ ...paths, skillsDir: paths.agentsSkillsDir })
+    .filter((s) => !own.some((row) => row.name === s.name))
+    .map((s) => ({ ...s, canUninstall: false, uninstallNote: 'Shared agent skill; manage it in ~/.agents/skills.' })) : [];
+  const rows: InstalledSkill[] = [...own, ...shared, ...(paths.provider === 'codex' ? [] : scanPlugins(paths))];
+  if (opts.repoPath) rows.push(...scanProject(opts.repoPath, paths.provider === 'codex' ? '.agents' : '.claude'));
   markDuplicates(rows);
   return { installed: rows, duplicates: [...new Set(rows.filter((r) => r.duplicateOf.length).map((r) => r.name))].sort(), scannedAt: new Date().toISOString(), skillsDir: paths.skillsDir };
 }
@@ -287,8 +291,8 @@ function pluginSkillDirs(installPath: string): string[] {
 
 // ---------- project ----------
 
-export function scanProject(repoPath: string): InstalledSkill[] {
-  const root = join(repoPath, '.claude', 'skills');
+export function scanProject(repoPath: string, agentDir = '.claude'): InstalledSkill[] {
+  const root = join(repoPath, agentDir, 'skills');
   if (!existsSync(root)) return [];
   const out: InstalledSkill[] = [];
   for (const name of safeReaddir(root)) {

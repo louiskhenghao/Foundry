@@ -1,3 +1,4 @@
+import { decodeCodexMessage } from './codex-stream-codec.ts';
 import { classifyFailure, type RateLimitInfo, type RunnerEvent } from './types.ts';
 
 /**
@@ -23,6 +24,7 @@ export function decodeLine(line: string): RunnerEvent[] {
 
 export function decodeMessage(msg: any): RunnerEvent[] {
   if (!msg || typeof msg !== 'object') return [{ kind: 'unknown', raw: msg }];
+  if (/^(thread\.|turn\.|item\.)/.test(msg.type ?? '') || msg.type === 'error') return decodeCodexMessage(msg);
   switch (msg.type) {
     case 'system': {
       if (msg.subtype === 'init') {

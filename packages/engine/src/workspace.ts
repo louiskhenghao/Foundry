@@ -148,7 +148,7 @@ export async function ensureTaskWorkspace(dataDir: string, goal: Goal, task: Tas
   const branch = taskBranch(task.id);
   await ensureWorktree(goal.repoPath, path, branch, base);
   // project skills and the Brief's style samples are git-excluded, so a fresh checkout lacks them: copy them over from the goal workspace
-  copyProjectSkills(goalPath, path);
+  copyProjectSkills(goalPath, path, goal.provider);
   copyStyleSamples(goalPath, path);
   return { path, branch };
 }
