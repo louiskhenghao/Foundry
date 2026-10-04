@@ -34,7 +34,7 @@ Codex 的预算选项只有时间、尝试次数和并发限制，没有美元�
 
 | 检查项 | 是什么 | 如果是红色 |
 |---|---|---|
-| **Claude Code CLI** / **Codex CLI** | 当前所选编码智能体的程序。 | 复制显示的安装命令并运行，或者找帮你安装 Foundry 的人。 |
+| **Claude Code CLI** / **Codex CLI** | 当前所选编码智能体的程序。 | 按 **Install**：Claude Code 用它自己的安装器，Codex 用 Homebrew、npm 或官方下载，都不需要 npm。也可以复制显示的命令。 |
 | **Claude login** / **Codex login** | 当前所选编码智能体的账户。 | 按 **Sign in**。 |
 | **git** | 保存你文件的每一个版本。 | 复制显示的命令。 |
 | **Bun runtime** | Foundry 自己运行所需的环境。 | 复制显示的命令。 |

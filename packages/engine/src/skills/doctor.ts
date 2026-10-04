@@ -4,6 +4,7 @@ import { exec } from '../git/git.ts';
 import { SATISFIED, type WhichFn, defaultWhich, envLabel } from './catalog.ts';
 import { packAllows } from './packs.ts';
 import type { SkillsPaths } from './paths.ts';
+import { agentCliInstall } from '../agent-cli.ts';
 import type { Catalog, CatalogEntryStatus, DoctorCheck, DoctorReport, SkillsUpdateReport } from './types.ts';
 
 export interface DoctorContext {
@@ -33,14 +34,16 @@ export async function runDoctor(ctx: DoctorContext): Promise<DoctorReport> {
   if (ctx.provider === 'codex') {
     const bin = ctx.codexBin ?? which('codex');
     const v = bin ? await run([bin, '--version'], process.cwd(), { timeoutMs: 15_000 }).catch(() => null) : null;
-    checks.push(v?.code === 0 ? ok('codex-bin', 'Codex CLI', v.stdout.trim()) : err('codex-bin', 'Codex CLI', 'Codex CLI is unavailable; install a version with hooks support.', { command: 'npm install -g @openai/codex' }));
+    const install = agentCliInstall('codex', which);
+    checks.push(v?.code === 0 ? ok('codex-bin', 'Codex CLI', v.stdout.trim()) : err('codex-bin', 'Codex CLI', 'Codex CLI is unavailable; install a version with hooks support.', { command: install?.command ?? 'npm install -g @openai/codex', url: 'https://github.com/openai/codex', ...(install ? { installId: install.id, action: 'install-tool' as const } : {}) }));
     const st = await codexAuthStatus(bin, run, ctx.codexHome);
     checks.push(st.loggedIn ? ok('codex-auth', 'Codex login', 'Signed in with ChatGPT') : err('codex-auth', 'Codex login', st.error ?? 'Not signed in', { command: 'codex login' }));
     checks.push(warn('codex-cost', 'Codex usage accounting', 'Token usage is recorded. Codex does not report USD costs; use time and attempt limits instead of dollar budgets.', null));
   } else {
   // claude binary
   if (!claude) {
-    checks.push(err('claude-bin', 'Claude Code CLI', 'claude not found on PATH', { command: 'npm install -g @anthropic-ai/claude-code', url: 'https://code.claude.com/docs/en/setup' }));
+    const install = agentCliInstall('claude', which);
+    checks.push(err('claude-bin', 'Claude Code CLI', 'claude not found on PATH', { command: install?.command ?? 'curl -fsSL https://claude.ai/install.sh | bash', url: 'https://code.claude.com/docs/en/setup', ...(install ? { installId: install.id, action: 'install-tool' as const } : {}) }));
     checks.push(err('claude-auth', 'Claude login', 'cannot check: claude not installed', null));
   } else {
     const v = await run([claude, '--version'], process.cwd(), { timeoutMs: 15_000 }).catch(() => ({ code: 1, stdout: '', stderr: '' }));

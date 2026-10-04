@@ -85,6 +85,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { removeWorktree } from './git/git.ts';
 import { BaselineChecks } from './checks/baseline.ts';
 import { relative, resolve } from 'node:path';
+import { adoptLocalBin, AGENT_CLI_IDS, agentCliInstall, type AgentCliId } from './agent-cli.ts';
 import { type FollowUpDraft, type FollowUpInput, followUpDraft, linkFollowUp, prepareFollowUp } from './follow-up.ts';
 
 export interface CreateGoalInput {
@@ -1391,15 +1392,19 @@ export class Engine {
       const r = await this.installMarkitdown(onLine);
       return { ok: r.ok, command: r.command.join(' '), exitCode: r.exitCode };
     }
-    const entry = this.skillsForProvider(provider).catalog().entries.find((e) => e.id === id);
-    if (!entry || entry.source.type !== 'cli') throw new Error(`${id} is not a CLI tool in the catalog`);
-    const command = entry.source.install;
+    // a coding agent's own CLI (Setup's Claude Code / Codex check), else a CLI tool from the skills catalog
+    const agentCli = AGENT_CLI_IDS.includes(id as AgentCliId) ? agentCliInstall(id === 'codex-cli' ? 'codex' : 'claude') : null;
+    if (AGENT_CLI_IDS.includes(id as AgentCliId) && !agentCli) throw new Error(`${id}: no installer available here (needs curl, Homebrew or npm) — see the linked setup docs`);
+    const entry = agentCli ? null : this.skillsForProvider(provider).catalog().entries.find((e) => e.id === id);
+    if (!agentCli && (!entry || entry.source.type !== 'cli')) throw new Error(`${id} is not a CLI tool in the catalog`);
+    const command = agentCli?.command ?? (entry!.source as { install: string }).install;
     const first = command.trim().split(/\s+/)[0]!;
     if (!Bun.which(first)) throw new Error(`${first} is not installed — install it first (https://docs.astral.sh/uv/ for uv), then retry`);
     onLine(`$ ${command}`);
     const t0 = Date.now();
     const r = await spawnStreaming(['sh', '-lc', command], this.config.dataDir, onLine, { timeoutMs: 10 * 60_000 });
     const ok = r.code === 0;
+    if (ok && agentCli && adoptLocalBin()) onLine('added ~/.local/bin to this server\'s PATH');
     onLine(ok ? `■ done in ${Math.round((Date.now() - t0) / 1000)}s` : `■ failed (exit ${r.code})`);
     Object.values(this.providerSkills).forEach((skills) => skills.hints.invalidate());
     this.store.append({ type: 'engine.note', goalId: null, payload: { level: ok ? 'info' : 'warn', message: `tool install ${id}: \`${command}\` exited ${r.code}` } });

@@ -370,9 +370,9 @@ docker exec foundry bun apps/cli/src/main.ts doctor   # Docker
 
 | Check | Must pass? | If it fails |
 |---|---|---|
-| Claude Code CLI (Claude) | yes | install it: `npm install -g @anthropic-ai/claude-code` |
+| Claude Code CLI (Claude) | yes | **Install** on the Setup page (Claude Code's native installer), or `curl -fsSL https://claude.ai/install.sh \| bash` |
 | Claude login (Claude) | yes | **Sign in** on the Setup page, or `claude auth login` |
-| Codex CLI (Codex) | yes | a hooks-capable `codex` binary; `npm install -g @openai/codex` |
+| Codex CLI (Codex) | yes | **Install** on the Setup page (Homebrew on macOS, else npm, else the release binary), or `npm install -g @openai/codex` |
 | Codex login (Codex) | yes | **Sign in to Codex**, or `codex login` with ChatGPT |
 | git | yes | install git |
 | Bun runtime | yes | `curl -fsSL https://bun.sh/install \| bash` |
