@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { api, type AgentProvider } from '../../api.ts';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Empty, Tabs, cn } from '../../ui.tsx';
+import { CodexPluginsPanel } from './CodexPluginsPanel.tsx';
 import { McpPanel } from './McpPanel.tsx';
 import { SkillsPage } from './SkillsPage.tsx';
 
@@ -24,12 +25,12 @@ export function SkillsTabs() {
     void api.settings().then((view) => select(view.values.engine.provider)).catch(() => select('claude'));
     return () => { alive = false; };
   }, [provider, params, hash, nav]);
-  const tab = hash === '#mcp' ? 'mcp' : 'skills';
+  const tab = hash === '#mcp' ? 'mcp' : hash === '#plugins' && provider === 'codex' ? 'plugins' : 'skills';
   if (!provider) return <Empty>Loading extensions…</Empty>;
   const go = (value: AgentProvider, section: string) => {
     const next = new URLSearchParams(params);
     next.set('provider', value);
-    nav(`/skills?${next}${section === 'mcp' ? '#mcp' : ''}`, { replace: true });
+    nav(`/skills?${next}${section === 'mcp' ? '#mcp' : section === 'plugins' && value === 'codex' ? '#plugins' : ''}`, { replace: true });
   };
   return (
     <>
@@ -39,12 +40,13 @@ export function SkillsTabs() {
           tabs={[
             { id: 'skills' as const, label: 'Skills' },
             { id: 'mcp' as const, label: 'MCP servers' },
+            ...(provider === 'codex' ? [{ id: 'plugins' as const, label: 'Plugins' }] : []),
           ]}
           value={tab}
           onChange={(t) => go(provider, t)}
         />
       </div>
-      {tab === 'mcp' ? <McpPanel key={`mcp:${provider}`} provider={provider} /> : <SkillsPage key={`skills:${provider}`} provider={provider} />}
+      {tab === 'plugins' ? <CodexPluginsPanel /> : tab === 'mcp' ? <McpPanel key={`mcp:${provider}`} provider={provider} /> : <SkillsPage key={`skills:${provider}`} provider={provider} />}
     </>
   );
 }

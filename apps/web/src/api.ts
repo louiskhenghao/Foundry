@@ -199,6 +199,7 @@ export interface AuthInfo {
   login: LoginSession | null;
 }
 
+import type { CodexPluginsView } from '@foundry/engine/plugins-types';
 import type { McpHealth, McpLoginSession, McpView } from '@foundry/engine/mcp-types';
 export type { McpHealth, McpLoginSession, McpView };
 /** a server added by hand on the MCP tab */
@@ -328,10 +329,12 @@ const safeJson = (t: string) => {
 /** An immutable client scope keeps in-flight extension operations on their selected provider. */
 export function apiForProvider(provider?: AgentProvider) {
   const req = <T>(path: string, init?: RequestInit) => {
-    const scoped = provider && /^\/api\/(skills|mcp|doctor|tools)(?:[/?]|$)/.test(path);
+    const scoped = provider && /^\/api\/(skills|mcp|plugins|doctor|tools)(?:[/?]|$)/.test(path);
     return request<T>(scoped ? `${path}${path.includes('?') ? '&' : '?'}provider=${provider}` : path, init);
   };
   return {
+  plugins: (refresh = false) => req<CodexPluginsView>(`/api/plugins${refresh ? '?refresh=1' : ''}`),
+  changePlugin: (id: string, action: 'install' | 'remove', opId: string) => req<{ ok: boolean; op: SkillOp }>('/api/plugins/change', { method: 'POST', body: JSON.stringify({ id, action, opId }) }),
   agents: () => req<AgentsList>('/api/agents'),
   agentsSummary: () => req<AgentsSummary>('/api/agents/summary'),
   agentLog: (sessionId: string, offset = 0, agent?: string) => req<AgentLogChunk>(`/api/agents/${sessionId}/log?offset=${offset}${agent ? `&agent=${encodeURIComponent(agent)}` : ''}`),

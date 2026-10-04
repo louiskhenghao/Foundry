@@ -827,7 +827,22 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const { op, result } = await ops.run('uninstall', `Uninstall plugin ${name}`, { id: opId }, (say) => skillsFor(c).uninstallPlugin(sourceId, say), (r) => ({ ok: r.ok, summary: r.ok ? `removed ${name}` : (r.error ?? 'uninstall failed') }));
     return c.json({ ...result, op });
   });
-  // ---------- MCP servers (ADR-0016): read from Claude Code's config; install/remove run as Skills operations ----------
+  // ---------- Native plugins (ADR-0020): native CLI owns configuration and package policy ----------
+  const pluginsFor = (c: any) => {
+    if (authProvider(c) !== 'codex') throw new HttpError(400, { error: 'Native plugin management requires provider=codex.' });
+    return engine.codexPlugins;
+  };
+  app.get('/api/plugins', async (c) => c.json(await pluginsFor(c).view(c.req.query('refresh') === '1')));
+  app.post('/api/plugins/change', async (c) => {
+    const manager = pluginsFor(c);
+    const { id, action, opId } = z.object({ id: z.string().min(1).max(200), action: z.enum(['install', 'remove']), opId: z.string().optional() }).parse(await c.req.json());
+    if (engine.busy().total > 0) throw new HttpError(409, { error: 'Wait for active work to finish before changing native plugins.' });
+    const { op, result } = await ops.run(action === 'install' ? 'install' : 'uninstall', `Codex plugin ${action}: ${id}`, { id: opId }, say => manager.change(id, action, say), () => ({ ok: true, summary: `${id}: ${action === 'install' ? 'installed' : 'removed'}` }));
+    engine.skillsForProvider('codex').hints.invalidate();
+    return c.json({ ...result, op });
+  });
+
+  // ---------- MCP servers (ADR-0016/0019): provider-scoped native configuration ----------
   app.get('/api/mcp', async (c) => c.json(await mcpFor(c).view()));
   app.post('/api/mcp/check', async (c) => {
     try {
@@ -1043,7 +1058,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.get('/api/auth', async (c) => { const provider = authProvider(c); const auth = engine.accounts[provider]; return c.json({ provider, status: await auth.status(c.req.query('force') === '1'), login: auth.loginSession() }); });
   app.post('/api/auth/login', async (c) => {
     const body = z.object({ email: z.string().optional() }).parse(await c.req.json().catch(() => ({})));
-    return c.json(engine.accounts[authProvider(c)].startLogin(body));
+    const provider = authProvider(c);
+    if (engine.busy().total > 0) throw new HttpError(409, { error: 'Wait for active work to finish before changing accounts. Credentials are shared with the local CLI.' });
+    return c.json(engine.accounts[provider].startLogin(body));
   });
   app.get('/api/auth/login', (c) => c.json(engine.accounts[authProvider(c)].loginSession()));
   app.post('/api/auth/login/code', async (c) => {
@@ -1055,7 +1072,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const provider = authProvider(c);
     if (engine.busy().total > 0) throw new HttpError(409, { error: 'Wait for active work to finish before signing out. Credentials are shared with the local CLI.' });
     const status = await engine.accounts[provider].logout();
-    if (provider === 'codex') engine.codexQuota.invalidate();
+    if (provider === 'codex') { engine.codexQuota.invalidate(); engine.codexPlugins.invalidate(); }
     return c.json(status);
   });
 

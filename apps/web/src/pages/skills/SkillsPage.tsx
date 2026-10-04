@@ -207,7 +207,7 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
         </div>
       </div>
       <p className="text-xs text-zinc-500 -mt-2">
-        {provider === 'codex' ? 'Codex skills are grouped by their native source. Foundry manages supported standalone installs and updates; manage native Codex plugins through Codex. Shared .agents/skills directories stay shared and cannot be uninstalled here.' : "Grouped by where each skill comes from. Updates run the source's own tool (npx skills, claude plugin) or Foundry's installer; every run is recorded in History. Uninstall never deletes — copies go to the Trash tab."}
+        {provider === 'codex' ? 'Codex skills are grouped by their native source. Foundry manages supported standalone installs and updates; manage native Codex plugins in the Plugins tab. Shared .agents/skills directories stay shared and cannot be uninstalled here.' : "Grouped by where each skill comes from. Updates run the source's own tool (npx skills, claude plugin) or Foundry's installer; every run is recorded in History. Uninstall never deletes — copies go to the Trash tab."}
       </p>
       <div className="-mt-1">
         {provider === 'codex' ? <p className="text-[11px] text-zinc-500">Skill invocation telemetry is unavailable for Codex. Installed or listed skills do not prove a session used them; review the work and tests.</p> : <SessionLine view={overview.lastSession} />}

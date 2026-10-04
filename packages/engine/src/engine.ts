@@ -1,4 +1,5 @@
 import { CODEX_MODEL_ACTIONS, CodexEffort, Effort, effectiveCodexPresets, natureKey, type CodexModelPreset } from '@foundry/core';
+import { CodexPlugins } from './plugins/codex-plugins.ts';
 import { CodexQuotaReader } from './usage/codex-quota.ts';
 import { discoverCodexModels } from './models/codex-discover.ts';
 import { dirname, join } from 'node:path';
@@ -139,6 +140,7 @@ export class Engine {
   readonly mcp: McpManager;
   readonly codexMcp: CodexMcpManager;
   readonly codexQuota: CodexQuotaReader;
+  readonly codexPlugins: CodexPlugins;
   readonly agents: AgentsMonitor;
   readonly auth: ClaudeAuth;
   readonly accounts: Record<'claude' | 'codex', ClaudeAuth>;
@@ -284,12 +286,13 @@ export class Engine {
       setAllowed: (codexMcpAllowed) => void this.updateSettings({ workflow: { codexMcpAllowed } }),
       log: config.log,
     });
+    this.codexPlugins = new CodexPlugins({ codexHome: config.codexHome, codexBin: config.codexBin });
     this.codexQuota = new CodexQuotaReader({ bin: () => config.codexBin ?? Bun.which('codex'), home: config.codexHome });
     this.accounts = {
       claude: new ClaudeAuth({ provider: 'claude', claudeHome: config.claudeHome, claudeBin: config.claudeBin ?? Bun.which('claude'), log: config.log }),
       codex: new ClaudeAuth({ provider: 'codex', claudeBin: config.codexBin ?? Bun.which('codex'), codexHome: config.codexHome, log: config.log }),
     };
-    this.accounts.codex.onLoginUpdate(() => this.codexQuota.invalidate());
+    this.accounts.codex.onLoginUpdate(() => { this.codexQuota.invalidate(); this.codexPlugins.invalidate(); });
     this.auth = this.accounts[config.provider];
     this.agents = new AgentsMonitor(
       { claudeHome: config.claudeHome, codexHome: config.codexHome, codexBin: config.codexBin, includeExternal: true, dataDir: config.dataDir, workspaceRoots: () => [...new Set(listGoals(this.store.db).flatMap((g) => (g.workspaceDir ? [dirname(g.workspaceDir)] : [])))] },
@@ -651,6 +654,7 @@ export class Engine {
     this.mcp.login.cancel();
     this.codexMcp.login.cancel();
     this.codexQuota.invalidate();
+    await this.codexPlugins.stop();
     this.agents.stop();
     this.preview.stopSweeper();
     await this.preview.stopAll('engine shutdown');
