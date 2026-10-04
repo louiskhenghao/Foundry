@@ -5,14 +5,14 @@
 Run both from the repository root before you push:
 
 ```sh
-bun test packages     # all unit and integration tests (packages/core, runner, engine, server)
+bun test packages ./apps/cli/src ./apps/web/tests  # packages plus CLI and web regressions
 bun run typecheck     # tsc over packages/*, apps/cli and scripts, then a separate pass over apps/web
 ```
 
 - `bunfig.toml` sets the test root to `packages`, so plain `bun test` does the same thing. The full suite takes a minute or two.
 - One file: `bun test packages/engine/src/clarify.test.ts`. One test by name: add `-t "repair turn"`.
 - `bun run typecheck` is `tsc -p tsconfig.json --noEmit && tsc --noEmit -p apps/web`. The root `tsconfig.json` excludes `apps/web`, so the web app is checked with its own config.
-- `apps/web` and `apps/cli` have no tests of their own. Cover their logic from the engine side, and check UI changes with the [manual QA](#manual-qa-against-a-throwaway-server) below.
+- CLI regression tests live in `apps/cli/src`; web component tests live in `apps/web/tests`. Include both explicitly in the command above because the default test root is `packages`. Check UI interactions with the [manual QA](#manual-qa-against-a-throwaway-server) below.
 
 ## How the tests are built
 
