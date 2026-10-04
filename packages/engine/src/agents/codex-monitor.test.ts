@@ -18,7 +18,7 @@ function setup() {
       { turnId: 'turn', startedAtMs: now - 1, item: { id: 'command', type: 'commandExecution', command: 'git status', aggregatedOutput: 'clean', exitCode: 0, status: 'completed' } },
       { turnId: 'turn', startedAtMs: now - 2, item: { id: 'user', type: 'userMessage', content: [{ type: 'text', text: 'The user prompt' }] } },
     ],
-    fail: false, version: '0.158.0', hang: false,
+    fail: false, version: '0.158.0', originator: 'Codex', hang: false,
   };
   const save = () => writeFileSync(join(home, 'state.json'), JSON.stringify(state)); save();
   writeFileSync(join(home, 'auth.json'), 'credential-decoy-must-not-be-opened-by-foundry');
@@ -30,7 +30,7 @@ createInterface({input:process.stdin}).on('line',line=>{
  const m=JSON.parse(line),s=JSON.parse(readFileSync(home+'/state.json','utf8'));
  appendFileSync(home+'/calls.jsonl',line+'\\n');
  const send=result=>console.log(JSON.stringify({id:m.id,result}));
- if(m.method==='initialize'){send({userAgent:'Codex/'+s.version});return;}
+ if(m.method==='initialize'){send({userAgent:s.originator+'/'+s.version});return;}
  if(m.method==='initialized')return;
  if(s.hang)return;
  if(s.fail){console.log(JSON.stringify({id:m.id,error:{message:'fixture failure'}}));return;}
@@ -90,6 +90,16 @@ describe('external Codex sessions', () => {
     const after = await t.monitor.list();
     expect(after.sessions).toEqual(before.sessions);
     expect(after.warnings?.[0]).toContain('last successful snapshot');
+  });
+
+  test('ordinary terminal client names and desktop/CLI originators all expose native history', async () => {
+    for (const originator of ['foundry_session_monitor', 'Codex Desktop', 'codex_cli_rs']) {
+      const t = setup(); t.state.originator = originator; t.state.version = '0.160.0'; t.save();
+      const list = await t.monitor.list();
+      expect(list.warnings).toBeUndefined();
+      expect(list.sessions.map(row => row.sessionId)).toEqual(['external', 'second']);
+      t.monitor.stop();
+    }
   });
 
   test('older CLIs fail explicitly before sending the database-only listing request', async () => {

@@ -1,3 +1,4 @@
+import { codexVersionFromUserAgent } from '../codex-version.ts';
 import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 
@@ -108,7 +109,7 @@ export async function discoverCodexModels(
   try {
     const init = await request('initialize', { clientInfo: { name: 'foundry_model_catalog', title: 'Foundry', version: '1' }, capabilities: {} });
     const userAgent = object(init) ? string(init.userAgent) : null;
-    const cliVersion = userAgent?.match(/\bcodex(?:[ _-](?:desktop|cli))?\/([^\s]+)/i)?.[1];
+    const cliVersion = codexVersionFromUserAgent(userAgent, 'foundry_model_catalog');
     send({ method: 'initialized' });
     const models = new Map<string, CodexDiscoveredModel>();
     const cursors = new Set<string>();

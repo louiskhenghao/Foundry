@@ -1,4 +1,5 @@
 import { codexProcess, type CodexProcessOptions } from '../mcp/codex-process.ts';
+import { codexVersionFromUserAgent } from '../codex-version.ts';
 
 const READ_METHODS = new Set(['thread/list', 'thread/read', 'thread/turns/list', 'thread/items/list']);
 
@@ -41,8 +42,8 @@ export class CodexHistoryClient {
     };
     try {
       const init = await request('initialize', { clientInfo: { name: 'foundry_session_monitor', version: '1' }, capabilities: { experimentalApi: true } });
-      const version = typeof init?.userAgent === 'string' ? init.userAgent.match(/\bcodex(?:[ _-](?:desktop|cli))?\/(\d+)\.(\d+)/i) : null;
-      if (!version || (Number(version[1]) === 0 && Number(version[2]) < 158)) throw new Error('Read-only external session monitoring requires Codex CLI 0.158 or newer');
+      const version = codexVersionFromUserAgent(init?.userAgent, 'foundry_session_monitor')?.split('.').map(Number);
+      if (!version || (version[0] === 0 && version[1]! < 158)) throw new Error('Read-only external session monitoring requires Codex CLI 0.158 or newer with a recognizable version handshake');
       process.write('{"method":"initialized"}\n');
       return await work((method, params) => {
         if (!READ_METHODS.has(method)) return Promise.reject(new Error('External session monitoring only permits history reads'));
