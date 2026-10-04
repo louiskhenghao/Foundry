@@ -20,6 +20,9 @@ export interface BundleResult {
 }
 
 export interface SkillsManagerOptions {
+  provider?: 'claude' | 'codex';
+  codexBin?: string;
+  codexHome?: string;
   claudeHome: string;
   dataDir: string;
   catalogPath: string;
@@ -67,7 +70,7 @@ export class SkillsManager {
   private updating: string | null = null;
 
   constructor(private opts: SkillsManagerOptions) {
-    this.paths = skillsPaths(opts.claudeHome, opts.dataDir);
+    this.paths = skillsPaths(opts.claudeHome, opts.dataDir, opts.provider);
     this.hints = new SkillsHints(() => this.status(), { enabled: opts.hintsEnabled, profile: opts.workflowProfile, packs: opts.packs });
     this.checker = new SkillsUpdateChecker(this.paths, { log: opts.log, ...(opts.updates ?? {}) });
     try {
@@ -83,6 +86,7 @@ export class SkillsManager {
     } catch {}
     if (!this.catalogCache || mtime !== this.catalogMtime) {
       this.catalogCache = loadCatalog(this.opts.catalogPath);
+      if (this.opts.provider === 'codex') this.catalogCache.entries = this.catalogCache.entries.filter((entry) => entry.source.type !== 'plugin');
       this.catalogMtime = mtime;
       this.hints.invalidate();
     }
@@ -107,7 +111,7 @@ export class SkillsManager {
   async doctor(extra: DoctorCheck[] = []): Promise<DoctorReport> {
     // offline: never runs git; shadow detection works from the filesystem alone
     const updates = await this.checker.report(this.scan(), this.catalog(), { offline: true }).catch(() => null);
-    return runDoctor({ paths: this.paths, catalog: this.catalog(), statuses: await this.status(), claudeBin: this.opts.claudeBin, which: this.opts.which, updates, packs: this.opts.packs?.(), extra });
+    return runDoctor({ provider: this.opts.provider, codexBin: this.opts.codexBin, codexHome: this.opts.codexHome, paths: this.paths, catalog: this.catalog(), statuses: await this.status(), claudeBin: this.opts.claudeBin, which: this.opts.which, updates, packs: this.opts.packs?.(), extra });
   }
 
   // ---------- sources & updates ----------
@@ -155,6 +159,7 @@ export class SkillsManager {
    */
   uninstallPlugin(sourceId: string, onLine?: (l: string) => void): Promise<{ ok: boolean; error: string | null }> {
     return this.serial(async () => {
+      if (this.opts.provider === 'codex') throw new Error('Manage Codex plugins in Codex.');
       if (!sourceId.startsWith('plugin:')) throw new Error(`${sourceId} is not a Claude plugin`);
       const pluginId = sourceId.slice('plugin:'.length);
       const claude = this.opts.claudeBin ?? Bun.which('claude');

@@ -16,6 +16,10 @@ const num = (v: string) => Number(v);
 
 /** env var that seeds a leaf when the file has no value for it */
 const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => unknown }> = {
+  'engine.provider': { name: 'FOUNDRY_PROVIDER', parse: str },
+  'engine.codexBin': { name: 'FOUNDRY_CODEX_BIN', parse: str },
+  'engine.codexHome': { name: 'FOUNDRY_CODEX_HOME', alt: 'CODEX_HOME', parse: str },
+  'models.codexModel': { name: 'FOUNDRY_CODEX_MODEL', parse: str },
   'engine.port': { name: 'FOUNDRY_PORT', parse: num },
   'engine.host': { name: 'FOUNDRY_HOST', parse: str },
   'engine.maxConcurrent': { name: 'FOUNDRY_MAX_CONCURRENT', parse: num },
@@ -211,6 +215,10 @@ export class SettingsError extends Error {}
  */
 export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: Set<string>): void {
   const on = (p: string) => !only || only.has(p);
+  if (on('engine.provider')) config.provider = s.engine.provider;
+  if (on('engine.codexBin')) config.codexBin = s.engine.codexBin ?? undefined;
+  if (on('engine.codexHome') && s.engine.codexHome) config.codexHome = s.engine.codexHome;
+  if (on('models.codexModel')) config.codexModel = s.models.codexModel;
   if (on('engine.port')) config.port = s.engine.port;
   if (on('engine.host')) config.host = s.engine.host;
   if (on('engine.maxConcurrent')) config.maxConcurrent = s.engine.maxConcurrent;

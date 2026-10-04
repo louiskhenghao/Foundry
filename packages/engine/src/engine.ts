@@ -26,7 +26,7 @@ import {
   topoSort,
   Brief as BriefSchema,
 } from '@foundry/core';
-import { ClaudeCliRunner, type ClaudeRunner, type RunHandle } from '@foundry/runner';
+import { CodexCliRunner, ClaudeCliRunner, type ClaudeRunner, type RunHandle } from '@foundry/runner';
 import { McpManager } from './mcp/manager.ts';
 import { mmxConfigDir, mmxSignedIn, writeMmxConfig } from './mmx.ts';
 import { fetchMinimaxQuota } from './usage/minimax.ts';
@@ -75,7 +75,7 @@ import { deliverArtifacts, inferCompletion, runGraphRefresh, shouldRunGraphRefre
 import type { SettingsPatch, SettingsView } from '@foundry/core';
 import { ACTION_INFO, BUILTIN_PRESETS, DEFAULT_NATURE_PRESETS, MODEL_ACTIONS, MODEL_NATURES, NATURE_LABEL, effectivePresets } from '@foundry/core';
 import { spawnStreaming } from './skills/updaters.ts';
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { removeWorktree } from './git/git.ts';
 import { BaselineChecks } from './checks/baseline.ts';
 import { relative, resolve } from 'node:path';
@@ -188,21 +188,31 @@ export class Engine {
     // settings file > env > defaults: only file-sourced leaves override the env-built config (code overrides stay)
     this.settings = new SettingsStore(config.dataDir, process.env, config.log);
     applySettingsToConfig(config, this.settings.values(), this.settings.fileLeaves());
+    const providerFile = join(config.dataDir, 'provider');
+    const previousProvider = existsSync(providerFile) ? readFileSync(providerFile, 'utf8').trim() : existsSync(join(config.dataDir, 'engine.db')) ? 'claude' : config.provider;
+    if (previousProvider !== config.provider) throw new Error(`This data directory belongs to ${previousProvider}. Set FOUNDRY_DATA_DIR to a separate directory for ${config.provider}; session IDs cannot be migrated between backends.`);
+    mkdirSync(config.dataDir, { recursive: true });
+    writeFileSync(providerFile, config.provider);
+    if (config.provider === 'codex') config.models = { strong: config.codexModel, cheap: config.codexModel, worker: config.codexModel };
     this.mmxReady = writeMmxConfig(config.dataDir, this.minimaxKey(), config.log);
     this.gh = gh ?? new CliGh({ onCommand: (cmd, cwd, r, ms) => config.log(`[gh] ${cmd.slice(0, 4).join(' ')} → ${r.code} (${ms}ms) ${cwd}`) });
     this.store = new EventStore(openDatabase(join(config.dataDir, 'engine.db')));
     const baseRunner =
       runner ??
-      new ClaudeCliRunner({
+      (config.provider === 'codex' ? new CodexCliRunner({
+        codexBin: config.codexBin, codexHome: config.codexHome, maxConcurrent: config.maxConcurrent,
+        env: () => ({ FOUNDRY_CALLBACK: `http://${config.host}:${config.port}`, ...this.sessionEnvExtra() }),
+        log: config.log,
+      }) : new ClaudeCliRunner({
         claudeBin: config.claudeBin,
         maxConcurrent: config.maxConcurrent,
         env: () => ({ FOUNDRY_CALLBACK: `http://${config.host}:${config.port}`, ...this.sessionEnvExtra() }),
         log: config.log,
-      });
-    this.models = new ModelRegistry(config.dataDir);
+      }));
+    this.models = new ModelRegistry(config.dataDir, config.provider);
     // every session goes through the fallback layer: unavailable model → next candidate, and the registry learns what resolves
     this.runner = new ModelFallbackRunner(new EffortRunner(baseRunner, () => this.store.db, () => this.config.effort), {
-      fallbacks: () => config.modelFallbacks,
+      fallbacks: () => config.provider === 'codex' ? [] : config.modelFallbacks,
       registry: this.models,
       log: config.log,
       onFallback: ({ spec, from, to, reason }) => {
@@ -214,13 +224,14 @@ export class Engine {
     });
     this.roles = new Roles(config.rolesDir);
     this.skills = new SkillsManager({
-      claudeHome: config.claudeHome,
+      provider: config.provider, codexBin: config.codexBin, codexHome: config.codexHome,
+      claudeHome: config.provider === 'codex' ? config.codexHome : config.claudeHome,
       dataDir: config.dataDir,
       catalogPath: config.catalogPath,
       claudeBin: config.claudeBin,
       log: config.log,
       // user skills only load when user settings are in scope
-      hintsEnabled: () => !config.settingSources || config.settingSources.includes('user'),
+      hintsEnabled: () => config.provider === 'codex' || !config.settingSources || config.settingSources.includes('user'),
       workflowProfile: () => config.workflowProfile ?? 'mattpocock',
       packs: () => ({ design: config.designPack, image: config.imagePack, video: config.videoPack }),
       // mmx signed in with `mmx auth login` needs no key from Foundry
@@ -237,9 +248,9 @@ export class Engine {
       setAllowed: (mcpAllowed) => void this.updateSettings({ workflow: { mcpAllowed } }),
       log: config.log,
     });
-    this.auth = new ClaudeAuth({ claudeBin: config.claudeBin ?? Bun.which('claude'), log: config.log });
+    this.auth = new ClaudeAuth({ provider: config.provider, codexHome: config.provider === 'codex' ? config.codexHome : undefined, claudeBin: config.provider === 'codex' ? config.codexBin ?? Bun.which('codex') : config.claudeBin ?? Bun.which('claude'), log: config.log });
     this.agents = new AgentsMonitor(
-      { claudeHome: config.claudeHome, dataDir: config.dataDir, workspaceRoots: () => [...new Set(listGoals(this.store.db).flatMap((g) => (g.workspaceDir ? [dirname(g.workspaceDir)] : [])))] },
+      { claudeHome: config.claudeHome, includeExternal: config.provider !== 'codex', dataDir: config.dataDir, workspaceRoots: () => [...new Set(listGoals(this.store.db).flatMap((g) => (g.workspaceDir ? [dirname(g.workspaceDir)] : [])))] },
       {
         foundryLive: () => this.foundryLiveSessions(),
         foundryRecent: (sinceIso) => listAttemptsEndedSince(this.store.db, sinceIso),
@@ -308,6 +319,7 @@ export class Engine {
   }
   /** Validate, persist and hot-apply a settings patch; restart-only keys are persisted and reported. */
   updateSettings(patch: SettingsPatch): SettingsView {
+    if (patch.engine?.provider && patch.engine.provider !== this.config.provider) throw new Error('Start the other backend with FOUNDRY_PROVIDER and a separate FOUNDRY_DATA_DIR. Existing sessions stay with their original backend.');
     const { changed, view } = this.settings.update(patch);
     this.applySettingsChange(changed);
     return view;
@@ -320,7 +332,8 @@ export class Engine {
   private applySettingsChange(changed: string[]): void {
     if (!changed.length) return;
     const modelsBefore = { ...this.config.models };
-    applySettingsToConfig(this.config, this.settings.values(), new Set(changed));
+    applySettingsToConfig(this.config, this.settings.values(), new Set(changed.filter((key) => !['engine.provider', 'engine.codexBin', 'engine.codexHome'].includes(key))));
+    if (this.config.provider === 'codex') this.config.models = { strong: this.config.codexModel, cheap: this.config.codexModel, worker: this.config.codexModel };
     if (changed.some((k) => k.startsWith('models.'))) this.propagateModels(modelsBefore);
     if (changed.includes('engine.maxConcurrent')) this.runner.setMaxConcurrent?.(this.config.maxConcurrent);
     if (changed.includes('tools.useGraphify')) {
@@ -450,6 +463,7 @@ export class Engine {
    * one — `retryAutoskillsAfterTask` calls back in after every task lands.
    */
   startAutoskills(goal: Goal, ws: string): void {
+    if (this.config.provider === 'codex') return; // install native project skills in .agents/skills
     if (!this.config.autoskills || this.autoskillsRuns.has(goal.id)) return;
     if (goal.autoskills && !(goal.autoskills.status === 'skipped' && goal.autoskills.detail.startsWith('no stack manifest') && hasStackManifest(ws))) return;
     const channel = `autoskills-${goal.id}`;
@@ -751,7 +765,7 @@ export class Engine {
   }
 
   usage(): UsageSummary & { pausedUntil: string | null } {
-    return { ...usageSummary(this.store.db), pausedUntil: this.rateLimitedUntilIso() };
+    return { ...usageSummary(this.store.db), provider: this.config.provider, costAvailable: this.config.provider !== 'codex', ...(this.config.provider === 'codex' ? { note: 'Codex reports tokens, not USD cost or subscription quota. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. The windows show Foundry activity only.' } : {}), pausedUntil: this.rateLimitedUntilIso() };
   }
 
   // ---------- models ----------
@@ -781,6 +795,7 @@ export class Engine {
   modelsInUse(): Map<string, string[]> {
     const presets = effectivePresets(this.config.modelPresets);
     const used = new Map<string, string[]>();
+    if (this.config.provider === 'codex') return new Map([[this.config.codexModel, ['All Codex roles']]]);
     for (const n of MODEL_NATURES) {
       const p = presets[this.config.naturePreset[n]] ?? BUILTIN_PRESETS[DEFAULT_NATURE_PRESETS[n]]!;
       for (const a of MODEL_ACTIONS) used.set(p.tables[n][a], [...(used.get(p.tables[n][a]) ?? []), `${NATURE_LABEL[n]}: ${ACTION_INFO[a].label}`]);
@@ -795,8 +810,8 @@ export class Engine {
       if (r?.lastFailAt && (!r.lastOkAt || r.lastFailAt > r.lastOkAt)) issues.push(`${name} (${where.length} action${where.length === 1 ? '' : 's'}): last failed ${r.lastFailAt.slice(0, 16).replace('T', ' ')} (${r.lastError ?? 'model unavailable'})`);
       else if (!r || (!r.seed && !r.discovered && !this.models.known(name))) issues.push(`${name} (${where.length} action${where.length === 1 ? '' : 's'}): never seen resolving on this machine`);
     }
-    const picks = MODEL_NATURES.map((n) => `${NATURE_LABEL[n]} ${effectivePresets(this.config.modelPresets)[this.config.naturePreset[n]]?.label ?? this.config.naturePreset[n]}`).join(' · ');
-    const detail = issues.length ? issues.join('; ') : `${picks}; fallbacks ${this.config.modelFallbacks.join(' → ')}`;
+    const picks = this.config.provider === 'codex' ? `Codex: ${this.config.codexModel}` : MODEL_NATURES.map((n) => `${NATURE_LABEL[n]} ${effectivePresets(this.config.modelPresets)[this.config.naturePreset[n]]?.label ?? this.config.naturePreset[n]}`).join(' · ');
+    const detail = issues.length ? issues.join('; ') : `${picks}${this.config.provider === 'codex' ? '' : '; fallbacks ' + this.config.modelFallbacks.join(' → ')}`;
     return { id: 'models', label: 'Models (presets in use)', ok: issues.length === 0, severity: 'warn' as const, detail, fix: issues.length ? { action: 'test-models' as const } : null };
   }
 
@@ -806,6 +821,10 @@ export class Engine {
    * Claude Code version changes.
    */
   async syncModels(opts: { probe?: boolean } = {}): Promise<{ found: number; newest: string[]; resolved: Record<string, string | null>; cliVersion: string | null }> {
+    if (this.config.provider === 'codex') {
+      const result = opts.probe === false ? null : await this.probeModel(this.config.codexModel);
+      return { found: 0, newest: [], resolved: result ? { [result.name]: result.resolvedId } : {}, cliVersion: null };
+    }
     const bin = this.config.claudeBin ?? Bun.which('claude');
     const found = bin ? modelsInBinary(bin) : [];
     if (found.length) this.models.noteDiscovered(found);
@@ -827,6 +846,7 @@ export class Engine {
    * is moved to the shipped defaults once, with a note listing what it had so the choice can be undone.
    */
   private migrateModelTiersToPresets(): void {
+    if (this.config.provider === 'codex') return;
     for (const name of ['FOUNDRY_MODEL_STRONG', 'FOUNDRY_MODEL_WORKER', 'FOUNDRY_GOAL_REVIEWER']) {
       if (process.env[name]) this.config.log(`[settings] ${name} is set but no longer does anything: models come from presets (Settings → Models & limits)`);
     }
@@ -846,6 +866,7 @@ export class Engine {
 
   /** a new Claude Code version may know new models: sync once, in the background */
   private async syncModelsIfCliChanged(): Promise<void> {
+    if (this.config.provider === 'codex') return; // no paid model probes at startup
     const v = await this.claudeVersion();
     if (v && v !== this.models.syncState().cliVersion) await this.syncModels().catch((err) => this.config.log(`[models] sync failed: ${String(err)}`));
   }
@@ -873,12 +894,12 @@ export class Engine {
   }
 
   async probeUsage(): Promise<UsageSummary & { pausedUntil: string | null }> {
-    const handle = await this.runner.run({ prompt: 'Reply with the single word OK.', cwd: this.config.dataDir, model: this.config.models.cheap, maxTurns: 1, maxBudgetUsd: 0.05, permissionMode: 'dontAsk', allowedTools: [], timeoutMs: 60_000, label: 'usage probe' });
+    const handle = await this.runner.run({ prompt: 'Reply with the single word OK.', cwd: this.config.dataDir, model: (this.config.provider === 'codex' ? this.config.codexModel : this.config.models.cheap), maxTurns: 1, maxBudgetUsd: 0.05, permissionMode: 'dontAsk', allowedTools: [], timeoutMs: 60_000, label: 'usage probe' });
     for await (const _ of handle.events) {
       /* drain */
     }
     const r = await handle.result;
-    this.recordSessionUsage(r, { goalId: null, kind: 'probe', model: this.config.models.cheap });
+    this.recordSessionUsage(r, { goalId: null, kind: 'probe', model: (this.config.provider === 'codex' ? this.config.codexModel : this.config.models.cheap) });
     return this.usage();
   }
 
@@ -1048,6 +1069,7 @@ export class Engine {
 
   async createGoal(input: CreateGoalInput): Promise<Goal> {
     // an unknown preset would silently fall back to the Settings pick while the goal still shows the typo
+    if (this.config.provider === 'codex' && (input.modelPreset || input.models)) throw new Error('Codex uses models.codexModel in Settings, not Claude presets or tiers.');
     if (input.modelPreset) {
       const known = Object.keys(effectivePresets(this.config.modelPresets));
       if (!known.includes(input.modelPreset)) throw new Error(`unknown model preset "${input.modelPreset}"; use one of: ${known.join(', ')}`);
@@ -1264,7 +1286,7 @@ export class Engine {
     const notif = notifChannels.length
       ? { id: 'notifications', label: 'Notifications (optional)', ok: true, severity: 'warn' as const, detail: `${notifChannels.join(' + ')} configured — you get pinged when a goal needs you, finishes, delivers, or usage pauses`, fix: null }
       : { id: 'notifications', label: 'Notifications (optional)', ok: false, severity: 'warn' as const, detail: 'not configured — get a Telegram or Discord ping when a goal needs you, finishes, or a delivery fails', fix: { url: '/settings' } };
-    return this.skills.doctor([check, this.modelsCheck(), notif, ...this.mcp.doctorChecks()]);
+    return this.skills.doctor([check, this.modelsCheck(), notif, ...(this.config.provider === 'codex' ? [] : this.mcp.doctorChecks())]);
   }
 
   /** Attach a staged upload or a link to an existing goal; later sessions see it. */

@@ -154,7 +154,7 @@ export class SkillsUpdateChecker {
       }
       for (const r of rows) if (r.shadowedBy && (r.status === 'outdated' || r.status === 'modified' || r.match?.relation === 'older')) shadowed.push(r.name);
       const local = this.localOf(g.key, g.rows.map((x) => x.row));
-      const updater = updaterFor(g.key, rows);
+      const updater = updaterFor(g.key, rows, this.paths.provider);
       const determinable = rows.filter((r) => r.status !== 'unknown' && r.status !== 'broken');
       sources.push({
         id: g.key.id,
@@ -353,13 +353,13 @@ function pluginVersionIn(repoDir: string, pluginName: string | null): string | n
   return inMkt ?? read('.claude-plugin/plugin.json')?.version ?? null;
 }
 
-function updaterFor(key: SourceKey, rows: SkillSourceRow[]): SkillSource['updater'] {
+function updaterFor(key: SourceKey, rows: SkillSourceRow[], provider: 'claude' | 'codex' = 'claude'): SkillSource['updater'] {
   const kind: UpdaterKind = key.manager === 'foundry' ? 'foundry' : key.manager === 'agents-cli' ? 'agents-cli' : key.manager === 'plugin' ? 'plugin' : key.manager === 'gstack' ? 'hint' : key.manager === 'hand' ? (rows.some((r) => r.actions.includes('adopt')) ? 'adopt' : 'none') : 'none';
   const pluginId = key.id.startsWith('plugin:') ? key.id.slice('plugin:'.length) : null;
   const mkt = pluginId?.includes('@') ? pluginId.split('@').slice(1).join('@') : null;
   switch (kind) {
     case 'agents-cli':
-      return { kind, command: ['npx', '-y', 'skills@latest', 'update', '-g', '-y', '-a', 'claude-code'], hint: null };
+      return { kind, command: ['npx', '-y', 'skills@latest', 'update', '-g', '-y', '-a', provider === 'codex' ? 'codex' : 'claude-code'], hint: null };
     case 'plugin':
       return { kind, command: ['claude', 'plugin', 'marketplace', 'update', mkt ?? '', '&&', 'claude', 'plugin', 'update', pluginId ?? '', '-y'], hint: 'Restart Claude sessions afterwards; the engine picks the new version up on its next session.' };
     case 'foundry':

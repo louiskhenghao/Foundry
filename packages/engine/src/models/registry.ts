@@ -48,13 +48,13 @@ export const isPinnedId = (name: string) => /^claude-/.test(name) || /\d{8}|\d+-
 export class ModelRegistry {
   readonly path: string;
   private records = new Map<string, ModelRecord>();
-  constructor(dataDir: string) {
+  constructor(dataDir: string, provider: 'claude' | 'codex' = 'claude') {
     this.path = join(dataDir, 'models.json');
     try {
       if (existsSync(this.path)) for (const r of JSON.parse(readFileSync(this.path, 'utf8')) as ModelRecord[]) this.records.set(r.name, r);
     } catch {}
     const now = new Date().toISOString();
-    for (const s of SEED_MODELS) if (!this.records.has(s.name)) this.records.set(s.name, { name: s.name, resolvedId: null, firstSeenAt: now, lastSeenAt: now, lastOkAt: null, lastFailAt: null, lastError: null, sessions: 0, seed: true });
+    for (const s of provider === 'codex' ? [{ name: 'codex-default' }] : SEED_MODELS) if (!this.records.has(s.name)) this.records.set(s.name, { name: s.name, resolvedId: null, firstSeenAt: now, lastSeenAt: now, lastOkAt: null, lastFailAt: null, lastError: null, sessions: 0, seed: true });
   }
   private save(): void {
     try {

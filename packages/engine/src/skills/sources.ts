@@ -25,7 +25,7 @@ export const GSTACK_REPO = 'garrytan/gstack';
 /** Resolve the source of a scanner row from its provenance metadata; null = hand-installed (needs matching). */
 export function sourceOf(row: InstalledSkill, paths: SkillsPaths): SourceKey | null {
   if (row.scope === 'project') {
-    const repoRoot = row.dir.replace(/\/\.claude\/skills\/.*$/, '');
+    const repoRoot = row.dir.replace(/\/\.(?:claude|agents|codex)\/skills\/.*$/, '');
     return { id: `project:${repoRoot}`, kind: 'project', label: `Project skills · ${basename(repoRoot)}`, manager: 'project', repo: null, url: null, homepage: null };
   }
   if (row.scope === 'plugin' && row.plugin) {

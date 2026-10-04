@@ -9,6 +9,10 @@ import { ENV_VARS, SETTING_PATHS } from '../settings.ts';
 type Section = 'New goal defaults' | 'Models & limits' | 'Skills' | 'Git & delivery' | 'Tools & keys' | 'Preview & self-check' | 'Notifications' | 'Safety' | 'Engine (install)';
 
 export const SETTING_DOCS: Record<string, { section: Section; help: string }> = {
+  'engine.provider': { section: 'Engine (install)', help: 'claude or codex. Use a separate FOUNDRY_DATA_DIR for each backend; session IDs are not interchangeable.' },
+  'engine.codexBin': { section: 'Engine (install)', help: 'Codex CLI path; empty uses codex on PATH. Requires hooks support.' },
+  'engine.codexHome': { section: 'Engine (install)', help: 'Codex configuration and login directory; empty uses CODEX_HOME or ~/.codex.' },
+  'models.codexModel': { section: 'Models & limits', help: 'Model for all Codex roles. codex-default follows the Codex CLI configuration; a model ID pins it.' },
   // New goal defaults
   'workflow.defaultMode': { section: 'New goal defaults', help: 'Which view a new goal opens in: simple (plain-language Brief and progress) or expert (every control).' },
   'workflow.defaultPace': { section: 'New goal defaults', help: 'thorough = the engine adds its own task and goal reviews and can spawn fix tasks; fast = only the checks you approved run. Image and video goals start fast.' },

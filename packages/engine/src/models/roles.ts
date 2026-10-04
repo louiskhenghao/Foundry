@@ -2,7 +2,7 @@ import type { Goal, ModelAction, ModelNature, ModelPreset, PresetTable, Task } f
 import { BUILTIN_PRESETS, DEFAULT_NATURE_PRESETS, effectivePresets, natureKey } from '@foundry/core';
 import type { EngineConfig } from '../config.ts';
 
-type PresetConfig = Pick<EngineConfig, 'modelPresets' | 'naturePreset'>;
+type PresetConfig = Pick<EngineConfig, 'modelPresets' | 'naturePreset'> & Partial<Pick<EngineConfig, 'provider' | 'codexModel'>>;
 type GoalRef = Pick<Goal, 'nature' | 'modelPreset'> & Partial<Pick<Goal, 'modelSubstitutions'>>;
 
 /**
@@ -12,6 +12,10 @@ type GoalRef = Pick<Goal, 'nature' | 'modelPreset'> & Partial<Pick<Goal, 'modelS
  */
 export function tableFor(config: PresetConfig, goal: GoalRef): { table: PresetTable; presetId: string; nature: ModelNature } {
   const nature = natureKey(goal.nature);
+  if (config.provider === 'codex') {
+    const table = Object.fromEntries(Object.keys(BUILTIN_PRESETS.production!.tables[nature]).map((action) => [action, config.codexModel ?? 'codex-default'])) as PresetTable;
+    return { table, presetId: 'codex', nature };
+  }
   const presets = effectivePresets(config.modelPresets);
   const candidates = [goal.modelPreset, config.naturePreset[nature], DEFAULT_NATURE_PRESETS[nature]].filter((x): x is string => !!x);
   const presetId = candidates.find((id) => presets[id]) ?? 'production';

@@ -44,7 +44,7 @@ export class AgentsMonitor {
   private cache: { at: number; list: AgentsList } | null = null;
 
   constructor(
-    private opts: { claudeHome: string; dataDir: string; /** roots of the progress folders (`<repo>-foundry/`), so runs the engine spawned there count as Foundry too */ workspaceRoots?: () => string[] },
+    private opts: { includeExternal?: boolean; claudeHome: string; dataDir: string; /** roots of the progress folders (`<repo>-foundry/`), so runs the engine spawned there count as Foundry too */ workspaceRoots?: () => string[] },
     private deps: AgentsMonitorDeps,
   ) {
     this.index = new TranscriptIndex(opts.claudeHome);
@@ -116,7 +116,7 @@ export class AgentsMonitor {
 
     // External live — ~/.claude/sessions registry minus anything Foundry owns
     const externalLiveIds = new Set<string>();
-    for (const r of liveRegistry(this.opts.claudeHome)) {
+    for (const r of this.opts.includeExternal === false ? [] : liveRegistry(this.opts.claudeHome)) {
       if (foundryIds.has(r.sessionId)) continue;
       externalLiveIds.add(r.sessionId);
       const ref = this.index.find(r.sessionId);
@@ -143,7 +143,7 @@ export class AgentsMonitor {
     }
 
     // External finished — transcripts touched in the window that belong to no live process
-    for (const t of recentTranscripts(this.opts.claudeHome, since)) {
+    for (const t of this.opts.includeExternal === false ? [] : recentTranscripts(this.opts.claudeHome, since)) {
       if (externalLiveIds.has(t.sessionId) || foundryIds.has(t.sessionId)) continue;
       this.index.remember(t);
       rows.push({
@@ -172,7 +172,7 @@ export class AgentsMonitor {
     const capped = rows.slice(0, MAX_ROWS);
 
     // Tail-derive metadata only for rows that made the cut
-    for (const row of capped) this.enrich(row, now);
+    if (this.opts.includeExternal !== false) for (const row of capped) this.enrich(row, now);
 
     const summary: AgentsSummary = { busy: 0, idle: 0, finished: 0, total: capped.length };
     for (const r of capped) summary[r.status]++;
@@ -187,6 +187,7 @@ export class AgentsMonitor {
 
   /** Incremental parsed log for an external session or a Task subagent. null = unknown session/agent. */
   log(sessionId: string, agentId: string | null, offset: number): AgentLogChunk | null {
+    if (this.opts.includeExternal === false) return null;
     const path = agentId ? this.index.findSubagentLog(sessionId, agentId) : (this.index.find(sessionId)?.path ?? null);
     if (!path || !this.index.safe(path)) return null;
     const slice = readSlice(path, offset);

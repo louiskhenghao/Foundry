@@ -60,9 +60,11 @@ const safeJson = (t: string) => {
 
 /** Use the server when it is up, otherwise run in-process (doctor/skills must work before `serve`). */
 async function skillsLocal() {
-  const { SkillsManager, defaultConfig } = await import('@foundry/engine');
+  const { SkillsManager, defaultConfig, SettingsStore, applySettingsToConfig } = await import('@foundry/engine');
   const cfg = defaultConfig(ROOT);
-  return new SkillsManager({ claudeHome: cfg.claudeHome, dataDir: cfg.dataDir, catalogPath: cfg.catalogPath, log: (m) => console.error(m) });
+  const settings = new SettingsStore(cfg.dataDir);
+  applySettingsToConfig(cfg, settings.values(), settings.fileLeaves());
+  return new SkillsManager({ provider: cfg.provider, codexBin: cfg.codexBin, codexHome: cfg.codexHome, claudeHome: cfg.provider === 'codex' ? cfg.codexHome : cfg.claudeHome, dataDir: cfg.dataDir, catalogPath: cfg.catalogPath, log: (m) => console.error(m) });
 }
 async function serverUp(): Promise<boolean> {
   try {
@@ -234,7 +236,7 @@ switch (cmd) {
   }
   case 'replay': {
     const { openDatabase, EventStore } = await import('@foundry/core');
-    const store = new EventStore(openDatabase(resolve(ROOT, 'data/engine.db')));
+    const store = new EventStore(openDatabase(resolve((await import('@foundry/engine')).defaultConfig(ROOT).dataDir, 'engine.db')));
     const before = store.snapshotReadModels();
     const n = store.replay();
     const after = store.snapshotReadModels();
@@ -274,15 +276,25 @@ switch (cmd) {
     break;
   }
   case 'auth': {
+    const { defaultConfig, SettingsStore, applySettingsToConfig, codexAuthStatus, claudeAuthStatus } = await import('@foundry/engine');
+    const cfg = defaultConfig(ROOT);
+    const settings = new SettingsStore(cfg.dataDir);
+    applySettingsToConfig(cfg, settings.values(), settings.fileLeaves());
+    const up = await serverUp();
+    const info = up ? await api('/api/auth?force=1') : null;
+    const provider = info?.provider ?? cfg.provider;
     const sub = rest[0] ?? 'status';
     if (sub === 'login' || sub === 'logout') {
-      // hand the terminal to claude itself (browser + prompts)
-      const p = Bun.spawn([Bun.which('claude') ?? 'claude', 'auth', sub], { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit' });
+      // The local settings must point at the running server's backend before handing off the terminal.
+      if (provider !== cfg.provider) return usage(`Server uses ${provider}; set FOUNDRY_PROVIDER=${provider} for auth commands.`);
+      const bin = provider === 'codex' ? cfg.codexBin ?? Bun.which('codex') ?? 'codex' : cfg.claudeBin ?? Bun.which('claude') ?? 'claude';
+      const args = provider === 'codex' ? [sub, ...(sub === 'login' && has('--device-auth') ? ['--device-auth'] : [])] : ['auth', sub];
+      const p = Bun.spawn([bin, ...args], { env: { ...process.env, ...(provider === 'codex' ? { CODEX_HOME: cfg.codexHome } : {}) }, stdin: 'inherit', stdout: 'inherit', stderr: 'inherit' });
       process.exit(await p.exited);
     }
-    const st = (await serverUp()) ? (await api('/api/auth?force=1')).status : await (await import('@foundry/engine')).claudeAuthStatus(Bun.which('claude'));
+    const st = info?.status ?? (provider === 'codex' ? await codexAuthStatus(cfg.codexBin ?? Bun.which('codex'), undefined, cfg.codexHome) : await claudeAuthStatus(cfg.claudeBin ?? Bun.which('claude')));
     if (has('--json')) return console.log(JSON.stringify(st, null, 2));
-    console.log(st.loggedIn ? `✔ logged in as ${st.email ?? '?'} (${st.subscriptionType ?? st.authMethod ?? '?'})${st.orgName ? ` · ${st.orgName}` : ''}` : `✘ not logged in${st.error ? ` — ${st.error}` : ''}\n  run: foundry auth login`);
+    console.log(st.loggedIn ? `✔ ${provider}: signed in (${st.email ?? st.authMethod ?? 'account'})` : `✘ ${provider}: ${st.error ?? 'not signed in'} — run: foundry auth login`);
     break;
   }
   case 'usage': {

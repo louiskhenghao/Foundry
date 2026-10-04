@@ -822,6 +822,15 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const { op, result } = await ops.run('uninstall', `Uninstall plugin ${name}`, { id: opId }, (say) => engine.skills.uninstallPlugin(sourceId, say), (r) => ({ ok: r.ok, summary: r.ok ? `removed ${name}` : (r.error ?? 'uninstall failed') }));
     return c.json({ ...result, op });
   });
+  app.use('/api/mcp/*', async (c, next) => {
+    if (engine.config.provider === 'codex') return c.json({ error: 'Manage MCP servers with codex mcp; Foundry uses the Codex configuration.' }, 409);
+    await next();
+  });
+  app.use('/api/mcp', async (c, next) => {
+    if (engine.config.provider === 'codex') return c.json({ error: 'Manage MCP servers with codex mcp; Foundry uses the Codex configuration.' }, 409);
+    await next();
+  });
+
   // ---------- MCP servers (ADR-0016): read from Claude Code's config; install/remove run as Skills operations ----------
   app.get('/api/mcp', (c) => c.json(engine.mcp.view()));
   app.post('/api/mcp/check', async (c) => {
@@ -1026,7 +1035,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   app.get('/api/doctor', async (c) => c.json(await engine.doctor()));
   // ---------- claude account ----------
-  app.get('/api/auth', async (c) => c.json({ status: await engine.auth.status(c.req.query('force') === '1'), login: engine.auth.loginSession() }));
+  app.get('/api/auth', async (c) => c.json({ provider: engine.config.provider, status: await engine.auth.status(c.req.query('force') === '1'), login: engine.auth.loginSession() }));
   app.post('/api/auth/login', async (c) => {
     const body = z.object({ email: z.string().optional() }).parse(await c.req.json().catch(() => ({})));
     return c.json(engine.auth.startLogin(body));

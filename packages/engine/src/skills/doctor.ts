@@ -1,5 +1,5 @@
 import { accessSync, constants, existsSync, mkdirSync, readFileSync } from 'node:fs';
-import { claudeAuthStatus } from '../auth/claude-auth.ts';
+import { claudeAuthStatus, codexAuthStatus } from '../auth/claude-auth.ts';
 import { exec } from '../git/git.ts';
 import { SATISFIED, type WhichFn, defaultWhich, envLabel } from './catalog.ts';
 import { packAllows } from './packs.ts';
@@ -7,6 +7,9 @@ import type { SkillsPaths } from './paths.ts';
 import type { Catalog, CatalogEntryStatus, DoctorCheck, DoctorReport, SkillsUpdateReport } from './types.ts';
 
 export interface DoctorContext {
+  provider?: 'claude' | 'codex';
+  codexBin?: string;
+  codexHome?: string;
   paths: SkillsPaths;
   catalog: Catalog;
   statuses: CatalogEntryStatus[];
@@ -27,6 +30,14 @@ export async function runDoctor(ctx: DoctorContext): Promise<DoctorReport> {
   const checks: DoctorCheck[] = [];
   const claude = ctx.claudeBin ?? which('claude');
 
+  if (ctx.provider === 'codex') {
+    const bin = ctx.codexBin ?? which('codex');
+    const v = bin ? await run([bin, '--version'], process.cwd(), { timeoutMs: 15_000 }).catch(() => null) : null;
+    checks.push(v?.code === 0 ? ok('codex-bin', 'Codex CLI', v.stdout.trim()) : err('codex-bin', 'Codex CLI', 'Codex CLI is unavailable; install a version with hooks support.', { command: 'npm install -g @openai/codex' }));
+    const st = await codexAuthStatus(bin, run, ctx.codexHome);
+    checks.push(st.loggedIn ? ok('codex-auth', 'Codex login', 'Signed in with ChatGPT') : err('codex-auth', 'Codex login', st.error ?? 'Not signed in', { command: 'codex login' }));
+    checks.push(warn('codex-cost', 'Codex usage accounting', 'Token usage is recorded. Codex does not report USD costs; use time and attempt limits instead of dollar budgets.', null));
+  } else {
   // claude binary
   if (!claude) {
     checks.push(err('claude-bin', 'Claude Code CLI', 'claude not found on PATH', { command: 'npm install -g @anthropic-ai/claude-code', url: 'https://code.claude.com/docs/en/setup' }));
@@ -37,6 +48,8 @@ export async function runDoctor(ctx: DoctorContext): Promise<DoctorReport> {
     const st = await claudeAuthStatus(claude, run);
     const detail = st.loggedIn ? `logged in as ${st.email ?? '?'} (${st.subscriptionType ?? st.authMethod ?? 'unknown plan'})` : `not logged in${st.error ? ` (${st.error})` : ''}`;
     checks.push(st.loggedIn ? ok('claude-auth', 'Claude login', detail) : err('claude-auth', 'Claude login', detail, { command: 'claude auth login' }));
+  }
+
   }
 
   const git = which('git');
@@ -91,7 +104,9 @@ export async function runDoctor(ctx: DoctorContext): Promise<DoctorReport> {
   }
 
   // settings.json parsable + hook paths exist
-  if (existsSync(ctx.paths.settingsJson)) {
+  if (ctx.provider === 'codex') {
+    checks.push(ok('codex-config', 'Codex configuration', 'Codex reads its own config.toml; Foundry supplies session sandbox and boundary hooks.'));
+  } else if (existsSync(ctx.paths.settingsJson)) {
     try {
       const j = JSON.parse(readFileSync(ctx.paths.settingsJson, 'utf8'));
       const missing: string[] = [];

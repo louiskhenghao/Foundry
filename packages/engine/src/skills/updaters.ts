@@ -120,7 +120,7 @@ export async function runSourceUpdate(source: SkillSource, names: string[] | und
     case 'agents-cli': {
       const npx = ctx.npxBin ?? Bun.which('npx');
       if (!npx) return base({ error: 'npx not found on PATH (install Node.js to update npx-installed skills)', outputTail: '' });
-      const argv = [npx, '-y', 'skills@latest', 'update', '-g', '-y', '-a', 'claude-code', ...(names?.length ? names : [])];
+      const argv = [npx, '-y', 'skills@latest', 'update', '-g', '-y', '-a', ctx.paths.provider === 'codex' ? 'codex' : 'claude-code', ...(names?.length ? names : [])];
       line(`$ ${argv.join(' ')}`);
       const r = await spawn(argv, homedir(), line, { timeoutMs: ctx.timeoutMs });
       line(`■ exit ${r.code}`);

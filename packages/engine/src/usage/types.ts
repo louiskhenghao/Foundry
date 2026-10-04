@@ -26,6 +26,8 @@ export interface UsageBucket {
 }
 
 export interface UsageSummary {
+  provider?: 'claude' | 'codex';
+  costAvailable?: boolean;
   now: string;
   fiveHour: WindowSummary;
   sevenDay: WindowSummary;

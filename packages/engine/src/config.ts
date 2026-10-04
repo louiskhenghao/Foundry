@@ -3,6 +3,10 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 export interface EngineConfig {
+  provider: 'claude' | 'codex';
+  codexBin?: string;
+  codexHome: string;
+  codexModel: string;
   /** The Foundry checkout/install itself (root package.json = the product version; local self-update runs git here). */
   rootDir: string;
   /** Where engine.db, transcripts, worktrees, check outputs live. */
@@ -112,9 +116,14 @@ export interface EngineConfig {
 }
 
 export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {}): EngineConfig {
+  const provider = overrides.provider ?? (process.env.FOUNDRY_PROVIDER === 'codex' ? 'codex' : 'claude');
   return {
     rootDir: resolve(root),
-    dataDir: resolve(root, 'data'),
+    provider,
+    codexBin: process.env.FOUNDRY_CODEX_BIN,
+    codexHome: process.env.FOUNDRY_CODEX_HOME ?? process.env.CODEX_HOME ?? join(homedir(), '.codex'),
+    codexModel: process.env.FOUNDRY_CODEX_MODEL ?? 'codex-default',
+    dataDir: resolve(process.env.FOUNDRY_DATA_DIR ?? resolve(root, provider === 'codex' ? 'data-codex' : 'data')),
     claudeHome: process.env.FOUNDRY_CLAUDE_HOME ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'),
     catalogPath: resolve(root, 'catalog/skills.json'),
     rolesDir: resolve(root, 'roles'),

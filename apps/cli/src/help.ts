@@ -1,5 +1,5 @@
 /** The CLI's help text — also the source of docs/operate/cli.md (scripts/gen-docs.ts). */
-export const help = `foundry — drive the host Claude Code to over-deliver on goals
+export const help = `foundry — drive the host Claude Code or Codex CLI to deliver on goals
 
   serve                                   start engine + server (http://127.0.0.1:4111)
   goal new "<prompt>" --repo <path>       create a goal (Clarify → Brief → approve in UI or via \`brief\`)
@@ -21,17 +21,20 @@ export const help = `foundry — drive the host Claude Code to over-deliver on g
   diff <goalId>                           print the goal branch diff
   cancel <goalId>
   replay --verify                         rebuild read models from the event log and compare
-  doctor [--json]                         environment check: claude, login, git, bun, required skills
+  doctor [--json]                         environment check: selected agent, login, git, bun, required skills
   skills list [--scope user|plugin|project|all] [--repo <path>] [--json]
   skills catalog                          required / recommended / optional skills and their status
-  skills install <id|name> [--force]      install from the catalog into ~/.claude/skills
+  skills install <id|name> [--force]      install into the selected agent's skills directory
   skills install --tier required|recommended
   skills uninstall <name> [--force]       move to trash (reversible)
   skills restore <name> · skills update [name] · skills trash
   deliver <goalId> [--mode push|pr|pr-automerge ...]   deliver a finished goal (no --mode: print the plan)
   github [status|login]                   GitHub CLI status / device-flow login (needed for PR modes)
-  auth [status|login|logout]              Claude account: who is logged in; login/logout hand over to \`claude auth\`
-  usage [--json] [--probe]                Claude usage as seen by foundry (5h / 7d windows, rate-limit signal); --probe spends ~$0.02 to refresh
+  auth [status|login|logout]              Selected agent account; login/logout hand over to its CLI
+  usage [--json] [--probe]                Agent activity seen by Foundry; --probe runs a short session (consumes quota)
 
 (doctor and skills work without the server running.)
+Codex: set FOUNDRY_PROVIDER=codex (separate data-codex directory).
+Codex model: FOUNDRY_CODEX_MODEL=codex-default or Settings → Codex model.
+Codex reports tokens, not USD cost; dollar caps are unavailable.
 `;
