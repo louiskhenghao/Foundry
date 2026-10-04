@@ -2,7 +2,7 @@ import { existsSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CodexEffort, Effort, Brief, EscalationAnswer, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, PreviewError, classifyFeedback, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, type Engine, type OpenTargetId } from '@foundry/engine';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, type Engine, type OpenTargetId } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
@@ -246,6 +246,18 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.get('/api/goals/:id/preview/services', async (c) => c.json(await engine.preview.servicesStatus(goalOr404(c))));
   app.post('/api/goals/:id/preview/services/start', async (c) => c.json(await engine.preview.servicesUp(goalOr404(c), await serviceNames(c))));
   app.post('/api/goals/:id/preview/services/stop', async (c) => c.json(await engine.preview.servicesStop(goalOr404(c), await serviceNames(c))));
+  // variables for the repository's previews (shared by its goals): names only, never values; a null value keeps it
+  app.get('/api/goals/:id/preview/env', (c) => c.json(engine.preview.envView(goalOr404(c))));
+  app.put('/api/goals/:id/preview/env', async (c) => {
+    const { vars, rev } = z.object({ vars: z.record(z.string().nullable()), rev: z.number().int().nonnegative() }).parse(await c.req.json());
+    const goal = goalOr404(c);
+    try {
+      return c.json(engine.preview.setEnv(goal, vars, rev));
+    } catch (e) {
+      throw new HttpError(e instanceof EnvConflictError ? 409 : 400, { error: (e as Error).message });
+    }
+  });
+  app.post('/api/goals/:id/preview/env/import', (c) => c.json(engine.preview.importCheckoutEnv(goalOr404(c))));
   app.post('/api/goals/:id/preview/visit', (c) => {
     engine.preview.touch(goalOr404(c).id);
     return c.json({ ok: true });

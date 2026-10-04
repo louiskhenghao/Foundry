@@ -20,6 +20,12 @@ export interface PreviewAppStatus {
   channel: string;
   run: BriefApp;
   error: string | null;
+  /** the last lines the app printed before it failed */
+  errorDetail: string[];
+  /** it did not answer in time, or its dependencies failed to install */
+  warning: string | null;
+  /** other servers its command started, found from the ports its processes listen on */
+  discovered: { port: number; url: string; name: string; dir: string | null }[];
 }
 
 /** Mirrors the engine's PreviewStatus (preview/manager.ts). The top-level fields describe the primary app (apps[0]). */
@@ -37,9 +43,22 @@ export interface PreviewStatus {
   source: 'brief' | 'detected' | null;
   error: string | null;
   apps: PreviewAppStatus[];
+  /** where the apps run: the goal's progress folder on the goal's branch */
+  workspace: { path: string; branch: string } | null;
 }
 
 /** Mirrors the engine's ServicesStatus (preview/services.ts): the Docker services from the repository's compose file. */
+/** Mirrors PreviewManager.envView: the names (never values) of the repository's preview variables, and what its files provide or ask for. */
+export interface PreviewEnv {
+  repo: string;
+  /** revision of the saved set; a save from an older one is refused (409) */
+  rev: number;
+  keys: string[];
+  checkout: { files: string[]; keys: string[] };
+  example: { key: string; example: string; file: string }[];
+  missing: string[];
+}
+
 export interface ServicesStatus {
   /** the compose file, relative to the progress folder */
   file: string;
@@ -444,6 +463,10 @@ export function apiForProvider(provider?: AgentProvider) {
   /** null = the repository has no compose file with services the apps depend on */
   previewServices: (id: string) => req<ServicesStatus | null>(`/api/goals/${id}/preview/services`),
   previewServicesStart: (id: string, names?: string[]) => req<ServicesStatus | null>(`/api/goals/${id}/preview/services/start`, { method: 'POST', body: JSON.stringify(names ? { names } : {}) }),
+  previewEnv: (id: string) => req<PreviewEnv>(`/api/goals/${id}/preview/env`),
+  /** a null value keeps the saved value of that name; names left out are removed */
+  previewSetEnv: (id: string, vars: Record<string, string | null>, rev: number) => req<PreviewEnv>(`/api/goals/${id}/preview/env`, { method: 'PUT', body: JSON.stringify({ vars, rev }) }),
+  previewImportEnv: (id: string) => req<{ added: string[]; view: PreviewEnv }>(`/api/goals/${id}/preview/env/import`, { method: 'POST' }),
   previewServicesStop: (id: string, names?: string[]) => req<ServicesStatus | null>(`/api/goals/${id}/preview/services/stop`, { method: 'POST', body: JSON.stringify(names ? { names } : {}) }),
   previewVisit: (id: string) => req<{ ok: true }>(`/api/goals/${id}/preview/visit`, { method: 'POST' }),
   setSelfCheck: (id: string, on: boolean) => req<{ ok: true }>(`/api/goals/${id}/selfcheck`, { method: 'POST', body: JSON.stringify({ on }) }),

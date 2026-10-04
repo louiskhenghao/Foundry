@@ -153,6 +153,9 @@ One pause at a Milestone. The human continues, or writes what they saw; a small 
 **Preview**
 The Goal's result running: one or more apps (a monorepo's web app, admin, API), each started from the Brief's apps or run command, or detected from package.json workspaces and scripts, in its folder of the Progress folder on its own port from Settings → Preview & self-check. Each app can be started and stopped on its own; the first is the primary app that milestones and the self-check open. The engine links the human to them, restarts running apps after each integration, and stops them when idle, when the Goal ends, or on shutdown.
 
+**Preview environment**
+Variables a Preview's processes get beyond Foundry's own environment: those the person entered for the repository, or imported on request from their checkout's untracked env files, shared by the repository's Goals. Foundry's own (port, app addresses) win. Values reach only the Preview's processes, never the Progress folder where sessions work, and are hidden in Preview output and self-check reports.
+
 **Preview services**
 The Docker services a Preview's apps depend on (databases, object storage), from the repository's compose file. Shared by every Goal of the repository, reused when something else already provides them, and kept running when the Preview stops. Where Foundry has no Docker access it shows the command instead.
 

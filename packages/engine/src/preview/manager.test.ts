@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { IDLE_DELIVERY, getGoal, type Goal } from '@foundry/core';
@@ -7,7 +7,7 @@ import type { ClaudeRunner } from '@foundry/runner';
 import { ensureSelfCheck, runSelfCheck } from '../checks/selfcheck.ts';
 import { defaultConfig } from '../config.ts';
 import { Engine } from '../engine.ts';
-import { installSteps } from './manager.ts';
+import { failureTail, installSteps } from './manager.ts';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
 const noRunner = { active: () => 0, run: async () => { throw new Error('no sessions in this test'); } } as unknown as ClaudeRunner;
@@ -126,6 +126,94 @@ describe('PreviewManager', () => {
     expect(r?.status).toBe('error');
     expect(r?.summary).toContain('nothing to run');
     expect(engine.store.listByGoal(g.id).some((e) => e.type === 'selfcheck.finished')).toBe(true);
+  });
+});
+
+describe('what the preview card can tell', () => {
+  const until = async (check: () => boolean, ms = 8000) => {
+    for (const t0 = Date.now(); Date.now() - t0 < ms && !check(); ) await new Promise((r) => setTimeout(r, 100));
+  };
+  test('a demo-style command: its other servers are found, named by folder, and their ports kept from other goals', async () => {
+    const serve = (port: string) => `bun -e 'Bun.serve({ port: ${port}, fetch: () => new Response("ok") }); setInterval(() => {}, 1000)'`;
+    mkdirSync(join(ws, 'apps', 'admin'), { recursive: true });
+    mkdirSync(join(ws, 'node_modules'));
+    writeFileSync(join(ws, 'apps', 'admin', 'package.json'), JSON.stringify({ name: '@demo/admin' }));
+    // plus a raw TCP listener (a debugger, an internal port): kept from other goals, but not offered as a link
+    const tcp = `bun -e 'Bun.listen({ hostname: "127.0.0.1", port: 47102, socket: { data() {} } }); setInterval(() => {}, 1000)'`;
+    // and an API that listens on IPv6 only, as Node does when `localhost` resolves to ::1
+    mkdirSync(join(ws, 'apps', 'api'), { recursive: true });
+    const v6 = `bun -e 'Bun.serve({ hostname: "::1", port: 47104, fetch: () => new Response("v6") }); setInterval(() => {}, 1000)'`;
+    writeFileSync(join(ws, 'package.json'), JSON.stringify({ scripts: { start: `(cd apps/admin && ${serve('47101')}) & ${tcp} & (cd apps/api && ${v6}) & ${serve('Number(process.env.PORT)')}` } }));
+    const g = goal();
+    const st = await engine.preview.start(g, 'human');
+    expect(st.port).toBe(47100);
+    expect(st.workspace).toEqual({ path: ws, branch: 'goal/g_preview01' });
+    await until(() => engine.preview.status(g.id).apps[0]!.discovered.length > 1);
+    expect(engine.preview.status(g.id).apps[0]!.discovered).toEqual([
+      { port: 47101, url: 'http://localhost:47101', name: 'admin', dir: 'apps/admin' },
+      { port: 47104, url: 'http://localhost:47104', name: 'api', dir: 'apps/api' },
+    ]);
+    // another goal's preview skips the ports the demo took, the TCP one included
+    const other = mkdtempSync(join(tmpdir(), 'foundry-preview-other-'));
+    writeFileSync(join(other, 'package.json'), JSON.stringify({ scripts: { start: serve('Number(process.env.PORT)') } }));
+    mkdirSync(join(other, 'node_modules'));
+    const g2 = goal({ id: 'g_preview02', workspaceDir: other, branch: 'goal/g_preview02' });
+    expect((await engine.preview.start(g2, 'human')).port).toBe(47103);
+    await engine.preview.stop(g2.id, 'test');
+    await engine.preview.stop(g.id, 'test');
+    rmSync(other, { recursive: true, force: true });
+  }, 30_000);
+
+  test('an app that fails shows its last lines, not only its exit code', async () => {
+    writeFileSync(join(ws, 'package.json'), JSON.stringify({ scripts: { start: `echo starting; echo "Error: Cannot find module '@prisma/client'" >&2; exit 3` } }));
+    mkdirSync(join(ws, 'node_modules'));
+    const g = goal();
+    await engine.preview.start(g, 'human');
+    await until(() => !!engine.preview.status(g.id).error);
+    const app = engine.preview.status(g.id).apps[0]!;
+    expect(app.error).toBe('exited with code 3');
+    expect(app.errorDetail).toEqual(['starting', "Error: Cannot find module '@prisma/client'"]);
+  }, 30_000);
+
+  test('environment: entered and imported variables reach the app, Foundry’s own win, values never leave as text', async () => {
+    const repo = mkdtempSync(join(tmpdir(), 'foundry-preview-repo-'));
+    Bun.spawnSync(['git', 'init', '-q', repo]);
+    writeFileSync(join(repo, '.env'), 'FROM_FILE=file-value\nSHARED=file\nPORT=1\n');
+    writeFileSync(join(ws, '.env.example'), 'FROM_FILE=\nNEEDED_KEY=example\nSECRET_KEY=\n');
+    const echo = `bun -e 'console.log("token is " + process.env.SHARED); Bun.serve({ port: Number(process.env.PORT), fetch: () => Response.json({ f: process.env.FROM_FILE ?? null, s: process.env.SHARED, port: process.env.PORT }) }); setInterval(() => {}, 1000)'`;
+    writeFileSync(join(ws, 'package.json'), JSON.stringify({ scripts: { start: echo } }));
+    mkdirSync(join(ws, 'node_modules'));
+    const g = goal({ repoPath: repo });
+    const view = engine.preview.setEnv(g, { SHARED: 'entered-secret-value' }, 0);
+    expect(view).toMatchObject({ rev: 1, keys: ['SHARED'], checkout: { files: ['.env'], keys: ['FROM_FILE', 'PORT', 'SHARED'] }, missing: ['FROM_FILE', 'SECRET_KEY', 'NEEDED_KEY'] });
+    // the view names variables, never their values
+    expect(JSON.stringify(view)).not.toContain('entered-secret-value');
+    expect(JSON.stringify(view)).not.toContain('file-value');
+    // nothing is taken from the checkout until the person imports it
+    let st = await engine.preview.start(g, 'human');
+    expect(await fetch(st.url!).then((r) => r.json())).toEqual({ f: null, s: 'entered-secret-value', port: String(st.port) });
+    // the app printed the secret: its output shows it hidden
+    await new Promise((r) => setTimeout(r, 300));
+    expect(engine.preview.status(g.id).apps[0]!.log.join('\n')).toContain('token is ••••');
+    expect(engine.preview.status(g.id).apps[0]!.log.join('\n')).not.toContain('entered-secret-value');
+    await engine.preview.stop(g.id, 'test');
+    const imported = engine.preview.importCheckoutEnv(g);
+    expect(imported.added).toEqual(['FROM_FILE', 'PORT']);
+    expect(imported.view.missing).toEqual(['SECRET_KEY', 'NEEDED_KEY']);
+    st = await engine.preview.start(g, 'human');
+    // the entered SHARED is kept over the checkout's; Foundry's PORT wins over the imported one
+    expect(await fetch(st.url!).then((r) => r.json())).toEqual({ f: 'file-value', s: 'entered-secret-value', port: String(st.port) });
+    expect(engine.preview.redact(g, 'a file-value b')).toBe('a •••• b');
+    // nothing is written into the goal's folder, where sessions work
+    expect(existsSync(join(ws, '.env'))).toBe(false);
+    await engine.preview.stop(g.id, 'test');
+    rmSync(repo, { recursive: true, force: true });
+  }, 30_000);
+});
+
+describe('failureTail', () => {
+  test('keeps the app’s own lines and drops npm, pnpm, yarn and bun run banners', () => {
+    expect(failureTail(['[preview] note', '> x@ start /w', '> node server.js', '', 'listening…', 'Error: boom', ' ELIFECYCLE  Command failed with exit code 3.', ' WARN   Local package.json exists, but node_modules missing', 'error Command failed with exit code 3.', 'info Visit https://yarnpkg.com/en/docs/cli/run', 'error: script "start" exited with code 3', 'npm error code 3', 'npm error path /w', '$ next dev'])).toEqual(['listening…', 'Error: boom', ' WARN   Local package.json exists, but node_modules missing']);
   });
 });
 

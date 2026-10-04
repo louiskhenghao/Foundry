@@ -138,7 +138,7 @@ Note: because this folder *is* the goal's branch, you cannot also switch to that
 The **Preview** card starts the result so you can try it in your browser.
 
 - **Start preview** runs the project's start command in the progress folder. The card shows which command, and whether it comes from the Brief's **How to run it** or from `package.json`. If the project's dependencies are not installed yet (a `package.json` without `node_modules`), Foundry installs them first; the output shows the install too.
-- **Running on port N**, then **Open preview** opens it. **Stop** stops it.
+- **Running on port N**, then **Open preview** opens it. **Stop** stops it. Other servers the command started appear under **Also serving** (see [Where it runs](#where-it-runs)).
 - **▸ server output** shows what the server prints.
 
 If the card says **Nothing to run yet**, there is no start command yet. It appears once a task adds one, or you can set one on the Brief under **How to run it**.
@@ -163,6 +163,27 @@ If the repository has a Docker Compose file with services the apps need (a datab
 - Docker must be installed. Without it, or when Foundry itself runs inside Docker, the card shows the command to start the services yourself, with **copy**.
 
 Foundry also starts the preview by itself at a milestone, restarts it after each task lands if it is running, and stops it when nobody opened it for a while (60 minutes by default) or when the goal ends.
+
+### Where it runs
+
+The top of the card says **Runs in the goal's folder, branch goal/…, not your checkout**: the preview runs the goal's own copy of the repository (its progress folder, on the goal's branch), so you see the goal's work, not what is in your own folder. **copy** copies that folder's path.
+
+When the start command launches more servers than the one Foundry gave a port to (a demo script that starts the web app, an admin and an API, or `turbo dev`), Foundry finds the ports they listen on and lists the ones that answer web requests under **Also serving**, each named after its package (or the folder it runs in), with its own link. Every port it uses is kept away from other goals' previews.
+
+### When it fails
+
+If an app stops on its own, the card says **The last run failed** with the reason (for example `exited with code 1`) and the last lines the app printed, such as the error message, without opening the output. If it runs but does not answer within 90 seconds, an amber line says so: it may still be starting, or its command ignores the port Foundry gave it (`{port}` in the Brief's **How to run it** fixes that). If installing dependencies failed, that shows too.
+
+### Environment
+
+Apps often need settings and keys, such as an API key or a bot token, that a project keeps in `.env` files outside git, so the goal's folder does not have them. Enter them in the **Environment** section of the card:
+
+- **Add variable**, then a name and a value; **Save**. Variables belong to the repository, so every goal of it gets them. Apps get them the next time they start.
+- Saved values are never shown again: the field says **saved · type to replace**. Leave it empty to keep the value; type to replace it; **×** removes the variable. To rename one, remove it and add it again with its value.
+- If your own repository folder has `.env` files that git ignores (`.env`, `.env.development`, `.env.local`, `.env.development.local`), **Import from your checkout** copies the variables that are not set here yet. Nothing is read from your folder unless you press it.
+- Variables that an example file (such as `.env.example`) mentions but nothing provides are listed under **Listed in example files, not set yet**, those without an example value first; press one to add it. Not every one is needed: example files list optional settings too, and some start scripts write their own.
+
+The values stay on this computer. They are passed to the preview's processes only, never written into the goal's folder where the coding agents work, and hidden as `••••` in the preview's output and the self-check's report. The preview runs the goal's code, so that code can still read them. They take precedence over the project's own `.env` files. Foundry's own `PORT` and `FOUNDRY_APP_<KEY>_URL` always win.
 
 ### Self-check
 

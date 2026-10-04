@@ -138,7 +138,7 @@ Overview 标签上的 **Try the work in progress** 卡片显示文件夹路径�
 **Preview** 卡片启动结果，让你在浏览器里试用。
 
 - **Start preview** 在进度文件夹里运行项目的启动命令。卡片会显示是哪条命令，以及它来自 Brief 的 **How to run it** 还是 `package.json`。如果项目依赖还没安装（有 `package.json` 但没有 `node_modules`），Foundry 会先安装；输出里也能看到安装过程。
-- 出现 **Running on port N** 后，按 **Open preview** 打开。**Stop** 停止它。
+- 出现 **Running on port N** 后，按 **Open preview** 打开。**Stop** 停止它。命令启动的其他服务器会显示在 **Also serving** 下（见 [Where it runs](#where-it-runs)）。
 - **▸ server output** 显示服务器打印的内容。
 
 如果卡片显示 **Nothing to run yet**，说明还没有启动命令。等某个任务加上一条就会出现，或者你可以在 Brief 的 **How to run it** 下设一条。
@@ -163,6 +163,27 @@ Overview 标签上的 **Try the work in progress** 卡片显示文件夹路径�
 - 需要装好 Docker。没有 Docker，或者 Foundry 本身运行在 Docker 里时，卡片会显示自己启动这些服务的命令，并带 **copy**。
 
 Foundry 也会在里程碑时自己启动预览；预览在运行时，每个任务并入后都会重启它；一段时间没人打开（默认 60 分钟）或 goal 结束时，它会停止预览。
+
+### Where it runs
+
+卡片顶部写着 **Runs in the goal's folder, branch goal/…, not your checkout**：预览运行的是 goal 自己的那份仓库（它的进度文件夹，在 goal 的分支上），所以你看到的是 goal 做的成果，而不是你自己文件夹里的内容。**copy** 复制那个文件夹的路径。
+
+如果启动命令除了 Foundry 分配端口的那个服务器之外还启动了别的（比如一个 demo 脚本同时启动 web 应用、管理后台和 API，或者 `turbo dev`），Foundry 会找出它们监听的端口，把能响应网页请求的列在 **Also serving** 下，按各自的 package 名（或所在文件夹）命名，每个都有自己的链接。它用到的所有端口都不会再分给其他 goal 的预览。
+
+### When it fails
+
+如果某个 app 自己停了，卡片会显示 **The last run failed**、原因（比如 `exited with code 1`）以及它最后打印的几行（比如错误信息），不用打开输出就能看到。如果它在运行但 90 秒内没有响应，会有一行琥珀色提示：可能还在启动，也可能它的命令没用 Foundry 分配的端口（在 Brief 的 **How to run it** 里用 `{port}` 就能解决）。安装依赖失败也会显示出来。
+
+### Environment
+
+应用常常需要一些设置和密钥（比如 API key、bot token），项目把它们放在 git 之外的 `.env` 文件里，所以 goal 的文件夹里没有。请在卡片的 **Environment** 部分填写：
+
+- 按 **Add variable**，填入名字和值，再按 **Save**。变量属于这个仓库，所以这个仓库的每个 goal 都会用到。app 下次启动时生效。
+- 保存过的值不会再显示：输入框会写着 **saved · type to replace**。留空表示保留原值，输入新内容就会替换；**×** 删除这个变量。要改名，就删除它再用原来的值重新添加。
+- 如果你自己的仓库文件夹里有被 git 忽略的 `.env` 文件（`.env`、`.env.development`、`.env.local`、`.env.development.local`），按 **Import from your checkout** 会把这里还没设置的变量复制过来。不按就不会读取你的文件夹。
+- 示例文件（比如 `.env.example`）里提到、但还没有任何来源提供的变量，会列在 **Listed in example files, not set yet** 下，没有示例值的排在前面；点一下就能添加。并不是每个都需要：示例文件也会列出可选设置，有些启动脚本也会自己写环境变量。
+
+这些值只留在这台电脑上。它们只交给预览的进程，绝不会写进 goal 的文件夹（编码智能体工作的地方），在预览的输出和 self-check 的报告里会显示成 `••••`。预览运行的是 goal 的代码，所以那些代码仍然可以读取它们。它们优先于项目自己的 `.env` 文件。Foundry 自己的 `PORT` 和 `FOUNDRY_APP_<KEY>_URL` 永远以它们为准。
 
 ### Self-check
 

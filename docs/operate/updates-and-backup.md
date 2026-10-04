@@ -33,6 +33,7 @@ On macOS, a local install's Claude login is in the Keychain, not in `~/.claude`.
 |---|---|---|
 | `engine.db` | SQLite: goals, tasks, attempts, every event. Created and migrated automatically. | **yes** |
 | `settings.json` | every value you changed on the Settings page, including both providers’ presets and permissions | **yes** |
+| `preview-env.json` | variables entered on goals' Preview cards, per repository; may hold secrets, so it is readable by your user only | **yes** |
 | `provider` | the directory’s original launch profile; required to keep old goals on the right backend | **yes** |
 | `models.json` | native model catalog for the launch provider | optional |
 | `providers/<other-provider>/` | the other backend’s model catalog and skills cache/trash/update state; goal events remain in the shared `engine.db` | keep with the whole data folder |
