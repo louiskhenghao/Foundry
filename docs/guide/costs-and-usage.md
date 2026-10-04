@@ -2,13 +2,15 @@
 
 > English · [中文](./costs-and-usage.zh.md)
 
-![Codex usage — demonstration data](images/usage-codex.png)
+![Codex weekly-only quota — demonstration data](images/usage-codex.png)
 
 ## Codex accounting
 
 **Codex account quota** reads the signed-in ChatGPT account through the native CLI, separately from local activity totals. It shows every returned quota group with used percentage, window duration and reported reset time. **Refresh quota** reads metadata without inference; ordinary polling uses a 60-second cache. **Reported ordinary usage allowance** is the CLI's explicit allowed/blocked/unknown signal. Percentages and past reset times do not prove recovery. Missing quota or reset data stays unknown; a read failure is shown rather than replaced with zero. Accounts also shows the email and plan when the native CLI supplies them.
 
-Use the **Usage backend** selector to view each provider independently. Counts include only Foundry sessions. Codex's 5-hour and 7-day charts show activity, not subscription quota or remaining allowance. Dollar cost, turn count and skill-invocation telemetry are unavailable in this adapter; unavailable never means free or unused.
+There is no fixed five-hour/weekly pair. A weekly-only account shows only **Weekly limit**; accounts that report both windows show **5-hour limit** and **Weekly limit**. Names come from the reported duration, regardless of whether Codex calls the slot primary or secondary. Other durations are shown as returned; unknown duration stays unknown. Absent windows are not shown or filled with zero. Multiple quota groups remain separate. The header uses these same account windows and never assumes `5h`; if several groups are all weekly it shows **2 weekly limits**, for example.
+
+Use the **Usage backend** selector to view each provider independently. Counts include only Foundry sessions. **Foundry activity · last 7 days** is a local reporting period, separate from the account limits. It has no quota status or reset countdown. Dollar cost, turn count and skill-invocation telemetry are unavailable in this adapter; unavailable never means free or unused.
 
 Codex USD caps are removed on creation, Brief approval and budget increases. Timeouts, tool-call allowance, attempts and concurrency remain effective. Its turn-cap setting counts tool calls, not model turns. A detected usage-limit error pauses only that provider; without a reset signal Foundry retries after five minutes, which is not a claim that the account quota has reset.
 

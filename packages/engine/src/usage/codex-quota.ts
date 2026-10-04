@@ -3,7 +3,8 @@ import { readCodexUsage, type CodexUsageSnapshot } from './codex-usage.ts';
 import type { CodexQuota } from './types.ts';
 
 export function quotaView(native: CodexUsageSnapshot): CodexQuota {
-  const entries = native.rateLimitsByLimitId ? Object.entries(native.rateLimitsByLimitId) : [[native.rateLimits.limitId ?? 'codex', native.rateLimits] as const];
+  const named = Object.entries(native.rateLimitsByLimitId ?? {});
+  const entries = named.length ? named : [[native.rateLimits.limitId ?? 'codex', native.rateLimits] as const];
   return {
     state: 'available', checkedAt: native.checkedAt, ordinaryUsageAllowed: native.ordinaryUsageAllowed,
     buckets: entries.map(([id, bucket]) => ({ id, label: bucket.limitName ?? bucket.normalModelSlug ?? id, primary: bucket.primary, secondary: bucket.secondary })),

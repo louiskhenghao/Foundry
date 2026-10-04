@@ -1,4 +1,5 @@
 import type { MinimaxQuota, UsageBucket, WindowSummary } from '@foundry/engine/usage-types';
+import { codexQuotaSummary } from '@foundry/engine/quota-windows';
 import { Gauge, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -71,10 +72,7 @@ function ProviderUsage({ provider }: { provider: AgentProvider }) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <WindowCard showSignal={provider === 'claude'} costAvailable={u.costAvailable} w={u.fiveHour} series={u.series.hourly} now={u.now} />
-        <WindowCard showSignal={provider === 'claude'} costAvailable={u.costAvailable} w={u.sevenDay} series={u.series.daily} now={u.now} />
-      </div>
+      <UsageActivity provider={provider} u={u} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Kpi label="cache hit rate (7d)" value={t.cacheHitRate == null ? '—' : `${(t.cacheHitRate * 100).toFixed(0)}%`} hint="cache-read tokens ÷ all input tokens" good={t.cacheHitRate != null && t.cacheHitRate > 0.6} />
@@ -185,7 +183,19 @@ function MinimaxCard() {
   );
 }
 
-/** One rate-limit window: cost, token split, elapsed-time bar with reset countdown, and the cost-per-bucket bars. */
+/** Fixed reporting periods describe local activity; they do not create account quota windows. */
+export function UsageActivity({ provider, u }: { provider: AgentProvider; u: Pick<Usage, 'costAvailable' | 'fiveHour' | 'sevenDay' | 'series' | 'now'> }) {
+  if (provider === 'codex') return <div className="space-y-2">
+    <p className="text-xs text-zinc-500">Local activity over the last 7 days. This reporting period is not an account limit.</p>
+    <WindowCard showSignal={false} costAvailable={false} w={{ ...u.sevenDay, label: 'Foundry activity · last 7 days' }} series={u.series.daily} now={u.now} />
+  </div>;
+  return <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <WindowCard costAvailable={u.costAvailable} w={u.fiveHour} series={u.series.hourly} now={u.now} />
+    <WindowCard costAvailable={u.costAvailable} w={u.sevenDay} series={u.series.daily} now={u.now} />
+  </div>;
+}
+
+/** Local activity totals, with native signal/reset details only when that backend supplies them. */
 function WindowCard({ w, series, now, costAvailable = true, showSignal = true }: { costAvailable?: boolean; showSignal?: boolean; w: WindowSummary; series: UsageBucket[]; now: string }) {
   const state = !w.status ? 'pending' : w.status === 'allowed' ? 'pass' : w.status === 'allowed_warning' ? 'warn' : 'fail';
   const start = Date.parse(w.windowStart);
@@ -197,7 +207,7 @@ function WindowCard({ w, series, now, costAvailable = true, showSignal = true }:
         <span className="flex items-center gap-2">
           {w.label}
           {showSignal && <Badge state={state}>{w.status ?? 'no signal yet'}</Badge>}
-          {w.isUsingOverage && <Badge state="warn">overage</Badge>}
+          {showSignal && w.isUsingOverage && <Badge state="warn">overage</Badge>}
         </span>
       }
       actions={<span className="text-[11px] text-zinc-500">{showSignal ? (w.resetsAt ? (Date.parse(w.resetsAt) > Date.parse(now) ? `resets in ${untilText(w.resetsAt)}` : 'rolled over — next signal sets the window') : 'no reset signal yet') : 'Foundry activity'}</span>}
@@ -213,7 +223,7 @@ function WindowCard({ w, series, now, costAvailable = true, showSignal = true }:
           <Stat label="cache read" value={fmtK(w.cacheReadTokens)} />
         </div>
       </div>
-      <div className="mt-3">
+      {showSignal && <div className="mt-3">
         <div className="flex justify-between text-[10px] text-zinc-500 mb-1">
           <span>window {new Date(start).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
           <span>{w.resetsAt ? `resets ${new Date(w.resetsAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : 'rolling'}</span>
@@ -221,9 +231,9 @@ function WindowCard({ w, series, now, costAvailable = true, showSignal = true }:
         <div className="h-1.5 rounded bg-zinc-800 overflow-hidden" title={`${elapsed.toFixed(0)}% of the window elapsed (time, not quota)`}>
           <div className="h-full bg-zinc-500" style={{ width: `${elapsed}%` }} />
         </div>
-      </div>
+      </div>}
       <Bars buckets={series} costAvailable={costAvailable} />
-      {w.lastSignalAt && <div className="text-[10px] text-zinc-600 mt-2">last rate-limit signal {new Date(w.lastSignalAt).toLocaleTimeString()}</div>}
+      {showSignal && w.lastSignalAt && <div className="text-[10px] text-zinc-600 mt-2">last rate-limit signal {new Date(w.lastSignalAt).toLocaleTimeString()}</div>}
     </Card>
   );
 }
@@ -283,7 +293,7 @@ function Rows({ rows }: { rows: (string | JSX.Element)[][] }) {
   );
 }
 
-/** Header pill: 5h status + reset countdown + window cost. */
+/** Header pill: account-derived Codex quota, or Claude's local cost and native signal. */
 export function UsagePill() {
   const version = useLive((s) => s.globalVersion);
   const [u, setU] = useState<Usage | null>(null);
@@ -308,14 +318,20 @@ export function UsagePill() {
     };
   }, [version]);
   if (!u) return null;
+  return <UsagePillView u={u} minimaxLow={minimaxLow} />;
+}
+
+export function UsagePillView({ u, minimaxLow = false }: { u: Usage; minimaxLow?: boolean }) {
   const w = u.fiveHour;
-  const color = u.pausedUntil ? 'text-amber-300 border-amber-500/40' : w.status === 'allowed' || !w.status ? 'text-zinc-300 border-zinc-700' : 'text-rose-300 border-rose-500/40';
-  const summary = `${u.provider === 'codex' ? 'Codex' : 'Claude'} · ${u.pausedUntil ? `paused ${untilText(u.pausedUntil)}` : u.costAvailable === false ? `5h ${fmtK(w.outputTokens)} tokens` : `5h ${fmtUsd(w.costUsd)}`}`;
+  const codex = u.provider === 'codex';
+  const blocked = codex ? u.codexQuota?.state === 'available' && u.codexQuota.ordinaryUsageAllowed === false : !!w.status && w.status !== 'allowed';
+  const color = u.pausedUntil ? 'text-amber-300 border-amber-500/40' : blocked ? 'text-rose-300 border-rose-500/40' : 'text-zinc-300 border-zinc-700';
+  const summary = `${codex ? 'Codex' : 'Claude'} · ${u.pausedUntil ? `paused ${untilText(u.pausedUntil)}` : codex ? codexQuotaSummary(u.codexQuota) : `5h ${fmtUsd(w.costUsd)}`}`;
   return (
     <Link to={`/usage?provider=${u.provider ?? 'claude'}`} aria-label={`Usage: ${summary}${minimaxLow ? '. MiniMax quota low' : ''}`} className={cn('flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] mono', color)} title={`${summary}\n${minimaxLow ? `MiniMax quota low: under 10% of a window left, or a balance under 1 — see Usage\n${u.note}` : u.note}`}>
       <Gauge size={12} />
       <span className="hidden sm:inline whitespace-nowrap">{summary}</span>
-      {w.resetsAt && !u.pausedUntil && <span className="text-zinc-500 hidden lg:inline whitespace-nowrap">· reset {untilText(w.resetsAt)}</span>}
+      {!codex && w.resetsAt && !u.pausedUntil && <span className="text-zinc-500 hidden lg:inline whitespace-nowrap">· reset {untilText(w.resetsAt)}</span>}
       {/* the header has little room: an amber dot, and words only on wide screens */}
       {minimaxLow && (
         <span className="flex items-center gap-1 text-amber-300 whitespace-nowrap">

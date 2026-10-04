@@ -16,6 +16,7 @@
       "@foundry/engine/agents-types": ["../../packages/engine/src/agents/types.ts"],
       "@foundry/engine/skills-types": ["../../packages/engine/src/skills/types.ts"],
       "@foundry/engine/usage-types": ["../../packages/engine/src/usage/types.ts"],
+      "@foundry/engine/quota-windows": ["../../packages/engine/src/usage/quota-windows.ts"],
       "@foundry/engine/mcp-types": ["../../packages/engine/src/mcp/types.ts"],
       "@foundry/engine/plugins-types": ["../../packages/engine/src/plugins/types.ts"]
     }

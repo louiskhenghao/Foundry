@@ -87,7 +87,7 @@ Remaining adapter limits are explicit: native Codex subagent creation inside Fou
 
 `foundry auth login|logout --provider codex` delegates to the running server, including when `FOUNDRY_URL` points to another host. Web and CLI requests reject account changes when Foundry reports active work. An explicitly configured but unreachable `FOUNDRY_URL` fails instead of changing the local account. Without an explicit URL or reachable local server, authentication uses the configured local native home. Codex login uses ChatGPT device authorization only. Claude code-based login can be completed in that server's Accounts page. Ctrl-C cancels the CLI's pending server login.
 
-`foundry usage --provider codex` prints reported ChatGPT quota windows separately from Foundry activity. Unknown allowance and missing window fields remain unknown; reset timestamps are reported values, not a recovery guarantee.
+`foundry usage --provider codex` prints only returned ChatGPT quota windows, labelled by their actual duration rather than primary/secondary position. Weekly-only, short-only, dual-window and custom-duration accounts are supported without a plan-name lookup. Missing windows remain absent, unknown duration remains unknown, and an empty named-bucket map falls back to the native legacy snapshot. The web header follows the same windows; multiple weekly groups are identified as weekly. Local activity uses a clearly labelled last-seven-days reporting period without quota/reset status. Legacy JSON `fiveHour`/`sevenDay` fields remain local activity aggregates for compatibility, not account entitlements. Unknown allowance and missing window fields remain unknown; reset timestamps are reported values, not a recovery guarantee.
 
 ## Native plugins
 

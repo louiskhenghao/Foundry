@@ -9,7 +9,8 @@
     "./plugins-types": "./src/plugins/types.ts",
     "./mcp-types": "./src/mcp/types.ts",
     "./skills-types": "./src/skills/types.ts",
-    "./usage-types": "./src/usage/types.ts"
+    "./usage-types": "./src/usage/types.ts",
+    "./quota-windows": "./src/usage/quota-windows.ts"
   },
   "dependencies": {
     "@foundry/core": "workspace:*",

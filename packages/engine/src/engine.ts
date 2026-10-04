@@ -816,7 +816,7 @@ export class Engine {
   rateLimitedUntilIso(provider = this.config.provider): string | null { return this.isRateLimited(provider) ? new Date(this.rateLimitedUntil.get(provider)!).toISOString() : null; }
 
   usage(provider = this.config.provider): UsageSummary & { pausedUntil: string | null } {
-    return { ...usageSummary(this.store.db, Date.now(), provider, this.config.provider), provider, costAvailable: provider !== 'codex', ...(provider === 'codex' ? { codexQuota: this.codexQuota.current(), note: 'Codex reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. The windows show Foundry activity only.' } : {}), pausedUntil: this.rateLimitedUntilIso(provider) };
+    return { ...usageSummary(this.store.db, Date.now(), provider, this.config.provider), provider, costAvailable: provider !== 'codex', ...(provider === 'codex' ? { codexQuota: this.codexQuota.current(), note: 'Codex reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. Account quota follows the native account; activity totals count only Foundry sessions.' } : {}), pausedUntil: this.rateLimitedUntilIso(provider) };
   }
 
   // ---------- models ----------

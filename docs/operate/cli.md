@@ -45,6 +45,7 @@ foundry — drive the host Claude Code or Codex CLI to deliver on goals
                                           An explicit FOUNDRY_URL must be reachable; it never falls back to local auth
   usage [--provider claude|codex] [--json] [--probe]
                                           Activity and available account quota; --probe refreshes status (Claude consumes quota)
+                                          Codex shows only reported account windows; weekly-only accounts are supported
 
 (doctor and skills work offline too; --provider keeps their native homes and caches separate.)
 Both backends share one Foundry; select --provider when creating a goal.

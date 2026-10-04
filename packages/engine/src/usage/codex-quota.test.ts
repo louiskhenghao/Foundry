@@ -15,6 +15,32 @@ test('native quota prefers all named buckets and preserves unknown permission, e
   expect(result.buckets[1]!.primary).toBeNull();
 });
 
+for (const slot of ['primary','secondary'] as const) test(`weekly-only quota survives normalization in the ${slot} slot`, () => {
+  const native = parseCodexUsage({ rateLimits:{[slot]:{usedPercent:38,windowDurationMins:10080,resetsAt:1800000000}} });
+  const result = quotaView(native);
+  expect(result.state).toBe('available');
+  if (result.state !== 'available') throw new Error();
+  expect(result.buckets[0]![slot]).toMatchObject({usedPercent:38,windowDurationMins:10080});
+  expect(result.buckets[0]![slot === 'primary' ? 'secondary':'primary']).toBeNull();
+});
+
+test('an empty named-bucket map retains the legacy account’s reported weekly window', () => {
+  const result = quotaView(parseCodexUsage({rateLimitsByLimitId:{},rateLimits:{primary:null,secondary:{usedPercent:17,windowDurationMins:10080}}}));
+  expect(result).toMatchObject({state:'available',buckets:[{primary:null,secondary:{usedPercent:17,windowDurationMins:10080}}]});
+});
+
+test('switching from a dual-window account to a weekly-only account removes the prior short window', async () => {
+  let current = data();
+  const reader = new CodexQuotaReader({bin:()=> 'fixture',home:'/test',read:async()=>current});
+  const initial = await reader.read();
+  expect(initial).toMatchObject({buckets:[{primary:{windowDurationMins:300}},{}]});
+  reader.invalidate();
+  // A new reader value comes from the same native home after sign-in changes, without reusing old windows.
+  current = parseCodexUsage({rateLimits:{secondary:{usedPercent:9,windowDurationMins:10080}}});
+  expect(reader.current()).toBeUndefined();
+  expect(await reader.read()).toMatchObject({buckets:[{primary:null,secondary:{windowDurationMins:10080}}]});
+});
+
 test('quota polling coalesces, caches, and explicit refresh makes a new native read', async () => {
   let reads = 0;
   const reader = new CodexQuotaReader({ bin: () => 'codex', home: '/test', read: async () => { reads++; return data(); } });

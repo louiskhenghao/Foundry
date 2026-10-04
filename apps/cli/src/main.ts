@@ -4,6 +4,7 @@
  */
 import { help } from './help.ts';
 import { join, resolve } from 'node:path';
+import { codexQuotaWindows } from '@foundry/engine/quota-windows';
 
 const ROOT = resolve(import.meta.dir, '../../..');
 const argv = process.argv.slice(2);
@@ -325,25 +326,29 @@ switch (cmd) {
     const u = has('--probe') ? await api(`/api/usage/probe${query}`, { method: 'POST' }) : await api(`/api/usage${query}`);
     const cost = (value: number) => u.costAvailable === false ? 'cost unavailable' : `$${value.toFixed(2)}`;
     if (has('--json')) return console.log(JSON.stringify(u, null, 2));
-    const win = (w: any) => {
+    const win = (w: any, showSignal = true) => {
       const reset = w.resetsAt ? `resets ${new Date(w.resetsAt).toLocaleTimeString()}` : 'no reset signal yet';
-      console.log(`${w.label}: ${w.status ?? 'unknown'} (${reset}${w.isUsingOverage ? ', using overage' : ''})`);
+      console.log(showSignal ? `${w.label}: ${w.status ?? 'unknown'} (${reset}${w.isUsingOverage ? ', using overage' : ''})` : w.label);
       console.log(`  sessions ${w.sessions}  in ${fmtK(w.inputTokens)}  out ${fmtK(w.outputTokens)}  cache-read ${fmtK(w.cacheReadTokens)}  ${cost(w.costUsd)}`);
     };
     if (u.provider === 'codex') {
       const quota = u.codexQuota;
       if (quota?.state === 'available') {
         console.log(`ChatGPT account quota: ${quota.ordinaryUsageAllowed === true ? 'allowed' : quota.ordinaryUsageAllowed === false ? 'blocked' : 'allowance unknown'}`);
-        for (const bucket of quota.buckets) for (const kind of ['primary', 'secondary']) {
-          const window = bucket[kind];
-          if (window) console.log(`  ${bucket.label} · ${kind}: ${window.usedPercent == null ? 'usage unknown' : `${window.usedPercent}% used`}; ${window.windowDurationMins == null ? 'duration unknown' : `${window.windowDurationMins} min`}; ${window.resetsAt == null ? 'reset unknown' : `reported reset ${new Date(window.resetsAt * 1000).toISOString()}`}`);
+        for (const bucket of quota.buckets) {
+          const windows = codexQuotaWindows(bucket);
+          if (!windows.length) console.log(`  ${bucket.label}: no quota windows reported`);
+          for (const { window, label } of windows) console.log(`  ${bucket.label} · ${label}: ${window.usedPercent == null ? 'usage unknown' : `${window.usedPercent}% used`}; ${window.resetsAt == null ? 'reset unknown' : `reported reset ${new Date(window.resetsAt * 1000).toISOString()}`}`);
         }
+        if (!quota.buckets.length) console.log('No quota windows were returned for this account.');
         console.log('Reported windows do not prove recovery.');
       } else console.log(`ChatGPT account quota: ${quota?.message ?? 'unavailable'}`);
-      console.log('Foundry activity only:');
+      console.log('Foundry activity only (not an account limit):');
+      win({ ...u.sevenDay, label: 'Last 7 days' }, false);
+    } else {
+      win(u.fiveHour);
+      win(u.sevenDay);
     }
-    win(u.fiveHour);
-    win(u.sevenDay);
     if (u.pausedUntil) console.log(`⏸ ${u.provider} paused (rate limited) until ${new Date(u.pausedUntil).toLocaleTimeString()}`);
     if (u.byModel.length) console.log('by model (7d): ' + u.byModel.map((m: any) => `${m.model} ${cost(m.costUsd)}`).join(', '));
     if (u.byKind.length) console.log('by kind (7d):  ' + u.byKind.map((k: any) => `${k.kind} ${k.sessions}× ${cost(k.costUsd)}`).join(', '));

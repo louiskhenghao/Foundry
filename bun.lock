@@ -26,6 +26,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@foundry/core": "workspace:*",
+        "@foundry/engine": "workspace:*",
         "highlight.js": "^11.12.0",
         "lucide-react": "^0.460.0",
         "react": "^18.3.1",

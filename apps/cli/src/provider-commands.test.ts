@@ -118,13 +118,26 @@ describe('CLI provider selection and native account ownership', () => {
       const r = await run(['usage','--provider','codex'],{FOUNDRY_URL:url});
       expect(r.code).toBe(0);
       expect(r.out).toContain('allowance unknown');
-      expect(r.out).toContain('Research · primary: 42% used; 300 min; reported reset');
-      expect(r.out).toContain('secondary: usage unknown; duration unknown; reset unknown');
-      expect(r.out).toContain('Foundry activity only:');
+      expect(r.out).toContain('Research · 5-hour limit: 42% used; reported reset');
+      expect(r.out).toContain('Secondary window · duration unknown: usage unknown; reset unknown');
+      expect(r.out).toContain('Foundry activity only (not an account limit):');
       expect(r.out).not.toContain('$0');
     },() => {
       const window = {label:'Local',status:null,sessions:0,inputTokens:0,outputTokens:0,cacheReadTokens:0,costUsd:0};
       return Response.json({provider:'codex',costAvailable:false,codexQuota:{state:'available',ordinaryUsageAllowed:null,buckets:[{label:'Research',primary:{usedPercent:42,windowDurationMins:300,resetsAt:1800000000},secondary:{usedPercent:null,windowDurationMins:null,resetsAt:null}}]},fiveHour:window,sevenDay:window,byModel:[],byKind:[],note:'fixture'});
+    });
+  });
+
+  for (const slot of ['primary','secondary']) test(`weekly-only ${slot} quota has no five-hour quota or local reset signal in CLI output`, async () => {
+    await withServer(async url => {
+      const r = await run(['usage','--provider','codex'],{FOUNDRY_URL:url});
+      expect(r.code).toBe(0);
+      expect(r.out).toContain('Weekly limit: 38% used');
+      expect(r.out).toContain('Last 7 days');
+      expect(r.out).not.toMatch(/5-hour|5h|no reset signal|no quota windows reported/);
+    },() => {
+      const window = {label:'5-hour window',status:null,sessions:0,inputTokens:0,outputTokens:0,cacheReadTokens:0,costUsd:0};
+      return Response.json({provider:'codex',costAvailable:false,codexQuota:{state:'available',ordinaryUsageAllowed:null,buckets:[{id:'codex',label:'Codex',primary:null,secondary:null,[slot]:{usedPercent:38,windowDurationMins:10080,resetsAt:null}}]},fiveHour:window,sevenDay:{...window,label:'7-day window'},byModel:[],byKind:[],note:'fixture'});
     });
   });
 
