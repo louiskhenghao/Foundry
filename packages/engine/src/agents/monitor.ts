@@ -12,6 +12,8 @@ export interface FoundryLiveSession {
   taskId: string;
   goalId: string;
   attemptId: string | null;
+  kind?: 'work' | 'merge';
+  attemptIndex?: number | null;
   sessionId: string | null;
   pid: number | null;
   model: string | null;
@@ -25,6 +27,7 @@ export interface AgentsMonitorDeps {
   /** attempts that ended at/after the given ISO time */
   foundryRecent: (sinceIso: string) => Attempt[];
   goalTitle: (goalId: string) => string | null;
+  taskTitle?: (taskId: string) => string | null;
   goalProvider?: (goalId: string) => 'claude' | 'codex';
   /** All known Foundry sessions, including older attempts and auxiliary sessions. */
   foundrySessionIds?: () => Iterable<string>;
@@ -46,6 +49,7 @@ const iso = (ms: number | null | undefined) => (Number.isFinite(ms as number) ? 
 export class AgentsMonitor {
   private index: TranscriptIndex;
   private metaCache = new Map<string, { mtimeMs: number; meta: TranscriptMeta; tail: Envelope[] }>();
+  private subagentCache = new Map<string, { mtimeMs: number | null; meta: { model: string | null; startedAt: string | null; contextUsedTokens: number | null } }>();
   private cache: { at: number; list: AgentsList } | null = null;
   private codex: CodexAgentsMonitor | null;
 
@@ -117,7 +121,7 @@ export class AgentsMonitor {
         contextWindowTokens: null,
         version: null,
         subagents: [],
-        foundry: { goalId: f.goalId, goalTitle: this.deps.goalTitle(f.goalId), taskId: f.taskId, attemptId: f.attemptId, killable: f.killable },
+        foundry: { goalId: f.goalId, goalTitle: this.deps.goalTitle(f.goalId), taskId: f.taskId, taskTitle: this.deps.taskTitle?.(f.taskId) ?? null, attemptId: f.attemptId, kind: f.kind, attempt: f.attemptIndex ?? null, killable: f.killable },
       });
     }
 
@@ -144,7 +148,7 @@ export class AgentsMonitor {
         contextWindowTokens: null,
         version: null,
         subagents: [],
-        foundry: { goalId: a.goalId, goalTitle: this.deps.goalTitle(a.goalId), taskId: a.taskId, attemptId: a.id, killable: false },
+        foundry: { goalId: a.goalId, goalTitle: this.deps.goalTitle(a.goalId), taskId: a.taskId, taskTitle: this.deps.taskTitle?.(a.taskId) ?? null, attemptId: a.id, kind: a.kind, attempt: a.index, killable: false },
       });
     }
 
@@ -275,12 +279,30 @@ export class AgentsMonitor {
     }
     // headless runs the engine spawned into its worktrees also count as Foundry, even without a goal link
     if (row.source === 'external' && row.cwd && (row.cwd.startsWith(this.opts.dataDir) || (this.opts.workspaceRoots?.() ?? []).some((r) => row.cwd!.startsWith(r)))) row.source = 'foundry';
-    row.subagents = listSubagents(ref.projDir, row.sessionId).map((s) => ({
-      agentId: s.agentId,
-      agentType: s.agentType,
-      description: s.description,
-      status: subagentDone(tail, s.toolUseId) || row.status === 'finished' ? 'done' : s.mtimeMs !== null && now - s.mtimeMs <= BUSY_MS ? 'running' : 'done',
-      lastActivityAt: iso(s.mtimeMs),
-    }));
+    row.subagents = listSubagents(ref.projDir, row.sessionId).map((s) => {
+      const own = s.jsonlPath ? this.subagentMeta(s.jsonlPath, s.mtimeMs) : null;
+      return {
+        agentId: s.agentId,
+        agentType: s.agentType,
+        description: s.description,
+        status: subagentDone(tail, s.toolUseId) || row.status === 'finished' ? 'done' : s.mtimeMs !== null && now - s.mtimeMs <= BUSY_MS ? 'running' : 'done',
+        lastActivityAt: iso(s.mtimeMs),
+        model: own?.model ?? null,
+        startedAt: own?.startedAt ?? null,
+        contextUsedTokens: own?.contextUsedTokens ?? null,
+        contextWindowTokens: own?.model ? contextWindowFor(own.model, own.contextUsedTokens) : null,
+      };
+    });
+  }
+
+  /** model, start and context of a subagent from its own transcript, cached until the file changes */
+  private subagentMeta(path: string, mtimeMs: number | null): { model: string | null; startedAt: string | null; contextUsedTokens: number | null } {
+    const hit = this.subagentCache.get(path);
+    if (hit && hit.mtimeMs === mtimeMs) return hit.meta;
+    const meta = deriveMetaFromFile(path);
+    const first = firstLine(path);
+    const entry = { mtimeMs, meta: { model: meta.model, startedAt: typeof first?.timestamp === 'string' ? first.timestamp : null, contextUsedTokens: meta.contextUsedTokens } };
+    this.subagentCache.set(path, entry);
+    return entry.meta;
   }
 }

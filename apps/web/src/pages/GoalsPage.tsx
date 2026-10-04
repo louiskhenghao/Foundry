@@ -1,11 +1,12 @@
 import { type ReactNode, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { ChevronLeft, ChevronRight, Folder } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, type GoalRow } from '../api.ts';
 import { SetupBanner } from '../components/SetupBanner.tsx';
 import { UsagePausedBanner } from '../components/UsageBanner.tsx';
-import { ProviderBadge } from './agents/rows.tsx';
+import { ProviderBadge, shortCwd } from './agents/rows.tsx';
 import { useLive } from '../store.ts';
-import { Badge, Button, Empty, ago, fmtLimitUsd, fmtUsd } from '../ui.tsx';
+import { Badge, Button, Empty, ago, fmtLimitMin, fmtLimitUsd, fmtUsd } from '../ui.tsx';
 
 /** Trait chip (nature, pace, view mode): same height and type size as the state badge, pill-shaped to read as secondary. */
 function Chip({ className, children }: { className?: string; children: ReactNode }) {
@@ -15,6 +16,7 @@ function Chip({ className, children }: { className?: string; children: ReactNode
 export function GoalsPage() {
   const [goals, setGoals] = useState<GoalRow[] | null>(null);
   const version = useLive((s) => s.globalVersion);
+  const [params, setParams] = useSearchParams();
   useEffect(() => {
     const t = setTimeout(() => api.goals().then(setGoals).catch(() => {}), 150);
     return () => clearTimeout(t);
@@ -41,7 +43,14 @@ export function GoalsPage() {
   const taskSummary = (g: GoalRow) =>
     Object.entries(g.taskCounts)
       .map(([k, v]) => `${v} ${k}`)
-      .join(' · ') || '—';
+      .join(' · ') || 'no tasks yet';
+  const cost = (g: GoalRow) =>
+    g.provider === 'codex' ? <span className="font-sans text-zinc-400">cost unavailable</span> : <>{fmtUsd(g.costUsd)} <span className="text-zinc-500">/ {fmtLimitUsd(g.budgets.maxCostUsd)}</span></>;
+
+  const pages = Math.max(1, Math.ceil((goals?.length ?? 0) / PAGE_SIZE));
+  const page = Math.min(pages, Math.max(1, Number(params.get('page')) || 1));
+  const shown = goals?.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) ?? [];
+  const go = (n: number) => setParams(n > 1 ? { page: String(n) } : {});
 
   return (
     <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6">
@@ -61,63 +70,55 @@ export function GoalsPage() {
         <Empty>No goals yet. Create one to start.</Empty>
       ) : (
         <>
-          {/* phones: cards */}
-          <div className="sm:hidden space-y-2">
-            {goals.map((g) => (
-              <Link key={g.id} to={href(g)} className="surface-card block rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 hover:border-zinc-600">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-sm text-zinc-100 leading-snug">{g.title}</div>
-                    {followsTag(g)}
+          {/* one row per goal, related facts stacked: what and where · state and progress · spend · when */}
+          <ul className="surface-card rounded-lg border border-zinc-800 divide-y divide-zinc-800">
+            {shown.map((g) => (
+              <li key={g.id} className="relative grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,15rem)] md:grid-cols-[minmax(0,1fr)_minmax(0,15rem)_9rem_6.5rem] gap-x-4 gap-y-2 px-3 sm:px-4 py-3 hover:bg-zinc-900/60">
+                <div className="min-w-0">
+                  {/* the title link covers the whole row */}
+                  <Link to={href(g)} className="text-sm text-zinc-100 leading-snug hover:underline after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-emerald-500">{g.title}</Link>
+                  <div className="mt-1 flex items-center gap-2 min-w-0 text-[11px] text-zinc-500">
+                    <ProviderBadge provider={g.provider} />
+                    <Folder size={11} className="shrink-0" aria-hidden="true" />
+                    <span className="mono truncate" title={g.repoPath}>{shortCwd(g.repoPath)}</span>
                   </div>
-                  <span className="shrink-0">{stateCell(g, true)}</span>
+                  {followsTag(g)}
                 </div>
-                <div className="flex items-center gap-2 mt-1 min-w-0"><ProviderBadge provider={g.provider} /><span className="text-[11px] text-zinc-500 mono truncate">{g.repoPath}</span></div>
-                <div className="flex items-center gap-3 text-[11px] text-zinc-400 mt-2 flex-wrap">
-                  <span>{taskSummary(g)}</span>
-                  <span className="mono">
-                    {g.provider === 'codex' ? 'Codex · cost unavailable' : <>{fmtUsd(g.costUsd)} <span className="text-zinc-500">/ {fmtLimitUsd(g.budgets.maxCostUsd)}</span></>}
-                  </span>
-                  <span className="text-zinc-500">{ago(g.updatedAt)}</span>
+                <div className="min-w-0 space-y-1.5">
+                  {stateCell(g)}
+                  <div className="text-[11px] text-zinc-400 truncate" title={taskSummary(g)}>{taskSummary(g)}</div>
                 </div>
-              </Link>
+                <div className="hidden md:block text-xs space-y-1.5">
+                  <div className="mono whitespace-nowrap">{cost(g)}</div>
+                  <div className="text-[11px] text-zinc-500 whitespace-nowrap">{g.budget.elapsedMin.toFixed(0)} / {fmtLimitMin(g.budgets.maxDurationMin)}</div>
+                </div>
+                <div className="hidden md:block text-xs text-zinc-500 text-right space-y-1.5">
+                  <div className="whitespace-nowrap" title={new Date(g.updatedAt).toLocaleString()}>{ago(g.updatedAt)}</div>
+                  <div className="text-[11px] whitespace-nowrap" title={new Date(g.createdAt).toLocaleString()}>created {new Date(g.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div>
+                </div>
+                {/* below md the spend and time fold into one line */}
+                <div className="md:hidden sm:col-span-2 flex items-center gap-3 flex-wrap text-[11px] text-zinc-500">
+                  <span className="mono">{cost(g)}</span>
+                  <span>{g.budget.elapsedMin.toFixed(0)} / {fmtLimitMin(g.budgets.maxDurationMin)}</span>
+                  <span>{ago(g.updatedAt)}</span>
+                </div>
+              </li>
             ))}
-          </div>
-          {/* tablets and up: table */}
-          <div className="surface-card hidden sm:block rounded-lg border border-zinc-800 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-zinc-900 text-zinc-400 text-xs uppercase">
-                <tr>
-                  <th className="text-left px-3 py-2 font-medium">Goal</th>
-                  <th className="text-left px-3 py-2 font-medium">State</th>
-                  <th className="text-left px-3 py-2 font-medium hidden md:table-cell">Tasks</th>
-                  <th className="text-left px-3 py-2 font-medium">Cost</th>
-                  <th className="text-left px-3 py-2 font-medium">Updated</th>
-                </tr>
-              </thead>
-              <tbody>
-                {goals.map((g) => (
-                  <tr key={g.id} className="border-t border-zinc-800 hover:bg-zinc-900/60">
-                    <td className="px-3 py-2">
-                      <Link to={href(g)} className="text-zinc-100 hover:underline">
-                        {g.title}
-                      </Link>
-                      {followsTag(g)}
-                      <div className="flex items-center gap-2 mt-0.5 min-w-0"><ProviderBadge provider={g.provider} /><span className="text-xs text-zinc-500 mono truncate max-w-[40vw]">{g.repoPath}</span></div>
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">{stateCell(g)}</td>
-                    <td className="px-3 py-2 text-xs text-zinc-400 hidden md:table-cell">{taskSummary(g)}</td>
-                    <td className="px-3 py-2 mono text-xs whitespace-nowrap">
-                      {g.provider === 'codex' ? 'Codex · cost unavailable' : <>{fmtUsd(g.costUsd)} <span className="text-zinc-500">/ {fmtLimitUsd(g.budgets.maxCostUsd)}</span></>}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-zinc-500 whitespace-nowrap">{ago(g.updatedAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          </ul>
+          {pages > 1 && (
+            <nav className="mt-3 flex items-center justify-between gap-3 text-xs text-zinc-500" aria-label="Goal pages">
+              <span>{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, goals.length)} of {goals.length} goals</span>
+              <span className="flex items-center gap-1">
+                <Button size="sm" variant="ghost" disabled={page <= 1} onClick={() => go(page - 1)} aria-label="Previous page"><ChevronLeft size={14} /></Button>
+                <span className="tabular-nums px-1">Page {page} of {pages}</span>
+                <Button size="sm" variant="ghost" disabled={page >= pages} onClick={() => go(page + 1)} aria-label="Next page"><ChevronRight size={14} /></Button>
+              </span>
+            </nav>
+          )}
         </>
       )}
     </div>
   );
 }
+
+const PAGE_SIZE = 20;
