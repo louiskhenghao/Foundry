@@ -15,6 +15,8 @@
 
 Open **Accounts** in the header to see Claude Code and Codex separately. **Sign in to Codex** uses ChatGPT device authorization; enter the displayed code on the linked page. **Sign in to Claude Code** uses Claude's native login. Credentials belong to the local CLI: signing out here also signs out that CLI, but does not sign out the other provider. Foundry refuses sign-in and sign-out while work is active, including requests from the CLI. Codex supports ChatGPT sign-in only; API-key login is not used. The account card shows the native email and plan when available. Installing a CLI while Foundry is running is detected on the next account check; Setup and Accounts use the current executable. Changes to a configured binary path or native home still require a restart.
 
+Use **Refresh status** at the top of Accounts to recheck both native accounts. The existing cards stay visible during the check; the reserved status row reports loading or an error without replacing the page.
+
 On **New goal**, choose **Agent backend** before creating the goal. Both providers can run in one Foundry instance. The selected backend stays fixed through clarification, workers, retries, reviews and delivery assistance; sessions never resume on another provider. Each backend has independent model presets under **Models**. Codex captures the preset's role models, reasoning efforts and fallback order when you create the goal.
 
 For Codex, budget presets cover time, attempts and concurrency. No USD budget is available. **Accounts** lists the current integration limits before you start.

@@ -15,6 +15,8 @@
 
 点击顶栏 **Accounts**，分别查看 Claude Code 和 Codex。**Sign in to Codex** 使用 ChatGPT 设备授权：在链接页面输入显示的验证码；**Sign in to Claude Code** 使用 Claude 原生登录。凭据与本机 CLI 共用，在这里退出也会退出对应 CLI，但不会影响另一个提供商。执行期间不能登录或退出，CLI 请求也遵守同样的保护。Codex 只支持 ChatGPT 登录，不使用 API-key 模式；原生 CLI 提供邮箱和方案时会显示在账户卡片。Foundry 运行期间安装 CLI 后，下次账户检查即可识别；Setup 与 Accounts 都使用当前可执行文件。修改配置中的程序路径或原生配置目录仍需重启。
 
+使用 Accounts 顶部的 **Refresh status** 重新检查两个原生账户。检查期间保留现有卡片，预留状态行显示加载或错误，不会用加载文字替换整个页面。
+
 **Setup** 可选择 **Claude Code** 或 **Codex**；检查、登录、修复及技能安装均针对所选后端。**Create your first goal** 会保留该选择。
 
 创建任务时，在 **Agent backend** 选择后端。同一 Foundry 实例可以运行两种后端；选定后，澄清、执行、重试、审核等会话始终使用该后端，不会把会话交给另一种 CLI 恢复。两种后端在 **Models** 下各有独立预设。Codex 创建任务时会保存预设中的各角色模型、推理强度和备用模型顺序。
