@@ -401,6 +401,7 @@ async function settle(engine: Engine, goal: Goal, ctx: ClarifyContext, first: Ru
       costEstimateUsd: 0,
       timeEstimateMin: 0,
       run: null,
+      apps: null,
       styleOptions: [],
       questions: [
         ...decisions,
@@ -507,6 +508,7 @@ export function toBrief(goal: Goal, o: BriefOutput, extraQuestions: Brief['quest
     tasks: o.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind ?? 'feature', scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys, parallelizable: t.parallelizable, relevantFiles: t.relevantFiles, milestone: t.milestone ?? null, difficulty: t.difficulty ?? 'standard' })),
     costEstimateUsd: o.costEstimateUsd,
     run: o.run ?? null,
+    apps: o.apps ?? null,
     timeEstimateMin: o.timeEstimateMin,
     questions: [
       ...extraQuestions,

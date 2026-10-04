@@ -187,6 +187,7 @@ function toRevisedBrief(current: Brief, out: RevisionOutput): Omit<Brief, 'goalI
     tasks: out.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind ?? 'feature', scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys.filter((k) => taskKeys.has(k) && k !== t.key), parallelizable: t.parallelizable, relevantFiles: t.relevantFiles, milestone: t.milestone ?? null, difficulty: t.difficulty ?? 'standard' })),
     costEstimateUsd: out.costEstimateUsd,
     run: out.run ?? current.run,
+    apps: out.apps ?? current.apps,
     timeEstimateMin: out.timeEstimateMin,
     questions: [...current.questions, ...out.newQuestions.map((q) => ({ id: newId('q'), text: q.text, answer: null, blocking: false, areaKey: area(q.areaKey), options: [], kind: 'text' as const, applied: false }))],
     styleOptions: current.styleOptions,

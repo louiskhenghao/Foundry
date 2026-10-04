@@ -74,7 +74,6 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.checkpoint_closed', { taskId: z.string(), action: z.enum(['continue', 'feedback']), feedback: z.string().nullable(), plan: FeedbackPlan.nullable() }),
   /** a Decision recorded mid-goal from milestone feedback; every later session receives it with the Brief's Decisions */
   ev('brief.decision_added', { id: z.string(), text: z.string(), answer: z.string() }),
-  /** the engine started / stopped the goal's preview (the run command in the progress folder) */
   /** the Clarifier asked a round of questions before writing the Brief; the goal waits for the human */
   ev('interview.round_asked', { round: z.number().int().positive(), sessionId: z.string().nullable(), questions: z.array(InterviewQuestion) }),
   /** the human answered a round (finish = write the Brief with what there is) */
@@ -83,8 +82,9 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('interview.finished', { rounds: z.number().int().nonnegative(), reason: z.enum(['brief', 'nothing_to_ask', 'cap', 'human']) }),
   /** the human switched the goal's headless self-check on or off */
   ev('goal.selfcheck_set', { on: z.boolean() }),
-  ev('preview.started', { port: z.number().int(), url: z.string(), command: z.string() }),
-  ev('preview.stopped', { reason: z.string() }),
+  /** the engine started / stopped one app of the goal's preview (the run command in the progress folder); app absent = written before several apps */
+  ev('preview.started', { port: z.number().int(), url: z.string(), command: z.string(), app: z.string().optional() }),
+  ev('preview.stopped', { reason: z.string(), app: z.string().optional() }),
   /** the headless self-check looked at the preview after a task landed (taskId) or at goal review (null); screenshot is a file name under the goal's screenshots folder */
   ev('selfcheck.finished', { taskId: z.string().nullable(), status: z.enum(['pass', 'fail', 'error']), url: z.string().nullable(), screenshot: z.string().nullable(), errors: z.array(z.string()), summary: z.string() }),
   /** per-goal autoskills run: project skills matched to the repository's stack, installed in the goal workspace */

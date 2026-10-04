@@ -46,6 +46,7 @@ const landingBrief: BriefOutput = {
     { key: 'S2', name: 'Paper Studio', palette: ['#faf7f0', '#1f2937', '#e76f51', '#2a9d8f'], fonts: ['Fraunces', 'Inter'], keywords: ['warm', 'hand-made', 'light'], description: 'Warm paper tones and a serif headline, calm and crafted.' },
   ],
   run: { install: null, command: 'bun run start', url: 'http://localhost:{port}', platform: 'web' },
+  apps: null,
 };
 const interviewRound = {
   questions: [
