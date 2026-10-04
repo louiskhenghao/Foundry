@@ -1,3 +1,4 @@
+import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Attachment } from '@foundry/core/browser';
 import { BUDGET_PRESETS } from '@foundry/core/browser';
 import { useEffect, useRef, useState } from 'react';
@@ -202,6 +203,7 @@ export function NewGoalPage() {
   };
 
   const activePresetInfo = provider === 'codex' ? codexPresetInfo : presetInfo;
+  const selectedAccount = accounts?.accounts.find((account) => account.provider === provider);
   const selectedPreset = provider === 'codex' ? codexPreset : modelPreset;
   const missingPreset = !!selectedPreset && !!activePresetInfo && !activePresetInfo.ids.some((p) => p.id === selectedPreset);
   const codexPreview = codexPresetInfo?.presets[codexPreset || codexPresetInfo.picks[natureKey(nature)]];
@@ -284,12 +286,8 @@ export function NewGoalPage() {
       )}
 
       <Card title="Agent backend">
-        <div className="grid sm:grid-cols-2 gap-3">{(['claude', 'codex'] as const).map((id) => {
-          const account = accounts?.accounts.find((a) => a.provider === id);
-          return <button key={id} type="button" aria-pressed={provider === id} onClick={() => { changed.current.add('provider'); setProvider(id); if (id === 'claude' && ['none', 'minimal', 'ultra'].includes(effort)) setEffort(''); }} className={cn('rounded-md border p-3 text-left', provider === id ? 'border-emerald-500 bg-emerald-500/5' : 'border-zinc-800 hover:border-zinc-600')}>
-            <span className="font-medium">{id === 'codex' ? 'Codex' : 'Claude Code'}</span><span className="block text-xs text-zinc-400 mt-1">{!account ? 'Checking account…' : account.status.loggedIn ? 'Connected' : account.installed ? 'Sign in required' : 'CLI not installed'}</span>
-          </button>;
-        })}</div>
+        <ProviderSelector hideLabel value={provider} onChange={(id) => { changed.current.add('provider'); setProvider(id); if (id === 'claude' && ['none', 'minimal', 'ultra'].includes(effort)) setEffort(''); }} />
+        <p className="mt-2 text-xs text-zinc-400">{provider === 'codex' ? 'Codex' : 'Claude Code'} · {!selectedAccount ? 'Checking account…' : selectedAccount.status.loggedIn ? 'Connected' : selectedAccount.installed ? 'Sign in required' : 'CLI not installed'}</p>
         {accountError && <p role="alert" className="mt-3 text-xs text-rose-400">Unable to check accounts: {accountError}. Open Manage accounts to retry.</p>}
         <p className="text-xs text-zinc-400 mt-3">This choice stays fixed for the goal, including retries and reviews. <a href="/accounts" className="text-emerald-400">Manage accounts</a></p>
       </Card>

@@ -1,3 +1,4 @@
+import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { MinimaxQuota, UsageBucket, WindowSummary } from '@foundry/engine/usage-types';
 import { codexQuotaSummary } from '@foundry/engine/quota-windows';
 import { Gauge, RefreshCw } from 'lucide-react';
@@ -23,9 +24,9 @@ export function UsagePage() {
   const provider: AgentProvider = query.get('provider') === 'codex' ? 'codex' : 'claude';
   return <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
     <div className="flex items-center gap-3 flex-wrap">
-      <select aria-label="Usage backend" value={provider} onChange={(e) => setQuery((current) => { const next = new URLSearchParams(current); next.set('provider', e.target.value); return next; }, { replace: true })} className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1"><option value="claude">Claude Code</option><option value="codex">Codex</option></select>
       <h1 className="text-lg font-semibold flex items-center gap-2"><Gauge size={18} /> {provider === 'codex' ? 'Codex' : 'Claude'} usage <HelpLink to="costs-and-usage" label="What costs money and how to spend less (new tab)" /></h1>
     </div>
+    <ProviderSelector value={provider} onChange={(id) => setQuery((current) => { const next = new URLSearchParams(current); next.set('provider', id); return next; }, { replace: true })} />
     <ProviderUsage key={provider} provider={provider} />
   </div>;
 }

@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { api, type AgentProvider } from '../../api.ts';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { Empty, Tabs, cn } from '../../ui.tsx';
+import { ProviderSelector } from '../../components/ProviderSelector.tsx';
+import { Empty, Tabs } from '../../ui.tsx';
 import { CodexPluginsPanel } from './CodexPluginsPanel.tsx';
 import { McpPanel } from './McpPanel.tsx';
 import { SkillsPage } from './SkillsPage.tsx';
@@ -35,7 +36,7 @@ export function SkillsTabs() {
   return (
     <>
       <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 pt-3 space-y-3">
-        <div className="flex items-center gap-2 flex-wrap" aria-label="Extensions backend"><span className="text-xs text-zinc-400 mr-1">Backend</span>{(['claude', 'codex'] as const).map((id) => <button key={id} type="button" aria-pressed={provider === id} onClick={() => go(id, tab)} className={cn('rounded-md border px-3 py-1.5 text-xs', provider === id ? 'border-emerald-500 bg-emerald-500/10 text-emerald-200' : 'border-zinc-700 text-zinc-400 hover:text-zinc-200')}>{id === 'codex' ? 'Codex' : 'Claude Code'}</button>)}</div>
+        <ProviderSelector value={provider} onChange={(id) => go(id, tab)} />
         <Tabs
           tabs={[
             { id: 'skills' as const, label: 'Skills' },

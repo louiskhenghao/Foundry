@@ -5,7 +5,7 @@ export const cn = (...xs: (string | false | null | undefined)[]) => xs.filter(Bo
 
 export function Select({ className, children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select className={cn('w-full rounded-md bg-zinc-900 border border-zinc-700 px-2 py-1.5 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500 disabled:opacity-50', className)} {...props}>
+    <select className={cn('w-full min-w-0 rounded-md bg-zinc-900 border border-zinc-700 px-3 py-1.5 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500 disabled:opacity-50', className)} {...props}>
       {children}
     </select>
   );

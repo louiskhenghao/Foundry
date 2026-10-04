@@ -3,6 +3,7 @@ import { CheckCircle2, CircleAlert, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api as baseApi, apiForProvider, type AgentProvider } from '../api.ts';
+import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import { SignInDialog } from '../components/SignInDialog.tsx';
 import { LiveLog } from './LiveLog.tsx';
 import { Button, Card, CopyButton, Empty, cn } from '../ui.tsx';
@@ -67,7 +68,7 @@ export function SetupPage() {
   if (!provider) return <Empty>Loading setup…</Empty>;
   return <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
     <div><h1 className="text-lg font-semibold">Setup</h1><p className="text-sm text-zinc-400 mt-1">Check the selected backend, sign in and install its recommended skills. Your project code is not changed.</p></div>
-    <div className="flex items-center gap-2 flex-wrap" aria-label="Setup backend"><span className="text-xs text-zinc-400 mr-1">Backend</span>{(['claude', 'codex'] as const).map((id) => <button type="button" key={id} aria-pressed={provider === id} onClick={() => setParams((current) => { const next = new URLSearchParams(current); next.set('provider', id); return next; }, { replace: true })} className={cn('rounded-md border px-3 py-1.5 text-xs', provider === id ? 'border-emerald-500 bg-emerald-500/10 text-emerald-200' : 'border-zinc-700 text-zinc-400 hover:text-zinc-200')}>{id === 'codex' ? 'Codex' : 'Claude Code'}</button>)}</div>
+    <ProviderSelector value={provider} onChange={(id) => setParams((current) => { const next = new URLSearchParams(current); next.set('provider', id); return next; }, { replace: true })} />
     <SetupChecks key={provider} provider={provider} />
   </div>;
 }

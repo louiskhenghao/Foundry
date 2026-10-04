@@ -1,7 +1,8 @@
+import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Settings, SettingsView } from '@foundry/core/browser';
 import { RotateCcw } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { api, type ModelRecordView, type UpdateStatusView } from '../api.ts';
 import { LiveLog } from './LiveLog.tsx';
 import { ModelPresetsSection } from './settings/ModelPresets.tsx';
@@ -57,15 +58,22 @@ export function SettingsPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [known, setKnown] = useState<ModelRecordView[] | null>(null);
-  const [modelProvider, setModelProvider] = useState<'claude' | 'codex'>('claude');
   const [probe, setProbe] = useState<Record<string, string>>({});
   const [notifMsg, setNotifMsg] = useState<string | null>(null);
   const [active, setActive] = useState(SECTIONS[0]!.id);
   const [upd, setUpd] = useState<UpdateStatusView | null>(null);
   const [updBusy, setUpdBusy] = useState(false);
   const [updOpen, setUpdOpen] = useState(false);
-  const { hash, key } = useLocation();
-  // a link to one section (/settings#tools) lands on it once the page has rendered, also when the page is already there
+  const { hash, search } = useLocation();
+  const navigate = useNavigate();
+  const requestedProvider = new URLSearchParams(search).get('provider');
+  const modelProvider = requestedProvider === 'claude' || requestedProvider === 'codex' ? requestedProvider : view?.values.engine.provider ?? 'claude';
+  const setModelProvider = (provider: 'claude' | 'codex') => {
+    const params = new URLSearchParams(search);
+    params.set('provider', provider);
+    navigate({ search: params.toString(), hash }, { replace: true });
+  };
+  // Section links land once content is ready; a backend query change must not reset the scroll.
   const loaded = !!draft;
   useEffect(() => {
     if (!loaded || !hash) return;
@@ -74,7 +82,7 @@ export function SettingsPage() {
       id = decodeURIComponent(id);
     } catch {}
     document.getElementById(id)?.scrollIntoView({ block: 'start' });
-  }, [loaded, hash, key]);
+  }, [loaded, hash]);
   const loadUpdate = () => api.updateStatus().then(setUpd).catch(() => {});
   const checkUpdate = async () => {
     setUpdBusy(true);
@@ -91,7 +99,6 @@ export function SettingsPage() {
       .then((v) => {
         setView(v);
         setDraft(structuredClone(v.values));
-        setModelProvider(v.values.engine.provider);
       })
       .catch((e) => setErr(e.message));
   const loadModels = () => api.models().then((m) => setKnown(m.models)).catch(() => setKnown([]));
@@ -269,7 +276,7 @@ export function SettingsPage() {
       <div className="min-w-0 mb-4">
         <h1 className="text-lg font-semibold">Settings</h1>
         <p className="text-sm text-zinc-400 mt-1">
-          Saved to <span className="mono">{view.file}</span>. Precedence: saved value › environment variable › default. Most settings apply immediately; the ones marked <span className="text-amber-300">restart</span> after the engine restarts.
+          Saved to <span className="mono break-all">{view.file}</span>. Precedence: saved value › environment variable › default. Most settings apply immediately; the ones marked <span className="text-amber-300">restart</span> after the engine restarts.
         </p>
       </div>
       <div className="grid lg:grid-cols-[11rem_minmax(0,1fr)] gap-x-6">
@@ -380,19 +387,11 @@ export function SettingsPage() {
       </Card>
 
       <Card id="models" title={<>Models & limits<HelpLink to="settings#models--limits" className="ml-1.5" /></>} className="scroll-mt-16">
-        <div className="flex gap-2 mb-5" role="tablist" aria-label="Model provider">
-          {(['claude', 'codex'] as const).map((id) => <button key={id} type="button" role="tab" tabIndex={modelProvider === id ? 0 : -1} aria-selected={modelProvider === id} aria-controls={`models-${id}`} id={`models-tab-${id}`} onClick={() => setModelProvider(id)} onKeyDown={(e) => {
-            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
-            e.preventDefault();
-            const next = e.key === 'Home' ? 'claude' : e.key === 'End' ? 'codex' : id === 'claude' ? 'codex' : 'claude';
-            setModelProvider(next);
-            document.getElementById(`models-tab-${next}`)?.focus();
-          }} className={cn('rounded-md border px-4 py-2 text-sm', modelProvider === id ? 'border-emerald-500 bg-emerald-500/10 text-emerald-200' : 'border-zinc-800 text-zinc-400 hover:border-zinc-600')}>{id === 'claude' ? 'Claude Code' : 'Codex'}</button>)}
-        </div>
-        <div id="models-codex" role="tabpanel" aria-labelledby="models-tab-codex" hidden={modelProvider !== 'codex'}>
+        <ProviderSelector className="mb-5" value={modelProvider} onChange={setModelProvider} controls={{ claude: 'models-claude', codex: 'models-codex' }} />
+        <div id="models-codex" role="region" aria-label="Codex models" hidden={modelProvider !== 'codex'}>
           <CodexModelPresetsSection draft={draft} setFields={(patch) => setDraft((previous) => previous ? { ...previous, models: { ...previous.models, ...patch } } : previous)} />
         </div>
-        <div id="models-claude" role="tabpanel" aria-labelledby="models-tab-claude" hidden={modelProvider !== 'claude'}>
+        <div id="models-claude" role="region" aria-label="Claude Code models" hidden={modelProvider !== 'claude'}>
         <ModelPresetsSection draft={draft} set={set as (p: `models.${string}`, v: unknown) => void} known={known} reloadModels={loadModels} />
         <div className="border-t border-zinc-800 my-4" />
         {grid(
@@ -436,9 +435,10 @@ export function SettingsPage() {
 
       <Card id="skills" title={<>Skills<HelpLink to="settings#skills" className="ml-1.5" /></>} className="scroll-mt-16">
         <div className="space-y-4">
-          <Field label="Install skills for" help="Installation status and actions target the selected agent. Workflow pack choices are shared by both agents.">
-            <Select aria-label="Skills backend" value={modelProvider} onChange={(e) => setModelProvider(e.target.value as typeof modelProvider)}><option value="claude">Claude Code</option><option value="codex">Codex</option></Select>
-          </Field>
+          <div>
+            <ProviderSelector value={modelProvider} onChange={setModelProvider} />
+            <p className="mt-1 text-[11px] text-zinc-500">Installation status and actions target the selected agent. Workflow pack choices are shared by both agents.</p>
+          </div>
           {grid(
             <>
               <Field label="Profile" aside={aside('workflow.profile')} help="mattpocock: roles are told which workflow skills to invoke (tdd, diagnosing-bugs, code-review…) and Claude sessions report which they used. Codex skill invocation telemetry is unavailable. plain: a one-line hint only.">
