@@ -73,6 +73,8 @@ export async function codexAuthStatus(bin: string | null, run: typeof exec = exe
  */
 export class ClaudeAuth {
   private cached: ClaudeAuthStatus | null = null;
+  private pending: Promise<ClaudeAuthStatus> | null = null;
+  private generation = 0;
   private current: LoginSession | null = null;
   private proc: ReturnType<typeof Bun.spawn> | null = null;
   private arm: ((ms: number) => void) | null = null;
@@ -83,12 +85,23 @@ export class ClaudeAuth {
   ) {}
 
   async status(force = false): Promise<ClaudeAuthStatus> {
+    if (this.pending) return this.pending;
     if (!force && this.cached && Date.now() - Date.parse(this.cached.checkedAt) < 60_000) return this.cached;
-    this.cached = this.opts.provider === 'codex' ? await codexAuthStatus(this.opts.claudeBin, this.opts.run, this.opts.codexHome) : await claudeAuthStatus(this.opts.claudeBin, this.opts.run, this.opts.claudeHome);
-    return this.cached;
+    const generation = this.generation;
+    const read = this.opts.provider === 'codex' ? codexAuthStatus(this.opts.claudeBin, this.opts.run, this.opts.codexHome) : claudeAuthStatus(this.opts.claudeBin, this.opts.run, this.opts.claudeHome);
+    const pending = read.then(value => {
+      // An earlier account poll must neither repopulate the cache nor return stale identity to the UI.
+      if (generation !== this.generation) return this.status();
+      this.cached = value;
+      return value;
+    }).finally(() => { if (this.pending === pending) this.pending = null; });
+    this.pending = pending;
+    return pending;
   }
   invalidate(): void {
+    this.generation++;
     this.cached = null;
+    this.pending = null;
   }
   loginSession(): LoginSession | null {
     return this.current;

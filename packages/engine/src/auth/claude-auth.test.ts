@@ -38,6 +38,28 @@ const settle = async (pred: () => boolean, ms = 5000) => {
   }
 };
 
+for (const provider of ['claude', 'codex'] as const) test(`${provider} logout invalidates a pending account poll without returning stale identity`, async () => {
+  let release!: () => void;
+  const older = new Promise<void>(resolve => { release = resolve; });
+  let reads = 0;
+  const auth = new ClaudeAuth({ provider, claudeBin:'fixture', run:async args => {
+    if (args.includes('logout')) return {code:0,stdout:'',stderr:''};
+    const loggedIn = ++reads === 1;
+    if (loggedIn) await older;
+    return {code:loggedIn ? 0 : 1,stdout:provider === 'codex' ? (loggedIn ? 'Logged in using ChatGPT' : 'Not logged in') : JSON.stringify({loggedIn,email:loggedIn ? 'old@example.test' : null}),stderr:''};
+  } });
+  const poll = auth.status(true);
+  const duplicate = auth.status(true);
+  expect(reads).toBe(1);
+  expect((await auth.logout()).loggedIn).toBe(false);
+  release();
+  for (const status of await Promise.all([poll,duplicate,auth.status()])) {
+    expect(status.loggedIn).toBe(false);
+    expect(status.email).toBeNull();
+  }
+  expect(reads).toBe(2);
+});
+
 describe('in-app Claude sign-in', () => {
   test('headless machine: the CLI asks for a code, the UI can post it, the login completes', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'auth-'));
