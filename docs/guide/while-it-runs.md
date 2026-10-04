@@ -4,7 +4,9 @@
 
 ## Provider-aware reporting
 
-Codex task details and activity mark dollar costs, model-turn counts and skill telemetry as unavailable. Its live tool logs, saved transcripts and Foundry sessions remain visible. The Agents monitor does not discover unrelated external Codex sessions. Claude's existing external-session monitor remains scoped to the launch profile.
+Codex task details and activity mark dollar costs, model-turn counts and skill telemetry as unavailable. Its live tool logs, saved transcripts and Foundry sessions remain visible. **Agents** also shows recent external Claude and Codex sessions, labelled by backend. External Codex history is read-only and bounded to recent records; **status unknown** means Foundry cannot verify that external process's liveness. It does not mean idle or finished. Native read failures appear as warnings, and external sessions cannot be stopped here.
+
+A Codex goal's **Codex models** card shows the saved role table, goal-wide overrides and fallback order. Other captured goal-type tables can also be inspected. Later changes to Settings never rewrite this snapshot; legacy goals without a snapshot are labelled explicitly.
 
 
 After you approve the Brief, Foundry works on its own. You can close the browser; the work continues on your computer. This page explains the goal page, so you can follow along when you want to.

@@ -6,6 +6,8 @@
 
 ## Codex accounting
 
+**Codex account quota** reads the signed-in ChatGPT account through the native CLI, separately from local activity totals. It shows every returned quota group with used percentage, window duration and reported reset time. **Refresh quota** reads metadata without inference; ordinary polling uses a 60-second cache. **Reported ordinary usage allowance** is the CLI's explicit allowed/blocked/unknown signal. Percentages and past reset times do not prove recovery. Missing quota or reset data stays unknown; a read failure is shown rather than replaced with zero. Accounts also shows the email and plan when the native CLI supplies them.
+
 Use the **Usage backend** selector to view each provider independently. Counts include only Foundry sessions. Codex's 5-hour and 7-day charts show activity, not subscription quota or remaining allowance. Dollar cost, turn count and skill-invocation telemetry are unavailable in this adapter; unavailable never means free or unused.
 
 Codex USD caps are removed on creation, Brief approval and budget increases. Timeouts, tool-call allowance, attempts and concurrency remain effective. Its turn-cap setting counts tool calls, not model turns. A detected usage-limit error pauses only that provider; without a reset signal Foundry retries after five minutes, which is not a claim that the account quota has reset.

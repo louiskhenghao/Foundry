@@ -8,7 +8,7 @@
 
 **Engine (install)** exposes both CLI paths and homes. The **Default agent backend** is chosen at launch; it does not restrict the **New goal** selector. Keep the original launch profile when opening an existing data directory so legacy records retain their provenance. Existing separate directories are not automatically merged.
 
-Extensions management currently follows the launch profile. Codex goals load native skills from their own home/shared `.agents/skills`; project skills belong in `.agents/skills`. Manage Codex plugins and MCP in Codex itself. Claude's autoskills installer does not run for Codex. Skill invocation telemetry is unavailable for Codex, so reviewers must judge the work rather than infer a skipped invocation.
+**Setup** and **Extensions** each let you select **Claude Code** or **Codex**, independently of the launch profile. Installs, updates, trash, OAuth and MCP permissions target that selection. Codex loads its home skills plus shared `.agents/skills`; its per-goal autoskills installer writes `.agents/skills` and copies them into task worktrees without committing them. Native Codex plugins remain managed in Codex. Skill invocation telemetry is unavailable for Codex, so reviewers judge the work rather than infer a skipped invocation.
 
 
 Open the ⚙ menu at the right of the top bar and choose **Settings**. The sections are listed on the left; this page follows them in order and explains, in plain words, the controls you might want to touch and when. The exact keys, defaults and environment variables are in the operator reference, [configuration.md](../operate/configuration.md).
@@ -171,7 +171,7 @@ When to change: raise the timeout or Claude cost cap if big tasks keep getting c
 
 ## Skills
 
-Skills are packaged instructions Claude Code can follow. Here you choose which ones Foundry hands to its sessions.
+Skills are packaged instructions the coding agent can follow. **Install skills for** selects which backend's installation status and actions you see; workflow pack choices are shared.
 
 - **Profile**: **mattpocock (mandated + observed)** (default) tells workers which working method to follow (tests first for features, diagnose first for bugs) and records whether they did. **plain (hint only)** only mentions them.
 - **Setting sources**: which Claude Code settings sessions load. Leave empty.
@@ -182,7 +182,11 @@ The **Extensions** page in the top bar holds your skills and your MCP servers. I
 
 ### MCP servers
 
-MCP servers give Claude Code tools beyond files and the shell: current library docs, a real browser, web search, your mail. The **Extensions** page has an **MCP servers** tab that lists the servers Claude Code loads for your account: the ones you installed (**yours**), the ones a plugin brings (**plugin**) and your claude.ai connectors (**claude.ai**). **Check** connects to each one and shows whether it works; it is not automatic because it starts every server.
+![Codex MCP servers — demonstration data](images/codex-extensions-mcp.png)
+
+Select a backend at the top of **Extensions** before opening **MCP servers**. Codex servers use its native CLI configuration; **Check** opens a fresh native connection and discovers tools without running inference. Codex supports stdio and streamable HTTP, including HTTP OAuth sign-in; legacy SSE is unavailable. Native user-configured servers can be added, replaced and removed here. Running sessions keep their existing connections; new sessions see configuration changes. Claude and Codex have independent **Allowed in goals** switches, and Codex starts with no allowed servers.
+
+The following connector and plugin details describe the Claude tab. MCP servers give Claude Code tools beyond files and the shell: current library docs, a real browser, web search, your mail. The **Extensions** page has an **MCP servers** tab that lists the servers Claude Code loads for your account: the ones you installed (**yours**), the ones a plugin brings (**plugin**) and your claude.ai connectors (**claude.ai**). **Check** connects to each one and shows whether it works; it is not automatic because it starts every server.
 
 Some servers need an account before they work. A claude.ai connector (Gmail, Google Drive, …) has a **Connect** button: it opens claude.ai, where you authorize it with the account it should use; Claude Code and Foundry share that connection. A server reached by URL has **Sign in**: a browser opens on the computer running Foundry, or, when there is none (Docker), you open the link yourself and paste back the address the browser ends on. If the sign-in cannot finish in Foundry, the window shows the command to run in your own terminal instead (for example `claude mcp login context7`), with a copy button. After **Check**, a server that still needs this shows **needs auth** and a **Set up** button.
 

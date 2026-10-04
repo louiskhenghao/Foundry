@@ -6,9 +6,14 @@
 
 ![新目标的角色配置](images/codex-new-goal-presets.png)
 
+
+![Codex 初始化检查 — 演示数据](images/codex-setup.png)
+
 ## 账户与执行后端
 
-点击顶栏 **Accounts**，分别查看 Claude Code 和 Codex。**Sign in to Codex** 使用 ChatGPT 设备授权：在链接页面输入显示的验证码；**Sign in to Claude Code** 使用 Claude 原生登录。凭据与本机 CLI 共用，在这里退出也会退出对应 CLI，但不会影响另一个提供商。执行期间不能退出登录。
+点击顶栏 **Accounts**，分别查看 Claude Code 和 Codex。**Sign in to Codex** 使用 ChatGPT 设备授权：在链接页面输入显示的验证码；**Sign in to Claude Code** 使用 Claude 原生登录。凭据与本机 CLI 共用，在这里退出也会退出对应 CLI，但不会影响另一个提供商。执行期间不能退出登录。Codex 只支持 ChatGPT 登录，不使用 API-key 模式；原生 CLI 提供邮箱和方案时会显示在账户卡片。
+
+**Setup** 可选择 **Claude Code** 或 **Codex**；检查、登录、修复及技能安装均针对所选后端。**Create your first goal** 会保留该选择。
 
 创建任务时，在 **Agent backend** 选择后端。同一 Foundry 实例可以运行两种后端；选定后，澄清、执行、重试、审核等会话始终使用该后端，不会把会话交给另一种 CLI 恢复。两种后端在 **Models** 下各有独立预设。Codex 创建任务时会保存预设中的各角色模型、推理强度和备用模型顺序。
 

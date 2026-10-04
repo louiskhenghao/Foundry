@@ -8,9 +8,12 @@
 
 ![New goal role assignments](images/codex-new-goal-presets.png)
 
+
+![Codex setup — demonstration data](images/codex-setup.png)
+
 ## Agent accounts and backend
 
-Open **Accounts** in the header to see Claude Code and Codex separately. **Sign in to Codex** uses ChatGPT device authorization; enter the displayed code on the linked page. **Sign in to Claude Code** uses Claude's native login. Credentials belong to the local CLI: signing out here also signs out that CLI, but does not sign out the other provider. Foundry refuses sign-out while work is active.
+Open **Accounts** in the header to see Claude Code and Codex separately. **Sign in to Codex** uses ChatGPT device authorization; enter the displayed code on the linked page. **Sign in to Claude Code** uses Claude's native login. Credentials belong to the local CLI: signing out here also signs out that CLI, but does not sign out the other provider. Foundry refuses sign-out while work is active. Codex supports ChatGPT sign-in only; API-key login is not used. The account card shows the native email and plan when available.
 
 On **New goal**, choose **Agent backend** before creating the goal. Both providers can run in one Foundry instance. The selected backend stays fixed through clarification, workers, retries, reviews and delivery assistance; sessions never resume on another provider. Each backend has independent model presets under **Models**. Codex captures the preset's role models, reasoning efforts and fallback order when you create the goal.
 
@@ -23,7 +26,7 @@ This page walks through the **New goal** form from top to bottom. Most fields ca
 
 ### Check the Setup page
 
-Open the ⚙ menu at the right of the top bar and choose **Setup** (a red dot on ⚙ means something is still missing). Foundry checks what it needs on this computer and shows a green or red line for each:
+Open the ⚙ menu at the right of the top bar and choose **Setup** (a red dot on ⚙ means something is still missing). Select **Claude Code** or **Codex** on Setup. The checks, sign-in, fixes and recommended skill installation all target that backend; **Create your first goal** preserves the selection. Foundry shows a green or red line for each:
 
 | Check | What it is | If it is red |
 |---|---|---|

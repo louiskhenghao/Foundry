@@ -6,7 +6,7 @@
 
 **Engine (install)** 显示两种 CLI 路径和配置目录。**Default agent backend** 在启动时选择，不限制新建任务的后端选择。打开旧数据目录时保留原启动配置，以正确识别历史记录。现有分开的数据目录不会自动合并。
 
-Extensions 管理页面暂时跟随启动配置。Codex 使用自己的技能目录和共享 `.agents/skills`，项目技能放在 `.agents/skills`。Codex 插件与 MCP 通过 Codex 管理；Claude 的 autoskills 安装器不会为 Codex 运行。Codex 的技能调用不可观测，审核应依据代码和测试，不能据此判定没有使用技能。
+**Setup** 和 **Extensions** 都可独立选择 **Claude Code** 或 **Codex**，不再跟随启动配置。安装、更新、回收站、OAuth 和 MCP 权限都操作所选后端。Codex 使用自己的技能目录和共享 `.agents/skills`；autoskills 会把项目技能安装到 `.agents/skills` 并复制到任务 worktree，不进入提交。原生 Codex 插件仍由 Codex 管理。Codex 技能调用记录不可用，审核依据成果，不能据此判定没有使用技能。
 
 
 > [English](./settings.md) · 中文
@@ -181,6 +181,10 @@ skill 是 Claude Code 可以遵循的打包指令。在这里选择 Foundry 把�
 顶栏上的 **Extensions** 页面放着你的 skill 和 MCP server。它的 **Skills** 标签页显示所有已安装的 skill，并可以更新。每个技能都有一个状态：**outdated**（有新版本 —— 按 **Update**）、**unreleased**（插件作者在上游改了它，但没有提高版本号，所以 CLI 暂时没有新东西可装）、**modified**（你的副本被改过）或 **up to date**（只有 README 或 changelog 不同不算）。像 ffmpeg 这样的命令行工具，只要找得到它的命令就算已安装。插件的技能只能一起删除，用 **Uninstall plugin**。你手动安装的副本，如果 Foundry 自己能安装这个技能，就会出现 **Adopt**：用一个由 Foundry 负责更新的副本替换它。你在那里发起的每次安装、更新、接管（adopt）或卸载，都会在页面底部的 **Operations** 栏里打开一个标签页，带着它自己的日志；几个操作可以同时进行。完成的标签页会一直留着，直到你关掉它；这个栏也可以收起成一行计数。
 
 ### MCP servers
+
+![Codex MCP 服务器 — 演示数据](images/codex-extensions-mcp.png)
+
+先在 **Extensions** 选择后端，再打开 **MCP servers**。Codex 使用原生配置；**Check** 建立新连接并发现工具，不运行推理。支持 stdio、streamable HTTP 及 HTTP OAuth 登录，不支持旧式 SSE。可在此新增、替换和移除原生用户级服务器。运行中的会话维持现有连接，新会话采用新配置。两种后端各有独立的 **Allowed in goals** 清单，Codex 默认不允许任何服务器。以下连接器和插件细节适用于 Claude 页签。
 
 MCP server 让 Claude Code 能用文件和命令行以外的工具，比如最新的库文档、一个真的浏览器、网页搜索、你的邮箱。**Extensions** 页面有一个 **MCP servers** 标签页，列出 Claude Code 为你的账号加载的 server：你自己装的（**yours**）、插件带来的（**plugin**）和你的 claude.ai 连接器（**claude.ai**）。**Check** 会逐个连上去，看它能不能用；它不会自动运行，因为它会启动每一个 server。
 
