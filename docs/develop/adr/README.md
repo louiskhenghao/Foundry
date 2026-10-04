@@ -26,3 +26,4 @@ record is never rewritten when a later decision changes it; its status says what
 | [0019](0019-provider-scoped-extensions-and-native-status.md) | Provider-scoped extensions, native account quota and read-only history | accepted · 2026-10-04 · amended by ADR-0020 |
 | [0020](0020-native-plugin-lifecycle-and-account-ownership.md) | Native plugin lifecycle and server-owned account commands | accepted · 2026-10-04 |
 | [0021](0021-multi-app-previews-and-compose-services.md) | Several apps per preview, and the compose services they need | accepted · 2026-10-05 · amends ADR-0012 |
+| [0022](0022-preview-environment-outside-the-workspace.md) | Preview environment stays outside the goal's folder | accepted · 2026-10-05 |
