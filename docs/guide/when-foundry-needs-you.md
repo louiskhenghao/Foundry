@@ -56,9 +56,9 @@ A session tried to push, create or merge a pull request, make a release, publish
 
 **Inbox:** *Tool denied* — "The agent could not use one of the tools it needed."
 
-A task used all its attempts, and its agent backend refused a tool the task needed (not one of the commands above). Trying again the same way would fail the same way. You can **Suggest a hint** or **Let AI handle it** as above, **Retry with hint** (for example "do it without the web search"), **Skip task (dependents continue)** or **Abort goal**.
+A task used all its attempts, and its coding agent refused a tool the task needed (not one of the commands above). Trying again the same way would fail the same way. You can **Suggest a hint** or **Let AI handle it** as above, **Retry with hint** (for example "do it without the web search"), **Skip task (dependents continue)** or **Abort goal**.
 
-When the refused tool belongs to an MCP server you have not allowed in goals, the item names the server and offers **Allow this server and retry**: it updates only that goal’s backend and retries the task. Each card labels its backend, and the Extensions link opens the same backend. Failed permission reads never enable an allow button. Codex’s Foundry guard reports denied MCP tool names without retaining tool arguments. See [MCP servers](./settings.md#mcp-servers).
+When the refused tool belongs to an MCP server you have not allowed in goals, the item names the server and offers **Allow this server and retry**: it updates only that goal’s coding agent and retries the task. Each card labels its coding agent, and the Extensions link opens the same coding agent. Failed permission reads never enable an allow button. Codex’s Foundry guard reports denied MCP tool names without retaining tool arguments. See [MCP servers](./settings.md#mcp-servers).
 
 ### The budget ran out
 
@@ -111,7 +111,7 @@ The dollar/turn and native sub-agent examples below describe Claude output. Code
 | `[reviewer] ✗ Output does not match required schema …` | The reviewer sent its verdict in the wrong shape and resends it. Harmless. |
 | `■ success · $0.420 · 7 turns — …` | The session finished. The text after the dash is the worker's final message; click the line to read all of it. |
 | `■ error_max_turns`, `■ error_max_budget_usd`, `■ killed_timeout` | The session hit a limit. Foundry resumes it with a fresh allowance, up to twice, before starting a new attempt. |
-| `⏳ rate limit rejected` | The session’s backend reached a usage limit. Foundry pauses that backend and retries later; other backends can continue. A retry time is not proof of recovered quota. |
+| `⏳ rate limit rejected` | The session’s coding agent reached a usage limit. Foundry pauses that coding agent and retries later; other coding agents can continue. A retry time is not proof of recovered quota. |
 | `⏱ sub-agent still working · 3m 30s` | A helper (for example the planner) is still busy. Long pauses in the log are normal while this line updates. |
 | `[claude-code:unrecognized_model] …` | Your Claude Code is older than the model you picked. The session works; updating Claude Code removes the line. |
 

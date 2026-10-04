@@ -644,7 +644,7 @@ export function SettingsPage() {
             <Field label="Host" aside={aside('engine.host')} help="Bind address; keep 127.0.0.1 unless you know why.">
               {text('engine.host')}
             </Field>
-            <Field label="Default agent backend" help="Default for new goals in this data directory. Choose either backend on New goal; existing goals keep their backend.">
+            <Field label="Default coding agent" help="Default for new goals in this data directory. Choose either coding agent on New goal; existing goals keep theirs.">
               <div className="text-sm">{draft.engine.provider === 'codex' ? 'Codex' : 'Claude Code'}</div>
             </Field>
             {<>

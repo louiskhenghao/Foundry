@@ -22,7 +22,7 @@ describe('native session identity and status', () => {
   test('provider identity does not treat missing metadata as Claude', () => {
     expect(renderToStaticMarkup(<ProviderBadge provider="codex" />)).toContain('Codex');
     expect(renderToStaticMarkup(<ProviderBadge provider="claude" />)).toContain('Claude Code');
-    expect(renderToStaticMarkup(<ProviderBadge provider={undefined} />)).toContain('Backend unknown');
+    expect(renderToStaticMarkup(<ProviderBadge provider={undefined} />)).toContain('Agent unknown');
   });
 
   test('native child sessions preserve unknown liveness in lists and detail tabs', () => {

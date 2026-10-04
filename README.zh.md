@@ -13,11 +13,11 @@ Foundry 在你自己的电脑上运行，从网页驱动你的 Claude Code 或 C
 
 <br>
 
-<img src="docs/guide/images/goals.png" alt="Foundry 的 Claude Code 与 Codex 目标列表：进度、后端和每个目标可用的操作" width="900">
+<img src="docs/guide/images/goals.png" alt="Foundry 的 Claude Code 与 Codex 目标列表：进度、编码智能体和每个目标可用的操作" width="900">
 
 </div>
 
-## Codex 后端
+## Codex 编码智能体
 
 现在也可使用 Codex CLI + ChatGPT 登录运行同一套 Foundry 流程：
 
@@ -27,7 +27,7 @@ bun install --frozen-lockfile && bun run web:build
 bun run serve:codex
 ```
 
-Codex 启动配置默认使用 `data-codex/`，Claude 启动配置默认使用 `data/`。两种实例都可以运行两种后端：创建 goal 时选择 **Agent backend**。数据目录属于整个实例，不按每个 goal 分开；账户、预设和 MCP 权限则保持独立。Codex 只支持 ChatGPT 登录，用量窗口按账户实际返回显示，包括只有 weekly limit 的账户。
+Codex 启动配置默认使用 `data-codex/`，Claude 启动配置默认使用 `data/`。两种实例都可以运行两种编码智能体：创建 goal 时选择 **Coding agent**（编码智能体）。数据目录属于整个实例，不按每个 goal 分开；账户、预设和 MCP 权限则保持独立。Codex 只支持 ChatGPT 登录，用量窗口按账户实际返回显示，包括只有 weekly limit 的账户。
 
 先安装支持 hooks 的 Codex CLI，再运行上述命令；Docker 构建固定使用 0.160.0。[完整安装、Docker 与能力限制](docs/operate/codex.md)。升级现有实例前，请阅读[备份与回退](docs/operate/updates-and-backup.md#upgrading-to-mixed-provider-goals)（英文）。
 
@@ -50,11 +50,11 @@ Foundry 做的就是这部分。
 - **代码始终是你的**  
   Foundry 在本机运行，使用所选 CLI 的账户：Claude 登录，或 Codex 的 ChatGPT 登录。执行任务不需要 API key。工作在独立分支上进行，运行期间不改动你自己的 checkout。
 - **花多少由你定**  
-  两种后端各有独立模型预设。时间、尝试次数和并发限制对两者都有效；美元费用上限只适用于 Claude。
+  两种编码智能体各有独立模型预设。时间、尝试次数和并发限制对两者都有效；美元费用上限只适用于 Claude。
 
 ## 怎么运作
 
-**Claude Code 与 Codex 共用同一套流程**。先在 **Accounts** 分别连接原生账户，再为每个新目标选择后端。以下截图均使用演示数据。
+**Claude Code 与 Codex 共用同一套流程**。先在 **Accounts** 分别连接原生账户，再为每个新目标选择编码智能体。以下截图均使用演示数据。
 
 <table>
 <tr>
@@ -63,7 +63,7 @@ Foundry 做的就是这部分。
 **[1 · 说出来](docs/guide/your-first-goal.zh.md#the-new-goal-form)**<br>
 按 **New goal**，选择 **Claude Code** 或 **Codex** 及对应模型预设，描述想要的结果。准备开始时选好项目文件夹。
 
-<img src="docs/guide/images/new-goal.png" alt="New goal 表单：统一的后端选择器选中 Codex，下方是目标类型和视图选项">
+<img src="docs/guide/images/new-goal.png" alt="New goal 表单：统一的编码智能体选择器选中 Codex，下方是目标类型和视图选项">
 
 </td>
 <td width="50%" valign="top">
@@ -97,7 +97,7 @@ goal 暂停，预览已经跑起来了。按 **Continue**，或者说要改什�
 <td width="50%" valign="top">
 
 **[5 · 让它跑](docs/guide/while-it-runs.zh.md)**<br>
-能并行的任务就并行，每个任务检查通过才合进来。**Agents** 汇集两种引擎的会话；**Usage** 分别展示各自的额度。
+能并行的任务就并行，每个任务检查通过才合进来。**Agents** 汇集两种编码智能体的会话；**Usage** 分别展示各自的额度。
 
 <img src="docs/guide/images/goal-running.png" alt="运行中的 goal：Clarify 和 Brief 已完成，Run 进行中，右侧是验收检查，下面是工作所在的文件夹">
 

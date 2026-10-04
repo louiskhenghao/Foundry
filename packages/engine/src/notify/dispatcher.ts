@@ -23,7 +23,7 @@ const TRIGGER_COPY: Record<EscalationTrigger, string> = {
   retries_exhausted: 'a task ran out of attempts with checks still failing',
   boundary_action: 'an action wants to leave the local workspace',
   budget_exceeded: 'the goal hit its cost or time budget',
-  permission_denial: 'the agent backend refused a tool call',
+  permission_denial: 'the coding agent refused a tool call',
   milestone: 'a milestone landed — have a look, then continue or say what to change',
   delivery_failed: 'the delivery stopped — the reason and a Retry are in the Inbox',
 };

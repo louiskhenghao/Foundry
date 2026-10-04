@@ -42,7 +42,7 @@ Both serve the web UI on `http://127.0.0.1:4111`.
 
 ## Install locally
 
-These numbered steps use the Claude launch profile. For Codex, use `codex login`, `bun run cli doctor --provider codex` and `bun run serve:codex`; use **Setup → Codex** for backend-specific skill installation. Keep an existing instance’s launch profile and select **Agent backend** on New goal to add the other backend without changing its data directory.
+These numbered steps use the Claude launch profile. For Codex, use `codex login`, `bun run cli doctor --provider codex` and `bun run serve:codex`; use **Setup → Codex** for backend-specific skill installation. Keep an existing instance’s launch profile and select **Coding agent** on New goal to add the other backend without changing its data directory.
 
 1. Get the source and build the UI. You need access to the Foundry repository.
 
@@ -384,7 +384,7 @@ More about each check: [troubleshooting.md](./troubleshooting.md#doctor-checks).
 
 ## Where to go next
 
-- Use **Agent backend** in **Settings → Models & limits**. Each goal type (Code, Docs & research, Media) uses one model preset.
+- Use **Coding agent** in **Settings → Models & limits**. Each goal type (Code, Docs & research, Media) uses one model preset.
   The built-in presets are Max, Production, Balanced and Economy. By default Code uses Production, and Docs & research
   and Media use Balanced.
 - Set up [notifications](./notifications.md) and, if you want to use Foundry away from the machine,

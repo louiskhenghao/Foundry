@@ -1,12 +1,12 @@
 # 设置说明
 
-## 双后端设置
+## 两种编码智能体
 
-**Models & limits** 使用统一的 **Agent backend** 控件选择 **Claude Code** 或 **Codex**，各自拥有独立的预设和模型选项。Codex 任务在创建时保存各角色模型、推理强度和备用模型顺序；修改设置只影响新任务。**Claude cost cap per session (USD)** 只适用于 Claude。**Concurrent agent sessions** 是两种后端共用的总并发上限。
+**Models & limits** 使用统一的 **Coding agent**（编码智能体） 控件选择 **Claude Code** 或 **Codex**，各自拥有独立的预设和模型选项。Codex 任务在创建时保存各角色模型、推理强度和备用模型顺序；修改设置只影响新任务。**Claude cost cap per session (USD)** 只适用于 Claude。**Concurrent agent sessions** 是两种编码智能体共用的总并发上限。
 
-**Engine (install)** 显示两种 CLI 路径和配置目录。**Default agent backend** 在启动时选择，不限制新建任务的后端选择。打开旧数据目录时保留原启动配置，以正确识别历史记录。现有分开的数据目录不会自动合并。
+**Engine (install)** 显示两种 CLI 路径和配置目录。**Default coding agent** 在启动时选择，不限制新建任务的编码智能体选择。打开旧数据目录时保留原启动配置，以正确识别历史记录。现有分开的数据目录不会自动合并。
 
-**Setup** 和 **Extensions** 都可独立选择 **Claude Code** 或 **Codex**，不再跟随启动配置。安装、更新、回收站、OAuth 和 MCP 权限都操作所选后端。Codex 使用自己的技能目录和共享 `.agents/skills`；autoskills 会把项目技能安装到 `.agents/skills` 并复制到任务 worktree，不进入提交。原生插件的安装和移除改在 **Extensions → Codex → Plugins** 管理。Codex 技能调用记录不可用，审核依据成果，不能据此判定没有使用技能。
+**Setup** 和 **Extensions** 都可独立选择 **Claude Code** 或 **Codex**，不再跟随启动配置。安装、更新、回收站、OAuth 和 MCP 权限都操作所选编码智能体。Codex 使用自己的技能目录和共享 `.agents/skills`；autoskills 会把项目技能安装到 `.agents/skills` 并复制到任务 worktree，不进入提交。原生插件的安装和移除改在 **Extensions → Codex → Plugins** 管理。Codex 技能调用记录不可用，审核依据成果，不能据此判定没有使用技能。
 
 
 > [English](./settings.md) · 中文
@@ -42,7 +42,7 @@
 
 ## Models & limits
 
-这一部分决定哪个模型做哪件事。先在 **Agent backend** 选择 **Claude Code** 或 **Codex**；两者的预设和模型目录互相独立。会话限制位于所选后端的模型设置下方。
+这一部分决定哪个模型做哪件事。先在 **Coding agent** 选择 **Claude Code** 或 **Codex**；两者的预设和模型目录互相独立。会话限制位于所选编码智能体的模型设置下方。
 
 ![Settings 的 Models & limits：Sync models 按钮，以及每种 goal 类型一个预设和它的模型表](images/settings-models.png)
 
@@ -52,7 +52,7 @@
 
 ### Codex 预设与模型
 
-在 **Agent backend → Codex**，分别选择 **Code preset**、**Docs & research preset** 和 **Media preset**。代码默认 Production，其他类型默认 Balanced。这些名字与 Claude 的预设互相独立：
+在 **Coding agent → Codex**，分别选择 **Code preset**、**Docs & research preset** 和 **Media preset**。代码默认 Production，其他类型默认 Balanced。这些名字与 Claude 的预设互相独立：
 
 | 预设 | 推理强度分配 |
 |---|---|
@@ -75,7 +75,7 @@ Auto 类型任务选择 Default 预设时，会在创建时保存三种任务类
 
 ### Presets
 
-以下预设说明对应 **Agent backend → Claude Code**；已有模型配置和行为保留不变。
+以下预设说明对应 **Coding agent → Claude Code**；已有模型配置和行为保留不变。
 
 预设是一张表：每项工作由哪个模型来做。这些工作是：
 
@@ -165,13 +165,13 @@ Foundry 启动时，如果发现 Claude Code 自上次同步后更新过，也�
 | **Attempt timeout (minutes)** | 20 | 运行超过这个时间的会话会被停止。它已提交的内容会保留；Foundry 会续接或重试。 |
 | **Continuations per attempt** | 2 | 被停止的会话在开始新尝试之前最多续接几次（续接更便宜，会保留它读过的内容）。 |
 | **Turn cap per session** | 150 | Claude 的模型轮数；Codex 的工具调用次数。设宽松一点。 |
-| **Concurrent agent sessions** | 3 | 两种后端的所有 goal 加起来同时运行的会话总数。 |
+| **Concurrent agent sessions** | 3 | 两种编码智能体的所有 goal 加起来同时运行的会话总数。 |
 
 什么时候改：如果大任务总是被中途截断，调高超时或 Claude 费用上限；如果你经常碰到套餐的用量上限，调低 **Concurrent agent sessions**。
 
 ## Skills
 
-skill 是所选后端可以遵循的打包指令。在这里选择 Foundry 把哪些交给它的会话。
+skill 是所选编码智能体可以遵循的打包指令。在这里选择 Foundry 把哪些交给它的会话。
 
 - **Profile**：**mattpocock (mandated + observed)**（默认）告诉 worker 要遵循哪种工作方法（功能先写测试，bug 先诊断），并记录它们有没有照做。**plain (hint only)** 只是提一下。
 - **Setting sources**（仅 Claude）：会话加载哪些 Claude Code 设置。留空。
@@ -182,7 +182,7 @@ skill 是所选后端可以遵循的打包指令。在这里选择 Foundry 把�
 
 ### Skill compatibility
 
-兼容性取决于技能实际使用的工具及依赖，而不是作者。目录会按 **Agent backend** 选择安装方案；Claude 专属方案不会进入 Codex 的推荐目录或工作流提示。
+兼容性取决于技能实际使用的工具及依赖，而不是作者。目录会按 **Coding agent** 选择安装方案；Claude 专属方案不会进入 Codex 的推荐目录或工作流提示。
 
 | 技能 | Codex 下的行为 |
 |---|---|
@@ -209,7 +209,7 @@ skill 是所选后端可以遵循的打包指令。在这里选择 Foundry 把�
 
 ![Codex MCP 服务器 — 演示数据](images/codex-extensions-mcp.png)
 
-先在 **Extensions** 选择后端，再打开 **MCP servers**。Codex 使用原生配置；**Check** 建立新连接并发现工具，不运行推理。支持 stdio、streamable HTTP 及 HTTP OAuth 登录，不支持旧式 SSE。可在此新增、替换和移除原生用户级服务器。运行中的会话维持现有连接，新会话采用新配置。两种后端各有独立的 **Allowed in goals** 清单，Codex 默认不允许任何服务器。以下连接器和插件细节适用于 Claude 后端。
+先在 **Extensions** 选择编码智能体，再打开 **MCP servers**。Codex 使用原生配置；**Check** 建立新连接并发现工具，不运行推理。支持 stdio、streamable HTTP 及 HTTP OAuth 登录，不支持旧式 SSE。可在此新增、替换和移除原生用户级服务器。运行中的会话维持现有连接，新会话采用新配置。两种编码智能体各有独立的 **Allowed in goals** 清单，Codex 默认不允许任何服务器。以下连接器和插件细节适用于 Claude Code。
 
 MCP server 让 Claude Code 能用文件和命令行以外的工具，比如最新的库文档、一个真的浏览器、网页搜索、你的邮箱。**Extensions** 页面有一个 **MCP servers** 标签页，列出 Claude Code 为你的账号加载的 server：你自己装的（**yours**）、插件带来的（**plugin**）和你的 claude.ai 连接器（**claude.ai**）。**Check** 会逐个连上去，看它能不能用；它不会自动运行，因为它会启动每一个 server。
 
@@ -237,7 +237,7 @@ Foundry 怎样跟上你项目的线上副本，以及交付要等多久。
 ## Tools & keys
 
 - **Use graphify for relevant-file discovery**（开）：安装了这个工具时，用代码地图找相关文件。
-以下媒体服务 key 与执行后端登录无关。Codex 始终只用 ChatGPT 登录，填写图片 key 不会启用 API-key 推理。
+以下媒体服务 key 与编码智能体登录无关。Codex 始终只用 ChatGPT 登录，填写图片 key 不会启用 API-key 推理。
 
 - **OpenAI-compatible API key**：图片 goal 要生成真正的图片就需要它。没有它，图片任务只能退回到手绘的 SVG 渲染。**OpenAI-compatible base URL**：只在用代理或其它兼容服务商时需要。
 - **Gemini API key**：某个图片包的替代选择。
@@ -273,7 +273,7 @@ key 对下一个会话生效，不用重启。保存过的 key 不会再显示�
 | **Interview round** | Foundry 写 Brief 前问一轮问题。 | 回答它们；goal 在等你。 |
 | **Goal finished** | 某个 goal 以 done、over-delivered 或 failed 结束。你自己取消的不会发。 | 看结果，或看哪里失败了。 |
 | **Delivery** | 有 pull request 开出或合并了，或者交付失败了。 | 审查 pull request，或看 Delivery 标签。 |
-| **Usage pause** | 某后端达到用量上限而暂停新会话，重新尝试时再通知；另一后端仍可继续。 | Foundry 自动重试；持续失败时检查 Accounts 和 Usage。 |
+| **Usage pause** | 某个编码智能体达到用量上限而暂停新会话，重新尝试时再通知；另一个编码智能体仍可继续。 | Foundry 自动重试；持续失败时检查 Accounts 和 Usage。 |
 | **New version** | Foundry 出了新版本（每个版本一次）。 | 方便时更新，见 [About & updates](#about--updates)。 |
 
 关掉你不想要的。这些开关对所有渠道都一样生效。
@@ -289,7 +289,7 @@ key 对下一个会话生效，不用重启。保存过的 key 不会再显示�
 
 - **Port**（4111）和 **Host**（127.0.0.1）：在哪里访问 Foundry。除非你设置了远程访问，否则保持 127.0.0.1。需要重启。
 - **claude binary** 和 **Claude Code home**：Claude Code 及其 skill 所在的位置。留空会自动找到。需要重启。
-- **Codex binary** 和 **Codex home**：Codex 程序和原生账户／配置目录。留空使用 PATH 及 `CODEX_HOME` 或 `~/.codex`。需要重启。启动配置保持固定，每个 goal 的后端在 New goal 选择。
+- **Codex binary** 和 **Codex home**：Codex 程序和原生账户／配置目录。留空使用 PATH 及 `CODEX_HOME` 或 `~/.codex`。需要重启。启动配置保持固定，每个 goal 的编码智能体在 New goal 选择。
 - **Progress folders**：每个 goal 的文件夹在哪里创建。留空时放在你的项目旁边，即 `<project>-foundry/<goal>`。在这里填一个文件夹，就会变成 `<folder>/<project>/<goal>`。对今后创建的 goal 生效。
 
 ## About & updates
@@ -298,7 +298,7 @@ key 对下一个会话生效，不用重启。保存过的 key 不会再显示�
 
 更新对话框：
 
-- **Update**：不再启动新会话，运行中的会话跑完，然后 Foundry 更新并重启。页面会自己重新加载。本机代码更新失败时会尝试恢复旧 checkout，这不等于数据库回退。升级混合后端数据前先备份；要运行旧程序，必须恢复匹配的升级前备份。
+- **Update**：不再启动新会话，运行中的会话跑完，然后 Foundry 更新并重启。页面会自己重新加载。本机代码更新失败时会尝试恢复旧 checkout，这不等于数据库回退。升级混合编码智能体数据前先备份；要运行旧程序，必须恢复匹配的升级前备份。
 - **Update immediately without waiting — interrupts running agents**：只有等不了时才勾选。
 - **Not now** 关闭对话框。
 - 如果这个安装没法自己更新，对话框会改为显示要运行的命令。

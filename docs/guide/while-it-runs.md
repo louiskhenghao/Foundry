@@ -4,7 +4,7 @@
 
 ## Provider-aware reporting
 
-Codex task details and activity mark dollar costs, model-turn counts and skill telemetry as unavailable. Its live tool logs, saved transcripts and Foundry sessions remain visible. **Agents** also shows recent external Claude and Codex sessions, labelled by backend. External Codex history is read-only and bounded to recent records; **status unknown** means Foundry cannot verify that external process's liveness. It does not mean idle or finished. Native read failures appear as warnings, and external sessions cannot be stopped here.
+Codex task details and activity mark dollar costs, model-turn counts and skill telemetry as unavailable. Its live tool logs, saved transcripts and Foundry sessions remain visible. **Agents** also shows recent external Claude and Codex sessions, labelled by coding agent. External Codex history is read-only and bounded to recent records; **status unknown** means Foundry cannot verify that external process's liveness. It does not mean idle or finished. Native read failures appear as warnings, and external sessions cannot be stopped here.
 
 A Codex goal's **Codex models** card shows the saved role table, goal-wide overrides and fallback order. Other captured goal-type tables can also be inspected. Later changes to Settings never rewrite this snapshot; legacy goals without a snapshot are labelled explicitly.
 
@@ -26,7 +26,7 @@ Open a goal from **Goals** (the list in the top bar). At the top of its page:
 
 Below that, cards appear only when they matter: the milestone card when the goal waits for your look, the interview while Foundry asks questions, and **Goal review…** with a live log while the final review runs.
 
-If a backend reaches its usage limit, the banner identifies it and the retry time. Only that backend’s new sessions pause. Without a reported reset, Foundry retries after a delay; the retry does not guarantee recovered quota. See [Costs and usage](./costs-and-usage.md).
+If a coding agent reaches its usage limit, the banner identifies it and the retry time. Only that coding agent’s new sessions pause. Without a reported reset, Foundry retries after a delay; the retry does not guarantee recovered quota. See [Costs and usage](./costs-and-usage.md).
 
 ## Simple view: progress
 
@@ -193,9 +193,9 @@ Every file the goal changed compared with where it started, with lines added (gr
 
 ![Claude Code and Codex sessions — demonstration data](images/agents.png)
 
-Use **All engines**, **Claude Code** or **Codex** to filter the list. Counts beside each engine refer to the loaded last-24-hour inventory. **Search sessions** matches titles, goal names, models, directories and session IDs within that engine. The list refreshes automatically; external sessions remain read-only.
+Use **All agents**, **Claude Code** or **Codex** to filter the list. Counts beside each coding agent refer to the loaded last-24-hour inventory. **Search sessions** matches titles, goal names, models, directories and session IDs within that coding agent. The list refreshes automatically; external sessions remain read-only.
 
-**Agents** combines Foundry-owned sessions with recent native Claude Code and Codex history. Each row identifies its backend; retrieval is bounded, so this is not an inventory of every conversation ever created.
+**Agents** combines Foundry-owned sessions with recent native Claude Code and Codex history. Each row identifies its coding agent; retrieval is bounded, so this is not an inventory of every conversation ever created.
 
 - **Foundry agents**: sessions Foundry started for your goals, with the goal they belong to. These can be stopped with the ■ button.
 - **Your sessions**: sessions you opened yourself (in a terminal, in VS Code). Foundry only watches them, never touches them.

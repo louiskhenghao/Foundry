@@ -2,11 +2,11 @@
 
 > English · [中文](./settings.zh.md)
 
-## Two backends
+## Two coding agents
 
-**Models & limits** uses the shared **Agent backend** selector for **Claude Code** and **Codex**. Each provider has its own presets and model choices. Codex goals capture their role models, reasoning effort and fallback order when created; edits affect new goals. **Claude cost cap per session (USD)** applies only to Claude. **Concurrent agent sessions** is one total limit across both providers.
+**Models & limits** uses the shared **Coding agent** selector for **Claude Code** and **Codex**. Each provider has its own presets and model choices. Codex goals capture their role models, reasoning effort and fallback order when created; edits affect new goals. **Claude cost cap per session (USD)** applies only to Claude. **Concurrent agent sessions** is one total limit across both providers.
 
-**Engine (install)** exposes both CLI paths and homes. The **Default agent backend** is chosen at launch; it does not restrict the **New goal** selector. Keep the original launch profile when opening an existing data directory so legacy records retain their provenance. Existing separate directories are not automatically merged.
+**Engine (install)** exposes both CLI paths and homes. The **Default coding agent** is chosen at launch; it does not restrict the **New goal** selector. Keep the original launch profile when opening an existing data directory so legacy records retain their provenance. Existing separate directories are not automatically merged.
 
 **Setup** and **Extensions** each let you select **Claude Code** or **Codex**, independently of the launch profile. Installs, updates, trash, OAuth and MCP permissions target that selection. Codex loads its home skills plus shared `.agents/skills`; its per-goal autoskills installer writes `.agents/skills` and copies them into task worktrees without committing them. Use **Extensions → Codex → Plugins** for native plugin installs and removals. Skill invocation telemetry is unavailable for Codex, so reviewers judge the work rather than infer a skipped invocation.
 
@@ -42,7 +42,7 @@ When to change: set **Interview before the Brief** to **always** if you like to 
 
 ## Models & limits
 
-This section decides which model does each job. Choose **Claude Code** or **Codex** under **Agent backend**; their presets and catalogs are independent. Session limits appear below the selected backend’s model settings.
+This section decides which model does each job. Choose **Claude Code** or **Codex** under **Coding agent**; their presets and catalogs are independent. Session limits appear below the selected coding agent’s model settings.
 
 ![Settings, Models & limits: the Sync models button and one preset per goal type with its model grid](images/settings-models.png)
 
@@ -52,7 +52,7 @@ This section decides which model does each job. Choose **Claude Code** or **Code
 
 ### Codex presets and models
 
-With **Agent backend → Codex** selected, choose **Code preset**, **Docs & research preset** and **Media preset**. The defaults are Production for code and Balanced for the other goal types. These names are independent from Claude presets:
+With **Coding agent → Codex** selected, choose **Code preset**, **Docs & research preset** and **Media preset**. The defaults are Production for code and Balanced for the other goal types. These names are independent from Claude presets:
 
 | Preset | Reasoning profile |
 |---|---|
@@ -171,7 +171,7 @@ When to change: raise the timeout or Claude cost cap if big tasks keep getting c
 
 ## Skills
 
-Skills are packaged instructions the coding agent can follow. **Agent backend** selects which backend's installation status and actions you see; workflow pack choices are shared.
+Skills are packaged instructions the coding agent can follow. **Coding agent** selects which coding agent's installation status and actions you see; workflow pack choices are shared.
 
 - **Profile**: **mattpocock (mandated + observed)** (default) tells workers which working method to follow (tests first for features, diagnose first for bugs) and records whether they did. **plain (hint only)** only mentions them.
 - **Setting sources** (Claude only): which Claude Code settings sessions load. Leave empty.
@@ -182,7 +182,7 @@ The **Extensions** page in the top bar holds your skills, MCP servers and native
 
 ### Skill compatibility
 
-Compatibility depends on a skill’s tools and dependencies, not its author. The catalog selects installation recipes for **Agent backend**; Claude-only recipes do not appear in the Codex catalog or its workflow hints.
+Compatibility depends on a skill’s tools and dependencies, not its author. The catalog selects installation recipes for **Coding agent**; Claude-only recipes do not appear in the Codex catalog or its workflow hints.
 
 | Skill | Codex behavior |
 |---|---|
@@ -209,9 +209,9 @@ Installation shares the configured Codex home with the local CLI. New sessions l
 
 ![Codex MCP servers — demonstration data](images/codex-extensions-mcp.png)
 
-Select a backend at the top of **Extensions** before opening **MCP servers**. Codex servers use its native CLI configuration; **Check** opens a fresh native connection and discovers tools without running inference. Codex supports stdio and streamable HTTP, including HTTP OAuth sign-in; legacy SSE is unavailable. Native user-configured servers can be added, replaced and removed here. Running sessions keep their existing connections; new sessions see configuration changes. Claude and Codex have independent **Allowed in goals** switches, and Codex starts with no allowed servers.
+Select a coding agent at the top of **Extensions** before opening **MCP servers**. Codex servers use its native CLI configuration; **Check** opens a fresh native connection and discovers tools without running inference. Codex supports stdio and streamable HTTP, including HTTP OAuth sign-in; legacy SSE is unavailable. Native user-configured servers can be added, replaced and removed here. Running sessions keep their existing connections; new sessions see configuration changes. Claude and Codex have independent **Allowed in goals** switches, and Codex starts with no allowed servers.
 
-The following connector and plugin details describe the Claude backend. MCP servers give Claude Code tools beyond files and the shell: current library docs, a real browser, web search, your mail. The **Extensions** page has an **MCP servers** tab that lists the servers Claude Code loads for your account: the ones you installed (**yours**), the ones a plugin brings (**plugin**) and your claude.ai connectors (**claude.ai**). **Check** connects to each one and shows whether it works; it is not automatic because it starts every server.
+The following connector and plugin details describe Claude Code. MCP servers give Claude Code tools beyond files and the shell: current library docs, a real browser, web search, your mail. The **Extensions** page has an **MCP servers** tab that lists the servers Claude Code loads for your account: the ones you installed (**yours**), the ones a plugin brings (**plugin**) and your claude.ai connectors (**claude.ai**). **Check** connects to each one and shows whether it works; it is not automatic because it starts every server.
 
 Some servers need an account before they work. A claude.ai connector (Gmail, Google Drive, …) has a **Connect** button: it opens claude.ai, where you authorize it with the account it should use; Claude Code and Foundry share that connection. A server reached by URL has **Sign in**: a browser opens on the computer running Foundry, or, when there is none (Docker), you open the link yourself and paste back the address the browser ends on. If the sign-in cannot finish in Foundry, the window shows the command to run in your own terminal instead (for example `claude mcp login context7`), with a copy button. After **Check**, a server that still needs this shows **needs auth** and a **Set up** button.
 
@@ -273,7 +273,7 @@ The six switches, all on by default:
 | **Interview round** | Foundry asks a round of questions before writing the Brief. | Answer them; the goal waits for you. |
 | **Goal finished** | A goal ended done, over-delivered or failed. Never when you cancelled it yourself. | Look at the result, or at what failed. |
 | **Delivery** | A pull request was opened or merged, or the delivery failed. | Review the pull request, or look at the Delivery tab. |
-| **Usage pause** | A backend’s usage limit paused its new sessions, and again when retrying resumes. Other backends can continue. | Foundry retries automatically; check Accounts and Usage if failures persist. |
+| **Usage pause** | A coding agent’s usage limit paused its new sessions, and again when retrying resumes. Other coding agents can continue. | Foundry retries automatically; check Accounts and Usage if failures persist. |
 | **New version** | A newer Foundry version is out (once per version). | Update when convenient, see [About & updates](#about--updates). |
 
 Turn off what you do not want. The switches apply to every channel alike.
@@ -289,7 +289,7 @@ Settings for whoever installed Foundry. Leave them unless you know why.
 
 - **Port** (4111) and **Host** (127.0.0.1): where Foundry is reachable. Keep 127.0.0.1 unless you set up remote access. Restart needed.
 - **claude binary** and **Claude Code home**: where Claude Code and its skills live. Empty finds them. Restart needed.
-- **Codex binary** and **Codex home**: the Codex executable and native account/configuration directory. Empty uses PATH and `CODEX_HOME` or `~/.codex`. Restart needed. The launch profile is fixed; choose each goal’s backend on New goal.
+- **Codex binary** and **Codex home**: the Codex executable and native account/configuration directory. Empty uses PATH and `CODEX_HOME` or `~/.codex`. Restart needed. The launch profile is fixed; choose each goal’s coding agent on New goal.
 - **Progress folders**: where each goal's folder is created. Empty puts it next to your project as `<project>-foundry/<goal>`. A folder here gives `<folder>/<project>/<goal>` instead. Applies to goals created from now on.
 
 ## About & updates

@@ -8,10 +8,10 @@ Foundry can drive either Claude Code or Codex CLI. Both use the same goal, inter
 | --- | --- |
 | Goals, Briefs, worktrees, checks, reviews, delivery and event history | Native CLI process, session IDs and login home |
 | Global concurrency budget and notifications | Models, presets, model discovery and fallback order |
-| One Settings page and the same Agent backend selector | User skills, plugins, MCP configuration and allowlist |
+| One Settings page and the same Coding agent selector | User skills, plugins, MCP configuration and allowlist |
 | One Usage page and Agents monitor | Account quota and pause/retry state |
 
-Signing into Claude does not sign into Codex. Setup/Accounts can keep both connected; changing a native login changes the account used by that CLI home outside Foundry too. Existing goals keep their backend. Switching **Agent backend** in a page changes the page’s scope; New goal uses it to choose the backend for the new goal.
+Signing into Claude does not sign into Codex. Setup/Accounts can keep both connected; changing a native login changes the account used by that CLI home outside Foundry too. Existing goals keep their backend. Switching **Coding agent** in a page changes the page’s scope; New goal uses it to choose the backend for the new goal.
 
 ## From source
 
@@ -38,7 +38,7 @@ FOUNDRY_PROVIDER=codex FOUNDRY_PORT=4112 bun run cli auth status
 
 ## Models and configuration
 
-Settings → **Models & limits** → **Agent backend → Codex** provides independent presets and model choices. Pick defaults for Code, Docs & research and Media, then edit the model and reasoning effort for each role, including Housekeeping. Built-in Max, Production, Balanced and Economy presets use the default model with different reasoning profiles; the names do not imply price or entitlement. Custom presets can be duplicated, edited, reset or deleted. Claude presets and aliases remain separate.
+Settings → **Models & limits** → **Coding agent → Codex** provides independent presets and model choices. Pick defaults for Code, Docs & research and Media, then edit the model and reasoning effort for each role, including Housekeeping. Built-in Max, Production, Balanced and Economy presets use the default model with different reasoning profiles; the names do not imply price or entitlement. Custom presets can be duplicated, edited, reset or deleted. Claude presets and aliases remain separate.
 
 **Default Codex model** supplies the base model for preset entries set to `codex-default`. Choose a concrete ID to pin it, or retain `codex-default` to follow the native configuration. New goals capture their role tables and ordered fallback chain. Explicit all-role model overrides are stored separately and prefilled for follow-ups; distinct preset role assignments are not collapsed. A goal can choose another preset or explicitly override every role's model; its goal-wide effort overrides role efforts. A null goal effort uses the role preset, and a null role effort delegates to Codex. Native effort names are passed unchanged as `model_reasoning_effort`; legacy goals created before role presets retain the old `max` → `xhigh` mapping.
 
@@ -69,7 +69,7 @@ Saved settings override the corresponding environment defaults. Configured binar
 
 **Accounts → Refresh status** rechecks both native accounts from the top of the page while retaining the cards. The top-bar **Usage** link is shared; its tooltip keeps Claude activity and Codex limits separate. Codex meters show the percentage **remaining**, with the blue bar representing that amount. Missing windows and percentages stay unknown.
 
-**Agents** lists recent Foundry and external sessions from both backends, with **All engines**, **Claude Code** and **Codex** filters and a search field. Native Codex history requires CLI 0.158 or newer. The version handshake accepts both official originator names and Foundry's exact client name used in ordinary terminals. After upgrading this fix, restart a source-run server that previously reported an old-CLI warning despite having a newer CLI. External process status remains unknown; opening a session only reads its history.
+**Agents** lists recent Foundry and external sessions from both backends, with **All agents**, **Claude Code** and **Codex** filters and a search field. Native Codex history requires CLI 0.158 or newer. The version handshake accepts both official originator names and Foundry's exact client name used in ordinary terminals. After upgrading this fix, restart a source-run server that previously reported an old-CLI warning despite having a newer CLI. External process status remains unknown; opening a session only reads its history.
 
 ## Skill catalog compatibility
 

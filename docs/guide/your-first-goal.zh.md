@@ -11,15 +11,15 @@
 
 ![Codex 初始化检查 — 演示数据](images/codex-setup.png)
 
-## 账户与执行后端
+## 账户与编码智能体
 
 点击顶栏 **Accounts**，分别查看 Claude Code 和 Codex。**Sign in to Codex** 使用 ChatGPT 设备授权：在链接页面输入显示的验证码；**Sign in to Claude Code** 使用 Claude 原生登录。凭据与本机 CLI 共用，在这里退出也会退出对应 CLI，但不会影响另一个提供商。执行期间不能登录或退出，CLI 请求也遵守同样的保护。Codex 只支持 ChatGPT 登录，不使用 API-key 模式；原生 CLI 提供邮箱和方案时会显示在账户卡片。Foundry 运行期间安装 CLI 后，下次账户检查即可识别；Setup 与 Accounts 都使用当前可执行文件。修改配置中的程序路径或原生配置目录仍需重启。
 
 使用 Accounts 顶部的 **Refresh status** 重新检查两个原生账户。检查期间保留现有卡片，预留状态行显示加载或错误，不会用加载文字替换整个页面。
 
-**Setup** 可选择 **Claude Code** 或 **Codex**；检查、登录、修复及技能安装均针对所选后端。**Create your first goal** 会保留该选择。
+**Setup** 可选择 **Claude Code** 或 **Codex**；检查、登录、修复及技能安装均针对所选编码智能体。**Create your first goal** 会保留该选择。
 
-创建任务时，在 **Agent backend** 选择后端。同一 Foundry 实例可以运行两种后端；选定后，澄清、执行、重试、审核等会话始终使用该后端，不会把会话交给另一种 CLI 恢复。两种后端在 **Models** 下各有独立预设。Codex 创建任务时会保存预设中的各角色模型、推理强度和备用模型顺序。
+创建任务时，在 **Coding agent**（编码智能体）中选择 Claude Code 或 Codex。同一 Foundry 实例可以运行两种编码智能体；选定后，澄清、执行、重试、审核等会话始终使用该编码智能体，不会把会话交给另一种 CLI 恢复。两种编码智能体在 **Models** 下各有独立预设。Codex 创建任务时会保存预设中的各角色模型、推理强度和备用模型顺序。
 
 Codex 的预算选项只有时间、尝试次数和并发限制，没有美元上限。**Accounts** 列出了目前的适配限制。
 
@@ -34,8 +34,8 @@ Codex 的预算选项只有时间、尝试次数和并发限制，没有美元�
 
 | 检查项 | 是什么 | 如果是红色 |
 |---|---|---|
-| **Claude Code CLI** / **Codex CLI** | 当前所选后端的程序。 | 复制显示的安装命令并运行，或者找帮你安装 Foundry 的人。 |
-| **Claude login** / **Codex login** | 当前所选后端的账户。 | 按 **Sign in**。 |
+| **Claude Code CLI** / **Codex CLI** | 当前所选编码智能体的程序。 | 复制显示的安装命令并运行，或者找帮你安装 Foundry 的人。 |
+| **Claude login** / **Codex login** | 当前所选编码智能体的账户。 | 按 **Sign in**。 |
 | **git** | 保存你文件的每一个版本。 | 复制显示的命令。 |
 | **Bun runtime** | Foundry 自己运行所需的环境。 | 复制显示的命令。 |
 | **Required: …** | Foundry 的会话需要的技能（skills）。 | 按 **Install**。 |
@@ -59,7 +59,7 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 
 有几项选择从 [Settings → New goal defaults](./settings.zh.md#new-goal-defaults) 开始：视图、**Fast mode**、TDD，以及交付方式和粒度。你可以在这里为这个 goal 改其中任何一项。你在页面上改过的字段会保留你的选择。
 
-![New goal 表单，使用统一的 Agent backend 选择控件](images/new-goal.png)
+![New goal 表单，使用统一的 Coding agent 选择控件](images/new-goal.png)
 
 ### What kind of goal is this
 
@@ -112,7 +112,7 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 
 ### Models
 
-这个 goal 用哪个模型预设，由 **Agent backend** 决定使用 [Claude 预设](./settings.zh.md#presets) 还是 [Codex 预设](./settings.zh.md#codex-预设与模型)。**Default** 使用 Settings 为代码、文档或媒体类 goal 选定的预设；后面的名字就是那个预设，例如 **Default · Production**。换 goal 类型时它会跟着变。选 **Max**、**Production**、**Balanced**、**Economy** 或自定义预设，只为这个 goal 覆盖默认值。切换后端会分别保留各自的选择。
+这个 goal 用哪个模型预设，由 **Coding agent** 决定使用 [Claude 预设](./settings.zh.md#presets) 还是 [Codex 预设](./settings.zh.md#codex-预设与模型)。**Default** 使用 Settings 为代码、文档或媒体类 goal 选定的预设；后面的名字就是那个预设，例如 **Default · Production**。换 goal 类型时它会跟着变。选 **Max**、**Production**、**Balanced**、**Economy** 或自定义预设，只为这个 goal 覆盖默认值。切换编码智能体会分别保留各自的选择。
 
 Codex 的 **View … role assignments** 展开各角色将使用的模型与强度。勾选 **Use one model for every role in this goal**，才会把所有角色改为同一个模型；不勾选就保留预设中的各角色模型。可以从本机目录选择模型，也可用 **Custom model ID…** 输入具体 ID。覆盖选项中的 **CLI default model** 使用本机 Codex 配置。不覆盖时，预设中的 **Default model · from Settings** 使用 Settings 的 **Default Codex model**。覆盖模型后，仍保留各角色强度，除非你同时选择全任务 effort。
 
