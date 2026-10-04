@@ -1,3 +1,4 @@
+import { CodexModelPreset } from './codex-presets.ts';
 import { DEFAULT_NATURE_PRESETS, ModelPreset } from './model-presets.ts';
 import { z } from 'zod';
 import { Discipline, GoalMode } from './goal.ts';
@@ -32,7 +33,12 @@ export const EngineSettings = z.object({
 });
 export const ModelSettings = z.object({
   /** codex-default uses the model configured in Codex itself. */
-  codexModel: z.string().min(1).default('codex-default'),
+  codexModel: z.string().trim().min(1).default('codex-default'),
+  codexPresets: z.record(z.string(), CodexModelPreset).default({}),
+  codexPresetCode: z.string().min(1).default('production'),
+  codexPresetDocs: z.string().min(1).default('balanced'),
+  codexPresetMedia: z.string().min(1).default('balanced'),
+  codexFallbacks: z.array(z.string().trim().min(1)).default([]),
   /** the housekeeping model: one-turn engine chores (classifying a goal, summarising logs, the rate-limit probe) */
   cheap: z.string().min(1).default('haiku'),
   /** tried in order when a tier's model is unavailable (deprecated, unknown alias …) */

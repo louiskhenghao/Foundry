@@ -6,6 +6,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { FailureClass, RunResult } from '@foundry/runner';
+import type { CodexDiscoveredModel } from './codex-discover.ts';
 
 export interface ModelRecord {
   name: string;
@@ -20,6 +21,16 @@ export interface ModelRecord {
   seed: boolean;
   /** found in the Claude Code binary by a model sync; `newest` = the latest id of its family */
   discovered?: { family: string; newest: boolean; at: string } | null;
+  /** Native Codex catalog metadata. Presence in the catalog does not prove account entitlement. */
+  codex?: {
+    displayName: string | null;
+    description: string | null;
+    reasoningEfforts: string[];
+    defaultReasoningEffort: string | null;
+    isDefault: boolean;
+    /** Present in the most recent successful catalog refresh; previously observed entries remain stored. */
+    available: boolean;
+  };
 }
 
 /** when the last model sync ran and against which Claude Code version (a new CLI version triggers one) */
@@ -79,6 +90,22 @@ export class ModelRegistry {
     for (const m of models) {
       const r = this.records.get(m.id) ?? this.upsert(m.id);
       r.discovered = { family: m.family, newest: m.newest, at };
+    }
+    this.save();
+  }
+  /** Refresh catalog capabilities without treating discovery as a successful inference session. */
+  noteCodexDiscovered(models: CodexDiscoveredModel[]): void {
+    for (const r of this.records.values()) if (r.codex) r.codex = { ...r.codex, available: false };
+    for (const model of models) {
+      const r = this.upsert(model.id);
+      r.codex = {
+        displayName: model.displayName,
+        description: model.description,
+        reasoningEfforts: [...model.reasoningEfforts],
+        defaultReasoningEffort: model.defaultReasoningEffort,
+        isDefault: model.isDefault,
+        available: true,
+      };
     }
     this.save();
   }

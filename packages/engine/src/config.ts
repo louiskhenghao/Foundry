@@ -1,4 +1,4 @@
-import { DEFAULT_MCP_ALLOWED, DEFAULT_NATURE_PRESETS, Effort, type ModelNature, type ModelPreset } from '@foundry/core';
+import { DEFAULT_MCP_ALLOWED, DEFAULT_NATURE_PRESETS, Effort, type CodexModelPreset, type ModelNature, type ModelPreset } from '@foundry/core';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -7,6 +7,9 @@ export interface EngineConfig {
   codexBin?: string;
   codexHome: string;
   codexModel: string;
+  codexPresets: Record<string, CodexModelPreset>;
+  codexNaturePreset: Record<ModelNature, string>;
+  codexFallbacks: string[];
   /** The Foundry checkout/install itself (root package.json = the product version; local self-update runs git here). */
   rootDir: string;
   /** Where engine.db, transcripts, worktrees, check outputs live. */
@@ -137,6 +140,9 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     selfCheck: process.env.FOUNDRY_SELF_CHECK === '1' || process.env.FOUNDRY_SELF_CHECK === 'true',
     interview: (['auto', 'always', 'never'] as const).find((m) => m === process.env.FOUNDRY_INTERVIEW) ?? 'auto',
     effort: Effort.options.find((e) => e === process.env.FOUNDRY_EFFORT) ?? null,
+    codexPresets: {},
+    codexNaturePreset: { ...DEFAULT_NATURE_PRESETS },
+    codexFallbacks: [],
     modelPresets: {},
     naturePreset: { ...DEFAULT_NATURE_PRESETS },
     escalateLastAttempt: true,

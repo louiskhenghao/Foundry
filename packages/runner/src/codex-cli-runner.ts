@@ -56,12 +56,12 @@ export class CodexCliRunner implements AgentRunner {
     config('forced_login_method', 'chatgpt');
     config('model_provider', 'openai');
     config('features.hooks', true);
-    // Engine orchestrates roles. Inlining the planner avoids depending on Claude's --agents protocol.
+    // Foundry orchestrates role sessions; native delegation stays disabled.
     config('features.multi_agent', false);
     config('hooks.SessionStart', [{ hooks: [{ type: 'command', command: `cat > ${shellQuote(files.canary)}` }] }]);
     config('hooks.PreToolUse', [{ hooks: [{ type: 'command', command: `${shellQuote(process.execPath)} ${shellQuote(files.guard)}`, timeout: 10 }] }]);
     if (spec.model && spec.model !== CODEX_DEFAULT_MODEL) args.push('--model', spec.model);
-    if (spec.effort) config('model_reasoning_effort', spec.effort === 'max' ? 'xhigh' : spec.effort);
+    if (spec.effort) config('model_reasoning_effort', spec.effort);
     const role = [spec.appendSystemPrompt, spec.appendSystemPromptFile ? readFileSync(spec.appendSystemPromptFile, 'utf8') : null,
       'You are running inside Foundry using Codex. Read the installed SKILL.md when a skill is required; there is no Claude Skill tool. Do not push, create PRs, deploy or publish: Foundry handles delivery. Do not add AI attribution to commits or PRs.',
       ...Object.entries(spec.agents ?? {}).map(([name, agent]) => `Perform the ${name} role yourself when needed:\n${agent.prompt}`),

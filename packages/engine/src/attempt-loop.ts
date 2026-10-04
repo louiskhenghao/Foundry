@@ -165,7 +165,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
     prompt,
     cwd,
     model,
-    meta: metaFor(goal.id),
+    meta: metaFor(goal.id, routed),
     fallbackModel: model === 'opus' ? 'sonnet' : undefined,
     maxTurns: config.attemptMaxTurns,
     maxBudgetUsd: Math.max(0.05, remaining == null ? config.attemptMaxCostUsd : Math.min(config.attemptMaxCostUsd, remaining)),

@@ -1,7 +1,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { Brief, EscalationAnswer, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
+import { CodexEffort, Effort, Brief, EscalationAnswer, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
 import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, PreviewError, classifyFeedback, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, type Engine, type OpenTargetId } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
@@ -39,7 +39,7 @@ const CompletionBody = z.object({
 
 const CreateGoalBody = z.object({
   provider: z.enum(['claude', 'codex']).optional(),
-  codexModel: z.string().min(1).optional(),
+  codexModel: z.string().trim().min(1).optional(),
   title: z.string().optional(),
   prompt: z.string().min(1),
   repoPath: z.string().min(1),
@@ -57,7 +57,7 @@ const CreateGoalBody = z.object({
   outputDir: z.string().nullable().optional(),
   selfCheck: z.boolean().optional(),
   interview: z.enum(['auto', 'always', 'never']).optional(),
-  effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).nullable().optional(),
+  effort: CodexEffort.nullable().optional(),
   modelPreset: z.string().min(1).nullable().optional(),
   /** create the goal as a Follow-up of an earlier finished goal of the same repository */
   follows: z.object({ goalId: z.string().min(1), startFrom: z.enum(['base', 'previous']).optional(), attachments: z.boolean().optional(), style: z.boolean().optional() }).optional(),
@@ -951,13 +951,14 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   // ---------- models ----------
   app.get('/api/models', (c) => {
     const provider = authProvider(c);
-    return c.json({ models: engine.listModels(provider), fallbacks: provider === 'claude' ? engine.config.modelFallbacks : [], current: provider === 'claude' ? engine.config.models : { strong: engine.config.codexModel, cheap: engine.config.codexModel, worker: engine.config.codexModel }, sync: engine.providerModels[provider].syncState() });
+    return c.json({ models: engine.listModels(provider), fallbacks: provider === 'claude' ? engine.config.modelFallbacks : engine.config.codexFallbacks, current: provider === 'claude' ? engine.config.models : { strong: engine.config.codexModel, cheap: engine.config.codexModel, worker: engine.config.codexModel }, sync: engine.providerModels[provider].syncState() });
   });
   // model sync: ids from the Claude Code binary (free) + one tiny session per family alias (~$0.04)
   app.post('/api/models/sync', async (c) => c.json(await engine.syncModels({ provider: authProvider(c) })));
   app.post('/api/models/probe', async (c) => {
-    const { name } = z.object({ name: z.string().min(1).max(80) }).parse(await c.req.json());
-    return c.json(await engine.probeModel(name, authProvider(c)));
+    const provider = authProvider(c);
+    const { name, effort } = z.object({ name: z.string().trim().min(1).max(200), effort: (provider === 'codex' ? CodexEffort : Effort).optional() }).parse(await c.req.json());
+    return c.json(await engine.probeModel(name, provider, effort));
   });
 
   // ---------- settings ----------

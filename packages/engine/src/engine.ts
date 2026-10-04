@@ -1,5 +1,7 @@
+import { CODEX_MODEL_ACTIONS, CodexEffort, Effort, effectiveCodexPresets, natureKey, type CodexModelPreset } from '@foundry/core';
+import { discoverCodexModels } from './models/codex-discover.ts';
 import { dirname, join } from 'node:path';
-import type { Attachment, Brief, BudgetPreset, DocType, Effort, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalWorkflow, ModelConfig, Task, Check } from '@foundry/core';
+import type { Attachment, Brief, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalWorkflow, ModelConfig, Task, Check } from '@foundry/core';
 import {
   BUDGET_PRESETS,
   Budgets,
@@ -65,7 +67,7 @@ import { afterMerge, type AfterMergeOptions } from './delivery/after-merge.ts';
 import { checkGoalPrs, checkOpenPrs, markDelivered, recheckPr } from './delivery/pr-watch.ts';
 import { attachmentDir, claimStaged, conversionTmpPath, markdownFileName, sweepStaging, trashAttachment } from './attachments.ts';
 import { Markitdown } from './convert/markitdown.ts';
-import { SettingsStore, applySettingsToConfig } from './settings.ts';
+import { SettingsError, SettingsStore, applySettingsToConfig } from './settings.ts';
 import { NotificationDispatcher } from './notify/dispatcher.ts';
 import { ModelFallbackRunner } from './models/fallback-runner.ts';
 import { modelsInBinary } from './models/discover.ts';
@@ -98,7 +100,7 @@ export interface CreateGoalInput {
   /** interview the human in rounds before the Brief; default = Settings → workflow.interview */
   interview?: 'auto' | 'always' | 'never';
   /** effort level for every session of this goal; default = Settings → workflow.effort */
-  effort?: Effort | null;
+  effort?: CodexEffort | null;
   /** model preset for this goal; default = the preset Settings picks for its nature */
   modelPreset?: string | null;
   /** Skip Clarify: one task = the prompt, with these command checks. */
@@ -211,15 +213,27 @@ export class Engine {
     this.models = this.providerModels[config.provider];
     const env = () => ({ CLAUDE_CONFIG_DIR: config.claudeHome, FOUNDRY_CALLBACK: `http://${config.host}:${config.port}`, ...this.sessionEnvExtra() });
     const supplied = (provider: 'claude' | 'codex') => runner && ('run' in runner ? runner : runner[provider]);
-    const wrap = (inner: ClaudeRunner, provider: 'claude' | 'codex') => new ModelFallbackRunner(new EffortRunner(inner, () => this.store.db, () => this.config.effort), {
-      fallbacks: () => provider === 'codex' ? [] : config.modelFallbacks,
-      registry: this.providerModels[provider],
-      log: config.log,
-      onFallback: ({ spec, from, to, reason }) => {
-        const goalId = spec.meta?.goalId ?? null;
-        this.store.append({ type: 'goal.models_changed', goalId, payload: { tier: null, from, to, reason } });
-      },
-    });
+    const wrap = (inner: ClaudeRunner, provider: 'claude' | 'codex') => {
+      const checked: ClaudeRunner & { killAll: () => number } = {
+        active: () => inner.active(),
+        setMaxConcurrent: (n) => inner.setMaxConcurrent?.(n),
+        killAll: () => (inner as { killAll?: () => number }).killAll?.() ?? 0,
+        run: async (spec) => {
+          if (provider === 'codex') this.validateCodexChoice(spec.model, spec.effort);
+          return inner.run(spec);
+        },
+      };
+      const fallback = new ModelFallbackRunner(checked, {
+        fallbacks: (spec) => provider === 'codex' ? (spec.meta?.goalId ? this.mustGoal(spec.meta.goalId).codexFallbacks ?? [] : config.codexFallbacks) : config.modelFallbacks,
+        registry: this.providerModels[provider],
+        log: config.log,
+        onFallback: ({ spec, from, to, reason }) => {
+          const goalId = spec.meta?.goalId ?? null;
+          this.store.append({ type: 'goal.models_changed', goalId, payload: { tier: null, from, to, reason } });
+        },
+      });
+      return new EffortRunner(fallback, () => this.store.db, () => provider === 'codex' ? null : this.config.effort);
+    };
     this.runner = new ProviderRunner({
       claude: wrap(supplied('claude') ?? new ClaudeCliRunner({ claudeBin: config.claudeBin, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'claude'),
       codex: wrap(supplied('codex') ?? new CodexCliRunner({ codexBin: config.codexBin, codexHome: config.codexHome, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'codex'),
@@ -331,14 +345,28 @@ export class Engine {
   /** Validate, persist and hot-apply a settings patch; restart-only keys are persisted and reported. */
   updateSettings(patch: SettingsPatch): SettingsView {
     if (patch.engine?.provider && patch.engine.provider !== this.config.provider) throw new Error('The installation default is fixed at launch. Choose Claude or Codex when creating a goal; existing goals keep their backend.');
+    if (patch.models) {
+      const models = { ...this.settings.values().models, ...patch.models };
+      const presets = effectiveCodexPresets(models.codexPresets);
+      for (const id of [models.codexPresetCode, models.codexPresetDocs, models.codexPresetMedia]) {
+        if (!presets[id]) throw new SettingsError(`Unknown Codex preset: ${id}`);
+      }
+    }
     const { changed, view } = this.settings.update(patch);
     this.applySettingsChange(changed);
     return view;
   }
   resetSettings(path?: string): SettingsView {
-    const { changed, view } = this.settings.reset(path);
-    this.applySettingsChange(changed);
-    return view;
+    const { changed } = this.settings.reset(path);
+    const models = this.settings.values().models;
+    const presets = effectiveCodexPresets(models.codexPresets);
+    const repair: NonNullable<SettingsPatch['models']> = {};
+    if (!presets[models.codexPresetCode]) repair.codexPresetCode = DEFAULT_NATURE_PRESETS.code;
+    if (!presets[models.codexPresetDocs]) repair.codexPresetDocs = DEFAULT_NATURE_PRESETS.docs;
+    if (!presets[models.codexPresetMedia]) repair.codexPresetMedia = DEFAULT_NATURE_PRESETS.media;
+    if (Object.keys(repair).length) changed.push(...this.settings.update({ models: repair }).changed);
+    this.applySettingsChange([...new Set(changed)]);
+    return this.settings.view();
   }
   private applySettingsChange(changed: string[]): void {
     if (!changed.length) return;
@@ -772,26 +800,43 @@ export class Engine {
     return this.providerModels[provider].list().map((r) => {
       const seed = SEED_MODELS.find((s) => s.name === r.name);
       const inUse = used.get(r.name) ?? [];
-      return { ...r, label: seed?.label ?? null, note: seed?.note ?? null, pinned: isPinnedId(r.name), inUse };
+      return { ...r, label: provider === 'codex' ? r.codex?.displayName ?? (r.name === 'codex-default' ? 'CLI default' : null) : seed?.label ?? null, note: provider === 'codex' ? r.codex?.description ?? null : seed?.note ?? null, pinned: isPinnedId(r.name), inUse };
     });
   }
+  private validateCodexChoice(model?: string, effort?: CodexEffort): void {
+    if (!model || !effort || model === 'codex-default') return;
+    const advertised = this.providerModels.codex.get(model)?.codex;
+    if (advertised?.available && advertised.reasoningEfforts.length && !advertised.reasoningEfforts.includes(effort)) {
+      throw new Error(`Codex model ${model} does not advertise reasoning effort ${effort}. Choose ${advertised.reasoningEfforts.join(', ')} or CLI default, then sync models if the catalog is stale.`);
+    }
+  }
   /** One minimal session with `name` (user-triggered; costs one short call) to learn what it resolves to. */
-  async probeModel(name: string, provider: 'claude' | 'codex' = this.config.provider): Promise<{ ok: boolean; name: string; resolvedId: string | null; costUsd: number; error: string | null }> {
-    const handle = await this.runner.run({ prompt: 'Reply with the single word OK.', cwd: this.config.dataDir, model: name, meta: { tier: 'probe', provider }, maxTurns: 1, maxBudgetUsd: 0.5, permissionMode: 'dontAsk', allowedTools: [], timeoutMs: 90_000, label: `model probe ${name}` });
+  async probeModel(name: string, provider: 'claude' | 'codex' = this.config.provider, effort?: CodexEffort): Promise<{ ok: boolean; name: string; resolvedId: string | null; costUsd: number; costAvailable: boolean; error: string | null }> {
+    const handle = await this.runner.run({ prompt: 'Reply with the single word OK.', cwd: this.config.dataDir, model: name, effort, meta: { tier: 'probe', provider }, maxTurns: 1, maxBudgetUsd: 0.5, permissionMode: 'dontAsk', allowedTools: [], timeoutMs: 90_000, label: `model probe ${name}` });
     let resolved: string | null = null;
     for await (const ev of handle.events) if (ev.kind === 'init') resolved = ev.model;
     const r = await handle.result;
     this.recordSessionUsage(r, { goalId: null, kind: 'probe', model: name, provider });
     const ok = r.subtype === 'success' && !r.isError;
     const rec = this.providerModels[provider].get(name);
-    return { ok, name, resolvedId: resolved ?? rec?.resolvedId ?? null, costUsd: r.costUsd, error: ok ? null : (r.errorMessage ?? r.subtype) };
+    return { ok, name, resolvedId: resolved ?? rec?.resolvedId ?? null, costUsd: r.costUsd, costAvailable: provider === 'claude' && r.costStatus !== 'unavailable', error: ok ? null : (r.errorMessage ?? r.subtype) };
   }
   /** Doctor check: are the configured tiers names this machine has seen resolve? */
   /** the models the presets Settings picks actually use, with where: "opus" → ["Code: Standard tasks", …] */
   modelsInUse(provider: 'claude' | 'codex' = this.config.provider): Map<string, string[]> {
     const presets = effectivePresets(this.config.modelPresets);
     const used = new Map<string, string[]>();
-    if (provider === 'codex') return new Map([[this.config.codexModel, ['All Codex roles']]]);
+    if (provider === 'codex') {
+      const native = effectiveCodexPresets(this.config.codexPresets);
+      for (const n of MODEL_NATURES) {
+        const p = native[this.config.codexNaturePreset[n]] ?? native[DEFAULT_NATURE_PRESETS[n]]!;
+        for (const a of CODEX_MODEL_ACTIONS) {
+          const model = p.tables[n][a].model === 'codex-default' ? this.config.codexModel : p.tables[n][a].model;
+          used.set(model, [...(used.get(model) ?? []), `${NATURE_LABEL[n]}: ${a === 'housekeeping' ? 'Housekeeping' : ACTION_INFO[a].label}`]);
+        }
+      }
+      return used;
+    }
     for (const n of MODEL_NATURES) {
       const p = presets[this.config.naturePreset[n]] ?? BUILTIN_PRESETS[DEFAULT_NATURE_PRESETS[n]]!;
       for (const a of MODEL_ACTIONS) used.set(p.tables[n][a], [...(used.get(p.tables[n][a]) ?? []), `${NATURE_LABEL[n]}: ${ACTION_INFO[a].label}`]);
@@ -820,8 +865,13 @@ export class Engine {
     const provider = opts.provider ?? this.config.provider;
     const registry = this.providerModels[provider];
     if (provider === 'codex') {
-      const result = opts.probe === false ? null : await this.probeModel(this.config.codexModel, provider);
-      return { found: 0, newest: [], resolved: result ? { [result.name]: result.resolvedId } : {}, cliVersion: null };
+      const bin = this.config.codexBin ?? Bun.which('codex');
+      if (!bin) throw new Error('Codex CLI is not installed. Set the CLI path in Accounts and restart Foundry.');
+      const result = await discoverCodexModels(bin, this.config.codexHome);
+      registry.noteCodexDiscovered(result.models);
+      const cliVersion = result.cliVersion ?? null;
+      registry.noteSync({ cliVersion, at: new Date().toISOString(), found: result.models.length });
+      return { found: result.models.length, newest: result.models.filter((m) => m.isDefault).map((m) => m.id), resolved: {}, cliVersion };
     }
     const bin = this.config.claudeBin ?? Bun.which('claude');
     const found = bin ? modelsInBinary(bin) : [];
@@ -1075,9 +1125,10 @@ export class Engine {
     if (!['claude', 'codex'].includes(provider)) throw new Error('Unknown agent backend');
     const codexModel = input.codexModel?.trim() || this.config.codexModel;
     // an unknown preset would silently fall back to the Settings pick while the goal still shows the typo
-    if (provider === 'codex' && (input.modelPreset || input.models)) throw new Error('Codex uses models.codexModel in Settings, not Claude presets or tiers.');
+    if (provider === 'codex' && input.models) throw new Error('Codex uses its own model presets, not Claude tiers.');
+    if (provider === 'claude' && input.effort != null && !Effort.safeParse(input.effort).success) throw new Error('This reasoning effort is only supported by Codex.');
     if (input.modelPreset) {
-      const known = Object.keys(effectivePresets(this.config.modelPresets));
+      const known = Object.keys(provider === 'codex' ? effectiveCodexPresets(this.config.codexPresets) : effectivePresets(this.config.modelPresets));
       if (!known.includes(input.modelPreset)) throw new Error(`unknown model preset "${input.modelPreset}"; use one of: ${known.join(', ')}`);
     }
     if (!(await isGitRepo(input.repoPath))) throw new Error(`${input.repoPath} is not a git repository`);
@@ -1088,6 +1139,26 @@ export class Engine {
     if (baseBranch === 'HEAD') throw new Error('repository is in detached HEAD state; pass --base <branch>');
     const now = new Date().toISOString();
     const nature: GoalNature = input.nature ?? 'auto';
+    let codexPreset: CodexModelPreset | undefined;
+    const presetId = input.modelPreset ?? (provider === 'codex' && nature !== 'auto' ? this.config.codexNaturePreset[natureKey(nature)] : null);
+    if (provider === 'codex') {
+      const presets = effectiveCodexPresets(this.config.codexPresets);
+      if (presetId) {
+        if (!presets[presetId]) throw new Error(`Unknown Codex preset: ${presetId}`);
+        codexPreset = structuredClone(presets[presetId]!);
+      } else {
+        const tables = Object.fromEntries(MODEL_NATURES.map((n) => {
+          const id = this.config.codexNaturePreset[n];
+          if (!presets[id]) throw new Error(`Unknown Codex preset: ${id}`);
+          return [n, structuredClone(presets[id]!.tables[n])];
+        })) as CodexModelPreset['tables'];
+        codexPreset = { label: 'Nature defaults', description: 'Captured per-nature defaults; the inferred nature selects its table.', basedOn: null, tables };
+      }
+      for (const table of Object.values(codexPreset.tables)) for (const choice of Object.values(table)) {
+        choice.model = input.codexModel?.trim() || (choice.model === 'codex-default' ? codexModel : choice.model);
+      }
+      for (const choice of Object.values(codexPreset.tables[natureKey(nature)])) this.validateCodexChoice(choice.model, (input.effort === undefined ? this.config.effort : input.effort) ?? choice.effort ?? undefined);
+    }
     // anyone-facing default: a goal that produces prose or media opens in the plain-language view
     const mode: GoalMode = input.mode ?? (nature !== 'auto' && nature !== 'code' ? 'simple' : this.config.defaultGoalMode);
     const title = input.title?.trim() || input.prompt.trim().split('\n')[0]!.slice(0, 80);
@@ -1102,7 +1173,8 @@ export class Engine {
       checkpoint: null,
       selfCheck: input.selfCheck ?? this.config.selfCheck,
       effort: input.effort === undefined ? this.config.effort : input.effort,
-      modelPreset: input.modelPreset ?? null,
+      modelPreset: presetId,
+      ...(codexPreset ? { codexPreset, codexFallbacks: [...this.config.codexFallbacks] } : {}),
       modelSubstitutions: {},
       interview: (() => {
         const mode = input.interview ?? this.config.interview;
@@ -1121,7 +1193,7 @@ export class Engine {
         // fast goals run only what the Brief asks for: no TDD mandate unless the caller insists
         return { pace, tdd: input.workflow?.tdd ?? (pace === 'fast' ? ('off' as const) : mode === 'simple' ? ('preferred' as const) : this.config.workflowTdd) };
       })(),
-      models: provider === 'codex' ? { strong: codexModel, cheap: codexModel, worker: codexModel } : { ...this.config.models, ...(input.models ?? {}) },
+      models: provider === 'codex' ? { strong: codexPreset!.tables[natureKey(nature)].clarifier.model, cheap: codexPreset!.tables[natureKey(nature)].housekeeping.model, worker: codexPreset!.tables[natureKey(nature)].standard.model } : { ...this.config.models, ...(input.models ?? {}) },
       state: 'draft',
       stateBeforeBlock: null,
       costUsd: 0,

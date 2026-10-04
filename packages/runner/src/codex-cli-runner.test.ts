@@ -56,7 +56,7 @@ describe('Codex CLI adapter', () => {
     const invocation = JSON.parse(readFileSync(capture, 'utf8'));
     expect(invocation.args.slice(0, 3)).toEqual(['exec', 'resume', 's1']);
     expect(invocation.args).not.toContain('--model');
-    expect(invocation.args).toContain('model_reasoning_effort="xhigh"');
+    expect(invocation.args).toContain('model_reasoning_effort="max"');
     expect(invocation.args).toContain('sandbox_mode="read-only"');
     expect(invocation.schema.required).toEqual(['ok']);
     expect(invocation.prompt).toBe('task');

@@ -218,6 +218,11 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('engine.provider')) config.provider = s.engine.provider;
   if (on('engine.codexBin')) config.codexBin = s.engine.codexBin ?? undefined;
   if (on('engine.codexHome') && s.engine.codexHome) config.codexHome = s.engine.codexHome;
+  if (on('models.codexPresets')) config.codexPresets = s.models.codexPresets;
+  if (on('models.codexPresetCode')) config.codexNaturePreset.code = s.models.codexPresetCode;
+  if (on('models.codexPresetDocs')) config.codexNaturePreset.docs = s.models.codexPresetDocs;
+  if (on('models.codexPresetMedia')) config.codexNaturePreset.media = s.models.codexPresetMedia;
+  if (on('models.codexFallbacks')) config.codexFallbacks = s.models.codexFallbacks;
   if (on('models.codexModel')) config.codexModel = s.models.codexModel;
   if (on('engine.port')) config.port = s.engine.port;
   if (on('engine.host')) config.host = s.engine.host;

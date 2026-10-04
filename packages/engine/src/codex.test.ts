@@ -30,13 +30,13 @@ describe('Codex engine integration', () => {
   });
   test('engine keeps its backend until restart and refuses incompatible session databases', async () => {
     const dataDir = temp();
-    const cfg = defaultConfig(ROOT, { provider: 'codex', dataDir, codexHome: join(dataDir, 'home'), log: () => {} });
+    const cfg = defaultConfig(ROOT, { provider: 'codex', dataDir, codexHome: join(dataDir, 'home'), codexBin: join(dataDir, 'missing-codex'), log: () => {} });
     const runner = new FakeRunner(() => {});
     const engine = new Engine(cfg, runner);
     try {
       expect(engine.config.models.cheap).not.toBe('codex-default'); // Claude defaults remain available alongside Codex
       expect(engine.modelsInUse().has('haiku')).toBe(false);
-      await engine.syncModels({ probe: false });
+      await expect(engine.syncModels({ probe: false })).rejects.toThrow('Cannot start Codex model discovery');
       expect(runner.calls).toHaveLength(0);
       expect(engine.usage().note).toContain('cannot be enforced');
       expect(() => engine.updateSettings({ engine: { provider: 'claude' } })).toThrow('fixed at launch');

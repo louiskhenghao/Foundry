@@ -31,7 +31,7 @@ export interface RunSpec {
   addDirs?: string[];
   resumeSessionId?: string;
   /** Claude Code effort level (`--effort`); omitted = the CLI default */
-  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+  effort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra';
   /** Wall clock, default 20 min. */
   timeoutMs?: number;
   /** No stdout activity, default 5 min. */

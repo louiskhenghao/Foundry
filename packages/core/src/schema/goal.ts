@@ -1,3 +1,4 @@
+import { CodexEffort, CodexModelPreset } from './codex-presets.ts';
 import { z } from 'zod';
 import { Attachment } from './attachment.ts';
 import { BriefStyleOption } from './brief.ts';
@@ -169,8 +170,10 @@ export const Goal = z.object({
   /** the Clarify interview (rounds of questions before the Brief); null = the one-shot Clarify of before */
   interview: Interview.nullable().default(null),
   /** effort level for every session of this goal; null = Settings default / CLI default */
-  effort: Effort.nullable().default(null),
+  effort: CodexEffort.nullable().default(null),
   /** the model preset this goal uses; null = the preset Settings picks for its nature */
+  codexPreset: CodexModelPreset.optional(),
+  codexFallbacks: z.array(z.string().min(1)).optional(),
   modelPreset: z.string().nullable().default(null),
   /** models found unavailable during this goal and what replaced them (from → to), applied to every later session */
   modelSubstitutions: z.record(z.string(), z.string()).default({}),

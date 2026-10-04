@@ -3,7 +3,7 @@ import { BUILTIN_PRESETS, DEFAULT_NATURE_PRESETS, effectivePresets, natureKey } 
 import type { EngineConfig } from '../config.ts';
 
 type PresetConfig = Pick<EngineConfig, 'modelPresets' | 'naturePreset'> & Partial<Pick<EngineConfig, 'provider' | 'codexModel'>>;
-type GoalRef = Pick<Goal, 'nature' | 'modelPreset'> & Partial<Pick<Goal, 'modelSubstitutions' | 'provider' | 'models'>>;
+type GoalRef = Pick<Goal, 'nature' | 'modelPreset'> & Partial<Pick<Goal, 'modelSubstitutions' | 'provider' | 'models' | 'codexPreset'>>;
 
 /**
  * The model table a goal runs on: its own preset (chosen on the New goal form) or the one Settings picks for its nature,
@@ -13,8 +13,13 @@ type GoalRef = Pick<Goal, 'nature' | 'modelPreset'> & Partial<Pick<Goal, 'modelS
 export function tableFor(config: PresetConfig, goal: GoalRef): { table: PresetTable; presetId: string; nature: ModelNature } {
   const nature = natureKey(goal.nature);
   if ((goal.provider ?? config.provider) === 'codex') {
-    const table = Object.fromEntries(Object.keys(BUILTIN_PRESETS.production!.tables[nature]).map((action) => [action, goal.models?.worker ?? config.codexModel ?? 'codex-default'])) as PresetTable;
-    return { table, presetId: 'codex', nature };
+    const subs = goal.modelSubstitutions ?? {};
+    const table = Object.fromEntries(Object.keys(BUILTIN_PRESETS.production!.tables[nature]).map((action) => {
+      let model = goal.codexPreset?.tables[nature][action as ModelAction].model ?? goal.models?.worker ?? config.codexModel ?? 'codex-default';
+      for (let i = 0; i < 4 && subs[model]; i++) model = subs[model]!;
+      return [action, model];
+    })) as PresetTable;
+    return { table, presetId: goal.modelPreset ?? 'codex', nature };
   }
   const presets = effectivePresets(config.modelPresets);
   const candidates = [goal.modelPreset, config.naturePreset[nature], DEFAULT_NATURE_PRESETS[nature]].filter((x): x is string => !!x);
@@ -33,13 +38,13 @@ export function tableFor(config: PresetConfig, goal: GoalRef): { table: PresetTa
 }
 
 /** the model an action's session runs on for this goal */
-export function modelFor(config: PresetConfig, goal: GoalRef, action: Exclude<ModelAction, 'simple' | 'standard' | 'complex'>): { model: string } {
-  return { model: tableFor(config, goal).table[action] };
+export function modelFor(config: PresetConfig, goal: GoalRef, action: Exclude<ModelAction, 'simple' | 'standard' | 'complex'>): { model: string; action?: ModelAction } {
+  return { model: tableFor(config, goal).table[action], ...((goal.provider ?? config.provider) === 'codex' ? { action } : {}) };
 }
 
 /** RunSpec.meta: presets name models directly, so no tier rides along (a fallback never rewrites a goal tier) */
-export function metaFor(goalId: string, _r?: unknown): Record<string, string> {
-  return { goalId };
+export function metaFor(goalId: string, r?: { action?: ModelAction }): Record<string, string> {
+  return { goalId, ...(r?.action ? { modelAction: r.action } : {}) };
 }
 
 /**
@@ -51,12 +56,16 @@ export function workerModelFor(
   goal: GoalRef,
   task: Pick<Task, 'difficulty' | 'retryBudget'>,
   attemptIndex: number,
-): { model: string; escalated: 'last-attempt' | 'human-retry' | null } {
+): { model: string; action?: ModelAction; escalated: 'last-attempt' | 'human-retry' | null } {
   const { table } = tableFor(config, goal);
   const routed = table[task.difficulty ?? 'standard'];
   const escalated = !config.escalateLastAttempt ? null : attemptIndex > task.retryBudget ? 'human-retry' : task.retryBudget >= 2 && attemptIndex === task.retryBudget ? 'last-attempt' : null;
-  if (!escalated || table.complex === routed) return { model: routed, escalated: null };
-  return { model: table.complex, escalated };
+  const action = task.difficulty ?? 'standard';
+  const codex = (goal.provider ?? config.provider) === 'codex';
+  const choices = goal.codexPreset?.tables[natureKey(goal.nature)];
+  const sameEffort = choices?.complex.effort === choices?.[action].effort;
+  if (!escalated || (table.complex === routed && sameEffort)) return { model: routed, escalated: null, ...(codex ? { action } : {}) };
+  return { model: table.complex, escalated, ...(codex ? { action: 'complex' as const } : {}) };
 }
 
 export type { ModelPreset };
