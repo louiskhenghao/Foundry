@@ -173,6 +173,8 @@ export const Goal = z.object({
   effort: CodexEffort.nullable().default(null),
   /** the model preset this goal uses; null = the preset Settings picks for its nature */
   codexPreset: CodexModelPreset.optional(),
+  /** Explicit all-role model selection, retained separately from the captured role table for follow-ups. */
+  codexModelOverride: z.string().trim().min(1).optional(),
   codexFallbacks: z.array(z.string().min(1)).optional(),
   modelPreset: z.string().nullable().default(null),
   /** models found unavailable during this goal and what replaced them (from → to), applied to every later session */

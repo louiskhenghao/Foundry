@@ -237,4 +237,20 @@ describe('Codex preset integration', () => {
     e.store.append({ type: 'goal.created', goalId: legacy.id, payload: { goal: legacy } });
     expect((await e.followUpDraft(legacy.id)).prefill).toMatchObject({ codexModel: 'old-model', effort: 'xhigh' });
   });
+
+  test('follow-up retains an explicit all-role override after settings change and event replay', async () => {
+    const { engine: e } = setup();
+    savePreset(e);
+    const goal = await e.createGoal({ prompt:'Original override',repoPath:repo,nature:'code',codexModel:'chosen-model' });
+    e.store.append({type:'goal.state_changed',goalId:goal.id,payload:{from:'draft',to:'cancelled',reason:'test fixture'}});
+    e.updateSettings({models:{codexModel:'different-default'}});
+    e.store.replay();
+    expect(Goal.parse(getGoal(e.store.db,goal.id)).codexModelOverride).toBe('chosen-model');
+    const draft = await e.followUpDraft(goal.id);
+    expect(draft.prefill.codexModel).toBe('chosen-model');
+    const follow = await e.createGoal({...draft.prefill,prompt:'Follow override',follows:{goalId:goal.id,startFrom:'base'}});
+    for (const table of Object.values(follow.codexPreset!.tables)) for (const choice of Object.values(table)) expect(choice.model).toBe('chosen-model');
+    expect(follow.codexPreset!.tables.code.planner.effort).toBe('xhigh');
+    expect(follow.codexPreset!.tables.code.housekeeping.effort).toBe('low');
+  });
 });

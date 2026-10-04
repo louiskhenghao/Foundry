@@ -109,7 +109,7 @@ export async function followUpDraft(engine: Engine, goalId: string): Promise<Fol
     previous: { id: a.id, title: a.title, state: a.state, repoPath: a.repoPath, baseBranch: a.baseBranch, branch: a.branch, branchExists: w.branchExists },
     followable,
     reason: followable ? null : `the goal is ${a.state}; it can be followed once it is finished`,
-    prefill: { provider: a.provider ?? engine.config.provider, codexModel: a.provider === 'codex' && !a.codexPreset ? a.models.worker : undefined, repoPath: a.repoPath, baseBranch: a.baseBranch, nature: a.nature, modelPreset: a.modelPreset, effort: a.provider === 'codex' && !a.codexPreset && a.effort === 'max' ? 'xhigh' : a.effort, pace: a.workflow.pace, mode: a.mode, delivery: a.delivery.policy },
+    prefill: { provider: a.provider ?? engine.config.provider, codexModel: a.provider === 'codex' ? a.codexModelOverride ?? (!a.codexPreset ? a.models.worker : undefined) : undefined, repoPath: a.repoPath, baseBranch: a.baseBranch, nature: a.nature, modelPreset: a.modelPreset, effort: a.provider === 'codex' && !a.codexPreset && a.effort === 'max' ? 'xhigh' : a.effort, pace: a.workflow.pace, mode: a.mode, delivery: a.delivery.policy },
     start: { recommended: w.onBase ? 'base' : 'previous', onBase: w.onBase, detail: w.detail, baseBranch: a.baseBranch, previousBranch: w.branchExists ? a.branch : null },
     attachments: a.attachments,
     style: styleOf(engine, a),

@@ -1219,7 +1219,7 @@ export class Engine {
       selfCheck: input.selfCheck ?? this.config.selfCheck,
       effort: input.effort === undefined ? this.config.effort : input.effort,
       modelPreset: presetId,
-      ...(codexPreset ? { codexPreset, codexFallbacks: [...this.config.codexFallbacks] } : {}),
+      ...(codexPreset ? { codexPreset, codexFallbacks: [...this.config.codexFallbacks], ...(input.codexModel?.trim() ? { codexModelOverride: input.codexModel.trim() } : {}) } : {}),
       modelSubstitutions: {},
       interview: (() => {
         const mode = input.interview ?? this.config.interview;
