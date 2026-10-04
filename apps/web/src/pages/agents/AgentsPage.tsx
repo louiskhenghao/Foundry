@@ -1,8 +1,9 @@
 import type { AgentSessionRow, AgentsList } from '@foundry/engine/agents-types';
-import { CornerDownRight, Square } from 'lucide-react';
+import { CornerDownRight, Search, Square } from 'lucide-react';
 import { Fragment, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { api } from '../../api.ts';
+import { api, type AgentProvider } from '../../api.ts';
+import { ProviderSelector } from '../../components/ProviderSelector.tsx';
 import { useLive } from '../../store.ts';
 import { ago, Button, cn, ConfirmDialog, Empty, Page } from '../../ui.tsx';
 import { ContextGauge } from './ContextGauge.tsx';
@@ -16,6 +17,8 @@ export function AgentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [kill, setKill] = useState<AgentSessionRow | null>(null);
   const [killing, setKilling] = useState(false);
+  const [provider, setProvider] = useState<AgentProvider | 'all'>('all');
+  const [query, setQuery] = useState('');
   const loc = useLocation();
   const nav = useNavigate();
 
@@ -60,10 +63,13 @@ export function AgentsPage() {
   }
 
   const sessions = list?.sessions ?? [];
+  const matching = sessions.filter(s => (provider === 'all' || s.provider === provider) &&
+    [s.title, s.foundry?.goalTitle, s.cwd, s.model, s.sessionId].some(value => value?.toLowerCase().includes(query.trim().toLowerCase())));
+  const counts = { all: sessions.length, claude: sessions.filter(s => s.provider === 'claude').length, codex: sessions.filter(s => s.provider === 'codex').length };
   // Foundry first (the engine's own agents), then everything the user opened themselves
   const groups = [
-    { key: 'foundry', label: 'Foundry agents', hint: 'spawned by the engine for your goals — these can be stopped from here', accent: 'bg-violet-400', rows: sessions.filter((s) => s.source === 'foundry') },
-    { key: 'external', label: 'Your sessions', hint: 'opened outside Foundry (VS Code, terminal) — watched, never touched', accent: 'bg-sky-400', rows: sessions.filter((s) => s.source === 'external') },
+    { key: 'foundry', label: 'Foundry agents', hint: 'Sessions for your goals. Running sessions can be stopped here.', accent: 'bg-violet-400', rows: matching.filter((s) => s.source === 'foundry') },
+    { key: 'external', label: 'Your sessions', hint: 'From your terminal or editor. History is read-only.', accent: 'bg-sky-400', rows: matching.filter((s) => s.source === 'external') },
   ].filter((g) => g.rows.length > 0);
   return (
     <Page width="lg">
@@ -76,11 +82,20 @@ export function AgentsPage() {
         )}
       </div>
       <p className="text-xs text-zinc-500 mb-4 max-w-2xl">
-        Foundry sessions and recent external Claude Code and Codex sessions. Click a session to read its conversation. External Codex process state is unknown; reading its history does not resume or change the session.
+        Claude Code and Codex, together. Browse Foundry agents and your external sessions from the last 24 hours. External Codex process status is unknown; opening a conversation only reads its history.
       </p>
+      <div className="flex items-end justify-between gap-3 flex-wrap mb-5">
+        <ProviderSelector allowAll value={provider} onChange={setProvider} counts={list ? counts : undefined} />
+        <label className="relative flex-1 min-w-48 max-w-xs">
+          <span className="sr-only">Search sessions</span>
+          <Search size={14} className="absolute left-3 top-3 text-zinc-500" aria-hidden="true" />
+          <input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search sessions, models, directories…" className="w-full rounded-lg border border-zinc-800 bg-zinc-950/50 py-2.5 pl-9 pr-3 text-xs text-zinc-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+        </label>
+      </div>
       {warnings}
+      {list && <div className="mb-3 text-xs text-zinc-500" aria-live="polite">Showing {matching.length} of {sessions.length} sessions · refreshes automatically</div>}
       {!list && <Empty>{error ? 'Session list unavailable; retrying…' : 'Loading…'}</Empty>}
-      {list && sessions.length === 0 && <Empty>No agent sessions in the last 24 hours.</Empty>}
+      {list && matching.length === 0 && <Empty>{sessions.length === 0 ? 'No agent sessions in the last 24 hours.' : 'No sessions match this engine and search. Try All engines or clear the search.'}</Empty>}
 
       {groups.map((g) => (
         <section key={g.key} className="mb-6">
@@ -109,7 +124,7 @@ export function AgentsPage() {
           </div>
 
           {/* desktop: table with subagents nested under their parent */}
-          <div className="hidden sm:block overflow-x-auto">
+          <div className="hidden sm:block overflow-x-auto rounded-lg border border-zinc-800 px-3 surface-card">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-wide text-zinc-500 border-b border-zinc-800">
@@ -129,7 +144,7 @@ export function AgentsPage() {
                     <tr className="border-b border-zinc-900 hover:bg-zinc-900/50 cursor-pointer" onClick={() => open(s.sessionId)}>
                       <td className="py-2 pr-3"><StatusDot status={s.status} /></td>
                       <td className="py-2 pr-3 max-w-88">
-                        <span className="text-zinc-100 truncate block" title={s.sessionId}>{s.title ?? s.foundry?.goalTitle ?? s.sessionId.slice(0, 8)}</span>
+                        <button className="text-zinc-100 truncate block max-w-full text-left hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-emerald-500" title={s.sessionId} onClick={e => { e.stopPropagation(); open(s.sessionId); }}>{s.title ?? s.foundry?.goalTitle ?? s.sessionId.slice(0, 8)}</button>
                         <div className="mt-1 flex items-center gap-2 flex-wrap"><ProviderBadge provider={s.provider} />{s.status === 'unknown' && <span className="text-[10px] text-sky-400">status unknown</span>}</div>
                       </td>
                       <td className="py-2 pr-3 max-w-40">
@@ -153,11 +168,11 @@ export function AgentsPage() {
                       <tr key={`${s.sessionId}/${a.agentId}`} className="border-b border-zinc-900/60 hover:bg-zinc-900/50 cursor-pointer" onClick={() => open(s.sessionId, a.agentId)}>
                         <td className="py-1.5 pr-3" />
                         <td className="py-1.5 pr-3 max-w-88" colSpan={2}>
-                          <span className="flex items-center gap-1.5 pl-4 text-xs text-zinc-400 min-w-0">
+                          <button className="flex items-center gap-1.5 pl-4 text-xs text-zinc-400 min-w-0 max-w-full text-left hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-emerald-500" onClick={e => { e.stopPropagation(); open(s.sessionId, a.agentId); }}>
                             <CornerDownRight size={12} className="shrink-0 text-zinc-600" />
                             <span className="text-zinc-300 shrink-0">{a.agentType}</span>
                             <span className="truncate">{a.description}</span>
-                          </span>
+                          </button>
                         </td>
                         <td className="py-1.5 pr-3 text-[11px] whitespace-nowrap" colSpan={2}>
                           <SubagentStatus status={a.status} />
