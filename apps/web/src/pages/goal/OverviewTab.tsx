@@ -95,6 +95,11 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
           <MarkdownPanel title="goal" source={g.prompt} maxHeight={240} />
+          {/* right under the goal, as on the New goal form: the description and what came with it */}
+          <Card title={`Attachments${g.attachments.length ? ` (${g.attachments.length})` : ''}`}>
+            <AttachmentInput items={g.attachments} goalId={g.id} onChange={() => {}} />
+            <p className="text-[11px] text-zinc-500 mt-2">Attachments are handed to every new session of this goal (Clarify, workers, goal review) as read-only references.</p>
+          </Card>
           <WorkspaceCard d={d} />
           <CodexModelsCard goal={g} />
           {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <PreviewCard goalId={g.id} selfCheck={g.selfCheck} />}
@@ -185,10 +190,6 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
               </div>
             </Card>
           )}
-          <Card title={`Attachments${g.attachments.length ? ` (${g.attachments.length})` : ''}`}>
-            <AttachmentInput items={g.attachments} goalId={g.id} onChange={() => {}} />
-            <p className="text-[11px] text-zinc-500 mt-2">Attachments are handed to every new session of this goal (Clarify, workers, goal review) as read-only references.</p>
-          </Card>
           {d.brief ? (
             <Card
               title={

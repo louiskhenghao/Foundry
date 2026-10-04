@@ -61,12 +61,12 @@ From top to bottom:
 - **The timeline**: **Clarify → Brief → Run → Review → Done** (or **Over-delivered**), plus **Deliver · mode** if the goal pushes or opens a pull request. The current stage pulses. Click a stage to jump to where its work is shown.
 - **What needs you**: the same cards as in the Inbox, with their buttons.
 - **goal**: your original description.
+- **Attachments**: right under the goal, as on the New goal form. You can add more at any time; new sessions receive them.
 - **Try the work in progress**: the progress folder. See [below](#the-progress-folder).
 - **Preview**: start and open the running result. See [Preview](#preview).
 - **Model fallback**: only if a model was unavailable and Foundry switched to another one.
 - **Project skills (autoskills)**: skills Foundry added for your project's technology. They never reach your commits.
 - **Completion**: documents and graph refresh you chose on the Brief, and their status.
-- **Attachments**: you can add more at any time; new sessions receive them.
 - **Brief**: a summary of what you approved, with **open** to read it in full.
 - **Goal review**: the final reviewer's verdict and notes, once it ran.
 - **Acceptance** (on the right): every **must** and **stretch** check with its latest result, for example **3/4 passing**. Click a check to see its output.

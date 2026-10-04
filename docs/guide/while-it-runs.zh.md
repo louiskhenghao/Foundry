@@ -61,12 +61,12 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 - **时间线**：**Clarify → Brief → Run → Review → Done**（或 **Over-delivered**）；goal 要推送或开 pull request 时还有 **Deliver · mode**。当前阶段会闪动。点一个阶段，就跳到显示它工作内容的地方。
 - **What needs you**：和 Inbox 里一样的卡片，带按钮。
 - **goal**：你最初的描述。
+- **Attachments**：紧跟在 goal 下面，和 New goal 表单上一样。随时可以再加；新的会话会收到。
 - **Try the work in progress**：进度文件夹。见 [下文](#进度文件夹)。
 - **Preview**：启动并打开运行中的结果。见 [Preview](#preview)。
 - **Model fallback**：只在某个模型不可用、Foundry 换了另一个模型时出现。
 - **Project skills (autoskills)**：Foundry 为你项目的技术栈添加的 skill。它们不会进入你的提交。
 - **Completion**：你在 Brief 上选的文档和知识图谱刷新，以及它们的状态。
-- **Attachments**：随时可以再加；新的会话会收到。
 - **Brief**：你批准的内容摘要，按 **open** 看全文。
 - **Goal review**：最终审查员的结论和意见（运行过之后才有）。
 - **Acceptance**（右侧）：每个 **must** 和 **stretch** 检查及其最新结果，比如 **3/4 passing**。点一个检查可以看它的输出。
