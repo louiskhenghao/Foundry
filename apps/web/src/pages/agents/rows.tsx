@@ -8,7 +8,7 @@ export function StatusDot({ status }: { status: AgentStatus }) {
 }
 
 export function ProviderBadge({ provider }: { provider: AgentSessionRow['provider'] }) {
-  return <span className="rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-400 shrink-0">{provider === 'codex' ? 'Codex' : provider === 'claude' ? 'Claude Code' : 'Backend unknown'}</span>;
+  return <span className="rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-400 shrink-0" title="Coding agent">{provider === 'codex' ? 'Codex' : provider === 'claude' ? 'Claude Code' : 'Agent unknown'}</span>;
 }
 
 export function SourceBadge({ row }: { row: AgentSessionRow }) {
@@ -32,4 +32,9 @@ export function shortCwd(cwd: string): string {
   const pf = cwd.match(/\/([^/]+-foundry\/.+)$/);
   if (pf) return pf[1]!;
   return cwd.replace(/^\/Users\/[^/]+/, '~');
+}
+
+/** A session's directory inside its goal's progress folder (`delivery`, `tasks/<id>`), when it is one. */
+export function goalRelCwd(cwd: string): string {
+  return cwd.match(/\/\.foundry\/[^/]+\/(.+)$/)?.[1] ?? shortCwd(cwd);
 }

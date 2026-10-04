@@ -2,7 +2,7 @@
 
 > English · [中文](./approving-the-brief.zh.md)
 
-## Backend-specific limits
+## Limits by coding agent
 
 A Codex Brief shows time and execution limits, with dollar estimates and USD controls hidden. This applies to Simple and Expert views. The provider chosen at goal creation stays fixed when you approve or revise the Brief.
 
@@ -139,7 +139,7 @@ Where the work happens: **frontend**, **backend**, **fullstack**, **data**, **mo
 
 ### Difficulty
 
-Difficulty picks which model does the task, from the goal’s backend-specific [model preset](./settings.md#models--limits). Foundry rates each task; you can change it.
+Difficulty picks which model does the task, from the [model preset](./settings.md#models--limits) of the goal’s coding agent. Foundry rates each task; you can change it.
 
 | Difficulty | Examples | Model used |
 |---|---|---|
@@ -188,7 +188,7 @@ Foundry never adds scope on its own: a stretch check exists only because it is i
 | Type | How it is judged | Good for |
 |---|---|---|
 | **Command** | A command runs in the project; it passes when the command succeeds. Example: `bun test`. | Anything a test or build can prove. |
-| **Reviewer** | A session of the goal’s backend reads the change and judges it against the rule you write. Example: "the settings page has a dark mode switch that persists". | Things a test cannot easily prove: wording, layout, completeness. |
+| **Reviewer** | A session of the goal’s coding agent reads the change and judges it against the rule you write. Example: "the settings page has a dark mode switch that persists". | Things a test cannot easily prove: wording, layout, completeness. |
 
 With several Areas, a goal-level check can belong to one Area or to **all Areas**. **whole goal** means it is judged on the combined result; picking a task instead moves it into that task. A check without a name, command or rule is outlined in red and blocks approval.
 

@@ -11,13 +11,13 @@
 
 ![Codex setup — demonstration data](images/codex-setup.png)
 
-## Agent accounts and backend
+## Agent accounts and coding agent
 
 Open **Accounts** in the header to see Claude Code and Codex separately. **Sign in to Codex** uses ChatGPT device authorization; enter the displayed code on the linked page. **Sign in to Claude Code** uses Claude's native login. Credentials belong to the local CLI: signing out here also signs out that CLI, but does not sign out the other provider. Foundry refuses sign-in and sign-out while work is active, including requests from the CLI. Codex supports ChatGPT sign-in only; API-key login is not used. The account card shows the native email and plan when available. Installing a CLI while Foundry is running is detected on the next account check; Setup and Accounts use the current executable. Changes to a configured binary path or native home still require a restart.
 
 Use **Refresh status** at the top of Accounts to recheck both native accounts. The existing cards stay visible during the check; the reserved status row reports loading or an error without replacing the page.
 
-On **New goal**, choose **Agent backend** before creating the goal. Both providers can run in one Foundry instance. The selected backend stays fixed through clarification, workers, retries, reviews and delivery assistance; sessions never resume on another provider. Each backend has independent model presets under **Models**. Codex captures the preset's role models, reasoning efforts and fallback order when you create the goal.
+On **New goal**, choose **Coding agent** before creating the goal. Both providers can run in one Foundry instance. The selected coding agent stays fixed through clarification, workers, retries, reviews and delivery assistance; sessions never resume on another provider. Each coding agent has independent model presets under **Models**. Codex captures the preset's role models, reasoning efforts and fallback order when you create the goal.
 
 For Codex, budget presets cover time, attempts and concurrency. No USD budget is available. **Accounts** lists the current integration limits before you start.
 
@@ -28,12 +28,12 @@ This page walks through the **New goal** form from top to bottom. Most fields ca
 
 ### Check the Setup page
 
-Open the ⚙ menu at the right of the top bar and choose **Setup** (a red dot on ⚙ means something is still missing). Select **Claude Code** or **Codex** on Setup. The checks, sign-in, fixes and recommended skill installation all target that backend; **Create your first goal** preserves the selection. Foundry shows a green or red line for each:
+Open the ⚙ menu at the right of the top bar and choose **Setup** (a red dot on ⚙ means something is still missing). Select **Claude Code** or **Codex** on Setup. The checks, sign-in, fixes and recommended skill installation all target that coding agent; **Create your first goal** preserves the selection. Foundry shows a green or red line for each:
 
 | Check | What it is | If it is red |
 |---|---|---|
-| **Claude Code CLI** / **Codex CLI** | The selected backend’s program. | Copy the install command shown and run it, or ask whoever installed Foundry. |
-| **Claude login** / **Codex login** | The selected backend’s account. | Press **Sign in**. |
+| **Claude Code CLI** / **Codex CLI** | The selected coding agent’s program. | Copy the install command shown and run it, or ask whoever installed Foundry. |
+| **Claude login** / **Codex login** | The selected coding agent’s account. | Press **Sign in**. |
 | **git** | Keeps every version of your files. | Copy the command shown. |
 | **Bun runtime** | What Foundry itself runs on. | Copy the command shown. |
 | **Required: …** | Skills Foundry's sessions need. | Press **Install**. |
@@ -57,7 +57,7 @@ Press **New goal** in the top bar. The four numbered steps at the top right (**G
 
 Several choices start from [Settings → New goal defaults](./settings.md#new-goal-defaults): the view, **Fast mode**, TDD, and the delivery mode and granularity. Change any of them here for this goal. A field you change on the page keeps your choice.
 
-![The New goal form with the shared Agent backend selector](images/new-goal.png)
+![The New goal form with the shared Coding agent selector](images/new-goal.png)
 
 ### What kind of goal is this
 
@@ -110,7 +110,7 @@ How hard sessions of this goal think. An explicit value overrides every role. Fo
 
 ### Models
 
-Which model preset this goal uses: [Claude presets](./settings.md#presets) or [Codex presets](./settings.md#codex-presets-and-models), depending on **Agent backend**. **Default** uses the preset Settings picks for code, documents or media goals; the name after it, for example **Default · Production**, is that preset. It changes with the kind of goal. Pick **Max**, **Production**, **Balanced**, **Economy** or your own preset to override it for this goal. Switching providers preserves each one's selection.
+Which model preset this goal uses: [Claude presets](./settings.md#presets) or [Codex presets](./settings.md#codex-presets-and-models), depending on **Coding agent**. **Default** uses the preset Settings picks for code, documents or media goals; the name after it, for example **Default · Production**, is that preset. It changes with the kind of goal. Pick **Max**, **Production**, **Balanced**, **Economy** or your own preset to override it for this goal. Switching providers preserves each one's selection.
 
 For Codex, **View … role assignments** shows the model and effort each role will use. **Use one model for every role in this goal** enables an optional all-role model override; leaving it unticked preserves the preset's individual models. Choose a model from the local catalog or **Custom model ID…**. **CLI default model** in the override follows native Codex configuration. Without an override, preset entries set to **Default model · from Settings** use **Default Codex model** from Settings. The override keeps role efforts unless you also choose a goal-wide effort.
 

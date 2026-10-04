@@ -14,7 +14,7 @@ What each one means and what to press: [When Foundry needs you](./when-foundry-n
 
 Probably not. Check in this order:
 
-1. **A yellow banner "Usage limit reached"?** The named backend reached its usage limit. Goals on the other backend can continue. Foundry retries at the reported time, or after a delay when no reset is supplied; a retry time does not guarantee recovered quota.
+1. **A yellow banner "Usage limit reached"?** The named coding agent reached its usage limit. Goals on the other coding agent can continue. Foundry retries at the reported time, or after a delay when no reset is supplied; a retry time does not guarantee recovered quota.
 2. **The Inbox.** A number in the top bar means something waits for you.
 3. **The task's live log** (goal page → **Tasks** → click the running task). Claude sessions can show `⏱ sub-agent still working · 5m 10s`; Codex uses separate Foundry-managed Planner sessions and does not emit that native sub-agent heartbeat. Planning often takes 2 to 8 minutes with little output.
 4. **The Agents page.** Foundry-owned running sessions show known activity. External Codex history can show **status unknown**; it cannot prove a process is running.
@@ -90,7 +90,7 @@ Yes. Claude and Codex goals share the limit **Concurrent agent sessions** (3 by 
 
 ## Can Claude and Codex share one instance?
 
-Yes. Choose **Agent backend** on New goal. The goal keeps it through planning, work, retries and reviews. **Accounts** signs each backend in separately; signing out one leaves the other unchanged. Codex uses ChatGPT device sign-in only. Settings has independent model presets, and Extensions keeps MCP permissions separate.
+Yes. Choose **Coding agent** on New goal. The goal keeps it through planning, work, retries and reviews. **Accounts** signs each coding agent in separately; signing out one leaves the other unchanged. Codex uses ChatGPT device sign-in only. Settings has independent model presets, and Extensions keeps MCP permissions separate.
 
 ## Why do I see only a weekly Codex limit?
 

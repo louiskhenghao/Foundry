@@ -80,7 +80,7 @@ buttons.
 
 ## Codex account and compatibility problems
 
-Choose **Agent backend → Codex** in Setup, Settings, Extensions or Usage before diagnosing the native account. The backend switch filters that page; it does not move existing goals or sign out the other account.
+Choose **Coding agent → Codex** in Setup, Settings, Extensions or Usage before diagnosing the native account. The backend switch filters that page; it does not move existing goals or sign out the other account.
 
 | What you see | What to do |
 |---|---|

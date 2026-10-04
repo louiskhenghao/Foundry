@@ -4,11 +4,11 @@ This file is a glossary. It defines the language used across the codebase, the U
 
 ## Core concepts
 
-**Agent backend**
-The provider chosen for a Goal: Claude Code or Codex. It stays fixed for that Goal, including retries and reviews. Accounts are independent; goals can share one Foundry instance. An unavailable measurement (cost, quota, turns or skill telemetry) is unknown, never zero.
+**Coding agent**
+The provider chosen for a Goal: Claude Code or Codex. Formerly called Agent backend. It stays fixed for that Goal, including retries and reviews. Accounts are independent; goals can share one Foundry instance. An unavailable measurement (cost, quota, turns or skill telemetry) is unknown, never zero.
 
 **Launch profile**
-The backend selected when Foundry starts. It determines defaults and the data directory’s ownership marker, not the backend of every Goal. One instance can run both backends; changing the profile does not migrate existing state.
+The coding agent selected when Foundry starts. It determines defaults and the data directory’s ownership marker, not the coding agent of every Goal. One instance can run both coding agents; changing the profile does not migrate existing state.
 
 **Goal**
 A user-set objective stated in natural language against a repository. A Goal is finished when all of its Must Checks pass; it is *over-delivered* when its Stretch Checks pass as well. A Goal's output is a local branch. The engine only pushes, opens or merges under the Delivery Policy the user chose. Native inference and connected tools still communicate with their services.
@@ -17,13 +17,13 @@ A user-set objective stated in natural language against a repository. A Goal is 
 The smallest unit of work carved out of a Goal during Clarify. Tasks form a DAG through `dependsOn` edges. A Task with no unfinished dependencies is *ready*. Fan-out, fan-in and pipeline are not separate concepts — they are shapes of the DAG.
 
 **Attempt**
-One Plan → Act → Observe pass at a Task, performed in a fresh session of the Goal's Agent backend. An Attempt is made of several sessions — the Worker's segments, the Task reviewer, possibly a Merger — each recorded with its model and the measurements its backend provides. A *retry* is simply the next Attempt, fed with the previous Attempt's Observation Report — unless the session can simply carry on (see Continuation). A **Merge Attempt** is an Attempt whose only job is to resolve a merge conflict between two Tasks.
+One Plan → Act → Observe pass at a Task, performed in a fresh session of the Goal's Coding agent. An Attempt is made of several sessions — the Worker's segments, the Task reviewer, possibly a Merger — each recorded with its model and the measurements its coding agent provides. A *retry* is simply the next Attempt, fed with the previous Attempt's Observation Report — unless the session can simply carry on (see Continuation). A **Merge Attempt** is an Attempt whose only job is to resolve a merge conflict between two Tasks.
 
 **Continuation**
-The next segment of the same Attempt: its session is resumed by the same Agent backend with everything it already knows, instead of a fresh session that must understand the Task again. The engine continues an Attempt when its session was cut (engine restart, an applicable session cap, timeout) or when the Checks still fail but the segment made progress; a Continuation consumes no retry, and an Attempt is continued at most a few times before a genuine new Attempt (fresh session, Observation Report) takes over. A Merge Attempt's second try is a Continuation of its first.
+The next segment of the same Attempt: its session is resumed by the same Coding agent with everything it already knows, instead of a fresh session that must understand the Task again. The engine continues an Attempt when its session was cut (engine restart, an applicable session cap, timeout) or when the Checks still fail but the segment made progress; a Continuation consumes no retry, and an Attempt is continued at most a few times before a genuine new Attempt (fresh session, Observation Report) takes over. A Merge Attempt's second try is a Continuation of its first.
 
 **Follow-up**
-A Goal that continues an earlier, finished Goal of the same repository: B *follows* A, and A is *followed by* B; chains are allowed (A → B → C). A Follow-up is given what A asked for, what was understood and decided, and how it ended, as background for its Clarify; that background is copied when the Follow-up is created, so it survives A being deleted. It starts from the base branch when A's work is already there, otherwise from A's Goal branch — then A's changes travel in B's Delivery. The form prefills the earlier backend, preset choice and any explicit all-role Codex model override. A Follow-up is a new Goal: its creation captures the then-current preset tables, not the earlier Goal’s frozen table. A Goal can also be marked as a Follow-up afterwards, which records the relationship and nothing else.
+A Goal that continues an earlier, finished Goal of the same repository: B *follows* A, and A is *followed by* B; chains are allowed (A → B → C). A Follow-up is given what A asked for, what was understood and decided, and how it ended, as background for its Clarify; that background is copied when the Follow-up is created, so it survives A being deleted. It starts from the base branch when A's work is already there, otherwise from A's Goal branch — then A's changes travel in B's Delivery. The form prefills the earlier coding agent, preset choice and any explicit all-role Codex model override. A Follow-up is a new Goal: its creation captures the then-current preset tables, not the earlier Goal’s frozen table. A Goal can also be marked as a Follow-up afterwards, which records the relationship and nothing else.
 _Avoid_: continuation (a resumed session inside an Attempt), child goal, sub-goal
 
 **Check**
@@ -37,7 +37,7 @@ The system never invents scope on its own: a Stretch Check exists only because t
 The evidence gathered after an Attempt acts: the results of the Task's Checks, the reviewer's verdict, and the list of changed files. The distilled form handed to the next Attempt is the **Observation Report**.
 
 **Reviewer**
-A session of the Goal's Agent backend that reads a diff and judges it. The *Task reviewer* is lightweight and reports blockers only; the *Goal reviewer* judges the whole Goal diff against the Must and Stretch Checks. Reviewer verdicts never override objective Check results.
+A session of the Goal's Coding agent that reads a diff and judges it. The *Task reviewer* is lightweight and reports blockers only; the *Goal reviewer* judges the whole Goal diff against the Must and Stretch Checks. Reviewer verdicts never override objective Check results.
 
 ## Clarify
 
@@ -96,13 +96,13 @@ A push message sent to a Notification Channel the moment something happens the u
 A place outside the app where Notifications are sent — Telegram or Discord — configured by the user in Settings. Sending is the engine acting under the user's standing authorisation, exactly like Delivery: the model never sends anything.
 
 **Sign-in**
-Authorising one Agent backend on the machine running Foundry. Each backend uses its native CLI login and owns its credentials independently. Claude can complete in a browser or accept a returned code in Foundry; Codex uses ChatGPT device authorisation, with the displayed code entered on the linked sign-in page. Codex API-key login is unsupported. Signing out also signs out that local CLI, without changing the other backend's account.
+Authorising one Coding agent on the machine running Foundry. Each coding agent uses its native CLI login and owns its credentials independently. Claude can complete in a browser or accept a returned code in Foundry; Codex uses ChatGPT device authorisation, with the displayed code entered on the linked sign-in page. Codex API-key login is unsupported. Signing out also signs out that local CLI, without changing the other coding agent's account.
 
 **Boundary**
 The line between the local workspace and the outside world. Crossing it is always an Escalation.
 
 **Budget**
-The limits a Goal runs within: elapsed time, concurrent sessions, Attempts per Task and, where the backend reports it, estimated dollar cost. Exceeding one is an Escalation, not a failure. Cost and time limits may be *unlimited*. Codex has no enforceable dollar budget.
+The limits a Goal runs within: elapsed time, concurrent sessions, Attempts per Task and, where the coding agent reports it, estimated dollar cost. Exceeding one is an Escalation, not a failure. Cost and time limits may be *unlimited*. Codex has no enforceable dollar budget.
 
 **Budget Preset**
 How a Goal's Budget was chosen: *Auto* (no cap while clarifying; the Brief's estimate proposes the budget and the user confirms or edits it when approving), *Quick*, *Thorough*, *Unlimited*, or *Custom*. Auto proposes limits at approval. Claude can estimate USD cost; Codex proposes non-dollar limits because its inference cost is unreported.
@@ -176,7 +176,7 @@ A source the system consults to decide which parts of a repository are relevant 
 ## Skills
 
 **Skill**
-A packaged instruction set an Agent backend can load (a `SKILL.md` directory). Foundry does not define skills; it sees the supported skills installed for the selected backend, installs curated ones from its Catalog, and tells its Roles which to use.
+A packaged instruction set a Coding agent can load (a `SKILL.md` directory). Foundry does not define skills; it sees the supported skills installed for the selected coding agent, installs curated ones from its Catalog, and tells its Roles which to use.
 
 **Skill Source**
 Where an installed Skill comes from and who updates it: a GitHub repository managed by Foundry, by the community `skills` CLI, or by a Claude Code plugin; a gstack clone; a project directory; or a hand-installed copy whose origin is inferred by matching its contents against known sources. Native Codex plugin packages are managed separately from loose skills; their lifecycle belongs to the native CLI. Skills of the same Foundry-managed Source are updated together; a Skill whose bytes match an older version of its Source is *outdated*, one that matches no version is *modified*.
@@ -200,7 +200,7 @@ The one design skill set the engine hands to UI work (frontend / fullstack Scena
 Skills matched to a repository's own stack (React, Tailwind, Supabase…) that autoskills installs into a Goal's workspace after the Brief is approved. They use the Goal's native skill location (`.claude/skills` for Claude or `.agents/skills` for Codex), have newly installed contents git-excluded while pre-existing tracked project skills are preserved, and are copied into task workspaces and listed to every Worker of that Goal. An empty repository has no stack to detect yet, so the install is retried after each Task lands until a stack manifest exists.
 
 **Model Registry**
-What this machine has learned about a backend's model names: native catalog entries, which id a requested name resolved to, and when it last worked or failed. A discovered model is not proof of account access; an explicit Test checks a model by running a session.
+What this machine has learned about a coding agent's model names: native catalog entries, which id a requested name resolved to, and when it last worked or failed. A discovered model is not proof of account access; an explicit Test checks a model by running a session.
 
 **Fallback**
 What the engine does when a session’s model is unavailable before productive work (not an auth, quota or invalid-effort failure): re-run the same session with the next model of the configured chain and remember the replacement on the Goal, so its later sessions skip the dead model; only when the whole chain fails does the Goal escalate.
@@ -210,7 +210,7 @@ The model of the engine's short chores — classifying a Goal's nature or summar
 _Avoid_: cheap tier, cheap model
 
 **Effort**
-The requested reasoning strength of a session. Supported values depend on the backend and model. A Goal-wide choice overrides each role's setting; Codex can instead use the efforts captured in its Model Preset, with a role's CLI default delegated to native configuration.
+The requested reasoning strength of a session. Supported values depend on the coding agent and model. A Goal-wide choice overrides each role's setting; Codex can instead use the efforts captured in its Model Preset, with a role's CLI default delegated to native configuration.
 
 **Simple mode**
 A Goal viewed by someone who does not want the machinery: one plain-language Brief (what the system understood, what it will build, the questions only they can answer, the assumptions they can veto, the price) and a progress view (how far, what it costs, what needs them). The engine underneath is the same; Expert view — every control — is one click away on any Goal, and a Goal's mode is just which view it opens in.
@@ -222,7 +222,7 @@ How hard the engine pushes an engineering practice on its sessions. For TDD: *re
 The engine's user-editable configuration: concurrency, models, session caps, workflow profile, Design Pack, autoskills, review and delivery defaults, tools, safety limits. A saved value beats an environment variable, which beats the default; most changes apply immediately, a few only after the engine restarts.
 
 **MCP Server**
-A program that gives a coding agent extra tools (library docs, a browser, web search). Each backend owns its native configuration and independent Allowed in goals policy. Foundry manages Claude servers/connectors and Codex user-configured stdio/HTTP servers through their respective native clients. Only work-performing sessions receive the selected backend's allowed prefixes.
+A program that gives a coding agent extra tools (library docs, a browser, web search). Each coding agent owns its native configuration and independent Allowed in goals policy. Foundry manages Claude servers/connectors and Codex user-configured stdio/HTTP servers through their respective native clients. Only work-performing sessions receive the selected coding agent's allowed prefixes.
 
 ## Goal natures
 
@@ -265,12 +265,12 @@ Re-indexing the knowledge graph (graphify, and gitnexus when installed) where th
 The one blocking Question a Brief carries when the repository is empty: there are no facts to discover, so the stack is the human's Decision. It offers 2–4 concrete options with the Clarifier's recommendation first; the plan assumes the recommendation, and the first Task scaffolds the chosen stack.
 
 **Usage Pause**
-The engine's reaction to one backend's usage limit: no new sessions start on that backend while its Goals keep their state. Other backends can continue. A reported reset schedules the next retry; without one, Codex retries after a short delay that does not claim the account has recovered. The pause survives engine restarts and is visible as a banner and on the Usage page; it is never an Escalation.
+The engine's reaction to one coding agent's usage limit: no new sessions start on that coding agent while its Goals keep their state. Other coding agents can continue. A reported reset schedules the next retry; without one, Codex retries after a short delay that does not claim the account has recovered. The pause survives engine restarts and is visible as a banner and on the Usage page; it is never an Escalation.
 
 ## Agents monitor
 
 **Agent Session**
-One agent conversation on this machine, headless or interactive — whoever started it. The Agents page combines Foundry's own session state with recent native Claude and Codex history, labels the backend and bounds the number of records. External history is read without resuming or modifying the session.
+One agent conversation on this machine, headless or interactive — whoever started it. The Agents page combines Foundry's own session state with recent native Claude and Codex history, labels the coding agent and bounds the number of records. External history is read without resuming or modifying the session.
 
 **Session Source**
 Who started an Agent Session: *Foundry* (the engine spawned it for a Goal) or *external* (the user opened it themselves — terminal, VS Code, elsewhere). Only Foundry-sourced sessions can be stopped from the Agents page; external ones are watched, never touched.
@@ -309,4 +309,4 @@ The native account’s reported allowance and usage windows, including activity 
 
 
 ### Native plugin
-A package of skills, tools or hooks owned by an Agent backend's native client and marketplace. Codex packages are listed separately from loose Skills. Foundry can install or remove available user packages through Codex; native policy, marketplace setup, updates and enablement remain Codex's responsibility. Installation is shared with the local CLI and does not itself authorize a connected service or allow its MCP tools in Goals.
+A package of skills, tools or hooks owned by a Coding agent's native client and marketplace. Codex packages are listed separately from loose Skills. Foundry can install or remove available user packages through Codex; native policy, marketplace setup, updates and enablement remain Codex's responsibility. Installation is shared with the local CLI and does not itself authorize a connected service or allow its MCP tools in Goals.

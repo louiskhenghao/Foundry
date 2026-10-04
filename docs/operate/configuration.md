@@ -119,7 +119,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
-| `engine.provider` *(restart)* | `claude` | `FOUNDRY_PROVIDER` | Installation default (claude or codex), fixed at launch. Each new goal can select either backend; existing goals keep their provider. |
+| `engine.provider` *(restart)* | `claude` | `FOUNDRY_PROVIDER` | Installation default (claude or codex), fixed at launch. Each new goal can select either coding agent; existing goals keep theirs. |
 | `engine.codexBin` *(restart)* | — | `FOUNDRY_CODEX_BIN` | Codex CLI path; empty uses codex on PATH. Requires hooks support. |
 | `engine.codexHome` *(restart)* | — | `FOUNDRY_CODEX_HOME (or CODEX_HOME)` | Codex configuration and login directory; empty uses CODEX_HOME or ~/.codex. |
 | `engine.port` *(restart)* | `4111` | `FOUNDRY_PORT` | Port the UI and API listen on. |

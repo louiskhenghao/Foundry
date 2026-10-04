@@ -14,7 +14,7 @@ goal 运行起来后，Foundry 只在少数几种情况下停下来问你：一�
 
 多半没有。按这个顺序检查：
 
-1. **有黄色横幅 "Usage limit reached" 吗？** 横幅所指的后端到了用量上限，另一后端仍可继续。Foundry 按报告的时间重试；没有重置信号时延后重试，重试时间不保证额度已经恢复。
+1. **有黄色横幅 "Usage limit reached" 吗？** 横幅所指的编码智能体到了用量上限，另一个编码智能体仍可继续。Foundry 按报告的时间重试；没有重置信号时延后重试，重试时间不保证额度已经恢复。
 2. **Inbox。** 顶栏上有数字，说明有事在等你。
 3. **任务的实时日志**（goal 页面 → **Tasks** → 点正在运行的任务）。Claude 会话可能显示 `⏱ sub-agent still working · 5m 10s`；Codex 使用 Foundry 单独管理的 Planner 会话，不会发出这种原生子代理心跳。规划常常要 2 到 8 分钟，期间输出很少。
 4. **Agents 页面。** Foundry 自己运行的会话显示已知活动；外部 Codex 历史可能显示 **status unknown**，不能用它判断进程是否正在运行。
@@ -90,7 +90,7 @@ Foundry 写计划时，会把每个任务评为 **simple**、**standard** 或 **
 
 ## Claude 和 Codex 可以共用一个实例吗？
 
-可以。在 New goal 选择 **Agent backend**，规划、执行、重试和审查都会保持这个后端。**Accounts** 分别登录两种后端，退出一个不会影响另一个。Codex 只使用 ChatGPT 设备登录。Settings 中的模型预设独立，Extensions 中的 MCP 权限也独立。
+可以。在 New goal 选择 **Coding agent**（编码智能体），规划、执行、重试和审查都会保持这个编码智能体。**Accounts** 分别登录两种编码智能体，退出一个不会影响另一个。Codex 只使用 ChatGPT 设备登录。Settings 中的模型预设独立，Extensions 中的 MCP 权限也独立。
 
 ## 为什么我的 Codex 只有每周限额？
 

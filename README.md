@@ -13,7 +13,7 @@ English · [中文](./README.zh.md)
 
 <br>
 
-<img src="docs/guide/images/goals.png" alt="Foundry goals across Claude Code and Codex: progress, backend, and the controls available for each goal" width="900">
+<img src="docs/guide/images/goals.png" alt="Foundry goals across Claude Code and Codex: progress, coding agent, and the controls available for each goal" width="900">
 
 </div>
 
@@ -36,11 +36,11 @@ Foundry does that part.
 - **Your code stays yours**  
   Foundry runs locally and uses the selected CLI's account: Claude login or ChatGPT sign-in for Codex. Agent inference needs no API key. Work happens on its own branch; your checkout stays unchanged while it runs.
 - **You control the spend**  
-  Independent model presets pick which model does each job. Time, attempt and concurrency limits apply to both backends; USD cost caps apply only to Claude.
+  Independent model presets pick which model does each job. Time, attempt and concurrency limits apply to both coding agents; USD cost caps apply only to Claude.
 
 ## How it works
 
-One workflow for **Claude Code and Codex**. Connect the native accounts independently in **Accounts**, then choose the backend for each new goal. The screenshots below use demonstration data.
+One workflow for **Claude Code and Codex**. Connect the native accounts independently in **Accounts**, then choose the coding agent for each new goal. The screenshots below use demonstration data.
 
 <table>
 <tr>
@@ -49,7 +49,7 @@ One workflow for **Claude Code and Codex**. Connect the native accounts independ
 **[1 · Describe it](docs/guide/your-first-goal.md#the-new-goal-form)**<br>
 Press **New goal**, choose **Claude Code** or **Codex**, select its model preset, and describe the result. Pick a project folder when you are ready to start.
 
-<img src="docs/guide/images/new-goal.png" alt="New goal with the shared backend selector, Codex selected, goal types and view options">
+<img src="docs/guide/images/new-goal.png" alt="New goal with the shared coding agent selector, Codex selected, goal types and view options">
 
 </td>
 <td width="50%" valign="top">
@@ -83,7 +83,7 @@ The goal pauses, the preview is already running. Press **Continue**, or say what
 <td width="50%" valign="top">
 
 **[5 · Let it run](docs/guide/while-it-runs.md)**<br>
-Tasks run in parallel when they can, each checked before it joins the rest. **Agents** brings both engines’ sessions together; **Usage** keeps their limits separate.
+Tasks run in parallel when they can, each checked before it joins the rest. **Agents** brings both coding agents’ sessions together; **Usage** keeps their limits separate.
 
 <img src="docs/guide/images/goal-running.png" alt="A running goal: Clarify and Brief done, Run in progress, acceptance checks and the folder where the work is">
 
@@ -101,7 +101,7 @@ A blocked task, a conflict, a budget reached: it lands in the **Inbox** with the
 
 When it is done you get the work on its own branch, and — if you chose it — pushed, or as a pull request. See [Getting the result](docs/guide/getting-the-result.md).
 
-## Codex backend
+## Codex coding agent
 
 Use your Codex CLI with ChatGPT sign-in:
 
@@ -111,7 +111,7 @@ bun install --frozen-lockfile && bun run web:build
 bun run serve:codex
 ```
 
-The Codex launch profile defaults to `data-codex/`; the Claude profile defaults to `data/`. Either instance can run both backends: choose **Agent backend** on each new goal. The data directory belongs to the instance, not to each goal. Accounts, presets and MCP permissions stay independent. Codex supports ChatGPT sign-in only, and its quota display follows the account's actual windows, including weekly-only accounts.
+The Codex launch profile defaults to `data-codex/`; the Claude profile defaults to `data/`. Either instance can run both coding agents: choose **Coding agent** on each new goal. The data directory belongs to the instance, not to each goal. Accounts, presets and MCP permissions stay independent. Codex supports ChatGPT sign-in only, and its quota display follows the account's actual windows, including weekly-only accounts.
 
 Install a hooks-capable Codex CLI before these commands; the Docker build pins 0.160.0. See [Codex setup and differences](docs/operate/codex.md) for prerequisites, Docker and current limits. Before upgrading an existing instance, read [backup and rollback](docs/operate/updates-and-backup.md#upgrading-to-mixed-provider-goals). The Claude quick start follows below.
 

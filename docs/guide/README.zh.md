@@ -28,7 +28,7 @@ Foundry 读你的项目，问你只有你能决定的事，然后写一份叫 **
 
 | 词 | 意思 |
 |---|---|
-| **Agent backend**（执行后端） | Claude Code 或 Codex，在创建 goal 时选择，之后固定。账户和权限互相独立。 |
+| **Coding agent**（编码智能体） | Claude Code 或 Codex，在创建 goal 时选择，之后固定。账户和权限互相独立。 |
 | **Goal** | 你想做成的一件事，用大白话写，在一个项目文件夹里。 |
 | **Brief** | Foundry 写的计划，任何工作开始前都要你批准。 |
 | **Area** | goal 涉及的产品的某一部分，比如"学生端""教师端"或"公共基础"。每个任务都属于一个 Area。 |
@@ -36,7 +36,7 @@ Foundry 读你的项目，问你只有你能决定的事，然后写一份叫 **
 | **Milestone**（里程碑） | 做完后第一次有东西可以看或可以试的任务。goal 会在这里暂停，让你看一看。 |
 | **Inbox** | 等你处理的事项列表，顶栏上会显示数字。 |
 | **Progress folder**（进度文件夹） | 实际干活的文件夹，就在你的项目旁边：`<project>-foundry/<goal>/`，或者在 Settings 里设的文件夹下面。它以 goal 的标题（到第一个标点为止，最多 40 个字符）加上 goal id 的最后 6 个字符命名。你随时都能打开。 |
-| **Model preset**（模型预设） | 哪个模型负责规划、任务和审查。两种后端各有独立的 Max、Production、Balanced 和 Economy 预设；Codex 还保存各角色的推理强度。 |
+| **Model preset**（模型预设） | 哪个模型负责规划、任务和审查。两种编码智能体各有独立的 Max、Production、Balanced 和 Economy 预设；Codex 还保存各角色的推理强度。 |
 
 想了解完整术语表，可以看 Foundry 仓库里的 `CONTEXT.md`。
 

@@ -9,7 +9,7 @@ import { ENV_VARS, SETTING_PATHS } from '../settings.ts';
 type Section = 'New goal defaults' | 'Models & limits' | 'Skills' | 'Git & delivery' | 'Tools & keys' | 'Preview & self-check' | 'Notifications' | 'Safety' | 'Engine (install)';
 
 export const SETTING_DOCS: Record<string, { section: Section; help: string }> = {
-  'engine.provider': { section: 'Engine (install)', help: 'Installation default (claude or codex), fixed at launch. Each new goal can select either backend; existing goals keep their provider.' },
+  'engine.provider': { section: 'Engine (install)', help: 'Installation default (claude or codex), fixed at launch. Each new goal can select either coding agent; existing goals keep theirs.' },
   'engine.codexBin': { section: 'Engine (install)', help: 'Codex CLI path; empty uses codex on PATH. Requires hooks support.' },
   'engine.codexHome': { section: 'Engine (install)', help: 'Codex configuration and login directory; empty uses CODEX_HOME or ~/.codex.' },
   'models.codexModel': { section: 'Models & limits', help: 'Base model substituted for codex-default in new Codex goal presets. codex-default leaves model choice to the native CLI; an explicit model ID pins it.' },

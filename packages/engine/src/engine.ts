@@ -1174,7 +1174,7 @@ export class Engine {
 
   async createGoal(input: CreateGoalInput): Promise<Goal> {
     const provider = input.provider ?? this.config.provider;
-    if (!['claude', 'codex'].includes(provider)) throw new Error('Unknown agent backend');
+    if (!['claude', 'codex'].includes(provider)) throw new Error('Unknown coding agent');
     const codexModel = input.codexModel?.trim() || this.config.codexModel;
     // an unknown preset would silently fall back to the Settings pick while the goal still shows the typo
     if (provider === 'codex' && input.models) throw new Error('Codex uses its own model presets, not Claude tiers.');

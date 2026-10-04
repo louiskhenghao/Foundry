@@ -196,6 +196,14 @@ export function UsageActivity({ provider, u }: { provider: AgentProvider; u: Pic
   </div>;
 }
 
+/** Claude's rate-limit signal for a window: `allowed_warning` means still allowed, but close to the limit. */
+const SIGNAL: Record<string, { label: string; hint?: string }> = {
+  allowed: { label: 'within limit' },
+  allowed_warning: { label: 'nearing limit', hint: 'Still allowed, but Claude warns this window is close to its limit. Sessions keep running; at the limit Foundry pauses new Claude sessions until the reset.' },
+  rejected: { label: 'limit reached', hint: 'Claude rejects new requests in this window until it resets. Foundry pauses new Claude sessions and retries then.' },
+};
+const signalLabel = (status: string) => SIGNAL[status]?.label ?? status.replace(/_/g, ' ');
+
 /** Local activity totals, with native signal/reset details only when that backend supplies them. */
 function WindowCard({ w, series, now, costAvailable = true, showSignal = true }: { costAvailable?: boolean; showSignal?: boolean; w: WindowSummary; series: UsageBucket[]; now: string }) {
   const state = !w.status ? 'pending' : w.status === 'allowed' ? 'pass' : w.status === 'allowed_warning' ? 'warn' : 'fail';
@@ -207,12 +215,13 @@ function WindowCard({ w, series, now, costAvailable = true, showSignal = true }:
       title={
         <span className="flex items-center gap-2">
           {w.label}
-          {showSignal && <Badge state={state}>{w.status ?? 'no signal yet'}</Badge>}
+          {showSignal && <Badge state={state}>{w.status ? signalLabel(w.status) : 'no signal yet'}</Badge>}
           {showSignal && w.isUsingOverage && <Badge state="warn">overage</Badge>}
         </span>
       }
       actions={<span className="text-[11px] text-zinc-500">{showSignal ? (w.resetsAt ? (Date.parse(w.resetsAt) > Date.parse(now) ? `resets in ${untilText(w.resetsAt)}` : 'rolled over — next signal sets the window') : 'no reset signal yet') : 'Foundry activity'}</span>}
     >
+      {showSignal && w.status && SIGNAL[w.status]?.hint && <p className={cn('text-[11px] mb-3', state === 'warn' ? 'text-amber-300' : 'text-rose-300')}>{SIGNAL[w.status]!.hint}</p>}
       <div className="flex items-end gap-4 flex-wrap">
         <div>
           <div className="text-2xl font-semibold mono text-zinc-100">{costAvailable ? fmtUsd(w.costUsd) : fmtK(w.outputTokens) + ' tokens'}</div>
@@ -331,7 +340,7 @@ export function UsagePillView({ usages, minimaxLow = false }: { usages: Partial<
     if (!u) return `${name} · usage unavailable`;
     return `${name} · ${u.pausedUntil && Date.parse(u.pausedUntil) > Date.now() ? 'sessions paused · ' : ''}${provider === 'codex' ? codexQuotaSummary(u.codexQuota) : `Foundry activity (5h) ${fmtUsd(u.fiveHour.costUsd)}`}`;
   });
-  const title = [...summaries, ...(minimaxLow ? ['MiniMax quota low'] : []), 'Open Usage to view each backend separately.'].join('\n');
+  const title = [...summaries, ...(minimaxLow ? ['MiniMax quota low'] : []), 'Open Usage to view each coding agent separately.'].join('\n');
   return <Link to="/usage" aria-label={`Usage across Claude Code and Codex${attention ? ' · needs attention' : ''}`} title={title} className={cn('flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs', attention ? 'text-amber-300 border-amber-500/40' : 'text-zinc-300 border-zinc-700 hover:bg-zinc-900')}>
     <Gauge size={14} /><span className="hidden sm:inline">Usage</span>
     {attention && <span className="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true" />}

@@ -285,7 +285,7 @@ export function NewGoalPage() {
         </div>
       )}
 
-      <Card title="Agent backend">
+      <Card title="Coding agent">
         <ProviderSelector hideLabel value={provider} onChange={(id) => { changed.current.add('provider'); setProvider(id); if (id === 'claude' && ['none', 'minimal', 'ultra'].includes(effort)) setEffort(''); }} />
         <p className="mt-2 text-xs text-zinc-400">{provider === 'codex' ? 'Codex' : 'Claude Code'} · {!selectedAccount ? 'Checking account…' : selectedAccount.status.loggedIn ? 'Connected' : selectedAccount.installed ? 'Sign in required' : 'CLI not installed'}</p>
         {accountError && <p role="alert" className="mt-3 text-xs text-rose-400">Unable to check accounts: {accountError}. Open Manage accounts to retry.</p>}
