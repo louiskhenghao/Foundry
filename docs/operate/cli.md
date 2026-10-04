@@ -12,10 +12,12 @@ foundry — drive the host Claude Code or Codex CLI to deliver on goals
        [--provider claude|codex] [--codex-model <model ID>]   backend fixed for this goal; follow-ups inherit it
        [--title t] [--base branch] [--preset auto|quick|thorough|unlimited|custom] [--max-cost 5|none] [--max-min 120|none] [--concurrency 3] [--attempts 3]
        [--auto-approve --check "<cmd>"]... [--stretch "<cmd>"]...   skip Clarify: one task + command checks
-       [--models max|production|balanced|economy|<your preset>]   Claude model preset (default: Settings' preset for the goal type)
+       [--models max|production|balanced|economy|<your preset>]   Selected agent model preset (default: Settings' preset for the goal type)
        [--nature auto|code|docs|research|image|video] [--pace thorough|fast] [--interview auto|always|never]
-       [--effort low|medium|high|xhigh|max] [--self-check]
+       [--effort default|none|minimal|low|medium|high|xhigh|max|ultra] [--self-check]
        [--follows <goalId> [--start-from base|previous] [--no-attachments] [--no-style]]
+         Follow-ups inherit the agent and preset; --effort default explicitly clears inherited effort.
+         none, minimal and ultra are Codex-only; available efforts depend on the native model.
                                           a Follow-up of a finished goal: its repository and settings are the defaults,
                                           Clarify gets its prompt, Brief and outcomes; starts from its branch unless merged
        [--follow]                         tail the goal's live stream after creating it
@@ -40,7 +42,7 @@ foundry — drive the host Claude Code or Codex CLI to deliver on goals
   auth [status|login|logout] [--provider claude|codex]
                                           Independent agent account; login/logout hand over to its CLI
   usage [--provider claude|codex] [--json] [--probe]
-                                          Activity for one backend; --probe refreshes Claude only (consumes quota)
+                                          Activity for one backend; --probe refreshes status (Claude consumes quota)
 
 (doctor and skills work without the server running.)
 Both backends share one Foundry; select --provider when creating a goal.

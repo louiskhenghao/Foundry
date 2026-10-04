@@ -106,12 +106,13 @@ switch (cmd) {
     if (draft && !draft.followable) return usage(`goal ${followsId} cannot be followed: ${draft.reason}`);
     const repoPath = opt('--repo') ?? draft?.prefill.repoPath;
     if (!prompt || !repoPath) return usage('goal new needs "<prompt>" and --repo <path> (or --follows <goal id>)');
+    const effort = opt('--effort');
     const body: any = {
       prompt,
       repoPath: resolve(repoPath),
       title: opt('--title'),
       provider: opt('--provider') ?? draft?.prefill.provider,
-      codexModel: opt('--codex-model') ?? draft?.prefill.codexModel,
+      codexModel: opt('--codex-model') ?? (opt('--models') ? undefined : draft?.prefill.codexModel),
       baseBranch: opt('--base'),
       budgetPreset: opt('--preset') ?? (opt('--max-cost') || opt('--max-min') ? 'custom' : 'auto'),
       budgets: {
@@ -125,7 +126,7 @@ switch (cmd) {
       nature: opt('--nature'),
       workflow: opt('--pace') ? { pace: opt('--pace') } : undefined,
       interview: opt('--interview'),
-      effort: opt('--effort'),
+      effort: effort === 'default' ? null : effort,
       ...(has('--self-check') ? { selfCheck: true } : {}),
     };
     if (has('--auto-approve')) body.autoBrief = { mustChecks: opts('--check'), stretchChecks: opts('--stretch') };
@@ -133,8 +134,9 @@ switch (cmd) {
     if (draft) {
       const p = draft.prefill;
       body.nature ??= p.nature;
-      if (body.provider !== 'codex') body.modelPreset ??= p.modelPreset ?? undefined;
-      body.effort ??= p.effort ?? undefined;
+      body.modelPreset ??= p.modelPreset;
+      // null means use the preset/CLI default; omitting it would reapply the server's current goal default.
+      if (body.effort === undefined) body.effort = p.effort;
       body.workflow ??= { pace: p.pace };
       body.mode = p.mode;
       body.delivery ??= { ...p.delivery, createRepo: null, remoteUrl: null };
