@@ -25,9 +25,9 @@ Both serve the web UI on `http://127.0.0.1:4111`.
 - macOS or Linux.
 - [Bun](https://bun.sh) 1.1 or newer. The Docker image ships Bun 1.3.13.
 - git.
-- For Claude goals: the Claude Code CLI, `claude` on your `PATH`, signed in. Install it with
-  `npm install -g @anthropic-ai/claude-code`. The Docker image ships 2.1.259; the Fable 5.1 model needs at least that version.
-- For Codex goals: a hooks-capable Codex CLI, `codex` on your `PATH`, signed in with ChatGPT. This Dockerfile pins 0.160.0. Install with `npm install -g @openai/codex`; run `codex login`.
+- For Claude goals: the Claude Code CLI, `claude` on your `PATH`, signed in. Install it with its native installer,
+  `curl -fsSL https://claude.ai/install.sh | bash` (no npm needed), or `npm install -g @anthropic-ai/claude-code`. The Docker image ships 2.1.259; the Fable 5.1 model needs at least that version.
+- For Codex goals: a hooks-capable Codex CLI, `codex` on your `PATH`, signed in with ChatGPT. This Dockerfile pins 0.160.0. Install with `brew install --cask codex` (macOS), `npm install -g @openai/codex`, or the release binary from [github.com/openai/codex](https://github.com/openai/codex/releases); run `codex login`.
 - [graphify](https://github.com/safishamsi/graphify). It is the one *required* entry in the skills catalog; the
   doctor reports an error until it is installed. Its installer uses [uv](https://docs.astral.sh/uv/).
 - Optional: Node.js 22 or newer (project skills via `npx autoskills` need it), the GitHub CLI `gh` (only for
@@ -42,12 +42,36 @@ Both serve the web UI on `http://127.0.0.1:4111`.
 
 ## Install locally
 
+### One line
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.sh | bash
+```
+
+[`install.sh`](../../install.sh) installs only what is missing, in this order: git (Homebrew, or the system package
+manager with `sudo`), Bun, uv, the coding agent's CLI (Claude Code through its native installer; Codex through
+Homebrew's cask on macOS, npm, or its release binary), graphify and its skill, then clones Foundry into `~/foundry`,
+builds the UI and runs the doctor. Neither coding agent needs Node.js or npm. It ends with how to sign in and start;
+signing in stays yours. Options go after `bash -s --`:
+
+| Option | Environment | Default | |
+|---|---|---|---|
+| `--agent claude\|codex\|both` | `FOUNDRY_AGENT` | `claude` | which coding agent's CLI and skills to set up |
+| `--dir PATH` | `FOUNDRY_DIR` | `~/foundry` | where Foundry goes |
+| `--ref BRANCH\|TAG` | `FOUNDRY_REF` | `main` | what to check out, for example a release tag `v0.7.2` |
+| `--start` | `FOUNDRY_START=1` | off | start Foundry when done |
+
+Run it again to update: it fetches, fast-forwards and rebuilds an existing checkout. The numbered steps below are the
+same thing by hand.
+
+### By hand
+
 These numbered steps use the Claude launch profile. For Codex, use `codex login`, `bun run cli doctor --provider codex` and `bun run serve:codex`; use **Setup → Codex** for backend-specific skill installation. Keep an existing instance’s launch profile and select **Coding agent** on New goal to add the other backend without changing its data directory.
 
-1. Get the source and build the UI. You need access to the Foundry repository.
+1. Get the source and build the UI.
 
    ```bash
-   git clone git@github.com:louiskhenghao/Foundry.git foundry
+   git clone https://github.com/louiskhenghao/Foundry.git foundry
    cd foundry
    bun install
    bun run web:build          # builds the UI into apps/web/dist; the server serves it
@@ -351,6 +375,8 @@ With the uid ≠ 1000 recipe this is already covered: the whole home folder is m
   (`graphify install --platform claude`). `FOUNDRY_SKIP_SETUP=1` skips that. A mounted `~/.claude` that already has a
   `skills/` folder is never touched.
 - The container has a health check: `curl -fsS http://127.0.0.1:4111/api/health`.
+- Node.js, npm and corepack's `pnpm` and `yarn` are in the image, so repositories that use any of them install and
+  preview without anything on your computer; corepack fetches the pnpm or yarn version a repository asks for on first use.
 - The image carries Chromium's system libraries (from `playwright install-deps chromium`, minus Xvfb), but not the
   browser: it is downloaded on demand (see [Previews](#6-previews-from-the-host)).
 - Build your own image: `docker build -t foundry .`. Add `--build-arg CLAUDE_CODE_VERSION=x.y.z` to pin another
@@ -375,8 +401,6 @@ docker exec foundry bun apps/cli/src/main.ts doctor   # Docker
 | Codex CLI (Codex) | yes | **Install** on the Setup page (Homebrew on macOS, else npm, else the release binary), or `npm install -g @openai/codex` |
 | Codex login (Codex) | yes | **Sign in to Codex**, or `codex login` with ChatGPT |
 | git | yes | install git |
-- Node.js, npm and corepack's `pnpm` and `yarn` are in the image, so repositories that use any of them install and
-  preview without anything on your computer; corepack fetches the pnpm or yarn version a repository asks for on first use.
 | Bun runtime | yes | `curl -fsSL https://bun.sh/install \| bash` |
 | Required: graphify | yes | **Install** on the Setup page, or `uv tool install graphifyy && graphify install --platform claude` |
 | Skills directory writable | yes | make the selected native home’s `skills/` directory writable |
