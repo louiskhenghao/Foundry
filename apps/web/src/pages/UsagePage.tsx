@@ -301,10 +301,11 @@ export function UsagePill() {
   if (!u) return null;
   const w = u.fiveHour;
   const color = u.pausedUntil ? 'text-amber-300 border-amber-500/40' : w.status === 'allowed' || !w.status ? 'text-zinc-300 border-zinc-700' : 'text-rose-300 border-rose-500/40';
+  const summary = `${u.provider === 'codex' ? 'Codex' : 'Claude'} · ${u.pausedUntil ? `paused ${untilText(u.pausedUntil)}` : u.costAvailable === false ? `5h ${fmtK(w.outputTokens)} tokens` : `5h ${fmtUsd(w.costUsd)}`}`;
   return (
-    <Link to={`/usage?provider=${u.provider ?? 'claude'}`} className={cn('flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] mono', color)} title={minimaxLow ? `MiniMax quota low: under 10% of a window left, or a balance under 1 — see Usage\n${u.note}` : u.note}>
+    <Link to={`/usage?provider=${u.provider ?? 'claude'}`} aria-label={`Usage: ${summary}${minimaxLow ? '. MiniMax quota low' : ''}`} className={cn('flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] mono', color)} title={`${summary}\n${minimaxLow ? `MiniMax quota low: under 10% of a window left, or a balance under 1 — see Usage\n${u.note}` : u.note}`}>
       <Gauge size={12} />
-      <span className="whitespace-nowrap">{u.provider === 'codex' ? 'Codex' : 'Claude'} · {u.pausedUntil ? `paused ${untilText(u.pausedUntil)}` : u.costAvailable === false ? `5h ${fmtK(w.outputTokens)} tokens` : `5h ${fmtUsd(w.costUsd)}`}</span>
+      <span className="hidden sm:inline whitespace-nowrap">{summary}</span>
       {w.resetsAt && !u.pausedUntil && <span className="text-zinc-500 hidden lg:inline whitespace-nowrap">· reset {untilText(w.resetsAt)}</span>}
       {/* the header has little room: an amber dot, and words only on wide screens */}
       {minimaxLow && (

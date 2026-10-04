@@ -1,5 +1,5 @@
 import type { FeedbackPlan } from '@foundry/core/browser';
-import type { Attachment, Attempt, Brief, BriefCheck, BriefDiff, BriefStyleOption, BriefTask, Budgets, Check, CheckResult, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, Effort, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, SettingsPatch, SettingsView, Task, TaskUsage } from '@foundry/core/browser';
+import type { Attachment, Attempt, Brief, BriefCheck, BriefDiff, BriefStyleOption, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, SettingsPatch, SettingsView, Task, TaskUsage } from '@foundry/core/browser';
 
 /** Mirrors the engine's PreviewStatus (preview/manager.ts). */
 export interface PreviewStatus {
@@ -101,6 +101,8 @@ export interface ModelRecordView {
   inUse: string[];
   /** found in the Claude Code binary by a model sync */
   discovered?: { family: string; newest: boolean; at: string } | null;
+  /** Advertised by the local Codex CLI; discovery does not verify account access. */
+  codex?: { displayName: string | null; description: string | null; reasoningEfforts: string[]; defaultReasoningEffort: string | null; isDefault: boolean; available: boolean } | null;
 }
 export interface PackEntry {
   id: string;
@@ -251,7 +253,7 @@ export interface FollowUpDraft {
   previous: { id: string; title: string; state: GoalState; repoPath: string; baseBranch: string; branch: string; branchExists: boolean };
   followable: boolean;
   reason: string | null;
-  prefill: { provider: 'claude' | 'codex'; codexModel?: string; repoPath: string; baseBranch: string; nature: GoalNature; modelPreset: string | null; effort: Effort | null; pace: 'thorough' | 'fast'; mode: GoalMode; delivery: DeliveryPolicy };
+  prefill: { provider: 'claude' | 'codex'; codexModel?: string; repoPath: string; baseBranch: string; nature: GoalNature; modelPreset: string | null; effort: CodexEffort | null; pace: 'thorough' | 'fast'; mode: GoalMode; delivery: DeliveryPolicy };
   start: { recommended: 'base' | 'previous'; onBase: boolean; detail: string; baseBranch: string; previousBranch: string | null };
   attachments: Attachment[];
   style: BriefStyleOption | null;
@@ -460,9 +462,9 @@ export const api = {
   updateRuns: () => req<(EngineEvent & { seq: number })[]>('/api/skills/update-runs'),
   doctor: () => req<DoctorReport>('/api/doctor'),
   packs: () => req<PacksView>('/api/skills/packs'),
-  models: () => req<{ models: ModelRecordView[]; fallbacks: string[]; current: { strong: string; cheap: string; worker: string }; sync: { at: string | null; cliVersion: string | null; found: number } | null }>('/api/models?provider=claude'),
-  syncModels: () => req<{ found: number; newest: string[]; resolved: Record<string, string | null>; cliVersion: string | null }>('/api/models/sync?provider=claude', { method: 'POST' }),
-  probeModel: (name: string) => req<{ ok: boolean; name: string; resolvedId: string | null; costUsd: number; error: string | null }>('/api/models/probe?provider=claude', { method: 'POST', body: JSON.stringify({ name }) }),
+  models: (provider: AgentProvider = 'claude') => req<{ models: ModelRecordView[]; fallbacks: string[]; current: { strong: string; cheap: string; worker: string }; sync: { at: string | null; cliVersion: string | null; found: number } | null }>(`/api/models?provider=${provider}`),
+  syncModels: (provider: AgentProvider = 'claude') => req<{ found: number; newest: string[]; resolved: Record<string, string | null>; cliVersion: string | null }>(`/api/models/sync?provider=${provider}`, { method: 'POST' }),
+  probeModel: (name: string, provider: AgentProvider = 'claude', effort?: string) => req<{ ok: boolean; name: string; resolvedId: string | null; costUsd: number; costAvailable?: boolean; error: string | null }>(`/api/models/probe?provider=${provider}`, { method: 'POST', body: JSON.stringify({ name, effort }) }),
   installPack: (pack: string, option: string) => req<{ started: true; channel: string }>('/api/skills/install-pack', { method: 'POST', body: JSON.stringify({ pack, option }) }),
   settings: () => req<SettingsView>('/api/settings'),
   updateSettings: (patch: SettingsPatch) => req<SettingsView>('/api/settings', { method: 'PUT', body: JSON.stringify(patch) }),

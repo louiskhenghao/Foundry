@@ -5,6 +5,7 @@ import { useLocation } from 'react-router-dom';
 import { api, type ModelRecordView, type UpdateStatusView } from '../api.ts';
 import { LiveLog } from './LiveLog.tsx';
 import { ModelPresetsSection } from './settings/ModelPresets.tsx';
+import { CodexModelPresetsSection } from './settings/CodexModelPresets.tsx';
 import { DesignPacks } from '../components/DesignPacks.tsx';
 import { UpdateDialog } from '../components/UpdateDialog.tsx';
 import { Button, Card, CopyButton, Empty, Field, Input, Select, cn } from '../ui.tsx';
@@ -56,6 +57,7 @@ export function SettingsPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [known, setKnown] = useState<ModelRecordView[] | null>(null);
+  const [modelProvider, setModelProvider] = useState<'claude' | 'codex'>('claude');
   const [probe, setProbe] = useState<Record<string, string>>({});
   const [notifMsg, setNotifMsg] = useState<string | null>(null);
   const [active, setActive] = useState(SECTIONS[0]!.id);
@@ -89,6 +91,7 @@ export function SettingsPage() {
       .then((v) => {
         setView(v);
         setDraft(structuredClone(v.values));
+        setModelProvider(v.values.engine.provider);
       })
       .catch((e) => setErr(e.message));
   const loadModels = () => api.models().then((m) => setKnown(m.models)).catch(() => setKnown([]));
@@ -172,7 +175,7 @@ export function SettingsPage() {
       const v = await api.updateSettings(patch);
       setView(v);
       setDraft(structuredClone(v.values));
-      setMsg(`Saved ${changed.length} setting${changed.length === 1 ? '' : 's'}${v.restartNeeded.length ? ` — restart the engine to apply ${v.restartNeeded.join(', ')}` : ' — applied immediately'}.`);
+      setMsg(`Saved ${changed.length} setting${changed.length === 1 ? '' : 's'}${v.restartNeeded.length ? ` — restart the engine to apply ${v.restartNeeded.join(', ')}` : ' — applied immediately'}.${changed.some((p) => p.startsWith('models.codex')) ? ' Codex model changes apply to new goals; existing goals keep their settings.' : ''}`);
     } catch (e: any) {
       setErr(e.message);
     } finally {
@@ -323,9 +326,9 @@ export function SettingsPage() {
                   <option value="never">never — one-shot Brief</option>
                 </Select>
               </Field>
-              <Field label="Effort for new goals" aside={aside('workflow.effort')} help="The agent's effort level for every session of a goal (attempts, reviews, clarify, merges). Empty = the CLI default. Lower is faster and cheaper; xhigh / max for hard, cross-cutting work. Switchable per goal when creating it.">
+              <Field label="Effort for new goals" aside={aside('workflow.effort')} help="An explicit level overrides every role's effort. Default uses each Codex role's preset effort, or the Claude CLI default. Switchable per goal when creating it.">
                 <Select value={(draft.workflow.effort as string | null) ?? ''} onChange={(e) => set('workflow.effort', e.target.value || null)}>
-                  <option value="">CLI default</option>
+                  <option value="">Role preset / CLI default</option>
                   <option value="low">low</option>
                   <option value="medium">medium</option>
                   <option value="high">high</option>
@@ -377,14 +380,19 @@ export function SettingsPage() {
       </Card>
 
       <Card id="models" title={<>Models & limits<HelpLink to="settings#models--limits" className="ml-1.5" /></>} className="scroll-mt-16">
-        {<>
-          <Field label="Codex model" aside={aside('models.codexModel')} help="Default for new Codex goals. Each goal keeps its chosen model. codex-default follows your Codex configuration.">
-            {text('models.codexModel', 'codex-default')}
-          </Field>
-          <p className="text-xs text-amber-300 mt-3">Codex reports tokens but no USD cost. Dollar caps cannot be enforced. Time, concurrency and attempt limits still apply. The turn cap bounds tool calls for Codex.</p>
-        </>}
-        <h3 className="text-sm mt-5 mb-3">Claude Code models</h3>
-        <>
+        <div className="flex gap-2 mb-5" role="tablist" aria-label="Model provider">
+          {(['claude', 'codex'] as const).map((id) => <button key={id} type="button" role="tab" tabIndex={modelProvider === id ? 0 : -1} aria-selected={modelProvider === id} aria-controls={`models-${id}`} id={`models-tab-${id}`} onClick={() => setModelProvider(id)} onKeyDown={(e) => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+            e.preventDefault();
+            const next = e.key === 'Home' ? 'claude' : e.key === 'End' ? 'codex' : id === 'claude' ? 'codex' : 'claude';
+            setModelProvider(next);
+            document.getElementById(`models-tab-${next}`)?.focus();
+          }} className={cn('rounded-md border px-4 py-2 text-sm', modelProvider === id ? 'border-emerald-500 bg-emerald-500/10 text-emerald-200' : 'border-zinc-800 text-zinc-400 hover:border-zinc-600')}>{id === 'claude' ? 'Claude Code' : 'Codex'}</button>)}
+        </div>
+        <div id="models-codex" role="tabpanel" aria-labelledby="models-tab-codex" hidden={modelProvider !== 'codex'}>
+          <CodexModelPresetsSection draft={draft} setFields={(patch) => setDraft((previous) => previous ? { ...previous, models: { ...previous.models, ...patch } } : previous)} />
+        </div>
+        <div id="models-claude" role="tabpanel" aria-labelledby="models-tab-claude" hidden={modelProvider !== 'claude'}>
         <ModelPresetsSection draft={draft} set={set as (p: `models.${string}`, v: unknown) => void} known={known} reloadModels={loadModels} />
         <div className="border-t border-zinc-800 my-4" />
         {grid(
@@ -401,7 +409,7 @@ export function SettingsPage() {
           </>,
         )}
         <p className="text-[11px] text-zinc-500 mt-3">The list is what this machine has seen resolve (family aliases follow the latest release through Claude Code; a full model id pins a version). A new family is one custom entry away — after its first session it shows up here with its resolved id. Preset changes reach running goals too, at their next session.</p>
-        </>
+        </div>
         <div className="border-t border-zinc-800 mt-4 pt-4">
           <div className="text-xs text-zinc-300 mb-2">Limits — what one session may spend before the engine stops it</div>
           {grid(
