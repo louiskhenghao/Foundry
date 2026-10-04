@@ -32,7 +32,7 @@ Open the ⚙ menu at the right of the top bar and choose **Setup** (a red dot on
 
 | Check | What it is | If it is red |
 |---|---|---|
-| **Claude Code CLI** / **Codex CLI** | The selected coding agent’s program. | Copy the install command shown and run it, or ask whoever installed Foundry. |
+| **Claude Code CLI** / **Codex CLI** | The selected coding agent’s program. | Press **Install**: Claude Code's own installer, or Codex through Homebrew, npm or its release download; no npm needed. Or copy the command shown. |
 | **Claude login** / **Codex login** | The selected coding agent’s account. | Press **Sign in**. |
 | **git** | Keeps every version of your files. | Copy the command shown. |
 | **Bun runtime** | What Foundry itself runs on. | Copy the command shown. |

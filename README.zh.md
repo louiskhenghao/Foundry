@@ -117,9 +117,18 @@ goal 暂停，预览已经跑起来了。按 **Continue**，或者说要改什�
 
 ## 快速开始
 
-以下命令使用 Claude 登录和 git；使用 ChatGPT 登录请看 [Codex 安装说明](docs/operate/codex.md)。包含本分支改动的版本发布前，Codex 支持需要从源码构建，现有 `latest` 镜像不一定包含这些功能。
+每个版本带来了什么：见 [更新日志](https://github.com/louiskhenghao/foundry-releases/blob/main/CHANGELOG.md)。
 
-**用 Docker** —— 所有工具都在镜像里：
+**一行安装**（macOS、Linux）—— 只安装缺少的东西（git、Bun、用原生安装器安装的 Claude Code、graphify），再安装 Foundry 本身。不需要 Node.js 或 npm：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.sh | bash
+# 改用 Codex，或两种都要：  … | bash -s -- --agent codex   （或 --agent both）
+```
+
+装完会告诉你怎么登录和启动。以后再运行一次就能更新。
+
+**用 Docker** —— 所有工具都在镜像里（Node、npm、pnpm、yarn、Bun、git，以及两种编码智能体的 CLI），电脑上只需要 Docker：
 
 ```bash
 mkdir -p ~/foundry && cd ~/foundry
@@ -127,8 +136,8 @@ docker run --rm imlouiskhenghao/foundry cat /app/docker-compose.yml > docker-com
 FOUNDRY_REPOS=~/code docker compose up -d      # 你的仓库，挂载到 /repos
 ```
 
-**从源码运行** —— 需要 [Bun](https://bun.sh)、已登录的 [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
-（`claude` 在 PATH 上）和 [graphify](https://github.com/safishamsi/graphify)：
+**手动从源码安装** —— 也就是一行安装做的事：需要 [Bun](https://bun.sh)、已登录的 [Claude Code](https://code.claude.com/docs/en/setup)
+（`claude` 在 PATH 上）和 [graphify](https://github.com/safishamsi/graphify)。使用 ChatGPT 登录请看 [Codex 安装说明](docs/operate/codex.md)：
 
 ```bash
 git clone https://github.com/louiskhenghao/Foundry.git foundry && cd foundry
@@ -137,7 +146,7 @@ bun run serve                 # 然后打开 http://127.0.0.1:4111
 ```
 
 打开 <http://127.0.0.1:4111>，按 **New goal**，选一个仓库，写下你想要的。[Setup](docs/guide/your-first-goal.zh.md#检查-setup-页面)
-页面会检查东西是否都装好了。完整步骤、在 Docker 里登录 Claude、用手机远程访问：见 [安装](docs/operate/install.md)（英文）。
+页面会检查东西是否都装好了，缺什么可以一键安装。完整步骤、在 Docker 里登录 Claude、用手机远程访问：见 [安装](docs/operate/install.md)（英文）。
 
 ## 了解更多
 

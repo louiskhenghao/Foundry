@@ -51,6 +51,8 @@ RUN uv tool install graphifyy && graphify --version
 # are root-owned, so the Setup page's one-click install cannot write to them as the non-root user.
 RUN uv tool install --python 3.12 'markitdown[all]' && chmod -R a+rX /opt/uv && markitdown --version
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} @openai/codex@${CODEX_VERSION} && npm cache clean --force
+# pnpm and yarn for repositories that use them (previews, installs, delivery): corepack's shims, each fetched on first use
+RUN corepack enable
 
 # production dependencies only (the UI is already built)
 COPY package.json bun.lock bunfig.toml ./
@@ -84,6 +86,7 @@ COPY --from=build /app/apps/web/dist ./apps/web/dist
 # everything Claude Code keeps (login, sessions, skills) lives in one mounted directory
 # Chromium goes to one fixed, node-owned folder whatever HOME is; the compose file keeps it in a volume across updates
 ENV CODEX_HOME=/home/node/.codex \
+    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
     CLAUDE_CONFIG_DIR=/home/node/.claude \
     PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright \
     FOUNDRY_HOST=0.0.0.0 \

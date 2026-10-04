@@ -117,9 +117,18 @@ Install a hooks-capable Codex CLI before these commands; the Docker build pins 0
 
 ## Quick start
 
-The commands below use Claude login and git. For ChatGPT sign-in, use the [Codex setup](docs/operate/codex.md). This branch's Codex support must be built from source until a release containing it is published; an existing `latest` image is not evidence that it includes these changes.
+What each release brings: [changelog](https://github.com/louiskhenghao/foundry-releases/blob/main/CHANGELOG.md).
 
-**With Docker** — every tool is in the image:
+**One line** (macOS, Linux) — installs whatever is missing (git, Bun, Claude Code through its native installer, graphify), then Foundry itself. No Node.js or npm needed:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.sh | bash
+# Codex instead, or both:  … | bash -s -- --agent codex   (or --agent both)
+```
+
+It ends with how to sign in and start. Run it again later to update.
+
+**With Docker** — every tool is in the image (Node, npm, pnpm, yarn, Bun, git, both coding agents' CLIs); your computer only needs Docker:
 
 ```bash
 mkdir -p ~/foundry && cd ~/foundry
@@ -127,8 +136,8 @@ docker run --rm imlouiskhenghao/foundry cat /app/docker-compose.yml > docker-com
 FOUNDRY_REPOS=~/code docker compose up -d      # your repositories, mounted at /repos
 ```
 
-**From source** — needs [Bun](https://bun.sh), [Claude Code](https://docs.anthropic.com/en/docs/claude-code) signed in
-(`claude` on your PATH) and [graphify](https://github.com/safishamsi/graphify):
+**From source, by hand** — what the one-line install does: needs [Bun](https://bun.sh), [Claude Code](https://code.claude.com/docs/en/setup) signed in
+(`claude` on your PATH) and [graphify](https://github.com/safishamsi/graphify). For ChatGPT sign-in, see the [Codex setup](docs/operate/codex.md):
 
 ```bash
 git clone https://github.com/louiskhenghao/Foundry.git foundry && cd foundry
@@ -137,7 +146,7 @@ bun run serve                 # then open http://127.0.0.1:4111
 ```
 
 Open <http://127.0.0.1:4111>, press **New goal**, point it at a repository and describe what you want. The
-[Setup](docs/guide/your-first-goal.md#check-the-setup-page) page checks that everything is in place. Full steps, Claude sign-in in Docker and
+[Setup](docs/guide/your-first-goal.md#check-the-setup-page) page checks that everything is in place and installs what is missing with one click. Full steps, Claude sign-in in Docker and
 remote access from your phone: [Install](docs/operate/install.md).
 
 ## Learn more

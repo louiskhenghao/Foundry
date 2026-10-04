@@ -137,7 +137,7 @@ Overview 标签上的 **Try the work in progress** 卡片显示文件夹路径�
 
 **Preview** 卡片启动结果，让你在浏览器里试用。
 
-- **Start preview** 在进度文件夹里运行项目的启动命令。卡片会显示是哪条命令，以及它来自 Brief 的 **How to run it** 还是 `package.json`。
+- **Start preview** 在进度文件夹里运行项目的启动命令。卡片会显示是哪条命令，以及它来自 Brief 的 **How to run it** 还是 `package.json`。如果项目依赖还没安装（有 `package.json` 但没有 `node_modules`），Foundry 会先安装；输出里也能看到安装过程。
 - 出现 **Running on port N** 后，按 **Open preview** 打开。**Stop** 停止它。
 - **▸ server output** 显示服务器打印的内容。
 

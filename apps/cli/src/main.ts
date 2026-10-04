@@ -87,8 +87,10 @@ const scoped = (path: string) => provider ? `${path}${path.includes('?') ? '&' :
 const providerApi = (path: string, init?: RequestInit) => api(scoped(path), init);
 switch (cmd) {
   case 'serve': {
-    const { Engine, defaultConfig } = await import('@foundry/engine');
+    const { Engine, adoptLocalBin, defaultConfig } = await import('@foundry/engine');
     const { startServer } = await import('@foundry/server');
+    // a natively installed claude lives in ~/.local/bin, which launchd/systemd PATHs often lack
+    adoptLocalBin();
     const engine = new Engine(defaultConfig(ROOT));
     const server = startServer(engine, { webDist: resolve(ROOT, 'apps/web/dist') });
     console.log(`foundry listening on http://${engine.config.host}:${server.port}  (data: ${engine.config.dataDir})`);

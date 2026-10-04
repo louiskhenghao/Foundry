@@ -7,6 +7,7 @@ import type { ClaudeRunner } from '@foundry/runner';
 import { ensureSelfCheck, runSelfCheck } from '../checks/selfcheck.ts';
 import { defaultConfig } from '../config.ts';
 import { Engine } from '../engine.ts';
+import { installSteps } from './manager.ts';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
 const noRunner = { active: () => 0, run: async () => { throw new Error('no sessions in this test'); } } as unknown as ClaudeRunner;
@@ -125,5 +126,21 @@ describe('PreviewManager', () => {
     expect(r?.status).toBe('error');
     expect(r?.summary).toContain('nothing to run');
     expect(engine.store.listByGoal(g.id).some((e) => e.type === 'selfcheck.finished')).toBe(true);
+  });
+});
+
+describe('installSteps', () => {
+  const app = (dir: string, install: string | null = null) => ({ key: dir || 'app', name: dir || 'app', dir, install, command: 'x', url: null, platform: 'web' as const });
+  test('installs only where a package.json has no node_modules beside it or at the root', () => {
+    writeFileSync(join(ws, 'package.json'), '{}');
+    writeFileSync(join(ws, 'bun.lock'), '');
+    expect(installSteps(ws, [app('')])).toEqual([{ dir: '', command: 'bun install' }]);
+    expect(installSteps(ws, [app('', 'make deps')])).toEqual([{ dir: '', command: 'make deps' }]);
+    mkdirSync(join(ws, 'node_modules'));
+    expect(installSteps(ws, [app('')])).toEqual([]);
+  });
+  test('an app folder without a package.json is the person\'s to set up', () => {
+    mkdirSync(join(ws, 'svc'));
+    expect(installSteps(ws, [app('svc', 'pip install -r requirements.txt')])).toEqual([]);
   });
 });
