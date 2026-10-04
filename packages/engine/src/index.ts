@@ -6,6 +6,7 @@ export * from './workspace.ts';
 export { adoptLocalBin, agentCliInstall } from './agent-cli.ts';
 export { PreviewError, type PreviewAppStatus, type PreviewStatus } from './preview/manager.ts';
 export type { ServicesStatus } from './preview/services.ts';
+export { EnvConflictError } from './preview/env.ts';
 export { detectRun } from './preview/detect.ts';
 export { classifyFeedback } from './feedback.ts';
 export * from './context/provider.ts';

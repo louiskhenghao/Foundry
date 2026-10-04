@@ -66,13 +66,15 @@ export async function runSelfCheck(engine: Engine, goal: Goal, opts: { taskId: s
     });
     try {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+      // hide entered values before cutting, so a secret cut at the boundary does not leak its start
+      const hide = engine.preview.redactorFor(goal);
       page.on('console', (m) => {
-        if (m.type() === 'error') errors.push(`console: ${m.text().slice(0, 300)}`);
+        if (m.type() === 'error') errors.push(`console: ${hide(m.text()).slice(0, 300)}`);
       });
-      page.on('pageerror', (e) => errors.push(`page error: ${String(e.message ?? e).slice(0, 300)}`));
-      page.on('requestfailed', (r) => errors.push(`request failed: ${r.method()} ${r.url().slice(0, 200)} — ${r.failure()?.errorText ?? ''}`));
+      page.on('pageerror', (e) => errors.push(`page error: ${hide(String(e.message ?? e)).slice(0, 300)}`));
+      page.on('requestfailed', (r) => errors.push(`request failed: ${r.method()} ${hide(r.url()).slice(0, 200)} — ${r.failure()?.errorText ?? ''}`));
       page.on('response', (r) => {
-        if (r.status() >= 500) errors.push(`HTTP ${r.status()}: ${r.url().slice(0, 200)}`);
+        if (r.status() >= 500) errors.push(`HTTP ${r.status()}: ${hide(r.url()).slice(0, 200)}`);
       });
       await page.goto(preview.url!, { waitUntil: 'networkidle', timeout: 30_000 });
       await page.waitForTimeout(1500);
@@ -89,9 +91,13 @@ export async function runSelfCheck(engine: Engine, goal: Goal, opts: { taskId: s
     status = 'error';
     summary = `self-check could not run: ${String((err as Error).message ?? err).slice(0, 400)}`;
   }
+  // the preview runs with the repository's entered variables: keep their values out of the report sessions read
+  const hideAll = engine.preview.redactorFor(goal);
+  summary = hideAll(summary);
+  const shownErrors = errors.slice(0, 50).map(hideAll);
   const result: CheckResult = { id: newId(IdPrefix.checkResult), checkId: check.id, goalId: goal.id, taskId: null, attemptId: null, status, summary, rawRef: null, durationMs: Date.now() - t0, at: new Date().toISOString() };
   store.append({ type: 'check.finished', goalId: goal.id, payload: { result } });
-  store.append({ type: 'selfcheck.finished', goalId: goal.id, payload: { taskId: opts.taskId, status, url, screenshot, errors: errors.slice(0, 50), summary } });
+  store.append({ type: 'selfcheck.finished', goalId: goal.id, payload: { taskId: opts.taskId, status, url, screenshot, errors: shownErrors, summary } });
   config.log(`[selfcheck] ${goal.id}: ${status}${screenshot ? ` (${screenshot})` : ''}`);
   return result;
 }
