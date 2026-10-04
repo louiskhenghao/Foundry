@@ -33,3 +33,8 @@ export function shortCwd(cwd: string): string {
   if (pf) return pf[1]!;
   return cwd.replace(/^\/Users\/[^/]+/, '~');
 }
+
+/** A session's directory inside its goal's progress folder (`delivery`, `tasks/<id>`), when it is one. */
+export function goalRelCwd(cwd: string): string {
+  return cwd.match(/\/\.foundry\/[^/]+\/(.+)$/)?.[1] ?? shortCwd(cwd);
+}
