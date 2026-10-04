@@ -227,19 +227,25 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return goal;
   };
   app.get('/api/goals/:id/preview', (c) => c.json(engine.preview.status(goalOr404(c).id)));
+  // ?app=<key> starts or stops one app of the preview; without it, every app
   app.post('/api/goals/:id/preview/start', async (c) => {
     const goal = goalOr404(c);
     try {
-      return c.json(await engine.preview.start(goal, 'human'));
+      return c.json(await engine.preview.start(goal, 'human', c.req.query('app') || undefined));
     } catch (e) {
       if (e instanceof PreviewError) throw new HttpError(e.status, { error: e.message });
       throw e;
     }
   });
   app.post('/api/goals/:id/preview/stop', async (c) => {
-    await engine.preview.stop(goalOr404(c).id, 'human');
+    await engine.preview.stop(goalOr404(c).id, 'human', c.req.query('app') || undefined);
     return c.json({ ok: true });
   });
+  // the Docker services the apps need; null = no compose file with dependency services. Body { names? } limits start/stop.
+  const serviceNames = async (c: any) => z.object({ names: z.array(z.string()).optional() }).parse(await c.req.json().catch(() => ({}))).names;
+  app.get('/api/goals/:id/preview/services', async (c) => c.json(await engine.preview.servicesStatus(goalOr404(c))));
+  app.post('/api/goals/:id/preview/services/start', async (c) => c.json(await engine.preview.servicesUp(goalOr404(c), await serviceNames(c))));
+  app.post('/api/goals/:id/preview/services/stop', async (c) => c.json(await engine.preview.servicesStop(goalOr404(c), await serviceNames(c))));
   app.post('/api/goals/:id/preview/visit', (c) => {
     engine.preview.touch(goalOr404(c).id);
     return c.json({ ok: true });
