@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { IDLE_DELIVERY, getGoal, type Goal } from '@foundry/core';
@@ -49,6 +49,33 @@ const answersWithin = async (url: string, ms: number): Promise<boolean> => {
 };
 
 describe('PreviewManager', () => {
+  test('runs each app of a workspace on its own port, tells each where the others are, and stops them one at a time', async () => {
+    const serve = `bun -e "Bun.serve({ port: Number(process.env.PORT), fetch: () => new Response(process.env.FOUNDRY_APP_API_URL ?? 'none') })"`;
+    writeFileSync(join(ws, 'package.json'), JSON.stringify({ workspaces: ['apps/*'] }));
+    for (const dir of ['web', 'api']) {
+      mkdirSync(join(ws, 'apps', dir), { recursive: true });
+      writeFileSync(join(ws, 'apps', dir, 'package.json'), JSON.stringify({ name: `@demo/${dir}`, scripts: { start: serve } }));
+    }
+    const g = goal();
+    const before = engine.preview.status(g.id);
+    expect(before.source).toBe('detected');
+    expect(before.apps.map((a) => [a.key, a.dir])).toEqual([['web', 'apps/web'], ['api', 'apps/api']]);
+    const st = await engine.preview.start(g, 'human');
+    const [web, api] = st.apps;
+    expect(web!.ready && api!.ready).toBe(true);
+    expect(web!.port).not.toBe(api!.port);
+    // the primary app is the first one; the web app was told where the API is
+    expect(st.url).toBe(web!.url);
+    expect(await fetch(web!.url!).then((r) => r.text())).toBe(api!.url!);
+    await engine.preview.stop(g.id, 'test', 'web');
+    expect(engine.preview.status(g.id).apps.map((a) => a.running)).toEqual([false, true]);
+    expect(await answersWithin(web!.url!, 3000)).toBe(false);
+    expect((await engine.preview.start(g, 'human', 'web')).apps[0]!.running).toBe(true);
+    await expect(engine.preview.start(g, 'human', 'nope')).rejects.toThrow(/no app "nope"/);
+    await engine.preview.stop(g.id, 'test');
+    expect(engine.preview.status(g.id).running).toBe(false);
+  }, 60_000);
+
   test('starts the detected dev script on a free port from the range, answers, and stops', async () => {
     writeFileSync(join(ws, 'package.json'), JSON.stringify({ scripts: { start: `bun -e "Bun.serve({ port: Number(process.env.PORT), fetch: () => new Response('hi from preview') })"` } }));
     const g = goal();

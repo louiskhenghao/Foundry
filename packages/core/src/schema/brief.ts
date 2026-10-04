@@ -51,6 +51,19 @@ export const BriefRun = z.object({
 });
 export type BriefRun = z.infer<typeof BriefRun>;
 
+/**
+ * One app of a repository with several (a monorepo's web app, admin, API…), previewed side by side. `dir` is the app's
+ * folder relative to the repo root ('' = the root); the command runs there. Each app gets its own port, and every app
+ * sees the others' addresses as FOUNDRY_APP_<KEY>_URL.
+ */
+export const BriefApp = BriefRun.extend({
+  /** short stable id, lowercase letters, digits and dashes: `web`, `admin`, `api` */
+  key: z.string(),
+  name: z.string(),
+  dir: z.string().default(''),
+});
+export type BriefApp = z.infer<typeof BriefApp>;
+
 export const BriefTask = z.object({
   key: z.string(),
   /** imperative, Conventional-Commit style subject without the type prefix (the type comes from `kind`) */
@@ -124,6 +137,8 @@ export const Brief = z.object({
   styleOptions: z.array(BriefStyleOption).default([]),
   /** how to start the result for a look (preview, self-check); null = detected from package.json, or not startable */
   run: BriefRun.nullable().optional(),
+  /** several apps to preview side by side; overrides `run`. null/absent = `run`, else detected */
+  apps: z.array(BriefApp).nullable().optional(),
 });
 export type Brief = z.infer<typeof Brief>;
 
@@ -219,6 +234,20 @@ export const BriefOutput = z.object({
     })
     .nullable()
     .describe('How to start the result so the human (and the engine\'s self-check) can look at it mid-goal. The engine detects package.json scripts itself — fill this ONLY when detection would be wrong, or the repository is empty and the first task creates the manifest. null otherwise.'),
+  apps: z
+    .array(
+      z.object({
+        key: z.string().describe('Short id: lowercase letters, digits and dashes, e.g. "web", "admin", "api".'),
+        name: z.string().describe('What a person calls it, e.g. "Customer web app".'),
+        dir: z.string().describe('The app\'s folder relative to the repo root, e.g. "apps/web"; "" for the root.'),
+        install: z.string().nullable().describe('Install command for this app, run in its folder; null when the root install covers it.'),
+        command: z.string().nullable().describe('Command that starts this app\'s dev server in its folder and keeps running. Use {port} where the port goes; PORT is set too, and every app gets the other apps\' addresses as FOUNDRY_APP_<KEY>_URL (key upper-cased, dashes as underscores).'),
+        url: z.string().nullable().describe('Where it serves, with {port}, e.g. "http://localhost:{port}".'),
+        platform: z.enum(['web', 'expo', 'none']).describe('web = browser app or API; expo = React Native through Expo web; none = not startable.'),
+      }),
+    )
+    .nullable()
+    .describe('For a repository with SEVERAL apps a person would run side by side (monorepo: web + admin + API…): one entry per app, the one to look at first first. The engine detects package.json workspaces itself — fill this ONLY when detection would be wrong or miss an app. null otherwise; when set it replaces `run`.'),
 });
 export type BriefOutput = z.infer<typeof BriefOutput>;
 

@@ -41,6 +41,7 @@ const briefOut = (over: Partial<BriefOutput> = {}): BriefOutput => ({
   questions: [{ text: 'Which colour?', blocking: true, areaKey: null, options: [] }],
   styleOptions: [],
   run: null,
+  apps: null,
   ...over,
 });
 

@@ -1,6 +1,6 @@
 # ADR-0012: Milestones, previews and the headless self-check
 
-**Status:** accepted · 2026-09-14
+**Status:** accepted · 2026-09-14 · the Preview part is amended by [ADR-0021](0021-multi-app-previews-and-compose-services.md) (several apps, compose services)
 
 ## Context
 

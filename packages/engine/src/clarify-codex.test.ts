@@ -30,7 +30,7 @@ const brief = (title = 'Clarifier draft') => BriefOutput.parse({
   areas: [{ key: 'A1', name: 'Main', slug: 'main', description: 'Main task' }], assumptions: [],
   tasks: [{ key: 'T1', areaKey: 'A1', title, spec: 'Update README.md', kind: 'feature', difficulty: 'standard', scenario: 'general', scope: null, dependsOnKeys: [], parallelizable: false, relevantFiles: ['README.md'], milestone: null }],
   checks: [{ key: 'C1', name: 'README exists', tier: 'must', taskKey: 'T1', areaKey: 'A1', type: 'command', cmd: 'test -f README.md', rubric: null }],
-  costEstimateUsd: 0, timeEstimateMin: 10, questions: [], styleOptions: [], run: null,
+  costEstimateUsd: 0, timeEstimateMin: 10, questions: [], styleOptions: [], run: null, apps: null,
 });
 
 class ScriptedRunner implements ClaudeRunner {

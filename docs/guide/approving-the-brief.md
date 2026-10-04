@@ -194,7 +194,7 @@ With several Areas, a goal-level check can belong to one Area or to **all Areas*
 
 ## How to run it
 
-**How to run it** tells Foundry how to start the result, for the preview at milestones and for the self-check. Leave it empty for most projects: Foundry reads the start script from `package.json`. Its last line is the goal's **Self-check after each task** switch, so you can turn the self-check on before the work starts.
+**How to run it** tells Foundry how to start the result, for the preview at milestones and for the self-check. Leave it empty for most projects: Foundry reads the start script from `package.json`, or one per app from its workspaces. Its last line is the goal's **Self-check after each task** switch, so you can turn the self-check on before the work starts.
 
 | Field | What it is |
 |---|---|
@@ -203,7 +203,9 @@ With several Areas, a goal-level check can belong to one Area or to **all Areas*
 | **Start command** | For example `npm run dev -- --port {port}`. `{port}` is where Foundry puts the port. |
 | **URL** | Where the result opens, for example `http://localhost:{port}`. |
 
-**Use package.json** forgets these fields and goes back to reading `package.json`.
+For a repository with several apps (a web app, an admin, an API…), **Several apps…** turns these fields into a list of apps, filled with the apps Foundry found in `package.json`. Each app has a **Name**, a **Folder** (relative to the repository; empty means its root), a **Start command** and a **URL**. **Add app** adds one, **Remove** removes one. The first app is the one milestones and the self-check open. Under each app, its key shows the variable the other apps read its address from, for example `FOUNDRY_APP_API_URL`.
+
+**Use package.json** forgets these fields, or the list of apps, and goes back to reading `package.json`.
 
 ## Completion
 

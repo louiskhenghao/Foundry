@@ -308,6 +308,11 @@ and `-H 0.0.0.0` to a detected Next command, and sets `HOST=0.0.0.0` and `HOSTNA
 web server already listens on every interface. A run command you give in the Brief is used as written: if its server
 ignores `HOST`, add its own flag for listening on `0.0.0.0`. A local install (no Docker) keeps previews on localhost.
 
+A monorepo's preview runs one dev server per app, each on its own port from the range, so publish enough of it for
+the apps you run at once. The Docker services those apps need (from the repository's compose file) are started only by
+a local install: the image has no Docker access, so the preview card lists the services and the `docker compose`
+command to run on the host instead.
+
 The headless self-check needs Chromium. The image already has the system libraries and fonts Chromium needs;
 **Settings → Preview & self-check → Install Chromium** downloads the browser itself (about 650 MB on disk) with the
 Playwright version Foundry ships. It goes to `/home/node/.cache/ms-playwright` (`PLAYWRIGHT_BROWSERS_PATH`), which

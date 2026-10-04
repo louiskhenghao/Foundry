@@ -143,6 +143,25 @@ The **Preview** card starts the result so you can try it in your browser.
 
 If the card says **Nothing to run yet**, there is no start command yet. It appears once a task adds one, or you can set one on the Brief under **How to run it**.
 
+### Several apps
+
+A repository can hold several apps you run side by side, for example a web app, an admin and an API. Foundry finds them in the workspaces of `package.json`, or the Brief lists them under **How to run it**. The card then shows one row per app, the first one at the top:
+
+- a dot (green: answering, amber: starting, red: the last run failed, grey: stopped), the app's name and its folder;
+- **Open** while it runs, and its own **Start** or **Stop**;
+- **▸ output** shows what that app prints.
+
+**Start all** starts every app that is not running; **Stop all** stops them all. Each app gets its own port, and the addresses of the other apps in its environment as `FOUNDRY_APP_<KEY>_URL`, for example `FOUNDRY_APP_API_URL`, so the web app can find the API.
+
+### Services
+
+If the repository has a Docker Compose file with services the apps need (a database such as Postgres, file storage such as MinIO), the card shows a **Services** section with each service, its ports and its state. Starting the preview starts the services first. **Start services** and **Stop services** act on all of them; each service also has its own **Start** or **Stop**.
+
+- Services are shared by every goal of the same repository, so two goals never start two databases on the same port.
+- If a service's port is already in use on your computer (your own Postgres, for example), it shows **in use elsewhere**: Foundry does not start it, and the apps use the one that is already running.
+- Services keep running when the preview stops, so their data is kept. **Stop services** stops them; the data is still kept.
+- Docker must be installed. Without it, or when Foundry itself runs inside Docker, the card shows the command to start the services yourself, with **copy**.
+
 Foundry also starts the preview by itself at a milestone, restarts it after each task lands if it is running, and stops it when nobody opened it for a while (60 minutes by default) or when the goal ends.
 
 ### Self-check
