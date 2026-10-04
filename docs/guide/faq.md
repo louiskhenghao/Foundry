@@ -14,10 +14,10 @@ What each one means and what to press: [When Foundry needs you](./when-foundry-n
 
 Probably not. Check in this order:
 
-1. **A yellow banner "Usage limit reached"?** Your Claude plan's limit was reached. Everything resumes by itself when it resets; the banner says when.
+1. **A yellow banner "Usage limit reached"?** The named backend reached its usage limit. Goals on the other backend can continue. Foundry retries at the reported time, or after a delay when no reset is supplied; a retry time does not guarantee recovered quota.
 2. **The Inbox.** A number in the top bar means something waits for you.
-3. **The task's live log** (goal page → **Tasks** → click the running task). A line like `⏱ sub-agent still working · 5m 10s` that keeps counting means it is working. Planning often takes 2 to 8 minutes with little output.
-4. **The Agents page.** A session marked working is working.
+3. **The task's live log** (goal page → **Tasks** → click the running task). Claude sessions can show `⏱ sub-agent still working · 5m 10s`; Codex uses separate Foundry-managed Planner sessions and does not emit that native sub-agent heartbeat. Planning often takes 2 to 8 minutes with little output.
+4. **The Agents page.** Foundry-owned running sessions show known activity. External Codex history can show **status unknown**; it cannot prove a process is running.
 5. **The ⚙ menu** at the right of the top bar says **Live**. A red dot on the ⚙ button and **Reconnecting…** in the menu mean the page lost contact with Foundry; reload it, and check that Foundry is still running.
 
 A task attempt that seems stuck is stopped after 20 minutes by default (**Attempt timeout** in Settings) and resumed, so a real hang does not last. A Clarify session stops after 15 minutes, the final review after 30.
@@ -39,8 +39,8 @@ Before approving, everything is editable: [Approving the Brief](./approving-the-
 - Pick the **Economy** or **Balanced** model preset (**Models** on the New goal form, or [Settings → Models & limits](./settings.md#preset-per-goal-type)).
 - Tick **Fast mode** for routine goals.
 - Set **Effort** to **low** for small goals.
-- Mark easy tasks **simple** on the Brief; they run on the preset's **Simple tasks** model (Sonnet instead of Opus in Production; for code goals in Balanced it is the same model as Standard).
-- Set a budget; the goal stops and asks when it is reached.
+- Mark easy tasks **simple** on the Brief; they run on the preset's **Simple tasks** model and, for Codex, its role effort. Sonnet/Opus examples apply to Claude presets; Codex preset names do not promise a price.
+- Set time and attempt limits. Claude also supports a USD budget; Codex does not report or enforce dollar cost.
 
 More in [Costs and usage](./costs-and-usage.md#ways-to-spend-less).
 
@@ -63,7 +63,7 @@ You do not need to. Foundry does all of the git work. What you need to know:
 
 ## Does it push without asking?
 
-No. With the default **Local only**, nothing leaves your computer. It pushes or opens a pull request only if you chose **Push branch**, **Open a PR** or **PR + auto-merge**, and then exactly the steps shown on the Delivery tab. The AI working on tasks cannot push or deploy at all: if it tries, Foundry blocks it and asks you in the Inbox. See [Getting the result](./getting-the-result.md#delivery-modes).
+No. With the default **Local only**, Foundry keeps the result on a local branch; native inference and connected tools still contact their services. It pushes or opens a pull request only if you chose **Push branch**, **Open a PR** or **PR + auto-merge**, and then exactly the steps shown on the Delivery tab. The AI working on tasks cannot push or deploy at all: if it tries, Foundry blocks it and asks you in the Inbox. See [Getting the result](./getting-the-result.md#delivery-modes).
 
 ## How do I undo?
 
@@ -74,7 +74,7 @@ No. With the default **Local only**, nothing leaves your computer. It pushes or 
 
 ## Why is a task "standard"?
 
-Foundry rates each task **simple**, **standard** or **complex** when it writes the plan, and **standard** is the normal case: typical feature work. The rating picks the model: simple tasks run on the preset's **Simple tasks** model (Sonnet in Production; for code goals in Balanced it is the same as Standard), complex ones on its **Complex tasks** model. You can change it on the Brief before approving. See [Difficulty](./approving-the-brief.md#difficulty).
+Foundry rates each task **simple**, **standard** or **complex** when it writes the plan, and **standard** is the normal case: typical feature work. The rating picks the model: simple tasks run on the preset's **Simple tasks** model (for Claude, Sonnet in Production; Codex uses its captured model and effort), complex ones on its **Complex tasks** model. You can change it on the Brief before approving. See [Difficulty](./approving-the-brief.md#difficulty).
 
 ## Can I use it from my phone?
 
@@ -86,7 +86,15 @@ Close the browser any time: the work continues. The computer must stay on and aw
 
 ## Can I run several goals at once?
 
-Yes. They share the limit **Concurrent Claude sessions** (3 by default, in [Settings → Models & limits](./settings.md#limits)), so more goals at once means each one moves slower. Two goals on the same project do not see each other's work until you merge it.
+Yes. Claude and Codex goals share the limit **Concurrent agent sessions** (3 by default, in [Settings → Models & limits](./settings.md#limits)), so more goals at once means each one moves slower. Two goals on the same project do not see each other's work until you merge it.
+
+## Can Claude and Codex share one instance?
+
+Yes. Choose **Agent backend** on New goal. The goal keeps it through planning, work, retries and reviews. **Accounts** signs each backend in separately; signing out one leaves the other unchanged. Codex uses ChatGPT device sign-in only. Settings has independent model presets, and Extensions keeps MCP permissions separate.
+
+## Why do I see only a weekly Codex limit?
+
+That is valid. Foundry shows only windows returned for your account. It does not add a five-hour limit when none is returned. **Refresh quota** reads account metadata without inference; **Foundry activity · last 7 days** is local history, not another account limit. See [Costs and usage](./costs-and-usage.md#codex-accounting).
 
 ## What does "over-delivered" mean?
 

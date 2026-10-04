@@ -14,10 +14,10 @@ goal 运行起来后，Foundry 只在少数几种情况下停下来问你：一�
 
 多半没有。按这个顺序检查：
 
-1. **有黄色横幅 "Usage limit reached" 吗？** 你的 Claude 套餐到了上限。额度重置后一切会自己恢复；横幅会告诉你什么时候。
+1. **有黄色横幅 "Usage limit reached" 吗？** 横幅所指的后端到了用量上限，另一后端仍可继续。Foundry 按报告的时间重试；没有重置信号时延后重试，重试时间不保证额度已经恢复。
 2. **Inbox。** 顶栏上有数字，说明有事在等你。
-3. **任务的实时日志**（goal 页面 → **Tasks** → 点正在运行的任务）。像 `⏱ sub-agent still working · 5m 10s` 这样一直在计时的行，说明它在工作。规划常常要 2 到 8 分钟，期间输出很少。
-4. **Agents 页面。** 标着 working 的会话就是在工作。
+3. **任务的实时日志**（goal 页面 → **Tasks** → 点正在运行的任务）。Claude 会话可能显示 `⏱ sub-agent still working · 5m 10s`；Codex 使用 Foundry 单独管理的 Planner 会话，不会发出这种原生子代理心跳。规划常常要 2 到 8 分钟，期间输出很少。
+4. **Agents 页面。** Foundry 自己运行的会话显示已知活动；外部 Codex 历史可能显示 **status unknown**，不能用它判断进程是否正在运行。
 5. 顶栏右侧的 **⚙ 菜单**显示 **Live**。如果 ⚙ 按钮上有红点、菜单里显示 **Reconnecting…**，说明页面和 Foundry 失去了联系；刷新页面，并检查 Foundry 是否还在运行。
 
 看似卡住的任务尝试默认 20 分钟后会被停止并续接（Settings 里的 **Attempt timeout**），所以真正的卡死不会一直持续。Clarify 会话 15 分钟后停止，最终审查 30 分钟后停止。
@@ -39,8 +39,8 @@ Brief 本身不能改：一经批准就固定了。但你可以调整方向：
 - 选 **Economy** 或 **Balanced** 模型预设（New goal 表单上的 **Models**，或 [Settings → Models & limits](./settings.zh.md#preset-per-goal-type)）。
 - 常规 goal 勾选 **Fast mode**。
 - 小 goal 把 **Effort** 设为 **low**。
-- 在 Brief 上把简单任务标成 **simple**；它们用预设里的 **Simple tasks** 模型运行（在 Production 里是 Sonnet 而不是 Opus；Balanced 的代码类 goal 里，它和 Standard 是同一个模型）。
-- 设预算；达到时 goal 会停下来问你。
+- 在 Brief 上把简单任务标成 **simple**；它们用预设里的 **Simple tasks** 模型运行，Codex 还使用该角色的推理强度。Sonnet／Opus 示例只适用于 Claude 预设，Codex 预设名称不保证价格。
+- 设置时间和尝试次数限制。Claude 还支持美元预算；Codex 不报告美元费用，也不执行美元上限。
 
 更多见 [费用与用量](./costs-and-usage.zh.md#怎样少花钱)。
 
@@ -63,7 +63,7 @@ Brief 本身不能改：一经批准就固定了。但你可以调整方向：
 
 ## 它会不问就推送吗？
 
-不会。默认的 **Local only** 下，什么都不会离开你的电脑。只有你选了 **Push branch**、**Open a PR** 或 **PR + auto-merge**，它才会推送或开 pull request，而且严格按 Delivery 标签上显示的步骤来。做任务的 AI 完全不能推送或部署：它要是试图这样做，Foundry 会拦下并在 Inbox 里问你。见 [拿到结果](./getting-the-result.zh.md#交付方式)。
+不会。默认的 **Local only** 把成果保留在本地分支；原生模型推理和已连接的工具仍会联系各自的服务。只有你选了 **Push branch**、**Open a PR** 或 **PR + auto-merge**，它才会推送或开 pull request，而且严格按 Delivery 标签上显示的步骤来。做任务的 AI 完全不能推送或部署：它要是试图这样做，Foundry 会拦下并在 Inbox 里问你。见 [拿到结果](./getting-the-result.zh.md#交付方式)。
 
 ## 怎么撤销？
 
@@ -74,7 +74,7 @@ Brief 本身不能改：一经批准就固定了。但你可以调整方向：
 
 ## 为什么任务是 "standard"？
 
-Foundry 写计划时，会把每个任务评为 **simple**、**standard** 或 **complex**，**standard** 是常规情况：典型的功能开发。评级决定用哪个模型：简单任务用预设里的 **Simple tasks** 模型（在 Production 里是 Sonnet；Balanced 的代码类 goal 里，它和 Standard 一样），复杂任务用它的 **Complex tasks** 模型。你可以在批准前在 Brief 上改。见 [Difficulty](./approving-the-brief.zh.md#difficulty)。
+Foundry 写计划时，会把每个任务评为 **simple**、**standard** 或 **complex**，**standard** 是常规情况：典型的功能开发。评级决定用哪个模型：简单任务用预设里的 **Simple tasks** 模型（Claude 的 Production 使用 Sonnet；Codex 使用保存的模型和推理强度），复杂任务用它的 **Complex tasks** 模型。你可以在批准前在 Brief 上改。见 [Difficulty](./approving-the-brief.zh.md#difficulty)。
 
 ## 能在手机上用吗？
 
@@ -86,7 +86,15 @@ Foundry 写计划时，会把每个任务评为 **simple**、**standard** 或 **
 
 ## 能同时运行几个 goal 吗？
 
-能。它们共用 **Concurrent Claude sessions** 这个上限（默认 3，在 [Settings → Models & limits](./settings.zh.md#limits) 里），所以同时跑的 goal 越多，每个就越慢。同一个项目上的两个 goal，在你合并之前看不到彼此的工作。
+能。Claude 和 Codex goal 共用 **Concurrent agent sessions** 这个上限（默认 3，在 [Settings → Models & limits](./settings.zh.md#limits) 里），所以同时跑的 goal 越多，每个就越慢。同一个项目上的两个 goal，在你合并之前看不到彼此的工作。
+
+## Claude 和 Codex 可以共用一个实例吗？
+
+可以。在 New goal 选择 **Agent backend**，规划、执行、重试和审查都会保持这个后端。**Accounts** 分别登录两种后端，退出一个不会影响另一个。Codex 只使用 ChatGPT 设备登录。Settings 中的模型预设独立，Extensions 中的 MCP 权限也独立。
+
+## 为什么我的 Codex 只有每周限额？
+
+这是正常情况。Foundry 只显示你的账户实际返回的窗口，没有五小时限额就不会补上。**Refresh quota** 只读账户元数据，不运行推理；**Foundry activity · last 7 days** 是本机活动历史，不是另一个账户限额。见[费用与用量](./costs-and-usage.zh.md#codex-用量)。
 
 ## "over-delivered" 是什么意思？
 

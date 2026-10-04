@@ -169,7 +169,7 @@ git merge goal/abc123
 
 ## Continue with a follow-up
 
-Codex 的 follow-up 会保留明确指定的全角色模型覆盖，即使 Settings 中的默认模型后来改变。没有明确覆盖时，会保留预设的各角色独立分配，不把它们压成单一模型。
+Codex 的 follow-up 会保留明确指定的全角色模型覆盖，即使 Settings 中的默认模型后来改变。没有明确覆盖时，会保留预设的各角色独立分配，不把它们压成单一模型。Follow-up 是新 goal，会在创建时保存预设当前的角色表，不会复制前一个 goal 已冻结的角色表。
 
 一个 goal 很少是最后一步。goal 结束后（done、over-delivered、failed 或 cancelled），它的页面会显示 **Continue with a follow-up…**。它会打开 New goal 表单，带着一个 **Follows: …** 标签，并且已经填好之前那个 goal 的仓库、goal 类型、模型、effort、Fast mode、视图和交付方式。你只要写接下来要做什么；改主意了就把标签去掉。表单里的 [Follows](./your-first-goal.zh.md#follows) 部分会说明新 goal 从哪里开始，也可以选择不带附件或风格方向。
 

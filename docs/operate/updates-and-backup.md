@@ -8,20 +8,22 @@ This page says where Foundry keeps its state, how to back it up and restore it, 
 
 | What | Local install | Docker | Back it up? |
 |---|---|---|---|
-| **Data folder**: event log, settings, transcripts, uploads | `data/` in the Foundry checkout | `/app/data`, volume `engine-data` | **yes** |
+| **Data folder**: event log, settings, transcripts, uploads | `data/` for the Claude launch profile; `data-codex/` for Codex; `FOUNDRY_DATA_DIR` overrides either | `/app/data` (`engine-data`) or `/app/data-codex` (`codex-data`) | **yes**, every instance’s active directory |
 | **Claude home**: Claude Code login, sessions, skills, plugins | `~/.claude` (or `CLAUDE_CONFIG_DIR`) | `/home/node/.claude`, volume `claude-home` | **yes** |
+| **Codex home**: native login/configuration, sessions, skills, plugins | `~/.codex`, or the configured Codex home (`FOUNDRY_CODEX_HOME`, then `CODEX_HOME`) | `/home/node/.codex`, volume `codex-home` | **yes**; re-login may still be needed when credentials use a host credential store |
+| **Shared skills** | `~/.agents/skills` | wherever you explicitly mount shared skills | if you customized them |
 | **Your repositories** | wherever they are | bind-mounted, usually at `/repos` | your normal backups |
 | **Progress folders**: one per goal, next to each repository | `<repo>-foundry/<goal>/` | same, inside the mount | until the goal is deleted |
 | **GitHub login** (`gh`) | `~/.config/gh` | `/home/node/.config/gh`, no volume unless you add one | optional |
 | **Chromium** for the self-check | `~/.cache/ms-playwright` | `/home/node/.cache/ms-playwright`, volume `playwright-browsers` (Compose) | no: **Install Chromium** downloads it again |
 
 With Docker Compose, the real volume names start with the Compose project name, which is the folder you run
-`docker compose` from. From `~/foundry` they are `foundry_engine-data` and `foundry_claude-home`.
+`docker compose` from. From `~/foundry` they include `foundry_engine-data`, `foundry_codex-data`, `foundry_claude-home` and `foundry_codex-home`.
 `docker volume ls` lists them. With the `docker run` recipes in [install.md](./install.md) they are plainly
-`engine-data` and `claude-home`. The two sets are different volumes: switching from one way of running to the
+`engine-data`, `codex-data`, `claude-home` and `codex-home` when those mounts are present. The prefixed and unprefixed sets are different volumes: switching from one way of running to the
 other means restoring a backup into the new volumes.
 
-With the Linux uid ≠ 1000 recipe, the data folder is `~/.foundry/data` and the whole home is `~/.foundry/home`.
+With the Linux uid ≠ 1000 recipe, the data folders are `~/.foundry/data` and `~/.foundry/data-codex`, and the whole home is `~/.foundry/home`.
 
 On macOS, a local install's Claude login is in the Keychain, not in `~/.claude`.
 
@@ -30,8 +32,10 @@ On macOS, a local install's Claude login is in the Keychain, not in `~/.claude`.
 | Path | What | Keep? |
 |---|---|---|
 | `engine.db` | SQLite: goals, tasks, attempts, every event. Created and migrated automatically. | **yes** |
-| `settings.json` | every value you changed on the Settings page | **yes** |
-| `models.json` | which model names resolved on this machine (learned) | optional |
+| `settings.json` | every value you changed on the Settings page, including both providers’ presets and permissions | **yes** |
+| `provider` | the directory’s original launch profile; required to keep old goals on the right backend | **yes** |
+| `models.json` | native model catalog for the launch provider | optional |
+| `providers/<other-provider>/` | the other backend’s model catalog and skills cache/trash/update state; goal events remain in the shared `engine.db` | keep with the whole data folder |
 | `transcripts/`, `check-output/` | session logs, check output | optional |
 | `attachments/` | files and links attached to goals | yes, if you want them |
 | `skills-cache/`, `skills-trash/` | fetched skill sources; uninstalled skills (restorable) | optional |
@@ -55,20 +59,36 @@ Each repository `my-app` gets a sibling folder `my-app-foundry/`:
 ## Back up
 
 Stop Foundry first, so the SQLite database is not written while you copy it. A stopped engine loses nothing:
-unfinished attempts resume after the restart.
+eligible unfinished attempts resume after restart on the same backend. Stop the supervising service or disable its restart while copying, so it does not immediately start the engine again. Native homes may also be written by terminal or desktop clients: close those clients before taking a consistent copy. Use a private backup directory; it contains account and service credentials.
 
 ### Docker
 
 This works for Compose and `docker run` alike, because `--volumes-from` finds the volumes by container:
 
 ```bash
+mkdir -p foundry-backup
+chmod 700 foundry-backup
+cd foundry-backup
+umask 077
 docker stop foundry
 docker run --rm --volumes-from foundry -v "$PWD":/out alpine \
   tar czf /out/foundry-data.tgz -C /app/data .
 docker run --rm --volumes-from foundry -v "$PWD":/out alpine \
   tar czf /out/foundry-claude.tgz -C /home/node/.claude .
-docker start foundry
 ```
+
+For a Codex-profile or mixed-provider container, also copy each mounted Codex path while the container remains stopped:
+
+```bash
+docker run --rm --volumes-from foundry -v "$PWD":/out alpine \
+  tar czf /out/foundry-codex-data.tgz -C /app/data-codex .
+docker run --rm --volumes-from foundry -v "$PWD":/out alpine \
+  tar czf /out/foundry-codex-home.tgz -C /home/node/.codex .
+```
+
+Only archive paths your container actually mounts; a Claude-profile instance with Codex goals still keeps those goals in `/app/data`, so back up that directory as well as the Codex home. `FOUNDRY_DATA_DIR` may point elsewhere: substitute its actual path.
+
+After all mounted state has been copied, run `docker start foundry`.
 
 The same by volume name (`docker run` recipe; with Compose use the prefixed names from `docker volume ls`):
 
@@ -84,16 +104,17 @@ docker start foundry
 Stop the server (Ctrl-C, or stop the service), then copy the data folder:
 
 ```bash
-tar czf foundry-data.tgz -C /path/to/foundry data
+umask 077
+tar czf foundry-data.tgz -C /path/to/foundry/data .
 ```
 
-Back up `~/.claude` with the rest of your home folder.
+Substitute `/path/to/foundry/data-codex` or your actual `FOUNDRY_DATA_DIR` when appropriate. Copy the complete directory, including `provider` and `providers/`. Back up the configured Claude and Codex homes and any shared skills with the rest of your home folder.
 
 ---
 
 ## Restore
 
-Stop Foundry. Restore into the existing container's volumes:
+Stop Foundry and its supervisor. Keep a backup of the current state before replacing it: the commands below empty the destination. From the private backup directory, restore the matching data archive and native homes into the existing container’s volumes:
 
 ```bash
 docker stop foundry
@@ -101,20 +122,29 @@ docker run --rm --volumes-from foundry -v "$PWD":/in alpine sh -c \
   'find /app/data -mindepth 1 -delete && tar xzf /in/foundry-data.tgz -C /app/data && chown -R 1000:1000 /app/data'
 docker run --rm --volumes-from foundry -v "$PWD":/in alpine sh -c \
   'find /home/node/.claude -mindepth 1 -delete && tar xzf /in/foundry-claude.tgz -C /home/node/.claude && chown -R 1000:1000 /home/node/.claude'
-docker start foundry
 ```
 
 On a new machine, create the container first (`docker compose up -d` or your `docker run` line), then run the
 commands above. With the uid ≠ 1000 recipe, unpack into `~/.foundry/data` and `~/.foundry/home/.claude` instead and
 skip the `chown`.
 
-For a local install, stop the server and unpack `foundry-data.tgz` in the checkout, so it recreates `data/`.
+For Codex, repeat the restore pattern with `/app/data-codex` and `foundry-codex-data.tgz`, and `/home/node/.codex` with `foundry-codex-home.tgz`, only for paths you mounted. Match the original UID/GID. Keep the container stopped until every required archive has been restored, then run `docker start foundry`.
+
+For a local install, restore the archive contents into an empty data directory, for example `tar xzf foundry-data.tgz -C /path/to/foundry/data`. Restore native homes separately. Start with the same launch profile, native-home settings and data path as the backup. Confirm both accounts in **Accounts**; a copied native home does not guarantee credentials remain valid.
 
 The database stores repository paths as the engine saw them (container paths in Docker). On a new machine, mount the
 repositories at the same paths. If a repository's `git worktree list` shows worktrees that no longer exist, run
 `git worktree prune` in that repository.
 
 ---
+
+## Upgrading to mixed-provider goals
+
+Back up before the first startup of this revision. Startup appends provider assignments for older goals and records the data directory’s launch profile. Keep the existing Claude profile for an existing `data/`; add Codex through **Accounts** and the New goal backend selector. Changing `FOUNDRY_PROVIDER` is not a migration, and existing `data/` and `data-codex/` directories are not merged automatically.
+
+**Do not open an upgraded mixed-provider directory with an older binary.** A rollback needs both the old binary/image and its matching pre-upgrade data backup. Keep post-upgrade data separately if it contains work you need. Reverting application code alone is insufficient. Repository branches and progress folders are separate from the database backup, so preserve those too.
+
+If trying an unreleased branch, retain the previous image tag or commit. A successful merge does not publish a Docker image. Build that source revision explicitly; use [the validation record](../develop/codex-validation.md) to distinguish tested paths from live integration checks still outstanding.
 
 ## Self-update
 
@@ -198,7 +228,7 @@ started from and `bun install` again, and does **not** restart. You stay on the 
 - `git pull --ff-only` pulls the branch the checkout is on. Releases are tagged `vX.Y.Z` on `main`.
 
 After a successful update Foundry restarts itself: it starts a detached `bun apps/cli/src/main.ts serve` that logs to
-`data/update-restart.log`, then exits.
+`<dataDir>/update-restart.log`, then exits.
 
 **Under launchd or systemd, set `FOUNDRY_SUPERVISED=1`.** Then Foundry just exits after the update and the service
 manager starts the new version. Without it, the self-started copy and the service manager fight over the port.

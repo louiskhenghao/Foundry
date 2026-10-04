@@ -30,6 +30,18 @@ bun run release patch|minor|major|x.y.z [--notes "..."] [--dry-run]
 - `git push` to `origin` works.
 - **The guide's screenshots are current.** If a screen the user guide shows changed since the last release, run `bun scripts/screenshots.ts` and commit the new images first (see [testing.md](testing.md#the-seeded-demo-and-the-guides-screenshots)).
 
+Run the full package, CLI and web regression suite, type checks and web build before publishing:
+
+```sh
+bun test packages ./apps/cli/src ./apps/web/tests
+bun run typecheck
+bun run web:build
+bun scripts/gen-docs.ts
+git diff --exit-code -- docs/operate/configuration.md docs/operate/cli.md
+```
+
+For backend changes, review [the native validation record](codex-validation.md), run the plugin smoke check with the Docker-pinned CLI and verify the image’s native prerequisites. Record untested integrations in release notes. Back up the database, settings, progress folders and both native homes before upgrading a live mixed-provider instance; rollback requires the matching pre-upgrade data backup, not just an older image. See [updates and backup](../operate/updates-and-backup.md). Do not describe a locally built PR image as already published.
+
 ## What it does, in order
 
 ```mermaid

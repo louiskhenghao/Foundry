@@ -2,6 +2,8 @@
 
 **Status:** superseded by [ADR-0017](0017-goal-provider-and-account-isolation.md) · 2026-10-04
 
+> Current implementation: This roadmap is historical. Native hooks, per-goal backends, role presets and provider-scoped extensions have since shipped in this branch; see [the current operator guide](../../operate/codex.md).
+
 ## Context
 
 The user wants the option to run goals — or individual tasks — on engines other than Claude Code (OpenAI codex first), to maximise what a goal can draw on. Nothing is implemented yet; this ADR records the direction and the honest difficulty so a later round starts from facts.

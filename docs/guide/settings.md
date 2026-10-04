@@ -4,7 +4,7 @@
 
 ## Two backends
 
-**Models & limits** has separate **Claude Code** and **Codex** tabs. Each provider has its own presets and model choices. Codex goals capture their role models, reasoning effort and fallback order when created; edits affect new goals. **Claude cost cap per session (USD)** applies only to Claude. **Concurrent agent sessions** is one total limit across both providers.
+**Models & limits** uses the shared **Agent backend** selector for **Claude Code** and **Codex**. Each provider has its own presets and model choices. Codex goals capture their role models, reasoning effort and fallback order when created; edits affect new goals. **Claude cost cap per session (USD)** applies only to Claude. **Concurrent agent sessions** is one total limit across both providers.
 
 **Engine (install)** exposes both CLI paths and homes. The **Default agent backend** is chosen at launch; it does not restrict the **New goal** selector. Keep the original launch profile when opening an existing data directory so legacy records retain their provenance. Existing separate directories are not automatically merged.
 
@@ -42,17 +42,17 @@ When to change: set **Interview before the Brief** to **always** if you like to 
 
 ## Models & limits
 
-This section decides which model does each job. Choose the **Claude Code** or **Codex** tab; their presets and catalogs are independent. Session limits appear below both tabs.
+This section decides which model does each job. Choose **Claude Code** or **Codex** under **Agent backend**; their presets and catalogs are independent. Session limits appear below the selected backend’s model settings.
 
 ![Settings, Models & limits: the Sync models button and one preset per goal type with its model grid](images/settings-models.png)
 
-![Codex presets and native model catalog](images/codex-presets-settings.png)
+![Codex presets and model settings](images/codex-presets-settings.png)
 
 ![Per-role models and reasoning effort](images/codex-role-models.png)
 
 ### Codex presets and models
 
-On the **Codex** tab, choose **Code preset**, **Docs & research preset** and **Media preset**. The defaults are Production for code and Balanced for the other goal types. These names are independent from Claude presets:
+With **Agent backend → Codex** selected, choose **Code preset**, **Docs & research preset** and **Media preset**. The defaults are Production for code and Balanced for the other goal types. These names are independent from Claude presets:
 
 | Preset | Reasoning profile |
 |---|---|
@@ -171,10 +171,10 @@ When to change: raise the timeout or Claude cost cap if big tasks keep getting c
 
 ## Skills
 
-Skills are packaged instructions the coding agent can follow. **Install skills for** selects which backend's installation status and actions you see; workflow pack choices are shared.
+Skills are packaged instructions the coding agent can follow. **Agent backend** selects which backend's installation status and actions you see; workflow pack choices are shared.
 
 - **Profile**: **mattpocock (mandated + observed)** (default) tells workers which working method to follow (tests first for features, diagnose first for bugs) and records whether they did. **plain (hint only)** only mentions them.
-- **Setting sources**: which Claude Code settings sessions load. Leave empty.
+- **Setting sources** (Claude only): which Claude Code settings sessions load. Leave empty.
 - **autoskills per goal** (on): after you approve a Brief, adds skills matching your project's technology (React, Tailwind…) to the goal's folder. They never reach your commits.
 - **Design skills**, **Image skills**, **Video skills**: pick one pack for each; only that pack is given to frontend, image or video tasks. A pack shows **installed** or **N missing** with an **Install** button. Choosing a pack saves immediately. Image packs only produce real images with a key under [Tools & keys](#tools--keys). When an installed skill lacks the key it needs, its card shows **⚠ key missing** with the key's name and what is lost without it; click it to go to **Tools & keys**.
 
@@ -182,7 +182,7 @@ The **Extensions** page in the top bar holds your skills, MCP servers and native
 
 ### Codex plugins
 
-![Codex native plugin management — isolated local example](images/codex-native-plugins.png)
+![Codex native plugin management — demonstration data](images/codex-native-plugins.png)
 
 Select **Codex**, then **Plugins**. **Installed** and **Available** list packages returned by your native marketplaces; filter by plugin or marketplace, or use **Refresh plugins** after a change in the CLI. **Install** and **Remove** open a confirmation dialog, then show progress in **Operations**. The list refreshes after completion. Foundry checks the native installation state before showing success.
 
@@ -196,7 +196,7 @@ Installation shares the configured Codex home with the local CLI. New sessions l
 
 Select a backend at the top of **Extensions** before opening **MCP servers**. Codex servers use its native CLI configuration; **Check** opens a fresh native connection and discovers tools without running inference. Codex supports stdio and streamable HTTP, including HTTP OAuth sign-in; legacy SSE is unavailable. Native user-configured servers can be added, replaced and removed here. Running sessions keep their existing connections; new sessions see configuration changes. Claude and Codex have independent **Allowed in goals** switches, and Codex starts with no allowed servers.
 
-The following connector and plugin details describe the Claude tab. MCP servers give Claude Code tools beyond files and the shell: current library docs, a real browser, web search, your mail. The **Extensions** page has an **MCP servers** tab that lists the servers Claude Code loads for your account: the ones you installed (**yours**), the ones a plugin brings (**plugin**) and your claude.ai connectors (**claude.ai**). **Check** connects to each one and shows whether it works; it is not automatic because it starts every server.
+The following connector and plugin details describe the Claude backend. MCP servers give Claude Code tools beyond files and the shell: current library docs, a real browser, web search, your mail. The **Extensions** page has an **MCP servers** tab that lists the servers Claude Code loads for your account: the ones you installed (**yours**), the ones a plugin brings (**plugin**) and your claude.ai connectors (**claude.ai**). **Check** connects to each one and shows whether it works; it is not automatic because it starts every server.
 
 Some servers need an account before they work. A claude.ai connector (Gmail, Google Drive, …) has a **Connect** button: it opens claude.ai, where you authorize it with the account it should use; Claude Code and Foundry share that connection. A server reached by URL has **Sign in**: a browser opens on the computer running Foundry, or, when there is none (Docker), you open the link yourself and paste back the address the browser ends on. If the sign-in cannot finish in Foundry, the window shows the command to run in your own terminal instead (for example `claude mcp login context7`), with a copy button. After **Check**, a server that still needs this shows **needs auth** and a **Set up** button.
 
@@ -222,6 +222,8 @@ How Foundry keeps up with the online copy of your project, and how long delivery
 ## Tools & keys
 
 - **Use graphify for relevant-file discovery** (on): uses a code map to find the relevant files, when that tool is installed.
+Media-service keys below are separate from agent sign-in. Codex execution continues to use ChatGPT only; entering an image key does not enable API-key inference.
+
 - **OpenAI-compatible API key**: needed for image goals to produce real images. Without it, image tasks fall back to hand-drawn SVG renders. **OpenAI-compatible base URL**: only for a proxy or another compatible provider.
 - **Gemini API key**: an alternative for one of the image packs.
 - **Kimi (Moonshot) API key**: used by one design pack's models, where a skill calls them.
@@ -256,7 +258,7 @@ The six switches, all on by default:
 | **Interview round** | Foundry asks a round of questions before writing the Brief. | Answer them; the goal waits for you. |
 | **Goal finished** | A goal ended done, over-delivered or failed. Never when you cancelled it yourself. | Look at the result, or at what failed. |
 | **Delivery** | A pull request was opened or merged, or the delivery failed. | Review the pull request, or look at the Delivery tab. |
-| **Usage pause** | Your Claude plan's usage limit paused all work, and again when it resumes. | Nothing. Work resumes by itself. |
+| **Usage pause** | A backend’s usage limit paused its new sessions, and again when retrying resumes. Other backends can continue. | Foundry retries automatically; check Accounts and Usage if failures persist. |
 | **New version** | A newer Foundry version is out (once per version). | Update when convenient, see [About & updates](#about--updates). |
 
 Turn off what you do not want. The switches apply to every channel alike.
@@ -272,6 +274,7 @@ Settings for whoever installed Foundry. Leave them unless you know why.
 
 - **Port** (4111) and **Host** (127.0.0.1): where Foundry is reachable. Keep 127.0.0.1 unless you set up remote access. Restart needed.
 - **claude binary** and **Claude Code home**: where Claude Code and its skills live. Empty finds them. Restart needed.
+- **Codex binary** and **Codex home**: the Codex executable and native account/configuration directory. Empty uses PATH and `CODEX_HOME` or `~/.codex`. Restart needed. The launch profile is fixed; choose each goal’s backend on New goal.
 - **Progress folders**: where each goal's folder is created. Empty puts it next to your project as `<project>-foundry/<goal>`. A folder here gives `<folder>/<project>/<goal>` instead. Applies to goals created from now on.
 
 ## About & updates
@@ -280,7 +283,7 @@ Shows the version you run and how it is installed. **Check now** asks whether a 
 
 The update dialog:
 
-- **Update**: new sessions stop, running ones finish, then Foundry updates and restarts. The page reloads by itself. If anything fails, it rolls back and the old version keeps running.
+- **Update**: new sessions stop, running ones finish, then Foundry updates and restarts. The page reloads by itself. A failed local code update attempts to restore the old checkout; this is not a database rollback. Back up before upgrading to mixed-provider data, and restore that matching backup if you must run an older binary.
 - **Update immediately without waiting — interrupts running agents**: tick only if you cannot wait.
 - **Not now** closes it.
 - If this install cannot update itself, the dialog shows the commands to run instead.

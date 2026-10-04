@@ -9,14 +9,14 @@ bun test packages ./apps/cli/src ./apps/web/tests  # packages plus CLI and web r
 bun run typecheck     # tsc over packages/*, apps/cli and scripts, then a separate pass over apps/web
 ```
 
-- `bunfig.toml` sets the test root to `packages`, so plain `bun test` does the same thing. The full suite takes a minute or two.
+- `bunfig.toml` sets the test root to `packages`, so plain `bun test` runs only the package tests. The full suite takes a minute or two.
 - One file: `bun test packages/engine/src/clarify.test.ts`. One test by name: add `-t "repair turn"`.
 - `bun run typecheck` is `tsc -p tsconfig.json --noEmit && tsc --noEmit -p apps/web`. The root `tsconfig.json` excludes `apps/web`, so the web app is checked with its own config.
 - CLI regression tests live in `apps/cli/src`; web component tests live in `apps/web/tests`. Include both explicitly in the command above because the default test root is `packages`. Check UI interactions with the [manual QA](#manual-qa-against-a-throwaway-server) below.
 
 ## How the tests are built
 
-Tests are colocated with the code as `*.test.ts`. Pure modules (`core/src/machine/*`, `runner/src/stream-codec.ts`, `models/roles.ts`, the skills modules, `git/conventional.ts`, ...) are tested directly. The engine tests are integration tests. They build a **real `Engine`** with a real SQLite store, real git repositories and real worktrees in temp directories. Only the two things that leave the machine are faked: the Claude CLI and GitHub.
+Tests are colocated with the code as `*.test.ts`. Pure modules (`core/src/machine/*`, `runner/src/stream-codec.ts`, `models/roles.ts`, the skills modules, `git/conventional.ts`, ...) are tested directly. The engine tests are integration tests. They build a **real `Engine`** with a real SQLite store, real git repositories and real worktrees in temp directories. Only the two things that leave the machine are faked: the native agent CLI and GitHub.
 
 ```ts
 const cfg = (extra = {}) => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, log: () => {}, ...extra });
@@ -26,11 +26,11 @@ await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state));
 expect(listAttempts(engine.store.db, taskId).map((a) => a.state)).toEqual(['failed', 'passed']);
 ```
 
-The usual shape: create a goal with `autoBrief` (skips Clarify: one task, the given command checks) or a full `brief`, wait for a state with `waitFor`, then assert on the **read models** (`getGoal`, `listTasks`, `listAttempts`, `listEscalations`, ...) and on **what the engine asked Claude**: `runner.calls` holds every `RunSpec`, with its prompt, model, tools and label.
+The usual shape: create a goal with `autoBrief` (skips Clarify: one task, the given command checks) or a full `brief`, wait for a state with `waitFor`, then assert on the **read models** (`getGoal`, `listTasks`, `listAttempts`, `listEscalations`, ...) and on **what the engine asked the selected backend**: `runner.calls` holds every `RunSpec`, with its prompt, model, tools and label.
 
 ### Fake runners
 
-All three implement `ClaudeRunner` from `@foundry/runner` and return a `RunHandle` whose `events` is an async generator and whose `result` is already resolved.
+The fake agent runners implement `ClaudeRunner` (the legacy name for the shared `AgentRunner` contract) from `@foundry/runner` and return a `RunHandle` whose `events` is an async generator and whose `result` is already resolved.
 
 **`FakeRunner`**, in `packages/engine/src/test-helpers.ts` (shared) with an older local copy at the top of `engine.test.ts`. It takes `behave(spec, n)`. The callback acts like the session: write files into `spec.cwd` to simulate the worker's edits. `n` counts the attempt sessions so far in that `cwd`, so "fail the first attempt, pass the second" is `if (n >= 2) writeFileSync(...)`. The result is always a `success` costing $0.01. Knobs: `rateLimit` (attached to every result, for Usage Pause tests) and `skillsUsed` (Skill invocations to report).
 
@@ -50,7 +50,7 @@ All three implement `ClaudeRunner` from `@foundry/runner` and return a `RunHandl
 | `sh(cmd, cwd)` | runs a shell command, throws on non-zero exit |
 | `terminal(state)` | `done` / `over_delivered` / `failed` / `cancelled` |
 
-Skills tests build a fake `~/.claude` with `packages/engine/src/skills/fake-home.test-helper.ts`.
+Claude skills tests build a fake `~/.claude` with `packages/engine/src/skills/fake-home.test-helper.ts`.
 
 ### Cleanup
 
@@ -67,7 +67,7 @@ afterEach(async () => {
 });
 ```
 
-`Engine.stop()` sets `stopped` (so no new tick runs), kills every session the runner owns, waits up to 3 s for `busy()` to reach zero, and settles the per-goal tick chains.
+`Engine.stop()` stops new ticks, cancels owned sessions and native logins, stops the Codex MCP/plugin managers (including queued operations), and settles in-flight work before store cleanup. On POSIX, native sessions own a process group so cancellation can reap tool and MCP descendants too. Isolate both `claudeHome` and `codexHome` in fixtures; never let a test mutate a personal native home.
 
 ### Known flake: "Unhandled error between tests"
 
@@ -87,8 +87,8 @@ bun run web:build
 bun scripts/demo.ts           # prints the URL; Ctrl-C stops it and deletes the temp repo and data
 ```
 
-`scripts/screenshots.ts` starts the same demo, opens each screen in Chrome through Playwright and rewrites every
-`docs/guide/images/*.png`. It masks e-mail addresses and temp paths before each capture. Re-run it when a screen that
+`scripts/screenshots.ts` starts the same demo, opens each screen in Chrome through Playwright and rewrites the shared workflow screenshots listed in that script under
+`docs/guide/images/`. It masks e-mail addresses and temp paths before each capture. Re-run it when a screen that
 the guide shows has changed:
 
 ```sh
@@ -102,13 +102,13 @@ a heading that does not exist.
 
 ## Manual QA against a throwaway server
 
-Some changes can't be tested with fakes: UI changes, prompt changes, and anything whose real Claude behaviour matters. For those, run a **separate** Foundry and drive it.
+Some changes need browser QA or native validation in addition to fakes: UI interactions, prompts, sandbox behaviour and native protocol compatibility. For those, run a **separate** Foundry and drive it.
 
 **Never QA against your live instance.** `bun run dev` runs the engine under `bun --watch`, so saving any engine file restarts that server. A restart interrupts every running session. `reconcile()` then resumes interrupted attempts as Continuations, and a mid-restart can leave orphaned sessions and duplicate continuations on real goals. Your live instance's `data/` is also real history that you don't want QA goals in.
 
 ### 1. Start a throwaway server from its own worktree
 
-The engine's data directory is always `<checkout root>/data`, so a separate git worktree gets its own database, settings, transcripts and model registry:
+Use a separate checkout and an explicit temporary `FOUNDRY_DATA_DIR` to isolate the database, settings, transcripts and model registries. Launch profiles otherwise default to `data/` (Claude) or `data-codex/` (Codex):
 
 ```sh
 git worktree add ../foundry-qa <your-branch>
@@ -116,13 +116,13 @@ cd ../foundry-qa
 bun install
 bun run web:build                       # the server serves apps/web/dist
 bun scripts/make-fixture.ts             # optional: fixtures/demo-repo, a tiny repo with a planted bug
-FOUNDRY_PORT=4199 bun run serve         # no --watch: edits elsewhere do not restart it
+FOUNDRY_DATA_DIR=/tmp/foundry-qa-data FOUNDRY_PORT=4199 bun run serve         # no --watch: edits elsewhere do not restart it
 ```
 
 - Point the CLI at it with the same variable: `FOUNDRY_PORT=4199 bun run cli status`.
 - Use a throwaway target repository, such as the fixture. Progress folders are created next to the target repo (`<repo>-foundry/`).
-- The QA server shares your `~/.claude`, so its sessions are real and cost real usage. Prefer `autoBrief` goals, a small Budget, and the Economy preset.
-- `data/` starts empty, so the QA server starts with default Settings.
+- Without home overrides, QA shares the host’s `~/.claude` and `~/.codex`. Native sessions consume account usage. Prefer a seeded fake runner for visual checks; use isolated, intentionally authenticated homes for native tests. Codex has no USD cap, so use duration, concurrency and tool-call limits.
+- A new temporary data directory starts with default Settings. Pass the same `FOUNDRY_DATA_DIR` to direct-store commands such as replay.
 
 ### 2. Drive the UI with Playwright
 
@@ -151,6 +151,10 @@ Stop the server (Ctrl-C), then `git worktree remove ../foundry-qa`, and delete t
 
 `scripts/e2e-conflict.ts` is an older scripted end-to-end run (two parallel tasks forced into a merge conflict) against a running server. It honours `FOUNDRY_PORT` / `FOUNDRY_URL`, so run it against the throwaway server too.
 
+
+### Provider validation record
+
+[Codex validation](codex-validation.md) separates fixture coverage, browser checks and native smoke tests from integrations still requiring real-account validation. Provider-specific screenshots use an isolated server with fixture account/quota/model responses; do not include private account identities or present fixture quota values as measured account data. Review both launch defaults, weekly-only quotas, light/dark themes and narrow widths.
 
 ### Native plugin smoke check
 

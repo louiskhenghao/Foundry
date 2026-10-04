@@ -54,7 +54,7 @@ Foundry 用自己的话说它理解了什么。先读这个：如果这里错了
 
 ### Generate a sample
 
-选中卡片后，**Generate a sample (~$1)** 会按这个风格生成一张真实的图片，让你在花大钱之前先看看效果。要一两分钟。按 **Regenerate (~$1) — earlier ones are kept** 再生成一张；所有样图都会保留。一个方向最多 8 张样图。
+选中卡片后，**Generate a sample (~$1)** 会按这个风格生成一张真实的图片，让你在花大钱之前先看看效果。要一两分钟。按 **Regenerate (~$1) — earlier ones are kept** 再生成一张；所有样图都会保留。一个方向最多 8 张样图。样图按钮上的约略美元数值是媒体生成估算，不是 Codex 费用上限；图片工具使用独立的凭据和计费。
 
 ### Set the reference image
 
@@ -74,7 +74,7 @@ Foundry 用自己的话说它理解了什么。先读这个：如果这里错了
 
 ### Revise with answers
 
-按 **Revise with answers**，让 Foundry 根据你的决定重新读一遍 Brief 和你的项目。它会提出修改：新增、修改或删除的任务，检查，Area，新的理解。这要几分钟，最多花 $3。你可以先填 **notes for the AI (optional)**。
+按 **Revise with answers**，让 Foundry 根据你的决定重新读一遍 Brief 和你的项目。它会提出修改：新增、修改或删除的任务，检查，Area，新的理解。这要几分钟；Claude 会话上限是 $3，Codex 使用 ChatGPT 额度，不提供美元上限。你可以先填 **notes for the AI (optional)**。
 
 提议会以列表形式出现。用 ✓ 接受单项，用 ✗ 放弃，或者按 **Accept all**。你接受之前什么都不会变。如果 Foundry 找不到要改的地方，按 **OK, mark applied**。
 
@@ -139,7 +139,7 @@ Foundry 用自己的话说它理解了什么。先读这个：如果这里错了
 
 ### Difficulty
 
-难度决定由 goal 的 [模型预设](./settings.zh.md#presets) 里的哪个模型来做这个任务。Foundry 会给每个任务评级；你可以改。
+难度决定由 goal 所属后端的[模型预设](./settings.zh.md#models--limits) 里的哪个模型来做这个任务。Foundry 会给每个任务评级；你可以改。
 
 | 难度 | 例子 | 使用的模型 |
 |---|---|---|
@@ -147,7 +147,7 @@ Foundry 用自己的话说它理解了什么。先读这个：如果这里错了
 | **standard — typical feature work** | 一个带表单的新页面、一个带测试的 API 接口、大多数任务 | **Standard tasks** 模型 |
 | **complex — cross-cutting, risky** | 跨很多部分的改动、架构、数据迁移、并发、大型重构 | **Complex tasks** 模型（通常最强） |
 
-把任务调到 complex，第一次就成功的可能性更大，也更贵。一个任务老是失败时，只要它允许两次或更多尝试，最后一次尝试无论如何都会用 Complex 模型来跑（见 [设置说明](./settings.zh.md#最后一次尝试换用-complex-tasks-模型)）。
+把任务调到 complex 会改用预设的 Complex 模型和推理强度；是否更快成功或消耗更多额度，取决于模型和任务。一个任务老是失败时，只要它允许两次或更多尝试，最后一次尝试无论如何都会用 Complex 模型来跑（见 [设置说明](./settings.zh.md#最后一次尝试换用-complex-tasks-模型)）。
 
 ### Milestones
 
@@ -164,7 +164,7 @@ Foundry 用自己的话说它理解了什么。先读这个：如果这里错了
 
 ### Draft with AI
 
-只写了标题？按 **Spec** 旁边的 **Draft with AI**。Foundry 会根据标题、Brief 和你的项目写出 spec、填好各字段，并提议验收检查。如果任务已经有 spec，按钮就变成 **Suggest acceptance**，只提议检查；你的文字永远不会被覆盖。两种情况最多都花 $2，你可以用 ✓ 逐项接受提议，或者用 **Accept all** 一次全部接受。
+只写了标题？按 **Spec** 旁边的 **Draft with AI**。Foundry 会根据标题、Brief 和你的项目写出 spec、填好各字段，并提议验收检查。如果任务已经有 spec，按钮就变成 **Suggest acceptance**，只提议检查；你的文字永远不会被覆盖。两种情况的 Claude 会话上限都是 $2；Codex 使用 ChatGPT 额度，不提供美元上限，你可以用 ✓ 逐项接受提议，或者用 **Accept all** 一次全部接受。
 
 ### 单个任务的验收
 
@@ -188,7 +188,7 @@ Foundry 从不自作主张扩大范围：stretch 检查存在，只是因为它�
 | 类型 | 怎么判断 | 适合 |
 |---|---|---|
 | **Command** | 在项目里运行一条命令；命令成功就算通过。例如：`bun test`。 | 任何测试或构建能证明的东西。 |
-| **Reviewer** | 一个 Claude 会话读改动，按你写的规则来判断。例如："设置页面有一个会记住状态的深色模式开关"。 | 测试不容易证明的东西：措辞、布局、完整性。 |
+| **Reviewer** | 一个使用 goal 所属后端的会话读改动，按你写的规则来判断。例如："设置页面有一个会记住状态的深色模式开关"。 | 测试不容易证明的东西：措辞、布局、完整性。 |
 
 有多个 Area 时，goal 级别的检查可以属于某一个 Area，或者属于 **all Areas**。**whole goal** 表示它对合并后的整体结果做判断；改选某个任务，就会把检查移到那个任务里。没有名字、命令或规则的检查会用红框标出，并且会阻止批准。
 
@@ -212,13 +212,13 @@ Foundry 从不自作主张扩大范围：stretch 检查存在，只是因为它�
 - **Refresh the knowledge graph**：交付之后，更新一些工具使用的代码地图。
 - 文档标签：**PRD**（要求了什么、做出了什么）、**README update**、**Changelog**、**Confirmation sheet**（给别人确认各项决定用）。点一个标签来打开或关闭它。
 
-文档会在最终审查通过后写出，保存在 goal 的分支上，所以会和工作一起交付。最多花 $3。更多内容见 [拿到结果](./getting-the-result.zh.md#完成后的附加项)。
+文档会在最终审查通过后写出，保存在 goal 的分支上，所以会和工作一起交付。Claude 会话上限是 $3；Codex 使用 ChatGPT 额度，不提供美元上限。更多内容见 [拿到结果](./getting-the-result.zh.md#完成后的附加项)。
 
 ## 估算和预算
 
-卡片显示 **Estimated cost** 和 **Estimated time**，旁边是你的预算。
+Claude 卡片显示 **Estimated cost** 和 **Estimated time**，旁边是预算；Codex 只显示时间及执行限制。
 
-用 **Auto** 预算时，卡片标题是 **Estimate → proposed budget**：Foundry 提议把估算的两倍作为上限，向上取整，而且不少于 $3 和 30 分钟。你可以改 **max cost $** 和 **max minutes**，按 **Keep unlimited** 表示不设上限，或者按 **Use estimate ×2** 回到提议值。如果是你自己设的预算，而估算比它高，卡片会用黄色提醒。改动在你批准时生效。
+用 **Auto** 预算时，卡片标题是 **Estimate → proposed budget**：Foundry 提议把估算的两倍作为上限，向上取整，而且不少于 $3 和 30 分钟。你可以改 **max cost $** 和 **max minutes**，按 **Keep unlimited** 表示不设上限，或者按 **Use estimate ×2** 回到提议值。如果是你自己设的预算，而估算比它高，卡片会用黄色提醒。改动在你批准时生效。Codex 只提议时间上限（至少 30 分钟），隐藏美元估算及 `max cost $`。
 
 碰到上限从不会毁掉已做的工作：goal 会暂停并问你。见 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md#预算用完了)。
 
@@ -248,6 +248,6 @@ Simple view 用大白话显示同一份 Brief：
 | **Please answer (N)** 或 **Questions** | 选一个答案（★ 是推荐）或者输入你自己的。标着 **needed** 的问题必须回答。风格卡片的用法和上面一样。 |
 | **I will assume… (untick anything that is wrong)** | 把不对的取消勾选。 |
 | **What you will get (N pieces of work)** | 各项任务，按 Area 分组。要改它们，就打开 **Expert view**。 |
-| **Price** | 估算。输入一个金额，花到这个数时 Foundry 会停下来问你（留空表示不设上限）。 |
+| **Price & time** / **Time & limits** | Claude 提供费用与时间估算及上限；Codex 提供时间及执行限制，没有美元字段。对应字段留空表示不设上限。 |
 
 然后按 **Looks good — go** 批准，按 **Save** 之后再回来，或者按 **Cancel** 放弃。如果你的回答改变了该做的东西，先打开 **Expert view** 按 **Revise with answers**。

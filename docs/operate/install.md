@@ -1,15 +1,12 @@
 # Install Foundry
 
-For the Codex backend (ChatGPT login, separate session data), see [Run Foundry with Codex](codex.md).
-
-
-Foundry drives Claude Code against git repositories you already have. You can run it in two ways:
+Foundry drives Claude Code or Codex against git repositories you already have. Each goal keeps its chosen backend; both can run in one instance. Codex uses ChatGPT sign-in only. See [Run Foundry with Codex](codex.md) for the native capability differences. You can run it in two ways:
 
 | | Locally, from source | In Docker |
 |---|---|---|
-| Runs as | `bun run serve` in a Foundry checkout | the `imlouiskhenghao/foundry` image |
-| Tools it needs | you install them | all in the image (`bun`, `git`, `claude`, `gh`, `ripgrep`, `npx`, `uv`, `graphify`, `markitdown`) |
-| Your Claude login | the one on your machine | the container's own login (you sign in once) |
+| Runs as | `bun run serve` or `bun run serve:codex` in a Foundry checkout | the `imlouiskhenghao/foundry` image |
+| Tools it needs | you install them | all in the image (`bun`, `git`, `claude`, `codex`, `gh`, `ripgrep`, `npx`, `uv`, `graphify`, `markitdown`) |
+| Native accounts | each CLI’s login on your machine | separate Claude and Codex homes; sign into each backend you use |
 | Your repositories | any path on the machine | only what you mount into the container |
 | Updates | one click (git-based) | one click with the shipped `docker-compose.yml` |
 
@@ -21,15 +18,16 @@ Both serve the web UI on `http://127.0.0.1:4111`.
 
 **Always:**
 
-- A Claude subscription (Pro or Max). No API key is needed or used.
+- An account supported by your selected CLI: Claude login for Claude Code, or ChatGPT sign-in for Codex. Agent inference does not use API keys. Optional image/video tools may need separate service credentials.
 
 **Local install:**
 
 - macOS or Linux.
 - [Bun](https://bun.sh) 1.1 or newer. The Docker image ships Bun 1.3.13.
 - git.
-- The Claude Code CLI, `claude` on your `PATH`, signed in. Install it with
+- For Claude goals: the Claude Code CLI, `claude` on your `PATH`, signed in. Install it with
   `npm install -g @anthropic-ai/claude-code`. The Docker image ships 2.1.259; the Fable 5.1 model needs at least that version.
+- For Codex goals: a hooks-capable Codex CLI, `codex` on your `PATH`, signed in with ChatGPT. This Dockerfile pins 0.160.0. Install with `npm install -g @openai/codex`; run `codex login`.
 - [graphify](https://github.com/safishamsi/graphify). It is the one *required* entry in the skills catalog; the
   doctor reports an error until it is installed. Its installer uses [uv](https://docs.astral.sh/uv/).
 - Optional: Node.js 22 or newer (project skills via `npx autoskills` need it), the GitHub CLI `gh` (only for
@@ -43,6 +41,8 @@ Both serve the web UI on `http://127.0.0.1:4111`.
 ---
 
 ## Install locally
+
+These numbered steps use the Claude launch profile. For Codex, use `codex login`, `bun run cli doctor --provider codex` and `bun run serve:codex`; use **Setup → Codex** for backend-specific skill installation. Keep an existing instance’s launch profile and select **Agent backend** on New goal to add the other backend without changing its data directory.
 
 1. Get the source and build the UI. You need access to the Foundry repository.
 
@@ -86,7 +86,7 @@ Both serve the web UI on `http://127.0.0.1:4111`.
 
    It prints `foundry listening on http://127.0.0.1:4111  (data: …/data)`. Open <http://127.0.0.1:4111>.
 
-Everything Foundry stores lives in the `data/` folder of the checkout. See
+Foundry’s instance data lives in `data/` (Claude launch profile), `data-codex/` (Codex launch profile), or `FOUNDRY_DATA_DIR`. Native account/configuration files stay in the selected CLI’s home, and goal work stays beside the target repositories. See
 [updates-and-backup.md](./updates-and-backup.md).
 
 To keep Foundry running after you close the terminal (launchd on macOS, systemd on Linux), see
@@ -101,7 +101,7 @@ restart. If the server listens somewhere other than `http://127.0.0.1:4111`, tel
 ## Install with Docker
 
 The image brings the engine, the UI and every tool Foundry uses. It does not bring two things, because they are
-yours: **your Claude login** and **your repositories**. Both are mounted.
+yours: **your native accounts** and **your repositories**. Persist the corresponding homes and mount the repositories. For this branch’s unreleased Codex support, build the source revision and use that image; the published `latest` tag may be older.
 
 ### 1. Get the image
 
@@ -125,8 +125,8 @@ FOUNDRY_REPOS=~/code docker compose up -d      # mounts ~/code at /repos
 ```
 
 Without `FOUNDRY_REPOS`, the compose file mounts `~/Projects` at `/repos`. Always run `docker compose` from the same
-folder: Compose names the volumes after that folder (for `~/foundry` they are `foundry_engine-data` and
-`foundry_claude-home`).
+folder: Compose names the volumes after that folder (for `~/foundry` they are `foundry_engine-data`, `foundry_codex-data`,
+`foundry_claude-home` and `foundry_codex-home`).
 
 What the compose file sets up:
 
@@ -135,14 +135,14 @@ What the compose file sets up:
 | Container name | `foundry` (the updater sidecar looks for this exact name) |
 | UI port | `127.0.0.1:4111:4111` |
 | Preview ports | `127.0.0.1:4200-4299:4200-4299` (see [Previews](#6-previews-from-the-host)) |
-| Volumes | `engine-data` → `/app/data`, `claude-home` → `/home/node/.claude`, `playwright-browsers` → `/home/node/.cache/ms-playwright` (Chromium for the self-check), `${FOUNDRY_REPOS:-${HOME}/Projects}` → `/repos` |
-| Environment passed through | `FOUNDRY_MODEL_CHEAP` (default `haiku`), `FOUNDRY_MAX_CONCURRENT` (default `3`) |
+| Volumes | `engine-data` → `/app/data`, `codex-data` → `/app/data-codex`, `claude-home` → `/home/node/.claude`, `codex-home` → `/home/node/.codex`, `playwright-browsers` → `/home/node/.cache/ms-playwright` (Chromium for the self-check), `${FOUNDRY_REPOS:-${HOME}/Projects}` → `/repos` |
+| Environment passed through | `FOUNDRY_PROVIDER` (default `claude`), `FOUNDRY_CODEX_MODEL` (default `codex-default`), `FOUNDRY_MODEL_CHEAP` (default `haiku`), `FOUNDRY_MAX_CONCURRENT` (default `3`, shared by both backends) |
 | Updater | `FOUNDRY_WATCHTOWER_URL=http://watchtower:8080`, `FOUNDRY_WATCHTOWER_TOKEN` (default `foundry-watchtower`) |
 | Sidecar | `containrrr/watchtower`, container `foundry-watchtower`, its API never published to the host |
 | Restart policy | `unless-stopped` for both containers |
 
-`FOUNDRY_MODEL_CHEAP` is only the *housekeeping model* (one-turn chores such as classifying a goal). All other
-models come from the model presets in **Settings → Models & limits**.
+`FOUNDRY_MODEL_CHEAP` is only the Claude *housekeeping model* (one-turn chores such as classifying a goal). All other
+models come from the model presets in **Settings → Models & limits**. Codex Housekeeping is part of its own captured preset. Changing `FOUNDRY_PROVIDER` selects another default data directory; it does not migrate goals. To enable Codex in a Claude-profile instance, keep the profile, sign in under **Accounts → Codex**, then choose Codex on New goal.
 
 To change the sidecar token, set `FOUNDRY_WATCHTOWER_TOKEN` in the shell before `docker compose up -d`.
 
@@ -151,7 +151,7 @@ To change the sidecar token, set `FOUNDRY_WATCHTOWER_TOKEN` in the shell before 
 If you have **one repository**, for example at `/Users/dana/code/acme-app` (macOS) or `/home/dana/code/acme-app` (Linux):
 
 ```bash
-docker run -d --name foundry \
+docker run -d --init --name foundry \
   -p 127.0.0.1:4111:4111 \
   -v engine-data:/app/data \
   -v claude-home:/home/node/.claude \
@@ -162,7 +162,7 @@ docker run -d --name foundry \
 If you have **several repositories under one folder**, mount the parent once:
 
 ```bash
-docker run -d --name foundry \
+docker run -d --init --name foundry \
   -p 127.0.0.1:4111:4111 \
   -v engine-data:/app/data \
   -v claude-home:/home/node/.claude \
@@ -172,6 +172,8 @@ docker run -d --name foundry \
 
 Docker creates the `engine-data` and `claude-home` volumes on first use. A container started with `docker run` has no
 updater sidecar, so updates are manual (see [updates-and-backup.md](./updates-and-backup.md#self-update)).
+
+The `docker run` examples above persist Claude state. For mixed-provider goals, also mount `-v codex-home:/home/node/.codex`. For a Codex launch profile add `-e FOUNDRY_PROVIDER=codex -v codex-data:/app/data-codex`; keep all existing mounts when recreating the container. Use `--init` to reap native child processes.
 
 ### 3. Sign in to Claude
 
@@ -231,6 +233,8 @@ docker exec foundry claude auth status
 
 With method c it reports `"authMethod": "oauth_token"`.
 
+To use Codex in the same container, open **Accounts → Sign in to Codex**, or run `docker exec -it foundry codex login --device-auth` while Foundry is idle. Enter the displayed code on the linked ChatGPT page; unlike Claude’s returned code, it is not pasted into Foundry. Credentials persist in `codex-home`. **Setup → Codex** checks that account and its tools. See [Codex Docker setup](codex.md#docker).
+
 ### 4. Point goals at container paths
 
 The engine only sees what you mounted. In **New goal → Repository**, type the path **inside the container**:
@@ -268,11 +272,12 @@ The image runs as uid 1000. If `id -u` prints something else, run the container 
 folders you own. Named volumes would be created owned by uid 1000.
 
 ```bash
-mkdir -p ~/.foundry/data ~/.foundry/home/.claude
-docker run -d --name foundry \
+mkdir -p ~/.foundry/data ~/.foundry/data-codex ~/.foundry/home/.claude ~/.foundry/home/.codex
+docker run -d --init --name foundry \
   --user "$(id -u):$(id -g)" -e HOME=/home/node \
   -p 127.0.0.1:4111:4111 \
   -v ~/.foundry/data:/app/data \
+  -v ~/.foundry/data-codex:/app/data-codex \
   -v ~/.foundry/home:/home/node \
   -v ~/code:/repos \
   imlouiskhenghao/foundry
@@ -283,7 +288,7 @@ you, and `gh auth login`, `npx autoskills` and `uv` all need to write under it (
 
 - Use the same `--user` and `-e HOME` flags, and the same `~/.foundry/home` folder, for the `claude auth login` step.
 - With Compose, under `services.foundry` set `user: "<uid>:<gid>"`, add `HOME: /home/node` to `environment:`, and
-  replace the two named volumes with the two folders above.
+  replace the data and native-home named volumes with the folders above (mount the whole home once). Keep cache volumes as appropriate.
 
 ### 6. Previews from the host
 
@@ -344,14 +349,14 @@ With the uid ≠ 1000 recipe this is already covered: the whole home folder is m
 - The image carries Chromium's system libraries (from `playwright install-deps chromium`, minus Xvfb), but not the
   browser: it is downloaded on demand (see [Previews](#6-previews-from-the-host)).
 - Build your own image: `docker build -t foundry .`. Add `--build-arg CLAUDE_CODE_VERSION=x.y.z` to pin another
-  Claude Code version.
+  Claude Code version, or `--build-arg CODEX_VERSION=x.y.z` to pin Codex. The entrypoint’s automatic graphify setup is Claude-profile-only; use **Setup → Codex** for Codex skills.
 
 ---
 
 ## First-run checks
 
 Open **Setup** in the header (it opens by itself on first run when a check fails and there are no goals yet). It runs
-the same checks as the doctor with the server running:
+the same checks as the doctor with the server running. Select the backend in Setup, or add `--provider codex` / `--provider claude` to doctor:
 
 ```bash
 bun run cli doctor                               # local install
@@ -360,24 +365,26 @@ docker exec foundry bun apps/cli/src/main.ts doctor   # Docker
 
 | Check | Must pass? | If it fails |
 |---|---|---|
-| Claude Code CLI | yes | install it: `npm install -g @anthropic-ai/claude-code` |
-| Claude login | yes | **Sign in** on the Setup page, or `claude auth login` |
+| Claude Code CLI (Claude) | yes | install it: `npm install -g @anthropic-ai/claude-code` |
+| Claude login (Claude) | yes | **Sign in** on the Setup page, or `claude auth login` |
+| Codex CLI (Codex) | yes | a hooks-capable `codex` binary; `npm install -g @openai/codex` |
+| Codex login (Codex) | yes | **Sign in to Codex**, or `codex login` with ChatGPT |
 | git | yes | install git |
 | Bun runtime | yes | `curl -fsSL https://bun.sh/install \| bash` |
 | Required: graphify | yes | **Install** on the Setup page, or `uv tool install graphifyy && graphify install --platform claude` |
-| Skills directory writable | yes | make `~/.claude/skills` writable |
+| Skills directory writable | yes | make the selected native home’s `skills/` directory writable |
 | GitHub CLI (optional) | no | only for push / PR / auto-merge delivery: install `gh`, then `gh auth login --web` |
 | markitdown (optional) | no | **Install markitdown** on the Setup page |
 | Models (presets in use) | no | a model in a preset never resolved or failed last time: test it in **Settings → Models & limits** |
 | Notifications (optional) | no | see [notifications.md](./notifications.md) |
 | `<image pack> backend` | no | an image skill has no API key: see [troubleshooting.md](./troubleshooting.md#image-generation-keys) |
-| Stale skill copies, Skill updates, settings.json | no | housekeeping of your Claude Code skills and settings |
+| Stale skill copies, Skill updates, settings.json | no | housekeeping of the selected backend’s skills; `settings.json` validation applies to Claude |
 
 More about each check: [troubleshooting.md](./troubleshooting.md#doctor-checks).
 
 ## Where to go next
 
-- Choose models: **Settings → Models & limits**. Each goal type (Code, Docs & research, Media) uses one model preset.
+- Use **Agent backend** in **Settings → Models & limits**. Each goal type (Code, Docs & research, Media) uses one model preset.
   The built-in presets are Max, Production, Balanced and Economy. By default Code uses Production, and Docs & research
   and Media use Balanced.
 - Set up [notifications](./notifications.md) and, if you want to use Foundry away from the machine,

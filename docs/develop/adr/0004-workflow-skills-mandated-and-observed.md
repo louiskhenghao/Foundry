@@ -1,6 +1,8 @@
 # ADR-0004: Workflow skills are mandated per role and task kind, and their use is observed
 
-**Status:** accepted · 2026-08-21
+**Status:** accepted · 2026-08-21 · amended by [ADR-0017 and ADR-0019](0019-provider-scoped-extensions-and-native-status.md)
+
+> Current implementation: Skill hints are provider-scoped; Codex Skill-tool invocation telemetry is unavailable. See [ADR-0017 and ADR-0019](0019-provider-scoped-extensions-and-native-status.md); the decision below records its original context.
 
 ## Context
 

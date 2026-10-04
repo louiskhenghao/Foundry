@@ -1,5 +1,7 @@
 # 你的第一个 goal
 
+> [English](./your-first-goal.md) · 中文
+
 ![账户管理（演示账户）](images/accounts.png)
 
 ![新建 Codex 任务](images/new-goal-codex.png)
@@ -20,8 +22,6 @@
 Codex 的预算选项只有时间、尝试次数和并发限制，没有美元上限。**Accounts** 列出了目前的适配限制。
 
 
-> [English](./your-first-goal.md) · 中文
-
 本页从上到下带你过一遍 **New goal** 表单。大多数字段保持原样就行。你必须填的只有两样：想做什么，以及项目文件夹。
 
 ## 开始之前
@@ -32,8 +32,8 @@ Codex 的预算选项只有时间、尝试次数和并发限制，没有美元�
 
 | 检查项 | 是什么 | 如果是红色 |
 |---|---|---|
-| **Claude Code CLI** | Foundry 驱动的程序。 | 复制显示的安装命令并运行，或者找帮你安装 Foundry 的人。 |
-| **Claude login** | 你的 Claude 账户。 | 按 **Sign in**。 |
+| **Claude Code CLI** / **Codex CLI** | 当前所选后端的程序。 | 复制显示的安装命令并运行，或者找帮你安装 Foundry 的人。 |
+| **Claude login** / **Codex login** | 当前所选后端的账户。 | 按 **Sign in**。 |
 | **git** | 保存你文件的每一个版本。 | 复制显示的命令。 |
 | **Bun runtime** | Foundry 自己运行所需的环境。 | 复制显示的命令。 |
 | **Required: …** | Foundry 的会话需要的技能（skills）。 | 按 **Install**。 |
@@ -57,7 +57,7 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 
 有几项选择从 [Settings → New goal defaults](./settings.zh.md#new-goal-defaults) 开始：视图、**Fast mode**、TDD，以及交付方式和粒度。你可以在这里为这个 goal 改其中任何一项。你在页面上改过的字段会保留你的选择。
 
-![New goal 表单，已经描述了 goal 并选好了仓库](images/new-goal.png)
+![New goal 表单，使用统一的 Agent backend 选择控件](images/new-goal.png)
 
 ### What kind of goal is this
 
@@ -124,7 +124,7 @@ Codex 任务创建后保留这些设置；以后编辑或删除预设不会改�
 
 | 选项 | 意思 |
 |---|---|
-| **required** | 执行者必须遵守；没遵守时审查员会被告知。这是默认，除非 Settings 里另有设置。 |
+| **required** | 执行者必须遵守；Claude 会提供技能调用证据，Codex 根据工作与测试结果审查。这是默认，除非 Settings 里另有设置。 |
 | **preferred** | 只是建议。Simple 视图的 goal 总是用这个。 |
 | **off** | 完全不提。 |
 
@@ -162,7 +162,7 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 
 ### Budget
 
-**3 · Budget.** goal 运行时不能超过的上限。碰到上限时，goal 会暂停并问你；它从不悄无声息地失败。
+**3 · Budget.** goal 运行时不能超过的上限。碰到上限时，goal 会暂停并问你；它从不悄无声息地失败。下表美元数值和 **Max cost (USD est.)** 字段只适用于 Claude；Codex 的相同预设保留时间、并发和尝试次数，隐藏美元上限。
 
 | 预设 | 上限 |
 |---|---|

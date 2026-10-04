@@ -1,6 +1,8 @@
 # ADR-0005: Scenario-selected skills, exclusive design packs, per-goal autoskills, and a settings file
 
-**Status:** accepted · 2026-08-22
+**Status:** accepted · 2026-08-22 · amended by [ADR-0019](0019-provider-scoped-extensions-and-native-status.md)
+
+> Current implementation: Codex uses its native/shared skill directories and an independent extension manager. See [ADR-0019](0019-provider-scoped-extensions-and-native-status.md); the decision below records its original context.
 
 ## Context
 

@@ -54,7 +54,7 @@ For goals with a look (a web page, an app, a poster, a video), one question may 
 
 ### Generate a sample
 
-Once a card is picked, **Generate a sample (~$1)** makes one real image in that style so you can see it before anything expensive happens. It takes a minute or two. Press **Regenerate (~$1) — earlier ones are kept** for another; all samples stay. A direction can have at most 8 samples.
+Once a card is picked, **Generate a sample (~$1)** makes one real image in that style so you can see it before anything expensive happens. It takes a minute or two. Press **Regenerate (~$1) — earlier ones are kept** for another; all samples stay. A direction can have at most 8 samples. The sample button’s approximate dollar label is a media-generation estimate, not a Codex spending cap; image tools have separate credentials and costs.
 
 ### Set the reference image
 
@@ -74,7 +74,7 @@ A green dot means the plan already takes the decision into account. An amber dot
 
 ### Revise with answers
 
-Press **Revise with answers** to have Foundry re-read the Brief and your project in the light of your decisions. It proposes changes: tasks added, changed or dropped, checks, Areas, a new understanding. This takes a few minutes and costs up to $3. You can add **notes for the AI (optional)** first.
+Press **Revise with answers** to have Foundry re-read the Brief and your project in the light of your decisions. It proposes changes: tasks added, changed or dropped, checks, Areas, a new understanding. This takes a few minutes. The Claude session has a $3 cap; Codex uses ChatGPT quota without a USD cap. You can add **notes for the AI (optional)** first.
 
 The proposal appears as a list. Accept each item with ✓, discard it with ✗, or press **Accept all**. Nothing changes until you accept. If Foundry finds nothing to change, press **OK, mark applied**.
 
@@ -139,7 +139,7 @@ Where the work happens: **frontend**, **backend**, **fullstack**, **data**, **mo
 
 ### Difficulty
 
-Difficulty picks which model does the task, from the goal's [model preset](./settings.md#presets). Foundry rates each task; you can change it.
+Difficulty picks which model does the task, from the goal’s backend-specific [model preset](./settings.md#models--limits). Foundry rates each task; you can change it.
 
 | Difficulty | Examples | Model used |
 |---|---|---|
@@ -147,7 +147,7 @@ Difficulty picks which model does the task, from the goal's [model preset](./set
 | **standard — typical feature work** | a new page with its form, an API endpoint with tests, most tasks | the **Standard tasks** model |
 | **complex — cross-cutting, risky** | changes across many parts, architecture, data migrations, concurrency, large refactors | the **Complex tasks** model (usually the strongest) |
 
-Raising a task to complex makes it more likely to succeed on the first try, and more expensive. The last attempt of a task that keeps failing runs on the Complex model anyway, when the task is allowed two or more attempts (see [Settings](./settings.md#last-attempt-on-the-complex-task-model)).
+Raising a task to complex selects its preset’s Complex model and, for Codex, that role’s effort. Actual quality and quota use depend on those choices. The last attempt of a task that keeps failing runs on the Complex model anyway, when the task is allowed two or more attempts (see [Settings](./settings.md#last-attempt-on-the-complex-task-model)).
 
 ### Milestones
 
@@ -164,7 +164,7 @@ When a milestone task lands, Foundry starts nothing new, lets running tasks fini
 
 ### Draft with AI
 
-Wrote only a title? Press **Draft with AI** next to **Spec**. Foundry writes the spec, fills the fields and proposes acceptance checks, from the title, the Brief and your project. If the task already has a spec, the button is **Suggest acceptance** and only proposes checks; your text is never overwritten. Either way it costs up to $2, and you accept each proposed item with ✓ or all at once with **Accept all**.
+Wrote only a title? Press **Draft with AI** next to **Spec**. Foundry writes the spec, fills the fields and proposes acceptance checks, from the title, the Brief and your project. If the task already has a spec, the button is **Suggest acceptance** and only proposes checks; your text is never overwritten. Either way Claude has a $2 session cap; Codex consumes ChatGPT quota without a USD cap, and you accept each proposed item with ✓ or all at once with **Accept all**.
 
 ### Acceptance for a task
 
@@ -188,7 +188,7 @@ Foundry never adds scope on its own: a stretch check exists only because it is i
 | Type | How it is judged | Good for |
 |---|---|---|
 | **Command** | A command runs in the project; it passes when the command succeeds. Example: `bun test`. | Anything a test or build can prove. |
-| **Reviewer** | A Claude session reads the change and judges it against the rule you write. Example: "the settings page has a dark mode switch that persists". | Things a test cannot easily prove: wording, layout, completeness. |
+| **Reviewer** | A session of the goal’s backend reads the change and judges it against the rule you write. Example: "the settings page has a dark mode switch that persists". | Things a test cannot easily prove: wording, layout, completeness. |
 
 With several Areas, a goal-level check can belong to one Area or to **all Areas**. **whole goal** means it is judged on the combined result; picking a task instead moves it into that task. A check without a name, command or rule is outlined in red and blocks approval.
 
@@ -212,13 +212,13 @@ With several Areas, a goal-level check can belong to one Area or to **all Areas*
 - **Refresh the knowledge graph**: updates the code map some tools use, after delivery.
 - Document chips: **PRD** (what was asked and what was built), **README update**, **Changelog**, **Confirmation sheet** (for someone else to confirm the decisions). Click a chip to switch it on or off.
 
-Documents are written after the final review passes and saved on the goal's branch, so they ship with the work. They cost up to $3. More in [Getting the result](./getting-the-result.md#completion-extras).
+Documents are written after the final review passes and saved on the goal's branch, so they ship with the work. Claude has a $3 session cap for this; Codex uses ChatGPT quota without a USD cap. More in [Getting the result](./getting-the-result.md#completion-extras).
 
 ## Estimate and budget
 
-The card shows **Estimated cost** and **Estimated time**, with your budget next to them.
+For Claude, the card shows **Estimated cost** and **Estimated time**. Codex shows time and execution limits only.
 
-With the **Auto** budget, the card is titled **Estimate → proposed budget**: Foundry proposes twice the estimate as the limit, rounded up, and never less than $3 and 30 minutes. Edit **max cost $** and **max minutes**, press **Keep unlimited** for no limit, or **Use estimate ×2** to go back to the proposal. With a budget you set yourself, the card warns in yellow if the estimate is higher. The change is applied when you approve.
+With the **Auto** budget, the card is titled **Estimate → proposed budget**: Foundry proposes twice the estimate as the limit, rounded up, and never less than $3 and 30 minutes. Edit **max cost $** and **max minutes**, press **Keep unlimited** for no limit, or **Use estimate ×2** to go back to the proposal. With a budget you set yourself, the card warns in yellow if the estimate is higher. The change is applied when you approve. For Codex, this proposal uses time only (at least 30 minutes); dollar estimates and `max cost $` are hidden.
 
 Reaching a limit never destroys work: the goal pauses and asks you. See [When Foundry needs you](./when-foundry-needs-you.md#the-budget-ran-out).
 
@@ -248,6 +248,6 @@ The Simple view shows the same Brief in plain words:
 | **Please answer (N)** or **Questions** | Pick an answer (★ is recommended) or type your own. Questions marked **needed** must be answered. Style cards work as above. |
 | **I will assume… (untick anything that is wrong)** | Untick what is wrong. |
 | **What you will get (N pieces of work)** | The tasks, grouped by Area. To change them, open **Expert view**. |
-| **Price** | The estimate. Type the dollar amount at which Foundry should stop and ask you (blank means no limit). |
+| **Price & time** / **Time & limits** | Claude offers cost and time estimates and limits; Codex offers time and execution limits without a dollar field. Blank means no cap for that field. |
 
 Then press **Looks good — go** to approve, **Save** to come back later, or **Cancel** to give up. If your answers change what should be built, open **Expert view** and press **Revise with answers** first.

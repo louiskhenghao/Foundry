@@ -102,14 +102,16 @@ Before the Brief exists, the goal page may show **Round N — K questions**. Thi
 
 ### In a task's live log
 
+The dollar/turn and native sub-agent examples below describe Claude output. Codex marks cost and model turns unavailable, uses tool-call limits, and has a separate Foundry Planner session rather than native delegation.
+
 | You see | What it means |
 |---|---|
-| `● session 1a2b3c4d · claude-…` | A session started. A second `●` in the same attempt means the session was resumed (a *continuation*), which is cheaper than starting over. |
+| `● session 1a2b3c4d · claude-…` | A session started. A second `●` in the same attempt means the session was resumed (a *continuation*), preserving its context. |
 | `[reviewer] …` after the work finished | The task reviewer is checking the change. |
 | `[reviewer] ✗ Output does not match required schema …` | The reviewer sent its verdict in the wrong shape and resends it. Harmless. |
 | `■ success · $0.420 · 7 turns — …` | The session finished. The text after the dash is the worker's final message; click the line to read all of it. |
 | `■ error_max_turns`, `■ error_max_budget_usd`, `■ killed_timeout` | The session hit a limit. Foundry resumes it with a fresh allowance, up to twice, before starting a new attempt. |
-| `⏳ rate limit rejected` | Your Claude plan's usage limit was reached. Foundry pauses and continues when it resets. Nothing is lost. |
+| `⏳ rate limit rejected` | The session’s backend reached a usage limit. Foundry pauses that backend and retries later; other backends can continue. A retry time is not proof of recovered quota. |
 | `⏱ sub-agent still working · 3m 30s` | A helper (for example the planner) is still busy. Long pauses in the log are normal while this line updates. |
 | `[claude-code:unrecognized_model] …` | Your Claude Code is older than the model you picked. The session works; updating Claude Code removes the line. |
 

@@ -71,7 +71,7 @@ Earlier rounds fold up under the current one: **▸ N earlier rounds** shows wha
 
 After you send a round, the card title changes to **Thinking about your answers…** and a line reads **Planning with your answers · 3m 20s**, with the time counting up. This is the time since you answered. Foundry is reading your answers, looking at the project again, and either preparing the next round or planning the tasks.
 
-This usually takes 2 to 8 minutes. The live log under the line keeps moving while it works. Long pauses in the log with a line like `⏱ sub-agent still working · 3m 30s` are normal: the planner is busy. You can close the page; the goal keeps going and the page updates when you come back.
+This usually takes 2 to 8 minutes. The live log under the line keeps moving while it works. For Claude, a line like `⏱ sub-agent still working · 3m 30s` means the native planner is busy. Codex uses a separate Foundry-managed Planner session whose task proposal the Clarifier reviews; native Codex subagent creation is disabled. You can close the page; the goal keeps going and the page updates when you come back.
 
 Before the first round the card says **Reading the repository…** instead, for the same reason.
 

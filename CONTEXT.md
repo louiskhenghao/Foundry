@@ -7,9 +7,11 @@ This file is a glossary. It defines the language used across the codebase, the U
 **Agent backend**
 The provider chosen for a Goal: Claude Code or Codex. It stays fixed for that Goal, including retries and reviews. Accounts are independent; goals can share one Foundry instance. An unavailable measurement (cost, quota, turns or skill telemetry) is unknown, never zero.
 
+**Launch profile**
+The backend selected when Foundry starts. It determines defaults and the data directory’s ownership marker, not the backend of every Goal. One instance can run both backends; changing the profile does not migrate existing state.
 
 **Goal**
-A user-set objective stated in natural language against a repository. A Goal is finished when all of its Must Checks pass; it is *over-delivered* when its Stretch Checks pass as well. A Goal's output is a local branch. Nothing leaves the machine unless the user chose a Delivery Policy — and then it is the *engine*, never the model, that pushes, opens or merges exactly what the policy says.
+A user-set objective stated in natural language against a repository. A Goal is finished when all of its Must Checks pass; it is *over-delivered* when its Stretch Checks pass as well. A Goal's output is a local branch. The engine only pushes, opens or merges under the Delivery Policy the user chose. Native inference and connected tools still communicate with their services.
 
 **Task**
 The smallest unit of work carved out of a Goal during Clarify. Tasks form a DAG through `dependsOn` edges. A Task with no unfinished dependencies is *ready*. Fan-out, fan-in and pipeline are not separate concepts — they are shapes of the DAG.
@@ -21,7 +23,7 @@ One Plan → Act → Observe pass at a Task, performed in a fresh session of the
 The next segment of the same Attempt: its session is resumed by the same Agent backend with everything it already knows, instead of a fresh session that must understand the Task again. The engine continues an Attempt when its session was cut (engine restart, an applicable session cap, timeout) or when the Checks still fail but the segment made progress; a Continuation consumes no retry, and an Attempt is continued at most a few times before a genuine new Attempt (fresh session, Observation Report) takes over. A Merge Attempt's second try is a Continuation of its first.
 
 **Follow-up**
-A Goal that continues an earlier, finished Goal of the same repository: B *follows* A, and A is *followed by* B; chains are allowed (A → B → C). A Follow-up is given what A asked for, what was understood and decided, and how it ended, as background for its Clarify; that background is copied when the Follow-up is created, so it survives A being deleted. It starts from the base branch when A's work is already there, otherwise from A's Goal branch — then A's changes travel in B's Delivery. A Goal can also be marked as a Follow-up afterwards, which records the relationship and nothing else.
+A Goal that continues an earlier, finished Goal of the same repository: B *follows* A, and A is *followed by* B; chains are allowed (A → B → C). A Follow-up is given what A asked for, what was understood and decided, and how it ended, as background for its Clarify; that background is copied when the Follow-up is created, so it survives A being deleted. It starts from the base branch when A's work is already there, otherwise from A's Goal branch — then A's changes travel in B's Delivery. The form prefills the earlier backend, preset choice and any explicit all-role Codex model override. A Follow-up is a new Goal: its creation captures the then-current preset tables, not the earlier Goal’s frozen table. A Goal can also be marked as a Follow-up afterwards, which records the relationship and nothing else.
 _Avoid_: continuation (a resumed session inside an Attempt), child goal, sub-goal
 
 **Check**
@@ -103,7 +105,7 @@ The line between the local workspace and the outside world. Crossing it is alway
 The limits a Goal runs within: elapsed time, concurrent sessions, Attempts per Task and, where the backend reports it, estimated dollar cost. Exceeding one is an Escalation, not a failure. Cost and time limits may be *unlimited*. Codex has no enforceable dollar budget.
 
 **Budget Preset**
-How a Goal's Budget was chosen: *Auto* (no cap while clarifying; the Brief's estimate proposes the budget and the user confirms or edits it when approving), *Quick*, *Thorough*, *Unlimited*, or *Custom*. Auto is the default because most people cannot say in advance what a goal should cost — the estimate is the model's job.
+How a Goal's Budget was chosen: *Auto* (no cap while clarifying; the Brief's estimate proposes the budget and the user confirms or edits it when approving), *Quick*, *Thorough*, *Unlimited*, or *Custom*. Auto proposes limits at approval. Claude can estimate USD cost; Codex proposes non-dollar limits because its inference cost is unreported.
 
 **Attachment**
 Something the user hands to a Goal that cannot be said in the prompt: a file (screenshot, PDF, document) kept by the system, or a link. Every session of the Goal receives the Attachments as read-only references; they are never part of the repository.
@@ -177,7 +179,7 @@ A source the system consults to decide which parts of a repository are relevant 
 A packaged instruction set an Agent backend can load (a `SKILL.md` directory). Foundry does not define skills; it sees the supported skills installed for the selected backend, installs curated ones from its Catalog, and tells its Roles which to use.
 
 **Skill Source**
-Where an installed Skill comes from and who updates it: a GitHub repository managed by Foundry, by the community `skills` CLI, or by a Claude Code plugin; a gstack clone; a project directory; or a hand-installed copy whose origin is inferred by matching its contents against known sources. Skills of the same Source are updated together; a Skill whose bytes match an older version of its Source is *outdated*, one that matches no version is *modified*.
+Where an installed Skill comes from and who updates it: a GitHub repository managed by Foundry, by the community `skills` CLI, or by a Claude Code plugin; a gstack clone; a project directory; or a hand-installed copy whose origin is inferred by matching its contents against known sources. Native Codex plugin packages are managed separately from loose skills; their lifecycle belongs to the native CLI. Skills of the same Foundry-managed Source are updated together; a Skill whose bytes match an older version of its Source is *outdated*, one that matches no version is *modified*.
 
 **Shadow copy**
 A user-level Skill that has the same name as a Skill provided by a plugin. Both load; prompts use the plugin's copy because it is the one that gets updated. Shadow copies are reported and can be moved to the trash in one click.
@@ -195,13 +197,13 @@ The area a Task works in — frontend, backend, fullstack, data, mobile, infra, 
 The one design skill set the engine hands to UI work (frontend / fullstack Scenarios): ui-ux-pro-max, Anthropic's frontend-design, impeccable, bencium, garden or taste — or none. Packs are mutually exclusive: the Worker gets the chosen pack as a MUST and the Goal Reviewer its review counterpart; the others stay invisible even when installed.
 
 **Project Skills**
-Skills matched to a repository's own stack (React, Tailwind, Supabase…) that autoskills installs into a Goal's workspace after the Brief is approved. They use the Goal's native skill location (`.claude/skills` for Claude or `.agents/skills` for Codex), are git-excluded so they never reach a commit, and are copied into task workspaces and listed to every Worker of that Goal. An empty repository has no stack to detect yet, so the install is retried after each Task lands until a stack manifest exists.
+Skills matched to a repository's own stack (React, Tailwind, Supabase…) that autoskills installs into a Goal's workspace after the Brief is approved. They use the Goal's native skill location (`.claude/skills` for Claude or `.agents/skills` for Codex), have newly installed contents git-excluded while pre-existing tracked project skills are preserved, and are copied into task workspaces and listed to every Worker of that Goal. An empty repository has no stack to detect yet, so the install is retried after each Task lands until a stack manifest exists.
 
 **Model Registry**
 What this machine has learned about a backend's model names: native catalog entries, which id a requested name resolved to, and when it last worked or failed. A discovered model is not proof of account access; an explicit Test checks a model by running a session.
 
 **Fallback**
-What the engine does when a session's model is unavailable: re-run the same session with the next model of the configured chain and remember the replacement on the Goal, so its later sessions skip the dead model; only when the whole chain fails does the Goal escalate.
+What the engine does when a session’s model is unavailable before productive work (not an auth, quota or invalid-effort failure): re-run the same session with the next model of the configured chain and remember the replacement on the Goal, so its later sessions skip the dead model; only when the whole chain fails does the Goal escalate.
 
 **Housekeeping model**
 The model of the engine's short chores — classifying a Goal's nature or summarising a log. Claude has a separate Housekeeping setting, also used for its usage probe. Codex includes Housekeeping in its Model Preset; reading Codex account quota requires no model session.

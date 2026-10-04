@@ -2,6 +2,8 @@
 
 **Status:** accepted · 2026-10-04 · amends ADR-0016 and ADR-0017; amended by ADR-0020
 
+> Current implementation: Native plugin inventory and install/remove are now covered by [ADR-0020](0020-native-plugin-lifecycle-and-account-ownership.md). Plugin updates and enable/disable remain native CLI operations; native subagent creation and skill telemetry remain unavailable.
+
 ## Decision
 
 Scope Setup, Skills and MCP operations explicitly by provider, independent of the launch profile. Preserve omitted-provider API requests as launch-default requests. Each native home owns its configuration and credentials. Codex authentication supports ChatGPT only; account status uses native metadata and never reads credential files directly.

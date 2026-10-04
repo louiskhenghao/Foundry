@@ -102,14 +102,16 @@ Brief 出来之前，goal 页面可能显示 **Round N — K questions**。这�
 
 ### 任务的实时日志
 
+下方美元费用、轮数和原生 sub-agent 示例对应 Claude。Codex 将美元费用及模型轮数标为不可用，使用工具调用上限，并由 Foundry 单独运行 Planner 会话，不开启原生子代理委派。
+
 | 你看到 | 意思 |
 |---|---|
-| `● session 1a2b3c4d · claude-…` | 一个会话开始了。同一次尝试里出现第二个 `●` 表示会话被续接（*continuation*），比重新开始便宜。 |
+| `● session 1a2b3c4d · claude-…` | 一个会话开始了。同一次尝试里出现第二个 `●` 表示会话被续接（*continuation*），保留已有上下文。 |
 | 工作完成后出现 `[reviewer] …` | 任务审查员在检查改动。 |
 | `[reviewer] ✗ Output does not match required schema …` | 审查员的结论格式不对，会重新发送。无害。 |
 | `■ success · $0.420 · 7 turns — …` | 会话结束了。破折号后面是 worker 最后说的话；点这一行可以看全文。 |
 | `■ error_max_turns`、`■ error_max_budget_usd`、`■ killed_timeout` | 会话碰到了上限。Foundry 会给它新的额度续接，最多两次，然后才开新的尝试。 |
-| `⏳ rate limit rejected` | 你的 Claude 套餐用量到了上限。Foundry 会暂停，额度重置后继续。不会丢任何东西。 |
+| `⏳ rate limit rejected` | 会话所属后端达到用量上限。Foundry 暂停该后端并稍后重试，另一后端仍可继续；重试时间不保证额度已经恢复。 |
 | `⏱ sub-agent still working · 3m 30s` | 一个助手（比如规划器）还在忙。这一行在更新时，日志长时间没动静是正常的。 |
 | `[claude-code:unrecognized_model] …` | 你的 Claude Code 比你选的模型旧。会话照常工作；更新 Claude Code 就不会再出现。 |
 

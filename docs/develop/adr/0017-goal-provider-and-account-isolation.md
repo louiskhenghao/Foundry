@@ -2,6 +2,8 @@
 
 **Status:** accepted · 2026-10-04 · supersedes ADR-0009; amends ADR-0001 and ADR-0004; amended by [ADR-0018](0018-codex-role-presets-and-model-discovery.md) (Codex role presets, fallback and separate planning) · amended by ADR-0019 (provider-scoped extensions and native status)
 
+> Current implementation: Later amendments add Codex role presets and separate planning (ADR-0018), native quota/history and extensions (ADR-0019), and native plugin install/remove (ADR-0020). Read [the current capability guide](../../operate/codex.md#product-capabilities) for remaining limits.
+
 ## Decision
 
 Share the goal engine, checks and delivery machinery. Persist `provider` on each goal and route every session, including distillation, through that immutable choice. Use native CLI adapters; never translate a session ID across providers. Codex's planner runs in the clarification session, with native multi-agent delegation disabled.

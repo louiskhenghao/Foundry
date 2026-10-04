@@ -3,15 +3,16 @@
 This track is for the person who installs Foundry, keeps it running, configures it, updates it and fixes it when
 something goes wrong. You work with terminals, Docker and config files, but you do not change Foundry's code.
 
-Foundry is a local orchestrator. It drives the Claude Code CLI on one machine to plan and deliver goals in your
+Foundry is a local orchestrator. It drives the Claude Code and Codex CLIs on one machine to plan and deliver goals in your
 repositories. The web UI runs on `http://127.0.0.1:4111`. You can run it from source with Bun, or in Docker
-(image `imlouiskhenghao/foundry`). These pages describe the current release; the changelog lists what each version changed.
+(image `imlouiskhenghao/foundry`). These pages describe this source revision. A published image may lag the branch; build this revision to try unreleased features.
 
 ## Pages
 
 | Page | What it covers |
 |---|---|
-| [install.md](./install.md) | Requirements, installing locally or with Docker, signing in to Claude, mounting repositories, first-run checks. |
+| [install.md](./install.md) | Requirements, installing locally or with Docker, signing in to each backend, mounting repositories, first-run checks. |
+| [codex.md](./codex.md) | ChatGPT-only sign-in, independent model presets, native extensions, quota windows and capability limits. |
 | [updates-and-backup.md](./updates-and-backup.md) | Where Foundry keeps its data, backup and restore, self-update, release channel. |
 | [remote-access.md](./remote-access.md) | Using Foundry from your phone or laptop over Tailscale, and keeping the machine running while you are away. |
 | [notifications.md](./notifications.md) | Setting up Telegram and Discord messages. |
@@ -29,7 +30,6 @@ repositories. The web UI runs on `http://127.0.0.1:4111`. You can run it from so
 ## Ground rules
 
 - The web UI has no login. Keep it on `127.0.0.1`. To reach it from elsewhere, use [remote-access.md](./remote-access.md).
-- Foundry uses your Claude subscription through the Claude Code CLI. It never needs an Anthropic API key, and it
-  removes `ANTHROPIC_API_KEY` from every session it starts.
-- Settings live in `data/settings.json`. For each value, a saved setting wins over an environment variable, and an
+- Agent execution uses native accounts: Claude login or ChatGPT sign-in for Codex. Codex API-key inference is unsupported. Optional media services have separate credentials; they do not change the execution backend.
+- Settings live in the instance’s data directory: `data/settings.json` for the default Claude launch profile, `data-codex/settings.json` for the Codex profile, or under `FOUNDRY_DATA_DIR`. For each value, a saved setting wins over an environment variable, and an
   environment variable wins over the default. The Settings page shows where each value comes from.

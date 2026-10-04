@@ -30,8 +30,8 @@ Open the ⚙ menu at the right of the top bar and choose **Setup** (a red dot on
 
 | Check | What it is | If it is red |
 |---|---|---|
-| **Claude Code CLI** | The program Foundry drives. | Copy the install command shown and run it, or ask whoever installed Foundry. |
-| **Claude login** | Your Claude account. | Press **Sign in**. |
+| **Claude Code CLI** / **Codex CLI** | The selected backend’s program. | Copy the install command shown and run it, or ask whoever installed Foundry. |
+| **Claude login** / **Codex login** | The selected backend’s account. | Press **Sign in**. |
 | **git** | Keeps every version of your files. | Copy the command shown. |
 | **Bun runtime** | What Foundry itself runs on. | Copy the command shown. |
 | **Required: …** | Skills Foundry's sessions need. | Press **Install**. |
@@ -55,7 +55,7 @@ Press **New goal** in the top bar. The four numbered steps at the top right (**G
 
 Several choices start from [Settings → New goal defaults](./settings.md#new-goal-defaults): the view, **Fast mode**, TDD, and the delivery mode and granularity. Change any of them here for this goal. A field you change on the page keeps your choice.
 
-![The New goal form, with a goal described and a repository selected](images/new-goal.png)
+![The New goal form with the shared Agent backend selector](images/new-goal.png)
 
 ### What kind of goal is this
 
@@ -122,7 +122,7 @@ Only in Expert view. TDD means writing a test first, then the code that makes it
 
 | Choice | Meaning |
 |---|---|
-| **required** | Workers must follow it, and the reviewer is told when they did not. The default, unless Settings says otherwise. |
+| **required** | Workers must follow it. Claude supplies skill-invocation evidence; Codex is reviewed from the work and tests. The default, unless Settings says otherwise. |
 | **preferred** | Suggested only. Simple view goals always use this. |
 | **off** | Never mentioned. |
 
@@ -160,7 +160,7 @@ The card below the picker says where the new goal starts. If the earlier goal's 
 
 ### Budget
 
-**3 · Budget.** Limits the goal runs within. Reaching a limit pauses the goal and asks you; it never fails silently.
+**3 · Budget.** Limits the goal runs within. Reaching a limit pauses the goal and asks you; it never fails silently. The dollar figures and **Max cost (USD est.)** field below apply only to Claude. Codex uses the same time, concurrency and attempt limits, with dollar controls hidden.
 
 | Preset | Limits |
 |---|---|

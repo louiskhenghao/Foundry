@@ -10,12 +10,12 @@
 
 There is no fixed five-hour/weekly pair. A weekly-only account shows only **Weekly limit**; accounts that report both windows show **5-hour limit** and **Weekly limit**. Names come from the reported duration, regardless of whether Codex calls the slot primary or secondary. Other durations are shown as returned; unknown duration stays unknown. Absent windows are not shown or filled with zero. Multiple quota groups remain separate. The header uses these same account windows and never assumes `5h`; if several groups are all weekly it shows **2 weekly limits**, for example.
 
-Use the **Usage backend** selector to view each provider independently. Counts include only Foundry sessions. **Foundry activity · last 7 days** is a local reporting period, separate from the account limits. It has no quota status or reset countdown. Dollar cost, turn count and skill-invocation telemetry are unavailable in this adapter; unavailable never means free or unused.
+Use the **Agent backend** selector to view each provider independently. Counts include only Foundry sessions. **Foundry activity · last 7 days** is a local reporting period, separate from the account limits. It has no quota status or reset countdown. Dollar cost, turn count and skill-invocation telemetry are unavailable in this adapter; unavailable never means free or unused.
 
 Codex USD caps are removed on creation, Brief approval and budget increases. Timeouts, tool-call allowance, attempts and concurrency remain effective. Its turn-cap setting counts tool calls, not model turns. A detected usage-limit error pauses only that provider; without a reset signal Foundry retries after five minutes, which is not a claim that the account quota has reset.
 
 
-Foundry runs on your Claude subscription (Pro or Max). It spends only when a Claude session runs. Everything it does in git, running your tests, preparing folders and reading check results is free — it costs time, not money.
+The dollar figures below apply only to Claude sessions and are usage estimates, not a separate bill from Foundry. Local git operations and checks do not themselves invoke an agent model; commands or media tools that call paid services have their own costs.
 
 ## What costs money
 
@@ -40,19 +40,19 @@ Which model each of these uses — and so how much it really costs — is set by
 
 ## Ways to spend less
 
-- **Pick a cheaper preset.** Balanced or Economy costs a fraction of Max. You can choose per goal on the New goal form, or per goal type in Settings.
+- **Pick a cheaper preset.** Compare the selected models and efforts; preset names do not guarantee a price or quota saving. You can choose per goal on the New goal form, or per goal type in Settings.
 - **Use fast pace** for routine goals. It skips Foundry's own extra reviews; the checks you approved still run.
 - **Lower the effort** on the New goal form for simple goals.
-- **Set a budget.** A goal stops and asks you when it reaches its cost or time limit.
-- Resumed sessions are cheaper than new attempts, because they reuse what the session already read. Foundry resumes first for that reason.
+- **Set a budget.** A goal stops and asks when it reaches its time limit, or its USD limit for Claude. Codex uses time, attempts and concurrency instead of dollar caps.
+- Foundry resumes interrupted sessions before starting fresh attempts when possible, preserving context. Actual quota use depends on the backend and the work.
 
 ## Where to see what was spent
 
-- **Each goal** shows its running cost at the top of its page, and each task shows its own.
-- **Usage** (top bar) shows spending over time, by kind of session and by model. For each of your plan's usage windows it shows its status (**allowed**, or a warning when it gets close to the limit) and when it resets, not a percentage; for exact percentages, run `/usage` in Claude Code. **Refresh signal** runs one tiny session to update that status.
-- When a usage limit is reached, Foundry pauses every goal and continues when the limit resets. A banner says when.
+- **Claude goals** show running cost estimates and task totals. Codex marks dollar cost unavailable.
+- **Usage → Claude Code** shows spending estimates over time, by kind of session and by model. For each of your plan's usage windows it shows its status (**allowed**, or a warning when it gets close to the limit) and when it resets, not a percentage; for exact percentages, run `/usage` in Claude Code. **Refresh signal** runs one tiny session to update that status.
+- When a usage limit is reached, Foundry pauses new sessions only on that backend and retries later. A banner shows the retry time; it is not proof of recovered quota.
 - **MiniMax** (video and narration through mmx) has its own card at the bottom of **Usage**, read when the page opens: what is left of each model's window and week on a Token Plan, or the balance of a pay-as-you-go key. **Refresh** reads it again. When under 10% of a window is left, or the balance is under 1, the usage pill in the top bar shows an amber dot. The card only appears when mmx is installed.
 
 ## Image goals need an image key
 
-Image generation only works when Foundry has an image API key: an OpenAI-compatible key, or a Gemini key. Add it in **Settings → Tools & keys**; it applies to the next session, no restart. Without a key, image tasks produce hand-drawn SVG or HTML renders of much lower quality — the Brief tells you so before you approve.
+The configured image skills use a separate media-service API key: an OpenAI-compatible key, or a Gemini key. This key does not enable Codex API-key inference or replace ChatGPT sign-in. Add it in **Settings → Tools & keys**; it applies to the next session, no restart. Without a key, image tasks produce hand-drawn SVG or HTML renders of much lower quality — the Brief tells you so before you approve.

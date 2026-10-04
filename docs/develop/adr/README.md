@@ -5,12 +5,12 @@ record is never rewritten when a later decision changes it; its status says what
 
 | # | Decision | Status |
 |---|---|---|
-| [0001](0001-drive-host-claude-cli-not-agent-sdk.md) | Drive the host `claude` CLI rather than the Agent SDK | accepted · 2026-08-21 |
+| [0001](0001-drive-host-claude-cli-not-agent-sdk.md) | Drive the host `claude` CLI rather than the Agent SDK | accepted · 2026-08-21 · amended by ADR-0017 |
 | [0002](0002-event-log-as-source-of-truth.md) | Append-only event log as the source of truth | accepted · 2026-08-21 |
 | [0003](0003-engine-only-remote-actions-under-human-policy.md) | Remote actions are performed only by the engine, only under a policy the human chose | accepted · 2026-08-21 · amended by ADR-0012 (a sixth escalation trigger, `milestone`) |
-| [0004](0004-workflow-skills-mandated-and-observed.md) | Workflow skills are mandated per role and task kind, and their use is observed | accepted · 2026-08-21 |
-| [0005](0005-scenario-skills-and-settings.md) | Scenario-selected skills, exclusive design packs, per-goal autoskills, and a settings file | accepted · 2026-08-22 |
-| [0006](0006-model-registry-and-fallback.md) | No hard-coded model knowledge: a learned registry and a fallback chain | accepted · 2026-08-22 · partly superseded by ADR-0014 (goal model snapshot per tier; doctor checks tiers) |
+| [0004](0004-workflow-skills-mandated-and-observed.md) | Workflow skills are mandated per role and task kind, and their use is observed | accepted · 2026-08-21 · amended by ADR-0017 and ADR-0019 |
+| [0005](0005-scenario-skills-and-settings.md) | Scenario-selected skills, exclusive design packs, per-goal autoskills, and a settings file | accepted · 2026-08-22 · amended by ADR-0019 |
+| [0006](0006-model-registry-and-fallback.md) | No hard-coded model knowledge: a learned registry and a fallback chain | accepted · 2026-08-22 · partly superseded by ADR-0014 (goal model snapshot per tier; doctor checks tiers) · amended by ADR-0018 |
 | [0007](0007-completion-actions.md) | Completion actions: docs on the goal branch, graph refresh after delivery | accepted · 2026-08-26 |
 | [0008](0008-non-code-goals.md) | Non-code goals: nature, git substrate, media artifacts outside git | accepted · 2026-08-26 |
 | [0009](0009-multi-engine-roadmap.md) | Multi-engine roadmap: codex (and others) as swappable runners | superseded by ADR-0017 |

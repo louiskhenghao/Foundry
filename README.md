@@ -19,7 +19,7 @@ English · [中文](./README.zh.md)
 
 ## Why Foundry
 
-Claude Code is great at doing what you ask. Keeping a real piece of work on track is the part left to you: saying what
+Claude Code and Codex can carry out a request. Keeping a real piece of work on track is the part left to you: saying what
 you actually mean, splitting it up, checking every step, noticing when it drifts, and not letting it burn your plan.
 Foundry does that part.
 
@@ -34,9 +34,9 @@ Foundry does that part.
 - **Checked, not guessed**  
   Every task has acceptance checks; the whole result is reviewed against them before it is handed over.
 - **Your code stays yours**  
-  It all runs on your machine, on your Claude subscription (Pro or Max) — no API key. Work happens on its own branch; your checkout is never touched.
+  Foundry runs locally and uses the selected CLI's account: Claude login or ChatGPT sign-in for Codex. Agent inference needs no API key. Work happens on its own branch; your checkout stays unchanged while it runs.
 - **You control the spend**  
-  Model presets pick which model does each job; every goal has a budget and stops before it overspends.
+  Independent model presets pick which model does each job. Time, attempt and concurrency limits apply to both backends; USD cost caps apply only to Claude.
 
 ## How it works
 
@@ -109,11 +109,13 @@ bun install --frozen-lockfile && bun run web:build
 bun run serve:codex
 ```
 
-Codex uses a separate `data-codex/` directory and the same goal workflow. Select its model in Settings. Codex reports tokens, not USD cost; use duration and attempt limits. See [Codex setup and differences](docs/operate/codex.md), including Docker. The Claude quick start follows below.
+The Codex launch profile defaults to `data-codex/`; the Claude profile defaults to `data/`. Either instance can run both backends: choose **Agent backend** on each new goal. The data directory belongs to the instance, not to each goal. Accounts, presets and MCP permissions stay independent. Codex supports ChatGPT sign-in only, and its quota display follows the account's actual windows, including weekly-only accounts.
+
+Install a hooks-capable Codex CLI before these commands; the Docker build pins 0.160.0. See [Codex setup and differences](docs/operate/codex.md) for prerequisites, Docker and current limits. Before upgrading an existing instance, read [backup and rollback](docs/operate/updates-and-backup.md#upgrading-to-mixed-provider-goals). The Claude quick start follows below.
 
 ## Quick start
 
-You need a Claude subscription (Pro or Max) and git.
+The commands below use Claude login and git. For ChatGPT sign-in, use the [Codex setup](docs/operate/codex.md). This branch's Codex support must be built from source until a release containing it is published; an existing `latest` image is not evidence that it includes these changes.
 
 **With Docker** — every tool is in the image:
 
