@@ -18,7 +18,7 @@ After you approve the Brief, Foundry works on its own. You can close the browser
 Open a goal from **Goals** (the list in the top bar). At the top of its page:
 
 - The title, a state badge (for example **running**, **have a look**, **reviewing**, **done**), and a **fast** chip if the goal runs in fast mode.
-- The project folder (with **copy** for its path), the goal's coding agent (**Claude Code** or **Codex**) and the branches: the one the goal started from → the goal's own branch. The **Goals** list shows the same coding agent next to each project path.
+- The project folder (with **copy** for its path), the goal's coding agent (**Claude Code** or **Codex**) and the branches: the one the goal started from → the goal's own branch. The **Goals** list shows the same coding agent next to each project path. Each of its rows stacks related facts: title, coding agent and folder; state and task counts; cost and time against their limits; last update and creation date. It shows 20 goals per page, newest first; the page number is kept in the address.
 - **Time** in minutes against the limit; Claude also shows **cost** against its USD budget. Codex dollar cost is unavailable.
 - **Open ▾**: open the project or the progress folder on your computer (see [The progress folder](#the-progress-folder)).
 - One main button that changes with the state: **Review brief →** while the Brief waits, **Cancel** while it runs, **Deliver…**, **Delivering…** or **Delivery** when it is done.
@@ -60,13 +60,13 @@ From top to bottom:
 
 - **The timeline**: **Clarify → Brief → Run → Review → Done** (or **Over-delivered**), plus **Deliver · mode** if the goal pushes or opens a pull request. The current stage pulses. Click a stage to jump to where its work is shown.
 - **What needs you**: the same cards as in the Inbox, with their buttons.
-- **goal**: your original description.
+- **goal**: your original description. **Open full**, the icon with two diagonal arrows in its corner, reads it in a larger window.
+- **Attachments**: right under the goal, as on the New goal form. You can add more at any time; new sessions receive them.
 - **Try the work in progress**: the progress folder. See [below](#the-progress-folder).
 - **Preview**: start and open the running result. See [Preview](#preview).
 - **Model fallback**: only if a model was unavailable and Foundry switched to another one.
 - **Project skills (autoskills)**: skills Foundry added for your project's technology. They never reach your commits.
 - **Completion**: documents and graph refresh you chose on the Brief, and their status.
-- **Attachments**: you can add more at any time; new sessions receive them.
 - **Brief**: a summary of what you approved, with **open** to read it in full.
 - **Goal review**: the final reviewer's verdict and notes, once it ran.
 - **Acceptance** (on the right): every **must** and **stretch** check with its latest result, for example **3/4 passing**. Click a check to see its output.
@@ -91,7 +91,7 @@ Click a task to open it over the goal page (Escape, × or a click beside it clos
 
 - Its title, state, tags and, once done, its commit. Click the commit line to read the whole commit message.
 - **Task total**: attempts, cost (split into worker and reviewer), turns and minutes so far.
-- **spec** and, if you gave one, the **human hint** right under it (**Open full** reads either in a larger window), its **Checks** with their latest result, and **Relevant files** (click one to open it; a grey one exists nowhere yet, usually a file the plan meant the task to create).
+- **spec** and, if you gave one, the **human hint** right under it (the **Open full** icon reads either in a larger window), its **Checks** with their latest result, and **Relevant files** (click one to open it; a grey one exists nowhere yet, usually a file the plan meant the task to create).
 - **Files**: what the task added or changed (**Files so far** while it runs). Images show as thumbnails. Click any file to see it in the page: pictures, PDFs, video and audio play right there, and code (coloured by language, with line numbers), Markdown and JSON are shown formatted. You need no editor on the computer Foundry runs on, so this works from a phone or over [remote access](../operate/remote-access.md) too. A finished task's files are read from its commit in your repository, so they stay after delivery removes the task's folders; images and video of an image or video goal, which are never committed, are listed with the task that made them.
 - **This task is waiting for you**, if it is blocked, with the buttons to answer.
 - One chip per attempt: **#1**, **#2** … with its result and cost. **↻1** means the session was resumed once instead of starting over, preserving its context.
@@ -216,9 +216,9 @@ Use **All agents**, **Claude Code** or **Codex** to filter the list. Counts besi
 
 **Agents** combines Foundry-owned sessions with recent native Claude Code and Codex history. Each row identifies its coding agent; retrieval is bounded, so this is not an inventory of every conversation ever created.
 
-- **Foundry agents**: sessions Foundry started for your goals, grouped by goal. Each group's heading shows the goal, its coding agent, its project folder, how many sessions it has and how many are working; **Open goal →** goes to the goal page. Click a heading to collapse or expand the group. A group starts expanded while one of its sessions is working or idle (or when it is the only goal); Foundry remembers your choice in this browser, and a search expands every group. Running sessions can be stopped with the ■ button.
+- **Foundry agents**: sessions Foundry started for your goals, grouped by goal. Each group's heading shows the goal, its coding agent, its project folder, how many sessions it has and how many are working; **Open goal →** goes to the goal page. Click a heading to collapse or expand the group. A group starts expanded while one of its sessions is working or idle (or when it is the only goal); Foundry remembers your choice in this browser, and a search expands every group. Running sessions can be stopped with the ■ button. A row names the task the session worked on, with a **work** or **merge** chip and its attempt number; **merge** sessions bring a branch up to date during integration or delivery.
 - **Your sessions**: sessions you opened yourself (in a terminal, in VS Code). Foundry only watches them, never touches them.
 
-Each row shows the model, context usage when available, last activity and folder; inside a goal group the folder is relative to the goal's progress folder (for example `delivery` or `tasks/…`). Helper agents appear indented under the session that started them. Click a row to follow its conversation: like a task's live log, every message is one line, and clicking a line opens the whole message in a window. The header counts sessions **working**, **idle**, **finished** and **unknown** in the last 24 hours. External Codex sessions and their children have unknown process status; they do not increase the known-busy count. While any session is working, a small **N busy** pill in the top bar says how many.
+Each row stacks what the session is (its title, and for your own sessions its folder and branch), what runs it (the coding agent's icon — orange for Claude Code, blue for Codex — the model and context usage when available) and when (last activity, and how long it ran or where it was opened). Helper agents appear indented under the session that started them, each with its description, type, status, model, context usage, last activity and how long it ran. Click a row to follow its conversation: like a task's live log, every message is one line, and clicking a line opens the whole message in a window. The header counts sessions **working**, **idle**, **finished** and **unknown** in the last 24 hours. External Codex sessions and their children have unknown process status; they do not increase the known-busy count. While any session is working, a small **N busy** pill in the top bar says how many.
 
 A session that is **idle** for a long time while its goal says running is worth a look; the task's live log usually says why.

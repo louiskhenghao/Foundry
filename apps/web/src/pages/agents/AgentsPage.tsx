@@ -1,6 +1,6 @@
 import type { AgentSessionRow, AgentsList } from '@foundry/engine/agents-types';
 import { ChevronRight, CornerDownRight, Folder, Search, Square } from 'lucide-react';
-import { Fragment, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api, type AgentProvider, type GoalRow } from '../../api.ts';
 import { ProviderSelector } from '../../components/ProviderSelector.tsx';
@@ -8,7 +8,7 @@ import { useLive } from '../../store.ts';
 import { ago, Button, cn, ConfirmDialog, Empty, Page } from '../../ui.tsx';
 import { ContextGauge } from './ContextGauge.tsx';
 import { SessionDetail, SubagentStatus } from './SessionDetail.tsx';
-import { goalRelCwd, ProviderBadge, SourceBadge, StatusDot, shortCwd, shortModel } from './rows.tsx';
+import { AttemptChip, ProviderBadge, ranFor, SourceBadge, StatusDot, shortCwd, shortModel } from './rows.tsx';
 
 /** Foundry agent sessions, grouped by goal, and external native sessions; outside sessions are only observed. */
 export function AgentsPage() {
@@ -67,7 +67,7 @@ export function AgentsPage() {
   const sessions = list?.sessions ?? [];
   const q = query.trim().toLowerCase();
   const matching = sessions.filter(s => (provider === 'all' || s.provider === provider) &&
-    [s.title, s.foundry?.goalTitle, s.cwd, s.model, s.sessionId].some(value => value?.toLowerCase().includes(q)));
+    [s.title, s.foundry?.goalTitle, s.foundry?.taskTitle, s.cwd, s.model, s.sessionId].some(value => value?.toLowerCase().includes(q)));
   const counts = { all: sessions.length, claude: sessions.filter(s => s.provider === 'claude').length, codex: sessions.filter(s => s.provider === 'codex').length };
   // Foundry sessions grouped by goal, in order of their latest session; then everything the user opened themselves
   const goalGroups: GoalGroup[] = [];
@@ -105,7 +105,7 @@ export function AgentsPage() {
         <label className="relative flex-1 min-w-48 max-w-xs">
           <span className="sr-only">Search sessions</span>
           <Search size={14} className="absolute left-3 top-3 text-zinc-500" aria-hidden="true" />
-          <input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search sessions, goals, models, directories…" className="w-full rounded-lg border border-zinc-800 bg-zinc-950/50 py-2.5 pl-9 pr-3 text-xs text-zinc-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+          <input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search sessions, goals, tasks, models, directories…" className="w-full rounded-lg border border-zinc-800 bg-zinc-950/50 py-2.5 pl-9 pr-3 text-xs text-zinc-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
         </label>
       </div>
       {warnings}
@@ -180,92 +180,81 @@ function GroupHeading({ accent, label, hint }: { accent: string; label: string; 
   );
 }
 
-const title = (s: AgentSessionRow) => s.title ?? s.foundry?.goalTitle ?? s.sessionId.slice(0, 8);
+/** Foundry rows lead with their task (their first prompt is boilerplate); outside sessions with their own title. */
+const title = (s: AgentSessionRow) => s.foundry?.taskTitle ?? s.title ?? s.foundry?.goalTitle ?? s.sessionId.slice(0, 8);
 
-/** Sessions as cards on phones and a table from tablets up; inside a goal group the goal is the heading, so its column gives way to the session title. */
+/**
+ * Sessions as stacked rows instead of a wide table: what it is (title, task kind or folder), what runs it
+ * (coding agent, model, context) and when (activity, where it was opened or how long it ran). Inside a goal
+ * group the goal and its coding agent are in the heading, so rows skip them.
+ */
 function SessionList({ rows, inGoal = false, onOpen, onKill }: { rows: AgentSessionRow[]; inGoal?: boolean; onOpen: (sessionId: string, agentId?: string) => void; onKill: (row: AgentSessionRow) => void }) {
-  const dir = (s: AgentSessionRow) => (s.cwd ? (inGoal ? goalRelCwd(s.cwd) : shortCwd(s.cwd)) : '—');
   return (
-    <>
-      {/* phones: card stack */}
-      <div className="sm:hidden divide-y divide-zinc-800/70">
-        {rows.map((s) => (
-          <button key={s.sessionId} onClick={() => onOpen(s.sessionId)} className="w-full text-left py-3 space-y-1.5">
-            <div className="flex items-center gap-2 min-w-0">
-              <StatusDot status={s.status} />
-              <span className="text-sm text-zinc-100 truncate flex-1">{title(s)}</span>
+    <ul className="divide-y divide-zinc-800/70">
+      {rows.map((s) => (
+        <li key={s.sessionId}>
+          <div role="button" tabIndex={0} onClick={() => onOpen(s.sessionId)} onKeyDown={(e) => { if (e.key === 'Enter') onOpen(s.sessionId); }} className={cn(ROW, 'py-2.5 cursor-pointer hover:bg-zinc-900/50 focus-visible:outline-2 focus-visible:outline-emerald-500 rounded')}>
+            <span className="pt-1.5"><StatusDot status={s.status} /></span>
+            <div className="min-w-0">
+              <div className="text-sm text-zinc-100 truncate" title={s.foundry ? (s.title ?? undefined) : s.sessionId}>{title(s)}</div>
+              <div className="mt-1 flex items-center gap-2 min-w-0 text-[11px] text-zinc-500">
+                {s.foundry ? <AttemptChip kind={s.foundry.kind} attempt={s.foundry.attempt} /> : null}
+                {s.foundry && s.foundry.taskTitle && s.title && s.title.replace(/^#+\s*/, '') !== s.foundry.taskTitle && <span className="truncate" title={s.title}>{s.title.replace(/^#+\s*/, '')}</span>}
+                {!s.foundry && s.cwd && <span className="mono truncate" title={s.cwd}>{shortCwd(s.cwd)}{s.gitBranch ? <span className="text-zinc-600"> · {s.gitBranch}</span> : null}</span>}
+                {s.status === 'unknown' && <span className="text-sky-400 whitespace-nowrap">status unknown</span>}
+              </div>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">{!inGoal && <ProviderBadge provider={s.provider} />}{s.source === 'external' && <SourceBadge row={s} />}{s.status === 'unknown' && <span className="text-[10px] text-sky-400">status unknown</span>}</div>
-            <div className="flex items-center gap-3 flex-wrap text-[11px] text-zinc-500">
-              {s.model && <span className="mono break-all">{shortModel(s.model)}</span>}
+            <div className="min-w-0 space-y-1">
+              <div className="flex items-center gap-1.5 min-w-0">
+                {!inGoal && <ProviderBadge provider={s.provider} compact />}
+                <span className="mono text-xs text-zinc-300 truncate">{s.model ? shortModel(s.model) : '—'}</span>
+              </div>
               <ContextGauge used={s.contextUsedTokens} window={s.contextWindowTokens} />
-              {s.lastActivityAt && <span>{ago(s.lastActivityAt)}</span>}
-              {inGoal && s.cwd && <span className="mono truncate" title={s.cwd}>{dir(s)}</span>}
             </div>
-          </button>
-        ))}
-      </div>
-
-      {/* desktop: table with subagents nested under their parent */}
-      <div className="hidden sm:block overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-[11px] uppercase tracking-wide text-zinc-500 border-b border-zinc-800">
-              <th className="py-2 pr-3 font-medium w-6" />
-              <th className="py-2 pr-3 font-medium">Session</th>
-              {!inGoal && <th className="py-2 pr-3 font-medium">Opened in</th>}
-              <th className="py-2 pr-3 font-medium">Model</th>
-              <th className="py-2 pr-3 font-medium">Context</th>
-              <th className="py-2 pr-3 font-medium">Activity</th>
-              <th className="py-2 pr-3 font-medium">{inGoal ? 'Folder' : 'Directory'}</th>
-              <th className="py-2 font-medium w-8" />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((s) => (
-              <Fragment key={s.sessionId}>
-                <tr className="border-b border-zinc-900 last:border-b-0 hover:bg-zinc-900/50 cursor-pointer" onClick={() => onOpen(s.sessionId)}>
-                  <td className="py-2 pr-3"><StatusDot status={s.status} /></td>
-                  <td className={cn('py-2 pr-3', inGoal ? 'max-w-[36rem]' : 'max-w-88')}>
-                    <button className="text-zinc-100 truncate block max-w-full text-left hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-emerald-500" title={s.title ?? s.sessionId} onClick={e => { e.stopPropagation(); onOpen(s.sessionId); }}>{title(s)}</button>
-                    {(!inGoal || s.status === 'unknown') && <div className="mt-1 flex items-center gap-2 flex-wrap">{!inGoal && <ProviderBadge provider={s.provider} />}{s.status === 'unknown' && <span className="text-[10px] text-sky-400">status unknown</span>}</div>}
-                  </td>
-                  {!inGoal && <td className="py-2 pr-3 max-w-40"><SourceBadge row={s} /></td>}
-                  <td className="py-2 pr-3 mono text-xs text-zinc-400 whitespace-nowrap">{s.model ? shortModel(s.model) : '—'}</td>
-                  <td className="py-2 pr-3"><ContextGauge used={s.contextUsedTokens} window={s.contextWindowTokens} /></td>
-                  <td className="py-2 pr-3 text-xs text-zinc-500 whitespace-nowrap" title={s.startedAt ? `started ${ago(s.startedAt)}` : undefined}>
-                    {s.lastActivityAt ? ago(s.lastActivityAt) : '—'}
-                  </td>
-                  <td className="py-2 pr-3 mono text-xs text-zinc-500 max-w-[16rem]"><span className="truncate block" title={s.cwd ?? undefined}>{dir(s)}</span></td>
-                  <td className="py-2">
-                    {s.source === 'foundry' && s.foundry?.killable && (
-                      <Button size="sm" variant="ghost" title="Stop this session" onClick={(e) => { e.stopPropagation(); onKill(s); }}>
-                        <Square size={12} className="text-rose-400" />
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-                {s.subagents.map((a) => (
-                  <tr key={`${s.sessionId}/${a.agentId}`} className="border-b border-zinc-900/60 hover:bg-zinc-900/50 cursor-pointer" onClick={() => onOpen(s.sessionId, a.agentId)}>
-                    <td className="py-1.5 pr-3" />
-                    <td className="py-1.5 pr-3 max-w-88" colSpan={inGoal ? 1 : 2}>
-                      <button className="flex items-center gap-1.5 pl-4 text-xs text-zinc-400 min-w-0 max-w-full text-left hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-emerald-500" onClick={e => { e.stopPropagation(); onOpen(s.sessionId, a.agentId); }}>
-                        <CornerDownRight size={12} className="shrink-0 text-zinc-600" />
-                        <span className="text-zinc-300 shrink-0">{a.agentType}</span>
-                        <span className="truncate">{a.description}</span>
-                      </button>
-                    </td>
-                    <td className="py-1.5 pr-3 text-[11px] whitespace-nowrap" colSpan={2}>
-                      <SubagentStatus status={a.status} />
-                    </td>
-                    <td className="py-1.5 pr-3 text-xs text-zinc-600 whitespace-nowrap" colSpan={3}>{a.lastActivityAt ? ago(a.lastActivityAt) : ''}</td>
-                  </tr>
-                ))}
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
+            <div className="text-xs text-zinc-500 space-y-1 sm:text-right">
+              <div className="whitespace-nowrap" title={s.startedAt ? `started ${ago(s.startedAt)}` : undefined}>{s.lastActivityAt ? ago(s.lastActivityAt) : '—'}</div>
+              <div className="flex sm:justify-end">{s.source === 'external' ? <SourceBadge row={s} /> : <span className="text-[11px] whitespace-nowrap">{ranFor(s.startedAt, s.endedAt ?? s.lastActivityAt) ?? ''}</span>}</div>
+            </div>
+            <div className="w-8 flex justify-end">
+              {s.source === 'foundry' && s.foundry?.killable && (
+                <Button size="sm" variant="ghost" title="Stop this session" onClick={(e) => { e.stopPropagation(); onKill(s); }}>
+                  <Square size={12} className="text-rose-400" />
+                </Button>
+              )}
+            </div>
+          </div>
+          {s.subagents.length > 0 && (
+            <ul className="pb-2">
+              {s.subagents.map((a) => (
+                <li key={a.agentId}>
+                  <div role="button" tabIndex={0} onClick={() => onOpen(s.sessionId, a.agentId)} onKeyDown={(e) => { if (e.key === 'Enter') onOpen(s.sessionId, a.agentId); }} className={cn(ROW, 'py-1.5 cursor-pointer hover:bg-zinc-900/50 focus-visible:outline-2 focus-visible:outline-emerald-500 rounded')}>
+                    <span />
+                    <div className="flex items-start gap-1.5 min-w-0 pl-3 border-l border-zinc-800">
+                      <CornerDownRight size={12} className="shrink-0 mt-0.5 text-zinc-600" aria-hidden="true" />
+                      <div className="min-w-0">
+                        <div className="text-xs text-zinc-300 truncate" title={a.description}>{a.description || a.agentType}</div>
+                        <div className="mt-0.5 flex items-center gap-2 text-[11px]"><span className="rounded border border-zinc-700 px-1 py-px text-[10px] text-zinc-400">{a.agentType}</span><SubagentStatus status={a.status} /></div>
+                      </div>
+                    </div>
+                    <div className="min-w-0 space-y-1">
+                      <span className="mono text-[11px] text-zinc-400 truncate block">{a.model ? shortModel(a.model) : ''}</span>
+                      <ContextGauge used={a.contextUsedTokens ?? null} window={a.contextWindowTokens ?? null} />
+                    </div>
+                    <div className="text-[11px] text-zinc-500 space-y-1 sm:text-right">
+                      <div className="whitespace-nowrap">{a.lastActivityAt ? ago(a.lastActivityAt) : ''}</div>
+                      <div className="whitespace-nowrap">{ranFor(a.startedAt, a.lastActivityAt) ?? ''}</div>
+                    </div>
+                    <span />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
+
+/** one grid for sessions and their subagents, so the columns line up; phones stack it */
+const ROW = 'grid grid-cols-[auto_minmax(0,1fr)] sm:grid-cols-[auto_minmax(0,1fr)_12rem_7rem_2rem] gap-x-3 gap-y-1.5 items-start px-1 [&>*:nth-child(n+3)]:col-start-2 sm:[&>*:nth-child(n+3)]:col-start-auto';

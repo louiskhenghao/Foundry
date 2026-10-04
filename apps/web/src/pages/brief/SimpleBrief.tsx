@@ -1,6 +1,7 @@
 import type { Brief, Goal } from '@foundry/core/browser';
 import { Check, Settings2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { OpenFull } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { Badge, Button, Card, Input, cn, fmtLimitMin, fmtLimitUsd } from '../../ui.tsx';
 import { areaStyle } from './shared.ts';
@@ -47,7 +48,7 @@ export function SimpleBrief(p: {
       </div>
 
       <Card title={<>What I understood<HelpLink to="approving-the-brief" className="ml-1.5" /></>}>
-        <MarkdownPanel title="" source={brief.understanding} maxHeight={400} />
+        <MarkdownPanel title="" source={brief.understanding} maxHeight={400} actions={<OpenFull value={{ title: 'What I understood', text: brief.understanding }} />} />
       </Card>
 
       {brief.questions.length > 0 && (

@@ -10,6 +10,11 @@ export interface AgentSubagentRow {
   description: string;
   status: 'running' | 'done' | 'unknown';
   lastActivityAt: string | null;
+  /** from the subagent's own transcript, when it has one */
+  model?: string | null;
+  startedAt?: string | null;
+  contextUsedTokens?: number | null;
+  contextWindowTokens?: number | null;
 }
 
 export interface AgentSessionRow {
@@ -32,7 +37,8 @@ export interface AgentSessionRow {
   contextWindowTokens: number | null;
   version: string | null;
   subagents: AgentSubagentRow[];
-  foundry: { goalId: string; goalTitle: string | null; taskId: string | null; attemptId: string | null; killable: boolean } | null;
+  /** `kind` and `attempt` describe the Foundry attempt the session ran (a task's work or a merge), `taskTitle` its task */
+  foundry: { goalId: string; goalTitle: string | null; taskId: string | null; taskTitle?: string | null; attemptId: string | null; kind?: 'work' | 'merge'; attempt?: number | null; killable: boolean } | null;
 }
 
 export interface AgentsSummary {

@@ -1,4 +1,5 @@
 import type { AgentSessionRow, AgentStatus } from '@foundry/engine/agents-types';
+import { Sparkle, SquareTerminal } from 'lucide-react';
 import { cn } from '../../ui.tsx';
 
 export function StatusDot({ status }: { status: AgentStatus }) {
@@ -7,8 +8,38 @@ export function StatusDot({ status }: { status: AgentStatus }) {
   return <span className={cn('inline-block h-2 w-2 rounded-full shrink-0', cls)} role="img" aria-label={label} title={label} />;
 }
 
-export function ProviderBadge({ provider }: { provider: AgentSessionRow['provider'] }) {
-  return <span className="rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-400 shrink-0" title="Coding agent">{provider === 'codex' ? 'Codex' : provider === 'claude' ? 'Claude Code' : 'Agent unknown'}</span>;
+const PROVIDERS = {
+  claude: { label: 'Claude Code', Icon: Sparkle, cls: 'border-orange-500/40 bg-orange-500/10 text-orange-300' },
+  codex: { label: 'Codex', Icon: SquareTerminal, cls: 'border-blue-500/40 bg-blue-500/10 text-blue-300' },
+} as const;
+
+/** The coding agent, with an icon and colour of its own so Claude Code and Codex tell apart at a glance; `compact` keeps the icon only. */
+export function ProviderBadge({ provider, compact = false }: { provider: AgentSessionRow['provider']; compact?: boolean }) {
+  const p = provider ? PROVIDERS[provider] : null;
+  const label = p?.label ?? 'Agent unknown';
+  return (
+    <span className={cn('inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] leading-none shrink-0', p?.cls ?? 'border-zinc-700 text-zinc-400')} title={`Coding agent: ${label}`} aria-label={compact ? label : undefined}>
+      {p && <p.Icon size={11} aria-hidden="true" className="shrink-0" />}
+      {!compact && label}
+    </span>
+  );
+}
+
+/** What a Foundry session did: a task's work or a merge, and which attempt. */
+export function AttemptChip({ kind, attempt }: { kind?: 'work' | 'merge'; attempt?: number | null }) {
+  if (!kind) return null;
+  return (
+    <span className={cn('inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] leading-none whitespace-nowrap shrink-0', kind === 'merge' ? 'border-fuchsia-500/40 text-fuchsia-300' : 'border-zinc-700 text-zinc-400')}>
+      {kind === 'merge' ? 'merge' : 'work'}{attempt ? ` · attempt ${attempt}` : ''}
+    </span>
+  );
+}
+
+/** "ran 12m" between two timestamps; null when either is missing. */
+export function ranFor(start: string | null | undefined, end: string | null | undefined): string | null {
+  if (!start || !end) return null;
+  const m = Math.max(0, Math.round((Date.parse(end) - Date.parse(start)) / 60000));
+  return Number.isFinite(m) ? `ran ${m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`}` : null;
 }
 
 export function SourceBadge({ row }: { row: AgentSessionRow }) {
@@ -32,9 +63,4 @@ export function shortCwd(cwd: string): string {
   const pf = cwd.match(/\/([^/]+-foundry\/.+)$/);
   if (pf) return pf[1]!;
   return cwd.replace(/^\/Users\/[^/]+/, '~');
-}
-
-/** A session's directory inside its goal's progress folder (`delivery`, `tasks/<id>`), when it is one. */
-export function goalRelCwd(cwd: string): string {
-  return cwd.match(/\/\.foundry\/[^/]+\/(.+)$/)?.[1] ?? shortCwd(cwd);
 }

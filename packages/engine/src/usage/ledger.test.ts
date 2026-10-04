@@ -38,6 +38,18 @@ describe('usage ledger', () => {
     expect(usageSummary(s.db).limited).toBeNull();
   });
 
+  test('a window signal whose reset has passed is no longer current', () => {
+    const s = store();
+    const now = Date.now();
+    usage(s, null, 'probe', 'haiku', 0.01, { status: 'allowed_warning', resetsAt: Math.floor(now / 1000) - 40 * 86400, rateLimitType: 'seven_day_overage_included', isUsingOverage: true });
+    const u = usageSummary(s.db, now);
+    expect(u.sevenDay.status).toBeNull();
+    expect(u.sevenDay.isUsingOverage).toBe(false);
+    expect(u.sevenDay.lastSignalAt).not.toBeNull();
+    usage(s, null, 'probe', 'haiku', 0.01, { status: 'allowed_warning', resetsAt: Math.floor(now / 1000) + 86400, rateLimitType: 'seven_day_overage_included', isUsingOverage: false });
+    expect(usageSummary(s.db, now).sevenDay.status).toBe('allowed_warning');
+  });
+
   test('without any signal the 5h window is simply the last five hours', () => {
     const s = store();
     const now = Date.now();

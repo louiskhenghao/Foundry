@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, type GoalDetail } from '../../api.ts';
 import { FollowLinks } from '../goal/FollowUps.tsx';
+import { OpenFull } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { useLive } from '../../store.ts';
 import { Badge, Button, Card, Empty, Input, Textarea, cn, fmtLimitMin, fmtLimitUsd } from '../../ui.tsx';
@@ -186,10 +187,10 @@ export function BriefPage() {
         {editable ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Textarea rows={10} value={brief.understanding} onChange={(e) => update({ understanding: e.target.value })} />
-            <MarkdownPanel title="preview" source={brief.understanding} maxHeight={260} />
+            <MarkdownPanel title="preview" source={brief.understanding} maxHeight={260} actions={<OpenFull value={{ title: 'Understanding', text: brief.understanding }} />} />
           </div>
         ) : (
-          <MarkdownPanel title="understanding" source={brief.understanding} />
+          <MarkdownPanel title="understanding" source={brief.understanding} actions={<OpenFull value={{ title: 'Understanding', text: brief.understanding }} />} />
         )}
       </Card>
 
@@ -386,7 +387,7 @@ function Header({ detail, onSimple }: { detail: GoalDetail; onSimple?: () => voi
       )}
       {err && <div className="text-xs text-rose-300 mt-1">{err}</div>}
       <div className="mt-2">
-        <MarkdownPanel title="goal" source={g.prompt} maxHeight={220} />
+        <MarkdownPanel title="goal" source={g.prompt} maxHeight={220} actions={<OpenFull value={{ title: g.title, text: g.prompt }} />} />
       </div>
     </div>
   );

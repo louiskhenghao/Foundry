@@ -27,14 +27,14 @@ Brief 会以你在 New goal 表单上选的视图打开。用顶部的 **Expert 
 - 标题下面：项目文件夹、goal 从哪个分支开始，以及 goal 自己的分支。
 - 有一行小字说明 Foundry 读的是你项目的哪个版本，比如 "Explored origin/main (your local main was 3 behind)"。如果它提示没有拉取远端（remote），而你知道之后别人改过项目，就按 **Re-run Clarify**。
 - **Re-run Clarify** 会丢掉这份 Brief，拉取你项目的最新版本，然后重新规划。附件、预算和交付设置都会保留。你的决定会以文字形式交给新的 Clarify：它会按这些决定来规划，不会再问一遍，但它们不会作为条目回到 **Decisions** 卡片里。它工作期间，你会回到 goal 页面。
-- **goal** 面板显示你最初的描述。
+- **goal** 面板显示你最初的描述。面板角上的 **Open full**（两个斜向箭头的图标）会在更大的窗口里显示它，带 **Preview**、**Raw** 和 **Copy**。
 
 ## Understanding
 
 Foundry 用自己的话说它理解了什么。先读这个：如果这里错了，后面的全都会错。
 
 - **pull request title**：一行概括整个 goal 的文字，格式是 `feat(scope): what this goal adds`。如果你要交付 pull request，它就是 pull request 的标题。可以不管它。
-- 左边的文本框可以编辑；右边显示它读起来的样子。
+- 左边的文本框可以编辑；右边显示它读起来的样子。右边的 **Open full** 图标会在更大的窗口里显示它。
 
 ## Questions
 
@@ -246,7 +246,7 @@ Simple view 用大白话显示同一份 Brief：
 
 | 卡片 | 要做什么 |
 |---|---|
-| **What I understood** | 读一读。如果不对，就在回答问题时相应地纠正，或者切到 Expert view 去编辑。 |
+| **What I understood** | 读一读；**Open full** 图标会在更大的窗口里显示它。如果不对，就在回答问题时相应地纠正，或者切到 Expert view 去编辑。 |
 | **Please answer (N)** 或 **Questions** | 选一个答案（★ 是推荐）或者输入你自己的。标着 **needed** 的问题必须回答。风格卡片的用法和上面一样。 |
 | **I will assume… (untick anything that is wrong)** | 把不对的取消勾选。 |
 | **What you will get (N pieces of work)** | 各项任务，按 Area 分组。要改它们，就打开 **Expert view**。 |

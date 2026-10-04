@@ -4,7 +4,7 @@
 
 Once you approve the Brief, Foundry works on its own. It stops and asks you only in the situations on this page. Each one shows up in the **Inbox** (the number in the top bar) and on the goal's page. If you set up notifications, you also get a Telegram or Discord message: the **Needs you** switch covers everything in the Inbox, and **Interview round**, **Goal finished**, **Delivery**, **Usage pause** and **New version** have their own switches. See [Settings → Notifications](./settings.md#notifications).
 
-Each Inbox card carries the full report under **details**. The box scrolls; for a long report, **Open full** shows it in a larger window with **Copy**.
+Each Inbox card carries the full report under **details**. The box scrolls; for a long report, **Open full** (the icon with two diagonal arrows) shows it in a larger window with **Copy**.
 
 Everything else you see while a goal runs is normal and needs nothing from you. The second half of this page explains those messages.
 

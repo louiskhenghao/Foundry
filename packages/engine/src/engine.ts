@@ -300,6 +300,7 @@ export class Engine {
         foundryLive: () => this.foundryLiveSessions(),
         foundryRecent: (sinceIso) => listAttemptsEndedSince(this.store.db, sinceIso),
         goalTitle: (goalId) => getGoal(this.store.db, goalId)?.title ?? null,
+        taskTitle: (taskId) => getTask(this.store.db, taskId)?.title ?? null,
         goalProvider: (goalId) => getGoal(this.store.db, goalId)?.provider ?? config.provider,
         foundrySessionIds: () => this.ownedSessionIds,
       },
@@ -1053,7 +1054,7 @@ export class Engine {
     const out: FoundryLiveSession[] = [];
     for (const [taskId, f] of this.inFlight) {
       const a = f.attemptId ? getAttempt(this.store.db, f.attemptId) : null;
-      out.push({ taskId, goalId: f.goalId, attemptId: f.attemptId, sessionId: a?.sessionId ?? null, pid: a?.pid ?? null, model: a?.model ?? null, cwd: a?.cwd ?? null, startedAt: a?.startedAt ?? null, killable: f.handle != null });
+      out.push({ taskId, goalId: f.goalId, attemptId: f.attemptId, kind: a?.kind, attemptIndex: a?.index ?? null, sessionId: a?.sessionId ?? null, pid: a?.pid ?? null, model: a?.model ?? null, cwd: a?.cwd ?? null, startedAt: a?.startedAt ?? null, killable: f.handle != null });
     }
     return out;
   }

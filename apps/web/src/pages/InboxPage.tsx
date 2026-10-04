@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
 import { api, apiForProvider, type EscalationRow } from '../api.ts';
-import { FullTextDialog } from '../components/FullTextDialog.tsx';
+import { FullTextDialog, OpenFullButton } from '../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../components/Markdown.tsx';
 import { suggestEscalation, useEscalationDraft, useEscalationDrafts, useLive } from '../store.ts';
 import { UsagePausedBanner } from '../components/UsageBanner.tsx';
@@ -177,11 +177,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
         source={e.message}
         maxHeight={260}
         actions={
-          long && (
-            <button type="button" className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-300 hover:text-zinc-100 hover:border-zinc-500" onClick={() => setFull(true)} title="Read the whole report in a larger window">
-              Open full
-            </button>
-          )
+          long && <OpenFullButton onClick={() => setFull(true)} />
         }
       />
       <FullTextDialog value={full ? { title: TRIGGER_LABEL[e.trigger] ?? e.trigger, text: e.message } : null} onClose={() => setFull(false)} />
