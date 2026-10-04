@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="apps/web/public/logo.png" alt="Foundry logo" width="96">
+
 # Foundry
 
 **一句话写下目标，拿回做完、检查过、审查过的成果。**

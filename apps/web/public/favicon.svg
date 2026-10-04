@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <title>Foundry</title>
+  <rect width="1024" height="1024" rx="224" fill="#10b981"/>
+  <path d="M387 299H675M387 299V751M387 537H615" stroke="#fff" stroke-width="96" stroke-linecap="round" fill="none"/>
+  <circle cx="387" cy="299" r="118" fill="#fff"/>
+  <rect x="595" y="219" width="160" height="160" rx="40" fill="#fff"/>
+  <rect x="541" y="463" width="148" height="148" rx="37" fill="#fff"/>
+  <rect x="295" y="659" width="184" height="184" rx="46" fill="#fff"/>
+</svg>

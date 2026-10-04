@@ -75,6 +75,7 @@ export function App() {
           {menu ? <X size={18} /> : <Menu size={18} />}
         </button>
         <NavLink to="/" className="font-semibold tracking-tight text-zinc-100 flex items-center gap-2">
+          <img src="/favicon.svg" alt="" className="h-6 w-6" />
           Foundry
           {open > 0 && <span className="lg:hidden h-2 w-2 rounded-full bg-orange-500" />}
         </NavLink>
