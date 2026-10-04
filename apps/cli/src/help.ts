@@ -24,21 +24,23 @@ export const help = `foundry — drive the host Claude Code or Codex CLI to deli
   diff <goalId>                           print the goal branch diff
   cancel <goalId>
   replay --verify                         rebuild read models from the event log and compare
-  doctor [--json]                         environment check: selected agent, login, git, bun, required skills
+  doctor [--provider claude|codex] [--json]                         environment check: selected agent, login, git, bun, required skills
   skills list [--scope user|plugin|project|all] [--repo <path>] [--json]
   skills catalog                          required / recommended / optional skills and their status
   skills install <id|name> [--force]      install into the selected agent's skills directory
   skills install --tier required|recommended
   skills uninstall <name> [--force]       move to trash (reversible)
   skills restore <name> · skills update [name] · skills trash
+       All skills commands accept --provider claude|codex (default: the running instance).
   deliver <goalId> [--mode push|pr|pr-automerge ...]   deliver a finished goal (no --mode: print the plan)
   github [status|login]                   GitHub CLI status / device-flow login (needed for PR modes)
   auth [status|login|logout] [--provider claude|codex]
-                                          Independent agent account; login/logout hand over to its CLI
+                                          Independent account; running server owns login/logout and protects active work
+                                          An explicit FOUNDRY_URL must be reachable; it never falls back to local auth
   usage [--provider claude|codex] [--json] [--probe]
-                                          Activity for one backend; --probe refreshes status (Claude consumes quota)
+                                          Activity and available account quota; --probe refreshes status (Claude consumes quota)
 
-(doctor and skills work without the server running.)
+(doctor and skills work offline too; --provider keeps their native homes and caches separate.)
 Both backends share one Foundry; select --provider when creating a goal.
 FOUNDRY_PROVIDER=codex changes the installation default (data-codex directory).
 Codex model: FOUNDRY_CODEX_MODEL=codex-default or Settings → Codex model.

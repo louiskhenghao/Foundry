@@ -56,4 +56,16 @@ describe('doctor', () => {
     const r = await runDoctor({ paths: fake.paths, catalog, statuses, which: () => null });
     expect(r.checks.find((c) => c.id === 'claude-bin')).toMatchObject({ ok: false, fix: { url: 'https://code.claude.com/docs/en/setup' } });
   });
+
+  test('checks Claude authentication in the configured native home', async () => {
+    let authHome: string | undefined;
+    const report = await runDoctor({ paths: fake.paths, catalog, statuses: [], claudeBin: '/fixture/claude', which: () => null,
+      exec: async (args, _cwd, options) => {
+        if (args.includes('auth')) authHome = options?.env?.CLAUDE_CONFIG_DIR;
+        return { code: 0, stdout: args.includes('auth') ? '{"loggedIn":true,"email":"fixture@example.test"}' : 'fixture version', stderr: '' };
+      },
+    });
+    expect(authHome).toBe(fake.paths.claudeHome);
+    expect(report.checks.find(c => c.id === 'claude-auth')?.detail).toContain('fixture@example.test');
+  });
 });

@@ -45,7 +45,7 @@ export async function runDoctor(ctx: DoctorContext): Promise<DoctorReport> {
   } else {
     const v = await run([claude, '--version'], process.cwd(), { timeoutMs: 15_000 }).catch(() => ({ code: 1, stdout: '', stderr: '' }));
     checks.push(v.code === 0 ? ok('claude-bin', 'Claude Code CLI', `${v.stdout.trim() || claude}`) : err('claude-bin', 'Claude Code CLI', `${claude} failed to run: ${(v.stderr || v.stdout).trim().slice(0, 200)}`, { url: 'https://code.claude.com/docs/en/setup' }));
-    const st = await claudeAuthStatus(claude, run);
+    const st = await claudeAuthStatus(claude, run, ctx.paths.claudeHome);
     const detail = st.loggedIn ? `logged in as ${st.email ?? '?'} (${st.subscriptionType ?? st.authMethod ?? 'unknown plan'})` : `not logged in${st.error ? ` (${st.error})` : ''}`;
     checks.push(st.loggedIn ? ok('claude-auth', 'Claude login', detail) : err('claude-auth', 'Claude login', detail, { command: 'claude auth login' }));
   }

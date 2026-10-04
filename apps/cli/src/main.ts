@@ -3,7 +3,7 @@
  * foundry CLI — thin client over the local server, plus `serve` and `replay`.
  */
 import { help } from './help.ts';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dir, '../../..');
 const argv = process.argv.slice(2);
@@ -59,12 +59,13 @@ const safeJson = (t: string) => {
 
 
 /** Use the server when it is up, otherwise run in-process (doctor/skills must work before `serve`). */
-async function skillsLocal() {
+async function skillsLocal(selected?: 'claude' | 'codex') {
   const { SkillsManager, defaultConfig, SettingsStore, applySettingsToConfig } = await import('@foundry/engine');
   const cfg = defaultConfig(ROOT);
   const settings = new SettingsStore(cfg.dataDir);
   applySettingsToConfig(cfg, settings.values(), settings.fileLeaves());
-  return new SkillsManager({ provider: cfg.provider, codexBin: cfg.codexBin, codexHome: cfg.codexHome, claudeHome: cfg.provider === 'codex' ? cfg.codexHome : cfg.claudeHome, dataDir: cfg.dataDir, catalogPath: cfg.catalogPath, log: (m) => console.error(m) });
+  const provider = selected ?? cfg.provider;
+  return new SkillsManager({ provider, codexBin: cfg.codexBin, codexHome: cfg.codexHome, claudeBin: cfg.claudeBin, claudeHome: provider === 'codex' ? cfg.codexHome : cfg.claudeHome, dataDir: provider === cfg.provider ? cfg.dataDir : join(cfg.dataDir, 'providers', provider), catalogPath: cfg.catalogPath, log: (m) => console.error(m) });
 }
 async function serverUp(): Promise<boolean> {
   try {
@@ -78,6 +79,11 @@ async function serverUp(): Promise<boolean> {
 await main();
 
 async function main(): Promise<void> {
+const selected = opt('--provider');
+if (has('--provider') && selected !== 'claude' && selected !== 'codex') return usage('--provider must be claude or codex');
+const provider = selected as 'claude' | 'codex' | undefined;
+const scoped = (path: string) => provider ? `${path}${path.includes('?') ? '&' : '?'}provider=${provider}` : path;
+const providerApi = (path: string, init?: RequestInit) => api(scoped(path), init);
 switch (cmd) {
   case 'serve': {
     const { Engine, defaultConfig } = await import('@foundry/engine');
@@ -280,25 +286,38 @@ switch (cmd) {
     break;
   }
   case 'auth': {
+    const sub = positional()[0] ?? 'status';
+    if (!['status', 'login', 'logout'].includes(sub)) return usage('auth expects status, login or logout');
+    if (await serverUp()) {
+      if (sub === 'logout') {
+        const status = await providerApi('/api/auth/logout', { method: 'POST' });
+        console.log(has('--json') ? JSON.stringify(status, null, 2) : 'Signed out through the running Foundry instance.');
+        break;
+      }
+      const info = await providerApi('/api/auth?force=1');
+      if (sub === 'login') { await serverLogin(info.provider); break; }
+      const status = info.status;
+      console.log(has('--json') ? JSON.stringify(status, null, 2) : status.loggedIn ? `✔ ${info.provider}: signed in (${status.email ?? status.authMethod ?? 'account'})` : `✘ ${info.provider}: ${status.error ?? 'not signed in'}`);
+      break;
+    }
+    if (process.env.FOUNDRY_URL) {
+      console.error(`Cannot reach the configured Foundry instance at ${BASE}. Account changes require that instance to be available.`);
+      process.exitCode = 2;
+      break;
+    }
     const { defaultConfig, SettingsStore, applySettingsToConfig, codexAuthStatus, claudeAuthStatus } = await import('@foundry/engine');
     const cfg = defaultConfig(ROOT);
     const settings = new SettingsStore(cfg.dataDir);
     applySettingsToConfig(cfg, settings.values(), settings.fileLeaves());
-    const up = await serverUp();
-    const selected = opt('--provider');
-    if (selected && !['claude', 'codex'].includes(selected)) return usage('--provider must be claude or codex');
-    const info = up ? await api(`/api/auth?force=1${selected ? `&provider=${selected}` : ''}`) : null;
-    const provider = selected ?? info?.provider ?? cfg.provider;
-    const sub = rest[0] ?? 'status';
+    const backend = provider ?? cfg.provider;
     if (sub === 'login' || sub === 'logout') {
-      const bin = provider === 'codex' ? cfg.codexBin ?? Bun.which('codex') ?? 'codex' : cfg.claudeBin ?? Bun.which('claude') ?? 'claude';
-      const args = provider === 'codex' ? [sub, ...(sub === 'login' && has('--device-auth') ? ['--device-auth'] : [])] : ['auth', sub];
-      const p = Bun.spawn([bin, ...args], { env: { ...process.env, ...(provider === 'codex' ? { CODEX_HOME: cfg.codexHome } : { CLAUDE_CONFIG_DIR: cfg.claudeHome }) }, stdin: 'inherit', stdout: 'inherit', stderr: 'inherit' });
+      const bin = backend === 'codex' ? cfg.codexBin ?? Bun.which('codex') ?? 'codex' : cfg.claudeBin ?? Bun.which('claude') ?? 'claude';
+      const args = backend === 'codex' ? [sub, ...(sub === 'login' ? ['--device-auth'] : [])] : ['auth', sub, ...(sub === 'login' ? ['--claudeai'] : [])];
+      const p = Bun.spawn([bin, ...args], { env: { ...process.env, ...(backend === 'codex' ? { CODEX_HOME: cfg.codexHome } : { CLAUDE_CONFIG_DIR: cfg.claudeHome }) }, stdin: 'inherit', stdout: 'inherit', stderr: 'inherit' });
       process.exit(await p.exited);
     }
-    const st = info?.status ?? (provider === 'codex' ? await codexAuthStatus(cfg.codexBin ?? Bun.which('codex'), undefined, cfg.codexHome) : await claudeAuthStatus(cfg.claudeBin ?? Bun.which('claude'), undefined, cfg.claudeHome));
-    if (has('--json')) return console.log(JSON.stringify(st, null, 2));
-    console.log(st.loggedIn ? `✔ ${provider}: signed in (${st.email ?? st.authMethod ?? 'account'})` : `✘ ${provider}: ${st.error ?? 'not signed in'} — run: foundry auth login`);
+    const st = backend === 'codex' ? await codexAuthStatus(cfg.codexBin ?? Bun.which('codex'), undefined, cfg.codexHome) : await claudeAuthStatus(cfg.claudeBin ?? Bun.which('claude'), undefined, cfg.claudeHome);
+    console.log(has('--json') ? JSON.stringify(st, null, 2) : st.loggedIn ? `✔ ${backend}: signed in (${st.email ?? st.authMethod ?? 'account'})` : `✘ ${backend}: ${st.error ?? 'not signed in'} — run: foundry auth login --provider ${backend}`);
     break;
   }
   case 'usage': {
@@ -311,6 +330,18 @@ switch (cmd) {
       console.log(`${w.label}: ${w.status ?? 'unknown'} (${reset}${w.isUsingOverage ? ', using overage' : ''})`);
       console.log(`  sessions ${w.sessions}  in ${fmtK(w.inputTokens)}  out ${fmtK(w.outputTokens)}  cache-read ${fmtK(w.cacheReadTokens)}  ${cost(w.costUsd)}`);
     };
+    if (u.provider === 'codex') {
+      const quota = u.codexQuota;
+      if (quota?.state === 'available') {
+        console.log(`ChatGPT account quota: ${quota.ordinaryUsageAllowed === true ? 'allowed' : quota.ordinaryUsageAllowed === false ? 'blocked' : 'allowance unknown'}`);
+        for (const bucket of quota.buckets) for (const kind of ['primary', 'secondary']) {
+          const window = bucket[kind];
+          if (window) console.log(`  ${bucket.label} · ${kind}: ${window.usedPercent == null ? 'usage unknown' : `${window.usedPercent}% used`}; ${window.windowDurationMins == null ? 'duration unknown' : `${window.windowDurationMins} min`}; ${window.resetsAt == null ? 'reset unknown' : `reported reset ${new Date(window.resetsAt * 1000).toISOString()}`}`);
+        }
+        console.log('Reported windows do not prove recovery.');
+      } else console.log(`ChatGPT account quota: ${quota?.message ?? 'unavailable'}`);
+      console.log('Foundry activity only:');
+    }
     win(u.fiveHour);
     win(u.sevenDay);
     if (u.pausedUntil) console.log(`⏸ ${u.provider} paused (rate limited) until ${new Date(u.pausedUntil).toLocaleTimeString()}`);
@@ -320,14 +351,14 @@ switch (cmd) {
     break;
   }
   case 'doctor': {
-    const report = (await serverUp()) ? await api('/api/doctor') : await (await skillsLocal()).doctor();
+    const report = (await serverUp()) ? await providerApi('/api/doctor') : await (await skillsLocal(provider)).doctor();
     if (has('--json')) console.log(JSON.stringify(report, null, 2));
     else {
       for (const ch of report.checks) {
         const mark = ch.ok ? '✔' : ch.severity === 'warn' ? '⚠' : '✘';
         console.log(`${mark} ${pad(ch.label, 30)} ${ch.detail}`);
         if (!ch.ok && ch.fix?.command) console.log(`      fix: ${ch.fix.command}`);
-        if (!ch.ok && ch.fix?.installId) console.log(`      or:  foundry skills install ${ch.fix.installId}`);
+        if (!ch.ok && ch.fix?.installId) console.log(`      or:  foundry skills install ${ch.fix.installId}${provider ? ` --provider ${provider}` : ''}`);
         if (!ch.ok && ch.fix?.url) console.log(`      see: ${ch.fix.url}`);
       }
       console.log(report.ok ? '\nall good ✔' : '\nsome checks failed ✘');
@@ -336,14 +367,14 @@ switch (cmd) {
     break;
   }
   case 'skills': {
-    const sub = rest[0];
+    const [sub, target] = positional();
     const up = await serverUp();
-    const local = up ? null : await skillsLocal();
+    const local = up ? null : await skillsLocal(provider);
     const STATUS_ICON: Record<string, string> = { installed: '✔', 'installed-unmanaged': '✔', 'installed-via-plugin': '✔', partial: '◐', missing: '✘' };
     if (sub === 'list' || sub === undefined) {
       const repo = opt('--repo') ? resolve(opt('--repo')!) : undefined;
       const scope = opt('--scope') ?? 'all';
-      const o = up ? await api(`/api/skills${repo ? `?repo=${encodeURIComponent(repo)}` : ''}`) : await local!.overview(repo);
+      const o = up ? await providerApi(`/api/skills${repo ? `?repo=${encodeURIComponent(repo)}` : ''}`) : await local!.overview(repo);
       const rows = o.installed.filter((r: any) => scope === 'all' || r.scope === scope);
       if (has('--json')) return console.log(JSON.stringify({ ...o, installed: rows }, null, 2));
       console.log(`${rows.length} skills (${o.skillsDir}) — ${o.duplicates.length} duplicate name(s)${o.lastSession ? `; Claude last saw ${o.lastSession.skills.length} skills` : ''}\n`);
@@ -354,7 +385,7 @@ switch (cmd) {
       break;
     }
     if (sub === 'catalog') {
-      const o = up ? await api('/api/skills') : await local!.overview();
+      const o = up ? await providerApi('/api/skills') : await local!.overview();
       for (const tier of ['required', 'recommended', 'optional']) {
         console.log(`\n[${tier}]`);
         for (const s of o.catalog.filter((x: any) => x.entry.tier === tier)) console.log(`  ${STATUS_ICON[s.status] ?? '?'} ${pad(s.entry.id, 26)} ${pad(s.status, 22)} ${s.entry.summary}\n      why: ${s.entry.why}${s.manual && s.status !== 'installed' ? `\n      install: ${s.manual.command}` : ''}`);
@@ -364,26 +395,26 @@ switch (cmd) {
     if (sub === 'install') {
       const tier = opt('--tier');
       if (tier) {
-        const r = up ? await api('/api/skills/install-tier', { method: 'POST', body: JSON.stringify({ tiers: [tier] }) }) : await local!.installTier([tier as any]);
+        const r = up ? await providerApi('/api/skills/install-tier', { method: 'POST', body: JSON.stringify({ tiers: [tier] }) }) : await local!.installTier([tier as any]);
         for (const x of r.results) console.log(`${x.ok ? '✔' : '✘'} ${pad(x.name, 28)} ${x.ok ? (x.path ? 'installed' : 'already satisfied') : x.error}${x.manual ? `\n      run: ${x.manual.command}` : ''}`);
         break;
       }
-      const id = rest[1];
+      const id = target;
       if (!id) return usage('skills install needs <id|name> or --tier');
-      const r = up ? await api('/api/skills/install', { method: 'POST', body: JSON.stringify({ id, force: has('--force') }) }) : await local!.install(id, { force: has('--force') });
+      const r = up ? await providerApi('/api/skills/install', { method: 'POST', body: JSON.stringify({ id, force: has('--force') }) }) : await local!.install(id, { force: has('--force') });
       if (r.manual) console.log(`${r.name}: manual install required\n  run: ${r.manual.command}${r.manual.docs ? `\n  see: ${r.manual.docs}` : ''}`);
       else console.log(`✔ ${r.name} installed at ${r.path}${r.commit ? ` @ ${r.commit.slice(0, 7)}` : ''}`);
       break;
     }
     if (sub === 'uninstall' || sub === 'restore') {
-      const name = rest[1];
+      const name = target;
       if (!name) return usage(`skills ${sub} needs <name>`);
-      const r = up ? await api(`/api/skills/${encodeURIComponent(name)}/${sub}`, { method: 'POST', body: JSON.stringify({ force: has('--force') }) }) : sub === 'uninstall' ? await local!.uninstall(name, { force: has('--force') }) : await local!.restore(name, { force: has('--force') });
+      const r = up ? await providerApi(`/api/skills/${encodeURIComponent(name)}/${sub}`, { method: 'POST', body: JSON.stringify({ force: has('--force') }) }) : sub === 'uninstall' ? await local!.uninstall(name, { force: has('--force') }) : await local!.restore(name, { force: has('--force') });
       console.log(sub === 'uninstall' ? `✔ ${name} moved to ${r.trash.path}${r.note ? `\n  note: ${r.note}` : ''}` : `✔ ${name} restored to ${r.path}`);
       break;
     }
     if (sub === 'update') {
-      const r = up ? await api('/api/skills/update', { method: 'POST', body: JSON.stringify({ name: rest[1] }) }) : await local!.update(rest[1]);
+      const r = up ? await providerApi('/api/skills/update', { method: 'POST', body: JSON.stringify({ name: target }) }) : await local!.update(target);
       for (const u of r.updated) console.log(`↑ ${u.name} ${u.from?.slice(0, 7) ?? '?'} → ${u.to?.slice(0, 7) ?? '?'}`);
       for (const n of r.unchanged) console.log(`= ${n} up to date`);
       for (const e of r.errors) console.log(`✘ ${e.name}: ${e.error}`);
@@ -391,7 +422,7 @@ switch (cmd) {
       break;
     }
     if (sub === 'trash') {
-      const list = up ? await api('/api/skills/trash') : local!.trash();
+      const list = up ? await providerApi('/api/skills/trash') : local!.trash();
       if (!list.length) console.log('trash is empty');
       for (const t of list) console.log(`${t.trashedAt.slice(0, 19)}  ${pad(t.name, 28)} ${t.reason}`);
       break;
@@ -401,6 +432,37 @@ switch (cmd) {
   default:
     usage();
 }
+}
+
+async function serverLogin(provider: 'claude' | 'codex'): Promise<void> {
+  const query = `?provider=${provider}`;
+  let session = await api(`/api/auth/login${query}`, { method: 'POST', body: '{}' });
+  const id = session.id;
+  let shown = 0;
+  let shownUrl: string | null = null;
+  let cancelled = false;
+  const cancel = () => { cancelled = true; };
+  process.on('SIGINT', cancel);
+  try {
+    while (session && session.id === id) {
+      for (const line of session.lines.slice(shown)) console.log(line);
+      shown = session.lines.length;
+      if (session.url && session.url !== shownUrl) { console.log(`Open ${session.url}`); shownUrl = session.url; }
+      if (session.done) {
+        if (!session.ok) { console.error(session.error ?? 'Sign-in failed.'); process.exitCode = 1; }
+        else console.log(`✔ ${provider}: signed in.`);
+        return;
+      }
+      if (cancelled) { await api(`/api/auth/login/cancel${query}`, { method: 'POST' }); process.exitCode = 130; return; }
+      if (session.needsCode) {
+        console.log(`Complete this sign-in at ${BASE}/accounts; the session remains active there.`);
+        return;
+      }
+      await Bun.sleep(1000);
+      session = await api(`/api/auth/login${query}`);
+    }
+    console.error('The sign-in session changed. Check Accounts in Foundry.'); process.exitCode = 1;
+  } finally { process.off('SIGINT', cancel); }
 }
 
 function usage(msg?: string): never {
