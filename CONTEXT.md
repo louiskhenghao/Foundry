@@ -151,7 +151,10 @@ A Task after which a person can see or try something meaningful for the first ti
 One pause at a Milestone. The human continues, or writes what they saw; a small triage session proposes what the feedback becomes — a *hint* for the remaining Tasks, *fix* Tasks (after which the same Milestone opens once more for a second look), or a *Decision* recorded with the Brief's Decisions — and the human confirms before anything changes. A Milestone opens at most twice; later feedback becomes hints.
 
 **Preview**
-The Goal's result running: the engine starts the Brief's run command (or the package.json dev/start script) in the Progress folder on a port from Settings → Preview & self-check, links the human to it, restarts it after each integration, and stops it when idle, when the Goal ends, or on shutdown.
+The Goal's result running: one or more apps (a monorepo's web app, admin, API), each started from the Brief's apps or run command, or detected from package.json workspaces and scripts, in its folder of the Progress folder on its own port from Settings → Preview & self-check. Each app can be started and stopped on its own; the first is the primary app that milestones and the self-check open. The engine links the human to them, restarts running apps after each integration, and stops them when idle, when the Goal ends, or on shutdown.
+
+**Preview services**
+The Docker services a Preview's apps depend on (databases, object storage), from the repository's compose file. Shared by every Goal of the repository, reused when something else already provides them, and kept running when the Preview stops. Where Foundry has no Docker access it shows the command instead.
 
 **Difficulty**
 simple, standard or complex — the Clarifier's rating of a Task, the human's to change in the Brief. It picks the row of the Goal's Model Preset the Worker runs on.

@@ -263,7 +263,7 @@ flowchart LR
 | `draft-<goalId>` | Draft and Revise on the Brief page |
 | `goal-review-<goalId>-<fixCycles>` | the Goal reviewer, one channel per review round |
 | `docs-<goalId>`, `feedback-<goalId>`, `suggest-<escalationId>`, `style-sample-<goalId>` | Documenter, feedback triage, Suggestion, Style Samples |
-| `autoskills-<goalId>`, `preview-<goalId>` | autoskills install output, preview server output |
+| `autoskills-<goalId>`, `preview-<goalId>-<appKey>` | autoskills install output, one preview app's server output |
 | `skills-op:<opId>` | one Skills page operation: a catalog install, tier install, adoption, bulk uninstall, tool install or source update |
 | `tool-install`, `self-update`, `gh-auth` | pack and tool installs started from Setup or Settings, the self-update, the GitHub login |
 
@@ -295,7 +295,7 @@ The history endpoint returns the last 400 events, slimmed the same way, includin
 | Manual Resolution | `engine/src/merge-resolve.ts`, `apps/web/src/pages/MergeResolvePage.tsx` |
 | Base Sync and refresh between tasks | `engine/src/git/sync.ts`, `Engine.ensureSyncedWorkspace` / `refreshBase` |
 | Milestones, Checkpoints, feedback triage | `engine/src/checkpoint.ts`, `engine/src/feedback.ts`, `core/src/schema/feedback.ts` |
-| Preview | `engine/src/preview/{manager,detect}.ts` |
+| Preview | `engine/src/preview/{manager,detect,services}.ts` |
 | Goal review, fix tasks | `engine/src/goal-review.ts`, `engine/src/fix-tasks.ts` |
 | Completion Actions (docs, graph refresh, artifacts) | `engine/src/docs-generate.ts`, `engine/src/completion.ts` |
 | Delivery, PR Stack, CI fixing | `engine/src/delivery/{pipeline,policy,gh}.ts`, `core/src/schema/delivery.ts` |
