@@ -116,7 +116,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
   if (log && log.code === 0 && log.stdout.trim()) overview = `${overview ?? ''}\n\n## Recent commits\n${log.stdout.trim()}`.trim();
 
   const scenario = natureScenario(nature);
-  const [clarifierHint, plannerHint] = await Promise.all([engine.skills.hints.sectionFor('clarifier', { scenario }), engine.skills.hints.sectionFor('planner', { scenario })]);
+  const [clarifierHint, plannerHint] = await Promise.all([engine.skillsFor(goal).hints.sectionFor('clarifier', { scenario }), engine.skillsFor(goal).hints.sectionFor('planner', { scenario })]);
   // a re-run keeps the human's Decisions from the discarded Brief
   const reclarified = store.listByGoal(goal.id, 5000).filter((e) => e.type === 'goal.reclarified').at(-1);
   const decisions = reclarified ? ((reclarified.payload as { decisions?: string }).decisions ?? '') : '';

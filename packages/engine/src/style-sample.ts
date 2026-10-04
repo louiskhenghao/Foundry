@@ -58,7 +58,7 @@ async function generate(engine: Engine, goalId: string, opt: BriefStyleOption, f
   const ws = goalWorkspacePath(config.dataDir, goal);
   await excludeFromGit(ws, ['/artifacts/'], (m) => config.log(m));
   mkdirSync(join(ws, 'artifacts', 'samples'), { recursive: true });
-  const skillsHint = await engine.skills.hints.sectionFor('worker', { scenario: 'image' });
+  const skillsHint = await engine.skillsFor(goal).hints.sectionFor('worker', { scenario: 'image' });
   const prompt = [
     `# Goal (for context)\n${goal.prompt.slice(0, 2000)}`,
     renderStyle({ ...opt, chosenSample: null }),

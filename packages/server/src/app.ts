@@ -38,6 +38,8 @@ const CompletionBody = z.object({
 });
 
 const CreateGoalBody = z.object({
+  provider: z.enum(['claude', 'codex']).optional(),
+  codexModel: z.string().min(1).optional(),
   title: z.string().optional(),
   prompt: z.string().min(1),
   repoPath: z.string().min(1),
@@ -947,12 +949,15 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
 
   // ---------- models ----------
-  app.get('/api/models', (c) => c.json({ models: engine.listModels(), fallbacks: engine.config.modelFallbacks, current: engine.config.models, sync: engine.models.syncState() }));
+  app.get('/api/models', (c) => {
+    const provider = authProvider(c);
+    return c.json({ models: engine.listModels(provider), fallbacks: provider === 'claude' ? engine.config.modelFallbacks : [], current: provider === 'claude' ? engine.config.models : { strong: engine.config.codexModel, cheap: engine.config.codexModel, worker: engine.config.codexModel }, sync: engine.providerModels[provider].syncState() });
+  });
   // model sync: ids from the Claude Code binary (free) + one tiny session per family alias (~$0.04)
-  app.post('/api/models/sync', async (c) => c.json(await engine.syncModels()));
+  app.post('/api/models/sync', async (c) => c.json(await engine.syncModels({ provider: authProvider(c) })));
   app.post('/api/models/probe', async (c) => {
     const { name } = z.object({ name: z.string().min(1).max(80) }).parse(await c.req.json());
-    return c.json(await engine.probeModel(name));
+    return c.json(await engine.probeModel(name, authProvider(c)));
   });
 
   // ---------- settings ----------
@@ -1034,26 +1039,36 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json({ ok: true, ...(await engine.skills.restore(c.req.param('name'), { force, trashPath })) });
   });
   app.get('/api/doctor', async (c) => c.json(await engine.doctor()));
-  // ---------- claude account ----------
-  app.get('/api/auth', async (c) => c.json({ provider: engine.config.provider, status: await engine.auth.status(c.req.query('force') === '1'), login: engine.auth.loginSession() }));
+  // Every account operation is explicitly scoped; omitted provider preserves CLI compatibility.
+  const authProvider = (c: any): 'claude' | 'codex' => z.enum(['claude', 'codex']).parse(c.req.query('provider') ?? engine.config.provider);
+  app.get('/api/accounts', async (c) => c.json({ defaultProvider: engine.config.provider, accounts: await Promise.all((['claude', 'codex'] as const).map(async (provider) => ({
+    provider, status: await engine.accounts[provider].status(c.req.query('force') === '1'),
+    installed: !!(provider === 'codex' ? engine.config.codexBin ?? Bun.which('codex') : engine.config.claudeBin ?? Bun.which('claude')),
+    capabilities: { dollarCosts: provider === 'claude', skillTelemetry: provider === 'claude', nativeSubagents: provider === 'claude', managedMcp: provider === 'claude', externalSessions: provider === 'claude' },
+  }))) }));
+  app.get('/api/auth', async (c) => { const provider = authProvider(c); const auth = engine.accounts[provider]; return c.json({ provider, status: await auth.status(c.req.query('force') === '1'), login: auth.loginSession() }); });
   app.post('/api/auth/login', async (c) => {
     const body = z.object({ email: z.string().optional() }).parse(await c.req.json().catch(() => ({})));
-    return c.json(engine.auth.startLogin(body));
+    return c.json(engine.accounts[authProvider(c)].startLogin(body));
   });
-  app.get('/api/auth/login', (c) => c.json(engine.auth.loginSession()));
-  // headless machines (Docker, a remote host): the CLI shows a code in the browser and waits for it here
+  app.get('/api/auth/login', (c) => c.json(engine.accounts[authProvider(c)].loginSession()));
   app.post('/api/auth/login/code', async (c) => {
     const { code } = z.object({ code: z.string().min(1) }).parse(await c.req.json());
-    return c.json(engine.auth.submitCode(code));
+    return c.json(engine.accounts[authProvider(c)].submitCode(code));
   });
-  app.post('/api/auth/login/cancel', (c) => {
-    engine.auth.cancelLogin();
-    return c.json({ ok: true });
+  app.post('/api/auth/login/cancel', (c) => { engine.accounts[authProvider(c)].cancelLogin(); return c.json({ ok: true }); });
+  app.post('/api/auth/logout', async (c) => {
+    const provider = authProvider(c);
+    if (engine.busy().total > 0) throw new HttpError(409, { error: 'Wait for active work to finish before signing out. Credentials are shared with the local CLI.' });
+    return c.json(await engine.accounts[provider].logout());
   });
-  app.post('/api/auth/logout', async (c) => c.json(await engine.auth.logout()));
 
-  app.get('/api/usage', (c) => c.json(engine.usage()));
-  app.post('/api/usage/probe', async (c) => c.json(await engine.probeUsage()));
+  app.get('/api/usage', (c) => c.json(engine.usage(authProvider(c))));
+  app.post('/api/usage/probe', async (c) => {
+    const provider = authProvider(c);
+    if (provider === 'codex') throw new HttpError(400, { error: 'Codex does not expose a quota refresh signal.' });
+    return c.json(await engine.probeUsage(provider));
+  });
   app.get('/api/usage/minimax', async (c) => c.json(await engine.minimaxQuota(c.req.query('refresh') === '1')));
 
   app.post('/internal/boundary', async (c) => {

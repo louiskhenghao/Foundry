@@ -3,7 +3,7 @@ import { BUILTIN_PRESETS, DEFAULT_NATURE_PRESETS, effectivePresets, natureKey } 
 import type { EngineConfig } from '../config.ts';
 
 type PresetConfig = Pick<EngineConfig, 'modelPresets' | 'naturePreset'> & Partial<Pick<EngineConfig, 'provider' | 'codexModel'>>;
-type GoalRef = Pick<Goal, 'nature' | 'modelPreset'> & Partial<Pick<Goal, 'modelSubstitutions'>>;
+type GoalRef = Pick<Goal, 'nature' | 'modelPreset'> & Partial<Pick<Goal, 'modelSubstitutions' | 'provider' | 'models'>>;
 
 /**
  * The model table a goal runs on: its own preset (chosen on the New goal form) or the one Settings picks for its nature,
@@ -12,8 +12,8 @@ type GoalRef = Pick<Goal, 'nature' | 'modelPreset'> & Partial<Pick<Goal, 'modelS
  */
 export function tableFor(config: PresetConfig, goal: GoalRef): { table: PresetTable; presetId: string; nature: ModelNature } {
   const nature = natureKey(goal.nature);
-  if (config.provider === 'codex') {
-    const table = Object.fromEntries(Object.keys(BUILTIN_PRESETS.production!.tables[nature]).map((action) => [action, config.codexModel ?? 'codex-default'])) as PresetTable;
+  if ((goal.provider ?? config.provider) === 'codex') {
+    const table = Object.fromEntries(Object.keys(BUILTIN_PRESETS.production!.tables[nature]).map((action) => [action, goal.models?.worker ?? config.codexModel ?? 'codex-default'])) as PresetTable;
     return { table, presetId: 'codex', nature };
   }
   const presets = effectivePresets(config.modelPresets);

@@ -42,7 +42,7 @@ export interface FollowUpDraft {
   /** false = A is not finished; `reason` says why */
   followable: boolean;
   reason: string | null;
-  prefill: { repoPath: string; baseBranch: string; nature: GoalNature; modelPreset: string | null; effort: Effort | null; pace: 'thorough' | 'fast'; mode: GoalMode; delivery: DeliveryPolicy };
+  prefill: { provider: 'claude' | 'codex'; codexModel?: string; repoPath: string; baseBranch: string; nature: GoalNature; modelPreset: string | null; effort: Effort | null; pace: 'thorough' | 'fast'; mode: GoalMode; delivery: DeliveryPolicy };
   start: {
     /** where B starts unless the human picks the other one */
     recommended: 'base' | 'previous';
@@ -109,7 +109,7 @@ export async function followUpDraft(engine: Engine, goalId: string): Promise<Fol
     previous: { id: a.id, title: a.title, state: a.state, repoPath: a.repoPath, baseBranch: a.baseBranch, branch: a.branch, branchExists: w.branchExists },
     followable,
     reason: followable ? null : `the goal is ${a.state}; it can be followed once it is finished`,
-    prefill: { repoPath: a.repoPath, baseBranch: a.baseBranch, nature: a.nature, modelPreset: a.modelPreset, effort: a.effort, pace: a.workflow.pace, mode: a.mode, delivery: a.delivery.policy },
+    prefill: { provider: a.provider ?? engine.config.provider, codexModel: a.provider === 'codex' ? a.models.worker : undefined, repoPath: a.repoPath, baseBranch: a.baseBranch, nature: a.nature, modelPreset: a.modelPreset, effort: a.effort, pace: a.workflow.pace, mode: a.mode, delivery: a.delivery.policy },
     start: { recommended: w.onBase ? 'base' : 'previous', onBase: w.onBase, detail: w.detail, baseBranch: a.baseBranch, previousBranch: w.branchExists ? a.branch : null },
     attachments: a.attachments,
     style: styleOf(engine, a),

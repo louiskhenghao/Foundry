@@ -34,12 +34,12 @@ describe('Codex engine integration', () => {
     const runner = new FakeRunner(() => {});
     const engine = new Engine(cfg, runner);
     try {
-      expect(engine.config.models.cheap).toBe('codex-default');
+      expect(engine.config.models.cheap).not.toBe('codex-default'); // Claude defaults remain available alongside Codex
       expect(engine.modelsInUse().has('haiku')).toBe(false);
       await engine.syncModels({ probe: false });
       expect(runner.calls).toHaveLength(0);
       expect(engine.usage().note).toContain('cannot be enforced');
-      expect(() => engine.updateSettings({ engine: { provider: 'claude' } })).toThrow('separate');
+      expect(() => engine.updateSettings({ engine: { provider: 'claude' } })).toThrow('fixed at launch');
       engine.updateSettings({ engine: { codexBin: '/different' } });
       expect(engine.config.provider).toBe('codex');
       expect(engine.config.codexBin).not.toBe('/different');

@@ -142,6 +142,8 @@ export const GoalFollows = z.object({
 export type GoalFollows = z.infer<typeof GoalFollows>;
 
 export const Goal = z.object({
+  /** Fixed at creation. Absent only in events written before provider support. */
+  provider: z.enum(['claude', 'codex']).optional(),
   id: z.string(),
   title: z.string().min(1),
   prompt: z.string().min(1),

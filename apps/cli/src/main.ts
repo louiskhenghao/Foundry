@@ -110,6 +110,8 @@ switch (cmd) {
       prompt,
       repoPath: resolve(repoPath),
       title: opt('--title'),
+      provider: opt('--provider') ?? draft?.prefill.provider,
+      codexModel: opt('--codex-model') ?? draft?.prefill.codexModel,
       baseBranch: opt('--base'),
       budgetPreset: opt('--preset') ?? (opt('--max-cost') || opt('--max-min') ? 'custom' : 'auto'),
       budgets: {
@@ -131,7 +133,7 @@ switch (cmd) {
     if (draft) {
       const p = draft.prefill;
       body.nature ??= p.nature;
-      body.modelPreset ??= p.modelPreset ?? undefined;
+      if (body.provider !== 'codex') body.modelPreset ??= p.modelPreset ?? undefined;
       body.effort ??= p.effort ?? undefined;
       body.workflow ??= { pace: p.pace };
       body.mode = p.mode;
@@ -150,18 +152,18 @@ switch (cmd) {
     if (!id) {
       const goals = await api('/api/goals');
       if (!goals.length) console.log('no goals');
-      for (const g of goals) console.log(`${g.id}  ${pad(g.state, 24)} $${g.costUsd.toFixed(2)}/${g.budgets.maxCostUsd ?? '∞'}  tasks=${JSON.stringify(g.taskCounts)}  esc=${g.openEscalations}  ${g.title}`);
+      for (const g of goals) console.log(`${g.id}  ${pad(g.state, 24)} ${g.provider === 'codex' ? 'Codex · cost unavailable' : `$${g.costUsd.toFixed(2)}/${g.budgets.maxCostUsd ?? '∞'}`}  tasks=${JSON.stringify(g.taskCounts)}  esc=${g.openEscalations}  ${g.title}`);
     } else {
       const d = await api(`/api/goals/${id}`);
       if (has('--json')) return console.log(JSON.stringify(d, null, 2));
       const g = d.goal;
-      console.log(`${g.id} [${g.state}] ${g.title}\n  repo ${g.repoPath} (${g.baseBranch} → ${g.branch})\n  cost $${g.costUsd.toFixed(3)} / ${g.budgets.maxCostUsd == null ? 'no cap' : `$${g.budgets.maxCostUsd}`}   elapsed ${d.budget.elapsedMin.toFixed(1)} / ${g.budgets.maxDurationMin ?? '∞'} min   preset ${g.budgetPreset}`);
+      console.log(`${g.id} [${g.state}] ${g.title}\n  repo ${g.repoPath} (${g.baseBranch} → ${g.branch})\n  cost ${g.provider === 'codex' ? 'unavailable' : `$${g.costUsd.toFixed(3)} / ${g.budgets.maxCostUsd == null ? 'no cap' : `$${g.budgets.maxCostUsd}`}`}    elapsed ${d.budget.elapsedMin.toFixed(1)} / ${g.budgets.maxDurationMin ?? '∞'} min   preset ${g.budgetPreset}`);
       for (const t of d.tasks) {
         const attempts = d.attempts.filter((a: any) => a.taskId === t.id);
         console.log(`  - ${pad(t.state, 10)} ${t.title}  (attempts ${attempts.length}/${t.retryBudget + t.extraAttempts}${t.worktreePath ? ', own worktree' : ''})`);
         for (const a of attempts) {
           const res = d.checkResults.filter((r: any) => r.attemptId === a.id);
-          console.log(`      #${a.index} ${a.kind} ${pad(a.state, 9)} $${a.costUsd.toFixed(3)} turns=${a.numTurns} ${a.resultSubtype ?? ''} checks: ${res.map((r: any) => (r.status === 'pass' ? '✅' : '❌')).join('') || '-'}`);
+          console.log(`      #${a.index} ${a.kind} ${pad(a.state, 9)} ${g.provider === 'codex' ? 'cost and turns unavailable' : `$${a.costUsd.toFixed(3)} turns=${a.numTurns}`} ${a.resultSubtype ?? ''} checks: ${res.map((r: any) => (r.status === 'pass' ? '✅' : '❌')).join('') || '-'}`);
         }
       }
       const open = d.escalations.filter((e: any) => e.state === 'open');
@@ -182,7 +184,7 @@ switch (cmd) {
       console.log('\nTasks:\n' + b.tasks.map((t: any) => `  ${t.key} ${t.title}${t.dependsOnKeys.length ? ` (after ${t.dependsOnKeys.join(',')})` : ''}${t.parallelizable ? ' ∥' : ''}`).join('\n'));
       console.log('\nChecks:\n' + b.checks.map((c: any) => `  [${c.tier}] ${c.taskKey ?? 'goal'}: ${c.name}${c.spec.type === 'command' ? `  \`${c.spec.cmd}\`` : ''}`).join('\n'));
       if (b.questions.length) console.log('\nQuestions:\n' + b.questions.map((q: any) => `  ${q.blocking ? '(blocking) ' : ''}${q.text} → ${q.answer ?? '(unanswered)'}`).join('\n'));
-      console.log(`\nEstimate: $${b.costEstimateUsd} / ${b.timeEstimateMin} min`);
+      console.log(`\nEstimate: ${d.goal.provider === 'codex' ? 'cost unavailable' : `$${b.costEstimateUsd}`} / ${b.timeEstimateMin} min`);
     }
     if (has('--approve')) {
       const answers = opts('--answer');
@@ -281,35 +283,37 @@ switch (cmd) {
     const settings = new SettingsStore(cfg.dataDir);
     applySettingsToConfig(cfg, settings.values(), settings.fileLeaves());
     const up = await serverUp();
-    const info = up ? await api('/api/auth?force=1') : null;
-    const provider = info?.provider ?? cfg.provider;
+    const selected = opt('--provider');
+    if (selected && !['claude', 'codex'].includes(selected)) return usage('--provider must be claude or codex');
+    const info = up ? await api(`/api/auth?force=1${selected ? `&provider=${selected}` : ''}`) : null;
+    const provider = selected ?? info?.provider ?? cfg.provider;
     const sub = rest[0] ?? 'status';
     if (sub === 'login' || sub === 'logout') {
-      // The local settings must point at the running server's backend before handing off the terminal.
-      if (provider !== cfg.provider) return usage(`Server uses ${provider}; set FOUNDRY_PROVIDER=${provider} for auth commands.`);
       const bin = provider === 'codex' ? cfg.codexBin ?? Bun.which('codex') ?? 'codex' : cfg.claudeBin ?? Bun.which('claude') ?? 'claude';
       const args = provider === 'codex' ? [sub, ...(sub === 'login' && has('--device-auth') ? ['--device-auth'] : [])] : ['auth', sub];
-      const p = Bun.spawn([bin, ...args], { env: { ...process.env, ...(provider === 'codex' ? { CODEX_HOME: cfg.codexHome } : {}) }, stdin: 'inherit', stdout: 'inherit', stderr: 'inherit' });
+      const p = Bun.spawn([bin, ...args], { env: { ...process.env, ...(provider === 'codex' ? { CODEX_HOME: cfg.codexHome } : { CLAUDE_CONFIG_DIR: cfg.claudeHome }) }, stdin: 'inherit', stdout: 'inherit', stderr: 'inherit' });
       process.exit(await p.exited);
     }
-    const st = info?.status ?? (provider === 'codex' ? await codexAuthStatus(cfg.codexBin ?? Bun.which('codex'), undefined, cfg.codexHome) : await claudeAuthStatus(cfg.claudeBin ?? Bun.which('claude')));
+    const st = info?.status ?? (provider === 'codex' ? await codexAuthStatus(cfg.codexBin ?? Bun.which('codex'), undefined, cfg.codexHome) : await claudeAuthStatus(cfg.claudeBin ?? Bun.which('claude'), undefined, cfg.claudeHome));
     if (has('--json')) return console.log(JSON.stringify(st, null, 2));
     console.log(st.loggedIn ? `✔ ${provider}: signed in (${st.email ?? st.authMethod ?? 'account'})` : `✘ ${provider}: ${st.error ?? 'not signed in'} — run: foundry auth login`);
     break;
   }
   case 'usage': {
-    const u = has('--probe') ? await api('/api/usage/probe', { method: 'POST' }) : await api('/api/usage');
+    const query = opt('--provider') ? `?provider=${encodeURIComponent(opt('--provider')!)}` : '';
+    const u = has('--probe') ? await api(`/api/usage/probe${query}`, { method: 'POST' }) : await api(`/api/usage${query}`);
+    const cost = (value: number) => u.costAvailable === false ? 'cost unavailable' : `$${value.toFixed(2)}`;
     if (has('--json')) return console.log(JSON.stringify(u, null, 2));
     const win = (w: any) => {
       const reset = w.resetsAt ? `resets ${new Date(w.resetsAt).toLocaleTimeString()}` : 'no reset signal yet';
       console.log(`${w.label}: ${w.status ?? 'unknown'} (${reset}${w.isUsingOverage ? ', using overage' : ''})`);
-      console.log(`  sessions ${w.sessions}  in ${fmtK(w.inputTokens)}  out ${fmtK(w.outputTokens)}  cache-read ${fmtK(w.cacheReadTokens)}  est $${w.costUsd.toFixed(2)}`);
+      console.log(`  sessions ${w.sessions}  in ${fmtK(w.inputTokens)}  out ${fmtK(w.outputTokens)}  cache-read ${fmtK(w.cacheReadTokens)}  ${cost(w.costUsd)}`);
     };
     win(u.fiveHour);
     win(u.sevenDay);
-    if (u.pausedUntil) console.log(`⏸ engine paused (rate limited) until ${new Date(u.pausedUntil).toLocaleTimeString()}`);
-    if (u.byModel.length) console.log('by model (7d): ' + u.byModel.map((m: any) => `${m.model} $${m.costUsd.toFixed(2)}`).join(', '));
-    if (u.byKind.length) console.log('by kind (7d):  ' + u.byKind.map((k: any) => `${k.kind} ${k.sessions}×$${k.costUsd.toFixed(2)}`).join(', '));
+    if (u.pausedUntil) console.log(`⏸ ${u.provider} paused (rate limited) until ${new Date(u.pausedUntil).toLocaleTimeString()}`);
+    if (u.byModel.length) console.log('by model (7d): ' + u.byModel.map((m: any) => `${m.model} ${cost(m.costUsd)}`).join(', '));
+    if (u.byKind.length) console.log('by kind (7d):  ' + u.byKind.map((k: any) => `${k.kind} ${k.sessions}× ${cost(k.costUsd)}`).join(', '));
     console.log(`\n${u.note}`);
     break;
   }
@@ -410,6 +414,7 @@ function fmtK(n: number) {
 }
 
 async function watch(goalId: string): Promise<void> {
+  const costAvailable = (await api(`/api/goals/${goalId}`)).goal.provider !== 'codex';
   const wsUrl = BASE.replace(/^http/, 'ws') + '/ws';
   await new Promise<void>((resolveDone) => {
     const ws = new WebSocket(wsUrl);
@@ -423,7 +428,7 @@ async function watch(goalId: string): Promise<void> {
           e.type === 'goal.state_changed' ? `${p.from} → ${p.to} (${p.reason})` :
           e.type === 'task.state_changed' ? `task ${p.taskId.slice(-6)} ${p.from} → ${p.to} (${p.reason})` :
           e.type === 'check.finished' ? `check ${p.result.status} ${p.result.summary.split('\n')[0]?.slice(0, 80)}` :
-          e.type === 'attempt.finished' ? `attempt ${p.attemptId.slice(-6)} ${p.resultSubtype} $${p.costUsd.toFixed(3)} turns=${p.numTurns}` :
+          e.type === 'attempt.finished' ? `attempt ${p.attemptId.slice(-6)} ${p.resultSubtype} ${costAvailable ? `$${p.costUsd.toFixed(3)} turns=${p.numTurns}` : 'cost and turns unavailable'}` :
           e.type === 'escalation.raised' ? `⚠ ESCALATION [${p.escalation.trigger}] ${p.escalation.id}: ${p.escalation.message.split('\n')[0]}` :
           e.type === 'engine.note' ? `${p.level}: ${p.message.split('\n')[0]}` :
           e.type === 'goal.cost_added' ? `+$${p.costUsd.toFixed(3)} ${p.source}` : '';

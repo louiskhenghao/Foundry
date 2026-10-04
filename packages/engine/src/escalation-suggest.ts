@@ -102,7 +102,7 @@ export async function runSuggest(engine: Engine, escalationId: string): Promise<
   engine.recordSessionUsage(result, { goalId: goal.id, kind: 'suggest', model: modelFor(engine.config, goal, 'suggest').model });
   const parsed = SuggestOutput.safeParse(result.structuredOutput ?? tryJson(result.finalText));
   if (!parsed.success) throw new Error(`the AI did not return a usable suggestion${result.errorMessage ? `: ${result.errorMessage}` : ''}`);
-  const suggestion: EscalationSuggestion = { ...parsed.data, hint: parsed.data.action === 'retry_with_hint' ? parsed.data.hint.trim() : parsed.data.hint.trim(), costUsd: result.costUsd, at: new Date().toISOString() };
+  const suggestion: EscalationSuggestion = { ...parsed.data, hint: parsed.data.action === 'retry_with_hint' ? parsed.data.hint.trim() : parsed.data.hint.trim(), costUsd: result.costUsd, costAvailable: goal.provider !== 'codex', at: new Date().toISOString() };
   store.append({ type: 'escalation.suggested', goalId: goal.id, payload: { escalationId, suggestion } });
   return suggestion;
 }

@@ -138,7 +138,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
   const lines = d.split('\n').length;
   const small = lines <= engine.config.smallGoalLines;
   const reviewer = modelFor(engine.config, goal, small ? 'taskReviewer' : 'goalReviewer');
-  const reviewerHint = small ? null : await engine.skills.hints.sectionFor('reviewer-goal', { scenario });
+  const reviewerHint = small ? null : await engine.skillsFor(goal).hints.sectionFor('reviewer-goal', { scenario });
   const media =
     scenario === 'image' || scenario === 'video'
       ? `# Media review\nThis goal's deliverables are media files under \`artifacts/\` — they are NOT in the diff (kept out of git); the committed \`docs/artifacts/\` manifests describe them. Verify every manifest entry exists on disk${scenario === 'image' ? ' and open the images with the Read tool (it renders them) to judge them against the checks' : '; verify video metadata with ffprobe when available (you cannot watch video — final visual quality stays with the human)'}.`

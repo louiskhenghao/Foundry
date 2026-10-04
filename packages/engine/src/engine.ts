@@ -26,6 +26,7 @@ import {
   topoSort,
   Brief as BriefSchema,
 } from '@foundry/core';
+import { ProviderRunner } from './provider-runner.ts';
 import { CodexCliRunner, ClaudeCliRunner, type ClaudeRunner, type RunHandle } from '@foundry/runner';
 import { McpManager } from './mcp/manager.ts';
 import { mmxConfigDir, mmxSignedIn, writeMmxConfig } from './mmx.ts';
@@ -82,6 +83,8 @@ import { relative, resolve } from 'node:path';
 import { type FollowUpDraft, type FollowUpInput, followUpDraft, linkFollowUp, prepareFollowUp } from './follow-up.ts';
 
 export interface CreateGoalInput {
+  provider?: 'claude' | 'codex';
+  codexModel?: string;
   title?: string;
   prompt: string;
   repoPath: string;
@@ -132,6 +135,8 @@ export class Engine {
   readonly mcp: McpManager;
   readonly agents: AgentsMonitor;
   readonly auth: ClaudeAuth;
+  readonly accounts: Record<'claude' | 'codex', ClaudeAuth>;
+  private providerSkills: Record<'claude' | 'codex', SkillsManager>;
   readonly gh: GhClient;
   context: ContextProvider;
   private delivering = new Map<string, AbortController>();
@@ -155,8 +160,8 @@ export class Engine {
   /** must checks already failing on a goal-branch commit (merges are judged on regressions only) */
   readonly baseline = new BaselineChecks(this);
   private reviewing = new Set<string>();
-  private rateLimitedUntil: number | null = null;
-  private resumeTimer: ReturnType<typeof setTimeout> | null = null;
+  private rateLimitedUntil = new Map<'claude' | 'codex', number>();
+  private resumeTimers = new Map<'claude' | 'codex', ReturnType<typeof setTimeout>>();
 
   readonly settings: SettingsStore;
   /** pushes escalations / goal endings / delivery results / usage pauses to Telegram & Discord (Settings → Notifications) */
@@ -173,6 +178,7 @@ export class Engine {
   private mmxReady = false;
   /** what this machine has learned about model names (requested → resolved id, last ok/fail) */
   readonly models: ModelRegistry;
+  readonly providerModels: Record<'claude' | 'codex', ModelRegistry>;
   /** autoskills runs in progress, per goal (tasks wait for them before their first attempt) */
   private autoskillsRuns = new Map<string, Promise<void>>();
   /** test seam: deps handed to runAutoskills (fake npx / node version) */
@@ -182,7 +188,7 @@ export class Engine {
 
   constructor(
     public readonly config: EngineConfig,
-    runner?: ClaudeRunner,
+    runner?: ClaudeRunner | Record<'claude' | 'codex', ClaudeRunner>,
     gh?: GhClient,
   ) {
     // settings file > env > defaults: only file-sourced leaves override the env-built config (code overrides stay)
@@ -193,45 +199,44 @@ export class Engine {
     if (previousProvider !== config.provider) throw new Error(`This data directory belongs to ${previousProvider}. Set FOUNDRY_DATA_DIR to a separate directory for ${config.provider}; session IDs cannot be migrated between backends.`);
     mkdirSync(config.dataDir, { recursive: true });
     writeFileSync(providerFile, config.provider);
-    if (config.provider === 'codex') config.models = { strong: config.codexModel, cheap: config.codexModel, worker: config.codexModel };
     this.mmxReady = writeMmxConfig(config.dataDir, this.minimaxKey(), config.log);
     this.gh = gh ?? new CliGh({ onCommand: (cmd, cwd, r, ms) => config.log(`[gh] ${cmd.slice(0, 4).join(' ')} → ${r.code} (${ms}ms) ${cwd}`) });
     this.store = new EventStore(openDatabase(join(config.dataDir, 'engine.db')));
-    const baseRunner =
-      runner ??
-      (config.provider === 'codex' ? new CodexCliRunner({
-        codexBin: config.codexBin, codexHome: config.codexHome, maxConcurrent: config.maxConcurrent,
-        env: () => ({ FOUNDRY_CALLBACK: `http://${config.host}:${config.port}`, ...this.sessionEnvExtra() }),
-        log: config.log,
-      }) : new ClaudeCliRunner({
-        claudeBin: config.claudeBin,
-        maxConcurrent: config.maxConcurrent,
-        env: () => ({ FOUNDRY_CALLBACK: `http://${config.host}:${config.port}`, ...this.sessionEnvExtra() }),
-        log: config.log,
-      }));
-    this.models = new ModelRegistry(config.dataDir, config.provider);
-    // every session goes through the fallback layer: unavailable model → next candidate, and the registry learns what resolves
-    this.runner = new ModelFallbackRunner(new EffortRunner(baseRunner, () => this.store.db, () => this.config.effort), {
-      fallbacks: () => config.provider === 'codex' ? [] : config.modelFallbacks,
-      registry: this.models,
+    // Freeze the owner of old goals before either backend may create new work in this store.
+    for (const goal of listGoals(this.store.db)) if (!goal.provider) this.store.append({ type: 'goal.provider_assigned', goalId: goal.id, payload: { provider: config.provider } });
+    this.providerModels = {
+      claude: new ModelRegistry(config.provider === 'claude' ? config.dataDir : join(config.dataDir, 'providers', 'claude'), 'claude'),
+      codex: new ModelRegistry(config.provider === 'codex' ? config.dataDir : join(config.dataDir, 'providers', 'codex'), 'codex'),
+    };
+    this.models = this.providerModels[config.provider];
+    const env = () => ({ CLAUDE_CONFIG_DIR: config.claudeHome, FOUNDRY_CALLBACK: `http://${config.host}:${config.port}`, ...this.sessionEnvExtra() });
+    const supplied = (provider: 'claude' | 'codex') => runner && ('run' in runner ? runner : runner[provider]);
+    const wrap = (inner: ClaudeRunner, provider: 'claude' | 'codex') => new ModelFallbackRunner(new EffortRunner(inner, () => this.store.db, () => this.config.effort), {
+      fallbacks: () => provider === 'codex' ? [] : config.modelFallbacks,
+      registry: this.providerModels[provider],
       log: config.log,
       onFallback: ({ spec, from, to, reason }) => {
         const goalId = spec.meta?.goalId ?? null;
-        const tier = (spec.meta?.tier as 'strong' | 'cheap' | 'worker' | undefined) ?? null;
-        this.store.append({ type: 'goal.models_changed', goalId, payload: { tier, from, to, reason } });
-        this.store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `model ${from} is unavailable (${reason}); ${tier ? `${tier} sessions of this goal` : 'this session'} now use ${to}` } });
+        this.store.append({ type: 'goal.models_changed', goalId, payload: { tier: null, from, to, reason } });
       },
     });
+    this.runner = new ProviderRunner({
+      claude: wrap(supplied('claude') ?? new ClaudeCliRunner({ claudeBin: config.claudeBin, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'claude'),
+      codex: wrap(supplied('codex') ?? new CodexCliRunner({ codexBin: config.codexBin, codexHome: config.codexHome, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'codex'),
+    }, (spec) => {
+      if (spec.meta?.goalId) return this.mustGoal(spec.meta.goalId).provider ?? config.provider;
+      return spec.meta?.provider === 'claude' || spec.meta?.provider === 'codex' ? spec.meta.provider : config.provider;
+    }, config.maxConcurrent);
     this.roles = new Roles(config.rolesDir);
-    this.skills = new SkillsManager({
-      provider: config.provider, codexBin: config.codexBin, codexHome: config.codexHome,
-      claudeHome: config.provider === 'codex' ? config.codexHome : config.claudeHome,
-      dataDir: config.dataDir,
+    const makeSkills = (provider: 'claude' | 'codex') => new SkillsManager({
+      provider, codexBin: config.codexBin, codexHome: config.codexHome,
+      claudeHome: provider === 'codex' ? config.codexHome : config.claudeHome,
+      dataDir: provider === config.provider ? config.dataDir : join(config.dataDir, 'providers', provider),
       catalogPath: config.catalogPath,
       claudeBin: config.claudeBin,
       log: config.log,
       // user skills only load when user settings are in scope
-      hintsEnabled: () => config.provider === 'codex' || !config.settingSources || config.settingSources.includes('user'),
+      hintsEnabled: () => provider === 'codex' || !config.settingSources || config.settingSources.includes('user'),
       workflowProfile: () => config.workflowProfile ?? 'mattpocock',
       packs: () => ({ design: config.designPack, image: config.imagePack, video: config.videoPack }),
       // mmx signed in with `mmx auth login` needs no key from Foundry
@@ -240,6 +245,8 @@ export class Engine {
       // every updater run is an audit event (goalId null, informational)
       onRun: (run) => this.store.append({ type: 'skills.update_run', goalId: null, payload: { sourceId: run.sourceId, updater: run.updater, command: run.command, cwd: run.cwd, exitCode: run.exitCode, durationMs: run.durationMs, outputTail: run.outputTail, changed: run.changed, error: run.error } }),
     });
+    this.providerSkills = { claude: makeSkills('claude'), codex: makeSkills('codex') };
+    this.skills = this.providerSkills[config.provider];
     this.mcp = new McpManager({
       claudeHome: config.claudeHome,
       catalogPath: join(dirname(config.catalogPath), 'mcp.json'),
@@ -248,7 +255,11 @@ export class Engine {
       setAllowed: (mcpAllowed) => void this.updateSettings({ workflow: { mcpAllowed } }),
       log: config.log,
     });
-    this.auth = new ClaudeAuth({ provider: config.provider, codexHome: config.provider === 'codex' ? config.codexHome : undefined, claudeBin: config.provider === 'codex' ? config.codexBin ?? Bun.which('codex') : config.claudeBin ?? Bun.which('claude'), log: config.log });
+    this.accounts = {
+      claude: new ClaudeAuth({ provider: 'claude', claudeHome: config.claudeHome, claudeBin: config.claudeBin ?? Bun.which('claude'), log: config.log }),
+      codex: new ClaudeAuth({ provider: 'codex', claudeBin: config.codexBin ?? Bun.which('codex'), codexHome: config.codexHome, log: config.log }),
+    };
+    this.auth = this.accounts[config.provider];
     this.agents = new AgentsMonitor(
       { claudeHome: config.claudeHome, includeExternal: config.provider !== 'codex', dataDir: config.dataDir, workspaceRoots: () => [...new Set(listGoals(this.store.db).flatMap((g) => (g.workspaceDir ? [dirname(g.workspaceDir)] : [])))] },
       {
@@ -319,7 +330,7 @@ export class Engine {
   }
   /** Validate, persist and hot-apply a settings patch; restart-only keys are persisted and reported. */
   updateSettings(patch: SettingsPatch): SettingsView {
-    if (patch.engine?.provider && patch.engine.provider !== this.config.provider) throw new Error('Start the other backend with FOUNDRY_PROVIDER and a separate FOUNDRY_DATA_DIR. Existing sessions stay with their original backend.');
+    if (patch.engine?.provider && patch.engine.provider !== this.config.provider) throw new Error('The installation default is fixed at launch. Choose Claude or Codex when creating a goal; existing goals keep their backend.');
     const { changed, view } = this.settings.update(patch);
     this.applySettingsChange(changed);
     return view;
@@ -333,7 +344,6 @@ export class Engine {
     if (!changed.length) return;
     const modelsBefore = { ...this.config.models };
     applySettingsToConfig(this.config, this.settings.values(), new Set(changed.filter((key) => !['engine.provider', 'engine.codexBin', 'engine.codexHome'].includes(key))));
-    if (this.config.provider === 'codex') this.config.models = { strong: this.config.codexModel, cheap: this.config.codexModel, worker: this.config.codexModel };
     if (changed.some((k) => k.startsWith('models.'))) this.propagateModels(modelsBefore);
     if (changed.includes('engine.maxConcurrent')) this.runner.setMaxConcurrent?.(this.config.maxConcurrent);
     if (changed.includes('tools.useGraphify')) {
@@ -341,14 +351,14 @@ export class Engine {
       this.config.log(`[engine] context provider: ${this.context.name}`);
     }
     if (changed.includes('tools.markitdownBin')) this.markitdown = new Markitdown({ bin: this.config.markitdownBin, log: this.config.log });
-    if (changed.some((k) => k.startsWith('workflow.'))) this.skills.hints.invalidate();
+    if (changed.some((k) => k.startsWith('workflow.'))) Object.values(this.providerSkills).forEach((skills) => skills.hints.invalidate());
     if (changed.includes('tools.minimaxApiKey')) {
       this.mmxReady = writeMmxConfig(this.config.dataDir, this.minimaxKey(), this.config.log);
       // the quota belongs to the old key
       this.minimax = null;
     }
     // keys feed the skills env probe ("key missing" warnings) — refresh the cached statuses right away
-    if (changed.some((k) => /^tools\.\w+(ApiKey|BaseUrl)$/.test(k))) this.skills.hints.invalidate();
+    if (changed.some((k) => /^tools\.\w+(ApiKey|BaseUrl)$/.test(k))) Object.values(this.providerSkills).forEach((skills) => skills.hints.invalidate());
     const restartNeeded = this.settings.restartNeeded();
     this.store.append({ type: 'settings.changed', goalId: null, payload: { keys: changed, restartNeeded } });
     this.config.log(`[settings] changed ${changed.join(', ')}${restartNeeded.length ? ` (restart needed for ${restartNeeded.join(', ')})` : ''}`);
@@ -361,6 +371,7 @@ export class Engine {
    */
   private propagateModels(before: ModelConfig): void {
     for (const goal of listGoals(this.store.db)) {
+      if (goal.provider === 'codex') continue;
       if (['done', 'over_delivered', 'failed', 'cancelled'].includes(goal.state)) continue;
       for (const tier of ['strong', 'worker', 'cheap'] as const) {
         const to = this.config.models[tier];
@@ -463,7 +474,7 @@ export class Engine {
    * one — `retryAutoskillsAfterTask` calls back in after every task lands.
    */
   startAutoskills(goal: Goal, ws: string): void {
-    if (this.config.provider === 'codex') return; // install native project skills in .agents/skills
+    if (goal.provider === 'codex') return; // install native project skills in .agents/skills
     if (!this.config.autoskills || this.autoskillsRuns.has(goal.id)) return;
     if (goal.autoskills && !(goal.autoskills.status === 'skipped' && goal.autoskills.detail.startsWith('no stack manifest') && hasStackManifest(ws))) return;
     const channel = `autoskills-${goal.id}`;
@@ -587,10 +598,9 @@ export class Engine {
     this.stopped = true;
     this.updater.stopSchedule();
     if (this.prWatchTimer) clearInterval(this.prWatchTimer);
-    if (this.resumeTimer) {
-      clearTimeout(this.resumeTimer);
-      this.resumeTimer = null;
-    }
+    for (const timer of this.resumeTimers.values()) clearTimeout(timer);
+    this.resumeTimers.clear();
+    for (const account of Object.values(this.accounts)) account.cancelLogin();
     this.preview.stopSweeper();
     await this.preview.stopAll('engine shutdown');
     for (const [, f] of this.inFlight) f.handle?.kill('killed_manual');
@@ -670,6 +680,7 @@ export class Engine {
     return (raw) =>
       summarizeOutput(this.runner, raw, {
         model: goal.models.cheap,
+        goalId: goal.id,
         cwd,
         onCost: (usd) => usd > 0 && this.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: usd, source: 'distill' } }),
         onResult: (r) => this.recordSessionUsage(r, { goalId: goal.id, kind: 'distill', model: goal.models.cheap }),
@@ -679,7 +690,8 @@ export class Engine {
   // ---------- usage & rate limits ----------
 
   /** Single funnel for every finished session: ledger event + rate-limit observation. */
-  recordSessionUsage(result: RunResult, meta: { goalId: string | null; kind: string; model?: string | null }): void {
+  recordSessionUsage(result: RunResult, meta: { goalId: string | null; kind: string; model?: string | null; provider?: 'claude' | 'codex' }): void {
+    const provider = (meta.goalId ? this.mustGoal(meta.goalId).provider : meta.provider) ?? this.config.provider;
     const u: any = result.usage ?? {};
     const n = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? x : 0);
     // the session's model = the one that did the work: Claude Code also bills a few hundred haiku tokens per session for its own
@@ -690,6 +702,7 @@ export class Engine {
       type: 'session.usage',
       goalId: meta.goalId,
       payload: {
+        provider,
         sessionId: result.sessionId,
         kind: meta.kind,
         model: modelFromUsage ?? meta.model ?? null,
@@ -704,98 +717,81 @@ export class Engine {
         skillsUsed: result.skillsUsed ?? [],
       },
     });
-    this.observeRateLimit(result);
+    this.observeRateLimit(result, provider);
   }
 
-  private observeRateLimit(result: RunResult): void {
+  private observeRateLimit(result: RunResult, provider: 'claude' | 'codex'): void {
     const rl = result.rateLimit;
     const now = Date.now();
     const limitedByStatus = !!rl && !['allowed', 'allowed_warning'].includes(rl.status) && !!rl.resetsAt && rl.resetsAt * 1000 > now;
     const limitedByError = result.isError && /rate.?limit|usage limit|overloaded|too many requests|\b429\b/i.test(result.errorMessage ?? '');
     if (!limitedByStatus && !limitedByError) return;
     const until = limitedByStatus ? rl!.resetsAt! * 1000 : now + 5 * 60_000;
-    this.pauseUntil(until, rl?.rateLimitType ?? null, limitedByStatus ? `rate_limit_event status=${rl!.status}` : `session error: ${(result.errorMessage ?? '').slice(0, 120)}`);
+    this.pauseUntil(until, rl?.rateLimitType ?? null, limitedByStatus ? `rate_limit_event status=${rl!.status}` : `session error: ${(result.errorMessage ?? '').slice(0, 120)}`, provider);
   }
 
-  /** Stop spawning sessions until `until`; resume automatically. */
-  pauseUntil(until: number, rateLimitType: string | null, reason: string): void {
-    if (this.rateLimitedUntil && this.rateLimitedUntil >= until) return;
-    this.rateLimitedUntil = until;
-    this.store.append({ type: 'rate_limit.paused', goalId: null, payload: { rateLimitType, until: new Date(until).toISOString(), reason } });
-    this.store.append({ type: 'engine.note', goalId: null, payload: { level: 'warn', message: `usage limit reached (${rateLimitType ?? '?'}): paused until ${new Date(until).toLocaleString()}; goals resume automatically` } });
-    this.config.log(`[engine] rate limited (${rateLimitType ?? '?'}): pausing new sessions until ${new Date(until).toLocaleTimeString()} — ${reason}`);
-    this.armResume(until);
+  /** A limit on one account must not pause the other backend. */
+  pauseUntil(until: number, rateLimitType: string | null, reason: string, provider = this.config.provider): void {
+    if ((this.rateLimitedUntil.get(provider) ?? 0) >= until) return;
+    this.rateLimitedUntil.set(provider, until);
+    this.store.append({ type: 'rate_limit.paused', goalId: null, payload: { provider, rateLimitType, until: new Date(until).toISOString(), reason } });
+    this.armResume(until, provider);
   }
-  /** (Re)arm the timer that lifts the pause and ticks every live goal. */
-  private armResume(until: number): void {
-    if (this.resumeTimer) clearTimeout(this.resumeTimer);
-    this.resumeTimer = setTimeout(() => {
-      this.rateLimitedUntil = null;
-      this.resumeTimer = null;
-      this.store.append({ type: 'rate_limit.resumed', goalId: null, payload: { reason: 'reset time reached' } });
-      this.store.append({ type: 'engine.note', goalId: null, payload: { level: 'info', message: 'usage limit reset — goals resume' } });
-      for (const g of listGoals(this.store.db)) if (!['done', 'over_delivered', 'failed', 'cancelled'].includes(g.state)) this.tick(g.id);
-    }, Math.max(0, until - Date.now()) + 1000);
+  private armResume(until: number, provider: 'claude' | 'codex'): void {
+    clearTimeout(this.resumeTimers.get(provider));
+    this.resumeTimers.set(provider, setTimeout(() => {
+      this.rateLimitedUntil.delete(provider);
+      this.resumeTimers.delete(provider);
+      this.store.append({ type: 'rate_limit.resumed', goalId: null, payload: { provider, reason: 'retry time reached' } });
+      for (const g of listGoals(this.store.db)) if ((g.provider ?? this.config.provider) === provider && !['done', 'over_delivered', 'failed', 'cancelled'].includes(g.state)) this.tick(g.id);
+    }, Math.max(0, until - Date.now()) + 1000));
   }
-  /**
-   * After a restart the pause lives only in the event log: if the last `rate_limit.paused` has no later
-   * `rate_limit.resumed` and its reset time is still ahead, arm the timer again (no duplicate paused event);
-   * a reset that passed while the engine was down is resumed immediately.
-   */
   private restoreRateLimitPause(): void {
-    const paused = this.store.listByType('rate_limit.paused', 1)[0];
-    if (!paused) return;
-    const resumed = this.store.listByType('rate_limit.resumed', 1)[0];
-    if (resumed && resumed.seq > paused.seq) return;
-    const until = Date.parse((paused.payload as { until: string }).until);
-    if (!Number.isFinite(until)) return;
-    if (until > Date.now()) {
-      this.rateLimitedUntil = until;
-      this.armResume(until);
-      this.config.log(`[engine] restart during a usage pause: still paused until ${new Date(until).toLocaleTimeString()}`);
-    } else {
-      this.store.append({ type: 'rate_limit.resumed', goalId: null, payload: { reason: 'reset time passed while the engine was down' } });
+    for (const provider of ['claude', 'codex'] as const) {
+      const paused = this.store.listByType('rate_limit.paused', 100).find((e) => (('provider' in e.payload ? e.payload.provider : undefined) ?? this.config.provider) === provider);
+      const resumed = this.store.listByType('rate_limit.resumed', 100).find((e) => (('provider' in e.payload ? e.payload.provider : undefined) ?? this.config.provider) === provider);
+      if (!paused || (resumed && resumed.seq > paused.seq)) continue;
+      const until = Date.parse((paused.payload as { until: string }).until);
+      if (!Number.isFinite(until)) continue;
+      if (until > Date.now()) { this.rateLimitedUntil.set(provider, until); this.armResume(until, provider); }
+      else this.store.append({ type: 'rate_limit.resumed', goalId: null, payload: { provider, reason: 'retry time passed while the engine was down' } });
     }
   }
-  isRateLimited(): boolean {
-    return this.rateLimitedUntil != null && this.rateLimitedUntil > Date.now();
-  }
-  rateLimitedUntilIso(): string | null {
-    return this.isRateLimited() ? new Date(this.rateLimitedUntil!).toISOString() : null;
-  }
+  isRateLimited(provider = this.config.provider): boolean { return (this.rateLimitedUntil.get(provider) ?? 0) > Date.now(); }
+  rateLimitedUntilIso(provider = this.config.provider): string | null { return this.isRateLimited(provider) ? new Date(this.rateLimitedUntil.get(provider)!).toISOString() : null; }
 
-  usage(): UsageSummary & { pausedUntil: string | null } {
-    return { ...usageSummary(this.store.db), provider: this.config.provider, costAvailable: this.config.provider !== 'codex', ...(this.config.provider === 'codex' ? { note: 'Codex reports tokens, not USD cost or subscription quota. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. The windows show Foundry activity only.' } : {}), pausedUntil: this.rateLimitedUntilIso() };
+  usage(provider = this.config.provider): UsageSummary & { pausedUntil: string | null } {
+    return { ...usageSummary(this.store.db, Date.now(), provider, this.config.provider), provider, costAvailable: provider !== 'codex', ...(provider === 'codex' ? { note: 'Codex reports tokens, not USD cost or subscription quota. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. The windows show Foundry activity only.' } : {}), pausedUntil: this.rateLimitedUntilIso(provider) };
   }
 
   // ---------- models ----------
 
   /** seed aliases ∪ names seen in sessions, with what they resolved to; what the Settings page lists */
-  listModels(): (ModelRecord & { label: string | null; note: string | null; pinned: boolean; inUse: string[] })[] {
-    const used = this.modelsInUse();
-    return this.models.list().map((r) => {
+  listModels(provider: 'claude' | 'codex' = this.config.provider): (ModelRecord & { label: string | null; note: string | null; pinned: boolean; inUse: string[] })[] {
+    const used = this.modelsInUse(provider);
+    return this.providerModels[provider].list().map((r) => {
       const seed = SEED_MODELS.find((s) => s.name === r.name);
       const inUse = used.get(r.name) ?? [];
       return { ...r, label: seed?.label ?? null, note: seed?.note ?? null, pinned: isPinnedId(r.name), inUse };
     });
   }
   /** One minimal session with `name` (user-triggered; costs one short call) to learn what it resolves to. */
-  async probeModel(name: string): Promise<{ ok: boolean; name: string; resolvedId: string | null; costUsd: number; error: string | null }> {
-    const handle = await this.runner.run({ prompt: 'Reply with the single word OK.', cwd: this.config.dataDir, model: name, meta: { tier: 'probe' }, maxTurns: 1, maxBudgetUsd: 0.5, permissionMode: 'dontAsk', allowedTools: [], timeoutMs: 90_000, label: `model probe ${name}` });
+  async probeModel(name: string, provider: 'claude' | 'codex' = this.config.provider): Promise<{ ok: boolean; name: string; resolvedId: string | null; costUsd: number; error: string | null }> {
+    const handle = await this.runner.run({ prompt: 'Reply with the single word OK.', cwd: this.config.dataDir, model: name, meta: { tier: 'probe', provider }, maxTurns: 1, maxBudgetUsd: 0.5, permissionMode: 'dontAsk', allowedTools: [], timeoutMs: 90_000, label: `model probe ${name}` });
     let resolved: string | null = null;
     for await (const ev of handle.events) if (ev.kind === 'init') resolved = ev.model;
     const r = await handle.result;
-    this.recordSessionUsage(r, { goalId: null, kind: 'probe', model: name });
+    this.recordSessionUsage(r, { goalId: null, kind: 'probe', model: name, provider });
     const ok = r.subtype === 'success' && !r.isError;
-    const rec = this.models.get(name);
+    const rec = this.providerModels[provider].get(name);
     return { ok, name, resolvedId: resolved ?? rec?.resolvedId ?? null, costUsd: r.costUsd, error: ok ? null : (r.errorMessage ?? r.subtype) };
   }
   /** Doctor check: are the configured tiers names this machine has seen resolve? */
   /** the models the presets Settings picks actually use, with where: "opus" → ["Code: Standard tasks", …] */
-  modelsInUse(): Map<string, string[]> {
+  modelsInUse(provider: 'claude' | 'codex' = this.config.provider): Map<string, string[]> {
     const presets = effectivePresets(this.config.modelPresets);
     const used = new Map<string, string[]>();
-    if (this.config.provider === 'codex') return new Map([[this.config.codexModel, ['All Codex roles']]]);
+    if (provider === 'codex') return new Map([[this.config.codexModel, ['All Codex roles']]]);
     for (const n of MODEL_NATURES) {
       const p = presets[this.config.naturePreset[n]] ?? BUILTIN_PRESETS[DEFAULT_NATURE_PRESETS[n]]!;
       for (const a of MODEL_ACTIONS) used.set(p.tables[n][a], [...(used.get(p.tables[n][a]) ?? []), `${NATURE_LABEL[n]}: ${ACTION_INFO[a].label}`]);
@@ -820,18 +816,20 @@ export class Engine {
    * session each so the dropdowns show what `fable` / `opus` / `sonnet` / `haiku` mean today. Runs on demand and when the
    * Claude Code version changes.
    */
-  async syncModels(opts: { probe?: boolean } = {}): Promise<{ found: number; newest: string[]; resolved: Record<string, string | null>; cliVersion: string | null }> {
-    if (this.config.provider === 'codex') {
-      const result = opts.probe === false ? null : await this.probeModel(this.config.codexModel);
+  async syncModels(opts: { probe?: boolean; provider?: 'claude' | 'codex' } = {}): Promise<{ found: number; newest: string[]; resolved: Record<string, string | null>; cliVersion: string | null }> {
+    const provider = opts.provider ?? this.config.provider;
+    const registry = this.providerModels[provider];
+    if (provider === 'codex') {
+      const result = opts.probe === false ? null : await this.probeModel(this.config.codexModel, provider);
       return { found: 0, newest: [], resolved: result ? { [result.name]: result.resolvedId } : {}, cliVersion: null };
     }
     const bin = this.config.claudeBin ?? Bun.which('claude');
     const found = bin ? modelsInBinary(bin) : [];
-    if (found.length) this.models.noteDiscovered(found);
+    if (found.length) registry.noteDiscovered(found);
     const resolved: Record<string, string | null> = {};
-    if (opts.probe !== false) for (const alias of ['fable', 'opus', 'sonnet', 'haiku']) resolved[alias] = (await this.probeModel(alias).catch(() => null))?.resolvedId ?? null;
+    if (opts.probe !== false) for (const alias of ['fable', 'opus', 'sonnet', 'haiku']) resolved[alias] = (await this.probeModel(alias, provider).catch(() => null))?.resolvedId ?? null;
     const cliVersion = await this.claudeVersion();
-    this.models.noteSync({ cliVersion, at: new Date().toISOString(), found: found.length });
+    registry.noteSync({ cliVersion, at: new Date().toISOString(), found: found.length });
     this.config.log(`[models] sync: ${found.length} id(s) in the Claude Code binary; ${Object.entries(resolved).map(([a, r]) => `${a} → ${r ?? '?'}`).join(', ')}`);
     return { found: found.length, newest: found.filter((f) => f.newest).map((f) => f.id), resolved, cliVersion };
   }
@@ -893,14 +891,15 @@ export class Engine {
     return this.minimaxRun;
   }
 
-  async probeUsage(): Promise<UsageSummary & { pausedUntil: string | null }> {
-    const handle = await this.runner.run({ prompt: 'Reply with the single word OK.', cwd: this.config.dataDir, model: (this.config.provider === 'codex' ? this.config.codexModel : this.config.models.cheap), maxTurns: 1, maxBudgetUsd: 0.05, permissionMode: 'dontAsk', allowedTools: [], timeoutMs: 60_000, label: 'usage probe' });
+  async probeUsage(provider: 'claude' | 'codex' = this.config.provider): Promise<UsageSummary & { pausedUntil: string | null }> {
+    if (provider !== 'claude') throw new Error('Codex does not expose a quota refresh signal.');
+    const handle = await this.runner.run({ prompt: 'Reply with the single word OK.', cwd: this.config.dataDir, model: this.config.models.cheap, maxTurns: 1, maxBudgetUsd: 0.05, permissionMode: 'dontAsk', allowedTools: [], timeoutMs: 60_000, label: 'usage probe', meta: { provider } });
     for await (const _ of handle.events) {
       /* drain */
     }
     const r = await handle.result;
-    this.recordSessionUsage(r, { goalId: null, kind: 'probe', model: (this.config.provider === 'codex' ? this.config.codexModel : this.config.models.cheap) });
-    return this.usage();
+    this.recordSessionUsage(r, { goalId: null, kind: 'probe', provider, model: this.config.models.cheap });
+    return this.usage(provider);
   }
 
   // ---------- in-flight bookkeeping ----------
@@ -1000,7 +999,7 @@ export class Engine {
     if (this.stopped) return;
     const goal = getGoal(this.store.db, goalId);
     if (!goal) return;
-    if (this.isRateLimited()) return; // resume timer will tick again
+    if (this.isRateLimited(goal.provider ?? this.config.provider)) return; // resume timer will tick again
     if (this.updateDraining) return; // endUpdateDrain re-ticks every goal
     switch (goal.state) {
       case 'draft':
@@ -1065,11 +1064,18 @@ export class Engine {
     }
   }
 
+  skillsFor(goal: Goal): SkillsManager {
+    return this.providerSkills[goal.provider ?? this.config.provider];
+  }
+
   // ---------- commands ----------
 
   async createGoal(input: CreateGoalInput): Promise<Goal> {
+    const provider = input.provider ?? this.config.provider;
+    if (!['claude', 'codex'].includes(provider)) throw new Error('Unknown agent backend');
+    const codexModel = input.codexModel?.trim() || this.config.codexModel;
     // an unknown preset would silently fall back to the Settings pick while the goal still shows the typo
-    if (this.config.provider === 'codex' && (input.modelPreset || input.models)) throw new Error('Codex uses models.codexModel in Settings, not Claude presets or tiers.');
+    if (provider === 'codex' && (input.modelPreset || input.models)) throw new Error('Codex uses models.codexModel in Settings, not Claude presets or tiers.');
     if (input.modelPreset) {
       const known = Object.keys(effectivePresets(this.config.modelPresets));
       if (!known.includes(input.modelPreset)) throw new Error(`unknown model preset "${input.modelPreset}"; use one of: ${known.join(', ')}`);
@@ -1086,6 +1092,7 @@ export class Engine {
     const mode: GoalMode = input.mode ?? (nature !== 'auto' && nature !== 'code' ? 'simple' : this.config.defaultGoalMode);
     const title = input.title?.trim() || input.prompt.trim().split('\n')[0]!.slice(0, 80);
     const goal: Goal = {
+      provider,
       id,
       title,
       prompt: input.prompt,
@@ -1103,7 +1110,7 @@ export class Engine {
       })(),
       baseBranch,
       branch: `goal/${id}`,
-      budgets: Budgets.parse({ ...BUDGET_PRESETS[input.budgetPreset ?? 'custom'].budgets, ...(input.budgets ?? {}) }),
+      budgets: Budgets.parse({ ...BUDGET_PRESETS[input.budgetPreset ?? 'custom'].budgets, ...(input.budgets ?? {}), ...(provider === 'codex' ? { maxCostUsd: null } : {}) }),
       budgetPreset: input.budgetPreset ?? 'custom',
       mode,
       nature,
@@ -1114,7 +1121,7 @@ export class Engine {
         // fast goals run only what the Brief asks for: no TDD mandate unless the caller insists
         return { pace, tdd: input.workflow?.tdd ?? (pace === 'fast' ? ('off' as const) : mode === 'simple' ? ('preferred' as const) : this.config.workflowTdd) };
       })(),
-      models: { ...this.config.models, ...(input.models ?? {}) },
+      models: provider === 'codex' ? { strong: codexModel, cheap: codexModel, worker: codexModel } : { ...this.config.models, ...(input.models ?? {}) },
       state: 'draft',
       stateBeforeBlock: null,
       costUsd: 0,
@@ -1269,7 +1276,7 @@ export class Engine {
     const r = await spawnStreaming(['sh', '-lc', command], this.config.dataDir, onLine, { timeoutMs: 10 * 60_000 });
     const ok = r.code === 0;
     onLine(ok ? `■ done in ${Math.round((Date.now() - t0) / 1000)}s` : `■ failed (exit ${r.code})`);
-    this.skills.hints.invalidate();
+    Object.values(this.providerSkills).forEach((skills) => skills.hints.invalidate());
     this.store.append({ type: 'engine.note', goalId: null, payload: { level: ok ? 'info' : 'warn', message: `tool install ${id}: \`${command}\` exited ${r.code}` } });
     return { ok, command, exitCode: r.code };
   }
@@ -1354,7 +1361,7 @@ export class Engine {
       payload: { graphRefresh: completion?.graphRefresh ?? inferred.graphRefresh, docs: completion?.docs ?? inferred.docs, reason: completion ? 'set at brief approval' : inferred.reason },
     });
     if (budgets && Object.keys(budgets).length) {
-      const next = Budgets.parse({ ...goal.budgets, ...budgets });
+      const next = Budgets.parse({ ...goal.budgets, ...budgets, ...(goal.provider === 'codex' ? { maxCostUsd: null } : {}) });
       this.store.append({ type: 'goal.budgets_changed', goalId, payload: { budgets: next, reason: goal.budgetPreset === 'auto' ? 'auto-from-brief' : 'set at brief approval' } });
     }
     const now = new Date().toISOString();

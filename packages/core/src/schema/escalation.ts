@@ -55,6 +55,7 @@ export const EscalationSuggestion = z.object({
   hint: z.string(),
   confidence: z.enum(['high', 'medium', 'low']),
   costUsd: z.number().nonnegative(),
+  costAvailable: z.boolean().optional(),
   at: z.string(),
 });
 export type EscalationSuggestion = z.infer<typeof EscalationSuggestion>;

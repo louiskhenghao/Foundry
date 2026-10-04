@@ -147,8 +147,8 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
 
   const relevantContext = resume ? null : await engine.context.locate(goal, task).catch(() => null);
   const discipline = resolveDiscipline(goal, task);
-  const skillsHint = await engine.skills.hints.sectionFor('worker', { taskKind: task.kind, scenario: task.scenario, projectSkills: goal.autoskills?.status === 'installed' ? goal.autoskills.skills : [], discipline });
-  const mandated = await engine.skills.hints.mandatedFor('worker', { taskKind: task.kind, scenario: task.scenario, discipline });
+  const skillsHint = await engine.skillsFor(goal).hints.sectionFor('worker', { taskKind: task.kind, scenario: task.scenario, projectSkills: goal.autoskills?.status === 'installed' ? goal.autoskills.skills : [], discipline });
+  const mandated = await engine.skillsFor(goal).hints.mandatedFor('worker', { taskKind: task.kind, scenario: task.scenario, discipline });
   const brief = getBrief(store.db, goal.id)?.brief;
   const areaDescription = task.area ? (brief?.areas.find((a) => a.name === task.area)?.description ?? '') : '';
   const decisions = brief ? renderDecisions(brief) : '';
@@ -228,7 +228,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
       toolsUsed: result.toolsUsed ?? {},
     },
   });
-  const workflow = { mandated: mandated.map((m) => ({ name: m.name, invoke: m.invoke })), used: result.skillsUsed ?? [] };
+  const workflow = { observable: goal.provider !== 'codex', mandated: mandated.map((m) => ({ name: m.name, invoke: m.invoke })), used: result.skillsUsed ?? [] };
 
   // --- Observe
   const results: CheckResult[] = [];
