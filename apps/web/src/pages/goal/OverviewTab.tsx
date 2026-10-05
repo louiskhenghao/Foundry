@@ -9,6 +9,7 @@ import { PreviewCard } from './PreviewCard.tsx';
 import { Badge, Card, cn } from '../../ui.tsx';
 import { EscalationCard } from '../InboxPage.tsx';
 import { CodexModelsCard } from './CodexModelsCard.tsx';
+import { CompletionCard } from './CompletionCard.tsx';
 import { ProjectSkillsCard } from './ProjectSkillsCard.tsx';
 
 const STAGES = ['clarifying', 'awaiting_brief_approval', 'running', 'goal_review', 'done'] as const;
@@ -136,47 +137,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
             </Card>
           )}
           <ProjectSkillsCard d={d} />
-          {(g.completion.graphRefresh || g.completion.docs.length > 0 || g.completion.artifactsRun) && (
-            <Card title="Completion">
-              <div className="text-xs text-zinc-400 space-y-1.5">
-                {g.completion.docs.length > 0 && (
-                  <div>
-                    Docs: <span className="mono text-zinc-200">{g.completion.docs.join(', ')}</span>
-                    {g.completion.docsRun ? (
-                      <span className={g.completion.docsRun.status === 'failed' ? 'text-rose-300' : 'text-zinc-300'}>
-                        {' '}
-                        — {g.completion.docsRun.status}, {g.completion.docsRun.detail}
-                      </span>
-                    ) : (
-                      <span className="text-zinc-600"> — generated after the goal review passes, committed to the goal branch</span>
-                    )}
-                  </div>
-                )}
-                {g.completion.graphRefresh && (
-                  <div>
-                    Graph refresh:{' '}
-                    {g.completion.graphRun ? (
-                      <span className="mono text-zinc-200">{g.completion.graphRun.tools.map((t) => `${t.name} ${t.status}`).join(', ')}</span>
-                    ) : (
-                      <span className="text-zinc-600">runs when the goal is delivered (graphify, and gitnexus when installed)</span>
-                    )}
-                  </div>
-                )}
-                {g.completion.artifactsRun && (
-                  <div>
-                    Artifacts: <span className={g.completion.artifactsRun.status === 'failed' ? 'text-rose-300' : 'text-zinc-300'}>{g.completion.artifactsRun.status}</span>
-                    {g.completion.artifactsRun.files.length > 0 && (
-                      <>
-                        {' '}
-                        — {g.completion.artifactsRun.files.length} file(s){g.completion.artifactsRun.dest && <span className="mono text-zinc-200"> → {g.completion.artifactsRun.dest}</span>}
-                      </>
-                    )}
-                    <span className="text-zinc-600"> ({g.completion.artifactsRun.detail})</span>
-                  </div>
-                )}
-              </div>
-            </Card>
-          )}
+          <CompletionCard d={d} />
           {d.brief ? (
             <Card
               title={

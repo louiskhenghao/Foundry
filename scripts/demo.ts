@@ -400,6 +400,24 @@ const DEMO_CHECKS = [
 ];
 
 /**
+ * What the finished goal's Overview shows beside the delivery: the project skills autoskills matched to its stack, and
+ * the completion actions (docs written and committed, a graph refresh with one tool failing so Re-run shows).
+ */
+function recordCompletionExtras(engine: Engine, goalId: string): void {
+  const rec = (type: string, payload: object) => engine.store.append({ type, goalId, payload } as never);
+  rec('goal.autoskills', { status: 'installed', skills: ['accessibility', 'frontend-design', 'next-best-practices', 'nodejs-best-practices', 'react-best-practices', 'seo', 'tailwind-css-patterns', 'typescript-advanced-types', 'vitest', 'zod'], detail: 'matched package.json' });
+  rec('goal.completion_set', { graphRefresh: true, docs: ['to-prd', 'readme-update'], reason: 'inferred: coding goal' });
+  rec('goal.docs_generated', { status: 'ok', types: ['to-prd', 'readme-update'], files: ['docs/prd/newsletter-sign-up.md', 'README.md'], costUsd: 0.21, detail: 'committed 9c4e1a7 (2 file(s))', ref: '9c4e1a7d2b8f6e0c3a5d7b9e1f2a4c6d8e0b1a3c' });
+  rec('goal.completion_ran', {
+    tools: [
+      { name: 'pull', status: 'ok', detail: 'main fast-forwarded to the merged commit' },
+      { name: 'graphify', status: 'failed', detail: 'graphify update . exited 1: no Python 3.10+ interpreter found' },
+      { name: 'gitnexus', status: 'ok', detail: 'analyze in 14s' },
+    ],
+  });
+}
+
+/**
  * The finished goal's delivery as the Delivery tab shows it after "one PR per task, merge when green": the demo has no
  * GitHub, so the events a real delivery records are written directly — every PR opened, green and merged.
  */
@@ -482,6 +500,7 @@ export async function startDemo(): Promise<{ url: string; goals: Record<string, 
   // the stretch check passes too, so it ends over-delivered
   await waitFor(() => ['done', 'over_delivered'].includes(state(done.id)));
   await recordMergedDelivery(engine, done.id);
+  recordCompletionExtras(engine, done.id);
   const interview = await engine.createGoal({ prompt: 'Add a dark mode toggle to the settings page', repoPath: repo, interview: 'always', workflow: { pace: 'fast' } });
   const brief = await engine.createGoal({ prompt: 'A landing page for our game studio', title: 'Studio landing page', provider: 'codex', repoPath: repo, interview: 'never', workflow: { pace: 'fast' } });
   const milestone = await engine.createGoal({ prompt: 'Studio site: hero and value cards', title: 'Studio site — first look', repoPath: repo, brief: briefFrom(landingBrief, landingBrief.tasks.slice(0, 3)) as never, workflow: { pace: 'fast' } });

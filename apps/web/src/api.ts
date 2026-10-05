@@ -441,6 +441,7 @@ export function apiForProvider(provider?: AgentProvider) {
   githubOrgs: () => req<string[]>('/api/github/orgs'),
   githubLogin: () => req<{ started: boolean }>('/api/github/auth/login', { method: 'POST' }),
   deliver: (id: string, policy: Partial<DeliveryPolicy>) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/deliver`, { method: 'POST', body: JSON.stringify(policy) }),
+  rerunCompletion: (id: string, what: 'docs' | 'graph') => req<{ ok: true }>(`/api/goals/${id}/completion/rerun`, { method: 'POST', body: JSON.stringify({ what }) }),
   saveDeliveryPolicy: (id: string, policy: Partial<DeliveryPolicy>) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/delivery/policy`, { method: 'PUT', body: JSON.stringify(policy) }),
   resumeDelivery: (id: string) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/delivery/resume`, { method: 'POST' }),
   startOverDelivery: (id: string, policy: Partial<DeliveryPolicy>) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/delivery/start-over`, { method: 'POST', body: JSON.stringify(policy) }),
