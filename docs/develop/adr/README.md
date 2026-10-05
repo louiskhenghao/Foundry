@@ -27,3 +27,4 @@ record is never rewritten when a later decision changes it; its status says what
 | [0020](0020-native-plugin-lifecycle-and-account-ownership.md) | Native plugin lifecycle and server-owned account commands | accepted · 2026-10-04 |
 | [0021](0021-multi-app-previews-and-compose-services.md) | Several apps per preview, and the compose services they need | accepted · 2026-10-05 · amends ADR-0012 |
 | [0022](0022-preview-environment-outside-the-workspace.md) | Preview environment stays outside the goal's folder | accepted · 2026-10-05 |
+| [0023](0023-resumable-stacked-delivery.md) | A stacked delivery resumes, replays onto the base, and reads its switches live | accepted · 2026-10-05 |
