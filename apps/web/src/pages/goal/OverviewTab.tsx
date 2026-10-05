@@ -1,6 +1,7 @@
 import type { CheckResult } from '@foundry/core/browser';
 import { Link } from 'react-router-dom';
-import type { GoalDetail } from '../../api.ts';
+import { useEffect, useState } from 'react';
+import { api, type GoalDetail } from '../../api.ts';
 import { AttachmentInput } from '../../components/Attachments.tsx';
 import { OpenFull } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
@@ -105,7 +106,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
           </Card>
           <WorkspaceCard d={d} />
           <CodexModelsCard goal={g} />
-          {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <PreviewCard goalId={g.id} selfCheck={g.selfCheck} />}
+          {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <PreviewCard goalId={g.id} />}
           {d.events.some((e) => e.type === 'goal.models_changed') && (
             <Card title="Model fallback">
               <div className="text-xs text-zinc-400 space-y-1">
@@ -205,9 +206,68 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
                 })}
               </div>
             ))}
+            {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <SelfCheckSection d={d} />}
           </Card>
         </div>
       </div>
+    </div>
+  );
+}
+
+type Shot = Awaited<ReturnType<typeof api.screenshots>>['screenshots'][number];
+
+/**
+ * The self-check is a must check of its own (a screenshot of the preview and its console and network errors after
+ * each task lands), so it is switched on and read here, with the other checks.
+ */
+function SelfCheckSection({ d }: { d: GoalDetail }) {
+  const g = d.goal;
+  const [last, setLast] = useState<Shot | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  // asked again when a new run shows up in the goal's events
+  const runs = d.events.filter((e) => e.type === 'selfcheck.finished').length;
+  useEffect(() => {
+    void api.screenshots(g.id).then((r) => setLast(r.screenshots.at(-1) ?? null)).catch(() => {});
+  }, [g.id, runs]);
+  const toggle = (on: boolean) => {
+    setErr(null);
+    api.setSelfCheck(g.id, on).catch((e) => setErr(e.body?.error ?? e.message));
+  };
+  const task = last?.taskId ? d.tasks.find((t) => t.id === last.taskId)?.title : null;
+  return (
+    <div className="border-t border-zinc-800 pt-3 space-y-1.5">
+      <label className="flex items-center gap-2 cursor-pointer" title="Needs Playwright's Chromium (Settings → Preview & self-check)">
+        <input type="checkbox" className="accent-emerald-500" checked={g.selfCheck} onChange={(e) => toggle(e.target.checked)} />
+        <span className="text-xs text-zinc-200">Self-check after each task</span>
+      </label>
+      <p className="text-[11px] text-zinc-500">Opens the preview in a headless browser once a task lands, takes a screenshot, and fails on console or network errors.</p>
+      {last ? (
+        <div className="flex items-start gap-2 text-xs">
+          <Badge state={last.status} />
+          <span className="min-w-0 text-zinc-400">
+            {last.errors.length ? `${last.errors.length} error${last.errors.length === 1 ? '' : 's'}` : 'no errors'}
+            {task && <span className="text-zinc-500"> · after {task}</span>}
+            {last.screenshot && (
+              <>
+                {' · '}
+                <a href={api.screenshotUrl(g.id, last.screenshot)} target="_blank" rel="noreferrer" className="text-sky-300 hover:underline">
+                  screenshot
+                </a>
+              </>
+            )}
+          </span>
+        </div>
+      ) : (
+        g.selfCheck && <div className="text-[11px] text-zinc-600">No run yet.</div>
+      )}
+      {last && last.errors.length > 0 && (
+        <ul className="mono text-[11px] text-rose-300 space-y-0.5 max-h-24 overflow-auto">
+          {last.errors.slice(0, 5).map((e, i) => (
+            <li key={i} className="break-words">{e}</li>
+          ))}
+        </ul>
+      )}
+      {err && <div className="text-[11px] text-rose-300">{err}</div>}
     </div>
   );
 }

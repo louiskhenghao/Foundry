@@ -46,7 +46,7 @@ function Problems({ app }: { app: PreviewAppStatus }) {
  * and the Docker services they need. What would run, whether it runs, where to open it. Embedded in the milestone
  * card, and its own card on the Overview tab.
  */
-export function PreviewCard({ goalId, selfCheck, embedded }: { goalId: string; selfCheck?: boolean; embedded?: boolean }) {
+export function PreviewCard({ goalId, embedded }: { goalId: string; embedded?: boolean }) {
   const [st, setSt] = useState<PreviewStatus | null>(null);
   const [svc, setSvc] = useState<ServicesStatus | null>(null);
   // what is being done: start:<app key> / stop:<app key>, '*' = every app
@@ -243,11 +243,6 @@ export function PreviewCard({ goalId, selfCheck, embedded }: { goalId: string; s
       )}
       {svc && <Services goalId={goalId} svc={svc} onChange={setSvc} reload={loadServices} />}
       {st && <EnvPanel key={goalId} goalId={goalId} anyRunning={anyRunning} />}
-      {selfCheck !== undefined && (
-        <label className="flex items-center gap-2 text-[11px] text-zinc-400 cursor-pointer" title="After every task lands, the engine opens this preview in headless Chromium, takes a screenshot and fails a must check on console or network errors. Needs Playwright's Chromium (Settings → Preview & self-check).">
-          <input type="checkbox" className="accent-emerald-500" checked={selfCheck} onChange={(e) => run('selfcheck', () => api.setSelfCheck(goalId, e.target.checked))} /> Self-check after each task (screenshot + console errors)
-        </label>
-      )}
     </div>
   );
   return embedded ? body : <Card title="Preview" actions={allButtons || null}>{body}</Card>;
