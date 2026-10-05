@@ -5,7 +5,8 @@ import { spawnStreaming } from '../skills/updaters.ts';
 import type { BriefApp, BriefRun, Goal } from '@foundry/core';
 import { getBrief, getGoal } from '@foundry/core';
 import type { Engine } from '../engine.ts';
-import { goalWorkspacePath } from '../workspace.ts';
+import { ensureDetachedWorktree, git, gitOk } from '../git/git.ts';
+import { goalWorkspacePath, previewWorkspacePath } from '../workspace.ts';
 import { detectApps, detectRun, packageManager, previewBindHost } from './detect.ts';
 import { checkoutEnv, exampleKeys, fileKeys, keyUsage, PreviewEnvStore, redactor } from './env.ts';
 import { envHint } from './env-hints.ts';
@@ -65,9 +66,32 @@ export interface PreviewStatus {
   source: 'brief' | 'detected' | null;
   error: string | null;
   apps: PreviewAppStatus[];
-  /** where the apps run: the goal's progress folder on the goal's branch, not the person's checkout */
-  workspace: { path: string; branch: string } | null;
+  /** where the apps run: the goal's progress folder on the goal's branch, or a preview folder on another branch; never the person's checkout */
+  workspace: PreviewSource | null;
 }
+
+/** where a goal's preview runs */
+export interface PreviewSource {
+  /** `goal`: the progress folder on the goal branch; `branch`: Foundry's preview folder, detached at `branch` */
+  kind: 'goal' | 'branch';
+  path: string;
+  branch: string;
+  /** the preview folder is being created or brought to the branch's latest commit */
+  preparing: boolean;
+  /** why it runs from here when nobody picked it: the goal's folder was cleaned up after the merge */
+  fallback: string | null;
+}
+
+/** a branch the preview can run from */
+export interface PreviewSourceOption {
+  /** null = the default (the goal branch while its folder exists, else the base branch) */
+  ref: string;
+  label: string;
+  note: string;
+  available: boolean;
+}
+
+const TERMINAL = ['done', 'over_delivered', 'failed', 'cancelled'];
 
 export class PreviewError extends Error {
   constructor(
@@ -125,6 +149,8 @@ export class PreviewManager {
   readonly env: PreviewEnvStore;
   private sweeper: ReturnType<typeof setInterval> | null = null;
   readonly services: ServicesManager;
+  /** preview folders being created or moved to their branch's latest commit, per goal */
+  private preparing = new Map<string, Promise<void>>();
 
   constructor(private engine: Engine) {
     this.env = new PreviewEnvStore(engine.config.dataDir);
@@ -183,7 +209,7 @@ export class PreviewManager {
       source: resolved?.source ?? null,
       error: primary?.error ?? null,
       apps,
-      workspace: goal ? { path: this.workspace(goal), branch: goal.branch } : null,
+      workspace: goal ? this.sourceStatus(goal) : null,
     };
   }
 
@@ -229,6 +255,7 @@ export class PreviewManager {
     if (appKey && !resolved.apps.some((a) => a.key === appKey)) throw new PreviewError(`no app "${appKey}" in this goal's preview`, 404);
     this.touch(goal.id);
     if (!targets.length) return this.status(goal.id);
+    await this.prepare(goal);
     const ws = this.workspace(goal);
     const services = await this.services.up(goal, ws).catch((err) => {
       this.engine.config.log(`[preview] ${goal.id}: services: ${String((err as Error).message ?? err)}`);
@@ -471,7 +498,90 @@ export class PreviewManager {
   }
 
   private workspace(goal: Goal): string {
-    return goalWorkspacePath(this.engine.config.dataDir, goal);
+    return this.source(goal).path;
+  }
+
+  /**
+   * Where the preview runs. While a goal is still being worked on, always its progress folder (the self-check and
+   * milestones look at the goal's work). Once it is finished, the branch the person picked; by default the goal branch
+   * while its folder exists, else the base branch, which holds the work once it merged and the folder was cleaned up.
+   */
+  source(goal: Goal): { kind: 'goal' | 'branch'; path: string; branch: string; fallback: string | null } {
+    const goalWs = goalWorkspacePath(this.engine.config.dataDir, goal);
+    const alive = existsSync(goalWs);
+    const base = goal.delivery.policy.baseBranch ?? goal.baseBranch;
+    const own = { kind: 'goal' as const, path: goalWs, branch: goal.branch, fallback: null };
+    if (!TERMINAL.includes(goal.state)) return own;
+    const ref = goal.previewRef ?? (alive ? goal.branch : base);
+    if (ref === goal.branch && alive) return own;
+    const fallback = goal.previewRef ? null : `the goal's folder was cleaned up${goal.delivery.outcome === 'merged' ? ' after the merge' : ''}, so the preview runs ${base}`;
+    return { kind: 'branch', path: previewWorkspacePath(this.engine.config.dataDir, goal), branch: ref, fallback };
+  }
+
+  private sourceStatus(goal: Goal): PreviewSource {
+    const s = this.source(goal);
+    // the first look at a preview folder that does not exist yet creates it, so its apps can be detected
+    if (s.kind === 'branch' && !existsSync(s.path) && !this.preparing.has(goal.id)) void this.prepare(goal).catch((err) => this.engine.config.log(`[preview] ${goal.id}: ${String((err as Error).message ?? err)}`));
+    return { ...s, preparing: this.preparing.has(goal.id) };
+  }
+
+  /** the commit a branch name stands for: the local branch, else the remote's copy */
+  private async resolveRef(repo: string, branch: string): Promise<string | null> {
+    for (const ref of [`refs/heads/${branch}`, `refs/remotes/origin/${branch}`]) {
+      const r = await git(['rev-parse', '--verify', '-q', `${ref}^{commit}`], repo);
+      if (r.code === 0) return r.stdout.trim();
+    }
+    return null;
+  }
+
+  /**
+   * Bring the preview folder to the latest commit of its branch: created as a detached worktree the first time, moved
+   * (keeping untracked files such as node_modules) when no app of the goal runs. The progress folder needs nothing.
+   */
+  prepare(goal: Goal): Promise<void> {
+    const s = this.source(goal);
+    if (s.kind === 'goal') return Promise.resolve();
+    const pending = this.preparing.get(goal.id);
+    if (pending) return pending;
+    const job = (async () => {
+      const sha = await this.resolveRef(goal.repoPath, s.branch);
+      if (!sha) throw new PreviewError(`branch ${s.branch} is not in the repository any more; pick another one`, 409);
+      if (!existsSync(s.path)) return ensureDetachedWorktree(goal.repoPath, s.path, sha);
+      if ([...this.live.values()].some((l) => l.goalId === goal.id)) return;
+      await gitOk(['reset', '-q', '--hard', sha], s.path);
+    })().finally(() => this.preparing.delete(goal.id));
+    this.preparing.set(goal.id, job);
+    return job;
+  }
+
+  /** the branches a finished goal's preview can run from: the goal branch, the base branch, then other local branches */
+  async sources(goal: Goal): Promise<{ current: PreviewSource; options: PreviewSourceOption[]; selectable: boolean }> {
+    const base = goal.delivery.policy.baseBranch ?? goal.baseBranch;
+    const goalAlive = existsSync(goalWorkspacePath(this.engine.config.dataDir, goal));
+    const goalSha = await this.resolveRef(goal.repoPath, goal.branch);
+    const options: PreviewSourceOption[] = [
+      { ref: goal.branch, label: goal.branch, note: goalAlive ? "the goal's folder" : goalSha ? 'the goal branch, in a preview folder' : 'deleted after the merge', available: goalAlive || !!goalSha },
+      { ref: base, label: base, note: goal.delivery.outcome === 'merged' ? 'the base branch, with the merged work' : 'the base branch', available: !!(await this.resolveRef(goal.repoPath, base)) },
+    ];
+    const r = await git(['for-each-ref', '--sort=-committerdate', '--count=40', '--format=%(refname:short)', 'refs/heads/'], goal.repoPath);
+    // other goals' and stacked delivery branches are not something to preview from here
+    for (const b of r.stdout.split('\n').filter(Boolean)) {
+      if (options.length >= 22) break;
+      if (b === goal.branch || b === base || b.startsWith('goal/') || b.startsWith('task/')) continue;
+      options.push({ ref: b, label: b, note: 'local branch', available: true });
+    }
+    return { current: this.sourceStatus(goal), options, selectable: TERMINAL.includes(goal.state) };
+  }
+
+  /** pick the branch a finished goal's preview runs from (null = the default); not while one of its apps runs */
+  async setSource(goal: Goal, ref: string | null): Promise<PreviewSource> {
+    if (!TERMINAL.includes(goal.state)) throw new PreviewError("while the goal is being worked on, the preview runs the goal's folder", 409);
+    if ([...this.live.values()].some((l) => l.goalId === goal.id)) throw new PreviewError('stop the preview first, then pick another branch', 409);
+    if (ref !== null && !(await this.resolveRef(goal.repoPath, ref))) throw new PreviewError(`no branch ${ref} in the repository`, 404);
+    this.engine.store.append({ type: 'goal.preview_ref_set', goalId: goal.id, payload: { ref } });
+    const next = getGoal(this.engine.store.db, goal.id)!;
+    await this.prepare(next);
+    return this.sourceStatus(next);
   }
 
   /** the goal's Docker services; null = no compose file with dependency services */

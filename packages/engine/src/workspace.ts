@@ -83,6 +83,11 @@ export function resolveWorkspacePath(dataDir: string, goal: WorkspaceRef, taskId
   const internal = internalWorkspaceDir(goal);
   return internal ? join(internal, 'resolve', taskId) : join(legacyWorkspaceRoot(dataDir, goal.id), '_resolve', taskId);
 }
+/** detached worktree where a finished goal's preview runs another branch (its own folder may be gone after the merge) */
+export function previewWorkspacePath(dataDir: string, goal: WorkspaceRef): string {
+  const internal = internalWorkspaceDir(goal);
+  return internal ? join(internal, 'preview') : join(legacyWorkspaceRoot(dataDir, goal.id), '_preview');
+}
 /** throw-away worktree at a base commit where the baseline must checks run */
 export function baselineWorkspacePath(dataDir: string, goal: WorkspaceRef): string {
   const internal = internalWorkspaceDir(goal);
