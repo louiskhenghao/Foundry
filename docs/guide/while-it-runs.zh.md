@@ -38,7 +38,7 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 - **Cost**：目前花了多少、上限是多少，以及已经运行了多久。
 - **Result**（goal 完成时）：工作在哪里、**Open ▾** 和 **Deliver…**。
 
-右上角的 **Expert view** 显示其余所有内容。标签栏上的 **Simple view** 切换回来。
+goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它都在同一个位置。**Expert** 显示其余所有内容。
 
 ![运行中 goal 的 Simple view：一句话说明正在做什么、带进行中任务的进度条，以及目前的花费](images/goal-simple.png)
 
@@ -65,11 +65,11 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 - **Try the work in progress**：进度文件夹。见 [下文](#进度文件夹)。
 - **Preview**：启动并打开运行中的结果。见 [Preview](#preview)。
 - **Model fallback**：只在某个模型不可用、Foundry 换了另一个模型时出现。
-- **Project skills (autoskills)**：Foundry 为你项目的技术栈添加的 skill。它们不会进入你的提交。
-- **Completion**：你在 Brief 上选的文档和知识图谱刷新，以及它们的状态。
+- **Project skills**：Foundry 为你项目的技术栈添加的 skill，按 Frontend、Backend、Database、Testing、Tooling 分组，并显示数量。它们不会进入你的提交。
+- **Completion**：文档、知识图谱刷新和媒体文件各占一行，写着结果。见 [完成后的附加项](./getting-the-result.zh.md#完成后的附加项)。
 - **Brief**：你批准的内容摘要，按 **open** 看全文。
 - **Goal review**：最终审查员的结论和意见（运行过之后才有）。
-- **Acceptance**（右侧）：每个 **must** 和 **stretch** 检查及其最新结果，比如 **3/4 passing**。点一个检查可以看它的输出。
+- **Acceptance**（右侧）：每个 **must** 和 **stretch** 检查及其最新结果，比如 **3/4 passing**。点一个检查可以看它的输出。下面是 **Self-check** 开关和它最近一次的结果（见 [Self-check](#self-check)）。
 
 ## Tasks
 
@@ -166,7 +166,9 @@ Foundry 也会在里程碑时自己启动预览；预览在运行时，每个任
 
 ### Where it runs
 
-卡片顶部写着 **Runs in the goal's folder, branch goal/…, not your checkout**：预览运行的是 goal 自己的那份仓库（它的进度文件夹，在 goal 的分支上），所以你看到的是 goal 做的成果，而不是你自己文件夹里的内容。**copy** 复制那个文件夹的路径。
+卡片顶部写着运行的是哪个分支、在哪里运行，以及 **not your checkout**。goal 还在进行时，预览运行的是 goal 自己的那份仓库（它的进度文件夹，在 goal 的分支上），所以你看到的是 goal 做的成果，而不是你自己文件夹里的内容。**copy** 复制那个文件夹的路径。
+
+goal 完成后，分支变成一个下拉菜单，可以选 goal 分支、基础分支（比如 `main`）或你自己的其他本地分支；要换分支，先停掉预览。goal 分支以外的分支都在 Foundry 自己的预览文件夹里运行，checkout 到那个分支的最新提交，绝不会用你的 checkout。合并后 Foundry 会清理 goal 的文件夹并删除它的分支，这时预览改为运行基础分支（合并后的成果就在那里），并有一行琥珀色提示说明。
 
 如果启动命令除了 Foundry 分配端口的那个服务器之外还启动了别的（比如一个 demo 脚本同时启动 web 应用、管理后台和 API，或者 `turbo dev`），Foundry 会找出它们监听的端口，把能响应网页请求的列在 **Also serving** 下，按各自的 package 名（或所在文件夹）命名，每个都有自己的链接。它用到的所有端口都不会再分给其他 goal 的预览。
 
@@ -176,18 +178,19 @@ Foundry 也会在里程碑时自己启动预览；预览在运行时，每个任
 
 ### Environment
 
-应用常常需要一些设置和密钥（比如 API key、bot token），项目把它们放在 git 之外的 `.env` 文件里，所以 goal 的文件夹里没有。请在卡片的 **Environment** 部分填写：
+应用常常需要一些设置和密钥（比如 API key、bot token），项目把它们放在 git 之外的 `.env` 文件里，所以 goal 的文件夹里没有。卡片上的 **Environment** 一行写着已设置几个、示例文件还要求几个；按 **Edit…** 会在弹窗里打开，每个变量一行，左边是名字，右边是值：
 
-- 按 **Add variable**，填入名字和值，再按 **Save**。变量属于这个仓库，所以这个仓库的每个 goal 都会用到。app 下次启动时生效。
-- 保存过的值不会再显示：输入框会写着 **saved · type to replace**。留空表示保留原值，输入新内容就会替换；**×** 删除这个变量。要改名，就删除它再用原来的值重新添加。
+- 每个名字下面有一段说明，讲它是什么、去哪里拿：示例文件（比如 `.env.example`）里为它写的注释；很多项目都会用到的名字有内置提示（数据库地址、从 @BotFather 拿 bot token、从控制台拿 API key）；还有示例值，以及哪些文件读取它。随便一个随机字符串就行的密钥，按 **Generate** 会自动填一个。
+- **Set for this repository** 列出已保存的变量。保存过的值不会再显示：输入框会写着 **saved · type to replace**。留空表示保留原值，输入新内容就会替换；**×** 删除这个变量。要改名，就删除它再用原来的值重新添加。
+- **Listed in example files, not set** 列出示例文件里提到、但还没有任何来源提供的变量，没有示例值的排在前面。填上你需要的就行，空着的不会保存。并不是每个都需要：示例文件也会列出可选设置，有些启动脚本也会自己写环境变量。
+- **Add variable** 按名字添加一个。**Save** 把它们保存到这个仓库，所以这个仓库的每个 goal 都会用到；app 下次启动时生效。
 - 如果你自己的仓库文件夹里有被 git 忽略的 `.env` 文件（`.env`、`.env.development`、`.env.local`、`.env.development.local`），按 **Import from your checkout** 会把这里还没设置的变量复制过来。不按就不会读取你的文件夹。
-- 示例文件（比如 `.env.example`）里提到、但还没有任何来源提供的变量，会列在 **Listed in example files, not set yet** 下，没有示例值的排在前面；点一下就能添加。并不是每个都需要：示例文件也会列出可选设置，有些启动脚本也会自己写环境变量。
 
 这些值只留在这台电脑上。它们只交给预览的进程，绝不会写进 goal 的文件夹（编码智能体工作的地方），在预览的输出和 self-check 的报告里会显示成 `••••`。预览运行的是 goal 的代码，所以那些代码仍然可以读取它们。它们优先于项目自己的 `.env` 文件。Foundry 自己的 `PORT` 和 `FOUNDRY_APP_<KEY>_URL` 永远以它们为准。
 
 ### Self-check
 
-**Self-check after each task (screenshot + console errors)** 是 Preview 卡片上的一个开关；批准之前，它也在 Brief 的 **How to run it** 部分里。打开后，每个任务并入后 Foundry 都会在隐藏的浏览器里打开预览，截图并检查错误。有错误就会让一个 must 检查失败，所以错误会被修掉。整个过程不用 AI，所以不花钱。
+**Self-check after each task** 是 Overview 的 **Acceptance** 卡片里、检查列表下面的一个开关；批准之前，它也在 Brief 的 **How to run it** 部分里。打开后，每个任务并入后 Foundry 都会在隐藏的浏览器里打开预览，截图并检查错误。有错误就会让一个 must 检查失败，所以错误会被修掉。卡片会显示最近一次的结果：通过还是失败、有几个错误（列出前几个），以及截图链接。整个过程不用 AI，所以不花钱。
 
 它只对结果在浏览器里运行的 goal 有用，而且需要下载一次（在 [Settings → Preview & self-check](./settings.zh.md#preview--self-check) 里按 **Install Chromium**）。默认关闭。
 

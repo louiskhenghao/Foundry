@@ -295,9 +295,9 @@ The history endpoint returns the last 400 events, slimmed the same way, includin
 | Manual Resolution | `engine/src/merge-resolve.ts`, `apps/web/src/pages/MergeResolvePage.tsx` |
 | Base Sync and refresh between tasks | `engine/src/git/sync.ts`, `Engine.ensureSyncedWorkspace` / `refreshBase` |
 | Milestones, Checkpoints, feedback triage | `engine/src/checkpoint.ts`, `engine/src/feedback.ts`, `core/src/schema/feedback.ts` |
-| Preview | `engine/src/preview/{manager,detect,services}.ts` |
+| Preview, its branch (`PreviewManager.source`: the Progress folder, or the `preview` worktree beside it for another branch of a finished goal) and environment notes | `engine/src/preview/{manager,detect,services,env,env-hints}.ts` |
 | Goal review, fix tasks | `engine/src/goal-review.ts`, `engine/src/fix-tasks.ts` |
-| Completion Actions (docs, graph refresh, artifacts) | `engine/src/docs-generate.ts`, `engine/src/completion.ts` |
+| Completion Actions (docs, graph refresh, artifacts; Re-run via `Engine.rerunCompletion`) | `engine/src/docs-generate.ts`, `engine/src/completion.ts` |
 | Delivery, PR Stack, CI fixing | `engine/src/delivery/{pipeline,policy,gh}.ts`, `core/src/schema/delivery.ts` |
 | Escalations, Suggestions | `engine/src/escalation.ts`, `engine/src/escalation-suggest.ts`, `core/src/schema/escalation.ts` |
 | Budgets | `engine/src/budget.ts`, `core/src/schema/goal.ts` (`BUDGET_PRESETS`) |
