@@ -239,7 +239,7 @@ export class SkillsUpdateChecker {
       updatedAt: row.marker?.updatedAt ?? row.lock?.updatedAt ?? row.plugin?.lastUpdated ?? null,
       version: row.version ?? row.plugin?.version ?? null,
     };
-    const base: SkillSourceRow = { name: row.name, invoke: row.invoke, description: row.description, dir: row.dir, scope: row.scope, managedBy: row.managedBy, status: 'unknown', local, pathInRepo, upstream: null, match: null, shadowedBy, duplicateOf: row.duplicateOf, catalogId, actions: [] };
+    const base: SkillSourceRow = { name: row.name, invoke: row.invoke, description: row.description, dir: row.dir, scope: row.scope, managedBy: row.managedBy, status: 'unknown', local, pathInRepo, upstream: null, match: null, shadowedBy, duplicateOf: row.duplicateOf, catalogId, actions: [], keptBecause: row.scope === 'user' && !row.canUninstall ? row.uninstallNote : null };
     if (row.symlink?.broken || row.unparsable) return { ...base, status: 'broken', actions: row.canUninstall ? ['uninstall'] : [] };
 
     // upstream dir to compare against: cache clone path, else the candidate's own dir (marketplace clone / ~/.agents)

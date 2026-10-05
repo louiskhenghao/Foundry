@@ -21,6 +21,10 @@ export interface BundleResult {
 
 export interface SkillsManagerOptions {
   provider?: 'claude' | 'codex';
+  /** Codex: Claude Code's skills folder (shared skills it links to are not removed from the Codex side) */
+  claudeSkillsDir?: string;
+  /** the home holding ~/.agents (default: the user's home for Codex) */
+  sharedHome?: string;
   codexBin?: string;
   codexHome?: string;
   claudeHome: string;
@@ -52,7 +56,7 @@ export class UpdateBusy extends Error {
 export class UninstallRefused extends Error {
   constructor(
     message: string,
-    public readonly reason: 'managed-by-gstack' | 'managed-needs-force' | 'not-user-scope' | 'not-found',
+    public readonly reason: 'managed-by-gstack' | 'managed-needs-force' | 'not-user-scope' | 'not-found' | 'not-uninstallable',
   ) {
     super(message);
   }
@@ -70,7 +74,7 @@ export class SkillsManager {
   private updating: string | null = null;
 
   constructor(private opts: SkillsManagerOptions) {
-    this.paths = skillsPaths(opts.claudeHome, opts.dataDir, opts.provider);
+    this.paths = { ...skillsPaths(opts.claudeHome, opts.dataDir, opts.provider, opts.sharedHome), ...(opts.claudeSkillsDir ? { claudeSkillsDir: opts.claudeSkillsDir } : {}) };
     this.hints = new SkillsHints(() => this.status(), { enabled: opts.hintsEnabled, profile: opts.workflowProfile, packs: opts.packs });
     this.checker = new SkillsUpdateChecker(this.paths, { log: opts.log, ...(opts.updates ?? {}) });
     try {
@@ -306,8 +310,9 @@ export class SkillsManager {
       const row = this.scan().installed.find((r) => r.name === name && r.scope === 'user');
       if (!row) throw new UninstallRefused(`${name} is not a user-level skill`, this.scan().installed.some((r) => r.name === name) ? 'not-user-scope' : 'not-found');
       if (row.managedBy === 'gstack') throw new UninstallRefused('gstack is a git clone that owns hooks in settings.json; remove it with its own tooling', 'managed-by-gstack');
+      if (!row.canUninstall) throw new UninstallRefused(row.uninstallNote ?? `${name} cannot be uninstalled here`, 'not-uninstallable');
       if (row.managedBy && row.managedBy !== 'foundry' && !opts.force) throw new UninstallRefused(`${name} is managed by ${row.managedBy}: ${row.uninstallNote ?? 'pass force to remove anyway'}`, 'managed-needs-force');
-      const trash = trashSkill(name, this.paths, `uninstalled via Foundry${row.managedBy ? ` (was managed by ${row.managedBy})` : ''}`);
+      const trash = trashSkill(name, this.paths, `uninstalled via Foundry${row.managedBy ? ` (was managed by ${row.managedBy})` : ''}`, { from: dirname(row.dir) });
       this.opts.log?.(`[skills] trashed ${name} → ${trash.path}`);
       return { trash, note: row.uninstallNote };
     });
@@ -327,12 +332,16 @@ export class SkillsManager {
           results.push({ name, ok: false, error: 'gstack is a git clone that owns hooks; remove it with its own tooling', note: null });
           continue;
         }
+        if (!row.canUninstall) {
+          results.push({ name, ok: false, error: row.uninstallNote ?? 'cannot be uninstalled here', note: null });
+          continue;
+        }
         if (row.managedBy && row.managedBy !== 'foundry' && !opts.force) {
           results.push({ name, ok: false, error: `managed by ${row.managedBy} (force required)`, note: row.uninstallNote });
           continue;
         }
         try {
-          const t = trashSkill(name, this.paths, `uninstalled via Foundry (bulk)${row.managedBy ? ` (was managed by ${row.managedBy})` : ''}`);
+          const t = trashSkill(name, this.paths, `uninstalled via Foundry (bulk)${row.managedBy ? ` (was managed by ${row.managedBy})` : ''}`, { from: dirname(row.dir) });
           this.opts.log?.(`[skills] trashed ${name} → ${t.path}`);
           results.push({ name, ok: true, error: null, note: row.uninstallNote });
         } catch (e) {

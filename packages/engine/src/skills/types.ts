@@ -221,7 +221,8 @@ export type DoctorCheck = z.infer<typeof DoctorCheck>;
 export const DoctorReport = z.object({ ok: z.boolean(), at: z.string(), checks: z.array(DoctorCheck) });
 export type DoctorReport = z.infer<typeof DoctorReport>;
 
-export const TrashEntry = z.object({ name: z.string(), trashedAt: z.string(), path: z.string(), reason: z.string(), wasSymlink: z.boolean(), symlinkTarget: z.string().nullable() });
+/** `origin`: the folder it was taken from when not the provider's own skills folder (Codex's shared ~/.agents/skills) */
+export const TrashEntry = z.object({ name: z.string(), trashedAt: z.string(), path: z.string(), reason: z.string(), wasSymlink: z.boolean(), symlinkTarget: z.string().nullable(), origin: z.string().optional() });
 export type TrashEntry = z.infer<typeof TrashEntry>;
 
 export const InstallResult = z.object({
@@ -254,6 +255,8 @@ export type SkillRowStatus = z.infer<typeof SkillRowStatus>;
 
 export const SkillSourceRow = z.object({
   name: z.string(),
+  /** why a user-level skill cannot be uninstalled from this side (Claude Code links to it, its own tooling owns it) */
+  keptBecause: z.string().nullable().optional(),
   invoke: z.string(),
   description: z.string(),
   dir: z.string(),

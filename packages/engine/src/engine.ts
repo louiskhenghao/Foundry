@@ -256,6 +256,7 @@ export class Engine {
     const makeSkills = (provider: 'claude' | 'codex') => new SkillsManager({
       provider, codexBin: config.codexBin, codexHome: config.codexHome,
       claudeHome: provider === 'codex' ? config.codexHome : config.claudeHome,
+      claudeSkillsDir: provider === 'codex' ? join(config.claudeHome, 'skills') : undefined,
       dataDir: provider === config.provider ? config.dataDir : join(config.dataDir, 'providers', provider),
       catalogPath: config.catalogPath,
       claudeBin: config.claudeBin,
