@@ -44,7 +44,7 @@ Settings → **Models & limits** → **Coding agent → Codex** provides indepen
 
 Without an explicit preset, the goal captures the configured default table for every nature. Auto classification can therefore choose the captured Docs or Media default without reading later Settings changes. An explicit preset captures that preset's complete tables and remains selected across classification.
 
-**Sync Codex models** reads the local app-server catalog without inference. Discovered models and advertised effort levels are capabilities, not account-access guarantees. **Test** runs one short session using the chosen model and effort, consumes account quota. Custom IDs remain available for models absent from the catalog. Fallback runs only for model-unavailability failures before productive work; authentication, quota and invalid effort errors remain visible and do not silently switch models.
+**Settings → Models & limits → Codex → Sync models** reads the local app-server catalog without inference. Discovered models and advertised effort levels are capabilities, not account-access guarantees. **Test** runs one short session using the chosen model and effort, consumes account quota. Custom IDs remain available for models absent from the catalog. Fallback runs only for model-unavailability failures before productive work; authentication, quota and invalid effort errors remain visible and do not silently switch models.
 
 | Variable | Purpose |
 | --- | --- |

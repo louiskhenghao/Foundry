@@ -42,7 +42,7 @@ When to change: set **Interview before the Brief** to **always** if you like to 
 
 ## Models & limits
 
-This section decides which model does each job. Choose **Claude Code** or **Codex** under **Coding agent**; their presets and catalogs are independent. Session limits appear below the selected coding agent’s model settings.
+This section decides which model does each job. Choose **Claude Code** or **Codex** under **Coding agent**; their presets and catalogs are independent. Both panels have the same layout: **Sync models**, **Preset per goal type**, the **Presets** editor, then **Other models**. Session limits appear below the selected coding agent’s model settings.
 
 ![Settings, Models & limits: the Sync models button and one preset per goal type with its model grid](images/settings-models.png)
 
@@ -52,7 +52,7 @@ This section decides which model does each job. Choose **Claude Code** or **Code
 
 ### Codex presets and models
 
-With **Coding agent → Codex** selected, choose **Code preset**, **Docs & research preset** and **Media preset**. The defaults are Production for code and Balanced for the other goal types. These names are independent from Claude presets:
+With **Coding agent → Codex** selected, pick a preset for **Code**, **Docs & research** and **Media** under **Preset per goal type**. Each card lists every role as model · effort, for example `Default · high`; **Default** means the role uses **Default Codex model**. The defaults are Production for code and Balanced for the other goal types. These names are independent from Claude presets:
 
 | Preset | Reasoning profile |
 |---|---|
@@ -61,17 +61,17 @@ With **Coding agent → Codex** selected, choose **Code preset**, **Docs & resea
 | **Balanced** | Mostly `medium`; `high` for Planner, Complex tasks and Goal reviewer, `low` for Housekeeping. |
 | **Economy** | `low` for every role. |
 
-These profiles initially use **Default model · from Settings**. **Default Codex model** selects what that means for new goals. Leaving it as **CLI default model** follows the local Codex configuration; an explicit ID pins a model. Actual speed, quota use and availability depend on that model and your account. Foundry does not infer USD prices from preset names.
+These profiles initially use **Default model · from Settings**. **Default Codex model**, under **Other models**, selects what that means for new goals. Leaving it as **CLI default model** follows the local Codex configuration; an explicit ID pins a model. Actual speed, quota use and availability depend on that model and your account. Foundry does not infer USD prices from preset names.
 
 An Auto goal with the Default preset captures all three goal-type defaults at creation. It starts from the Code table for classification, then uses the captured table for its inferred type. Choosing an explicit preset instead keeps that preset across goal types.
 
-Under **Edit preset**, select a preset and the **Code**, **Docs & research** or **Media** table. Every role has a model dropdown and **Reasoning effort** selection. **Housekeeping** is part of the Codex preset. **Planner** runs in a separate Foundry planning session. Model metadata narrows the effort choices when available; **CLI default** leaves the effort unset. **Custom model ID…** accepts a newer or private model absent from the catalog.
+Press **Edit preset** on a card, or click a preset's name under **Presets**, then pick the **Code**, **Docs & research** or **Media** table. Every role row has a model dropdown, a reasoning effort dropdown and **Test**. A dot • marks a role you changed; hover it to see the shipped value. **Housekeeping** is part of the Codex preset. **Planner** runs in a separate Foundry planning session. Model metadata narrows the effort choices when available; **CLI default** leaves the effort unset. **Custom model ID…** accepts a newer or private model absent from the catalog.
 
-**Duplicate preset** creates an editable copy with a **Preset name** and **Description**. Editing a built-in marks it **modified**; **Reset to built-in** restores its shipped tables. **Delete preset** removes a custom preset and returns goal types using it to their built-in defaults. Press **Save** to apply these changes to new Codex goals. Existing goals retain their captured settings even if the original preset is renamed or deleted.
+**New from this** creates an editable copy with a **Name** and **Description**. Editing a built-in marks it **modified**; **Reset** restores its shipped tables. **Delete** removes a custom preset and returns goal types using it to their built-in defaults. Press **Save** to apply these changes to new Codex goals. Existing goals retain their captured settings even if the original preset is renamed or deleted.
 
-**Sync Codex models** reads the local CLI catalog without running inference. A listed model is not proof of account access. **Test** deliberately runs a short session for the chosen model and effort; it consumes account quota. The result reports availability, with USD cost unavailable. It does not run automatically when you select or save a model.
+**Sync models** reads the local CLI catalog without running inference. A listed model is not proof of account access. **Test** deliberately runs a short session for the chosen model and effort; it consumes account quota. The result reports availability, with USD cost unavailable. It does not run automatically when you select or save a model.
 
-Under **Fallback models, in order**, use **Add fallback**, the arrow buttons and the remove button to choose an ordered chain. **CLI default model** here follows native Codex configuration, independently of the base model in Settings. New goals capture that order. Only a model-unavailability error triggers fallback; account, quota and unsupported-effort errors do not silently change models. With an empty chain, an unavailable model asks for your decision.
+Under **Other models → Fallbacks (in order)**, use **Add fallback**, the arrow buttons and the remove button to choose an ordered chain. **CLI default model** here follows native Codex configuration, independently of the base model in Settings. New goals capture that order. Only a model-unavailability error triggers fallback; account, quota and unsupported-effort errors do not silently change models. With an empty chain, an unavailable model asks for your decision.
 
 ### Presets
 
@@ -145,7 +145,7 @@ Every model choice in the preset editor offers:
 
 ### Housekeeping model
 
-**Housekeeping model** (default Haiku) does Foundry's own one-line chores: deciding what kind of goal it is, summarising logs, checking your usage limit. It costs cents per goal. The only model not set by a preset. **Test** runs one tiny session to confirm the model works and shows what it resolves to.
+**Housekeeping model** (default Haiku), under **Other models**, does Foundry's own one-line chores: deciding what kind of goal it is, summarising logs, checking your usage limit. It costs cents per goal. The only model not set by a preset. **Test** runs one tiny session to confirm the model works and shows what it resolves to.
 
 ### Fallbacks
 
