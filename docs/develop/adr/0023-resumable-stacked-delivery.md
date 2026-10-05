@@ -29,8 +29,11 @@ A stacked delivery (one PR per task) failed in ways that made it hard to finish:
   conflicts. The goal's checks run locally on such a resolution only when the repository has no CI.
 - **Force with lease, for stacked branches only.** A replayed branch replaces its remote copy with
   `git push --force-with-lease=refs/heads/<branch>:<sha last seen>`. The goal branch and the base branch are never
-  force-pushed. If the lease is refused (someone pushed to the branch), the replay is dropped: the branch is reset to
-  the remote copy, the base is merged in, and it is pushed normally. A note records why.
+  force-pushed. Before a stacked branch is synced, its remote copy is fetched: commits someone pushed to the PR are
+  taken in first (so the replay keeps them), and a replay an earlier run made but never pushed is kept and leased
+  against the copy it was replayed from. If the lease is still refused (someone pushed in the moment between), the
+  replay is dropped: the branch is reset to the remote copy, the base is merged in, and it is pushed normally. A note
+  records why.
 - **Switches are live.** `delivery.policy_saved` stores a policy without starting a run. A running delivery reads
   *Wait for CI checks*, *Merge when no checks*, *Auto-resolve conflicts*, *Delete the remote branch* and the fix-CI
   budget at each step. Mode, unit, merge method, base and remote are refused while a run goes or PRs are open
