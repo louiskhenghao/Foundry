@@ -152,7 +152,7 @@ export class SkillsUpdateChecker {
       for (const { row, pathInRepo, candidate } of g.rows) {
         rows.push(await this.rowStatus(g.key, row, pathInRepo, candidate, facts, cache, catalog, gitOk));
       }
-      for (const r of rows) if (r.shadowedBy && (r.status === 'outdated' || r.status === 'modified' || r.match?.relation === 'older')) shadowed.push(r.name);
+      for (const r of rows) if (isStaleShadow(r)) shadowed.push(r.name);
       const local = this.localOf(g.key, g.rows.map((x) => x.row));
       const updater = updaterFor(g.key, rows, this.paths.provider);
       const determinable = rows.filter((r) => r.status !== 'unknown' && r.status !== 'broken');
@@ -311,7 +311,7 @@ export class SkillsUpdateChecker {
     // adopting reinstalls from the catalog: only entries Foundry can install by itself (git, plugin)
     const adoptable = catalogId ? ['git', 'plugin'].includes(catalog.entries.find((e) => e.id === catalogId)?.source.type ?? '') : false;
     if (key.manager === 'hand' && adoptable && out.status !== 'up-to-date') actions.push('adopt');
-    if (shadowedBy && (out.status === 'outdated' || out.status === 'modified' || out.match?.relation === 'older')) actions.push('trash-shadow');
+    if (isStaleShadow({ ...out, shadowedBy, managedBy: row.managedBy })) actions.push('trash-shadow');
     if (row.canUninstall) actions.push('uninstall');
     out.actions = actions;
     return out;
@@ -374,3 +374,13 @@ function updaterFor(key: SourceKey, rows: SkillSourceRow[], provider: 'claude' |
 }
 
 export type { MarketplaceInfo };
+
+/**
+ * A user-level copy that a plugin skill of the same name supersedes, and that Foundry may trash. A copy another tool
+ * keeps (gstack re-links its skills on every session) is that tool's own skill that merely shares the name: trashing it
+ * would not last and is not offered.
+ */
+export function isStaleShadow(r: Pick<SkillSourceRow, 'shadowedBy' | 'status' | 'match' | 'managedBy'>): boolean {
+  if (!r.shadowedBy || r.managedBy === 'gstack' || r.managedBy === 'gstack-copy') return false;
+  return r.status === 'outdated' || r.status === 'modified' || r.match?.relation === 'older';
+}

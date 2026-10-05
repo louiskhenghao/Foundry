@@ -182,7 +182,8 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
                         onClick={() =>
                           runAction('shadows', async () => {
                             const r = await api.cleanupShadows(c.fix!.names!);
-                            return `${r.trashed.length} stale cop${r.trashed.length === 1 ? 'y' : 'ies'} moved to the trash`;
+                            const skipped = r.skipped.map((s) => `${s.name} (${s.reason})`).join(', ');
+                            return `${r.trashed.length} stale cop${r.trashed.length === 1 ? 'y' : 'ies'} moved to the trash${skipped ? `; skipped ${skipped}` : ''}`;
                           })
                         }
                       >

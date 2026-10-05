@@ -195,3 +195,15 @@ describe('skills sources & updates', () => {
 
 // keep cpSync referenced for future fixtures
 void cpSync;
+
+describe('isStaleShadow', () => {
+  test('a superseded copy is stale; another tool’s skill that only shares the name is not', async () => {
+    const { isStaleShadow } = await import('./updates.ts');
+    const row = { shadowedBy: '/mattpocock-skills:retro', status: 'outdated', match: null, managedBy: null } as const;
+    expect(isStaleShadow(row as any)).toBe(true);
+    expect(isStaleShadow({ ...row, managedBy: 'gstack-copy' } as any)).toBe(false);
+    expect(isStaleShadow({ ...row, managedBy: 'gstack' } as any)).toBe(false);
+    expect(isStaleShadow({ ...row, shadowedBy: null } as any)).toBe(false);
+    expect(isStaleShadow({ ...row, status: 'up-to-date' } as any)).toBe(false);
+  });
+});
