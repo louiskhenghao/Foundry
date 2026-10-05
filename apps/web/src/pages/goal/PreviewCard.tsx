@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { type PreviewAppStatus, type PreviewEnv, type PreviewSources, type PreviewStatus, type ServicesStatus, api } from '../../api.ts';
 import { Button, Card, CopyButton, Input, Modal, Select, cn } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
+import { WorkspaceDetails } from './WorkspaceDetails.tsx';
+import type { Goal } from '@foundry/core/browser';
 
 const startedByText = (by: PreviewAppStatus['startedBy']) => (by === 'human' ? 'by you' : by === 'milestone' ? 'for the milestone' : by === 'integration' ? 'after a task landed' : null);
 
@@ -44,9 +46,9 @@ function Problems({ app }: { app: PreviewAppStatus }) {
 /**
  * The goal's preview, started by the engine in the progress folder: one dev server per app (a monorepo has several),
  * and the Docker services they need. What would run, whether it runs, where to open it. Embedded in the milestone
- * card, and its own card on the Overview tab.
+ * card; on the Overview tab it is the Workspace & preview card, with the goal's folder (`goal`) at the top.
  */
-export function PreviewCard({ goalId, embedded }: { goalId: string; embedded?: boolean }) {
+export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedded?: boolean; goal?: Goal }) {
   const [st, setSt] = useState<PreviewStatus | null>(null);
   const [svc, setSvc] = useState<ServicesStatus | null>(null);
   // what is being done: start:<app key> / stop:<app key>, '*' = every app
@@ -203,6 +205,7 @@ export function PreviewCard({ goalId, embedded }: { goalId: string; embedded?: b
 
   const body = (
     <div className="text-xs text-zinc-400 space-y-2">
+      {goal && <WorkspaceDetails goal={goal} />}
       {where}
       {!st ? (
         <div className="text-zinc-500">…</div>
@@ -237,7 +240,7 @@ export function PreviewCard({ goalId, embedded }: { goalId: string; embedded?: b
       {st && <EnvPanel key={goalId} goalId={goalId} anyRunning={anyRunning} />}
     </div>
   );
-  return embedded ? body : <Card title="Preview" actions={allButtons || null}>{body}</Card>;
+  return embedded ? body : <Card title={goal ? 'Workspace & preview' : 'Preview'} actions={allButtons || null}>{body}</Card>;
 }
 
 /**

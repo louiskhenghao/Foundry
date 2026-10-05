@@ -5,7 +5,6 @@ import { api, type GoalDetail } from '../../api.ts';
 import { AttachmentInput } from '../../components/Attachments.tsx';
 import { OpenFull } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
-import { WorkspaceCard } from './WorkspaceCard.tsx';
 import { PreviewCard } from './PreviewCard.tsx';
 import { Badge, Card, cn } from '../../ui.tsx';
 import { EscalationCard } from '../InboxPage.tsx';
@@ -104,9 +103,8 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
             <AttachmentInput items={g.attachments} goalId={g.id} onChange={() => {}} />
             <p className="text-[11px] text-zinc-500 mt-2">Attachments are handed to every new session of this goal (Clarify, workers, goal review) as read-only references.</p>
           </Card>
-          <WorkspaceCard d={d} />
           <CodexModelsCard goal={g} />
-          {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <PreviewCard goalId={g.id} />}
+          {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <PreviewCard goalId={g.id} goal={g} />}
           {d.events.some((e) => e.type === 'goal.models_changed') && (
             <Card title="Model fallback">
               <div className="text-xs text-zinc-400 space-y-1">
