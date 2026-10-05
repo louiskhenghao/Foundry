@@ -121,20 +121,14 @@ function FoundryActivity() {
         <Kpi label="avg session length" value={fmtDur(m.avgDurationMs)} />
         <Kpi label="sessions not successful" value={String(m.errorSessions)} hint="ended with an error, timeout or kill" good={m.errorSessions === 0} bad={m.errorSessions > 0} />
       </div>
-      <ActivityTable m={m} />
+      <Breakdowns m={m} />
       <p className="text-xs text-zinc-500">
-        Time and tokens cover both coding agents. Cost is estimated for Claude Code only; Codex reports no dollar cost, so its rows show —, and <span className="mono">*</span> marks a row whose cost leaves out its Codex sessions. Counts only sessions started by Foundry on this machine. Account limits are below, per coding agent; for exact Claude percentages run /usage inside Claude Code.
+        Rows are listed by time, which both coding agents report. Cost is estimated for Claude Code only; Codex reports no dollar cost, so its rows show —, and <span className="mono">*</span> marks a row whose cost leaves out its Codex sessions. Counts only sessions started by Foundry on this machine. Account limits are below, per coding agent; for exact Claude percentages run /usage inside Claude Code.
       </p>
     </section>
   );
 }
 
-type SortKey = 'durationMs' | 'sessions' | 'tokens' | 'costUsd';
-const TABS = [
-  { id: 'goal', label: 'By goal' },
-  { id: 'kind', label: 'By session kind' },
-  { id: 'model', label: 'By model' },
-] as const;
 const totalTokens = (r: ActivityRow) => r.tokens.input + r.tokens.cacheRead + r.tokens.cacheCreate + r.tokens.output;
 const fmtSpan = (ms: number) => {
   if (ms < 60_000) return `${Math.round(ms / 1000)} s`;
@@ -142,104 +136,76 @@ const fmtSpan = (ms: number) => {
   return min < 60 ? `${min} min` : min % 60 ? `${Math.floor(min / 60)} h ${min % 60} min` : `${min / 60} h`;
 };
 
-/** One breakdown at a time, as a table sortable by any measure (time first: both coding agents report it). */
-function ActivityTable({ m }: { m: ReturnType<typeof mergeActivity> }) {
-  const [tab, setTab] = useState<(typeof TABS)[number]['id']>('goal');
-  const [sort, setSort] = useState<SortKey>('durationMs');
-  const rows = [...(tab === 'goal' ? m.byGoal : tab === 'kind' ? m.byKind : m.byModel)].sort((a, b) => {
-    const v = (r: ActivityRow) => (sort === 'tokens' ? totalTokens(r) : sort === 'costUsd' ? (r.costUsd ?? -1) : r[sort]);
-    return v(b) - v(a) || b.durationMs - a.durationMs;
-  });
-  const cost = (r: ActivityRow) =>
-    r.costUsd == null ? (
-      <span className="text-zinc-600" title="Codex reports no dollar cost">—</span>
-    ) : (
-      <span title={r.partial ? 'Claude Code sessions only: this row’s Codex sessions report no dollar cost' : undefined}>
-        {fmtUsd(r.costUsd)}
-        {r.partial && <span className="text-zinc-500">*</span>}
-      </span>
-    );
-  const tokensCell = (r: ActivityRow) => <span title={`input ${fmtK(r.tokens.input)} · cache read ${fmtK(r.tokens.cacheRead)} · cache write ${fmtK(r.tokens.cacheCreate)} · output ${fmtK(r.tokens.output)}`}>{fmtK(totalTokens(r))}</span>;
-  const name = (r: ActivityRow) => (
-    <span className="flex items-center gap-1.5 min-w-0">
-      {r.agents.map((a) => (
-        <ProviderBadge key={a} provider={a} compact />
-      ))}
-      {r.goalId ? (
-        <Link className="truncate text-zinc-200 hover:underline" to={`/goals/${r.goalId}`} title={r.label}>
-          {r.label}
-        </Link>
-      ) : (
-        <span className={cn('truncate', r.muted ? 'text-zinc-400' : 'text-zinc-200')} title={r.label}>
-          {r.label}
-        </span>
-      )}
-      {r.state && <Badge state={r.state} className="shrink-0" />}
-    </span>
-  );
-  const head = (key: SortKey, label: string, hint?: string) => (
-    <th className="py-2 pl-3 font-medium text-right" aria-sort={sort === key ? 'descending' : 'none'}>
-      <button type="button" className={cn('uppercase tracking-wide hover:text-zinc-300', sort === key && 'text-zinc-200')} onClick={() => setSort(key)} title={hint ?? `Sort by ${label.toLowerCase()}`}>
-        {label}
-        {sort === key ? ' ↓' : ''}
-      </button>
-    </th>
-  );
+/** The three breakdowns side by side, all visible at once; rows by time, which both coding agents report. */
+function Breakdowns({ m }: { m: ReturnType<typeof mergeActivity> }) {
   return (
-    <div className="surface-card rounded-lg border border-zinc-800">
-      <div role="tablist" aria-label="Breakdown" className="flex gap-1 border-b border-zinc-800 px-2 pt-2 overflow-x-auto">
-        {TABS.map((t) => (
-          <button key={t.id} role="tab" type="button" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className={cn('whitespace-nowrap rounded-t-md px-3 py-1.5 text-xs border-b-2 -mb-px', tab === t.id ? 'border-emerald-500 text-zinc-100' : 'border-transparent text-zinc-500 hover:text-zinc-300')}>
-            {t.label}
-          </button>
-        ))}
-      </div>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <Breakdown title="By goal" rows={m.byGoal} />
+      <Breakdown title="By session kind" rows={m.byKind} />
+      <Breakdown title="By model" rows={m.byModel} />
+    </div>
+  );
+}
+
+const SHOWN = 8;
+
+/**
+ * One breakdown as grouped rows, like the Goals list: what it is and what it cost on the first line, how much time,
+ * how many sessions and tokens on the second. Cost is Claude Code's alone: — for a Codex-only row, * for a mixed one.
+ */
+function Breakdown({ title, rows }: { title: string; rows: ActivityRow[] }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? rows : rows.slice(0, SHOWN);
+  return (
+    <Card title={title} bodyClassName="px-4 py-1">
       {rows.length === 0 ? (
-        <div className="px-4 py-3 text-xs text-zinc-500">nothing yet</div>
+        <div className="py-2 text-xs text-zinc-500">nothing yet</div>
       ) : (
         <>
-          {/* tablets and up: one sortable table */}
-          <table className="hidden sm:table w-full text-xs">
-            <thead>
-              <tr className="text-left text-[10px] uppercase tracking-wide text-zinc-500 border-b border-zinc-800">
-                <th className="py-2 px-3 font-medium">{TABS.find((t) => t.id === tab)!.label.replace('By ', '')}</th>
-                {head('sessions', 'Sessions')}
-                {head('durationMs', 'Time', 'Sort by time spent in sessions (both coding agents)')}
-                {head('tokens', 'Tokens', 'Sort by tokens processed (both coding agents)')}
-                {head('costUsd', 'Cost', 'Sort by estimated cost (Claude Code only)')}
-                <th className="w-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-b border-zinc-900 last:border-b-0">
-                  <td className="py-1.5 px-3 max-w-0 w-full">{name(r)}</td>
-                  <td className="py-1.5 pl-3 text-right text-zinc-400 tabular-nums">{r.sessions}</td>
-                  <td className="py-1.5 pl-3 text-right mono text-zinc-200 whitespace-nowrap">{fmtSpan(r.durationMs)}</td>
-                  <td className="py-1.5 pl-3 text-right mono text-zinc-400 whitespace-nowrap">{tokensCell(r)}</td>
-                  <td className="py-1.5 pl-3 text-right mono text-zinc-300 whitespace-nowrap">{cost(r)}</td>
-                  <td />
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {/* phones: one line of measures under each name */}
-          <ul className="sm:hidden divide-y divide-zinc-800/70 text-xs">
-            {rows.map((r) => (
-              <li key={r.id} className="px-3 py-2 space-y-1">
-                {name(r)}
-                <div className="flex gap-3 text-[11px] text-zinc-500">
-                  <span>{r.sessions}×</span>
+          <ul className="divide-y divide-zinc-800/70">
+            {shown.map((r) => (
+              <li key={r.id} className="py-2 min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0 text-xs">
+                  {r.agents.map((a) => (
+                    <ProviderBadge key={a} provider={a} compact />
+                  ))}
+                  {r.goalId ? (
+                    <Link className="truncate text-zinc-200 hover:underline" to={`/goals/${r.goalId}`} title={r.label}>
+                      {r.label}
+                    </Link>
+                  ) : (
+                    <span className={cn('truncate', r.muted ? 'text-zinc-400' : 'text-zinc-200')} title={r.label}>
+                      {r.label}
+                    </span>
+                  )}
+                  <span className="ml-auto pl-2 mono shrink-0 text-zinc-200">
+                    {r.costUsd == null ? (
+                      <span className="text-zinc-600" title="Codex reports no dollar cost">—</span>
+                    ) : (
+                      <span title={r.partial ? 'Claude Code sessions only: this row’s Codex sessions report no dollar cost' : 'estimated cost'}>
+                        {fmtUsd(r.costUsd)}
+                        {r.partial && <span className="text-zinc-500">*</span>}
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div className="mt-1 flex items-center gap-x-2 gap-y-1 flex-wrap text-[11px] text-zinc-500">
+                  {r.state && <Badge state={r.state} className="text-[9px] px-1 py-px" />}
                   <span className="mono text-zinc-300">{fmtSpan(r.durationMs)}</span>
-                  <span className="mono">{tokensCell(r)} tokens</span>
-                  <span className="mono ml-auto">{cost(r)}</span>
+                  <span>· {r.sessions} session{r.sessions === 1 ? '' : 's'}</span>
+                  <span title={`input ${fmtK(r.tokens.input)} · cache read ${fmtK(r.tokens.cacheRead)} · cache write ${fmtK(r.tokens.cacheCreate)} · output ${fmtK(r.tokens.output)}`}>· {fmtK(totalTokens(r))} tokens</span>
                 </div>
               </li>
             ))}
           </ul>
+          {rows.length > SHOWN && (
+            <button type="button" className="w-full py-2 text-[11px] text-zinc-500 hover:text-zinc-300 border-t border-zinc-800/70" onClick={() => setAll((v) => !v)}>
+              {all ? 'Show fewer' : `Show all ${rows.length}`}
+            </button>
+          )}
         </>
       )}
-    </div>
+    </Card>
   );
 }
 
