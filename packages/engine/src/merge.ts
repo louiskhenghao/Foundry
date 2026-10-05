@@ -89,7 +89,7 @@ async function integrateTaskUnlocked(engine: Engine, goal: Goal, task: Task): Pr
  * Merge `src.ref` into the goal branch (in the goal workspace) with a real merge commit. Used by
  * delivery to sync with the remote base branch. The `task` is the unit the merge belongs to.
  */
-export async function mergeBranchInto(engine: Engine, goal: Goal, task: Task, src: MergeSource, opts: { autoResolve?: boolean; cwd?: string; into?: string; escalate?: boolean } = {}): Promise<boolean> {
+export async function mergeBranchInto(engine: Engine, goal: Goal, task: Task, src: MergeSource, opts: { autoResolve?: boolean; cwd?: string; into?: string; escalate?: boolean; runChecks?: boolean } = {}): Promise<boolean> {
   const { store } = engine;
   const goalWs = opts.cwd ?? goalWorkspacePath(engine.config.dataDir, goal);
   const into = opts.into ?? goal.branch;
@@ -109,7 +109,7 @@ export async function mergeBranchInto(engine: Engine, goal: Goal, task: Task, sr
     if (opts.escalate !== false) raiseEscalation(engine, { goal, task, trigger: 'retries_exhausted', message: `Merging ${src.label} into ${into} conflicts in ${files.join(', ')} and automatic resolution is disabled by the delivery policy.`, payload: { kind: 'merge', files } });
     return false;
   }
-  const ok = await resolveConflicts(engine, goal, task, files, src, { cwd: goalWs, redo: async () => void (await merge()), commitMessage: message, escalate: opts.escalate }, r.stderr);
+  const ok = await resolveConflicts(engine, goal, task, files, src, { cwd: goalWs, redo: async () => void (await merge()), commitMessage: message, escalate: opts.escalate, runChecks: opts.runChecks }, r.stderr);
   if (ok) store.append({ type: 'merge.completed', goalId: goal.id, payload: { taskId: task.id, ref: await headRef(goalWs) } });
   return ok;
 }

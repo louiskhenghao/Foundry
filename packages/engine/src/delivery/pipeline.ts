@@ -11,6 +11,7 @@ import { branchSlug, goalHeader, headerOf, taskCommitMessage } from '../git/conv
 import { detectRun } from '../preview/detect.ts';
 import { abortInProgress, commitAuthorMode, commitStaged, conflictedFiles, ensureDetachedWorktree, exec, git, gitIdent, gitOk, headRef, isGitRepo, removeWorktree, withCoauthor, type ExecResult } from '../git/git.ts';
 import { mergeBranchInto, resolveConflicts } from '../merge.ts';
+import { stackEntries } from './stack-entries.ts';
 import { deliveryWorkspacePath, ensureGoalWorkspace, goalWorkspacePath, isStackBranch, listStackBranches, stackBranchName } from '../workspace.ts';
 import { describeFailing, failingChecks, reduceChecks, type GhClient, type PrView } from './gh.ts';
 import { closeDeliveryFailures, raiseDeliveryFailure } from './inbox.ts';
@@ -53,6 +54,18 @@ interface Ctx {
   retargeted: Set<number>;
   /** checkouts whose dependencies were installed in this run (the scratch worktree starts without node_modules) */
   depsInstalled: Set<string>;
+  /** stacked branches rebased in this run: their next push replaces the remote tip, which must still be `remote` */
+  leases: Map<string, { remote: string; from: string }>;
+}
+
+/** the switches a person may change while a delivery runs; everything else keeps the value the run started with */
+const SWITCHES = ['requireChecks', 'mergeIfNoChecks', 'autoResolveConflicts', 'deleteRemoteBranch', 'fixCiCycles'] as const;
+
+/** The policy as it stands now: switches saved mid-run apply from the next step on; mode, unit and merge method do not change under a run. */
+function live(ctx: Ctx): DeliveryPolicy {
+  const now = getGoal(ctx.engine.store.db, ctx.goal.id)?.delivery.policy;
+  if (!now) return ctx.policy;
+  return { ...ctx.policy, ...Object.fromEntries(SWITCHES.map((k) => [k, now[k]])) } as DeliveryPolicy;
 }
 
 /** One branch of a stacked delivery. */
@@ -75,7 +88,7 @@ interface PrUnit {
   resync: () => Promise<boolean>;
 }
 
-type StepFn = <T>(s: DeliveryStep, fn: () => Promise<{ status: 'ok' | 'skipped'; detail: string; value?: T }>) => Promise<T | undefined>;
+type StepFn = <T>(s: DeliveryStep, fn: () => Promise<{ status: 'ok' | 'skipped'; detail: string; value?: T }>, branch?: string | null) => Promise<T | undefined>;
 
 /**
  * Deliver a finished goal according to its policy. Every step is idempotent so a failed or
@@ -86,19 +99,19 @@ export async function runDelivery(engine: Engine, goalIn: Goal, signal: AbortSig
   const goal = getGoal(store.db, goalIn.id)!;
   const policy = goal.delivery.policy;
   if (policy.mode === 'local') return;
-  const ctx: Ctx = { engine, goal, policy, goalWs: goalWorkspacePath(config.dataDir, goal), deliveryWs: deliveryWorkspacePath(config.dataDir, goal), repoPath: goal.repoPath, base: baseOf(goal, policy), remote: policy.remote, gh: engine.gh, opts: config.delivery, signal, repo: null, ci: null, retargeted: new Set<number>(), depsInstalled: new Set<string>() };
+  const ctx: Ctx = { engine, goal, policy, goalWs: goalWorkspacePath(config.dataDir, goal), deliveryWs: deliveryWorkspacePath(config.dataDir, goal), repoPath: goal.repoPath, base: baseOf(goal, policy), remote: policy.remote, gh: engine.gh, opts: config.delivery, signal, repo: null, ci: null, retargeted: new Set<number>(), depsInstalled: new Set<string>(), leases: new Map<string, { remote: string; from: string }>() };
   const ev = <T extends Parameters<typeof store.append>[0]>(e: T) => store.append(e);
-  const step: StepFn = async (s, fn) => {
+  const step: StepFn = async (s, fn, branch = null) => {
     if (signal.aborted) throw new DeliveryCancelled('cancelled');
-    ev({ type: 'delivery.step', goalId: goal.id, payload: { step: s, status: 'started', detail: '' } });
+    ev({ type: 'delivery.step', goalId: goal.id, payload: { step: s, status: 'started', detail: '', branch } });
     try {
       const r = await fn();
-      ev({ type: 'delivery.step', goalId: goal.id, payload: { step: s, status: r.status, detail: r.detail } });
+      ev({ type: 'delivery.step', goalId: goal.id, payload: { step: s, status: r.status, detail: r.detail, branch } });
       return r.value;
     } catch (err) {
       if (err instanceof DeliveryCancelled) throw err;
       const msg = err instanceof DeliveryFailed ? err.message : String((err as Error).message ?? err);
-      ev({ type: 'delivery.step', goalId: goal.id, payload: { step: s, status: 'failed', detail: msg } });
+      ev({ type: 'delivery.step', goalId: goal.id, payload: { step: s, status: 'failed', detail: msg, branch } });
       throw err instanceof DeliveryFailed ? err : new DeliveryFailed(s, msg);
     }
   };
@@ -236,31 +249,8 @@ export async function runDelivery(engine: Engine, goalIn: Goal, signal: AbortSig
 
 // ---------- stacked delivery ----------
 
-/**
- * Every task commit in the order it landed on the goal branch, with its stable stack position and
- * whether a previous delivery already merged it. Positions never shift when a task merges, so a re-run
- * reuses the same branch names (and therefore the same PRs).
- */
-function committedTasks(ctx: Ctx): { task: Task; index: number; merged: boolean }[] {
-  const { store } = ctx.engine;
-  const events = store.listByGoal(ctx.goal.id, 5000);
-  const mergedTaskIds = new Set(events.filter((e) => e.type === 'delivery.merged').map((e) => (e.payload as any).taskId as string | null).filter((x): x is string => !!x));
-  const order: string[] = [];
-  for (const e of events) {
-    if (e.type !== 'task.committed') continue;
-    const { taskId } = e.payload as { taskId: string };
-    const i = order.indexOf(taskId);
-    if (i >= 0) order.splice(i, 1);
-    order.push(taskId);
-  }
-  const tasks = listTasks(store.db, ctx.goal.id);
-  return order
-    .map((id) => tasks.find((t) => t.id === id))
-    .filter((t): t is Task => !!t && !!t.commitRef && t.state === 'done')
-    .map((task, i) => ({ task, index: i + 1, merged: mergedTaskIds.has(task.id) }));
-}
 /** Task commits that still need delivering. */
-const deliverableTasks = (ctx: Ctx) => committedTasks(ctx).filter((t) => !t.merged);
+const deliverableTasks = (ctx: Ctx) => stackEntries(ctx.engine, ctx.goal).filter((t) => !t.merged);
 
 /**
  * Turn the task commits into stacked branches on top of the remote base: `goal/<id>/1-<slug>` holds
@@ -273,7 +263,7 @@ async function buildStack(ctx: Ctx, step: StepFn): Promise<StackBranch[] | null>
   const { store } = engine;
   const note = (message: string) => store.append({ type: 'delivery.note', goalId: goal.id, payload: { message } });
   const result = await step<StackBranch[] | null>('build-stack', async () => {
-    const all = committedTasks(ctx);
+    const all = stackEntries(ctx.engine, ctx.goal);
     const tasks = all.filter((t) => !t.merged);
     if (all.length < 2) return { status: 'skipped', detail: `${all.length} task commit(s) to deliver — one PR is enough`, value: null };
     if (!tasks.length) return { status: 'skipped', detail: 'every task commit was already merged by a previous delivery', value: [] };
@@ -287,40 +277,45 @@ async function buildStack(ctx: Ctx, step: StepFn): Promise<StackBranch[] | null>
     const expected = tasks.map(nameOf);
     const baseFor = (i: number) => (i === 0 ? ctx.base : expected[i - 1]!);
 
-    // a previous run already built (and maybe pushed) these branches: reuse them, never rebuild pushed history
+    // Branches a previous run built (and maybe pushed, with open PRs) are reused as they are, never deleted: deleting a
+    // PR's branch makes GitHub close the PR. Only entries without a branch yet are built, on top of the entry below.
     const existing = await listStackBranches(ctx.repoPath, goal.branch);
-    if (expected.every((b) => existing.includes(b))) {
-      const stack: StackBranch[] = [];
-      for (const [i, t] of tasks.entries()) {
-        const commit = await gitOk(['rev-parse', expected[i]!], ctx.repoPath);
-        stack.push({ task: t.task, index: t.index, branch: expected[i]!, base: baseFor(i), commit, title: headerOf(t.task.commitMessage ?? t.task.title) });
-      }
-      await ensureDetachedWorktree(ctx.repoPath, ctx.deliveryWs, baseRef);
-      store.append({ type: 'delivery.stack_built', goalId: goal.id, payload: { branches: stack.map((b) => ({ taskId: b.task.id, index: b.index, branch: b.branch, base: b.base, commit: b.commit, title: b.title })) } });
-      return { status: 'ok', detail: `reusing ${stack.length} stacked branches from the previous run`, value: stack };
-    }
-    // stale stack from an older run: drop its branches locally and on the remote (closing their PRs) before rebuilding
-    for (const b of existing) {
-      await git(['branch', '-D', b], ctx.repoPath);
-      await run(ctx, 'build-stack', ['git', 'push', ctx.remote, '--delete', `refs/heads/${b}`], ctx.goalWs, false);
-    }
+    const reused = expected.filter((b) => existing.includes(b));
+    const known = new Set(all.map(nameOf));
+    const stale = existing.filter((b) => !known.has(b));
+    if (stale.length) note(`kept ${stale.length} branch(es) from an earlier run that are no longer part of the stack: ${stale.join(', ')}`);
 
     await ensureDetachedWorktree(ctx.repoPath, ctx.deliveryWs, baseRef);
     const stack: StackBranch[] = [];
+    const built: string[] = [];
     const bail = async (why: string) => {
       await abortInProgress(ctx.deliveryWs);
+      // stacked PRs from an earlier run are open: switching to one PR now would duplicate them, so stop and say why
+      if (reused.length) throw new DeliveryFailed('build-stack', `${why}. The ${reused.length} stacked PR(s) already open are left as they are.`);
       await removeWorktree(ctx.repoPath, ctx.deliveryWs);
-      for (const b of stack) await git(['branch', '-D', b.branch], ctx.repoPath);
+      for (const b of built) await git(['branch', '-D', b], ctx.repoPath);
       note(`${why}; delivering the goal as one PR instead`);
       return { status: 'skipped' as const, detail: why, value: null };
     };
     for (const [i, { task: t, index }] of tasks.entries()) {
+      if (existing.includes(expected[i]!)) {
+        const commit = await gitOk(['rev-parse', expected[i]!], ctx.repoPath);
+        stack.push({ task: t, index, branch: expected[i]!, base: baseFor(i), commit, title: headerOf(t.commitMessage ?? t.title) });
+        continue;
+      }
+      // a docs commit that is gone (the goal branch was rewritten) is left out rather than failing the delivery
+      if (t.id.endsWith(':docs') && (await git(['cat-file', '-e', `${t.commitRef}^{commit}`], ctx.repoPath)).code !== 0) {
+        note(`the docs commit ${t.commitRef} is no longer in the repository; it is not delivered`);
+        continue;
+      }
+      // on top of the entry below as it is now (it may carry fix commits or a rebase), or the base for the first
+      await gitOk(['checkout', '-q', '--detach', i === 0 ? baseRef : stack[stack.length - 1]?.branch ?? baseRef], ctx.deliveryWs);
       const pick = async () => git([...(await gitIdent(ctx.deliveryWs)), 'cherry-pick', '-x', '--keep-redundant-commits', t.commitRef!], ctx.deliveryWs);
       const r = await pick();
       if (r.code !== 0) {
         const files = await conflictedFiles(ctx.deliveryWs);
         if (!files.length) return bail(`commit ${t.commitRef!.slice(0, 7)} (${headerOf(t.commitMessage ?? t.title)}) could not be applied on ${baseRef}: ${(r.stderr || r.stdout).trim().slice(0, 200)}`);
-        if (!policy.autoResolveConflicts) return bail(`commit ${t.commitRef!.slice(0, 7)} conflicts with ${baseRef} in ${files.join(', ')} and the policy forbids automatic resolution`);
+        if (!live(ctx).autoResolveConflicts) return bail(`commit ${t.commitRef!.slice(0, 7)} conflicts with ${baseRef} in ${files.join(', ')} and the policy forbids automatic resolution`);
         store.append({ type: 'merge.conflict', goalId: goal.id, payload: { taskId: t.id, files } });
         const ok = await resolveConflicts(
           engine,
@@ -347,10 +342,12 @@ async function buildStack(ctx: Ctx, step: StepFn): Promise<StackBranch[] | null>
       }
       const commit = await headRef(ctx.deliveryWs);
       await gitOk(['branch', '-f', expected[i]!, commit], ctx.deliveryWs);
+      built.push(expected[i]!);
       stack.push({ task: t, index, branch: expected[i]!, base: baseFor(i), commit, title: headerOf(t.commitMessage ?? t.title) });
     }
     store.append({ type: 'delivery.stack_built', goalId: goal.id, payload: { branches: stack.map((b) => ({ taskId: b.task.id, index: b.index, branch: b.branch, base: b.base, commit: b.commit, title: b.title })) } });
-    return { status: 'ok', detail: `${stack.length} stacked branches on ${baseRef}: ${stack.map((b) => b.branch).join(' → ')}`, value: stack };
+    const what = [reused.length ? `reusing ${reused.length} stacked branch(es) from the previous run` : null, built.length ? `built ${built.length} on ${baseRef}: ${built.join(' → ')}` : null].filter(Boolean).join('; ');
+    return { status: 'ok', detail: what || 'nothing to build', value: stack };
   });
   return result ?? null;
 }
@@ -432,17 +429,23 @@ async function runStacked(ctx: Ctx, stack: StackBranch[], step: StepFn, done: (o
     // same PR, new base: the read model keys PRs by head branch, so this just updates `base`
     if (pr.b.base !== ctx.base) ev({ type: 'delivery.pr_opened', goalId: goal.id, payload: { number, url: pr.url, base: ctx.base, head: pr.b.branch, taskId: pr.b.task.id, title: pr.b.title } });
   };
+  // known before the first sync: whether a conflict resolution must be checked locally depends on it
+  await detectCi(ctx, repo);
   for (const [i, p] of prs.entries()) {
-    const unit: PrUnit = { cwd: ctx.deliveryWs, branch: p.b.branch, taskId: p.b.task.id, resync: () => syncStackBranch(ctx, p.b) };
+    const unit: PrUnit = { cwd: ctx.deliveryWs, branch: p.b.branch, taskId: p.b.task.id, resync: async () => !!(await syncStackBranch(ctx, p.b)) };
     await gitOk(['checkout', '-q', p.b.branch], ctx.deliveryWs);
     // every PR: point it at the base branch (the one below it merged — or, on a resumed run, was merged earlier) and bring the base in
-    await step('sync-base', async () => {
-      await retarget('sync-base', p);
-      const ok = await syncStackBranch(ctx, p.b);
-      if (!ok) throw new DeliveryFailed('sync-base', `could not bring ${ctx.base} into ${p.b.branch}${i > 0 ? ` after PR #${prs[i - 1]!.number} merged` : ''}`);
-      return { status: 'ok', detail: `PR #${p.number} targets ${ctx.base}; ${p.b.branch} up to date with it` };
-    });
-    await step('push', async () => ({ status: 'ok', detail: `${p.b.branch} @ ${(await pushRef(ctx, p.b.branch, p.b.task.id)).slice(0, 7)}` }));
+    await step(
+      'sync-base',
+      async () => {
+        await retarget('sync-base', p);
+        const how = await syncStackBranch(ctx, p.b);
+        if (!how) throw new DeliveryFailed('sync-base', `could not bring ${ctx.base} into ${p.b.branch}${i > 0 ? ` after PR #${prs[i - 1]!.number} merged` : ''}`);
+        return { status: 'ok', detail: `PR #${p.number} targets ${ctx.base}; ${p.b.branch} ${SYNC_WORDS[how]}` };
+      },
+      p.b.branch,
+    );
+    await step('push', async () => ({ status: 'ok', detail: `${p.b.branch} @ ${(await pushRef(ctx, p.b.branch, p.b.task.id)).slice(0, 7)}` }), p.b.branch);
     const view = await settlePr(ctx, step, repo, p.number, unit);
     const merged = await mergePr(ctx, step, repo, p.number, view, unit);
     if (!merged) {
@@ -451,28 +454,98 @@ async function runStacked(ctx: Ctx, stack: StackBranch[], step: StepFn, done: (o
     }
     // the PR above is based on this branch: retarget it BEFORE the branch goes away, or GitHub closes it
     const next = prs[i + 1];
-    await step('cleanup', async () => {
-      if (next) await retarget('cleanup', next);
-      const r = await deleteRemoteBranch(ctx, p.b.branch);
-      return { status: r.status, detail: `${next ? `PR #${next.number} retargeted to ${ctx.base}; ` : ''}${r.detail}` };
-    });
+    await step(
+      'cleanup',
+      async () => {
+        if (next) await retarget('cleanup', next);
+        const r = await deleteRemoteBranch(ctx, p.b.branch);
+        return { status: r.status, detail: `${next ? `PR #${next.number} retargeted to ${ctx.base}; ` : ''}${r.detail}` };
+      },
+      p.b.branch,
+    );
   }
   await removeWorktree(ctx.repoPath, ctx.deliveryWs).catch(() => {});
   return done('merged');
 }
 
-/** Merge the (moved) remote base into one stacked branch, checked out in the delivery worktree. */
-async function syncStackBranch(ctx: Ctx, b: StackBranch): Promise<boolean> {
-  await gitOk(['checkout', '-q', b.branch], ctx.deliveryWs);
-  await run(ctx, 'sync-base', ['git', 'fetch', ctx.remote, ctx.base], ctx.deliveryWs, true);
+type SyncHow = 'current' | 'rebased' | 'merged' | 'resolved';
+const SYNC_WORDS: Record<SyncHow, string> = { current: 'already up to date with it', rebased: 'rebased onto it', merged: 'merged with it', resolved: 'merged with it (conflicts resolved)' };
+
+/**
+ * Bring the (moved) remote base into one stacked branch, checked out in the delivery worktree. The usual reason it
+ * moved is that the PR below was squash-merged: the base then holds that PR's changes as one new commit, and the
+ * branch still holds the original commits. Replaying only this branch's own commits onto the base (`rebase --onto`,
+ * from where the branch left the one below) is exact and needs no model. A merge, with Merge Attempts for conflicts,
+ * is the fallback when the replay conflicts. Returns how it went, or null when it could not be done.
+ */
+async function syncStackBranch(ctx: Ctx, b: StackBranch): Promise<SyncHow | null> {
+  const { store } = ctx.engine;
+  const ws = ctx.deliveryWs;
+  await gitOk(['checkout', '-q', b.branch], ws);
+  await run(ctx, 'sync-base', ['git', 'fetch', ctx.remote, ctx.base], ws, true);
   const ref = `${ctx.remote}/${ctx.base}`;
-  if ((await git(['merge-base', '--is-ancestor', ref, 'HEAD'], ctx.deliveryWs)).code === 0) return true;
-  const task = syntheticMergeTask(ctx, ref, b.branch);
+  const synced = (how: SyncHow, from: string | null, to: string | null) => store.append({ type: 'delivery.synced', goalId: ctx.goal.id, payload: { branch: b.branch, how, from, to } });
+  if ((await git(['merge-base', '--is-ancestor', ref, 'HEAD'], ws)).code === 0) {
+    // say so once; a later re-check must not hide that the branch was rebased or merged earlier
+    if (!getGoal(store.db, ctx.goal.id)?.delivery.prs.find((p) => p.branch === b.branch)?.sync) synced('current', null, null);
+    return 'current';
+  }
+  const from = await headRef(ws);
+  const fork = await forkPoint(ctx, b, ref);
+  if (fork) {
+    const r = await run(ctx, 'sync-base', ['git', ...(await gitIdent(ws)), 'rebase', '--onto', ref, fork], ws, false);
+    if (r.code === 0) {
+      const to = await headRef(ws);
+      // the remote copy of the branch is replaced on the next push, only if it is still the copy this run knows
+      const remote = (await git(['rev-parse', '--verify', '-q', `refs/remotes/${ctx.remote}/${b.branch}`], ws)).stdout.trim();
+      if (remote && remote !== to) ctx.leases.set(b.branch, { remote, from });
+      synced('rebased', from, to);
+      return 'rebased';
+    }
+    await git(['rebase', '--abort'], ws);
+    store.append({ type: 'delivery.note', goalId: ctx.goal.id, payload: { message: `replaying ${b.branch} onto ${ref} conflicts; merging ${ref} into it instead` } });
+  }
+  const how = await mergeBaseInto(ctx, b.branch);
+  if (how) synced(how, from, await headRef(ws));
+  return how;
+}
+
+/**
+ * Where this branch's own commits start: the newest known tip of the branch below it (as built, pushed or before a
+ * rebase) that this branch still contains, or the merge base with the base branch for the first one.
+ */
+async function forkPoint(ctx: Ctx, b: StackBranch, ref: string): Promise<string | null> {
+  const ws = ctx.deliveryWs;
+  const below = b.base === ctx.base ? null : b.base;
+  if (below) {
+    const tips: string[] = [];
+    const now = await git(['rev-parse', '--verify', '-q', `refs/heads/${below}`], ws);
+    if (now.code === 0) tips.push(now.stdout.trim());
+    for (const e of [...ctx.engine.store.listByGoal(ctx.goal.id, 5000)].reverse()) {
+      const p = e.payload as any;
+      if (e.type === 'delivery.synced' && p.branch === below) tips.push(p.from, p.to);
+      else if (e.type === 'delivery.pushed' && p.branch === below) tips.push(p.ref);
+      else if (e.type === 'delivery.stack_built') tips.push(...(p.branches as { branch: string; commit: string }[]).filter((x) => x.branch === below).map((x) => x.commit));
+    }
+    for (const t of tips) if (t && (await git(['merge-base', '--is-ancestor', t, 'HEAD'], ws)).code === 0) return t;
+  }
+  const mb = await git(['merge-base', 'HEAD', ref], ws);
+  return mb.code === 0 ? mb.stdout.trim() : null;
+}
+
+/** Merge the remote base into a branch checked out in the delivery worktree; Merge Attempts resolve conflicts. */
+async function mergeBaseInto(ctx: Ctx, branch: string): Promise<'merged' | 'resolved' | null> {
+  const { store } = ctx.engine;
+  const ref = `${ctx.remote}/${ctx.base}`;
+  const task = syntheticMergeTask(ctx, ref, branch);
   await ensureDeps(ctx, ctx.deliveryWs);
-  const ok = await mergeBranchInto(ctx.engine, ctx.goal, task, { ref, label: ref, intent: `The base branch ${ref} moved (the PR below this one merged, or other people pushed). Keep its changes AND this branch's changes.` }, { autoResolve: ctx.policy.autoResolveConflicts, cwd: ctx.deliveryWs, into: b.branch });
-  const fresh = getTask(ctx.engine.store.db, task.id)!;
-  if (ok && fresh.state === 'merging') ctx.engine.store.append({ type: 'task.state_changed', goalId: ctx.goal.id, payload: { taskId: task.id, from: 'merging', to: 'done', reason: 'base merged' } });
-  return ok;
+  // with CI on the PR, the PR's checks judge a resolution; without CI, the goal's checks run here instead
+  const ok = await mergeBranchInto(ctx.engine, ctx.goal, task, { ref, label: ref, intent: `The base branch ${ref} moved (the PR below this one merged, or other people pushed). Keep its changes AND this branch's changes.` }, { autoResolve: live(ctx).autoResolveConflicts, cwd: ctx.deliveryWs, into: branch, runChecks: ctx.ci === false });
+  const fresh = getTask(store.db, task.id)!;
+  if (ok && fresh.state === 'merging') store.append({ type: 'task.state_changed', goalId: ctx.goal.id, payload: { taskId: task.id, from: 'merging', to: 'done', reason: 'base merged' } });
+  if (!ok) return null;
+  const conflicted = store.listByGoal(ctx.goal.id, 5000).some((e) => e.type === 'merge.conflict' && (e.payload as { taskId: string }).taskId === task.id);
+  return conflicted ? 'resolved' : 'merged';
 }
 
 function taskCheckResults(ctx: Ctx, task: Task): { name: string; status: string }[] {
@@ -491,25 +564,35 @@ function taskCheckResults(ctx: Ctx, task: Task): { name: string; status: string 
 
 /** wait-checks (+ re-sync on conflict, + fix-CI) until the PR is ready to merge or delivery fails */
 async function settlePr(ctx: Ctx, step: StepFn, repo: string, number: number, unit: PrUnit): Promise<PrView> {
-  const { engine, goal, policy } = ctx;
+  const { engine, goal } = ctx;
   const { store } = engine;
   for (;;) {
-    const view = (await step<PrView>('wait-checks', async () => {
-      if (!policy.requireChecks) {
-        const v = await ctx.gh.prView(ctx.goalWs, { repo, number });
-        return { status: 'skipped', detail: 'checks not required by policy', value: v };
-      }
-      const v = await waitForChecks(ctx, repo, number);
-      return { status: 'ok', detail: `PR #${number}: checks ${reduceChecks(v.checks)}`, value: v };
-    }))!;
+    const view = (await step<PrView>(
+      'wait-checks',
+      async () => {
+        const v = live(ctx).requireChecks ? await waitForChecks(ctx, repo, number) : await ctx.gh.prView(ctx.goalWs, { repo, number });
+        // the switch may have been turned off while waiting: the PR then goes ahead without its checks
+        if (!live(ctx).requireChecks) {
+          store.append({ type: 'delivery.checks', goalId: goal.id, payload: { state: reduceChecks(v.checks), summary: 'not waited for: the policy does not require checks', prNumber: number, failing: [], skipped: true } });
+          return { status: 'skipped', detail: `PR #${number}: checks not required by policy`, value: v };
+        }
+        return { status: 'ok', detail: `PR #${number}: checks ${reduceChecks(v.checks)}`, value: v };
+      },
+      unit.branch,
+    ))!;
+    const policy = live(ctx);
     const state = policy.requireChecks ? reduceChecks(view.checks) : 'passing';
     if (view.mergeable === 'CONFLICTING') {
-      await step('sync-base', async () => {
-        const ok = await unit.resync();
-        if (!ok) throw new DeliveryFailed('sync-base', 'base branch moved and the conflict could not be resolved');
-        return { status: 'ok', detail: 're-synced with base after it moved' };
-      });
-      await step('push', async () => ({ status: 'ok', detail: `re-pushed @ ${(await pushRef(ctx, unit.branch, unit.taskId)).slice(0, 7)}` }));
+      await step(
+        'sync-base',
+        async () => {
+          const ok = await unit.resync();
+          if (!ok) throw new DeliveryFailed('sync-base', 'base branch moved and the conflict could not be resolved');
+          return { status: 'ok', detail: 're-synced with base after it moved' };
+        },
+        unit.branch,
+      );
+      await step('push', async () => ({ status: 'ok', detail: `re-pushed @ ${(await pushRef(ctx, unit.branch, unit.taskId)).slice(0, 7)}` }), unit.branch);
       continue;
     }
     if (state === 'failing') {
@@ -525,13 +608,17 @@ async function settlePr(ctx: Ctx, step: StepFn, repo: string, number: number, un
           'wait-checks',
           `Checks failing on PR #${number}:\n${which}\n\nFoundry has no CI log it can read for ${failing.length === 1 ? 'this check' : 'these checks'}, so it did not try to fix ${failing.length === 1 ? 'it' : 'them'}. Open the link and fix the cause — a deploy integration may only accept commits by a member of its team (Settings → Git & delivery → Commit author) — then press Retry delivery, or Re-check on the pull request.`,
         );
-      await step('fix-ci', async () => {
-        const r = await fixCi(ctx, repo, number, unit, log);
-        if (r === 'failed') throw new DeliveryFailed('fix-ci', `the fix-CI task could not make the goal-level checks pass. Failing on PR #${number}:\n${which}`);
-        if (r === 'nochange') throw new DeliveryFailed('fix-ci', `the fix-CI task found nothing to change, so pushing again would only re-run the same failing checks. Failing on PR #${number}:\n${which}`);
-        return { status: 'ok', detail: 'fix task passed; pushing again' };
-      });
-      await step('push', async () => ({ status: 'ok', detail: `pushed fix @ ${(await pushRef(ctx, unit.branch, unit.taskId)).slice(0, 7)}` }));
+      await step(
+        'fix-ci',
+        async () => {
+          const r = await fixCi(ctx, repo, number, unit, log);
+          if (r === 'failed') throw new DeliveryFailed('fix-ci', `the fix-CI task could not make the goal-level checks pass. Failing on PR #${number}:\n${which}`);
+          if (r === 'nochange') throw new DeliveryFailed('fix-ci', `the fix-CI task found nothing to change, so pushing again would only re-run the same failing checks. Failing on PR #${number}:\n${which}`);
+          return { status: 'ok', detail: `fix committed on ${unit.branch}; pushing again` };
+        },
+        unit.branch,
+      );
+      await step('push', async () => ({ status: 'ok', detail: `pushed fix @ ${(await pushRef(ctx, unit.branch, unit.taskId)).slice(0, 7)}` }), unit.branch);
       continue;
     }
     if (state === 'none' && policy.requireChecks && !policy.mergeIfNoChecks) throw new DeliveryFailed('wait-checks', 'no checks reported and the policy requires at least one');
@@ -544,7 +631,9 @@ async function mergePr(ctx: Ctx, step: StepFn, repo: string, number: number, vie
   const { engine, goal, policy, signal } = ctx;
   const { store, config } = engine;
   const ev = <T extends Parameters<typeof store.append>[0]>(e: T) => store.append(e);
-  const merged = await step<boolean>('merge', async () => {
+  const merged = await step<boolean>(
+    'merge',
+    async () => {
     if (view.state !== 'OPEN') return { status: 'skipped', detail: `PR #${number} is ${view.state}`, value: view.state === 'MERGED' };
     if (view.mergeable !== 'MERGEABLE' && view.mergeable !== 'UNKNOWN') throw new DeliveryFailed('merge', `PR #${number} is ${view.mergeable}`);
     const r = await ctx.gh.prMerge(config.dataDir, { repo, number, method: policy.mergeMethod, auto: false });
@@ -569,14 +658,17 @@ async function mergePr(ctx: Ctx, step: StepFn, repo: string, number: number, vie
       }
     }
     return { status: 'skipped', detail: `auto-merge armed on PR #${number}; GitHub will merge when branch protections are satisfied`, value: false };
-  });
+    },
+    unit.branch,
+  );
   return merged ?? false;
 }
 
 async function deleteRemoteBranch(ctx: Ctx, branch: string): Promise<{ status: 'ok' | 'skipped'; detail: string }> {
-  if (!ctx.policy.deleteRemoteBranch) return { status: 'skipped', detail: 'policy keeps the remote branch' };
+  if (!live(ctx).deleteRemoteBranch) return { status: 'skipped', detail: 'policy keeps the remote branch' };
   if (branch === ctx.base) throw new DeliveryFailed('cleanup', 'refusing to delete the base branch');
   const r = await run(ctx, 'cleanup', ['git', 'push', ctx.remote, '--delete', `refs/heads/${branch}`], ctx.goalWs, false);
+  if (r.code === 0 || /remote ref does not exist/i.test(r.stderr)) ctx.engine.store.append({ type: 'delivery.branch_deleted', goalId: ctx.goal.id, payload: { branch } });
   return { status: r.code === 0 ? 'ok' : 'skipped', detail: r.code === 0 ? `deleted ${ctx.remote}/${branch}` : `remote branch already gone (${r.stderr.trim().slice(0, 80)})` };
 }
 
@@ -595,7 +687,7 @@ async function probe(ctx: Ctx) {
 }
 
 export async function probeForPlan(engine: Engine, goal: Goal, policy: DeliveryPolicy) {
-  const ctx: Ctx = { engine, goal, policy, goalWs: goalWorkspacePath(engine.config.dataDir, goal), deliveryWs: deliveryWorkspacePath(engine.config.dataDir, goal), repoPath: goal.repoPath, base: baseOf(goal, policy), remote: policy.remote, gh: engine.gh, opts: engine.config.delivery, signal: new AbortController().signal, repo: null, ci: null, retargeted: new Set<number>(), depsInstalled: new Set<string>() };
+  const ctx: Ctx = { engine, goal, policy, goalWs: goalWorkspacePath(engine.config.dataDir, goal), deliveryWs: deliveryWorkspacePath(engine.config.dataDir, goal), repoPath: goal.repoPath, base: baseOf(goal, policy), remote: policy.remote, gh: engine.gh, opts: engine.config.delivery, signal: new AbortController().signal, repo: null, ci: null, retargeted: new Set<number>(), depsInstalled: new Set<string>(), leases: new Map<string, { remote: string; from: string }>() };
   return probe(ctx);
 }
 
@@ -623,13 +715,28 @@ async function run(ctx: Ctx, step: DeliveryStep, cmd: string[], cwd: string, mus
 }
 
 /**
- * The single place the engine pushes. Fixed argv: never force, never the base branch, and only the
- * goal branch or one of its stacked branches (`goal/<id>` or `goal/<id>/<n>-<slug>`).
+ * The single place the engine pushes. Fixed argv: never the base branch, and only the goal branch or one of its
+ * stacked branches (`goal/<id>` or `goal/<id>/<n>-<slug>`). The goal branch is never force-pushed. A stacked branch
+ * this run rebased replaces its remote copy with `--force-with-lease` on the exact sha it last saw there (ADR-0023);
+ * when someone pushed to it since, the rebase is dropped: the branch takes their commits and merges the base instead.
  */
 export async function pushRef(ctx: Ctx, branch: string, taskId: string | null): Promise<string> {
   if (branch !== ctx.goal.branch && !isStackBranch(ctx.goal.branch, branch)) throw new DeliveryFailed('push', `refusing to push ${branch}: not this goal's branch`);
   if (branch === ctx.base) throw new DeliveryFailed('push', 'refusing to push the base branch');
-  const r = await run(ctx, 'push', ['git', 'push', '-u', ctx.remote, `refs/heads/${branch}:refs/heads/${branch}`], ctx.goalWs, false);
+  const lease = branch !== ctx.goal.branch ? ctx.leases.get(branch) : undefined;
+  const r = await run(ctx, 'push', ['git', 'push', '-u', ...(lease ? [`--force-with-lease=refs/heads/${branch}:${lease.remote}`] : []), ctx.remote, `refs/heads/${branch}:refs/heads/${branch}`], ctx.goalWs, false);
+  if (lease) ctx.leases.delete(branch);
+  if (r.code !== 0 && lease && /stale info|rejected/i.test(r.stderr)) {
+    const ws = ctx.deliveryWs;
+    if ((await git(['rev-parse', '--abbrev-ref', 'HEAD'], ws)).stdout.trim() !== branch) throw new DeliveryFailed('push', `${ctx.remote}/${branch} changed on the remote and ${branch} is not checked out to reconcile it`);
+    ctx.engine.store.append({ type: 'delivery.note', goalId: ctx.goal.id, payload: { message: `someone pushed to ${ctx.remote}/${branch} since Foundry last saw it: keeping their commits and merging ${ctx.base} into it instead of replacing it` } });
+    await run(ctx, 'push', ['git', 'fetch', ctx.remote, `+refs/heads/${branch}:refs/remotes/${ctx.remote}/${branch}`], ws, true);
+    await gitOk(['reset', '-q', '--hard', `${ctx.remote}/${branch}`], ws);
+    const how = await mergeBaseInto(ctx, branch);
+    if (!how) throw new DeliveryFailed('push', `could not merge ${ctx.base} into ${branch} after someone pushed to it`);
+    ctx.engine.store.append({ type: 'delivery.synced', goalId: ctx.goal.id, payload: { branch, how, from: lease.from, to: await headRef(ws) } });
+    return pushRef(ctx, branch, taskId);
+  }
   if (r.code !== 0) {
     const nonFf = /non-fast-forward|fetch first|rejected/i.test(r.stderr);
     throw new DeliveryFailed('push', nonFf ? `remote ${ctx.remote}/${branch} has commits we do not have (someone pushed to it). Foundry never force-pushes; reconcile manually.` : `git push failed: ${r.stderr.trim().slice(0, 300)}`);
@@ -674,23 +781,30 @@ function syntheticMergeTask(ctx: Ctx, ref: string, into: string): Task {
 async function syncWithBase(ctx: Ctx, ref: string): Promise<boolean> {
   const { engine, goal } = ctx;
   const task = syntheticMergeTask(ctx, ref, goal.branch);
-  const ok = await mergeBranchInto(engine, goal, task, { ref, label: ref, intent: `The base branch ${ref} received new commits from other people while this goal was being worked on. Keep their changes AND this goal's changes.` }, { autoResolve: ctx.policy.autoResolveConflicts });
+  const ok = await mergeBranchInto(engine, goal, task, { ref, label: ref, intent: `The base branch ${ref} received new commits from other people while this goal was being worked on. Keep their changes AND this goal's changes.` }, { autoResolve: live(ctx).autoResolveConflicts });
   const fresh = getTask(engine.store.db, task.id)!;
   if (ok && fresh.state === 'merging') engine.store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'merging', to: 'done', reason: 'base merged' } });
   return ok;
 }
 
+/**
+ * Detected once per delivery: a repository with no workflows and no required checks never reports any, so waiting the
+ * grace period for every PR (90 s × N stacked PRs) was the single biggest cost of a delivery.
+ */
+async function detectCi(ctx: Ctx, repo: string): Promise<void> {
+  if (ctx.ci !== null || !ctx.gh.hasCi) return;
+  ctx.ci = await ctx.gh.hasCi(ctx.goalWs, { repo, base: ctx.base }).catch(() => null);
+  if (ctx.ci === false) ctx.engine.store.append({ type: 'delivery.note', goalId: ctx.goal.id, payload: { message: `${repo} runs no CI (no workflows, no required checks): PRs merge without waiting for checks` } });
+}
+
 async function waitForChecks(ctx: Ctx, repo: string, number: number): Promise<PrView> {
   const start = Date.now();
   let last: 'pending' | 'passing' | 'failing' | 'none' | null = null;
-  // detected once per delivery: a repository with no workflows and no required checks never reports any, so waiting the
-  // grace period for every PR (90 s × N stacked PRs) was the single biggest cost of a delivery
-  if (ctx.ci === null && ctx.gh.hasCi) {
-    ctx.ci = await ctx.gh.hasCi(ctx.goalWs, { repo, base: ctx.base }).catch(() => null);
-    if (ctx.ci === false) ctx.engine.store.append({ type: 'delivery.note', goalId: ctx.goal.id, payload: { message: `${repo} runs no CI (no workflows, no required checks): PRs merge without waiting for checks` } });
-  }
+  await detectCi(ctx, repo);
   for (;;) {
     const v = await ctx.gh.prView(ctx.goalWs, { repo, number });
+    // the person turned "Wait for CI checks" off while this PR waited: stop here, the caller merges without them
+    if (!live(ctx).requireChecks) return v;
     let state = reduceChecks(v.checks);
     if (state === 'none' && ctx.ci !== false && Date.now() - start < ctx.opts.noChecksGraceMs) state = 'pending';
     if (state !== last) {
