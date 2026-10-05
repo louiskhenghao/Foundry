@@ -8,6 +8,7 @@ import { api, type AgentProvider, type Usage } from '../api.ts';
 import { CodexQuotaCard } from '../components/CodexQuotaCard.tsx';
 import { useLive } from '../store.ts';
 import { Badge, Button, Card, Empty, cn, fmtUsd } from '../ui.tsx';
+import { UsagePausedBanner } from '../components/UsageBanner.tsx';
 import { HelpLink } from './HelpPage.tsx';
 import { ProviderBadge } from './agents/rows.tsx';
 
@@ -23,13 +24,23 @@ const fmtDur = (ms: number | null) => (ms == null ? '—' : ms < 1000 ? `${ms} m
 export function UsagePage() {
   const [query, setQuery] = useSearchParams();
   const provider: AgentProvider = query.get('provider') === 'codex' ? 'codex' : 'claude';
-  return <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
-    <div className="flex items-center gap-3 flex-wrap">
+  // shared numbers first, so switching the coding agent below moves nothing above it
+  return <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-6">
+    <div className="space-y-3">
       <h1 className="text-lg font-semibold flex items-center gap-2"><Gauge size={18} /> Usage <HelpLink to="costs-and-usage" label="What costs money and how to spend less (new tab)" /></h1>
+      <UsagePausedBanner />
     </div>
-    <ProviderSelector value={provider} onChange={(id) => setQuery((current) => { const next = new URLSearchParams(current); next.set('provider', id); return next; }, { replace: true })} />
-    <ProviderUsage key={provider} provider={provider} />
     <FoundryActivity />
+    <section className="space-y-3 border-t border-zinc-800 pt-5" aria-labelledby="account-limits">
+      <div className="flex items-end justify-between gap-3 flex-wrap">
+        <div>
+          <h2 id="account-limits" className="text-sm font-medium text-zinc-200">Account limits</h2>
+          <p className="text-xs text-zinc-500">What each coding agent's account allows, and what Foundry used within it.</p>
+        </div>
+        <ProviderSelector hideLabel value={provider} onChange={(id) => setQuery((current) => { const next = new URLSearchParams(current); next.set('provider', id); return next; }, { replace: true })} />
+      </div>
+      <ProviderUsage key={provider} provider={provider} />
+    </section>
     <MinimaxCard />
   </div>;
 }
@@ -61,7 +72,7 @@ function ProviderUsage({ provider }: { provider: AgentProvider }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-xs text-zinc-500">{provider === 'codex' ? 'Account quota and Foundry activity on this machine' : 'Foundry activity on this machine'}</span>
+        <span className="text-xs text-zinc-500">{provider === 'codex' ? 'The ChatGPT account’s quota, and Foundry’s Codex activity on this machine' : 'Claude’s usage windows, and what Foundry spent in each on this machine'}</span>
         <Button size="sm" variant="primary" className="ml-auto" disabled={busy} onClick={probe} title={provider === 'codex' ? 'Reads native Codex account limits without running inference' : 'Runs one tiny haiku session (~$0.02) to refresh the rate-limit signal'}>
           <RefreshCw size={13} className={cn(busy && 'animate-spin')} /> {provider === 'codex' ? 'Refresh quota' : 'Refresh signal'}
         </Button>
@@ -99,7 +110,7 @@ function FoundryActivity() {
   const m = mergeActivity(both);
   const cost = (value: number | null) => (value == null ? '—' : fmtUsd(value));
   return (
-    <section className="space-y-3 pt-2" aria-labelledby="foundry-activity">
+    <section className="space-y-3" aria-labelledby="foundry-activity">
       <div className="flex items-baseline gap-2 flex-wrap">
         <h2 id="foundry-activity" className="text-sm font-medium text-zinc-200">Foundry activity · last 7 days</h2>
         <span className="text-xs text-zinc-500">Claude Code and Codex together, as recorded by Foundry. Dollar cost covers Claude Code only.</span>
