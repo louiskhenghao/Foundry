@@ -1,6 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import { listGoals, listRateLimitState, listUsageSince, type UsageRow } from '@foundry/core';
-import type { UsageBucket, UsageSummary, WindowSummary } from './types.ts';
+import type { UsageBucket, UsageSummary, WindowSummary, GroupMeasures } from './types.ts';
 
 export type { UsageBucket, UsageSummary, WindowSummary };
 export const FIVE_HOURS_MS = 5 * 3600_000;
@@ -10,9 +10,14 @@ const DAY = 24 * HOUR;
 
 function sum(rows: UsageRow[]) {
   return rows.reduce(
-    (a, r) => ({ sessions: a.sessions + 1, inputTokens: a.inputTokens + r.input_tokens, outputTokens: a.outputTokens + r.output_tokens, cacheReadTokens: a.cacheReadTokens + r.cache_read_tokens, cacheCreateTokens: a.cacheCreateTokens + r.cache_create_tokens, costUsd: a.costUsd + r.cost_usd }),
-    { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, costUsd: 0 },
+    (a, r) => ({ sessions: a.sessions + 1, inputTokens: a.inputTokens + r.input_tokens, outputTokens: a.outputTokens + r.output_tokens, cacheReadTokens: a.cacheReadTokens + r.cache_read_tokens, cacheCreateTokens: a.cacheCreateTokens + r.cache_create_tokens, costUsd: a.costUsd + r.cost_usd, durationMs: a.durationMs + r.duration_ms }),
+    { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, costUsd: 0, durationMs: 0 },
   );
+}
+
+/** what every breakdown row reports for both coding agents: time and tokens (dollars are Claude Code's alone) */
+function measures(g: ReturnType<typeof sum>): GroupMeasures {
+  return { durationMs: g.durationMs, inputTokens: g.inputTokens, cacheReadTokens: g.cacheReadTokens, cacheCreateTokens: g.cacheCreateTokens, outputTokens: g.outputTokens };
 }
 
 /** Fixed-size buckets from `start` to `end` (empty ones included) — hourly for the 5h window, daily for 7d. */
@@ -70,7 +75,8 @@ export function usageSummary(db: Database, now = Date.now(), provider?: 'claude'
   const group = <K extends string | null>(key: (r: UsageRow) => K) => {
     const m = new Map<K, UsageRow[]>();
     for (const r of weekRows) m.set(key(r), [...(m.get(key(r)) ?? []), r]);
-    return [...m.entries()].map(([k, rs]) => ({ key: k, rows: rs, ...sum(rs) })).sort((a, b) => b.costUsd - a.costUsd);
+    // ties on cost (always, for Codex, which reports none) fall back to time spent
+    return [...m.entries()].map(([k, rs]) => ({ key: k, rows: rs, ...sum(rs) })).sort((a, b) => b.costUsd - a.costUsd || b.durationMs - a.durationMs);
   };
   const avgDuration = (rs: UsageRow[]) => (rs.length ? Math.round(rs.reduce((a, r) => a + r.duration_ms, 0) / rs.length) : 0);
 
@@ -87,11 +93,11 @@ export function usageSummary(db: Database, now = Date.now(), provider?: 'claude'
       hourly: bucketize(fiveRows, fiveStart, fiveEnd, HOUR, hourLabel),
       daily: bucketize(weekRows, weekStart, weekEnd, DAY, dayLabel),
     },
-    byModel: group((r) => r.model ?? 'unknown').map((g) => ({ model: g.key as string, sessions: g.sessions, costUsd: g.costUsd, outputTokens: g.outputTokens })),
+    byModel: group((r) => r.model ?? 'unknown').map((g) => ({ model: g.key as string, sessions: g.sessions, costUsd: g.costUsd, ...measures(g) })),
     byGoal: group((r) => r.goal_id)
       .slice(0, 10)
-      .map((g) => ({ goalId: g.key, title: g.key ? (goals.get(g.key)?.title ?? null) : null, state: g.key ? (goals.get(g.key)?.state ?? null) : null, sessions: g.sessions, costUsd: g.costUsd })),
-    byKind: group((r) => r.kind).map((g) => ({ kind: g.key as string, sessions: g.sessions, costUsd: g.costUsd, avgDurationMs: avgDuration(g.rows) })),
+      .map((g) => ({ goalId: g.key, title: g.key ? (goals.get(g.key)?.title ?? null) : null, state: g.key ? (goals.get(g.key)?.state ?? null) : null, sessions: g.sessions, costUsd: g.costUsd, ...measures(g) })),
+    byKind: group((r) => r.kind).map((g) => ({ kind: g.key as string, sessions: g.sessions, costUsd: g.costUsd, avgDurationMs: avgDuration(g.rows), ...measures(g) })),
     totals: {
       cacheHitRate: input > 0 ? weekTotals.cacheReadTokens / input : null,
       avgCostPerSession: weekRows.length ? weekTotals.costUsd / weekRows.length : null,
