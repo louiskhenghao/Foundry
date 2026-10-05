@@ -18,7 +18,7 @@ Brief 上几乎所有东西你都能改。花五分钟看看：这是改主意�
 Brief 会以你在 New goal 表单上选的视图打开。用顶部的 **Expert view** 或 **Simple view** 切换；这个浏览器会为这个 goal 记住你的选择。
 
 - **Simple view** 只显示需要你决定的内容：Foundry 理解了什么、它的问题、它的假设、你会得到什么，以及价格。见本页末尾的 [Brief 的 Simple view](#brief-的-simple-view)。
-- **Expert view** 显示全部内容，顺序是：页头、**Understanding**、**Questions**、**Assumptions**、**Decisions**、**Areas**、**Plan**、**Goal acceptance**、**How to run it**、**Completion**、估算和预算，以及按钮。本页剩下的部分就按这个顺序讲。
+- **Expert view** 显示全部内容，顺序是：页头、**Understanding**、**Questions**、**Assumptions**、**Decisions**、**Areas**、**Plan**、**Goal acceptance**、**How to run it**、**Completion**、估算和预算，以及按钮。本页剩下的部分就按这个顺序讲。左边有这些部分的目录（手机上是顶部一排标签），点一项就跳到那里。正在看的那一项会高亮，每项旁边写着它的状态，比如 **Questions 1 blocking**、**Assumptions 2/2**、**Plan 36 tasks**；需要你处理的显示为琥珀色。
 
 ## 页面顶部
 

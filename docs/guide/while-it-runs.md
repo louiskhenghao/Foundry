@@ -59,15 +59,14 @@ In Simple view the goal page shows:
 From top to bottom:
 
 - **The timeline**: **Clarify → Brief → Run → Review → Done** (or **Over-delivered**), plus **Deliver · mode** if the goal pushes or opens a pull request. The current stage pulses. Click a stage to jump to where its work is shown.
+- **Brief**: one line under the timeline, for example **Brief APPROVED · 36 tasks · 11/11 assumptions accepted · 9/12 questions answered · est. $380 / 1500 min**. Click it to open the Brief, where the Understanding and everything else the Clarifier wrote are.
 - **What needs you**: the same cards as in the Inbox, with their buttons.
 - **goal**: your original description. **Open full**, the icon with two diagonal arrows in its corner, reads it in a larger window.
 - **Attachments**: right under the goal, as on the New goal form. You can add more at any time; new sessions receive them.
-- **Try the work in progress**: the progress folder. See [below](#the-progress-folder).
-- **Preview**: start and open the running result. See [Preview](#preview).
+- **Workspace & preview**: where the goal's work is, and starting it to try it. See [The progress folder](#the-progress-folder) and [Preview](#preview).
 - **Model fallback**: only if a model was unavailable and Foundry switched to another one.
 - **Project skills**: skills Foundry added for your project's technology, grouped as Frontend, Backend, Database, Testing and Tooling, with how many there are. They never reach your commits.
 - **Completion**: one row each for the documents, the graph refresh and media files, with how it went. See [Completion extras](./getting-the-result.md#completion-extras).
-- **Brief**: a summary of what you approved, with **open** to read it in full.
 - **Goal review**: the final reviewer's verdict and notes, once it ran.
 - **Acceptance** (on the right): every **must** and **stretch** check with its latest result, for example **3/4 passing**. Click a check to see its output. Below them, the **Self-check** switch and its latest result (see [Self-check](#self-check)).
 
@@ -125,17 +124,17 @@ Projects/
 
 The progress folder is named after the goal's title (up to its first punctuation mark, at most 40 characters) plus the last 6 characters of the goal's id. It contains your whole project with the goal's work so far: the goal's branch, checked out. Open it, run it, read it, at any time. Tasks that run in parallel work in their own hidden folders and are merged in here when their checks pass. You can move where progress folders are created in [Settings → Engine (install)](./settings.md#engine-install).
 
-The **Try the work in progress** card on the Overview tab shows the folder's path with **copy**, the latest commit, and ready-to-copy commands to open a terminal there and start the project.
+The top of the **Workspace & preview** card on the Overview tab says which branch the workers commit to and the latest commit, with **Open ▾**. **Run it yourself** unfolds ready-to-copy commands to open a terminal there and start the project. Once the folder is cleaned up after a merge, this part disappears and the preview line below says where the preview runs instead.
 
 Note: because this folder *is* the goal's branch, you cannot also switch to that branch in your own folder. To get the result into your folder, see [Getting the result](./getting-the-result.md#getting-the-result-into-your-own-folder).
 
 ### The Open menu
 
-**Open ▾** (on the goal page and on the Try the work in progress card) lists two places: **Repository** (your own folder) and **Goal workspace** (the progress folder). For each it offers the editors, file managers and terminals it found on your computer, for example VS Code, Cursor, Finder, Terminal. Click one to open that place in it. **path** copies the path.
+**Open ▾** (on the goal page and on the Workspace & preview card) lists two places: **Repository** (your own folder) and **Goal workspace** (the progress folder). For each it offers the editors, file managers and terminals it found on your computer, for example VS Code, Cursor, Finder, Terminal. Click one to open that place in it. **path** copies the path.
 
 ## Preview
 
-The **Preview** card starts the result so you can try it in your browser.
+The lower part of the **Workspace & preview** card starts the result so you can try it in your browser.
 
 - **Start preview** runs the project's start command in the progress folder. The card shows which command, and whether it comes from the Brief's **How to run it** or from `package.json`. If the project's dependencies are not installed yet (a `package.json` without `node_modules`), Foundry installs them first; the output shows the install too.
 - **Running on port N**, then **Open preview** opens it. **Stop** stops it. Other servers the command started appear under **Also serving** (see [Where it runs](#where-it-runs)).
@@ -168,7 +167,7 @@ Foundry also starts the preview by itself at a milestone, restarts it after each
 
 The top of the card says which branch runs and where, **not your checkout**. While the goal is being worked on, the preview runs the goal's own copy of the repository (its progress folder, on the goal's branch), so you see the goal's work, not what is in your own folder. **copy** copies that folder's path.
 
-Once the goal is finished, the branch is a menu. Pick the goal branch, the base branch (for example `main`) or another local branch of yours; stop the preview first to change it. Any branch other than the goal's runs in Foundry's own preview folder, checked out at that branch's latest commit, never in your checkout. After a merge Foundry cleans up the goal's folder and deletes its branch; the preview then runs the base branch, which holds the merged work, and an amber line says so.
+Once the goal is finished, the branch is a menu, with a line under it saying what the chosen branch is (the goal's folder, the base branch with the merged work…). Pick the goal branch, the base branch (for example `main`) or another local branch of yours; stop the preview first to change it. Any branch other than the goal's runs in Foundry's own preview folder, checked out at that branch's latest commit, never in your checkout. After a merge Foundry cleans up the goal's folder and deletes its branch; the preview then runs the base branch, which holds the merged work, and an amber line says so.
 
 When the start command launches more servers than the one Foundry gave a port to (a demo script that starts the web app, an admin and an API, or `turbo dev`), Foundry finds the ports they listen on and lists the ones that answer web requests under **Also serving**, each named after its package (or the folder it runs in), with its own link. Every port it uses is kept away from other goals' previews.
 
