@@ -682,6 +682,12 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const g = await engine.retryDelivery(goalOr404(c).id);
     return c.json({ ok: true, delivery: g.delivery });
   });
+  // "Re-run" on the Completion card: the graph refresh, or docs generation after a run that failed
+  app.post('/api/goals/:id/completion/rerun', async (c) => {
+    const { what } = z.object({ what: z.enum(['docs', 'graph']) }).parse(await c.req.json().catch(() => ({})));
+    engine.rerunCompletion(goalOr404(c).id, what);
+    return c.json({ ok: true });
+  });
   // "Save": store the policy only; switches apply to a running delivery from its next step
   app.put('/api/goals/:id/delivery/policy', async (c) => {
     const policy = DeliveryPolicy.partial().parse(await c.req.json().catch(() => ({})));

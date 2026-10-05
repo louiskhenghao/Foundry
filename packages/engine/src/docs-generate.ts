@@ -22,12 +22,15 @@ const DOC_INSTRUCTIONS: Record<DocType, string> = {
   'to-questionnaire': 'Write a stakeholder confirmation sheet under `docs/` (markdown): what this goal delivered, the assumptions and decisions that still need the stakeholder\'s confirmation (listed below), and open questions. Written for a non-technical reader.',
 };
 
-/** Generate the chosen documents in the goal workspace and commit them as one `docs:` commit. Never throws. */
-export async function runDocsGeneration(engine: Engine, goalIn: Goal): Promise<void> {
+/**
+ * Generate the chosen documents in the goal workspace and commit them as one `docs:` commit. Never throws. `rerun` is
+ * the human's "Re-run" after a run that failed or wrote nothing.
+ */
+export async function runDocsGeneration(engine: Engine, goalIn: Goal, opts: { rerun?: boolean } = {}): Promise<void> {
   const { store, config } = engine;
   const goal = getGoal(store.db, goalIn.id)!;
   const types = goal.completion.docs;
-  if (!types.length || goal.completion.docsRun) return;
+  if (!types.length || (goal.completion.docsRun && !opts.rerun)) return;
   const record = (payload: { status: 'ok' | 'skipped' | 'failed'; files: string[]; costUsd: number; detail: string; ref?: string | null }) => store.append({ type: 'goal.docs_generated', goalId: goal.id, payload: { types, ...payload } });
   try {
     const ws = goalWorkspacePath(config.dataDir, goal);
