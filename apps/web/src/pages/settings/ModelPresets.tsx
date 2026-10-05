@@ -1,8 +1,8 @@
-import { ACTION_INFO, BUILTIN_PRESETS, MODEL_ACTIONS, MODEL_NATURES, NATURE_LABEL, RARELY_USED, builtinStatus, effectivePresets, presetFingerprint, type ModelAction, type ModelNature, type ModelPreset, type Settings } from '@foundry/core/browser';
-import { Plus, RefreshCw, RotateCcw, Trash2 } from 'lucide-react';
+import { ACTION_INFO, BUILTIN_PRESETS, MODEL_ACTIONS, MODEL_NATURES, RARELY_USED, builtinStatus, effectivePresets, presetFingerprint, type ModelAction, type ModelNature, type ModelPreset, type Settings } from '@foundry/core/browser';
 import { useEffect, useState } from 'react';
 import { api, type ModelRecordView } from '../../api.ts';
-import { Badge, Button, ConfirmDialog, Field, Input, Select, ago, cn } from '../../ui.tsx';
+import { ConfirmDialog, Input, Select, ago, cn } from '../../ui.tsx';
+import { GoalTypePresets, NatureTabs, PresetChips, PresetDetails, RoleRow, SyncRow } from './PresetParts.tsx';
 
 const ALIASES = [
   { id: 'fable', label: 'Fable' },
@@ -11,7 +11,6 @@ const ALIASES = [
   { id: 'haiku', label: 'Haiku' },
 ];
 const NATURE_PATH: Record<ModelNature, 'models.presetCode' | 'models.presetDocs' | 'models.presetMedia'> = { code: 'models.presetCode', docs: 'models.presetDocs', media: 'models.presetMedia' };
-const NATURE_HINT: Record<ModelNature, string> = { code: 'software goals, and goals not yet classified', docs: 'documents and cited research reports', media: 'image and video goals' };
 
 type SetFn = (path: `models.${string}`, value: unknown) => void;
 
@@ -124,129 +123,60 @@ export function ModelPresetsSection({ draft, set, known, reloadModels }: { draft
     }
   };
 
+  const options = ids.map((id) => ({ id, label: presets[id]!.label, modified: builtinStatus(id, saved).modified }));
+  const editPreset = (n: ModelNature) => {
+    setEditing(picks[n]);
+    setNature(n);
+    document.getElementById('model-preset-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2 flex-wrap text-xs text-zinc-400">
-        <Button size="sm" onClick={runSync} disabled={syncing} title="Reads every model id your Claude Code knows (free) and resolves fable / opus / sonnet / haiku with one tiny session each (~$0.04). Runs by itself when Claude Code updates.">
-          <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} /> {syncing ? 'Syncing…' : 'Sync models'}
-        </Button>
-        <span>{sync?.at ? `last synced ${ago(sync.at)}${sync.cliVersion ? ` · Claude Code ${sync.cliVersion}` : ''} · ${sync.found} ids` : 'not synced yet'}</span>
-        <label className="ml-auto flex items-center gap-1 cursor-pointer">
-          <input type="checkbox" className="accent-emerald-500" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> show all versions
-        </label>
-        {syncMsg && <div className="w-full text-[11px] text-zinc-500">{syncMsg}</div>}
-      </div>
+      <SyncRow
+        syncing={syncing}
+        onSync={runSync}
+        title="Reads every model id your Claude Code knows (free) and resolves fable / opus / sonnet / haiku with one tiny session each (~$0.04). Runs by itself when Claude Code updates."
+        status={sync?.at ? `last synced ${ago(sync.at)}${sync.cliVersion ? ` · Claude Code ${sync.cliVersion}` : ''} · ${sync.found} ids` : 'not synced yet'}
+        aside={
+          <label className="flex items-center gap-1 cursor-pointer">
+            <input type="checkbox" className="accent-emerald-500" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> show all versions
+          </label>
+        }
+        message={syncMsg}
+      />
 
-      <div className="space-y-3">
-        <div className="text-sm text-zinc-200">Preset per goal type</div>
-        {MODEL_NATURES.map((n) => {
+      <GoalTypePresets
+        picks={picks}
+        options={options}
+        onPick={(n, id) => set(NATURE_PATH[n], id)}
+        onEdit={editPreset}
+        summary={(n) => {
           const p = presets[picks[n]] ?? presets[n === 'code' ? 'production' : 'balanced']!;
-          return (
-            <div key={n} className="rounded border border-zinc-800 p-3 space-y-2">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-zinc-100 text-sm w-40">{NATURE_LABEL[n]}</span>
-                <span className="w-48">
-                  <Select className="text-xs py-1" value={picks[n]} onChange={(e) => set(NATURE_PATH[n], e.target.value)}>
-                    {ids.map((id) => (
-                      <option key={id} value={id}>
-                        {presets[id]!.label}
-                        {builtinStatus(id, saved).modified ? ' (modified)' : ''}
-                      </option>
-                    ))}
-                  </Select>
-                </span>
-                <span className="text-[11px] text-zinc-500">{NATURE_HINT[n]}</span>
-                <Button size="sm" variant="ghost" className="ml-auto" onClick={() => { setEditing(picks[n]); setNature(n); document.getElementById('model-preset-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>
-                  Edit preset
-                </Button>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-0.5 text-[11px]">
-                {MODEL_ACTIONS.map((a) => (
-                  <div key={a} className={cn('flex justify-between gap-2', RARELY_USED[n].includes(a) && 'opacity-40')}>
-                    <span className="text-zinc-500 truncate">{ACTION_INFO[a].label}</span>
-                    <span className="mono text-zinc-300">{p.tables[n][a]}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+          return MODEL_ACTIONS.map((a) => ({ role: a, label: ACTION_INFO[a].label, value: p.tables[n][a], rare: RARELY_USED[n].includes(a) }));
+        }}
+      />
 
       <div id="model-preset-editor" className="scroll-mt-16 space-y-3 border-t border-zinc-800 pt-4">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-zinc-200 mr-2">Presets</span>
-          {ids.map((id) => {
-            const st = builtinStatus(id, saved);
-            return (
-              <button key={id} type="button" onClick={() => setEditing(id)} className={cn('rounded-full border px-2.5 py-0.5 text-xs', editing === id ? 'border-emerald-500 bg-emerald-500/10 text-emerald-200' : 'border-zinc-700 text-zinc-300 hover:border-zinc-500')}>
-                {presets[id]!.label}
-                {st.modified ? ' •' : ''}
-              </button>
-            );
-          })}
-          <Button size="sm" variant="ghost" onClick={duplicate} title="A new preset that starts as a copy of the one shown">
-            <Plus size={12} /> New from this
-          </Button>
-        </div>
-        {/* one row: name and description as labelled fields (your presets) or as text (built-ins); actions sit on the inputs' line */}
-        <div className="flex items-end gap-3 flex-wrap">
-          {own ? (
-            <>
-              <Field label="Name" className="w-full sm:w-56">
-                <Input value={current.label} onChange={(e) => writePreset(editing, { ...current, label: e.target.value || 'Untitled' })} />
-              </Field>
-              <Field label="Description" className="flex-1 min-w-[16rem]">
-                <Input value={current.description} placeholder="what this preset is for" onChange={(e) => writePreset(editing, { ...current, description: e.target.value })} />
-              </Field>
-            </>
-          ) : (
-            <div className="flex-1 min-w-[16rem] space-y-1">
-              <div className="text-zinc-100 text-sm flex items-center gap-2 flex-wrap">
-                {current.label} {status.modified && <Badge state="blocked">modified</Badge>} {status.newerDefault && <Badge state="awaiting_brief_approval">newer default available</Badge>}
-              </div>
-              <p className="text-xs text-zinc-400">{current.description}</p>
-            </div>
-          )}
-          {(status.modified || own) && (
-            <div className="flex items-center gap-2 shrink-0">
-              {status.modified && (
-                <Button size="sm" variant="ghost" onClick={reset} title="Restore the values Foundry ships for this preset">
-                  <RotateCcw size={12} /> Reset
-                </Button>
-              )}
-              {own && (
-                // the height of an input, so it lines up with the fields beside it
-                <Button size="sm" variant="danger" className="h-[34px]" onClick={askDelete}>
-                  <Trash2 size={12} /> Delete
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
-        <div className="flex gap-1">
-          {MODEL_NATURES.map((n) => (
-            <button key={n} type="button" onClick={() => setNature(n)} className={cn('rounded px-2.5 py-1 text-xs border', nature === n ? 'border-zinc-500 bg-zinc-800 text-zinc-100' : 'border-transparent text-zinc-400 hover:text-zinc-200')}>
-              {NATURE_LABEL[n]}
-            </button>
-          ))}
-        </div>
+        <PresetChips options={options} editing={editing} onSelect={setEditing} onNew={duplicate} />
+        <PresetDetails
+          label={current.label}
+          description={current.description}
+          own={own}
+          status={status}
+          onLabel={(v) => writePreset(editing, { ...current, label: v || 'Untitled' })}
+          onDescription={(v) => writePreset(editing, { ...current, description: v })}
+          onReset={reset}
+          onDelete={askDelete}
+        />
+        <NatureTabs value={nature} onChange={setNature} />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
           {MODEL_ACTIONS.map((a) => {
-            const rare = RARELY_USED[nature].includes(a);
             const shipped = BUILTIN_PRESETS[editing]?.tables[nature][a];
             const changed = shipped != null && shipped !== current.tables[nature][a];
             return (
-              <div key={a} className={cn('flex items-start gap-2', rare && 'opacity-50')}>
-                <div className="w-40 shrink-0 pt-1">
-                  <div className="text-xs text-zinc-200">
-                    {ACTION_INFO[a].label}
-                    {changed && <span className="text-amber-300" title={`shipped: ${shipped}`}> •</span>}
-                  </div>
-                  <div className="text-[10px] text-zinc-500 leading-snug">{rare ? `rarely used for ${NATURE_LABEL[nature].toLowerCase()} · ` : ''}{ACTION_INFO[a].help}</div>
-                </div>
-                <ModelPicker className="flex-1" value={current.tables[nature][a]} onChange={(v) => setCell(nature, a, v)} known={known} showAll={showAll} />
-              </div>
+              <RoleRow key={a} label={ACTION_INFO[a].label} help={ACTION_INFO[a].help} nature={nature} rare={RARELY_USED[nature].includes(a)} shipped={changed ? shipped : null}>
+                <ModelPicker value={current.tables[nature][a]} onChange={(v) => setCell(nature, a, v)} known={known} showAll={showAll} />
+              </RoleRow>
             );
           })}
         </div>
