@@ -7,6 +7,7 @@ import { api, type ModelRecordView, type UpdateStatusView } from '../api.ts';
 import { LiveLog } from './LiveLog.tsx';
 import { ModelPresetsSection } from './settings/ModelPresets.tsx';
 import { CodexModelPresetsSection } from './settings/CodexModelPresets.tsx';
+import { SectionTitle } from './settings/PresetParts.tsx';
 import { DesignPacks } from '../components/DesignPacks.tsx';
 import { UpdateDialog } from '../components/UpdateDialog.tsx';
 import { Button, Card, CopyButton, Empty, Field, Input, Select, cn } from '../ui.tsx';
@@ -393,7 +394,9 @@ export function SettingsPage() {
         </div>
         <div id="models-claude" role="region" aria-label="Claude Code models" hidden={modelProvider !== 'claude'}>
         <ModelPresetsSection draft={draft} set={set as (p: `models.${string}`, v: unknown) => void} known={known} reloadModels={loadModels} />
-        <div className="border-t border-zinc-800 my-4" />
+        <div className="border-t border-zinc-800 mt-5 pt-4 mb-3">
+          <SectionTitle>Other models</SectionTitle>
+        </div>
         {grid(
           <>
             <Field label="Housekeeping model" aside={aside('models.cheap')} help="One-turn engine chores: classifying a goal, summarising logs, the rate-limit probe. Cents per goal.">
