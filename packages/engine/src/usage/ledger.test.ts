@@ -30,6 +30,19 @@ describe('usage ledger', () => {
     expect(s.snapshotReadModels()).toEqual(before);
   });
 
+  test('breakdowns carry time and tokens for every coding agent; a cost tie falls back to time', () => {
+    const s = store();
+    const add = (goalId: string, durationMs: number) => s.append({ type: 'session.usage', goalId, payload: { sessionId: 's', kind: 'attempt', model: 'gpt-5.5', inputTokens: 10, outputTokens: 100, cacheReadTokens: 1000, cacheCreateTokens: 5, costUsd: 0, durationMs, subtype: 'success', rateLimit: null, skillsUsed: [] } });
+    add('short', 1_000);
+    add('long', 60_000);
+    add('long', 30_000);
+    const u = usageSummary(s.db);
+    expect(u.byGoal.map((g) => g.goalId)).toEqual(['long', 'short']);
+    expect(u.byGoal[0]).toMatchObject({ sessions: 2, costUsd: 0, durationMs: 90_000, inputTokens: 20, cacheReadTokens: 2000, cacheCreateTokens: 10, outputTokens: 200 });
+    expect(u.byKind[0]).toMatchObject({ kind: 'attempt', durationMs: 91_000 });
+    expect(u.byModel[0]).toMatchObject({ model: 'gpt-5.5', outputTokens: 300, durationMs: 91_000 });
+  });
+
   test('rejected signal with a future reset marks limited; past reset does not', () => {
     const s = store();
     usage(s, null, 'probe', 'haiku', 0.01, { status: 'rejected', resetsAt: Math.floor(Date.now() / 1000) + 120, rateLimitType: 'five_hour', isUsingOverage: false });

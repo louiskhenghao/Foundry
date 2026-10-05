@@ -35,6 +35,15 @@ export type CodexQuota =
   | { state: 'available'; checkedAt: string; ordinaryUsageAllowed: boolean | null; buckets: { id: string; label: string; primary: CodexQuotaWindow | null; secondary: CodexQuotaWindow | null }[] }
   | { state: 'unavailable' | 'error'; checkedAt: string; message: string };
 
+/** totals both coding agents report for a breakdown row (optional: summaries recorded before they were added lack them) */
+export interface GroupMeasures {
+  durationMs: number;
+  inputTokens: number;
+  cacheReadTokens: number;
+  cacheCreateTokens: number;
+  outputTokens: number;
+}
+
 export interface UsageSummary {
   provider?: 'claude' | 'codex';
   costAvailable?: boolean;
@@ -44,9 +53,9 @@ export interface UsageSummary {
   sevenDay: WindowSummary;
   /** cost per hour across the 5-hour window and per day across the 7-day window (empty buckets included) */
   series: { hourly: UsageBucket[]; daily: UsageBucket[] };
-  byModel: { model: string; sessions: number; costUsd: number; outputTokens: number }[];
-  byGoal: { goalId: string | null; title: string | null; state: string | null; sessions: number; costUsd: number }[];
-  byKind: { kind: string; sessions: number; costUsd: number; avgDurationMs: number }[];
+  byModel: ({ model: string; sessions: number; costUsd: number; outputTokens: number } & Partial<GroupMeasures>)[];
+  byGoal: ({ goalId: string | null; title: string | null; state: string | null; sessions: number; costUsd: number } & Partial<GroupMeasures>)[];
+  byKind: ({ kind: string; sessions: number; costUsd: number; avgDurationMs: number } & Partial<GroupMeasures>)[];
   totals: {
     /** cacheRead / (input + cacheRead) over the 7-day window; null when no input */
     cacheHitRate: number | null;
