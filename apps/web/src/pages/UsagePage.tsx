@@ -91,8 +91,9 @@ function ProviderUsage({ provider }: { provider: AgentProvider }) {
 }
 
 /**
- * What Foundry recorded over the last 7 days, for both coding agents together: these numbers come from
- * Foundry's own session ledger, not from either account. Codex reports no dollar cost, so its cost reads —.
+ * What Foundry recorded over the last 7 days, for both coding agents together: these numbers come from Foundry's own
+ * session ledger, not from either account. Time and tokens exist for both agents, so rows are compared by them;
+ * dollars exist for Claude Code only and stay a column of their own.
  */
 function FoundryActivity() {
   const version = useLive((s) => s.globalVersion);
@@ -108,84 +109,196 @@ function FoundryActivity() {
   }, [version]);
   if (!both) return null;
   const m = mergeActivity(both);
-  const cost = (value: number | null) => (value == null ? '—' : fmtUsd(value));
   return (
     <section className="space-y-3" aria-labelledby="foundry-activity">
       <div className="flex items-baseline gap-2 flex-wrap">
         <h2 id="foundry-activity" className="text-sm font-medium text-zinc-200">Foundry activity · last 7 days</h2>
-        <span className="text-xs text-zinc-500">Claude Code and Codex together, as recorded by Foundry. Dollar cost covers Claude Code only.</span>
+        <span className="text-xs text-zinc-500">Claude Code and Codex together, as recorded by Foundry.</span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Kpi label="cache hit rate" value={m.cacheHitRate == null ? '—' : `${(m.cacheHitRate * 100).toFixed(0)}%`} hint="cache-read tokens ÷ all input tokens" good={m.cacheHitRate != null && m.cacheHitRate > 0.6} />
-        <Kpi label="avg cost / Claude session" value={cost(m.avgCostPerSession)} />
+        <Kpi label="avg cost / Claude session" value={m.avgCostPerSession == null ? '—' : fmtUsd(m.avgCostPerSession)} hint="Claude Code only: Codex reports no dollar cost" />
         <Kpi label="avg session length" value={fmtDur(m.avgDurationMs)} />
         <Kpi label="sessions not successful" value={String(m.errorSessions)} hint="ended with an error, timeout or kill" good={m.errorSessions === 0} bad={m.errorSessions > 0} />
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card title="By goal (top 10)">
-          {m.byGoal.length === 0 ? (
-            <div className="text-xs text-zinc-500">nothing yet</div>
-          ) : (
-            <div className="text-xs space-y-1.5">
-              {m.byGoal.map((g) => (
-                <div key={g.goalId ?? 'none'} className="flex items-center gap-2">
-                  {g.goalId ? (
-                    <Link className="truncate flex-1 text-zinc-200 hover:underline" to={`/goals/${g.goalId}`} title={g.goalId}>
-                      {g.title ?? g.goalId}
-                    </Link>
-                  ) : (
-                    <span className="truncate flex-1 text-zinc-400">no goal (probes, setup)</span>
-                  )}
-                  {g.state && <Badge state={g.state} className="shrink-0" />}
-                  <span className="text-zinc-500 shrink-0">{g.sessions}×</span>
-                  <span className="mono text-zinc-300 w-14 text-right shrink-0">{cost(g.costUsd)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-        <Card title="By session kind">
-          <Rows rows={m.byKind.map((k) => [k.kind, `${k.sessions}× · ${fmtDur(k.avgDurationMs)}`, cost(k.costUsd)])} />
-        </Card>
-        <Card title="By model">
-          <Rows rows={m.byModel.map((x) => [<span className="flex items-center gap-1.5 min-w-0"><ProviderBadge provider={x.provider} compact /><span className="truncate">{x.model}</span></span>, `${x.sessions}× · ${fmtK(x.outputTokens)} out`, cost(x.costUsd)])} />
-        </Card>
-      </div>
-      <p className="text-xs text-zinc-500">Counts only sessions started by Foundry on this machine. Account limits are above, per coding agent; for exact Claude percentages run /usage inside Claude Code.</p>
+      <ActivityTable m={m} />
+      <p className="text-xs text-zinc-500">
+        Time and tokens cover both coding agents. Cost is estimated for Claude Code only; Codex reports no dollar cost, so its rows show —, and <span className="mono">*</span> marks a row whose cost leaves out its Codex sessions. Counts only sessions started by Foundry on this machine. Account limits are below, per coding agent; for exact Claude percentages run /usage inside Claude Code.
+      </p>
     </section>
   );
 }
 
-/** Both agents' 7-day breakdowns as one; Codex contributes sessions, tokens and durations but no cost. */
+type SortKey = 'durationMs' | 'sessions' | 'tokens' | 'costUsd';
+const TABS = [
+  { id: 'goal', label: 'By goal' },
+  { id: 'kind', label: 'By session kind' },
+  { id: 'model', label: 'By model' },
+] as const;
+const totalTokens = (r: ActivityRow) => r.tokens.input + r.tokens.cacheRead + r.tokens.cacheCreate + r.tokens.output;
+const fmtSpan = (ms: number) => {
+  if (ms < 60_000) return `${Math.round(ms / 1000)} s`;
+  const min = Math.round(ms / 60_000);
+  return min < 60 ? `${min} min` : min % 60 ? `${Math.floor(min / 60)} h ${min % 60} min` : `${min / 60} h`;
+};
+
+/** One breakdown at a time, as a table sortable by any measure (time first: both coding agents report it). */
+function ActivityTable({ m }: { m: ReturnType<typeof mergeActivity> }) {
+  const [tab, setTab] = useState<(typeof TABS)[number]['id']>('goal');
+  const [sort, setSort] = useState<SortKey>('durationMs');
+  const rows = [...(tab === 'goal' ? m.byGoal : tab === 'kind' ? m.byKind : m.byModel)].sort((a, b) => {
+    const v = (r: ActivityRow) => (sort === 'tokens' ? totalTokens(r) : sort === 'costUsd' ? (r.costUsd ?? -1) : r[sort]);
+    return v(b) - v(a) || b.durationMs - a.durationMs;
+  });
+  const cost = (r: ActivityRow) =>
+    r.costUsd == null ? (
+      <span className="text-zinc-600" title="Codex reports no dollar cost">—</span>
+    ) : (
+      <span title={r.partial ? 'Claude Code sessions only: this row’s Codex sessions report no dollar cost' : undefined}>
+        {fmtUsd(r.costUsd)}
+        {r.partial && <span className="text-zinc-500">*</span>}
+      </span>
+    );
+  const tokensCell = (r: ActivityRow) => <span title={`input ${fmtK(r.tokens.input)} · cache read ${fmtK(r.tokens.cacheRead)} · cache write ${fmtK(r.tokens.cacheCreate)} · output ${fmtK(r.tokens.output)}`}>{fmtK(totalTokens(r))}</span>;
+  const name = (r: ActivityRow) => (
+    <span className="flex items-center gap-1.5 min-w-0">
+      {r.agents.map((a) => (
+        <ProviderBadge key={a} provider={a} compact />
+      ))}
+      {r.goalId ? (
+        <Link className="truncate text-zinc-200 hover:underline" to={`/goals/${r.goalId}`} title={r.label}>
+          {r.label}
+        </Link>
+      ) : (
+        <span className={cn('truncate', r.muted ? 'text-zinc-400' : 'text-zinc-200')} title={r.label}>
+          {r.label}
+        </span>
+      )}
+      {r.state && <Badge state={r.state} className="shrink-0" />}
+    </span>
+  );
+  const head = (key: SortKey, label: string, hint?: string) => (
+    <th className="py-2 pl-3 font-medium text-right" aria-sort={sort === key ? 'descending' : 'none'}>
+      <button type="button" className={cn('uppercase tracking-wide hover:text-zinc-300', sort === key && 'text-zinc-200')} onClick={() => setSort(key)} title={hint ?? `Sort by ${label.toLowerCase()}`}>
+        {label}
+        {sort === key ? ' ↓' : ''}
+      </button>
+    </th>
+  );
+  return (
+    <div className="surface-card rounded-lg border border-zinc-800">
+      <div role="tablist" aria-label="Breakdown" className="flex gap-1 border-b border-zinc-800 px-2 pt-2 overflow-x-auto">
+        {TABS.map((t) => (
+          <button key={t.id} role="tab" type="button" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className={cn('whitespace-nowrap rounded-t-md px-3 py-1.5 text-xs border-b-2 -mb-px', tab === t.id ? 'border-emerald-500 text-zinc-100' : 'border-transparent text-zinc-500 hover:text-zinc-300')}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {rows.length === 0 ? (
+        <div className="px-4 py-3 text-xs text-zinc-500">nothing yet</div>
+      ) : (
+        <>
+          {/* tablets and up: one sortable table */}
+          <table className="hidden sm:table w-full text-xs">
+            <thead>
+              <tr className="text-left text-[10px] uppercase tracking-wide text-zinc-500 border-b border-zinc-800">
+                <th className="py-2 px-3 font-medium">{TABS.find((t) => t.id === tab)!.label.replace('By ', '')}</th>
+                {head('sessions', 'Sessions')}
+                {head('durationMs', 'Time', 'Sort by time spent in sessions (both coding agents)')}
+                {head('tokens', 'Tokens', 'Sort by tokens processed (both coding agents)')}
+                {head('costUsd', 'Cost', 'Sort by estimated cost (Claude Code only)')}
+                <th className="w-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id} className="border-b border-zinc-900 last:border-b-0">
+                  <td className="py-1.5 px-3 max-w-0 w-full">{name(r)}</td>
+                  <td className="py-1.5 pl-3 text-right text-zinc-400 tabular-nums">{r.sessions}</td>
+                  <td className="py-1.5 pl-3 text-right mono text-zinc-200 whitespace-nowrap">{fmtSpan(r.durationMs)}</td>
+                  <td className="py-1.5 pl-3 text-right mono text-zinc-400 whitespace-nowrap">{tokensCell(r)}</td>
+                  <td className="py-1.5 pl-3 text-right mono text-zinc-300 whitespace-nowrap">{cost(r)}</td>
+                  <td />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {/* phones: one line of measures under each name */}
+          <ul className="sm:hidden divide-y divide-zinc-800/70 text-xs">
+            {rows.map((r) => (
+              <li key={r.id} className="px-3 py-2 space-y-1">
+                {name(r)}
+                <div className="flex gap-3 text-[11px] text-zinc-500">
+                  <span>{r.sessions}×</span>
+                  <span className="mono text-zinc-300">{fmtSpan(r.durationMs)}</span>
+                  <span className="mono">{tokensCell(r)} tokens</span>
+                  <span className="mono ml-auto">{cost(r)}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** one breakdown row for both coding agents: time and tokens from both, cost from Claude Code only */
+export interface ActivityRow {
+  id: string;
+  label: string;
+  goalId: string | null;
+  state: string | null;
+  /** "no goal" and similar rows that are not a thing to open */
+  muted: boolean;
+  agents: AgentProvider[];
+  sessions: number;
+  durationMs: number;
+  tokens: { input: number; cacheRead: number; cacheCreate: number; output: number };
+  /** Claude Code's part; null when the row has no Claude Code sessions */
+  costUsd: number | null;
+  /** the row also has Codex sessions, which the cost leaves out */
+  partial: boolean;
+}
+
+type Part = { sessions: number; costUsd: number; durationMs?: number; avgDurationMs?: number; inputTokens?: number; cacheReadTokens?: number; cacheCreateTokens?: number; outputTokens?: number };
+
+/** Both agents' 7-day breakdowns as one; Codex contributes sessions, time and tokens but no cost. */
 export function mergeActivity(both: Partial<Record<AgentProvider, Pick<Usage, 'sevenDay' | 'byGoal' | 'byKind' | 'byModel' | 'totals'>>>) {
   const parts = (['claude', 'codex'] as const).flatMap((p) => (both[p] ? [{ p, u: both[p]! }] : []));
-  const costOf = (p: AgentProvider, v: number) => (p === 'codex' ? null : v);
-  const add = (a: number | null, b: number | null) => (a == null ? b : b == null ? a : a + b);
-  const goals = new Map<string, { goalId: string | null; title: string | null; state: string | null; sessions: number; costUsd: number | null }>();
-  const kinds = new Map<string, { kind: string; sessions: number; costUsd: number | null; durMs: number }>();
+  const merge = (map: Map<string, ActivityRow>, id: string, base: Pick<ActivityRow, 'label' | 'goalId' | 'state' | 'muted'>, p: AgentProvider, x: Part) => {
+    const row = map.get(id) ?? { id, ...base, agents: [], sessions: 0, durationMs: 0, tokens: { input: 0, cacheRead: 0, cacheCreate: 0, output: 0 }, costUsd: null, partial: false };
+    if (!row.agents.includes(p)) row.agents.push(p);
+    row.sessions += x.sessions;
+    // summaries from before time totals existed carry an average instead
+    row.durationMs += x.durationMs ?? (x.avgDurationMs ?? 0) * x.sessions;
+    row.tokens.input += x.inputTokens ?? 0;
+    row.tokens.cacheRead += x.cacheReadTokens ?? 0;
+    row.tokens.cacheCreate += x.cacheCreateTokens ?? 0;
+    row.tokens.output += x.outputTokens ?? 0;
+    if (p === 'claude') row.costUsd = (row.costUsd ?? 0) + x.costUsd;
+    row.partial = row.agents.length > 1 && row.costUsd != null;
+    map.set(id, row);
+  };
+  const goals = new Map<string, ActivityRow>();
+  const kinds = new Map<string, ActivityRow>();
+  const models = new Map<string, ActivityRow>();
   for (const { p, u } of parts) {
-    for (const g of u.byGoal) {
-      const k = g.goalId ?? '';
-      const cur = goals.get(k) ?? { goalId: g.goalId, title: g.title, state: g.state, sessions: 0, costUsd: null };
-      goals.set(k, { ...cur, sessions: cur.sessions + g.sessions, costUsd: add(cur.costUsd, costOf(p, g.costUsd)) });
-    }
-    for (const k of u.byKind) {
-      const cur = kinds.get(k.kind) ?? { kind: k.kind, sessions: 0, costUsd: null, durMs: 0 };
-      kinds.set(k.kind, { kind: k.kind, sessions: cur.sessions + k.sessions, costUsd: add(cur.costUsd, costOf(p, k.costUsd)), durMs: cur.durMs + k.avgDurationMs * k.sessions });
-    }
+    for (const g of u.byGoal) merge(goals, g.goalId ?? '', { label: g.goalId ? (g.title ?? g.goalId) : 'no goal (probes, setup)', goalId: g.goalId, state: g.state, muted: !g.goalId }, p, g);
+    for (const k of u.byKind) merge(kinds, k.kind, { label: k.kind, goalId: null, state: null, muted: false }, p, k);
+    for (const x of u.byModel) merge(models, `${p}:${x.model}`, { label: x.model, goalId: null, state: null, muted: false }, p, x);
   }
-  const byCost = (a: { costUsd: number | null; sessions: number }, b: { costUsd: number | null; sessions: number }) => (b.costUsd ?? 0) - (a.costUsd ?? 0) || b.sessions - a.sessions;
+  const byTime = (a: ActivityRow, b: ActivityRow) => b.durationMs - a.durationMs || b.sessions - a.sessions;
   const sessions = parts.reduce((n, { u }) => n + u.sevenDay.sessions, 0);
-  const claude = both.claude;
   const read = parts.reduce((n, { u }) => n + u.sevenDay.cacheReadTokens, 0);
   const input = parts.reduce((n, { u }) => n + u.sevenDay.inputTokens + u.sevenDay.cacheReadTokens, 0);
   const durTotal = parts.reduce((n, { u }) => n + (u.totals.avgDurationMs ?? 0) * u.sevenDay.sessions, 0);
   return {
-    byGoal: [...goals.values()].sort(byCost).slice(0, 10),
-    byKind: [...kinds.values()].sort(byCost).map((k) => ({ kind: k.kind, sessions: k.sessions, costUsd: k.costUsd, avgDurationMs: k.sessions ? Math.round(k.durMs / k.sessions) : 0 })),
-    byModel: parts.flatMap(({ p, u }) => u.byModel.map((x) => ({ ...x, provider: p, costUsd: costOf(p, x.costUsd) }))).sort(byCost),
+    byGoal: [...goals.values()].sort(byTime),
+    byKind: [...kinds.values()].sort(byTime),
+    byModel: [...models.values()].sort(byTime),
     cacheHitRate: input > 0 ? read / input : null,
-    avgCostPerSession: claude?.totals.avgCostPerSession ?? null,
+    avgCostPerSession: both.claude?.totals.avgCostPerSession ?? null,
     avgDurationMs: sessions ? Math.round(durTotal / sessions) : null,
     errorSessions: parts.reduce((n, { u }) => n + u.totals.errorSessions, 0),
   };
@@ -358,20 +471,6 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div>
       <div className="text-[10px] uppercase text-zinc-500">{label}</div>
       <div className="mono text-zinc-200">{value}</div>
-    </div>
-  );
-}
-function Rows({ rows }: { rows: (string | JSX.Element)[][] }) {
-  if (!rows.length) return <div className="text-xs text-zinc-500">nothing yet</div>;
-  return (
-    <div className="text-xs space-y-1.5">
-      {rows.map((r, i) => (
-        <div key={i} className="flex gap-2 items-center">
-          <span className="flex-1 truncate text-zinc-200">{r[0]}</span>
-          <span className="text-zinc-500 shrink-0">{r[1]}</span>
-          <span className="mono text-zinc-300 w-14 text-right shrink-0">{r[2]}</span>
-        </div>
-      ))}
     </div>
   );
 }
