@@ -17,6 +17,7 @@ export function GoalsPage() {
   const [goals, setGoals] = useState<GoalRow[] | null>(null);
   const version = useLive((s) => s.globalVersion);
   const [params, setParams] = useSearchParams();
+  const [size, setSize] = useState(savedSize);
   useEffect(() => {
     const t = setTimeout(() => api.goals().then(setGoals).catch(() => {}), 150);
     return () => clearTimeout(t);
@@ -47,10 +48,17 @@ export function GoalsPage() {
   const cost = (g: GoalRow) =>
     g.provider === 'codex' ? <span className="font-sans text-zinc-400">cost unavailable</span> : <>{fmtUsd(g.costUsd)} <span className="text-zinc-500">/ {fmtLimitUsd(g.budgets.maxCostUsd)}</span></>;
 
-  const pages = Math.max(1, Math.ceil((goals?.length ?? 0) / PAGE_SIZE));
+  const pages = Math.max(1, Math.ceil((goals?.length ?? 0) / size));
   const page = Math.min(pages, Math.max(1, Number(params.get('page')) || 1));
-  const shown = goals?.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) ?? [];
+  const shown = goals?.slice((page - 1) * size, page * size) ?? [];
   const go = (n: number) => setParams(n > 1 ? { page: String(n) } : {});
+  const resize = (n: number) => {
+    setSize(n);
+    try {
+      localStorage.setItem(SIZE_KEY, String(n));
+    } catch {}
+    go(1);
+  };
 
   return (
     <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6">
@@ -105,20 +113,44 @@ export function GoalsPage() {
               </li>
             ))}
           </ul>
-          {pages > 1 && (
-            <nav className="mt-3 flex items-center justify-between gap-3 text-xs text-zinc-500" aria-label="Goal pages">
-              <span>{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, goals.length)} of {goals.length} goals</span>
+          {/* always shown: how many there are, how many per page, and where you are */}
+          <nav className="mt-3 flex items-center justify-between gap-x-3 gap-y-2 flex-wrap text-xs text-zinc-500" aria-label="Goal pages">
+            <span className="flex items-center gap-2">
+              <span className="tabular-nums">
+                {(page - 1) * size + 1}–{Math.min(page * size, goals.length)} of {goals.length} goals
+              </span>
+              <label className="flex items-center gap-1">
+                <span className="sr-only">Goals per page</span>
+                <select value={size} onChange={(e) => resize(Number(e.target.value))} className="rounded border border-zinc-800 bg-zinc-950/50 px-1.5 py-0.5 text-xs text-zinc-300">
+                  {PAGE_SIZES.map((n) => (
+                    <option key={n} value={n}>
+                      {n} per page
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </span>
+            {pages > 1 && (
               <span className="flex items-center gap-1">
                 <Button size="sm" variant="ghost" disabled={page <= 1} onClick={() => go(page - 1)} aria-label="Previous page"><ChevronLeft size={14} /></Button>
                 <span className="tabular-nums px-1">Page {page} of {pages}</span>
                 <Button size="sm" variant="ghost" disabled={page >= pages} onClick={() => go(page + 1)} aria-label="Next page"><ChevronRight size={14} /></Button>
               </span>
-            </nav>
-          )}
+            )}
+          </nav>
         </>
       )}
     </div>
   );
 }
 
-const PAGE_SIZE = 20;
+const PAGE_SIZES = [10, 20, 50];
+const SIZE_KEY = 'foundry.goals.pageSize';
+function savedSize(): number {
+  try {
+    const n = Number(localStorage.getItem(SIZE_KEY));
+    return PAGE_SIZES.includes(n) ? n : 10;
+  } catch {
+    return 10;
+  }
+}
