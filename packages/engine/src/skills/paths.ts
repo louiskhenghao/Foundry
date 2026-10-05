@@ -18,6 +18,8 @@ export interface SkillsPaths {
   updatesFile: string;
   /** ~/.claude/plugins/known_marketplaces.json */
   marketplacesFile: string;
+  /** Codex only: Claude Code's skills folder, to keep shared skills Claude links to from being removed under it */
+  claudeSkillsDir?: string;
 }
 
 export function skillsPaths(claudeHome: string, dataDir: string, provider: 'claude' | 'codex' = 'claude', sharedHome?: string): SkillsPaths {

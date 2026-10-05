@@ -41,6 +41,8 @@ export interface PreviewAppStatus {
   warning: string | null;
   /** other servers its command started (a demo script, `turbo dev`), found from the ports its processes listen on */
   discovered: { port: number; url: string; name: string; dir: string | null }[];
+  /** why Foundry stopped it last time, when not a person: idle, the goal ended, shutdown */
+  stopped: string | null;
 }
 
 /**
@@ -88,6 +90,8 @@ interface Live {
   ready: boolean;
   log: string[];
   stopping: boolean;
+  /** why it is being stopped (recorded on the event and shown on the card) */
+  stopReason: string | null;
   warning: string | null;
   discovered: PreviewAppStatus['discovered'];
   /** every port the command's processes listen on, HTTP or not: kept from other previews */
@@ -116,6 +120,7 @@ export const appUrlVar = (key: string) => `FOUNDRY_APP_${key.toUpperCase().repla
 export class PreviewManager {
   private live = new Map<string, Live>();
   private lastError = new Map<string, { reason: string; detail: string[] }>();
+  private lastStop = new Map<string, string>();
   readonly env: PreviewEnvStore;
   private sweeper: ReturnType<typeof setInterval> | null = null;
   readonly services: ServicesManager;
@@ -202,6 +207,7 @@ export class PreviewManager {
       errorDetail: this.lastError.get(id(goalId, key))?.detail ?? [],
       warning: l?.warning ?? null,
       discovered: l?.discovered ?? [],
+      stopped: l ? null : (this.lastStop.get(id(goalId, key)) ?? null),
     };
   }
 
@@ -327,7 +333,7 @@ export class PreviewManager {
     const command = app.command!.replaceAll('{port}', String(port));
     const url = urls[appUrlVar(app.key)]!;
     const now = new Date().toISOString();
-    const entry: Live = { goalId: goal.id, key: app.key, proc: null as unknown as Live['proc'], port, url, command, startedAt: now, startedBy: by, lastVisitAt: now, ready: false, log: [], stopping: false, warning, discovered: [], reserved: [], probes: new Map(), discovery: null, discovering: false };
+    const entry: Live = { goalId: goal.id, key: app.key, proc: null as unknown as Live['proc'], port, url, command, startedAt: now, startedBy: by, lastVisitAt: now, ready: false, log: [], stopping: false, stopReason: null, warning, discovered: [], reserved: [], probes: new Map(), discovery: null, discovering: false };
     const channel = `preview-${goal.id}-${app.key}`;
     const env = this.processEnv(goal);
     const redact = this.redactorFor(goal);
@@ -345,14 +351,16 @@ export class PreviewManager {
     entry.proc = Bun.spawn(['sh', '-lc', command], { cwd: app.dir ? join(ws, app.dir) : ws, stdout: 'pipe', stderr: 'pipe', env: { ...env, ...urls, PORT: String(port), ...bind, BROWSER: 'none', FORCE_COLOR: '0', NO_COLOR: '1' }, detached: true });
     this.live.set(key, entry);
     this.lastError.delete(key);
+    this.lastStop.delete(key);
     void pump(entry.proc.stdout as ReadableStream<Uint8Array>, push);
     void pump(entry.proc.stderr as ReadableStream<Uint8Array>, push);
     void entry.proc.exited.then((code) => {
       if (entry.discovery) clearInterval(entry.discovery);
       if (this.live.get(key) !== entry) return;
       this.live.delete(key);
-      const reason = entry.stopping ? 'stopped' : `exited with code ${code}`;
+      const reason = entry.stopping ? (entry.stopReason ?? 'stopped') : `exited with code ${code}`;
       if (!entry.stopping) this.lastError.set(key, { reason, detail: failureTail(entry.log) });
+      else if (entry.stopReason && entry.stopReason !== 'human') this.lastStop.set(key, entry.stopReason);
       push(`[preview ${reason}]`);
       store.append({ type: 'preview.stopped', goalId: goal.id, payload: { reason, app: app.key } });
     });
@@ -421,6 +429,7 @@ export class PreviewManager {
   private async stopEntry(l: Live, reason: string): Promise<void> {
     const key = id(l.goalId, l.key);
     l.stopping = true;
+    l.stopReason = reason;
     if (l.discovery) clearInterval(l.discovery);
     // the dev server is a grandchild of the shell (sh → npm → sh → vite): the shell leads its own process group, so
     // signal the whole group. No pkill needed (the Docker image has none).
@@ -471,7 +480,9 @@ export class PreviewManager {
     for (const l of [...this.live.values()]) {
       const goal = getGoal(this.engine.store.db, l.goalId);
       const ended = !goal || ['done', 'over_delivered', 'failed', 'cancelled'].includes(goal.state);
-      if (ended) await this.stopEntry(l, 'goal ended');
+      // a preview a person started (often to look at a finished goal) is left to the idle rule; Foundry's own end with the goal
+      if (!goal) await this.stopEntry(l, 'goal deleted');
+      else if (ended && l.startedBy !== 'human') await this.stopEntry(l, 'goal ended');
       else if (goal.state !== 'awaiting_feedback' && now - Date.parse(l.lastVisitAt) > idleMs) await this.stopEntry(l, `idle for ${this.engine.config.preview.idleMinutes} min`);
     }
   }

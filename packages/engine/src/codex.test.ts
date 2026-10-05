@@ -56,12 +56,13 @@ describe('Codex engine integration', () => {
     expect(key.loggedIn).toBe(false);
     expect(JSON.stringify(key)).not.toContain('sk-secret');
   });
-  test('doctor checks Codex alone and scans shared skills without treating them as removable copies', async () => {
+  test('doctor checks Codex alone and scans shared skills as uninstallable from the Codex side', async () => {
     const home = temp(); const paths = skillsPaths(join(home, '.codex'), join(home, 'data'), 'codex', home);
     mkdirSync(join(home, '.agents/skills/example'), { recursive: true });
     writeFileSync(join(home, '.agents/skills/example/SKILL.md'), '---\nname: example\ndescription: shared skill\n---\n');
     const scan = scanSkills(paths);
-    expect(scan.installed[0]).toMatchObject({ name: 'example', canUninstall: false });
+    // no Claude Code skills folder links to it, so the Codex side may uninstall it (see shared-uninstall.test.ts)
+    expect(scan.installed[0]).toMatchObject({ name: 'example', canUninstall: true });
     const calls: string[][] = [];
     const report = await runDoctor({ provider: 'codex', paths, catalog: { version: 1, entries: [] }, statuses: [], which: (name) => `/bin/${name}`, exec: async (args) => { calls.push(args); return { code: 0, stdout: args.includes('--version') ? 'codex-cli 0.160.0' : '', stderr: args.includes('status') ? 'Logged in using ChatGPT' : '' }; } });
     expect(calls.some((args) => args.some((arg) => arg.includes('claude')))).toBe(false);

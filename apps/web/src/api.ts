@@ -26,6 +26,8 @@ export interface PreviewAppStatus {
   warning: string | null;
   /** other servers its command started, found from the ports its processes listen on */
   discovered: { port: number; url: string; name: string; dir: string | null }[];
+  /** why Foundry stopped it last time, when not a person */
+  stopped: string | null;
 }
 
 /** Mirrors the engine's PreviewStatus (preview/manager.ts). The top-level fields describe the primary app (apps[0]). */

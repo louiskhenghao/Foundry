@@ -162,7 +162,7 @@ If the repository has a Docker Compose file with services the apps need (a datab
 - Services keep running when the preview stops, so their data is kept. **Stop services** stops them; the data is still kept.
 - Docker must be installed. Without it, or when Foundry itself runs inside Docker, the card shows the command to start the services yourself, with **copy**.
 
-Foundry also starts the preview by itself at a milestone, restarts it after each task lands if it is running, and stops it when nobody opened it for a while (60 minutes by default) or when the goal ends.
+Foundry also starts the preview by itself at a milestone, restarts it after each task lands if it is running, and stops it when nobody opened it for a while (60 minutes by default). When the goal ends, Foundry stops the previews it started itself; one you started, for example to look at a finished goal, keeps running until it is idle. The card then says why Foundry stopped it.
 
 ### Where it runs
 

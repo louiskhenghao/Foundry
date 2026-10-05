@@ -211,6 +211,26 @@ describe('what the preview card can tell', () => {
   }, 30_000);
 });
 
+describe('the sweeper', () => {
+  test('on a finished goal it leaves a preview the person started, stops Foundry’s own, and says why', async () => {
+    const serve = `bun -e 'Bun.serve({ port: Number(process.env.PORT), fetch: () => new Response("ok") }); setInterval(() => {}, 1000)'`;
+    writeFileSync(join(ws, 'package.json'), JSON.stringify({ scripts: { start: serve } }));
+    mkdirSync(join(ws, 'node_modules'));
+    const g = goal({ state: 'done' });
+    await engine.preview.start(g, 'human');
+    await (engine.preview as any).sweep();
+    expect(engine.preview.status(g.id).running).toBe(true);
+    await engine.preview.stop(g.id, 'human');
+    expect(engine.preview.status(g.id).apps[0]!.stopped).toBeNull();
+    await engine.preview.start(g, 'milestone');
+    await (engine.preview as any).sweep();
+    const app = engine.preview.status(g.id).apps[0]!;
+    expect(app.running).toBe(false);
+    expect(app.stopped).toBe('goal ended');
+    expect(engine.store.listByGoal(g.id).filter((e) => e.type === 'preview.stopped').map((e) => (e.payload as { reason: string }).reason)).toContain('goal ended');
+  }, 30_000);
+});
+
 describe('failureTail', () => {
   test('keeps the app’s own lines and drops npm, pnpm, yarn and bun run banners', () => {
     expect(failureTail(['[preview] note', '> x@ start /w', '> node server.js', '', 'listening…', 'Error: boom', ' ELIFECYCLE  Command failed with exit code 3.', ' WARN   Local package.json exists, but node_modules missing', 'error Command failed with exit code 3.', 'info Visit https://yarnpkg.com/en/docs/cli/run', 'error: script "start" exited with code 3', 'npm error code 3', 'npm error path /w', '$ next dev'])).toEqual(['listening…', 'Error: boom', ' WARN   Local package.json exists, but node_modules missing']);

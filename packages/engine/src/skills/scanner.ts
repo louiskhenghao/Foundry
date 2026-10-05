@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, realpathSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { parseSkillMd } from './frontmatter.ts';
 import { LEGACY_MARKER_FILE, MARKER_FILE, type SkillsPaths } from './paths.ts';
@@ -12,13 +12,54 @@ export interface ScanOptions {
 /** Pure filesystem scan of user, plugin and (optionally) project skills. */
 export function scanSkills(paths: SkillsPaths, opts: ScanOptions = {}): ScanResult {
   const own = scanUserDir(paths);
-  const shared = paths.provider === 'codex' ? scanUserDir({ ...paths, skillsDir: paths.agentsSkillsDir })
-    .filter((s) => !own.some((row) => row.name === s.name))
-    .map((s) => ({ ...s, canUninstall: false, uninstallNote: 'Shared agent skill; manage it in ~/.agents/skills.' })) : [];
+  const shared = paths.provider === 'codex' ? sharedAgentSkills(paths, own) : [];
   const rows: InstalledSkill[] = [...own, ...shared, ...(paths.provider === 'codex' ? [] : scanPlugins(paths))];
   if (opts.repoPath) rows.push(...scanProject(opts.repoPath, paths.provider === 'codex' ? '.agents' : '.claude'));
   markDuplicates(rows);
   return { installed: rows, duplicates: [...new Set(rows.filter((r) => r.duplicateOf.length).map((r) => r.name))].sort(), scannedAt: new Date().toISOString(), skillsDir: paths.skillsDir };
+}
+
+// ---------- Codex: the shared ~/.agents/skills folder ----------
+
+/**
+ * Skills in ~/.agents/skills that Codex loads besides its own. They can be uninstalled from the Codex side, except one
+ * that Claude Code also uses through a link in its skills folder (the community `skills` CLI links installs into
+ * ~/.claude/skills): removing it would break Claude Code's copy, so that one is left to the Claude side.
+ */
+function sharedAgentSkills(paths: SkillsPaths, own: InstalledSkill[]): InstalledSkill[] {
+  const claudeUses = paths.claudeSkillsDir ? claudeLinksInto(paths.claudeSkillsDir, paths.agentsSkillsDir) : new Map<string, string>();
+  return scanUserDir({ ...paths, skillsDir: paths.agentsSkillsDir })
+    .filter((s) => !own.some((row) => row.name === s.name))
+    .map((s) => {
+      const via = claudeUses.get(realOr(s.dir));
+      if (via) return { ...s, canUninstall: false, uninstallNote: `Claude Code uses it through ${via}. Uninstall it on the Claude Code side first, so Claude Code is not left with a broken link.` };
+      if (!s.canUninstall || s.managedBy === 'gstack') return { ...s, canUninstall: false, uninstallNote: s.uninstallNote ?? s.hint ?? 'Managed by its own tooling; remove it there.' };
+      return { ...s, uninstallNote: s.uninstallNote ?? `Shared with every agent that reads ${paths.agentsSkillsDir}; moved to the trash, where it can be restored.` };
+    });
+}
+
+/** resolved skill folder in `agentsDir` → the entry of Claude's skills folder that reaches it (as a link, or via a linked SKILL.md) */
+function claudeLinksInto(claudeDir: string, agentsDir: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const agentsReal = realOr(agentsDir);
+  for (const name of safeReaddir(claudeDir)) {
+    const entry = join(claudeDir, name);
+    for (const target of [realOr(entry), dirname(realOr(join(entry, 'SKILL.md')))]) {
+      if (target.startsWith(agentsReal + '/')) {
+        const skill = join(agentsReal, relative(agentsReal, target).split('/')[0]!);
+        if (!out.has(skill)) out.set(skill, entry);
+      }
+    }
+  }
+  return out;
+}
+
+function realOr(p: string): string {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
 }
 
 // ---------- user dir ----------

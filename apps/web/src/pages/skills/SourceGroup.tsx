@@ -204,6 +204,7 @@ function Row({ r, odd, busy, selected, onSelect, onView, onAdopt, onTrashShadow,
             </span>
           )}
           {!r.shadowedBy && r.duplicateOf.length > 0 && <span>duplicate of {r.duplicateOf.join(', ')}</span>}
+          {r.keptBecause && <span title={r.keptBecause}>can't uninstall here: {r.keptBecause}</span>}
         </div>
       </div>
       <div className="col-start-2 md:col-start-3 text-zinc-400 line-clamp-2 min-w-0" title={r.description}>

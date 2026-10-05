@@ -14,9 +14,13 @@ export class TrashError extends Error {
   }
 }
 
-/** Move `<skillsDir>/<name>` into the trash. Symlinks: only the link is removed (recorded so restore can recreate it). */
-export function trashSkill(name: string, paths: SkillsPaths, reason: string): TrashEntry {
-  const src = join(paths.skillsDir, name);
+/**
+ * Move `<skillsDir>/<name>` (or `<from>/<name>`) into the trash. Symlinks: only the link is removed (recorded so
+ * restore can recreate it). A skill taken from another folder records it, so restore puts it back there.
+ */
+export function trashSkill(name: string, paths: SkillsPaths, reason: string, opts: { from?: string } = {}): TrashEntry {
+  const from = opts.from ?? paths.skillsDir;
+  const src = join(from, name);
   let st: ReturnType<typeof lstatSync>;
   try {
     st = lstatSync(src);
@@ -26,7 +30,7 @@ export function trashSkill(name: string, paths: SkillsPaths, reason: string): Tr
   mkdirSync(paths.trashDir, { recursive: true });
   const trashedAt = new Date().toISOString();
   const dest = join(paths.trashDir, `${name}-${trashedAt.replace(/[:.]/g, '-')}`);
-  const entry: TrashEntry = { name, trashedAt, path: dest, reason, wasSymlink: st.isSymbolicLink(), symlinkTarget: null };
+  const entry: TrashEntry = { name, trashedAt, path: dest, reason, wasSymlink: st.isSymbolicLink(), symlinkTarget: null, ...(from !== paths.skillsDir ? { origin: from } : {}) };
   if (st.isSymbolicLink()) {
     entry.symlinkTarget = readlinkSync(src);
     mkdirSync(dest, { recursive: true });
@@ -60,12 +64,13 @@ export function listTrash(paths: SkillsPaths): TrashEntry[] {
 export function restoreSkill(name: string, paths: SkillsPaths, opts: { force?: boolean; trashPath?: string } = {}): { path: string; entry: TrashEntry } {
   const entry = opts.trashPath ? listTrash(paths).find((e) => e.path === opts.trashPath) : listTrash(paths).find((e) => e.name === name);
   if (!entry) throw new TrashError(`nothing in trash for ${name}`, 'not-found');
-  const dest = join(paths.skillsDir, entry.name);
+  const home = entry.origin ?? paths.skillsDir;
+  const dest = join(home, entry.name);
   if (existsSync(dest) || isSymlink(dest)) {
-    if (!opts.force) throw new TrashError(`${entry.name} already exists in ${paths.skillsDir}`, 'exists');
-    trashSkill(entry.name, paths, 'replaced by restore');
+    if (!opts.force) throw new TrashError(`${entry.name} already exists in ${home}`, 'exists');
+    trashSkill(entry.name, paths, 'replaced by restore', { from: home });
   }
-  mkdirSync(paths.skillsDir, { recursive: true });
+  mkdirSync(home, { recursive: true });
   if (entry.wasSymlink && entry.symlinkTarget) {
     symlinkSync(entry.symlinkTarget, dest);
     rmSync(entry.path, { recursive: true, force: true });

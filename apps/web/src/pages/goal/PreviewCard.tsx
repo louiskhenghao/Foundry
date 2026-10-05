@@ -32,7 +32,7 @@ function AlsoServing({ app, onVisit }: { app: PreviewAppStatus; onVisit: () => v
 /** why the last run ended, with the lines the app printed last; or what to know while it runs */
 function Problems({ app }: { app: PreviewAppStatus }) {
   if (app.running) return app.warning ? <div className="text-amber-300">{app.warning}</div> : null;
-  if (!app.error) return null;
+  if (!app.error) return app.stopped ? <div className="text-[11px] text-zinc-500">Foundry stopped it: {app.stopped}.</div> : null;
   return (
     <div className="rounded border border-rose-500/30 bg-rose-500/5 px-2 py-1.5 space-y-1">
       <div className="text-rose-300">The last run failed: {app.error}</div>
