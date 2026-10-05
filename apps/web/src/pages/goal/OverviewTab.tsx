@@ -87,6 +87,8 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
         {(g.state === 'failed' || g.state === 'cancelled' || g.state === 'blocked') && <Badge state={g.state} className="ml-2" />}
       </div>
 
+      <BriefStrip d={d} />
+
       {open.length > 0 && (
         <div className="space-y-2">
           {open.map((e) => (
@@ -137,36 +139,6 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
           )}
           <ProjectSkillsCard d={d} />
           <CompletionCard d={d} />
-          {d.brief ? (
-            <Card
-              title={
-                <span>
-                  Brief {d.brief.approved ? <Badge state="pass">approved</Badge> : <Badge state="pending" />}
-                </span>
-              }
-              actions={
-                <Link to={`/goals/${g.id}/brief`} className="text-xs underline text-zinc-400">
-                  open
-                </Link>
-              }
-            >
-              <MarkdownPanel title="understanding" source={d.brief.brief.understanding} maxHeight={260} actions={<OpenFull value={{ title: 'Understanding', text: d.brief.brief.understanding }} />} />
-              <div className="text-xs text-zinc-400 mt-3 flex gap-x-4 gap-y-1 flex-wrap">
-                <span>{d.brief.brief.tasks.length} tasks</span>
-                <span>
-                  {d.brief.brief.assumptions.filter((a) => a.accepted).length}/{d.brief.brief.assumptions.length} assumptions accepted
-                </span>
-                <span>{d.brief.brief.questions.filter((q) => q.answer).length}/{d.brief.brief.questions.length} questions answered</span>
-                <span>
-                  est. {d.goal.provider !== 'codex' && <>${d.brief.brief.costEstimateUsd} / </>} {d.brief.brief.timeEstimateMin} min
-                </span>
-              </div>
-            </Card>
-          ) : (
-            <Card title="Brief">
-              <div className="text-sm text-zinc-500">Not produced yet.</div>
-            </Card>
-          )}
           {review && (
             <Card title={`Goal review — ${review.passed ? (review.overDelivered ? 'over-delivered' : 'passed') : 'failed'}`}>
               {review.notes ? <MarkdownPanel title="reviewer notes" source={review.notes} maxHeight={240} /> : <div className="text-xs text-zinc-500">no notes</div>}
@@ -267,5 +239,35 @@ function SelfCheckSection({ d }: { d: GoalDetail }) {
       )}
       {err && <div className="text-[11px] text-rose-300">{err}</div>}
     </div>
+  );
+}
+
+/**
+ * The approved Brief in one line under the timeline: its state and size, with a link to the Brief page, which holds
+ * the Understanding and everything else the Clarifier wrote.
+ */
+function BriefStrip({ d }: { d: GoalDetail }) {
+  const g = d.goal;
+  const b = d.brief?.brief;
+  if (!b) return null;
+  const stats = [
+    `${b.tasks.length} task${b.tasks.length === 1 ? '' : 's'}`,
+    b.assumptions.length ? `${b.assumptions.filter((a) => a.accepted).length}/${b.assumptions.length} assumptions accepted` : null,
+    b.questions.length ? `${b.questions.filter((q) => q.answer).length}/${b.questions.length} questions answered` : null,
+    `est. ${g.provider !== 'codex' ? `$${b.costEstimateUsd} / ` : ''}${b.timeEstimateMin} min`,
+  ].filter(Boolean);
+  return (
+    <Link to={`/goals/${g.id}/brief`} className="group flex items-center gap-x-3 gap-y-1 flex-wrap rounded-md border border-zinc-800 px-3 py-2 text-xs hover:border-zinc-600" title="Open the Brief: the Understanding, questions, assumptions, plan and checks">
+      <span className="flex items-center gap-1.5">
+        <span className="text-zinc-200 font-medium">Brief</span>
+        {d.brief!.approved ? <Badge state="pass">approved</Badge> : <Badge state="pending" />}
+      </span>
+      {stats.map((s) => (
+        <span key={s} className="text-zinc-400">
+          {s}
+        </span>
+      ))}
+      <span className="ml-auto text-zinc-400 group-hover:text-zinc-100">Open Brief →</span>
+    </Link>
   );
 }
