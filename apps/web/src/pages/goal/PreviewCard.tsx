@@ -267,18 +267,20 @@ function Where({ goalId, st, busy, onChange }: { goalId: string; st: PreviewStat
     }
   };
   const options = src?.options ?? [];
+  const current = options.find((o) => o.ref === w.branch);
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-x-1.5 gap-y-1 flex-wrap min-w-0 text-[11px] text-zinc-500" title={w.path}>
         <GitBranch size={12} className="shrink-0" />
         <span>Runs</span>
         {src?.selectable ? (
-          <span className="w-56 max-w-full">
+          <span className="w-60 max-w-full">
             <Select aria-label="Branch the preview runs" className="mono text-[11px] py-0.5" value={w.branch} disabled={busy || saving || running} title={running ? 'Stop the preview to pick another branch' : 'The branch the preview runs'} onChange={(e) => pick(e.target.value)}>
               {!options.some((o) => o.ref === w.branch) && <option value={w.branch}>{w.branch}</option>}
               {options.map((o) => (
-                <option key={o.ref} value={o.ref} disabled={!o.available}>
-                  {o.label} — {o.note}
+                <option key={o.ref} value={o.ref} disabled={!o.available} title={o.note}>
+                  {o.label}
+                  {o.available ? '' : ' (gone)'}
                 </option>
               ))}
             </Select>
@@ -289,6 +291,7 @@ function Where({ goalId, st, busy, onChange }: { goalId: string; st: PreviewStat
         <span>{w.kind === 'goal' ? "in the goal's folder" : "in Foundry's preview folder"} · not your checkout</span>
         <CopyButton text={w.path} />
       </div>
+      {src?.selectable && current?.note && <div className="text-[11px] text-zinc-500 pl-[1.125rem]">{current.note[0]!.toUpperCase() + current.note.slice(1)}</div>}
       {w.preparing && <div className="text-[11px] text-zinc-400">Checking out {w.branch} in the preview folder…</div>}
       {w.fallback && <div className="text-[11px] text-amber-300/90">{w.fallback[0]!.toUpperCase() + w.fallback.slice(1)}.</div>}
       {err && <div className="text-[11px] text-rose-300">{err}</div>}
