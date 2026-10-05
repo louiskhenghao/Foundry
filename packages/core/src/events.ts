@@ -96,7 +96,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   /** completion actions chosen at Brief approval (defaults inferred from the tasks' scenarios when the UI sends nothing) */
   ev('goal.completion_set', { graphRefresh: z.boolean(), docs: z.array(DocType), reason: z.string() }),
   /** the docs-generation session ran (after the goal review passed); files are repo-relative paths it committed */
-  ev('goal.docs_generated', { status: z.enum(['ok', 'skipped', 'failed']), types: z.array(DocType), files: z.array(z.string()), costUsd: z.number(), detail: z.string() }),
+  /** `ref`: the docs commit on the goal branch (absent on events written before it was recorded) */
+  ev('goal.docs_generated', { status: z.enum(['ok', 'skipped', 'failed']), types: z.array(DocType), files: z.array(z.string()), costUsd: z.number(), detail: z.string(), ref: z.string().nullable().optional() }),
   /** the post-delivery graph refresh ran (graphify / gitnexus, whichever is on PATH) */
   ev('goal.completion_ran', { tools: z.array(z.object({ name: z.string(), status: z.enum(['ok', 'skipped', 'failed']), detail: z.string() })) }),
   /** settings changed from the Settings page / API (goalId null); values are not recorded, only which keys */
@@ -188,16 +189,23 @@ export const EngineEvent = z.discriminatedUnion('type', [
     rateLimit: z.object({ status: z.string(), resetsAt: z.number().nullable(), rateLimitType: z.string().nullable(), isUsingOverage: z.boolean() }).nullable(),
     skillsUsed: z.array(z.string()).default([]),
   }),
-  ev('delivery.policy_set', { policy: DeliveryPolicy, source: z.enum(['create', 'deliver', 'retry']) }),
+  /** sets the policy and (unless one runs) starts a delivery; `resume` carries on with open PRs, `start-over` follows closing them */
+  ev('delivery.policy_set', { policy: DeliveryPolicy, source: z.enum(['create', 'deliver', 'retry', 'resume', 'start-over']) }),
+  /** the human saved the policy without starting anything; a running delivery picks the switches up at its next step */
+  ev('delivery.policy_saved', { policy: DeliveryPolicy }),
   ev('delivery.started', { policy: DeliveryPolicy, plan: z.array(z.string()) }),
-  ev('delivery.step', { step: DeliveryStep, status: z.enum(['started', 'ok', 'skipped', 'failed']), detail: z.string() }),
+  /** `branch`: the stacked (or goal) branch the step works on, when it is about one PR */
+  ev('delivery.step', { step: DeliveryStep, status: z.enum(['started', 'ok', 'skipped', 'failed']), detail: z.string(), branch: z.string().nullable().optional() }),
   ev('delivery.command', { step: DeliveryStep, command: z.string(), cwd: z.string(), exitCode: z.number().nullable(), durationMs: z.number(), outputTail: z.string() }),
   ev('delivery.repo_created', { owner: z.string(), name: z.string(), url: z.string(), visibility: z.string() }),
   ev('delivery.pushed', { remote: z.string(), branch: z.string(), ref: z.string(), taskId: z.string().nullable().default(null) }),
   /** the stacked branches built from the tasks' commits (unit = task), bottom first */
   ev('delivery.stack_built', { branches: z.array(z.object({ taskId: z.string().nullable(), index: z.number().int(), branch: z.string(), base: z.string(), commit: z.string(), title: z.string() })) }),
   ev('delivery.pr_opened', { number: z.number().int(), url: z.string(), base: z.string(), head: z.string(), taskId: z.string().nullable().default(null), title: z.string().default('') }),
-  ev('delivery.checks', { state: ChecksState, summary: z.string(), prNumber: z.number().int().nullable().default(null), failing: z.array(FailingCheck).default([]) }),
+  ev('delivery.checks', { state: ChecksState, summary: z.string(), prNumber: z.number().int().nullable().default(null), failing: z.array(FailingCheck).default([]), skipped: z.boolean().optional() }),
+  /** a branch was brought up to date with the base: already was, rebased onto it, merged it, or merged with conflicts resolved; `from` is its tip before */
+  ev('delivery.synced', { branch: z.string(), how: z.enum(['current', 'rebased', 'merged', 'resolved']), from: z.string().nullable(), to: z.string().nullable() }),
+  ev('delivery.branch_deleted', { branch: z.string() }),
   ev('delivery.merged', { prNumber: z.number().int().nullable(), method: z.string(), ref: z.string().nullable(), taskId: z.string().nullable().default(null) }),
   /** something the pipeline decided on its own (e.g. fell back from a stack to one PR) */
   ev('delivery.note', { message: z.string() }),
