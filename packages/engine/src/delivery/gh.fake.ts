@@ -17,6 +17,8 @@ export class FakeGh implements GhClient {
   checksSequence: ('pending' | 'passing' | 'failing' | 'none')[] = ['passing'];
   private viewCount = 0;
   mergeBehavior: 'ok' | 'protected' | 'fail' = 'ok';
+  /** 'squash' writes one new commit on the base with the head's content, as GitHub's squash merge does */
+  mergeStyle: 'fast-forward' | 'squash' = 'fast-forward';
   failedLogText: string | null = null;
   /** when set, a failing check is reported like this (e.g. a deploy integration's commit status) instead of an Actions run */
   failingCheck: { name: string; description: string; url: string; kind: 'run' | 'status' } | null = null;
@@ -77,24 +79,33 @@ export class FakeGh implements GhClient {
     if (this.mergeBehavior === 'fail') return { code: 1, stdout: '', stderr: 'Pull request is not mergeable' };
     if (this.mergeBehavior === 'protected' && !i.auto) return { code: 1, stdout: '', stderr: 'GraphQL: Base branch requires review (protected branch)' };
     if (this.mergeBehavior === 'protected' && i.auto) return { code: 0, stdout: 'auto-merge enabled', stderr: '' }; // never actually merges in the fake
-    if (this.bareRemote) {
-      const head = (await git(['rev-parse', `refs/heads/${pr.head}`], this.bareRemote)).stdout.trim();
-      await git(['update-ref', `refs/heads/${pr.base}`, head], this.bareRemote);
-      pr.mergeCommit = head;
-    }
+    if (this.bareRemote) pr.mergeCommit = await this.land(pr.head, pr.base);
     pr.state = 'MERGED';
     pr.mergedAt = new Date().toISOString();
     if (this.closeDependentsOnMerge) for (const other of this.prs.values()) if (other.state === 'OPEN' && other.base === pr.head) other.state = 'CLOSED';
     return { code: 0, stdout: 'merged', stderr: '' };
   }
+  /** move the bare remote's base to the PR's content; returns the commit the base now points at */
+  private async land(head: string, base: string): Promise<string> {
+    const r = this.bareRemote!;
+    const sha = (await git(['rev-parse', `refs/heads/${head}`], r)).stdout.trim();
+    if (this.mergeStyle === 'fast-forward') {
+      await git(['update-ref', `refs/heads/${base}`, sha], r);
+      return sha;
+    }
+    const parent = (await git(['rev-parse', `refs/heads/${base}`], r)).stdout.trim();
+    // the PR's diff against its base, applied on the base as it is now (a plain tree copy when the head contains it)
+    const mergeTree = (await git(['merge-tree', '--write-tree', `--merge-base=${(await git(['merge-base', parent, sha], r)).stdout.trim()}`, parent, sha], r)).stdout.split('\n')[0]!.trim();
+    const env = { GIT_AUTHOR_NAME: 'GitHub', GIT_AUTHOR_EMAIL: 'noreply@github.com', GIT_COMMITTER_NAME: 'GitHub', GIT_COMMITTER_EMAIL: 'noreply@github.com' };
+    const proc = Bun.spawnSync(['git', 'commit-tree', mergeTree, '-p', parent, '-m', `squash ${head}`], { cwd: r, env: { ...process.env, ...env } });
+    const commit = proc.stdout.toString().trim();
+    await git(['update-ref', `refs/heads/${base}`, commit], r);
+    return commit;
+  }
   /** a merge done on GitHub after the delivery finished (auto-merge that took long, or a human pressing Merge) */
   async mergeOnGitHub(number: number): Promise<void> {
     const pr = this.prs.get(number)!;
-    if (this.bareRemote) {
-      const head = (await git(['rev-parse', `refs/heads/${pr.head}`], this.bareRemote)).stdout.trim();
-      await git(['update-ref', `refs/heads/${pr.base}`, head], this.bareRemote);
-      pr.mergeCommit = head;
-    }
+    if (this.bareRemote) pr.mergeCommit = await this.land(pr.head, pr.base);
     pr.state = 'MERGED';
     pr.mergedAt = new Date().toISOString();
   }
@@ -124,6 +135,14 @@ export class FakeGh implements GhClient {
     if (pr.state !== 'CLOSED') return { code: 1, stdout: '', stderr: `PR is ${pr.state}` };
     pr.state = 'OPEN';
     return { code: 0, stdout: 'reopened', stderr: '' };
+  }
+  async prClose(_cwd: string, i: { repo: string; number: number; comment: string }): Promise<ExecResult> {
+    this.calls.push(['prClose', String(i.number)]);
+    const pr = this.prs.get(i.number);
+    if (!pr) return { code: 1, stdout: '', stderr: 'no such PR' };
+    if (pr.state !== 'OPEN') return { code: 1, stdout: '', stderr: `PR is ${pr.state}` };
+    pr.state = 'CLOSED';
+    return { code: 0, stdout: 'closed', stderr: '' };
   }
   async failedLog() {
     return this.failedLogText;
