@@ -61,7 +61,7 @@ export function MilestoneCard({ d }: { d: GoalDetail }) {
       <div className="space-y-3 text-xs text-zinc-400">
         <p className="text-sm text-zinc-200 whitespace-pre-wrap">{cp.lookFor}</p>
         {cp.recheck && <p className="text-[11px] text-amber-300">This is the second look at this milestone, after the fix tasks from your feedback landed. Anything you write now becomes a hint for the remaining tasks; the goal does not pause here again.</p>}
-        <PreviewCard goalId={g.id} selfCheck={g.selfCheck} embedded />
+        <PreviewCard goalId={g.id} embedded />
         {shots.length > 0 && (
           <div>
             <div className="text-[11px] text-zinc-500 mb-1">What the self-check saw</div>

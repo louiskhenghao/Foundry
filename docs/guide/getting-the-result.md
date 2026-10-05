@@ -154,7 +154,12 @@ On the Brief you chose what runs by itself at the end (see [Approving the Brief]
 - **Documents** (PRD, README update, Changelog, Confirmation sheet) are written after the final review passes and saved on the goal's branch as one commit, so they ship with the work in the same pull request.
 - **Refresh the knowledge graph** updates the code map after delivery: in the progress folder for a Local only goal, in your own folder for a delivered one.
 
-The Overview tab's **Completion** card shows how each went. A failure here never fails the goal; it is only noted.
+The Overview tab's **Completion** card has one row for each, with a tick, a warning or a cross and how it went in one line. Click a row's name for the details:
+
+- **Docs**: the documents chosen, the files written (click one to read it), the commit, what it cost, and the pull request it went out in.
+- **Graph refresh**: each tool (updating your checkout, graphify, GitNexus) with its result; a failed one shows why, for example a missing program.
+
+A failure here never fails the goal; it is only noted. **Re-run** on a failed row runs it again: the graph refresh, or the documents while the goal's folder still exists. New documents land on the goal's branch; after a delivery, **Resume delivery** ships them.
 
 ## Getting the result into your own folder
 

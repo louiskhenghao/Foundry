@@ -54,18 +54,77 @@ function closingQuote(lines: string[], i: number, first: string, quote: string):
   }
 }
 
-/** keys an example file documents, with the example value as a hint */
-export function exampleKeys(ws: string, dirs: string[]): { key: string; example: string; file: string }[] {
-  const seen = new Map<string, { key: string; example: string; file: string }>();
+/** keys an example file documents, with the example value and the comment written for it as hints */
+export function exampleKeys(ws: string, dirs: string[]): { key: string; example: string; file: string; comment: string | null }[] {
+  const seen = new Map<string, { key: string; example: string; file: string; comment: string | null }>();
   for (const dir of ['', ...dirs]) {
     for (const name of EXAMPLE_FILES) {
       const file = join(dir, name);
       const text = readText(join(ws, file));
       if (text == null) continue;
-      for (const [key, example] of Object.entries(parseDotenv(text))) if (!seen.has(key)) seen.set(key, { key, example, file });
+      const comments = exampleComments(text);
+      for (const [key, example] of Object.entries(parseDotenv(text))) if (!seen.has(key)) seen.set(key, { key, example, file, comment: comments[key] ?? null });
     }
   }
   return [...seen.values()];
+}
+
+/**
+ * The comment an example file gives each key: the `#` lines right above it (a blank line ends a block; a section
+ * heading above a blank line belongs to no key) and a `# …` after an unquoted value. Commented-out assignments
+ * (`# KEY=value`) are not comments.
+ */
+export function exampleComments(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  let block: string[] = [];
+  for (const line of text.replace(/\r\n?/g, '\n').split('\n')) {
+    const t = line.trim();
+    if (!t) {
+      block = [];
+      continue;
+    }
+    if (t.startsWith('#')) {
+      const body = t.replace(/^#+\s?/, '').trim();
+      if (/^(export\s+)?[A-Za-z_][A-Za-z0-9_]*\s*=/.test(body)) block = [];
+      else if (body && !/^[-=#*_\s]+$/.test(body)) block.push(body);
+      continue;
+    }
+    const m = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
+    if (!m) {
+      block = [];
+      continue;
+    }
+    const raw = m[2]!;
+    const inline = /^["'`]/.test(raw) ? null : /\s#\s*(.+)$/.exec(raw)?.[1]?.trim();
+    const parts = [...block, ...(inline ? [inline] : [])];
+    if (parts.length) out[m[1]!] = parts.join(' ');
+    block = [];
+  }
+  return out;
+}
+
+/**
+ * Files that mention each key (up to three per key), so a person filling a value in can see what reads it. One `git
+ * grep` for every key, over tracked and not-ignored files; env and example files and lockfiles are left out.
+ */
+export function keyUsage(ws: string, keys: string[]): Record<string, string[]> {
+  const valid = keys.filter((k) => ENV_KEY.test(k));
+  if (!valid.length || !existsSync(ws)) return {};
+  try {
+    const r = Bun.spawnSync(['git', '-c', 'core.quotePath=false', 'grep', '--untracked', '-I', '-o', '-w', '-E', `(${valid.join('|')})`, '--', '.', ':(exclude)*.env*', ':(exclude)**/.env*', ':(exclude)*.lock', ':(exclude)*lock.json', ':(exclude)*lock.yaml'], { cwd: ws, stdout: 'pipe', stderr: 'ignore', timeout: 5000 });
+    const out: Record<string, string[]> = {};
+    for (const line of r.stdout.toString().split('\n')) {
+      const i = line.lastIndexOf(':');
+      if (i <= 0) continue;
+      const file = line.slice(0, i);
+      const key = line.slice(i + 1);
+      const list = (out[key] ??= []);
+      if (!list.includes(file) && list.length < 3) list.push(file);
+    }
+    return out;
+  } catch {
+    return {};
+  }
 }
 
 /** keys the env files present in a folder tree define (the worktree's tracked ones, which the apps load themselves) */

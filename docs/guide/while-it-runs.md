@@ -38,7 +38,7 @@ In Simple view the goal page shows:
 - Elapsed time and applicable limits. Claude shows estimated cost; Codex does not show an enforceable USD cap.
 - **Result**, when the goal is done: where the work is, **Open ▾**, and **Deliver…**.
 
-**Expert view** at the top right shows everything else. **Simple view** on the tab bar switches back.
+**Simple | Expert** in the goal's header switches views; it stays in the same place in both. **Expert** shows everything else.
 
 ![Simple view of a running goal: one sentence on what is happening, the progress bar with the task in progress, and the cost so far](images/goal-simple.png)
 
@@ -65,11 +65,11 @@ From top to bottom:
 - **Try the work in progress**: the progress folder. See [below](#the-progress-folder).
 - **Preview**: start and open the running result. See [Preview](#preview).
 - **Model fallback**: only if a model was unavailable and Foundry switched to another one.
-- **Project skills (autoskills)**: skills Foundry added for your project's technology. They never reach your commits.
-- **Completion**: documents and graph refresh you chose on the Brief, and their status.
+- **Project skills**: skills Foundry added for your project's technology, grouped as Frontend, Backend, Database, Testing and Tooling, with how many there are. They never reach your commits.
+- **Completion**: one row each for the documents, the graph refresh and media files, with how it went. See [Completion extras](./getting-the-result.md#completion-extras).
 - **Brief**: a summary of what you approved, with **open** to read it in full.
 - **Goal review**: the final reviewer's verdict and notes, once it ran.
-- **Acceptance** (on the right): every **must** and **stretch** check with its latest result, for example **3/4 passing**. Click a check to see its output.
+- **Acceptance** (on the right): every **must** and **stretch** check with its latest result, for example **3/4 passing**. Click a check to see its output. Below them, the **Self-check** switch and its latest result (see [Self-check](#self-check)).
 
 ## Tasks
 
@@ -166,7 +166,9 @@ Foundry also starts the preview by itself at a milestone, restarts it after each
 
 ### Where it runs
 
-The top of the card says **Runs in the goal's folder, branch goal/…, not your checkout**: the preview runs the goal's own copy of the repository (its progress folder, on the goal's branch), so you see the goal's work, not what is in your own folder. **copy** copies that folder's path.
+The top of the card says which branch runs and where, **not your checkout**. While the goal is being worked on, the preview runs the goal's own copy of the repository (its progress folder, on the goal's branch), so you see the goal's work, not what is in your own folder. **copy** copies that folder's path.
+
+Once the goal is finished, the branch is a menu. Pick the goal branch, the base branch (for example `main`) or another local branch of yours; stop the preview first to change it. Any branch other than the goal's runs in Foundry's own preview folder, checked out at that branch's latest commit, never in your checkout. After a merge Foundry cleans up the goal's folder and deletes its branch; the preview then runs the base branch, which holds the merged work, and an amber line says so.
 
 When the start command launches more servers than the one Foundry gave a port to (a demo script that starts the web app, an admin and an API, or `turbo dev`), Foundry finds the ports they listen on and lists the ones that answer web requests under **Also serving**, each named after its package (or the folder it runs in), with its own link. Every port it uses is kept away from other goals' previews.
 
@@ -176,18 +178,19 @@ If an app stops on its own, the card says **The last run failed** with the reaso
 
 ### Environment
 
-Apps often need settings and keys, such as an API key or a bot token, that a project keeps in `.env` files outside git, so the goal's folder does not have them. Enter them in the **Environment** section of the card:
+Apps often need settings and keys, such as an API key or a bot token, that a project keeps in `.env` files outside git, so the goal's folder does not have them. The **Environment** line of the card says how many are set and how many example files ask for; **Edit…** opens them in a window, one row per variable, name on the left, value on the right:
 
-- **Add variable**, then a name and a value; **Save**. Variables belong to the repository, so every goal of it gets them. Apps get them the next time they start.
-- Saved values are never shown again: the field says **saved · type to replace**. Leave it empty to keep the value; type to replace it; **×** removes the variable. To rename one, remove it and add it again with its value.
+- Under each name, a note says what it is and where to get it: the comment written for it in the example file (such as `.env.example`), a hint for names many projects use (a database address, a bot token from @BotFather, an API key from a dashboard), the example value, and the files that read it. For a secret any random string will do, **Generate** fills one in.
+- **Set for this repository** lists the saved variables. Saved values are never shown again: the field says **saved · type to replace**. Leave it empty to keep the value; type to replace it; **×** removes the variable. To rename one, remove it and add it again with its value.
+- **Listed in example files, not set** lists what example files mention but nothing provides, those without an example value first. Fill in the ones you need; empty ones are not saved. Not every one is needed: example files list optional settings too, and some start scripts write their own.
+- **Add variable** adds one by name. **Save** stores them for the repository, so every goal of it gets them; apps get them the next time they start.
 - If your own repository folder has `.env` files that git ignores (`.env`, `.env.development`, `.env.local`, `.env.development.local`), **Import from your checkout** copies the variables that are not set here yet. Nothing is read from your folder unless you press it.
-- Variables that an example file (such as `.env.example`) mentions but nothing provides are listed under **Listed in example files, not set yet**, those without an example value first; press one to add it. Not every one is needed: example files list optional settings too, and some start scripts write their own.
 
 The values stay on this computer. They are passed to the preview's processes only, never written into the goal's folder where the coding agents work, and hidden as `••••` in the preview's output and the self-check's report. The preview runs the goal's code, so that code can still read them. They take precedence over the project's own `.env` files. Foundry's own `PORT` and `FOUNDRY_APP_<KEY>_URL` always win.
 
 ### Self-check
 
-**Self-check after each task (screenshot + console errors)** is a switch on the Preview card, and on the Brief's **How to run it** section before you approve. When on, after every task lands Foundry opens the preview in a hidden browser, takes a screenshot and checks for errors. Errors fail a must check, so they get fixed. No AI is involved, so it costs nothing.
+**Self-check after each task** is a switch in the Overview's **Acceptance** card, below the checks, and on the Brief's **How to run it** section before you approve. When on, after every task lands Foundry opens the preview in a hidden browser, takes a screenshot and checks for errors. Errors fail a must check, so they get fixed. The card shows the latest run: passed or failed, how many errors (the first few listed), and a link to the screenshot. No AI is involved, so it costs nothing.
 
 It only helps goals whose result runs in a browser, and it needs a one-time download (**Install Chromium** in [Settings → Preview & self-check](./settings.md#preview--self-check)). It is off by default.
 

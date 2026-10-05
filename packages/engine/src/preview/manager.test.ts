@@ -8,6 +8,7 @@ import { ensureSelfCheck, runSelfCheck } from '../checks/selfcheck.ts';
 import { defaultConfig } from '../config.ts';
 import { Engine } from '../engine.ts';
 import { failureTail, installSteps } from './manager.ts';
+import { makeRepo, sh } from '../test-helpers.ts';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
 const noRunner = { active: () => 0, run: async () => { throw new Error('no sessions in this test'); } } as unknown as ClaudeRunner;
@@ -29,7 +30,7 @@ afterEach(async () => {
 const goal = (over: Partial<Goal> = {}): Goal => {
   const now = new Date().toISOString();
   const g: Goal = {
-    id: 'g_preview01', title: 'preview', prompt: 'p', workspaceDir: ws, checkpoint: null, selfCheck: false, interview: null, effort: null, modelPreset: null, modelSubstitutions: {}, repoPath: '/nowhere', baseBranch: 'main', branch: 'goal/g_preview01',
+    id: 'g_preview01', title: 'preview', prompt: 'p', workspaceDir: ws, checkpoint: null, selfCheck: false, previewRef: null, interview: null, effort: null, modelPreset: null, modelSubstitutions: {}, repoPath: '/nowhere', baseBranch: 'main', branch: 'goal/g_preview01',
     budgets: { maxCostUsd: 5, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3 }, budgetPreset: 'custom', mode: 'expert', workflow: { tdd: 'off', pace: 'thorough' },
     models: { strong: 'opus', cheap: 'haiku', worker: 'opus' }, state: 'running', stateBeforeBlock: null, costUsd: 0, fixCycles: 0, delivery: IDLE_DELIVERY, attachments: [], baseSync: null, autoskills: null, follows: null,
     completion: { graphRefresh: false, docs: [], docsRun: null, graphRun: null, artifactsRun: null }, nature: 'auto', outputDir: null, runningSince: null, createdAt: now, updatedAt: now, ...over,
@@ -50,6 +51,40 @@ const answersWithin = async (url: string, ms: number): Promise<boolean> => {
 };
 
 describe('PreviewManager', () => {
+  test("a finished goal whose folder was cleaned up previews the base branch in Foundry's preview folder; another branch can be picked", async () => {
+    const repo = await makeRepo();
+    writeFileSync(join(repo, 'package.json'), JSON.stringify({ scripts: { start: 'node server.js' } }));
+    await sh('git add package.json && git commit -qm "chore: start script" && git checkout -qb feature && echo hi > feature.txt && git add feature.txt && git commit -qm "feat: x" && git checkout -q main', repo);
+    const gone = join(dataDir, 'progress', 'preview-goal');
+    // still being worked on: always the goal's own folder, and the branch cannot be changed
+    const running = goal({ repoPath: repo, workspaceDir: gone });
+    expect(engine.preview.status(running.id).workspace).toMatchObject({ kind: 'goal', path: gone });
+    expect(engine.preview.setSource(running, 'feature')).rejects.toThrow(/being worked on/);
+
+    engine.store.append({ type: 'goal.state_changed', goalId: running.id, payload: { from: 'running', to: 'done', reason: 'test' } });
+    const g = getGoal(engine.store.db, running.id)!;
+    const ws0 = engine.preview.status(g.id).workspace!;
+    expect(ws0).toMatchObject({ kind: 'branch', branch: 'main' });
+    expect(ws0.fallback).toContain('cleaned up');
+    expect(ws0.path).not.toBe(gone);
+    await engine.preview.prepare(g);
+    expect(existsSync(join(ws0.path, 'package.json'))).toBe(true);
+    expect(engine.preview.status(g.id).apps.map((a) => a.run.command)).toEqual(['npm run start']);
+
+    const { options, selectable } = await engine.preview.sources(g);
+    expect(selectable).toBe(true);
+    expect(options.map((o) => [o.ref, o.available])).toEqual([
+      ['goal/g_preview01', false],
+      ['main', true],
+      ['feature', true],
+    ]);
+    const picked = await engine.preview.setSource(g, 'feature');
+    expect(picked).toMatchObject({ kind: 'branch', branch: 'feature', fallback: null });
+    expect(existsSync(join(picked.path, 'feature.txt'))).toBe(true);
+    expect(engine.preview.setSource(g, 'nope')).rejects.toThrow(/no branch nope/);
+    rmSync(repo, { recursive: true, force: true });
+  });
+
   test('runs each app of a workspace on its own port, tells each where the others are, and stops them one at a time', async () => {
     const serve = `bun -e "Bun.serve({ port: Number(process.env.PORT), fetch: () => new Response(process.env.FOUNDRY_APP_API_URL ?? 'none') })"`;
     writeFileSync(join(ws, 'package.json'), JSON.stringify({ workspaces: ['apps/*'] }));
@@ -147,7 +182,7 @@ describe('what the preview card can tell', () => {
     const g = goal();
     const st = await engine.preview.start(g, 'human');
     expect(st.port).toBe(47100);
-    expect(st.workspace).toEqual({ path: ws, branch: 'goal/g_preview01' });
+    expect(st.workspace).toEqual({ kind: 'goal', path: ws, branch: 'goal/g_preview01', preparing: false, fallback: null });
     await until(() => engine.preview.status(g.id).apps[0]!.discovered.length > 1);
     expect(engine.preview.status(g.id).apps[0]!.discovered).toEqual([
       { port: 47101, url: 'http://localhost:47101', name: 'admin', dir: 'apps/admin' },

@@ -165,6 +165,31 @@ describe('docs generation', () => {
     expect(runner.calls.length).toBe(calls);
     await engine.stop();
   });
+
+  test('Re-run writes docs again after a run that wrote nothing; refused once they are committed', async () => {
+    let write = false;
+    const runner = new FakeRunner((spec) => {
+      if (spec.label?.startsWith('docs') && write) {
+        mkdirSync(join(spec.cwd, 'docs', 'prd'), { recursive: true });
+        writeFileSync(join(spec.cwd, 'docs', 'prd', 'goal.md'), '# PRD\n');
+      }
+    });
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'noop', repoPath: repo, autoBrief: { mustChecks: ['true'] } });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state));
+    engine.store.append({ type: 'goal.completion_set', goalId: goal.id, payload: { graphRefresh: false, docs: ['to-prd'], reason: 'test' } });
+    await runDocsGeneration(engine, getGoal(engine.store.db, goal.id)!);
+    expect(getGoal(engine.store.db, goal.id)!.completion.docsRun?.status).toBe('skipped');
+    expect(() => engine.rerunCompletion(goal.id, 'graph')).toThrow(/no graph refresh/);
+    write = true;
+    engine.rerunCompletion(goal.id, 'docs');
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.completion.docsRun?.status === 'ok');
+    const run = getGoal(engine.store.db, goal.id)!.completion.docsRun!;
+    expect(run.files).toEqual(['docs/prd/goal.md']);
+    expect(run.ref).toMatch(/^[0-9a-f]{40}$/);
+    expect(() => engine.rerunCompletion(goal.id, 'docs')).toThrow(/written and committed/);
+    await engine.stop();
+  });
 });
 
 describe('fast pace', () => {

@@ -1,5 +1,5 @@
 import { MergeStatus } from '../../components/MergeStatus.tsx';
-import { Check, Settings2 } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { GoalDetail } from '../../api.ts';
 import { OpenMenu } from '../../components/OpenMenu.tsx';
@@ -21,7 +21,7 @@ const STATE_TEXT: Record<string, string> = {
 };
 
 /** Progress for people who do not want the machinery: what is happening, how far, what it costs, what needs them. */
-export function SimpleOverview({ d, onExpert, onDeliver }: { d: GoalDetail; onExpert: () => void; onDeliver: () => void }) {
+export function SimpleOverview({ d, onDeliver }: { d: GoalDetail; onDeliver: () => void }) {
   const g = d.goal;
   const total = d.tasks.length;
   const done = d.tasks.filter((t) => t.state === 'done' || t.state === 'skipped').length;
@@ -31,12 +31,7 @@ export function SimpleOverview({ d, onExpert, onDeliver }: { d: GoalDetail; onEx
   const pct = total ? Math.round((done / total) * 100) : g.state === 'clarifying' ? 5 : 0;
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-sm text-zinc-300">{STATE_TEXT[g.state] ?? g.state}</span>
-        <Button size="sm" variant="ghost" className="ml-auto" onClick={onExpert} title="Tasks, logs, acceptance checks, diff, delivery controls">
-          <Settings2 size={13} /> Expert view
-        </Button>
-      </div>
+      <div className="text-sm text-zinc-300">{STATE_TEXT[g.state] ?? g.state}</div>
 
       {open.length > 0 && (
         <div className="space-y-2">

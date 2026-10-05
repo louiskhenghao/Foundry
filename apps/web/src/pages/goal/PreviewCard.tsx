@@ -1,7 +1,7 @@
-import { ChevronRight, ExternalLink, Eye, EyeOff, GitBranch, Play, Plus, Square, X } from 'lucide-react';
+import { ExternalLink, Eye, EyeOff, GitBranch, Play, Plus, Square, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { type PreviewAppStatus, type PreviewEnv, type PreviewStatus, type ServicesStatus, api } from '../../api.ts';
-import { Button, Card, CopyButton, Input, cn } from '../../ui.tsx';
+import { type PreviewAppStatus, type PreviewEnv, type PreviewSources, type PreviewStatus, type ServicesStatus, api } from '../../api.ts';
+import { Button, Card, CopyButton, Input, Modal, Select, cn } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 
 const startedByText = (by: PreviewAppStatus['startedBy']) => (by === 'human' ? 'by you' : by === 'milestone' ? 'for the milestone' : by === 'integration' ? 'after a task landed' : null);
@@ -46,7 +46,7 @@ function Problems({ app }: { app: PreviewAppStatus }) {
  * and the Docker services they need. What would run, whether it runs, where to open it. Embedded in the milestone
  * card, and its own card on the Overview tab.
  */
-export function PreviewCard({ goalId, selfCheck, embedded }: { goalId: string; selfCheck?: boolean; embedded?: boolean }) {
+export function PreviewCard({ goalId, embedded }: { goalId: string; embedded?: boolean }) {
   const [st, setSt] = useState<PreviewStatus | null>(null);
   const [svc, setSvc] = useState<ServicesStatus | null>(null);
   // what is being done: start:<app key> / stop:<app key>, '*' = every app
@@ -199,15 +199,7 @@ export function PreviewCard({ goalId, selfCheck, embedded }: { goalId: string; s
     );
   };
 
-  const where = st?.workspace && (
-    <div className="flex items-center gap-x-1.5 gap-y-0.5 flex-wrap min-w-0 text-[11px] text-zinc-500" title={st.workspace.path}>
-      <GitBranch size={12} className="shrink-0" />
-      <span>Runs in the goal's folder, branch</span>
-      <span className="mono text-zinc-400 break-all">{st.workspace.branch}</span>
-      <span>· not your checkout</span>
-      <CopyButton text={st.workspace.path} />
-    </div>
-  );
+  const where = st?.workspace && <Where goalId={goalId} st={st} busy={!!busy} onChange={load} />;
 
   const body = (
     <div className="text-xs text-zinc-400 space-y-2">
@@ -243,14 +235,65 @@ export function PreviewCard({ goalId, selfCheck, embedded }: { goalId: string; s
       )}
       {svc && <Services goalId={goalId} svc={svc} onChange={setSvc} reload={loadServices} />}
       {st && <EnvPanel key={goalId} goalId={goalId} anyRunning={anyRunning} />}
-      {selfCheck !== undefined && (
-        <label className="flex items-center gap-2 text-[11px] text-zinc-400 cursor-pointer" title="After every task lands, the engine opens this preview in headless Chromium, takes a screenshot and fails a must check on console or network errors. Needs Playwright's Chromium (Settings → Preview & self-check).">
-          <input type="checkbox" className="accent-emerald-500" checked={selfCheck} onChange={(e) => run('selfcheck', () => api.setSelfCheck(goalId, e.target.checked))} /> Self-check after each task (screenshot + console errors)
-        </label>
-      )}
     </div>
   );
   return embedded ? body : <Card title="Preview" actions={allButtons || null}>{body}</Card>;
+}
+
+/**
+ * Which branch the preview runs and where. A finished goal can run another branch: its own folder is cleaned up after
+ * the merge, and the base branch then holds the work. Another branch runs in Foundry's preview folder, never in the
+ * person's checkout.
+ */
+function Where({ goalId, st, busy, onChange }: { goalId: string; st: PreviewStatus; busy: boolean; onChange: () => Promise<void> }) {
+  const w = st.workspace!;
+  const [src, setSrc] = useState<PreviewSources | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    api.previewSources(goalId).then(setSrc).catch(() => {});
+  }, [goalId, w.kind, w.branch]);
+  const running = st.apps.some((a) => a.running);
+  const pick = async (ref: string) => {
+    setSaving(true);
+    setErr(null);
+    try {
+      await api.previewSetSource(goalId, ref);
+      await onChange();
+    } catch (e: any) {
+      setErr(e.body?.error ?? e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const options = src?.options ?? [];
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-x-1.5 gap-y-1 flex-wrap min-w-0 text-[11px] text-zinc-500" title={w.path}>
+        <GitBranch size={12} className="shrink-0" />
+        <span>Runs</span>
+        {src?.selectable ? (
+          <span className="w-56 max-w-full">
+            <Select aria-label="Branch the preview runs" className="mono text-[11px] py-0.5" value={w.branch} disabled={busy || saving || running} title={running ? 'Stop the preview to pick another branch' : 'The branch the preview runs'} onChange={(e) => pick(e.target.value)}>
+              {!options.some((o) => o.ref === w.branch) && <option value={w.branch}>{w.branch}</option>}
+              {options.map((o) => (
+                <option key={o.ref} value={o.ref} disabled={!o.available}>
+                  {o.label} — {o.note}
+                </option>
+              ))}
+            </Select>
+          </span>
+        ) : (
+          <span className="mono text-zinc-400 break-all">{w.branch}</span>
+        )}
+        <span>{w.kind === 'goal' ? "in the goal's folder" : "in Foundry's preview folder"} · not your checkout</span>
+        <CopyButton text={w.path} />
+      </div>
+      {w.preparing && <div className="text-[11px] text-zinc-400">Checking out {w.branch} in the preview folder…</div>}
+      {w.fallback && <div className="text-[11px] text-amber-300/90">{w.fallback[0]!.toUpperCase() + w.fallback.slice(1)}.</div>}
+      {err && <div className="text-[11px] text-rose-300">{err}</div>}
+    </div>
+  );
 }
 
 const STATE_CHIP: Record<ServicesStatus['services'][number]['state'], string> = {
@@ -349,52 +392,90 @@ function Services({ goalId, svc, onChange, reload }: { goalId: string; svc: Serv
 
 const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-type Row = { id: number; key: string; value: string; saved: boolean; shown?: boolean };
+type Row = { id: number; key: string; value: string; saved: boolean; shown?: boolean; custom?: boolean };
 let rowIds = 0;
 
+/** a random secret in the browser: 32 bytes, base64 (what `openssl rand -base64 32` prints) */
+const randomSecret = () => btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))));
+
 /**
- * Variables for this repository's previews, shared by its goals. The server sends names only: a saved value is never
- * shown again, an empty value field keeps it, typing replaces it. Values reach only the preview's processes (never the
- * goal's folder) and are hidden in its output. The checkout's untracked env files are offered for import, not read on
- * their own.
+ * Variables for this repository's previews, shared by its goals: a summary line on the card, edited in a dialog. The
+ * server sends names only: a saved value is never shown again, an empty value field keeps it, typing replaces it.
+ * Values reach only the preview's processes (never the goal's folder) and are hidden in its output. The checkout's
+ * untracked env files are offered for import, not read on their own.
  */
 function EnvPanel({ goalId, anyRunning }: { goalId: string; anyRunning: boolean }) {
   const [env, setEnv] = useState<PreviewEnv | null>(null);
-  const [rows, setRows] = useState<Row[]>([]);
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState<'save' | 'import' | null>(null);
-  const [allMissing, setAllMissing] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const take = (e: PreviewEnv) => {
-    setEnv(e);
-    setRows(e.keys.map((key) => ({ id: ++rowIds, key, value: '', saved: true })));
-  };
+  const [saved, setSaved] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
-    api.previewEnv(goalId).then((e) => alive && take(e)).catch(() => {});
+    api.previewEnv(goalId).then((e) => alive && setEnv(e)).catch(() => {});
     return () => {
       alive = false;
     };
   }, [goalId]);
   if (!env) return null;
+  return (
+    <div className="border-t border-zinc-800 pt-2 space-y-1">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-zinc-300 font-medium">Environment</span>
+        <span className="text-[11px] text-zinc-500">
+          {env.keys.length} set
+          {env.missing.length > 0 && <span className="text-amber-300/90"> · {env.missing.length} in example files not set</span>}
+          {env.checkout.keys.length > 0 && <> · {env.checkout.keys.length} in your checkout</>}
+        </span>
+        <Button size="sm" className="ml-auto" onClick={() => setOpen(true)}>
+          Edit…
+        </Button>
+      </div>
+      {saved && <div className="text-[11px] text-emerald-300">{saved}</div>}
+      <EnvDialog
+        open={open}
+        env={env}
+        goalId={goalId}
+        anyRunning={anyRunning}
+        onClose={() => setOpen(false)}
+        onSaved={(e, msg) => {
+          setEnv(e);
+          setSaved(msg);
+          setOpen(false);
+        }}
+        onReload={setEnv}
+      />
+    </div>
+  );
+}
 
-  const names = rows.map((r) => r.key.trim());
-  // a saved name sends null (keep its value) unless a new value was typed
-  const next = Object.fromEntries(rows.filter((r) => r.key.trim()).map((r) => [r.key.trim(), r.saved && !r.value ? null : r.value]));
+/** The variables as a table, each name with what it is: its example file comment, a note, and the files that read it. */
+function EnvDialog({ open, env, goalId, anyRunning, onClose, onSaved, onReload }: { open: boolean; env: PreviewEnv; goalId: string; anyRunning: boolean; onClose: () => void; onSaved: (e: PreviewEnv, msg: string) => void; onReload: (e: PreviewEnv) => void }) {
+  const fresh = (e: PreviewEnv): Row[] => [...e.keys.map((key) => ({ id: ++rowIds, key, value: '', saved: true })), ...e.missing.map((key) => ({ id: ++rowIds, key, value: '', saved: false }))];
+  const [rows, setRows] = useState<Row[]>(() => fresh(env));
+  const [busy, setBusy] = useState<'save' | 'import' | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => {
+    if (open) setMsg(null);
+  }, [open]);
+  useEffect(() => {
+    if (open) setRows(fresh(env));
+  }, [open, env.rev]);
+  const take = (e: PreviewEnv) => {
+    onReload(e);
+    setRows(fresh(e));
+  };
+
+  const names = rows.filter((r) => r.saved || r.custom || r.value).map((r) => r.key.trim());
+  // a saved name sends null (keep its value) unless a new value was typed; an unsaved one is sent only with a value
+  const next = Object.fromEntries(rows.filter((r) => r.key.trim() && (r.saved || r.value)).map((r) => [r.key.trim(), r.saved && !r.value ? null : r.value]));
   const dirty = JSON.stringify(Object.keys(next).sort()) !== JSON.stringify([...env.keys].sort()) || Object.values(next).some((v) => v !== null);
   const bad = names.filter((k, i) => k && (!KEY.test(k) || names.indexOf(k) !== i));
   const unnamed = rows.some((r) => !r.key.trim() && r.value);
-  const missing = env.missing.filter((k) => !(k in next));
   const set = (id: number, patch: Partial<Row>) => setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-  const add = (key = '') => {
-    setOpen(true);
-    setRows((rs) => [...rs, { id: ++rowIds, key, value: '', saved: false, shown: true }]);
-  };
-  const act = async (what: 'save' | 'import', fn: () => Promise<string>) => {
+  const act = async (what: 'save' | 'import', fn: () => Promise<void>) => {
     setBusy(what);
     setMsg(null);
     try {
-      setMsg({ ok: true, text: await fn() });
+      await fn();
     } catch (e: any) {
       // changed elsewhere (another tab, another goal of this repository): show the current set, not a stale one
       if (e.status === 409) await api.previewEnv(goalId).then(take).catch(() => {});
@@ -404,112 +485,144 @@ function EnvPanel({ goalId, anyRunning }: { goalId: string; anyRunning: boolean 
     }
   };
   const restartNote = anyRunning ? ' Running apps keep their old values until you stop and start them.' : ' Apps get them the next time they start.';
-  const save = () =>
-    act('save', async () => {
-      take(await api.previewSetEnv(goalId, next, env.rev));
-      return `Saved.${restartNote}`;
-    });
+  const save = () => act('save', async () => onSaved(await api.previewSetEnv(goalId, next, env.rev), `Saved.${restartNote}`));
   const importCheckout = () =>
     act('import', async () => {
       const r = await api.previewImportEnv(goalId);
       take(r.view);
-      return r.added.length ? `Imported ${r.added.length}: ${r.added.join(', ')}.${restartNote}` : 'Nothing new to import: every name is already set here.';
+      setMsg({ ok: true, text: r.added.length ? `Imported ${r.added.length}: ${r.added.join(', ')}.${restartNote}` : 'Nothing new to import: every name is already set here.' });
     });
-  const hint = (k: string) => env.example.find((e) => e.key === k);
   const noManager = { autoComplete: 'new-password', 'data-1p-ignore': 'true', 'data-lpignore': 'true' } as const;
+  const setRows_ = rows.filter((r) => r.saved);
+  const unset = rows.filter((r) => !r.saved && !r.custom);
+  const custom = rows.filter((r) => r.custom);
 
-  return (
-    <div className="border-t border-zinc-800 pt-2 space-y-2">
-      <button type="button" className="flex w-full items-center gap-2 text-left" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <ChevronRight size={12} className={cn('shrink-0 text-zinc-500 transition-transform', open && 'rotate-90')} />
-        <span className="text-zinc-300 font-medium">Environment</span>
-        <span className="text-[11px] text-zinc-500">
-          {env.keys.length} set here
-          {env.checkout.keys.length > 0 && <> · {env.checkout.keys.length} in your checkout</>}
-          {env.example.length > 0 && <> · {env.example.length} in example files</>}
-        </span>
-      </button>
-      {open && (
-        <div className="space-y-2 pl-5">
-          <p className="text-[11px] text-zinc-500">
-            For this repository's previews, shared by its goals, and stored on this computer only. Values go to the preview's processes, never into the goal's folder where the coding agents work, and are hidden in its output and the self-check's report. The preview runs the goal's code, so that code can read them. They take precedence over the project's own <span className="mono">.env</span> files. Foundry sets{' '}
-            <span className="mono">PORT</span> and <span className="mono">FOUNDRY_APP_&lt;KEY&gt;_URL</span> itself.
-          </p>
-          {env.checkout.files.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap text-[11px] text-zinc-500">
-              <span>
-                Your checkout has <span className="mono text-zinc-400">{env.checkout.files.join(', ')}</span> ({env.checkout.keys.length} variables), which git keeps out of the goal's folder.
-              </span>
-              <Button size="sm" variant="ghost" disabled={!!busy || dirty} onClick={importCheckout} title={dirty ? 'Save or revert your changes first' : 'Copy the variables not set here yet; names already set keep their values'}>
-                {busy === 'import' ? 'Importing…' : 'Import from your checkout'}
-              </Button>
-            </div>
-          )}
-          {rows.length > 0 && (
-            <ul className="space-y-1.5">
-              {rows.map((r) => (
-                <li key={r.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto] sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)_auto_auto] gap-1.5 items-center">
-                  {/* a saved name is fixed: renaming would need its value, which the page never has; remove and add instead */}
-                  <Input aria-label="Variable name" value={r.key} readOnly={r.saved} title={r.saved ? 'To rename, remove this variable and add it again with its value' : undefined} placeholder="NAME" spellCheck={false} {...noManager} onChange={(e) => set(r.id, { key: e.target.value })} className={cn('col-span-3 sm:col-span-1 mono text-[11px] py-1', r.saved && 'text-zinc-300 bg-transparent', bad.includes(r.key.trim()) && 'border-rose-500/60')} />
-                  <Input
-                    aria-label={`Value of ${r.key || 'variable'}`}
-                    type={r.shown ? 'text' : 'password'}
-                    spellCheck={false}
-                    {...noManager}
-                    value={r.value}
-                    placeholder={r.saved ? 'saved · type to replace' : hint(r.key.trim())?.example || 'value'}
-                    onChange={(e) => set(r.id, { value: e.target.value })}
-                    className="mono text-[11px] py-1"
-                  />
-                  <Button size="sm" variant="ghost" onClick={() => set(r.id, { shown: !r.shown })} aria-label={r.shown ? 'Hide what you typed' : 'Show what you typed'} title={r.saved ? 'Saved values are never shown again; this shows what you type' : r.shown ? 'Hide' : 'Show'}>
-                    {r.shown ? <EyeOff size={12} /> : <Eye size={12} />}
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setRows((rs) => rs.filter((x) => x.id !== r.id))} aria-label={`Remove ${r.key || 'variable'}`} title="Remove">
-                    <X size={12} />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {missing.length > 0 && (
-            <div className="space-y-1 text-[11px]">
-              <div className="text-zinc-400">
-                Listed in example files, not set yet ({missing.length}). Those without an example value come first. Not every one is needed: example files list optional settings too, and some start scripts write their own.
-              </div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {(allMissing ? missing : missing.slice(0, 12)).map((k) => (
-                  <button key={k} type="button" onClick={() => add(k)} title={`Add ${k} · ${hint(k)?.file ?? ''}${hint(k)?.example ? ` · example: ${hint(k)!.example}` : ' · no example value'}`} className={cn('mono rounded border px-1.5 py-0.5 hover:border-zinc-500', hint(k)?.example ? 'border-zinc-800 text-zinc-500' : 'border-zinc-700 text-zinc-300')}>
-                    + {k}
-                  </button>
-                ))}
-                {missing.length > 12 && (
-                  <button type="button" className="text-zinc-500 hover:text-zinc-300" onClick={() => setAllMissing((v) => !v)}>
-                    {allMissing ? 'Show fewer' : `Show all ${missing.length}`}
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-          {bad.length > 0 && <div className="text-rose-300 text-[11px]">Names use letters, digits and _ (not starting with a digit), each once: {bad.join(', ')}</div>}
-          {unnamed && <div className="text-rose-300 text-[11px]">A value has no name yet.</div>}
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button size="sm" variant="ghost" onClick={() => add()}>
-              <Plus size={12} /> Add variable
-            </Button>
-            <Button size="sm" variant="primary" disabled={!dirty || !!busy || bad.length > 0 || unnamed} onClick={save}>
-              {busy === 'save' ? 'Saving…' : 'Save'}
-            </Button>
-            {dirty && (
-              <Button size="sm" variant="ghost" onClick={() => take(env)}>
-                Revert
+  const row = (r: Row) => {
+    const n = env.notes[r.key.trim()];
+    const lines = [n?.comment, n?.hint && n.hint !== n?.comment ? n.hint : null].filter(Boolean) as string[];
+    return (
+      <li key={r.id} className="py-2.5 first:pt-0 last:pb-0">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] sm:grid-cols-[minmax(0,13rem)_minmax(0,1fr)_auto_auto] gap-1.5 items-center">
+          {/* a saved name is fixed: renaming would need its value, which the page never has; remove and add instead */}
+          <Input
+            aria-label="Variable name"
+            value={r.key}
+            readOnly={!r.custom}
+            title={r.saved ? 'To rename, remove this variable and add it again with its value' : undefined}
+            placeholder="NAME"
+            spellCheck={false}
+            {...noManager}
+            onChange={(e) => set(r.id, { key: e.target.value })}
+            className={cn('col-span-3 sm:col-span-1 mono text-[11px] py-1', !r.custom && 'text-zinc-200 bg-transparent border-transparent px-0', bad.includes(r.key.trim()) && 'border-rose-500/60')}
+          />
+          <div className="flex gap-1 min-w-0">
+            <Input aria-label={`Value of ${r.key || 'variable'}`} type={r.shown ? 'text' : 'password'} spellCheck={false} {...noManager} value={r.value} placeholder={r.saved ? 'saved · type to replace' : n?.example || 'not set'} onChange={(e) => set(r.id, { value: e.target.value })} className="mono text-[11px] py-1" />
+            {n?.generate === 'secret' && (
+              <Button size="sm" variant="ghost" className="shrink-0" onClick={() => set(r.id, { value: randomSecret(), shown: true })} title="Fill in a random 32-byte secret">
+                Generate
               </Button>
             )}
-            <span role="status" className={cn('text-[11px]', msg?.ok ? 'text-emerald-300' : 'text-rose-300')}>
-              {msg?.text}
-            </span>
           </div>
+          <Button size="sm" variant="ghost" onClick={() => set(r.id, { shown: !r.shown })} aria-label={r.shown ? 'Hide what you typed' : 'Show what you typed'} title={r.saved ? 'Saved values are never shown again; this shows what you type' : r.shown ? 'Hide' : 'Show'}>
+            {r.shown ? <EyeOff size={12} /> : <Eye size={12} />}
+          </Button>
+          {r.saved || r.custom ? (
+            <Button size="sm" variant="ghost" onClick={() => setRows((rs) => rs.filter((x) => x.id !== r.id))} aria-label={`Remove ${r.key || 'variable'}`} title="Remove">
+              <X size={12} />
+            </Button>
+          ) : (
+            <span className="w-7" />
+          )}
         </div>
-      )}
-    </div>
+        {(lines.length > 0 || (n && (n.file || n.usedIn.length > 0))) && (
+          <div className="mt-1 sm:ml-[13.375rem] space-y-0.5 text-[11px]">
+            {lines.map((l, i) => (
+              <div key={i} className="text-zinc-400">
+                {l}
+              </div>
+            ))}
+            {n && (n.file || n.usedIn.length > 0) && (
+              <div className="text-zinc-600">
+                {n.file && (
+                  <>
+                    in <span className="mono">{n.file}</span>
+                    {n.example && (
+                      <>
+                        {' '}
+                        as <span className="mono">{n.example}</span>
+                      </>
+                    )}
+                  </>
+                )}
+                {n.file && n.usedIn.length > 0 && ' · '}
+                {n.usedIn.length > 0 && (
+                  <>
+                    read by <span className="mono">{n.usedIn.join(', ')}</span>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </li>
+    );
+  };
+
+  return (
+    <Modal open={open} wide title={`Environment · ${env.repo.split('/').filter(Boolean).pop()}`} onClose={onClose}>
+      <div className="space-y-4 text-xs">
+        <p className="text-zinc-400">
+          Values the previews of this repository need, shared by its goals and stored on this computer only. They go to the preview's processes as environment, never into the goal's folder where the coding agents work, and are hidden in the preview's output.{' '}
+          <span className="text-zinc-500">
+            They take precedence over the project's own <span className="mono">.env</span> files; Foundry sets <span className="mono">PORT</span> and <span className="mono">FOUNDRY_APP_&lt;KEY&gt;_URL</span> itself.
+          </span>
+        </p>
+        {env.checkout.files.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap rounded-md border border-zinc-800 px-2.5 py-2 text-[11px] text-zinc-400">
+            <span className="min-w-0 flex-1">
+              Your checkout has <span className="mono text-zinc-300">{env.checkout.files.join(', ')}</span> ({env.checkout.keys.length} variables), which git keeps out of the goal's folder.
+            </span>
+            <Button size="sm" disabled={!!busy || dirty} onClick={importCheckout} title={dirty ? 'Save or revert your changes first' : 'Copy the variables not set here yet; names already set keep their values'}>
+              {busy === 'import' ? 'Importing…' : 'Import from your checkout'}
+            </Button>
+          </div>
+        )}
+        {setRows_.length > 0 && (
+          <section className="space-y-2">
+            <h4 className="text-[11px] uppercase tracking-wide text-zinc-500">Set for this repository · {setRows_.length}</h4>
+            <ul className="divide-y divide-zinc-800/70">{setRows_.map(row)}</ul>
+          </section>
+        )}
+        {unset.length > 0 && (
+          <section className="space-y-2">
+            <h4 className="text-[11px] uppercase tracking-wide text-zinc-500">Listed in example files, not set · {unset.length}</h4>
+            <p className="text-[11px] text-zinc-500">Those without an example value come first. Not every one is needed: example files list optional settings too, and some start scripts write their own. Only the ones you fill in are saved.</p>
+            <ul className="divide-y divide-zinc-800/70">{unset.map(row)}</ul>
+          </section>
+        )}
+        {custom.length > 0 && (
+          <section className="space-y-2">
+            <h4 className="text-[11px] uppercase tracking-wide text-zinc-500">Added</h4>
+            <ul className="divide-y divide-zinc-800/70">{custom.map(row)}</ul>
+          </section>
+        )}
+        {bad.length > 0 && <div className="text-rose-300 text-[11px]">Names use letters, digits and _ (not starting with a digit), each once: {bad.join(', ')}</div>}
+        {unnamed && <div className="text-rose-300 text-[11px]">A value has no name yet.</div>}
+        <div className="flex items-center gap-2 flex-wrap border-t border-zinc-800 pt-3">
+          <Button size="sm" variant="ghost" onClick={() => setRows((rs) => [...rs, { id: ++rowIds, key: '', value: '', saved: false, shown: true, custom: true }])}>
+            <Plus size={12} /> Add variable
+          </Button>
+          <span role="status" className={cn('text-[11px] min-w-0 flex-1', msg?.ok ? 'text-emerald-300' : 'text-rose-300')}>
+            {msg?.text}
+          </span>
+          <Button size="sm" variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button size="sm" variant="primary" disabled={!dirty || !!busy || bad.length > 0 || unnamed} onClick={save}>
+            {busy === 'save' ? 'Saving…' : 'Save'}
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }

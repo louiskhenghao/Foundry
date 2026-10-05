@@ -247,6 +247,11 @@ export function applyEvent(db: Database, e: EngineEvent): void {
       if (g) upsertGoal(db, { ...g, selfCheck: e.payload.on, updatedAt: e.ts });
       break;
     }
+    case 'goal.preview_ref_set': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, previewRef: e.payload.ref, updatedAt: e.ts });
+      break;
+    }
     case 'goal.checkpoint_closed': {
       const g = getGoal(db, e.goalId!);
       if (g) upsertGoal(db, { ...g, checkpoint: null, updatedAt: e.ts });
@@ -302,7 +307,7 @@ export function applyEvent(db: Database, e: EngineEvent): void {
     }
     case 'goal.docs_generated': {
       const g = getGoal(db, e.goalId!);
-      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, docsRun: { status: e.payload.status, types: e.payload.types, files: e.payload.files, costUsd: e.payload.costUsd, detail: e.payload.detail, at: e.ts } }, updatedAt: e.ts });
+      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, docsRun: { status: e.payload.status, types: e.payload.types, files: e.payload.files, costUsd: e.payload.costUsd, detail: e.payload.detail, at: e.ts, ref: e.payload.ref ?? /committed ([0-9a-f]{7,40})\b/.exec(e.payload.detail)?.[1] ?? null } }, updatedAt: e.ts });
       break;
     }
     case 'goal.completion_ran': {

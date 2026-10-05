@@ -82,6 +82,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('interview.finished', { rounds: z.number().int().nonnegative(), reason: z.enum(['brief', 'nothing_to_ask', 'cap', 'human']) }),
   /** the human switched the goal's headless self-check on or off */
   ev('goal.selfcheck_set', { on: z.boolean() }),
+  /** the branch a finished goal's preview runs from; null = the goal branch while its folder exists, else the base branch */
+  ev('goal.preview_ref_set', { ref: z.string().nullable() }),
   /** the engine started / stopped one app of the goal's preview (the run command in the progress folder); app absent = written before several apps */
   ev('preview.started', { port: z.number().int(), url: z.string(), command: z.string(), app: z.string().optional() }),
   ev('preview.stopped', { reason: z.string(), app: z.string().optional() }),

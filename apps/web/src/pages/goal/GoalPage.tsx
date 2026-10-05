@@ -8,7 +8,7 @@ import { InterviewPanel } from './InterviewPanel.tsx';
 import { MilestoneCard } from './MilestoneCard.tsx';
 import { api, type GoalDetail } from '../../api.ts';
 import { useLive } from '../../store.ts';
-import { Badge, Button, Card, ConfirmDialog, CopyButton, Empty, Meter, Tabs, fmtLimitMin, fmtLimitUsd, fmtUsd } from '../../ui.tsx';
+import { Badge, Button, ButtonGroup, Card, ConfirmDialog, CopyButton, Empty, Meter, Tabs, fmtLimitMin, fmtLimitUsd, fmtUsd } from '../../ui.tsx';
 import { OpenMenu } from '../../components/OpenMenu.tsx';
 import { MoreMenu, type MoreItem } from '../../components/MoreMenu.tsx';
 import { LiveLog } from '../LiveLog.tsx';
@@ -87,6 +87,7 @@ export function GoalPage() {
   const finished = g.state === 'done' || g.state === 'over_delivered';
   const awaiting = g.state === 'awaiting_brief_approval';
   const repoName = g.repoPath.replace(/\/+$/, '').split('/').pop() || g.repoPath;
+  const isExpert = expert ?? g.mode !== 'simple';
   const more: MoreItem[] = [
     ...(terminal || g.state === 'blocked' ? [{ label: 'Restart…', icon: <RotateCcw size={13} />, onClick: () => setRestart(true), title: 'Restart from a task of your choice (or from the beginning)' }] : []),
     ...(awaiting ? [{ label: 'Re-run Clarify', icon: <RotateCcw size={13} />, onClick: () => api.reclarify(id, 'fetch the latest base branch and explore again').catch((e) => setErr(e.message)), title: 'Fetch the base branch again and rebuild the Brief from the fresh tip' }] : []),
@@ -129,6 +130,16 @@ export function GoalPage() {
             <Meter label={`time ${d.budget.elapsedMin.toFixed(0)} / ${fmtLimitMin(g.budgets.maxDurationMin)}`} value={d.budget.elapsedMin} max={g.budgets.maxDurationMin} />
           </div>
           <div className="flex items-center gap-2 flex-wrap md:justify-end">
+            {/* in the header, not in the tabs row or the simple view's status line: switching views must not move it */}
+            <ButtonGroup
+              label="View"
+              value={isExpert ? 'expert' : 'simple'}
+              onChange={(v) => setView(v === 'expert')}
+              options={[
+                { id: 'simple', label: 'Simple', title: 'The plain progress view' },
+                { id: 'expert', label: 'Expert', title: 'Tasks, logs, acceptance checks, diff, delivery controls' },
+              ]}
+            />
             <OpenMenu
               goalId={id}
               places={[
@@ -198,10 +209,9 @@ export function GoalPage() {
         </Card>
       )}
 
-      {(expert ?? g.mode !== 'simple') === false ? (
+      {!isExpert ? (
         <SimpleOverview
           d={d}
-          onExpert={() => setView(true)}
           onDeliver={() => {
             setView(true);
             setTab('delivery');
@@ -212,13 +222,6 @@ export function GoalPage() {
       <Tabs<Tab>
         value={tab}
         onChange={setTab}
-        right={
-          !awaiting && (
-            <Button size="sm" variant="ghost" onClick={() => setView(false)} title="Back to the plain progress view">
-              Simple view
-            </Button>
-          )
-        }
         tabs={[
           { id: 'overview', label: 'Overview', badge: open > 0 ? <span className="rounded-full bg-orange-500 text-zinc-950 text-[10px] px-1.5 font-bold">{open}</span> : null },
           { id: 'tasks', label: `Tasks`, badge: <span className="text-[10px] text-zinc-500">{d.tasks.filter((t) => t.state === 'done').length}/{d.tasks.length}{running ? ` · ${running} running` : ''}</span> },

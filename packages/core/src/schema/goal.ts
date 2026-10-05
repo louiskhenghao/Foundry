@@ -107,7 +107,7 @@ export const GoalCompletion = z.object({
   graphRefresh: z.boolean().default(false),
   docs: z.array(DocType).default([]),
   /** result of the docs-generation session (null = not run yet) */
-  docsRun: z.object({ status: z.enum(['ok', 'skipped', 'failed']), types: z.array(DocType), files: z.array(z.string()), costUsd: z.number(), detail: z.string(), at: z.string() }).nullable().default(null),
+  docsRun: z.object({ status: z.enum(['ok', 'skipped', 'failed']), types: z.array(DocType), files: z.array(z.string()), costUsd: z.number(), detail: z.string(), at: z.string(), ref: z.string().nullable().default(null) }).nullable().default(null),
   /** result of the graph refresh (null = not run yet) */
   graphRun: z.object({ tools: z.array(z.object({ name: z.string(), status: z.enum(['ok', 'skipped', 'failed']), detail: z.string() })), at: z.string() }).nullable().default(null),
   /** result of copying the media artifacts to the goal's output folder at done (null = not run yet) */
@@ -167,6 +167,8 @@ export const Goal = z.object({
   checkpoint: z.object({ taskId: z.string(), lookFor: z.string(), openedAt: z.string(), recheck: z.boolean() }).nullable().default(null),
   /** after each integration, open the preview in a headless browser, screenshot it and fail on console/network errors */
   selfCheck: z.boolean().default(false),
+  /** the branch a finished goal's preview runs from; null = the goal branch while its folder exists, else the base branch */
+  previewRef: z.string().nullable().default(null),
   /** the Clarify interview (rounds of questions before the Brief); null = the one-shot Clarify of before */
   interview: Interview.nullable().default(null),
   /** effort level for every session of this goal; null = Settings default / CLI default */

@@ -227,6 +227,17 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return goal;
   };
   app.get('/api/goals/:id/preview', (c) => c.json(engine.preview.status(goalOr404(c).id)));
+  // the branch a finished goal's preview runs from: the choices, and picking one (null = the default)
+  app.get('/api/goals/:id/preview/sources', async (c) => c.json(await engine.preview.sources(goalOr404(c))));
+  app.put('/api/goals/:id/preview/source', async (c) => {
+    const { ref } = z.object({ ref: z.string().min(1).max(250).nullable() }).parse(await c.req.json().catch(() => ({})));
+    try {
+      return c.json(await engine.preview.setSource(goalOr404(c), ref));
+    } catch (e) {
+      if (e instanceof PreviewError) throw new HttpError(e.status, { error: e.message });
+      throw e;
+    }
+  });
   // ?app=<key> starts or stops one app of the preview; without it, every app
   app.post('/api/goals/:id/preview/start', async (c) => {
     const goal = goalOr404(c);
@@ -681,6 +692,12 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.post('/api/goals/:id/delivery/retry', async (c) => {
     const g = await engine.retryDelivery(goalOr404(c).id);
     return c.json({ ok: true, delivery: g.delivery });
+  });
+  // "Re-run" on the Completion card: the graph refresh, or docs generation after a run that failed
+  app.post('/api/goals/:id/completion/rerun', async (c) => {
+    const { what } = z.object({ what: z.enum(['docs', 'graph']) }).parse(await c.req.json().catch(() => ({})));
+    engine.rerunCompletion(goalOr404(c).id, what);
+    return c.json({ ok: true });
   });
   // "Save": store the policy only; switches apply to a running delivery from its next step
   app.put('/api/goals/:id/delivery/policy', async (c) => {

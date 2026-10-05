@@ -45,8 +45,23 @@ export interface PreviewStatus {
   source: 'brief' | 'detected' | null;
   error: string | null;
   apps: PreviewAppStatus[];
-  /** where the apps run: the goal's progress folder on the goal's branch */
-  workspace: { path: string; branch: string } | null;
+  /** where the apps run: the goal's progress folder, or Foundry's preview folder on another branch */
+  workspace: PreviewSource | null;
+}
+
+/** Mirrors the engine's PreviewSource: `goal` = the progress folder; `branch` = Foundry's preview folder at `branch` */
+export interface PreviewSource {
+  kind: 'goal' | 'branch';
+  path: string;
+  branch: string;
+  preparing: boolean;
+  fallback: string | null;
+}
+export interface PreviewSources {
+  current: PreviewSource;
+  options: { ref: string; label: string; note: string; available: boolean }[];
+  /** only a finished goal's preview can run another branch */
+  selectable: boolean;
 }
 
 /** Mirrors the engine's ServicesStatus (preview/services.ts): the Docker services from the repository's compose file. */
@@ -57,8 +72,10 @@ export interface PreviewEnv {
   rev: number;
   keys: string[];
   checkout: { files: string[]; keys: string[] };
-  example: { key: string; example: string; file: string }[];
+  example: { key: string; example: string; file: string; comment: string | null }[];
   missing: string[];
+  /** what each name is: its example file comment, the files that read it, and a note for names many projects use */
+  notes: Record<string, { comment: string | null; example: string | null; file: string | null; usedIn: string[]; hint: string | null; generate: 'secret' | null }>;
 }
 
 export interface ServicesStatus {
@@ -441,6 +458,7 @@ export function apiForProvider(provider?: AgentProvider) {
   githubOrgs: () => req<string[]>('/api/github/orgs'),
   githubLogin: () => req<{ started: boolean }>('/api/github/auth/login', { method: 'POST' }),
   deliver: (id: string, policy: Partial<DeliveryPolicy>) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/deliver`, { method: 'POST', body: JSON.stringify(policy) }),
+  rerunCompletion: (id: string, what: 'docs' | 'graph') => req<{ ok: true }>(`/api/goals/${id}/completion/rerun`, { method: 'POST', body: JSON.stringify({ what }) }),
   saveDeliveryPolicy: (id: string, policy: Partial<DeliveryPolicy>) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/delivery/policy`, { method: 'PUT', body: JSON.stringify(policy) }),
   resumeDelivery: (id: string) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/delivery/resume`, { method: 'POST' }),
   startOverDelivery: (id: string, policy: Partial<DeliveryPolicy>) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/delivery/start-over`, { method: 'POST', body: JSON.stringify(policy) }),
@@ -462,6 +480,8 @@ export function apiForProvider(provider?: AgentProvider) {
   interviewAnswer: (id: string, answers: Record<string, string>, finish = false) => req<{ ok: true }>(`/api/goals/${id}/interview/answer`, { method: 'POST', body: JSON.stringify({ answers, finish }) }),
   preview: (id: string) => req<PreviewStatus>(`/api/goals/${id}/preview`),
   /** without `app`, starts every app that is not running (Docker services first) */
+  previewSources: (id: string) => req<PreviewSources>(`/api/goals/${id}/preview/sources`),
+  previewSetSource: (id: string, ref: string | null) => req<PreviewSource>(`/api/goals/${id}/preview/source`, { method: 'PUT', body: JSON.stringify({ ref }) }),
   previewStart: (id: string, app?: string) => req<PreviewStatus>(`/api/goals/${id}/preview/start${app ? `?app=${encodeURIComponent(app)}` : ''}`, { method: 'POST' }),
   /** without `app`, stops every app; Docker services keep running */
   previewStop: (id: string, app?: string) => req<{ ok: true }>(`/api/goals/${id}/preview/stop${app ? `?app=${encodeURIComponent(app)}` : ''}`, { method: 'POST' }),

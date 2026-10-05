@@ -62,12 +62,13 @@ import { planDelivery } from './delivery/policy.ts';
 import { usageSummary, type UsageSummary } from './usage/ledger.ts';
 import type { RunResult } from '@foundry/runner';
 import type { StreamEvent, StreamListener } from './types.ts';
-import { defaultWorkspaceDir, deliveryWorkspacePath, dropTaskWorkspace, ensureGoalWorkspace, goalWorkspacePath, internalWorkspaceDir, listStackBranches } from './workspace.ts';
+import { defaultWorkspaceDir, deliveryWorkspacePath, dropTaskWorkspace, ensureGoalWorkspace, goalWorkspacePath, internalWorkspaceDir, listStackBranches, previewWorkspacePath } from './workspace.ts';
 import { relocateLegacyWorkspaces } from './workspace-migrate.ts';
 import { PreviewManager } from './preview/manager.ts';
 import { ensureSelfCheck, playwrightInstallCommand, playwrightStatus, runSelfCheck } from './checks/selfcheck.ts';
 import { afterMerge, type AfterMergeOptions } from './delivery/after-merge.ts';
 import { startOver, structuralChanges } from './delivery/start-over.ts';
+import { runDocsGeneration } from './docs-generate.ts';
 import { checkGoalPrs, checkOpenPrs, markDelivered, recheckPr } from './delivery/pr-watch.ts';
 import { attachmentDir, claimStaged, conversionTmpPath, markdownFileName, sweepStaging, trashAttachment } from './attachments.ts';
 import { Markitdown } from './convert/markitdown.ts';
@@ -629,6 +630,35 @@ export class Engine {
     const state = await recheckPr(this, goalId, prNumber);
     const d = getGoal(this.store.db, goalId)!.delivery;
     if (d.status === 'failed' && (state === 'passing' || state === 'none')) await this.retryDelivery(goalId);
+  }
+
+  private rerunning = new Set<string>();
+
+  /**
+   * "Re-run" on the Completion card: the graph refresh again, or docs generation after a run that failed or wrote
+   * nothing. Runs in the background; the card shows the new result. A new docs commit lands on the goal branch, so a
+   * delivered goal ships it with Resume delivery.
+   */
+  rerunCompletion(goalId: string, what: 'docs' | 'graph'): void {
+    const g = this.mustGoal(goalId);
+    if (g.state !== 'done' && g.state !== 'over_delivered') throw new Error('completion actions run once the goal is done');
+    const key = `${goalId}:${what}`;
+    if (this.rerunning.has(key) || (what === 'graph' && this.completing.has(goalId))) throw new Error(`the ${what === 'docs' ? 'docs generation' : 'graph refresh'} is already running`);
+    let job: Promise<void>;
+    if (what === 'graph') {
+      if (!g.completion.graphRefresh) throw new Error('this goal has no graph refresh');
+      job = runGraphRefresh(this, g, this.graphRefreshDeps);
+    } else {
+      if (!g.completion.docs.length) throw new Error('this goal generates no docs');
+      if (g.completion.docsRun?.status === 'ok') throw new Error('the docs were written and committed; edit them in the goal branch instead');
+      if (g.delivery.status === 'running') throw new Error('a delivery is running — wait for it, or cancel it first');
+      if (!existsSync(goalWorkspacePath(this.config.dataDir, g))) throw new Error('the goal folder was cleaned up after the merge, so there is nowhere to write the docs');
+      job = runDocsGeneration(this, g, { rerun: true });
+    }
+    this.rerunning.add(key);
+    void job
+      .catch((err) => this.store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `${what} re-run crashed: ${String(err)}` } }))
+      .finally(() => this.rerunning.delete(key));
   }
 
   /** "Mark as delivered": the human handled the delivery; merged on GitHub → finished as merged, otherwise recorded as delivered by them */
@@ -1228,6 +1258,7 @@ export class Engine {
       workspaceDir: defaultWorkspaceDir(this.config.workspacesRoot, { id, title, repoPath: input.repoPath }),
       checkpoint: null,
       selfCheck: input.selfCheck ?? this.config.selfCheck,
+      previewRef: null,
       effort: input.effort === undefined ? this.config.effort : input.effort,
       modelPreset: presetId,
       ...(codexPreset ? { codexPreset, codexFallbacks: [...this.config.codexFallbacks], ...(input.codexModel?.trim() ? { codexModelOverride: input.codexModel.trim() } : {}) } : {}),
@@ -1703,6 +1734,7 @@ export class Engine {
     let deletedBranch: string | null = null;
     if (repoOk) {
       await removeWorktree(goal.repoPath, deliveryWorkspacePath(this.config.dataDir, goal)).catch(() => {});
+      await removeWorktree(goal.repoPath, previewWorkspacePath(this.config.dataDir, goal)).catch(() => {});
       await removeWorktree(goal.repoPath, ws, { deleteBranch: opts.deleteBranch ? goal.branch : undefined }).catch(() => {});
       if (opts.deleteBranch) deletedBranch = goal.branch;
       // stacked delivery branches (goal/<id>/<n>-<slug>) belong to the goal and go with it
