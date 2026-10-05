@@ -80,7 +80,7 @@ try {
   await shot('goal-delivery', `/goals/${g.done}#delivery`);
   // last on this goal: the view choice is remembered per goal
   await shot('goal-simple', `/goals/${g.running}`, async () => {
-    await page.getByRole('button', { name: 'Simple view' }).click();
+    await page.getByRole('radio', { name: 'Simple' }).click();
     await page.waitForTimeout(500);
   });
   await shot('milestone', `/goals/${g.milestone}`);
