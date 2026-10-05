@@ -59,15 +59,14 @@ goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它
 从上到下：
 
 - **时间线**：**Clarify → Brief → Run → Review → Done**（或 **Over-delivered**）；goal 要推送或开 pull request 时还有 **Deliver · mode**。当前阶段会闪动。点一个阶段，就跳到显示它工作内容的地方。
+- **Brief**：时间线下方的一行，比如 **Brief APPROVED · 36 tasks · 11/11 assumptions accepted · 9/12 questions answered · est. $380 / 1500 min**。点它打开 Brief 页面，Understanding 和 Clarifier 写的其它内容都在那里。
 - **What needs you**：和 Inbox 里一样的卡片，带按钮。
 - **goal**：你最初的描述。面板角上的 **Open full**（两个斜向箭头的图标）会在更大的窗口里显示它。
 - **Attachments**：紧跟在 goal 下面，和 New goal 表单上一样。随时可以再加；新的会话会收到。
-- **Try the work in progress**：进度文件夹。见 [下文](#进度文件夹)。
-- **Preview**：启动并打开运行中的结果。见 [Preview](#preview)。
+- **Workspace & preview**：goal 的工作成果在哪里，以及启动它来试用。见 [进度文件夹](#进度文件夹) 和 [Preview](#preview)。
 - **Model fallback**：只在某个模型不可用、Foundry 换了另一个模型时出现。
 - **Project skills**：Foundry 为你项目的技术栈添加的 skill，按 Frontend、Backend、Database、Testing、Tooling 分组，并显示数量。它们不会进入你的提交。
 - **Completion**：文档、知识图谱刷新和媒体文件各占一行，写着结果。见 [完成后的附加项](./getting-the-result.zh.md#完成后的附加项)。
-- **Brief**：你批准的内容摘要，按 **open** 看全文。
 - **Goal review**：最终审查员的结论和意见（运行过之后才有）。
 - **Acceptance**（右侧）：每个 **must** 和 **stretch** 检查及其最新结果，比如 **3/4 passing**。点一个检查可以看它的输出。下面是 **Self-check** 开关和它最近一次的结果（见 [Self-check](#self-check)）。
 
@@ -125,17 +124,17 @@ Projects/
 
 进度文件夹以 goal 的标题（到第一个标点为止，最多 40 个字符）加上 goal id 的最后 6 个字符命名。里面是你的整个项目加上 goal 目前的工作：也就是 goal 的分支，已经检出。随时都可以打开、运行、阅读。并行运行的任务在各自隐藏的文件夹里工作，检查通过后再合并到这里。你可以在 [Settings → Engine (install)](./settings.zh.md#engine-install) 里改变进度文件夹的创建位置。
 
-Overview 标签上的 **Try the work in progress** 卡片显示文件夹路径（带 **copy**）、最新提交，以及现成可复制的命令：在那里打开终端并启动项目。
+Overview 标签上 **Workspace & preview** 卡片的顶部写着 worker 提交到哪个分支、最新提交，并带 **Open ▾**。展开 **Run it yourself** 有现成可复制的命令：在那里打开终端并启动项目。合并后文件夹被清理掉，这一部分就不再显示，下面预览那一行会写明预览在哪里运行。
 
 注意：因为这个文件夹*就是* goal 的分支，你没法在自己的文件夹里也切换到这个分支。要把结果放进你的文件夹，见 [拿到结果](./getting-the-result.zh.md#把结果放进你自己的文件夹)。
 
 ### The Open menu
 
-**Open ▾**（在 goal 页面和 Try the work in progress 卡片上）列出两个地方：**Repository**（你自己的文件夹）和 **Goal workspace**（进度文件夹）。每个地方都提供它在你电脑上找到的编辑器、文件管理器和终端，比如 VS Code、Cursor、Finder、Terminal。点一个，就用它打开那个地方。**path** 复制路径。
+**Open ▾**（在 goal 页面和 Workspace & preview 卡片上）列出两个地方：**Repository**（你自己的文件夹）和 **Goal workspace**（进度文件夹）。每个地方都提供它在你电脑上找到的编辑器、文件管理器和终端，比如 VS Code、Cursor、Finder、Terminal。点一个，就用它打开那个地方。**path** 复制路径。
 
 ## Preview
 
-**Preview** 卡片启动结果，让你在浏览器里试用。
+**Workspace & preview** 卡片的下半部分启动结果，让你在浏览器里试用。
 
 - **Start preview** 在进度文件夹里运行项目的启动命令。卡片会显示是哪条命令，以及它来自 Brief 的 **How to run it** 还是 `package.json`。如果项目依赖还没安装（有 `package.json` 但没有 `node_modules`），Foundry 会先安装；输出里也能看到安装过程。
 - 出现 **Running on port N** 后，按 **Open preview** 打开。**Stop** 停止它。命令启动的其他服务器会显示在 **Also serving** 下（见 [Where it runs](#where-it-runs)）。
@@ -168,7 +167,7 @@ Foundry 也会在里程碑时自己启动预览；预览在运行时，每个任
 
 卡片顶部写着运行的是哪个分支、在哪里运行，以及 **not your checkout**。goal 还在进行时，预览运行的是 goal 自己的那份仓库（它的进度文件夹，在 goal 的分支上），所以你看到的是 goal 做的成果，而不是你自己文件夹里的内容。**copy** 复制那个文件夹的路径。
 
-goal 完成后，分支变成一个下拉菜单，可以选 goal 分支、基础分支（比如 `main`）或你自己的其他本地分支；要换分支，先停掉预览。goal 分支以外的分支都在 Foundry 自己的预览文件夹里运行，checkout 到那个分支的最新提交，绝不会用你的 checkout。合并后 Foundry 会清理 goal 的文件夹并删除它的分支，这时预览改为运行基础分支（合并后的成果就在那里），并有一行琥珀色提示说明。
+goal 完成后，分支变成一个下拉菜单，下面一行说明选中的分支是什么（goal 的文件夹、带有合并成果的基础分支……），可以选 goal 分支、基础分支（比如 `main`）或你自己的其他本地分支；要换分支，先停掉预览。goal 分支以外的分支都在 Foundry 自己的预览文件夹里运行，checkout 到那个分支的最新提交，绝不会用你的 checkout。合并后 Foundry 会清理 goal 的文件夹并删除它的分支，这时预览改为运行基础分支（合并后的成果就在那里），并有一行琥珀色提示说明。
 
 如果启动命令除了 Foundry 分配端口的那个服务器之外还启动了别的（比如一个 demo 脚本同时启动 web 应用、管理后台和 API，或者 `turbo dev`），Foundry 会找出它们监听的端口，把能响应网页请求的列在 **Also serving** 下，按各自的 package 名（或所在文件夹）命名，每个都有自己的链接。它用到的所有端口都不会再分给其他 goal 的预览。
 

@@ -18,7 +18,7 @@ You can edit almost everything on the Brief. Take five minutes: this is the chea
 The Brief opens in the view you chose on the New goal form. Switch with **Expert view** or **Simple view** at the top; the choice is remembered for this goal in this browser.
 
 - **Simple view** shows what you need to decide: what Foundry understood, its questions, its assumptions, what you will get, and the price. See [The Simple view of the Brief](#the-simple-view-of-the-brief) at the end of this page.
-- **Expert view** shows everything, in this order: the header, **Understanding**, **Questions**, **Assumptions**, **Decisions**, **Areas**, **Plan**, **Goal acceptance**, **How to run it**, **Completion**, the estimate and budget, and the buttons. The rest of this page follows that order.
+- **Expert view** shows everything, in this order: the header, **Understanding**, **Questions**, **Assumptions**, **Decisions**, **Areas**, **Plan**, **Goal acceptance**, **How to run it**, **Completion**, the estimate and budget, and the buttons. The rest of this page follows that order. A list of these sections runs down the left (on a phone, a row of tabs at the top): click one to jump there. The one you are reading is highlighted, and each says how it stands, for example **Questions 1 blocking**, **Assumptions 2/2** or **Plan 36 tasks**, in amber when it needs you.
 
 ## The top of the page
 
