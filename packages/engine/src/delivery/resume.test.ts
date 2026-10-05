@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { getGoal, listTasks } from '@foundry/core';
@@ -168,7 +168,7 @@ describe('a delivery resumes instead of starting again (ADR-0023)', () => {
     await engine.stop();
   }, 60_000);
 
-  test('someone pushed to a stacked branch: the lease refuses the replay, their commit is kept and the base merged in', async () => {
+  test('someone pushed to a stacked branch: their commit is taken in and replayed with the branch, never overwritten', async () => {
     const gh = new FakeGh(bare);
     gh.mergeStyle = 'squash';
     const merge = gh.prMerge.bind(gh);
@@ -190,9 +190,38 @@ describe('a delivery resumes instead of starting again (ADR-0023)', () => {
     expect(d.error).toBeNull();
     expect(d.outcome).toBe('merged');
     expect(pushedBySomeone).toBe(true);
-    expect(payloads<{ message: string }>(engine, goal.id, 'delivery.note').some((n) => n.message.includes('someone pushed to'))).toBe(true);
-    expect(d.prs[1]?.sync).toBe('merged');
+    expect(payloads<{ message: string }>(engine, goal.id, 'delivery.note').some((n) => n.message.includes('commits pushed by someone else'))).toBe(true);
+    expect(d.prs[1]?.sync).toBe('rebased');
     expect(await sh('git cat-file -e main:theirs.txt && git cat-file -e main:"add second.txt" && echo yes', bare)).toBe('yes');
     await engine.stop();
   }, 60_000);
+
+  test('a replay whose push failed is kept: Resume pushes it with a lease on the copy it was replayed from', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeStyle = 'squash';
+    // the remote refuses the next push of branch 2 (a network drop) once PR #1 merged
+    const marker = join(bare, 'refuse-once');
+    writeFileSync(join(bare, 'hooks', 'pre-receive'), `#!/bin/sh\nwhile read old new ref; do case "$ref" in *-2-add-second) if [ -f "${marker}" ]; then rm -f "${marker}"; echo "connection reset" >&2; exit 1; fi;; esac; done\n`);
+    chmodSync(join(bare, 'hooks', 'pre-receive'), 0o755);
+    const merge = gh.prMerge.bind(gh);
+    gh.prMerge = async (cwd, i) => {
+      const r = await merge(cwd, i);
+      if (i.number === 1) writeFileSync(marker, '');
+      return r;
+    };
+    const engine = new Engine(cfg(), titleWorker(), gh);
+    const goal = await engine.createGoal({ prompt: 'push dropped', repoPath: repo, brief: twoTasks(), delivery: { mode: 'pr-automerge', unit: 'task' } });
+    await waitFor(() => settled(engine, goal.id), 50_000);
+    expect(delivery(engine, goal.id)).toMatchObject({ status: 'failed', step: 'push' });
+    expect(existsSync(marker)).toBe(false);
+    await engine.resumeDelivery(goal.id);
+    await waitFor(() => settled(engine, goal.id), 50_000);
+    const d = delivery(engine, goal.id);
+    expect(d.error).toBeNull();
+    expect(d.outcome).toBe('merged');
+    expect(gh.calls.filter((x) => x[0] === 'prCreate').length).toBe(2);
+    expect(await sh('git cat-file -e main:"add first.txt" && git cat-file -e main:"add second.txt" && echo yes', bare)).toBe('yes');
+    rmSync(join(bare, 'hooks', 'pre-receive'), { force: true });
+    await engine.stop();
+  }, 90_000);
 });

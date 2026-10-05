@@ -358,8 +358,14 @@ async function runStacked(ctx: Ctx, stack: StackBranch[], step: StepFn, done: (o
   const ev = <T extends Parameters<typeof store.append>[0]>(e: T) => store.append(e);
 
   await step('push', async () => {
-    for (const b of stack) await pushRef(ctx, b.branch, b.task.id);
-    return { status: 'ok', detail: `${stack.length} branches → ${ctx.remote}` };
+    // a branch whose remote copy moved on (someone pushed, or a replay of an earlier run never got pushed) is left to its
+    // PR's sync below, which reconciles it; pushing it here would be refused
+    const later: string[] = [];
+    for (const b of stack) {
+      if (policy.mode === 'pr-automerge' && (await remoteMovedOn(ctx, b.branch))) later.push(b.branch);
+      else await pushRef(ctx, b.branch, b.task.id);
+    }
+    return { status: 'ok', detail: `${stack.length - later.length} branches → ${ctx.remote}${later.length ? `; ${later.join(', ')} after reconciling with ${ctx.remote}` : ''}` };
   });
   if (policy.mode === 'push') {
     await removeWorktree(ctx.repoPath, ctx.deliveryWs).catch(() => {});
@@ -483,6 +489,7 @@ async function syncStackBranch(ctx: Ctx, b: StackBranch): Promise<SyncHow | null
   const ws = ctx.deliveryWs;
   await gitOk(['checkout', '-q', b.branch], ws);
   await run(ctx, 'sync-base', ['git', 'fetch', ctx.remote, ctx.base], ws, true);
+  await reconcileWithRemote(ctx, b.branch);
   const ref = `${ctx.remote}/${ctx.base}`;
   const synced = (how: SyncHow, from: string | null, to: string | null) => store.append({ type: 'delivery.synced', goalId: ctx.goal.id, payload: { branch: b.branch, how, from, to } });
   if ((await git(['merge-base', '--is-ancestor', ref, 'HEAD'], ws)).code === 0) {
@@ -508,6 +515,43 @@ async function syncStackBranch(ctx: Ctx, b: StackBranch): Promise<SyncHow | null
   const how = await mergeBaseInto(ctx, b.branch);
   if (how) synced(how, from, await headRef(ws));
   return how;
+}
+
+/** whether the remote copy of a stacked branch has commits the local branch lacks (fetched now) */
+async function remoteMovedOn(ctx: Ctx, branch: string): Promise<boolean> {
+  const tracking = `refs/remotes/${ctx.remote}/${branch}`;
+  // a read, not recorded: on a first run the branch is not on the remote yet and the failed fetch would only be noise
+  if ((await git(['fetch', '-q', ctx.remote, `+refs/heads/${branch}:${tracking}`], ctx.goalWs)).code !== 0) return false;
+  return (await git(['merge-base', '--is-ancestor', tracking, `refs/heads/${branch}`], ctx.goalWs)).code !== 0;
+}
+
+/**
+ * Line the local stacked branch up with its remote copy before syncing it. Commits someone pushed to the PR are taken in
+ * (fast-forward), so a replay keeps them. A local branch an earlier run replayed but never pushed keeps its replay and
+ * gets a lease on the remote copy it was replayed from. Anything else that diverged starts again from the remote copy.
+ */
+async function reconcileWithRemote(ctx: Ctx, branch: string): Promise<void> {
+  const ws = ctx.deliveryWs;
+  const tracking = `refs/remotes/${ctx.remote}/${branch}`;
+  const f = await run(ctx, 'sync-base', ['git', 'fetch', ctx.remote, `+refs/heads/${branch}:${tracking}`], ws, false);
+  if (f.code !== 0) return; // not on the remote (yet)
+  const remote = (await git(['rev-parse', '--verify', '-q', tracking], ws)).stdout.trim();
+  if (!remote || (await git(['merge-base', '--is-ancestor', remote, 'HEAD'], ws)).code === 0) return;
+  const note = (message: string) => ctx.engine.store.append({ type: 'delivery.note', goalId: ctx.goal.id, payload: { message } });
+  if ((await git(['merge-base', '--is-ancestor', 'HEAD', remote], ws)).code === 0) {
+    await gitOk(['merge', '-q', '--ff-only', tracking], ws);
+    note(`${ctx.remote}/${branch} has commits pushed by someone else; ${branch} takes them before it is synced`);
+    return;
+  }
+  const replayedFrom = ctx.engine.store
+    .listByGoal(ctx.goal.id, 5000)
+    .some((e) => e.type === 'delivery.synced' && (e.payload as { branch: string; how: string; from: string | null }).branch === branch && (e.payload as { how: string }).how === 'rebased' && (e.payload as { from: string | null }).from === remote);
+  if (replayedFrom) {
+    ctx.leases.set(branch, { remote, from: remote });
+    return;
+  }
+  await gitOk(['reset', '-q', '--hard', tracking], ws);
+  note(`${branch} differed from ${ctx.remote}/${branch} in a way Foundry did not make; it starts again from the remote copy`);
 }
 
 /**
@@ -726,7 +770,7 @@ export async function pushRef(ctx: Ctx, branch: string, taskId: string | null): 
   const lease = branch !== ctx.goal.branch ? ctx.leases.get(branch) : undefined;
   const r = await run(ctx, 'push', ['git', 'push', '-u', ...(lease ? [`--force-with-lease=refs/heads/${branch}:${lease.remote}`] : []), ctx.remote, `refs/heads/${branch}:refs/heads/${branch}`], ctx.goalWs, false);
   if (lease) ctx.leases.delete(branch);
-  if (r.code !== 0 && lease && /stale info|rejected/i.test(r.stderr)) {
+  if (r.code !== 0 && lease && /stale info/i.test(r.stderr)) {
     const ws = ctx.deliveryWs;
     if ((await git(['rev-parse', '--abbrev-ref', 'HEAD'], ws)).stdout.trim() !== branch) throw new DeliveryFailed('push', `${ctx.remote}/${branch} changed on the remote and ${branch} is not checked out to reconcile it`);
     ctx.engine.store.append({ type: 'delivery.note', goalId: ctx.goal.id, payload: { message: `someone pushed to ${ctx.remote}/${branch} since Foundry last saw it: keeping their commits and merging ${ctx.base} into it instead of replacing it` } });
