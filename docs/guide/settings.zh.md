@@ -42,7 +42,7 @@
 
 ## Models & limits
 
-这一部分决定哪个模型做哪件事。先在 **Coding agent** 选择 **Claude Code** 或 **Codex**；两者的预设和模型目录互相独立。会话限制位于所选编码智能体的模型设置下方。
+这一部分决定哪个模型做哪件事。先在 **Coding agent** 选择 **Claude Code** 或 **Codex**；两者的预设和模型目录互相独立。两个面板的布局相同：**Sync models**、**Preset per goal type**、**Presets** 编辑器，然后是 **Other models**。会话限制位于所选编码智能体的模型设置下方。
 
 ![Settings 的 Models & limits：Sync models 按钮，以及每种 goal 类型一个预设和它的模型表](images/settings-models.png)
 
@@ -52,7 +52,7 @@
 
 ### Codex 预设与模型
 
-在 **Coding agent → Codex**，分别选择 **Code preset**、**Docs & research preset** 和 **Media preset**。代码默认 Production，其他类型默认 Balanced。这些名字与 Claude 的预设互相独立：
+在 **Coding agent → Codex**，于 **Preset per goal type** 下分别为 **Code**、**Docs & research** 和 **Media** 选择预设。每张卡片以“模型 · 推理强度”列出每个角色，例如 `Default · high`；**Default** 表示该角色使用 **Default Codex model**。代码默认 Production，其他类型默认 Balanced。这些名字与 Claude 的预设互相独立：
 
 | 预设 | 推理强度分配 |
 |---|---|
@@ -61,17 +61,17 @@
 | **Balanced** | 大部分使用 `medium`；Planner、Complex tasks、Goal reviewer 使用 `high`，Housekeeping 使用 `low`。 |
 | **Economy** | 所有角色使用 `low`。 |
 
-这些预设初始都使用 **Default model · from Settings**。**Default Codex model** 决定新任务如何解析这个默认模型；仍选 **CLI default model** 就跟随本机 Codex 配置，填写明确 ID 则固定模型。实际速度、额度消耗和可用性取决于模型与账户；Foundry 不会根据预设名称推算美元费用。
+这些预设初始都使用 **Default model · from Settings**。**Other models** 下的 **Default Codex model** 决定新任务如何解析这个默认模型；仍选 **CLI default model** 就跟随本机 Codex 配置，填写明确 ID 则固定模型。实际速度、额度消耗和可用性取决于模型与账户；Foundry 不会根据预设名称推算美元费用。
 
 Auto 类型任务选择 Default 预设时，会在创建时保存三种任务类型的默认表。分类阶段先用 Code 表，判定类型后再使用对应的已保存表。明确选择某个预设，则各种任务类型始终使用该预设。
 
-在 **Edit preset** 选择预设，再选 **Code**、**Docs & research** 或 **Media** 表。每个角色都有模型下拉框和 **Reasoning effort**。Codex 的 **Housekeeping** 也由预设控制。**Planner** 使用独立的 Foundry 规划会话。已同步的模型资料会限制可选推理强度；**CLI default** 不指定强度，交给 Codex。**Custom model ID…** 可输入目录中尚未出现的新模型或私有模型。
+在卡片上按 **Edit preset**，或在 **Presets** 下点击预设名称，再选 **Code**、**Docs & research** 或 **Media** 表。每个角色一行，包含模型下拉框、推理强度下拉框和 **Test**。圆点 • 标记你改过的角色；把鼠标移上去可以看到出厂值。Codex 的 **Housekeeping** 也由预设控制。**Planner** 使用独立的 Foundry 规划会话。已同步的模型资料会限制可选推理强度；**CLI default** 不指定强度，交给 Codex。**Custom model ID…** 可输入目录中尚未出现的新模型或私有模型。
 
-**Duplicate preset** 复制当前预设，随后可编辑 **Preset name** 和 **Description**。修改内置预设后会显示 **modified**；**Reset to built-in** 恢复出厂表格。**Delete preset** 删除自定义预设，使用它的任务类型会回到内置默认值。按 **Save** 后只影响新 Codex 任务。已有任务保留创建时的设置，即使原预设后来改名或删除，也不会被改变。
+**New from this** 复制当前预设，随后可编辑 **Name** 和 **Description**。修改内置预设后会显示 **modified**；**Reset** 恢复出厂表格。**Delete** 删除自定义预设，使用它的任务类型会回到内置默认值。按 **Save** 后只影响新 Codex 任务。已有任务保留创建时的设置，即使原预设后来改名或删除，也不会被改变。
 
-**Sync Codex models** 读取本机 CLI 模型目录，不运行推理。出现在目录中不代表当前账户一定能用。**Test** 会明确运行一次简短会话，检查所选模型和推理强度；它消耗账户额度。结果显示可用性，美元费用显示不可用。选择或保存模型不会自动执行 Test。
+**Sync models** 读取本机 CLI 模型目录，不运行推理。出现在目录中不代表当前账户一定能用。**Test** 会明确运行一次简短会话，检查所选模型和推理强度；它消耗账户额度。结果显示可用性，美元费用显示不可用。选择或保存模型不会自动执行 Test。
 
-在 **Fallback models, in order**，用 **Add fallback**、上下箭头和移除按钮设置备用模型顺序。这里的 **CLI default model** 跟随本机 Codex 配置，不使用 Settings 中的基础模型。新任务会保存这个顺序。只有模型不可用时才切换备用模型；登录、额度或不支持的推理强度错误不会静默切换模型。没有备用模型时，模型不可用会请求你处理。
+在 **Other models → Fallbacks (in order)**，用 **Add fallback**、上下箭头和移除按钮设置备用模型顺序。这里的 **CLI default model** 跟随本机 Codex 配置，不使用 Settings 中的基础模型。新任务会保存这个顺序。只有模型不可用时才切换备用模型；登录、额度或不支持的推理强度错误不会静默切换模型。没有备用模型时，模型不可用会请求你处理。
 
 ### Presets
 
@@ -145,7 +145,7 @@ Foundry 启动时，如果发现 Claude Code 自上次同步后更新过，也�
 
 ### Housekeeping model
 
-**Housekeeping model**（默认 Haiku）做 Foundry 自己的一行小杂活：判断 goal 属于哪一类、总结日志、查看你的用量上限。每个 goal 只花几美分。它是唯一不由预设决定的模型。**Test** 运行一个很小的会话，确认模型可用，并显示它解析到哪个模型。
+**Housekeeping model**（默认 Haiku，在 **Other models** 下）做 Foundry 自己的一行小杂活：判断 goal 属于哪一类、总结日志、查看你的用量上限。每个 goal 只花几美分。它是唯一不由预设决定的模型。**Test** 运行一个很小的会话，确认模型可用，并显示它解析到哪个模型。
 
 ### Fallbacks
 
