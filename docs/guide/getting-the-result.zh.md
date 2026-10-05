@@ -27,7 +27,7 @@ goal 页面会用大白话告诉你："The work is on branch … in your reposit
 每种方式都遵守两条规则：
 
 - 推送、开 PR 和合并都由 Foundry 自己来做，严格按 Delivery 标签上列出的计划。给你做任务的 AI 不能推送；它要是试图推送，Foundry 会拦下并问你（见 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md#它想在你电脑以外做事)）。
-- Foundry 从不强制推送，也从不直接推送到你的基础分支（比如 `main`）。改动只能通过合并进入 `main`。
+- Foundry 从不直接推送到你的基础分支（比如 `main`）。改动只能通过合并进入 `main`。goal 的分支从不强制推送。唯一的例外是 **One PR per task** 下某个任务的分支：它下面的 pull request 合并后，这个分支自己的提交会在 `main` 之上重放，然后替换掉原分支，但前提是这期间没有别人推送过它（`--force-with-lease`）。如果有人推送过，Foundry 会保留他们的提交，改为把 `main` 合并进来。
 
 pull request 类的方式需要 GitHub CLI 和一个已连接的账户：见 [连接 GitHub](#连接-github)。
 
@@ -83,17 +83,35 @@ pull request 类的方式需要 GitHub CLI 和一个已连接的账户：见 [�
 
 ![每个任务一个 pull request 交付完成后的 Delivery 标签：每一步都打勾、四个叠放的 pull request 均通过 CI 并已合并、你的 main 已更新、工作区已清理](images/goal-delivery.png)
 
-**goal 完成之前**，它显示 **Will deliver automatically when the goal is done**（方式是 Local only 时不显示）。你可以改交付方式，然后按 **Save policy (runs when done)**。选着 **Local only** 时，这个按钮是灰的。
+**goal 完成之前**，它显示 **Will deliver automatically when the goal is done**（方式是 Local only 时不显示）。你可以改交付方式，然后按 **Save (runs when the goal is done)**。
 
 **交付过程中**，卡片用勾、转圈或叉显示每一步：**Preflight**、**Remote**、**Sync with base**、**Build stack**、**Push**、**Open PR**、**CI checks**、**Fix CI**、**Merge**、**Cleanup**（只显示你的方式需要的步骤）。**Cancel** 停止交付。
 
-**pull request** 以列表显示，带标题、CI 结果（**passing**、**failing**、**pending**）、状态（**open**、**merged** ……）和一个链接 **#123**，点开可以在 GitHub 上查看。Overview 标签的时间线也会显示 **Deliver · mode · N PRs · N merged**。
+**pull request** 以列表显示，带标题、CI 结果（**CI passing**、**CI failing**、**CI pending**、**no CI**，没等检查就合并时显示 **CI skipped**）、状态（**open**、**merged** ……）和一个链接 **#123**，点开可以在 GitHub 上查看。pull request 下方的小标签说明它正在经历什么：
+
+- 正在它上面进行的步骤，比如 **CI checks** 或 **Merge**，带转圈
+- **waiting for #41**：每个任务一个 PR 时，一个 pull request 要等它下面那个合并后才合并
+- **rebased onto base**：下面的 pull request 合并后，它自己的提交在 `main` 之上重放过
+- **base merged in** 或 **conflict resolved**：`main` 被合并进了它；后者表示有冲突，由一次 Merge Attempt 解决
+- **branch deleted**：合并后，它的分支已从线上副本删除
+
+Overview 标签的时间线也会显示 **Deliver · mode · N PRs · N merged**。
 
 **合并之后**，有三行显示工作是否已在 GitHub 上合并、是否已在你自己的文件夹里，以及 goal 的文件夹是否已清理。见 [pull request 合并之后](#pull-request-合并之后)。
 
 **N remote command(s) — full audit** 列出 Foundry 对线上副本执行过的每条命令及其结果。
 
-**Change delivery**（Local only 的 goal 则是 **Deliver this goal**）是你选择方式、查看确切计划的地方：Foundry 会按顺序执行的每一条命令。除此之外什么都不会执行。按钮随后会说明它要做什么：**Push now**、**Open PR now**、**Open PRs now**、**Open PR and merge when green** 或 **Open PRs and merge when green**。
+**Delivery settings**（Local only 的 goal 则是 **Deliver this goal**）是你选择方式、查看确切计划的地方：Foundry 会按顺序执行的每一条命令。除此之外什么都不会执行。第一次交付时，按钮会说明它要做什么：**Push now**、**Open PR now**、**Open PRs now**、**Open PR and merge when green** 或 **Open PRs and merge when green**。
+
+交付开始之后，这些设置仍然可以改：
+
+- **Save** 只保存，不启动任何东西。交付进行中时，**Once the PR is open** 下面的开关从它的下一步起生效。比如关掉 **Wait for CI checks**，正在等 CI 的 pull request 就不再等，直接合并，并标为 **CI skipped**。
+- **Resume delivery** 从交付现在的位置继续。还开着的 pull request 保留，已合并的跳过，缺少的补上，比如 goal 完成时写的文档。有未保存的改动时会先保存。
+- **Start over…** 会先确认。它会给开着的 pull request 留言后关闭，删掉本地和线上的任务分支，再按屏幕上的设置重新交付。已合并的 pull request 保持合并。
+
+有 pull request 开着时，remote、基础分支、合并方式和粒度都被锁定，不开 pull request 的方式也一样：改了它们，开着的 pull request 就没用了。**Open a PR** 和 **PR + auto-merge** 之间仍然可以切换。交付进行中时，只有开关可以改。
+
+用 **One PR per task** 时，goal 完成时 Foundry 写的文档（见 [完成后的附加项](#完成后的附加项)）作为最后一个 pull request 交付。
 
 ## CI 失败时
 
@@ -104,18 +122,21 @@ CI 是你的线上仓库对每个 pull request 运行的一组自动检查。交
 
 停下来时，Delivery 标签会在每个 pull request 下面列出失败的检查，带上检查自己的说明（比如 "Deployment was blocked"）和一个 **details** 链接；Inbox 里也会出现一项 *Delivery stopped*，写着同样的原因。修好原因后：
 
-- **Retry delivery** 从第一个还没合并的 pull request 重新交付，修复 CI 的次数重新计算。
+- **Resume delivery** 从第一个还没合并的 pull request 继续，开着的保留，修复 CI 的次数重新计算。
 - pull request 上的 **Re-check** 会重新读取它在 GitHub 上的状态；现在通过了，交付就继续并合并。
 - 如果你自己完成了交付，就按 **Mark as delivered**（已合并的 pull request 会被识别；见 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md#交付停下来了)）。
 
-如果你自己在 GitHub 上合并了 pull request，Foundry 会发现并完成交付；每个任务一个 pull request 时，剩下的会等你按 **Retry delivery**。
+如果你自己在 GitHub 上合并了 pull request，Foundry 会发现并完成交付；每个任务一个 pull request 时，剩下的会等你按 **Resume delivery**。
+
+每个任务一个 pull request 时，CI 的修复会提交到失败的那个 pull request 的分支上并推送，其它 pull request 不受影响。
 
 ## 之后再改交付方式
 
 随时可以在 Delivery 标签上改方式：
 
 - 已完成的 **Local only** goal：选 **Push branch** 或 **Open a PR**，按按钮。goal 的其它东西都不变。
-- 还在运行的 goal：选新方式，按 **Save policy (runs when done)**。
+- 还在运行的 goal：选新方式，按 **Save (runs when the goal is done)**。
+- 交付已经开始的 goal：见上面的 [Delivery settings](#the-delivery-tab)（**Save**、**Resume delivery**、**Start over…**）。
 
 ## 媒体类 goal 和输出文件夹
 

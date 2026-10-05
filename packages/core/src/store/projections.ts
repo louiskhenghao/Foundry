@@ -79,6 +79,9 @@ export function applyEvent(db: Database, e: EngineEvent): void {
       break;
     }
     case 'delivery.policy_set':
+    case 'delivery.policy_saved':
+    case 'delivery.synced':
+    case 'delivery.branch_deleted':
     case 'delivery.started':
     case 'delivery.step':
     case 'delivery.stack_built':
@@ -97,11 +100,17 @@ export function applyEvent(db: Database, e: EngineEvent): void {
         const i = d.prs.findIndex(pred);
         if (i >= 0) d.prs[i] = { ...d.prs[i]!, ...patch };
       };
+      const fresh = { checks: null, mergedRef: null, failing: [], activity: null, ciSkipped: false, branchDeleted: false, sync: null } as const;
       switch (e.type) {
+        case 'delivery.policy_saved':
+          d.policy = e.payload.policy;
+          break;
         case 'delivery.policy_set':
           d.policy = e.payload.policy;
-          // "Retry delivery" gets a fresh fix-CI budget: a spent one made every retry fail within seconds
-          if (e.payload.source === 'retry') d.fixCycles = 0;
+          // Resume / Retry get a fresh fix-CI budget: a spent one made every retry fail within seconds
+          if (e.payload.source === 'retry' || e.payload.source === 'resume' || e.payload.source === 'start-over') d.fixCycles = 0;
+          // Start over closed this goal's PRs: the list begins again
+          if (e.payload.source === 'start-over') d.prs = [];
           if (d.status !== 'running') {
             d.status = 'idle';
             d.step = null;
@@ -117,33 +126,50 @@ export function applyEvent(db: Database, e: EngineEvent): void {
           d.outcome = null;
           d.startedAt = e.ts;
           d.finishedAt = null;
-          d.prs = [];
+          // a resumed run keeps the PRs already merged; the stack it builds updates the rest in place
+          d.prs = d.prs.filter((p) => p.state === 'merged').map((p) => ({ ...p, activity: null }));
           d.local = null;
           d.cleanup = null;
           break;
         case 'delivery.step':
           d.step = e.payload.step;
+          if (e.payload.branch) {
+            const busy = e.payload.status === 'started' ? e.payload.step : null;
+            d.prs = d.prs.map((p) => (p.branch === e.payload.branch ? { ...p, activity: busy } : busy ? { ...p, activity: null } : p));
+          }
           break;
         case 'delivery.stack_built':
-          d.prs = e.payload.branches.map((b) => ({ taskId: b.taskId, index: b.index, branch: b.branch, base: b.base, title: b.title, number: null, url: null, state: 'pending' as const, checks: null, mergedRef: null, failing: [] }));
+          for (const b of e.payload.branches) {
+            const i = d.prs.findIndex((p) => p.branch === b.branch);
+            if (i >= 0) d.prs[i] = { ...d.prs[i]!, base: b.base, title: b.title, index: b.index, taskId: b.taskId };
+            else d.prs.push({ taskId: b.taskId, index: b.index, branch: b.branch, base: b.base, title: b.title, number: null, url: null, state: 'pending' as const, ...fresh, failing: [] });
+          }
+          d.prs.sort((a, b) => a.index - b.index);
+          break;
+        case 'delivery.synced':
+          prAt((p) => p.branch === e.payload.branch, { sync: e.payload.how });
+          break;
+        case 'delivery.branch_deleted':
+          prAt((p) => p.branch === e.payload.branch, { branchDeleted: true });
           break;
         case 'delivery.pr_opened': {
           if (!d.pr) d.pr = { number: e.payload.number, url: e.payload.url };
           const i = d.prs.findIndex((p) => p.branch === e.payload.head);
           if (i >= 0) d.prs[i] = { ...d.prs[i]!, number: e.payload.number, url: e.payload.url, base: e.payload.base, state: 'open', title: e.payload.title || d.prs[i]!.title };
-          else d.prs.push({ taskId: e.payload.taskId, index: d.prs.length + 1, branch: e.payload.head, base: e.payload.base, title: e.payload.title, number: e.payload.number, url: e.payload.url, state: 'open', checks: null, mergedRef: null, failing: [] });
+          else d.prs.push({ taskId: e.payload.taskId, index: d.prs.length + 1, branch: e.payload.head, base: e.payload.base, title: e.payload.title, number: e.payload.number, url: e.payload.url, state: 'open', ...fresh, failing: [] });
           break;
         }
         case 'delivery.checks':
           d.checks = e.payload.state;
-          if (e.payload.prNumber != null) prAt((p) => p.number === e.payload.prNumber, { checks: e.payload.state, failing: e.payload.failing });
-          else if (d.prs.length === 1) prAt(() => true, { checks: e.payload.state, failing: e.payload.failing });
+          if (e.payload.prNumber != null) prAt((p) => p.number === e.payload.prNumber, { checks: e.payload.state, failing: e.payload.failing, ciSkipped: !!e.payload.skipped });
+          else if (d.prs.length === 1) prAt(() => true, { checks: e.payload.state, failing: e.payload.failing, ciSkipped: !!e.payload.skipped });
           break;
         case 'delivery.merged':
           d.mergedRef = e.payload.ref;
           prAt((p) => p.number === e.payload.prNumber, { state: 'merged', mergedRef: e.payload.ref });
           break;
         case 'delivery.completed':
+          d.prs = d.prs.map((p) => ({ ...p, activity: null }));
           d.status = 'delivered';
           d.outcome = e.payload.outcome;
           d.step = null;
@@ -159,6 +185,7 @@ export function applyEvent(db: Database, e: EngineEvent): void {
           prAt((p) => p.number === e.payload.prNumber, { state: 'closed' });
           break;
         case 'delivery.failed':
+          d.prs = d.prs.map((p) => ({ ...p, activity: null }));
           d.status = 'failed';
           d.error = e.payload.reason;
           d.step = e.payload.step;

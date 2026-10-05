@@ -11,6 +11,7 @@ import type { Engine } from '../engine.ts';
 import { git, removeWorktree } from '../git/git.ts';
 import { fetchBase, pullFastForward } from '../git/sync.ts';
 import { deliveryWorkspacePath, goalWorkspacePath, internalWorkspaceDir, listStackBranches } from '../workspace.ts';
+import { pendingStackEntries } from './stack-entries.ts';
 
 export const baseBranchOf = (goal: Goal) => goal.delivery.policy.baseBranch ?? goal.baseBranch;
 
@@ -26,6 +27,17 @@ export async function contentInBase(repo: string, base: string, branch: string):
   const tree = merged.stdout.split('\n')[0]!.trim();
   const baseTree = (await git(['rev-parse', `refs/heads/${base}^{tree}`], repo)).stdout.trim();
   return tree !== '' && tree === baseTree;
+}
+
+/**
+ * Does the local `base` contain the last merged pull request? A stacked delivery rebuilds each task's commit on the
+ * base (conflicts resolved, fix-CI commits added), so the goal branch's content never matches the base exactly even
+ * when everything merged; the merge commit GitHub recorded is the reliable sign.
+ */
+export async function mergedInBase(repo: string, base: string, ref: string | null): Promise<boolean> {
+  if (!ref) return false;
+  if ((await git(['cat-file', '-e', `${ref}^{commit}`], repo)).code !== 0) return false;
+  return (await git(['merge-base', '--is-ancestor', ref, `refs/heads/${base}`], repo)).code === 0;
 }
 
 export interface AfterMergeOptions {
@@ -51,8 +63,11 @@ export async function afterMerge(engine: Engine, goalId: string, opts: AfterMerg
     await fetchBase(goal.repoPath, base);
     detail = `Settings: Foundry does not update your local ${base} after a merge`;
   }
-  const upToDate = await contentInBase(goal.repoPath, base, goal.branch);
-  store.append({ type: 'delivery.local_synced', goalId, payload: { upToDate, detail: upToDate ? `your local ${base} has the work (${detail})` : detail } });
+  // a stack entry not delivered yet (the docs commit of a goal delivered before it became its own PR) is work the base lacks
+  const pending = goal.delivery.policy.unit === 'task' ? pendingStackEntries(engine, goal) : [];
+  const upToDate = (!pending.length && (await mergedInBase(goal.repoPath, base, goal.delivery.mergedRef))) || (await contentInBase(goal.repoPath, base, goal.branch));
+  const why = pending.length ? `${detail}; not delivered yet: ${pending.map((p) => p.task.title).join(', ')} (press Resume delivery)` : detail;
+  store.append({ type: 'delivery.local_synced', goalId, payload: { upToDate, detail: upToDate ? `your local ${base} has the work (${detail})` : why } });
 
   // 2. tidy the goal's folders and branches
   const cleaned = (done: boolean, why: string): void => {

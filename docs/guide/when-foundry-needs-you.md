@@ -72,7 +72,7 @@ The goal reached the cost or time limit you set. **Raise budget** (empty fields 
 
 The work is done, but pushing it or getting the pull request merged did not go through. Fix the cause (the link shows it), then:
 
-- **Retry delivery** runs the delivery again from the first pull request that is not merged: merged ones are skipped, open ones reused, and fixing CI gets a fresh budget.
+- **Resume delivery** carries on from the first pull request that is not merged: merged ones are skipped, open ones kept, and fixing CI gets a fresh budget. To change a setting first, for example to stop waiting for CI, change it under **Delivery settings** and press **Save**.
 - **Mark as delivered** if you finished it yourself. Foundry reads the pull requests first: if they are merged it finishes as merged (your own folder is updated and the goal tidied up); otherwise it only records it as delivered by you.
 
 If you merge the pull request on GitHub yourself, Foundry notices within a few minutes (or when you open the goal) and closes this item. A check that is not a CI run Foundry can read — a deploy integration's status, for example — is never "fixed" by a fix task; Foundry stops and tells you which check it is. A common cause: a deploy integration that only accepts commits from members of its team. See **Commit author** in [Settings → Git & delivery](./settings.md#git--delivery).

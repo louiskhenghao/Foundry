@@ -67,6 +67,7 @@ import { relocateLegacyWorkspaces } from './workspace-migrate.ts';
 import { PreviewManager } from './preview/manager.ts';
 import { ensureSelfCheck, playwrightInstallCommand, playwrightStatus, runSelfCheck } from './checks/selfcheck.ts';
 import { afterMerge, type AfterMergeOptions } from './delivery/after-merge.ts';
+import { startOver, structuralChanges } from './delivery/start-over.ts';
 import { checkGoalPrs, checkOpenPrs, markDelivered, recheckPr } from './delivery/pr-watch.ts';
 import { attachmentDir, claimStaged, conversionTmpPath, markdownFileName, sweepStaging, trashAttachment } from './attachments.ts';
 import { Markitdown } from './convert/markitdown.ts';
@@ -1552,17 +1553,59 @@ export class Engine {
   // ---------- delivery ----------
 
   /** Set (or change) the delivery policy; runs immediately when the goal is already finished. */
-  async deliver(goalId: string, policyIn: Partial<DeliveryPolicy>, source: 'deliver' | 'retry' = 'deliver'): Promise<Goal> {
+  async deliver(goalId: string, policyIn: Partial<DeliveryPolicy>, source: 'deliver' | 'retry' | 'resume' = 'deliver'): Promise<Goal> {
     const goal = this.mustGoal(goalId);
     if (goal.delivery.status === 'running') throw new Error('delivery is already running');
     const policy = DeliveryPolicy.parse({ ...goal.delivery.policy, ...policyIn });
+    this.refuseStructural(goal, policy);
+    await this.checkDeliverable(goal, policy);
+    this.store.append({ type: 'delivery.policy_set', goalId, payload: { policy, source } });
+    return getGoal(this.store.db, goalId)!;
+  }
+
+  /**
+   * "Save" on the Delivery tab: store the policy without starting anything. The switches (wait for checks, merge
+   * without checks, resolve conflicts, delete branches, fix-CI budget) take effect at the next step of a running
+   * delivery; mode, unit, merge method, base and remote cannot change while pull requests are open or a run is going.
+   */
+  saveDeliveryPolicy(goalId: string, policyIn: Partial<DeliveryPolicy>): Goal {
+    const goal = this.mustGoal(goalId);
+    const policy = DeliveryPolicy.parse({ ...goal.delivery.policy, ...policyIn });
+    this.refuseStructural(goal, policy);
+    this.store.append({ type: 'delivery.policy_saved', goalId, payload: { policy } });
+    return getGoal(this.store.db, goalId)!;
+  }
+
+  /** "Resume delivery": carry on from where the delivery stands — open PRs are reused, merged ones skipped, missing ones added */
+  async resumeDelivery(goalId: string): Promise<Goal> {
+    const g = this.mustGoal(goalId);
+    if (g.delivery.policy.mode === 'local') throw new Error('this goal is delivered Local only — pick a delivery on the Delivery tab first');
+    return this.deliver(goalId, {}, 'resume');
+  }
+
+  /** "Start over": close the open PRs, delete the stacked branches, and deliver again with `policyIn` (any field may change) */
+  async startOverDelivery(goalId: string, policyIn: Partial<DeliveryPolicy>): Promise<Goal> {
+    const goal = this.mustGoal(goalId);
+    if (goal.delivery.status === 'running' || this.delivering.has(goalId)) throw new Error('delivery is running — cancel it first');
+    const policy = DeliveryPolicy.parse({ ...goal.delivery.policy, ...policyIn });
+    await this.checkDeliverable(goal, policy);
+    await startOver(this, goal, policy);
+    return getGoal(this.store.db, goalId)!;
+  }
+
+  private refuseStructural(goal: Goal, policy: DeliveryPolicy): void {
+    const d = goal.delivery;
+    const busy = d.status === 'running' ? 'a delivery is running' : d.prs.some((p) => p.state === 'open') ? 'pull requests are open' : null;
+    const changed = busy ? structuralChanges(d.policy, policy, d.status === 'running') : [];
+    if (changed.length) throw new Error(`${changed.join(', ')} cannot change while ${busy}; use Start over to deliver again with different settings`);
+  }
+
+  private async checkDeliverable(goal: Goal, policy: DeliveryPolicy): Promise<void> {
     if (policy.mode !== 'local') {
       const probes = await probeForPlan(this, goal, policy);
       if (!probes.remoteExists && !policy.remoteUrl && !policy.createRepo) throw new Error(`remote "${policy.remote}" does not exist: provide remoteUrl or createRepo`);
       if (policy.createRepo && !probes.gh?.authenticated) throw new Error('creating a GitHub repository needs the gh CLI, logged in: brew install gh && gh auth login --web');
     }
-    this.store.append({ type: 'delivery.policy_set', goalId, payload: { policy, source } });
-    return getGoal(this.store.db, goalId)!;
   }
 
   async deliveryPlan(goalId: string, policyIn: Partial<DeliveryPolicy> = {}) {

@@ -28,7 +28,7 @@ export async function runDocsGeneration(engine: Engine, goalIn: Goal): Promise<v
   const goal = getGoal(store.db, goalIn.id)!;
   const types = goal.completion.docs;
   if (!types.length || goal.completion.docsRun) return;
-  const record = (payload: { status: 'ok' | 'skipped' | 'failed'; files: string[]; costUsd: number; detail: string }) => store.append({ type: 'goal.docs_generated', goalId: goal.id, payload: { types, ...payload } });
+  const record = (payload: { status: 'ok' | 'skipped' | 'failed'; files: string[]; costUsd: number; detail: string; ref?: string | null }) => store.append({ type: 'goal.docs_generated', goalId: goal.id, payload: { types, ...payload } });
   try {
     const ws = goalWorkspacePath(config.dataDir, goal);
     const brief = getBrief(store.db, goal.id)?.brief ?? null;
@@ -83,7 +83,7 @@ export async function runDocsGeneration(engine: Engine, goalIn: Goal): Promise<v
       return;
     }
     const c = await commitStaged(ws, `docs: ${goal.title}`);
-    record({ status: 'ok', files, costUsd: r.costUsd, detail: c.committed ? `committed ${c.ref.slice(0, 7)} (${files.length} file(s))${rejected.length ? `; discarded ${rejected.length} non-doc change(s)` : ''}` : 'nothing to commit' });
+    record({ status: 'ok', files, costUsd: r.costUsd, ref: c.committed ? c.ref : null, detail: c.committed ? `committed ${c.ref.slice(0, 7)} (${files.length} file(s))${rejected.length ? `; discarded ${rejected.length} non-doc change(s)` : ''}` : 'nothing to commit' });
     config.log(`[docs] ${goal.id}: ${files.length} file(s) committed`);
   } catch (err) {
     record({ status: 'failed', files: [], costUsd: 0, detail: String((err as Error).message ?? err).slice(0, 300) });

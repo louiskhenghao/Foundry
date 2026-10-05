@@ -27,7 +27,7 @@ With **PR + auto-merge**, if branch protection on GitHub blocks the merge, Found
 Two rules hold for every mode:
 
 - It is Foundry itself that pushes, opens and merges, exactly as the plan on the Delivery tab lists. The AI working on your tasks cannot push; if it tries, Foundry blocks it and asks you (see [When Foundry needs you](./when-foundry-needs-you.md#it-wants-to-do-something-outside-your-computer)).
-- Foundry never force-pushes and never pushes to your base branch (for example `main`) directly. Changes reach `main` only through a merge.
+- Foundry never pushes to your base branch (for example `main`) directly. Changes reach `main` only through a merge. It never force-pushes the goal's branch. The one exception is a task's branch under **One PR per task**: after the pull request below it merges, that branch's own commits are replayed on top of `main` and the branch is replaced, but only if nobody else pushed to it since (`--force-with-lease`). If someone did, Foundry keeps their commits and merges `main` in instead.
 
 The pull request modes need the GitHub CLI and a connected account: see [Connecting GitHub](#connecting-github).
 
@@ -83,17 +83,35 @@ On the goal page, open the **Delivery** tab (in Simple view, **Deliver…** on t
 
 ![The Delivery tab after a delivery with one pull request per task: every step ticked, four stacked pull requests passing CI and merged, your main updated and the workspace cleaned up](images/goal-delivery.png)
 
-**Before the goal is done**, it says **Will deliver automatically when the goal is done** (unless the mode is Local only). You can change the delivery and press **Save policy (runs when done)**. That button is greyed out while **Local only** is selected.
+**Before the goal is done**, it says **Will deliver automatically when the goal is done** (unless the mode is Local only). You can change the delivery and press **Save (runs when the goal is done)**.
 
 **While it delivers**, the card shows each step with a tick, a spinner or a cross: **Preflight**, **Remote**, **Sync with base**, **Build stack**, **Push**, **Open PR**, **CI checks**, **Fix CI**, **Merge**, **Cleanup** (only the steps your mode needs). **Cancel** stops it.
 
-**The pull requests** appear in a list with their title, their CI result (**passing**, **failing**, **pending**), their state (**open**, **merged** …) and a link **#123** to open them on GitHub. The Overview tab's timeline also shows **Deliver · mode · N PRs · N merged**.
+**The pull requests** appear in a list with their title, their CI result (**CI passing**, **CI failing**, **CI pending**, **no CI**, or **CI skipped** when it merged without waiting for checks), their state (**open**, **merged** …) and a link **#123** to open them on GitHub. Under a pull request, small labels say what is happening to it:
+
+- the step running on it now, for example **CI checks** or **Merge**, with a spinner
+- **waiting for #41**: with one PR per task, a pull request merges only after the one below it
+- **rebased onto base**: after the pull request below merged, this one's own commits were replayed on top of `main`
+- **base merged in** or **conflict resolved**: `main` was merged into it, and in the second case a Merge Attempt resolved a conflict
+- **branch deleted**: its branch was removed from the online copy after the merge
+
+The Overview tab's timeline also shows **Deliver · mode · N PRs · N merged**.
 
 **After a merge**, three lines show whether the work is merged on GitHub, in your own folder, and whether the goal's folders were cleaned up. See [After a pull request merged](#after-a-pull-request-merged).
 
 **N remote command(s) — full audit** lists every command Foundry ran against the online copy, with its result.
 
-**Change delivery** (or **Deliver this goal** for a Local only goal) is where you pick a mode and see the exact plan: every command Foundry will run, in order. Nothing else runs. The button then says what it will do: **Push now**, **Open PR now**, **Open PRs now**, **Open PR and merge when green** or **Open PRs and merge when green**.
+**Delivery settings** (or **Deliver this goal** for a Local only goal) is where you pick a mode and see the exact plan: every command Foundry will run, in order. Nothing else runs. For a first delivery the button says what it will do: **Push now**, **Open PR now**, **Open PRs now**, **Open PR and merge when green** or **Open PRs and merge when green**.
+
+Once a delivery has started, the settings stay editable:
+
+- **Save** stores them and starts nothing. While a delivery runs, the switches under **Once the PR is open** apply from its next step. For example, turning **Wait for CI checks** off lets a pull request that is waiting on CI merge without it, marked **CI skipped**.
+- **Resume delivery** carries on from where the delivery stands. Open pull requests are kept, merged ones are skipped, and missing ones are added, such as the documentation written when the goal finished. Unsaved changes are saved first.
+- **Start over…** asks first. It closes the open pull requests with a comment, deletes the task branches here and online, and delivers again with the settings on screen. Pull requests that already merged stay merged.
+
+While pull requests are open, the remote, base branch, merge method and granularity are locked, and so are the modes without pull requests: changing them would leave the open pull requests behind. Switching between **Open a PR** and **PR + auto-merge** stays possible. While a delivery runs, only the switches can change.
+
+With **One PR per task**, the documentation Foundry writes when the goal finishes (see [Completion extras](#completion-extras)) is delivered as the last pull request.
 
 ## When CI fails
 
@@ -104,18 +122,21 @@ CI is the set of automatic checks your online repository runs on every pull requ
 
 When it stops, the Delivery tab lists each failing check under its pull request, with the check's own description (for example "Deployment was blocked") and a **details** link, and a *Delivery stopped* item appears in the Inbox with the same reason. Fix the cause, then:
 
-- **Retry delivery** runs it again from the first pull request that is not merged, with a fresh budget for fixing CI.
+- **Resume delivery** carries on from the first pull request that is not merged, keeping the open ones, with a fresh budget for fixing CI.
 - **Re-check** on a pull request reads it on GitHub again; if it passes now, the delivery carries on and merges.
 - **Mark as delivered** if you finished it yourself (merged pull requests are recognised; see [When Foundry needs you](./when-foundry-needs-you.md#the-delivery-stopped)).
 
-If you merge the pull request on GitHub yourself, Foundry notices and finishes the delivery; with one pull request per task, the rest wait for **Retry delivery**.
+If you merge the pull request on GitHub yourself, Foundry notices and finishes the delivery; with one pull request per task, the rest wait for **Resume delivery**.
+
+With one pull request per task, a fix for CI is committed on the branch of the pull request that failed and pushed there. The other pull requests are not touched.
 
 ## Changing delivery later
 
 You can change the mode at any time on the Delivery tab:
 
 - A **Local only** goal that is done: pick **Push branch** or **Open a PR** and press the button. Nothing else about the goal changes.
-- A goal that is still running: pick the new mode and press **Save policy (runs when done)**.
+- A goal that is still running: pick the new mode and press **Save (runs when the goal is done)**.
+- A goal whose delivery already started: see [Delivery settings](#the-delivery-tab) above (**Save**, **Resume delivery**, **Start over…**).
 
 ## Media goals and the output folder
 

@@ -252,8 +252,8 @@ describe('delivery pipeline', () => {
     await waitFor(() => deliveredStatus(engine, goal.id).outcome === 'merged', 40_000);
     const d = deliveredStatus(engine, goal.id);
     expect(d.error).toBeNull();
-    // only task 2 was delivered this time, on its original branch (-2-…), through the reopened PR #2
-    expect(d.prs.map((p) => [p.index, p.number, p.state])).toEqual([[2, 2, 'merged']]);
+    // only task 2 was delivered this time, on its original branch (-2-…), through the reopened PR #2; PR #1 merged before stays listed
+    expect(d.prs.map((p) => [p.index, p.number, p.state])).toEqual([[1, 1, 'merged'], [2, 2, 'merged']]);
     expect(gh.calls.filter((x) => x[0] === 'prCreate').length).toBe(2);
     expect(gh.calls.some((x) => x[0] === 'prReopen' && x[1] === '2')).toBe(true);
     expect(await sh('git cat-file -e main:"fix second.txt" && echo yes', bare)).toBe('yes');

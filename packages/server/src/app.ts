@@ -682,6 +682,23 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const g = await engine.retryDelivery(goalOr404(c).id);
     return c.json({ ok: true, delivery: g.delivery });
   });
+  // "Save": store the policy only; switches apply to a running delivery from its next step
+  app.put('/api/goals/:id/delivery/policy', async (c) => {
+    const policy = DeliveryPolicy.partial().parse(await c.req.json().catch(() => ({})));
+    const g = engine.saveDeliveryPolicy(goalOr404(c).id, policy);
+    return c.json({ ok: true, delivery: g.delivery });
+  });
+  // carry on from where the delivery stands: open PRs reused, merged ones skipped, missing ones added
+  app.post('/api/goals/:id/delivery/resume', async (c) => {
+    const g = await engine.resumeDelivery(goalOr404(c).id);
+    return c.json({ ok: true, delivery: g.delivery });
+  });
+  // close the open PRs, delete the stacked branches, deliver again with the given policy
+  app.post('/api/goals/:id/delivery/start-over', async (c) => {
+    const policy = DeliveryPolicy.partial().parse(await c.req.json().catch(() => ({})));
+    const g = await engine.startOverDelivery(goalOr404(c).id, policy);
+    return c.json({ ok: true, delivery: g.delivery });
+  });
   // read one PR on GitHub again (merged, closed, or its checks); a passing PR of a stopped delivery carries on
   app.post('/api/goals/:id/delivery/prs/:number/recheck', async (c) => {
     await engine.recheckDeliveryPr(goalOr404(c).id, Number(c.req.param('number')));

@@ -1,24 +1,53 @@
 import type { DeliveryPlanStep } from '@foundry/core/browser';
 import { CheckCircle2, CircleDashed, ExternalLink, Loader2, XCircle } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { api, type GoalDetail, type RepoInfo } from '../../api.ts';
-import { DeliveryPolicyForm, type PolicyDraft } from '../../components/DeliveryPolicyForm.tsx';
+import { DeliveryPolicyForm, type PolicyDraft, type PolicyLock } from '../../components/DeliveryPolicyForm.tsx';
 import { MergeStatus } from '../../components/MergeStatus.tsx';
-import { Badge, Button, Card, cn } from '../../ui.tsx';
+import { Badge, Button, Card, ConfirmDialog, cn } from '../../ui.tsx';
 
 const STEP_LABEL: Record<string, string> = { preflight: 'Preflight', 'ensure-remote': 'Remote', 'sync-base': 'Sync with base', 'build-stack': 'Build stack', push: 'Push', 'open-pr': 'Open PR', 'wait-checks': 'CI checks', 'fix-ci': 'Fix CI', merge: 'Merge', cleanup: 'Cleanup' };
 const STEPS = ['preflight', 'ensure-remote', 'sync-base', 'build-stack', 'push', 'open-pr', 'wait-checks', 'fix-ci', 'merge', 'cleanup'];
 const PR_STATE: Record<string, string> = { pending: 'pending', open: 'open', merged: 'done', closed: 'cancelled', failed: 'failed' };
+const SYNC_LABEL: Record<string, string | null> = { current: null, rebased: 'rebased onto base', merged: 'base merged in', resolved: 'conflict resolved' };
+
+function Tag({ tone = 'zinc', title, children }: { tone?: 'zinc' | 'amber' | 'sky' | 'emerald' | 'rose'; title?: string; children: ReactNode }) {
+  const tones = { zinc: 'border-zinc-700 text-zinc-400', amber: 'border-amber-800 text-amber-300', sky: 'border-sky-800 text-sky-300', emerald: 'border-emerald-800 text-emerald-300', rose: 'border-rose-800 text-rose-300' };
+  return (
+    <span title={title} className={cn('inline-flex items-center gap-1 whitespace-nowrap rounded border px-1.5 py-px text-[10px]', tones[tone])}>
+      {children}
+    </span>
+  );
+}
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 export function DeliveryTab({ d }: { d: GoalDetail }) {
   const g = d.goal;
   const del = g.delivery;
   const finished = g.state === 'done' || g.state === 'over_delivered';
   const [draft, setDraft] = useState<PolicyDraft>({ ...del.policy });
+  // the saved policy the draft started from: a policy saved elsewhere (another tab, the engine) replaces an untouched draft
+  const [origin, setOrigin] = useState<PolicyDraft>({ ...del.policy });
+  const dirty = !same(draft, origin);
+  useEffect(() => {
+    if (same(del.policy, origin)) return;
+    if (!dirty) setDraft({ ...del.policy });
+    setOrigin({ ...del.policy });
+  }, [JSON.stringify(del.policy)]);
   const [repo, setRepo] = useState<RepoInfo | null>(null);
   const [plan, setPlan] = useState<DeliveryPlanStep[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [confirmStartOver, setConfirmStartOver] = useState(false);
+  const running = del.status === 'running';
+  const openPrs = del.prs.filter((p) => p.state === 'open');
+  // a delivery that already did something is carried on (Resume) or begun again (Start over), not run from scratch
+  const started = del.prs.length > 0 || (del.status !== 'idle' && del.outcome !== 'by_you');
+  const locked: PolicyLock | null = running
+    ? { reason: 'A delivery is running: only the switches below can change now, and they apply from its next step. Mode, target, merge method and granularity stay as the run started.', prModes: false }
+    : openPrs.length
+      ? { reason: `${openPrs.length} pull request${openPrs.length === 1 ? ' is' : 's are'} open: target, merge method and granularity stay as they were opened. Start over closes them to deliver differently.`, prModes: true }
+      : null;
   useEffect(() => {
     api.validateRepo(g.repoPath).then(setRepo).catch(() => {});
   }, [g.repoPath]);
@@ -49,16 +78,27 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
       setBusy(false);
     }
   };
-  const run = async () => {
-    setBusy(true);
-    setErr(null);
-    try {
-      await api.deliver(g.id, draft);
-    } catch (e: any) {
-      setErr(e.message);
-    } finally {
-      setBusy(false);
-    }
+  const run = () => act(() => api.deliver(g.id, draft));
+  const save = () =>
+    act(async () => {
+      await api.saveDeliveryPolicy(g.id, draft);
+      setOrigin({ ...draft });
+    });
+  // Resume uses what is on screen: unsaved changes are saved first
+  const resume = () =>
+    act(async () => {
+      if (dirty) {
+        await api.saveDeliveryPolicy(g.id, draft);
+        setOrigin({ ...draft });
+      }
+      await api.resumeDelivery(g.id);
+    });
+  const startOver = () => {
+    setConfirmStartOver(false);
+    return act(async () => {
+      await api.startOverDelivery(g.id, draft);
+      setOrigin({ ...draft });
+    });
   };
 
   // a Follow-up that started from the earlier goal's branch carries that goal's unmerged changes along
@@ -81,7 +121,7 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
               </span>
             </span>
           }
-          actions={del.status === 'running' ? <Button size="sm" variant="danger" onClick={() => api.cancelDelivery(g.id)}>Cancel</Button> : null}
+          actions={running ? <Button size="sm" variant="danger" onClick={() => api.cancelDelivery(g.id)}>Cancel</Button> : null}
         >
           {del.status === 'idle' && del.policy.mode !== 'local' && <div className="text-sm text-zinc-400">Will deliver automatically when the goal is done ({finished ? 'starting…' : `currently ${g.state}`}).</div>}
           <ol className="mt-2 space-y-1.5">
@@ -101,14 +141,22 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
           </ol>
           {del.prs.length > 0 && (
             <div className="mt-3 rounded-md border border-zinc-800 divide-y divide-zinc-800/60">
-              {del.prs.map((p) => (
+              {del.prs.map((p, i) => {
+                const below = i > 0 ? del.prs[i - 1] : null;
+                const waitsFor = p.state === 'open' && below && below.state !== 'merged' && below.number != null ? below.number : null;
+                const sync = p.sync ? SYNC_LABEL[p.sync] : null;
+                return (
                 <div key={p.branch} className="px-2.5 py-1.5 text-xs">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="mono text-zinc-600 w-5 shrink-0">{p.index}</span>
                   <span className="text-zinc-100 truncate min-w-0 flex-1" title={`${p.branch} → ${p.base}`}>
                     {p.title || p.branch}
                   </span>
-                  {p.checks && <Badge state={p.checks === 'passing' ? 'pass' : p.checks === 'failing' ? 'fail' : 'pending'}>{p.checks}</Badge>}
+                  {p.ciSkipped ? (
+                    <Badge state="skipped" className="normal-case">CI skipped</Badge>
+                  ) : (
+                    p.checks && <Badge state={p.checks === 'passing' ? 'pass' : p.checks === 'failing' ? 'fail' : p.checks === 'none' ? 'skipped' : 'pending'}>{p.checks === 'none' ? 'no CI' : `CI ${p.checks}`}</Badge>
+                  )}
                   <Badge state={PR_STATE[p.state] ?? p.state}>{p.state}</Badge>
                   {p.url ? (
                     <a className="underline text-sky-300 flex items-center gap-1 shrink-0" href={p.url} target="_blank" rel="noreferrer">
@@ -123,6 +171,22 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
                     </Button>
                   )}
                 </div>
+                {(p.activity || waitsFor != null || sync || p.branchDeleted) && (
+                  <div className="mt-1 ml-7 flex flex-wrap items-center gap-1.5">
+                    {p.activity && (
+                      <Tag tone="sky">
+                        <Loader2 size={10} className="animate-spin" /> {STEP_LABEL[p.activity] ?? p.activity}
+                      </Tag>
+                    )}
+                    {waitsFor != null && !p.activity && <Tag title="Stacked pull requests merge bottom-up">waiting for #{waitsFor}</Tag>}
+                    {sync && (
+                      <Tag tone={p.sync === 'resolved' ? 'amber' : 'zinc'} title={p.sync === 'rebased' ? 'Its own commits were replayed onto the base after the PR below merged' : undefined}>
+                        {sync}
+                      </Tag>
+                    )}
+                    {p.branchDeleted && <Tag title={p.branch}>branch deleted</Tag>}
+                  </div>
+                )}
                 {p.failing.length > 0 && p.state === 'open' && (
                   <ul className="mt-1 ml-7 space-y-0.5">
                     {p.failing.map((c) => (
@@ -140,7 +204,8 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
                   </ul>
                 )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
           <div className="flex flex-wrap gap-4 mt-3 text-xs">
@@ -159,8 +224,8 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
           {(del.status === 'failed' || (del.status === 'delivered' && (del.outcome === 'pr_open' || del.outcome === 'automerge_armed'))) && (
             <div className="mt-3 flex flex-wrap gap-2">
               {del.status === 'failed' && (
-                <Button size="sm" variant="primary" disabled={busy} onClick={() => act(() => api.retryDelivery(g.id))} title="Run the delivery again from the first pull request that is not merged; merged ones are skipped, open ones reused, and fixing CI gets a fresh budget">
-                  Retry delivery
+                <Button size="sm" variant="primary" disabled={busy} onClick={resume} title="Carry on from where the delivery stopped: open pull requests are kept, merged ones skipped, missing ones added, and fixing CI gets a fresh budget">
+                  Resume delivery
                 </Button>
               )}
               <Button size="sm" disabled={busy} onClick={() => act(() => api.markDelivered(g.id))} title="You finished the delivery yourself. Foundry reads the pull requests first: merged → it finishes as merged (your main is updated and the workspace tidied); otherwise it is only marked delivered by you">
@@ -185,11 +250,11 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
         </Card>
       )}
 
-      <Card title={del.status === 'idle' && del.policy.mode === 'local' ? 'Deliver this goal' : 'Change delivery'}>
+      <Card title={del.status === 'idle' && del.policy.mode === 'local' ? 'Deliver this goal' : 'Delivery settings'}>
         <p className="text-xs text-zinc-400 mb-3">
           The work lives on local branch <span className="mono text-zinc-200">{g.branch}</span>. Pick what the engine may do with it. Below is the exact plan — nothing else will run.
         </p>
-        <DeliveryPolicyForm value={draft} onChange={setDraft} repo={repo} taskCount={d.tasks.filter((t) => t.origin === 'brief' || t.origin === 'goal-review-fix').length} />
+        <DeliveryPolicyForm value={draft} onChange={setDraft} repo={repo} locked={locked} prefill={!started} taskCount={d.tasks.filter((t) => t.origin === 'brief' || t.origin === 'goal-review-fix').length} />
         {plan && (
           <div className="mt-3 rounded-md border border-zinc-800 bg-zinc-950/60 p-3">
             <div className="text-[11px] uppercase text-zinc-500 mb-2">plan</div>
@@ -207,12 +272,39 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
           </div>
         )}
         {err && <div className="text-xs text-rose-400 mt-2">{err}</div>}
-        <div className="flex justify-end mt-3 gap-2">
-          <Button variant="primary" disabled={busy || draft.mode === 'local' || del.status === 'running'} onClick={run}>
-            {!finished ? 'Save policy (runs when done)' : draft.mode === 'local' ? 'Local only — nothing to run' : draft.mode === 'push' ? 'Push now' : draft.mode === 'pr' ? (draft.unit === 'task' ? 'Open PRs now' : 'Open PR now') : draft.unit === 'task' ? 'Open PRs and merge when green' : 'Open PR and merge when green'}
-          </Button>
+        <div className="flex flex-wrap items-center justify-end mt-3 gap-2">
+          {finished && started && !running && draft.mode !== 'local' && (
+            <Button variant="ghost" className="sm:mr-auto" disabled={busy} onClick={() => setConfirmStartOver(true)} title="Close the open pull requests, delete the stacked branches and deliver again with these settings">
+              Start over…
+            </Button>
+          )}
+          {dirty && <span className="text-[11px] text-amber-300">unsaved changes</span>}
+          {(started || !finished || running) && (
+            <Button disabled={busy || !dirty} onClick={save} title={running ? 'Applies to the running delivery from its next step' : 'Store these settings without starting anything'}>
+              {!finished ? 'Save (runs when the goal is done)' : 'Save'}
+            </Button>
+          )}
+          {finished && started && !running && del.status !== 'failed' && draft.mode !== 'local' && (
+            <Button variant="primary" disabled={busy} onClick={resume} title="Carry on from where the delivery stands: open pull requests are kept, merged ones skipped, missing ones (such as the docs commit) added">
+              {dirty ? 'Save and resume delivery' : 'Resume delivery'}
+            </Button>
+          )}
+          {finished && !started && (
+            <Button variant="primary" disabled={busy || draft.mode === 'local' || running} onClick={run}>
+              {draft.mode === 'local' ? 'Local only — nothing to run' : draft.mode === 'push' ? 'Push now' : draft.mode === 'pr' ? (draft.unit === 'task' ? 'Open PRs now' : 'Open PR now') : draft.unit === 'task' ? 'Open PRs and merge when green' : 'Open PR and merge when green'}
+            </Button>
+          )}
         </div>
       </Card>
+      <ConfirmDialog open={confirmStartOver} title="Start the delivery over?" confirmLabel="Close PRs and start over" danger busy={busy} onConfirm={startOver} onClose={() => setConfirmStartOver(false)}>
+        <div className="space-y-2 text-sm text-zinc-300">
+          <p>
+            {openPrs.length ? `The ${openPrs.length} open pull request${openPrs.length === 1 ? '' : 's'} (${openPrs.map((p) => `#${p.number}`).join(', ')}) will be closed with a comment, ` : ''}
+            the goal's stacked branches deleted here and on the remote, and the goal delivered again with the settings on screen.
+          </p>
+          <p className="text-xs text-zinc-500">Pull requests that already merged stay merged; their work is not delivered twice. The goal branch is kept. Resume is usually what you want — it keeps the open pull requests.</p>
+        </div>
+      </ConfirmDialog>
     </div>
   );
 }

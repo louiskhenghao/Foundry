@@ -41,6 +41,8 @@ export interface GhClient {
   /** the most recent PR (any state) whose head is this branch */
   prFindAny(cwd: string, i: { repo: string; head: string }): Promise<(PrRef & { state: 'OPEN' | 'MERGED' | 'CLOSED' | string; base: string }) | null>;
   prReopen(cwd: string, i: { repo: string; number: number }): Promise<ExecResult>;
+  /** close a PR without merging, leaving a comment that says why */
+  prClose(cwd: string, i: { repo: string; number: number; comment: string }): Promise<ExecResult>;
   failedLog(cwd: string, i: { repo: string; branch: string }): Promise<string | null>;
 }
 
@@ -196,6 +198,9 @@ export class CliGh implements GhClient {
   }
   prReopen(cwd: string, i: { repo: string; number: number }): Promise<ExecResult> {
     return this.run(['pr', 'reopen', String(i.number), '-R', i.repo], cwd);
+  }
+  prClose(cwd: string, i: { repo: string; number: number; comment: string }): Promise<ExecResult> {
+    return this.run(['pr', 'close', String(i.number), '-R', i.repo, '--comment', i.comment], cwd);
   }
   async failedLog(cwd: string, i: { repo: string; branch: string }): Promise<string | null> {
     const l = await this.run(['run', 'list', '-R', i.repo, '--branch', i.branch, '--json', 'databaseId,conclusion,name', '--limit', '5'], cwd);

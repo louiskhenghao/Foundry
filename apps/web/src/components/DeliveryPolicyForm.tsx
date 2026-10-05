@@ -1,5 +1,5 @@
 import type { DeliveryPolicy } from '@foundry/core/browser';
-import { Github } from 'lucide-react';
+import { Github, Lock } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { api, type RepoInfo } from '../api.ts';
 import { Button, Input, Select, cn } from '../ui.tsx';
@@ -34,11 +34,21 @@ function Option({ checked, onChange, label, hint }: { checked: boolean; onChange
   );
 }
 
+/** what a running or open delivery keeps fixed: mode (except between the two PR modes), target, merge method, granularity */
+export interface PolicyLock {
+  reason: string;
+  /** "Open a PR" ↔ "PR + auto-merge" keeps the open PRs valid, so that switch stays available */
+  prModes: boolean;
+}
+
+const PR_MODES: DeliveryPolicy['mode'][] = ['pr', 'pr-automerge'];
+
 /**
- * Delivery policy picker shared by New Goal and the Deliver dialog.
- * `taskCount` (when known) sizes the "one PR per task" hint.
+ * Delivery policy picker shared by New Goal and the Delivery tab.
+ * `taskCount` (when known) sizes the "one PR per task" hint. `locked` disables the fields an open delivery is built on.
+ * `prefill` suggests a GitHub repository to create when there is no remote (off once a delivery has started).
  */
-export function DeliveryPolicyForm({ value, onChange, repo, taskCount = null }: { value: PolicyDraft; onChange: (p: PolicyDraft) => void; repo: RepoInfo | null; taskCount?: number | null }) {
+export function DeliveryPolicyForm({ value, onChange, repo, taskCount = null, locked = null, prefill = true }: { value: PolicyDraft; onChange: (p: PolicyDraft) => void; repo: RepoInfo | null; taskCount?: number | null; locked?: PolicyLock | null; prefill?: boolean }) {
   const [gh, setGh] = useState<{ installed: boolean; authenticated: boolean; login: string | null } | null>(null);
   const [orgs, setOrgs] = useState<string[]>([]);
   const [loginOpen, setLoginOpen] = useState(false);
@@ -62,16 +72,23 @@ export function DeliveryPolicyForm({ value, onChange, repo, taskCount = null }: 
 
   // Prefill "create a GitHub repo" (owner = you, name = folder) when the repository has no remote and gh is signed in.
   useEffect(() => {
-    if (value.mode === 'local' || hasRemote || !repo?.ok || !gh?.authenticated || !gh.login) return;
+    if (!prefill || value.mode === 'local' || hasRemote || !repo?.ok || !gh?.authenticated || !gh.login) return;
     if (value.createRepo || value.remoteUrl) return;
     set({ createRepo: { owner: gh.login, name: repo.path.split('/').filter(Boolean).pop() ?? 'repo', visibility: 'private' } });
   }, [value.mode, hasRemote, repo?.path, gh?.authenticated]);
 
+  const modeLocked = (id: DeliveryPolicy['mode']) => !!locked && id !== value.mode && !(locked.prModes && PR_MODES.includes(id) && PR_MODES.includes(value.mode));
   return (
     <div className="space-y-3">
+      {locked && (
+        <div className="flex items-start gap-2 rounded-md border border-zinc-800 bg-zinc-900/60 px-2.5 py-2 text-[11px] text-zinc-400">
+          <Lock size={12} className="mt-0.5 shrink-0 text-zinc-500" />
+          <span>{locked.reason}</span>
+        </div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {MODES.map((m) => (
-          <button key={m.id} type="button" onClick={() => set({ mode: m.id })} className={cn('text-left rounded-md border p-2.5', value.mode === m.id ? 'border-emerald-500 bg-emerald-500/5' : 'border-zinc-800 hover:border-zinc-600')}>
+          <button key={m.id} type="button" disabled={modeLocked(m.id)} onClick={() => set({ mode: m.id })} className={cn('text-left rounded-md border p-2.5 disabled:opacity-40 disabled:cursor-not-allowed', value.mode === m.id ? 'border-emerald-500 bg-emerald-500/5' : 'border-zinc-800 enabled:hover:border-zinc-600')}>
             <div className="text-sm text-zinc-100">{m.label}</div>
             <div className="text-[11px] text-zinc-500 mt-0.5">{m.desc}</div>
           </button>
@@ -83,16 +100,16 @@ export function DeliveryPolicyForm({ value, onChange, repo, taskCount = null }: 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div>
                 <label className="text-[11px] text-zinc-500">remote</label>
-                <Input value={value.remote ?? 'origin'} onChange={(e) => set({ remote: e.target.value })} />
+                <Input disabled={!!locked} value={value.remote ?? 'origin'} onChange={(e) => set({ remote: e.target.value })} />
               </div>
               <div>
                 <label className="text-[11px] text-zinc-500">base branch (blank = goal base)</label>
-                <Input value={value.baseBranch ?? ''} onChange={(e) => set({ baseBranch: e.target.value || null })} placeholder={repo?.branch || 'main'} />
+                <Input disabled={!!locked} value={value.baseBranch ?? ''} onChange={(e) => set({ baseBranch: e.target.value || null })} placeholder={repo?.branch || 'main'} />
               </div>
               <div>
                 <label className="text-[11px] text-zinc-500">merge method</label>
                 {value.mode === 'pr-automerge' ? (
-                  <Select value={value.mergeMethod ?? 'squash'} onChange={(e) => set({ mergeMethod: e.target.value as any })}>
+                  <Select disabled={!!locked} value={value.mergeMethod ?? 'squash'} onChange={(e) => set({ mergeMethod: e.target.value as any })}>
                     <option value="squash">squash</option>
                     <option value="merge">merge commit</option>
                     <option value="rebase">rebase</option>
@@ -110,13 +127,13 @@ export function DeliveryPolicyForm({ value, onChange, repo, taskCount = null }: 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 <div>
                   <label className="text-[11px] text-zinc-500">existing remote URL</label>
-                  <Input placeholder="git@github.com:you/repo.git" value={value.remoteUrl ?? ''} onChange={(e) => set({ remoteUrl: e.target.value || null, createRepo: e.target.value ? null : value.createRepo })} />
+                  <Input disabled={!!locked} placeholder="git@github.com:you/repo.git" value={value.remoteUrl ?? ''} onChange={(e) => set({ remoteUrl: e.target.value || null, createRepo: e.target.value ? null : value.createRepo })} />
                 </div>
                 <div>
                   <label className="text-[11px] text-zinc-500">or create a GitHub repo {gh?.authenticated ? `(as ${gh.login})` : ''}</label>
                   <div className="flex gap-1 flex-wrap">
                     <span className="w-36">
-                      <Select disabled={!gh?.authenticated} value={value.createRepo?.owner ?? ''} onChange={(e) => set({ createRepo: e.target.value ? { owner: e.target.value, name: value.createRepo?.name ?? repo?.path.split('/').pop() ?? 'repo', visibility: value.createRepo?.visibility ?? 'private' } : null, remoteUrl: null })}>
+                      <Select disabled={!!locked || !gh?.authenticated} value={value.createRepo?.owner ?? ''} onChange={(e) => set({ createRepo: e.target.value ? { owner: e.target.value, name: value.createRepo?.name ?? repo?.path.split('/').pop() ?? 'repo', visibility: value.createRepo?.visibility ?? 'private' } : null, remoteUrl: null })}>
                         <option value="">owner…</option>
                         {orgs.map((o) => (
                           <option key={o} value={o}>
@@ -140,13 +157,13 @@ export function DeliveryPolicyForm({ value, onChange, repo, taskCount = null }: 
 
           <Section title="Granularity">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button type="button" onClick={() => set({ unit: 'goal' })} className={cn('text-left rounded-md border p-2.5', unit === 'goal' ? 'border-emerald-500 bg-emerald-500/5' : 'border-zinc-800 hover:border-zinc-600')}>
+              <button type="button" disabled={!!locked && unit !== 'goal'} onClick={() => set({ unit: 'goal' })} className={cn('text-left rounded-md border p-2.5 disabled:opacity-40 disabled:cursor-not-allowed', unit === 'goal' ? 'border-emerald-500 bg-emerald-500/5' : 'border-zinc-800 enabled:hover:border-zinc-600')}>
                 <div className="text-sm text-zinc-100">One {thing} for the whole goal</div>
                 <div className="text-[11px] text-zinc-500 mt-0.5">
                   {isPr ? 'Everything in a single pull request titled after the Brief.' : 'The goal branch as it is.'} <span className="mono">goal/&lt;id&gt;</span>
                 </div>
               </button>
-              <button type="button" onClick={() => set({ unit: 'task' })} className={cn('text-left rounded-md border p-2.5', unit === 'task' ? 'border-emerald-500 bg-emerald-500/5' : 'border-zinc-800 hover:border-zinc-600')}>
+              <button type="button" disabled={!!locked && unit !== 'task'} onClick={() => set({ unit: 'task' })} className={cn('text-left rounded-md border p-2.5 disabled:opacity-40 disabled:cursor-not-allowed', unit === 'task' ? 'border-emerald-500 bg-emerald-500/5' : 'border-zinc-800 enabled:hover:border-zinc-600')}>
                 <div className="text-sm text-zinc-100">One {thing} per task{isPr ? ' — stacked' : ''}</div>
                 <div className="text-[11px] text-zinc-500 mt-0.5">
                   {taskCount != null && taskCount > 0 ? `${taskCount} task${taskCount === 1 ? '' : 's'} → ${taskCount} ${thing}${taskCount === 1 ? '' : isPr ? 's' : 'es'}` : 'decided by the Brief'}

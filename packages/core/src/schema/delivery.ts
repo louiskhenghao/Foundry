@@ -63,6 +63,14 @@ export const DeliveryPr = z.object({
   mergedRef: z.string().nullable(),
   /** the checks failing on it at the last look (empty when none, or not known) */
   failing: z.array(FailingCheck).default([]),
+  /** the delivery step running on this PR right now, or null */
+  activity: DeliveryStep.nullable().default(null),
+  /** merged (or waiting to) without waiting for CI, because the policy said so */
+  ciSkipped: z.boolean().default(false),
+  /** its remote branch was deleted after the merge */
+  branchDeleted: z.boolean().default(false),
+  /** how it was last brought up to date with the base branch */
+  sync: z.enum(['current', 'rebased', 'merged', 'resolved']).nullable().default(null),
 });
 export type DeliveryPr = z.infer<typeof DeliveryPr>;
 

@@ -434,8 +434,12 @@ async function recordMergedDelivery(engine: Engine, goalId: string): Promise<voi
   for (const b of stack) rec('delivery.checks', { state: 'passing', summary: 'build ✓ · test ✓ · lint ✓', prNumber: 40 + b.index, failing: [] });
   step('wait-checks', 'ok', 'CI green on all 4');
   for (const b of stack) {
-    cmd('merge', `gh pr merge ${40 + b.index} --squash --delete-branch`);
+    // after the PR below is squash-merged, each next branch replays its own commit onto main (ADR-0023)
+    rec('delivery.synced', { branch: b.branch, how: b.index === 1 ? 'current' : 'rebased', from: null, to: null });
+    cmd('merge', `gh pr merge ${40 + b.index} --squash`);
     rec('delivery.merged', { prNumber: 40 + b.index, method: 'squash', ref: b.commit, taskId: b.taskId });
+    cmd('cleanup', `git push origin --delete refs/heads/${b.branch}`);
+    rec('delivery.branch_deleted', { branch: b.branch });
   }
   step('merge', 'ok', '4 merged into main (squash), in order');
   rec('delivery.completed', { outcome: 'merged' });
