@@ -7,7 +7,8 @@ import { getBrief, getGoal } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { goalWorkspacePath } from '../workspace.ts';
 import { detectApps, detectRun, packageManager, previewBindHost } from './detect.ts';
-import { checkoutEnv, exampleKeys, fileKeys, PreviewEnvStore, redactor } from './env.ts';
+import { checkoutEnv, exampleKeys, fileKeys, keyUsage, PreviewEnvStore, redactor } from './env.ts';
+import { envHint } from './env-hints.ts';
 import { listeningPorts } from './listeners.ts';
 import { ServicesManager } from './services.ts';
 
@@ -311,7 +312,17 @@ export class PreviewManager {
     const provided = (k: string) => k in vars || tracked.has(k) || k in inherited || own.has(k) || k.startsWith('FOUNDRY_APP_');
     // keys without an example value have no default, so they come first; example files list optional keys too
     const missing = example.filter((e) => !provided(e.key)).sort((a, b) => Number(!!a.example.trim()) - Number(!!b.example.trim())).map((e) => e.key);
-    return { repo: goal.repoPath, rev, keys: Object.keys(vars).sort(), checkout: { files: checkout.files, keys: Object.keys(checkout.vars).sort() }, example, missing };
+    // what each name is: the example file's comment, the files that read it, and a note for names many projects use
+    const names = [...new Set([...Object.keys(vars), ...example.map((e) => e.key)])];
+    const usedIn = keyUsage(ws, names);
+    const notes = Object.fromEntries(
+      names.map((k) => {
+        const ex = example.find((e) => e.key === k);
+        const hint = envHint(k);
+        return [k, { comment: ex?.comment ?? null, example: ex?.example || null, file: ex?.file ?? null, usedIn: usedIn[k] ?? [], hint: hint?.text ?? null, generate: hint?.generate ?? null }];
+      }),
+    );
+    return { repo: goal.repoPath, rev, keys: Object.keys(vars).sort(), checkout: { files: checkout.files, keys: Object.keys(checkout.vars).sort() }, example, missing, notes };
   }
 
   /** replace the entered set; null keeps a key's stored value */

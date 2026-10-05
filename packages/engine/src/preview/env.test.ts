@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { checkoutEnv, EnvConflictError, exampleKeys, fileKeys, parseDotenv, PreviewEnvStore, redactor } from './env.ts';
+import { checkoutEnv, EnvConflictError, exampleComments, exampleKeys, fileKeys, keyUsage, parseDotenv, PreviewEnvStore, redactor } from './env.ts';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -62,11 +62,33 @@ describe('exampleKeys and fileKeys', () => {
   test('keys documented in example files, first mention wins; keys env files define', () => {
     const ws = tree({ '.env.example': 'DATABASE_URL=postgres://localhost/app\nPORT=3000\n', 'apps/api/.env.sample': 'JWT_SECRET=change-me\nPORT=4000\n', 'apps/api/.env': 'LOG=1\n' });
     expect(exampleKeys(ws, ['apps/api'])).toEqual([
-      { key: 'DATABASE_URL', example: 'postgres://localhost/app', file: '.env.example' },
-      { key: 'PORT', example: '3000', file: '.env.example' },
-      { key: 'JWT_SECRET', example: 'change-me', file: 'apps/api/.env.sample' },
+      { key: 'DATABASE_URL', example: 'postgres://localhost/app', file: '.env.example', comment: null },
+      { key: 'PORT', example: '3000', file: '.env.example', comment: null },
+      { key: 'JWT_SECRET', example: 'change-me', file: 'apps/api/.env.sample', comment: null },
     ]);
     expect([...fileKeys(ws, ['apps/api'])]).toEqual(['LOG']);
+  });
+  test('the comment above a key or after its value describes it; headings, separators and commented-out keys do not', () => {
+    const text = [
+      '# ---- Telegram ----',
+      '',
+      '# Bot token from @BotFather',
+      '# (use a test bot)',
+      'TELEGRAM_BOT_TOKEN=',
+      '# OLD_KEY=1',
+      'ADMIN_ID=123 # your numeric id',
+      'QUOTED="a # b"',
+      '',
+      '##########',
+      'PLAIN=1',
+    ].join('\n');
+    expect(exampleComments(text)).toEqual({ TELEGRAM_BOT_TOKEN: 'Bot token from @BotFather (use a test bot)', ADMIN_ID: 'your numeric id' });
+  });
+  test('files that read each key, from one git grep; env files are left out', () => {
+    const ws = tree({ 'src/config.ts': 'export const t = process.env.BOT_TOKEN;\nconst u = process.env.DB_URL;\n', 'src/db.ts': 'connect(process.env.DB_URL)\n', '.env.example': 'BOT_TOKEN=\n' });
+    Bun.spawnSync(['git', 'init', '-q', ws]);
+    Bun.spawnSync(['git', '-C', ws, 'add', '-A']);
+    expect(keyUsage(ws, ['BOT_TOKEN', 'DB_URL', 'NOT_USED'])).toEqual({ BOT_TOKEN: ['src/config.ts'], DB_URL: ['src/config.ts', 'src/db.ts'] });
   });
 });
 
