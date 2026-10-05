@@ -45,8 +45,23 @@ export interface PreviewStatus {
   source: 'brief' | 'detected' | null;
   error: string | null;
   apps: PreviewAppStatus[];
-  /** where the apps run: the goal's progress folder on the goal's branch */
-  workspace: { path: string; branch: string } | null;
+  /** where the apps run: the goal's progress folder, or Foundry's preview folder on another branch */
+  workspace: PreviewSource | null;
+}
+
+/** Mirrors the engine's PreviewSource: `goal` = the progress folder; `branch` = Foundry's preview folder at `branch` */
+export interface PreviewSource {
+  kind: 'goal' | 'branch';
+  path: string;
+  branch: string;
+  preparing: boolean;
+  fallback: string | null;
+}
+export interface PreviewSources {
+  current: PreviewSource;
+  options: { ref: string; label: string; note: string; available: boolean }[];
+  /** only a finished goal's preview can run another branch */
+  selectable: boolean;
 }
 
 /** Mirrors the engine's ServicesStatus (preview/services.ts): the Docker services from the repository's compose file. */
@@ -463,6 +478,8 @@ export function apiForProvider(provider?: AgentProvider) {
   interviewAnswer: (id: string, answers: Record<string, string>, finish = false) => req<{ ok: true }>(`/api/goals/${id}/interview/answer`, { method: 'POST', body: JSON.stringify({ answers, finish }) }),
   preview: (id: string) => req<PreviewStatus>(`/api/goals/${id}/preview`),
   /** without `app`, starts every app that is not running (Docker services first) */
+  previewSources: (id: string) => req<PreviewSources>(`/api/goals/${id}/preview/sources`),
+  previewSetSource: (id: string, ref: string | null) => req<PreviewSource>(`/api/goals/${id}/preview/source`, { method: 'PUT', body: JSON.stringify({ ref }) }),
   previewStart: (id: string, app?: string) => req<PreviewStatus>(`/api/goals/${id}/preview/start${app ? `?app=${encodeURIComponent(app)}` : ''}`, { method: 'POST' }),
   /** without `app`, stops every app; Docker services keep running */
   previewStop: (id: string, app?: string) => req<{ ok: true }>(`/api/goals/${id}/preview/stop${app ? `?app=${encodeURIComponent(app)}` : ''}`, { method: 'POST' }),

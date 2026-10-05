@@ -1,7 +1,7 @@
 import { ChevronRight, ExternalLink, Eye, EyeOff, GitBranch, Play, Plus, Square, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { type PreviewAppStatus, type PreviewEnv, type PreviewStatus, type ServicesStatus, api } from '../../api.ts';
-import { Button, Card, CopyButton, Input, cn } from '../../ui.tsx';
+import { type PreviewAppStatus, type PreviewEnv, type PreviewSources, type PreviewStatus, type ServicesStatus, api } from '../../api.ts';
+import { Button, Card, CopyButton, Input, Select, cn } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 
 const startedByText = (by: PreviewAppStatus['startedBy']) => (by === 'human' ? 'by you' : by === 'milestone' ? 'for the milestone' : by === 'integration' ? 'after a task landed' : null);
@@ -199,15 +199,7 @@ export function PreviewCard({ goalId, embedded }: { goalId: string; embedded?: b
     );
   };
 
-  const where = st?.workspace && (
-    <div className="flex items-center gap-x-1.5 gap-y-0.5 flex-wrap min-w-0 text-[11px] text-zinc-500" title={st.workspace.path}>
-      <GitBranch size={12} className="shrink-0" />
-      <span>Runs in the goal's folder, branch</span>
-      <span className="mono text-zinc-400 break-all">{st.workspace.branch}</span>
-      <span>· not your checkout</span>
-      <CopyButton text={st.workspace.path} />
-    </div>
-  );
+  const where = st?.workspace && <Where goalId={goalId} st={st} busy={!!busy} onChange={load} />;
 
   const body = (
     <div className="text-xs text-zinc-400 space-y-2">
@@ -246,6 +238,62 @@ export function PreviewCard({ goalId, embedded }: { goalId: string; embedded?: b
     </div>
   );
   return embedded ? body : <Card title="Preview" actions={allButtons || null}>{body}</Card>;
+}
+
+/**
+ * Which branch the preview runs and where. A finished goal can run another branch: its own folder is cleaned up after
+ * the merge, and the base branch then holds the work. Another branch runs in Foundry's preview folder, never in the
+ * person's checkout.
+ */
+function Where({ goalId, st, busy, onChange }: { goalId: string; st: PreviewStatus; busy: boolean; onChange: () => Promise<void> }) {
+  const w = st.workspace!;
+  const [src, setSrc] = useState<PreviewSources | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    api.previewSources(goalId).then(setSrc).catch(() => {});
+  }, [goalId, w.kind, w.branch]);
+  const running = st.apps.some((a) => a.running);
+  const pick = async (ref: string) => {
+    setSaving(true);
+    setErr(null);
+    try {
+      await api.previewSetSource(goalId, ref);
+      await onChange();
+    } catch (e: any) {
+      setErr(e.body?.error ?? e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const options = src?.options ?? [];
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-x-1.5 gap-y-1 flex-wrap min-w-0 text-[11px] text-zinc-500" title={w.path}>
+        <GitBranch size={12} className="shrink-0" />
+        <span>Runs</span>
+        {src?.selectable ? (
+          <span className="w-56 max-w-full">
+            <Select aria-label="Branch the preview runs" className="mono text-[11px] py-0.5" value={w.branch} disabled={busy || saving || running} title={running ? 'Stop the preview to pick another branch' : 'The branch the preview runs'} onChange={(e) => pick(e.target.value)}>
+              {!options.some((o) => o.ref === w.branch) && <option value={w.branch}>{w.branch}</option>}
+              {options.map((o) => (
+                <option key={o.ref} value={o.ref} disabled={!o.available}>
+                  {o.label} — {o.note}
+                </option>
+              ))}
+            </Select>
+          </span>
+        ) : (
+          <span className="mono text-zinc-400 break-all">{w.branch}</span>
+        )}
+        <span>{w.kind === 'goal' ? "in the goal's folder" : "in Foundry's preview folder"} · not your checkout</span>
+        <CopyButton text={w.path} />
+      </div>
+      {w.preparing && <div className="text-[11px] text-zinc-400">Checking out {w.branch} in the preview folder…</div>}
+      {w.fallback && <div className="text-[11px] text-amber-300/90">{w.fallback[0]!.toUpperCase() + w.fallback.slice(1)}.</div>}
+      {err && <div className="text-[11px] text-rose-300">{err}</div>}
+    </div>
+  );
 }
 
 const STATE_CHIP: Record<ServicesStatus['services'][number]['state'], string> = {
