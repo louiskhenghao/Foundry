@@ -9,6 +9,7 @@ import { PreviewCard } from './PreviewCard.tsx';
 import { Badge, Card, cn } from '../../ui.tsx';
 import { EscalationCard } from '../InboxPage.tsx';
 import { CodexModelsCard } from './CodexModelsCard.tsx';
+import { ProjectSkillsCard } from './ProjectSkillsCard.tsx';
 
 const STAGES = ['clarifying', 'awaiting_brief_approval', 'running', 'goal_review', 'done'] as const;
 const STAGE_LABEL: Record<string, string> = { clarifying: 'Clarify', awaiting_brief_approval: 'Brief', running: 'Run', goal_review: 'Review', done: 'Done' };
@@ -134,22 +135,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
               </div>
             </Card>
           )}
-          {g.autoskills && (
-            <Card title="Project skills (autoskills)">
-              <div className="text-xs text-zinc-400">
-                {g.autoskills.status === 'installed' ? (
-                  <>
-                    Installed for this repository's stack, loaded in every worker session: <span className="mono text-zinc-200">{g.autoskills.skills.map((s) => `/${s}`).join(', ')}</span>
-                  </>
-                ) : (
-                  <>
-                    <span className={g.autoskills.status === 'failed' ? 'text-rose-300' : 'text-zinc-300'}>{g.autoskills.status}</span> — {g.autoskills.detail}
-                  </>
-                )}
-              </div>
-              <p className="text-[11px] text-zinc-500 mt-2">Written to the goal workspace's {d.goal.provider === 'codex' ? '.agents/skills' : '.claude/skills'} and git-excluded; they never reach a commit or PR.</p>
-            </Card>
-          )}
+          <ProjectSkillsCard d={d} />
           {(g.completion.graphRefresh || g.completion.docs.length > 0 || g.completion.artifactsRun) && (
             <Card title="Completion">
               <div className="text-xs text-zinc-400 space-y-1.5">
