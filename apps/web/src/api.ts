@@ -72,8 +72,10 @@ export interface PreviewEnv {
   rev: number;
   keys: string[];
   checkout: { files: string[]; keys: string[] };
-  example: { key: string; example: string; file: string }[];
+  example: { key: string; example: string; file: string; comment: string | null }[];
   missing: string[];
+  /** what each name is: its example file comment, the files that read it, and a note for names many projects use */
+  notes: Record<string, { comment: string | null; example: string | null; file: string | null; usedIn: string[]; hint: string | null; generate: 'secret' | null }>;
 }
 
 export interface ServicesStatus {
