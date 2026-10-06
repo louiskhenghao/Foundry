@@ -40,7 +40,7 @@ import type { MinimaxQuota } from './usage/types.ts';
 import { answerInterview, continueInterview, runClarify } from './clarify.ts';
 import { type DraftProposal, type DraftRequest, runDraft } from './brief-draft.ts';
 import { runSuggest } from './escalation-suggest.ts';
-import type { EngineConfig } from './config.ts';
+import { claudeConfigEnv, type EngineConfig } from './config.ts';
 import { GrepContextProvider } from './context/grep-provider.ts';
 import { GraphifyContextProvider } from './context/graphify-provider.ts';
 import { summarizeOutput } from './distill/summarize.ts';
@@ -224,7 +224,7 @@ export class Engine {
       codex: new ModelRegistry(config.provider === 'codex' ? config.dataDir : join(config.dataDir, 'providers', 'codex'), 'codex'),
     };
     this.models = this.providerModels[config.provider];
-    const env = () => ({ CLAUDE_CONFIG_DIR: config.claudeHome, FOUNDRY_CALLBACK: `http://${config.host}:${config.port}`, ...this.sessionEnvExtra() });
+    const env = () => ({ ...claudeConfigEnv(config.claudeHome), FOUNDRY_CALLBACK: `http://${config.host}:${config.port}`, ...this.sessionEnvExtra() });
     const supplied = (provider: 'claude' | 'codex') => runner && ('run' in runner ? runner : runner[provider]);
     const wrap = (inner: ClaudeRunner, provider: 'claude' | 'codex') => {
       const checked: ClaudeRunner & { killAll: () => number } = {

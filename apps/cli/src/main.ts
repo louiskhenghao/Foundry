@@ -308,7 +308,7 @@ switch (cmd) {
       process.exitCode = 2;
       break;
     }
-    const { defaultConfig, SettingsStore, applySettingsToConfig, codexAuthStatus, claudeAuthStatus } = await import('@foundry/engine');
+    const { defaultConfig, SettingsStore, applySettingsToConfig, codexAuthStatus, claudeAuthStatus, claudeConfigEnv } = await import('@foundry/engine');
     const cfg = defaultConfig(ROOT);
     const settings = new SettingsStore(cfg.dataDir);
     applySettingsToConfig(cfg, settings.values(), settings.fileLeaves());
@@ -316,7 +316,7 @@ switch (cmd) {
     if (sub === 'login' || sub === 'logout') {
       const bin = backend === 'codex' ? cfg.codexBin ?? Bun.which('codex') ?? 'codex' : cfg.claudeBin ?? Bun.which('claude') ?? 'claude';
       const args = backend === 'codex' ? [sub, ...(sub === 'login' ? ['--device-auth'] : [])] : ['auth', sub, ...(sub === 'login' ? ['--claudeai'] : [])];
-      const p = Bun.spawn([bin, ...args], { env: { ...process.env, ...(backend === 'codex' ? { CODEX_HOME: cfg.codexHome } : { CLAUDE_CONFIG_DIR: cfg.claudeHome }) }, stdin: 'inherit', stdout: 'inherit', stderr: 'inherit' });
+      const p = Bun.spawn([bin, ...args], { env: { ...process.env, ...(backend === 'codex' ? { CODEX_HOME: cfg.codexHome } : claudeConfigEnv(cfg.claudeHome)) }, stdin: 'inherit', stdout: 'inherit', stderr: 'inherit' });
       process.exit(await p.exited);
     }
     const st = backend === 'codex' ? await codexAuthStatus(cfg.codexBin ?? Bun.which('codex'), undefined, cfg.codexHome) : await claudeAuthStatus(cfg.claudeBin ?? Bun.which('claude'), undefined, cfg.claudeHome);

@@ -119,6 +119,16 @@ export interface EngineConfig {
   log: (msg: string) => void;
 }
 
+/**
+ * The CLAUDE_CONFIG_DIR a `claude` Foundry starts gets: only a Claude home other than the CLI's own default. Once the
+ * variable is set, even to ~/.claude itself, the CLI keys its stored sign-in to that directory, finds none, and reports
+ * the account as signed out; sessions then run without it.
+ */
+export function claudeConfigEnv(claudeHome: string | null | undefined): { CLAUDE_CONFIG_DIR?: string } {
+  if (!claudeHome || resolve(claudeHome) === resolve(homedir(), '.claude')) return {};
+  return { CLAUDE_CONFIG_DIR: claudeHome };
+}
+
 export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {}): EngineConfig {
   const provider = overrides.provider ?? (process.env.FOUNDRY_PROVIDER === 'codex' ? 'codex' : 'claude');
   return {
