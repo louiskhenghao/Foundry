@@ -383,7 +383,7 @@ function Services({ goalId, svc, onChange, reload }: { goalId: string; svc: Serv
       </ul>
       {!docker && (
         <div className="space-y-1">
-          <div className="text-zinc-300">{svc.docker === 'in-container' ? 'Foundry runs inside Docker without access to Docker — start these yourself:' : 'Docker is not installed — install it, or start these yourself:'}</div>
+          <div className="text-zinc-300">{svc.docker === 'in-container' ? "Foundry runs inside Docker without this computer's Docker shared with it. Run the installer again and allow sharing (foundry update), or start these yourself:" : 'Docker is not installed — install it, or start these yourself:'}</div>
           <div className="flex items-start gap-2 rounded bg-zinc-950/60 border border-zinc-800 px-2 py-1">
             <span className="mono text-[11px] text-zinc-300 break-all grow">{svc.command}</span>
             <CopyButton text={svc.command} />

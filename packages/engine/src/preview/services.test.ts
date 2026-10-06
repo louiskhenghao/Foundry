@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Goal } from '@foundry/core';
@@ -56,6 +56,22 @@ describe('ServicesManager', () => {
     expect(st!.services.every((s) => s.state === 'unknown')).toBe(true);
     expect((await new ServicesManager({ exec, which: () => null, portFree: async () => true, log: () => {} }).status(goal, ws, true))!.docker).toBe('unavailable');
     expect(calls).toEqual([]);
+  });
+
+  test("inside the image with the host's Docker shared, services start there in the container's network, without ports", async () => {
+    const ws = workspace();
+    const { calls, exec } = fake();
+    const dir = mkdtempSync(join(tmpdir(), 'foundry-services-override-'));
+    const m = new ServicesManager({ exec, which: () => '/usr/bin/docker', inContainer: () => true, hostDocker: () => ({ container: 'foundry', dir, id: 'c0ffee' }), portFree: async () => true, log: () => {} });
+    const st = await m.up(goal, ws);
+    expect(st!.docker).toBe('available');
+    const up = calls.find((c) => c.includes('up'))!;
+    // minio runs, but joined to an earlier Foundry container's network (no label for this one): it is started again
+    expect(up.slice(-3)).toEqual(['db', 'minio', 'cache']);
+    const files = up.flatMap((a, i) => (a === '-f' ? [up[i + 1]!] : []));
+    expect(files).toEqual([join(ws, 'compose.yaml'), join(dir, 'foundry-my-shop.host-docker.yml')]);
+    const override = readFileSync(files[1]!, 'utf8');
+    for (const name of ['db', 'minio', 'cache']) expect(override).toContain(`"${name}":\n    network_mode: "container:foundry"\n    ports: !reset []\n    labels:\n      dev.foundry.container: "c0ffee"`);
   });
 
   test('a failing docker call is reported, not thrown; no compose file means no services', async () => {

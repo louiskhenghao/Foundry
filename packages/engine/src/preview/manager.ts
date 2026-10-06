@@ -1,4 +1,5 @@
 import { createServer } from 'node:net';
+import { hostname } from 'node:os';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
 import { spawnStreaming } from '../skills/updaters.ts';
@@ -154,7 +155,13 @@ export class PreviewManager {
 
   constructor(private engine: Engine) {
     this.env = new PreviewEnvStore(engine.config.dataDir);
-    this.services = new ServicesManager({ inContainer: () => !!process.env.FOUNDRY_DOCKER, portFree, log: (l) => engine.config.log(l) });
+    this.services = new ServicesManager({
+      inContainer: () => !!process.env.FOUNDRY_DOCKER,
+      // the container's hostname is its id, which changes when an update recreates it
+      hostDocker: () => (process.env.FOUNDRY_HOST_DOCKER ? { container: process.env.FOUNDRY_CONTAINER || 'foundry', dir: join(engine.config.dataDir, 'preview-compose'), id: hostname() } : null),
+      portFree,
+      log: (l) => engine.config.log(l),
+    });
   }
 
   startSweeper(): void {
