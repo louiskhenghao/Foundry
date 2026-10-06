@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ClaudeAuth } from './claude-auth.ts';
+import { claudeConfigEnv } from '../config.ts';
+import { ClaudeAuth, claudeAuthStatus } from './claude-auth.ts';
 
 /**
  * A stand-in for the CLI on a machine without a browser: it prints the URL, then asks for the code
@@ -150,5 +151,24 @@ sleep 30
     expect(auth.loginSession()!.ok).toBe(true);
     expect(auth.loginSession()!.needsCode).toBe(false); // browser flow: never asked
     expect(() => auth.submitCode('x')).toThrow(/no sign-in is in progress/);
+  });
+});
+
+describe('the Claude home the CLI is pointed at', () => {
+  test('the default ~/.claude is never passed as CLAUDE_CONFIG_DIR: the CLI would look for its sign-in elsewhere', () => {
+    expect(claudeConfigEnv(join(homedir(), '.claude'))).toEqual({});
+    expect(claudeConfigEnv(`${join(homedir(), '.claude')}/`)).toEqual({});
+    expect(claudeConfigEnv(null)).toEqual({});
+    expect(claudeConfigEnv('/srv/claude-home')).toEqual({ CLAUDE_CONFIG_DIR: '/srv/claude-home' });
+  });
+  test('the sign-in check runs without CLAUDE_CONFIG_DIR for the default home, with it for a custom one', async () => {
+    const seen: (string | undefined)[] = [];
+    const run = (async (_cmd: string[], _cwd: string, opts?: { env?: Record<string, string> }) => {
+      seen.push(opts?.env?.CLAUDE_CONFIG_DIR);
+      return { code: 0, stdout: '{"loggedIn":true,"authMethod":"claude.ai"}', stderr: '' };
+    }) as never;
+    expect((await claudeAuthStatus('claude', run, join(homedir(), '.claude'))).loggedIn).toBe(true);
+    await claudeAuthStatus('claude', run, '/srv/claude-home');
+    expect(seen).toEqual([undefined, '/srv/claude-home']);
   });
 });

@@ -1,3 +1,4 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import type { Goal } from '@foundry/core';
 import { detectCompose, type ComposeService } from './detect.ts';
@@ -13,7 +14,7 @@ export interface ServicesStatus {
   file: string;
   /** the compose project shared by every goal of this repository */
   project: string;
-  /** how Foundry can reach Docker: in-container = the Docker image, which has no Docker access by design */
+  /** how Foundry can reach Docker: in-container = the Docker image without the host's Docker shared into it */
   docker: 'available' | 'unavailable' | 'in-container';
   services: ServiceStatus[];
   /** the command to start the services by hand */
@@ -27,6 +28,12 @@ export interface ServicesDeps {
   exec?: Exec;
   which?: (bin: string) => string | null;
   inContainer?: () => boolean;
+  /**
+   * Inside the image with the host's Docker socket shared (FOUNDRY_HOST_DOCKER): services start on the host's Docker,
+   * joined to the network of this container (`container`), so the apps here reach them on localhost. Override files
+   * that say so are written to `dir`.
+   */
+  hostDocker?: () => { container: string; dir: string; id: string } | null;
   portFree: (port: number) => Promise<boolean>;
   log: (line: string) => void;
 }
@@ -42,7 +49,8 @@ const defaultExec: Exec = async (args, cwd) => {
  * project per repository, shared by its goals, so two goals never fight over Postgres's port; a service whose host port
  * is already taken (the person's own Postgres, another project) is reused instead of started. Services keep running
  * when previews stop, so their data and warm start survive; they are stopped from the preview card. Inside the Docker
- * image Foundry has no Docker access, so it only shows the command to run.
+ * image Foundry starts them on the host's Docker when the install shared it (ADR-0024), and otherwise only shows the
+ * command to run.
  */
 export class ServicesManager {
   private exec: Exec;
@@ -63,10 +71,14 @@ export class ServicesManager {
     const ps = await this.exec(['docker', 'compose', '-p', base.project, ...this.files(goal, ws, found.file), 'ps', '--all', '--format', 'json'], ws).catch((e) => ({ code: 1, stdout: '', stderr: String(e) }));
     if (ps.code !== 0) return this.remember(goal.id, { ...base, error: firstLine(ps.stderr) ?? 'docker compose ps failed' });
     const rows = parsePs(ps.stdout);
+    const host = this.deps.inContainer?.() ? this.deps.hostDocker?.() : null;
     const services = await Promise.all(
       base.services.map(async (s): Promise<ServiceStatus> => {
         const row = rows.find((r) => r.Service === s.name);
-        if (row?.State === 'running') return { ...s, state: 'running', health: row.Health || null };
+        // on the host's Docker a service joined an earlier Foundry container's network: after an update it is
+        // unreachable, so it counts as stopped and the next start recreates it in this container's network
+        const stale = !!host && !(row?.Labels ?? '').split(',').includes(`${HOST_LABEL}=${host.id}`);
+        if (row?.State === 'running' && !stale) return { ...s, state: 'running', health: row.Health || null };
         const busy = (await Promise.all(s.ports.map((p) => this.deps.portFree(p)))).some((free) => !free);
         return { ...s, state: busy ? 'external' : 'stopped', health: null };
       }),
@@ -101,14 +113,25 @@ export class ServicesManager {
 
   private base(goal: Goal, ws: string, found: { file: string; services: ComposeService[] }): ServicesStatus {
     const project = composeProject(goal.repoPath);
-    const docker = this.deps.inContainer?.() ? 'in-container' : (this.deps.which ?? Bun.which)('docker') ? 'available' : 'unavailable';
+    const inImage = this.deps.inContainer?.();
+    const docker = inImage && !this.deps.hostDocker?.() ? 'in-container' : (this.deps.which ?? Bun.which)('docker') ? 'available' : 'unavailable';
     const names = found.services.map((s) => s.name).join(' ');
     return { file: found.file, project, docker, services: found.services.map((s) => ({ ...s, state: 'unknown', health: null })), command: `docker compose -p ${project} -f ${found.file} up -d ${names}`, error: null };
   }
 
   /** the goal's compose file, with relative volumes and env files resolved against the person's checkout so goals share them */
   private files(goal: Goal, ws: string, file: string): string[] {
-    return ['-f', join(ws, file), '--project-directory', goal.repoPath];
+    const own = ['-f', join(ws, file)];
+    const host = this.deps.inContainer?.() ? this.deps.hostDocker?.() : null;
+    if (host) {
+      // the host's Docker: no ports of their own, the network of this container, so the apps here use localhost
+      const names = detectComposeNames(ws, file);
+      const override = join(host.dir, `${composeProject(goal.repoPath)}.host-docker.yml`);
+      mkdirSync(host.dir, { recursive: true });
+      writeFileSync(override, hostDockerOverride(names, host.container, host.id));
+      own.push('-f', override);
+    }
+    return [...own, '--project-directory', goal.repoPath];
   }
 
   private remember(goalId: string, status: ServicesStatus): ServicesStatus {
@@ -117,12 +140,26 @@ export class ServicesManager {
   }
 }
 
+/** marks a service started in the network of one particular Foundry container */
+const HOST_LABEL = 'dev.foundry.container';
+
+/** the compose override that runs services on the host's Docker inside the network of Foundry's own container */
+export function hostDockerOverride(services: string[], container: string, id: string): string {
+  const body = services.map((s) => `  ${JSON.stringify(s)}:\n    network_mode: ${JSON.stringify(`container:${container}`)}\n    ports: !reset []\n    labels:\n      ${HOST_LABEL}: ${JSON.stringify(id)}\n`).join('');
+  return `# written by Foundry: the host's Docker runs these in the network of the ${container} container\nservices:\n${body}`;
+}
+
+function detectComposeNames(ws: string, file: string): string[] {
+  const found = detectCompose(ws);
+  return found && found.file === file ? found.services.map((s) => s.name) : [];
+}
+
 export function composeProject(repoPath: string): string {
   return `foundry-${basename(repoPath.replace(/\/+$/, '')).toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'repo'}`;
 }
 
 /** `docker compose ps --format json` prints one object per line (Compose ≥ 2.21) or one array (older) */
-export function parsePs(out: string): { Service?: string; State?: string; Health?: string }[] {
+export function parsePs(out: string): { Service?: string; State?: string; Health?: string; Labels?: string }[] {
   const text = out.trim();
   if (!text) return [];
   try {

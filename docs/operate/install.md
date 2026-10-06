@@ -48,21 +48,44 @@ Both serve the web UI on `http://127.0.0.1:4111`.
 curl -fsSL https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.sh | bash
 ```
 
-[`install.sh`](../../install.sh) installs only what is missing, in this order: git (Homebrew, or the system package
-manager with `sudo`), Bun, uv, the coding agent's CLI (Claude Code through its native installer; Codex through
-Homebrew's cask on macOS, npm, or its release binary), graphify and its skill, then clones Foundry into `~/foundry`,
-builds the UI and runs the doctor. Neither coding agent needs Node.js or npm. It ends with how to sign in and start;
-signing in stays yours. Options go after `bash -s --`:
+[`install.sh`](../../install.sh) first asks how to run Foundry: **From source** (on this computer) or **Docker** (in a
+container, see [the Docker section](#install-with-docker)). It suggests source on macOS and on Linux with a desktop,
+Docker on a Linux server. From source it:
+
+1. installs what is missing, and only that: git, Bun, uv, graphify and its skill, the coding agent's CLI (Claude Code
+   through its native installer; Codex through Homebrew's cask on macOS or its release binary), the GitHub CLI, and
+   Node.js 22 with corepack (pnpm and yarn), which autoskills and previews of JavaScript projects need. On macOS these
+   come from Homebrew, which it installs first if needed; on Linux it uses release builds in `~/.local`, so no `sudo`
+   except for system packages such as `unzip`;
+2. offers the optional tools as a checklist: markitdown, Chromium for the self-check and Docker for the services
+   previews need are ticked, ffmpeg (video goals) is not;
+3. clones Foundry into `~/foundry`, builds it, offers to sign in to the coding agent and GitHub (Enter skips; the
+   Setup page can do it later) and runs the doctor;
+4. runs Foundry as a background service that starts when you log in and restarts if it stops: launchd on macOS,
+   `systemd --user` on Linux (with lingering, so it keeps running after you log out), a plain background process
+   where neither exists. It serves on port 4111, or the next free one, and opens it in the browser;
+5. adds `~/.local/bin` and `~/.bun/bin` to your shell's `PATH` and leaves a `foundry` command there.
 
 | Option | Environment | Default | |
 |---|---|---|---|
+| `--mode source\|docker` | `FOUNDRY_MODE` | asked | how to run Foundry |
 | `--agent claude\|codex\|both` | `FOUNDRY_AGENT` | `claude` | which coding agent's CLI and skills to set up |
 | `--dir PATH` | `FOUNDRY_DIR` | `~/foundry` | where Foundry goes |
-| `--ref BRANCH\|TAG` | `FOUNDRY_REF` | `main` | what to check out, for example a release tag `v0.7.2` |
-| `--start` | `FOUNDRY_START=1` | off | start Foundry when done |
+| `--repos PATH` | `FOUNDRY_REPOS` | `~/Projects` | Docker: your projects folder |
+| `--port N` | `FOUNDRY_PORT` | 4111 or the next free | the port to serve on |
+| `--ref BRANCH\|TAG` | `FOUNDRY_REF` | `main` | source: what to check out, for example a release tag |
+| `--with "markitdown chromium docker ffmpeg"` | `FOUNDRY_WITH` | the checklist | source: exactly these optional tools, without asking |
+| `--yes` | | | take every default, ask nothing (no sign-ins) |
+| `--no-start` | | | set up, but do not start |
+| `--no-open` | | | do not open the browser |
+| `--no-modify-path` | | | leave the shell's configuration alone |
+| `--dry-run` | | | say what would happen, change nothing |
 
-Run it again to update: it fetches, fast-forwards and rebuilds an existing checkout. The numbered steps below are the
-same thing by hand.
+The `foundry` command: `foundry status`, `start`, `stop`, `restart`, `logs`, `open`, `update` (the newest installer,
+run the same way as last time: source pulls, rebuilds and restarts; Docker pulls the image and recreates the
+container) and `uninstall` (removes the service and the command; `--purge` also deletes Foundry's data after asking;
+the tools it installed stay). Running the one line again does the same as `foundry update`. Its choices are kept in
+`~/.config/foundry/install.env`.
 
 ### By hand
 
@@ -126,6 +149,21 @@ restart. If the server listens somewhere other than `http://127.0.0.1:4111`, tel
 
 The image brings the engine, the UI and every tool Foundry uses. It does not bring two things, because they are
 yours: **your native accounts** and **your repositories**. Persist the corresponding homes and mount the repositories. What each image version contains is in the [changelog](https://github.com/louiskhenghao/foundry-releases/blob/main/CHANGELOG.md).
+
+The [one-line install](#one-line) with **Docker** does all of this: it installs Docker if it is missing (the official
+script on Linux, Docker Desktop through Homebrew on macOS; Docker Compose v2 is required), writes `docker-compose.yml`, `.env` and
+`docker-compose.override.yml` to `~/foundry`, starts the container and offers to sign in inside it. The override
+shares, besides your projects folder:
+
+- the projects folder a second time **at the same path as on your computer**, so goal paths and the bind mounts of a
+  repository's compose file mean the same inside and outside (the folder picker starts there; `/repos` keeps working);
+- `~/.gitconfig`, read-only, for your commit name and email, and `~/.config/gh` when your GitHub CLI sign-in is kept
+  there (on macOS it is usually in the keychain, which a container cannot read: sign in inside instead);
+- if you agree, **your computer's Docker** (ADR-0024). Foundry then starts the services a preview needs (databases,
+  object storage) on it, in the Foundry container's network, so the apps reach them on `localhost`. The Docker socket
+  is root-level access to your computer, for Foundry and for the AI sessions it runs.
+
+The steps below are the same by hand.
 
 ### 1. Get the image
 
@@ -334,8 +372,8 @@ ignores `HOST`, add its own flag for listening on `0.0.0.0`. A local install (no
 
 A monorepo's preview runs one dev server per app, each on its own port from the range, so publish enough of it for
 the apps you run at once. The Docker services those apps need (from the repository's compose file) are started only by
-a local install: the image has no Docker access, so the preview card lists the services and the `docker compose`
-command to run on the host instead.
+a local install, or by the image when the installer shared your computer's Docker with it (see above): otherwise the
+preview card lists the services and the `docker compose` command to run on the host instead.
 
 The headless self-check needs Chromium. The image already has the system libraries and fonts Chromium needs;
 **Settings → Preview & self-check → Install Chromium** downloads the browser itself (about 650 MB on disk) with the

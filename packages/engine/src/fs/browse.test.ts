@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { BrowseError, listDirs, pickFolder, wellKnownRoots } from './browse.ts';
+import { BrowseError, defaultAllowedRoots, listDirs, pickFolder, wellKnownRoots } from './browse.ts';
 
 function tree() {
   const root = mkdtempSync(join(tmpdir(), 'browse-'));
@@ -71,5 +71,13 @@ describe('pickFolder', () => {
     const [a, b] = await Promise.all([pickFolder({ platform: 'darwin', run }), pickFolder({ platform: 'darwin', run })]);
     expect(calls).toBe(1);
     expect(a).toEqual(b);
+  });
+  test("in the Docker image the shared projects folder comes first and may be browsed, at the host's path and at /repos", () => {
+    const home = mkdtempSync(join(tmpdir(), 'foundry-home-'));
+    const shared = mkdtempSync(join(tmpdir(), 'foundry-shared-'));
+    const env = { FOUNDRY_HOST_REPOS: shared, FOUNDRY_DOCKER: '1' };
+    expect(wellKnownRoots(home, env)[0]).toEqual({ label: 'Your projects', path: shared });
+    expect(defaultAllowedRoots(home, env)).toContain(shared);
+    expect(defaultAllowedRoots(home, {})).not.toContain(shared);
   });
 });

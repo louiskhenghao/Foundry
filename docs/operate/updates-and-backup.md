@@ -149,6 +149,10 @@ If trying an unreleased branch, retain the previous image tag or commit. A succe
 
 ## Self-update
 
+An install made with the [one-line installer](./install.md#one-line) also updates from the terminal: `foundry update`
+runs the newest installer the same way as last time (source: pull, rebuild, restart the service; Docker: pull the
+image, recreate the container). Its service sets `FOUNDRY_SUPERVISED=1`, so the button below works with it too.
+
 Foundry checks for a new version by itself: about 15 seconds after it starts, then every 24 hours. When a newer
 release exists:
 
@@ -169,6 +173,10 @@ The mode is detected, never configured: the image sets `FOUNDRY_DOCKER=1`; a che
 local install. **Settings → About & updates** shows the mode next to the version.
 
 ### Docker with the updater sidecar (Compose)
+
+With Docker 29 or newer, the sidecar needs `DOCKER_API_VERSION: '1.40'` in its environment: its own client asks for API
+1.25, which Docker 29 refuses, and the sidecar restarts in a loop. The compose file in images after 1.0.0 sets it; an
+older `docker-compose.yml` needs the line added under `watchtower: environment:`, or run the installer again.
 
 The shipped `docker-compose.yml` runs a [watchtower](https://containrrr.dev/watchtower/) sidecar. It is the only
 container that touches the Docker socket. Foundry asks it over HTTP to pull the new image and re-create the

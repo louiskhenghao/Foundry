@@ -1,3 +1,4 @@
+import { claudeConfigEnv } from '../config.ts';
 import { exec } from '../git/git.ts';
 import { readCodexAccount } from './codex-account.ts';
 import { CodexAccountReadError } from './codex-app-server.ts';
@@ -36,7 +37,7 @@ const CODE_REJECTED = /invalid code|code .{0,20}(expired|not valid)/i;
 export async function claudeAuthStatus(claudeBin: string | null, run: typeof exec = exec, claudeHome?: string): Promise<ClaudeAuthStatus> {
   const checkedAt = new Date().toISOString();
   if (!claudeBin) return { loggedIn: false, authMethod: null, apiProvider: null, email: null, orgName: null, subscriptionType: null, checkedAt, error: 'claude not installed' };
-  const r = await run([claudeBin, 'auth', 'status', '--json'], process.cwd(), { timeoutMs: 20_000, env: claudeHome ? { CLAUDE_CONFIG_DIR: claudeHome } : undefined }).catch((e) => ({ code: 1, stdout: '', stderr: String(e) }));
+  const r = await run([claudeBin, 'auth', 'status', '--json'], process.cwd(), { timeoutMs: 20_000, env: claudeConfigEnv(claudeHome) }).catch((e) => ({ code: 1, stdout: '', stderr: String(e) }));
   try {
     const j = JSON.parse(r.stdout);
     return { loggedIn: !!j.loggedIn, authMethod: j.authMethod ?? null, apiProvider: j.apiProvider ?? null, email: j.email ?? null, orgName: j.orgName ?? null, subscriptionType: j.subscriptionType ?? null, checkedAt, error: null };
@@ -137,7 +138,7 @@ export class ClaudeAuth {
     let proc: ReturnType<typeof Bun.spawn>;
     try {
       // stdin stays open: on a machine without a browser the CLI asks for the code from the browser instead
-      proc = Bun.spawn(args, { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', env: { ...process.env, ...(this.opts.codexHome ? { CODEX_HOME: this.opts.codexHome } : {}), ...(this.opts.claudeHome ? { CLAUDE_CONFIG_DIR: this.opts.claudeHome } : {}), NO_COLOR: '1', FORCE_COLOR: '0' } });
+      proc = Bun.spawn(args, { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', env: { ...process.env, ...(this.opts.codexHome ? { CODEX_HOME: this.opts.codexHome } : {}), ...(this.opts.provider === 'codex' ? {} : claudeConfigEnv(this.opts.claudeHome)), NO_COLOR: '1', FORCE_COLOR: '0' } });
     } catch (err) {
       session.done = true;
       session.ok = false;
@@ -258,7 +259,7 @@ export class ClaudeAuth {
     const bin = this.binary();
     if (!bin) throw new Error(`${this.opts.provider ?? 'claude'} CLI not installed`);
     const run = this.opts.run ?? exec;
-    const r = await run([bin, ...(this.opts.provider === 'codex' ? ['logout'] : ['auth', 'logout'])], process.cwd(), { timeoutMs: 30_000, env: this.opts.codexHome ? { CODEX_HOME: this.opts.codexHome } : this.opts.claudeHome ? { CLAUDE_CONFIG_DIR: this.opts.claudeHome } : undefined });
+    const r = await run([bin, ...(this.opts.provider === 'codex' ? ['logout'] : ['auth', 'logout'])], process.cwd(), { timeoutMs: 30_000, env: this.opts.codexHome ? { CODEX_HOME: this.opts.codexHome } : claudeConfigEnv(this.opts.claudeHome) });
     this.invalidate();
     const st = await this.status(true);
     if (st.loggedIn && r.code !== 0) throw new Error(`logout failed: ${(r.stderr || r.stdout).trim().slice(0, 200)}`);

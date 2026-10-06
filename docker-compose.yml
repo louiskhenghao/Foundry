@@ -11,7 +11,7 @@ services:
     init: true
     # the UI is not authenticated: keep it on loopback
     ports:
-      - '127.0.0.1:4111:4111'
+      - '127.0.0.1:${FOUNDRY_PORT:-4111}:4111'
       # goal previews (dev servers started at milestones and from the goal page), same numbers on both sides:
       # the preview link is http://localhost:<port>. Keep in step with Settings → Preview & self-check → ports.
       - '127.0.0.1:4200-4299:4200-4299'
@@ -43,6 +43,8 @@ services:
     command: --http-api-update --cleanup foundry
     environment:
       WATCHTOWER_HTTP_API_TOKEN: ${FOUNDRY_WATCHTOWER_TOKEN:-foundry-watchtower}
+      # watchtower's own client speaks API 1.25, which Docker 29 refuses (minimum 1.40)
+      DOCKER_API_VERSION: '1.40'
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped

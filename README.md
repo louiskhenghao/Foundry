@@ -121,24 +121,21 @@ Install a hooks-capable Codex CLI before these commands; the Docker build pins 0
 
 What each release brings: [changelog](https://github.com/louiskhenghao/foundry-releases/blob/main/CHANGELOG.md).
 
-**One line** (macOS, Linux) — installs whatever is missing (git, Bun, Claude Code through its native installer, graphify), then Foundry itself. No Node.js or npm needed:
+**One line** (macOS, Linux):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.sh | bash
 # Codex instead, or both:  … | bash -s -- --agent codex   (or --agent both)
 ```
 
-It ends with how to sign in and start. Run it again later to update.
+It asks how to run Foundry. **From source** runs it on your computer: it installs what is missing (git, Bun, uv,
+graphify, the coding agent's CLI, the GitHub CLI, Node.js, and the optional tools you tick), builds Foundry and runs it
+as a background service that starts when you log in. **Docker** runs it in a container: it installs Docker if needed,
+shares your projects folder (and, if you agree, your computer's Docker for preview databases) and starts it. Either
+way it offers to sign in, opens <http://127.0.0.1:4111>, and leaves a `foundry` command:
+`foundry status | logs | stop | start | update | uninstall`. Run the line again, or `foundry update`, to update.
 
-**With Docker** — every tool is in the image (Node, npm, pnpm, yarn, Bun, git, both coding agents' CLIs); your computer only needs Docker:
-
-```bash
-mkdir -p ~/foundry && cd ~/foundry
-docker run --rm imlouiskhenghao/foundry cat /app/docker-compose.yml > docker-compose.yml
-FOUNDRY_REPOS=~/code docker compose up -d      # your repositories, mounted at /repos
-```
-
-**From source, by hand** — what the one-line install does: needs [Bun](https://bun.sh), [Claude Code](https://code.claude.com/docs/en/setup) signed in
+**From source, by hand** — the core of what the one-line install does: needs [Bun](https://bun.sh), [Claude Code](https://code.claude.com/docs/en/setup) signed in
 (`claude` on your PATH) and [graphify](https://github.com/safishamsi/graphify). For ChatGPT sign-in, see the [Codex setup](docs/operate/codex.md):
 
 ```bash
