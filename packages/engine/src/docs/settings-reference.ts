@@ -109,6 +109,8 @@ const OPERATIONAL_ENV: { name: string; help: string }[] = [
   { name: 'FOUNDRY_SUPERVISED', help: 'Set to 1 under launchd / systemd so a self-update exits and lets the supervisor restart Foundry.' },
   { name: 'FOUNDRY_UPDATE_CHECK', help: 'off = no daily release check.' },
   { name: 'FOUNDRY_WATCHTOWER_URL / FOUNDRY_WATCHTOWER_TOKEN', help: 'Docker: the watchtower sidecar that applies one-click updates.' },
+  { name: 'FOUNDRY_HOST_REPOS', help: "Docker: the projects folder shared at the same path as on the host; the folder picker starts there (set by the installer)." },
+  { name: 'FOUNDRY_HOST_DOCKER / FOUNDRY_CONTAINER', help: "Docker: the host's Docker socket is shared, so preview services start there in this container's network (container name, default foundry). Set by the installer (ADR-0024)." },
   { name: 'FOUNDRY_SKIP_SETUP', help: 'Docker: skip installing the graphify skill into a fresh Claude home on first start.' },
   { name: 'CLAUDE_CONFIG_DIR', help: 'Alternative to FOUNDRY_CLAUDE_HOME.' },
 ];

@@ -136,5 +136,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `FOUNDRY_SUPERVISED` | Set to 1 under launchd / systemd so a self-update exits and lets the supervisor restart Foundry. |
 | `FOUNDRY_UPDATE_CHECK` | off = no daily release check. |
 | `FOUNDRY_WATCHTOWER_URL / FOUNDRY_WATCHTOWER_TOKEN` | Docker: the watchtower sidecar that applies one-click updates. |
+| `FOUNDRY_HOST_REPOS` | Docker: the projects folder shared at the same path as on the host; the folder picker starts there (set by the installer). |
+| `FOUNDRY_HOST_DOCKER / FOUNDRY_CONTAINER` | Docker: the host's Docker socket is shared, so preview services start there in this container's network (container name, default foundry). Set by the installer (ADR-0024). |
 | `FOUNDRY_SKIP_SETUP` | Docker: skip installing the graphify skill into a fresh Claude home on first start. |
 | `CLAUDE_CONFIG_DIR` | Alternative to FOUNDRY_CLAUDE_HOME. |

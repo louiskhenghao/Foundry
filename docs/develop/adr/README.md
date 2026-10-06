@@ -28,3 +28,4 @@ record is never rewritten when a later decision changes it; its status says what
 | [0021](0021-multi-app-previews-and-compose-services.md) | Several apps per preview, and the compose services they need | accepted · 2026-10-05 · amends ADR-0012 |
 | [0022](0022-preview-environment-outside-the-workspace.md) | Preview environment stays outside the goal's folder | accepted · 2026-10-05 |
 | [0023](0023-resumable-stacked-delivery.md) | A stacked delivery resumes, replays onto the base, and reads its switches live | accepted · 2026-10-05 |
+| [0024](0024-guided-install-and-shared-host-docker.md) | One installer for both ways to run Foundry, and the host's Docker shared on request | accepted · 2026-10-06 |
