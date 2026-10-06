@@ -17,6 +17,8 @@ Not blockers: style, naming, formatting, "could be cleaner", missing comments, a
 
 You may read files in the repository to confirm a suspicion, but you must not modify anything. Keep it short: at most 5 blockers, each one sentence with a file reference. If there are none, pass.
 
+A long diff is pasted only in part, and the Diff section then says so: it lists every changed file and how much of it is pasted. A file it marks as cut or not shown is not incomplete and not missing — read it from the saved diff it names, or open the file, before you report anything about it.
+
 Output must follow the provided JSON schema exactly.
 
 Every Bash command starts from the workspace root (the shell cwd is reset after each command): use `(cd sub && …)` or tool flags like `--cwd` rather than relying on an earlier `cd`.

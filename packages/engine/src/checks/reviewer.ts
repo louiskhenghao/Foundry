@@ -1,4 +1,5 @@
 import { metaFor, modelFor } from '../models/roles.ts';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Attempt, Check, Goal, ReviewerVerdict, Task } from '@foundry/core';
 import { ReviewerVerdict as ReviewerVerdictSchema, chosenStyle, getBrief } from '@foundry/core';
@@ -7,6 +8,7 @@ import { renderStyle } from '../attempt-prompt.ts';
 import type { Engine } from '../engine.ts';
 import { diff } from '../git/git.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from '../guards/boundary.ts';
+import { reviewDiffDir } from '../workspace.ts';
 
 /**
  * Task-level lightweight review: cheap model, diff + spec only, blockers only.
@@ -30,9 +32,124 @@ export function formatWorkflowObservation(w: WorkflowObservation | null | undefi
   return `# Workflow\nThe worker was required to invoke these skills for this kind of task; observed Skill-tool invocations: ${w.used.length ? w.used.join(', ') : 'none'}.\n${lines.join('\n')}\nA missing invocation is worth a note (the next attempt will read it), not a blocker — judge the diff on its merits.`;
 }
 
+/** How much of a task's diff is pasted into the review prompt. A longer diff is pasted file by file up to this size and saved whole. */
+export const TASK_REVIEW_INLINE_CHARS = 20_000;
+/** Below this much room left, the next file is not started: a few lines of it would only be noise. */
+const PART_MIN_CHARS = 1_000;
+const CUT_MARK = '[… cut here: the rest of this file is in the saved diff]\n';
+/** A diff touching more files than this lists only the files not pasted whole. */
+const LIST_MAX = 100;
+
+export interface DiffFile {
+  path: string;
+  /** null for a binary file, or one a `-diff` attribute hides */
+  insertions: number | null;
+  deletions: number | null;
+  /** how much of this file's diff is pasted */
+  shown: 'whole' | 'part' | 'none';
+}
+
+/** One `diff --git` section per changed file, in git's order. */
+export function diffSections(d: string): string[] {
+  return d.split(/^(?=diff --git )/m).filter((s) => s.startsWith('diff --git '));
+}
+
+export function sectionPath(s: string): string {
+  const moved = s.match(/^(?:rename|copy) to (.+)$/m);
+  if (moved?.[1]) return moved[1];
+  const eol = s.indexOf('\n');
+  const head = s.slice('diff --git '.length, eol < 0 ? s.length : eol);
+  // `a/<path> b/<path>` names the same path twice when the file did not move, so split it in the middle: a path may contain spaces
+  const half = (head.length - 1) / 2;
+  const side = (x: string, p: string) => x.replace(new RegExp(`^"?${p}/`), '').replace(/"$/, '');
+  if (Number.isInteger(half) && side(head.slice(0, half), 'a') === side(head.slice(half + 1), 'b')) return side(head.slice(0, half), 'a');
+  return head;
+}
+
+export function sectionCounts(s: string): Pick<DiffFile, 'insertions' | 'deletions'> {
+  const at = s.search(/^@@ /m);
+  if (at < 0) return /^Binary files /m.test(s) ? { insertions: null, deletions: null } : { insertions: 0, deletions: 0 };
+  let insertions = 0;
+  let deletions = 0;
+  for (const l of s.slice(at).split('\n')) {
+    if (l.startsWith('+')) insertions++;
+    else if (l.startsWith('-')) deletions++;
+  }
+  return { insertions, deletions };
+}
+
+/**
+ * Fit a diff into `maxChars` without passing a cut file off as a complete one. Whole files go in, in git's order, while
+ * they fit (a small file after a large one still gets in); the first file left out then gets the room that is left, cut
+ * at a line boundary and marked. `files` is null when the whole diff fits, otherwise every file with how much is pasted.
+ */
+export function fitDiff(d: string, maxChars: number): { text: string; files: DiffFile[] | null } {
+  if (d.length <= maxChars) return { text: d, files: null };
+  const sections = diffSections(d);
+  if (!sections.length) return { text: d.slice(0, maxChars) + `\n${CUT_MARK}`, files: [] };
+  const shown: DiffFile['shown'][] = sections.map(() => 'none');
+  let used = 0;
+  sections.forEach((s, i) => {
+    if (used + s.length > maxChars) return;
+    shown[i] = 'whole';
+    used += s.length;
+  });
+  const first = shown.indexOf('none');
+  const room = maxChars - used - CUT_MARK.length;
+  let part = '';
+  if (first >= 0 && (room >= PART_MIN_CHARS || (used === 0 && room > 0))) {
+    const s = sections[first]!;
+    const nl = s.lastIndexOf('\n', room - 1);
+    part = (nl > 0 ? s.slice(0, nl + 1) : s.slice(0, room - 1) + '\n') + CUT_MARK;
+    shown[first] = 'part';
+  }
+  const text = sections.map((s, i) => (shown[i] === 'whole' ? s : shown[i] === 'part' ? part : '')).join('');
+  return { text, files: sections.map((s, i) => ({ path: sectionPath(s), ...sectionCounts(s), shown: shown[i]! })) };
+}
+
+const SHOWN_LABEL: Record<DiffFile['shown'], string> = { whole: 'whole', part: 'first part only, cut at a line boundary', none: 'not shown' };
+function fmtChange(f: DiffFile): string {
+  if (f.insertions === null) return 'binary';
+  const parts = [f.insertions ? `+${f.insertions}` : '', f.deletions ? `−${f.deletions}` : ''].filter(Boolean);
+  return parts.length ? parts.join(' ') : 'no line changes';
+}
+
+/** The prompt's Diff section: the diff itself, or — when it was cut — what was left out and where to read it. */
+export function renderDiffSection(fit: { text: string; files: DiffFile[] | null }, totalChars: number, savedAt: string | null): string {
+  const block = `\`\`\`diff\n${fit.text}\n\`\`\``;
+  if (!fit.files) return `# Diff\n${block}`;
+  const listed = fit.files.length <= LIST_MAX ? fit.files : fit.files.filter((f) => f.shown !== 'whole').slice(0, LIST_MAX);
+  const lines = listed.map((f) => `- \`${f.path}\` (${fmtChange(f)}): ${SHOWN_LABEL[f.shown]}`);
+  if (listed.length < fit.files.length) lines.push(`- … ${fit.files.length - listed.length} more files: the ones pasted whole are below, the rest only in the saved diff`);
+  const where = savedAt
+    ? `The complete diff is saved at \`${savedAt}\`. Before you say anything about a file that is cut or not shown, read its part of that file (Grep for its path, then Read with an offset) or open the file itself.`
+    : 'Before you say anything about a file that is cut or not shown, open the file itself.';
+  return [
+    `# Diff (partial)`,
+    `This task's diff is ${totalChars.toLocaleString('en-US')} characters, too long to paste whole: below are whole files while they fit, then the first part of one more. Every changed file, with how much of it is below:`,
+    lines.join('\n'),
+    `${where} A file that stops at a cut or is missing from the pasted part is NOT incomplete and NOT missing from the change.`,
+    block,
+  ].join('\n');
+}
+
+function saveTaskDiff(engine: Engine, goal: Goal, attempt: Attempt, d: string): string | null {
+  try {
+    const dir = reviewDiffDir(engine.config.dataDir, goal);
+    mkdirSync(dir, { recursive: true });
+    const p = join(dir, `task-diff-${attempt.id}.patch`);
+    writeFileSync(p, d);
+    return p;
+  } catch {
+    return null;
+  }
+}
+
 export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, attempt: Attempt, cwd: string, baseRef: string, checks: Check[], workflow?: WorkflowObservation | null): Promise<ReviewerVerdict | null> {
-  const d = await diff(cwd, baseRef, 'HEAD', 20_000);
+  const d = await diff(cwd, baseRef, 'HEAD', Number.POSITIVE_INFINITY);
   if (!d.trim()) return { pass: false, blockers: ['No changes were made in this attempt.'] };
+  const fit = fitDiff(d, TASK_REVIEW_INLINE_CHARS);
+  const savedAt = fit.files ? saveTaskDiff(engine, goal, attempt, d) : null;
   const rubric = checks
     .map((c) => (c.spec.type === 'reviewer' ? `- ${c.name}: ${c.spec.rubric}` : ''))
     .filter(Boolean)
@@ -53,8 +170,8 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
     media,
     reviewerHint ?? '',
     formatWorkflowObservation(workflow),
-    `# Diff\n\`\`\`diff\n${d}\n\`\`\``,
-    `The diff is above — judge from it; open at most a few files, only when the diff cannot answer. Review it against the task on two axes — Spec (does it do what the task and rubric ask?) and Standards (does it follow this repository's conventions?). Report BLOCKERS only: correctness bugs, security issues, scope violations (changes clearly outside the task), destroyed functionality, hard-coded secrets, or rubric items not met. Style nits are not blockers. If there are no blockers, pass.\n\nOutput: call the structured-output tool with the verdict object itself as its arguments — top-level keys \`pass\` (boolean), \`blockers\` (string[]), \`notes\` (string) and nothing else. Do NOT wrap it in a string or under a \`parameters\` key; that fails validation and costs a retry.`,
+    renderDiffSection(fit, d.length, savedAt),
+    `${fit.files ? 'The diff above is partial — judge what it shows, and read the rest of every file it lists as cut or not shown before you say anything about that file; never report a file as incomplete or a change as missing only because it is not in the pasted part.' : 'The diff is above — judge from it; open at most a few files, only when the diff cannot answer.'} Review it against the task on two axes — Spec (does it do what the task and rubric ask?) and Standards (does it follow this repository's conventions?). Report BLOCKERS only: correctness bugs, security issues, scope violations (changes clearly outside the task), destroyed functionality, hard-coded secrets, or rubric items not met. Style nits are not blockers. If there are no blockers, pass.\n\nOutput: call the structured-output tool with the verdict object itself as its arguments — top-level keys \`pass\` (boolean), \`blockers\` (string[]), \`notes\` (string) and nothing else. Do NOT wrap it in a string or under a \`parameters\` key; that fails validation and costs a retry.`,
   ]
     .filter(Boolean)
     .join('\n\n');

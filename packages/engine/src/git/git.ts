@@ -141,8 +141,9 @@ export async function numstat(cwd: string, from: string, to = 'HEAD'): Promise<N
     });
 }
 
+/** Paths print as they are (CJK, accents) rather than as quoted octal escapes, so a reviewer can Grep and open them. */
 export async function diff(cwd: string, from: string, to = 'HEAD', maxBytes = 200_000): Promise<string> {
-  const r = await git(['diff', from, to], cwd);
+  const r = await git(['-c', 'core.quotePath=false', 'diff', from, to], cwd);
   const d = r.stdout;
   return d.length > maxBytes ? d.slice(0, maxBytes) + `\n... [diff truncated at ${maxBytes} bytes]` : d;
 }
