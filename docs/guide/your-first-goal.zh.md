@@ -190,7 +190,7 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 
 ## 按下创建按钮之后
 
-按钮上写的是 **Create & clarify**（如果你跳过了 Clarify，就是 **Create & run**）。如果按钮是灰的，旁边的文字会说明原因：**Describe the goal**、**Select a repository folder** 或 **Repository is not ready (see above)**。
+按钮上写的是 **Create & clarify**（如果你跳过了 Clarify，就是 **Create & run**）。如果按钮是灰的，旁边的文字会写出第一个还缺的东西：**Describe the goal**、**Select a repository folder**、**Repository is not ready (see above)**、**Sign in to Claude Code first: see Accounts**（选 Codex 时则是 Codex）、**Choose a model preset (see above)**，或者某个 Codex 模型不支持所选的 reasoning。
 
 这个浏览器会记住 goal 类型、预算，以及更细的交付选项（比如合并方式和 CI 相关的开关），下一个 goal 就从这些开始。视图、Fast mode、TDD，以及交付方式和粒度，每次都从 Settings → New goal defaults 开始。
 

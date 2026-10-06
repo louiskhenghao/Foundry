@@ -188,7 +188,7 @@ The self-check (Foundry opens the running result in a hidden browser and takes s
 
 ## After you press the create button
 
-The button says **Create & clarify** (or **Create & run** if you skipped Clarify). If it is greyed out, the text next to it says why: **Describe the goal**, **Select a repository folder**, or **Repository is not ready (see above)**.
+The button says **Create & clarify** (or **Create & run** if you skipped Clarify). If it is greyed out, the text next to it names the first thing missing: **Describe the goal**, **Select a repository folder**, **Repository is not ready (see above)**, **Sign in to Claude Code first: see Accounts** (or Codex, whichever coding agent you chose), **Choose a model preset (see above)**, or a Codex model that does not support the chosen reasoning.
 
 This browser remembers the kind of goal, the budget and the finer delivery options (such as the merge method and the CI switches), so the next goal starts with them. The view, Fast mode, TDD, and the delivery mode and granularity start from Settings → New goal defaults every time.
 

@@ -215,7 +215,28 @@ export function NewGoalPage() {
     const advertised = metadata?.available ? metadata.reasoningEfforts : undefined;
     return wantedEffort && advertised?.length && !advertised.includes(wantedEffort) ? [`${model} does not advertise ${wantedEffort} reasoning`] : [];
   }))] : [];
-  const ready = !!accounts?.accounts.find((a) => a.provider === provider)?.status.loggedIn && prompt.trim().length > 0 && repoPath.trim().length > 0 && (repoInfo?.ok ?? false) && !missingPreset && !unsupportedCodexChoices.length && (provider !== 'codex' || !codexOverride || !!codexModel.trim());
+  const agentName = provider === 'codex' ? 'Codex' : 'Claude Code';
+  // the first thing still missing, said next to the button: a greyed-out button must never leave you guessing
+  const notReady = !prompt.trim()
+    ? 'Describe the goal'
+    : !repoPath.trim()
+      ? 'Select a repository folder'
+      : !repoInfo?.ok
+        ? 'Repository is not ready (see above)'
+        : !selectedAccount
+          ? `Checking the ${agentName} sign-in…`
+          : !selectedAccount.installed
+            ? `${agentName} is not installed: see Setup`
+            : !selectedAccount.status.loggedIn
+              ? `Sign in to ${agentName} first: see Accounts`
+              : missingPreset
+                ? 'Choose a model preset (see above)'
+                : unsupportedCodexChoices.length
+                  ? unsupportedCodexChoices[0]!
+                  : provider === 'codex' && codexOverride && !codexModel.trim()
+                    ? 'Pick the Codex model'
+                    : null;
+  const ready = notReady === null;
   const done = [prompt.trim().length > 0, repoInfo?.ok ?? false, true, true];
 
   const submit = async () => {
@@ -479,7 +500,11 @@ export function NewGoalPage() {
 
       {err && <div className="text-sm text-rose-400">{err}</div>}
       <div className="fixed bottom-0 left-0 right-0 sm:static border-t sm:border-0 border-zinc-800 bg-zinc-950/90 sm:bg-transparent backdrop-blur p-3 sm:p-0 flex items-center justify-end gap-3">
-        {!ready && <span className="text-xs text-zinc-500 mr-auto sm:mr-0">{!prompt.trim() ? 'Describe the goal' : !repoPath ? 'Select a repository folder' : !repoInfo?.ok ? 'Repository is not ready (see above)' : ''}</span>}
+        {notReady && (
+          <span role="status" className="text-xs text-zinc-500 mr-auto sm:mr-0">
+            {notReady}
+          </span>
+        )}
         <Button variant="primary" disabled={busy || !ready} onClick={submit}>
           {busy ? 'Creating…' : auto ? 'Create & run' : 'Create & clarify'}
         </Button>
