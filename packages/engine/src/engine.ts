@@ -1697,7 +1697,7 @@ export class Engine {
     if (!targets.length) throw new Error('nothing to restart (tasks are running or none selected)');
     // open escalations on these tasks are moot now
     for (const esc of listEscalations(this.store.db, { goalId, openOnly: true })) {
-      if (esc.taskId && targets.some((t) => t.id === esc.taskId)) this.store.append({ type: 'escalation.answered', goalId, payload: { escalationId: esc.id, answer: { action: 'retry_with_hint', extraAttempts: 0 } } });
+      if (esc.taskId && targets.some((t) => t.id === esc.taskId)) this.store.append({ type: 'escalation.answered', goalId, payload: { escalationId: esc.id, answer: { action: 'retry_with_hint' } } });
     }
     // Upstream tasks that are failed/blocked would immediately re-fail the restarted ones ("dependency failed").
     // Starting from a task means the human accepts what is above it: mark those as skipped.

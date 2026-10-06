@@ -107,8 +107,9 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   }
 
   const baseRef = await headRef(cwd);
-  /** The task's work is cumulative across attempts; reviewers and change lists judge all of it. */
-  const taskBaseRef = prior.find((a) => a.baseRef)?.baseRef ?? resume?.attempt.baseRef ?? baseRef;
+  /** The task's work is cumulative across attempts; reviewers and change lists judge all of it. A restart clears the task's
+   *  base, so it starts again from the goal branch as it is now and its earlier attempts no longer set what is reviewed. */
+  const taskBaseRef = task.baseRef ?? prior.find((a) => a.baseRef)?.baseRef ?? resume?.attempt.baseRef ?? baseRef;
   const prevReport = resume ? null : prior.length ? getObservation(store.db, prior[prior.length - 1]!.id) : null;
   // the task's difficulty picks the route; the last budgeted attempt (budget ≥ 2) and human retries run on the strong tier.
   // A continuation keeps the model its attempt started with.
