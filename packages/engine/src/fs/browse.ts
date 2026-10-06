@@ -34,9 +34,11 @@ export class BrowseError extends Error {
   }
 }
 
-/** Default roots the browser may enter: the home directory and mounted volumes. */
-export function defaultAllowedRoots(home = homedir()): string[] {
-  return [home, '/Volumes', '/tmp', '/private/tmp'].filter((p) => existsSync(p));
+/** Default roots the browser may enter: the shared projects folder in the Docker image, the home directory and mounted volumes. */
+export function defaultAllowedRoots(home = homedir(), env: Record<string, string | undefined> = process.env): string[] {
+  // in the Docker image the shared projects folder sits outside the container's home: at the host's path and at /repos
+  const shared = [env.FOUNDRY_HOST_REPOS, env.FOUNDRY_DOCKER ? '/repos' : undefined].filter((p): p is string => !!p);
+  return [...shared, home, '/Volumes', '/tmp', '/private/tmp'].filter((p) => existsSync(p));
 }
 
 export function assertAllowed(path: string, roots: string[]): string {
@@ -90,9 +92,14 @@ export interface Root {
   path: string;
 }
 
-/** Well-known places people keep code, filtered to those that exist. */
-export function wellKnownRoots(home = homedir()): Root[] {
+/**
+ * Well-known places people keep code, filtered to those that exist. In the Docker image, the projects folder the
+ * install shared comes first, at the same path as on the host (FOUNDRY_HOST_REPOS), then the older /repos mount.
+ */
+export function wellKnownRoots(home = homedir(), env: Record<string, string | undefined> = process.env): Root[] {
   const candidates: [string, string][] = [
+    ...(env.FOUNDRY_HOST_REPOS ? ([['Your projects', env.FOUNDRY_HOST_REPOS]] as [string, string][]) : []),
+    ...(env.FOUNDRY_DOCKER ? ([['repos', '/repos']] as [string, string][]) : []),
     ['Home', home],
     ['Projects', join(home, 'Projects')],
     ['Developer', join(home, 'Developer')],
