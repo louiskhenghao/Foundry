@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 export const cn = (...xs: (string | false | null | undefined)[]) => xs.filter(Boolean).join(' ');
@@ -14,27 +15,58 @@ export function Select({ className, children, ...props }: SelectHTMLAttributes<H
 
 /**
  * Dropdown shell: `trigger` renders the button, `children` the panel (a function receives `close`).
- * Closes on outside click and Escape. Panels are right-aligned by default.
+ * Closes on outside click and Escape. Panels are right-aligned by default, then kept inside the window: shifted
+ * sideways when the aligned edge would push them off screen, opened upwards when there is no room below. They render
+ * on <body>, so a panel or card that clips its overflow never cuts them off.
  */
 export function Menu({ trigger, children, width = 'w-56', align = 'right', className }: { trigger: (o: { open: boolean; toggle: () => void }) => ReactNode; children: ReactNode | ((close: () => void) => ReactNode); width?: string; align?: 'left' | 'right'; className?: string }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const place = () => {
+    const t = ref.current?.getBoundingClientRect();
+    const p = panel.current;
+    if (!t || !p) return;
+    const margin = 8;
+    const { offsetWidth: w, offsetHeight: h } = p;
+    const left = Math.max(margin, Math.min(align === 'right' ? t.right - w : t.left, window.innerWidth - w - margin));
+    const below = t.bottom + 4;
+    const top = below + h > window.innerHeight - margin && t.top - 4 - h >= margin ? t.top - 4 - h : below;
+    setPos({ top, left });
+  };
+  useLayoutEffect(() => {
+    if (open) place();
+    else setPos(null);
+  }, [open]);
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false);
+    const inside = (n: EventTarget | null) => !!n && (ref.current?.contains(n as Node) || panel.current?.contains(n as Node));
+    const onDoc = (e: MouseEvent) => !inside(e.target) && setOpen(false);
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    const onMove = () => place();
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onMove);
+    window.addEventListener('scroll', onMove, true);
     return () => {
       document.removeEventListener('mousedown', onDoc);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onMove);
+      window.removeEventListener('scroll', onMove, true);
     };
   }, [open]);
   const close = () => setOpen(false);
   return (
     <div ref={ref} className={cn('relative', className)}>
       {trigger({ open, toggle: () => setOpen(!open) })}
-      {open && <div className={cn('absolute mt-1 rounded-lg border border-zinc-800 bg-zinc-950 shadow-xl p-1.5 z-30 text-xs max-w-[calc(100vw-1.5rem)]', width, align === 'right' ? 'right-0' : 'left-0')}>{typeof children === 'function' ? children(close) : children}</div>}
+      {open &&
+        createPortal(
+          <div ref={panel} style={pos ?? { top: 0, left: 0, visibility: 'hidden' }} className={cn('fixed rounded-lg border border-zinc-800 bg-zinc-950 shadow-xl p-1.5 z-[65] text-xs max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-1rem)] overflow-auto', width)}>
+            {typeof children === 'function' ? children(close) : children}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
