@@ -148,5 +148,3 @@ function questionRef(rounds: { round: number; questions: { key: string; text: st
   }
   return 'an earlier answer';
 }
-
-/** "Planning with your answers · 3m 20s", ticking */
