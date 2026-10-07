@@ -68,7 +68,7 @@ goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它
 - **Model fallback**：只在某个模型不可用、Foundry 换了另一个模型时出现。
 - **Project skills**：Foundry 为你项目的技术栈添加的 skill，按 Frontend、Backend、Database、Testing、Tooling 分组，并显示数量。它们不会进入你的提交。
 - **Completion**：文档、知识图谱刷新和媒体文件各占一行，写着结果。见 [完成后的附加项](./getting-the-result.zh.md#完成后的附加项)。
-- **Acceptance**（右侧）：每个 **must** 和 **stretch** 检查及其最新结果，比如 **3/4 passing**。点一个检查可以看它的输出。下面是 **Self-check** 开关和它最近一次的结果（见 [Self-check](#self-check)）。
+- **Acceptance**（右侧）：每个 **must** 和 **stretch** 检查及其最新结果，比如 **3/4 passing**。点一个检查可以看它的输出。下面是 **Self-check** 开关和它最近一次的结果（见 [Self-check](#self-check)），goal 有里程碑时还有 **Have a look: pause at milestones**（见 [Milestones](#milestones)）。
 
 ## Tasks
 
