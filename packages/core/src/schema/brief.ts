@@ -254,8 +254,31 @@ export const BriefOutput = z.object({
 export type BriefOutput = z.infer<typeof BriefOutput>;
 
 /**
- * What a Clarify interview session emits per turn: a round of questions (brief null), or the Brief (questions empty).
- * Lenient parsing in the engine also accepts a bare BriefOutput.
+ * What the Clarifier writes once nothing is left to ask: the Brief without its task plan. A planner session adds the
+ * tasks, their checks and the estimate right after, from this and `planningNotes`, so the plan is written once.
+ */
+export const BriefSkeleton = BriefOutput.omit({ tasks: true, checks: true, costEstimateUsd: true, timeEstimateMin: true }).extend({
+  goalChecks: z
+    .array(OutputCheck.omit({ taskKey: true }))
+    .describe('Goal-level acceptance checks, run on the merged result: must = what the user asked for plus the repository\'s existing quality gates (real commands from the repo root); stretch = improvements you propose. A check that verifies one Area carries its areaKey.'),
+  planningNotes: z
+    .string()
+    .describe('For the planner, who splits the goal into tasks right after you: per Area, the files and modules involved and where new code goes; the build, test and lint commands; conventions to follow; what must exist before what; risks. Facts and constraints you found, not a task list.'),
+});
+export type BriefSkeleton = z.infer<typeof BriefSkeleton>;
+
+/** What the planner session returns: the task plan for every Area of a Brief skeleton, with task-level checks and the estimate. */
+export const PlanOutput = z.object({
+  tasks: z.array(OutputTask).min(1),
+  checks: z.array(OutputCheck.extend({ taskKey: z.string().describe('Key of the task this check belongs to.') })).describe('Task-level checks: the test, typecheck or lint command a task must make pass, or a reviewer rubric for a task whose result is judged rather than run.'),
+  costEstimateUsd: z.number(),
+  timeEstimateMin: z.number(),
+});
+export type PlanOutput = z.infer<typeof PlanOutput>;
+
+/**
+ * What a Clarify interview session emits per turn: a round of questions (brief null), or the Brief skeleton (questions
+ * empty). Lenient parsing in the engine also accepts a bare skeleton, or a whole Brief with its tasks.
  */
 export const InterviewOutput = z.object({
   questions: z
@@ -270,7 +293,7 @@ export const InterviewOutput = z.object({
       }),
     )
     .describe('This round: every decision you can ask about NOW, at most 8, most consequential first. Empty when you write the Brief.'),
-  brief: BriefOutput.nullable().describe('The Brief, once nothing is left to ask (or the human said enough); null while asking.'),
+  brief: BriefSkeleton.nullable().describe('The Brief (without tasks: the planner adds them), once nothing is left to ask or the human said enough; null while asking.'),
 });
 export type InterviewOutput = z.infer<typeof InterviewOutput>;
 

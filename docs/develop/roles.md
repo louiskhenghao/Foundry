@@ -26,8 +26,8 @@ Dollar caps below apply only to Claude, whose native protocol reports cost. Code
 
 | Role file | Session (code) | Preset action | Tools | Output |
 |---|---|---|---|---|
-| `clarifier.md` | Clarify + Interview (`clarify.ts` `prepareClarify`); Draft and Revise (`brief-draft.ts` `runDraft`) | `clarifier` | read-only | `InterviewOutput` or `BriefOutput`; Draft: `TaskDraftOutput` / `AreaDraftOutput` / `RevisionOutput` |
-| `planner.md` | Claude: native `planner` sub-agent; Codex: separate Foundry-managed session | `planner` | read-only | Claude hands JSON to the Clarifier; Codex validates `PlannerOutput` and passes its task proposal to the Clarifier |
+| `clarifier.md` | Clarify + Interview (`clarify.ts` `prepareClarify`); Draft and Revise (`brief-draft.ts` `runDraft`) | `clarifier` | read-only | `InterviewOutput` (its `brief` a `BriefSkeleton`) or `BriefSkeleton`; Draft: `TaskDraftOutput` / `AreaDraftOutput` / `RevisionOutput` |
+| `planner.md` | a separate Foundry-managed session right after the Clarifier's Brief (`planTasks`), both backends | `planner` | read-only | `PlanOutput`: tasks, task-level checks and the estimate, merged into the Brief as written |
 | `worker.md` | every work Attempt (`attempt-loop.ts` `runAttempt`), including fix tasks and delivery `fix-ci` tasks | `simple` / `standard` / `complex` by Difficulty | `workerTools(mcpAllowed)` | free text summary; the engine commits and runs the Checks |
 | `reviewer-task.md` | Task reviewer (`checks/reviewer.ts` `reviewTaskDiff`) | `taskReviewer` | read-only | `ReviewerVerdict` `{ pass, blockers[], notes? }` |
 | `reviewer-goal.md` | Goal reviewer (`goal-review.ts` `reviewGoal`) | `goalReviewer`, or `taskReviewer` for small goals | read-only | `GoalReviewOutput` `{ mustVerdicts[], stretchVerdicts[], fixTasks[], notes }` |
@@ -39,7 +39,7 @@ Dollar caps below apply only to Claude, whose native protocol reports cost. Code
 
 ### Clarifier (`roles/clarifier.md`)
 
-**Drives** the only conversation with the human before approval. The session explores the repository read-only, runs the Interview in rounds when the goal has one, lists Areas, reviews the Planner’s task proposal, defines Must and Stretch Checks, marks 1–3 milestones, rates Difficulty, sets Task Kind and Scenario, and estimates time (plus Claude USD cost where available).
+**Drives** the only conversation with the human before approval. The session explores the repository read-only, runs the Interview in rounds when the goal has one, lists Areas, defines the goal-level Must and Stretch Checks, and writes `planningNotes` for the Planner. It never writes tasks.
 
 **Input.** `buildClarifyPrompt` in `clarify.ts` assembles:
 
@@ -54,19 +54,13 @@ Dollar caps below apply only to Claude, whose native protocol reports cost. Code
 
 The session runs with `CLARIFY_MAX_TURNS = 90` and `CLARIFY_MAX_BUDGET_USD = 6`, and its transcript goes to `data/transcripts/clarify-<goalId>.jsonl`.
 
-**Output.** With an interview, `InterviewOutput = { questions[], brief | null }`: questions to ask a round, or the Brief. Without one, `BriefOutput` (`core/src/schema/brief.ts`). `settle()` handles the result: a schema repair turn, a "no more questions" turn at the round cap, and a coverage repair turn when an Area has no task. The engine adds the dirty-repo question, the interview Decisions, the style question (generated from `styleOptions`) and "Area has no tasks" questions itself.
+**Output.** With an interview, `InterviewOutput = { questions[], brief | null }`: questions to ask a round, or the Brief skeleton. Without one, `BriefSkeleton` (`core/src/schema/brief.ts`): the Brief without tasks, task checks and estimate, plus `goalChecks` and `planningNotes`. `settle()` handles the result: a schema repair turn, a "no more questions" turn at the round cap, then `planTasks` and `mergePlan`. A whole `BriefOutput` with tasks is still accepted (no Planner then, and a coverage repair turn when an Area has no task). The engine adds the dirty-repo question, the interview Decisions, the style question (generated from `styleOptions`) and "Area has no tasks" questions itself.
 
 **Draft and Revise** reuse this role with their own prompts (`buildDraftPrompt`) and schemas. Draft: `DRAFT_MAX_TURNS = 25`, `$2`. Revise: `REVISE_MAX_TURNS = 40`, `$3`. Revise resumes the interview session when there is one.
 
 ### Planner (`roles/planner.md`)
 
-**Drives** the Task DAG: 1–6 tasks per Area, tracer-bullet slices, explicit `dependsOnKeys`, disjoint `relevantFiles` for parallel tasks, groundwork in the `shared` Area. For Claude, `prepareClarify` registers it as a native sub-agent:
-
-```ts
-agents: { planner: { description: 'Plans the task DAG for a goal. ...', prompt: roles.text('planner') + plannerHint, model: modelFor(config, goal, 'planner').model } }
-```
-
-Claude hands the JSON answer back to the Clarifier. For Codex, Foundry starts a separate read-only session with the Planner model and effort, validates `PlannerOutput` (`BriefOutput.pick({ tasks: true })`) and hands that proposal to the Clarifier. The Clarifier reviews the proposal and produces the final Brief; native Codex child-agent creation stays disabled.
+**Drives** the Task DAG: 1–6 tasks per Area, tracer-bullet slices, explicit `dependsOnKeys`, disjoint `relevantFiles` for parallel tasks, groundwork in the `shared` Area, 1–3 milestones, task-level checks and the estimate. `planTasks` in `clarify.ts` runs it as its own read-only session with the Planner model and effort, for both backends, once the Clarifier has written its Brief skeleton (ADR-0028). `buildPlannerPrompt` gives it the goal, the interview answers, the nature rules, the overview, the skeleton and the Clarifier's `planningNotes`. Its `PlanOutput` goes into the Brief as written (`mergePlan`); an unusable plan gets one more try in the same session, an Area without tasks one repair turn, and a plan that never comes leaves one task per Area and a blocking question. `PLANNER_MAX_TURNS = 45`, `$4`.
 
 ### Worker (`roles/worker.md`)
 

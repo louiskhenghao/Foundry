@@ -64,7 +64,7 @@ const briefWith = (tasks: BriefOutput['tasks'], checks: BriefOutput['checks']): 
 const cfg = () => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, log: () => {} });
 
 describe('clarify coverage gate', () => {
-  test('an Area without tasks triggers one repair turn in the same session; the repaired Brief is kept', async () => {
+  test('a whole Brief from the Clarifier with an Area without tasks gets one repair turn in the same session; the repaired Brief is kept', async () => {
     const runner = new StructuredRunner((spec, n) => (n === 1 ? briefWith([task('T1', 'A1', 'add student home')], [check('C1', 'T1'), check('G1', null, 'A1')]) : briefWith([task('T1', 'A1', 'add student home'), { ...task('T2', 'A2', 'add teacher home', ['T1']), difficulty: 'complex' as const }], [check('C1', 'T1'), check('C2', 'T2'), check('G1', null, 'A1')])));
     const engine = track(new Engine(cfg(), runner));
     const goal = await engine.createGoal({ prompt: 'student and teacher portals', repoPath: repo });
@@ -74,7 +74,7 @@ describe('clarify coverage gate', () => {
     expect(main).toHaveLength(2);
     expect(main[1]!.resumeSessionId).toBe('s2'); // resumes the clarify session (s1 was the classification)
     expect(main[1]!.prompt).toContain('"Teacher portal" (A2)');
-    expect(main[0]!.prompt).toContain('every Area MUST have at least one task');
+    expect(main[0]!.prompt).toContain('a planner session splits the goal into tasks right after you');
     const brief = getBrief(engine.store.db, goal.id)!.brief;
     expect(brief.areas.map((a) => a.key)).toEqual(['A1', 'A2']);
     expect(brief.tasks.map((t) => [t.key, t.areaKey])).toEqual([['T1', 'A1'], ['T2', 'A2']]);

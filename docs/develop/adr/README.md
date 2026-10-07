@@ -17,12 +17,12 @@ record is never rewritten when a later decision changes it; its status says what
 | [0010](0010-self-update-via-docker-hub-and-watchtower.md) | Self-update: Docker Hub as version source, watchtower as the docker updater | accepted · 2026-08-28 |
 | [0011](0011-progress-folders-next-to-the-repo.md) | Progress folders next to the repository | accepted · 2026-09-14 |
 | [0012](0012-milestones-previews-and-the-self-check.md) | Milestones, previews and the headless self-check | accepted · 2026-09-14 · preview amended by ADR-0021 |
-| [0013](0013-clarify-interview-in-rounds.md) | Clarify interviews the human in rounds | accepted · 2026-09-14 · amended by ADR-0027 |
+| [0013](0013-clarify-interview-in-rounds.md) | Clarify interviews the human in rounds | accepted · 2026-09-14 · amended by ADR-0027 and ADR-0028 |
 | [0014](0014-model-presets-per-goal-nature.md) | Model presets per goal nature | accepted · 2026-09-24 · supersedes the tier parts of ADR-0006; amended by ADR-0018 |
 | [0015](0015-bring-merged-work-to-the-local-checkout.md) | Bring merged work to the local checkout, then tidy up | accepted · 2026-09-25 · amends the user-only base-branch rule |
 | [0016](0016-mcp-servers-allowed-per-server.md) | MCP servers: listed from Claude Code's config, installed at user scope, allowed in goals per server | accepted · 2026-09-28 · amended by ADR-0019 |
 | [0017](0017-goal-provider-and-account-isolation.md) | Fixed goal providers, independent accounts and capability-aware reporting | accepted · 2026-10-04 · amended by ADR-0018 and ADR-0019 |
-| [0018](0018-codex-role-presets-and-model-discovery.md) | Codex role presets, native model discovery and captured goal settings | accepted · 2026-10-04 |
+| [0018](0018-codex-role-presets-and-model-discovery.md) | Codex role presets, native model discovery and captured goal settings | accepted · 2026-10-04 · amended by ADR-0028 |
 | [0019](0019-provider-scoped-extensions-and-native-status.md) | Provider-scoped extensions, native account quota and read-only history | accepted · 2026-10-04 · amended by ADR-0020 |
 | [0020](0020-native-plugin-lifecycle-and-account-ownership.md) | Native plugin lifecycle and server-owned account commands | accepted · 2026-10-04 |
 | [0021](0021-multi-app-previews-and-compose-services.md) | Several apps per preview, and the compose services they need | accepted · 2026-10-05 · amends ADR-0012 |
@@ -32,3 +32,4 @@ record is never rewritten when a later decision changes it; its status says what
 | [0025](0025-finished-previews-may-run-in-the-checkout.md) | A finished goal's preview may run in the person's checkout | accepted · 2026-10-07 |
 | [0026](0026-tailnet-links-and-served-previews.md) | Messages link on the tailnet, and Foundry serves preview ports there | accepted · 2026-10-07 |
 | [0027](0027-interview-depth.md) | The interview has a depth, not a round count | accepted · 2026-10-07 · amends ADR-0013 |
+| [0028](0028-planner-writes-the-plan-once.md) | The planner writes the task plan once, in a session of its own | accepted · 2026-10-08 · amends ADR-0013 and ADR-0018 |

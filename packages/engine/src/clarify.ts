@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import type { Brief, Goal, GoalNature, Interview, InterviewQuestion, InterviewRound, TaskScenario } from '@foundry/core';
-import { BriefOutput, INTERVIEW_MAX_QUESTIONS, INTERVIEW_MAX_ROUNDS, IdPrefix, InterviewOutput, getGoal, interviewAnswers, interviewDepth, newId, uncoveredAreas } from '@foundry/core';
+import { BriefOutput, BriefSkeleton, INTERVIEW_MAX_QUESTIONS, PlanOutput, INTERVIEW_MAX_ROUNDS, IdPrefix, InterviewOutput, getGoal, interviewAnswers, interviewDepth, newId, uncoveredAreas } from '@foundry/core';
 import type { RunHandle, RunResult } from '@foundry/runner';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
@@ -68,8 +68,8 @@ export function isEmptyRepo(ws: string): boolean {
 /** Multi-Area goals need more turns and budget than the old "1–6 tasks" briefs. */
 export const CLARIFY_MAX_TURNS = 90;
 export const CLARIFY_MAX_BUDGET_USD = 6;
-const CODEX_PLANNER_MAX_TURNS = 45;
-const PlannerOutput = BriefOutput.pick({ tasks: true });
+const PLANNER_MAX_TURNS = 45;
+const PLANNER_MAX_BUDGET_USD = 4;
 
 /** Everything one Clarify session needs; the interview's later rounds resume the session and rebuild this only to recover a lost one. */
 interface ClarifyContext {
@@ -80,7 +80,7 @@ interface ClarifyContext {
   /** engine-made questions (dirty repo …) that ride into the Brief */
   extraQuestions: Brief['questions'];
   run: (p: string, resume?: string) => Promise<RunHandle>;
-  planner?: { model: string; run: (brief: BriefOutput) => Promise<RunHandle> };
+  planner: { model: string; run: (skeleton: BriefSkeleton, resume?: { sessionId: string; message: string }) => Promise<RunHandle> };
 }
 
 async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContext> {
@@ -128,7 +128,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
   const previous = goal.follows?.context ? [goal.follows.context, startSentence(synced)].filter(Boolean).join('\n') : '';
   const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview ? interviewDepth(goal.interview) : null, previous);
   const addDirs = goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined;
-  const schema = zodToJsonSchema(goal.interview ? InterviewOutput : BriefOutput, { $refStrategy: 'none' });
+  const schema = zodToJsonSchema(goal.interview ? InterviewOutput : BriefSkeleton, { $refStrategy: 'none' });
   const transcriptPath = join(config.dataDir, 'transcripts', `clarify-${goal.id}.jsonl`);
   const classifiedGoal = { ...goal, nature };
   const clarifierModel = modelFor(config, classifiedGoal, 'clarifier');
@@ -145,9 +145,6 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
       allowedTools: READONLY_TOOLS,
       disallowedTools: READONLY_DISALLOWED,
       appendSystemPromptFile: engine.roles.path('clarifier'),
-      agents: codex ? undefined : { planner: { description: 'Plans the task DAG for a goal. Use after exploring the repo.', prompt: engine.roles.text('planner') + (plannerHint ? `
-
-${plannerHint}` : ''), model: modelFor(config, classifiedGoal, 'planner').model } },
       jsonSchema: schema,
       settings: boundarySettings(config.hooksDir),
       settingSources: config.settingSources,
@@ -160,55 +157,89 @@ ${plannerHint}` : ''), model: modelFor(config, classifiedGoal, 'planner').model 
       label: `clarify ${goal.title}`,
     });
   const plannerModel = modelFor(config, classifiedGoal, 'planner');
-  const planner = codex ? {
+  const planner = {
     model: plannerModel.model,
-    run: (brief: BriefOutput) => engine.runner.run({
-      prompt: [
-        '# Clarification context (reference only; your output is the task proposal below)', prompt,
-        goal.interview ? interviewSoFar(goal.interview) : '',
-        `# Candidate Brief from the Clarifier\n${JSON.stringify(brief)}`,
-        plannerHint ?? '',
-        '# Your task\nInspect the repository read-only and propose the task DAG for every Area in the candidate Brief. Honour the human decisions and scope above. You are an advisory planner: do not interview the human, implement changes, or approve the Brief. Return only {"tasks": [...]} matching the schema. The Clarifier will review your proposal and owns the final Brief.',
-      ].filter(Boolean).join('\n\n'),
-      cwd: ws,
-      model: plannerModel.model,
-      meta: metaFor(goal.id, plannerModel),
-      maxTurns: CODEX_PLANNER_MAX_TURNS,
-      maxBudgetUsd: 3,
-      permissionMode: 'dontAsk',
-      allowedTools: READONLY_TOOLS,
-      disallowedTools: READONLY_DISALLOWED,
-      appendSystemPromptFile: engine.roles.path('planner'),
-      jsonSchema: zodToJsonSchema(PlannerOutput, { $refStrategy: 'none' }),
-      settings: boundarySettings(config.hooksDir),
-      settingSources: config.settingSources,
-      // Clarify only reads the repository: no MCP servers (mail, calendars, browsers…) to load into every turn
-      strictMcp: true,
-      addDirs,
-      timeoutMs: 10 * 60_000,
-      transcriptPath: join(config.dataDir, 'transcripts', `planner-${goal.id}.jsonl`),
-      label: `planner ${goal.title}`,
-    }),
-  } : undefined;
+    run: (skeleton: BriefSkeleton, resume?: { sessionId: string; message: string }) =>
+      engine.runner.run({
+        prompt: resume ? resume.message : buildPlannerPrompt({ ...goal, nature }, skeleton, { overview, attachments: renderAttachments(goal, config.dataDir), decisions, interview: goal.interview, emptyRepo: isEmptyRepo(ws), imageGen: engine.imageGenAvailable(), previous, plannerHint }),
+        cwd: ws,
+        model: plannerModel.model,
+        meta: metaFor(goal.id, plannerModel),
+        maxTurns: PLANNER_MAX_TURNS,
+        maxBudgetUsd: PLANNER_MAX_BUDGET_USD,
+        permissionMode: 'dontAsk',
+        allowedTools: READONLY_TOOLS,
+        disallowedTools: READONLY_DISALLOWED,
+        appendSystemPromptFile: engine.roles.path('planner'),
+        jsonSchema: zodToJsonSchema(PlanOutput, { $refStrategy: 'none' }),
+        settings: boundarySettings(config.hooksDir),
+        settingSources: config.settingSources,
+        strictMcp: true,
+        addDirs,
+        resumeSessionId: resume?.sessionId,
+        timeoutMs: 20 * 60_000,
+        idleTimeoutMs: 10 * 60_000,
+        transcriptPath: join(config.dataDir, 'transcripts', `planner-${goal.id}.jsonl`),
+        label: `planner ${goal.title}`,
+      }),
+  };
   return { ws, prompt, wasAuto, nature, extraQuestions, run, planner };
 }
 
-/** One separate Codex planner session, after the interview has yielded a candidate Brief. */
-async function planCodexTasks(engine: Engine, goal: Goal, ctx: ClarifyContext, brief: BriefOutput): Promise<string> {
-  const planner = ctx.planner!;
-  const handle = await planner.run(brief);
-  for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: `clarify-${goal.id}`, event: ev, ts: new Date().toISOString() });
-  const result = await handle.result;
-  engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source: 'planner' } });
-  engine.recordSessionUsage(result, { goalId: goal.id, kind: 'planner', model: planner.model });
-  if (result.subtype !== 'success' || result.isError) throw new Error(`Codex planner failed: ${result.errorMessage ?? result.subtype}`);
-  const proposal = PlannerOutput.safeParse(result.structuredOutput ?? tryJson(result.finalText));
-  if (!proposal.success) throw new Error(`Codex planner returned an invalid task proposal: ${proposal.error.issues.slice(0, 3).map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
-  return JSON.stringify(proposal.data);
+/**
+ * The planner session: the task plan for every Area of the Clarifier's Brief, with task-level checks and the estimate,
+ * written once (the Clarifier never re-types it). An Area left without tasks gets one repair turn in the same session.
+ * null when no usable plan came back.
+ */
+async function planTasks(engine: Engine, goal: Goal, ctx: ClarifyContext, skeleton: BriefSkeleton): Promise<PlanOutput | null> {
+  const { store } = engine;
+  const run = async (resume?: { sessionId: string; message: string }): Promise<{ plan: PlanOutput | null; result: RunResult }> => {
+    const handle = await ctx.planner.run(skeleton, resume);
+    for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: `clarify-${goal.id}`, event: ev, ts: new Date().toISOString() });
+    const result = await handle.result;
+    store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source: 'planner' } });
+    engine.recordSessionUsage(result, { goalId: goal.id, kind: 'planner', model: ctx.planner.model });
+    const parsed = PlanOutput.safeParse(result.structuredOutput ?? tryJson(result.finalText));
+    return { plan: parsed.success && !result.isError ? parsed.data : null, result };
+  };
+  store.append({ type: 'clarify.stage', goalId: goal.id, payload: { stage: 'planning' } });
+  let { plan, result } = await run();
+  if (!plan && result.sessionId) ({ plan, result } = await run({ sessionId: result.sessionId, message: 'No usable plan came back (it ended early or did not match the required JSON schema). Output ONLY the plan JSON now: {"tasks": [...], "checks": [...], "costEstimateUsd": n, "timeEstimateMin": n}.' }));
+  if (!plan) {
+    store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `the planner returned no usable plan (${result.errorMessage ?? result.subtype})` } });
+    return null;
+  }
+  const missing = uncoveredAreas({ areas: skeleton.areas, tasks: plan.tasks });
+  if (missing.length && result.sessionId) {
+    const repaired = await run({ sessionId: result.sessionId, message: coverageRepairMessage(missing) });
+    if (repaired.plan) plan = repaired.plan;
+  }
+  return plan;
+}
+
+/** The Clarifier's Brief and the planner's plan as one Brief: goal-level and task-level checks together, keys kept unique */
+export function mergePlan(skeleton: BriefSkeleton, plan: PlanOutput): BriefOutput {
+  const { goalChecks, planningNotes: _notes, ...rest } = skeleton;
+  const taskChecks = plan.checks.filter((c) => plan.tasks.some((t) => t.key === c.taskKey));
+  const used = new Set(taskChecks.map((c) => c.key));
+  const goalLevel = goalChecks.map((c) => {
+    let key = c.key;
+    for (let i = 2; used.has(key); i++) key = `${c.key}-${i}`;
+    used.add(key);
+    return { ...c, key, taskKey: null };
+  });
+  return { ...rest, tasks: plan.tasks, checks: [...taskChecks, ...goalLevel], costEstimateUsd: plan.costEstimateUsd, timeEstimateMin: plan.timeEstimateMin };
+}
+
+/** No plan came back: one task per Area from the Clarifier's notes, and a blocking question so the human sees why */
+function unplanned(skeleton: BriefSkeleton): BriefOutput {
+  const tasks = skeleton.areas.map((a, i) => ({ key: `T${i + 1}`, title: `build ${a.name}`.slice(0, 60), spec: `${a.description}\n\n${skeleton.planningNotes}`, kind: 'feature' as const, scenario: 'general' as const, areaKey: a.key, dependsOnKeys: [], parallelizable: false, relevantFiles: [], difficulty: 'standard' as const }));
+  return mergePlan({ ...skeleton, openQuestions: [...skeleton.openQuestions, { text: 'The planner could not split this goal into tasks, so each Area is one task for now. Draft tasks for an Area on this page, or edit them, then answer "ok" here.', blocking: true, areaKey: null, options: [] }] }, { tasks, checks: [], costEstimateUsd: 0, timeEstimateMin: 0 });
 }
 
 /** run one Clarify turn (fresh or resumed), streaming it to the goal's clarify channel and booking its cost */
 async function turn(engine: Engine, goal: Goal, ctx: ClarifyContext, message: string, resume: string | undefined, source: string): Promise<RunResult> {
+  engine.store.append({ type: 'clarify.stage', goalId: goal.id, payload: { stage: 'clarifying' } });
   const handle = await ctx.run(message, resume);
   for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: `clarify-${goal.id}`, event: ev, ts: new Date().toISOString() });
   const result = await handle.result;
@@ -332,13 +363,20 @@ async function settle(engine: Engine, goal: Goal, ctx: ClarifyContext, first: Ru
   const { store } = engine;
   let result = first;
   const iv = goal.interview;
-  const parseTurn = (raw: unknown): { questions: InterviewOutput['questions']; brief: BriefOutput | null } | null => {
+  // a round of questions, the Brief skeleton (the planner adds the tasks), or a whole Brief a model wrote with its tasks
+  type Turn = { questions: InterviewOutput['questions']; brief: BriefSkeleton | null; full: BriefOutput | null };
+  const parseTurn = (raw: unknown): Turn | null => {
     if (iv) {
       const p = InterviewOutput.safeParse(raw);
-      if (p.success) return p.data;
+      if (p.success) return { questions: p.data.questions, brief: p.data.brief, full: null };
     }
-    const b = BriefOutput.safeParse(raw);
-    return b.success ? { questions: [], brief: b.data } : null;
+    const wrapped = raw && typeof raw === 'object' && 'brief' in raw ? (raw as { brief: unknown; questions?: unknown }) : null;
+    const inner = wrapped ? wrapped.brief : raw;
+    const questions = iv && wrapped && Array.isArray(wrapped.questions) ? (InterviewOutput.shape.questions.safeParse(wrapped.questions).data ?? []) : [];
+    const s = BriefSkeleton.safeParse(inner);
+    if (s.success) return { questions, brief: s.data, full: null };
+    const b = BriefOutput.safeParse(inner);
+    return b.success ? { questions, brief: null, full: b.data } : null;
   };
   let out = parseTurn(result.structuredOutput ?? tryJson(result.finalText));
   if (!out && result.sessionId) {
@@ -349,34 +387,29 @@ async function settle(engine: Engine, goal: Goal, ctx: ClarifyContext, first: Ru
   }
 
   // a round of questions: the goal waits for the human
-  if (iv && out && out.questions.length && !out.brief && canAskMore(iv)) {
+  if (iv && out && out.questions.length && !out.brief && !out.full && canAskMore(iv)) {
     const questions = normalizeQuestions(iv, out.questions);
     store.append({ type: 'interview.round_asked', goalId: goal.id, payload: { round: iv.rounds.length + 1, sessionId: result.sessionId ?? null, questions } });
     return;
   }
   // questions came back although no more rounds are allowed: one more turn to get the Brief
-  if (iv && out && !out.brief && result.sessionId) {
+  if (iv && out && !out.brief && !out.full && result.sessionId) {
     result = await turn(engine, goal, ctx, 'No more questions can be asked. Write the Brief now with assumptions for everything still open; `questions` must be empty. Output the JSON only.', result.sessionId, 'clarify-repair');
     out = parseTurn(result.structuredOutput ?? tryJson(result.finalText));
   }
 
-  let parsed: BriefOutput | null = out?.brief ?? null;
-  if (parsed && ctx.planner) {
-    // Question rounds and schema/coverage repairs never start another planner session.
-    const proposal = await planCodexTasks(engine, goal, ctx, parsed);
-    const advisory = `# Advisory task proposal from the Foundry planner\n${proposal}\n\nReview this proposal against the goal, repository and human decisions. You remain responsible for the Brief: accept, amend or reject the proposed tasks as appropriate, preserve the agreed scope and decisions, and update checks/dependencies to match. Return the complete final Brief JSON (${iv ? '`questions` empty and `brief` populated' : 'the Brief object'}). Do not delegate to another planner.`;
-    const message = result.sessionId ? advisory : `${ctx.prompt}\n\n${iv ? interviewSoFar(iv) : ''}\n\n# Candidate Brief\n${JSON.stringify(parsed)}\n\n${advisory}`;
-    result = await turn(engine, goal, ctx, message, result.sessionId ?? undefined, 'clarify-planner-review');
-    const reviewed = parseTurn(result.structuredOutput ?? tryJson(result.finalText));
-    if (result.subtype !== 'success' || result.isError || !reviewed?.brief) throw new Error(`Codex clarifier could not review the planner proposal: ${result.errorMessage ?? (result.subtype !== 'success' || result.isError ? result.subtype : 'invalid Brief output')}`);
-    parsed = reviewed.brief;
-  }
-  if (parsed && result.sessionId) {
+  // the Clarifier wrote everything but the plan: the planner adds it, once
+  let parsed: BriefOutput | null = out?.full ?? null;
+  if (out?.brief) {
+    const plan = await planTasks(engine, goal, ctx, out.brief);
+    parsed = plan ? mergePlan(out.brief, plan) : unplanned(out.brief);
+  } else if (parsed && result.sessionId) {
+    // a whole Brief (tasks included) from the Clarifier itself: it repairs an Area it left without tasks
     const missing = uncoveredAreas({ areas: parsed.areas, tasks: parsed.tasks });
     if (missing.length) {
-      const r2 = await turn(engine, goal, ctx, coverageRepairMessage(missing, !!ctx.planner), result.sessionId, 'clarify-coverage');
+      const r2 = await turn(engine, goal, ctx, coverageRepairMessage(missing, 'Brief'), result.sessionId, 'clarify-coverage');
       const repaired = parseTurn(r2.structuredOutput ?? tryJson(r2.finalText));
-      if (repaired?.brief) parsed = repaired.brief;
+      if (repaired?.full) parsed = repaired.full;
       else store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `coverage repair did not return a valid Brief; keeping the first one (${missing.map((a) => a.name).join(', ')} uncovered)` } });
     }
   }
@@ -455,7 +488,6 @@ function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true): string 
 }
 
 function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: string | null = null, attachments = '', decisions = '', emptyRepo = false, imageGen = true, interview: number | null = null, previous = ''): string {
-  const planInstruction = goal.provider === 'codex' ? 'draft tasks for each Area (Foundry will run a separate advisory planner after your candidate Brief and return its proposal for you to review)' : 'use the `planner` agent to split each Area into tasks';
   return [
     interview ? interviewSection(interview) : '',
     `# Goal from the user\n${goal.prompt}`,
@@ -465,10 +497,28 @@ function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: str
     attachments ? `${attachments}\nWhen an attachment matters for a specific task, name it (by file name) in that task's spec.` : '',
     overview ? `# Repository overview\n${overview}` : '',
     skillsHint ?? '',
-    `# Your job\nExplore this repository (read-only) enough to understand how the goal should be implemented here: build/test commands, conventions, the files involved. Then list the **Areas** the goal covers, ${planInstruction}, and produce the Brief as JSON matching the schema.\n\nRequirements for the Brief:\n- **Areas first.** Read the goal and every attachment and enumerate the parts of the product it covers: one Area per user-facing role or app it names (e.g. student portal, teacher portal, school admin, system admin), plus a \`shared\` Area for groundwork all of them need (data model, auth, layout). A small goal has exactly one Area. Every Area listed in your understanding MUST appear in \`areas\`, and **every Area MUST have at least one task** — a Brief that mentions four apps and plans only one is wrong.\n- **Tasks per Area: 1–6.** There is no limit on the total; the limit is per Area. Each task must be completable by one engineer-session without talking to anyone; give concrete file paths in relevantFiles; set \`areaKey\` on every task. Tasks of the shared Area come first and the others depend on them.\n- **Must checks** come ONLY from what the user explicitly asked for plus the repo's existing quality gates (its test/typecheck/lint/build commands, if any). Every command check must be a real command that works in this repo from its root.\n- **Stretch checks** are improvements you propose on top (docs, edge-case tests, performance, accessibility…). Never fold them into must.\n- Tasks that touch disjoint files can be parallelizable; tasks that must build on each other use dependsOnKeys.\n- Put test/typecheck/lint commands as task-level checks on the task that must make them pass, AND as goal-level checks (taskKey null) so the merged result is verified. Give each goal-level check that verifies one Area that Area's \`areaKey\`; repo-wide gates keep null.\n- Prefer assumptions over questions. A question is blocking only if a wrong guess would waste the whole goal.
-- Set each task's \`kind\`: bug (something is broken — the worker must reproduce it first), feature, refactor, research (a spike whose output is knowledge), chore.
-- Set each task's \`scenario\` (frontend / backend / fullstack / data / mobile / infra / docs / research / image / video / general): it decides which specialised skills the worker is handed — UI work gets the design skills, media work the image/video skills — so be precise and never leave a UI or media task as "general".
-- Commits and pull requests follow Conventional Commits. Each task's \`title\` is its commit subject: imperative, ≤ 60 chars, no trailing period, NO type prefix (the type comes from \`kind\`); \`scope\` defaults to the Area's slug — set it only when a narrower module name is obviously better. \`title\` (top level) is one Conventional Commits header for the whole goal (e.g. \`feat(site): add resort landing page\`) — it becomes the PR title. Write titles in the language of the repository's recent commits (see the overview); default to English.`,
+    `# Your job\nExplore this repository (read-only) enough to understand how the goal should be implemented here: build/test commands, conventions, the files involved. Then write the Brief as JSON matching the schema — everything except the task plan: a planner session splits the goal into tasks right after you, from your Brief and your \`planningNotes\`. Do not write tasks.\n\nRequirements for the Brief:\n- **Areas first.** Read the goal and every attachment and enumerate the parts of the product it covers: one Area per user-facing role or app it names (e.g. student portal, teacher portal, school admin, system admin), plus a \`shared\` Area for groundwork all of them need (data model, auth, layout). A small goal has exactly one Area. Every Area listed in your understanding MUST appear in \`areas\`; the planner gives each at least one task.\n- **\`goalChecks\`** verify the merged result. *Must* = ONLY what the user explicitly asked for plus the repo's existing quality gates (its test/typecheck/lint/build commands, if any); every command must be a real command that works in this repo from its root. *Stretch* = improvements you propose on top (docs, edge-case tests, performance, accessibility…); never fold them into must. Give a check that verifies one Area that Area's \`areaKey\`.\n- **\`planningNotes\`** carry what the planner needs and should not have to rediscover: per Area, the files and modules involved and where new code goes; the build, test and lint commands; conventions (naming, test layout, the language of commit messages); what must exist before what; risks; and how the rules above shape the tasks (scaffolding first in an empty repository, deliverable batches for media). Facts and constraints, not a task list; a few hundred words.\n- Prefer assumptions over questions. A question is blocking only if a wrong guess would waste the whole goal.\n- \`title\` is one Conventional Commits header for the whole goal (e.g. \`feat(site): add resort landing page\`) — it becomes the PR title. Write it in the language of the repository's recent commits (see the overview); default to English.`,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+/** The planner's prompt: what the Clarifier learned and wrote, and the rules for splitting it into tasks. */
+export function buildPlannerPrompt(goal: Goal, skeleton: BriefSkeleton, c: { overview: string | null; attachments: string; decisions: string; interview: Interview | null; emptyRepo: boolean; imageGen: boolean; previous: string; plannerHint: string | null }): string {
+  const { planningNotes, ...brief } = skeleton;
+  const answers = c.interview ? interviewAnswers(c.interview) : [];
+  return [
+    `# Goal from the user\n${goal.prompt}`,
+    c.decisions ? `${c.decisions}\nThese are settled: plan with them.` : '',
+    answers.length ? `# The human's answers in the interview (settled)\n${answers.map(({ question, answer }) => `- ${question.text}\n  A: ${answer}`).join('\n')}` : '',
+    c.previous,
+    natureSection(goal, c.emptyRepo, c.imageGen),
+    c.attachments,
+    c.overview ? `# Repository overview\n${c.overview}` : '',
+    `# The Brief from the Clarifier\nAreas, assumptions and goal-level checks are settled; plan within them.\n\`\`\`json\n${JSON.stringify(brief, null, 1)}\n\`\`\``,
+    `# Planning notes from the Clarifier\n${planningNotes}`,
+    c.plannerHint ?? '',
+    `# Your job\nSplit the goal into tasks for EVERY Area of the Brief and return the plan as JSON matching the schema: \`tasks\`, their task-level \`checks\`, and the estimate (\`costEstimateUsd\`, \`timeEstimateMin\`). The notes above are the Clarifier's findings: read the repository (read-only) only where they leave a file, command or convention open. Do not interview anyone and do not change files.\n- Put the test/typecheck/lint commands on the task that must make them pass (the goal-level checks above already verify the merged result); a task whose result is judged rather than run gets a reviewer check with a precise rubric.\n- Mark 1–3 \`milestone\` tasks after which a person can see or try something for the first time; null for every other task.\n- Each task's \`title\` is its Conventional Commits subject: imperative, ≤ 60 chars, no trailing period, no type prefix, in the language of the repository's recent commits; \`scope\` defaults to the Area's slug.\nOutput the JSON only.`,
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -498,8 +548,8 @@ You may ask the human questions in rounds before writing the Brief — the way a
 - Output per turn: either \`{"questions": [...], "brief": null}\` to ask a round, or \`{"questions": [], "brief": {...}}\` with the Brief. Write questions in the language of the goal.`;
 }
 
-export function coverageRepairMessage(missing: { key: string; name: string }[], managedPlanner = false): string {
-  return `The Brief you produced lists the Area(s) ${missing.map((a) => `"${a.name}" (${a.key})`).join(', ')} but plans no task for ${missing.length === 1 ? 'it' : 'them'}. Add 1–6 tasks (with their checks, areaKey set) for each of these Areas — ${managedPlanner ? 'use the advisory task proposal already provided where relevant' : 'use the planner agent again if needed'}. Drop an Area only if the goal really does not ask for it, and say so in the understanding. Output the complete Brief JSON again, nothing else.`;
+export function coverageRepairMessage(missing: { key: string; name: string }[], output: 'plan' | 'Brief' = 'plan'): string {
+  return `The Area(s) ${missing.map((a) => `"${a.name}" (${a.key})`).join(', ')} got no task. Add 1–6 tasks (with their checks, areaKey set) for each of them; every Area must have at least one. Output the complete ${output} JSON again, nothing else.`;
 }
 
 /** Map an LLM check (flat) to a BriefCheck spec. Shared by Clarify and Draft. */
