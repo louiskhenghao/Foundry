@@ -172,7 +172,7 @@ export function Card({ children, className, bodyClassName, title, actions, id, o
       {(title || actions || onClose) && (
         <header className={cn('relative flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2.5 border-b border-zinc-800', onClose && 'pr-12')}>
           <h3 className="text-sm font-semibold text-zinc-200 min-w-0 grow shrink basis-56">{title}</h3>
-          {actions && <div className="flex flex-wrap items-center gap-2 ml-auto">{actions}</div>}
+          {actions && <div className="flex flex-wrap items-center gap-2 shrink-0 max-w-full ml-auto">{actions}</div>}
           {onClose && (
             <button type="button" className="absolute top-2 right-2 rounded p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800" onClick={onClose} aria-label="close">
               <X size={15} />
