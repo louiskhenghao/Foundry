@@ -35,8 +35,10 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 - 一句话说明正在发生什么，比如 "Working." 或 "Paused — something needs you (see below)."
 - **Needs you**：所有等你处理的事，并附有用来回应的按钮。
 - **Progress**：一个进度条，显示完成了 **N/M pieces**，以及此刻进行中的任务：**in progress**、**checking** 或 **combining with the rest**。
-- **Cost**：目前花了多少、上限是多少，以及已经运行了多久。
-- **Result**（goal 完成时）：工作在哪里、**Open ▾** 和 **Deliver…**。
+- **Preview** 和 **Milestones**（Brief 批准之后）：和 Expert view 里一样的卡片，可以试用结果、观看每个里程碑的演示录屏。
+- **Cost**：目前花了多少、上限是多少，以及 Foundry 已经工作了多久（等你的时间不算）。
+- **Result**（goal 完成时）：工作在哪里、**Open ▾**、**Deliver…**，以及 goal review 的结论。
+- 最后是你提出的需求和通往 Brief 的链接。
 
 goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它都在同一个位置。**Expert** 显示其余所有内容。
 

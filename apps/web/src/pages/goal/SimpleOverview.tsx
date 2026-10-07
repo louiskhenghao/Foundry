@@ -5,6 +5,11 @@ import type { GoalDetail } from '../../api.ts';
 import { OpenMenu } from '../../components/OpenMenu.tsx';
 import { Badge, Button, Card, cn, fmtLimitUsd, fmtUsd } from '../../ui.tsx';
 import { EscalationCard } from '../InboxPage.tsx';
+import { OpenFull } from '../../components/FullTextDialog.tsx';
+import { MarkdownPanel } from '../../components/Markdown.tsx';
+import { MilestonesCard } from './MilestoneEvidence.tsx';
+import { BriefStrip, GoalReview } from './OverviewTab.tsx';
+import { PreviewCard } from './PreviewCard.tsx';
 
 const STATE_TEXT: Record<string, string> = {
   draft: 'Getting ready.',
@@ -20,7 +25,10 @@ const STATE_TEXT: Record<string, string> = {
   cancelled: 'Cancelled.',
 };
 
-/** Progress for people who do not want the machinery: what is happening, how far, what it costs, what needs them. */
+/**
+ * Progress for people who do not want the machinery: what is happening, how far, what it costs, what needs them, and
+ * what there is to see — the preview, every milestone's walkthrough, the verdict — with what they asked for at the end.
+ */
 export function SimpleOverview({ d, onDeliver }: { d: GoalDetail; onDeliver: () => void }) {
   const g = d.goal;
   const total = d.tasks.length;
@@ -29,6 +37,8 @@ export function SimpleOverview({ d, onDeliver }: { d: GoalDetail; onDeliver: () 
   const open = d.escalations.filter((e) => e.state === 'open');
   const finished = g.state === 'done' || g.state === 'over_delivered';
   const pct = total ? Math.round((done / total) * 100) : g.state === 'clarifying' ? 5 : 0;
+  const approved = !['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state);
+  const review = [...d.events].reverse().find((e) => e.type === 'review.goal.finished')?.payload as { passed: boolean; overDelivered: boolean; notes: string } | undefined;
   return (
     <div className="space-y-4">
       <div className="text-sm text-zinc-300">{STATE_TEXT[g.state] ?? g.state}</div>
@@ -78,6 +88,10 @@ export function SimpleOverview({ d, onDeliver }: { d: GoalDetail; onDeliver: () 
         </Card>
       )}
 
+      {/* at a milestone pause the Have a look card above has the preview already */}
+      {approved && g.state !== 'awaiting_feedback' && <PreviewCard goalId={g.id} goal={g} />}
+      {approved && <MilestonesCard d={d} />}
+
       <Card title="Cost">
         <div className="text-sm text-zinc-300">
           {g.provider === 'codex' ? 'Codex · dollar cost unavailable' : <>Spent <span className="mono text-zinc-100">{fmtUsd(g.costUsd)}</span> of {fmtLimitUsd(g.budgets.maxCostUsd)}</>} · worked {d.budget.elapsedMin.toFixed(0)} min (waiting for you not counted).
@@ -121,6 +135,9 @@ export function SimpleOverview({ d, onDeliver }: { d: GoalDetail; onDeliver: () 
           <MergeStatus goal={g} className="mt-3" />
         </Card>
       )}
+      {review && <GoalReview review={review} />}
+      <MarkdownPanel title="what you asked for" source={g.prompt} maxHeight={160} actions={<OpenFull value={{ title: g.title, text: g.prompt }} />} />
+      {g.state !== 'awaiting_brief_approval' && <BriefStrip d={d} />}
       <div className="text-[11px] text-zinc-600">
         <Badge state={g.state} /> · goal {g.id}
       </div>

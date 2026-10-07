@@ -35,8 +35,10 @@ In Simple view the goal page shows:
 - One sentence about what is happening, for example "Working." or "Paused — something needs you (see below)."
 - **Needs you**: anything waiting for you, with the buttons to answer it.
 - **Progress**: a bar with **N/M pieces** done, and the tasks in progress right now: **in progress**, **checking**, or **combining with the rest**.
-- Elapsed time and applicable limits. Claude shows estimated cost; Codex does not show an enforceable USD cap.
-- **Result**, when the goal is done: where the work is, **Open ▾**, and **Deliver…**.
+- **Preview** and **Milestones**, once the Brief is approved: the same cards as in Expert view, to try the result and watch each milestone's walkthrough.
+- **Cost**: what was spent against the limit, and how long Foundry has worked. Waiting for you does not count. Codex does not show an enforceable USD cap.
+- **Result**, when the goal is done: where the work is, **Open ▾**, and **Deliver…**, and the goal review's verdict.
+- At the end, what you asked for and a link to the Brief.
 
 **Simple | Expert** in the goal's header switches views; it stays in the same place in both. **Expert** shows everything else.
 
