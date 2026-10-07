@@ -505,7 +505,7 @@ function plannerNatureSection(goal: Goal, emptyRepo: boolean): string {
 /** Nature-specific planning rules. Auto goals get the conditional form: judge the nature first, then apply its rules. */
 function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true): string {
   const ffprobe = Bun.which('ffprobe') != null;
-  const styleAsk = `\nAlso output 2–4 \`styleOptions\` — distinct visual directions the human can SEE before any generation starts: real hex palette, 1–3 typefaces, 3–6 style keywords, one or two sentences on feel/composition; YOUR recommendation FIRST. Plan the tasks assuming the recommended direction.`;
+  const styleAsk = `\nAlso output 2–4 \`styleOptions\` — distinct visual directions the human can SEE before any generation starts: real hex palette, 1–3 typefaces, 3–6 style keywords, one or two sentences on feel/composition; YOUR recommendation FIRST (the human's pick from the interview, if any, marked \`chosen: true\`). Plan the tasks assuming the first direction.`;
   const noBackend = `\n- IMPORTANT: no image-generation backend is configured on this machine (sessions have no OPENAI_API_KEY), so workers cannot call a generation API — at best they hand-author SVG/HTML and render it, at noticeably lower fidelity. Record this as an explicit assumption (e.g. "No AI image backend is configured; image deliverables will be hand-authored SVG renders") so the human can reject it and configure a key in Settings → Tools before approving the plan.`;
   const media = (kind: 'image' | 'video') =>
     `# Nature: ${kind}\nThis goal produces media files, not software. Set \`nature: "${kind}"\` and plan tasks per deliverable batch (scenario \`${kind}\`).${styleAsk}${kind === 'image' && !imageGen ? noBackend : ''}\n${mediaConventions(kind, ffprobe)} Never ask about tech stacks and never propose build/test/lint checks.`;
@@ -521,7 +521,7 @@ function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true): string 
     case 'video':
       return media('video');
     case 'code':
-      return [emptyRepo ? `# Empty repository\n${TECH_STACK_SECTION}` : '', `# Style directions for UI goals\nWhen this goal's main deliverable is a user interface (a landing page, a product UI), also output 2–4 \`styleOptions\` (real hex palette, typefaces, keywords, a one-line feel; recommendation first) so the human can SEE the direction before work starts. Skip them for backend/tooling goals.`]
+      return [emptyRepo ? `# Empty repository\n${TECH_STACK_SECTION}` : '', `# Style directions for UI goals\nWhen this goal's main deliverable is a user interface (a landing page, a product UI), also output 2–4 \`styleOptions\` (real hex palette, typefaces, keywords, a one-line feel; recommendation first) so the human can SEE the direction before work starts; one the interview already settled goes first with \`chosen: true\`. Skip them for backend/tooling goals.`]
         .filter(Boolean)
         .join('\n\n');
     case 'auto':
@@ -612,7 +612,9 @@ export function toBrief(goal: Goal, o: BriefOutput, extraQuestions: Brief['quest
   // a Follow-up that kept its predecessor's style: when this goal has a look at all, that direction comes first and is already picked
   const kept = goal.follows?.style ?? null;
   if (kept && styleOptions.length && !styleOptions.some((s) => s.name === kept.name)) styleOptions.unshift({ ...kept, key: styleOptions.some((s) => s.key === kept.key) ? `${kept.key}-kept` : kept.key, samples: [], chosenSample: null });
-  const keptAnswer = kept && styleOptions.some((s) => s.name === kept.name) ? kept.name : null;
+  // a direction the human already picked in the interview is not asked again: the question starts answered, still changeable
+  const picked = kept ? null : (o.styleOptions ?? []).find((s) => s.chosen)?.name ?? null;
+  const keptAnswer = kept && styleOptions.some((s) => s.name === kept.name) ? kept.name : picked;
   return {
     goalId: goal.id,
     title: o.title?.trim() ?? '',

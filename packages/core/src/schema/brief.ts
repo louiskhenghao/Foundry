@@ -223,6 +223,7 @@ export const BriefOutput = z.object({
         fonts: z.array(z.string()).describe('1-3 typeface suggestions (family names).'),
         keywords: z.array(z.string()).describe('3-6 style keywords (lighting, mood, medium, era…).'),
         description: z.string().describe('One or two sentences: the feel, composition and references of this direction.'),
+        chosen: z.boolean().nullish().describe('true on the one direction the human already picked in the interview (leave the name as it is); leave out otherwise.'),
       }),
     )
     .default([])

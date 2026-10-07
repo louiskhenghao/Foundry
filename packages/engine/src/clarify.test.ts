@@ -427,3 +427,15 @@ describe('mergePlan', () => {
     expect(merged.checks.map((c) => [c.key, c.taskKey])).toEqual([['C1', 'T1'], ['C1-2', 'T2'], ['C1-3', null]]);
   });
 });
+
+test('a style the interview already settled starts answered on the Brief; without one the question waits', async () => {
+  const { toBrief } = await import('./clarify.ts');
+  const goal = { id: 'g_style', follows: null } as never;
+  const styles = [
+    { key: 'S1', name: 'Warm kopitiam', palette: ['#F6EDDC'], fonts: ['Fraunces'], keywords: ['warm'], description: 'Cosy.', chosen: true },
+    { key: 'S2', name: 'Minimal café', palette: ['#FFFFFF'], fonts: ['Inter'], keywords: ['clean'], description: 'Airy.' },
+  ];
+  const style = (out: BriefOutput) => toBrief(goal, out, []).questions.find((q) => q.kind === 'style')!;
+  expect(style({ ...briefWith([task('T1', 'A1', 'build page')], []), styleOptions: styles })).toMatchObject({ answer: 'Warm kopitiam', applied: true, options: ['Warm kopitiam', 'Minimal café'] });
+  expect(style({ ...briefWith([task('T1', 'A1', 'build page')], []), styleOptions: styles.map(({ chosen: _c, ...s }) => s) })).toMatchObject({ answer: null, applied: false });
+});
