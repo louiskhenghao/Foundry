@@ -503,7 +503,7 @@ export function coverageRepairMessage(missing: { key: string; name: string }[], 
 }
 
 /** Map an LLM check (flat) to a BriefCheck spec. Shared by Clarify and Draft. */
-export function materializeCheck(c: { type: 'command' | 'reviewer'; cmd: string | null; rubric: string | null; name: string }, taskKey: string | null): Brief['checks'][number]['spec'] {
+export function materializeCheck(c: { type: 'command' | 'reviewer'; cmd?: string | null; rubric?: string | null; name: string }, taskKey: string | null): Brief['checks'][number]['spec'] {
   return c.type === 'command' ? { type: 'command', cmd: c.cmd ?? 'true', timeoutMs: 300_000, expectExitCode: 0 } : { type: 'reviewer', scope: taskKey ? 'task-diff' : 'goal-diff', rubric: c.rubric ?? c.name };
 }
 
@@ -521,7 +521,7 @@ export function toBrief(goal: Goal, o: BriefOutput, extraQuestions: Brief['quest
     understanding: o.understanding,
     areas: o.areas.map((a) => ({ key: a.key, name: a.name, slug: a.slug, description: a.description ?? '' })),
     assumptions: o.assumptions.map((text) => ({ id: newId('as'), text, accepted: true, applied: false })),
-    checks: o.checks.map((c) => ({ key: c.key, name: c.name, tier: c.tier, taskKey: c.taskKey, areaKey: c.taskKey ? null : area(c.areaKey), spec: materializeCheck(c, c.taskKey) })),
+    checks: o.checks.map((c) => ({ key: c.key, name: c.name, tier: c.tier, taskKey: c.taskKey ?? null, areaKey: c.taskKey ? null : area(c.areaKey), spec: materializeCheck(c, c.taskKey ?? null) })),
     tasks: o.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind ?? 'feature', scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys, parallelizable: t.parallelizable, relevantFiles: t.relevantFiles, milestone: t.milestone ?? null, difficulty: t.difficulty ?? 'standard' })),
     costEstimateUsd: o.costEstimateUsd,
     run: o.run ?? null,
@@ -529,7 +529,7 @@ export function toBrief(goal: Goal, o: BriefOutput, extraQuestions: Brief['quest
     timeEstimateMin: o.timeEstimateMin,
     questions: [
       ...extraQuestions,
-      ...o.questions.map((q) => ({ id: newId('q'), text: q.text, answer: null, blocking: q.blocking, areaKey: area(q.areaKey), options: q.options ?? [], kind: 'text' as const, applied: false })),
+      ...(o.openQuestions ?? []).map((q) => ({ id: newId('q'), text: q.text, answer: null, blocking: q.blocking, areaKey: area(q.areaKey), options: q.options ?? [], kind: 'text' as const, applied: false })),
       // the style question is engine-generated (never left to the LLM to remember): its options are the proposal names, recommendation first
       ...(styleOptions.length
         ? [{ id: newId('q'), text: 'Which style direction should the deliverables follow? Pick a card — you can generate a sample image for any of them before deciding.', answer: keptAnswer, blocking: true, areaKey: null, options: styleOptions.map((s) => s.name), kind: 'style' as const, applied: !!keptAnswer }]

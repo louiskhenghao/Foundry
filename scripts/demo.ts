@@ -40,7 +40,7 @@ const landingBrief: BriefOutput = {
   ],
   costEstimateUsd: 6,
   timeEstimateMin: 45,
-  questions: [],
+  openQuestions: [],
   styleOptions: [
     { key: 'S1', name: 'Arcade Night', palette: ['#0b0f1a', '#ff3d7f', '#35e0ff', '#f5f5f5'], fonts: ['Space Grotesk', 'Inter'], keywords: ['neon', 'playful', 'dark'], description: 'Dark background with neon accents, like a late-night arcade.' },
     { key: 'S2', name: 'Paper Studio', palette: ['#faf7f0', '#1f2937', '#e76f51', '#2a9d8f'], fonts: ['Fraunces', 'Inter'], keywords: ['warm', 'hand-made', 'light'], description: 'Warm paper tones and a serif headline, calm and crafted.' },

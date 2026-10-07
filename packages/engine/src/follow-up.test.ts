@@ -38,7 +38,7 @@ const briefOut = (over: Partial<BriefOutput> = {}): BriefOutput => ({
   costEstimateUsd: 1,
   timeEstimateMin: 10,
   // a blocking question keeps the follow-up parked at its Brief: the test only looks at Clarify
-  questions: [{ text: 'Which colour?', blocking: true, areaKey: null, options: [] }],
+  openQuestions: [{ text: 'Which colour?', blocking: true, areaKey: null, options: [] }],
   styleOptions: [],
   run: null,
   apps: null,

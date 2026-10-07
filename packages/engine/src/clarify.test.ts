@@ -59,7 +59,7 @@ const areas = [
 ];
 const task = (key: string, areaKey: string, title: string, deps: string[] = []): BriefOutput['tasks'][number] => ({ key, title, spec: `do ${title}`, kind: 'feature', scope: null, scenario: 'frontend', difficulty: 'standard', areaKey, dependsOnKeys: deps, parallelizable: true, relevantFiles: ['README.md'], milestone: null });
 const check = (key: string, taskKey: string | null, areaKey: string | null = null): BriefOutput['checks'][number] => ({ key, name: key, tier: 'must', taskKey, areaKey, type: 'command', cmd: 'true', rubric: null });
-const briefWith = (tasks: BriefOutput['tasks'], checks: BriefOutput['checks']): BriefOutput => ({ title: 'feat(portal): build portals', understanding: 'Two portals.', nature: 'code', areas, assumptions: ['a'], tasks, checks, costEstimateUsd: 4, timeEstimateMin: 30, questions: [], styleOptions: [], run: null, apps: null });
+const briefWith = (tasks: BriefOutput['tasks'], checks: BriefOutput['checks']): BriefOutput => ({ title: 'feat(portal): build portals', understanding: 'Two portals.', nature: 'code', areas, assumptions: ['a'], tasks, checks, costEstimateUsd: 4, timeEstimateMin: 30, openQuestions: [], styleOptions: [], run: null, apps: null });
 
 const cfg = () => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, log: () => {} });
 
@@ -255,9 +255,9 @@ describe('decisions', () => {
   test('revise returns a keyed diff; decisions reach the worker prompt; re-run Clarify carries them', async () => {
     const full = briefWith([task('T1', 'A1', 'add student home'), task('T2', 'A2', 'add teacher home', ['T1']), task('T3', 'A2', 'add grading', ['T2'])], [check('C1', 'T1'), check('C2', 'T2'), check('G1', null)]);
     const runner = new StructuredRunner((spec) => {
-      if (spec.label?.startsWith('clarify')) return { ...full, questions: [{ text: 'Teachers too?', blocking: true, areaKey: 'A2' }] };
+      if (spec.label?.startsWith('clarify')) return { ...full, openQuestions: [{ text: 'Teachers too?', blocking: true, areaKey: 'A2' }] };
       if (spec.label?.startsWith('draft revise')) {
-        const { questions: _q, ...rest } = full;
+        const { openQuestions: _q, ...rest } = full;
         return { ...rest, understanding: 'Students only.', areas: [full.areas[0]], tasks: [task('T1', 'A1', 'add student home'), task('T4', 'A1', 'add student grades', ['T1'])], checks: [check('C1', 'T1', null), check('C9', 'T4')], changeSummary: 'Dropped the teacher tasks because the human said students only.', newQuestions: [] };
       }
       return null;

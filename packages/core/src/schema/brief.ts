@@ -151,7 +151,7 @@ const OutputTask = z.object({
   title: z.string().describe('Imperative commit subject, ≤ 60 chars, no trailing period, NO type prefix (e.g. "add quote engine with PDF tests", not "feat: …"). It becomes the commit message and PR title.'),
   spec: z.string().describe('Markdown spec: what to change, where, and how to know it is done.'),
   kind: z.enum(['feature', 'bug', 'refactor', 'research', 'chore']).describe('feature = new behaviour; bug = something is broken and must be reproduced first; refactor = behaviour-preserving restructure; research = a spike whose output is knowledge, not production code; chore = config/tooling.'),
-  scope: z.string().nullable().describe('Conventional Commits scope (e.g. "quotes", "api", "ui"); null = use the Area slug.'),
+  scope: z.string().nullish().describe('Conventional Commits scope (e.g. "quotes", "api", "ui"); null = use the Area slug.'),
   scenario: z
     .enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'general'])
     .describe('Where the work happens: frontend = UI, pages, styling, components; backend = APIs, services, database; fullstack = substantial changes on both sides; data = data processing, scripts, analysis; mobile = native/mobile app; infra = CI, build, deploy, configuration; docs = documentation/prose writing; research = investigation whose output is a cited report; image = generating or editing images; video = generating or editing video/audio; general = anything else.'),
@@ -164,7 +164,7 @@ const OutputTask = z.object({
     .describe('How hard this task is for one engineer-session. simple = mechanical, well-trodden (config, copy edits, scaffolding from a template, one small component); standard = typical feature work; complex = cross-cutting, subtle or high-risk (architecture, concurrency, data migration, tricky algorithms, a large refactor). It picks the model the worker runs on: be honest, most tasks are standard.'),
   milestone: z
     .string()
-    .nullable()
+    .nullish()
     .describe('Set on 1–3 tasks per goal after which a person can SEE or TRY something meaningful for the first time (first playable round, first page rendering real data, first full render). One or two sentences in the goal\'s language: what to open, what to try, what to judge. null for every other task (scaffolding, pure backend, docs). A goal with a single task has none.'),
 });
 
@@ -172,11 +172,11 @@ const OutputCheck = z.object({
   key: z.string(),
   name: z.string(),
   tier: z.enum(['must', 'stretch']),
-  taskKey: z.string().nullable().describe('Task key this check belongs to, or null for a goal-level check.'),
-  areaKey: z.string().nullable().describe('For goal-level checks: the Area it verifies (null if it spans the whole goal, e.g. the test suite).'),
+  taskKey: z.string().nullish().describe('Task key this check belongs to; null or absent for a goal-level check.'),
+  areaKey: z.string().nullish().describe('For goal-level checks: the Area it verifies (null or absent if it spans the whole goal, e.g. the test suite).'),
   type: z.enum(['command', 'reviewer']),
-  cmd: z.string().nullable().describe('Shell command for type=command; exit code 0 means pass.'),
-  rubric: z.string().nullable().describe('For type=reviewer: what the reviewer must verify.'),
+  cmd: z.string().nullish().describe('Shell command for type=command; exit code 0 means pass. Leave out for a reviewer check.'),
+  rubric: z.string().nullish().describe('For type=reviewer: what the reviewer must verify. Leave out for a command check.'),
 });
 
 export const BriefOutput = z.object({
@@ -202,16 +202,18 @@ export const BriefOutput = z.object({
   checks: z.array(OutputCheck).min(1),
   costEstimateUsd: z.number(),
   timeEstimateMin: z.number(),
-  questions: z
+  // named apart from an interview turn's `questions`: two fields of one name in one output were confused often enough to fail validation
+  openQuestions: z
     .array(
       z.object({
         text: z.string(),
         blocking: z.boolean().describe('true only if you genuinely cannot proceed without an answer.'),
-        areaKey: z.string().nullable().describe('The Area the question is about, or null.'),
+        areaKey: z.string().nullish().describe('The Area the question is about, or null.'),
         options: z.array(z.string()).default([]).describe('Suggested answers the human can pick from (free text stays possible). Put YOUR recommended answer first. Empty for open questions.'),
       }),
     )
-    .describe('Questions you could not safely assume. Prefer assumptions over questions.'),
+    .default([])
+    .describe('Questions left for the human on the Brief page, which you could not safely assume. Prefer assumptions. Usually empty.'),
   styleOptions: z
     .array(
       z.object({
@@ -232,7 +234,7 @@ export const BriefOutput = z.object({
       url: z.string().nullable().describe('Where it serves, with {port}, e.g. "http://localhost:{port}".'),
       platform: z.enum(['web', 'expo', 'none']).describe('web = a browser app or site; expo = a React Native app previewed through Expo web; none = nothing to start.'),
     })
-    .nullable()
+    .nullish()
     .describe('How to start the result so the human (and the engine\'s self-check) can look at it mid-goal. The engine detects package.json scripts itself — fill this ONLY when detection would be wrong, or the repository is empty and the first task creates the manifest. null otherwise.'),
   apps: z
     .array(
@@ -246,7 +248,7 @@ export const BriefOutput = z.object({
         platform: z.enum(['web', 'expo', 'none']).describe('web = browser app or API; expo = React Native through Expo web; none = not startable.'),
       }),
     )
-    .nullable()
+    .nullish()
     .describe('For a repository with SEVERAL apps a person would run side by side (monorepo: web + admin + API…): one entry per app, the one to look at first first. The engine detects package.json workspaces itself — fill this ONLY when detection would be wrong or miss an app. null otherwise; when set it replaces `run`.'),
 });
 export type BriefOutput = z.infer<typeof BriefOutput>;
@@ -276,7 +278,7 @@ export type InterviewOutput = z.infer<typeof InterviewOutput>;
  * What a Revise session emits: the whole Brief again, honouring the human's Decisions. Questions stay the human's
  * (only new, non-blocking ones may be added); keys of unchanged tasks/checks/areas must be kept so the page can diff.
  */
-export const RevisionOutput = BriefOutput.omit({ questions: true }).extend({
+export const RevisionOutput = BriefOutput.omit({ openQuestions: true }).extend({
   changeSummary: z.string().describe('One to three sentences for the human: what changed because of which decision, and what was left alone.'),
   newQuestions: z
     .array(z.object({ text: z.string(), areaKey: z.string().nullable() }))
