@@ -253,12 +253,12 @@ describe('draft with AI', () => {
 
 describe('decisions', () => {
   test('revise returns a keyed diff; decisions reach the worker prompt; re-run Clarify carries them', async () => {
-    const full = briefWith([task('T1', 'A1', 'add student home'), task('T2', 'A2', 'add teacher home', ['T1']), task('T3', 'A2', 'add grading', ['T2'])], [check('C1', 'T1'), check('C2', 'T2'), check('G1', null)]);
+    const full = briefWith([{ ...task('T1', 'A1', 'add student home'), milestone: 'the student home page' }, task('T2', 'A2', 'add teacher home', ['T1']), task('T3', 'A2', 'add grading', ['T2'])], [check('C1', 'T1'), check('C2', 'T2'), check('G1', null)]);
     const runner = new StructuredRunner((spec) => {
       if (spec.label?.startsWith('clarify')) return { ...full, openQuestions: [{ text: 'Teachers too?', blocking: true, areaKey: 'A2' }] };
       if (spec.label?.startsWith('draft revise')) {
         const { openQuestions: _q, ...rest } = full;
-        return { ...rest, understanding: 'Students only.', areas: [full.areas[0]], tasks: [task('T1', 'A1', 'add student home'), task('T4', 'A1', 'add student grades', ['T1'])], checks: [check('C1', 'T1', null), check('C9', 'T4')], changeSummary: 'Dropped the teacher tasks because the human said students only.', newQuestions: [] };
+        return { ...rest, understanding: 'Students only.', areas: [full.areas[0]], tasks: [(({ milestone: _m, ...t }) => t)(task('T1', 'A1', 'add student home')), task('T4', 'A1', 'add student grades', ['T1'])], checks: [check('C1', 'T1', null), check('C9', 'T4')], changeSummary: 'Dropped the teacher tasks because the human said students only.', newQuestions: [] };
       }
       return null;
     });
@@ -277,6 +277,8 @@ describe('decisions', () => {
     expect(d.checks.removed.map((c) => c.key).sort()).toEqual(['C2', 'G1']);
     expect(d.areas.removed.map((a) => a.key)).toEqual(['A2']);
     expect(d.understanding?.after).toBe('Students only.');
+    // a kept task's milestone survives a reply that leaves it out
+    expect(p.revision!.revised.tasks.find((t) => t.key === 'T1')?.milestone).toBe('the student home page');
     expect(p.revision!.revised.questions.find((x) => x.id === q.id)?.answer).toBe('No, students only');
     // the rejected assumption survives the revision even though the model dropped it
     expect(p.revision!.revised.assumptions.some((a) => !a.accepted)).toBe(true);
