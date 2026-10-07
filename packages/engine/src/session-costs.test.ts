@@ -39,4 +39,29 @@ describe('SessionCosts', () => {
     expect((await third.result).costUsd).toBe(4.5);
     expect(c.specs[2]!.maxBudgetUsd).toBe(8);
   });
+
+  test("a resume the CLI did not restore reports the run's own cost: it is booked whole and added to the session's total", async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'foundry-session-costs-'));
+    dirs.push(dir);
+    const mu = (out: number) => ({ 'model-a': { outputTokens: out } });
+    // real shapes: `usage` is this run's, `modelUsage` the session's whole when restored
+    const runs: RunResult[] = [
+      { sessionId: 's1', costUsd: 1.7, usage: { output_tokens: 3972 }, modelUsage: mu(3972) } as unknown as RunResult,
+      // restored: the model usage holds the earlier 3972 on top of this run's 1686
+      { sessionId: 's1', costUsd: 2.2, usage: { output_tokens: 1686 }, modelUsage: mu(5658) } as unknown as RunResult,
+      // not restored (another session finished in the folder in between): only this run's tokens and cost
+      { sessionId: 's1', costUsd: 0.5, usage: { output_tokens: 1000 }, modelUsage: mu(1000) } as unknown as RunResult,
+      // a long restored run whose own output dwarfs the earlier: the CLI restores the state it saved last (0.5, 1000)
+      { sessionId: 's1', costUsd: 5.5, usage: { output_tokens: 39021 }, modelUsage: mu(40021) } as unknown as RunResult,
+    ];
+    let n = 0;
+    const run = async (): Promise<RunHandle> => {
+      const result = runs[n++]!;
+      return { pid: null, kill() {}, events: (async function* () {})(), result: Promise.resolve(result) };
+    };
+    const costs = new SessionCosts(dir);
+    const booked = [];
+    for (const resume of [undefined, 's1', 's1', 's1']) booked.push((await (await costs.run({ prompt: 'x', cwd: '.', resumeSessionId: resume }, run)).result).costUsd);
+    expect(booked.map((c) => Math.round(c * 100) / 100)).toEqual([1.7, 0.5, 0.5, 5]);
+  });
 });
