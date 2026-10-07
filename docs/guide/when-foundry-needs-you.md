@@ -41,7 +41,7 @@ Two tasks edited the same code and Foundry could not combine them automatically.
 Everything was built, but the reviewer found acceptance checks that the combined result does not meet, even after its own fix round.
 
 - **Retry with hint** turns the reviewer's findings into fix tasks (your hint goes with them), runs them, then reviews again.
-- **Accept as-is (finish goal)** finishes the goal with those checks waived.
+- **Accept as-is (finish goal)** finishes the goal with those checks waived. The documents chosen on the Brief are still written, before the goal is delivered.
 - **Abort goal** stops the goal; it ends as failed.
 
 ### It wants to do something outside your computer

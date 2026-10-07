@@ -11,7 +11,9 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `workflow.tdd` | `required` | `FOUNDRY_TDD` | Test-driven discipline for new expert goals: required (observed), preferred (suggested) or off. |
 | `workflow.defaultMode` | `expert` | `FOUNDRY_GOAL_MODE` | Which view a new goal opens in: simple (plain-language Brief and progress) or expert (every control). |
 | `workflow.defaultPace` | `thorough` | `FOUNDRY_PACE` | thorough = the engine adds its own task and goal reviews and can spawn fix tasks; fast = only the checks you approved run. Image and video goals start fast. |
-| `workflow.interview` | `auto` | `FOUNDRY_INTERVIEW` | Whether Clarify interviews you before writing the Brief: auto (when something is worth asking), always (at least one round), never (one-shot Brief). |
+| `workflow.interview` | `auto` | `FOUNDRY_INTERVIEW` | The older switch for the interview: auto, always (at least one round) or never (one-shot Brief). Interview depth, when set, takes its place. |
+| `workflow.interviewDepth` | — | `FOUNDRY_INTERVIEW_DEPTH` | How deep Clarify interviews you before writing the Brief: 0 = not at all (one-shot Brief), 1 = only what a wrong guess would waste … 5 = every detail, until nothing is left to decide. Empty = what Interview stands for (auto 3, always 4, never 0). Switchable per goal. |
+| `workflow.milestonePause` | `true` | `FOUNDRY_MILESTONE_PAUSE` | New goals pause at their milestones so you can have a look; off = they go on, and what the milestone shows is sent to your notification channels. Switchable per goal. |
 | `workflow.effort` | — | `FOUNDRY_EFFORT` | Default goal-wide effort override (low … max). Empty uses each Codex role preset or the Claude CLI default. New goals can override it. |
 | `reviews.alwaysReviewTasks` | `true` | — | Run the task reviewer on every task, not only tasks that ask for a reviewer check (thorough pace). |
 | `reviews.maxFixCycles` | `1` | — | Goal review → fix-task rounds before the goal asks you. |
@@ -88,7 +90,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
-| `preview.portFrom` | `4200` | `FOUNDRY_PREVIEW_PORT_FROM` | First port handed to goal previews. |
+| `preview.portFrom` | `4200` | `FOUNDRY_PREVIEW_PORT_FROM` | First port handed to goal previews; an app keeps its usual port (3000 for Next) while that is free. |
 | `preview.portTo` | `4299` | `FOUNDRY_PREVIEW_PORT_TO` | Last port handed to goal previews (Docker: publish the range). |
 | `preview.idleMinutes` | `60` | `FOUNDRY_PREVIEW_IDLE_MIN` | A preview nobody opened for this long is stopped (never while a goal waits for your look). |
 | `checks.selfCheck` | `false` | `FOUNDRY_SELF_CHECK` | New goals open their preview in headless Chromium after each task, screenshot it and fail on console or network errors. |
@@ -100,7 +102,9 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `notifications.telegramBotToken` | — | `FOUNDRY_TELEGRAM_BOT_TOKEN` | Telegram bot token. |
 | `notifications.telegramChatId` | — | `FOUNDRY_TELEGRAM_CHAT_ID` | Telegram chat id (the Detect button finds it). |
 | `notifications.discordWebhookUrl` | — | `FOUNDRY_DISCORD_WEBHOOK` | Discord webhook URL. |
-| `notifications.baseUrl` | — | `FOUNDRY_NOTIFY_BASE_URL` | Address of this UI as reachable from your phone; messages link to it. |
+| `notifications.baseUrl` | — | `FOUNDRY_NOTIFY_BASE_URL` | Address of this UI as reachable from elsewhere; empty = links point at this computer (http://localhost:<port>). |
+| `notifications.tailscale` | `auto` | `FOUNDRY_TAILSCALE` | auto: when Tailscale runs here, messages and the UI also carry tailnet links, and Foundry serves its own and the previews' ports with `tailscale serve`; off: never. |
+| `notifications.tailscaleHost` | — | `FOUNDRY_TAILSCALE_HOST` | This computer's tailnet name, when it should not be read from `tailscale status`. |
 | `notifications.onEscalation` | `true` | — | Notify when something needs you (Inbox). |
 | `notifications.onInterview` | `true` | — | Notify when Clarify asks an interview round. |
 | `notifications.onGoalFinished` | `true` | — | Notify when a goal ends done, over-delivered or failed. |

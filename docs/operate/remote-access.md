@@ -149,11 +149,11 @@ device should answer `{"ok":true,…}`.
 
 Foundry can ping you on Telegram or Discord when a goal needs you, when the Clarifier asks you an interview round,
 when a goal finishes or delivers, when a backend usage limit pauses that backend’s goals, or when a new version is out
-(Settings → Notifications, one switch per kind; step-by-step in [notifications.md](./notifications.md)). Set
-**Link base URL** to `https://mac-mini.<tailnet>.ts.net` (scheme included — the field wants a full URL): every
-message then carries a link that opens the right page on your phone. Leave it empty and messages carry no link
-at all; set it to `127.0.0.1` and the link opens nowhere but on the machine itself. Press *Send test message*
-to confirm.
+(Settings → Notifications, one switch per kind; step-by-step in [notifications.md](./notifications.md)). With
+Tailscale running on the machine, every message already links to the right page twice: on the machine itself and on
+your tailnet (**Tailscale links** = auto finds the `ts.net` name and reuses the `tailscale serve` above, or adds one).
+A milestone's preview gets a tailnet link too: Foundry serves the preview's port while it runs. Leave **Link base
+URL** empty unless you reach Foundry at another address. Press *Send test message* to confirm the channel.
 
 That is the loop: the machine works, you get a ping, you tap it, you answer the question or approve the Brief,
 the machine carries on.

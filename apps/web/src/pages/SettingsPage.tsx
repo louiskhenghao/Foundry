@@ -12,6 +12,7 @@ import { DesignPacks } from '../components/DesignPacks.tsx';
 import { UpdateDialog } from '../components/UpdateDialog.tsx';
 import { Button, Card, CopyButton, Empty, Field, Input, Select, cn } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
+import { INTERVIEW_DEPTHS } from '../interview-depth.ts';
 
 type Section = keyof Settings;
 type Leaf = `${Section}.${string}`;
@@ -51,6 +52,7 @@ function SourceBadge({ view, path }: { view: SettingsView; path: string }) {
     </span>
   );
 }
+
 
 export function SettingsPage() {
   const [view, setView] = useState<SettingsView | null>(null);
@@ -327,13 +329,14 @@ export function SettingsPage() {
                   <option value="fast">fast — approved checks only</option>
                 </Select>
               </Field>
-              <Field label="Interview before the Brief" aside={aside('workflow.interview')} help="auto: the Clarifier asks a round only when the repository cannot settle something, and skips straight to the Brief for small goals · always: at least one round · never: the one-shot Brief. Switchable per goal when creating it.">
-                <Select value={draft.workflow.interview} onChange={(e) => set('workflow.interview', e.target.value)}>
-                  <option value="auto">auto — ask when something is worth asking</option>
-                  <option value="always">always — at least one round</option>
-                  <option value="never">never — one-shot Brief</option>
+              <Field label="Interview depth" aside={aside('workflow.interviewDepth')} help="How deep the Clarifier questions you before writing the Brief. It sets how thoroughly it probes, not a number of rounds: from 1, only what a wrong guess would waste, to 5, every detail until nothing is left to decide. Switchable per goal when creating it.">
+                <Select value={String(draft.workflow.interviewDepth ?? { never: 0, auto: 3, always: 4 }[draft.workflow.interview])} onChange={(e) => set('workflow.interviewDepth', Number(e.target.value))}>
+                  {INTERVIEW_DEPTHS.map((d) => (
+                    <option key={d.id} value={d.id}>{d.label}</option>
+                  ))}
                 </Select>
               </Field>
+              {bool('workflow.milestonePause', 'Have a look: pause new goals at milestones', 'On: a goal pauses when a milestone task lands, so you can look before it goes on. Off: it goes on, and what the milestone shows is sent to your notification channels. Each goal has its own switch on its Brief and its page.')}
               <Field label="Effort for new goals" aside={aside('workflow.effort')} help="An explicit level overrides every role's effort. Default uses each Codex role's preset effort, or the Claude CLI default. Switchable per goal when creating it.">
                 <Select value={(draft.workflow.effort as string | null) ?? ''} onChange={(e) => set('workflow.effort', e.target.value || null)}>
                   <option value="">Role preset / CLI default</option>
@@ -603,8 +606,17 @@ export function SettingsPage() {
               <Field label="Discord webhook URL" aside={aside('notifications.discordWebhookUrl')} help="In your Discord channel: Settings → Integrations → Webhooks → New Webhook, then copy its URL.">
                 {secret('notifications.discordWebhookUrl', 'https://discord.com/api/webhooks/…')}
               </Field>
-              <Field label="Link base URL" aside={aside('notifications.baseUrl')} help="Where this UI is reachable from your phone (a Tailscale or LAN address). Empty = messages carry no links, since 127.0.0.1 would not open elsewhere.">
-                {text('notifications.baseUrl', 'http://my-mac.tailnet:4111', true)}
+              <Field label="Link base URL" aside={aside('notifications.baseUrl')} help="Where this UI is reachable from elsewhere (a LAN address, a domain). Empty = links point at this computer (http://localhost); tailnet links are added below.">
+                {text('notifications.baseUrl', 'http://192.168.1.20:4111', true)}
+              </Field>
+              <Field label="Tailscale links" aside={aside('notifications.tailscale')} help="auto: when Tailscale runs on this computer, messages also link to Foundry and the previews on your tailnet, so they open on your phone; Foundry serves those ports with `tailscale serve` (reusing what you already serve) and takes the previews' down when they stop. off: never.">
+                <Select value={draft.notifications.tailscale} onChange={(e) => set('notifications.tailscale', e.target.value)}>
+                  <option value="auto">auto — when Tailscale runs here</option>
+                  <option value="off">off</option>
+                </Select>
+              </Field>
+              <Field label="Tailscale name" aside={aside('notifications.tailscaleHost')} help="This computer's tailnet name. Empty = read from `tailscale status`.">
+                {text('notifications.tailscaleHost', 'my-mac.tailnet-123.ts.net', true)}
               </Field>
             </>,
           )}

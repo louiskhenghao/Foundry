@@ -200,7 +200,7 @@ Foundry 从不自作主张扩大范围：stretch 检查存在，只是因为它�
 |---|---|
 | **Platform** | **nothing to start**、**web (browser)** 或 **expo (React Native via Expo web)**。 |
 | **Install** | 安装命令，例如 `npm install`。 |
-| **Start command** | 例如 `npm run dev -- --port {port}`。`{port}` 是 Foundry 填入端口的位置。 |
+| **Start command** | 例如 `npm run dev -- --port {port}`。`{port}` 是 Foundry 填入端口的位置。用 pnpm 时，Foundry 会去掉 `--`，否则 pnpm 会把它原样传给 dev server。 |
 | **URL** | 结果在哪里打开，例如 `http://localhost:{port}`。 |
 
 仓库里有几个应用时（网站、管理后台、API……），**Several apps…** 会把这些字段换成一个应用列表，并填入 Foundry 在 `package.json` 里找到的应用。每个应用有 **Name**、**Folder**（相对于仓库，留空表示仓库根目录）、**Start command** 和 **URL**。**Add app** 添加一个，**Remove** 删除一个。第一个应用是里程碑和自检会打开的那个。每个应用下面显示它的 key，也就是其它应用读取它地址的环境变量，例如 `FOUNDRY_APP_API_URL`。

@@ -21,7 +21,7 @@ const blankApp = (taken: string[]): BriefApp => ({ key: uniqueKey('app', taken),
  * How the engine starts the result for previews and the self-check: one start command, or a list of apps (a monorepo's
  * web app, admin, API…) each started in its own folder. Empty = read package.json (dev / start script, or its workspaces).
  */
-export function RunCard({ brief, editable, edit, goalId, selfCheck }: { brief: Brief; editable: boolean; edit: (fn: (b: Brief) => Brief) => void; goalId: string; selfCheck: boolean }) {
+export function RunCard({ brief, editable, edit, goalId, selfCheck, milestonePause }: { brief: Brief; editable: boolean; edit: (fn: (b: Brief) => Brief) => void; goalId: string; selfCheck: boolean; milestonePause: boolean }) {
   const [selfCheckErr, setSelfCheckErr] = useState<string | null>(null);
   const [converting, setConverting] = useState(false);
   const run = brief.run ?? null;
@@ -159,6 +159,18 @@ export function RunCard({ brief, editable, edit, goalId, selfCheck }: { brief: B
             }}
           />
           Self-check after each task (screenshot + console errors)
+        </label>
+        <label className="flex items-center gap-2 text-[11px] text-zinc-400 cursor-pointer" title="On: the goal pauses when a milestone task lands, so you can look at the result before it goes on. Off: it goes on, and what the milestone shows is sent to your notification channels.">
+          <input
+            type="checkbox"
+            className="accent-emerald-500"
+            checked={milestonePause}
+            onChange={(e) => {
+              setSelfCheckErr(null);
+              api.setMilestonePause(goalId, e.target.checked).catch((err) => setSelfCheckErr(err.message));
+            }}
+          />
+          Have a look: pause at milestones
         </label>
         {selfCheckErr && <div className="text-rose-300">{selfCheckErr}</div>}
       </div>

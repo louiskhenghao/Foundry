@@ -107,7 +107,7 @@ export const GoalCompletion = z.object({
   graphRefresh: z.boolean().default(false),
   docs: z.array(DocType).default([]),
   /** result of the docs-generation session (null = not run yet) */
-  docsRun: z.object({ status: z.enum(['ok', 'skipped', 'failed']), types: z.array(DocType), files: z.array(z.string()), costUsd: z.number(), detail: z.string(), at: z.string(), ref: z.string().nullable().default(null) }).nullable().default(null),
+  docsRun: z.object({ status: z.enum(['ok', 'skipped', 'failed']), types: z.array(DocType), files: z.array(z.string()), costUsd: z.number(), detail: z.string(), at: z.string(), ref: z.string().nullable().default(null), pr: z.object({ number: z.number().int(), url: z.string(), branch: z.string() }).nullable().default(null) }).nullable().default(null),
   /** result of the graph refresh (null = not run yet) */
   graphRun: z.object({ tools: z.array(z.object({ name: z.string(), status: z.enum(['ok', 'skipped', 'failed']), detail: z.string() })), at: z.string() }).nullable().default(null),
   /** result of copying the media artifacts to the goal's output folder at done (null = not run yet) */
@@ -142,6 +142,10 @@ export const GoalFollows = z.object({
 });
 export type GoalFollows = z.infer<typeof GoalFollows>;
 
+/** where a finished goal's preview runs (see Goal.previewPlace) */
+export const PreviewPlace = z.enum(['auto', 'checkout', 'foundry']);
+export type PreviewPlace = z.infer<typeof PreviewPlace>;
+
 export const Goal = z.object({
   /** Fixed at creation. Absent only in events written before provider support. */
   provider: z.enum(['claude', 'codex']).optional(),
@@ -167,8 +171,15 @@ export const Goal = z.object({
   checkpoint: z.object({ taskId: z.string(), lookFor: z.string(), openedAt: z.string(), recheck: z.boolean() }).nullable().default(null),
   /** after each integration, open the preview in a headless browser, screenshot it and fail on console/network errors */
   selfCheck: z.boolean().default(false),
+  /** pause at milestones for the human's look ("Have a look"); off = the goal goes on and the milestone is only notified */
+  milestonePause: z.boolean().default(true),
   /** the branch a finished goal's preview runs from; null = the goal branch while its folder exists, else the base branch */
   previewRef: z.string().nullable().default(null),
+  /**
+   * where a finished goal's preview runs: `auto` = the person's checkout when it is on the chosen branch, else Foundry's
+   * preview folder; `checkout` = the person's checkout as it is, whatever its branch; `foundry` = always Foundry's folder
+   */
+  previewPlace: PreviewPlace.default('auto'),
   /** the Clarify interview (rounds of questions before the Brief); null = the one-shot Clarify of before */
   interview: Interview.nullable().default(null),
   /** effort level for every session of this goal; null = Settings default / CLI default */

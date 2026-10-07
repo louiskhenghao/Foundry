@@ -12,7 +12,7 @@ You answer in the browser. It takes a minute or two per round.
 
 - A small, clear goal usually gets no interview. Foundry goes straight to the Brief.
 - A bigger or vaguer goal gets one or more rounds when something is worth asking.
-- If you ticked **Interview me before planning** on the New goal form, you get at least one round, unless nothing is left for you to decide.
+- At **Interview depth** 4 or 5 on the New goal form you get at least one round (two at 5), unless nothing is left for you to decide; the higher the depth, the more details it asks about.
 - Settings can turn the interview off entirely, or on for every goal: [Settings → New goal defaults](./settings.md#new-goal-defaults).
 
 The interview appears on the goal's page and on its Brief page, as a card titled **Round N — K questions**. If you set up notifications, you also get a message (the **Interview round** switch).
@@ -63,7 +63,7 @@ Stops the questions. Foundry writes the Brief with the answers you gave so far, 
 
 ## How many rounds
 
-At most four rounds in total. Usually it is one or two. After the fourth round Foundry writes the Brief whatever is left open.
+There is no set number of rounds: Foundry stops when nothing is left to ask at the depth you chose. Usually it is one or two; at depth 5 it can be many. After ten rounds Foundry writes the Brief whatever is left open.
 
 Earlier rounds fold up under the current one: **▸ N earlier rounds** shows what was asked and what you answered. A question you left unanswered says so: the Clarifier went with its recommendation and listed it under Assumptions on the Brief.
 

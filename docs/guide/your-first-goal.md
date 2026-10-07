@@ -91,11 +91,17 @@ Ticked: once you approve the Brief, Foundry skips its own extra AI reviews. The 
 
 Unticked (the default for code, unless Settings sets the pace to fast): Foundry reviews each task and the whole result on top of your checks, and can add fix tasks.
 
-### Interview me before planning
+### Interview depth
 
-Ticked: Foundry asks you at least one round of questions before it writes the Brief, unless nothing is left for you to decide.
+How deep Foundry questions you before it writes the Brief: **Skip**, then **1** to **5**. It sets how thoroughly Foundry probes, not a number of rounds; each round still asks only what your project cannot answer.
 
-Unticked: it asks only when your project cannot answer something, and goes straight to the Brief for small goals. Settings can change this default (see [Settings explained](./settings.md#new-goal-defaults)). More in [Answering the interview](./answering-the-interview.md).
+- **Skip**: no questions; Foundry writes the Brief straight away.
+- **1**: only what a wrong guess would waste the goal over. **2** adds the scope trade-offs.
+- **3** (the default): the decisions that shape the result; small details become assumptions you can correct on the Brief. Small goals often get no questions.
+- **4**: at least one round, and edge cases, error and empty states and data rules too.
+- **5**: to the bottom: every area's behaviour, screens, edge cases, data, permissions, performance and security, round after round, until nothing is left to decide or you press **Enough — write the Brief**.
+
+Deeper interviews take more of your time and cost a little more. Settings can change this default (see [Settings explained](./settings.md#new-goal-defaults)). More in [Answering the interview](./answering-the-interview.md).
 
 ### Effort
 

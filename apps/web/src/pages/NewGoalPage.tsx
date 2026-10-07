@@ -12,6 +12,7 @@ import { DeliveryPolicyForm, type PolicyDraft } from '../components/DeliveryPoli
 import { RepoCard } from '../components/RepoCard.tsx';
 import { CodexModelSelect } from '../components/CodexModelSelect.tsx';
 import { Button, ButtonGroup, Card, Input, Select, Textarea, cn } from '../ui.tsx';
+import { INTERVIEW_DEPTHS } from '../interview-depth.ts';
 import { HelpLink } from './HelpPage.tsx';
 
 const DELIVERY_KEY = 'foundry.delivery';
@@ -72,7 +73,8 @@ export function NewGoalPage() {
   const [advanced, setAdvanced] = useState(false);
   const [nature, setNature] = useState<Nature>(() => ((localStorage.getItem(NATURE_KEY) as Nature | null) ?? 'auto'));
   const [outputDir, setOutputDir] = useState('');
-  const [interview, setInterview] = useState(false);
+  // interview depth, '0'–'5'; starts from Settings
+  const [interviewDepth, setInterviewDepth] = useState('3');
   const [effort, setEffort] = useState('');
   const [provider, setProvider] = useState<AgentProvider>(initialProvider ?? 'claude');
   const [accountError, setAccountError] = useState<string | null>(null);
@@ -122,6 +124,7 @@ export function NewGoalPage() {
         setCodexPresetInfo({ ids: Object.entries(codexPresets).map(([id, p]) => ({ id, label: p.label })), picks: { code: v.values.models.codexPresetCode, docs: v.values.models.codexPresetDocs, media: v.values.models.codexPresetMedia }, presets: codexPresets });
         const d = v.values;
         if (!changed.current.has('effort')) setEffort(d.workflow.effort ?? '');
+        if (!changed.current.has('interviewDepth')) setInterviewDepth(String(d.workflow.interviewDepth ?? { never: 0, auto: 3, always: 4 }[d.workflow.interview]));
         if (!changed.current.has('mode')) setModeState(d.workflow.defaultMode);
         if (!changed.current.has('tdd')) setTddState(d.workflow.tdd);
         basePace.current = d.workflow.defaultPace;
@@ -259,7 +262,7 @@ export function NewGoalPage() {
         workflow: pace === 'fast' ? { pace } : { pace, tdd: mode === 'simple' ? 'preferred' : tdd },
         nature,
         outputDir: (nature === 'image' || nature === 'video') && outputDir.trim() ? outputDir.trim() : undefined,
-        interview: interview ? 'always' : undefined,
+        interviewDepth: Number(interviewDepth),
         effort: effort || (provider === 'codex' ? null : undefined),
         modelPreset: (provider === 'codex' ? codexPreset : modelPreset) || undefined,
         follows: follow ? { goalId: follow.draft.previous.id, startFrom: follow.startFrom, attachments: follow.attachments, style: follow.style } : undefined,
@@ -373,13 +376,18 @@ export function NewGoalPage() {
             <span className="text-[11px] text-zinc-400 block leading-snug">Once you approve the Brief, the engine skips its own extra AI reviews (and the TDD mandate). The acceptance checks you approved still run — good for media goals and quick jobs.</span>
           </span>
         </label>
-        <label className="mt-3 flex items-start gap-2 cursor-pointer text-xs">
-          <input type="checkbox" className="mt-1" checked={interview} onChange={(e) => setInterview(e.target.checked)} />
-          <span>
-            <span className="text-zinc-100">Interview me before planning</span><HelpLink to="your-first-goal#interview-me-before-planning" className="ml-1.5" />
-            <span className="text-[11px] text-zinc-400 block leading-snug">The Clarifier asks at least one round of questions (options with its recommendation first) before writing the Brief. Unchecked: it asks only when the repository cannot settle something, and skips straight to the Brief for small goals.</span>
-          </span>
-        </label>
+        <div className="mt-3 space-y-1 text-xs">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="text-zinc-100">Interview depth<HelpLink to="your-first-goal#interview-depth" className="ml-1.5" /></span>
+            <ButtonGroup
+              label="Interview depth"
+              value={interviewDepth}
+              onChange={(value) => { changed.current.add('interviewDepth'); setInterviewDepth(value); }}
+              options={INTERVIEW_DEPTHS.map((d) => ({ id: d.id, label: d.short, title: d.label }))}
+            />
+          </div>
+          <span className="text-[11px] text-zinc-400 block leading-snug">{INTERVIEW_DEPTHS.find((d) => d.id === interviewDepth)?.label}. How deep the Clarifier questions you before writing the Brief (options with its recommendation first); it sets how thoroughly it probes, not a number of rounds.</span>
+        </div>
         <div className="mt-4 flex flex-wrap items-center gap-x-8 gap-y-3">
           <div className="flex items-center gap-2.5 flex-wrap">
             <span className="text-xs text-zinc-300">Effort<HelpLink to="your-first-goal#effort" className="ml-1.5" /></span>

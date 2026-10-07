@@ -72,6 +72,10 @@ export const WorkflowSettings = z.object({
   defaultPace: z.enum(['thorough', 'fast']).default('thorough'),
   /** whether Clarify interviews the human in rounds before writing the Brief: auto = when something is worth asking; always = at least one round; never = the one-shot Brief */
   interview: z.enum(['auto', 'always', 'never']).default('auto'),
+  /** how deep Clarify interviews for new goals: 0 = never (one-shot Brief), 1–5 = from only what matters to every detail; null = from `interview` */
+  interviewDepth: z.number().int().min(0).max(5).nullable().default(null),
+  /** new goals pause at their milestones for "Have a look"; off = they go on and the milestone is only notified */
+  milestonePause: z.boolean().default(true),
   /** effort level new goals hand to every session (`claude --effort`); null = the CLI default */
   effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).nullable().default(null),
   /** which image-generation skill set media workers follow (scenario `image`) */
@@ -140,8 +144,12 @@ export const NotificationSettings = z.object({
   telegramChatId: z.string().min(1).nullable().default(null),
   /** Discord webhook URL; null = Discord channel off */
   discordWebhookUrl: z.string().url().nullable().default(null),
-  /** where this UI is reachable from outside (Tailscale, LAN…); null = messages carry no links */
+  /** where this UI is reachable from outside (a LAN address, a domain); null = links point at this computer (http://localhost:<port>) */
   baseUrl: z.string().url().nullable().default(null),
+  /** add tailnet links (Tailscale) next to the others, serving Foundry's and the previews' ports with `tailscale serve`; off = never */
+  tailscale: z.enum(['auto', 'off']).default('auto'),
+  /** this computer's tailnet name when it should not be read from `tailscale status` (mac.tailnet-123.ts.net) */
+  tailscaleHost: z.string().nullable().default(null),
   /** an Escalation was raised — a task or goal is blocked and needs the human */
   onEscalation: z.boolean().default(true),
   /** the Clarify interview asked a round of questions */

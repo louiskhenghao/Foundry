@@ -3,15 +3,16 @@ import { hostname } from 'node:os';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
 import { spawnStreaming } from '../skills/updaters.ts';
-import type { BriefApp, BriefRun, Goal } from '@foundry/core';
+import type { BriefApp, BriefRun, Goal, PreviewPlace } from '@foundry/core';
 import { getBrief, getGoal } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { ensureDetachedWorktree, git, gitOk } from '../git/git.ts';
 import { goalWorkspacePath, previewWorkspacePath } from '../workspace.ts';
-import { detectApps, detectRun, packageManager, previewBindHost } from './detect.ts';
+import { detectApps, detectRun, forPackageManager, packageManager, previewBindHost } from './detect.ts';
 import { checkoutEnv, exampleKeys, fileKeys, keyUsage, PreviewEnvStore, redactor } from './env.ts';
 import { envHint } from './env-hints.ts';
 import { listeningPorts } from './listeners.ts';
+import { envFiles, nativePort, rewriteLocalPorts } from './ports.ts';
 import { ServicesManager } from './services.ts';
 
 export type PreviewStarter = 'human' | 'milestone' | 'integration';
@@ -46,6 +47,12 @@ export interface PreviewAppStatus {
   discovered: { port: number; url: string; name: string; dir: string | null }[];
   /** why Foundry stopped it last time, when not a person: idle, the goal ended, shutdown */
   stopped: string | null;
+  /** the port it listens on when run by hand, when Foundry could tell; it keeps it when that port is free */
+  nativePort: number | null;
+  /** variables whose address of another app (or this one) was moved to the port that app got: names only, never values */
+  rewrites: { key: string; from: number; to: number }[];
+  /** its address on the person's tailnet (Tailscale), for opening it on another device; null = none */
+  tailnetUrl: string | null;
 }
 
 /**
@@ -67,16 +74,23 @@ export interface PreviewStatus {
   source: 'brief' | 'detected' | null;
   error: string | null;
   apps: PreviewAppStatus[];
-  /** where the apps run: the goal's progress folder on the goal's branch, or a preview folder on another branch; never the person's checkout */
+  /** where the apps run: the goal's progress folder on the goal's branch, Foundry's preview folder, or the person's checkout */
   workspace: PreviewSource | null;
 }
 
 /** where a goal's preview runs */
 export interface PreviewSource {
-  /** `goal`: the progress folder on the goal branch; `branch`: Foundry's preview folder, detached at `branch` */
-  kind: 'goal' | 'branch';
+  /**
+   * `goal`: the progress folder on the goal branch; `branch`: Foundry's preview folder, detached at `branch`;
+   * `checkout`: the person's own checkout, as it is (Foundry never switches, resets or pulls it)
+   */
+  kind: 'goal' | 'branch' | 'checkout';
   path: string;
   branch: string;
+  /** where a finished goal's preview was asked to run (Goal.previewPlace) */
+  place: PreviewPlace;
+  /** the branch the person's checkout is on; null = detached or not a repository */
+  checkoutBranch: string | null;
   /** the preview folder is being created or brought to the branch's latest commit */
   preparing: boolean;
   /** why it runs from here when nobody picked it: the goal's folder was cleaned up after the merge */
@@ -126,6 +140,9 @@ interface Live {
   probes: Map<number, true | number>;
   discovery: ReturnType<typeof setInterval> | null;
   discovering: boolean;
+  nativePort: number | null;
+  rewrites: PreviewAppStatus['rewrites'];
+  tailnetUrl: string | null;
 }
 
 const LOG_LINES = 200;
@@ -242,6 +259,9 @@ export class PreviewManager {
       warning: l?.warning ?? null,
       discovered: l?.discovered ?? [],
       stopped: l ? null : (this.lastStop.get(id(goalId, key)) ?? null),
+      nativePort: l?.nativePort ?? null,
+      rewrites: l?.rewrites ?? [],
+      tailnetUrl: l?.tailnetUrl ?? null,
     };
   }
 
@@ -253,7 +273,9 @@ export class PreviewManager {
 
   /**
    * Start one app (`appKey`) or every app that is not running yet, after bringing up the Docker services they need.
-   * Every app gets the others' addresses as FOUNDRY_APP_<KEY>_URL, so ports are given out before any app starts.
+   * Every app gets the others' addresses as FOUNDRY_APP_<KEY>_URL, so ports are given out before any app starts. An
+   * app keeps the port it uses when run by hand while that port is free, so the addresses its siblings' env files
+   * name still reach it; when it gets another one, those addresses are rewritten to it in each app's environment.
    */
   async start(goal: Goal, by: PreviewStarter, appKey?: string): Promise<PreviewStatus> {
     const resolved = this.resolveApps(goal);
@@ -268,8 +290,21 @@ export class PreviewManager {
       this.engine.config.log(`[preview] ${goal.id}: services: ${String((err as Error).message ?? err)}`);
       return null;
     });
+    const natives = new Map(resolved.apps.map((a) => [a.key, nativePort(ws, a)] as const));
     const ports = new Map<string, number>();
-    for (const a of targets) ports.set(a.key, await this.freePort([...ports.values()]));
+    for (const a of targets) {
+      const native = natives.get(a.key);
+      // in Docker only Settings → Preview's range is published to the host, so the usual port could not be opened
+      const keep = native != null && !previewBindHost() && (await this.portAvailable(native, [...ports.values()]));
+      ports.set(a.key, keep ? native : await this.freePort([...ports.values()]));
+    }
+    // usual port → the port the app runs on, for every app of the goal that runs elsewhere
+    const moved = new Map<number, number>();
+    for (const a of resolved.apps) {
+      const native = natives.get(a.key);
+      const port = this.live.get(id(goal.id, a.key))?.port ?? ports.get(a.key);
+      if (native != null && port != null && port !== native) moved.set(native, port);
+    }
     const urls: Record<string, string> = {};
     for (const a of resolved.apps) {
       const live = this.live.get(id(goal.id, a.key));
@@ -278,7 +313,13 @@ export class PreviewManager {
     }
     const note = services?.error ? `[services] ${services.error}` : services && services.docker !== 'available' ? `[services] ${services.docker === 'in-container' ? 'Foundry runs in Docker without access to Docker' : 'docker is not installed'}; start them yourself: ${services.command}` : null;
     const installed = await this.installDependencies(goal, ws, targets);
-    await Promise.all(targets.map((a) => this.startApp(goal, a, ws, ports.get(a.key)!, urls, by, [...(note ? [note] : []), ...installed.lines], installed.failed)));
+    const entered = this.env.get(goal.repoPath).vars;
+    await Promise.all(
+      targets.map((a) => {
+        const rewired = rewriteLocalPorts({ ...envFiles(ws, a.dir), ...entered }, moved);
+        return this.startApp(goal, a, ws, ports.get(a.key)!, urls, by, [...(note ? [note] : []), ...installed.lines], installed.failed, { native: natives.get(a.key) ?? null, ...rewired });
+      }),
+    );
     return this.status(goal.id);
   }
 
@@ -372,13 +413,13 @@ export class PreviewManager {
     return { added, view: this.envView(goal) };
   }
 
-  private async startApp(goal: Goal, app: BriefApp, ws: string, port: number, urls: Record<string, string>, by: PreviewStarter, preface: string[], warning: string | null): Promise<void> {
+  private async startApp(goal: Goal, app: BriefApp, ws: string, port: number, urls: Record<string, string>, by: PreviewStarter, preface: string[], warning: string | null, wiring: { native: number | null; vars: Record<string, string>; changes: Live['rewrites'] }): Promise<void> {
     const { store, config } = this.engine;
     const key = id(goal.id, app.key);
-    const command = app.command!.replaceAll('{port}', String(port));
+    const command = forPackageManager(app.command!).replaceAll('{port}', String(port));
     const url = urls[appUrlVar(app.key)]!;
     const now = new Date().toISOString();
-    const entry: Live = { goalId: goal.id, key: app.key, proc: null as unknown as Live['proc'], port, url, command, startedAt: now, startedBy: by, lastVisitAt: now, ready: false, log: [], stopping: false, stopReason: null, warning, discovered: [], reserved: [], probes: new Map(), discovery: null, discovering: false };
+    const entry: Live = { goalId: goal.id, key: app.key, proc: null as unknown as Live['proc'], port, url, command, startedAt: now, startedBy: by, lastVisitAt: now, ready: false, log: [], stopping: false, stopReason: null, warning, discovered: [], reserved: [], probes: new Map(), discovery: null, discovering: false, nativePort: wiring.native, rewrites: wiring.changes, tailnetUrl: null };
     const channel = `preview-${goal.id}-${app.key}`;
     const env = this.processEnv(goal);
     const redact = this.redactorFor(goal);
@@ -389,11 +430,13 @@ export class PreviewManager {
       this.engine.broadcast({ goalId: goal.id, taskId: null, attemptId: channel, event: { kind: 'text', text: line }, ts: new Date().toISOString() });
     };
     for (const line of preface) push(line);
+    if (wiring.native != null && wiring.native !== port) push(`[preview] ${app.name} usually runs on port ${wiring.native}; here it runs on ${port}`);
+    for (const c of wiring.changes) push(`[preview] ${c.key}: localhost:${c.from} → localhost:${c.to}`);
     push(`$ ${command}  (port ${port}${app.dir ? `, in ${app.dir}` : ''})`);
     // in Docker, servers that read HOST (or HOSTNAME, Next's standalone server) listen on every interface too
     const host = previewBindHost();
     const bind = host ? { HOST: host, HOSTNAME: host } : {};
-    entry.proc = Bun.spawn(['sh', '-lc', command], { cwd: app.dir ? join(ws, app.dir) : ws, stdout: 'pipe', stderr: 'pipe', env: { ...env, ...urls, PORT: String(port), ...bind, BROWSER: 'none', FORCE_COLOR: '0', NO_COLOR: '1' }, detached: true });
+    entry.proc = Bun.spawn(['sh', '-lc', command], { cwd: app.dir ? join(ws, app.dir) : ws, stdout: 'pipe', stderr: 'pipe', env: { ...env, ...wiring.vars, ...urls, PORT: String(port), ...bind, BROWSER: 'none', FORCE_COLOR: '0', NO_COLOR: '1' }, detached: true });
     this.live.set(key, entry);
     this.lastError.delete(key);
     this.lastStop.delete(key);
@@ -418,6 +461,9 @@ export class PreviewManager {
       entry.discovery = setInterval(() => void this.discover(entry, ws), DISCOVERY_MS);
     }, 3_000);
     entry.ready = await waitForHttp(url, READY_TIMEOUT_MS, () => this.current(entry));
+    // reachable from the person's phone over their tailnet, when they use Tailscale
+    if (this.current(entry)) entry.tailnetUrl = await this.engine.tailnet.expose(port).catch(() => null);
+    if (!this.current(entry) && entry.tailnetUrl) void this.engine.tailnet.unexpose(port);
     if (!entry.ready && this.current(entry)) {
       entry.warning = `${url} did not answer within ${READY_TIMEOUT_MS / 1000} s; it may still be starting, or the command ignores PORT ({port} in the Brief's How to run it)`;
       push(`[preview] ${entry.warning}`);
@@ -484,6 +530,7 @@ export class PreviewManager {
       /* the group is already gone */
     }
     l.proc.kill();
+    if (l.tailnetUrl) void this.engine.tailnet.unexpose(l.port);
     await Promise.race([l.proc.exited, new Promise((r) => setTimeout(r, 3000))]);
     if (this.live.get(key) === l) {
       this.live.delete(key);
@@ -512,17 +559,23 @@ export class PreviewManager {
    * Where the preview runs. While a goal is still being worked on, always its progress folder (the self-check and
    * milestones look at the goal's work). Once it is finished, the branch the person picked; by default the goal branch
    * while its folder exists, else the base branch, which holds the work once it merged and the folder was cleaned up.
+   * A branch other than the goal's runs in the person's checkout when it is on that branch already (its dependencies
+   * and env files are there), else in Foundry's preview folder; the person can pin either place.
    */
-  source(goal: Goal): { kind: 'goal' | 'branch'; path: string; branch: string; fallback: string | null } {
+  source(goal: Goal): Omit<PreviewSource, 'preparing'> {
     const goalWs = goalWorkspacePath(this.engine.config.dataDir, goal);
     const alive = existsSync(goalWs);
     const base = goal.delivery.policy.baseBranch ?? goal.baseBranch;
-    const own = { kind: 'goal' as const, path: goalWs, branch: goal.branch, fallback: null };
+    const place = goal.previewPlace ?? 'auto';
+    const own = { kind: 'goal' as const, path: goalWs, branch: goal.branch, fallback: null, place, checkoutBranch: null };
     if (!TERMINAL.includes(goal.state)) return own;
+    const checkoutBranch = currentBranch(goal.repoPath);
+    if (place === 'checkout') return { kind: 'checkout', path: goal.repoPath, branch: checkoutBranch ?? 'HEAD', fallback: null, place, checkoutBranch };
     const ref = goal.previewRef ?? (alive ? goal.branch : base);
-    if (ref === goal.branch && alive) return own;
-    const fallback = goal.previewRef ? null : `the goal's folder was cleaned up${goal.delivery.outcome === 'merged' ? ' after the merge' : ''}, so the preview runs ${base}`;
-    return { kind: 'branch', path: previewWorkspacePath(this.engine.config.dataDir, goal), branch: ref, fallback };
+    if (ref === goal.branch && alive) return { ...own, checkoutBranch };
+    const cleaned = goal.previewRef ? null : `the goal's folder was cleaned up${goal.delivery.outcome === 'merged' ? ' after the merge' : ''}, so the preview runs ${base}`;
+    if (place === 'auto' && checkoutBranch === ref) return { kind: 'checkout', path: goal.repoPath, branch: ref, fallback: cleaned, place, checkoutBranch };
+    return { kind: 'branch', path: previewWorkspacePath(this.engine.config.dataDir, goal), branch: ref, fallback: cleaned, place, checkoutBranch };
   }
 
   private sourceStatus(goal: Goal): PreviewSource {
@@ -543,11 +596,12 @@ export class PreviewManager {
 
   /**
    * Bring the preview folder to the latest commit of its branch: created as a detached worktree the first time, moved
-   * (keeping untracked files such as node_modules) when no app of the goal runs. The progress folder needs nothing.
+   * (keeping untracked files such as node_modules) when no app of the goal runs. The progress folder and the person's
+   * checkout need nothing (and the checkout is never moved).
    */
   prepare(goal: Goal): Promise<void> {
     const s = this.source(goal);
-    if (s.kind === 'goal') return Promise.resolve();
+    if (s.kind !== 'branch') return Promise.resolve();
     const pending = this.preparing.get(goal.id);
     if (pending) return pending;
     const job = (async () => {
@@ -580,12 +634,16 @@ export class PreviewManager {
     return { current: this.sourceStatus(goal), options, selectable: TERMINAL.includes(goal.state) };
   }
 
-  /** pick the branch a finished goal's preview runs from (null = the default); not while one of its apps runs */
-  async setSource(goal: Goal, ref: string | null): Promise<PreviewSource> {
+  /**
+   * Pick the branch a finished goal's preview runs from (null = the default, undefined = keep it) and, optionally, where
+   * it runs; not while one of its apps runs.
+   */
+  async setSource(goal: Goal, ref: string | null | undefined, place?: PreviewPlace): Promise<PreviewSource> {
     if (!TERMINAL.includes(goal.state)) throw new PreviewError("while the goal is being worked on, the preview runs the goal's folder", 409);
-    if ([...this.live.values()].some((l) => l.goalId === goal.id)) throw new PreviewError('stop the preview first, then pick another branch', 409);
-    if (ref !== null && !(await this.resolveRef(goal.repoPath, ref))) throw new PreviewError(`no branch ${ref} in the repository`, 404);
-    this.engine.store.append({ type: 'goal.preview_ref_set', goalId: goal.id, payload: { ref } });
+    if ([...this.live.values()].some((l) => l.goalId === goal.id)) throw new PreviewError('stop the preview first, then pick another branch or place', 409);
+    if (ref != null && !(await this.resolveRef(goal.repoPath, ref))) throw new PreviewError(`no branch ${ref} in the repository`, 404);
+    if (place && place !== (goal.previewPlace ?? 'auto')) this.engine.store.append({ type: 'goal.preview_place_set', goalId: goal.id, payload: { place } });
+    if (ref !== undefined && ref !== goal.previewRef) this.engine.store.append({ type: 'goal.preview_ref_set', goalId: goal.id, payload: { ref } });
     const next = getGoal(this.engine.store.db, goal.id)!;
     await this.prepare(next);
     return this.sourceStatus(next);
@@ -615,10 +673,19 @@ export class PreviewManager {
     }
   }
 
+  /** ports a running preview or its other servers took (a demo script's admin on PORT+1), never handed out again */
+  private taken(reserved: number[]): Set<number> {
+    return new Set([...[...this.live.values()].flatMap((l) => [l.port, ...l.reserved]), ...reserved]);
+  }
+
+  /** an app's usual port: free, held by no preview, and nothing (the person's own dev server on ::) answers there */
+  private async portAvailable(port: number, reserved: number[]): Promise<boolean> {
+    return !this.taken(reserved).has(port) && (await portFree(port)) && !(await answersLocal(port));
+  }
+
   private async freePort(reserved: number[] = []): Promise<number> {
     const { portFrom, portTo } = this.engine.config.preview;
-    // ports a running preview's other servers took (a demo script's admin on PORT+1) are not handed out again
-    const taken = new Set([...[...this.live.values()].flatMap((l) => [l.port, ...l.reserved]), ...reserved]);
+    const taken = this.taken(reserved);
     for (let p = Math.min(portFrom, portTo); p <= Math.max(portFrom, portTo); p++) {
       if (taken.has(p)) continue;
       if (await portFree(p)) return p;
@@ -699,6 +766,16 @@ async function pump(stream: ReadableStream<Uint8Array>, onLine: (l: string) => v
     if (buf.trim()) onLine(buf);
   } catch {
     /* stream closed with the process */
+  }
+}
+
+/** the branch a checkout is on, or null when it is detached or not a repository */
+function currentBranch(repo: string): string | null {
+  try {
+    const r = Bun.spawnSync(['git', 'symbolic-ref', '--short', '-q', 'HEAD'], { cwd: repo, stdout: 'pipe', stderr: 'ignore' });
+    return r.exitCode === 0 ? r.stdout.toString().trim() || null : null;
+  } catch {
+    return null;
   }
 }
 

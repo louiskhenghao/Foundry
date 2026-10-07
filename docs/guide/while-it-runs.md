@@ -62,13 +62,13 @@ From top to bottom:
 - **Brief**: one line under the timeline, for example **Brief APPROVED · 36 tasks · 11/11 assumptions accepted · 9/12 questions answered · est. $380 / 1500 min**. Click it to open the Brief, where the Understanding and everything else the Clarifier wrote are.
 - **What needs you**: the same cards as in the Inbox, with their buttons.
 - **goal**: your original description. **Open full**, the icon with two diagonal arrows in its corner, reads it in a larger window.
+- **Goal review**: right under the goal once the final review ran: one line with the verdict (**passed**, **over-delivered** or **failed**) and the start of the reviewer's notes; **reviewer notes** unfolds them.
 - **Attachments**: right under the goal, as on the New goal form. You can add more at any time; new sessions receive them.
 - **Workspace & preview**: where the goal's work is, and starting it to try it. See [The progress folder](#the-progress-folder) and [Preview](#preview).
 - **Model fallback**: only if a model was unavailable and Foundry switched to another one.
 - **Project skills**: skills Foundry added for your project's technology, grouped as Frontend, Backend, Database, Testing and Tooling, with how many there are. They never reach your commits.
 - **Completion**: one row each for the documents, the graph refresh and media files, with how it went. See [Completion extras](./getting-the-result.md#completion-extras).
-- **Goal review**: the final reviewer's verdict and notes, once it ran.
-- **Acceptance** (on the right): every **must** and **stretch** check with its latest result, for example **3/4 passing**. Click a check to see its output. Below them, the **Self-check** switch and its latest result (see [Self-check](#self-check)).
+- **Acceptance** (on the right): every **must** and **stretch** check with its latest result, for example **3/4 passing**. Click a check to see its output. Below them, the **Self-check** switch and its latest result (see [Self-check](#self-check)), and **Have a look: pause at milestones** when the goal has milestones (see [Milestones](#milestones)).
 
 ## Tasks
 
@@ -152,6 +152,8 @@ A repository can hold several apps you run side by side, for example a web app, 
 
 **Start all** starts every app that is not running; **Stop all** stops them all. Each app gets its own port, and the addresses of the other apps in its environment as `FOUNDRY_APP_<KEY>_URL`, for example `FOUNDRY_APP_API_URL`, so the web app can find the API.
 
+An app keeps the port it uses when you run it yourself, while that port is free, so the addresses your `.env` files name still reach it. Foundry reads that port from the start script (`next dev -p 3001`), `PORT` in the app's `.env` files, a default in its server code (`process.env.PORT ?? 4000`) or the framework's default (Next 3000, Vite 5173). When the port is taken (your own dev server is on it, say), the app gets one from **Settings → Preview** instead, and every variable that points at `localhost:<usual port>` is pointed at the new port in the apps' environment; your files are not changed. The app's row says so: **Usually on port 3000, which was taken; runs on 4200**, and **Pointed at the ports the apps got** with the variable names. In Docker the apps always get ports from the range, since only it is published, and the variables are pointed there.
+
 ### Services
 
 If the repository has a Docker Compose file with services the apps need (a database such as Postgres, file storage such as MinIO), the card shows a **Services** section with each service, its ports and its state. Starting the preview starts the services first. **Start services** and **Stop services** act on all of them; each service also has its own **Start** or **Stop**.
@@ -165,9 +167,17 @@ Foundry also starts the preview by itself at a milestone, restarts it after each
 
 ### Where it runs
 
-The top of the card says which branch runs and where, **not your checkout**. While the goal is being worked on, the preview runs the goal's own copy of the repository (its progress folder, on the goal's branch), so you see the goal's work, not what is in your own folder. **copy** copies that folder's path.
+The top of the card says which branch runs and where. While the goal is being worked on, the preview runs the goal's own copy of the repository (its progress folder, on the goal's branch), **not your checkout**, so you see the goal's work, not what is in your own folder. **copy** copies that folder's path.
 
-Once the goal is finished, the branch is a menu, with a line under it saying what the chosen branch is (the goal's folder, the base branch with the merged work…). Pick the goal branch, the base branch (for example `main`) or another local branch of yours; stop the preview first to change it. Any branch other than the goal's runs in Foundry's own preview folder, checked out at that branch's latest commit, never in your checkout. After a merge Foundry cleans up the goal's folder and deletes its branch; the preview then runs the base branch, which holds the merged work, and an amber line says so.
+Once the goal is finished, the branch is a menu, with a line under it saying what the chosen branch is (the goal's folder, the base branch with the merged work…). Pick the goal branch, the base branch (for example `main`) or another local branch of yours; stop the preview first to change it. After a merge Foundry cleans up the goal's folder and deletes its branch; the preview then runs the base branch, which holds the merged work, and an amber line says so.
+
+Beside the branch, a second menu picks where a branch other than the goal's runs:
+
+- **(auto)**, the default: in your checkout when it is on that branch already, so its installed dependencies and `.env` files are used; otherwise in Foundry's preview folder, and a line says which branch your checkout is on.
+- **your checkout**: your own folder as it is, on whatever branch it is on, including changes you have not committed. The branch menu goes away.
+- **Foundry's preview folder**: Foundry's own folder, checked out at the branch's latest commit.
+
+Foundry never switches, resets or pulls your checkout for a preview. Stop the preview before changing either menu.
 
 When the start command launches more servers than the one Foundry gave a port to (a demo script that starts the web app, an admin and an API, or `turbo dev`), Foundry finds the ports they listen on and lists the ones that answer web requests under **Also serving**, each named after its package (or the folder it runs in), with its own link. Every port it uses is kept away from other goals' previews.
 
@@ -195,6 +205,8 @@ It only helps goals whose result runs in a browser, and it needs a one-time down
 
 ## Milestones
 
+**Have a look: pause at milestones** decides whether a goal stops at its milestones. It is on by default ([Settings](./settings.md)); each goal has its own switch on the Brief's **How to run it** section and in the Overview's **Acceptance** card, which applies from the next milestone. With it off, the goal goes on, and the note below, with the latest screenshot, is sent to your notification channels instead.
+
 When a milestone task lands, the goal pauses. Its badge reads **have a look**, the Inbox shows **Have a look**, and at the top of the goal page appears a card: **Have a look — task name**.
 
 ![The Have a look card with what to look at, the running preview and the self-check's screenshots](images/milestone.png)
@@ -202,12 +214,15 @@ When a milestone task lands, the goal pauses. Its badge reads **have a look**, t
 The card shows:
 
 - What to look at, as written in the Brief.
+- **What Foundry saw**: a recording of the preview and screenshots, so you can look without starting anything. While the card opens it says **Recording a walkthrough of the preview…**: a small model plans a few steps from what to look at and the page's controls (clicking, filling in sample values, opening pages; never signing in, paying or deleting), and a hidden browser follows them, recording a video and taking a screenshot at each point worth seeing. A step that cannot be done is skipped; when no walkthrough can be planned, one screenshot of the page is kept, and an amber line says why. It needs Playwright's Chromium, the same as the self-check.
 - The preview, already starting, with **Open preview**.
 - **What the self-check saw**: its latest screenshots, if the self-check is on.
 - **Artifacts**: images and files produced so far, for media goals.
 - The code so far is on the **Diff** tab; the folder is under **Open ▾**.
 
 Then either press **Continue**, or write what you saw and press **Turn into a plan**. How that works, step by step, is in [When Foundry needs you](./when-foundry-needs-you.md#a-milestone-is-ready-to-look-at).
+
+The same screenshots and video are sent to your notification channels in a second message, **📸 What the milestone looks like**, whether or not the goal pauses. A video too large for the channel (50 MB on Telegram, 10 MB on Discord) stays on the goal page, and the message says so.
 
 ## Activity
 

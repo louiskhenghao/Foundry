@@ -51,9 +51,23 @@ function runFor(pkg: Pkg, pm: string, host: string | null): Omit<BriefRun, 'inst
   if (deps.expo) return { command: 'npx expo start --web --port {port}', url, platform: 'expo' };
   const script = scripts.dev ? 'dev' : scripts.start ? 'start' : null;
   if (!script) return null;
+  // pnpm hands a literal `--` on to the script, where Next takes the `-p` after it for its project directory
+  const sep = pm === 'pnpm' ? '' : ' --';
   const args =
-    script === 'dev' && deps.vite ? ` -- --port {port} --strictPort${host ? ` --host ${host}` : ''}` : script === 'dev' && deps.next ? ` -- -p {port}${host ? ` -H ${host}` : ''}` : '';
+    script === 'dev' && deps.vite ? `${sep} --port {port} --strictPort${host ? ` --host ${host}` : ''}` : script === 'dev' && deps.next ? `${sep} -p {port}${host ? ` -H ${host}` : ''}` : '';
   return { command: `${pm} run ${script}${args}`, url, platform: 'web' };
+}
+
+/**
+ * A run command as the package manager it names expects it. pnpm (7+) passes the `--` of `pnpm run dev -- -p 4200` on
+ * to the script, unlike npm, yarn and bun, so `next dev -- -p 4200` takes `-p` for its project directory. Commands
+ * written for npm (a Brief, an older detection) drop that `--` when they run through pnpm.
+ */
+export function forPackageManager(command: string): string {
+  return command
+    .split(/(\s*(?:&&|\|\||;)\s*)/)
+    .map((part) => (/^pnpm\s/.test(part) ? part.replace(/\s--(?=\s|$)/, '') : part))
+    .join('');
 }
 
 /** dependencies that make a workspace package something a person runs, not a library */

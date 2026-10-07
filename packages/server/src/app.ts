@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CodexEffort, Effort, Brief, EscalationAnswer, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
 import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, type Engine, type OpenTargetId } from '@foundry/engine';
-import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, SettingsPatch } from '@foundry/core';
+import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, PreviewPlace, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
 import { listGuide, readGuide } from './guide.ts';
@@ -56,7 +56,9 @@ const CreateGoalBody = z.object({
   nature: GoalNature.optional(),
   outputDir: z.string().nullable().optional(),
   selfCheck: z.boolean().optional(),
+  milestonePause: z.boolean().optional(),
   interview: z.enum(['auto', 'always', 'never']).optional(),
+  interviewDepth: z.number().int().min(0).max(5).optional(),
   effort: CodexEffort.nullable().optional(),
   modelPreset: z.string().min(1).nullable().optional(),
   /** create the goal as a Follow-up of an earlier finished goal of the same repository */
@@ -230,9 +232,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   // the branch a finished goal's preview runs from: the choices, and picking one (null = the default)
   app.get('/api/goals/:id/preview/sources', async (c) => c.json(await engine.preview.sources(goalOr404(c))));
   app.put('/api/goals/:id/preview/source', async (c) => {
-    const { ref } = z.object({ ref: z.string().min(1).max(250).nullable() }).parse(await c.req.json().catch(() => ({})));
+    const { ref, place } = z.object({ ref: z.string().min(1).max(250).nullable().optional(), place: PreviewPlace.optional() }).parse(await c.req.json().catch(() => ({})));
     try {
-      return c.json(await engine.preview.setSource(goalOr404(c), ref));
+      return c.json(await engine.preview.setSource(goalOr404(c), ref, place));
     } catch (e) {
       if (e instanceof PreviewError) throw new HttpError(e.status, { error: e.message });
       throw e;
@@ -271,6 +273,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.post('/api/goals/:id/preview/env/import', (c) => c.json(engine.preview.importCheckoutEnv(goalOr404(c))));
   app.post('/api/goals/:id/preview/visit', (c) => {
     engine.preview.touch(goalOr404(c).id);
+    return c.json({ ok: true });
+  });
+  app.post('/api/goals/:id/milestone-pause', async (c) => {
+    const { on } = z.object({ on: z.boolean() }).parse(await c.req.json());
+    engine.setMilestonePause(goalOr404(c).id, on);
     return c.json({ ok: true });
   });
   app.post('/api/goals/:id/selfcheck', async (c) => {
@@ -388,10 +395,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.get('/api/goals/:id/screenshots/:file', (c) => {
     const goal = goalOr404(c);
     const file = c.req.param('file');
-    if (!/^[\w.-]+\.png$/.test(file)) throw new HttpError(400, { error: 'bad screenshot name' });
+    // screenshots, and the videos of milestone walkthroughs
+    if (!/^[\w.-]+\.(png|webm)$/.test(file)) throw new HttpError(400, { error: 'bad screenshot name' });
     const p = join(screenshotsDir(engine.config.dataDir, goal), file);
     if (!existsSync(p)) throw new HttpError(404, { error: 'screenshot not found' });
-    return new Response(Bun.file(p), { headers: { 'content-type': 'image/png', 'cache-control': 'private, max-age=3600' } });
+    return new Response(Bun.file(p), { headers: { 'content-type': file.endsWith('.webm') ? 'video/webm' : 'image/png', 'cache-control': 'private, max-age=3600' } });
   });
   app.get('/api/goals/:id/artifacts', (c) => c.json({ files: listArtifacts(goalWorkspacePath(engine.config.dataDir, goalOr404(c))) }));
   app.get('/api/goals/:id/artifacts/*', (c) => {

@@ -247,9 +247,24 @@ export function applyEvent(db: Database, e: EngineEvent): void {
       if (g) upsertGoal(db, { ...g, selfCheck: e.payload.on, updatedAt: e.ts });
       break;
     }
+    case 'goal.milestone_pause_set': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, milestonePause: e.payload.on, updatedAt: e.ts });
+      break;
+    }
+    case 'goal.milestone_passed': {
+      const t = getTask(db, e.payload.taskId);
+      if (t) upsertTask(db, { ...t, milestoneVisits: t.milestoneVisits + 1, updatedAt: e.ts });
+      break;
+    }
     case 'goal.preview_ref_set': {
       const g = getGoal(db, e.goalId!);
       if (g) upsertGoal(db, { ...g, previewRef: e.payload.ref, updatedAt: e.ts });
+      break;
+    }
+    case 'goal.preview_place_set': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, previewPlace: e.payload.place, updatedAt: e.ts });
       break;
     }
     case 'goal.checkpoint_closed': {
@@ -307,7 +322,12 @@ export function applyEvent(db: Database, e: EngineEvent): void {
     }
     case 'goal.docs_generated': {
       const g = getGoal(db, e.goalId!);
-      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, docsRun: { status: e.payload.status, types: e.payload.types, files: e.payload.files, costUsd: e.payload.costUsd, detail: e.payload.detail, at: e.ts, ref: e.payload.ref ?? /committed ([0-9a-f]{7,40})\b/.exec(e.payload.detail)?.[1] ?? null } }, updatedAt: e.ts });
+      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, docsRun: { status: e.payload.status, types: e.payload.types, files: e.payload.files, costUsd: e.payload.costUsd, detail: e.payload.detail, at: e.ts, ref: e.payload.ref ?? /committed ([0-9a-f]{7,40})\b/.exec(e.payload.detail)?.[1] ?? null, pr: null } }, updatedAt: e.ts });
+      break;
+    }
+    case 'goal.docs_pr_opened': {
+      const g = getGoal(db, e.goalId!);
+      if (g?.completion.docsRun) upsertGoal(db, { ...g, completion: { ...g.completion, docsRun: { ...g.completion.docsRun, pr: { number: e.payload.number, url: e.payload.url, branch: e.payload.branch } } }, updatedAt: e.ts });
       break;
     }
     case 'goal.completion_ran': {

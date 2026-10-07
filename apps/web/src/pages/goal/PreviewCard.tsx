@@ -1,6 +1,6 @@
 import { ExternalLink, Eye, EyeOff, GitBranch, Play, Plus, Square, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { type PreviewAppStatus, type PreviewEnv, type PreviewSources, type PreviewStatus, type ServicesStatus, api } from '../../api.ts';
+import { type PreviewAppStatus, type PreviewEnv, type PreviewPlace, type PreviewSources, type PreviewStatus, type ServicesStatus, api } from '../../api.ts';
 import { Button, Card, CopyButton, Input, Modal, Select, cn } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { WorkspaceDetails } from './WorkspaceDetails.tsx';
@@ -31,9 +31,31 @@ function AlsoServing({ app, onVisit }: { app: PreviewAppStatus; onVisit: () => v
   );
 }
 
+/** this page was opened from another device (over the tailnet), where localhost is that device, not this computer */
+const remote = typeof location !== 'undefined' && !['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+/** where to open an app: its tailnet address when the page itself came over the tailnet */
+const openUrl = (a: PreviewAppStatus) => (remote && a.tailnetUrl ? a.tailnetUrl : a.url);
+
 /** why the last run ended, with the lines the app printed last; or what to know while it runs */
 function Problems({ app }: { app: PreviewAppStatus }) {
-  if (app.running) return app.warning ? <div className="text-amber-300">{app.warning}</div> : null;
+  if (app.running)
+    return (
+      <>
+        {app.warning && <div className="text-amber-300">{app.warning}</div>}
+        {app.nativePort != null && app.port != null && app.nativePort !== app.port && <div className="text-[11px] text-zinc-500">Usually on port {app.nativePort}, which was taken; runs on {app.port}.</div>}
+        {app.rewrites.length > 0 && (
+          <div className="text-[11px] text-zinc-500">
+            Pointed at the ports the apps got:{' '}
+            {app.rewrites.map((r, i) => (
+              <span key={`${r.key}:${r.from}`}>
+                {i > 0 && ', '}
+                <span className="mono text-zinc-400">{r.key}</span> {r.from} → {r.to}
+              </span>
+            ))}
+          </div>
+        )}
+      </>
+    );
   if (!app.error) return app.stopped ? <div className="text-[11px] text-zinc-500">Foundry stopped it: {app.stopped}.</div> : null;
   return (
     <div className="rounded border border-rose-500/30 bg-rose-500/5 px-2 py-1.5 space-y-1">
@@ -125,7 +147,7 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
               {startedByText(a.startedBy) && <span className="text-zinc-500"> · started {startedByText(a.startedBy)}</span>}
             </span>
             {a.url && (
-              <a href={a.url} target="_blank" rel="noreferrer" onClick={visit} className="inline-flex items-center gap-1 text-emerald-300 hover:underline">
+              <a href={openUrl(a)!} target="_blank" rel="noreferrer" onClick={visit} className="inline-flex items-center gap-1 text-emerald-300 hover:underline">
                 Open preview <ExternalLink size={12} />
               </a>
             )}
@@ -169,7 +191,7 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
               {a.dir && <span className="mono text-[11px] text-zinc-500 truncate max-w-[14rem]" title={a.dir}>{a.dir}</span>}
               {a.running && a.port != null && <span className="text-[11px] text-zinc-500">:{a.port}</span>}
               {a.running && a.url && (
-                <a href={a.url} target="_blank" rel="noreferrer" onClick={visit} title={a.url} className="inline-flex items-center gap-1 self-center text-emerald-300 hover:underline">
+                <a href={openUrl(a)!} target="_blank" rel="noreferrer" onClick={visit} title={openUrl(a)!} className="inline-flex items-center gap-1 self-center text-emerald-300 hover:underline">
                   Open <ExternalLink size={12} />
                 </a>
               )}
@@ -243,10 +265,12 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
   return embedded ? body : <Card title={goal ? 'Workspace & preview' : 'Preview'} actions={allButtons || null}>{body}</Card>;
 }
 
+const PLACE_LABEL: Record<PreviewPlace, string> = { auto: 'where it fits', checkout: 'your checkout', foundry: "Foundry's preview folder" };
+
 /**
  * Which branch the preview runs and where. A finished goal can run another branch: its own folder is cleaned up after
- * the merge, and the base branch then holds the work. Another branch runs in Foundry's preview folder, never in the
- * person's checkout.
+ * the merge, and the base branch then holds the work. Another branch runs in the person's checkout when it is on that
+ * branch already, else in Foundry's preview folder; the person can pin either.
  */
 function Where({ goalId, st, busy, onChange }: { goalId: string; st: PreviewStatus; busy: boolean; onChange: () => Promise<void> }) {
   const w = st.workspace!;
@@ -257,11 +281,11 @@ function Where({ goalId, st, busy, onChange }: { goalId: string; st: PreviewStat
     api.previewSources(goalId).then(setSrc).catch(() => {});
   }, [goalId, w.kind, w.branch]);
   const running = st.apps.some((a) => a.running);
-  const pick = async (ref: string) => {
+  const pick = async (ref: string | undefined, place?: PreviewPlace) => {
     setSaving(true);
     setErr(null);
     try {
-      await api.previewSetSource(goalId, ref);
+      await api.previewSetSource(goalId, ref, place);
       await onChange();
     } catch (e: any) {
       setErr(e.body?.error ?? e.message);
@@ -276,7 +300,7 @@ function Where({ goalId, st, busy, onChange }: { goalId: string; st: PreviewStat
       <div className="flex items-center gap-x-1.5 gap-y-1 flex-wrap min-w-0 text-[11px] text-zinc-500" title={w.path}>
         <GitBranch size={12} className="shrink-0" />
         <span>Runs</span>
-        {src?.selectable ? (
+        {src?.selectable && w.place !== 'checkout' ? (
           <span className="w-60 max-w-full">
             <Select aria-label="Branch the preview runs" className="mono text-[11px] py-0.5" value={w.branch} disabled={busy || saving || running} title={running ? 'Stop the preview to pick another branch' : 'The branch the preview runs'} onChange={(e) => pick(e.target.value)}>
               {!options.some((o) => o.ref === w.branch) && <option value={w.branch}>{w.branch}</option>}
@@ -291,9 +315,24 @@ function Where({ goalId, st, busy, onChange }: { goalId: string; st: PreviewStat
         ) : (
           <span className="mono text-zinc-400 break-all">{w.branch}</span>
         )}
-        <span>{w.kind === 'goal' ? "in the goal's folder" : "in Foundry's preview folder"} · not your checkout</span>
+        {w.kind === 'goal' ? <span>in the goal's folder · not your checkout</span> : !src?.selectable ? <span>{w.kind === 'checkout' ? 'in your checkout' : "in Foundry's preview folder · not your checkout"}</span> : (
+          <span className="flex items-center gap-1.5">
+            in
+            <span className="w-48 max-w-full">
+              <Select aria-label="Where the preview runs" className="text-[11px] py-0.5" value={w.place} disabled={busy || saving || running} title={running ? 'Stop the preview to change where it runs' : 'Where the preview runs'} onChange={(e) => pick(undefined, e.target.value as PreviewPlace)}>
+                {(['auto', 'checkout', 'foundry'] as const).map((p) => (
+                  <option key={p} value={p}>
+                    {p === 'auto' ? `${w.kind === 'checkout' ? 'your checkout' : "Foundry's preview folder"} (auto)` : PLACE_LABEL[p]}
+                  </option>
+                ))}
+              </Select>
+            </span>
+          </span>
+        )}
         <CopyButton text={w.path} />
       </div>
+      {w.kind === 'checkout' && <div className="text-[11px] text-zinc-500 pl-[1.125rem]">Runs your own folder as it is{w.checkoutBranch ? ` on ${w.checkoutBranch}` : ''}, with its dependencies and env files; Foundry never switches, resets or pulls it.</div>}
+      {w.kind === 'branch' && w.place === 'auto' && w.checkoutBranch && w.checkoutBranch !== w.branch && <div className="text-[11px] text-zinc-500 pl-[1.125rem]">Your checkout is on {w.checkoutBranch}, so {w.branch} runs in Foundry's preview folder.</div>}
       {src?.selectable && current?.note && <div className="text-[11px] text-zinc-500 pl-[1.125rem]">{current.note[0]!.toUpperCase() + current.note.slice(1)}</div>}
       {w.preparing && <div className="text-[11px] text-zinc-400">Checking out {w.branch} in the preview folder…</div>}
       {w.fallback && <div className="text-[11px] text-amber-300/90">{w.fallback[0]!.toUpperCase() + w.fallback.slice(1)}.</div>}

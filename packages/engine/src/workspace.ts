@@ -88,6 +88,11 @@ export function previewWorkspacePath(dataDir: string, goal: WorkspaceRef): strin
   const internal = internalWorkspaceDir(goal);
   return internal ? join(internal, 'preview') : join(legacyWorkspaceRoot(dataDir, goal.id), '_preview');
 }
+/** worktree where docs are written once the goal's work merged and its progress folder was cleaned up */
+export function docsWorkspacePath(dataDir: string, goal: WorkspaceRef): string {
+  const internal = internalWorkspaceDir(goal);
+  return internal ? join(internal, 'docs') : join(legacyWorkspaceRoot(dataDir, goal.id), '_docs');
+}
 /** throw-away worktree at a base commit where the baseline must checks run */
 export function baselineWorkspacePath(dataDir: string, goal: WorkspaceRef): string {
   const internal = internalWorkspaceDir(goal);

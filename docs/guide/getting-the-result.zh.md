@@ -151,15 +151,15 @@ goal 运行时，里程碑卡片会显示目前产出的文件。
 
 你在 Brief 上选了最后自动运行哪些（见 [批准 Brief](./approving-the-brief.zh.md#completion)）：
 
-- **Documents**（PRD、README update、Changelog、Confirmation sheet）在最终审查通过后写出，作为一个提交保存在 goal 的分支上，所以会和工作一起放进同一个 pull request。
-- **Refresh the knowledge graph** 在交付后更新代码地图：Local only 的 goal 在进度文件夹里更新，已交付的 goal 在你自己的文件夹里更新。
+- **Documents**（PRD、README update、Changelog、Confirmation sheet）在最终审查通过后写出（审查没通过、你选择按现状接受时也会写），作为一个提交保存在 goal 的分支上，所以会和工作一起放进同一个 pull request。
+- **Refresh the knowledge graph** 在交付后更新代码地图：Local only 的 goal 在进度文件夹里更新，已交付的 goal 在你自己的文件夹里更新。它只刷新索引：GitNexus 以 `--index-only` 运行，工具如果还往 `CLAUDE.md`、`AGENTS.md` 或 `.claude/` 里写了东西，会被还原，文件夹里不会留下未提交的改动。任务进行中出现的 GitNexus 段落或 skill 文件夹（你的全局 hook 可能会运行 GitNexus）也不会进入任务的提交。
 
 Overview 标签的 **Completion** 卡片每一项一行，用勾、警告或叉加一句话写出结果。点名字可以看详情：
 
 - **Docs**：选了哪些文档、写了哪些文件（点开就能看）、提交、花费，以及它随哪个 pull request 交付。
 - **Graph refresh**：每个工具（更新你的 checkout、graphify、GitNexus）及其结果；失败的会写出原因，比如缺少某个程序。
 
-这里失败从不会让 goal 失败，只会记一笔。失败的那一行有 **Re-run**，可以再跑一次：知识图谱刷新随时可以；文档要在 goal 的文件夹还在时才行。新写的文档提交到 goal 的分支上；已经交付过的 goal，按 **Resume delivery** 把它交付出去。
+这里失败从不会让 goal 失败，只会记一笔。失败的那一行有 **Re-run**，可以再跑一次；从没写过的文档显示的是 **Generate**。新写的文档提交到 goal 的分支上；已经交付过的 goal，按 **Resume delivery** 把它交付出去。如果成果已经合并、Foundry 也清理了 goal 的文件夹，文档会写在从基础分支新开的分支上（goal 分支名加 `-docs`），推送后单独开一个 pull request，Docs 那一行会链接到它。
 
 ## 把结果放进你自己的文件夹
 

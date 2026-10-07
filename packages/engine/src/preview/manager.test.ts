@@ -30,7 +30,7 @@ afterEach(async () => {
 const goal = (over: Partial<Goal> = {}): Goal => {
   const now = new Date().toISOString();
   const g: Goal = {
-    id: 'g_preview01', title: 'preview', prompt: 'p', workspaceDir: ws, checkpoint: null, selfCheck: false, previewRef: null, interview: null, effort: null, modelPreset: null, modelSubstitutions: {}, repoPath: '/nowhere', baseBranch: 'main', branch: 'goal/g_preview01',
+    id: 'g_preview01', title: 'preview', prompt: 'p', workspaceDir: ws, checkpoint: null, selfCheck: false, previewRef: null, previewPlace: 'auto', milestonePause: true, interview: null, effort: null, modelPreset: null, modelSubstitutions: {}, repoPath: '/nowhere', baseBranch: 'main', branch: 'goal/g_preview01',
     budgets: { maxCostUsd: 5, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3 }, budgetPreset: 'custom', mode: 'expert', workflow: { tdd: 'off', pace: 'thorough' },
     models: { strong: 'opus', cheap: 'haiku', worker: 'opus' }, state: 'running', stateBeforeBlock: null, costUsd: 0, fixCycles: 0, delivery: IDLE_DELIVERY, attachments: [], baseSync: null, autoskills: null, follows: null,
     completion: { graphRefresh: false, docs: [], docsRun: null, graphRun: null, artifactsRun: null }, nature: 'auto', outputDir: null, runningSince: null, createdAt: now, updatedAt: now, ...over,
@@ -62,9 +62,16 @@ describe('PreviewManager', () => {
     expect(engine.preview.setSource(running, 'feature')).rejects.toThrow(/being worked on/);
 
     engine.store.append({ type: 'goal.state_changed', goalId: running.id, payload: { from: 'running', to: 'done', reason: 'test' } });
+    // the person's checkout is on main, the branch the preview would run: it runs there, as it is
+    const g0 = getGoal(engine.store.db, running.id)!;
+    expect(engine.preview.status(g0.id).workspace).toMatchObject({ kind: 'checkout', path: repo, branch: 'main', place: 'auto', checkoutBranch: 'main' });
+    await engine.preview.prepare(g0);
+    expect(await sh('git rev-parse --abbrev-ref HEAD', repo)).toContain('main');
+    // pinned to Foundry's folder, main runs there instead
+    await engine.preview.setSource(g0, undefined, 'foundry');
     const g = getGoal(engine.store.db, running.id)!;
     const ws0 = engine.preview.status(g.id).workspace!;
-    expect(ws0).toMatchObject({ kind: 'branch', branch: 'main' });
+    expect(ws0).toMatchObject({ kind: 'branch', branch: 'main', place: 'foundry' });
     expect(ws0.fallback).toContain('cleaned up');
     expect(ws0.path).not.toBe(gone);
     await engine.preview.prepare(g);
@@ -82,6 +89,11 @@ describe('PreviewManager', () => {
     expect(picked).toMatchObject({ kind: 'branch', branch: 'feature', fallback: null });
     expect(existsSync(join(picked.path, 'feature.txt'))).toBe(true);
     expect(engine.preview.setSource(g, 'nope')).rejects.toThrow(/no branch nope/);
+    // auto: feature is not what the checkout is on, so it stays in Foundry's folder; pinned to the checkout, the checkout runs as it is
+    await engine.preview.setSource(getGoal(engine.store.db, g.id)!, undefined, 'auto');
+    expect(engine.preview.status(g.id).workspace).toMatchObject({ kind: 'branch', branch: 'feature', checkoutBranch: 'main' });
+    await engine.preview.setSource(getGoal(engine.store.db, g.id)!, undefined, 'checkout');
+    expect(engine.preview.status(g.id).workspace).toMatchObject({ kind: 'checkout', path: repo, branch: 'main', place: 'checkout' });
     rmSync(repo, { recursive: true, force: true });
   });
 
@@ -110,6 +122,37 @@ describe('PreviewManager', () => {
     await expect(engine.preview.start(g, 'human', 'nope')).rejects.toThrow(/no app "nope"/);
     await engine.preview.stop(g.id, 'test');
     expect(engine.preview.status(g.id).running).toBe(false);
+  }, 60_000);
+
+  test("an app keeps the port it usually runs on; when that port is taken, the address its siblings' env files name moves with it", async () => {
+    const serve = `bun -e "Bun.serve({ port: Number(process.env.PORT), fetch: () => new Response(process.env.API_URL ?? 'none') })"`;
+    writeFileSync(join(ws, 'package.json'), JSON.stringify({ workspaces: ['apps/*'] }));
+    mkdirSync(join(ws, 'node_modules'));
+    for (const dir of ['web', 'api']) {
+      mkdirSync(join(ws, 'apps', dir), { recursive: true });
+      writeFileSync(join(ws, 'apps', dir, 'package.json'), JSON.stringify({ name: dir, scripts: { start: serve } }));
+    }
+    writeFileSync(join(ws, 'apps', 'api', '.env'), 'PORT=47131\n');
+    writeFileSync(join(ws, 'apps', 'web', '.env'), 'API_URL=http://localhost:47131/v1\n');
+    const g = goal();
+    // the usual port is free: the API keeps it and the web app's env file needs nothing
+    let [web, api] = (await engine.preview.start(g, 'human')).apps;
+    expect(api!.port).toBe(47131);
+    expect(web!.rewrites).toEqual([]);
+    expect(await fetch(web!.url!).then((r) => r.text())).toBe('http://localhost:47131/v1');
+    await engine.preview.stop(g.id, 'test');
+    // something else holds it: the API runs on a port from the range and the web app is pointed there
+    const other = Bun.serve({ port: 47131, fetch: () => new Response('someone else') });
+    try {
+      [web, api] = (await engine.preview.start(g, 'human')).apps;
+      expect(api!.port).not.toBe(47131);
+      expect(api).toMatchObject({ nativePort: 47131 });
+      expect(web!.rewrites).toEqual([{ key: 'API_URL', from: 47131, to: api!.port! }]);
+      expect(await fetch(web!.url!).then((r) => r.text())).toBe(`http://localhost:${api!.port}/v1`);
+    } finally {
+      other.stop(true);
+      await engine.preview.stop(g.id, 'test');
+    }
   }, 60_000);
 
   test('starts the detected dev script on a free port from the range, answers, and stops', async () => {
@@ -182,7 +225,7 @@ describe('what the preview card can tell', () => {
     const g = goal();
     const st = await engine.preview.start(g, 'human');
     expect(st.port).toBe(47100);
-    expect(st.workspace).toEqual({ kind: 'goal', path: ws, branch: 'goal/g_preview01', preparing: false, fallback: null });
+    expect(st.workspace).toEqual({ kind: 'goal', path: ws, branch: 'goal/g_preview01', preparing: false, fallback: null, place: 'auto', checkoutBranch: null });
     await until(() => engine.preview.status(g.id).apps[0]!.discovered.length > 1);
     expect(engine.preview.status(g.id).apps[0]!.discovered).toEqual([
       { port: 47101, url: 'http://localhost:47101', name: 'admin', dir: 'apps/admin' },

@@ -98,6 +98,8 @@ export async function answerEscalation(engine: Engine, id: string, answer: Escal
       if (!task && (esc.payload as { kind?: string }).kind === 'goal-review') {
         if (!['done', 'over_delivered', 'failed', 'cancelled'].includes(goal.state)) {
           store.append({ type: 'review.goal.finished', goalId: goal.id, payload: { passed: true, overDelivered: false, mustResults: [], stretchResults: [], fixTaskIds: [], notes: 'human accepted the goal as-is; the failing checks are waived' } });
+          // the goal review that writes the docs did not pass: write them now, before the delivery ships the code
+          engine.documentBeforeDelivery(goal);
           store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: goal.state, to: 'done', reason: 'human: accepted despite failing goal checks' } });
         }
         break;

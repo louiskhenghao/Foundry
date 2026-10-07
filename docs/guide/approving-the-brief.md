@@ -200,7 +200,7 @@ With several Areas, a goal-level check can belong to one Area or to **all Areas*
 |---|---|
 | **Platform** | **nothing to start**, **web (browser)**, or **expo (React Native via Expo web)**. |
 | **Install** | The install command, for example `npm install`. |
-| **Start command** | For example `npm run dev -- --port {port}`. `{port}` is where Foundry puts the port. |
+| **Start command** | For example `npm run dev -- --port {port}`. `{port}` is where Foundry puts the port. With pnpm, Foundry drops the `--`, which pnpm would otherwise pass on to the dev server. |
 | **URL** | Where the result opens, for example `http://localhost:{port}`. |
 
 For a repository with several apps (a web app, an admin, an API…), **Several apps…** turns these fields into a list of apps, filled with the apps Foundry found in `package.json`. Each app has a **Name**, a **Folder** (relative to the repository; empty means its root), a **Start command** and a **URL**. **Add app** adds one, **Remove** removes one. The first app is the one milestones and the self-check open. Under each app, its key shows the variable the other apps read its address from, for example `FOUNDRY_APP_API_URL`.

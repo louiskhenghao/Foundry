@@ -20,6 +20,7 @@ import {
   Goal,
   GoalNature,
   GoalState,
+  PreviewPlace,
   ObservationReport,
   ReviewerVerdict,
   Task,
@@ -82,12 +83,20 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('interview.finished', { rounds: z.number().int().nonnegative(), reason: z.enum(['brief', 'nothing_to_ask', 'cap', 'human']) }),
   /** the human switched the goal's headless self-check on or off */
   ev('goal.selfcheck_set', { on: z.boolean() }),
+  /** the human switched whether the goal pauses at its milestones ("Have a look") */
+  ev('goal.milestone_pause_set', { on: z.boolean() }),
+  /** a milestone landed in a goal that does not pause for it: the human is told, the goal goes on */
+  ev('goal.milestone_passed', { taskId: z.string(), lookFor: z.string() }),
   /** the branch a finished goal's preview runs from; null = the goal branch while its folder exists, else the base branch */
   ev('goal.preview_ref_set', { ref: z.string().nullable() }),
+  /** where a finished goal's preview runs: the person's checkout, Foundry's preview folder, or whichever fits (auto) */
+  ev('goal.preview_place_set', { place: PreviewPlace }),
   /** the engine started / stopped one app of the goal's preview (the run command in the progress folder); app absent = written before several apps */
   ev('preview.started', { port: z.number().int(), url: z.string(), command: z.string(), app: z.string().optional() }),
   ev('preview.stopped', { reason: z.string(), app: z.string().optional() }),
   /** the headless self-check looked at the preview after a task landed (taskId) or at goal review (null); screenshot is a file name under the goal's screenshots folder */
+  /** what a milestone looks like, recorded in the preview without the person: a video and screenshots (file names under the goal's screenshots folder) */
+  ev('milestone.evidence', { taskId: z.string(), video: z.string().nullable(), shots: z.array(z.object({ file: z.string(), caption: z.string() })), summary: z.string(), error: z.string().nullable() }),
   ev('selfcheck.finished', { taskId: z.string().nullable(), status: z.enum(['pass', 'fail', 'error']), url: z.string().nullable(), screenshot: z.string().nullable(), errors: z.array(z.string()), summary: z.string() }),
   /** per-goal autoskills run: project skills matched to the repository's stack, installed in the goal workspace */
   ev('goal.autoskills', { status: z.enum(['installed', 'skipped', 'failed']), skills: z.array(z.string()), detail: z.string() }),
@@ -99,6 +108,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.completion_set', { graphRefresh: z.boolean(), docs: z.array(DocType), reason: z.string() }),
   /** the docs-generation session ran (after the goal review passed); files are repo-relative paths it committed */
   /** `ref`: the docs commit on the goal branch (absent on events written before it was recorded) */
+  /** docs written after the goal's work merged went out on a branch of their own, as this pull request */
+  ev('goal.docs_pr_opened', { number: z.number().int(), url: z.string(), branch: z.string() }),
   ev('goal.docs_generated', { status: z.enum(['ok', 'skipped', 'failed']), types: z.array(DocType), files: z.array(z.string()), costUsd: z.number(), detail: z.string(), ref: z.string().nullable().optional() }),
   /** the post-delivery graph refresh ran (graphify / gitnexus, whichever is on PATH) */
   ev('goal.completion_ran', { tools: z.array(z.object({ name: z.string(), status: z.enum(['ok', 'skipped', 'failed']), detail: z.string() })) }),

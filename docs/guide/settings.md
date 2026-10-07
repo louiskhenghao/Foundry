@@ -27,7 +27,8 @@ What a new goal starts with. Most of them can be changed for one goal on the New
 |---|---|---|
 | **Default goal view** | expert | Which view a goal opens in: simple or expert. |
 | **Pace for new goals** | thorough | **thorough — engine reviews the work**, or **fast — approved checks only**. Image and video goals always start fast. |
-| **Interview before the Brief** | auto | **auto** asks only when something is worth asking; **always** asks at least one round; **never** goes straight to the Brief. |
+| **Have a look: pause new goals at milestones** | on | A goal pauses when a milestone task lands so you can look. Off: it goes on, and what the milestone shows is sent to your notification channels. Each goal has its own switch. |
+| **Interview depth** | 3 | How deep the Clarifier questions you before the Brief: from **Skip** (no questions) and **1** (only what a wrong guess would waste) to **5** (every detail, until nothing is left). See [Interview depth](./your-first-goal.md#interview-depth). |
 | **Effort for new goals** | Role preset / CLI default | A goal-wide override, **low** to **max**. Default uses Codex role presets or Claude's CLI default. |
 | **TDD for new Expert goals** | required | Test-first: **required**, **preferred** or **off**. |
 | **Goal-level fix cycles** | 1 | How many times the final review may send fix tasks before asking you. Thorough pace only. |
@@ -38,7 +39,7 @@ Under **Delivery — what happens to the branch when a goal finishes**: **Mode f
 
 Good to know: the New goal form starts from these defaults. **Default goal view**, **Pace**, **TDD**, **Effort**, and the delivery **Mode for new goals** and **Granularity** are filled in from here, and the form picks the **Remote** named here when the project has it. A field you change on the form keeps your choice for that goal. **Interview** and the model preset follow Settings whenever the form is left at its default. Selecting **Default** effort for Codex explicitly uses role preset efforts. The form itself remembers, in this browser, the kind of goal, the budget and the finer delivery options (such as the merge method).
 
-When to change: set **Interview before the Brief** to **always** if you like to be asked; set **Effort** lower if most of your goals are small; lower **Goal-level fix cycles** to 0 if you would rather see failed reviews yourself.
+When to change: raise **Interview depth** if you like to be asked about details; set **Effort** lower if most of your goals are small; lower **Goal-level fix cycles** to 0 if you would rather see failed reviews yourself.
 
 ## Models & limits
 
@@ -263,7 +264,7 @@ When to change: turn the self-check on by default if most of your goals are web 
 
 Foundry can message you on Telegram or Discord when something happens, so you do not have to watch the page. Setting up the bot or webhook is in [notifications.md](../operate/notifications.md); after that, press **Send test message**.
 
-**Link base URL**: the address where you open Foundry from your phone. With it, messages carry a link straight to the goal. Without it they carry no link. See [remote-access.md](../operate/remote-access.md).
+**Link base URL**: the address where you open Foundry from elsewhere (a LAN address, a domain). Messages link to it; without it they link to this computer (`http://localhost`). **Tailscale links** (auto) adds links on your tailnet when Tailscale runs here, for Foundry and for previews, so they open on your phone; **Tailscale name** overrides the machine's name. See [notifications.md](../operate/notifications.md#links).
 
 The six switches, all on by default:
 

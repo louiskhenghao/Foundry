@@ -623,6 +623,25 @@ describe('milestones', () => {
     expect(engine.store.listByGoal(goal.id).filter((e) => e.type === 'goal.checkpoint_opened')).toHaveLength(1);
   }, 40_000);
 
+  test('with Have a look off, a milestone is noted and the goal goes on without pausing', async () => {
+    const engine = track(new Engine(cfg(), worker()));
+    const goal = await engine.createGoal({ prompt: 'two steps', repoPath: repo, brief: brief('open it and try the first step'), workflow: { pace: 'fast' }, milestonePause: false });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+    const events = engine.store.listByGoal(goal.id);
+    expect(events.filter((e) => e.type === 'goal.checkpoint_opened')).toHaveLength(0);
+    expect(events.filter((e) => e.type === 'goal.milestone_passed').map((e) => e.payload)).toEqual([{ taskId: listTasks(engine.store.db, goal.id).find((x) => x.title === 'first step')!.id, lookFor: 'open it and try the first step' }]);
+    expect(listEscalations(engine.store.db, { goalId: goal.id }).filter((e) => e.trigger === 'milestone')).toHaveLength(0);
+  }, 40_000);
+
+  test('a new goal pauses at milestones by default (Settings), and the switch is per goal', async () => {
+    const engine = track(new Engine(cfg(), worker()));
+    const goal = await engine.createGoal({ prompt: 'two steps', repoPath: repo, brief: brief(null) });
+    expect(goal.milestonePause).toBe(true);
+    engine.setMilestonePause(goal.id, false);
+    expect(getGoal(engine.store.db, goal.id)!.milestonePause).toBe(false);
+  });
+
   test('feedback with a fix plan spawns a feedback-fix task, hints the remaining ones, and re-opens the milestone once', async () => {
     const engine = track(new Engine(cfg(), worker()));
     const goal = await engine.createGoal({ prompt: 'two steps', repoPath: repo, brief: brief('look'), workflow: { pace: 'fast' } });

@@ -63,18 +63,18 @@ export function CompletionCard({ d }: { d: GoalDetail }) {
   };
   const rerunButton = (what: 'docs' | 'graph', busy: boolean) =>
     finished && (
-      <Button size="sm" variant="ghost" className="shrink-0" disabled={busy} onClick={() => start(what)} title={what === 'docs' ? 'Write the docs again in the goal folder and commit them' : 'Run the graph refresh again'}>
-        <RotateCcw size={12} /> {busy ? 'Running…' : 'Re-run'}
+      <Button size="sm" variant="ghost" className="shrink-0" disabled={busy} onClick={() => start(what)} title={what === 'graph' ? 'Run the graph refresh again' : d.paths.workspace ? 'Write the docs in the goal folder and commit them to the goal branch' : `The goal folder was cleaned up after the merge: write the docs on a new branch from ${g.delivery.policy.baseBranch ?? g.baseBranch} and open a pull request for them`}>
+        <RotateCcw size={12} /> {busy ? 'Running…' : what === 'docs' && !c.docsRun ? 'Generate' : 'Re-run'}
       </Button>
     );
 
   const docs = c.docsRun;
-  const docsPr = g.delivery.prs.find((p) => p.taskId === `${g.id}:docs`);
+  const docsPr = docs?.pr ?? g.delivery.prs.find((p) => p.taskId === `${g.id}:docs`);
   const docsStatus: Status = docsBusy ? 'running' : !docs ? 'pending' : docs.status === 'ok' ? 'ok' : docs.status === 'failed' ? 'failed' : 'skipped';
   const docsSummary = docsBusy ? (
     'writing…'
   ) : !docs ? (
-    'written after the goal review passes, committed to the goal branch'
+    finished ? 'not written yet' : 'written after the goal review passes, committed to the goal branch'
   ) : docs.status === 'ok' ? (
     <>
       {docs.files.length} file{docs.files.length === 1 ? '' : 's'}
@@ -101,7 +101,7 @@ export function CompletionCard({ d }: { d: GoalDetail }) {
     <Card title="Completion">
       <ul className="text-xs divide-y divide-zinc-800/70">
         {c.docs.length > 0 && (
-          <Row status={docsStatus} label="Docs" summary={docsSummary} open={docs?.status === 'failed'} action={docs && docs.status !== 'ok' && rerunButton('docs', docsBusy)}>
+          <Row status={docsStatus} label="Docs" summary={docsSummary} open={docs?.status === 'failed'} action={docs?.status !== 'ok' && rerunButton('docs', docsBusy)}>
             <div className="flex flex-wrap gap-1.5">
               {c.docs.map((t) => (
                 <span key={t} className="rounded border border-zinc-700 px-1.5 py-px text-[11px] text-zinc-300" title={t}>

@@ -28,6 +28,12 @@ export interface PreviewAppStatus {
   discovered: { port: number; url: string; name: string; dir: string | null }[];
   /** why Foundry stopped it last time, when not a person */
   stopped: string | null;
+  /** the port it listens on when run by hand, when Foundry could tell */
+  nativePort: number | null;
+  /** variables pointing at an app's usual port, moved to the port it got (names only) */
+  rewrites: { key: string; from: number; to: number }[];
+  /** its address on the person's tailnet (Tailscale); null = none */
+  tailnetUrl: string | null;
 }
 
 /** Mirrors the engine's PreviewStatus (preview/manager.ts). The top-level fields describe the primary app (apps[0]). */
@@ -45,17 +51,20 @@ export interface PreviewStatus {
   source: 'brief' | 'detected' | null;
   error: string | null;
   apps: PreviewAppStatus[];
-  /** where the apps run: the goal's progress folder, or Foundry's preview folder on another branch */
+  /** where the apps run: the goal's progress folder, Foundry's preview folder on another branch, or the person's checkout */
   workspace: PreviewSource | null;
 }
 
-/** Mirrors the engine's PreviewSource: `goal` = the progress folder; `branch` = Foundry's preview folder at `branch` */
+export type PreviewPlace = 'auto' | 'checkout' | 'foundry';
+/** Mirrors the engine's PreviewSource: `goal` = the progress folder; `branch` = Foundry's preview folder at `branch`; `checkout` = the person's checkout */
 export interface PreviewSource {
-  kind: 'goal' | 'branch';
+  kind: 'goal' | 'branch' | 'checkout';
   path: string;
   branch: string;
   preparing: boolean;
   fallback: string | null;
+  place: PreviewPlace;
+  checkoutBranch: string | null;
 }
 export interface PreviewSources {
   current: PreviewSource;
@@ -481,7 +490,7 @@ export function apiForProvider(provider?: AgentProvider) {
   preview: (id: string) => req<PreviewStatus>(`/api/goals/${id}/preview`),
   /** without `app`, starts every app that is not running (Docker services first) */
   previewSources: (id: string) => req<PreviewSources>(`/api/goals/${id}/preview/sources`),
-  previewSetSource: (id: string, ref: string | null) => req<PreviewSource>(`/api/goals/${id}/preview/source`, { method: 'PUT', body: JSON.stringify({ ref }) }),
+  previewSetSource: (id: string, ref: string | null | undefined, place?: PreviewPlace) => req<PreviewSource>(`/api/goals/${id}/preview/source`, { method: 'PUT', body: JSON.stringify({ ref, place }) }),
   previewStart: (id: string, app?: string) => req<PreviewStatus>(`/api/goals/${id}/preview/start${app ? `?app=${encodeURIComponent(app)}` : ''}`, { method: 'POST' }),
   /** without `app`, stops every app; Docker services keep running */
   previewStop: (id: string, app?: string) => req<{ ok: true }>(`/api/goals/${id}/preview/stop${app ? `?app=${encodeURIComponent(app)}` : ''}`, { method: 'POST' }),
@@ -494,6 +503,7 @@ export function apiForProvider(provider?: AgentProvider) {
   previewImportEnv: (id: string) => req<{ added: string[]; view: PreviewEnv }>(`/api/goals/${id}/preview/env/import`, { method: 'POST' }),
   previewServicesStop: (id: string, names?: string[]) => req<ServicesStatus | null>(`/api/goals/${id}/preview/services/stop`, { method: 'POST', body: JSON.stringify(names ? { names } : {}) }),
   previewVisit: (id: string) => req<{ ok: true }>(`/api/goals/${id}/preview/visit`, { method: 'POST' }),
+  setMilestonePause: (id: string, on: boolean) => req<{ ok: true }>(`/api/goals/${id}/milestone-pause`, { method: 'POST', body: JSON.stringify({ on }) }),
   setSelfCheck: (id: string, on: boolean) => req<{ ok: true }>(`/api/goals/${id}/selfcheck`, { method: 'POST', body: JSON.stringify({ on }) }),
   feedbackClassify: (id: string, text: string) => req<{ plan: FeedbackPlan }>(`/api/goals/${id}/feedback/classify`, { method: 'POST', body: JSON.stringify({ text }) }),
   screenshots: (id: string) => req<{ screenshots: { at: string; taskId: string | null; status: string; url: string | null; screenshot: string | null; errors: string[]; summary: string }[] }>(`/api/goals/${id}/screenshots`),

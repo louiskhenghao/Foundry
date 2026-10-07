@@ -62,13 +62,13 @@ goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它
 - **Brief**：时间线下方的一行，比如 **Brief APPROVED · 36 tasks · 11/11 assumptions accepted · 9/12 questions answered · est. $380 / 1500 min**。点它打开 Brief 页面，Understanding 和 Clarifier 写的其它内容都在那里。
 - **What needs you**：和 Inbox 里一样的卡片，带按钮。
 - **goal**：你最初的描述。面板角上的 **Open full**（两个斜向箭头的图标）会在更大的窗口里显示它。
+- **Goal review**：最终审查运行后，紧跟在 goal 下面：一行显示结论（**passed**、**over-delivered** 或 **failed**）和审查员意见的开头；点 **reviewer notes** 展开全文。
 - **Attachments**：紧跟在 goal 下面，和 New goal 表单上一样。随时可以再加；新的会话会收到。
 - **Workspace & preview**：goal 的工作成果在哪里，以及启动它来试用。见 [进度文件夹](#进度文件夹) 和 [Preview](#preview)。
 - **Model fallback**：只在某个模型不可用、Foundry 换了另一个模型时出现。
 - **Project skills**：Foundry 为你项目的技术栈添加的 skill，按 Frontend、Backend、Database、Testing、Tooling 分组，并显示数量。它们不会进入你的提交。
 - **Completion**：文档、知识图谱刷新和媒体文件各占一行，写着结果。见 [完成后的附加项](./getting-the-result.zh.md#完成后的附加项)。
-- **Goal review**：最终审查员的结论和意见（运行过之后才有）。
-- **Acceptance**（右侧）：每个 **must** 和 **stretch** 检查及其最新结果，比如 **3/4 passing**。点一个检查可以看它的输出。下面是 **Self-check** 开关和它最近一次的结果（见 [Self-check](#self-check)）。
+- **Acceptance**（右侧）：每个 **must** 和 **stretch** 检查及其最新结果，比如 **3/4 passing**。点一个检查可以看它的输出。下面是 **Self-check** 开关和它最近一次的结果（见 [Self-check](#self-check)），goal 有里程碑时还有 **Have a look: pause at milestones**（见 [Milestones](#milestones)）。
 
 ## Tasks
 
@@ -152,6 +152,8 @@ Overview 标签上 **Workspace & preview** 卡片的顶部写着 worker 提交�
 
 **Start all** 启动所有还没运行的应用；**Stop all** 把它们全部停掉。每个应用有自己的端口，并会在环境变量里拿到其它应用的地址，名字是 `FOUNDRY_APP_<KEY>_URL`，例如 `FOUNDRY_APP_API_URL`，这样网站就能找到 API。
 
+只要端口空着，应用就沿用你自己运行它时用的端口，这样你 `.env` 文件里写的地址仍然能连上它。Foundry 从这些地方读出这个端口：启动脚本（`next dev -p 3001`）、应用 `.env` 文件里的 `PORT`、服务器代码里的默认值（`process.env.PORT ?? 4000`），或者框架的默认端口（Next 3000、Vite 5173）。如果这个端口被占用了（比如你自己的 dev server 正在用），应用改用 **Settings → Preview** 里的端口，所有指向 `localhost:<原端口>` 的变量都会在应用的环境变量里改成指向新端口；你的文件不会被修改。应用那一行会说明：**Usually on port 3000, which was taken; runs on 4200**，以及 **Pointed at the ports the apps got** 加上变量名。在 Docker 里，应用总是用这个范围里的端口（只有这个范围对外发布），变量也会指向那里。
+
 ### Services
 
 如果仓库里有 Docker Compose 文件，里面有应用需要的服务（比如 Postgres 这样的数据库、MinIO 这样的文件存储），卡片会显示 **Services** 部分，列出每个服务、它的端口和状态。启动预览时会先启动这些服务。**Start services** 和 **Stop services** 作用于全部服务；每个服务也有自己的 **Start** 或 **Stop**。
@@ -165,9 +167,17 @@ Foundry 也会在里程碑时自己启动预览；预览在运行时，每个任
 
 ### Where it runs
 
-卡片顶部写着运行的是哪个分支、在哪里运行，以及 **not your checkout**。goal 还在进行时，预览运行的是 goal 自己的那份仓库（它的进度文件夹，在 goal 的分支上），所以你看到的是 goal 做的成果，而不是你自己文件夹里的内容。**copy** 复制那个文件夹的路径。
+卡片顶部写着运行的是哪个分支、在哪里运行。goal 还在进行时，预览运行的是 goal 自己的那份仓库（它的进度文件夹，在 goal 的分支上），并标着 **not your checkout**，所以你看到的是 goal 做的成果，而不是你自己文件夹里的内容。**copy** 复制那个文件夹的路径。
 
-goal 完成后，分支变成一个下拉菜单，下面一行说明选中的分支是什么（goal 的文件夹、带有合并成果的基础分支……），可以选 goal 分支、基础分支（比如 `main`）或你自己的其他本地分支；要换分支，先停掉预览。goal 分支以外的分支都在 Foundry 自己的预览文件夹里运行，checkout 到那个分支的最新提交，绝不会用你的 checkout。合并后 Foundry 会清理 goal 的文件夹并删除它的分支，这时预览改为运行基础分支（合并后的成果就在那里），并有一行琥珀色提示说明。
+goal 完成后，分支变成一个下拉菜单，下面一行说明选中的分支是什么（goal 的文件夹、带有合并成果的基础分支……），可以选 goal 分支、基础分支（比如 `main`）或你自己的其他本地分支；要换分支，先停掉预览。合并后 Foundry 会清理 goal 的文件夹并删除它的分支，这时预览改为运行基础分支（合并后的成果就在那里），并有一行琥珀色提示说明。
+
+分支旁边还有第二个菜单，选择 goal 分支以外的分支在哪里运行：
+
+- **(auto)**，默认：你的 checkout 已经在那个分支上时就在 checkout 里运行，直接用里面已经装好的依赖和 `.env` 文件；否则在 Foundry 的预览文件夹里运行，并有一行说明你的 checkout 在哪个分支上。
+- **your checkout**：你自己的文件夹，保持原样，不管它在哪个分支上，包括你还没提交的改动。分支菜单会隐藏。
+- **Foundry's preview folder**：Foundry 自己的文件夹，checkout 到那个分支的最新提交。
+
+Foundry 绝不会为了预览去切换、重置或拉取你的 checkout。改任一菜单前先停掉预览。
 
 如果启动命令除了 Foundry 分配端口的那个服务器之外还启动了别的（比如一个 demo 脚本同时启动 web 应用、管理后台和 API，或者 `turbo dev`），Foundry 会找出它们监听的端口，把能响应网页请求的列在 **Also serving** 下，按各自的 package 名（或所在文件夹）命名，每个都有自己的链接。它用到的所有端口都不会再分给其他 goal 的预览。
 
@@ -195,6 +205,8 @@ goal 完成后，分支变成一个下拉菜单，下面一行说明选中的分
 
 ## Milestones
 
+**Have a look: pause at milestones** 决定 goal 到了里程碑要不要停下来。默认开启（[Settings](./settings.md)）；每个 goal 在 Brief 的 **How to run it** 部分和 Overview 的 **Acceptance** 卡片里都有自己的开关，从下一个里程碑开始生效。关掉后 goal 会继续往下跑，下面这段说明会连同最新的截图发到你的通知渠道。
+
 里程碑任务并入后，goal 会暂停。它的状态标记显示 **have a look**，Inbox 显示 **Have a look**，goal 页面顶部出现一张卡片：**Have a look — task name**。
 
 ![Have a look 卡片：要看什么、运行中的预览和自检截图](images/milestone.png)
@@ -202,12 +214,15 @@ goal 完成后，分支变成一个下拉菜单，下面一行说明选中的分
 卡片显示：
 
 - 要看什么，按 Brief 里写的。
+- **What Foundry saw**：预览的录屏和截图，让你不用自己启动任何东西就能看到。卡片刚打开时会显示 **Recording a walkthrough of the preview…**：一个小模型根据要看的内容和页面上的控件规划几个步骤（点击、填入示例数据、打开页面；绝不登录、付款或删除），由一个隐藏的浏览器照着操作，录下视频，并在值得看的地方截图。做不了的步骤会跳过；规划不出来时，保留一张页面截图，并有一行琥珀色提示说明原因。它和 self-check 一样需要 Playwright 的 Chromium。
 - 预览，已经在启动，带 **Open preview**。
 - **What the self-check saw**：自检开着时的最新截图。
 - **Artifacts**：媒体类 goal 目前产出的图片和文件。
 - 目前的代码在 **Diff** 标签上；文件夹在 **Open ▾** 里。
 
 然后要么按 **Continue**，要么写下你看到的，按 **Turn into a plan**。具体怎么运作，一步步写在 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md#里程碑可以看了)。
+
+同样的截图和视频会在第二条消息 **📸 What the milestone looks like** 里发到你的通知渠道，不管 goal 有没有暂停。视频太大、超过渠道上限（Telegram 50 MB，Discord 10 MB）时，留在 goal 页面上，消息里会说明。
 
 ## Activity
 
