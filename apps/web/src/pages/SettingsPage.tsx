@@ -722,10 +722,21 @@ export function SettingsPage() {
 function CodeServerInstall() {
   const [st, setSt] = useState<{ installed: boolean; running: boolean } | null>(null);
   const [running, setRunning] = useState(false);
-  const load = () => api.editorStatus().then(setSt).catch(() => {});
+  const [error, setError] = useState<string | null>(null);
+  const load = () => api.editorStatus().then((s) => (setSt(s), s)).catch(() => null);
   useEffect(() => {
     void load();
   }, []);
+  // the install runs on the server; its log streams below, and the status is asked again until it says installed
+  useEffect(() => {
+    if (!running) return;
+    const t0 = Date.now();
+    const poll = setInterval(async () => {
+      const s = await load();
+      if (s?.installed || Date.now() - t0 > 6 * 60_000) setRunning(false);
+    }, 3000);
+    return () => clearInterval(poll);
+  }, [running]);
   return (
     <div className="text-xs text-zinc-400 space-y-2 border-t border-zinc-800 pt-3">
       <div className="text-zinc-200">VS Code in the browser (code-server)</div>
@@ -738,14 +749,12 @@ function CodeServerInstall() {
             variant="primary"
             disabled={running}
             onClick={async () => {
-              setRunning(true);
+              setError(null);
               try {
                 await api.installCodeServer();
-              } finally {
-                setTimeout(() => {
-                  setRunning(false);
-                  void load();
-                }, 90_000);
+                setRunning(true);
+              } catch (e) {
+                setError(e instanceof Error ? e.message : String(e));
               }
             }}
             title="code-server's standalone install into ~/.local (no root), about 150 MB"
@@ -754,6 +763,7 @@ function CodeServerInstall() {
           </Button>
         )}
       </div>
+      {error && <div className="text-[11px] text-rose-300">Could not start the install: {error}</div>}
       {running && <LiveLog attemptId="tool-install" className="max-h-40" />}
     </div>
   );
