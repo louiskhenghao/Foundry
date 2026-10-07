@@ -453,7 +453,7 @@ export function apiForProvider(provider?: AgentProvider) {
   stagedAttachment: (attId: string) => req<Attachment>(`/api/uploads/${attId}`),
   reconvertAttachment: (goalId: string, attId: string) => req<{ markdown: Attachment['markdown'] }>(`/api/goals/${goalId}/attachments/${attId}/convert`, { method: 'POST' }),
   /** VS Code in the browser for one of a goal's places; starts code-server on first use */
-  openInEditor: (id: string, which: string) => req<{ url: string; tailnetUrl: string | null }>(`/api/goals/${id}/editor`, { method: 'POST', body: JSON.stringify({ which }) }),
+  openInEditor: (id: string, which: string) => req<{ url: string; tailnetUrl: string | null; password: string }>(`/api/goals/${id}/editor`, { method: 'POST', body: JSON.stringify({ which }) }),
   editorStatus: () => req<{ installed: boolean; running: boolean; port: number | null }>('/api/editor'),
   installCodeServer: () => req<{ started: true; channel: string }>('/api/tools/code-server/install', { method: 'POST' }),
   installMarkitdown: () => req<{ started: true; channel: string }>('/api/tools/markitdown/install', { method: 'POST' }),

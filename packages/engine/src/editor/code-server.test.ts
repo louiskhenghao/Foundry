@@ -20,15 +20,16 @@ function fakeBin(): { bin: string; argsFile: string } {
   writeFileSync(bin, `#!/usr/bin/env bun
 const args = process.argv.slice(2);
 await Bun.write(${JSON.stringify(argsFile)}, JSON.stringify(args));
+await Bun.write(${JSON.stringify(argsFile)} + '.env', JSON.stringify(process.env));
 const [host, port] = args[args.indexOf('--bind-addr') + 1].split(':');
-Bun.serve({ hostname: host, port: Number(port), fetch: () => new Response('ok') });
+Bun.serve({ hostname: host, port: Number(port), fetch: () => Response.json({ status: 'alive' }) });
 `);
   chmodSync(bin, 0o755);
   return { bin, argsFile };
 }
 
 describe('CodeServer', () => {
-  test('starts on first use on loopback without a password, links the folder here and on the tailnet, and takes the tailnet address down when stopped', async () => {
+  test('starts on first use on loopback behind a generated password, links the folder here and on the tailnet, and takes the tailnet address down when stopped', async () => {
     const { bin, argsFile } = fakeBin();
     const exposed: number[] = [];
     const removed: number[] = [];
@@ -39,10 +40,18 @@ describe('CodeServer', () => {
     expect(cs.status()).toMatchObject({ installed: true, running: false });
     const r = await cs.open('/Users/me/My App');
     const { port } = cs.status();
-    expect(r).toEqual({ url: `http://localhost:${port}/?folder=%2FUsers%2Fme%2FMy%20App`, tailnetUrl: 'https://mac.tail-1.ts.net:9999/?folder=%2FUsers%2Fme%2FMy%20App' });
+    expect(r).toEqual({ url: `http://localhost:${port}/?folder=%2FUsers%2Fme%2FMy%20App`, tailnetUrl: 'https://mac.tail-1.ts.net:9999/?folder=%2FUsers%2Fme%2FMy%20App', password: cs.password() });
+    expect(r.password).toMatch(/^[\w-]{20,}$/);
+    expect((await Bun.file(join(dataDir, 'code-server', 'password')).stat()).mode & 0o777).toBe(0o600);
     const args = JSON.parse(await Bun.file(argsFile).text()) as string[];
     expect(args).toContain(`127.0.0.1:${port}`);
-    expect(args.slice(args.indexOf('--auth'), args.indexOf('--auth') + 2)).toEqual(['--auth', 'none']);
+    expect(args.slice(args.indexOf('--auth'), args.indexOf('--auth') + 2)).toEqual(['--auth', 'password']);
+    expect(args).not.toContain('--disable-workspace-trust');
+    // the editor's terminals get the password and the basics, none of Foundry's keys, and no PORT of their own
+    const env = JSON.parse(await Bun.file(`${argsFile}.env`).text()) as Record<string, string>;
+    expect(env.PASSWORD).toBe(r.password);
+    expect(env.PORT).toBeUndefined();
+    expect(Object.keys(env).filter((k) => k.startsWith('FOUNDRY_') || k.endsWith('_API_KEY'))).toEqual([]);
     // a second folder reuses the running editor
     await cs.open('/tmp');
     expect(exposed).toEqual([port!]);

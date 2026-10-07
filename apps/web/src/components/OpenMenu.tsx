@@ -26,6 +26,8 @@ const remote = () => typeof location !== 'undefined' && !['localhost', '127.0.0.
 export function OpenMenu({ goalId, places, size = 'sm', label = 'Open', working = false }: { goalId: string; places: OpenPlace[]; size?: 'sm' | 'md'; label?: string; working?: boolean }) {
   const [targets, setTargets] = useState<OpenTarget[] | null>(cached);
   const [status, setStatus] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  // the web editor's password, shown once it opened so it can be pasted on its sign-in page
+  const [password, setPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [opened, setOpened] = useState(false);
 
@@ -54,12 +56,23 @@ export function OpenMenu({ goalId, places, size = 'sm', label = 'Open', working 
     setStatus(null);
     // a window opened right away, before the await, is not taken for a popup
     const win = window.open('', '_blank');
+    if (win) win.opener = null;
     try {
       const r = await api.openInEditor(goalId, which);
-      const url = remote() && r.tailnetUrl ? r.tailnetUrl : r.url;
+      setPassword(r.password);
+      // on another device localhost is that device: only the tailnet address reaches this computer
+      if (remote() && !r.tailnetUrl) {
+        win?.close();
+        setStatus({ kind: 'err', text: "VS Code (web) is not reachable from this device: it is not on your tailnet (Tailscale off or not running on Foundry's computer)" });
+        return;
+      }
+      const url = remote() ? r.tailnetUrl! : r.url;
       if (win) win.location.href = url;
-      else window.open(url, '_blank');
-      setStatus({ kind: 'ok', text: 'opened VS Code in the browser' });
+      else if (!window.open(url, '_blank', 'noopener')) {
+        setStatus({ kind: 'err', text: `the browser blocked the new tab: open ${url} yourself` });
+        return;
+      }
+      setStatus({ kind: 'ok', text: 'opened VS Code in the browser — sign in with the password below (once; the browser remembers it)' });
     } catch (e: any) {
       win?.close();
       setStatus({ kind: 'err', text: e.body?.code === 'not-installed' ? 'VS Code in the browser (code-server) is not installed — install it in Settings → Tools' : (e.body?.error ?? e.message) });
@@ -129,6 +142,14 @@ export function OpenMenu({ goalId, places, size = 'sm', label = 'Open', working 
             </div>
           ))}
           {status && <div className={status.kind === 'ok' ? 'text-emerald-300' : 'text-rose-300'}>{status.text}</div>}
+          {password && (
+            <div className="flex items-center gap-1.5 text-zinc-400">
+              VS Code (web) password: <span className="mono text-zinc-200 select-all">{password}</span>
+              <button className="text-zinc-500 hover:text-zinc-200 flex items-center gap-1" onClick={() => copy(password)} title="Copy the password">
+                {copied === password ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </Menu>

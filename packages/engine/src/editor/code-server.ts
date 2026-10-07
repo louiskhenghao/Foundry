@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -19,10 +20,15 @@ export interface CodeServerDeps {
   bin?: string | null;
 }
 
+/** what code-server's terminals and extensions get from Foundry's environment: enough to work, none of its keys */
+const PASSED_ENV = ['HOME', 'PATH', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TMPDIR', 'TERM', 'TZ'];
+
 /**
  * VS Code in the browser (code-server) for reading and editing a repository or a goal's folder from any device,
- * a phone included. Started on first use, listening on loopback only, without a password, and reached from other
- * devices through the person's tailnet; stopped after two idle hours or when the engine stops.
+ * a phone included. Started on first use, listening on loopback only, behind a password Foundry generates (it gives a
+ * terminal, so neither a tailnet peer nor a web page rebinding a name to 127.0.0.1 may walk in), and reached from other
+ * devices through the person's tailnet; stopped after two idle hours or when the engine stops. Workspace trust stays
+ * on: a folder an agent wrote opens restricted until the person trusts it.
  */
 export class CodeServer {
   private proc: ReturnType<typeof Bun.spawn> | null = null;
@@ -44,12 +50,28 @@ export class CodeServer {
     return { installed: !!this.binary(), running: !!this.proc, port: this.port };
   }
 
-  /** the addresses that open `folder` in the editor, here and on the tailnet; starts the editor when it is not running */
-  async open(folder: string): Promise<{ url: string; tailnetUrl: string | null }> {
+  /** the editor's password: made once, kept in the data folder readable by this user only */
+  password(): string {
+    const file = join(this.deps.dataDir, 'code-server', 'password');
+    try {
+      const saved = readFileSync(file, 'utf8').trim();
+      if (saved) return saved;
+    } catch {
+      /* not made yet */
+    }
+    const made = randomBytes(18).toString('base64url');
+    mkdirSync(join(this.deps.dataDir, 'code-server'), { recursive: true });
+    writeFileSync(file, made, { mode: 0o600 });
+    chmodSync(file, 0o600);
+    return made;
+  }
+
+  /** the addresses that open `folder` in the editor, here and on the tailnet, and its password; starts the editor when it is not running */
+  async open(folder: string): Promise<{ url: string; tailnetUrl: string | null; password: string }> {
     await this.start();
     this.lastOpen = Date.now();
     const q = `/?folder=${encodeURIComponent(folder)}`;
-    return { url: `http://localhost:${this.port}${q}`, tailnetUrl: this.tailnetUrl ? `${this.tailnetUrl.replace(/\/+$/, '')}${q}` : null };
+    return { url: `http://localhost:${this.port}${q}`, tailnetUrl: this.tailnetUrl ? `${this.tailnetUrl.replace(/\/+$/, '')}${q}` : null, password: this.password() };
   }
 
   private start(): Promise<void> {
@@ -61,8 +83,9 @@ export class CodeServer {
       const port = await freePort();
       const dir = join(this.deps.dataDir, 'code-server');
       mkdirSync(dir, { recursive: true });
-      const proc = Bun.spawn([bin, '--bind-addr', `127.0.0.1:${port}`, '--auth', 'none', '--disable-telemetry', '--disable-update-check', '--disable-workspace-trust', '--user-data-dir', join(dir, 'user'), '--extensions-dir', join(dir, 'extensions')], { stdout: 'ignore', stderr: 'pipe', env: { ...process.env, PORT: String(port) } });
-      if (!(await answers(`http://127.0.0.1:${port}/healthz`, READY_MS))) {
+      const env = Object.fromEntries(PASSED_ENV.filter((k) => process.env[k]).map((k) => [k, process.env[k]!]));
+      const proc = Bun.spawn([bin, '--bind-addr', `127.0.0.1:${port}`, '--auth', 'password', '--disable-telemetry', '--disable-update-check', '--user-data-dir', join(dir, 'user'), '--extensions-dir', join(dir, 'extensions')], { stdout: 'ignore', stderr: 'ignore', env: { ...env, PASSWORD: this.password() } });
+      if (!(await isCodeServer(`http://127.0.0.1:${port}/healthz`, READY_MS, () => proc.exitCode === null))) {
         proc.kill();
         throw new Error(`code-server did not start on port ${port}`);
       }
@@ -114,14 +137,16 @@ function freePort(): Promise<number> {
   });
 }
 
-async function answers(url: string, ms: number): Promise<boolean> {
-  for (const t0 = Date.now(); Date.now() - t0 < ms; ) {
+/** code-server answering on the port it was given, while it runs: its health check is JSON with a `status` */
+async function isCodeServer(url: string, ms: number, alive: () => boolean): Promise<boolean> {
+  for (const t0 = Date.now(); Date.now() - t0 < ms && alive(); ) {
     try {
-      await fetch(url, { signal: AbortSignal.timeout(1000) });
-      return true;
+      const body = (await (await fetch(url, { signal: AbortSignal.timeout(1000) })).json()) as { status?: unknown };
+      if (typeof body?.status === 'string') return true;
     } catch {
-      await new Promise((r) => setTimeout(r, 300));
+      /* not up yet */
     }
+    await new Promise((r) => setTimeout(r, 300));
   }
   return false;
 }
