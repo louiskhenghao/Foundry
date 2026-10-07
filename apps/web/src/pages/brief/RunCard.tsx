@@ -148,7 +148,7 @@ export function RunCard({ brief, editable, edit, goalId, selfCheck, milestonePau
             </div>
           </>
         )}
-        <label className="flex items-center gap-2 text-[11px] text-zinc-400 cursor-pointer pt-1" title="After every task lands, the engine opens the preview in headless Chromium, takes a screenshot and fails a must check on console or network errors. Needs Playwright's Chromium (Settings → Preview & self-check).">
+        <label className="flex items-center gap-2 text-[11px] text-zinc-400 cursor-pointer pt-1" title="A smoke test after every task lands: the engine opens the preview's first page in headless Chromium, takes a screenshot and fails a must check on console, page or network errors, which then get fixed. No AI, so no tokens. Unlike Have a look, it never pauses. Needs Playwright's Chromium (Settings → Preview & self-check).">
           <input
             type="checkbox"
             className="accent-emerald-500"

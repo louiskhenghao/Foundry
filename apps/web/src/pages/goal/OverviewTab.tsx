@@ -227,7 +227,7 @@ function SelfCheckSection({ d }: { d: GoalDetail }) {
         <input type="checkbox" className="accent-emerald-500" checked={g.selfCheck} onChange={(e) => toggle(e.target.checked)} />
         <span className="text-xs text-zinc-200">Self-check after each task</span>
       </label>
-      <p className="text-[11px] text-zinc-500">Opens the preview in a headless browser once a task lands, takes a screenshot, and fails on console or network errors.</p>
+      <p className="text-[11px] text-zinc-500">A smoke test after each task lands: opens the preview's first page in a headless browser, takes a screenshot, and fails on console, page or network errors, which then get fixed. No AI, so no tokens; it costs the seconds the preview takes to start. Unlike Have a look, it never shows you anything or pauses.</p>
       {last ? (
         <div className="flex items-start gap-2 text-xs">
           <Badge state={last.status} />

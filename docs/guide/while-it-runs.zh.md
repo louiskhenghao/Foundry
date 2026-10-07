@@ -204,9 +204,11 @@ Foundry 绝不会为了预览去切换、重置或拉取你的 checkout。改任
 
 它只对结果在浏览器里运行的 goal 有用，而且需要下载一次（在 [Settings → Preview & self-check](./settings.zh.md#preview--self-check) 里按 **Install Chromium**）。默认关闭。
 
+它和里程碑的「看一看」不一样：self-check 是每个任务之后自动做的快速冒烟测试，只看首页，从不给你看任何东西，也不会暂停；失败时 Foundry 会去修那些错误，花费只来自这些修复。**Have a look** 是给你看的：到了里程碑，Foundry 按要看的内容录一段操作，开关打开时还会停下来等你。
+
 ## Milestones
 
-**Have a look: pause at milestones** 决定 goal 到了里程碑要不要停下来。默认开启（[Settings](./settings.md)）；每个 goal 在 Brief 的 **How to run it** 部分和 Overview 的 **Acceptance** 卡片里都有自己的开关，从下一个里程碑开始生效。关掉后 goal 会继续往下跑，下面这段说明会连同最新的截图发到你的通知渠道。
+**Have a look: pause at milestones** 决定 goal 到了里程碑要不要停下来。默认开启（[Settings](./settings.md)）；每个 goal 在 Brief 的 **How to run it** 部分和 Overview 的 **Acceptance** 卡片里都有自己的开关，从下一个里程碑开始生效。关掉后 goal 会继续往下跑，下面这段说明和它的录屏会发到你的通知渠道。
 
 里程碑任务并入后，goal 会暂停。它的状态标记显示 **have a look**，Inbox 显示 **Have a look**，goal 页面顶部出现一张卡片：**Have a look — task name**。
 

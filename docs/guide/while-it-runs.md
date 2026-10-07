@@ -204,9 +204,11 @@ The values stay on this computer. They are passed to the preview's processes onl
 
 It only helps goals whose result runs in a browser, and it needs a one-time download (**Install Chromium** in [Settings → Preview & self-check](./settings.md#preview--self-check)). It is off by default.
 
+It is not the same as a milestone's look: the self-check is a quick automatic smoke test after every task, of the first page only, that never shows you anything or pauses; a failure makes Foundry fix the errors, which is where any cost comes from. **Have a look** is for you: at a milestone Foundry records a walkthrough of what to look at and, if the switch is on, waits for you.
+
 ## Milestones
 
-**Have a look: pause at milestones** decides whether a goal stops at its milestones. It is on by default ([Settings](./settings.md)); each goal has its own switch on the Brief's **How to run it** section and in the Overview's **Acceptance** card, which applies from the next milestone. With it off, the goal goes on, and the note below, with the latest screenshot, is sent to your notification channels instead.
+**Have a look: pause at milestones** decides whether a goal stops at its milestones. It is on by default ([Settings](./settings.md)); each goal has its own switch on the Brief's **How to run it** section and in the Overview's **Acceptance** card, which applies from the next milestone. With it off, the goal goes on, and the note below and its recording are sent to your notification channels instead.
 
 When a milestone task lands, the goal pauses. Its badge reads **have a look**, the Inbox shows **Have a look**, and at the top of the goal page appears a card: **Have a look — task name**.
 
