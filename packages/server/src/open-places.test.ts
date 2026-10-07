@@ -26,3 +26,18 @@ test('an Open menu place is resolved on the server: a resolve worktree only for 
     rmSync(repo, { recursive: true, force: true });
   }
 });
+
+test('a change another site makes the browser send is refused; the UI, tools and the dev server get through', async () => {
+  const { crossSite } = await import('./app.ts');
+  const req = (headers: Record<string, string>) => new Request('http://127.0.0.1:4111/api/x', { method: 'POST', headers: { host: '127.0.0.1:4111', ...headers } });
+  expect(crossSite(req({ 'sec-fetch-site': 'cross-site', origin: 'https://evil.example' }))).toBe(true);
+  expect(crossSite(req({ 'sec-fetch-site': 'same-origin', origin: 'http://127.0.0.1:4111' }))).toBe(false);
+  // the web dev server on another port of the same host
+  expect(crossSite(req({ 'sec-fetch-site': 'same-site', origin: 'http://127.0.0.1:5173' }))).toBe(false);
+  // browsers without Sec-Fetch-Site: the Origin's host decides
+  expect(crossSite(req({ origin: 'https://evil.example' }))).toBe(true);
+  expect(crossSite(req({ origin: 'http://127.0.0.1:5173' }))).toBe(false);
+  expect(crossSite(req({ origin: 'null' }))).toBe(true);
+  // curl, the CLI and the sessions' hooks send neither
+  expect(crossSite(req({}))).toBe(false);
+});

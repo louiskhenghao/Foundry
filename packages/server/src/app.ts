@@ -65,8 +65,31 @@ const CreateGoalBody = z.object({
   follows: z.object({ goalId: z.string().min(1), startFrom: z.enum(['base', 'previous']).optional(), attachments: z.boolean().optional(), style: z.boolean().optional() }).optional(),
 });
 
+/**
+ * A request a page on another site made the browser send. Foundry has no sign-in, so any web page could otherwise
+ * POST to it (start an install, answer an escalation…). Browsers mark the request's site; without that header, an
+ * Origin naming another host gives it away. Tools such as curl and the sessions' hooks send neither, and another port
+ * of the same host (the web dev server) counts as the same site.
+ */
+export function crossSite(req: Request): boolean {
+  const site = req.headers.get('sec-fetch-site');
+  if (site) return site === 'cross-site';
+  const origin = req.headers.get('origin');
+  if (!origin || origin === 'null') return !!origin;
+  try {
+    const host = (req.headers.get('host') ?? new URL(req.url).host).replace(/:\d+$/, '');
+    return new URL(origin).hostname !== host.replace(/^\[|\]$/g, '');
+  } catch {
+    return true;
+  }
+}
+
 export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   const app = new Hono();
+  app.use('/api/*', async (c, next) => {
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) && crossSite(c.req.raw)) return c.json({ error: 'refused: a request from another site' }, 403);
+    await next();
+  });
   const db = engine.store.db;
   // Skills page operations: one live channel + one pollable record each (skill-ops.ts)
   const ops = new SkillOps((s) => engine.broadcast(s));
