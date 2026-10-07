@@ -22,7 +22,8 @@ export function ClarifyProgress({ goal, writingBrief }: { goal: Goal; writingBri
     { key: 'clarifying', label: writingBrief ? 'Clarifier: reading the repository, then writing the Brief' : 'Clarifier: reading the repository, then asking or writing the Brief' },
     ...(writingBrief ? [{ key: 'planning', label: 'Planner: splitting the goal into tasks' }] : []),
   ];
-  const current = steps.findIndex((s) => s.key === stage?.stage);
+  // no step recorded yet (the session is being prepared): the first one
+  const current = Math.max(0, steps.findIndex((s) => s.key === stage?.stage));
   return (
     <div className="space-y-1.5">
       <ol className="space-y-1">

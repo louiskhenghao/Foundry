@@ -56,9 +56,13 @@ export function applyEvent(db: Database, e: EngineEvent): void {
       break;
     }
     case 'brief.proposed':
-    case 'brief.edited':
+    case 'brief.edited': {
       upsertBrief(db, e.payload.brief, false);
+      // Clarify is over once its Brief is out
+      const g = e.type === 'brief.proposed' ? getGoal(db, e.goalId!) : null;
+      if (g?.clarifyStage) upsertGoal(db, { ...g, clarifyStage: null, updatedAt: e.ts });
       break;
+    }
     case 'brief.style_sampled': {
       if (e.payload.status !== 'ok') break;
       const b = getBrief(db, e.goalId!);
@@ -234,7 +238,8 @@ export function applyEvent(db: Database, e: EngineEvent): void {
       const g = getGoal(db, e.goalId!);
       if (!g?.interview) break;
       const rounds = g.interview.rounds.map((r) => (r.round === e.payload.round ? { ...r, answers: e.payload.answers, answeredAt: e.ts, finish: e.payload.finish } : r));
-      upsertGoal(db, { ...g, interview: { ...g.interview, status: 'thinking', rounds }, updatedAt: e.ts });
+      // the step shown starts again with the session that reads the answers, not from the turn before them
+      upsertGoal(db, { ...g, interview: { ...g.interview, status: 'thinking', rounds }, clarifyStage: null, updatedAt: e.ts });
       break;
     }
     case 'interview.finished': {
@@ -292,7 +297,7 @@ export function applyEvent(db: Database, e: EngineEvent): void {
     case 'goal.reclarified': {
       const g = getGoal(db, e.goalId!);
       // a fresh Clarify starts a fresh interview (the discarded Brief's Decisions travel in the event)
-      if (g) upsertGoal(db, { ...g, baseSync: e.payload.workspaceRebuilt ? null : g.baseSync, autoskills: e.payload.workspaceRebuilt ? null : g.autoskills, interview: g.interview ? { mode: g.interview.mode, status: 'thinking', sessionId: null, rounds: [] } : null, updatedAt: e.ts });
+      if (g) upsertGoal(db, { ...g, baseSync: e.payload.workspaceRebuilt ? null : g.baseSync, autoskills: e.payload.workspaceRebuilt ? null : g.autoskills, interview: g.interview ? { mode: g.interview.mode, status: 'thinking', sessionId: null, rounds: [] } : null, clarifyStage: null, updatedAt: e.ts });
       break;
     }
     case 'goal.follow_up_linked': {

@@ -90,6 +90,19 @@ describe('EventStore', () => {
     expect(store.snapshotReadModels()).toEqual(before);
   });
 
+  test("the Clarify step is kept while a session runs and cleared when a new one begins or the Brief is out", () => {
+    const store = new EventStore(openDatabase(':memory:'));
+    const g = { ...goal('g_2'), interview: { mode: 'auto' as const, depth: 5, status: 'awaiting_answers' as const, sessionId: 's', rounds: [{ round: 1, questions: [], answers: null, askedAt: '2026-01-01', answeredAt: null, finish: false }] } };
+    store.append({ type: 'goal.created', goalId: g.id, payload: { goal: g } });
+    store.append({ type: 'clarify.stage', goalId: g.id, payload: { stage: 'planning' } });
+    expect(getGoal(store.db, g.id)?.clarifyStage?.stage).toBe('planning');
+    store.append({ type: 'interview.round_answered', goalId: g.id, payload: { round: 1, answers: {}, finish: false } });
+    expect(getGoal(store.db, g.id)?.clarifyStage).toBeNull();
+    store.append({ type: 'clarify.stage', goalId: g.id, payload: { stage: 'clarifying' } });
+    store.append({ type: 'goal.reclarified', goalId: g.id, payload: { reason: 'test', decisions: '', workspaceRebuilt: false } });
+    expect(getGoal(store.db, g.id)?.clarifyStage).toBeNull();
+  });
+
   test('rejects invalid payloads', () => {
     const store = new EventStore(openDatabase(':memory:'));
     // @ts-expect-error invalid state
