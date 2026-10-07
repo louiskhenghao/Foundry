@@ -486,8 +486,10 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     if (which === 'repo') path = goal.repoPath;
     else if (which === 'workspace') path = goalWorkspacePath(engine.config.dataDir, goal);
     else if (which.startsWith('resolve:')) {
-      const p = resolveWorkspacePath(engine.config.dataDir, goal, which.slice(8));
-      path = existsSync(p) ? p : null;
+      // only a task of this goal: the id becomes part of a path
+      const taskId = which.slice(8);
+      const p = listTasks(db, goal.id).some((t) => t.id === taskId) ? resolveWorkspacePath(engine.config.dataDir, goal, taskId) : null;
+      path = p && existsSync(p) ? p : null;
     } else if (which.startsWith('task:')) path = listTasks(db, goal.id).find((t) => t.id === which.slice(5))?.worktreePath ?? null;
     if (!path) throw new HttpError(404, { error: `nothing to open for ${which}` });
     return path;
