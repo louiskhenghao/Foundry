@@ -95,6 +95,8 @@ describe('Clarify writes the Brief, a planner session writes its plan', () => {
     expect(planner.disallowedTools).toEqual(READONLY_DISALLOWED);
     expect(planner.permissionMode).toBe('dontAsk');
     expect(planner.maxTurns).toBe(45);
+    // a long answer is written without output: neither session is cut at the CLI's default 5 idle minutes
+    expect([clarifier.timeoutMs, clarifier.idleTimeoutMs, planner.idleTimeoutMs]).toEqual([30 * 60_000, 10 * 60_000, 10 * 60_000]);
     expect(planner.transcriptPath).toEndWith(`planner-${goal.id}.jsonl`);
     expect(planner.appendSystemPromptFile).toEndWith('planner.md');
     expect(planner.prompt).toContain('README.md is the only file');

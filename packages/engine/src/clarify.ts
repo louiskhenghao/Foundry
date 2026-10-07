@@ -152,7 +152,9 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
       strictMcp: true,
       addDirs,
       resumeSessionId: resume,
-      timeoutMs: 15 * 60_000,
+      // a turn that writes the Brief can think for minutes without printing anything (267 s seen against a 300 s limit)
+      timeoutMs: 30 * 60_000,
+      idleTimeoutMs: 10 * 60_000,
       transcriptPath,
       label: `clarify ${goal.title}`,
     });
