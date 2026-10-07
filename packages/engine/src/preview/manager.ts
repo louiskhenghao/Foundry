@@ -51,6 +51,8 @@ export interface PreviewAppStatus {
   nativePort: number | null;
   /** variables whose address of another app (or this one) was moved to the port that app got: names only, never values */
   rewrites: { key: string; from: number; to: number }[];
+  /** its address on the person's tailnet (Tailscale), for opening it on another device; null = none */
+  tailnetUrl: string | null;
 }
 
 /**
@@ -140,6 +142,7 @@ interface Live {
   discovering: boolean;
   nativePort: number | null;
   rewrites: PreviewAppStatus['rewrites'];
+  tailnetUrl: string | null;
 }
 
 const LOG_LINES = 200;
@@ -258,6 +261,7 @@ export class PreviewManager {
       stopped: l ? null : (this.lastStop.get(id(goalId, key)) ?? null),
       nativePort: l?.nativePort ?? null,
       rewrites: l?.rewrites ?? [],
+      tailnetUrl: l?.tailnetUrl ?? null,
     };
   }
 
@@ -415,7 +419,7 @@ export class PreviewManager {
     const command = forPackageManager(app.command!).replaceAll('{port}', String(port));
     const url = urls[appUrlVar(app.key)]!;
     const now = new Date().toISOString();
-    const entry: Live = { goalId: goal.id, key: app.key, proc: null as unknown as Live['proc'], port, url, command, startedAt: now, startedBy: by, lastVisitAt: now, ready: false, log: [], stopping: false, stopReason: null, warning, discovered: [], reserved: [], probes: new Map(), discovery: null, discovering: false, nativePort: wiring.native, rewrites: wiring.changes };
+    const entry: Live = { goalId: goal.id, key: app.key, proc: null as unknown as Live['proc'], port, url, command, startedAt: now, startedBy: by, lastVisitAt: now, ready: false, log: [], stopping: false, stopReason: null, warning, discovered: [], reserved: [], probes: new Map(), discovery: null, discovering: false, nativePort: wiring.native, rewrites: wiring.changes, tailnetUrl: null };
     const channel = `preview-${goal.id}-${app.key}`;
     const env = this.processEnv(goal);
     const redact = this.redactorFor(goal);
@@ -457,6 +461,9 @@ export class PreviewManager {
       entry.discovery = setInterval(() => void this.discover(entry, ws), DISCOVERY_MS);
     }, 3_000);
     entry.ready = await waitForHttp(url, READY_TIMEOUT_MS, () => this.current(entry));
+    // reachable from the person's phone over their tailnet, when they use Tailscale
+    if (this.current(entry)) entry.tailnetUrl = await this.engine.tailnet.expose(port).catch(() => null);
+    if (!this.current(entry) && entry.tailnetUrl) void this.engine.tailnet.unexpose(port);
     if (!entry.ready && this.current(entry)) {
       entry.warning = `${url} did not answer within ${READY_TIMEOUT_MS / 1000} s; it may still be starting, or the command ignores PORT ({port} in the Brief's How to run it)`;
       push(`[preview] ${entry.warning}`);
@@ -523,6 +530,7 @@ export class PreviewManager {
       /* the group is already gone */
     }
     l.proc.kill();
+    if (l.tailnetUrl) void this.engine.tailnet.unexpose(l.port);
     await Promise.race([l.proc.exited, new Promise((r) => setTimeout(r, 3000))]);
     if (this.live.get(key) === l) {
       this.live.delete(key);

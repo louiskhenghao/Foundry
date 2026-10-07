@@ -264,7 +264,7 @@ key 对下一个会话生效，不用重启。保存过的 key 不会再显示�
 
 有事发生时，Foundry 可以在 Telegram 或 Discord 上给你发消息，这样你不用一直盯着页面。机器人或 webhook 的设置方法在 [notifications.md](../operate/notifications.md)；设好之后，按 **Send test message**。
 
-**Link base URL**：你在手机上打开 Foundry 用的地址。设了它，消息里会带一个直达 goal 的链接。不设就没有链接。见 [remote-access.md](../operate/remote-access.md)。
+**Link base URL**：你从别处打开 Foundry 用的地址（局域网地址、域名）。消息里的链接指向它；不设就指向这台电脑（`http://localhost`）。**Tailscale links**（auto）在这台电脑运行 Tailscale 时，额外附上 Foundry 和预览在你 tailnet 上的链接，手机上也能打开；**Tailscale name** 可以手动指定这台机器的名字。见 [notifications.md](../operate/notifications.md#links)。
 
 六个开关，默认全开：
 

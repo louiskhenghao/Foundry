@@ -42,6 +42,8 @@ export interface EngineConfig {
   interview: 'auto' | 'always' | 'never';
   /** new goals pause at their milestones for the human's look ("Have a look") */
   milestonePause: boolean;
+  /** the `tailscale` command; undefined = find it, null = never touch the tailnet (tests) */
+  tailscaleBin?: string | null;
   /** effort handed to every session of new goals; null = CLI default */
   effort: Effort | null;
   /** presets saved in Settings (edited built-ins and your own); the shipped ones are always available */
@@ -154,6 +156,8 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     selfCheck: process.env.FOUNDRY_SELF_CHECK === '1' || process.env.FOUNDRY_SELF_CHECK === 'true',
     interview: (['auto', 'always', 'never'] as const).find((m) => m === process.env.FOUNDRY_INTERVIEW) ?? 'auto',
     milestonePause: process.env.FOUNDRY_MILESTONE_PAUSE !== '0' && process.env.FOUNDRY_MILESTONE_PAUSE !== 'false',
+    // a test run never serves ports on the machine's real tailnet
+    tailscaleBin: process.env.NODE_ENV === 'test' ? null : undefined,
     effort: Effort.options.find((e) => e === process.env.FOUNDRY_EFFORT) ?? null,
     codexPresets: {},
     codexNaturePreset: { ...DEFAULT_NATURE_PRESETS },

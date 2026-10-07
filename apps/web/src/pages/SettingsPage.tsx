@@ -604,8 +604,17 @@ export function SettingsPage() {
               <Field label="Discord webhook URL" aside={aside('notifications.discordWebhookUrl')} help="In your Discord channel: Settings → Integrations → Webhooks → New Webhook, then copy its URL.">
                 {secret('notifications.discordWebhookUrl', 'https://discord.com/api/webhooks/…')}
               </Field>
-              <Field label="Link base URL" aside={aside('notifications.baseUrl')} help="Where this UI is reachable from your phone (a Tailscale or LAN address). Empty = messages carry no links, since 127.0.0.1 would not open elsewhere.">
-                {text('notifications.baseUrl', 'http://my-mac.tailnet:4111', true)}
+              <Field label="Link base URL" aside={aside('notifications.baseUrl')} help="Where this UI is reachable from elsewhere (a LAN address, a domain). Empty = links point at this computer (http://localhost); tailnet links are added below.">
+                {text('notifications.baseUrl', 'http://192.168.1.20:4111', true)}
+              </Field>
+              <Field label="Tailscale links" aside={aside('notifications.tailscale')} help="auto: when Tailscale runs on this computer, messages also link to Foundry and the previews on your tailnet, so they open on your phone; Foundry serves those ports with `tailscale serve` (reusing what you already serve) and takes the previews' down when they stop. off: never.">
+                <Select value={draft.notifications.tailscale} onChange={(e) => set('notifications.tailscale', e.target.value)}>
+                  <option value="auto">auto — when Tailscale runs here</option>
+                  <option value="off">off</option>
+                </Select>
+              </Field>
+              <Field label="Tailscale name" aside={aside('notifications.tailscaleHost')} help="This computer's tailnet name. Empty = read from `tailscale status`.">
+                {text('notifications.tailscaleHost', 'my-mac.tailnet-123.ts.net', true)}
               </Field>
             </>,
           )}

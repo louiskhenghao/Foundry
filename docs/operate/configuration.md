@@ -101,7 +101,9 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `notifications.telegramBotToken` | — | `FOUNDRY_TELEGRAM_BOT_TOKEN` | Telegram bot token. |
 | `notifications.telegramChatId` | — | `FOUNDRY_TELEGRAM_CHAT_ID` | Telegram chat id (the Detect button finds it). |
 | `notifications.discordWebhookUrl` | — | `FOUNDRY_DISCORD_WEBHOOK` | Discord webhook URL. |
-| `notifications.baseUrl` | — | `FOUNDRY_NOTIFY_BASE_URL` | Address of this UI as reachable from your phone; messages link to it. |
+| `notifications.baseUrl` | — | `FOUNDRY_NOTIFY_BASE_URL` | Address of this UI as reachable from elsewhere; empty = links point at this computer (http://localhost:<port>). |
+| `notifications.tailscale` | `auto` | `FOUNDRY_TAILSCALE` | auto: when Tailscale runs here, messages and the UI also carry tailnet links, and Foundry serves its own and the previews' ports with `tailscale serve`; off: never. |
+| `notifications.tailscaleHost` | — | `FOUNDRY_TAILSCALE_HOST` | This computer's tailnet name, when it should not be read from `tailscale status`. |
 | `notifications.onEscalation` | `true` | — | Notify when something needs you (Inbox). |
 | `notifications.onInterview` | `true` | — | Notify when Clarify asks an interview round. |
 | `notifications.onGoalFinished` | `true` | — | Notify when a goal ends done, over-delivered or failed. |

@@ -30,3 +30,4 @@ record is never rewritten when a later decision changes it; its status says what
 | [0023](0023-resumable-stacked-delivery.md) | A stacked delivery resumes, replays onto the base, and reads its switches live | accepted · 2026-10-05 |
 | [0024](0024-guided-install-and-shared-host-docker.md) | One installer for both ways to run Foundry, and the host's Docker shared on request | accepted · 2026-10-06 |
 | [0025](0025-finished-previews-may-run-in-the-checkout.md) | A finished goal's preview may run in the person's checkout | accepted · 2026-10-07 |
+| [0026](0026-tailnet-links-and-served-previews.md) | Messages link on the tailnet, and Foundry serves preview ports there | accepted · 2026-10-07 |

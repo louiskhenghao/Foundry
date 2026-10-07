@@ -5,12 +5,32 @@
 
 export interface Notifier {
   readonly name: string;
-  /** deliver one plain-text message; throws on failure */
-  send(text: string): Promise<void>;
+  /** deliver one message, its links clickable; throws on failure */
+  send(text: string, links?: Link[]): Promise<void>;
   /** deliver an image with a caption (a milestone screenshot); channels without it get the text alone */
-  sendPhoto?(caption: string, file: string): Promise<void>;
+  sendPhoto?(caption: string, file: string, links?: Link[]): Promise<void>;
   /** deliver screenshots and a video with a caption; files over the channel's size limit are left out and the caption says so */
-  sendMedia?(caption: string, files: MediaFile[]): Promise<void>;
+  sendMedia?(caption: string, files: MediaFile[], links?: Link[]): Promise<void>;
+}
+
+/** a link under a message: localhost addresses are not linkified from plain text by the apps, so they are sent as links */
+export interface Link {
+  label: string;
+  url: string;
+}
+
+const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+/** Telegram HTML: the text escaped, each link a named anchor on its own line */
+export function telegramHtml(text: string, links: Link[]): string {
+  return [escapeHtml(text), ...links.map((l) => `<a href="${escapeHtml(l.url).replace(/"/g, '&quot;')}">${escapeHtml(l.label)}</a>`)].join('\n');
+}
+/** plain text with the addresses written out: what a channel gets when it refuses a link */
+export function plainLinks(text: string, links: Link[]): string {
+  return [text, ...links.map((l) => `${l.label}: ${l.url}`)].join('\n');
+}
+/** Discord markdown: masked links, in angle brackets so no preview card unfolds under the message */
+export function discordLinks(text: string, links: Link[]): string {
+  return [text, ...links.map((l) => `[${l.label.replace(/[[\]]/g, '')}](<${l.url}>)`)].join('\n');
 }
 
 export interface MediaFile {
@@ -52,56 +72,70 @@ export class TelegramNotifier implements Notifier {
     private token: string,
     private chatId: string,
   ) {}
-  async send(text: string): Promise<void> {
-    const res = await post(`${TELEGRAM_API}/bot${this.token}/sendMessage`, { chat_id: this.chatId, text: text.slice(0, MAX_LEN), disable_web_page_preview: true });
+  async send(text: string, links: Link[] = []): Promise<void> {
+    const html = { chat_id: this.chatId, text: telegramHtml(text.slice(0, MAX_LEN - 400), links), parse_mode: 'HTML', disable_web_page_preview: true };
+    let res = await post(`${TELEGRAM_API}/bot${this.token}/sendMessage`, links.length ? html : { chat_id: this.chatId, text: text.slice(0, MAX_LEN), disable_web_page_preview: true });
+    // a link Telegram will not take (it is strict about some hosts): the addresses written out instead
+    if (!res.ok && links.length && res.status === 400) res = await post(`${TELEGRAM_API}/bot${this.token}/sendMessage`, { chat_id: this.chatId, text: plainLinks(text, links).slice(0, MAX_LEN), disable_web_page_preview: true });
     if (!res.ok) throw new Error(`telegram ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
   }
   /** sendPhoto: multipart with the PNG bytes; captions are capped at 1024 by Telegram */
-  async sendPhoto(caption: string, file: string): Promise<void> {
-    const form = new FormData();
-    form.set('chat_id', this.chatId);
-    form.set('caption', caption.slice(0, 1000));
-    form.set('photo', new Blob([await Bun.file(file).arrayBuffer()], { type: 'image/png' }), file.split('/').pop() ?? 'screenshot.png');
-    const res = await fetch(`${TELEGRAM_API}/bot${this.token}/sendPhoto`, { method: 'POST', body: form, signal: AbortSignal.timeout(30_000) });
-    if (!res.ok) throw new Error(`telegram ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
+  async sendPhoto(caption: string, file: string, links: Link[] = []): Promise<void> {
+    await this.upload('sendPhoto', caption, links, async (form, text, html) => {
+      form.set('caption', text);
+      if (html) form.set('parse_mode', 'HTML');
+      form.set('photo', await blob({ path: file, kind: 'photo' }), fileName({ path: file, kind: 'photo' }));
+    });
   }
   /** one photo or video as itself, several as an album (sendMediaGroup, up to 10); bots may upload 10 MB photos and 50 MB videos */
-  async sendMedia(caption: string, all: MediaFile[]): Promise<void> {
+  async sendMedia(caption: string, all: MediaFile[], links: Link[] = []): Promise<void> {
     const { files, note } = fitting(all, { photo: 10e6, video: 50e6, total: 50e6, count: 10 });
-    const text = [caption, note].filter(Boolean).join('\n').slice(0, 1000);
-    if (!files.length) return this.send(text);
-    if (files.length === 1 && files[0]!.kind === 'photo') return this.sendPhoto(text, files[0]!.path);
-    const form = new FormData();
-    form.set('chat_id', this.chatId);
-    let method = 'sendMediaGroup';
-    if (files.length === 1) {
-      method = 'sendVideo';
-      form.set('caption', text);
-      form.set('video', await blob(files[0]!), fileName(files[0]!));
-    } else {
-      form.set('media', JSON.stringify(files.map((f, i) => ({ type: f.kind, media: `attach://f${i}`, ...(i === 0 ? { caption: text } : {}) }))));
+    const plain = [caption, note].filter(Boolean).join('\n');
+    if (!files.length) return this.send(plain, links);
+    if (files.length === 1 && files[0]!.kind === 'photo') return this.sendPhoto(plain, files[0]!.path, links);
+    if (files.length === 1)
+      return this.upload('sendVideo', plain, links, async (form, text, html) => {
+        form.set('caption', text);
+        if (html) form.set('parse_mode', 'HTML');
+        form.set('video', await blob(files[0]!), fileName(files[0]!));
+      });
+    await this.upload('sendMediaGroup', plain, links, async (form, text, html) => {
+      form.set('media', JSON.stringify(files.map((f, i) => ({ type: f.kind, media: `attach://f${i}`, ...(i === 0 ? { caption: text, ...(html ? { parse_mode: 'HTML' } : {}) } : {}) }))));
       for (const [i, f] of files.entries()) form.set(`f${i}`, await blob(f), fileName(f));
+    });
+  }
+  /** a multipart upload with a caption (1024 at most): its links as HTML, written out when Telegram refuses them */
+  private async upload(method: string, caption: string, links: Link[], fill: (form: FormData, text: string, html: boolean) => Promise<void>): Promise<void> {
+    const room = 1000 - links.reduce((n, l) => n + l.url.length + l.label.length + 20, 0);
+    let res: Response | null = null;
+    for (const html of links.length ? [true, false] : [false]) {
+      const form = new FormData();
+      form.set('chat_id', this.chatId);
+      await fill(form, html ? telegramHtml(caption.slice(0, room), links) : plainLinks(caption.slice(0, room), links), html);
+      res = await fetch(`${TELEGRAM_API}/bot${this.token}/${method}`, { method: 'POST', body: form, signal: AbortSignal.timeout(120_000) });
+      if (res.ok || res.status !== 400) break;
     }
-    const res = await fetch(`${TELEGRAM_API}/bot${this.token}/${method}`, { method: 'POST', body: form, signal: AbortSignal.timeout(120_000) });
-    if (!res.ok) throw new Error(`telegram ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
+    if (!res!.ok) throw new Error(`telegram ${res!.status}: ${(await res!.text().catch(() => '')).slice(0, 200)}`);
   }
 }
 
 export class DiscordNotifier implements Notifier {
   readonly name = 'discord';
   constructor(private webhookUrl: string) {}
-  async send(text: string): Promise<void> {
-    const res = await post(this.webhookUrl, { content: text.slice(0, MAX_LEN) });
+  async send(text: string, links: Link[] = []): Promise<void> {
+    let res = await post(this.webhookUrl, { content: discordLinks(text, links).slice(0, MAX_LEN) });
+    if (!res.ok && links.length && res.status === 400) res = await post(this.webhookUrl, { content: plainLinks(text, links).slice(0, MAX_LEN) });
     if (!res.ok) throw new Error(`discord ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
   }
-  async sendPhoto(caption: string, file: string): Promise<void> {
-    return this.sendMedia(caption, [{ path: file, kind: 'photo' }]);
+  async sendPhoto(caption: string, file: string, links: Link[] = []): Promise<void> {
+    return this.sendMedia(caption, [{ path: file, kind: 'photo' }], links);
   }
   /** attachments on the webhook message: up to 10 files, 10 MB together on servers without a boost */
-  async sendMedia(caption: string, all: MediaFile[]): Promise<void> {
+  async sendMedia(caption: string, all: MediaFile[], links: Link[] = []): Promise<void> {
     const { files, note } = fitting(all, { photo: 9.5e6, video: 9.5e6, total: 9.5e6, count: 10 });
-    const content = [caption, note].filter(Boolean).join('\n').slice(0, MAX_LEN);
-    if (!files.length) return this.send(content);
+    const plain = [caption, note].filter(Boolean).join('\n');
+    if (!files.length) return this.send(plain, links);
+    const content = discordLinks(plain, links).slice(0, MAX_LEN);
     const form = new FormData();
     form.set('payload_json', JSON.stringify({ content }));
     for (const [i, f] of files.entries()) form.set(`files[${i}]`, await blob(f), fileName(f));

@@ -89,6 +89,7 @@ import { BaselineChecks } from './checks/baseline.ts';
 import { relative, resolve } from 'node:path';
 import { adoptLocalBin, AGENT_CLI_IDS, agentCliInstall, type AgentCliId } from './agent-cli.ts';
 import { type FollowUpDraft, type FollowUpInput, followUpDraft, linkFollowUp, prepareFollowUp } from './follow-up.ts';
+import { Tailnet } from './notify/tailnet.ts';
 
 export interface CreateGoalInput {
   provider?: 'claude' | 'codex';
@@ -184,6 +185,8 @@ export class Engine {
   readonly updater: UpdateManager;
   /** dev servers started in progress folders (Goal page, milestones, integrations) */
   readonly preview: PreviewManager;
+  /** this computer on the person's tailnet: links that open on their phone */
+  readonly tailnet: Tailnet;
   /** self-update drain: no new sessions start; in-flight work finishes (mirror of the rate-limit gate) */
   private updateDraining = false;
   private minimax: { quota: MinimaxQuota; at: number } | null = null;
@@ -321,6 +324,7 @@ export class Engine {
     this.notifications = new NotificationDispatcher(this);
     this.notifications.attach();
     this.updater = new UpdateManager(this);
+    this.tailnet = new Tailnet({ mode: () => this.settings.values().notifications.tailscale, host: () => this.settings.values().notifications.tailscaleHost, log: config.log, bin: config.tailscaleBin });
     this.preview = new PreviewManager(this);
   }
 
@@ -735,6 +739,7 @@ export class Engine {
     this.agents.stop();
     this.preview.stopSweeper();
     await this.preview.stopAll('engine shutdown');
+    await this.tailnet.unexposeAll();
     for (const [, f] of this.inFlight) f.handle?.kill('killed_manual');
     // reviews, clarify, merges and probes are not in `inFlight`: kill every child the runner still owns
     const n = (this.runner as { killAll?: () => number }).killAll?.() ?? 0;

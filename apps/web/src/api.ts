@@ -32,6 +32,8 @@ export interface PreviewAppStatus {
   nativePort: number | null;
   /** variables pointing at an app's usual port, moved to the port it got (names only) */
   rewrites: { key: string; from: number; to: number }[];
+  /** its address on the person's tailnet (Tailscale); null = none */
+  tailnetUrl: string | null;
 }
 
 /** Mirrors the engine's PreviewStatus (preview/manager.ts). The top-level fields describe the primary app (apps[0]). */

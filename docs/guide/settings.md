@@ -264,7 +264,7 @@ When to change: turn the self-check on by default if most of your goals are web 
 
 Foundry can message you on Telegram or Discord when something happens, so you do not have to watch the page. Setting up the bot or webhook is in [notifications.md](../operate/notifications.md); after that, press **Send test message**.
 
-**Link base URL**: the address where you open Foundry from your phone. With it, messages carry a link straight to the goal. Without it they carry no link. See [remote-access.md](../operate/remote-access.md).
+**Link base URL**: the address where you open Foundry from elsewhere (a LAN address, a domain). Messages link to it; without it they link to this computer (`http://localhost`). **Tailscale links** (auto) adds links on your tailnet when Tailscale runs here, for Foundry and for previews, so they open on your phone; **Tailscale name** overrides the machine's name. See [notifications.md](../operate/notifications.md#links).
 
 The six switches, all on by default:
 

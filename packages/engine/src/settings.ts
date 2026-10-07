@@ -64,6 +64,8 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'notifications.telegramChatId': { name: 'FOUNDRY_TELEGRAM_CHAT_ID', parse: str },
   'notifications.discordWebhookUrl': { name: 'FOUNDRY_DISCORD_WEBHOOK', parse: str },
   'notifications.baseUrl': { name: 'FOUNDRY_NOTIFY_BASE_URL', parse: str },
+  'notifications.tailscale': { name: 'FOUNDRY_TAILSCALE', parse: str },
+  'notifications.tailscaleHost': { name: 'FOUNDRY_TAILSCALE_HOST', parse: str },
 };
 
 /** setting path → the environment variable that seeds it (documentation, reference.test.ts) */

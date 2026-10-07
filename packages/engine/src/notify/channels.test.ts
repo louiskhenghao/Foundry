@@ -38,6 +38,9 @@ describe('media in notifications', () => {
     const form = calls[0]!.body as FormData;
     expect(JSON.parse(String(form.get('media')))).toEqual([{ type: 'photo', media: 'attach://f0', caption: 'look' }, { type: 'photo', media: 'attach://f1' }, { type: 'video', media: 'attach://f2' }]);
     calls = capture();
+    await new TelegramNotifier('tok', '42').sendMedia('look', files, [{ label: 'Open', url: 'http://localhost:4111/goals/g1' }]);
+    expect(JSON.parse(String((calls[0]!.body as FormData).get('media')))[0]).toEqual({ type: 'photo', media: 'attach://f0', caption: 'look\n<a href="http://localhost:4111/goals/g1">Open</a>', parse_mode: 'HTML' });
+    calls = capture();
     await new DiscordNotifier('https://discord.test/hook').sendMedia('look', files);
     const d = calls[0]!.body as FormData;
     expect(JSON.parse(String(d.get('payload_json')))).toEqual({ content: 'look' });
@@ -51,6 +54,31 @@ describe('media in notifications', () => {
     calls = capture();
     await new DiscordNotifier('https://discord.test/hook').sendMedia('look', [file('huge.webm', 10_000_001, 'video')]);
     expect(JSON.parse(String(calls[0]!.body)).content).toContain('too large');
+  });
+});
+
+describe('links', () => {
+  test('Telegram gets named links in HTML, and the addresses written out when it refuses them', async () => {
+    const calls: { body: any }[] = [];
+    let first = true;
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+      calls.push({ body: JSON.parse(String(init.body)) });
+      if (first) {
+        first = false;
+        return new Response('Bad Request: wrong HTTP URL', { status: 400 });
+      }
+      return new Response('{}');
+    }) as typeof fetch;
+    await new TelegramNotifier('tok', '42').send('Goal <done> & dusted', [{ label: 'Open in Foundry', url: 'http://localhost:4111/goals/g1' }]);
+    expect(calls[0]!.body).toMatchObject({ parse_mode: 'HTML', text: 'Goal &lt;done&gt; &amp; dusted\n<a href="http://localhost:4111/goals/g1">Open in Foundry</a>' });
+    expect(calls[1]!.body.text).toBe('Goal <done> & dusted\nOpen in Foundry: http://localhost:4111/goals/g1');
+    expect(calls[1]!.body.parse_mode).toBeUndefined();
+  });
+
+  test('Discord gets masked links that unfold no preview', async () => {
+    const calls = capture();
+    await new DiscordNotifier('https://discord.test/hook').send('done', [{ label: 'Open on your tailnet', url: 'https://mac.ts.net/goals/g1' }]);
+    expect(JSON.parse(String(calls[0]!.body)).content).toBe('done\n[Open on your tailnet](<https://mac.ts.net/goals/g1>)');
   });
 });
 

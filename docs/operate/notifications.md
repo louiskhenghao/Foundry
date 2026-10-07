@@ -73,20 +73,24 @@ the same Discord dialog.
 
 ---
 
-## Link base URL
+## Links
 
-When **Link base URL** is set, most messages end with a link to the right page: the Inbox for *Needs you*, the goal for
-*Interview round*, *Goal finished* and most *Delivery* messages, the Usage page for *Usage pause*, and Settings for
-*New version*. A message about an opened pull request carries the pull request's own URL instead.
+Every message that is about a page ends with links to it, sent as links (Telegram HTML, Discord masked links), since
+the apps do not turn `localhost` addresses into links on their own: the Inbox for *Needs you*, the goal for *Interview
+round*, *Goal finished*, milestones and most *Delivery* messages, the Usage page for *Usage pause*, and Settings for
+*New version*. A message about an opened pull request carries the pull request's own URL too. A channel that refuses a
+link gets the address written out instead.
 
-Set it to wherever the UI is reachable **from your phone**:
+- **Open in Foundry**: **Link base URL** plus the page, or `http://localhost:<port>` when it is empty. Set it when you
+  reach Foundry at another address (a LAN address, a domain), scheme included.
+- **Open on your tailnet**: added when Tailscale runs on this computer (**Tailscale links** = auto, the default). It is
+  the HTTPS address `tailscale serve` gives Foundry's port: the one you already serve (see
+  [remote-access.md](./remote-access.md)), or one Foundry adds (`tailscale serve --bg --https=<port>`). **Tailscale
+  name** sets the machine's name when `tailscale status` should not be asked.
+- A milestone also links to its preview, here and on the tailnet: Foundry serves each running preview's port the same
+  way and takes it down when the preview stops. Ports you serve yourself are never taken down.
 
-- Foundry runs on your own machine and you read the messages there: leave it empty. A `127.0.0.1` link would not open
-  on a phone anyway.
-- You reach Foundry remotely: use the address from [remote-access.md](./remote-access.md), for example a Tailscale
-  `https://mac-mini.<tailnet>.ts.net`. Include the scheme (`https://…`): the field needs a full URL.
-
-Empty means messages carry no link.
+**Tailscale links** = off: no tailnet links, and Foundry never runs `tailscale serve`.
 
 ---
 
@@ -122,6 +126,8 @@ wins over the variable.
 | `FOUNDRY_TELEGRAM_CHAT_ID` | Telegram chat id |
 | `FOUNDRY_DISCORD_WEBHOOK` | Discord webhook URL |
 | `FOUNDRY_NOTIFY_BASE_URL` | Link base URL |
+| `FOUNDRY_TAILSCALE` | Tailscale links (`auto` or `off`) |
+| `FOUNDRY_TAILSCALE_HOST` | Tailscale name |
 
 The six switches have no environment variables. Set them in the UI. The full list of variables is in
 [configuration.md](./configuration.md).
@@ -151,5 +157,5 @@ The six switches have no environment variables. Set them in the UI. The full lis
 | Test says `discord 401` or `discord 404` | webhook URL wrong or deleted | create the webhook again, copy the full URL, **Save** |
 | Test says *no channel configured* | neither a token and chat id nor a webhook URL is filled in | fill in one channel |
 | Test works but later messages never arrive | the switch for that kind is off, or the channel was never saved | check the six switches; check the fields show a green *saved* badge |
-| Messages arrive but have no link, or the link does not open | Link base URL is empty or points at `127.0.0.1` | set it to an address your phone can reach ([remote-access.md](./remote-access.md)) |
+| The links open nothing on your phone | no tailnet link (Tailscale not running here, or Tailscale links off) and the Link base URL is empty | start Tailscale here, or set Link base URL to an address your phone can reach ([remote-access.md](./remote-access.md)) |
 | An engine note says *notification via telegram failed after 3 tries: …* | the channel was unreachable or rejected the message | check the error text; run **Send test message** |

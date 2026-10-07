@@ -9,12 +9,12 @@ import type { EngineEvent, Escalation, EscalationTrigger, NotificationSettings }
 import { getGoal } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { screenshotsDir } from '../workspace.ts';
-import { DiscordNotifier, TelegramNotifier, type MediaFile, type Notifier } from './channels.ts';
+import { DiscordNotifier, TelegramNotifier, type Link, type MediaFile, type Notifier } from './channels.ts';
 
 export interface Composed {
   family: 'goalFinished' | 'delivery' | 'rateLimit' | 'updateAvailable' | 'interview' | 'milestone';
   text: string;
-  /** web-UI path appended to notifications.baseUrl when one is set */
+  /** web-UI path the message links to, on this computer and on the tailnet */
   path: string | null;
 }
 
@@ -74,7 +74,8 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
 /** Escalation → message ("needs you" — the one family that maps to the domain's blocked). */
 export function composeEscalation(esc: Escalation, goalTitle: (goalId: string | null) => string): { text: string; path: string } {
   // a milestone is an invitation, not a problem: the whole note (what to look at, the preview link) and the goal page
-  if (esc.trigger === 'milestone') return { text: `👀 Have a look — ${goalTitle(esc.goalId)}\n${esc.message.slice(0, 700)}`, path: `/goals/${esc.goalId}` };
+  // the preview's address goes under the message as links (see links()), not in its text
+  if (esc.trigger === 'milestone') return { text: `👀 Have a look — ${goalTitle(esc.goalId)}\n${esc.message.replace(/\s*Preview: \S+\s*$/, '').slice(0, 700)}`, path: `/goals/${esc.goalId}` };
   return { text: `🛑 Needs you — ${goalTitle(esc.goalId)}\n${TRIGGER_COPY[esc.trigger]}\n${(esc.message.split('\n')[0] ?? '').slice(0, 300)}`, path: '/inbox' };
 }
 
@@ -117,7 +118,30 @@ export class NotificationDispatcher {
     if (!s.onEscalation) return;
     const c = composeEscalation(esc, this.goalTitle);
     // a milestone's screenshots and recording follow in their own message (milestone.evidence)
-    this.deliver(s, c.text, c.path, esc.goalId);
+    const preview = esc.trigger === 'milestone' ? ((esc.payload as { previewUrl?: string | null }).previewUrl ?? null) : null;
+    this.deliver(s, c.text, c.path, esc.goalId, [], preview);
+  }
+
+  /**
+   * The links under a message: the page in Foundry (the link base URL, else this computer) and the same page on the
+   * tailnet; a milestone's preview both ways too. Written as links because the apps do not linkify localhost addresses.
+   */
+  async links(s: NotificationSettings, path: string | null, preview: string | null = null): Promise<Link[]> {
+    const out: Link[] = [];
+    const { tailnet, config } = this.engine;
+    if (path) {
+      const base = (s.baseUrl ?? `http://localhost:${config.port}`).replace(/\/+$/, '');
+      out.push({ label: 'Open in Foundry', url: `${base}${path}` });
+      const ts = await tailnet.expose(config.port).catch(() => null);
+      if (ts && !base.startsWith(ts)) out.push({ label: 'Open on your tailnet', url: `${ts.replace(/\/+$/, '')}${path}` });
+    }
+    if (preview) {
+      out.push({ label: 'Open the preview', url: preview });
+      const port = Number(URL.parse(preview)?.port);
+      const ts = port ? await tailnet.expose(port).catch(() => null) : null;
+      if (ts) out.push({ label: 'Open the preview on your tailnet', url: ts });
+    }
+    return out;
   }
 
   /** a walkthrough's screenshots and video as files; without any, the self-check's newest screenshot */
@@ -144,11 +168,12 @@ export class NotificationDispatcher {
     return existsSync(p) ? p : null;
   }
 
-  private deliver(s: NotificationSettings, text: string, path: string | null, goalId: string | null, media: MediaFile[] = []): void {
+  private deliver(s: NotificationSettings, text: string, path: string | null, goalId: string | null, media: MediaFile[] = [], preview: string | null = null): void {
     const channels = this.channels(s);
     if (!channels.length) return;
-    const msg = s.baseUrl && path ? `${text}\n${s.baseUrl.replace(/\/+$/, '')}${path}` : text;
-    for (const ch of channels) void this.sendWithRetry(ch, media.length && ch.sendMedia ? () => ch.sendMedia!(msg, media) : () => ch.send(msg), goalId);
+    void this.links(s, path, preview).then((links) => {
+      for (const ch of channels) void this.sendWithRetry(ch, media.length && ch.sendMedia ? () => ch.sendMedia!(text, media, links) : () => ch.send(text, links), goalId);
+    });
   }
 
   private async sendWithRetry(ch: Notifier, send: () => Promise<void>, goalId: string | null): Promise<void> {

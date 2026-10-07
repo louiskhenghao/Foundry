@@ -142,8 +142,12 @@ export const NotificationSettings = z.object({
   telegramChatId: z.string().min(1).nullable().default(null),
   /** Discord webhook URL; null = Discord channel off */
   discordWebhookUrl: z.string().url().nullable().default(null),
-  /** where this UI is reachable from outside (Tailscale, LAN…); null = messages carry no links */
+  /** where this UI is reachable from outside (a LAN address, a domain); null = links point at this computer (http://localhost:<port>) */
   baseUrl: z.string().url().nullable().default(null),
+  /** add tailnet links (Tailscale) next to the others, serving Foundry's and the previews' ports with `tailscale serve`; off = never */
+  tailscale: z.enum(['auto', 'off']).default('auto'),
+  /** this computer's tailnet name when it should not be read from `tailscale status` (mac.tailnet-123.ts.net) */
+  tailscaleHost: z.string().nullable().default(null),
   /** an Escalation was raised — a task or goal is blocked and needs the human */
   onEscalation: z.boolean().default(true),
   /** the Clarify interview asked a round of questions */
