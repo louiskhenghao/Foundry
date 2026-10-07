@@ -297,7 +297,7 @@ export function applyEvent(db: Database, e: EngineEvent): void {
     case 'goal.reclarified': {
       const g = getGoal(db, e.goalId!);
       // a fresh Clarify starts a fresh interview (the discarded Brief's Decisions travel in the event)
-      if (g) upsertGoal(db, { ...g, baseSync: e.payload.workspaceRebuilt ? null : g.baseSync, autoskills: e.payload.workspaceRebuilt ? null : g.autoskills, interview: g.interview ? { mode: g.interview.mode, status: 'thinking', sessionId: null, rounds: [] } : null, clarifyStage: null, updatedAt: e.ts });
+      if (g) upsertGoal(db, { ...g, baseSync: e.payload.workspaceRebuilt ? null : g.baseSync, autoskills: e.payload.workspaceRebuilt ? null : g.autoskills, interview: g.interview ? { ...g.interview, status: 'thinking', sessionId: null, rounds: [] } : null, clarifyStage: null, updatedAt: e.ts });
       break;
     }
     case 'goal.follow_up_linked': {

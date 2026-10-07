@@ -101,6 +101,8 @@ describe('EventStore', () => {
     store.append({ type: 'clarify.stage', goalId: g.id, payload: { stage: 'clarifying' } });
     store.append({ type: 'goal.reclarified', goalId: g.id, payload: { reason: 'test', decisions: '', workspaceRebuilt: false } });
     expect(getGoal(store.db, g.id)?.clarifyStage).toBeNull();
+    // a fresh Clarify keeps how deep the goal asked to be interviewed
+    expect(getGoal(store.db, g.id)?.interview).toMatchObject({ depth: 5, rounds: [], sessionId: null });
   });
 
   test('rejects invalid payloads', () => {
