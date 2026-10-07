@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { detectApps, detectCompose, detectRun, previewBindHost, publishedPorts } from './detect.ts';
+import { detectApps, detectCompose, detectRun, forPackageManager, previewBindHost, publishedPorts } from './detect.ts';
 
 const dirs: string[] = [];
 const ws = (pkg: object, files: string[] = []) => {
@@ -37,6 +37,21 @@ describe('detectRun', () => {
     expect(detectRun(ws({ scripts: { start: 'node server.js' } }), { host })).toMatchObject({ command: 'npm run start' });
     // no host (a local install): the commands stay loopback-only, exactly as before
     expect(detectRun(ws({ scripts: { dev: 'vite' }, devDependencies: { vite: '^5' } }), { host: null })!.command).toBe('npm run dev -- --port {port} --strictPort');
+  });
+});
+
+describe('pnpm and the `--` separator', () => {
+  test('pnpm commands get the port flags without `--`, which pnpm would pass on to the dev server', () => {
+    expect(detectRun(ws({ scripts: { dev: 'next dev' }, dependencies: { next: '15' } }, ['pnpm-lock.yaml']))).toMatchObject({ command: 'pnpm run dev -p {port}' });
+    expect(detectRun(ws({ scripts: { dev: 'vite' }, devDependencies: { vite: '^5' } }, ['pnpm-lock.yaml']))).toMatchObject({ command: 'pnpm run dev --port {port} --strictPort' });
+  });
+  test('a stored pnpm command drops its `--` when it runs; other package managers and other commands are unchanged', () => {
+    expect(forPackageManager('pnpm run dev -- -p {port}')).toBe('pnpm run dev -p {port}');
+    expect(forPackageManager('pnpm dev -- --port {port} --strictPort')).toBe('pnpm dev --port {port} --strictPort');
+    expect(forPackageManager('cd apps/web && pnpm run dev -- -p {port}')).toBe('cd apps/web && pnpm run dev -p {port}');
+    expect(forPackageManager('pnpm --filter web dev -- -p {port}')).toBe('pnpm --filter web dev -p {port}');
+    expect(forPackageManager('npm run dev -- -p {port}')).toBe('npm run dev -- -p {port}');
+    expect(forPackageManager('bun run dev -- --port {port}')).toBe('bun run dev -- --port {port}');
   });
 });
 

@@ -8,7 +8,7 @@ import { getBrief, getGoal } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { ensureDetachedWorktree, git, gitOk } from '../git/git.ts';
 import { goalWorkspacePath, previewWorkspacePath } from '../workspace.ts';
-import { detectApps, detectRun, packageManager, previewBindHost } from './detect.ts';
+import { detectApps, detectRun, forPackageManager, packageManager, previewBindHost } from './detect.ts';
 import { checkoutEnv, exampleKeys, fileKeys, keyUsage, PreviewEnvStore, redactor } from './env.ts';
 import { envHint } from './env-hints.ts';
 import { listeningPorts } from './listeners.ts';
@@ -375,7 +375,7 @@ export class PreviewManager {
   private async startApp(goal: Goal, app: BriefApp, ws: string, port: number, urls: Record<string, string>, by: PreviewStarter, preface: string[], warning: string | null): Promise<void> {
     const { store, config } = this.engine;
     const key = id(goal.id, app.key);
-    const command = app.command!.replaceAll('{port}', String(port));
+    const command = forPackageManager(app.command!).replaceAll('{port}', String(port));
     const url = urls[appUrlVar(app.key)]!;
     const now = new Date().toISOString();
     const entry: Live = { goalId: goal.id, key: app.key, proc: null as unknown as Live['proc'], port, url, command, startedAt: now, startedBy: by, lastVisitAt: now, ready: false, log: [], stopping: false, stopReason: null, warning, discovered: [], reserved: [], probes: new Map(), discovery: null, discovering: false };
