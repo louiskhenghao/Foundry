@@ -334,7 +334,8 @@ export class Engine {
     this.notifications = new NotificationDispatcher(this);
     this.notifications.attach();
     this.updater = new UpdateManager(this);
-    this.tailnet = new Tailnet({ mode: () => this.settings.values().notifications.tailscale, host: () => this.settings.values().notifications.tailscaleHost, log: config.log, bin: config.tailscaleBin });
+    this.tailnet = new Tailnet({ mode: () => this.settings.values().notifications.tailscale, host: () => this.settings.values().notifications.tailscaleHost, log: config.log, bin: config.tailscaleBin, stateFile: join(config.dataDir, 'tailnet-served.json') });
+    void this.tailnet.cleanUp();
     this.codeServer = new CodeServer({ dataDir: config.dataDir, expose: (p) => this.tailnet.expose(p), unexpose: (p) => this.tailnet.unexpose(p), log: config.log, ...(process.env.NODE_ENV === 'test' ? { bin: null } : {}) });
     this.preview = new PreviewManager(this);
   }
