@@ -107,7 +107,7 @@ want.
 What each of these means for someone running goals, and what to do about it, is in
 [docs/guide/settings.md](../guide/settings.md).
 
-On Telegram, a milestone's *Have a look* message comes with the self-check's latest screenshot when there is one.
+A milestone sends two messages: *Have a look* (or *Milestone* when the goal does not pause for it) at once, then *What the milestone looks like* with the screenshots and the video of the walkthrough Foundry recorded in the preview. Telegram gets them as an album (photos up to 10 MB, a video up to 50 MB); Discord as attachments of the webhook message (10 MB together). A file over the limit is left out and the message says it is on the goal page. Without a recording, the self-check's latest screenshot is attached when there is one. The *Needs you* switch covers both.
 
 ---
 

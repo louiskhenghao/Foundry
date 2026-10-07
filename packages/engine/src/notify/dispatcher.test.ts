@@ -67,3 +67,13 @@ describe('composeEscalation', () => {
     expect(c.path).toBe('/inbox');
   });
 });
+
+describe('milestones', () => {
+  test('a milestone that does not pause and its recording both reach the channels', () => {
+    const passed = compose(ev('goal.milestone_passed', { taskId: 't1', lookFor: 'press Show' }), () => 'Demo');
+    expect(passed).toMatchObject({ family: 'milestone', path: '/goals/g1' });
+    expect(passed!.text).toContain('press Show');
+    const evidence = compose(ev('milestone.evidence', { taskId: 't1', video: 'v.webm', shots: [], summary: 'presses Show', error: null }), () => 'Demo');
+    expect(evidence!.text).toBe('📸 What the milestone looks like — Demo\npresses Show');
+  });
+});

@@ -95,6 +95,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('preview.started', { port: z.number().int(), url: z.string(), command: z.string(), app: z.string().optional() }),
   ev('preview.stopped', { reason: z.string(), app: z.string().optional() }),
   /** the headless self-check looked at the preview after a task landed (taskId) or at goal review (null); screenshot is a file name under the goal's screenshots folder */
+  /** what a milestone looks like, recorded in the preview without the person: a video and screenshots (file names under the goal's screenshots folder) */
+  ev('milestone.evidence', { taskId: z.string(), video: z.string().nullable(), shots: z.array(z.object({ file: z.string(), caption: z.string() })), summary: z.string(), error: z.string().nullable() }),
   ev('selfcheck.finished', { taskId: z.string().nullable(), status: z.enum(['pass', 'fail', 'error']), url: z.string().nullable(), screenshot: z.string().nullable(), errors: z.array(z.string()), summary: z.string() }),
   /** per-goal autoskills run: project skills matched to the repository's stack, installed in the goal workspace */
   ev('goal.autoskills', { status: z.enum(['installed', 'skipped', 'failed']), skills: z.array(z.string()), detail: z.string() }),

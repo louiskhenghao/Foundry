@@ -3,6 +3,7 @@ import { getTask, listTasks, newId } from '@foundry/core';
 import type { Engine } from './engine.ts';
 import { raiseEscalation } from './escalation.ts';
 import { createFixTasks } from './fix-tasks.ts';
+import { captureMilestone } from './checks/walkthrough.ts';
 
 /**
  * A milestone due for a human look: the first time a milestone task lands, and once more after feedback-fix tasks for
@@ -41,6 +42,8 @@ export async function openCheckpoint(engine: Engine, goal: Goal, due: { task: Ta
     message: `${due.recheck ? 'Second look after your feedback — ' : ''}"${due.task.title}" landed. ${lookFor}${previewUrl ? `\n\nPreview: ${previewUrl}` : ''}`,
     payload: { kind: 'milestone', taskId: due.task.id, recheck: due.recheck, previewUrl },
   });
+  // what it looks like, recorded for the card and the notification channels
+  void captureMilestone(engine, goal, due.task);
 }
 
 /**
@@ -49,6 +52,7 @@ export async function openCheckpoint(engine: Engine, goal: Goal, due: { task: Ta
  */
 export function passMilestone(engine: Engine, goal: Goal, task: Task): void {
   engine.store.append({ type: 'goal.milestone_passed', goalId: goal.id, payload: { taskId: task.id, lookFor: task.milestone ?? '' } });
+  void captureMilestone(engine, goal, task);
 }
 
 /** The human continued or gave feedback: the goal runs again. */

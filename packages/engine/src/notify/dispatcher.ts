@@ -9,7 +9,7 @@ import type { EngineEvent, Escalation, EscalationTrigger, NotificationSettings }
 import { getGoal } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { screenshotsDir } from '../workspace.ts';
-import { DiscordNotifier, TelegramNotifier, type Notifier } from './channels.ts';
+import { DiscordNotifier, TelegramNotifier, type MediaFile, type Notifier } from './channels.ts';
 
 export interface Composed {
   family: 'goalFinished' | 'delivery' | 'rateLimit' | 'updateAvailable' | 'interview' | 'milestone';
@@ -34,6 +34,11 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
     case 'interview.round_asked': {
       const qs = e.payload.questions;
       return { family: 'interview', text: `❓ Round ${e.payload.round} — ${goalTitle(e.goalId)}\n${qs.length} question(s) before the plan is written. First: ${(qs[0]?.text ?? '').slice(0, 200)}`, path: `/goals/${e.goalId}` };
+    }
+    case 'milestone.evidence': {
+      const head = `📸 What the milestone looks like — ${goalTitle(e.goalId)}`;
+      const body = e.payload.summary || (e.payload.error ? `Foundry could not record a walkthrough: ${e.payload.error}` : '');
+      return { family: 'milestone', text: [head, body.slice(0, 600)].filter(Boolean).join('\n'), path: `/goals/${e.goalId}` };
     }
     case 'goal.milestone_passed':
       return { family: 'milestone', text: `👀 Milestone — ${goalTitle(e.goalId)}\n${e.payload.lookFor.slice(0, 600)}\nThe goal goes on (Have a look is off for it).`, path: `/goals/${e.goalId}` };
@@ -104,14 +109,26 @@ export class NotificationDispatcher {
     const s = this.settings();
     // a milestone is the same note whether the goal pauses for it (an escalation) or goes on
     const on = { goalFinished: s.onGoalFinished, delivery: s.onDelivery, rateLimit: s.onRateLimit, updateAvailable: s.onUpdateAvailable, interview: s.onInterview, milestone: s.onEscalation }[c.family];
-    if (on) this.deliver(s, c.text, c.path, e.goalId, c.family === 'milestone' && e.goalId ? this.latestScreenshot(e.goalId) : null);
+    if (on) this.deliver(s, c.text, c.path, e.goalId, e.type === 'milestone.evidence' && e.goalId ? this.evidenceFiles(e.goalId, e.payload) : []);
   }
 
   private onEscalation(esc: Escalation): void {
     const s = this.settings();
     if (!s.onEscalation) return;
     const c = composeEscalation(esc, this.goalTitle);
-    this.deliver(s, c.text, c.path, esc.goalId, esc.trigger === 'milestone' ? this.latestScreenshot(esc.goalId) : null);
+    // a milestone's screenshots and recording follow in their own message (milestone.evidence)
+    this.deliver(s, c.text, c.path, esc.goalId);
+  }
+
+  /** a walkthrough's screenshots and video as files; without any, the self-check's newest screenshot */
+  private evidenceFiles(goalId: string, ev: { video: string | null; shots: { file: string }[] }): MediaFile[] {
+    const goal = getGoal(this.engine.store.db, goalId);
+    if (!goal) return [];
+    const dir = screenshotsDir(this.engine.config.dataDir, goal);
+    const files: MediaFile[] = [...ev.shots.map((s) => ({ path: join(dir, s.file), kind: 'photo' as const })), ...(ev.video ? [{ path: join(dir, ev.video), kind: 'video' as const }] : [])].filter((f) => existsSync(f.path));
+    if (files.length) return files;
+    const last = this.latestScreenshot(goalId);
+    return last ? [{ path: last, kind: 'photo' }] : [];
   }
 
   /** the self-check's newest screenshot of a goal, as a file path, or null */
@@ -127,11 +144,11 @@ export class NotificationDispatcher {
     return existsSync(p) ? p : null;
   }
 
-  private deliver(s: NotificationSettings, text: string, path: string | null, goalId: string | null, photo: string | null = null): void {
+  private deliver(s: NotificationSettings, text: string, path: string | null, goalId: string | null, media: MediaFile[] = []): void {
     const channels = this.channels(s);
     if (!channels.length) return;
     const msg = s.baseUrl && path ? `${text}\n${s.baseUrl.replace(/\/+$/, '')}${path}` : text;
-    for (const ch of channels) void this.sendWithRetry(ch, photo && ch.sendPhoto ? () => ch.sendPhoto!(msg, photo) : () => ch.send(msg), goalId);
+    for (const ch of channels) void this.sendWithRetry(ch, media.length && ch.sendMedia ? () => ch.sendMedia!(msg, media) : () => ch.send(msg), goalId);
   }
 
   private async sendWithRetry(ch: Notifier, send: () => Promise<void>, goalId: string | null): Promise<void> {

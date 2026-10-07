@@ -214,12 +214,15 @@ Foundry 绝不会为了预览去切换、重置或拉取你的 checkout。改任
 卡片显示：
 
 - 要看什么，按 Brief 里写的。
+- **What Foundry saw**：预览的录屏和截图，让你不用自己启动任何东西就能看到。卡片刚打开时会显示 **Recording a walkthrough of the preview…**：一个小模型根据要看的内容和页面上的控件规划几个步骤（点击、填入示例数据、打开页面；绝不登录、付款或删除），由一个隐藏的浏览器照着操作，录下视频，并在值得看的地方截图。做不了的步骤会跳过；规划不出来时，保留一张页面截图，并有一行琥珀色提示说明原因。它和 self-check 一样需要 Playwright 的 Chromium。
 - 预览，已经在启动，带 **Open preview**。
 - **What the self-check saw**：自检开着时的最新截图。
 - **Artifacts**：媒体类 goal 目前产出的图片和文件。
 - 目前的代码在 **Diff** 标签上；文件夹在 **Open ▾** 里。
 
 然后要么按 **Continue**，要么写下你看到的，按 **Turn into a plan**。具体怎么运作，一步步写在 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md#里程碑可以看了)。
+
+同样的截图和视频会在第二条消息 **📸 What the milestone looks like** 里发到你的通知渠道，不管 goal 有没有暂停。视频太大、超过渠道上限（Telegram 50 MB，Discord 10 MB）时，留在 goal 页面上，消息里会说明。
 
 ## Activity
 

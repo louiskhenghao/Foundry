@@ -9,7 +9,34 @@ export interface Notifier {
   send(text: string): Promise<void>;
   /** deliver an image with a caption (a milestone screenshot); channels without it get the text alone */
   sendPhoto?(caption: string, file: string): Promise<void>;
+  /** deliver screenshots and a video with a caption; files over the channel's size limit are left out and the caption says so */
+  sendMedia?(caption: string, files: MediaFile[]): Promise<void>;
 }
+
+export interface MediaFile {
+  path: string;
+  kind: 'photo' | 'video';
+}
+
+/** files that fit a channel's limits, in order, and a note for the caption when a video did not */
+export function fitting(files: MediaFile[], max: { photo: number; video: number; total: number; count: number }): { files: MediaFile[]; note: string | null } {
+  const out: MediaFile[] = [];
+  let total = 0;
+  let droppedVideo = false;
+  for (const f of files) {
+    const size = Bun.file(f.path).size;
+    if (out.length >= max.count || size > max[f.kind] || total + size > max.total) {
+      if (f.kind === 'video') droppedVideo = true;
+      continue;
+    }
+    out.push(f);
+    total += size;
+  }
+  return { files: out, note: droppedVideo ? 'The recording is too large to attach here; it is on the goal page.' : null };
+}
+
+const blob = async (f: MediaFile) => new Blob([await Bun.file(f.path).arrayBuffer()], { type: f.kind === 'video' ? 'video/webm' : 'image/png' });
+const fileName = (f: MediaFile) => f.path.split('/').pop() ?? (f.kind === 'video' ? 'recording.webm' : 'screenshot.png');
 
 const TELEGRAM_API = 'https://api.telegram.org';
 /** Discord caps content at 2000 chars, Telegram at 4096; stay under both */
@@ -38,6 +65,26 @@ export class TelegramNotifier implements Notifier {
     const res = await fetch(`${TELEGRAM_API}/bot${this.token}/sendPhoto`, { method: 'POST', body: form, signal: AbortSignal.timeout(30_000) });
     if (!res.ok) throw new Error(`telegram ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
   }
+  /** one photo or video as itself, several as an album (sendMediaGroup, up to 10); bots may upload 10 MB photos and 50 MB videos */
+  async sendMedia(caption: string, all: MediaFile[]): Promise<void> {
+    const { files, note } = fitting(all, { photo: 10e6, video: 50e6, total: 50e6, count: 10 });
+    const text = [caption, note].filter(Boolean).join('\n').slice(0, 1000);
+    if (!files.length) return this.send(text);
+    if (files.length === 1 && files[0]!.kind === 'photo') return this.sendPhoto(text, files[0]!.path);
+    const form = new FormData();
+    form.set('chat_id', this.chatId);
+    let method = 'sendMediaGroup';
+    if (files.length === 1) {
+      method = 'sendVideo';
+      form.set('caption', text);
+      form.set('video', await blob(files[0]!), fileName(files[0]!));
+    } else {
+      form.set('media', JSON.stringify(files.map((f, i) => ({ type: f.kind, media: `attach://f${i}`, ...(i === 0 ? { caption: text } : {}) }))));
+      for (const [i, f] of files.entries()) form.set(`f${i}`, await blob(f), fileName(f));
+    }
+    const res = await fetch(`${TELEGRAM_API}/bot${this.token}/${method}`, { method: 'POST', body: form, signal: AbortSignal.timeout(120_000) });
+    if (!res.ok) throw new Error(`telegram ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
+  }
 }
 
 export class DiscordNotifier implements Notifier {
@@ -45,6 +92,20 @@ export class DiscordNotifier implements Notifier {
   constructor(private webhookUrl: string) {}
   async send(text: string): Promise<void> {
     const res = await post(this.webhookUrl, { content: text.slice(0, MAX_LEN) });
+    if (!res.ok) throw new Error(`discord ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
+  }
+  async sendPhoto(caption: string, file: string): Promise<void> {
+    return this.sendMedia(caption, [{ path: file, kind: 'photo' }]);
+  }
+  /** attachments on the webhook message: up to 10 files, 10 MB together on servers without a boost */
+  async sendMedia(caption: string, all: MediaFile[]): Promise<void> {
+    const { files, note } = fitting(all, { photo: 9.5e6, video: 9.5e6, total: 9.5e6, count: 10 });
+    const content = [caption, note].filter(Boolean).join('\n').slice(0, MAX_LEN);
+    if (!files.length) return this.send(content);
+    const form = new FormData();
+    form.set('payload_json', JSON.stringify({ content }));
+    for (const [i, f] of files.entries()) form.set(`files[${i}]`, await blob(f), fileName(f));
+    const res = await fetch(this.webhookUrl, { method: 'POST', body: form, signal: AbortSignal.timeout(120_000) });
     if (!res.ok) throw new Error(`discord ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
   }
 }

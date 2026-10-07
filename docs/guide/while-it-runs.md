@@ -214,12 +214,15 @@ When a milestone task lands, the goal pauses. Its badge reads **have a look**, t
 The card shows:
 
 - What to look at, as written in the Brief.
+- **What Foundry saw**: a recording of the preview and screenshots, so you can look without starting anything. While the card opens it says **Recording a walkthrough of the preview…**: a small model plans a few steps from what to look at and the page's controls (clicking, filling in sample values, opening pages; never signing in, paying or deleting), and a hidden browser follows them, recording a video and taking a screenshot at each point worth seeing. A step that cannot be done is skipped; when no walkthrough can be planned, one screenshot of the page is kept, and an amber line says why. It needs Playwright's Chromium, the same as the self-check.
 - The preview, already starting, with **Open preview**.
 - **What the self-check saw**: its latest screenshots, if the self-check is on.
 - **Artifacts**: images and files produced so far, for media goals.
 - The code so far is on the **Diff** tab; the folder is under **Open ▾**.
 
 Then either press **Continue**, or write what you saw and press **Turn into a plan**. How that works, step by step, is in [When Foundry needs you](./when-foundry-needs-you.md#a-milestone-is-ready-to-look-at).
+
+The same screenshots and video are sent to your notification channels in a second message, **📸 What the milestone looks like**, whether or not the goal pauses. A video too large for the channel (50 MB on Telegram, 10 MB on Discord) stays on the goal page, and the message says so.
 
 ## Activity
 

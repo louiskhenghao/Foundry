@@ -394,10 +394,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.get('/api/goals/:id/screenshots/:file', (c) => {
     const goal = goalOr404(c);
     const file = c.req.param('file');
-    if (!/^[\w.-]+\.png$/.test(file)) throw new HttpError(400, { error: 'bad screenshot name' });
+    // screenshots, and the videos of milestone walkthroughs
+    if (!/^[\w.-]+\.(png|webm)$/.test(file)) throw new HttpError(400, { error: 'bad screenshot name' });
     const p = join(screenshotsDir(engine.config.dataDir, goal), file);
     if (!existsSync(p)) throw new HttpError(404, { error: 'screenshot not found' });
-    return new Response(Bun.file(p), { headers: { 'content-type': 'image/png', 'cache-control': 'private, max-age=3600' } });
+    return new Response(Bun.file(p), { headers: { 'content-type': file.endsWith('.webm') ? 'video/webm' : 'image/png', 'cache-control': 'private, max-age=3600' } });
   });
   app.get('/api/goals/:id/artifacts', (c) => c.json({ files: listArtifacts(goalWorkspacePath(engine.config.dataDir, goalOr404(c))) }));
   app.get('/api/goals/:id/artifacts/*', (c) => {
