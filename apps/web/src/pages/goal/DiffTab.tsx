@@ -18,10 +18,18 @@ interface Row {
   text: string;
 }
 
-function parse(diff: string): FileDiff[] {
+/** the server cuts a long diff and says so on its last line */
+const CUT = /^\.\.\. \[diff truncated at \d+ bytes\]$/;
+
+function parse(diff: string): { files: FileDiff[]; cut: boolean } {
   const files: FileDiff[] = [];
   let cur: FileDiff | null = null;
+  let cut = false;
   for (const line of diff.split('\n')) {
+    if (CUT.test(line)) {
+      cut = true;
+      continue;
+    }
     const m = line.match(/^diff --git a\/(.+?) b\/(.+)$/);
     if (m) {
       cur = { path: m[2]!, add: 0, del: 0, lines: [] };
@@ -33,7 +41,7 @@ function parse(diff: string): FileDiff[] {
     if (line.startsWith('+') && !line.startsWith('+++')) cur.add++;
     else if (line.startsWith('-') && !line.startsWith('---')) cur.del++;
   }
-  return files;
+  return { files, cut };
 }
 
 /** a file's diff lines as rows with line numbers; the header lines (index, ---, +++) are dropped */
@@ -49,7 +57,7 @@ export function rowsOf(lines: string[]): Row[] {
       n = Number(h[2]);
       inHunk = true;
       rows.push({ kind: 'hunk', old: null, new: null, text: l });
-    } else if (!inHunk || l.startsWith('\\')) continue;
+    } else if (!inHunk || l === '' || l.startsWith('\\')) continue; // an unchanged line starts with a space; '' is the diff's end
     else if (l.startsWith('+')) rows.push({ kind: 'add', old: null, new: n++, text: l.slice(1) });
     else if (l.startsWith('-')) rows.push({ kind: 'del', old: o++, new: null, text: l.slice(1) });
     else rows.push({ kind: 'ctx', old: o++, new: n++, text: l.slice(1) });
@@ -59,19 +67,19 @@ export function rowsOf(lines: string[]): Row[] {
 
 /** the lines' highlighted HTML, by the file's language, once the highlighter has loaded; null = plain */
 function useHighlight(lines: string[], name: string): string[] | null {
-  const [html, setHtml] = useState<string[] | null>(null);
-  const key = lines.join('\n');
+  const [done, setDone] = useState<{ key: string; html: string[] | null } | null>(null);
+  const key = `${name}\0${lines.join('\n')}`;
   useEffect(() => {
     let alive = true;
-    setHtml(null);
     import('../../components/highlight.ts')
-      .then(({ highlightLines, languageOf }) => alive && setHtml(highlightLines(key, languageOf(name))))
+      .then(({ highlightLines, languageOf }) => alive && setDone({ key, html: highlightLines(lines.join('\n'), languageOf(name)) }))
       .catch(() => {});
     return () => {
       alive = false;
     };
-  }, [key, name]);
-  return html;
+  }, [key]);
+  // another file's highlighting never shows on these lines, not even for the frame before it is redone
+  return done?.key === key ? done.html : null;
 }
 
 const TINT: Record<Row['kind'], string> = { add: 'bg-emerald-500/10', del: 'bg-rose-500/10', ctx: '', hunk: 'bg-sky-500/5' };
@@ -111,19 +119,29 @@ function Code({ rows, name }: { rows: Row[]; name: string }) {
 
 /** the whole file as it is now, with the lines this goal added or changed tinted */
 function WholeFile({ path, rows }: { path: string; rows: Row[] }) {
-  const [text, setText] = useState<string | null>(null);
+  const [got, setGot] = useState<{ path: string; text: string | 'missing' | 'binary' } | null>(null);
   useEffect(() => {
-    setText(null);
+    let alive = true;
     fetch(fileUrl({ path }))
-      .then((r) => (r.ok ? r.text() : Promise.reject()))
-      .then(setText)
-      .catch(() => setText(''));
+      .then(async (r) => {
+        if (!r.ok) return 'missing';
+        const text = await r.text();
+        return text.includes('\0') ? 'binary' : text;
+      })
+      .catch(() => 'missing' as const)
+      .then((text) => alive && setGot({ path, text }));
+    return () => {
+      alive = false;
+    };
   }, [path]);
   const added = useMemo(() => new Set(rows.filter((r) => r.kind === 'add').map((r) => r.new)), [rows]);
-  const lines = text === null ? [] : text.split('\n');
-  const whole: Row[] = lines.map((l, k) => ({ kind: added.has(k + 1) ? 'add' : 'ctx', old: null, new: k + 1, text: l }));
+  const text = got?.path === path ? got.text : null;
   if (text === null) return <div className="text-xs text-zinc-500">loading…</div>;
-  if (!text) return <div className="text-xs text-zinc-500">The file is not in the goal's folder (deleted, or the folder was cleaned up).</div>;
+  if (text === 'missing') return <div className="text-xs text-zinc-500">The file is not in the goal's folder (deleted, or the folder was cleaned up).</div>;
+  if (text === 'binary') return <div className="text-xs text-zinc-500">A binary file: nothing to show as text.</div>;
+  if (!text) return <div className="text-xs text-zinc-500">The file is empty.</div>;
+  // a final newline ends the last line; it does not start another
+  const whole: Row[] = text.replace(/\n$/, '').split('\n').map((l, k) => ({ kind: added.has(k + 1) ? 'add' : 'ctx', old: null, new: k + 1, text: l }));
   return <Code rows={whole} name={path} />;
 }
 
@@ -135,7 +153,9 @@ function DiffDialog({ files, index, workspace, onIndex, onClose }: { files: File
   const deleted = f.lines.some((l) => l.startsWith('deleted file mode'));
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.defaultPrevented) return;
+      const t = e.target as HTMLElement | null;
+      if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement || t?.isContentEditable) return;
       if (e.key === 'ArrowLeft' && index > 0) onIndex(index - 1);
       if (e.key === 'ArrowRight' && index < files.length - 1) onIndex(index + 1);
     };
@@ -172,7 +192,7 @@ export function DiffTab({ goalId, baseBranch, branch, workspace }: { goalId: str
   useEffect(() => {
     api.diff(goalId).then(setRaw).catch(() => setRaw(''));
   }, [goalId]);
-  const files = useMemo(() => (raw ? parse(raw) : []), [raw]);
+  const { files, cut } = useMemo(() => (raw ? parse(raw) : { files: [], cut: false }), [raw]);
 
   if (raw === null) return <div className="text-sm text-zinc-500">Loading diff…</div>;
   if (!files.length) return <div className="text-sm text-zinc-500">No changes on {branch} relative to {baseBranch} yet.</div>;
@@ -198,6 +218,7 @@ export function DiffTab({ goalId, baseBranch, branch, workspace }: { goalId: str
           </button>
         ))}
       </div>
+      {cut && <div className="text-xs text-amber-400/80">The diff is too long to show whole: it stops partway, so the last file is cut short and later files are missing.</div>}
       {shown !== null && files[shown] && <DiffDialog files={files} index={shown} workspace={workspace} onIndex={setShown} onClose={() => setShown(null)} />}
     </div>
   );
