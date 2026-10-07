@@ -65,6 +65,7 @@ From top to bottom:
 - **Goal review**: right under the goal once the final review ran: one line with the verdict (**passed**, **over-delivered** or **failed**) and the start of the reviewer's notes; **reviewer notes** unfolds them.
 - **Attachments**: right under the goal, as on the New goal form. You can add more at any time; new sessions receive them.
 - **Workspace & preview**: where the goal's work is, and starting it to try it. See [The progress folder](#the-progress-folder) and [Preview](#preview).
+- **Milestones**: when the goal has milestones, one row each, the latest first: what to look at, when it landed, whether the goal paused for it or went on, and your answer. Click a row to watch its recording and screenshots again (a screenshot opens large).
 - **Model fallback**: only if a model was unavailable and Foundry switched to another one.
 - **Project skills**: skills Foundry added for your project's technology, grouped as Frontend, Backend, Database, Testing and Tooling, with how many there are. They never reach your commits.
 - **Completion**: one row each for the documents, the graph refresh and media files, with how it went. See [Completion extras](./getting-the-result.md#completion-extras).
@@ -222,7 +223,7 @@ The card shows:
 
 Then either press **Continue**, or write what you saw and press **Turn into a plan**. How that works, step by step, is in [When Foundry needs you](./when-foundry-needs-you.md#a-milestone-is-ready-to-look-at).
 
-The same screenshots and video are sent to your notification channels in a second message, **📸 What the milestone looks like**, whether or not the goal pauses. A video too large for the channel (50 MB on Telegram, 10 MB on Discord) stays on the goal page, and the message says so.
+The same screenshots and video are sent to your notification channels in a second message, **📸 What the milestone looks like**, whether or not the goal pauses, and stay in the Overview's **Milestones** card to watch again later. A video too large for the channel (50 MB on Telegram, 10 MB on Discord) stays on the goal page, and the message says so.
 
 ## Activity
 

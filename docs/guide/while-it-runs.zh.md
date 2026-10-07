@@ -65,6 +65,7 @@ goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它
 - **Goal review**：最终审查运行后，紧跟在 goal 下面：一行显示结论（**passed**、**over-delivered** 或 **failed**）和审查员意见的开头；点 **reviewer notes** 展开全文。
 - **Attachments**：紧跟在 goal 下面，和 New goal 表单上一样。随时可以再加；新的会话会收到。
 - **Workspace & preview**：goal 的工作成果在哪里，以及启动它来试用。见 [进度文件夹](#进度文件夹) 和 [Preview](#preview)。
+- **Milestones**：goal 有里程碑时，每个一行，最新的在上：要看什么、什么时候到的、goal 是暂停了还是继续了，以及你的回答。点一行可以重看它的录屏和截图（点截图会放大）。
 - **Model fallback**：只在某个模型不可用、Foundry 换了另一个模型时出现。
 - **Project skills**：Foundry 为你项目的技术栈添加的 skill，按 Frontend、Backend、Database、Testing、Tooling 分组，并显示数量。它们不会进入你的提交。
 - **Completion**：文档、知识图谱刷新和媒体文件各占一行，写着结果。见 [完成后的附加项](./getting-the-result.zh.md#完成后的附加项)。
@@ -222,7 +223,7 @@ Foundry 绝不会为了预览去切换、重置或拉取你的 checkout。改任
 
 然后要么按 **Continue**，要么写下你看到的，按 **Turn into a plan**。具体怎么运作，一步步写在 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md#里程碑可以看了)。
 
-同样的截图和视频会在第二条消息 **📸 What the milestone looks like** 里发到你的通知渠道，不管 goal 有没有暂停。视频太大、超过渠道上限（Telegram 50 MB，Discord 10 MB）时，留在 goal 页面上，消息里会说明。
+同样的截图和视频会在第二条消息 **📸 What the milestone looks like** 里发到你的通知渠道，不管 goal 有没有暂停；之后也可以在 Overview 的 **Milestones** 卡片里重看。视频太大、超过渠道上限（Telegram 50 MB，Discord 10 MB）时，留在 goal 页面上，消息里会说明。
 
 ## Activity
 

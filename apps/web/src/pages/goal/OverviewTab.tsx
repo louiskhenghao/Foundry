@@ -11,6 +11,7 @@ import { EscalationCard } from '../InboxPage.tsx';
 import { CodexModelsCard } from './CodexModelsCard.tsx';
 import { CheckDialog } from './CheckDialog.tsx';
 import { CompletionCard } from './CompletionCard.tsx';
+import { MilestonesCard } from './MilestoneEvidence.tsx';
 import { ProjectSkillsCard } from './ProjectSkillsCard.tsx';
 
 const STAGES = ['clarifying', 'awaiting_brief_approval', 'running', 'goal_review', 'done'] as const;
@@ -112,6 +113,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
           </Card>
           <CodexModelsCard goal={g} />
           {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <PreviewCard goalId={g.id} goal={g} />}
+          {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <MilestonesCard d={d} />}
           {d.events.some((e) => e.type === 'goal.models_changed') && (
             <Card title="Model fallback">
               <div className="text-xs text-zinc-400 space-y-1">
