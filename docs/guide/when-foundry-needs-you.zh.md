@@ -41,7 +41,7 @@ Foundry 把一个任务试了好几次，验收检查仍然没过。你可以：
 全部都做完了，但审查发现合在一起的结果仍不满足某些验收检查，而且它自己的修复轮也没解决。
 
 - **Retry with hint** 把审查意见变成修复任务（附上你的提示），跑完后再审查一次。
-- **Accept as-is (finish goal)** 放弃这些检查，直接完成 goal。
+- **Accept as-is (finish goal)** 放弃这些检查，直接完成 goal。Brief 上选好的文档仍然会写，而且在交付之前写好。
 - **Abort goal** 停掉这个 goal；它会以 failed 结束。
 
 ### 它想在你电脑以外做事

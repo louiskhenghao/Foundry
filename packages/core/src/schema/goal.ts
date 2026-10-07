@@ -107,7 +107,7 @@ export const GoalCompletion = z.object({
   graphRefresh: z.boolean().default(false),
   docs: z.array(DocType).default([]),
   /** result of the docs-generation session (null = not run yet) */
-  docsRun: z.object({ status: z.enum(['ok', 'skipped', 'failed']), types: z.array(DocType), files: z.array(z.string()), costUsd: z.number(), detail: z.string(), at: z.string(), ref: z.string().nullable().default(null) }).nullable().default(null),
+  docsRun: z.object({ status: z.enum(['ok', 'skipped', 'failed']), types: z.array(DocType), files: z.array(z.string()), costUsd: z.number(), detail: z.string(), at: z.string(), ref: z.string().nullable().default(null), pr: z.object({ number: z.number().int(), url: z.string(), branch: z.string() }).nullable().default(null) }).nullable().default(null),
   /** result of the graph refresh (null = not run yet) */
   graphRun: z.object({ tools: z.array(z.object({ name: z.string(), status: z.enum(['ok', 'skipped', 'failed']), detail: z.string() })), at: z.string() }).nullable().default(null),
   /** result of copying the media artifacts to the goal's output folder at done (null = not run yet) */

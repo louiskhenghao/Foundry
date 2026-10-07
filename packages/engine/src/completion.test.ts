@@ -2,11 +2,13 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { getGoal, type Brief } from '@foundry/core';
+import { getGoal, listEscalations, type Brief } from '@foundry/core';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
 import { inferCompletion, runGraphRefresh } from './completion.ts';
 import { defaultConfig } from './config.ts';
+import { FakeGh } from './delivery/gh.fake.ts';
 import { runDocsGeneration } from './docs-generate.ts';
+import { raiseEscalation } from './escalation.ts';
 import { Engine } from './engine.ts';
 import { goalWorkspacePath } from './workspace.ts';
 
@@ -189,6 +191,51 @@ describe('docs generation', () => {
     expect(run.ref).toMatch(/^[0-9a-f]{40}$/);
     expect(() => engine.rerunCompletion(goal.id, 'docs')).toThrow(/written and committed/);
     await engine.stop();
+  });
+
+  const docsWriter = () =>
+    new FakeRunner((spec) => {
+      if (!spec.label?.startsWith('docs')) return;
+      mkdirSync(join(spec.cwd, 'docs', 'prd'), { recursive: true });
+      writeFileSync(join(spec.cwd, 'docs', 'prd', 'goal.md'), '# PRD\n');
+    });
+
+  test('a goal accepted as-is after its goal review failed still gets its docs on the goal branch', async () => {
+    const engine = track(new Engine(cfg(), docsWriter()));
+    const goal = await engine.createGoal({ prompt: 'impossible', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f never.txt'] } });
+    await waitFor(() => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).length > 0);
+    engine.store.append({ type: 'goal.completion_set', goalId: goal.id, payload: { graphRefresh: false, docs: ['to-prd'], reason: 'test' } });
+    raiseEscalation(engine, { goal: getGoal(engine.store.db, goal.id)!, trigger: 'retries_exhausted', message: 'Goal review failed', payload: { kind: 'goal-review' }, blockGoal: true });
+    const esc = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).find((e) => e.taskId === null)!;
+    await engine.answerEscalation(esc.id, { action: 'skip_task' });
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.completion.docsRun?.status === 'ok');
+    const ws = goalWorkspacePath(dataDir, goal);
+    expect((await Bun.$`git -C ${ws} log -1 --format=%s`.text()).trim()).toStartWith('docs:');
+  });
+
+  test('once the work merged and the goal folder is gone, Generate writes the docs on a branch from the base and opens a pull request', async () => {
+    const bare = mkdtempSync(join(tmpdir(), 'foundry-completion-remote-'));
+    await Bun.$`git init -q --bare ${bare} && git -C ${repo} remote add origin ${bare} && git -C ${repo} push -q origin main`.quiet();
+    const gh = new FakeGh();
+    const engine = track(new Engine(cfg(), docsWriter(), gh));
+    const goal = await engine.createGoal({ prompt: 'noop', repoPath: repo, autoBrief: { mustChecks: ['true'] } });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state));
+    engine.store.append({ type: 'goal.completion_set', goalId: goal.id, payload: { graphRefresh: false, docs: ['to-prd'], reason: 'test' } });
+    // the goal's pull request merged and Foundry tidied the folder up
+    const head = (await Bun.$`git -C ${repo} rev-parse main`.text()).trim();
+    engine.store.append({ type: 'delivery.merged', goalId: goal.id, payload: { prNumber: null, method: 'squash', ref: head, taskId: null } });
+    engine.store.append({ type: 'delivery.completed', goalId: goal.id, payload: { outcome: 'merged' } });
+    const ws = goalWorkspacePath(dataDir, goal);
+    await Bun.$`git -C ${repo} worktree remove --force ${ws}`.quiet();
+    engine.rerunCompletion(goal.id, 'docs');
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.completion.docsRun?.pr != null);
+    const run = getGoal(engine.store.db, goal.id)!.completion.docsRun!;
+    expect(run).toMatchObject({ status: 'ok', files: ['docs/prd/goal.md'], pr: { number: 1, branch: `${goal.branch}-docs` } });
+    expect(gh.calls).toContainEqual(['prCreate', bare, `${goal.branch}-docs`, 'main']);
+    expect((await Bun.$`git -C ${bare} log -1 --format=%s ${goal.branch}-docs`.text()).trim()).toStartWith('docs:');
+    expect(existsSync(ws)).toBe(false);
+    rmSync(bare, { recursive: true, force: true });
   });
 });
 

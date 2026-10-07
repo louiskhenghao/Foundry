@@ -68,7 +68,7 @@ import { PreviewManager } from './preview/manager.ts';
 import { ensureSelfCheck, playwrightInstallCommand, playwrightStatus, runSelfCheck } from './checks/selfcheck.ts';
 import { afterMerge, type AfterMergeOptions } from './delivery/after-merge.ts';
 import { startOver, structuralChanges } from './delivery/start-over.ts';
-import { runDocsGeneration } from './docs-generate.ts';
+import { runDocsAfterMerge, runDocsGeneration } from './docs-generate.ts';
 import { checkGoalPrs, checkOpenPrs, markDelivered, recheckPr } from './delivery/pr-watch.ts';
 import { attachmentDir, claimStaged, conversionTmpPath, markdownFileName, sweepStaging, trashAttachment } from './attachments.ts';
 import { Markitdown } from './convert/markitdown.ts';
@@ -633,17 +633,36 @@ export class Engine {
   }
 
   private rerunning = new Set<string>();
+  /** goals whose docs are being written after the goal turned done: their delivery and graph refresh wait for them */
+  private documenting = new Set<string>();
 
   /**
-   * "Re-run" on the Completion card: the graph refresh again, or docs generation after a run that failed or wrote
+   * Write a goal's docs when it finished without the goal review that normally writes them (the human accepted it as
+   * is). Call it before the goal turns done: the done tick holds the delivery and the graph refresh until this ends,
+   * so the docs commit still ships with the code.
+   */
+  documentBeforeDelivery(goal: Goal): void {
+    if (!goal.completion.docs.length || goal.completion.docsRun || this.documenting.has(goal.id)) return;
+    this.documenting.add(goal.id);
+    void runDocsGeneration(this, goal)
+      .catch((err) => this.store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `docs generation crashed: ${String(err)}` } }))
+      .finally(() => {
+        this.documenting.delete(goal.id);
+        this.tick(goal.id);
+      });
+  }
+
+  /**
+   * "Re-run" on the Completion card: the graph refresh again, or docs generation when it never ran, failed or wrote
    * nothing. Runs in the background; the card shows the new result. A new docs commit lands on the goal branch, so a
-   * delivered goal ships it with Resume delivery.
+   * delivered goal ships it with Resume delivery; once the work merged and the folder is gone, the docs get a branch and
+   * a pull request of their own.
    */
   rerunCompletion(goalId: string, what: 'docs' | 'graph'): void {
     const g = this.mustGoal(goalId);
     if (g.state !== 'done' && g.state !== 'over_delivered') throw new Error('completion actions run once the goal is done');
     const key = `${goalId}:${what}`;
-    if (this.rerunning.has(key) || (what === 'graph' && this.completing.has(goalId))) throw new Error(`the ${what === 'docs' ? 'docs generation' : 'graph refresh'} is already running`);
+    if (this.rerunning.has(key) || (what === 'graph' && this.completing.has(goalId)) || (what === 'docs' && this.documenting.has(goalId))) throw new Error(`the ${what === 'docs' ? 'docs generation' : 'graph refresh'} is already running`);
     let job: Promise<void>;
     if (what === 'graph') {
       if (!g.completion.graphRefresh) throw new Error('this goal has no graph refresh');
@@ -652,8 +671,10 @@ export class Engine {
       if (!g.completion.docs.length) throw new Error('this goal generates no docs');
       if (g.completion.docsRun?.status === 'ok') throw new Error('the docs were written and committed; edit them in the goal branch instead');
       if (g.delivery.status === 'running') throw new Error('a delivery is running — wait for it, or cancel it first');
-      if (!existsSync(goalWorkspacePath(this.config.dataDir, g))) throw new Error('the goal folder was cleaned up after the merge, so there is nowhere to write the docs');
-      job = runDocsGeneration(this, g, { rerun: true });
+      // the folder is cleaned up only after a merge: the docs then go out on a branch and pull request of their own
+      const gone = !existsSync(goalWorkspacePath(this.config.dataDir, g));
+      if (gone && g.delivery.outcome !== 'merged') throw new Error("the goal's folder is missing, so there is nowhere to write the docs");
+      job = gone ? runDocsAfterMerge(this, g) : runDocsGeneration(this, g, { rerun: true });
     }
     this.rerunning.add(key);
     void job
@@ -1152,6 +1173,8 @@ export class Engine {
             .catch((err) => this.store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `artifact delivery crashed: ${String(err)}` } }))
             .finally(() => this.deliveringArtifacts.delete(goalId));
         }
+        // docs still being written (the goal finished without its goal review): they ship with the code, so wait
+        if (this.documenting.has(goalId)) return;
         // graph refresh: after delivery for goals that leave the machine, right away for local ones
         if (shouldRunGraphRefresh(goal) && !this.completing.has(goalId)) {
           this.completing.add(goalId);

@@ -4,13 +4,15 @@
  * Which documents are written was chosen at Brief approval (`goal.completion.docs`); a failure is
  * recorded on `goal.docs_generated` and never blocks the goal.
  */
-import { join } from 'node:path';
+import { rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import type { DocType, Goal } from '@foundry/core';
 import { getBrief, getGoal, renderDecisions } from '@foundry/core';
 import type { Engine } from './engine.ts';
-import { commitStaged, git, headRef } from './git/git.ts';
+import { repoSlug } from './delivery/policy.ts';
+import { commitStaged, git, gitOk, headRef, removeWorktree } from './git/git.ts';
 import { workerTools, boundarySettings } from './guards/boundary.ts';
-import { goalWorkspacePath } from './workspace.ts';
+import { docsWorkspacePath, goalWorkspacePath } from './workspace.ts';
 import { metaFor, modelFor } from './models/roles.ts';
 
 export const DOCS_MAX_BUDGET_USD = 3;
@@ -24,26 +26,29 @@ const DOC_INSTRUCTIONS: Record<DocType, string> = {
 
 /**
  * Generate the chosen documents in the goal workspace and commit them as one `docs:` commit. Never throws. `rerun` is
- * the human's "Re-run" after a run that failed or wrote nothing.
+ * the human's "Re-run" after a run that failed or wrote nothing. `cwd` and `range` write them elsewhere: in a branch
+ * of their own after the goal's work merged, describing the commits from `range.from` to `range.to`.
  */
-export async function runDocsGeneration(engine: Engine, goalIn: Goal, opts: { rerun?: boolean } = {}): Promise<void> {
+export async function runDocsGeneration(engine: Engine, goalIn: Goal, opts: { rerun?: boolean; cwd?: string; range?: { from: string; to: string } | null } = {}): Promise<void> {
   const { store, config } = engine;
   const goal = getGoal(store.db, goalIn.id)!;
   const types = goal.completion.docs;
   if (!types.length || (goal.completion.docsRun && !opts.rerun)) return;
   const record = (payload: { status: 'ok' | 'skipped' | 'failed'; files: string[]; costUsd: number; detail: string; ref?: string | null }) => store.append({ type: 'goal.docs_generated', goalId: goal.id, payload: { types, ...payload } });
   try {
-    const ws = goalWorkspacePath(config.dataDir, goal);
+    const ws = opts.cwd ?? goalWorkspacePath(config.dataDir, goal);
     const brief = getBrief(store.db, goal.id)?.brief ?? null;
-    const stat = await git(['diff', '--stat', `${goal.baseBranch}...HEAD`], ws).catch(() => null);
-    const log = await git(['log', '--no-merges', '--format=%s', `${goal.baseBranch}..HEAD`], ws).catch(() => null);
+    const range = opts.range ?? null;
+    const stat = await git(['diff', '--stat', ...(range ? [range.from, range.to] : [`${goal.baseBranch}...HEAD`])], ws).catch(() => null);
+    const log = await git(['log', '--no-merges', '--format=%s', range ? `${range.from}..${range.to}` : `${goal.baseBranch}..HEAD`], ws).catch(() => null);
     const before = await headRef(ws);
     const prompt = [
       `# Goal\n${goal.title}\n\n${goal.prompt}`,
       brief ? `# Approved understanding\n${brief.understanding}` : '',
       brief ? renderDecisions(brief) : '',
       log?.stdout.trim() ? `# Task commits of this goal\n${log.stdout.trim()}` : '',
-      stat?.stdout.trim() ? `# Changed files (diffstat against ${goal.baseBranch})\n\`\`\`\n${stat.stdout.trim().slice(0, 4000)}\n\`\`\`` : '',
+      range ? `# Where you are\nThis goal's work is already merged into ${goal.delivery.policy.baseBranch ?? goal.baseBranch}, which is checked out here; document it as it is now.` : '',
+      stat?.stdout.trim() ? `# Changed files (diffstat ${range ? 'of the merged work' : `against ${goal.baseBranch}`})\n\`\`\`\n${stat.stdout.trim().slice(0, 4000)}\n\`\`\`` : '',
       `# Documents to produce\n${types.map((t) => `- **${t}**: ${DOC_INSTRUCTIONS[t]}`).join('\n')}`,
       `Read the changed code where the diffstat alone is not enough. Write ONLY documentation (markdown); never change code, configuration or tests. Do not commit — the engine commits for you. Reply with a one-paragraph summary of what you wrote.`,
     ]
@@ -91,5 +96,49 @@ export async function runDocsGeneration(engine: Engine, goalIn: Goal, opts: { re
   } catch (err) {
     record({ status: 'failed', files: [], costUsd: 0, detail: String((err as Error).message ?? err).slice(0, 300) });
     store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `docs generation failed: ${String((err as Error).message ?? err).slice(0, 200)}` } });
+  }
+}
+
+/**
+ * Docs for a goal whose work merged and whose progress folder was cleaned up: written in a folder of their own on a new
+ * branch from the base (which holds the work), then pushed and opened as a pull request of their own, since the goal's
+ * pull request is closed. Never throws; the outcome is recorded like any docs run.
+ */
+export async function runDocsAfterMerge(engine: Engine, goal: Goal): Promise<void> {
+  const { store, config } = engine;
+  const policy = goal.delivery.policy;
+  const base = policy.baseBranch ?? goal.baseBranch;
+  const branch = `${goal.branch}-docs`;
+  const ws = docsWorkspacePath(config.dataDir, goal);
+  const fail = (detail: string) => store.append({ type: 'goal.docs_generated', goalId: goal.id, payload: { status: 'failed', types: goal.completion.docs, files: [], costUsd: 0, detail } });
+  try {
+    await removeWorktree(goal.repoPath, ws).catch(() => {});
+    rmSync(ws, { recursive: true, force: true });
+    await gitOk(['worktree', 'add', '-q', '-B', branch, ws, base], goal.repoPath);
+  } catch (err) {
+    fail(`could not start a docs branch from ${base}: ${String((err as Error).message ?? err).slice(0, 200)}`);
+    return;
+  }
+  // the merged work: from before the first merged pull request to the last merge
+  const merged = goal.delivery.prs.map((p) => p.mergedRef).filter((r): r is string => !!r);
+  const to = goal.delivery.mergedRef ?? merged.at(-1) ?? null;
+  const from = merged[0] ?? to;
+  await runDocsGeneration(engine, goal, { rerun: true, cwd: ws, range: to && from ? { from: `${from}^1`, to } : null });
+  const run = getGoal(store.db, goal.id)!.completion.docsRun;
+  if (run?.status !== 'ok' || !run.ref) return;
+  const note = (level: 'info' | 'warn', message: string): void => {
+    store.append({ type: 'engine.note', goalId: goal.id, payload: { level, message } });
+  };
+  try {
+    const push = await git(['push', '-u', policy.remote, `refs/heads/${branch}:refs/heads/${branch}`], ws);
+    if (push.code !== 0) return note('warn', `docs were committed on ${branch} but could not be pushed: ${push.stderr.trim().slice(0, 200)}`);
+    const repo = repoSlug(policy.remoteUrl ?? (await gitOk(['remote', 'get-url', policy.remote], ws)).trim());
+    const bodyFile = join(dirname(ws), 'docs-pr.md');
+    writeFileSync(bodyFile, `Docs for **${goal.title}**, whose work already merged.\n\n${run.files.map((f) => `- \`${f}\``).join('\n')}\n`);
+    const pr = (await engine.gh.prFind(ws, { repo, head: branch, base })) ?? (await engine.gh.prCreate(ws, { repo, head: branch, base, title: `docs: ${goal.title}`, bodyFile }));
+    store.append({ type: 'goal.docs_pr_opened', goalId: goal.id, payload: { number: pr.number, url: pr.url, branch } });
+    note('info', `docs pull request #${pr.number} opened from ${branch}`);
+  } catch (err) {
+    note('warn', `docs were committed on ${branch} but no pull request was opened: ${String((err as Error).message ?? err).slice(0, 200)}`);
   }
 }
