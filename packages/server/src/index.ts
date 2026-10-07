@@ -1,7 +1,7 @@
 import type { Engine, StreamEvent } from '@foundry/engine';
 import type { EngineEvent } from '@foundry/core';
 import type { ServerWebSocket } from 'bun';
-import { createApp } from './app.ts';
+import { UNKNOWN_HOST, createApp, crossSite, extraHosts, knownHost } from './app.ts';
 import { slimEvent } from './transcripts.ts';
 
 export interface ServeOptions {
@@ -38,6 +38,10 @@ export function startServer(engine: Engine, opts: ServeOptions = {}) {
     fetch(req, server) {
       const url = new URL(req.url);
       if (url.pathname === '/ws') {
+        // a WebSocket is not held to the same-origin rule: without these checks any page could follow every event
+        const host = req.headers.get('host');
+        if (!knownHost(host, () => extraHosts(engine))) return new Response(UNKNOWN_HOST(host), { status: 403 });
+        if (crossSite(req)) return new Response('refused: a connection from another site', { status: 403 });
         if (server.upgrade(req)) return undefined as unknown as Response;
         return new Response('upgrade failed', { status: 400 });
       }

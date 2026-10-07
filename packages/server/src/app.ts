@@ -84,8 +84,50 @@ export function crossSite(req: Request): boolean {
   }
 }
 
+/**
+ * Is `host` (a Host header) a name this computer may be reached by? Foundry has no sign-in, so a web page that points
+ * its own domain at 127.0.0.1 (DNS rebinding) would otherwise be the same origin as Foundry and could read and drive it.
+ * Such a page always names its own domain, so only names nobody can rebind from outside pass: IP addresses, localhost,
+ * names without a dot or ending in .local (the local network), tailnet names (*.ts.net), plus `extra` (the names
+ * Settings give for this computer and FOUNDRY_ALLOWED_HOSTS; * = any; asked only when needed). A request without a Host header is no browser's.
+ */
+export function knownHost(host: string | null, extra: () => string[] = () => []): boolean {
+  if (!host) return true;
+  let name: string;
+  try {
+    name = new URL(`http://${host}`).hostname.replace(/^\[|\]$/g, '');
+  } catch {
+    return false;
+  }
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(name) || name.includes(':')) return true;
+  if (name === 'localhost' || name.endsWith('.localhost') || !name.includes('.') || name.endsWith('.local') || name.endsWith('.ts.net')) return true;
+  return extra().some((e) => e === '*' || e === name);
+}
+
+/** the names of this computer Settings and the environment add to knownHost's own */
+export function extraHosts(engine: Engine): string[] {
+  const n = engine.settings.values().notifications;
+  const names = (process.env.FOUNDRY_ALLOWED_HOSTS ?? '').split(',');
+  for (const url of [n.baseUrl, n.tailscaleHost && `http://${n.tailscaleHost.replace(/^[a-z]+:\/\//i, '')}`]) {
+    try {
+      if (url) names.push(new URL(url).hostname);
+    } catch {
+      /* not a URL: nothing to add */
+    }
+  }
+  return names.map((h) => h.trim().toLowerCase()).filter(Boolean);
+}
+
+export const UNKNOWN_HOST = (host: string | null) =>
+  `Foundry does not answer to the name "${host}". If that name is this computer, add it to FOUNDRY_ALLOWED_HOSTS (comma-separated) or set it as Settings → Notifications → Link base URL.`;
+
 export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   const app = new Hono();
+  app.use('*', async (c, next) => {
+    const host = c.req.header('host') ?? null;
+    if (!knownHost(host, () => extraHosts(engine))) return c.text(UNKNOWN_HOST(host), 403);
+    await next();
+  });
   app.use('/api/*', async (c, next) => {
     if (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) && crossSite(c.req.raw)) return c.json({ error: 'refused: a request from another site' }, 403);
     await next();
