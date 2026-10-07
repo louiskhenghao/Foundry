@@ -7,7 +7,6 @@ import { LiveLog } from '../LiveLog.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 import { ClarifyProgress } from './ClarifyProgress.tsx';
 
-const MAX_ROUNDS = 4;
 
 
 /**
@@ -58,7 +57,7 @@ export function InterviewPanel({ goal }: { goal: Goal }) {
       <div className="space-y-3 text-xs text-zinc-400">
         {open ? (
           <>
-            <p className="text-zinc-400">Only decisions the repository could not settle are asked. The first option is the Clarifier's recommendation; the reason says what it found. After your answers it writes the Brief — or asks one more round only if they open new decisions (at most {MAX_ROUNDS} rounds in all).</p>
+            <p className="text-zinc-400">Only decisions the repository could not settle are asked. The first option is the Clarifier's recommendation; the reason says what it found. After your answers it writes the Brief — or asks one more round only if they open new decisions, as deep as the goal's interview depth asks.</p>
             <ol className="space-y-3">
               {open.questions.map((q, i) => (
                 <li key={q.key} className="rounded border border-zinc-800 bg-zinc-900/50 p-3 space-y-2">
