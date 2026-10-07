@@ -17,7 +17,8 @@ export function Select({ className, children, ...props }: SelectHTMLAttributes<H
  * Dropdown shell: `trigger` renders the button, `children` the panel (a function receives `close`).
  * Closes on outside click and Escape. Panels are right-aligned by default, then kept inside the window: shifted
  * sideways when the aligned edge would push them off screen, opened upwards when there is no room below. They render
- * on <body>, so a panel or card that clips its overflow never cuts them off.
+ * on <body>, so a panel or card that clips its overflow never cuts them off; Tab still moves from the trigger into the
+ * panel and out of it back to the trigger, as if the panel sat right after it.
  */
 export function Menu({ trigger, children, width = 'w-56', align = 'right', className }: { trigger: (o: { open: boolean; toggle: () => void }) => ReactNode; children: ReactNode | ((close: () => void) => ReactNode); width?: string; align?: 'left' | 'right'; className?: string }) {
   const [open, setOpen] = useState(false);
@@ -32,7 +33,10 @@ export function Menu({ trigger, children, width = 'w-56', align = 'right', class
     const { offsetWidth: w, offsetHeight: h } = p;
     const left = Math.max(margin, Math.min(align === 'right' ? t.right - w : t.left, window.innerWidth - w - margin));
     const below = t.bottom + 4;
-    const top = below + h > window.innerHeight - margin && t.top - 4 - h >= margin ? t.top - 4 - h : below;
+    const above = t.top - 4 - h;
+    const fitsBelow = below + h <= window.innerHeight - margin;
+    // neither side has room: the roomier side, slid back inside the window (the panel is never taller than it)
+    const top = fitsBelow ? below : above >= margin ? above : Math.max(margin, Math.min(window.innerHeight - t.bottom > t.top ? below : above, window.innerHeight - h - margin));
     setPos({ top, left });
   };
   useLayoutEffect(() => {
@@ -43,13 +47,33 @@ export function Menu({ trigger, children, width = 'w-56', align = 'right', class
     if (!open) return;
     const inside = (n: EventTarget | null) => !!n && (ref.current?.contains(n as Node) || panel.current?.contains(n as Node));
     const onDoc = (e: MouseEvent) => !inside(e.target) && setOpen(false);
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    const focusable = () => [...(panel.current?.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])') ?? [])];
+    const back = () => {
+      setOpen(false);
+      ref.current?.querySelector<HTMLElement>('button, a[href], [tabindex]')?.focus();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      const at = document.activeElement;
+      if (e.key === 'Escape') return panel.current?.contains(at) ? back() : setOpen(false);
+      if (e.key !== 'Tab') return;
+      const items = focusable();
+      if (!e.shiftKey && ref.current?.contains(at) && items.length) {
+        e.preventDefault();
+        items[0]!.focus();
+      } else if (panel.current?.contains(at) && (e.shiftKey ? at === items[0] : at === items.at(-1))) {
+        e.preventDefault();
+        back();
+      }
+    };
     const onMove = () => place();
+    const sized = new ResizeObserver(onMove);
+    if (panel.current) sized.observe(panel.current);
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
     window.addEventListener('resize', onMove);
     window.addEventListener('scroll', onMove, true);
     return () => {
+      sized.disconnect();
       document.removeEventListener('mousedown', onDoc);
       document.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', onMove);
