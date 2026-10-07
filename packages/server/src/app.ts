@@ -480,19 +480,38 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
 
   // ---- open in editor / file manager / terminal (paths resolved server-side, never from the request) ----
   app.get('/api/open/targets', (c) => c.json({ targets: detectOpenTargets() }));
+  /** the folder an Open menu entry stands for: the checkout, the goal's folder, a task worktree, a resolve worktree */
+  const placePath = (goal: NonNullable<ReturnType<typeof getGoal>>, which: string): string => {
+    let path: string | null = null;
+    if (which === 'repo') path = goal.repoPath;
+    else if (which === 'workspace') path = goalWorkspacePath(engine.config.dataDir, goal);
+    else if (which.startsWith('resolve:')) {
+      const p = resolveWorkspacePath(engine.config.dataDir, goal, which.slice(8));
+      path = existsSync(p) ? p : null;
+    } else if (which.startsWith('task:')) path = listTasks(db, goal.id).find((t) => t.id === which.slice(5))?.worktreePath ?? null;
+    if (!path) throw new HttpError(404, { error: `nothing to open for ${which}` });
+    return path;
+  };
+  // VS Code in the browser (code-server): started on first use; the addresses open the folder here and on the tailnet
+  app.get('/api/editor', (c) => c.json(engine.codeServer.status()));
+  app.post('/api/tools/code-server/install', (c) => toolInstall(c, 'code-server'));
+  app.post('/api/goals/:id/editor', async (c) => {
+    const goal = getGoal(db, c.req.param('id'));
+    if (!goal) throw new HttpError(404, { error: 'goal not found' });
+    const { which } = z.object({ which: z.string().default('repo') }).parse(await c.req.json());
+    const path = placePath(goal, which);
+    if (!engine.codeServer.status().installed) throw new HttpError(409, { error: 'code-server is not installed — install it in Settings → Tools', code: 'not-installed' });
+    try {
+      return c.json(await engine.codeServer.open(path));
+    } catch (e) {
+      throw new HttpError(500, { error: String((e as Error).message ?? e) });
+    }
+  });
   app.post('/api/goals/:id/open', async (c) => {
     const goal = getGoal(db, c.req.param('id'));
     if (!goal) throw new HttpError(404, { error: 'goal not found' });
     const body = z.object({ target: z.string(), which: z.string().default('repo') }).parse(await c.req.json());
-    let path: string | null = null;
-    if (body.which === 'repo') path = goal.repoPath;
-    else if (body.which === 'workspace') path = goalWorkspacePath(engine.config.dataDir, goal);
-    else if (body.which.startsWith('resolve:')) {
-      const p = resolveWorkspacePath(engine.config.dataDir, goal, body.which.slice(8));
-      path = existsSync(p) ? p : null;
-    }
-    else if (body.which.startsWith('task:')) path = listTasks(db, goal.id).find((t) => t.id === body.which.slice(5))?.worktreePath ?? null;
-    if (!path) throw new HttpError(404, { error: `nothing to open for ${body.which}` });
+    const path = placePath(goal, body.which);
     try {
       const r = await openPath(body.target as OpenTargetId, path);
       engine.store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `opened ${body.which} in ${body.target}: ${r.command.join(' ')}` } });

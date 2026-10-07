@@ -20,7 +20,7 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 - 标题、状态标记（比如 **running**、**have a look**、**reviewing**、**done**）；goal 以 fast 模式运行时还有一个 **fast** 标签。
 - 项目文件夹（**copy** 复制它的路径）、goal 的编码智能体（**Claude Code** 或 **Codex**）和分支：goal 起步的分支 → goal 自己的分支。**Goals** 列表也在每个项目路径旁显示同样的编码智能体。列表的每一行把相关信息叠在一起：标题、编码智能体和文件夹；状态和任务数；费用和时间对比上限；最近更新和创建日期。默认每页显示 10 个 goal，最新创建的在前，底部显示总数和页码；可在那里改为每页 20 或 50 个（这个浏览器会记住）。页码记在地址栏里。
 - **time** 显示已用分钟数对比时间上限；Claude 还显示 **cost** 对比美元预算。Codex 美元费用不可用。
-- **Open ▾**：在你的电脑上打开项目或进度文件夹（见 [进度文件夹](#进度文件夹)）。
+- **Open ▾**：在你的电脑上打开项目或进度文件夹（见 [进度文件夹](#进度文件夹)），或者用 **VS Code (web)** 打开：浏览器标签里的 VS Code，经 Tailscale 在手机上也能打开。第一次使用时启动（先在 [Settings → Tools & keys](./settings.zh.md#tools--keys) 装一次），只在这台电脑上运行，闲置两小时后停止。在里面的修改是真实修改：goal 运行时，菜单会提醒你在它的文件夹里改动可能和编码智能体的冲突，并被带进它们的下一个提交。
 - 一个随状态变化的主按钮：Brief 等你时是 **Review brief →**，运行时是 **Cancel**，完成后是 **Deliver…**、**Delivering…** 或 **Delivery**。
 - **⋯**（More actions）：**Restart…**、**Re-run Clarify**、**Cancel goal**、**Delete goal…**，视情况出现。
 

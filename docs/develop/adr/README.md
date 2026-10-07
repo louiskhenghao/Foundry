@@ -33,3 +33,4 @@ record is never rewritten when a later decision changes it; its status says what
 | [0026](0026-tailnet-links-and-served-previews.md) | Messages link on the tailnet, and Foundry serves preview ports there | accepted · 2026-10-07 |
 | [0027](0027-interview-depth.md) | The interview has a depth, not a round count | accepted · 2026-10-07 · amends ADR-0013 |
 | [0028](0028-planner-writes-the-plan-once.md) | The planner writes the task plan once, in a session of its own | accepted · 2026-10-08 · amends ADR-0013 and ADR-0018 |
+| [0029](0029-vs-code-in-the-browser.md) | VS Code in the browser, without a password, on loopback and the tailnet | accepted · 2026-10-08 |

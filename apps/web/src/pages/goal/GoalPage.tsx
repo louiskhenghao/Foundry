@@ -147,6 +147,7 @@ export function GoalPage() {
                 { which: 'repo', label: 'Repository', path: d.paths.repo, hint: `your checkout · ${g.baseBranch}` },
                 ...(d.paths.workspace ? [{ which: 'workspace' as const, label: 'Goal workspace', path: d.paths.workspace, hint: `branch ${g.branch}` }] : []),
               ]}
+              working={['running', 'goal_review'].includes(g.state)}
             />
             {awaiting ? (
               <Link to={`/goals/${id}/brief`}>

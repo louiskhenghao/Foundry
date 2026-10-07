@@ -110,7 +110,7 @@ export function SimpleOverview({ d, onDeliver }: { d: GoalDetail; onDeliver: () 
               )}
             </span>
             <span className="ml-auto flex items-center gap-2">
-              <OpenMenu goalId={g.id} places={[...(d.paths.workspace ? [{ which: 'workspace' as const, label: 'The result', path: d.paths.workspace, hint: `branch ${g.branch}` }] : []), { which: 'repo' as const, label: 'Your repository', path: d.paths.repo }]} label="Open" />
+              <OpenMenu goalId={g.id} places={[...(d.paths.workspace ? [{ which: 'workspace' as const, label: 'The result', path: d.paths.workspace, hint: `branch ${g.branch}` }] : []), { which: 'repo' as const, label: 'Your repository', path: d.paths.repo }]} label="Open" working={['running', 'goal_review'].includes(g.state)} />
               {g.delivery.status !== 'delivered' && (
                 <Button size="sm" variant="primary" onClick={onDeliver} title="Push / open a pull request / merge — opens the Delivery tab in Expert view">
                   Deliver…
