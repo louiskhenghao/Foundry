@@ -169,6 +169,11 @@ describe('Clarify writes the Brief, a planner session writes its plan', () => {
     expect(runner.calls.filter((c) => !c.label?.startsWith('classify nature')).map((c) => [c.model, c.effort])).toEqual([
       ['docs-clarifier', 'medium'], ['docs-planner', 'xhigh'],
     ]);
+    // the planner gets the rules for cutting a docs plan, not the Clarifier's (setting the nature, style directions)
+    const planner = runner.calls.find(isPlanner)!.prompt;
+    expect(planner).toContain('# Documents');
+    expect(planner).not.toContain('Set `nature');
+    expect(planner).not.toContain('output 2–4');
   });
 
   test.each(['failed', 'invalid'] as const)('a %s planner gets one more try, then the Brief is published with one task per Area and a blocking question', async (failure) => {

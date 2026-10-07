@@ -469,13 +469,36 @@ async function settle(engine: Engine, goal: Goal, ctx: ClarifyContext, first: Ru
 
 const TECH_STACK_SECTION = `This repository has no code yet, so there is nothing to discover — the tech stack is the human's decision, not yours to assume. Unless the goal (or a Decision above) already names the stack, include exactly ONE blocking question choosing it: propose 2–4 concrete, complete stack options suited to this goal (e.g. "Next.js + Prisma + Postgres", "NestJS API + React SPA", "Laravel + MySQL", a Bun/Node monorepo …) in the question's \`options\`, with YOUR recommended option FIRST. Plan the tasks assuming that recommended option, and make the first task scaffold the project (initialise the chosen stack, package manifest, build/test commands) — every other task depends on it. Must checks may only use commands that will exist once that scaffold task is done.`;
 
+/** what every media task's spec and checks must say: where files go, parallel generation, the manifest, how they are judged */
+function mediaConventions(kind: 'image' | 'video', ffprobe: boolean): string {
+  return `Conventions every media task's spec MUST state verbatim:\n- generated files go to \`artifacts/\` in the workspace (the engine keeps that folder out of git)\n- independent artifacts are generated IN PARALLEL (launch the generation calls together, e.g. background jobs), never one after another; at most one regeneration pass per artifact\n- the task also writes its manifest \`docs/artifacts/<task-slug>.md\` (committed): one bullet per artifact — file name, what it shows, and the prompt/parameters used\nAcceptance: reviewer checks whose rubric judges the manifest AND the artifacts themselves (the reviewer opens image files to look at them)${kind === 'video' ? `; add a must command check verifying each video with ffprobe (duration, resolution)${ffprobe ? '' : ' — ffprobe is NOT installed on this machine, so use a plain file-exists check instead'}` : ''}. Command checks otherwise only verify objective facts (files exist, counts).`;
+}
+
+/**
+ * The nature rules that shape a plan, for the planner: how tasks are cut and checked per kind of goal. The Clarifier's
+ * own decisions (the nature, style directions, a stack question) are settled in the Brief it receives.
+ */
+function plannerNatureSection(goal: Goal, emptyRepo: boolean): string {
+  const ffprobe = Bun.which('ffprobe') != null;
+  const scaffold = '# Empty repository\nThere is no code yet. The Brief records the tech stack (as a question or an assumption): make the FIRST task scaffold that stack (package manifest, build and test commands) and make every other task depend on it. Checks may only use commands that exist once it is done.';
+  const docs = '# Documents\nOne writing task per document or chapter (scenario `docs`). Checks are reviewer rubrics (audience, structure, tone, completeness, factual grounding) or objective file checks; never build/test/lint.';
+  const research = '# Research\nInvestigation tasks (scenario `research`) whose output is cited markdown reports committed to the repository. Checks: reviewer rubrics verifying sources are cited and conclusions follow from them, plus checks that the report files exist; never build/test/lint.';
+  const media = (kind: 'image' | 'video') => `# Media: ${kind}\nTasks per deliverable batch (scenario \`${kind}\`), following the style direction the Brief recommends. ${mediaConventions(kind, ffprobe)} Never build/test/lint checks.`;
+  const nature = goal.nature;
+  if (nature === 'docs') return docs;
+  if (nature === 'research') return research;
+  if (nature === 'image' || nature === 'video') return media(nature);
+  if (nature === 'code') return emptyRepo ? scaffold : '';
+  return [`# Plan by the Brief's nature\nThe Brief sets \`nature\`; follow the rules below that match it.`, emptyRepo ? scaffold : '', docs, research, media('image'), media('video')].filter(Boolean).join('\n\n');
+}
+
 /** Nature-specific planning rules. Auto goals get the conditional form: judge the nature first, then apply its rules. */
 function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true): string {
   const ffprobe = Bun.which('ffprobe') != null;
   const styleAsk = `\nAlso output 2–4 \`styleOptions\` — distinct visual directions the human can SEE before any generation starts: real hex palette, 1–3 typefaces, 3–6 style keywords, one or two sentences on feel/composition; YOUR recommendation FIRST. Plan the tasks assuming the recommended direction.`;
   const noBackend = `\n- IMPORTANT: no image-generation backend is configured on this machine (sessions have no OPENAI_API_KEY), so workers cannot call a generation API — at best they hand-author SVG/HTML and render it, at noticeably lower fidelity. Record this as an explicit assumption (e.g. "No AI image backend is configured; image deliverables will be hand-authored SVG renders") so the human can reject it and configure a key in Settings → Tools before approving the plan.`;
   const media = (kind: 'image' | 'video') =>
-    `# Nature: ${kind}\nThis goal produces media files, not software. Set \`nature: "${kind}"\` and plan tasks per deliverable batch (scenario \`${kind}\`).${styleAsk}${kind === 'image' && !imageGen ? noBackend : ''}\nConventions every media task's spec MUST state verbatim:\n- generated files go to \`artifacts/\` in the workspace (the engine keeps that folder out of git)\n- independent artifacts are generated IN PARALLEL (launch the generation calls together, e.g. background jobs), never one after another; at most one regeneration pass per artifact\n- the task also writes its manifest \`docs/artifacts/<task-slug>.md\` (committed): one bullet per artifact — file name, what it shows, and the prompt/parameters used\nAcceptance: reviewer checks whose rubric judges the manifest AND the artifacts themselves (the reviewer opens image files to look at them)${kind === 'video' ? `; add a must command check verifying each video with ffprobe (duration, resolution)${ffprobe ? '' : ' — ffprobe is NOT installed on this machine, so use a plain file-exists check instead'}` : ''}. Command checks otherwise only verify objective facts (files exist, counts). Never ask about tech stacks and never propose build/test/lint checks.`;
+    `# Nature: ${kind}\nThis goal produces media files, not software. Set \`nature: "${kind}"\` and plan tasks per deliverable batch (scenario \`${kind}\`).${styleAsk}${kind === 'image' && !imageGen ? noBackend : ''}\n${mediaConventions(kind, ffprobe)} Never ask about tech stacks and never propose build/test/lint checks.`;
   const docs = `# Nature: documents\nThis goal produces prose, not software. Set \`nature: "docs"\` and plan writing tasks (scenario \`docs\`), one per document or chapter; Areas are documents or audiences, not apps. Acceptance: reviewer checks with a precise rubric (audience, structure, tone, completeness, factual grounding); command checks only for objective facts (a file exists, links resolve). Never ask about tech stacks and never propose build/test/lint checks.`;
   const research = `# Nature: research\nThis goal produces knowledge. Set \`nature: "research"\` and plan investigation tasks (scenario \`research\`) whose output is cited markdown reports committed to the repository; Areas are questions or topics. Every claim needs a source; acceptance: reviewer checks whose rubric verifies sources are cited and conclusions follow from them, plus command checks that the report files exist. Never ask about tech stacks and never propose build/test/lint checks.`;
   switch (goal.nature) {
@@ -527,7 +550,7 @@ export function buildPlannerPrompt(goal: Goal, skeleton: BriefSkeleton, c: { ove
     c.decisions ? `${c.decisions}\nThese are settled: plan with them.` : '',
     answers.length ? `# The human's answers in the interview (settled)\n${answers.map(({ question, answer }) => `- ${question.text}\n  A: ${answer}`).join('\n')}` : '',
     c.previous,
-    natureSection(goal, c.emptyRepo, c.imageGen),
+    plannerNatureSection({ ...goal, nature: skeleton.nature ?? goal.nature }, c.emptyRepo),
     c.attachments,
     c.overview ? `# Repository overview\n${c.overview}` : '',
     `# The Brief from the Clarifier\nAreas, assumptions and goal-level checks are settled; plan within them.\n\`\`\`json\n${JSON.stringify(brief, null, 1)}\n\`\`\``,
