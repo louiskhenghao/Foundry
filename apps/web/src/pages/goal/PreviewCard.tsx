@@ -33,7 +33,24 @@ function AlsoServing({ app, onVisit }: { app: PreviewAppStatus; onVisit: () => v
 
 /** why the last run ended, with the lines the app printed last; or what to know while it runs */
 function Problems({ app }: { app: PreviewAppStatus }) {
-  if (app.running) return app.warning ? <div className="text-amber-300">{app.warning}</div> : null;
+  if (app.running)
+    return (
+      <>
+        {app.warning && <div className="text-amber-300">{app.warning}</div>}
+        {app.nativePort != null && app.port != null && app.nativePort !== app.port && <div className="text-[11px] text-zinc-500">Usually on port {app.nativePort}, which was taken; runs on {app.port}.</div>}
+        {app.rewrites.length > 0 && (
+          <div className="text-[11px] text-zinc-500">
+            Pointed at the ports the apps got:{' '}
+            {app.rewrites.map((r, i) => (
+              <span key={`${r.key}:${r.from}`}>
+                {i > 0 && ', '}
+                <span className="mono text-zinc-400">{r.key}</span> {r.from} → {r.to}
+              </span>
+            ))}
+          </div>
+        )}
+      </>
+    );
   if (!app.error) return app.stopped ? <div className="text-[11px] text-zinc-500">Foundry stopped it: {app.stopped}.</div> : null;
   return (
     <div className="rounded border border-rose-500/30 bg-rose-500/5 px-2 py-1.5 space-y-1">

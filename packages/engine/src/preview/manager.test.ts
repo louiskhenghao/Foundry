@@ -124,6 +124,37 @@ describe('PreviewManager', () => {
     expect(engine.preview.status(g.id).running).toBe(false);
   }, 60_000);
 
+  test("an app keeps the port it usually runs on; when that port is taken, the address its siblings' env files name moves with it", async () => {
+    const serve = `bun -e "Bun.serve({ port: Number(process.env.PORT), fetch: () => new Response(process.env.API_URL ?? 'none') })"`;
+    writeFileSync(join(ws, 'package.json'), JSON.stringify({ workspaces: ['apps/*'] }));
+    mkdirSync(join(ws, 'node_modules'));
+    for (const dir of ['web', 'api']) {
+      mkdirSync(join(ws, 'apps', dir), { recursive: true });
+      writeFileSync(join(ws, 'apps', dir, 'package.json'), JSON.stringify({ name: dir, scripts: { start: serve } }));
+    }
+    writeFileSync(join(ws, 'apps', 'api', '.env'), 'PORT=47131\n');
+    writeFileSync(join(ws, 'apps', 'web', '.env'), 'API_URL=http://localhost:47131/v1\n');
+    const g = goal();
+    // the usual port is free: the API keeps it and the web app's env file needs nothing
+    let [web, api] = (await engine.preview.start(g, 'human')).apps;
+    expect(api!.port).toBe(47131);
+    expect(web!.rewrites).toEqual([]);
+    expect(await fetch(web!.url!).then((r) => r.text())).toBe('http://localhost:47131/v1');
+    await engine.preview.stop(g.id, 'test');
+    // something else holds it: the API runs on a port from the range and the web app is pointed there
+    const other = Bun.serve({ port: 47131, fetch: () => new Response('someone else') });
+    try {
+      [web, api] = (await engine.preview.start(g, 'human')).apps;
+      expect(api!.port).not.toBe(47131);
+      expect(api).toMatchObject({ nativePort: 47131 });
+      expect(web!.rewrites).toEqual([{ key: 'API_URL', from: 47131, to: api!.port! }]);
+      expect(await fetch(web!.url!).then((r) => r.text())).toBe(`http://localhost:${api!.port}/v1`);
+    } finally {
+      other.stop(true);
+      await engine.preview.stop(g.id, 'test');
+    }
+  }, 60_000);
+
   test('starts the detected dev script on a free port from the range, answers, and stops', async () => {
     writeFileSync(join(ws, 'package.json'), JSON.stringify({ scripts: { start: `bun -e "Bun.serve({ port: Number(process.env.PORT), fetch: () => new Response('hi from preview') })"` } }));
     const g = goal();

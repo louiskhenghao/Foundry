@@ -152,6 +152,8 @@ Overview 标签上 **Workspace & preview** 卡片的顶部写着 worker 提交�
 
 **Start all** 启动所有还没运行的应用；**Stop all** 把它们全部停掉。每个应用有自己的端口，并会在环境变量里拿到其它应用的地址，名字是 `FOUNDRY_APP_<KEY>_URL`，例如 `FOUNDRY_APP_API_URL`，这样网站就能找到 API。
 
+只要端口空着，应用就沿用你自己运行它时用的端口，这样你 `.env` 文件里写的地址仍然能连上它。Foundry 从这些地方读出这个端口：启动脚本（`next dev -p 3001`）、应用 `.env` 文件里的 `PORT`、服务器代码里的默认值（`process.env.PORT ?? 4000`），或者框架的默认端口（Next 3000、Vite 5173）。如果这个端口被占用了（比如你自己的 dev server 正在用），应用改用 **Settings → Preview** 里的端口，所有指向 `localhost:<原端口>` 的变量都会在应用的环境变量里改成指向新端口；你的文件不会被修改。应用那一行会说明：**Usually on port 3000, which was taken; runs on 4200**，以及 **Pointed at the ports the apps got** 加上变量名。在 Docker 里，应用总是用这个范围里的端口（只有这个范围对外发布），变量也会指向那里。
+
 ### Services
 
 如果仓库里有 Docker Compose 文件，里面有应用需要的服务（比如 Postgres 这样的数据库、MinIO 这样的文件存储），卡片会显示 **Services** 部分，列出每个服务、它的端口和状态。启动预览时会先启动这些服务。**Start services** 和 **Stop services** 作用于全部服务；每个服务也有自己的 **Start** 或 **Stop**。

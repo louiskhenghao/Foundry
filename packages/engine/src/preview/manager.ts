@@ -12,6 +12,7 @@ import { detectApps, detectRun, forPackageManager, packageManager, previewBindHo
 import { checkoutEnv, exampleKeys, fileKeys, keyUsage, PreviewEnvStore, redactor } from './env.ts';
 import { envHint } from './env-hints.ts';
 import { listeningPorts } from './listeners.ts';
+import { envFiles, nativePort, rewriteLocalPorts } from './ports.ts';
 import { ServicesManager } from './services.ts';
 
 export type PreviewStarter = 'human' | 'milestone' | 'integration';
@@ -46,6 +47,10 @@ export interface PreviewAppStatus {
   discovered: { port: number; url: string; name: string; dir: string | null }[];
   /** why Foundry stopped it last time, when not a person: idle, the goal ended, shutdown */
   stopped: string | null;
+  /** the port it listens on when run by hand, when Foundry could tell; it keeps it when that port is free */
+  nativePort: number | null;
+  /** variables whose address of another app (or this one) was moved to the port that app got: names only, never values */
+  rewrites: { key: string; from: number; to: number }[];
 }
 
 /**
@@ -133,6 +138,8 @@ interface Live {
   probes: Map<number, true | number>;
   discovery: ReturnType<typeof setInterval> | null;
   discovering: boolean;
+  nativePort: number | null;
+  rewrites: PreviewAppStatus['rewrites'];
 }
 
 const LOG_LINES = 200;
@@ -249,6 +256,8 @@ export class PreviewManager {
       warning: l?.warning ?? null,
       discovered: l?.discovered ?? [],
       stopped: l ? null : (this.lastStop.get(id(goalId, key)) ?? null),
+      nativePort: l?.nativePort ?? null,
+      rewrites: l?.rewrites ?? [],
     };
   }
 
@@ -260,7 +269,9 @@ export class PreviewManager {
 
   /**
    * Start one app (`appKey`) or every app that is not running yet, after bringing up the Docker services they need.
-   * Every app gets the others' addresses as FOUNDRY_APP_<KEY>_URL, so ports are given out before any app starts.
+   * Every app gets the others' addresses as FOUNDRY_APP_<KEY>_URL, so ports are given out before any app starts. An
+   * app keeps the port it uses when run by hand while that port is free, so the addresses its siblings' env files
+   * name still reach it; when it gets another one, those addresses are rewritten to it in each app's environment.
    */
   async start(goal: Goal, by: PreviewStarter, appKey?: string): Promise<PreviewStatus> {
     const resolved = this.resolveApps(goal);
@@ -275,8 +286,21 @@ export class PreviewManager {
       this.engine.config.log(`[preview] ${goal.id}: services: ${String((err as Error).message ?? err)}`);
       return null;
     });
+    const natives = new Map(resolved.apps.map((a) => [a.key, nativePort(ws, a)] as const));
     const ports = new Map<string, number>();
-    for (const a of targets) ports.set(a.key, await this.freePort([...ports.values()]));
+    for (const a of targets) {
+      const native = natives.get(a.key);
+      // in Docker only Settings → Preview's range is published to the host, so the usual port could not be opened
+      const keep = native != null && !previewBindHost() && (await this.portAvailable(native, [...ports.values()]));
+      ports.set(a.key, keep ? native : await this.freePort([...ports.values()]));
+    }
+    // usual port → the port the app runs on, for every app of the goal that runs elsewhere
+    const moved = new Map<number, number>();
+    for (const a of resolved.apps) {
+      const native = natives.get(a.key);
+      const port = this.live.get(id(goal.id, a.key))?.port ?? ports.get(a.key);
+      if (native != null && port != null && port !== native) moved.set(native, port);
+    }
     const urls: Record<string, string> = {};
     for (const a of resolved.apps) {
       const live = this.live.get(id(goal.id, a.key));
@@ -285,7 +309,13 @@ export class PreviewManager {
     }
     const note = services?.error ? `[services] ${services.error}` : services && services.docker !== 'available' ? `[services] ${services.docker === 'in-container' ? 'Foundry runs in Docker without access to Docker' : 'docker is not installed'}; start them yourself: ${services.command}` : null;
     const installed = await this.installDependencies(goal, ws, targets);
-    await Promise.all(targets.map((a) => this.startApp(goal, a, ws, ports.get(a.key)!, urls, by, [...(note ? [note] : []), ...installed.lines], installed.failed)));
+    const entered = this.env.get(goal.repoPath).vars;
+    await Promise.all(
+      targets.map((a) => {
+        const rewired = rewriteLocalPorts({ ...envFiles(ws, a.dir), ...entered }, moved);
+        return this.startApp(goal, a, ws, ports.get(a.key)!, urls, by, [...(note ? [note] : []), ...installed.lines], installed.failed, { native: natives.get(a.key) ?? null, ...rewired });
+      }),
+    );
     return this.status(goal.id);
   }
 
@@ -379,13 +409,13 @@ export class PreviewManager {
     return { added, view: this.envView(goal) };
   }
 
-  private async startApp(goal: Goal, app: BriefApp, ws: string, port: number, urls: Record<string, string>, by: PreviewStarter, preface: string[], warning: string | null): Promise<void> {
+  private async startApp(goal: Goal, app: BriefApp, ws: string, port: number, urls: Record<string, string>, by: PreviewStarter, preface: string[], warning: string | null, wiring: { native: number | null; vars: Record<string, string>; changes: Live['rewrites'] }): Promise<void> {
     const { store, config } = this.engine;
     const key = id(goal.id, app.key);
     const command = forPackageManager(app.command!).replaceAll('{port}', String(port));
     const url = urls[appUrlVar(app.key)]!;
     const now = new Date().toISOString();
-    const entry: Live = { goalId: goal.id, key: app.key, proc: null as unknown as Live['proc'], port, url, command, startedAt: now, startedBy: by, lastVisitAt: now, ready: false, log: [], stopping: false, stopReason: null, warning, discovered: [], reserved: [], probes: new Map(), discovery: null, discovering: false };
+    const entry: Live = { goalId: goal.id, key: app.key, proc: null as unknown as Live['proc'], port, url, command, startedAt: now, startedBy: by, lastVisitAt: now, ready: false, log: [], stopping: false, stopReason: null, warning, discovered: [], reserved: [], probes: new Map(), discovery: null, discovering: false, nativePort: wiring.native, rewrites: wiring.changes };
     const channel = `preview-${goal.id}-${app.key}`;
     const env = this.processEnv(goal);
     const redact = this.redactorFor(goal);
@@ -396,11 +426,13 @@ export class PreviewManager {
       this.engine.broadcast({ goalId: goal.id, taskId: null, attemptId: channel, event: { kind: 'text', text: line }, ts: new Date().toISOString() });
     };
     for (const line of preface) push(line);
+    if (wiring.native != null && wiring.native !== port) push(`[preview] ${app.name} usually runs on port ${wiring.native}; here it runs on ${port}`);
+    for (const c of wiring.changes) push(`[preview] ${c.key}: localhost:${c.from} → localhost:${c.to}`);
     push(`$ ${command}  (port ${port}${app.dir ? `, in ${app.dir}` : ''})`);
     // in Docker, servers that read HOST (or HOSTNAME, Next's standalone server) listen on every interface too
     const host = previewBindHost();
     const bind = host ? { HOST: host, HOSTNAME: host } : {};
-    entry.proc = Bun.spawn(['sh', '-lc', command], { cwd: app.dir ? join(ws, app.dir) : ws, stdout: 'pipe', stderr: 'pipe', env: { ...env, ...urls, PORT: String(port), ...bind, BROWSER: 'none', FORCE_COLOR: '0', NO_COLOR: '1' }, detached: true });
+    entry.proc = Bun.spawn(['sh', '-lc', command], { cwd: app.dir ? join(ws, app.dir) : ws, stdout: 'pipe', stderr: 'pipe', env: { ...env, ...wiring.vars, ...urls, PORT: String(port), ...bind, BROWSER: 'none', FORCE_COLOR: '0', NO_COLOR: '1' }, detached: true });
     this.live.set(key, entry);
     this.lastError.delete(key);
     this.lastStop.delete(key);
@@ -633,10 +665,19 @@ export class PreviewManager {
     }
   }
 
+  /** ports a running preview or its other servers took (a demo script's admin on PORT+1), never handed out again */
+  private taken(reserved: number[]): Set<number> {
+    return new Set([...[...this.live.values()].flatMap((l) => [l.port, ...l.reserved]), ...reserved]);
+  }
+
+  /** an app's usual port: free, held by no preview, and nothing (the person's own dev server on ::) answers there */
+  private async portAvailable(port: number, reserved: number[]): Promise<boolean> {
+    return !this.taken(reserved).has(port) && (await portFree(port)) && !(await answersLocal(port));
+  }
+
   private async freePort(reserved: number[] = []): Promise<number> {
     const { portFrom, portTo } = this.engine.config.preview;
-    // ports a running preview's other servers took (a demo script's admin on PORT+1) are not handed out again
-    const taken = new Set([...[...this.live.values()].flatMap((l) => [l.port, ...l.reserved]), ...reserved]);
+    const taken = this.taken(reserved);
     for (let p = Math.min(portFrom, portTo); p <= Math.max(portFrom, portTo); p++) {
       if (taken.has(p)) continue;
       if (await portFree(p)) return p;

@@ -88,7 +88,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
-| `preview.portFrom` | `4200` | `FOUNDRY_PREVIEW_PORT_FROM` | First port handed to goal previews. |
+| `preview.portFrom` | `4200` | `FOUNDRY_PREVIEW_PORT_FROM` | First port handed to goal previews; an app keeps its usual port (3000 for Next) while that is free. |
 | `preview.portTo` | `4299` | `FOUNDRY_PREVIEW_PORT_TO` | Last port handed to goal previews (Docker: publish the range). |
 | `preview.idleMinutes` | `60` | `FOUNDRY_PREVIEW_IDLE_MIN` | A preview nobody opened for this long is stopped (never while a goal waits for your look). |
 | `checks.selfCheck` | `false` | `FOUNDRY_SELF_CHECK` | New goals open their preview in headless Chromium after each task, screenshot it and fail on console or network errors. |

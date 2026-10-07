@@ -28,6 +28,10 @@ export interface PreviewAppStatus {
   discovered: { port: number; url: string; name: string; dir: string | null }[];
   /** why Foundry stopped it last time, when not a person */
   stopped: string | null;
+  /** the port it listens on when run by hand, when Foundry could tell */
+  nativePort: number | null;
+  /** variables pointing at an app's usual port, moved to the port it got (names only) */
+  rewrites: { key: string; from: number; to: number }[];
 }
 
 /** Mirrors the engine's PreviewStatus (preview/manager.ts). The top-level fields describe the primary app (apps[0]). */
