@@ -348,6 +348,7 @@ class DemoRunner implements ClaudeRunner {
     let structuredOutput: unknown = null;
     if (label.startsWith('classify nature')) structuredOutput = { nature: 'code' };
     else if (label.startsWith('planner ')) structuredOutput = { tasks: landingBrief.tasks };
+    else if (label.startsWith('milestone walkthrough')) structuredOutput = { steps: [{ action: 'shot', target: '', role: null, value: '', caption: 'The hero, as a visitor first sees it' }, { action: 'press', target: '', role: null, value: 'End', caption: '' }, { action: 'shot', target: '', role: null, value: '', caption: 'The value cards further down' }], summary: 'Opens the site and scrolls from the hero to the value cards.' };
     // a goal with an interview answers in the interview shape; one without gets the bare Brief
     else if (label.startsWith('clarify')) structuredOutput = spec.prompt.includes('dark mode') ? interviewRound : spec.prompt.includes('# Interview before the Brief') ? { questions: [], brief: landingBrief } : landingBrief;
     const title = label.startsWith('attempt') ? label.slice('attempt '.length).replace(/ #\d+.*$/, '') : '';
