@@ -606,6 +606,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       brief: getBrief(db, id),
       escalations: listEscalations(db, { goalId: id }).map(e => ({ ...e, provider: goal.provider ?? engine.config.provider })),
       events: engine.store.listByGoal(id, 300),
+      // every milestone visit and walkthrough, which a long goal pushes out of the latest events
+      milestoneEvents: engine.store.listByGoalOfTypes(id, ['goal.checkpoint_opened', 'goal.checkpoint_closed', 'goal.milestone_passed', 'milestone.evidence']),
       // Follows / Followed by: the earlier goal may have been deleted since (then only its title remains)
       followUps: {
         followsExists: goal.follows ? !!getGoal(db, goal.follows.goalId) : false,

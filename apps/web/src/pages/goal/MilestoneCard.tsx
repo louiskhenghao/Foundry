@@ -147,7 +147,7 @@ export function MilestoneCard({ d }: { d: GoalDetail }) {
 
 /** what Foundry recorded in the preview for this milestone, so the person can look without starting anything */
 function Walkthrough({ d, taskId, since }: { d: GoalDetail; taskId: string; since: string }) {
-  const ev = d.events.filter((e) => e.type === 'milestone.evidence' && (e.payload as Evidence).taskId === taskId).at(-1);
+  const ev = d.milestoneEvents.filter((e) => e.type === 'milestone.evidence' && (e.payload as Evidence).taskId === taskId).at(-1);
   if (!ev || ev.ts < since) return <div className="text-[11px] text-zinc-500 flex items-center gap-1.5"><Play size={11} /> Recording a walkthrough of the preview…</div>;
   return <EvidenceView goalId={d.goal.id} evidence={ev.payload as Evidence} />;
 }

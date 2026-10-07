@@ -327,6 +327,8 @@ export interface GoalDetail {
   brief: { brief: Brief; approved: boolean } | null;
   escalations: EscalationRow[];
   events: (EngineEvent & { seq: number })[];
+  /** every milestone visit and walkthrough of the goal, oldest first, however far back */
+  milestoneEvents: (EngineEvent & { seq: number })[];
   /** Follows / Followed by (goal.follows holds the earlier goal; it may have been deleted since) */
   followUps: { followsExists: boolean; followedBy: { id: string; title: string; state: GoalState }[] };
 }

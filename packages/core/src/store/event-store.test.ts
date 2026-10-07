@@ -119,3 +119,18 @@ describe('EventStore', () => {
     expect(seen).toEqual(['engine.note']);
   });
 });
+
+describe('listByGoalOfTypes', () => {
+  test('finds a goal\'s events of the given types however many came after them', () => {
+    const store = new EventStore(openDatabase(':memory:'));
+    const g = goal('g_types');
+    store.append({ type: 'goal.created', goalId: g.id, payload: { goal: g } });
+    store.append({ type: 'task.created', goalId: g.id, payload: { task: task('t_1', g.id) } });
+    store.append({ type: 'goal.milestone_passed', goalId: g.id, payload: { taskId: 't_1', lookFor: 'the page' } });
+    for (let i = 0; i < 400; i++) store.append({ type: 'clarify.stage', goalId: g.id, payload: { stage: 'planning' } });
+    expect(store.listByGoal(g.id, 300).some((e) => e.type === 'goal.milestone_passed')).toBe(false);
+    expect(store.listByGoalOfTypes(g.id, ['goal.milestone_passed', 'goal.checkpoint_opened']).map((e) => e.type)).toEqual(['goal.milestone_passed']);
+    expect(store.listByGoalOfTypes('g_other', ['goal.milestone_passed'])).toEqual([]);
+    expect(store.listByGoalOfTypes(g.id, [])).toEqual([]);
+  });
+});

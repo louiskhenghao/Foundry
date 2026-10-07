@@ -49,7 +49,7 @@ export function MilestonesCard({ d }: { d: GoalDetail }) {
   const [open, setOpen] = useState<string | null>(null);
   const visits = new Map<string, Visit[]>();
   const evidence = new Map<string, Evidence>();
-  for (const e of d.events) {
+  for (const e of d.milestoneEvents) {
     const p = e.payload as { taskId?: string; recheck?: boolean; action?: 'continue' | 'feedback'; feedback?: string | null };
     if (!p.taskId) continue;
     const list = visits.get(p.taskId) ?? [];
