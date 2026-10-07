@@ -232,9 +232,11 @@ Everything that happened to the goal, newest first, one line each: stages, tasks
 
 ## Diff
 
-Every file the goal changed compared with where it started, with lines added (green, +) and removed (red, −). Click a file to open or close it; **expand all** opens them all. This is exactly what would go into a pull request.
+Every file the goal changed compared with where it started, with how many lines it added and removed. This is exactly what would go into a pull request.
 
-![The Diff tab: every file the goal changed, with added lines in green and removed lines in red](images/goal-diff.png)
+Click a file to open its changes in a window: the code coloured by language, added lines green (+) and removed ones red (−), with their line numbers in the old and the new file. **Whole file** shows the file as it is now with the goal's lines tinted (while the goal's folder exists). The arrows at the top, or ← and →, move to the previous or next file.
+
+![The Diff tab: every file the goal changed, with the lines it added and removed](images/goal-diff.png)
 
 ## Cancelling, restarting, deleting
 

@@ -245,7 +245,7 @@ export function GoalPage() {
         </div>
       )}
       {tab === 'activity' && <ActivityTab d={d} />}
-      {tab === 'diff' && <DiffTab goalId={id} baseBranch={g.baseBranch} branch={g.branch} />}
+      {tab === 'diff' && <DiffTab goalId={id} baseBranch={g.baseBranch} branch={g.branch} workspace={d.paths.workspace} />}
       {tab === 'delivery' && <DeliveryTab d={d} />}
         </>
       )}
