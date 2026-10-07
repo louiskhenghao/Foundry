@@ -100,6 +100,8 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
           <MarkdownPanel title="goal" source={g.prompt} maxHeight={240} actions={<OpenFull value={{ title: g.title, text: g.prompt }} />} />
+          {/* the verdict on the goal, next to the goal itself */}
+          {review && <GoalReview review={review} />}
           {/* right under the goal, as on the New goal form: the description and what came with it */}
           <Card title={`Attachments${g.attachments.length ? ` (${g.attachments.length})` : ''}`}>
             <AttachmentInput items={g.attachments} goalId={g.id} onChange={() => {}} />
@@ -139,11 +141,6 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
           )}
           <ProjectSkillsCard d={d} />
           <CompletionCard d={d} />
-          {review && (
-            <Card title={`Goal review — ${review.passed ? (review.overDelivered ? 'over-delivered' : 'passed') : 'failed'}`}>
-              {review.notes ? <MarkdownPanel title="reviewer notes" source={review.notes} maxHeight={240} /> : <div className="text-xs text-zinc-500">no notes</div>}
-            </Card>
-          )}
         </div>
         <div className="space-y-4">
           <Card title="Acceptance">
@@ -286,5 +283,22 @@ function BriefStrip({ d }: { d: GoalDetail }) {
       ))}
       <span className="ml-auto text-zinc-400 group-hover:text-zinc-100">Open Brief →</span>
     </Link>
+  );
+}
+
+/** the goal review's verdict in one line; the reviewer's notes fold out */
+function GoalReview({ review }: { review: { passed: boolean; overDelivered: boolean; notes: string } }) {
+  const [open, setOpen] = useState(false);
+  const verdict = review.passed ? (review.overDelivered ? 'over-delivered' : 'passed') : 'failed';
+  return (
+    <div className={cn('rounded-lg border px-3 py-2 text-xs', review.passed ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-rose-500/30 bg-rose-500/5')}>
+      <button type="button" className="w-full flex items-center gap-2 text-left" disabled={!review.notes} onClick={() => setOpen((o) => !o)} aria-expanded={review.notes ? open : undefined}>
+        <span className="text-zinc-200 font-medium">Goal review</span>
+        <span className={review.passed ? 'text-emerald-300' : 'text-rose-300'}>{verdict}</span>
+        {review.notes && <span className="min-w-0 flex-1 truncate text-zinc-500">{open ? '' : review.notes.split('\n')[0]}</span>}
+        {review.notes && <span className="ml-auto shrink-0 text-[11px] text-zinc-500">{open ? 'hide notes' : 'reviewer notes'}</span>}
+      </button>
+      {open && <div className="mt-2"><MarkdownPanel title="reviewer notes" source={review.notes} maxHeight={240} /></div>}
+    </div>
   );
 }

@@ -62,12 +62,12 @@ goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它
 - **Brief**：时间线下方的一行，比如 **Brief APPROVED · 36 tasks · 11/11 assumptions accepted · 9/12 questions answered · est. $380 / 1500 min**。点它打开 Brief 页面，Understanding 和 Clarifier 写的其它内容都在那里。
 - **What needs you**：和 Inbox 里一样的卡片，带按钮。
 - **goal**：你最初的描述。面板角上的 **Open full**（两个斜向箭头的图标）会在更大的窗口里显示它。
+- **Goal review**：最终审查运行后，紧跟在 goal 下面：一行显示结论（**passed**、**over-delivered** 或 **failed**）和审查员意见的开头；点 **reviewer notes** 展开全文。
 - **Attachments**：紧跟在 goal 下面，和 New goal 表单上一样。随时可以再加；新的会话会收到。
 - **Workspace & preview**：goal 的工作成果在哪里，以及启动它来试用。见 [进度文件夹](#进度文件夹) 和 [Preview](#preview)。
 - **Model fallback**：只在某个模型不可用、Foundry 换了另一个模型时出现。
 - **Project skills**：Foundry 为你项目的技术栈添加的 skill，按 Frontend、Backend、Database、Testing、Tooling 分组，并显示数量。它们不会进入你的提交。
 - **Completion**：文档、知识图谱刷新和媒体文件各占一行，写着结果。见 [完成后的附加项](./getting-the-result.zh.md#完成后的附加项)。
-- **Goal review**：最终审查员的结论和意见（运行过之后才有）。
 - **Acceptance**（右侧）：每个 **must** 和 **stretch** 检查及其最新结果，比如 **3/4 passing**。点一个检查可以看它的输出。下面是 **Self-check** 开关和它最近一次的结果（见 [Self-check](#self-check)）。
 
 ## Tasks

@@ -62,12 +62,12 @@ From top to bottom:
 - **Brief**: one line under the timeline, for example **Brief APPROVED · 36 tasks · 11/11 assumptions accepted · 9/12 questions answered · est. $380 / 1500 min**. Click it to open the Brief, where the Understanding and everything else the Clarifier wrote are.
 - **What needs you**: the same cards as in the Inbox, with their buttons.
 - **goal**: your original description. **Open full**, the icon with two diagonal arrows in its corner, reads it in a larger window.
+- **Goal review**: right under the goal once the final review ran: one line with the verdict (**passed**, **over-delivered** or **failed**) and the start of the reviewer's notes; **reviewer notes** unfolds them.
 - **Attachments**: right under the goal, as on the New goal form. You can add more at any time; new sessions receive them.
 - **Workspace & preview**: where the goal's work is, and starting it to try it. See [The progress folder](#the-progress-folder) and [Preview](#preview).
 - **Model fallback**: only if a model was unavailable and Foundry switched to another one.
 - **Project skills**: skills Foundry added for your project's technology, grouped as Frontend, Backend, Database, Testing and Tooling, with how many there are. They never reach your commits.
 - **Completion**: one row each for the documents, the graph refresh and media files, with how it went. See [Completion extras](./getting-the-result.md#completion-extras).
-- **Goal review**: the final reviewer's verdict and notes, once it ran.
 - **Acceptance** (on the right): every **must** and **stretch** check with its latest result, for example **3/4 passing**. Click a check to see its output. Below them, the **Self-check** switch and its latest result (see [Self-check](#self-check)).
 
 ## Tasks
