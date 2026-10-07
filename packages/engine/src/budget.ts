@@ -16,7 +16,13 @@ const TERMINAL = new Set(['done', 'over_delivered', 'failed', 'cancelled']);
 
 export function budgetStatus(goal: Goal, now = Date.now()): BudgetStatus {
   const end = TERMINAL.has(goal.state) ? Date.parse(goal.updatedAt) : now;
-  const elapsedMin = goal.runningSince ? Math.max(0, end - Date.parse(goal.runningSince)) / 60_000 : 0;
+  // the time Foundry worked (waits for the person left out); a goal from before that was counted runs from its start
+  const elapsedMin =
+    goal.activeMs !== undefined
+      ? (goal.activeMs + (goal.activeSince ? Math.max(0, now - Date.parse(goal.activeSince)) : 0)) / 60_000
+      : goal.runningSince
+        ? Math.max(0, end - Date.parse(goal.runningSince)) / 60_000
+        : 0;
   const { maxCostUsd, maxDurationMin } = goal.budgets;
   const remainingUsd = maxCostUsd == null ? null : Math.max(0, maxCostUsd - goal.costUsd);
   const exceeded = maxCostUsd != null && goal.costUsd >= maxCostUsd ? 'cost' : maxDurationMin != null && elapsedMin >= maxDurationMin ? 'time' : null;

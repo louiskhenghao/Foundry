@@ -102,7 +102,7 @@ Authorising one Coding agent on the machine running Foundry. Each coding agent u
 The line between the local workspace and the outside world. Crossing it is always an Escalation.
 
 **Budget**
-The limits a Goal runs within: elapsed time, concurrent sessions, Attempts per Task and, where the coding agent reports it, estimated dollar cost. Exceeding one is an Escalation, not a failure. Cost and time limits may be *unlimited*. Codex has no enforceable dollar budget.
+The limits a Goal runs within: working time (Clarify, the run and the review, without the waits for the human), concurrent sessions, Attempts per Task and, where the coding agent reports it, estimated dollar cost. Exceeding one is an Escalation, not a failure. Cost and time limits may be *unlimited*. Codex has no enforceable dollar budget.
 
 **Budget Preset**
 How a Goal's Budget was chosen: *Auto* (no cap while clarifying; the Brief's estimate proposes the budget and the user confirms or edits it when approving), *Quick*, *Thorough*, *Unlimited*, or *Custom*. Auto proposes limits at approval. Claude can estimate USD cost; Codex proposes non-dollar limits because its inference cost is unreported.

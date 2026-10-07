@@ -1357,6 +1357,8 @@ export class Engine {
       completion: { ...IDLE_COMPLETION },
       follows: followUp?.follows ?? null,
       runningSince: null,
+      activeMs: 0,
+      activeSince: null,
       createdAt: now,
       updatedAt: now,
     };

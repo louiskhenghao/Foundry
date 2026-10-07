@@ -80,7 +80,7 @@ export function SimpleOverview({ d, onDeliver }: { d: GoalDetail; onDeliver: () 
 
       <Card title="Cost">
         <div className="text-sm text-zinc-300">
-          {g.provider === 'codex' ? 'Codex · dollar cost unavailable' : <>Spent <span className="mono text-zinc-100">{fmtUsd(g.costUsd)}</span> of {fmtLimitUsd(g.budgets.maxCostUsd)}</>} · running for {d.budget.elapsedMin.toFixed(0)} min.
+          {g.provider === 'codex' ? 'Codex · dollar cost unavailable' : <>Spent <span className="mono text-zinc-100">{fmtUsd(g.costUsd)}</span> of {fmtLimitUsd(g.budgets.maxCostUsd)}</>} · worked {d.budget.elapsedMin.toFixed(0)} min (waiting for you not counted).
         </div>
       </Card>
 

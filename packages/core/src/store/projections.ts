@@ -8,6 +8,26 @@ import type { ObservationReport } from '../schema/observation.ts';
  * Called inside the same transaction as the event append, and during replay.
  */
 export function applyEvent(db: Database, e: EngineEvent): void {
+  project(db, e);
+  if (e.goalId) clockGoal(db, e.goalId, e.ts);
+}
+
+/** Foundry is working on the goal, rather than waiting for the person or finished */
+export function goalWorking(g: Pick<Goal, 'state' | 'interview'>): boolean {
+  if (g.state === 'clarifying') return g.interview?.status !== 'awaiting_answers';
+  return g.state === 'running' || g.state === 'goal_review';
+}
+
+/** start or stop the goal's working clock when an event moved it between working and waiting */
+function clockGoal(db: Database, goalId: string, ts: string): void {
+  const g = getGoal(db, goalId);
+  if (!g || g.activeMs === undefined) return;
+  const working = goalWorking(g);
+  if (working && !g.activeSince) upsertGoal(db, { ...g, activeSince: ts });
+  else if (!working && g.activeSince) upsertGoal(db, { ...g, activeSince: null, activeMs: g.activeMs + Math.max(0, Date.parse(ts) - Date.parse(g.activeSince)) });
+}
+
+function project(db: Database, e: EngineEvent): void {
   switch (e.type) {
     case 'goal.provider_assigned': {
       const g = getGoal(db, e.goalId!);

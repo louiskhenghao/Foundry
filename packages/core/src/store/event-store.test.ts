@@ -134,3 +134,33 @@ describe('listByGoalOfTypes', () => {
     expect(store.listByGoalOfTypes(g.id, [])).toEqual([]);
   });
 });
+
+describe('working time', () => {
+  test('counts Clarify and the run, not the waits for the person', async () => {
+    const { applyEvent } = await import('./projections.ts');
+    const db = openDatabase(':memory:');
+    const g = { ...goal('g_clock'), interview: { mode: 'always' as const, depth: 2, status: 'thinking' as const, sessionId: null, rounds: [] }, activeMs: 0, activeSince: null };
+    let n = 0;
+    // minute m after the start
+    const at = (m: number, type: string, payload: unknown) => applyEvent(db, { id: `e${n++}`, ts: new Date(Date.UTC(2026, 0, 1, 0, m)).toISOString(), goalId: g.id, type, payload } as never);
+    const state = (m: number, from: string, to: string) => at(m, 'goal.state_changed', { from, to, reason: 't' });
+    at(0, 'goal.created', { goal: g });
+    state(0, 'draft', 'clarifying'); // works 0–2
+    at(2, 'interview.round_asked', { round: 1, sessionId: null, questions: [] }); // the person answers 2–10
+    at(10, 'interview.round_answered', { round: 1, answers: {}, finish: true }); // works 10–13
+    state(13, 'clarifying', 'awaiting_brief_approval'); // the person reads the Brief 13–40
+    state(40, 'awaiting_brief_approval', 'running'); // works 40–50
+    state(50, 'running', 'awaiting_feedback'); // a milestone pause 50–70
+    state(70, 'awaiting_feedback', 'running'); // works 70–75
+    state(75, 'running', 'blocked'); // an Inbox question 75–90
+    state(90, 'blocked', 'running'); // works 90–95
+    state(95, 'running', 'done');
+    const done = getGoal(db, g.id)!;
+    expect(done.activeMs).toBe((2 + 3 + 10 + 5 + 5) * 60_000);
+    expect(done.activeSince).toBeNull();
+    const { budgetStatus } = await import('../../../engine/src/budget.ts');
+    expect(budgetStatus(done).elapsedMin).toBe(25);
+    // a goal from before the clock keeps its time from the start of the run
+    expect(budgetStatus({ ...done, activeMs: undefined, activeSince: undefined, runningSince: new Date(Date.UTC(2026, 0, 1, 0, 40)).toISOString(), updatedAt: new Date(Date.UTC(2026, 0, 1, 0, 95)).toISOString() }).elapsedMin).toBe(55);
+  });
+});
