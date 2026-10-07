@@ -5,8 +5,9 @@ import { api } from '../../api.ts';
 import { Button, Card, Input, cn } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { HelpLink } from '../HelpPage.tsx';
+import { ClarifyProgress } from './ClarifyProgress.tsx';
 
-const MAX_ROUNDS = 4;
+
 
 /**
  * The Clarify interview: one round per screen. Each question offers the Clarifier's options (its recommendation first)
@@ -56,7 +57,7 @@ export function InterviewPanel({ goal }: { goal: Goal }) {
       <div className="space-y-3 text-xs text-zinc-400">
         {open ? (
           <>
-            <p className="text-zinc-400">Only decisions the repository could not settle are asked. The first option is the Clarifier's recommendation; the reason says what it found. After your answers it writes the Brief — or asks one more round only if they open new decisions (at most {MAX_ROUNDS} rounds in all).</p>
+            <p className="text-zinc-400">Only decisions the repository could not settle are asked. The first option is the Clarifier's recommendation; the reason says what it found. After your answers it writes the Brief — or asks one more round only if they open new decisions, as deep as the goal's interview depth asks.</p>
             <ol className="space-y-3">
               {open.questions.map((q, i) => (
                 <li key={q.key} className="rounded border border-zinc-800 bg-zinc-900/50 p-3 space-y-2">
@@ -104,11 +105,7 @@ export function InterviewPanel({ goal }: { goal: Goal }) {
           </>
         ) : (
           <>
-            {iv.status !== 'done' && (
-              <p className="text-zinc-400">
-                {iv.rounds.length ? <Elapsed since={iv.rounds.at(-1)!.answeredAt} label="Planning with your answers" /> : 'Exploring the repository and the attachments before asking anything'} — the planner sub-agent usually takes 2–8 minutes; the log below keeps moving while it does.
-              </p>
-            )}
+            {iv.status !== 'done' && <ClarifyProgress goal={goal} writingBrief={!!iv.rounds.at(-1)?.finish || goal.clarifyStage?.stage === 'planning'} />}
             {iv.status !== 'done' && <LiveLog attemptId={`clarify-${goal.id}`} />}
           </>
         )}
@@ -150,20 +147,4 @@ function questionRef(rounds: { round: number; questions: { key: string; text: st
     return `round ${r.round}, question ${i + 1} ("${text.length > 60 ? `${text.slice(0, 60)}…` : text}")`;
   }
   return 'an earlier answer';
-}
-
-/** "Planning with your answers · 3m 20s", ticking */
-function Elapsed({ since, label }: { since: string | null; label: string }) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  if (!since) return <>{label}</>;
-  const s = Math.max(0, Math.round((now - Date.parse(since)) / 1000));
-  return (
-    <>
-      {label} · {s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`}
-    </>
-  );
 }

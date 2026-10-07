@@ -1,5 +1,7 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
 
 export const cn = (...xs: (string | false | null | undefined)[]) => xs.filter(Boolean).join(' ');
 
@@ -13,27 +15,82 @@ export function Select({ className, children, ...props }: SelectHTMLAttributes<H
 
 /**
  * Dropdown shell: `trigger` renders the button, `children` the panel (a function receives `close`).
- * Closes on outside click and Escape. Panels are right-aligned by default.
+ * Closes on outside click and Escape. Panels are right-aligned by default, then kept inside the window: shifted
+ * sideways when the aligned edge would push them off screen, opened upwards when there is no room below. They render
+ * on <body>, so a panel or card that clips its overflow never cuts them off; Tab still moves from the trigger into the
+ * panel and out of it back to the trigger, as if the panel sat right after it.
  */
 export function Menu({ trigger, children, width = 'w-56', align = 'right', className }: { trigger: (o: { open: boolean; toggle: () => void }) => ReactNode; children: ReactNode | ((close: () => void) => ReactNode); width?: string; align?: 'left' | 'right'; className?: string }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const place = () => {
+    const t = ref.current?.getBoundingClientRect();
+    const p = panel.current;
+    if (!t || !p) return;
+    const margin = 8;
+    const { offsetWidth: w, offsetHeight: h } = p;
+    const left = Math.max(margin, Math.min(align === 'right' ? t.right - w : t.left, window.innerWidth - w - margin));
+    const below = t.bottom + 4;
+    const above = t.top - 4 - h;
+    const fitsBelow = below + h <= window.innerHeight - margin;
+    // neither side has room: the roomier side, slid back inside the window (the panel is never taller than it)
+    const top = fitsBelow ? below : above >= margin ? above : Math.max(margin, Math.min(window.innerHeight - t.bottom > t.top ? below : above, window.innerHeight - h - margin));
+    setPos({ top, left });
+  };
+  useLayoutEffect(() => {
+    if (open) place();
+    else setPos(null);
+  }, [open]);
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false);
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    const inside = (n: EventTarget | null) => !!n && (ref.current?.contains(n as Node) || panel.current?.contains(n as Node));
+    const onDoc = (e: MouseEvent) => !inside(e.target) && setOpen(false);
+    const focusable = () => [...(panel.current?.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])') ?? [])];
+    const back = () => {
+      setOpen(false);
+      ref.current?.querySelector<HTMLElement>('button, a[href], [tabindex]')?.focus();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      const at = document.activeElement;
+      if (e.key === 'Escape') return panel.current?.contains(at) ? back() : setOpen(false);
+      if (e.key !== 'Tab') return;
+      const items = focusable();
+      if (!e.shiftKey && ref.current?.contains(at) && items.length) {
+        e.preventDefault();
+        items[0]!.focus();
+      } else if (panel.current?.contains(at) && (e.shiftKey ? at === items[0] : at === items.at(-1))) {
+        e.preventDefault();
+        back();
+      }
+    };
+    const onMove = () => place();
+    const sized = new ResizeObserver(onMove);
+    if (panel.current) sized.observe(panel.current);
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onMove);
+    window.addEventListener('scroll', onMove, true);
     return () => {
+      sized.disconnect();
       document.removeEventListener('mousedown', onDoc);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onMove);
+      window.removeEventListener('scroll', onMove, true);
     };
   }, [open]);
   const close = () => setOpen(false);
   return (
     <div ref={ref} className={cn('relative', className)}>
       {trigger({ open, toggle: () => setOpen(!open) })}
-      {open && <div className={cn('absolute mt-1 rounded-lg border border-zinc-800 bg-zinc-950 shadow-xl p-1.5 z-30 text-xs max-w-[calc(100vw-1.5rem)]', width, align === 'right' ? 'right-0' : 'left-0')}>{typeof children === 'function' ? children(close) : children}</div>}
+      {open &&
+        createPortal(
+          <div ref={panel} style={pos ?? { top: 0, left: 0, visibility: 'hidden' }} className={cn('fixed rounded-lg border border-zinc-800 bg-zinc-950 shadow-xl p-1.5 z-[65] text-xs max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-1rem)] overflow-auto', width)}>
+            {typeof children === 'function' ? children(close) : children}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -108,13 +165,19 @@ export function ButtonGroup<T extends string>({ value, onChange, options, label 
   );
 }
 
-export function Card({ children, className, bodyClassName, title, actions, id }: { children: ReactNode; className?: string; bodyClassName?: string; title?: ReactNode; actions?: ReactNode; id?: string }) {
+/** `onClose` (a card shown as a panel) puts × in the header's top-right corner, where it stays however the actions wrap. */
+export function Card({ children, className, bodyClassName, title, actions, id, onClose }: { children: ReactNode; className?: string; bodyClassName?: string; title?: ReactNode; actions?: ReactNode; id?: string; onClose?: () => void }) {
   return (
     <section id={id} className={cn('rounded-lg border border-zinc-800 bg-zinc-900/60', className)}>
-      {(title || actions) && (
-        <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2.5 border-b border-zinc-800">
+      {(title || actions || onClose) && (
+        <header className={cn('relative flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2.5 border-b border-zinc-800', onClose && 'pr-12')}>
           <h3 className="text-sm font-semibold text-zinc-200 min-w-0 grow shrink basis-56">{title}</h3>
-          {actions && <div className="flex items-center gap-2 shrink-0 ml-auto">{actions}</div>}
+          {actions && <div className="flex flex-wrap items-center gap-2 shrink-0 max-w-full ml-auto">{actions}</div>}
+          {onClose && (
+            <button type="button" className="absolute top-2 right-2 rounded p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800" onClick={onClose} aria-label="close">
+              <X size={15} />
+            </button>
+          )}
         </header>
       )}
       <div className={cn('p-4', bodyClassName)}>{children}</div>

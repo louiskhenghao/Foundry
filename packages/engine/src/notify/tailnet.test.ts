@@ -31,6 +31,24 @@ describe('Tailnet', () => {
     expect(f.calls.filter((c) => c.includes('off'))).toHaveLength(1);
   });
 
+  test('serves an earlier run left behind (a crash) are taken down at start; its own ones are recorded until removed', async () => {
+    const { mkdtempSync, readFileSync, writeFileSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = mkdtempSync(join(tmpdir(), 'foundry-tailnet-'));
+    const stateFile = join(dir, 'served.json');
+    writeFileSync(stateFile, '[4201, 4202]');
+    const f = fake();
+    const t = new Tailnet({ mode: () => 'auto', host: () => null, log: () => {}, exec: f.exec, bin: '/usr/bin/tailscale', stateFile });
+    await t.cleanUp();
+    expect(f.calls).toEqual([['serve', '--https=4201', 'off'], ['serve', '--https=4202', 'off']]);
+    await t.expose(4300);
+    expect(JSON.parse(readFileSync(stateFile, 'utf8'))).toEqual([4300]);
+    await t.unexpose(4300);
+    expect(JSON.parse(readFileSync(stateFile, 'utf8'))).toEqual([]);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   test('off, not running, or no tailscale: no tailnet links; a name from Settings without the command gives plain http', async () => {
     expect(await tailnet(fake(), 'off').expose(4200)).toBeNull();
     expect(await tailnet(fake({ running: false })).expose(4200)).toBeNull();

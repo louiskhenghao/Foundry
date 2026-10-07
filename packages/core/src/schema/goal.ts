@@ -180,6 +180,8 @@ export const Goal = z.object({
    * preview folder; `checkout` = the person's checkout as it is, whatever its branch; `foundry` = always Foundry's folder
    */
   previewPlace: PreviewPlace.default('auto'),
+  /** which Clarify session runs and since when: the Clarifier (reading the repository, writing its answer) or the planner */
+  clarifyStage: z.object({ stage: z.enum(['clarifying', 'planning']), at: z.string() }).nullable().default(null),
   /** the Clarify interview (rounds of questions before the Brief); null = the one-shot Clarify of before */
   interview: Interview.nullable().default(null),
   /** effort level for every session of this goal; null = Settings default / CLI default */

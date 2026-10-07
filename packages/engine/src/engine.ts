@@ -91,6 +91,8 @@ import { relative, resolve } from 'node:path';
 import { adoptLocalBin, AGENT_CLI_IDS, agentCliInstall, type AgentCliId } from './agent-cli.ts';
 import { type FollowUpDraft, type FollowUpInput, followUpDraft, linkFollowUp, prepareFollowUp } from './follow-up.ts';
 import { Tailnet } from './notify/tailnet.ts';
+import { SessionCosts } from './session-costs.ts';
+import { CODE_SERVER_INSTALL, CodeServer } from './editor/code-server.ts';
 
 export interface CreateGoalInput {
   provider?: 'claude' | 'codex';
@@ -190,6 +192,8 @@ export class Engine {
   readonly preview: PreviewManager;
   /** this computer on the person's tailnet: links that open on their phone */
   readonly tailnet: Tailnet;
+  /** VS Code in the browser, for reading a repository or a goal's folder from any device */
+  readonly codeServer: CodeServer;
   /** self-update drain: no new sessions start; in-flight work finishes (mirror of the rate-limit gate) */
   private updateDraining = false;
   private minimax: { quota: MinimaxQuota; at: number } | null = null;
@@ -234,6 +238,7 @@ export class Engine {
     this.models = this.providerModels[config.provider];
     const env = () => ({ ...claudeConfigEnv(config.claudeHome), FOUNDRY_CALLBACK: `http://${config.host}:${config.port}`, ...this.sessionEnvExtra() });
     const supplied = (provider: 'claude' | 'codex') => runner && ('run' in runner ? runner : runner[provider]);
+    const sessionCosts = new SessionCosts(config.dataDir);
     const wrap = (inner: ClaudeRunner, provider: 'claude' | 'codex') => {
       const checked: ClaudeRunner & { killAll: () => number } = {
         active: () => inner.active(),
@@ -241,7 +246,9 @@ export class Engine {
         killAll: () => (inner as { killAll?: () => number }).killAll?.() ?? 0,
         run: async (spec) => {
           if (provider === 'codex') this.validateCodexChoice(spec.model, spec.effort);
-          return inner.run({ ...spec, env: { ...this.mediaEnv(spec.cwd, spec.meta?.goalId ?? null), ...spec.env } });
+          const full = { ...spec, env: { ...this.mediaEnv(spec.cwd, spec.meta?.goalId ?? null), ...spec.env } };
+          // Claude Code reports a resumed session's whole cost; Codex reports none worth correcting
+          return provider === 'claude' ? sessionCosts.run(full, (s) => inner.run(s)) : inner.run(full);
         },
       };
       const fallback = new ModelFallbackRunner(checked, {
@@ -327,7 +334,9 @@ export class Engine {
     this.notifications = new NotificationDispatcher(this);
     this.notifications.attach();
     this.updater = new UpdateManager(this);
-    this.tailnet = new Tailnet({ mode: () => this.settings.values().notifications.tailscale, host: () => this.settings.values().notifications.tailscaleHost, log: config.log, bin: config.tailscaleBin });
+    this.tailnet = new Tailnet({ mode: () => this.settings.values().notifications.tailscale, host: () => this.settings.values().notifications.tailscaleHost, log: config.log, bin: config.tailscaleBin, stateFile: join(config.dataDir, 'tailnet-served.json') });
+    void this.tailnet.cleanUp();
+    this.codeServer = new CodeServer({ dataDir: config.dataDir, expose: (p) => this.tailnet.expose(p), unexpose: (p) => this.tailnet.unexpose(p), log: config.log, ...(process.env.NODE_ENV === 'test' ? { bin: null } : {}) });
     this.preview = new PreviewManager(this);
   }
 
@@ -742,6 +751,7 @@ export class Engine {
     this.agents.stop();
     this.preview.stopSweeper();
     await this.preview.stopAll('engine shutdown');
+    await this.codeServer.dispose();
     await this.tailnet.unexposeAll();
     for (const [, f] of this.inFlight) f.handle?.kill('killed_manual');
     // reviews, clarify, merges and probes are not in `inFlight`: kill every child the runner still owns
@@ -1310,6 +1320,7 @@ export class Engine {
       checkpoint: null,
       selfCheck: input.selfCheck ?? this.config.selfCheck,
       milestonePause: input.milestonePause ?? this.config.milestonePause,
+      clarifyStage: null,
       previewRef: null,
       previewPlace: 'auto',
       effort: input.effort === undefined ? this.config.effort : input.effort,
@@ -1478,6 +1489,14 @@ export class Engine {
     if (id === 'markitdown') {
       const r = await this.installMarkitdown(onLine);
       return { ok: r.ok, command: r.command.join(' '), exitCode: r.exitCode };
+    }
+    if (id === 'code-server') {
+      onLine(`$ ${CODE_SERVER_INSTALL}`);
+      const r = await spawnStreaming(['sh', '-lc', CODE_SERVER_INSTALL], this.config.dataDir, onLine, { timeoutMs: 10 * 60_000 });
+      const ok = r.code === 0 && this.codeServer.status().installed;
+      onLine(ok ? `■ installed at ${this.codeServer.binary()}` : `■ failed (exit ${r.code})`);
+      this.store.append({ type: 'engine.note', goalId: null, payload: { level: ok ? 'info' : 'warn', message: `code-server install exited ${r.code}` } });
+      return { ok, command: CODE_SERVER_INSTALL, exitCode: r.code };
     }
     // a coding agent's own CLI (Setup's Claude Code / Codex check), else a CLI tool from the skills catalog
     const agentCli = AGENT_CLI_IDS.includes(id as AgentCliId) ? agentCliInstall(id === 'codex-cli' ? 'codex' : 'claude') : null;

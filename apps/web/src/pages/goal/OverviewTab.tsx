@@ -9,7 +9,9 @@ import { PreviewCard } from './PreviewCard.tsx';
 import { Badge, Card, cn } from '../../ui.tsx';
 import { EscalationCard } from '../InboxPage.tsx';
 import { CodexModelsCard } from './CodexModelsCard.tsx';
+import { CheckDialog } from './CheckDialog.tsx';
 import { CompletionCard } from './CompletionCard.tsx';
+import { MilestonesCard } from './MilestoneEvidence.tsx';
 import { ProjectSkillsCard } from './ProjectSkillsCard.tsx';
 
 const STAGES = ['clarifying', 'awaiting_brief_approval', 'running', 'goal_review', 'done'] as const;
@@ -47,6 +49,8 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
   const must = d.checks.filter((c) => c.tier === 'must');
   const stretch = d.checks.filter((c) => c.tier === 'stretch');
   const taskName = (id: string | null) => (id ? d.tasks.find((t) => t.id === id)?.title ?? id : 'goal');
+  const [openCheck, setOpenCheck] = useState<string | null>(null);
+  const shownCheck = d.checks.find((c) => c.id === openCheck);
 
   return (
     <div className="space-y-4">
@@ -109,6 +113,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
           </Card>
           <CodexModelsCard goal={g} />
           {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <PreviewCard goalId={g.id} goal={g} />}
+          {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <MilestonesCard d={d} />}
           {d.events.some((e) => e.type === 'goal.models_changed') && (
             <Card title="Model fallback">
               <div className="text-xs text-zinc-400 space-y-1">
@@ -159,20 +164,18 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
                 {(list as typeof must).map((c) => {
                   const r = latestResult(c.id);
                   return (
-                    <details key={c.id} className="text-xs py-0.5">
-                      <summary className="flex items-center gap-2 cursor-pointer list-none">
-                        {r ? <Badge state={r.status} /> : <span className="text-zinc-600 text-[10px] w-10 text-center">—</span>}
-                        <span className="truncate flex-1" title={c.name}>
-                          {c.name}
-                        </span>
-                        <span className="text-[10px] text-zinc-600 truncate max-w-[80px]">{taskName(c.taskId)}</span>
-                      </summary>
-                      {r && <pre className="mono text-[11px] text-zinc-400 bg-zinc-950 rounded p-2 mt-1 max-h-40 overflow-auto whitespace-pre-wrap">{r.summary}</pre>}
-                    </details>
+                    <button key={c.id} type="button" onClick={() => setOpenCheck(c.id)} className="w-full flex items-center gap-2 text-xs py-0.5 text-left rounded hover:bg-zinc-800/50" title="Show what it checks, its output and every run">
+                      {r ? <Badge state={r.status} /> : <span className="text-zinc-600 text-[10px] w-10 text-center">—</span>}
+                      <span className="truncate flex-1" title={c.name}>
+                        {c.name}
+                      </span>
+                      <span className="text-[10px] text-zinc-600 truncate max-w-[80px]">{taskName(c.taskId)}</span>
+                    </button>
                   );
                 })}
               </div>
             ))}
+            {shownCheck && <CheckDialog goalId={g.id} check={shownCheck} results={d.checkResults} taskName={taskName(shownCheck.taskId)} initial={latestResult(shownCheck.id)} onClose={() => setOpenCheck(null)} />}
             {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <SelfCheckSection d={d} />}
             {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && d.tasks.some((t) => t.milestone) && <MilestonePauseSection d={d} />}
           </Card>
@@ -224,7 +227,7 @@ function SelfCheckSection({ d }: { d: GoalDetail }) {
         <input type="checkbox" className="accent-emerald-500" checked={g.selfCheck} onChange={(e) => toggle(e.target.checked)} />
         <span className="text-xs text-zinc-200">Self-check after each task</span>
       </label>
-      <p className="text-[11px] text-zinc-500">Opens the preview in a headless browser once a task lands, takes a screenshot, and fails on console or network errors.</p>
+      <p className="text-[11px] text-zinc-500">A smoke test after each task lands: opens the preview's first page in a headless browser, takes a screenshot, and fails on console, page or network errors, which then get fixed. No AI, so no tokens; it costs the seconds the preview takes to start. Unlike Have a look, it never shows you anything or pauses.</p>
       {last ? (
         <div className="flex items-start gap-2 text-xs">
           <Badge state={last.status} />

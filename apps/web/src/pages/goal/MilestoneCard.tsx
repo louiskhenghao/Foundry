@@ -3,6 +3,7 @@ import { Eye, MessageSquare, Play } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { type GoalDetail, api } from '../../api.ts';
 import { Button, Card, Select, Textarea, cn } from '../../ui.tsx';
+import { type Evidence, EvidenceView } from './MilestoneEvidence.tsx';
 import { PreviewCard } from './PreviewCard.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 
@@ -144,29 +145,9 @@ export function MilestoneCard({ d }: { d: GoalDetail }) {
   );
 }
 
-type Evidence = { taskId: string; video: string | null; shots: { file: string; caption: string }[]; summary: string; error: string | null };
-
 /** what Foundry recorded in the preview for this milestone, so the person can look without starting anything */
 function Walkthrough({ d, taskId, since }: { d: GoalDetail; taskId: string; since: string }) {
-  const g = d.goal;
-  const ev = d.events.filter((e) => e.type === 'milestone.evidence' && (e.payload as Evidence).taskId === taskId).at(-1);
+  const ev = d.milestoneEvents.filter((e) => e.type === 'milestone.evidence' && (e.payload as Evidence).taskId === taskId).at(-1);
   if (!ev || ev.ts < since) return <div className="text-[11px] text-zinc-500 flex items-center gap-1.5"><Play size={11} /> Recording a walkthrough of the preview…</div>;
-  const p = ev.payload as Evidence;
-  return (
-    <div className="space-y-1.5">
-      <div className="text-[11px] text-zinc-500">What Foundry saw{p.summary ? `: ${p.summary}` : ''}</div>
-      {p.video && <video src={api.screenshotUrl(g.id, p.video)} controls muted className="w-full max-w-2xl rounded border border-zinc-700 bg-black" />}
-      {p.shots.length > 0 && (
-        <div className="flex gap-2 flex-wrap">
-          {p.shots.map((s) => (
-            <a key={s.file} href={api.screenshotUrl(g.id, s.file)} target="_blank" rel="noreferrer" title={s.caption} className="w-40">
-              <img src={api.screenshotUrl(g.id, s.file)} alt={s.caption} className="h-24 w-40 object-cover object-top rounded border border-zinc-700" />
-              <span className="block text-[10px] text-zinc-500 truncate">{s.caption}</span>
-            </a>
-          ))}
-        </div>
-      )}
-      {p.error && <div className="text-[11px] text-amber-300/90">{p.error}</div>}
-    </div>
-  );
+  return <EvidenceView goalId={d.goal.id} evidence={ev.payload as Evidence} />;
 }

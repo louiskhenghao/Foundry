@@ -54,7 +54,7 @@ export function WorkspaceDetails({ goal: g }: { goal: Goal }) {
             </>
           )}
         </p>
-        <OpenMenu goalId={g.id} places={[{ which: 'workspace', label: 'Goal workspace', path: ws.path, hint: `branch ${g.branch}` }, { which: 'repo', label: 'Repository', path: g.repoPath, hint: `your checkout · ${g.baseBranch}` }]} />
+        <OpenMenu goalId={g.id} places={[{ which: 'workspace', label: 'Goal workspace', path: ws.path, hint: `branch ${g.branch}` }, { which: 'repo', label: 'Repository', path: g.repoPath, hint: `your checkout · ${g.baseBranch}` }]} working={['running', 'goal_review'].includes(g.state)} />
       </div>
       {sync && (
         <div className="text-[11px] text-zinc-500">

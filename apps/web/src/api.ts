@@ -327,6 +327,8 @@ export interface GoalDetail {
   brief: { brief: Brief; approved: boolean } | null;
   escalations: EscalationRow[];
   events: (EngineEvent & { seq: number })[];
+  /** every milestone visit and walkthrough of the goal, oldest first, however far back */
+  milestoneEvents: (EngineEvent & { seq: number })[];
   /** Follows / Followed by (goal.follows holds the earlier goal; it may have been deleted since) */
   followUps: { followsExists: boolean; followedBy: { id: string; title: string; state: GoalState }[] };
 }
@@ -452,6 +454,10 @@ export function apiForProvider(provider?: AgentProvider) {
   openGoal: (goalId: string, target: OpenTarget['id'], which: 'repo' | 'workspace' | `task:${string}` | `resolve:${string}`) => req<{ ok: true; path: string; command: string[] }>(`/api/goals/${goalId}/open`, { method: 'POST', body: JSON.stringify({ target, which }) }),
   stagedAttachment: (attId: string) => req<Attachment>(`/api/uploads/${attId}`),
   reconvertAttachment: (goalId: string, attId: string) => req<{ markdown: Attachment['markdown'] }>(`/api/goals/${goalId}/attachments/${attId}/convert`, { method: 'POST' }),
+  /** VS Code in the browser for one of a goal's places; starts code-server on first use */
+  openInEditor: (id: string, which: string) => req<{ url: string; tailnetUrl: string | null; password: string }>(`/api/goals/${id}/editor`, { method: 'POST', body: JSON.stringify({ which }) }),
+  editorStatus: () => req<{ installed: boolean; running: boolean; port: number | null }>('/api/editor'),
+  installCodeServer: () => req<{ started: true; channel: string }>('/api/tools/code-server/install', { method: 'POST' }),
   installMarkitdown: () => req<{ started: true; channel: string }>('/api/tools/markitdown/install', { method: 'POST' }),
   removeAttachment: (goalId: string, attId: string) => req<{ ok: true }>(`/api/goals/${goalId}/attachments/${attId}`, { method: 'DELETE' }),
   attachmentUrl: (goalId: string, attId: string, download = false) => `/api/goals/${goalId}/attachments/${attId}${download ? '?download=1' : ''}`,
@@ -503,6 +509,7 @@ export function apiForProvider(provider?: AgentProvider) {
   previewImportEnv: (id: string) => req<{ added: string[]; view: PreviewEnv }>(`/api/goals/${id}/preview/env/import`, { method: 'POST' }),
   previewServicesStop: (id: string, names?: string[]) => req<ServicesStatus | null>(`/api/goals/${id}/preview/services/stop`, { method: 'POST', body: JSON.stringify(names ? { names } : {}) }),
   previewVisit: (id: string) => req<{ ok: true }>(`/api/goals/${id}/preview/visit`, { method: 'POST' }),
+  checkOutput: (id: string, resultId: string) => req<{ text: string; full: boolean }>(`/api/goals/${id}/check-results/${resultId}/output`),
   setMilestonePause: (id: string, on: boolean) => req<{ ok: true }>(`/api/goals/${id}/milestone-pause`, { method: 'POST', body: JSON.stringify({ on }) }),
   setSelfCheck: (id: string, on: boolean) => req<{ ok: true }>(`/api/goals/${id}/selfcheck`, { method: 'POST', body: JSON.stringify({ on }) }),
   feedbackClassify: (id: string, text: string) => req<{ plan: FeedbackPlan }>(`/api/goals/${id}/feedback/classify`, { method: 'POST', body: JSON.stringify({ text }) }),

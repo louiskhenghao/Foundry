@@ -117,6 +117,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('settings.changed', { keys: z.array(z.string()), restartNeeded: z.array(z.string()) }),
 
   ev('clarify.started', { attemptId: z.string().nullable() }),
+  /** where Clarify is: the Clarifier reading the repository and writing its answer (a round or the Brief), or the planner splitting the goal into tasks */
+  ev('clarify.stage', { stage: z.enum(['clarifying', 'planning']) }),
   /** one style sample was generated for a Style Proposal (file appended to its samples, never replacing) */
   ev('brief.style_sampled', { styleKey: z.string(), file: z.string(), costUsd: z.number(), status: z.enum(['ok', 'failed']), detail: z.string() }),
   ev('brief.proposed', { brief: Brief }),

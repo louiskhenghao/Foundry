@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { exec as defaultExec } from '../git/git.ts';
 
 /** the Mac app's command-line entry point, for installs that never put `tailscale` on PATH */
@@ -20,9 +20,36 @@ export class Tailnet {
   private served = new Set<number>();
 
   constructor(
-    private opts: { mode: () => 'auto' | 'off'; host: () => string | null; log: (line: string) => void; exec?: Exec; bin?: string | null },
+    private opts: { mode: () => 'auto' | 'off'; host: () => string | null; log: (line: string) => void; exec?: Exec; bin?: string | null; stateFile?: string },
   ) {
     this.bin = opts.bin !== undefined ? opts.bin : (Bun.which('tailscale') ?? (existsSync(MAC_APP) ? MAC_APP : null));
+  }
+
+  /** the ports served by an earlier run that did not stop cleanly (a crash, a kill): still on the tailnet, pointing at ports nothing may own */
+  private leftover(): number[] {
+    try {
+      return this.opts.stateFile && existsSync(this.opts.stateFile) ? (JSON.parse(readFileSync(this.opts.stateFile, 'utf8')) as number[]).filter(Number.isInteger) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private save(): void {
+    if (!this.opts.stateFile) return;
+    try {
+      writeFileSync(this.opts.stateFile, JSON.stringify([...this.served]));
+    } catch {
+      /* only a crash recovery is lost */
+    }
+  }
+
+  /** take down what an earlier run served and never removed (call once at start) */
+  async cleanUp(): Promise<void> {
+    const ports = this.leftover();
+    if (!ports.length || !this.bin) return;
+    for (const p of ports) await this.run(['serve', `--https=${p}`, 'off']).catch(() => {});
+    this.save();
+    this.opts.log(`[tailnet] took down ${ports.length} serve(s) left by an earlier run: ${ports.join(', ')}`);
   }
 
   private run(args: string[]) {
@@ -65,12 +92,14 @@ export class Tailnet {
       return null;
     }
     this.served.add(port);
+    this.save();
     return `https://${host}:${port}`;
   }
 
   /** take down a port Foundry served itself; ports the person served stay */
   async unexpose(port: number): Promise<void> {
     if (!this.served.delete(port) || !this.bin) return;
+    this.save();
     await this.run(['serve', `--https=${port}`, 'off']).catch(() => {});
   }
 

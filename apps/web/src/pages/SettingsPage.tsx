@@ -563,6 +563,7 @@ export function SettingsPage() {
               </Field>
             </>,
           )}
+          <CodeServerInstall />
         </div>
       </Card>
 
@@ -713,6 +714,57 @@ export function SettingsPage() {
       <UpdateDialog open={updOpen} onClose={() => setUpdOpen(false)} status={upd} />
         </div>
       </div>
+    </div>
+  );
+}
+
+/** VS Code in the browser (code-server): what Open ▾ → VS Code (web) starts, installed once into ~/.local */
+function CodeServerInstall() {
+  const [st, setSt] = useState<{ installed: boolean; running: boolean } | null>(null);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const load = () => api.editorStatus().then((s) => (setSt(s), s)).catch(() => null);
+  useEffect(() => {
+    void load();
+  }, []);
+  // the install runs on the server; its log streams below, and the status is asked again until it says installed
+  useEffect(() => {
+    if (!running) return;
+    const t0 = Date.now();
+    const poll = setInterval(async () => {
+      const s = await load();
+      if (s?.installed || Date.now() - t0 > 6 * 60_000) setRunning(false);
+    }, 3000);
+    return () => clearInterval(poll);
+  }, [running]);
+  return (
+    <div className="text-xs text-zinc-400 space-y-2 border-t border-zinc-800 pt-3">
+      <div className="text-zinc-200">VS Code in the browser (code-server)</div>
+      <p className="text-[11px] text-zinc-500">Open ▾ → <b>VS Code (web)</b> opens a repository or a goal's folder in VS Code in a browser tab, also on your phone over Tailscale. It starts when first used, listens on this computer only behind a password the menu shows, and stops after two idle hours.</p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className={st?.installed ? 'text-emerald-300' : 'text-amber-300'}>{st ? (st.installed ? `installed${st.running ? ' · running' : ''}` : 'not installed') : '…'}</span>
+        {st && !st.installed && (
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={running}
+            onClick={async () => {
+              setError(null);
+              try {
+                await api.installCodeServer();
+                setRunning(true);
+              } catch (e) {
+                setError(e instanceof Error ? e.message : String(e));
+              }
+            }}
+            title="code-server's standalone install into ~/.local (no root), about 150 MB"
+          >
+            Install code-server
+          </Button>
+        )}
+      </div>
+      {error && <div className="text-[11px] text-rose-300">Could not start the install: {error}</div>}
+      {running && <LiveLog attemptId="tool-install" className="max-h-40" />}
     </div>
   );
 }

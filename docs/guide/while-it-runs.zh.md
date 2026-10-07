@@ -20,7 +20,7 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 - 标题、状态标记（比如 **running**、**have a look**、**reviewing**、**done**）；goal 以 fast 模式运行时还有一个 **fast** 标签。
 - 项目文件夹（**copy** 复制它的路径）、goal 的编码智能体（**Claude Code** 或 **Codex**）和分支：goal 起步的分支 → goal 自己的分支。**Goals** 列表也在每个项目路径旁显示同样的编码智能体。列表的每一行把相关信息叠在一起：标题、编码智能体和文件夹；状态和任务数；费用和时间对比上限；最近更新和创建日期。默认每页显示 10 个 goal，最新创建的在前，底部显示总数和页码；可在那里改为每页 20 或 50 个（这个浏览器会记住）。页码记在地址栏里。
 - **time** 显示已用分钟数对比时间上限；Claude 还显示 **cost** 对比美元预算。Codex 美元费用不可用。
-- **Open ▾**：在你的电脑上打开项目或进度文件夹（见 [进度文件夹](#进度文件夹)）。
+- **Open ▾**：在你的电脑上打开项目或进度文件夹（见 [进度文件夹](#进度文件夹)），或者用 **VS Code (web)** 打开：浏览器标签里的 VS Code，经 Tailscale 在手机上也能打开。第一次使用时启动（先在 [Settings → Tools & keys](./settings.zh.md#tools--keys) 装一次），只在这台电脑上运行，闲置两小时后停止。它的登录页要输入密码，菜单里会显示这个密码并带复制按钮；浏览器会记住它。编码智能体写过的文件夹会以受限模式打开，直到你选择信任它。在里面的修改是真实修改：goal 运行时，菜单会提醒你在它的文件夹里改动可能和编码智能体的冲突，并被带进它们的下一个提交。
 - 一个随状态变化的主按钮：Brief 等你时是 **Review brief →**，运行时是 **Cancel**，完成后是 **Deliver…**、**Delivering…** 或 **Delivery**。
 - **⋯**（More actions）：**Restart…**、**Re-run Clarify**、**Cancel goal**、**Delete goal…**，视情况出现。
 
@@ -65,10 +65,11 @@ goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它
 - **Goal review**：最终审查运行后，紧跟在 goal 下面：一行显示结论（**passed**、**over-delivered** 或 **failed**）和审查员意见的开头；点 **reviewer notes** 展开全文。
 - **Attachments**：紧跟在 goal 下面，和 New goal 表单上一样。随时可以再加；新的会话会收到。
 - **Workspace & preview**：goal 的工作成果在哪里，以及启动它来试用。见 [进度文件夹](#进度文件夹) 和 [Preview](#preview)。
+- **Milestones**：goal 有里程碑时，每个一行，最新的在上：要看什么、什么时候到的、goal 是暂停了还是继续了，以及你的回答。点一行可以重看它的录屏和截图（点截图会放大）。
 - **Model fallback**：只在某个模型不可用、Foundry 换了另一个模型时出现。
 - **Project skills**：Foundry 为你项目的技术栈添加的 skill，按 Frontend、Backend、Database、Testing、Tooling 分组，并显示数量。它们不会进入你的提交。
 - **Completion**：文档、知识图谱刷新和媒体文件各占一行，写着结果。见 [完成后的附加项](./getting-the-result.zh.md#完成后的附加项)。
-- **Acceptance**（右侧）：每个 **must** 和 **stretch** 检查及其最新结果，比如 **3/4 passing**。点一个检查可以看它的输出。下面是 **Self-check** 开关和它最近一次的结果（见 [Self-check](#self-check)），goal 有里程碑时还有 **Have a look: pause at milestones**（见 [Milestones](#milestones)）。
+- **Acceptance**（右侧）：每个 **must** 和 **stretch** 检查及其最新结果，比如 **3/4 passing**。点一个检查会在弹窗里打开：它检查什么（命令，或审查员的评分标准）、最近一次运行的输出（被截短时可以按 **Show the whole output** 看全部），以及它的每一次运行，新的在上；点某一次就看那一次的输出。下面是 **Self-check** 开关和它最近一次的结果（见 [Self-check](#self-check)），goal 有里程碑时还有 **Have a look: pause at milestones**（见 [Milestones](#milestones)）。
 
 ## Tasks
 
@@ -203,9 +204,11 @@ Foundry 绝不会为了预览去切换、重置或拉取你的 checkout。改任
 
 它只对结果在浏览器里运行的 goal 有用，而且需要下载一次（在 [Settings → Preview & self-check](./settings.zh.md#preview--self-check) 里按 **Install Chromium**）。默认关闭。
 
+它和里程碑的「看一看」不一样：self-check 是每个任务之后自动做的快速冒烟测试，只看首页，从不给你看任何东西，也不会暂停；失败时 Foundry 会去修那些错误，花费只来自这些修复。**Have a look** 是给你看的：到了里程碑，Foundry 按要看的内容录一段操作，开关打开时还会停下来等你。
+
 ## Milestones
 
-**Have a look: pause at milestones** 决定 goal 到了里程碑要不要停下来。默认开启（[Settings](./settings.md)）；每个 goal 在 Brief 的 **How to run it** 部分和 Overview 的 **Acceptance** 卡片里都有自己的开关，从下一个里程碑开始生效。关掉后 goal 会继续往下跑，下面这段说明会连同最新的截图发到你的通知渠道。
+**Have a look: pause at milestones** 决定 goal 到了里程碑要不要停下来。默认开启（[Settings](./settings.md)）；每个 goal 在 Brief 的 **How to run it** 部分和 Overview 的 **Acceptance** 卡片里都有自己的开关，从下一个里程碑开始生效。关掉后 goal 会继续往下跑，下面这段说明和它的录屏会发到你的通知渠道。
 
 里程碑任务并入后，goal 会暂停。它的状态标记显示 **have a look**，Inbox 显示 **Have a look**，goal 页面顶部出现一张卡片：**Have a look — task name**。
 
@@ -222,7 +225,7 @@ Foundry 绝不会为了预览去切换、重置或拉取你的 checkout。改任
 
 然后要么按 **Continue**，要么写下你看到的，按 **Turn into a plan**。具体怎么运作，一步步写在 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md#里程碑可以看了)。
 
-同样的截图和视频会在第二条消息 **📸 What the milestone looks like** 里发到你的通知渠道，不管 goal 有没有暂停。视频太大、超过渠道上限（Telegram 50 MB，Discord 10 MB）时，留在 goal 页面上，消息里会说明。
+同样的截图和视频会在第二条消息 **📸 What the milestone looks like** 里发到你的通知渠道，不管 goal 有没有暂停；之后也可以在 Overview 的 **Milestones** 卡片里重看。视频太大、超过渠道上限（Telegram 50 MB，Discord 10 MB）时，留在 goal 页面上，消息里会说明。
 
 ## Activity
 
@@ -232,9 +235,11 @@ goal 发生过的所有事，最新的在前，每件一行：阶段、任务开
 
 ## Diff
 
-goal 相对起点改过的每个文件，标出新增的行（绿色，+）和删除的行（红色，−）。点一个文件展开或收起；**expand all** 全部展开。这正是会进入 pull request 的内容。
+goal 相对起点改过的每个文件，以及各自新增和删除了多少行。这正是会进入 pull request 的内容。
 
-![Diff 标签：goal 改动的每个文件，新增的行为绿色，删除的行为红色](images/goal-diff.png)
+点一个文件，会在弹窗里打开它的改动：代码按语言着色，新增的行为绿色（+），删除的行为红色（−），并标出在旧文件和新文件中的行号。**Whole file** 显示文件现在的完整内容，goal 改动的行带底色（goal 的文件夹还在时可用）。顶部的箭头，或 ← 和 →，切换到上一个或下一个文件。
+
+![Diff 标签：goal 改动的每个文件，以及新增和删除的行数](images/goal-diff.png)
 
 ## 取消、重启、删除
 

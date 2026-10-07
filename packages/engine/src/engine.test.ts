@@ -13,6 +13,7 @@ class FakeRunner implements ClaudeRunner {
   calls: RunSpec[] = [];
   /** optional rate-limit info attached to every result */
   rateLimit: RunResult['rateLimit'] = null;
+  private totals = new Map<string, number>();
   constructor(private behave: (spec: RunSpec, n: number) => void | Promise<void>) {}
   active() {
     return 0;
@@ -21,11 +22,14 @@ class FakeRunner implements ClaudeRunner {
     this.calls.push(spec);
     const n = this.calls.filter((c) => c.cwd === spec.cwd && c.label?.startsWith('attempt')).length;
     await this.behave(spec, n);
+    // like Claude Code: a resumed session keeps its id and reports its whole cost so far
+    const sessionId = spec.resumeSessionId ?? `fake-${this.calls.length}`;
+    this.totals.set(sessionId, (this.totals.get(sessionId) ?? 0) + 0.01);
     const result: RunResult = {
-      sessionId: `fake-${this.calls.length}`,
+      sessionId,
       subtype: 'success',
       isError: false,
-      costUsd: 0.01,
+      costUsd: this.totals.get(sessionId)!,
       numTurns: 1,
       durationMs: 1,
       usage: null,

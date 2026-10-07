@@ -68,6 +68,15 @@ export class EventStore {
       .map((r) => ({ seq: r.seq, ...EngineEvent.parse({ id: r.id, ts: r.ts, goalId: r.goal_id, type: r.type, payload: JSON.parse(r.payload) }) }));
   }
 
+  /** All of a goal's events of the given types, oldest first: the few that matter however long the goal's log grew */
+  listByGoalOfTypes(goalId: string, types: EngineEvent['type'][]): (EngineEvent & { seq: number })[] {
+    if (!types.length) return [];
+    const rows = this.db
+      .query(`SELECT seq, id, ts, goal_id, type, payload FROM events WHERE goal_id = ? AND type IN (${types.map(() => '?').join(', ')}) ORDER BY seq`)
+      .all(goalId, ...types) as EventRow[];
+    return rows.map((r) => ({ seq: r.seq, ...EngineEvent.parse({ id: r.id, ts: r.ts, goalId: r.goal_id, type: r.type, payload: JSON.parse(r.payload) }) }));
+  }
+
   /** Newest-first events of one type (informational logs such as skills.update_run). */
   listByType(type: EngineEvent['type'], limit = 50): (EngineEvent & { seq: number })[] {
     const rows = this.db.query('SELECT seq, id, ts, goal_id, type, payload FROM events WHERE type = ? ORDER BY seq DESC LIMIT ?').all(type, limit) as EventRow[];

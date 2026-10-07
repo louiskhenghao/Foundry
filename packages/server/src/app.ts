@@ -1,4 +1,4 @@
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CodexEffort, Effort, Brief, EscalationAnswer, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
@@ -65,8 +65,31 @@ const CreateGoalBody = z.object({
   follows: z.object({ goalId: z.string().min(1), startFrom: z.enum(['base', 'previous']).optional(), attachments: z.boolean().optional(), style: z.boolean().optional() }).optional(),
 });
 
+/**
+ * A request a page on another site made the browser send. Foundry has no sign-in, so any web page could otherwise
+ * POST to it (start an install, answer an escalation…). Browsers mark the request's site; without that header, an
+ * Origin naming another host gives it away. Tools such as curl and the sessions' hooks send neither, and another port
+ * of the same host (the web dev server) counts as the same site.
+ */
+export function crossSite(req: Request): boolean {
+  const site = req.headers.get('sec-fetch-site');
+  if (site) return site === 'cross-site';
+  const origin = req.headers.get('origin');
+  if (!origin || origin === 'null') return !!origin;
+  try {
+    const host = (req.headers.get('host') ?? new URL(req.url).host).replace(/:\d+$/, '');
+    return new URL(origin).hostname !== host.replace(/^\[|\]$/g, '');
+  } catch {
+    return true;
+  }
+}
+
 export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   const app = new Hono();
+  app.use('/api/*', async (c, next) => {
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) && crossSite(c.req.raw)) return c.json({ error: 'refused: a request from another site' }, 403);
+    await next();
+  });
   const db = engine.store.db;
   // Skills page operations: one live channel + one pollable record each (skill-ops.ts)
   const ops = new SkillOps((s) => engine.broadcast(s));
@@ -307,6 +330,14 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     }
   });
   // ---- what the self-check saw, and the goal's artifacts ----
+  // a check run's whole output (the result keeps a short summary); only results of this goal, only the file the run wrote
+  app.get('/api/goals/:id/check-results/:resultId/output', (c) => {
+    const goal = goalOr404(c);
+    const r = listCheckResultsByGoal(engine.store.db, goal.id).find((x) => x.id === c.req.param('resultId'));
+    if (!r) throw new HttpError(404, { error: 'check result not found' });
+    if (!r.rawRef || !existsSync(r.rawRef)) return c.json({ text: r.summary, full: false });
+    return c.json({ text: readFileSync(r.rawRef, 'utf8').slice(0, 1_000_000), full: true });
+  });
   app.get('/api/goals/:id/screenshots', (c) => {
     const goal = goalOr404(c);
     const shots = engine.store
@@ -472,19 +503,40 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
 
   // ---- open in editor / file manager / terminal (paths resolved server-side, never from the request) ----
   app.get('/api/open/targets', (c) => c.json({ targets: detectOpenTargets() }));
+  /** the folder an Open menu entry stands for: the checkout, the goal's folder, a task worktree, a resolve worktree */
+  const placePath = (goal: NonNullable<ReturnType<typeof getGoal>>, which: string): string => {
+    let path: string | null = null;
+    if (which === 'repo') path = goal.repoPath;
+    else if (which === 'workspace') path = goalWorkspacePath(engine.config.dataDir, goal);
+    else if (which.startsWith('resolve:')) {
+      // only a task of this goal: the id becomes part of a path
+      const taskId = which.slice(8);
+      const p = listTasks(db, goal.id).some((t) => t.id === taskId) ? resolveWorkspacePath(engine.config.dataDir, goal, taskId) : null;
+      path = p && existsSync(p) ? p : null;
+    } else if (which.startsWith('task:')) path = listTasks(db, goal.id).find((t) => t.id === which.slice(5))?.worktreePath ?? null;
+    if (!path) throw new HttpError(404, { error: `nothing to open for ${which}` });
+    return path;
+  };
+  // VS Code in the browser (code-server): started on first use; the addresses open the folder here and on the tailnet
+  app.get('/api/editor', (c) => c.json(engine.codeServer.status()));
+  app.post('/api/tools/code-server/install', (c) => toolInstall(c, 'code-server'));
+  app.post('/api/goals/:id/editor', async (c) => {
+    const goal = getGoal(db, c.req.param('id'));
+    if (!goal) throw new HttpError(404, { error: 'goal not found' });
+    const { which } = z.object({ which: z.string().default('repo') }).parse(await c.req.json());
+    const path = placePath(goal, which);
+    if (!engine.codeServer.status().installed) throw new HttpError(409, { error: 'code-server is not installed — install it in Settings → Tools', code: 'not-installed' });
+    try {
+      return c.json(await engine.codeServer.open(path));
+    } catch (e) {
+      throw new HttpError(500, { error: String((e as Error).message ?? e) });
+    }
+  });
   app.post('/api/goals/:id/open', async (c) => {
     const goal = getGoal(db, c.req.param('id'));
     if (!goal) throw new HttpError(404, { error: 'goal not found' });
     const body = z.object({ target: z.string(), which: z.string().default('repo') }).parse(await c.req.json());
-    let path: string | null = null;
-    if (body.which === 'repo') path = goal.repoPath;
-    else if (body.which === 'workspace') path = goalWorkspacePath(engine.config.dataDir, goal);
-    else if (body.which.startsWith('resolve:')) {
-      const p = resolveWorkspacePath(engine.config.dataDir, goal, body.which.slice(8));
-      path = existsSync(p) ? p : null;
-    }
-    else if (body.which.startsWith('task:')) path = listTasks(db, goal.id).find((t) => t.id === body.which.slice(5))?.worktreePath ?? null;
-    if (!path) throw new HttpError(404, { error: `nothing to open for ${body.which}` });
+    const path = placePath(goal, body.which);
     try {
       const r = await openPath(body.target as OpenTargetId, path);
       engine.store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `opened ${body.which} in ${body.target}: ${r.command.join(' ')}` } });
@@ -554,6 +606,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       brief: getBrief(db, id),
       escalations: listEscalations(db, { goalId: id }).map(e => ({ ...e, provider: goal.provider ?? engine.config.provider })),
       events: engine.store.listByGoal(id, 300),
+      // every milestone visit and walkthrough, which a long goal pushes out of the latest events
+      milestoneEvents: engine.store.listByGoalOfTypes(id, ['goal.checkpoint_opened', 'goal.checkpoint_closed', 'goal.milestone_passed', 'milestone.evidence']),
       // Follows / Followed by: the earlier goal may have been deleted since (then only its title remains)
       followUps: {
         followsExists: goal.follows ? !!getGoal(db, goal.follows.goalId) : false,

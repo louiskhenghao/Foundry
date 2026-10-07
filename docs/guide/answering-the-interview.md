@@ -69,9 +69,12 @@ Earlier rounds fold up under the current one: **▸ N earlier rounds** shows wha
 
 ## While it plans
 
-After you send a round, the card title changes to **Thinking about your answers…** and a line reads **Planning with your answers · 3m 20s**, with the time counting up. This is the time since you answered. Foundry is reading your answers, looking at the project again, and either preparing the next round or planning the tasks.
+After you send a round, the card title changes to **Thinking about your answers…** and the card shows the steps, the current one with a timer counting up:
 
-This usually takes 2 to 8 minutes. The live log under the line keeps moving while it works. For Claude, a line like `⏱ sub-agent still working · 3m 30s` means the native planner is busy. Codex uses a separate Foundry-managed Planner session whose task proposal the Clarifier reviews; native Codex subagent creation is disabled. You can close the page; the goal keeps going and the page updates when you come back.
+- **Clarifier: reading the repository, then asking or writing the Brief.** A next round usually comes in under a minute.
+- **Planner: splitting the goal into tasks**, once the Clarifier has written the Brief. A separate session turns it into tasks, their checks and the estimate; this usually takes a few minutes.
+
+An answer is written in one go, so the live log under the steps can stand still for minutes while it is; the timer shows it is still working. You can close the page; the goal keeps going and the page updates when you come back.
 
 Before the first round the card says **Reading the repository…** instead, for the same reason.
 

@@ -247,6 +247,8 @@ Media-service keys below are separate from agent sign-in. Codex execution contin
 - **ElevenLabs API key** and **Groq API key**: narration voices, and speech-to-text for video captions, when a video pack uses them.
 - **markitdown binary**: the converter that turns attached documents into text. Leave empty.
 
+**VS Code in the browser (code-server)** says whether it is installed; **Install code-server** installs it once into your home folder (about 150 MB, no administrator rights). It is what **Open ▾ → VS Code (web)** starts.
+
 Keys apply to the next session, no restart. A saved key is never shown again, not even to this page: its field says `saved: sk-p…9f3a — type to replace`. Type a new one to replace it, or press ↺ next to the field to forget it. The Telegram token and Discord webhook under Notifications work the same way. More in [Costs and usage](./costs-and-usage.md#image-goals-need-an-image-key).
 
 ## Preview & self-check

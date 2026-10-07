@@ -1,6 +1,6 @@
 # ADR-0013: Clarify interviews the human in rounds
 
-**Status:** accepted · 2026-09-14 · amended by ADR-0027
+**Status:** accepted · 2026-09-14 · amended by ADR-0027 and ADR-0028
 
 ## Context
 

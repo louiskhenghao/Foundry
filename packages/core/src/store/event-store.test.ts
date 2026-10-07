@@ -12,7 +12,7 @@ function goal(id: string): Goal {
     prompt: 'p',
     workspaceDir: null,
     checkpoint: null,
-    selfCheck: false, previewRef: null, previewPlace: 'auto', milestonePause: true,
+    selfCheck: false, previewRef: null, previewPlace: 'auto', milestonePause: true, clarifyStage: null,
     interview: null,
     effort: null, modelPreset: null, modelSubstitutions: {},
     repoPath: '/tmp/x',
@@ -90,6 +90,21 @@ describe('EventStore', () => {
     expect(store.snapshotReadModels()).toEqual(before);
   });
 
+  test("the Clarify step is kept while a session runs and cleared when a new one begins or the Brief is out", () => {
+    const store = new EventStore(openDatabase(':memory:'));
+    const g = { ...goal('g_2'), interview: { mode: 'auto' as const, depth: 5, status: 'awaiting_answers' as const, sessionId: 's', rounds: [{ round: 1, questions: [], answers: null, askedAt: '2026-01-01', answeredAt: null, finish: false }] } };
+    store.append({ type: 'goal.created', goalId: g.id, payload: { goal: g } });
+    store.append({ type: 'clarify.stage', goalId: g.id, payload: { stage: 'planning' } });
+    expect(getGoal(store.db, g.id)?.clarifyStage?.stage).toBe('planning');
+    store.append({ type: 'interview.round_answered', goalId: g.id, payload: { round: 1, answers: {}, finish: false } });
+    expect(getGoal(store.db, g.id)?.clarifyStage).toBeNull();
+    store.append({ type: 'clarify.stage', goalId: g.id, payload: { stage: 'clarifying' } });
+    store.append({ type: 'goal.reclarified', goalId: g.id, payload: { reason: 'test', decisions: '', workspaceRebuilt: false } });
+    expect(getGoal(store.db, g.id)?.clarifyStage).toBeNull();
+    // a fresh Clarify keeps how deep the goal asked to be interviewed
+    expect(getGoal(store.db, g.id)?.interview).toMatchObject({ depth: 5, rounds: [], sessionId: null });
+  });
+
   test('rejects invalid payloads', () => {
     const store = new EventStore(openDatabase(':memory:'));
     // @ts-expect-error invalid state
@@ -102,5 +117,20 @@ describe('EventStore', () => {
     store.subscribe((e) => seen.push(e.type));
     store.append({ type: 'engine.note', goalId: null, payload: { level: 'info', message: 'hi' } });
     expect(seen).toEqual(['engine.note']);
+  });
+});
+
+describe('listByGoalOfTypes', () => {
+  test('finds a goal\'s events of the given types however many came after them', () => {
+    const store = new EventStore(openDatabase(':memory:'));
+    const g = goal('g_types');
+    store.append({ type: 'goal.created', goalId: g.id, payload: { goal: g } });
+    store.append({ type: 'task.created', goalId: g.id, payload: { task: task('t_1', g.id) } });
+    store.append({ type: 'goal.milestone_passed', goalId: g.id, payload: { taskId: 't_1', lookFor: 'the page' } });
+    for (let i = 0; i < 400; i++) store.append({ type: 'clarify.stage', goalId: g.id, payload: { stage: 'planning' } });
+    expect(store.listByGoal(g.id, 300).some((e) => e.type === 'goal.milestone_passed')).toBe(false);
+    expect(store.listByGoalOfTypes(g.id, ['goal.milestone_passed', 'goal.checkpoint_opened']).map((e) => e.type)).toEqual(['goal.milestone_passed']);
+    expect(store.listByGoalOfTypes('g_other', ['goal.milestone_passed'])).toEqual([]);
+    expect(store.listByGoalOfTypes(g.id, [])).toEqual([]);
   });
 });

@@ -28,6 +28,8 @@ export interface RunSpec {
   /** Serialized to `--settings '<json>'`. */
   settings?: object;
   settingSources?: string[];
+  /** load no MCP servers at all (Claude Code's --strict-mcp-config without --mcp-config): a session that only reads the repository */
+  strictMcp?: boolean;
   addDirs?: string[];
   resumeSessionId?: string;
   /** Claude Code effort level (`--effort`); omitted = the CLI default */

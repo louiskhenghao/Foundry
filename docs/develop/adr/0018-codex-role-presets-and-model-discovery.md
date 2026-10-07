@@ -1,6 +1,6 @@
 # ADR-0018: Codex role presets, model discovery and captured goal settings
 
-**Status:** accepted · 2026-10-04 · amends ADR-0014 and ADR-0017
+**Status:** accepted · 2026-10-04 · amends ADR-0014 and ADR-0017 · amended by ADR-0028
 
 ## Decision
 

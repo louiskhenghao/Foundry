@@ -45,6 +45,8 @@ export function describe(e: EngineEvent, costAvailable = true): { text: string; 
       return { text: 'Brief approved', tone: 'ok' };
     case 'clarify.started':
       return { text: 'Clarifier exploring the repository', tone: 'muted' };
+    case 'clarify.stage':
+      return { text: p.stage === 'planning' ? 'Planner splitting the goal into tasks' : 'Clarifier at work', tone: 'muted' };
     case 'goal.cost_added':
       return { text: `+${cost(p.costUsd)} ${p.source}`, tone: 'muted' };
     case 'goal.budgets_changed':

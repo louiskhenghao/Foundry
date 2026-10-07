@@ -59,12 +59,12 @@ const areas = [
 ];
 const task = (key: string, areaKey: string, title: string, deps: string[] = []): BriefOutput['tasks'][number] => ({ key, title, spec: `do ${title}`, kind: 'feature', scope: null, scenario: 'frontend', difficulty: 'standard', areaKey, dependsOnKeys: deps, parallelizable: true, relevantFiles: ['README.md'], milestone: null });
 const check = (key: string, taskKey: string | null, areaKey: string | null = null): BriefOutput['checks'][number] => ({ key, name: key, tier: 'must', taskKey, areaKey, type: 'command', cmd: 'true', rubric: null });
-const briefWith = (tasks: BriefOutput['tasks'], checks: BriefOutput['checks']): BriefOutput => ({ title: 'feat(portal): build portals', understanding: 'Two portals.', nature: 'code', areas, assumptions: ['a'], tasks, checks, costEstimateUsd: 4, timeEstimateMin: 30, questions: [], styleOptions: [], run: null, apps: null });
+const briefWith = (tasks: BriefOutput['tasks'], checks: BriefOutput['checks']): BriefOutput => ({ title: 'feat(portal): build portals', understanding: 'Two portals.', nature: 'code', areas, assumptions: ['a'], tasks, checks, costEstimateUsd: 4, timeEstimateMin: 30, openQuestions: [], styleOptions: [], run: null, apps: null });
 
 const cfg = () => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, log: () => {} });
 
 describe('clarify coverage gate', () => {
-  test('an Area without tasks triggers one repair turn in the same session; the repaired Brief is kept', async () => {
+  test('a whole Brief from the Clarifier with an Area without tasks gets one repair turn in the same session; the repaired Brief is kept', async () => {
     const runner = new StructuredRunner((spec, n) => (n === 1 ? briefWith([task('T1', 'A1', 'add student home')], [check('C1', 'T1'), check('G1', null, 'A1')]) : briefWith([task('T1', 'A1', 'add student home'), { ...task('T2', 'A2', 'add teacher home', ['T1']), difficulty: 'complex' as const }], [check('C1', 'T1'), check('C2', 'T2'), check('G1', null, 'A1')])));
     const engine = track(new Engine(cfg(), runner));
     const goal = await engine.createGoal({ prompt: 'student and teacher portals', repoPath: repo });
@@ -74,7 +74,7 @@ describe('clarify coverage gate', () => {
     expect(main).toHaveLength(2);
     expect(main[1]!.resumeSessionId).toBe('s2'); // resumes the clarify session (s1 was the classification)
     expect(main[1]!.prompt).toContain('"Teacher portal" (A2)');
-    expect(main[0]!.prompt).toContain('every Area MUST have at least one task');
+    expect(main[0]!.prompt).toContain('a planner session splits the goal into tasks right after you');
     const brief = getBrief(engine.store.db, goal.id)!.brief;
     expect(brief.areas.map((a) => a.key)).toEqual(['A1', 'A2']);
     expect(brief.tasks.map((t) => [t.key, t.areaKey])).toEqual([['T1', 'A1'], ['T2', 'A2']]);
@@ -253,12 +253,12 @@ describe('draft with AI', () => {
 
 describe('decisions', () => {
   test('revise returns a keyed diff; decisions reach the worker prompt; re-run Clarify carries them', async () => {
-    const full = briefWith([task('T1', 'A1', 'add student home'), task('T2', 'A2', 'add teacher home', ['T1']), task('T3', 'A2', 'add grading', ['T2'])], [check('C1', 'T1'), check('C2', 'T2'), check('G1', null)]);
+    const full = briefWith([{ ...task('T1', 'A1', 'add student home'), milestone: 'the student home page' }, task('T2', 'A2', 'add teacher home', ['T1']), task('T3', 'A2', 'add grading', ['T2'])], [check('C1', 'T1'), check('C2', 'T2'), check('G1', null)]);
     const runner = new StructuredRunner((spec) => {
-      if (spec.label?.startsWith('clarify')) return { ...full, questions: [{ text: 'Teachers too?', blocking: true, areaKey: 'A2' }] };
+      if (spec.label?.startsWith('clarify')) return { ...full, openQuestions: [{ text: 'Teachers too?', blocking: true, areaKey: 'A2' }] };
       if (spec.label?.startsWith('draft revise')) {
-        const { questions: _q, ...rest } = full;
-        return { ...rest, understanding: 'Students only.', areas: [full.areas[0]], tasks: [task('T1', 'A1', 'add student home'), task('T4', 'A1', 'add student grades', ['T1'])], checks: [check('C1', 'T1', null), check('C9', 'T4')], changeSummary: 'Dropped the teacher tasks because the human said students only.', newQuestions: [] };
+        const { openQuestions: _q, ...rest } = full;
+        return { ...rest, understanding: 'Students only.', areas: [full.areas[0]], tasks: [(({ milestone: _m, ...t }) => t)(task('T1', 'A1', 'add student home')), task('T4', 'A1', 'add student grades', ['T1'])], checks: [check('C1', 'T1', null), check('C9', 'T4')], changeSummary: 'Dropped the teacher tasks because the human said students only.', newQuestions: [] };
       }
       return null;
     });
@@ -277,6 +277,8 @@ describe('decisions', () => {
     expect(d.checks.removed.map((c) => c.key).sort()).toEqual(['C2', 'G1']);
     expect(d.areas.removed.map((a) => a.key)).toEqual(['A2']);
     expect(d.understanding?.after).toBe('Students only.');
+    // a kept task's milestone survives a reply that leaves it out
+    expect(p.revision!.revised.tasks.find((t) => t.key === 'T1')?.milestone).toBe('the student home page');
     expect(p.revision!.revised.questions.find((x) => x.id === q.id)?.answer).toBe('No, students only');
     // the rejected assumption survives the revision even though the model dropped it
     expect(p.revision!.revised.assumptions.some((a) => !a.accepted)).toBe(true);

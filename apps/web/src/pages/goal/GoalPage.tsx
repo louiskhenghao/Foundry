@@ -4,6 +4,7 @@ import { RestartDialog } from '../../components/RestartDialog.tsx';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { FollowLinks, MarkFollowUpDialog } from './FollowUps.tsx';
+import { ClarifyProgress } from './ClarifyProgress.tsx';
 import { InterviewPanel } from './InterviewPanel.tsx';
 import { MilestoneCard } from './MilestoneCard.tsx';
 import { api, type GoalDetail } from '../../api.ts';
@@ -146,6 +147,7 @@ export function GoalPage() {
                 { which: 'repo', label: 'Repository', path: d.paths.repo, hint: `your checkout · ${g.baseBranch}` },
                 ...(d.paths.workspace ? [{ which: 'workspace' as const, label: 'Goal workspace', path: d.paths.workspace, hint: `branch ${g.branch}` }] : []),
               ]}
+              working={['running', 'goal_review'].includes(g.state)}
             />
             {awaiting ? (
               <Link to={`/goals/${id}/brief`}>
@@ -205,6 +207,7 @@ export function GoalPage() {
       {g.state === 'clarifying' && g.interview && <InterviewPanel goal={g} />}
       {((g.state === 'clarifying' && !g.interview) || g.state === 'goal_review') && (
         <Card title={g.state === 'clarifying' ? 'Clarifying…' : 'Goal review…'}>
+          {g.state === 'clarifying' && <div className="mb-3 text-xs"><ClarifyProgress goal={g} writingBrief /></div>}
           <LiveLog attemptId={g.state === 'clarifying' ? `clarify-${id}` : `goal-review-${id}-${g.fixCycles}`} />
         </Card>
       )}
@@ -245,7 +248,7 @@ export function GoalPage() {
         </div>
       )}
       {tab === 'activity' && <ActivityTab d={d} />}
-      {tab === 'diff' && <DiffTab goalId={id} baseBranch={g.baseBranch} branch={g.branch} />}
+      {tab === 'diff' && <DiffTab goalId={id} baseBranch={g.baseBranch} branch={g.branch} workspace={d.paths.workspace} />}
       {tab === 'delivery' && <DeliveryTab d={d} />}
         </>
       )}

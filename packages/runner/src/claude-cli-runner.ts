@@ -59,6 +59,7 @@ export class ClaudeCliRunner implements ClaudeRunner {
     if (spec.jsonSchema) a.push('--json-schema', JSON.stringify(spec.jsonSchema));
     if (spec.settings) a.push('--settings', JSON.stringify(spec.settings));
     if (spec.settingSources) a.push('--setting-sources', spec.settingSources.join(','));
+    if (spec.strictMcp) a.push('--strict-mcp-config');
     for (const d of spec.addDirs ?? []) a.push('--add-dir', d);
     if (spec.resumeSessionId) a.push('--resume', spec.resumeSessionId);
     return a;

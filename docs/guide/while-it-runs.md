@@ -20,7 +20,7 @@ Open a goal from **Goals** (the list in the top bar). At the top of its page:
 - The title, a state badge (for example **running**, **have a look**, **reviewing**, **done**), and a **fast** chip if the goal runs in fast mode.
 - The project folder (with **copy** for its path), the goal's coding agent (**Claude Code** or **Codex**) and the branches: the one the goal started from → the goal's own branch. The **Goals** list shows the same coding agent next to each project path. Each of its rows stacks related facts: title, coding agent and folder; state and task counts; cost and time against their limits; last update and creation date. It shows 10 goals per page by default, newest first, with the count and the page at the bottom; choose 20 or 50 per page there (remembered in this browser). The page number is kept in the address.
 - **Time** in minutes against the limit; Claude also shows **cost** against its USD budget. Codex dollar cost is unavailable.
-- **Open ▾**: open the project or the progress folder on your computer (see [The progress folder](#the-progress-folder)).
+- **Open ▾**: open the project or the progress folder on your computer (see [The progress folder](#the-progress-folder)), or in **VS Code (web)**: VS Code in a browser tab, which also opens on your phone over Tailscale. It starts on first use (install it once under [Settings → Tools & keys](./settings.md#tools--keys)), runs on this computer only, and stops after two idle hours. Its sign-in page asks for a password, which the menu shows with a copy button; a browser remembers it. A folder the coding agents wrote opens in restricted mode until you choose to trust it. Edits there are real edits: while the goal runs, the menu warns that changes in its folders can clash with the coding agents' and go into their next commit.
 - One main button that changes with the state: **Review brief →** while the Brief waits, **Cancel** while it runs, **Deliver…**, **Delivering…** or **Delivery** when it is done.
 - **⋯** (More actions): **Restart…**, **Re-run Clarify**, **Cancel goal**, **Delete goal…**, whichever apply.
 
@@ -65,10 +65,11 @@ From top to bottom:
 - **Goal review**: right under the goal once the final review ran: one line with the verdict (**passed**, **over-delivered** or **failed**) and the start of the reviewer's notes; **reviewer notes** unfolds them.
 - **Attachments**: right under the goal, as on the New goal form. You can add more at any time; new sessions receive them.
 - **Workspace & preview**: where the goal's work is, and starting it to try it. See [The progress folder](#the-progress-folder) and [Preview](#preview).
+- **Milestones**: when the goal has milestones, one row each, the latest first: what to look at, when it landed, whether the goal paused for it or went on, and your answer. Click a row to watch its recording and screenshots again (a screenshot opens large).
 - **Model fallback**: only if a model was unavailable and Foundry switched to another one.
 - **Project skills**: skills Foundry added for your project's technology, grouped as Frontend, Backend, Database, Testing and Tooling, with how many there are. They never reach your commits.
 - **Completion**: one row each for the documents, the graph refresh and media files, with how it went. See [Completion extras](./getting-the-result.md#completion-extras).
-- **Acceptance** (on the right): every **must** and **stretch** check with its latest result, for example **3/4 passing**. Click a check to see its output. Below them, the **Self-check** switch and its latest result (see [Self-check](#self-check)), and **Have a look: pause at milestones** when the goal has milestones (see [Milestones](#milestones)).
+- **Acceptance** (on the right): every **must** and **stretch** check with its latest result, for example **3/4 passing**. Click a check to open it in a window: what it checks (the command, or the reviewer's rubric), the output of its latest run with **Show the whole output** when it was cut, and every run it had, newest first; click a run to see its output. Below them, the **Self-check** switch and its latest result (see [Self-check](#self-check)), and **Have a look: pause at milestones** when the goal has milestones (see [Milestones](#milestones)).
 
 ## Tasks
 
@@ -203,9 +204,11 @@ The values stay on this computer. They are passed to the preview's processes onl
 
 It only helps goals whose result runs in a browser, and it needs a one-time download (**Install Chromium** in [Settings → Preview & self-check](./settings.md#preview--self-check)). It is off by default.
 
+It is not the same as a milestone's look: the self-check is a quick automatic smoke test after every task, of the first page only, that never shows you anything or pauses; a failure makes Foundry fix the errors, which is where any cost comes from. **Have a look** is for you: at a milestone Foundry records a walkthrough of what to look at and, if the switch is on, waits for you.
+
 ## Milestones
 
-**Have a look: pause at milestones** decides whether a goal stops at its milestones. It is on by default ([Settings](./settings.md)); each goal has its own switch on the Brief's **How to run it** section and in the Overview's **Acceptance** card, which applies from the next milestone. With it off, the goal goes on, and the note below, with the latest screenshot, is sent to your notification channels instead.
+**Have a look: pause at milestones** decides whether a goal stops at its milestones. It is on by default ([Settings](./settings.md)); each goal has its own switch on the Brief's **How to run it** section and in the Overview's **Acceptance** card, which applies from the next milestone. With it off, the goal goes on, and the note below and its recording are sent to your notification channels instead.
 
 When a milestone task lands, the goal pauses. Its badge reads **have a look**, the Inbox shows **Have a look**, and at the top of the goal page appears a card: **Have a look — task name**.
 
@@ -222,7 +225,7 @@ The card shows:
 
 Then either press **Continue**, or write what you saw and press **Turn into a plan**. How that works, step by step, is in [When Foundry needs you](./when-foundry-needs-you.md#a-milestone-is-ready-to-look-at).
 
-The same screenshots and video are sent to your notification channels in a second message, **📸 What the milestone looks like**, whether or not the goal pauses. A video too large for the channel (50 MB on Telegram, 10 MB on Discord) stays on the goal page, and the message says so.
+The same screenshots and video are sent to your notification channels in a second message, **📸 What the milestone looks like**, whether or not the goal pauses, and stay in the Overview's **Milestones** card to watch again later. A video too large for the channel (50 MB on Telegram, 10 MB on Discord) stays on the goal page, and the message says so.
 
 ## Activity
 
@@ -232,9 +235,11 @@ Everything that happened to the goal, newest first, one line each: stages, tasks
 
 ## Diff
 
-Every file the goal changed compared with where it started, with lines added (green, +) and removed (red, −). Click a file to open or close it; **expand all** opens them all. This is exactly what would go into a pull request.
+Every file the goal changed compared with where it started, with how many lines it added and removed. This is exactly what would go into a pull request.
 
-![The Diff tab: every file the goal changed, with added lines in green and removed lines in red](images/goal-diff.png)
+Click a file to open its changes in a window: the code coloured by language, added lines green (+) and removed ones red (−), with their line numbers in the old and the new file. **Whole file** shows the file as it is now with the goal's lines tinted (while the goal's folder exists). The arrows at the top, or ← and →, move to the previous or next file.
+
+![The Diff tab: every file the goal changed, with the lines it added and removed](images/goal-diff.png)
 
 ## Cancelling, restarting, deleting
 

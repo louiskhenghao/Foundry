@@ -69,9 +69,12 @@ Foundry 写 Brief 之前，会先读你的项目和附件。大部分问题它�
 
 ## 规划期间
 
-你发送一轮答案后，卡片标题会变成 **Thinking about your answers…**，并有一行 **Planning with your answers · 3m 20s**，时间一直往上走。这是从你回答后开始算的时间。Foundry 正在读你的答案、再看一遍项目，然后要么准备下一轮，要么规划任务。
+你发送一轮答案后，卡片标题会变成 **Thinking about your answers…**，卡片上列出步骤，当前那一步带着往上走的计时：
 
-这通常要 2 到 8 分钟。它工作时，这一行下面的实时日志会一直滚动。Claude 日志里的 `⏱ sub-agent still working · 3m 30s` 表示原生规划子代理正在工作。Codex 使用 Foundry 单独运行的 Planner 会话，任务提案交给 Clarifier 审核；不会开启 Codex 原生子代理创建。你可以关掉页面；goal 会继续进行，你回来时页面会更新。
+- **Clarifier: reading the repository, then asking or writing the Brief**：下一轮问题通常不到一分钟就会出来。
+- **Planner: splitting the goal into tasks**：Clarifier 写好 Brief 之后，由单独的会话把它拆成任务、任务的检查和估算，通常要几分钟。
+
+回答是一次性写出来的，所以写的时候，步骤下面的实时日志可能好几分钟不动；计时说明它还在工作。你可以关掉页面；goal 会继续进行，你回来时页面会更新。
 
 第一轮之前，卡片上显示的是 **Reading the repository…**，原因一样。
 
