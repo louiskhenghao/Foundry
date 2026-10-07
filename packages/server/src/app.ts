@@ -1,4 +1,4 @@
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CodexEffort, Effort, Brief, EscalationAnswer, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
@@ -307,6 +307,14 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     }
   });
   // ---- what the self-check saw, and the goal's artifacts ----
+  // a check run's whole output (the result keeps a short summary); only results of this goal, only the file the run wrote
+  app.get('/api/goals/:id/check-results/:resultId/output', (c) => {
+    const goal = goalOr404(c);
+    const r = listCheckResultsByGoal(engine.store.db, goal.id).find((x) => x.id === c.req.param('resultId'));
+    if (!r) throw new HttpError(404, { error: 'check result not found' });
+    if (!r.rawRef || !existsSync(r.rawRef)) return c.json({ text: r.summary, full: false });
+    return c.json({ text: readFileSync(r.rawRef, 'utf8').slice(0, 1_000_000), full: true });
+  });
   app.get('/api/goals/:id/screenshots', (c) => {
     const goal = goalOr404(c);
     const shots = engine.store

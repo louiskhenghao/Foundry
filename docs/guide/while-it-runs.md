@@ -68,7 +68,7 @@ From top to bottom:
 - **Model fallback**: only if a model was unavailable and Foundry switched to another one.
 - **Project skills**: skills Foundry added for your project's technology, grouped as Frontend, Backend, Database, Testing and Tooling, with how many there are. They never reach your commits.
 - **Completion**: one row each for the documents, the graph refresh and media files, with how it went. See [Completion extras](./getting-the-result.md#completion-extras).
-- **Acceptance** (on the right): every **must** and **stretch** check with its latest result, for example **3/4 passing**. Click a check to see its output. Below them, the **Self-check** switch and its latest result (see [Self-check](#self-check)), and **Have a look: pause at milestones** when the goal has milestones (see [Milestones](#milestones)).
+- **Acceptance** (on the right): every **must** and **stretch** check with its latest result, for example **3/4 passing**. Click a check to open it in a window: what it checks (the command, or the reviewer's rubric), the output of its latest run with **Show the whole output** when it was cut, and every run it had, newest first; click a run to see its output. Below them, the **Self-check** switch and its latest result (see [Self-check](#self-check)), and **Have a look: pause at milestones** when the goal has milestones (see [Milestones](#milestones)).
 
 ## Tasks
 
