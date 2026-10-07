@@ -91,6 +91,7 @@ import { relative, resolve } from 'node:path';
 import { adoptLocalBin, AGENT_CLI_IDS, agentCliInstall, type AgentCliId } from './agent-cli.ts';
 import { type FollowUpDraft, type FollowUpInput, followUpDraft, linkFollowUp, prepareFollowUp } from './follow-up.ts';
 import { Tailnet } from './notify/tailnet.ts';
+import { SessionCosts } from './session-costs.ts';
 
 export interface CreateGoalInput {
   provider?: 'claude' | 'codex';
@@ -234,6 +235,7 @@ export class Engine {
     this.models = this.providerModels[config.provider];
     const env = () => ({ ...claudeConfigEnv(config.claudeHome), FOUNDRY_CALLBACK: `http://${config.host}:${config.port}`, ...this.sessionEnvExtra() });
     const supplied = (provider: 'claude' | 'codex') => runner && ('run' in runner ? runner : runner[provider]);
+    const sessionCosts = new SessionCosts(config.dataDir);
     const wrap = (inner: ClaudeRunner, provider: 'claude' | 'codex') => {
       const checked: ClaudeRunner & { killAll: () => number } = {
         active: () => inner.active(),
@@ -241,7 +243,9 @@ export class Engine {
         killAll: () => (inner as { killAll?: () => number }).killAll?.() ?? 0,
         run: async (spec) => {
           if (provider === 'codex') this.validateCodexChoice(spec.model, spec.effort);
-          return inner.run({ ...spec, env: { ...this.mediaEnv(spec.cwd, spec.meta?.goalId ?? null), ...spec.env } });
+          const full = { ...spec, env: { ...this.mediaEnv(spec.cwd, spec.meta?.goalId ?? null), ...spec.env } };
+          // Claude Code reports a resumed session's whole cost; Codex reports none worth correcting
+          return provider === 'claude' ? sessionCosts.run(full, (s) => inner.run(s)) : inner.run(full);
         },
       };
       const fallback = new ModelFallbackRunner(checked, {
