@@ -331,6 +331,22 @@ describe('media artifacts', () => {
   });
 });
 
+describe('image tools', () => {
+  test("sessions tell image tools to save outside a code goal's folder, and into artifacts/ of an image goal's", async () => {
+    const runner = new FakeRunner(() => {});
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'noop', repoPath: repo, autoBrief: { mustChecks: ['true'] } });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state));
+    const ws = goalWorkspacePath(dataDir, goal);
+    const dirs = runner.calls.map((c) => c.env?.IMAGE_OUTPUT_DIR);
+    expect(dirs.length).toBeGreaterThan(0);
+    for (const d of dirs) expect(d!.startsWith(ws + '/')).toBe(false);
+    const image = await engine.createGoal({ prompt: 'a poster', repoPath: repo, nature: 'image', autoBrief: { mustChecks: ['true'] } });
+    expect(engine.mediaEnv('/x/goal', image.id)).toEqual({ IMAGE_OUTPUT_DIR: '/x/goal/artifacts' });
+    await engine.stop();
+  });
+});
+
 describe('graph refresh', () => {
   test('local mode runs in the goal workspace; tools not on PATH are recorded as skipped', async () => {
     const engine = track(new Engine(cfg(), new FakeRunner(() => {})));

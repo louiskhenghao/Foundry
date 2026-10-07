@@ -62,7 +62,7 @@ import { planDelivery } from './delivery/policy.ts';
 import { usageSummary, type UsageSummary } from './usage/ledger.ts';
 import type { RunResult } from '@foundry/runner';
 import type { StreamEvent, StreamListener } from './types.ts';
-import { defaultWorkspaceDir, deliveryWorkspacePath, dropTaskWorkspace, ensureGoalWorkspace, goalWorkspacePath, internalWorkspaceDir, listStackBranches, previewWorkspacePath } from './workspace.ts';
+import { ARTIFACTS_DIR, defaultWorkspaceDir, deliveryWorkspacePath, dropTaskWorkspace, ensureGoalWorkspace, goalWorkspacePath, internalWorkspaceDir, listStackBranches, previewWorkspacePath } from './workspace.ts';
 import { relocateLegacyWorkspaces } from './workspace-migrate.ts';
 import { PreviewManager } from './preview/manager.ts';
 import { ensureSelfCheck, playwrightInstallCommand, playwrightStatus, runSelfCheck } from './checks/selfcheck.ts';
@@ -233,7 +233,7 @@ export class Engine {
         killAll: () => (inner as { killAll?: () => number }).killAll?.() ?? 0,
         run: async (spec) => {
           if (provider === 'codex') this.validateCodexChoice(spec.model, spec.effort);
-          return inner.run(spec);
+          return inner.run({ ...spec, env: { ...this.mediaEnv(spec.cwd, spec.meta?.goalId ?? null), ...spec.env } });
         },
       };
       const fallback = new ModelFallbackRunner(checked, {
@@ -334,6 +334,18 @@ export class Engine {
   }
   isUpdateDraining(): boolean {
     return this.updateDraining;
+  }
+
+  /**
+   * Where image tools a person installed save their files (the media-pipeline plugin writes to ./generated-images of the
+   * session's folder by default, as soon as it starts): artifacts/ of an image or video goal's folder, which stays out
+   * of git, else Foundry's own folder beside the progress folder, so other goals are not left with generated-images/.
+   */
+  mediaEnv(cwd: string, goalId: string | null): Record<string, string> {
+    const goal = goalId ? getGoal(this.store.db, goalId) : null;
+    if (goal && MEDIA_NATURES.includes(goal.nature)) return { IMAGE_OUTPUT_DIR: join(cwd, ARTIFACTS_DIR) };
+    const own = goal ? (internalWorkspaceDir(goal) ?? join(this.config.dataDir, 'worktrees', goal.id)) : this.config.dataDir;
+    return { IMAGE_OUTPUT_DIR: join(own, 'media') };
   }
 
   /** env vars the engine adds to every session on top of its own process.env (settings-sourced secrets) */
