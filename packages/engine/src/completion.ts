@@ -10,6 +10,7 @@ import { dirname, join } from 'node:path';
 import type { Brief, DocType, Goal } from '@foundry/core';
 import { MEDIA_NATURES, pendingDecisions } from '@foundry/core';
 import type { Engine } from './engine.ts';
+import { restoreGuidance, snapshotGuidance } from './git/agent-guidance.ts';
 import { exec } from './git/git.ts';
 import { pullFastForward } from './git/sync.ts';
 import { ARTIFACTS_DIR, goalWorkspacePath, listArtifacts } from './workspace.ts';
@@ -66,7 +67,8 @@ export async function deliverArtifacts(engine: Engine, goal: Goal): Promise<void
 /** Per-tool argv for the graph refresh; a tool that is not on PATH is recorded as skipped. */
 const GRAPH_TOOLS: { name: string; args: string[] }[] = [
   { name: 'graphify', args: ['update'] },
-  { name: 'gitnexus', args: ['analyze'] },
+  // index only: without it, gitnexus writes its own section into CLAUDE.md and AGENTS.md and skills into .claude
+  { name: 'gitnexus', args: ['analyze', '--index-only'] },
 ];
 
 export function shouldRunGraphRefresh(goal: Goal): boolean {
@@ -94,6 +96,8 @@ export async function runGraphRefresh(engine: Engine, goal: Goal, deps: GraphRef
     tools.push({ name: 'pull', status: pull.ok ? 'ok' : 'skipped', detail: pull.detail });
     cwd = goal.repoPath;
   }
+  // the tools refresh an index; anything they write into the agent guidance files is put back
+  const guidance = snapshotGuidance(cwd);
   for (const t of GRAPH_TOOLS) {
     if (!which(t.name)) {
       tools.push({ name: t.name, status: 'skipped', detail: 'not on PATH' });
@@ -107,6 +111,8 @@ export async function runGraphRefresh(engine: Engine, goal: Goal, deps: GraphRef
       tools.push({ name: t.name, status: 'failed', detail: String((err as Error).message ?? err).slice(0, 200) });
     }
   }
+  const restored = restoreGuidance(cwd, guidance);
+  if (restored.length) store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `graph refresh: put back ${restored.join(', ')}, which a tool had changed` } });
   store.append({ type: 'goal.completion_ran', goalId: goal.id, payload: { tools } });
   const summary = tools.map((t) => `${t.name} ${t.status}`).join(', ');
   store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `graph refresh: ${summary}` } });

@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { dropToolGuidance } from './agent-guidance.ts';
 
 export interface ExecResult {
   code: number;
@@ -34,6 +35,8 @@ export const branchExists = async (branch: string, cwd: string) => (await git(['
 
 /** Stage everything and commit if there is anything to commit. Returns the new HEAD. */
 export async function commitAll(cwd: string, message: string): Promise<{ ref: string; committed: boolean }> {
+  // a gitnexus run (a person's hook can start one in a session) writes guidance the task never asked for
+  await dropToolGuidance(cwd);
   await gitOk(['add', '-A'], cwd);
   const staged = await git(['diff', '--cached', '--quiet'], cwd);
   if (staged.code === 0) return { ref: await headRef(cwd), committed: false };

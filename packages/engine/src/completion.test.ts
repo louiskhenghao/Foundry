@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { getGoal, listEscalations, type Brief } from '@foundry/core';
@@ -351,6 +351,32 @@ describe('graph refresh', () => {
     ]);
     // local mode: no pull of the user's checkout, runs in the goal workspace
     expect(ran[0]![2]).toBe(goalWorkspacePath(dataDir, goal));
+    await engine.stop();
+  });
+
+  test('gitnexus runs index-only, and guidance a tool still writes is put back', async () => {
+    const engine = track(new Engine(cfg(), new FakeRunner(() => {})));
+    const goal = await engine.createGoal({ prompt: 'noop', repoPath: repo, autoBrief: { mustChecks: ['true'] } });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state));
+    const ws = goalWorkspacePath(dataDir, goal);
+    writeFileSync(join(ws, 'CLAUDE.md'), '# mine\n');
+    const ran: string[][] = [];
+    await runGraphRefresh(engine, getGoal(engine.store.db, goal.id)!, {
+      which: (n) => `/fake/${n}`,
+      exec: (async (cmd: string[], cwd: string) => {
+        ran.push(cmd);
+        // what an older gitnexus does without the flag
+        writeFileSync(join(cwd, 'CLAUDE.md'), '# mine\n\n<!-- gitnexus:start -->\nuse gitnexus\n<!-- gitnexus:end -->\n');
+        writeFileSync(join(cwd, 'AGENTS.md'), '<!-- gitnexus:start -->\nuse gitnexus\n<!-- gitnexus:end -->\n');
+        mkdirSync(join(cwd, '.claude', 'skills', 'gitnexus'), { recursive: true });
+        writeFileSync(join(cwd, '.claude', 'skills', 'gitnexus', 'SKILL.md'), 'x');
+        return { code: 0, stdout: '', stderr: '' };
+      }) as any,
+    });
+    expect(ran).toContainEqual(['gitnexus', 'analyze', '--index-only']);
+    expect(readFileSync(join(ws, 'CLAUDE.md'), 'utf8')).toBe('# mine\n');
+    expect(existsSync(join(ws, 'AGENTS.md'))).toBe(false);
+    expect(existsSync(join(ws, '.claude'))).toBe(false);
     await engine.stop();
   });
 });
