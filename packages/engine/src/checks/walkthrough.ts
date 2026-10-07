@@ -192,5 +192,8 @@ async function planWalk(engine: Engine, goal: Goal, task: Task, url: string, tit
   const r = await handle.result;
   engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: r.costUsd, source: 'walkthrough' } });
   engine.recordSessionUsage(r, { goalId: goal.id, kind: 'walkthrough', model: model.model });
-  return WalkPlan.parse(r.structuredOutput);
+  if (r.isError || r.structuredOutput == null) throw new Error(`the session returned no plan${r.errorMessage ? ` (${r.errorMessage.slice(0, 120)})` : ''}`);
+  const plan = WalkPlan.safeParse(r.structuredOutput);
+  if (!plan.success) throw new Error('the session returned a plan Foundry could not read');
+  return plan.data;
 }

@@ -14,11 +14,11 @@ const ROOT = resolve(import.meta.dir, '../../../..');
 const browser = (await playwrightStatus()).browser;
 
 /** a session that answers every run with a walkthrough plan (or fails) */
-const planner = (plan: WalkPlan | null): ClaudeRunner =>
+const planner = (plan: WalkPlan | null | undefined): ClaudeRunner =>
   ({
     active: () => 0,
     run: async () => {
-      if (!plan) throw new Error('no model today');
+      if (plan === undefined) throw new Error('no model today');
       const result = { sessionId: 's', subtype: 'success', isError: false, costUsd: 0.01, numTurns: 1, durationMs: 1, usage: null, modelUsage: null, permissionDenials: [], finalText: '', structuredOutput: plan, exitCode: 0, pid: null, rateLimit: null, errorMessage: null, skillsUsed: [], toolsUsed: {} } as RunResult;
       return { pid: null, events: (async function* () {})(), kill() {}, result: Promise.resolve(result) };
     },
@@ -67,11 +67,15 @@ describe('milestone walkthrough', () => {
     expect(engine.store.listByGoal(goal.id).filter((e) => e.type === 'milestone.evidence').map((e) => e.payload as MilestoneEvidence)).toEqual([ev]);
   }, 60_000);
 
-  test.skipIf(!browser)('without a plan, one screenshot of the page is kept and the reason is recorded', async () => {
-    const { engine, goal, task } = setup(planner(null));
-    const ev = (await captureMilestone(engine, goal, task))!;
+  test.skipIf(!browser)('without a plan, one screenshot of the page is kept and the reason is recorded in words', async () => {
+    let { engine, goal, task } = setup(planner(undefined));
+    let ev = (await captureMilestone(engine, goal, task))!;
     expect(ev.shots).toHaveLength(1);
     expect(ev.video).toBeNull();
     expect(ev.error).toContain('no model today');
+    await engine.stop();
+    ({ engine, goal, task } = setup(planner(null)));
+    ev = (await captureMilestone(engine, goal, task))!;
+    expect(ev.error).toBe('no walkthrough planned: the session returned no plan');
   }, 60_000);
 });
