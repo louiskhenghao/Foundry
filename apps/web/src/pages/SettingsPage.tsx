@@ -334,6 +334,7 @@ export function SettingsPage() {
                   <option value="never">never — one-shot Brief</option>
                 </Select>
               </Field>
+              {bool('workflow.milestonePause', 'Have a look: pause new goals at milestones', 'On: a goal pauses when a milestone task lands, so you can look before it goes on. Off: it goes on, and what the milestone shows is sent to your notification channels. Each goal has its own switch on its Brief and its page.')}
               <Field label="Effort for new goals" aside={aside('workflow.effort')} help="An explicit level overrides every role's effort. Default uses each Codex role's preset effort, or the Claude CLI default. Switchable per goal when creating it.">
                 <Select value={(draft.workflow.effort as string | null) ?? ''} onChange={(e) => set('workflow.effort', e.target.value || null)}>
                   <option value="">Role preset / CLI default</option>

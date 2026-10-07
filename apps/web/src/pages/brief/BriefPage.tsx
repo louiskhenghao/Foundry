@@ -287,7 +287,7 @@ export function BriefPage() {
             <GoalAcceptanceCard brief={brief} editable={editable} edit={edit} />
           </section>
           <section id="brief-run" className={sec}>
-            <RunCard brief={brief} editable={editable} edit={edit} goalId={g.id} selfCheck={g.selfCheck} />
+            <RunCard brief={brief} editable={editable} edit={edit} goalId={g.id} selfCheck={g.selfCheck} milestonePause={g.milestonePause ?? true} />
           </section>
           <section id="brief-completion" className={sec}>
             <CompletionCard brief={brief} editable={editable} value={completionEdit} onChange={setCompletionEdit} />

@@ -17,6 +17,7 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'workflow.defaultMode': { section: 'New goal defaults', help: 'Which view a new goal opens in: simple (plain-language Brief and progress) or expert (every control).' },
   'workflow.defaultPace': { section: 'New goal defaults', help: 'thorough = the engine adds its own task and goal reviews and can spawn fix tasks; fast = only the checks you approved run. Image and video goals start fast.' },
   'workflow.tdd': { section: 'New goal defaults', help: 'Test-driven discipline for new expert goals: required (observed), preferred (suggested) or off.' },
+  'workflow.milestonePause': { section: 'New goal defaults', help: 'New goals pause at their milestones so you can have a look; off = they go on, and what the milestone shows is sent to your notification channels. Switchable per goal.' },
   'workflow.interview': { section: 'New goal defaults', help: 'Whether Clarify interviews you before writing the Brief: auto (when something is worth asking), always (at least one round), never (one-shot Brief).' },
   'workflow.effort': { section: 'New goal defaults', help: 'Default goal-wide effort override (low … max). Empty uses each Codex role preset or the Claude CLI default. New goals can override it.' },
   'reviews.alwaysReviewTasks': { section: 'New goal defaults', help: 'Run the task reviewer on every task, not only tasks that ask for a reviewer check (thorough pace).' },

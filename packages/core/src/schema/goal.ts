@@ -171,6 +171,8 @@ export const Goal = z.object({
   checkpoint: z.object({ taskId: z.string(), lookFor: z.string(), openedAt: z.string(), recheck: z.boolean() }).nullable().default(null),
   /** after each integration, open the preview in a headless browser, screenshot it and fail on console/network errors */
   selfCheck: z.boolean().default(false),
+  /** pause at milestones for the human's look ("Have a look"); off = the goal goes on and the milestone is only notified */
+  milestonePause: z.boolean().default(true),
   /** the branch a finished goal's preview runs from; null = the goal branch while its folder exists, else the base branch */
   previewRef: z.string().nullable().default(null),
   /**

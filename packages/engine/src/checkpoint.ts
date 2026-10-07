@@ -43,6 +43,14 @@ export async function openCheckpoint(engine: Engine, goal: Goal, due: { task: Ta
   });
 }
 
+/**
+ * A milestone landed in a goal that does not pause for it ("Have a look" off): the notification channels are told what
+ * to look at, and the goal goes on.
+ */
+export function passMilestone(engine: Engine, goal: Goal, task: Task): void {
+  engine.store.append({ type: 'goal.milestone_passed', goalId: goal.id, payload: { taskId: task.id, lookFor: task.milestone ?? '' } });
+}
+
 /** The human continued or gave feedback: the goal runs again. */
 export function closeCheckpoint(engine: Engine, goal: Goal, close: { action: 'continue' | 'feedback'; feedback: string | null; plan: FeedbackPlan | null }): void {
   const { store } = engine;

@@ -12,7 +12,7 @@ import { screenshotsDir } from '../workspace.ts';
 import { DiscordNotifier, TelegramNotifier, type Notifier } from './channels.ts';
 
 export interface Composed {
-  family: 'goalFinished' | 'delivery' | 'rateLimit' | 'updateAvailable' | 'interview';
+  family: 'goalFinished' | 'delivery' | 'rateLimit' | 'updateAvailable' | 'interview' | 'milestone';
   text: string;
   /** web-UI path appended to notifications.baseUrl when one is set */
   path: string | null;
@@ -35,6 +35,8 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
       const qs = e.payload.questions;
       return { family: 'interview', text: `❓ Round ${e.payload.round} — ${goalTitle(e.goalId)}\n${qs.length} question(s) before the plan is written. First: ${(qs[0]?.text ?? '').slice(0, 200)}`, path: `/goals/${e.goalId}` };
     }
+    case 'goal.milestone_passed':
+      return { family: 'milestone', text: `👀 Milestone — ${goalTitle(e.goalId)}\n${e.payload.lookFor.slice(0, 600)}\nThe goal goes on (Have a look is off for it).`, path: `/goals/${e.goalId}` };
     case 'goal.state_changed': {
       const { to, reason } = e.payload;
       // cancelled is always the human's own act — telling them what they just did carries no information
@@ -100,8 +102,9 @@ export class NotificationDispatcher {
     const c = compose(e, this.goalTitle, this.engine.config.provider);
     if (!c) return;
     const s = this.settings();
-    const on = { goalFinished: s.onGoalFinished, delivery: s.onDelivery, rateLimit: s.onRateLimit, updateAvailable: s.onUpdateAvailable, interview: s.onInterview }[c.family];
-    if (on) this.deliver(s, c.text, c.path, e.goalId);
+    // a milestone is the same note whether the goal pauses for it (an escalation) or goes on
+    const on = { goalFinished: s.onGoalFinished, delivery: s.onDelivery, rateLimit: s.onRateLimit, updateAvailable: s.onUpdateAvailable, interview: s.onInterview, milestone: s.onEscalation }[c.family];
+    if (on) this.deliver(s, c.text, c.path, e.goalId, c.family === 'milestone' && e.goalId ? this.latestScreenshot(e.goalId) : null);
   }
 
   private onEscalation(esc: Escalation): void {

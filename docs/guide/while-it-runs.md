@@ -205,6 +205,8 @@ It only helps goals whose result runs in a browser, and it needs a one-time down
 
 ## Milestones
 
+**Have a look: pause at milestones** decides whether a goal stops at its milestones. It is on by default ([Settings](./settings.md)); each goal has its own switch on the Brief's **How to run it** section and in the Overview's **Acceptance** card, which applies from the next milestone. With it off, the goal goes on, and the note below, with the latest screenshot, is sent to your notification channels instead.
+
 When a milestone task lands, the goal pauses. Its badge reads **have a look**, the Inbox shows **Have a look**, and at the top of the goal page appears a card: **Have a look — task name**.
 
 ![The Have a look card with what to look at, the running preview and the self-check's screenshots](images/milestone.png)

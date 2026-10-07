@@ -3,7 +3,7 @@ import { listTasks, getTask, getGoal, listAttempts, getObservation } from '@foun
 import { type Continuation, continuationMessage, decideNext, maxAttemptsFor, runAttempt } from './attempt-loop.ts';
 import { budgetStatus } from './budget.ts';
 import type { Engine } from './engine.ts';
-import { dueCheckpoint, openCheckpoint } from './checkpoint.ts';
+import { dueCheckpoint, openCheckpoint, passMilestone } from './checkpoint.ts';
 import { raiseEscalation } from './escalation.ts';
 import { headRef } from './git/git.ts';
 import { integrateTask } from './merge.ts';
@@ -36,9 +36,14 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
   }
   tasks = listTasks(store.db, goal.id);
 
-  // 2b. a milestone landed (or a feedback fix for one): launch nothing more, let in-flight work land, then pause for the human
-  const due = dueCheckpoint(tasks);
-  if (due) {
+  // 2b. a milestone landed (or a feedback fix for one): launch nothing more, let in-flight work land, then pause for the
+  // human; a goal that does not pause at milestones tells them and goes on
+  for (let due = dueCheckpoint(tasks); due; due = dueCheckpoint(tasks)) {
+    if (goal.milestonePause === false) {
+      passMilestone(engine, goal, due.task);
+      tasks = listTasks(store.db, goal.id);
+      continue;
+    }
     if (engine.inFlightForGoal(goal.id).length === 0) await openCheckpoint(engine, goal, due);
     return;
   }

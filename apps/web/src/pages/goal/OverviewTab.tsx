@@ -177,9 +177,26 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
               </div>
             ))}
             {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <SelfCheckSection d={d} />}
+            {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && d.tasks.some((t) => t.milestone) && <MilestonePauseSection d={d} />}
           </Card>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** "Have a look": whether the goal pauses at its milestones; switchable while it runs, from its next milestone */
+function MilestonePauseSection({ d }: { d: GoalDetail }) {
+  const g = d.goal;
+  const [err, setErr] = useState<string | null>(null);
+  return (
+    <div className="border-t border-zinc-800 pt-3 space-y-1.5">
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" className="accent-emerald-500" checked={g.milestonePause ?? true} onChange={(e) => api.setMilestonePause(g.id, e.target.checked).catch((x) => setErr(x.body?.error ?? x.message))} />
+        <span className="text-xs text-zinc-200">Have a look: pause at milestones</span>
+      </label>
+      <p className="text-[11px] text-zinc-500">Off: the goal goes on when a milestone lands, and what it shows is sent to your notification channels. Applies from the next milestone.</p>
+      {err && <div className="text-[11px] text-rose-300">{err}</div>}
     </div>
   );
 }

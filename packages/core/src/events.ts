@@ -83,6 +83,10 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('interview.finished', { rounds: z.number().int().nonnegative(), reason: z.enum(['brief', 'nothing_to_ask', 'cap', 'human']) }),
   /** the human switched the goal's headless self-check on or off */
   ev('goal.selfcheck_set', { on: z.boolean() }),
+  /** the human switched whether the goal pauses at its milestones ("Have a look") */
+  ev('goal.milestone_pause_set', { on: z.boolean() }),
+  /** a milestone landed in a goal that does not pause for it: the human is told, the goal goes on */
+  ev('goal.milestone_passed', { taskId: z.string(), lookFor: z.string() }),
   /** the branch a finished goal's preview runs from; null = the goal branch while its folder exists, else the base branch */
   ev('goal.preview_ref_set', { ref: z.string().nullable() }),
   /** where a finished goal's preview runs: the person's checkout, Foundry's preview folder, or whichever fits (auto) */

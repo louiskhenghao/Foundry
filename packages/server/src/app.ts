@@ -56,6 +56,7 @@ const CreateGoalBody = z.object({
   nature: GoalNature.optional(),
   outputDir: z.string().nullable().optional(),
   selfCheck: z.boolean().optional(),
+  milestonePause: z.boolean().optional(),
   interview: z.enum(['auto', 'always', 'never']).optional(),
   effort: CodexEffort.nullable().optional(),
   modelPreset: z.string().min(1).nullable().optional(),
@@ -271,6 +272,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.post('/api/goals/:id/preview/env/import', (c) => c.json(engine.preview.importCheckoutEnv(goalOr404(c))));
   app.post('/api/goals/:id/preview/visit', (c) => {
     engine.preview.touch(goalOr404(c).id);
+    return c.json({ ok: true });
+  });
+  app.post('/api/goals/:id/milestone-pause', async (c) => {
+    const { on } = z.object({ on: z.boolean() }).parse(await c.req.json());
+    engine.setMilestonePause(goalOr404(c).id, on);
     return c.json({ ok: true });
   });
   app.post('/api/goals/:id/selfcheck', async (c) => {

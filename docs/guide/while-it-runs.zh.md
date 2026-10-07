@@ -205,6 +205,8 @@ Foundry 绝不会为了预览去切换、重置或拉取你的 checkout。改任
 
 ## Milestones
 
+**Have a look: pause at milestones** 决定 goal 到了里程碑要不要停下来。默认开启（[Settings](./settings.md)）；每个 goal 在 Brief 的 **How to run it** 部分和 Overview 的 **Acceptance** 卡片里都有自己的开关，从下一个里程碑开始生效。关掉后 goal 会继续往下跑，下面这段说明会连同最新的截图发到你的通知渠道。
+
 里程碑任务并入后，goal 会暂停。它的状态标记显示 **have a look**，Inbox 显示 **Have a look**，goal 页面顶部出现一张卡片：**Have a look — task name**。
 
 ![Have a look 卡片：要看什么、运行中的预览和自检截图](images/milestone.png)

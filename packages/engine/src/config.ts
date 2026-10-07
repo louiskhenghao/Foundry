@@ -40,6 +40,8 @@ export interface EngineConfig {
   selfCheck: boolean;
   /** how Clarify starts for new goals: interview in rounds when useful / always at least one round / never (one-shot Brief) */
   interview: 'auto' | 'always' | 'never';
+  /** new goals pause at their milestones for the human's look ("Have a look") */
+  milestonePause: boolean;
   /** effort handed to every session of new goals; null = CLI default */
   effort: Effort | null;
   /** presets saved in Settings (edited built-ins and your own); the shipped ones are always available */
@@ -151,6 +153,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     preview: { portFrom: Number(process.env.FOUNDRY_PREVIEW_PORT_FROM ?? 4200), portTo: Number(process.env.FOUNDRY_PREVIEW_PORT_TO ?? 4299), idleMinutes: Number(process.env.FOUNDRY_PREVIEW_IDLE_MIN ?? 60) },
     selfCheck: process.env.FOUNDRY_SELF_CHECK === '1' || process.env.FOUNDRY_SELF_CHECK === 'true',
     interview: (['auto', 'always', 'never'] as const).find((m) => m === process.env.FOUNDRY_INTERVIEW) ?? 'auto',
+    milestonePause: process.env.FOUNDRY_MILESTONE_PAUSE !== '0' && process.env.FOUNDRY_MILESTONE_PAUSE !== 'false',
     effort: Effort.options.find((e) => e === process.env.FOUNDRY_EFFORT) ?? null,
     codexPresets: {},
     codexNaturePreset: { ...DEFAULT_NATURE_PRESETS },

@@ -247,6 +247,16 @@ export function applyEvent(db: Database, e: EngineEvent): void {
       if (g) upsertGoal(db, { ...g, selfCheck: e.payload.on, updatedAt: e.ts });
       break;
     }
+    case 'goal.milestone_pause_set': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, milestonePause: e.payload.on, updatedAt: e.ts });
+      break;
+    }
+    case 'goal.milestone_passed': {
+      const t = getTask(db, e.payload.taskId);
+      if (t) upsertTask(db, { ...t, milestoneVisits: t.milestoneVisits + 1, updatedAt: e.ts });
+      break;
+    }
     case 'goal.preview_ref_set': {
       const g = getGoal(db, e.goalId!);
       if (g) upsertGoal(db, { ...g, previewRef: e.payload.ref, updatedAt: e.ts });

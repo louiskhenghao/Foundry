@@ -501,6 +501,7 @@ export function apiForProvider(provider?: AgentProvider) {
   previewImportEnv: (id: string) => req<{ added: string[]; view: PreviewEnv }>(`/api/goals/${id}/preview/env/import`, { method: 'POST' }),
   previewServicesStop: (id: string, names?: string[]) => req<ServicesStatus | null>(`/api/goals/${id}/preview/services/stop`, { method: 'POST', body: JSON.stringify(names ? { names } : {}) }),
   previewVisit: (id: string) => req<{ ok: true }>(`/api/goals/${id}/preview/visit`, { method: 'POST' }),
+  setMilestonePause: (id: string, on: boolean) => req<{ ok: true }>(`/api/goals/${id}/milestone-pause`, { method: 'POST', body: JSON.stringify({ on }) }),
   setSelfCheck: (id: string, on: boolean) => req<{ ok: true }>(`/api/goals/${id}/selfcheck`, { method: 'POST', body: JSON.stringify({ on }) }),
   feedbackClassify: (id: string, text: string) => req<{ plan: FeedbackPlan }>(`/api/goals/${id}/feedback/classify`, { method: 'POST', body: JSON.stringify({ text }) }),
   screenshots: (id: string) => req<{ screenshots: { at: string; taskId: string | null; status: string; url: string | null; screenshot: string | null; errors: string[]; summary: string }[] }>(`/api/goals/${id}/screenshots`),

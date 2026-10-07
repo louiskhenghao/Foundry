@@ -103,6 +103,8 @@ export interface CreateGoalInput {
   models?: Partial<ModelConfig>;
   /** run the headless self-check on the preview after each integration; default = Settings → checks.selfCheck */
   selfCheck?: boolean;
+  /** pause at milestones for the human's look; default = Settings → workflow.milestonePause */
+  milestonePause?: boolean;
   /** interview the human in rounds before the Brief; default = Settings → workflow.interview */
   interview?: 'auto' | 'always' | 'never';
   /** effort level for every session of this goal; default = Settings → workflow.effort */
@@ -461,6 +463,12 @@ export class Engine {
     this.store.append({ type: 'goal.selfcheck_set', goalId, payload: { on } });
     // before approval only the choice is recorded: approving the Brief creates the check with the others
     if (on && !['draft', 'clarifying', 'awaiting_brief_approval'].includes(goal.state)) ensureSelfCheck(this, getGoal(this.store.db, goalId)!);
+  }
+
+  /** switch whether a goal pauses at its milestones ("Have a look"); applies from its next milestone */
+  setMilestonePause(goalId: string, on: boolean): void {
+    if (this.mustGoal(goalId).milestonePause === on) return;
+    this.store.append({ type: 'goal.milestone_pause_set', goalId, payload: { on } });
   }
 
   /** after a task landed on the goal branch: the self-check looks at the preview when the goal asked for one */
@@ -1293,6 +1301,7 @@ export class Engine {
       workspaceDir: defaultWorkspaceDir(this.config.workspacesRoot, { id, title, repoPath: input.repoPath }),
       checkpoint: null,
       selfCheck: input.selfCheck ?? this.config.selfCheck,
+      milestonePause: input.milestonePause ?? this.config.milestonePause,
       previewRef: null,
       previewPlace: 'auto',
       effort: input.effort === undefined ? this.config.effort : input.effort,
