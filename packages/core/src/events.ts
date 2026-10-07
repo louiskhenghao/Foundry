@@ -20,6 +20,7 @@ import {
   Goal,
   GoalNature,
   GoalState,
+  PreviewPlace,
   ObservationReport,
   ReviewerVerdict,
   Task,
@@ -84,6 +85,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.selfcheck_set', { on: z.boolean() }),
   /** the branch a finished goal's preview runs from; null = the goal branch while its folder exists, else the base branch */
   ev('goal.preview_ref_set', { ref: z.string().nullable() }),
+  /** where a finished goal's preview runs: the person's checkout, Foundry's preview folder, or whichever fits (auto) */
+  ev('goal.preview_place_set', { place: PreviewPlace }),
   /** the engine started / stopped one app of the goal's preview (the run command in the progress folder); app absent = written before several apps */
   ev('preview.started', { port: z.number().int(), url: z.string(), command: z.string(), app: z.string().optional() }),
   ev('preview.stopped', { reason: z.string(), app: z.string().optional() }),

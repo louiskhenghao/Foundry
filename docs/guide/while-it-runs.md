@@ -165,9 +165,17 @@ Foundry also starts the preview by itself at a milestone, restarts it after each
 
 ### Where it runs
 
-The top of the card says which branch runs and where, **not your checkout**. While the goal is being worked on, the preview runs the goal's own copy of the repository (its progress folder, on the goal's branch), so you see the goal's work, not what is in your own folder. **copy** copies that folder's path.
+The top of the card says which branch runs and where. While the goal is being worked on, the preview runs the goal's own copy of the repository (its progress folder, on the goal's branch), **not your checkout**, so you see the goal's work, not what is in your own folder. **copy** copies that folder's path.
 
-Once the goal is finished, the branch is a menu, with a line under it saying what the chosen branch is (the goal's folder, the base branch with the merged work…). Pick the goal branch, the base branch (for example `main`) or another local branch of yours; stop the preview first to change it. Any branch other than the goal's runs in Foundry's own preview folder, checked out at that branch's latest commit, never in your checkout. After a merge Foundry cleans up the goal's folder and deletes its branch; the preview then runs the base branch, which holds the merged work, and an amber line says so.
+Once the goal is finished, the branch is a menu, with a line under it saying what the chosen branch is (the goal's folder, the base branch with the merged work…). Pick the goal branch, the base branch (for example `main`) or another local branch of yours; stop the preview first to change it. After a merge Foundry cleans up the goal's folder and deletes its branch; the preview then runs the base branch, which holds the merged work, and an amber line says so.
+
+Beside the branch, a second menu picks where a branch other than the goal's runs:
+
+- **(auto)**, the default: in your checkout when it is on that branch already, so its installed dependencies and `.env` files are used; otherwise in Foundry's preview folder, and a line says which branch your checkout is on.
+- **your checkout**: your own folder as it is, on whatever branch it is on, including changes you have not committed. The branch menu goes away.
+- **Foundry's preview folder**: Foundry's own folder, checked out at the branch's latest commit.
+
+Foundry never switches, resets or pulls your checkout for a preview. Stop the preview before changing either menu.
 
 When the start command launches more servers than the one Foundry gave a port to (a demo script that starts the web app, an admin and an API, or `turbo dev`), Foundry finds the ports they listen on and lists the ones that answer web requests under **Also serving**, each named after its package (or the folder it runs in), with its own link. Every port it uses is kept away from other goals' previews.
 

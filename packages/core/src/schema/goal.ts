@@ -142,6 +142,10 @@ export const GoalFollows = z.object({
 });
 export type GoalFollows = z.infer<typeof GoalFollows>;
 
+/** where a finished goal's preview runs (see Goal.previewPlace) */
+export const PreviewPlace = z.enum(['auto', 'checkout', 'foundry']);
+export type PreviewPlace = z.infer<typeof PreviewPlace>;
+
 export const Goal = z.object({
   /** Fixed at creation. Absent only in events written before provider support. */
   provider: z.enum(['claude', 'codex']).optional(),
@@ -169,6 +173,11 @@ export const Goal = z.object({
   selfCheck: z.boolean().default(false),
   /** the branch a finished goal's preview runs from; null = the goal branch while its folder exists, else the base branch */
   previewRef: z.string().nullable().default(null),
+  /**
+   * where a finished goal's preview runs: `auto` = the person's checkout when it is on the chosen branch, else Foundry's
+   * preview folder; `checkout` = the person's checkout as it is, whatever its branch; `foundry` = always Foundry's folder
+   */
+  previewPlace: PreviewPlace.default('auto'),
   /** the Clarify interview (rounds of questions before the Brief); null = the one-shot Clarify of before */
   interview: Interview.nullable().default(null),
   /** effort level for every session of this goal; null = Settings default / CLI default */

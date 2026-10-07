@@ -252,6 +252,11 @@ export function applyEvent(db: Database, e: EngineEvent): void {
       if (g) upsertGoal(db, { ...g, previewRef: e.payload.ref, updatedAt: e.ts });
       break;
     }
+    case 'goal.preview_place_set': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, previewPlace: e.payload.place, updatedAt: e.ts });
+      break;
+    }
     case 'goal.checkpoint_closed': {
       const g = getGoal(db, e.goalId!);
       if (g) upsertGoal(db, { ...g, checkpoint: null, updatedAt: e.ts });

@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CodexEffort, Effort, Brief, EscalationAnswer, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
 import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, type Engine, type OpenTargetId } from '@foundry/engine';
-import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, SettingsPatch } from '@foundry/core';
+import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, PreviewPlace, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
 import { listGuide, readGuide } from './guide.ts';
@@ -230,9 +230,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   // the branch a finished goal's preview runs from: the choices, and picking one (null = the default)
   app.get('/api/goals/:id/preview/sources', async (c) => c.json(await engine.preview.sources(goalOr404(c))));
   app.put('/api/goals/:id/preview/source', async (c) => {
-    const { ref } = z.object({ ref: z.string().min(1).max(250).nullable() }).parse(await c.req.json().catch(() => ({})));
+    const { ref, place } = z.object({ ref: z.string().min(1).max(250).nullable().optional(), place: PreviewPlace.optional() }).parse(await c.req.json().catch(() => ({})));
     try {
-      return c.json(await engine.preview.setSource(goalOr404(c), ref));
+      return c.json(await engine.preview.setSource(goalOr404(c), ref, place));
     } catch (e) {
       if (e instanceof PreviewError) throw new HttpError(e.status, { error: e.message });
       throw e;

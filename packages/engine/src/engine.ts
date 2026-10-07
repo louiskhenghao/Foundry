@@ -1259,6 +1259,7 @@ export class Engine {
       checkpoint: null,
       selfCheck: input.selfCheck ?? this.config.selfCheck,
       previewRef: null,
+      previewPlace: 'auto',
       effort: input.effort === undefined ? this.config.effort : input.effort,
       modelPreset: presetId,
       ...(codexPreset ? { codexPreset, codexFallbacks: [...this.config.codexFallbacks], ...(input.codexModel?.trim() ? { codexModelOverride: input.codexModel.trim() } : {}) } : {}),

@@ -30,7 +30,7 @@ afterEach(async () => {
 const goal = (over: Partial<Goal> = {}): Goal => {
   const now = new Date().toISOString();
   const g: Goal = {
-    id: 'g_preview01', title: 'preview', prompt: 'p', workspaceDir: ws, checkpoint: null, selfCheck: false, previewRef: null, interview: null, effort: null, modelPreset: null, modelSubstitutions: {}, repoPath: '/nowhere', baseBranch: 'main', branch: 'goal/g_preview01',
+    id: 'g_preview01', title: 'preview', prompt: 'p', workspaceDir: ws, checkpoint: null, selfCheck: false, previewRef: null, previewPlace: 'auto', interview: null, effort: null, modelPreset: null, modelSubstitutions: {}, repoPath: '/nowhere', baseBranch: 'main', branch: 'goal/g_preview01',
     budgets: { maxCostUsd: 5, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3 }, budgetPreset: 'custom', mode: 'expert', workflow: { tdd: 'off', pace: 'thorough' },
     models: { strong: 'opus', cheap: 'haiku', worker: 'opus' }, state: 'running', stateBeforeBlock: null, costUsd: 0, fixCycles: 0, delivery: IDLE_DELIVERY, attachments: [], baseSync: null, autoskills: null, follows: null,
     completion: { graphRefresh: false, docs: [], docsRun: null, graphRun: null, artifactsRun: null }, nature: 'auto', outputDir: null, runningSince: null, createdAt: now, updatedAt: now, ...over,
@@ -62,9 +62,16 @@ describe('PreviewManager', () => {
     expect(engine.preview.setSource(running, 'feature')).rejects.toThrow(/being worked on/);
 
     engine.store.append({ type: 'goal.state_changed', goalId: running.id, payload: { from: 'running', to: 'done', reason: 'test' } });
+    // the person's checkout is on main, the branch the preview would run: it runs there, as it is
+    const g0 = getGoal(engine.store.db, running.id)!;
+    expect(engine.preview.status(g0.id).workspace).toMatchObject({ kind: 'checkout', path: repo, branch: 'main', place: 'auto', checkoutBranch: 'main' });
+    await engine.preview.prepare(g0);
+    expect(await sh('git rev-parse --abbrev-ref HEAD', repo)).toContain('main');
+    // pinned to Foundry's folder, main runs there instead
+    await engine.preview.setSource(g0, undefined, 'foundry');
     const g = getGoal(engine.store.db, running.id)!;
     const ws0 = engine.preview.status(g.id).workspace!;
-    expect(ws0).toMatchObject({ kind: 'branch', branch: 'main' });
+    expect(ws0).toMatchObject({ kind: 'branch', branch: 'main', place: 'foundry' });
     expect(ws0.fallback).toContain('cleaned up');
     expect(ws0.path).not.toBe(gone);
     await engine.preview.prepare(g);
@@ -82,6 +89,11 @@ describe('PreviewManager', () => {
     expect(picked).toMatchObject({ kind: 'branch', branch: 'feature', fallback: null });
     expect(existsSync(join(picked.path, 'feature.txt'))).toBe(true);
     expect(engine.preview.setSource(g, 'nope')).rejects.toThrow(/no branch nope/);
+    // auto: feature is not what the checkout is on, so it stays in Foundry's folder; pinned to the checkout, the checkout runs as it is
+    await engine.preview.setSource(getGoal(engine.store.db, g.id)!, undefined, 'auto');
+    expect(engine.preview.status(g.id).workspace).toMatchObject({ kind: 'branch', branch: 'feature', checkoutBranch: 'main' });
+    await engine.preview.setSource(getGoal(engine.store.db, g.id)!, undefined, 'checkout');
+    expect(engine.preview.status(g.id).workspace).toMatchObject({ kind: 'checkout', path: repo, branch: 'main', place: 'checkout' });
     rmSync(repo, { recursive: true, force: true });
   });
 
@@ -182,7 +194,7 @@ describe('what the preview card can tell', () => {
     const g = goal();
     const st = await engine.preview.start(g, 'human');
     expect(st.port).toBe(47100);
-    expect(st.workspace).toEqual({ kind: 'goal', path: ws, branch: 'goal/g_preview01', preparing: false, fallback: null });
+    expect(st.workspace).toEqual({ kind: 'goal', path: ws, branch: 'goal/g_preview01', preparing: false, fallback: null, place: 'auto', checkoutBranch: null });
     await until(() => engine.preview.status(g.id).apps[0]!.discovered.length > 1);
     expect(engine.preview.status(g.id).apps[0]!.discovered).toEqual([
       { port: 47101, url: 'http://localhost:47101', name: 'admin', dir: 'apps/admin' },
