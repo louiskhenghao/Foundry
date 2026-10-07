@@ -1314,6 +1314,7 @@ export class Engine {
       checkpoint: null,
       selfCheck: input.selfCheck ?? this.config.selfCheck,
       milestonePause: input.milestonePause ?? this.config.milestonePause,
+      clarifyStage: null,
       previewRef: null,
       previewPlace: 'auto',
       effort: input.effort === undefined ? this.config.effort : input.effort,

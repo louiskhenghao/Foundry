@@ -112,7 +112,7 @@ The dollar/turn and native sub-agent examples below describe Claude output. Code
 | `■ success · $0.420 · 7 turns — …` | The session finished. The text after the dash is the worker's final message; click the line to read all of it. |
 | `■ error_max_turns`, `■ error_max_budget_usd`, `■ killed_timeout` | The session hit a limit. Foundry resumes it with a fresh allowance, up to twice, before starting a new attempt. |
 | `⏳ rate limit rejected` | The session’s coding agent reached a usage limit. Foundry pauses that coding agent and retries later; other coding agents can continue. A retry time is not proof of recovered quota. |
-| `⏱ sub-agent still working · 3m 30s` | A helper (for example the planner) is still busy. Long pauses in the log are normal while this line updates. |
+| `⏱ sub-agent still working · 3m 30s` | A helper session is still busy. Long pauses in the log are normal while this line updates. |
 | `[claude-code:unrecognized_model] …` | Your Claude Code is older than the model you picked. The session works; updating Claude Code removes the line. |
 
 ### Task states

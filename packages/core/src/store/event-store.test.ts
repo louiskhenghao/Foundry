@@ -12,7 +12,7 @@ function goal(id: string): Goal {
     prompt: 'p',
     workspaceDir: null,
     checkpoint: null,
-    selfCheck: false, previewRef: null, previewPlace: 'auto', milestonePause: true,
+    selfCheck: false, previewRef: null, previewPlace: 'auto', milestonePause: true, clarifyStage: null,
     interview: null,
     effort: null, modelPreset: null, modelSubstitutions: {},
     repoPath: '/tmp/x',

@@ -4,6 +4,7 @@ import { RestartDialog } from '../../components/RestartDialog.tsx';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { FollowLinks, MarkFollowUpDialog } from './FollowUps.tsx';
+import { ClarifyProgress } from './ClarifyProgress.tsx';
 import { InterviewPanel } from './InterviewPanel.tsx';
 import { MilestoneCard } from './MilestoneCard.tsx';
 import { api, type GoalDetail } from '../../api.ts';
@@ -205,6 +206,7 @@ export function GoalPage() {
       {g.state === 'clarifying' && g.interview && <InterviewPanel goal={g} />}
       {((g.state === 'clarifying' && !g.interview) || g.state === 'goal_review') && (
         <Card title={g.state === 'clarifying' ? 'Clarifying…' : 'Goal review…'}>
+          {g.state === 'clarifying' && <div className="mb-3 text-xs"><ClarifyProgress goal={g} writingBrief /></div>}
           <LiveLog attemptId={g.state === 'clarifying' ? `clarify-${id}` : `goal-review-${id}-${g.fixCycles}`} />
         </Card>
       )}
