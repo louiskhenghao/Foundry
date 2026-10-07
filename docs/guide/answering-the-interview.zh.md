@@ -12,7 +12,7 @@ Foundry 写 Brief 之前，会先读你的项目和附件。大部分问题它�
 
 - 小而清楚的 goal 通常没有访谈。Foundry 直接写 Brief。
 - 更大或更模糊的 goal，在有值得问的事时，会有一轮或多轮访谈。
-- 如果你在 New goal 表单上勾了 **Interview me before planning**，至少会有一轮，除非已经没有需要你决定的事。
+- 如果 New goal 表单上的 **Interview depth** 是 4 或 5，至少会有一轮（5 至少两轮），除非已经没有需要你决定的事；深度越高，问的细节越多。
 - Settings 可以把访谈完全关掉，也可以让每个 goal 都有访谈：[Settings → New goal defaults](./settings.zh.md#new-goal-defaults)。
 
 访谈会出现在 goal 页面和它的 Brief 页面上，是一张标题为 **Round N — K questions** 的卡片。如果你设置了通知，还会收到一条消息（**Interview round** 开关）。
@@ -63,7 +63,7 @@ Foundry 写 Brief 之前，会先读你的项目和附件。大部分问题它�
 
 ## 最多几轮
 
-总共最多四轮。通常是一两轮。第四轮之后，不管还剩什么没定，Foundry 都会开始写 Brief。
+轮数没有固定：按你选的深度没有可问的了，Foundry 就停下。通常是一两轮；深度 5 可能会很多轮。十轮之后，不管还剩什么没定，Foundry 都会开始写 Brief。
 
 之前的轮次会折叠在当前这一轮下面：**▸ N earlier rounds** 显示问过什么、你答了什么。你没回答的问题也会注明：Clarifier 按它的推荐处理，并把它列在 Brief 的 Assumptions 里。
 

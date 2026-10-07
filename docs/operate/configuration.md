@@ -11,7 +11,8 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `workflow.tdd` | `required` | `FOUNDRY_TDD` | Test-driven discipline for new expert goals: required (observed), preferred (suggested) or off. |
 | `workflow.defaultMode` | `expert` | `FOUNDRY_GOAL_MODE` | Which view a new goal opens in: simple (plain-language Brief and progress) or expert (every control). |
 | `workflow.defaultPace` | `thorough` | `FOUNDRY_PACE` | thorough = the engine adds its own task and goal reviews and can spawn fix tasks; fast = only the checks you approved run. Image and video goals start fast. |
-| `workflow.interview` | `auto` | `FOUNDRY_INTERVIEW` | Whether Clarify interviews you before writing the Brief: auto (when something is worth asking), always (at least one round), never (one-shot Brief). |
+| `workflow.interview` | `auto` | `FOUNDRY_INTERVIEW` | The older switch for the interview: auto, always (at least one round) or never (one-shot Brief). Interview depth, when set, takes its place. |
+| `workflow.interviewDepth` | — | `FOUNDRY_INTERVIEW_DEPTH` | How deep Clarify interviews you before writing the Brief: 0 = not at all (one-shot Brief), 1 = only what a wrong guess would waste … 5 = every detail, until nothing is left to decide. Empty = what Interview stands for (auto 3, always 4, never 0). Switchable per goal. |
 | `workflow.milestonePause` | `true` | `FOUNDRY_MILESTONE_PAUSE` | New goals pause at their milestones so you can have a look; off = they go on, and what the milestone shows is sent to your notification channels. Switchable per goal. |
 | `workflow.effort` | — | `FOUNDRY_EFFORT` | Default goal-wide effort override (low … max). Empty uses each Codex role preset or the Claude CLI default. New goals can override it. |
 | `reviews.alwaysReviewTasks` | `true` | — | Run the task reviewer on every task, not only tasks that ask for a reviewer check (thorough pace). |

@@ -58,6 +58,7 @@ const CreateGoalBody = z.object({
   selfCheck: z.boolean().optional(),
   milestonePause: z.boolean().optional(),
   interview: z.enum(['auto', 'always', 'never']).optional(),
+  interviewDepth: z.number().int().min(0).max(5).optional(),
   effort: CodexEffort.nullable().optional(),
   modelPreset: z.string().min(1).nullable().optional(),
   /** create the goal as a Follow-up of an earlier finished goal of the same repository */

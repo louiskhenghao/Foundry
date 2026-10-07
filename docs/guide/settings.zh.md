@@ -28,7 +28,7 @@
 | **Default goal view** | expert | goal 打开时用哪个视图：simple 或 expert。 |
 | **Pace for new goals** | thorough | **thorough — engine reviews the work** 或 **fast — approved checks only**。图片和视频 goal 总是以 fast 开始。 |
 | **Have a look: pause new goals at milestones** | 开 | 里程碑任务完成时 goal 暂停，让你看一看。关掉：goal 继续往下跑，里程碑的内容发到你的通知渠道。每个 goal 有自己的开关。 |
-| **Interview before the Brief** | auto | **auto** 只在有值得问的事时才问；**always** 至少问一轮；**never** 直接写 Brief。 |
+| **Interview depth** | 3 | 写 Brief 之前 Clarifier 问你问得多深：从 **Skip**（不问）和 **1**（只问猜错会白做的事）到 **5**（每个细节，直到没有可问的）。见 [Interview depth](./your-first-goal.zh.md#interview-depth)。 |
 | **Effort for new goals** | Role preset / CLI default | 从 **low** 到 **max** 的全任务覆盖。默认使用 Codex 各角色预设，或 Claude CLI 默认值。 |
 | **TDD for new Expert goals** | required | 测试先行：**required**、**preferred** 或 **off**。 |
 | **Goal-level fix cycles** | 1 | 最终审查在问你之前，最多可以派几轮修复任务。只用于 thorough 节奏。 |
@@ -39,7 +39,7 @@
 
 值得知道：New goal 表单就从这些默认值开始。**Default goal view**、**Pace**、**TDD**、**Effort**，以及交付的 **Mode for new goals** 和 **Granularity** 都从这里填入；项目里有这里写的 **Remote** 时，表单也会选它。你在表单上改过的字段，会为这个 goal 保留你的选择。**Interview** 和模型预设只要在表单上保持默认，就跟随 Settings。Codex 主动选择 **Default** effort 则明确使用各角色的预设强度。表单自己会在这个浏览器里记住 goal 类型、预算，以及更细的交付选项（比如合并方式）。
 
-什么时候改：喜欢被提问的话，把 **Interview before the Brief** 设为 **always**；大多数 goal 都很小的话，调低 **Effort**；如果你宁愿自己看没通过的审查，把 **Goal-level fix cycles** 降到 0。
+什么时候改：喜欢被问到细节的话，调高 **Interview depth**；大多数 goal 都很小的话，调低 **Effort**；如果你宁愿自己看没通过的审查，把 **Goal-level fix cycles** 降到 0。
 
 ## Models & limits
 

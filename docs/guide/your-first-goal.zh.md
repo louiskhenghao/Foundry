@@ -93,11 +93,17 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 
 不勾（代码类的默认，除非 Settings 把节奏设成了 fast）：除了你的检查，Foundry 还会审查每个任务和整体结果，并且可以追加修复任务。
 
-### Interview me before planning
+### Interview depth
 
-勾上：Foundry 写 Brief 之前，至少会问你一轮问题，除非已经没有需要你决定的事。
+Foundry 写 Brief 之前问你问得多深：**Skip**，然后是 **1** 到 **5**。它决定 Foundry 追问的深入程度，不是轮数；每一轮仍然只问项目本身回答不了的事。
 
-不勾：只有项目本身回答不了某件事时它才会问；小 goal 会直接写 Brief。这个默认值可以在 Settings 里改（见 [设置说明](./settings.zh.md#new-goal-defaults)）。更多内容见 [回答访谈](./answering-the-interview.zh.md)。
+- **Skip**：不问，直接写 Brief。
+- **1**：只问猜错了会白做的事。**2** 再加上范围上的取舍。
+- **3**（默认）：会影响结果的决定；小细节作为假设，你可以在 Brief 上改。小 goal 常常一个问题都不问。
+- **4**：至少问一轮，边界情况、错误和空状态、数据规则也会问。
+- **5**：打破沙煲问到底：每个部分的行为、页面、边界情况、数据、权限、性能和安全，一轮接一轮，直到没有需要决定的事，或者你按 **Enough — write the Brief**。
+
+问得越深，花你的时间越多，费用也略高。这个默认值可以在 Settings 里改（见 [设置说明](./settings.zh.md#new-goal-defaults)）。更多内容见 [回答访谈](./answering-the-interview.zh.md)。
 
 ### Effort
 

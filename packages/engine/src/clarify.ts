@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import type { Brief, Goal, GoalNature, Interview, InterviewQuestion, InterviewRound, TaskScenario } from '@foundry/core';
-import { BriefOutput, INTERVIEW_MAX_QUESTIONS, INTERVIEW_MAX_ROUNDS, IdPrefix, InterviewOutput, getGoal, interviewAnswers, newId, uncoveredAreas } from '@foundry/core';
+import { BriefOutput, INTERVIEW_MAX_QUESTIONS, INTERVIEW_MAX_ROUNDS, IdPrefix, InterviewOutput, getGoal, interviewAnswers, interviewDepth, newId, uncoveredAreas } from '@foundry/core';
 import type { RunHandle, RunResult } from '@foundry/runner';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
@@ -126,7 +126,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
   // a Follow-up: the earlier goal's snapshot, plus where this checkout actually started (recorded by the Base Sync)
   const synced = getGoal(store.db, goal.id) ?? goal;
   const previous = goal.follows?.context ? [goal.follows.context, startSentence(synced)].filter(Boolean).join('\n') : '';
-  const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview?.mode ?? null, previous);
+  const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview ? interviewDepth(goal.interview) : null, previous);
   const addDirs = goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined;
   const schema = zodToJsonSchema(goal.interview ? InterviewOutput : BriefOutput, { $refStrategy: 'none' });
   const transcriptPath = join(config.dataDir, 'transcripts', `clarify-${goal.id}.jsonl`);
@@ -450,7 +450,7 @@ function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true): string 
   }
 }
 
-function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: string | null = null, attachments = '', decisions = '', emptyRepo = false, imageGen = true, interview: 'auto' | 'always' | null = null, previous = ''): string {
+function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: string | null = null, attachments = '', decisions = '', emptyRepo = false, imageGen = true, interview: number | null = null, previous = ''): string {
   const planInstruction = goal.provider === 'codex' ? 'draft tasks for each Area (Foundry will run a separate advisory planner after your candidate Brief and return its proposal for you to review)' : 'use the `planner` agent to split each Area into tasks';
   return [
     interview ? interviewSection(interview) : '',
@@ -470,14 +470,27 @@ function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: str
     .join('\n\n');
 }
 
+/**
+ * How far the Clarifier probes at each interview depth. The depth sets how thoroughly it thinks and asks, not how many
+ * rounds it takes: a deep interview of a small goal can still end after one round.
+ */
+const DEPTH_RULES: Record<number, string> = {
+  1: 'Depth 1 of 5 (light): ask only what a wrong guess would waste the goal over; everything else is an assumption. Zero rounds is right whenever the goal can be planned safely.',
+  2: 'Depth 2 of 5: ask what a wrong guess would waste the goal over, and the scope trade-offs the human would want to make; details are assumptions. Zero rounds is right for a small, unambiguous goal.',
+  3: 'Depth 3 of 5 (standard): ask the decisions that shape the result — scope, behaviour, the trade-offs a person would want a say in; small details are assumptions. Zero rounds is right for a small, unambiguous goal.',
+  4: 'Depth 4 of 5 (thorough): besides the decisions that shape the result, ask about edge cases, empty and error states, data rules, permissions and what each screen or command shows. The human asked to be interviewed: ask at least one round unless there is truly nothing a person could decide.',
+  5: 'Depth 5 of 5 (to the bottom): leave nothing a person could decide to an assumption. Walk every area of the goal — behaviour, each screen\'s content and interactions, edge cases, empty and error states, data and migrations, permissions, performance, security, accessibility, rollout — and keep asking, round after round, as each answer opens the next decision, until nothing is left or the human says enough. Ask at least two rounds unless the goal truly has nothing left to decide. Assumptions are only for what the human declines to decide.',
+};
+
 /** The interview rules the Clarifier follows before writing the Brief (a grilling, with the human in the loop). */
-function interviewSection(mode: 'auto' | 'always'): string {
+function interviewSection(depth: number): string {
   return `# Interview before the Brief
 You may ask the human questions in rounds before writing the Brief — the way a careful engineer interviews before planning. Facts are yours to find; decisions are theirs.
 - Explore first. Never ask what the repository, the attachments or the goal already answer; every question cites what you found or could not find (\`reason\`).
 - A round = every decision you can ask about NOW, whose prerequisites are settled — at most ${INTERVIEW_MAX_QUESTIONS}, the most consequential first. A question that depends on an answer you have not heard yet waits for the next round; when a question follows from an earlier answer, name it in \`dependsOn\`.
 - Every question offers 2–4 concrete options with YOUR recommendation first (free text stays possible). \`blocking\` = a wrong guess would waste the goal; everything else is an assumption the human may correct.
-- At most ${INTERVIEW_MAX_ROUNDS} rounds. When nothing is left to ask — or the human says enough — write the Brief: the answers become Decisions, the rest assumptions. ${mode === 'always' ? 'The human asked to be interviewed: ask at least one round unless there is truly nothing a person could decide.' : 'Zero rounds is right for a small, unambiguous goal.'}
+- How deep to go: ${DEPTH_RULES[Math.min(5, Math.max(1, depth))]}
+- When nothing is left to ask at this depth — or the human says enough — write the Brief: the answers become Decisions, the rest assumptions. (A hard stop at ${INTERVIEW_MAX_ROUNDS} rounds exists only as a safety net.)
 - Output per turn: either \`{"questions": [...], "brief": null}\` to ask a round, or \`{"questions": [], "brief": {...}}\` with the Brief. Write questions in the language of the goal.`;
 }
 

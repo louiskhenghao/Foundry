@@ -13,6 +13,7 @@ import {
   renderDecisions,
   IDLE_COMPLETION,
   MEDIA_NATURES,
+  depthOfMode,
   EventStore,
   IdPrefix,
   getAttempt,
@@ -108,6 +109,8 @@ export interface CreateGoalInput {
   milestonePause?: boolean;
   /** interview the human in rounds before the Brief; default = Settings → workflow.interview */
   interview?: 'auto' | 'always' | 'never';
+  /** how deep the interview probes, 0 (none) to 5; wins over `interview`; default = Settings → workflow.interviewDepth */
+  interviewDepth?: number;
   /** effort level for every session of this goal; default = Settings → workflow.effort */
   effort?: CodexEffort | null;
   /** model preset for this goal; default = the preset Settings picks for its nature */
@@ -1314,8 +1317,9 @@ export class Engine {
       ...(codexPreset ? { codexPreset, codexFallbacks: [...this.config.codexFallbacks], ...(input.codexModel?.trim() ? { codexModelOverride: input.codexModel.trim() } : {}) } : {}),
       modelSubstitutions: {},
       interview: (() => {
-        const mode = input.interview ?? this.config.interview;
-        return mode === 'never' ? null : { mode, status: 'thinking' as const, sessionId: null, rounds: [] };
+        const depth = input.interviewDepth ?? (input.interview ? depthOfMode(input.interview) : (this.config.interviewDepth ?? depthOfMode(this.config.interview)));
+        // from 4 on the Clarifier asks at least one round
+        return depth <= 0 ? null : { mode: depth >= 4 ? ('always' as const) : ('auto' as const), depth: Math.min(5, depth), status: 'thinking' as const, sessionId: null, rounds: [] };
       })(),
       baseBranch,
       branch: `goal/${id}`,

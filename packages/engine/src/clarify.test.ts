@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { BriefOutput } from '@foundry/core';
-import { getBrief, getGoal, listTasks } from '@foundry/core';
+import { INTERVIEW_MAX_ROUNDS, getBrief, getGoal, listTasks } from '@foundry/core';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
 import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
@@ -375,20 +375,22 @@ describe('clarify interview', () => {
   }, 20_000);
 
   test('after the round cap the Clarifier is told to write the Brief; mode never keeps the one-shot Clarify', async () => {
-    const runner = new StructuredRunner((_spec, n) => (n <= 5 ? { questions: [q(`R${n}Q1`, `question ${n}`, ['a', 'b'])], brief: null } : { questions: [], brief: fullBrief() }));
+    const cap = INTERVIEW_MAX_ROUNDS;
+    const runner = new StructuredRunner((_spec, n) => (n <= cap + 1 ? { questions: [q(`R${n}Q1`, `question ${n}`, ['a', 'b'])], brief: null } : { questions: [], brief: fullBrief() }));
     const engine = track(new Engine(cfg(), runner));
-    const goal = await engine.createGoal({ prompt: 'student and teacher portals', repoPath: repo, interview: 'always' });
-    for (let round = 1; round <= 4; round++) {
+    const goal = await engine.createGoal({ prompt: 'student and teacher portals', repoPath: repo, interviewDepth: 5 });
+    for (let round = 1; round <= cap; round++) {
       await waitFor(() => iv(engine, goal.id).rounds.length === round && iv(engine, goal.id).status === 'awaiting_answers');
       engine.answerInterview(goal.id, { [`R${round}Q1`]: 'a' });
     }
-    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval', 30_000);
     const calls = main(runner);
-    expect(calls).toHaveLength(6); // 4 rounds + a fifth answer that still asked + the "no more questions" turn
-    expect(calls[4]!.prompt).toContain('the last one: write the Brief now');
-    expect(calls[5]!.prompt).toContain('No more questions can be asked');
-    expect(iv(engine, goal.id).rounds).toHaveLength(4);
-    expect(engine.store.listByGoal(goal.id).find((e) => e.type === 'interview.finished')?.payload).toMatchObject({ rounds: 4, reason: 'cap' });
+    expect(calls[0]!.prompt).toContain('Depth 5 of 5 (to the bottom)');
+    expect(calls).toHaveLength(cap + 2); // every round + an answer that still asked + the "no more questions" turn
+    expect(calls[cap]!.prompt).toContain('the last one: write the Brief now');
+    expect(calls[cap + 1]!.prompt).toContain('No more questions can be asked');
+    expect(iv(engine, goal.id).rounds).toHaveLength(cap);
+    expect(engine.store.listByGoal(goal.id).find((e) => e.type === 'interview.finished')?.payload).toMatchObject({ rounds: cap, reason: 'cap' });
     engine.cancelGoal(goal.id);
     await Bun.sleep(150);
 
@@ -398,7 +400,11 @@ describe('clarify interview', () => {
     expect(g2.interview).toBeNull();
     await waitFor(() => getGoal(engine2.store.db, g2.id)!.state === 'awaiting_brief_approval');
     expect(main(plain)[0]!.prompt).not.toContain('# Interview before the Brief');
+    // depth 0 is no interview; the older modes stand for depths 3 and 4
+    expect((await engine2.createGoal({ prompt: 'x', repoPath: repo, interviewDepth: 0 })).interview).toBeNull();
+    expect((await engine2.createGoal({ prompt: 'x', repoPath: repo, interview: 'always' })).interview).toMatchObject({ mode: 'always', depth: 4 });
+    expect((await engine2.createGoal({ prompt: 'x', repoPath: repo })).interview).toMatchObject({ mode: 'auto', depth: 3 });
     engine2.cancelGoal(g2.id);
     await Bun.sleep(150);
-  }, 30_000);
+  }, 60_000);
 });

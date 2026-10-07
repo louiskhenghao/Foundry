@@ -40,6 +40,8 @@ export interface EngineConfig {
   selfCheck: boolean;
   /** how Clarify starts for new goals: interview in rounds when useful / always at least one round / never (one-shot Brief) */
   interview: 'auto' | 'always' | 'never';
+  /** how deep Clarify interviews new goals (0 = not at all, 1–5); null = what `interview` stands for */
+  interviewDepth: number | null;
   /** new goals pause at their milestones for the human's look ("Have a look") */
   milestonePause: boolean;
   /** the `tailscale` command; undefined = find it, null = never touch the tailnet (tests) */
@@ -155,6 +157,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     preview: { portFrom: Number(process.env.FOUNDRY_PREVIEW_PORT_FROM ?? 4200), portTo: Number(process.env.FOUNDRY_PREVIEW_PORT_TO ?? 4299), idleMinutes: Number(process.env.FOUNDRY_PREVIEW_IDLE_MIN ?? 60) },
     selfCheck: process.env.FOUNDRY_SELF_CHECK === '1' || process.env.FOUNDRY_SELF_CHECK === 'true',
     interview: (['auto', 'always', 'never'] as const).find((m) => m === process.env.FOUNDRY_INTERVIEW) ?? 'auto',
+    interviewDepth: /^[0-5]$/.test(process.env.FOUNDRY_INTERVIEW_DEPTH ?? '') ? Number(process.env.FOUNDRY_INTERVIEW_DEPTH) : null,
     milestonePause: process.env.FOUNDRY_MILESTONE_PAUSE !== '0' && process.env.FOUNDRY_MILESTONE_PAUSE !== 'false',
     // a test run never serves ports on the machine's real tailnet
     tailscaleBin: process.env.NODE_ENV === 'test' ? null : undefined,

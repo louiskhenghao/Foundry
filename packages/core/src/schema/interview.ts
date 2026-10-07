@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-/** rounds and questions per round the Clarifier may ask before writing the Brief */
-export const INTERVIEW_MAX_ROUNDS = 4;
+/** a safety cap on rounds (the depth decides how far the Clarifier probes, not how many rounds it takes) and on questions per round */
+export const INTERVIEW_MAX_ROUNDS = 10;
 export const INTERVIEW_MAX_QUESTIONS = 8;
 
 export const InterviewQuestion = z.object({
@@ -37,6 +37,8 @@ export type InterviewRound = z.infer<typeof InterviewRound>;
  */
 export const Interview = z.object({
   mode: z.enum(['auto', 'always']).default('auto'),
+  /** how deep the Clarifier probes, 1 (only what a wrong guess would waste) to 5 (every detail, until nothing is left); absent on older goals */
+  depth: z.number().int().min(1).max(5).optional(),
   /** thinking = a session is (or must be) running; awaiting_answers = a round is open; done = the Brief was written */
   status: z.enum(['thinking', 'awaiting_answers', 'done']).default('thinking'),
   /** the Clarify session every round resumes; null before the first round or after it was lost */
@@ -45,6 +47,13 @@ export const Interview = z.object({
 });
 export type Interview = z.infer<typeof Interview>;
 export type InterviewMode = 'auto' | 'always' | 'never';
+
+/** interview depth: 0 = no interview (the one-shot Brief), 1–5 = how deep the Clarifier probes */
+export const InterviewDepth = z.number().int().min(0).max(5);
+/** the depth the older interview modes stood for */
+export const depthOfMode = (mode: InterviewMode): number => ({ never: 0, auto: 3, always: 4 })[mode];
+/** an interview's depth; goals created before depths existed: their mode's */
+export const interviewDepth = (iv: Pick<Interview, 'mode' | 'depth'>): number => iv.depth ?? depthOfMode(iv.mode);
 
 /** the answered questions of every round so far, for prompts and the Brief's Decisions */
 export function interviewAnswers(iv: Pick<Interview, 'rounds'>): { question: InterviewQuestion; answer: string }[] {

@@ -40,6 +40,7 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'workflow.designPack': { name: 'FOUNDRY_DESIGN_PACK', parse: str },
   'workflow.defaultPace': { name: 'FOUNDRY_PACE', parse: str },
   'workflow.interview': { name: 'FOUNDRY_INTERVIEW', parse: str },
+  'workflow.interviewDepth': { name: 'FOUNDRY_INTERVIEW_DEPTH', parse: num },
   'workflow.milestonePause': { name: 'FOUNDRY_MILESTONE_PAUSE', parse: bool },
   'workflow.effort': { name: 'FOUNDRY_EFFORT', parse: str },
   'reviews.smallGoalLines': { name: 'FOUNDRY_SMALL_GOAL_LINES', parse: num },
@@ -238,6 +239,7 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('preview.idleMinutes')) config.preview.idleMinutes = s.preview.idleMinutes;
   if (on('checks.selfCheck')) config.selfCheck = s.checks.selfCheck;
   if (on('workflow.interview')) config.interview = s.workflow.interview;
+  if (on('workflow.interviewDepth') && s.workflow.interviewDepth != null) config.interviewDepth = s.workflow.interviewDepth;
   if (on('workflow.milestonePause')) config.milestonePause = s.workflow.milestonePause;
   if (on('workflow.effort')) config.effort = s.workflow.effort;
   if (on('reviews.smallGoalLines')) config.smallGoalLines = s.reviews.smallGoalLines;

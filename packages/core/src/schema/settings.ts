@@ -72,6 +72,8 @@ export const WorkflowSettings = z.object({
   defaultPace: z.enum(['thorough', 'fast']).default('thorough'),
   /** whether Clarify interviews the human in rounds before writing the Brief: auto = when something is worth asking; always = at least one round; never = the one-shot Brief */
   interview: z.enum(['auto', 'always', 'never']).default('auto'),
+  /** how deep Clarify interviews for new goals: 0 = never (one-shot Brief), 1–5 = from only what matters to every detail; null = from `interview` */
+  interviewDepth: z.number().int().min(0).max(5).nullable().default(null),
   /** new goals pause at their milestones for "Have a look"; off = they go on and the milestone is only notified */
   milestonePause: z.boolean().default(true),
   /** effort level new goals hand to every session (`claude --effort`); null = the CLI default */
