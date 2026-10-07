@@ -10,6 +10,7 @@ import { dirname, join } from 'node:path';
 import type { Brief, DocType, Goal } from '@foundry/core';
 import { MEDIA_NATURES, pendingDecisions } from '@foundry/core';
 import type { Engine } from './engine.ts';
+import { dropEmptyGraphDir } from './context/graphify-provider.ts';
 import { restoreGuidance, snapshotGuidance } from './git/agent-guidance.ts';
 import { exec } from './git/git.ts';
 import { pullFastForward } from './git/sync.ts';
@@ -112,6 +113,7 @@ export async function runGraphRefresh(engine: Engine, goal: Goal, deps: GraphRef
     }
   }
   const restored = restoreGuidance(cwd, guidance);
+  dropEmptyGraphDir(cwd);
   if (restored.length) store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `graph refresh: put back ${restored.join(', ')}, which a tool had changed` } });
   store.append({ type: 'goal.completion_ran', goalId: goal.id, payload: { tools } });
   const summary = tools.map((t) => `${t.name} ${t.status}`).join(', ');
