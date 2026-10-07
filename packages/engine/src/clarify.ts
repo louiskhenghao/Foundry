@@ -206,13 +206,13 @@ async function planTasks(engine: Engine, goal: Goal, ctx: ClarifyContext, skelet
   };
   store.append({ type: 'clarify.stage', goalId: goal.id, payload: { stage: 'planning' } });
   let { plan, result } = await run();
-  if (!plan && result.sessionId) ({ plan, result } = await run({ sessionId: result.sessionId, message: 'No usable plan came back (it ended early or did not match the required JSON schema). Output ONLY the plan JSON now: {"tasks": [...], "checks": [...], "costEstimateUsd": n, "timeEstimateMin": n}.' }));
+  if (!plan && result.sessionId && repairable(result)) ({ plan, result } = await run({ sessionId: result.sessionId, message: 'No usable plan came back (it ended early or did not match the required JSON schema). Output ONLY the plan JSON now: {"tasks": [...], "checks": [...], "costEstimateUsd": n, "timeEstimateMin": n}.' }));
   if (!plan) {
     store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `the planner returned no usable plan (${result.errorMessage ?? result.subtype})` } });
     return null;
   }
   const missing = uncoveredAreas({ areas: skeleton.areas, tasks: plan.tasks });
-  if (missing.length && result.sessionId) {
+  if (missing.length && result.sessionId && repairable(result)) {
     const repaired = await run({ sessionId: result.sessionId, message: coverageRepairMessage(missing) });
     if (repaired.plan) plan = repaired.plan;
   }
@@ -248,6 +248,14 @@ async function turn(engine: Engine, goal: Goal, ctx: ClarifyContext, message: st
   engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source } });
   engine.recordSessionUsage(result, { goalId: goal.id, kind: 'clarify', model: modelFor(engine.config, { ...goal, nature: ctx.nature }, 'clarifier').model });
   return result;
+}
+
+/**
+ * A session worth one more turn: not killed (engine shutdown, cancel, timeout) and not stopped at its budget, where
+ * another turn would only start a process the engine just stopped or spend past the cap.
+ */
+export function repairable(r: RunResult): boolean {
+  return !r.subtype.startsWith('killed') && r.subtype !== 'error_max_budget_usd';
 }
 
 /** a resumed session that never got going: the CLI could not find the conversation (expired, other machine, wiped) */
@@ -381,8 +389,9 @@ async function settle(engine: Engine, goal: Goal, ctx: ClarifyContext, first: Ru
     return b.success ? { questions, brief: null, full: b.data } : null;
   };
   let out = parseTurn(result.structuredOutput ?? tryJson(result.finalText));
-  if (!out && result.sessionId) {
-    const issues = iv ? InterviewOutput.safeParse(result.structuredOutput ?? tryJson(result.finalText)) : BriefOutput.safeParse(result.structuredOutput ?? tryJson(result.finalText));
+  if (!out && result.sessionId && repairable(result)) {
+    // checked against the schema the session was given: one-shot sessions write the skeleton, not a whole Brief
+    const issues = iv ? InterviewOutput.safeParse(result.structuredOutput ?? tryJson(result.finalText)) : BriefSkeleton.safeParse(result.structuredOutput ?? tryJson(result.finalText));
     const detail = issues.success ? '' : issues.error.issues.slice(0, 3).map((i) => i.path.join('.') + ': ' + i.message).join('; ');
     result = await turn(engine, goal, ctx, `Your previous answer did not match the required JSON schema (${detail}). ${iv ? 'Output either {"questions": [...], "brief": null} to ask a round, or {"questions": [], "brief": {...}} with the Brief.' : 'Output ONLY the JSON object now.'}`, result.sessionId, 'clarify-repair');
     out = parseTurn(result.structuredOutput ?? tryJson(result.finalText));
@@ -395,7 +404,7 @@ async function settle(engine: Engine, goal: Goal, ctx: ClarifyContext, first: Ru
     return;
   }
   // questions came back although no more rounds are allowed: one more turn to get the Brief
-  if (iv && out && !out.brief && !out.full && result.sessionId) {
+  if (iv && out && !out.brief && !out.full && result.sessionId && repairable(result)) {
     result = await turn(engine, goal, ctx, 'No more questions can be asked. Write the Brief now with assumptions for everything still open; `questions` must be empty. Output the JSON only.', result.sessionId, 'clarify-repair');
     out = parseTurn(result.structuredOutput ?? tryJson(result.finalText));
   }
@@ -412,7 +421,11 @@ async function settle(engine: Engine, goal: Goal, ctx: ClarifyContext, first: Ru
       const r2 = await turn(engine, goal, ctx, coverageRepairMessage(missing, 'Brief'), result.sessionId, 'clarify-coverage');
       const repaired = parseTurn(r2.structuredOutput ?? tryJson(r2.finalText));
       if (repaired?.full) parsed = repaired.full;
-      else store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `coverage repair did not return a valid Brief; keeping the first one (${missing.map((a) => a.name).join(', ')} uncovered)` } });
+      // the session's schema allows only the skeleton: a skeleton back is planned like any other
+      else if (repaired?.brief) {
+        const plan = await planTasks(engine, goal, ctx, repaired.brief);
+        parsed = plan ? mergePlan(repaired.brief, plan) : unplanned(repaired.brief);
+      } else store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `coverage repair did not return a valid Brief; keeping the first one (${missing.map((a) => a.name).join(', ')} uncovered)` } });
     }
   }
 

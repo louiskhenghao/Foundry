@@ -49,14 +49,14 @@ const isPlanner = (spec: RunSpec) => !!spec.label?.startsWith('planner ');
 
 class ScriptedRunner implements ClaudeRunner {
   calls: RunSpec[] = [];
-  constructor(private respond: (spec: RunSpec, index: number) => unknown, private plannerFailure = false) {}
+  constructor(private respond: (spec: RunSpec, index: number) => unknown, private plannerFailure: boolean | string = false) {}
   active() { return 0; }
   async run(spec: RunSpec): Promise<RunHandle> {
     this.calls.push(spec);
     const structuredOutput = this.respond(spec, this.calls.length);
     const failed = this.plannerFailure && spec.label?.startsWith('planner ');
     const result: RunResult = {
-      sessionId: `s${this.calls.length}`, subtype: failed ? 'error' : 'success', isError: !!failed,
+      sessionId: `s${this.calls.length}`, subtype: failed ? (typeof this.plannerFailure === 'string' ? this.plannerFailure : 'error') : 'success', isError: !!failed,
       costUsd: 0, costStatus: 'unavailable', numTurns: 1, durationMs: 1,
       usage: { input_tokens: 10, output_tokens: 20 }, modelUsage: null, permissionDenials: [],
       finalText: JSON.stringify(structuredOutput), structuredOutput, exitCode: failed ? 1 : 0, pid: null,
@@ -181,6 +181,29 @@ describe('Clarify writes the Brief, a planner session writes its plan', () => {
     const b = getBrief(e.store.db, goal.id)!.brief;
     expect(b.tasks.map((t) => [t.areaKey, t.title])).toEqual([['A1', 'build Main']]);
     expect(b.questions.some((q) => q.blocking && q.text.includes('planner could not split'))).toBe(true);
+  });
+
+  test('a planner stopped by the engine (killed) or at its budget gets no further turn', async () => {
+    for (const subtype of ['killed_manual', 'error_max_budget_usd']) {
+      const runner = new ScriptedRunner((spec) => (isPlanner(spec) ? plan() : skeleton()), subtype);
+      const e = setup(runner);
+      const goal = await e.createGoal({ prompt: 'Add a task', repoPath: repo, nature: 'code', interview: 'never' });
+      await waitFor(() => getGoal(e.store.db, goal.id)!.state === 'awaiting_brief_approval');
+      expect(runner.calls.map((c) => c.label?.split(' ')[0])).toEqual(['clarify', 'planner']);
+      await e.stop();
+      engine = undefined;
+    }
+  });
+
+  test('a one-shot answer that misses a skeleton field is asked for that field, not for tasks', async () => {
+    const { planningNotes: _n, ...noNotes } = skeleton();
+    const runner = new ScriptedRunner((spec, index) => (isPlanner(spec) ? plan() : index === 1 ? noNotes : skeleton()));
+    const e = setup(runner);
+    const goal = await e.createGoal({ prompt: 'Add a task', repoPath: repo, nature: 'code', interview: 'never' });
+    await waitFor(() => getGoal(e.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    expect(runner.calls.map((c) => c.label?.split(' ')[0])).toEqual(['clarify', 'clarify', 'planner']);
+    expect(runner.calls[1]!.prompt).toContain('planningNotes');
+    expect(runner.calls[1]!.prompt).not.toContain('tasks: Required');
   });
 
   test('an Area the plan left without tasks gets one repair turn in the planner session', async () => {
