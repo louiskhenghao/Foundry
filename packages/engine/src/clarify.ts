@@ -151,6 +151,8 @@ ${plannerHint}` : ''), model: modelFor(config, classifiedGoal, 'planner').model 
       jsonSchema: schema,
       settings: boundarySettings(config.hooksDir),
       settingSources: config.settingSources,
+      // Clarify only reads the repository: no MCP servers (mail, calendars, browsers…) to load into every turn
+      strictMcp: true,
       addDirs,
       resumeSessionId: resume,
       timeoutMs: 15 * 60_000,
@@ -180,6 +182,8 @@ ${plannerHint}` : ''), model: modelFor(config, classifiedGoal, 'planner').model 
       jsonSchema: zodToJsonSchema(PlannerOutput, { $refStrategy: 'none' }),
       settings: boundarySettings(config.hooksDir),
       settingSources: config.settingSources,
+      // Clarify only reads the repository: no MCP servers (mail, calendars, browsers…) to load into every turn
+      strictMcp: true,
       addDirs,
       timeoutMs: 10 * 60_000,
       transcriptPath: join(config.dataDir, 'transcripts', `planner-${goal.id}.jsonl`),
