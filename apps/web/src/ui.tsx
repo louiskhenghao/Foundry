@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { X } from 'lucide-react';
 
 export const cn = (...xs: (string | false | null | undefined)[]) => xs.filter(Boolean).join(' ');
 
@@ -108,13 +109,19 @@ export function ButtonGroup<T extends string>({ value, onChange, options, label 
   );
 }
 
-export function Card({ children, className, bodyClassName, title, actions, id }: { children: ReactNode; className?: string; bodyClassName?: string; title?: ReactNode; actions?: ReactNode; id?: string }) {
+/** `onClose` (a card shown as a panel) puts × in the header's top-right corner, where it stays however the actions wrap. */
+export function Card({ children, className, bodyClassName, title, actions, id, onClose }: { children: ReactNode; className?: string; bodyClassName?: string; title?: ReactNode; actions?: ReactNode; id?: string; onClose?: () => void }) {
   return (
     <section id={id} className={cn('rounded-lg border border-zinc-800 bg-zinc-900/60', className)}>
-      {(title || actions) && (
-        <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2.5 border-b border-zinc-800">
+      {(title || actions || onClose) && (
+        <header className={cn('relative flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2.5 border-b border-zinc-800', onClose && 'pr-12')}>
           <h3 className="text-sm font-semibold text-zinc-200 min-w-0 grow shrink basis-56">{title}</h3>
-          {actions && <div className="flex items-center gap-2 shrink-0 ml-auto">{actions}</div>}
+          {actions && <div className="flex flex-wrap items-center gap-2 ml-auto">{actions}</div>}
+          {onClose && (
+            <button type="button" className="absolute top-2 right-2 rounded p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800" onClick={onClose} aria-label="close">
+              <X size={15} />
+            </button>
+          )}
         </header>
       )}
       <div className={cn('p-4', bodyClassName)}>{children}</div>

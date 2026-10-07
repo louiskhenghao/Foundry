@@ -1,5 +1,5 @@
 import type { Attempt, CheckResult, Task } from '@foundry/core/browser';
-import { GitMerge, RotateCcw, X } from 'lucide-react';
+import { GitMerge, RotateCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { type ReactNode, useEffect, useState } from 'react';
 import { api, fileKey, fileUrl, type FileRef, type GoalDetail, type TaskFile } from '../../api.ts';
@@ -76,11 +76,9 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
             </Button>
           )}
           {task.worktreePath && task.state !== 'done' && <OpenMenu goalId={d.goal.id} places={[{ which: `task:${task.id}`, label: 'Task worktree', path: task.worktreePath, hint: task.branch ?? undefined }]} label="Open worktree" />}
-          <Button size="sm" variant="ghost" onClick={onClose}>
-            <X size={14} />
-          </Button>
         </>
       }
+      onClose={onClose}
     >
       {usage && usage.attempts > 0 && (
         <div className="mb-3 shrink-0 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400 rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2" title="everything this task has cost so far — all attempts, all their sessions">
