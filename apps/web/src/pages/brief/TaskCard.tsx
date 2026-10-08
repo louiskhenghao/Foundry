@@ -293,7 +293,7 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
                 {(close) => (
                   <>
                     <MenuItem onClick={() => { edit((b) => ({ ...b, checks: [...b.checks, newCheck(b, 'command', task.key)] })); close(); }}>Command — a shell command must exit 0</MenuItem>
-                    <MenuItem onClick={() => { edit((b) => ({ ...b, checks: [...b.checks, newCheck(b, 'reviewer', task.key)] })); close(); }}>Reviewer — Claude judges the diff against a rubric</MenuItem>
+                    <MenuItem onClick={() => { edit((b) => ({ ...b, checks: [...b.checks, newCheck(b, 'reviewer', task.key)] })); close(); }}>Reviewer — an AI reviewer judges the diff against a rubric</MenuItem>
                   </>
                 )}
               </Menu>

@@ -1869,7 +1869,7 @@ export class Engine {
       task: null,
       attemptId,
       trigger: 'boundary_action',
-      message: `Claude tried to run a command that leaves the local workspace while working on "${task?.title ?? '?'}":\n\n    ${command}\n\nIt was blocked. Approve to run it once on your behalf, or deny.`,
+      message: `${(goal.provider ?? this.config.provider) === 'codex' ? 'Codex' : 'Claude'} tried to run a command that leaves the local workspace while working on "${task?.title ?? '?'}":\n\n    ${command}\n\nIt was blocked. Approve to run it once on your behalf, or deny.`,
       payload: { command, cwd: attempt?.cwd ?? null, taskId: task?.id ?? null },
     });
   }

@@ -154,7 +154,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
     `# Fixed point\nThe base of this review is \`${goal.baseBranch}\`; everything in the diff below was added by this goal.`,
     `# Acceptance checks\nObjective command checks were already executed by the engine; their status is shown. You judge the reviewer-type checks and the overall result.\n${checks.map(fmt).join('\n')}`,
     previousVerdicts(engine, goal, checks),
-    lines <= INLINE_DIFF_LINES ? `# Full diff against ${goal.baseBranch}\n\`\`\`diff\n${d}\n\`\`\`` : `# Full diff against ${goal.baseBranch}\nThe diff is ${lines} lines — too long to paste. It is saved at \`${diffFile(engine, goal, d)}\`; read it in parts (Grep for file names, Read with offsets) and hand sub-agents the path, never the text.`,
+    lines <= INLINE_DIFF_LINES ? `# Full diff against ${goal.baseBranch}\n\`\`\`diff\n${d}\n\`\`\`` : `# Full diff against ${goal.baseBranch}\nThe diff is ${lines} lines — too long to paste. It is saved at \`${diffFile(engine, goal, d)}\`; read it in parts (Grep for file names, Read with offsets)${(goal.provider ?? engine.config.provider) === 'codex' ? '' : ' and hand sub-agents the path, never the text'}.`,
     `The full diff is ${lines <= INLINE_DIFF_LINES ? 'above' : 'in the file named above'} — judge from it. Open a file only when the diff alone cannot answer a check (a handful at most); do not re-read files that appear in the diff. Judge every check by name. For MUST items that fail, propose concrete fix tasks. Do not propose work beyond the listed checks.`,
   ]
     .filter(Boolean)
