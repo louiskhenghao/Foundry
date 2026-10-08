@@ -163,7 +163,12 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
                   </button>
                 ))}
               </div>
-              {view === 'log' && <LiveLog attemptId={a.id} />}
+              {view === 'log' &&
+                (d.goal.transfer && !d.goal.transfer.transcripts && a.startedAt <= d.goal.transfer.from.exportedAt ? (
+                  <div className="text-xs text-zinc-500">This log stayed on the computer the goal came from.</div>
+                ) : (
+                  <LiveLog attemptId={a.id} />
+                ))}
               {view === 'report' && (obs ? <MarkdownPanel title="observation report" source={obs.summary} maxHeight={420} /> : <div className="text-xs text-zinc-500">no observation yet</div>)}
               {view === 'prompt' && (prompt === null ? <div className="text-xs text-zinc-500">loading…</div> : <MarkdownPanel title="prompt sent to the worker" source={prompt || '_not recorded for this attempt_'} maxHeight={420} />)}
               {results
