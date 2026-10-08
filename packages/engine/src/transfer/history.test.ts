@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DeliveryPolicy, IDLE_DELIVERY, getGoal, type Goal } from '@foundry/core';
@@ -7,7 +7,8 @@ import { defaultConfig } from '../config.ts';
 import { FakeGh } from '../delivery/gh.fake.ts';
 import { checkOpenPrs } from '../delivery/pr-watch.ts';
 import { Engine } from '../engine.ts';
-import { FakeRunner, makeRepo } from '../test-helpers.ts';
+import { transferGoalDir } from './paths.ts';
+import { FakeRunner, makeRepo, sh } from '../test-helpers.ts';
 import { relocateLegacyWorkspaces } from '../workspace-migrate.ts';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
@@ -43,6 +44,10 @@ describe('history goals (ADR-0030)', () => {
   test('the engine leaves Imported Goals alone: no sessions, no delivery, no PR polling, no folder moves', async () => {
     const runner = new FakeRunner(() => {});
     const gh = new FakeGh();
+    // the repository has a GitHub remote, so an open pull request would be read there
+    await sh('git remote add origin https://github.com/acme/app.git', repo);
+    const viewed: number[] = [];
+    gh.prView = async (_cwd, i) => (viewed.push(i.number), Promise.reject(new Error('not on GitHub')));
     const engine = track(new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), codexHome: join(dataDir, 'codex-home'), log: () => {} }), runner, gh));
     const pr = DeliveryPolicy.parse({ mode: 'pr' });
     // a draft (would start Clarify), a running goal with a live-looking attempt (reconcile would conclude it), a done goal
@@ -65,8 +70,23 @@ describe('history goals (ADR-0030)', () => {
     await new Promise((r) => setTimeout(r, 300));
     expect(runner.calls).toEqual([]);
     expect(gh.calls).toEqual([]);
+    expect(viewed).toEqual([]);
     expect(events()).toEqual(before);
     expect(getGoal(engine.store.db, 'g_draft')?.state).toBe('draft');
     expect(getGoal(engine.store.db, 'g_run')?.workspaceDir).toBeNull();
+  });
+
+  test('a repository that was never mapped is not touched: no preview, and deleting the goal leaves that path\'s branches alone', async () => {
+    const engine = track(new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), codexHome: join(dataDir, 'codex-home'), log: () => {} }), new FakeRunner(() => {})));
+    // the same path exists here and even has a branch of that name: it is someone else's checkout until it is mapped
+    await sh('git branch goal/g_far', repo);
+    importHistory(engine, goal('g_far', 'done'));
+    mkdirSync(transferGoalDir(dataDir, 'g_far'), { recursive: true });
+    writeFileSync(join(transferGoalDir(dataDir, 'g_far'), 'branch.bundle'), 'x');
+    await expect(engine.preview.start(getGoal(engine.store.db, 'g_far')!, 'human')).rejects.toThrow(/map its repository/);
+    await engine.deleteGoal('g_far', { deleteBranch: true });
+    expect(await sh('git branch --list goal/g_far', repo)).toContain('goal/g_far');
+    expect(existsSync(transferGoalDir(dataDir, 'g_far'))).toBe(false);
+    expect(getGoal(engine.store.db, 'g_far')).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
 import type { CodexQuota } from './usage/types.ts';
-import { CODEX_MODEL_ACTIONS, CodexEffort, Effort, effectiveCodexPresets, isHistory, natureKey, type CodexModelPreset } from '@foundry/core';
+import { CODEX_MODEL_ACTIONS, CodexEffort, Effort, effectiveCodexPresets, isHistory, natureKey, repoHere, type CodexModelPreset } from '@foundry/core';
 import { CodexPlugins } from './plugins/codex-plugins.ts';
 import { CodexQuotaReader } from './usage/codex-quota.ts';
 import { discoverCodexModels } from './models/codex-discover.ts';
@@ -65,6 +65,7 @@ import { usageSummary, type UsageSummary } from './usage/ledger.ts';
 import type { RunResult } from '@foundry/runner';
 import type { StreamEvent, StreamListener } from './types.ts';
 import { ARTIFACTS_DIR, defaultWorkspaceDir, deliveryWorkspacePath, dropTaskWorkspace, ensureGoalWorkspace, goalWorkspacePath, internalWorkspaceDir, listStackBranches, previewWorkspacePath } from './workspace.ts';
+import { transferGoalDir } from './transfer/paths.ts';
 import { relocateLegacyWorkspaces } from './workspace-migrate.ts';
 import { PreviewManager } from './preview/manager.ts';
 import { ensureSelfCheck, playwrightInstallCommand, playwrightStatus, runSelfCheck } from './checks/selfcheck.ts';
@@ -1854,7 +1855,8 @@ export class Engine {
   async deleteGoal(goalId: string, opts: { deleteBranch?: boolean } = {}): Promise<{ deletedBranch: string | null }> {
     const goal = this.mustGoal(goalId);
     this.cancelGoal(goalId);
-    const repoOk = await isGitRepo(goal.repoPath).catch(() => false);
+    // an Imported Goal whose repository was never mapped has nothing here to clean up: its path may name another checkout
+    const repoOk = repoHere(goal) && (await isGitRepo(goal.repoPath).catch(() => false));
     for (const t of listTasks(this.store.db, goalId)) {
       if (t.worktreePath && repoOk) await removeWorktree(goal.repoPath, t.worktreePath, { deleteBranch: t.branch ?? undefined }).catch(() => {});
     }
@@ -1872,6 +1874,7 @@ export class Engine {
     rmSync(join(this.config.dataDir, 'worktrees', goalId), { recursive: true, force: true });
     if (goal.workspaceDir) for (const d of [goal.workspaceDir, internalWorkspaceDir(goal)!]) rmSync(d, { recursive: true, force: true });
     for (const a of goal.attachments) trashAttachment(this.config.dataDir, goalId, a);
+    rmSync(transferGoalDir(this.config.dataDir, goalId), { recursive: true, force: true });
     this.store.append({ type: 'goal.deleted', goalId, payload: { title: goal.title, deletedBranch, reason: 'deleted by user' } });
     return { deletedBranch };
   }

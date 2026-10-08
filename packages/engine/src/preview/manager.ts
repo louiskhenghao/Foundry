@@ -4,7 +4,7 @@ import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
 import { spawnStreaming } from '../skills/updaters.ts';
 import type { BriefApp, BriefRun, Goal, PreviewPlace } from '@foundry/core';
-import { getBrief, getGoal } from '@foundry/core';
+import { getBrief, getGoal, repoHere } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { ensureDetachedWorktree, git, gitOk } from '../git/git.ts';
 import { goalWorkspacePath, previewWorkspacePath } from '../workspace.ts';
@@ -278,6 +278,7 @@ export class PreviewManager {
    * name still reach it; when it gets another one, those addresses are rewritten to it in each app's environment.
    */
   async start(goal: Goal, by: PreviewStarter, appKey?: string): Promise<PreviewStatus> {
+    if (!repoHere(goal)) throw new PreviewError('this goal came from another computer: map its repository to a checkout here first', 409);
     const resolved = this.resolveApps(goal);
     if (!resolved) throw new PreviewError('nothing to run: the Brief has no run command and package.json has no dev/start script', 409);
     const targets = resolved.apps.filter((a) => (!appKey || a.key === appKey) && !this.live.has(id(goal.id, a.key)));
