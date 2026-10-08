@@ -57,7 +57,7 @@ export function ImportedCard({ goal, onChanged }: { goal: Goal; onChanged: () =>
               <Button size="sm" variant="ghost" onClick={() => setPicking(true)} title="Choose the folder">
                 <FolderOpen size={13} />
               </Button>
-              <Button size="sm" disabled={busy || !path.trim()} onClick={() => act(() => api.mapRepo(goal.id, path.trim()))}>
+              <Button size="sm" className="shrink-0 whitespace-nowrap" disabled={busy || !path.trim()} onClick={() => act(() => api.mapRepo(goal.id, path.trim()))}>
                 Map repository
               </Button>
             </div>
