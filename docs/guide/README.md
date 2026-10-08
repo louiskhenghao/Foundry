@@ -51,6 +51,7 @@ The full glossary, for the curious, is `CONTEXT.md` in the Foundry repository.
 7. [Getting the result](./getting-the-result.md): branches, pushes and pull requests, and media files.
 8. [Settings explained](./settings.md): every Settings section in plain words.
 9. [Costs and usage](./costs-and-usage.md): what costs money and how to spend less.
-10. [FAQ](./faq.md): short answers to common questions.
+10. [Moving to a new computer](./moving-to-a-new-computer.md): carrying settings, keys and goals to another Foundry.
+11. [FAQ](./faq.md): short answers to common questions.
 
-**Help** in the ⚙ menu at the right of the top bar shows this guide inside Foundry. The same menu holds **Settings**, **Setup** and the light or dark mode.
+**Help** in the ⚙ menu at the right of the top bar shows this guide inside Foundry. The same menu holds **Settings**, **Setup**, **Transfer**, the light or dark mode, and the version you run: a red dot on the ⚙ button marks a newer one, and pressing the version opens **About & updates**.
