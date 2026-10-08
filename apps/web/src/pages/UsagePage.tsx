@@ -67,6 +67,17 @@ function ProviderUsage({ provider }: { provider: AgentProvider }) {
       setBusy(false);
     }
   };
+  const resume = async () => {
+    setBusy(true);
+    try {
+      await api.resumeUsage(provider);
+      setU(await api.usage(provider));
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
   if (!u) return <Empty>{err ?? 'Loading usage…'}</Empty>;
 
   return (
@@ -81,7 +92,10 @@ function ProviderUsage({ provider }: { provider: AgentProvider }) {
       {provider === 'codex' && <CodexQuotaCard quota={u.codexQuota} />}
       {u.pausedUntil && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-4 py-2.5 text-sm">
-          {provider === 'codex' ? <>⏸ New Codex sessions are paused after a rate-limit response. Foundry's next retry is scheduled for {new Date(u.pausedUntil).toLocaleString()}; account availability is checked independently.</> : <>⏸ Rate limited — this backend is not starting new sessions and will resume automatically in {untilText(u.pausedUntil)} ({new Date(u.pausedUntil).toLocaleTimeString()}). Goals stay where they are.</>}
+          {provider === 'codex' ? <>⏸ New Codex sessions are paused after a rate-limit response. Foundry's next retry is scheduled for {new Date(u.pausedUntil).toLocaleString()}; account availability is checked independently.</> : <>⏸ Rate limited — this backend is not starting new sessions and will resume automatically in {untilText(u.pausedUntil)} ({new Date(u.pausedUntil).toLocaleString()}). Goals stay where they are.</>}{' '}
+          <button type="button" className="underline text-amber-200 disabled:opacity-50" disabled={busy} onClick={resume} title="Start sessions again now; if the limit still holds, the next session pauses them again">
+            Resume now
+          </button>
         </div>
       )}
 
