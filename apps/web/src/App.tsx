@@ -1,5 +1,5 @@
 import { AccountsPage } from './pages/AccountsPage.tsx';
-import { ArrowLeftRight, Bot, Inbox, ListTodo, Menu, Moon, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X, HelpCircle } from 'lucide-react';
+import { ArrowLeftRight, ArrowUpCircle, Bot, Inbox, ListTodo, Menu, Moon, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X, HelpCircle } from 'lucide-react';
 import { HelpPage } from './pages/HelpPage.tsx';
 import { TransferPage } from './pages/TransferPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
@@ -7,7 +7,7 @@ import { AgentsPage } from './pages/AgentsPage.tsx';
 import { AgentsPill } from './pages/agents/AgentsPill.tsx';
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { api } from './api.ts';
+import { api, type UpdateStatusView } from './api.ts';
 import { AccountMenu } from './components/AccountMenu.tsx';
 import { FilePreviewHost } from './components/FilePreview.tsx';
 import { UpdatePill } from './components/UpdateDialog.tsx';
@@ -129,13 +129,20 @@ export function App() {
 }
 
 /**
- * Settings, Setup, Transfer, Help, the light/dark switch and the connection state, behind one button so the header
- * keeps room for what changes (inbox, agents, usage). A dot on the button: Setup is incomplete, or the live connection
- * dropped.
+ * Settings, Setup, Transfer, Help, the light/dark switch, the connection state and the version, behind one button so
+ * the header keeps room for what changes (inbox, agents, usage). A dot on the button: Setup is incomplete, the live
+ * connection dropped, or a newer Foundry is out.
  */
 function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolean }) {
   const nav = useNavigate();
   const loc = useLocation();
+  const [update, setUpdate] = useState<UpdateStatusView | null>(null);
+  useEffect(() => {
+    const load = () => api.updateStatus().then(setUpdate).catch(() => {});
+    const t = setTimeout(load, 1000);
+    const i = setInterval(load, 5 * 60_000);
+    return () => (clearTimeout(t), clearInterval(i));
+  }, []);
   const [light, setLight] = useState(() => document.documentElement.classList.contains('light'));
   const toggleTheme = () => {
     const next = !light;
@@ -156,7 +163,7 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
       trigger={({ open, toggle }) => (
         <button onClick={toggle} className={cn('relative h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900', (open || here) && 'bg-zinc-900 text-zinc-100')} title="Settings, setup, help and theme" aria-label="Settings, setup, help and theme">
           <Settings2 size={16} />
-          {(setupBad || !connected) && <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-zinc-950" />}
+          {(setupBad || !connected || update?.updateAvailable) && <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-zinc-950" />}
         </button>
       )}
     >
@@ -184,7 +191,17 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
             <Radio size={12} className={connected ? 'text-emerald-400' : 'text-rose-400'} />
             {connected ? 'Live — updates arrive as they happen' : 'Reconnecting…'}
           </div>
-
+          <div className="my-1 border-t border-zinc-800" />
+          <MenuItem icon={<ArrowUpCircle size={13} className={update?.updateAvailable ? 'text-sky-300' : undefined} />} onClick={() => go(close, '/settings#about')} title="About & updates">
+            <span className="flex items-center gap-2">
+              Foundry <span className="mono">{update?.current ?? '…'}</span>
+              {update?.updateAvailable && (
+                <span className="flex items-center gap-1 text-[10px] text-rose-300">
+                  <span className="h-1.5 w-1.5 rounded-full bg-rose-500" /> {update.latest} available
+                </span>
+              )}
+            </span>
+          </MenuItem>
         </>
       )}
     </DropMenu>
