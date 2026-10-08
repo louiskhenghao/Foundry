@@ -82,8 +82,9 @@ export function DesignPacks({ onInstallStarted, compact, pack = 'design', provid
                   <span className="text-sm text-zinc-100 truncate">{o.label}</span>
                 </button>
                 {o.id !== 'none' && (
-                  <span className={cn('text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 border', installing === o.id ? 'text-sky-300 border-sky-500/40' : ready ? 'text-emerald-300 border-emerald-500/40' : 'text-amber-300 border-amber-500/40')}>
-                    {installing === o.id ? 'installing…' : ready ? 'installed' : `${missing.length} missing`}
+                  // no catalog entry for this backend: nothing to install here, which is not "0 missing"
+                  <span className={cn('text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 border', installing === o.id ? 'text-sky-300 border-sky-500/40' : ready ? 'text-emerald-300 border-emerald-500/40' : !o.entries.length ? 'text-zinc-400 border-zinc-700' : 'text-amber-300 border-amber-500/40')} title={!o.entries.length ? 'This option has nothing to install for the selected coding agent' : undefined}>
+                    {installing === o.id ? 'installing…' : ready ? 'installed' : !o.entries.length ? 'not for this agent' : `${missing.length} missing`}
                   </span>
                 )}
                 {o.homepage && (
