@@ -112,6 +112,7 @@ const OPERATIONAL_ENV: { name: string; help: string }[] = [
   { name: 'FOUNDRY_REPOS', help: 'Docker compose only: host folder mounted at /repos.' },
   { name: 'FOUNDRY_SUPERVISED', help: 'Set to 1 under launchd / systemd so a self-update exits and lets the supervisor restart Foundry.' },
   { name: 'FOUNDRY_UPDATE_CHECK', help: 'off = no daily release check.' },
+  { name: 'FOUNDRY_ALLOWED_HOSTS', help: 'More names Foundry answers to, comma-separated (a tunnel or proxy domain); * = any. IP addresses, localhost, names without a dot or ending in .local, *.ts.net and the Link base URL\'s host always work; other names are refused against DNS rebinding.' },
   { name: 'FOUNDRY_WATCHTOWER_URL / FOUNDRY_WATCHTOWER_TOKEN', help: 'Docker: the watchtower sidecar that applies one-click updates.' },
   { name: 'FOUNDRY_HOST_REPOS', help: "Docker: the projects folder shared at the same path as on the host; the folder picker starts there (set by the installer)." },
   { name: 'FOUNDRY_HOST_DOCKER / FOUNDRY_CONTAINER', help: "Docker: the host's Docker socket is shared, so preview services start there in this container's network (container name, default foundry). Set by the installer (ADR-0024)." },

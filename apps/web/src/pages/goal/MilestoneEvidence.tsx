@@ -1,33 +1,80 @@
-import { CheckCircle2, ChevronRight, Eye, FastForward, MessageSquare } from 'lucide-react';
-import { useState } from 'react';
+import { CheckCircle2, ChevronLeft, ChevronRight, Eye, FastForward, MessageSquare, Play } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { type GoalDetail, api } from '../../api.ts';
 import { Card, Modal, ago, cn } from '../../ui.tsx';
 
 export type Evidence = { taskId: string; video: string | null; shots: { file: string; caption: string }[]; summary: string; error: string | null };
 
-/** a walkthrough Foundry recorded in the preview: the video, the screenshots (a click shows one large) and why when it could not */
+type Media = { kind: 'video' | 'image'; file: string; caption: string };
+
+/** the walkthrough's video and screenshots as one row of items: the video first, then the shots in the order taken */
+const mediaOf = (e: Evidence): Media[] => [...(e.video ? [{ kind: 'video' as const, file: e.video, caption: 'Walkthrough video' }] : []), ...e.shots.map((s) => ({ kind: 'image' as const, ...s }))];
+
+/** one item large in a window, the others a click or an arrow key away */
+function MediaViewer({ goalId, items, index, onIndex, onClose }: { goalId: string; items: Media[]; index: number; onIndex: (i: number) => void; onClose: () => void }) {
+  const m = items[index]!;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.defaultPrevented) return;
+      if (e.key === 'ArrowLeft' && index > 0) onIndex(index - 1);
+      if (e.key === 'ArrowRight' && index < items.length - 1) onIndex(index + 1);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [index, items.length]);
+  const step = (d: -1 | 1, label: string, Icon: typeof ChevronLeft) => (
+    <button type="button" className="rounded p-1 hover:bg-zinc-800 disabled:opacity-30" disabled={!items[index + d]} onClick={() => onIndex(index + d)} aria-label={label} title={`${label} (${d < 0 ? '←' : '→'})`}>
+      <Icon size={14} />
+    </button>
+  );
+  return (
+    <Modal open wide onClose={onClose} title={m.caption || (m.kind === 'video' ? 'Walkthrough video' : 'Screenshot')}>
+      <div className="space-y-2">
+        <div className="flex items-center justify-end gap-1 text-xs text-zinc-500">
+          {step(-1, 'previous', ChevronLeft)}
+          {index + 1} / {items.length}
+          {step(1, 'next', ChevronRight)}
+        </div>
+        {/* keyed by file: switching items starts the next video from its beginning */}
+        {m.kind === 'video' ? <video key={m.file} src={api.screenshotUrl(goalId, m.file)} controls autoPlay muted className="w-full max-h-[70vh] rounded border border-zinc-800 bg-black" /> : <img key={m.file} src={api.screenshotUrl(goalId, m.file)} alt={m.caption} className="w-full max-h-[70vh] object-contain rounded border border-zinc-800 bg-zinc-950" />}
+      </div>
+    </Modal>
+  );
+}
+
+/** a walkthrough Foundry recorded in the preview: the video and the screenshots as same-size tiles (a click opens them in a viewer) and why when it could not */
 export function EvidenceView({ goalId, evidence }: { goalId: string; evidence: Evidence }) {
-  const [big, setBig] = useState<{ file: string; caption: string } | null>(null);
+  const [shown, setShown] = useState<number | null>(null);
+  const items = mediaOf(evidence);
   return (
     <div className="space-y-1.5">
       <div className="text-[11px] text-zinc-500">What Foundry saw{evidence.summary ? `: ${evidence.summary}` : ''}</div>
-      {evidence.video && <video src={api.screenshotUrl(goalId, evidence.video)} controls muted className="w-full max-w-2xl rounded border border-zinc-700 bg-black" />}
-      {evidence.shots.length > 0 && (
-        <div className="flex gap-2 flex-wrap">
-          {evidence.shots.map((s) => (
-            <button key={s.file} type="button" onClick={() => setBig(s)} title={s.caption} className="w-40 text-left">
-              <img src={api.screenshotUrl(goalId, s.file)} alt={s.caption} className="h-24 w-40 object-cover object-top rounded border border-zinc-700 hover:border-zinc-500" />
-              <span className="block text-[10px] text-zinc-500 truncate">{s.caption}</span>
+      {items.length > 0 && (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2">
+          {items.map((m, i) => (
+            <button key={m.file} type="button" onClick={() => setShown(i)} title={m.caption} className="min-w-0 text-left group">
+              <span className="relative block aspect-video overflow-hidden rounded border border-zinc-700 group-hover:border-zinc-500 bg-black">
+                {m.kind === 'video' ? (
+                  <>
+                    {/* the first frame as the tile's picture */}
+                    <video src={`${api.screenshotUrl(goalId, m.file)}#t=0.1`} muted preload="metadata" playsInline className="h-full w-full object-cover object-top pointer-events-none" />
+                    <span className="absolute inset-0 flex items-center justify-center">
+                      <span className="rounded-full bg-black/60 p-2 text-zinc-100">
+                        <Play size={14} fill="currentColor" />
+                      </span>
+                    </span>
+                  </>
+                ) : (
+                  <img src={api.screenshotUrl(goalId, m.file)} alt={m.caption} loading="lazy" className="h-full w-full object-cover object-top" />
+                )}
+              </span>
+              <span className="block text-[10px] text-zinc-500 truncate mt-0.5">{m.caption}</span>
             </button>
           ))}
         </div>
       )}
       {evidence.error && <div className="text-[11px] text-amber-300/90">{evidence.error}</div>}
-      {big && (
-        <Modal open wide title={big.caption || 'Screenshot'} onClose={() => setBig(null)}>
-          <img src={api.screenshotUrl(goalId, big.file)} alt={big.caption} className="w-full rounded border border-zinc-800" />
-        </Modal>
-      )}
+      {shown !== null && items[shown] && <MediaViewer goalId={goalId} items={items} index={shown} onIndex={setShown} onClose={() => setShown(null)} />}
     </div>
   );
 }

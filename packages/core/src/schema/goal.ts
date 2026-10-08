@@ -229,6 +229,13 @@ export const Goal = z.object({
   /** the earlier goal this one follows; default keeps pre-follow-up `goal.created` events replayable */
   follows: GoalFollows.nullable().default(null),
   runningSince: z.string().nullable(),
+  /**
+   * Time Foundry spent working on the goal (Clarify, the run, the goal review, delivery), not counting the waits for the
+   * person: interview answers, Brief approval, a block, a milestone pause. Counted up to `activeSince` while it works.
+   * Absent on goals made before this was counted: their time runs from `runningSince` (budgetStatus).
+   */
+  activeMs: z.number().nonnegative().optional(),
+  activeSince: z.string().nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

@@ -41,3 +41,40 @@ test('a change another site makes the browser send is refused; the UI, tools and
   // curl, the CLI and the sessions' hooks send neither
   expect(crossSite(req({}))).toBe(false);
 });
+
+test('only names this computer goes by reach Foundry, so a page rebinding its own domain to it is refused', async () => {
+  const { knownHost } = await import('./app.ts');
+  for (const h of ['127.0.0.1:4111', 'localhost:4111', '[::1]:4111', '100.101.102.103', 'mac-mini', 'mac-mini.local:4111', 'mac-mini.tail-1.ts.net', 'app.localhost:5173']) expect(knownHost(h)).toBe(true);
+  for (const h of ['evil.example:4111', 'rebind.attacker.com', '127.0.0.1.attacker.com', 'ts.net.attacker.com']) expect(knownHost(h)).toBe(false);
+  expect(knownHost('foundry.example.org', () => ['foundry.example.org'])).toBe(true);
+  expect(knownHost('anything.example', () => ['*'])).toBe(true);
+  // tools that send no Host header are no browser
+  expect(knownHost(null)).toBe(true);
+});
+
+test('the server refuses an unknown name, takes the one Settings give, and keeps another site off the live feed', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'foundry-hosts-'));
+  const engine = new Engine(defaultConfig(resolve(import.meta.dir, '../../..'), { dataDir: home, claudeHome: join(home, 'claude'), useGraphify: false, log: () => {}, port: 0 }), new FakeRunner(() => {}));
+  engine.beginUpdateDrain();
+  const { startServer } = await import('./index.ts');
+  const server = startServer(engine);
+  const at = `http://127.0.0.1:${server.port}`;
+  try {
+    const get = (host: string) => fetch(`${at}/api/health`, { headers: { host } });
+    expect((await get(`127.0.0.1:${server.port}`)).status).toBe(200);
+    const refused = await get('rebind.attacker.com');
+    expect(refused.status).toBe(403);
+    expect(await refused.text()).toContain('FOUNDRY_ALLOWED_HOSTS');
+    engine.settings.update({ notifications: { baseUrl: 'https://foundry.example.org' } });
+    expect((await get('foundry.example.org')).status).toBe(200);
+
+    const ws = (headers: Record<string, string>) => fetch(`${at}/ws`, { headers: { connection: 'Upgrade', upgrade: 'websocket', 'sec-websocket-version': '13', 'sec-websocket-key': 'dGhlIHNhbXBsZSBub25jZQ==', ...headers } });
+    expect((await ws({ host: 'rebind.attacker.com' })).status).toBe(403);
+    expect((await ws({ origin: 'https://evil.example', 'sec-fetch-site': 'cross-site' })).status).toBe(403);
+    expect((await ws({ origin: at })).status).toBe(101);
+  } finally {
+    server.stop(true);
+    await engine.stop();
+    rmSync(home, { recursive: true, force: true });
+  }
+});

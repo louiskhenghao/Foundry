@@ -263,7 +263,7 @@ function SelfCheckSection({ d }: { d: GoalDetail }) {
  * The approved Brief in one line under the timeline: its state and size, with a link to the Brief page, which holds
  * the Understanding and everything else the Clarifier wrote.
  */
-function BriefStrip({ d }: { d: GoalDetail }) {
+export function BriefStrip({ d }: { d: GoalDetail }) {
   const g = d.goal;
   const b = d.brief?.brief;
   if (!b) return null;
@@ -290,7 +290,7 @@ function BriefStrip({ d }: { d: GoalDetail }) {
 }
 
 /** the goal review's verdict in one line; the reviewer's notes fold out */
-function GoalReview({ review }: { review: { passed: boolean; overDelivered: boolean; notes: string } }) {
+export function GoalReview({ review }: { review: { passed: boolean; overDelivered: boolean; notes: string } }) {
   const [open, setOpen] = useState(false);
   const verdict = review.passed ? (review.overDelivered ? 'over-delivered' : 'passed') : 'failed';
   return (

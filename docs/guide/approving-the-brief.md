@@ -51,6 +51,7 @@ Answering a question makes it a Decision (see [Decisions](#decisions) below).
 For goals with a look (a web page, an app, a poster, a video), one question may show **style cards** instead of plain answers. Each card is one visual direction: a colour strip, the typefaces, a few keywords and a short description. The first carries **★ recommended**.
 
 - **Pick a card** by clicking it. That is your answer to the question.
+- When you already chose a direction in the interview, that card comes first and is already picked; click another to change it.
 
 ### Generate a sample
 

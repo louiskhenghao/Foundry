@@ -35,8 +35,10 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 - 一句话说明正在发生什么，比如 "Working." 或 "Paused — something needs you (see below)."
 - **Needs you**：所有等你处理的事，并附有用来回应的按钮。
 - **Progress**：一个进度条，显示完成了 **N/M pieces**，以及此刻进行中的任务：**in progress**、**checking** 或 **combining with the rest**。
-- **Cost**：目前花了多少、上限是多少，以及已经运行了多久。
-- **Result**（goal 完成时）：工作在哪里、**Open ▾** 和 **Deliver…**。
+- **Preview** 和 **Milestones**（Brief 批准之后）：和 Expert view 里一样的卡片，可以试用结果、观看每个里程碑的演示录屏。
+- **Cost**：目前花了多少、上限是多少，以及 Foundry 已经工作了多久（等你的时间不算）。
+- **Result**（goal 完成时）：工作在哪里、**Open ▾**、**Deliver…**，以及 goal review 的结论。
+- 最后是你提出的需求和通往 Brief 的链接。
 
 goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它都在同一个位置。**Expert** 显示其余所有内容。
 
@@ -65,7 +67,7 @@ goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它
 - **Goal review**：最终审查运行后，紧跟在 goal 下面：一行显示结论（**passed**、**over-delivered** 或 **failed**）和审查员意见的开头；点 **reviewer notes** 展开全文。
 - **Attachments**：紧跟在 goal 下面，和 New goal 表单上一样。随时可以再加；新的会话会收到。
 - **Workspace & preview**：goal 的工作成果在哪里，以及启动它来试用。见 [进度文件夹](#进度文件夹) 和 [Preview](#preview)。
-- **Milestones**：goal 有里程碑时，每个一行，最新的在上：要看什么、什么时候到的、goal 是暂停了还是继续了，以及你的回答。点一行可以重看它的录屏和截图（点截图会放大）。
+- **Milestones**：goal 有里程碑时，每个一行，最新的在上：要看什么、什么时候到的、goal 是暂停了还是继续了，以及你的回答。点一行会把录屏和截图显示成同样大小的格子；点一个格子会在弹窗里放大，用 **←** / **→**（或顶部的箭头）逐个切换。
 - **Model fallback**：只在某个模型不可用、Foundry 换了另一个模型时出现。
 - **Project skills**：Foundry 为你项目的技术栈添加的 skill，按 Frontend、Backend、Database、Testing、Tooling 分组，并显示数量。它们不会进入你的提交。
 - **Completion**：文档、知识图谱刷新和媒体文件各占一行，写着结果。见 [完成后的附加项](./getting-the-result.zh.md#完成后的附加项)。

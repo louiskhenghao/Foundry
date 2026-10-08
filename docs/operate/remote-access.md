@@ -187,7 +187,9 @@ delivery pushes with that machine's `gh` login — set it up once while you are 
 - **SSH tunnel** (nothing to install, laptop only): `ssh -N -L 4111:127.0.0.1:4111 you@your-machine`, then open
   `http://127.0.0.1:4111` locally. Fine for a quick check; not for phones or for the notification links.
 - **Cloudflare Tunnel** if you cannot use Tailscale: put **Cloudflare Access** (an identity check) in front of
-  the tunnel — a bare tunnel is a public URL to an unauthenticated UI, which is exactly the thing to avoid.
+  the tunnel — a bare tunnel is a public URL to an unauthenticated UI, which is exactly the thing to avoid. Foundry
+  refuses names it does not know (against DNS rebinding), so set the tunnel's URL as the Link base URL (§4) or add its
+  domain to `FOUNDRY_ALLOWED_HOSTS`.
 
 ## Troubleshooting
 
@@ -196,6 +198,7 @@ delivery pushes with that machine's `gh` login — set it up once while you are 
 | Browser says the certificate is not ready / HTTPS times out | first `tailscale serve` provisions the `ts.net` certificate on demand | wait a minute, reload; check HTTPS is enabled in the admin DNS page |
 | The header's live dot is red (*reconnecting…* on a wider screen) and nothing loads | the machine is asleep, or the engine stopped | `tailscale ping mac-mini` from another device; `curl …/api/health`; check the sleep settings and the service log |
 | `curl …/api/health` works, but messages carry no link or the link opens nothing | Link base URL empty (no links at all) or set to `127.0.0.1` | Settings → Notifications → Link base URL = the `https://…ts.net` URL |
+| A page that says *Foundry does not answer to the name "…"* | the address uses a name Foundry does not know as this computer's (a custom domain, a proxy) | Settings → Notifications → Link base URL = that address, or add the name to `FOUNDRY_ALLOWED_HOSTS` and restart |
 | After a one-click update the service log shows a port-in-use crash loop | the engine restarted itself instead of letting launchd/systemd do it | add `FOUNDRY_SUPERVISED=1` to the plist/unit (§3), then `launchctl kickstart -k …` / `systemctl --user restart foundry` |
 | Goals start but sessions fail immediately after a reboot | the service `PATH` lacks `claude` / `codex` / `bun`, or the Keychain login is not available (macOS, user not logged in) | fix `PATH` in the plist/unit; enable automatic login |
 | `tailscale serve` says the feature is not available | older client or plan without serve | update Tailscale, or use the bind-to-`100.x.y.z` alternative in §2 |

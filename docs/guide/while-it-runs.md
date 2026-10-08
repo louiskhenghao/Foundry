@@ -35,8 +35,10 @@ In Simple view the goal page shows:
 - One sentence about what is happening, for example "Working." or "Paused — something needs you (see below)."
 - **Needs you**: anything waiting for you, with the buttons to answer it.
 - **Progress**: a bar with **N/M pieces** done, and the tasks in progress right now: **in progress**, **checking**, or **combining with the rest**.
-- Elapsed time and applicable limits. Claude shows estimated cost; Codex does not show an enforceable USD cap.
-- **Result**, when the goal is done: where the work is, **Open ▾**, and **Deliver…**.
+- **Preview** and **Milestones**, once the Brief is approved: the same cards as in Expert view, to try the result and watch each milestone's walkthrough.
+- **Cost**: what was spent against the limit, and how long Foundry has worked. Waiting for you does not count. Codex does not show an enforceable USD cap.
+- **Result**, when the goal is done: where the work is, **Open ▾**, and **Deliver…**, and the goal review's verdict.
+- At the end, what you asked for and a link to the Brief.
 
 **Simple | Expert** in the goal's header switches views; it stays in the same place in both. **Expert** shows everything else.
 
@@ -65,7 +67,7 @@ From top to bottom:
 - **Goal review**: right under the goal once the final review ran: one line with the verdict (**passed**, **over-delivered** or **failed**) and the start of the reviewer's notes; **reviewer notes** unfolds them.
 - **Attachments**: right under the goal, as on the New goal form. You can add more at any time; new sessions receive them.
 - **Workspace & preview**: where the goal's work is, and starting it to try it. See [The progress folder](#the-progress-folder) and [Preview](#preview).
-- **Milestones**: when the goal has milestones, one row each, the latest first: what to look at, when it landed, whether the goal paused for it or went on, and your answer. Click a row to watch its recording and screenshots again (a screenshot opens large).
+- **Milestones**: when the goal has milestones, one row each, the latest first: what to look at, when it landed, whether the goal paused for it or went on, and your answer. Click a row to see its recording and screenshots as same-size tiles; a tile opens them large in a window, where **←** / **→** (or the arrows at the top) go through them.
 - **Model fallback**: only if a model was unavailable and Foundry switched to another one.
 - **Project skills**: skills Foundry added for your project's technology, grouped as Frontend, Backend, Database, Testing and Tooling, with how many there are. They never reach your commits.
 - **Completion**: one row each for the documents, the graph refresh and media files, with how it went. See [Completion extras](./getting-the-result.md#completion-extras).

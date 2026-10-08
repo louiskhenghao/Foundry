@@ -29,7 +29,7 @@ repositories. The web UI runs on `http://127.0.0.1:4111`. You can run it from so
 
 ## Ground rules
 
-- The web UI has no login. Keep it on `127.0.0.1`. To reach it from elsewhere, use [remote-access.md](./remote-access.md). Changes that a page on another website makes your browser send (a request marked cross-site, or with another site's Origin) are refused, so a web page you visit cannot drive Foundry; tools without a browser, such as `curl`, are not affected.
+- The web UI has no login. Keep it on `127.0.0.1`. To reach it from elsewhere, use [remote-access.md](./remote-access.md). Changes that a page on another website makes your browser send (a request marked cross-site, or with another site's Origin) are refused, so a web page you visit cannot drive Foundry; tools without a browser, such as `curl`, are not affected. Foundry also answers only to names of this computer (IP addresses, `localhost`, names without a dot or ending in `.local`, `*.ts.net`, and the Link base URL's host), so a page cannot point its own domain at `127.0.0.1` to read it (DNS rebinding). Another name, such as a tunnel's domain, goes in `FOUNDRY_ALLOWED_HOSTS`.
 - Agent execution uses native accounts: Claude login or ChatGPT sign-in for Codex. Codex API-key inference is unsupported. Optional media services have separate credentials; they do not change the execution backend.
 - Settings live in the instance’s data directory: `data/settings.json` for the default Claude launch profile, `data-codex/settings.json` for the Codex profile, or under `FOUNDRY_DATA_DIR`. For each value, a saved setting wins over an environment variable, and an
   environment variable wins over the default. The Settings page shows where each value comes from.

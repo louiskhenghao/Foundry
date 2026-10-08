@@ -410,3 +410,32 @@ describe('clarify interview', () => {
     await Bun.sleep(150);
   }, 60_000);
 });
+
+describe('mergePlan', () => {
+  test('a repeated task or check key becomes its own; a dependency on nothing or on itself is dropped', async () => {
+    const { mergePlan } = await import('./clarify.ts');
+    const { tasks: _t, checks: _c, costEstimateUsd: _e, timeEstimateMin: _m, ...base } = briefWith([], []);
+    const skeleton = { ...base, goalChecks: [(({ taskKey: _k, ...c }) => c)(check('C1', null))], planningNotes: 'notes' };
+    const merged = mergePlan(skeleton, {
+      tasks: [task('T1', 'A1', 'add home'), task('T1', 'A1', 'add grades', ['T1', 'T1', 'T9']), task('T2', 'A2', 'add teacher home', ['T2', 'T1'])],
+      checks: [check('C1', 'T1'), check('C1', 'T2'), check('C5', 'T7')].map((c) => ({ ...c, taskKey: c.taskKey! })),
+      costEstimateUsd: 3,
+      timeEstimateMin: 20,
+    });
+    expect(merged.tasks.map((t) => [t.key, t.dependsOnKeys])).toEqual([['T1', []], ['T1-2', ['T1']], ['T2', ['T1']]]);
+    // a check of a task that does not exist goes; the goal-level check takes the next free key
+    expect(merged.checks.map((c) => [c.key, c.taskKey])).toEqual([['C1', 'T1'], ['C1-2', 'T2'], ['C1-3', null]]);
+  });
+});
+
+test('a style the interview already settled starts answered on the Brief; without one the question waits', async () => {
+  const { toBrief } = await import('./clarify.ts');
+  const goal = { id: 'g_style', follows: null } as never;
+  const styles = [
+    { key: 'S1', name: 'Warm kopitiam', palette: ['#F6EDDC'], fonts: ['Fraunces'], keywords: ['warm'], description: 'Cosy.', chosen: true },
+    { key: 'S2', name: 'Minimal café', palette: ['#FFFFFF'], fonts: ['Inter'], keywords: ['clean'], description: 'Airy.' },
+  ];
+  const style = (out: BriefOutput) => toBrief(goal, out, []).questions.find((q) => q.kind === 'style')!;
+  expect(style({ ...briefWith([task('T1', 'A1', 'build page')], []), styleOptions: styles })).toMatchObject({ answer: 'Warm kopitiam', applied: true, options: ['Warm kopitiam', 'Minimal café'] });
+  expect(style({ ...briefWith([task('T1', 'A1', 'build page')], []), styleOptions: styles.map(({ chosen: _c, ...s }) => s) })).toMatchObject({ answer: null, applied: false });
+});

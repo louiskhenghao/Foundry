@@ -128,7 +128,9 @@ export function GoalPage() {
         <div className="space-y-2.5">
           <div className="grid grid-cols-2 gap-3">
             {g.provider === 'codex' ? <span className="text-xs text-zinc-400">Codex · dollar cost unavailable</span> : <Meter label={`cost ${fmtUsd(g.costUsd)} / ${fmtLimitUsd(g.budgets.maxCostUsd)}`} value={g.costUsd} max={g.budgets.maxCostUsd} />}
-            <Meter label={`time ${d.budget.elapsedMin.toFixed(0)} / ${fmtLimitMin(g.budgets.maxDurationMin)}`} value={d.budget.elapsedMin} max={g.budgets.maxDurationMin} />
+            <div title="Time Foundry has worked on this goal, Clarify included. Waiting for you (interview answers, Brief approval, Inbox, a milestone pause) does not count.">
+              <Meter label={`time ${d.budget.elapsedMin.toFixed(0)} / ${fmtLimitMin(g.budgets.maxDurationMin)}`} value={d.budget.elapsedMin} max={g.budgets.maxDurationMin} />
+            </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap md:justify-end">
             {/* in the header, not in the tabs row or the simple view's status line: switching views must not move it */}
