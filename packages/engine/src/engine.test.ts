@@ -7,6 +7,7 @@ import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@
 import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
 import { ESCALATION_MESSAGE_MAX, raiseEscalation } from './escalation.ts';
+import { goalWorkspacePath } from './workspace.ts';
 
 /** Scripted stand-in for claude: runs `behave(spec, callIndex)` then returns a success result. */
 class FakeRunner implements ClaudeRunner {
@@ -309,6 +310,46 @@ describe('skip and restart', () => {
     expect(listTasks(engine.store.db, goal.id).every((t) => t.state === 'done')).toBe(true);
     // the first task ran twice in total (1 before abort + 1 after restart) without tripping the budget
     expect(listAttempts(engine.store.db, first.id).length).toBe(2);
+  });
+
+  test('restart from a task whose escalation is still open answers it and runs the task again', async () => {
+    let pass = false;
+    const runner = new FakeRunner((spec) => {
+      if (pass && spec.prompt.includes('# Your task (first)')) writeFileSync(join(spec.cwd, 'never.txt'), 'ok');
+      if (spec.prompt.includes('# Your task (second)')) writeFileSync(join(spec.cwd, 'second.txt'), 'ok');
+    });
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await chain(engine, repo);
+    await waitFor(() => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).length > 0);
+    pass = true;
+    const first = listTasks(engine.store.db, goal.id).find((t) => t.title === 'first')!;
+    const r = await engine.restartGoal(goal.id, { fromTaskId: first.id });
+    expect(r.restarted.length).toBe(2);
+    expect(listEscalations(engine.store.db, { goalId: goal.id, openOnly: true })).toHaveLength(0);
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+  });
+
+  test('a restarted task is reviewed against the goal branch it restarted from, not its first attempt', async () => {
+    let pass = false;
+    const runner = new FakeRunner((spec) => {
+      if (pass && spec.prompt.includes('# Your task (first)')) writeFileSync(join(spec.cwd, 'never.txt'), 'ok');
+      if (spec.prompt.includes('# Your task (second)')) writeFileSync(join(spec.cwd, 'second.txt'), 'ok');
+    });
+    const engine = track(new Engine(cfg({ alwaysReviewTasks: true }), runner));
+    const goal = await chain(engine, repo);
+    await waitFor(() => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).length > 0);
+    // while the task is blocked, a fix lands on the goal branch by hand
+    const ws = goalWorkspacePath(dataDir, getGoal(engine.store.db, goal.id)!);
+    writeFileSync(join(ws, 'landed-by-hand.txt'), 'fix\n');
+    await Bun.$`git -C ${ws} -c user.name=t -c user.email=t@t add landed-by-hand.txt && git -C ${ws} -c user.name=t -c user.email=t@t commit -q -m fix`.quiet();
+    pass = true;
+    const first = listTasks(engine.store.db, goal.id).find((t) => t.title === 'first')!;
+    await engine.restartGoal(goal.id, { fromTaskId: first.id });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
+    const review = runner.calls.filter((c) => c.label === 'review first').at(-1)!;
+    expect(review.prompt).toContain('never.txt');
+    expect(review.prompt).not.toContain('landed-by-hand.txt');
   });
 });
 
