@@ -68,6 +68,7 @@ describe('import (ADR-0030)', () => {
     expect(applied.settings.sort()).toEqual(['models.cheap', 'models.presetDocs']);
     expect(applied.secrets).toEqual(['tools.openaiApiKey']);
     expect(applied.previewEnv).toEqual({ applied: [repo], waiting: [] });
+    expect(applied.repos).toEqual([{ original: repo, to: repo, error: null }]);
     expect(b.settings.values().models.cheap).toBe('sonnet');
     expect(b.settings.values().delivery.defaultMode).toBe('pr');
     expect(b.settings.values().tools.openaiApiKey).toBe('sk-old-mac-0123456');

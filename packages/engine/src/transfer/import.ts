@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { z } from 'zod';
 import {
@@ -23,6 +23,8 @@ import { attachmentsDir } from '../attachments.ts';
 import { unpackTransfer } from './archive.ts';
 import { TransferError } from './errors.ts';
 import { transferGoalDir } from './paths.ts';
+import { holdPreviewEnv } from './pending-env.ts';
+import { mapRepo } from './reattach.ts';
 import { openSecrets } from './secrets.ts';
 
 /** A received Transfer file waits here, unpacked, until it is applied or discarded */
@@ -218,6 +220,8 @@ export interface ImportReport {
   settings: string[];
   secrets: string[];
   previewEnv: { applied: string[]; waiting: string[] };
+  /** the repositories mapped to a checkout here, or why one could not be (its goals stay unmapped) */
+  repos: { original: string; to: string; error: string | null }[];
 }
 
 /**
@@ -232,7 +236,7 @@ export async function applyIncoming(engine: Engine, uploadId: string, choicesIn:
   const m = readManifest(dir, engine.updater.current());
   // a wrong password stops the import before anything is written
   const secrets = choices.secrets && m.categories.secrets ? readSecrets(engine, uploadId, choices.secrets.password) : null;
-  const report: ImportReport = { imported: [], skipped: [], settings: [], secrets: [], previewEnv: { applied: [], waiting: [] } };
+  const report: ImportReport = { imported: [], skipped: [], settings: [], secrets: [], previewEnv: { applied: [], waiting: [] }, repos: [] };
 
   const wanted = choices.goals ? new Set(choices.goals) : null;
   for (const entry of m.goals) {
@@ -243,6 +247,21 @@ export async function applyIncoming(engine: Engine, uploadId: string, choicesIn:
     }
     importGoal(engine, dir, m, entry);
     report.imported.push({ id: entry.id, title: entry.title });
+  }
+
+  // each repository the imported goals named: the checkout chosen for it, else the one that matched
+  const mapped = new Map<string, string>();
+  for (const original of new Set(m.goals.filter((g) => report.imported.some((i) => i.id === g.id)).map((g) => g.repoPath))) {
+    const chosen = choices.repos && original in choices.repos;
+    const to = chosen ? choices.repos![original]! : await matchRepo(original, m.goals.find((g) => g.repoPath === original)?.remoteUrl ?? null);
+    if (!to) continue;
+    try {
+      await mapRepo(engine, original, to, chosen && resolve(to) !== original ? 'chosen' : 'same-path');
+      mapped.set(original, resolve(to));
+      report.repos.push({ original, to: resolve(to), error: null });
+    } catch (err) {
+      report.repos.push({ original, to: resolve(to), error: String((err as Error).message ?? err) });
+    }
   }
 
   if (m.categories.settings) {
@@ -262,7 +281,7 @@ export async function applyIncoming(engine: Engine, uploadId: string, choicesIn:
     }
     if (report.secrets.length) engine.updateSettings(SettingsPatch.parse(patch));
     for (const [original, vars] of Object.entries(secrets.previewEnv)) {
-      const here = choices.repos && original in choices.repos ? choices.repos[original] : await matchRepo(original, m.goals.find((g) => g.repoPath === original)?.remoteUrl ?? null);
+      const here = mapped.get(original) ?? (choices.repos && original in choices.repos ? choices.repos[original] : await matchRepo(original, m.goals.find((g) => g.repoPath === original)?.remoteUrl ?? null));
       if (here) (engine.preview.env.merge(resolve(here), vars), report.previewEnv.applied.push(original));
       else (holdPreviewEnv(dataDir, original, vars), report.previewEnv.waiting.push(original));
     }
@@ -332,30 +351,6 @@ function closeCutOff(engine: Engine, goalId: string): void {
   }
   const g = getGoal(engine.store.db, goalId)!;
   if (g.delivery.status === 'running') append({ type: 'delivery.failed', goalId, payload: { step: g.delivery.step ?? 'preflight', reason: 'cut off by the Transfer — run Deliver again once the goal is Reattached' } });
-}
-
-/** preview variables for a repository not mapped yet wait here (owner-only) until it is */
-const pendingEnvFile = (dataDir: string) => join(dataDir, 'transfer', 'pending-preview-env.json');
-
-function holdPreviewEnv(dataDir: string, original: string, vars: Record<string, string>): void {
-  const p = pendingEnvFile(dataDir);
-  const doc = existsSync(p) ? (JSON.parse(readFileSync(p, 'utf8')) as Record<string, Record<string, string>>) : {};
-  doc[original] = { ...vars, ...(doc[original] ?? {}) };
-  mkdirSync(join(p, '..'), { recursive: true });
-  writeFileSync(p, JSON.stringify(doc, null, 2), { mode: 0o600 });
-}
-
-/** hand the waiting preview variables of a repository to the checkout it was mapped to; returns the keys added */
-export function releasePreviewEnv(engine: Engine, original: string, to: string): string[] {
-  const p = pendingEnvFile(engine.config.dataDir);
-  if (!existsSync(p)) return [];
-  const doc = JSON.parse(readFileSync(p, 'utf8')) as Record<string, Record<string, string>>;
-  const vars = doc[original];
-  if (!vars) return [];
-  const added = engine.preview.env.merge(resolve(to), vars);
-  delete doc[original];
-  writeFileSync(p, JSON.stringify(doc, null, 2), { mode: 0o600 });
-  return added;
 }
 
 export function discardIncoming(dataDir: string, uploadId: string): void {
