@@ -139,6 +139,34 @@ repositories at the same paths. If a repository's `git worktree list` shows work
 
 ---
 
+## Moving to another computer: Transfer
+
+A backup copies the whole data folder and restores it as it was, at the same paths. To move to a new computer, or to
+bring some goals into a Foundry that already has its own, use a **Transfer** instead (Settings → **Transfer**, or the CLI):
+
+```bash
+# on the old computer (with or without the server running)
+foundry export --out move.tgz --settings --goals all --secrets --password-stdin <<<'a long password'
+# on the new one
+foundry import move.tgz --dry-run
+foundry import move.tgz --secrets --password-stdin --map /Users/old/app=/Users/new/app <<<'a long password'
+foundry reattach <goalId>            # an unfinished goal carries on here
+```
+
+- It merges: a goal already here is skipped, settings sections and credentials change only as chosen.
+- Imported goals are history until Reattached: no session, delivery, PR polling or notification touches them.
+- Branches with work the base branch lacks travel as git bundles. They are restored when the goal's repository is
+  mapped to a checkout here, matched by path and remote or chosen. A thin bundle fetches its base commits from the
+  remote when the checkout lacks them.
+- Never transferred: native sign-ins, skills, MCP servers and plugins, and the settings tied to one computer
+  (the `engine` section, `notifications.baseUrl` and `tailscaleHost`, `tools.markitdownBin`, `safety.allowedRoots`,
+  `preview.portFrom`/`portTo`).
+- Keys & secrets are sealed with scrypt and AES-256-GCM. The rest of the file is plain: keep it private anyway, it
+  holds your goals' history.
+- A file from an older release imports into a newer one; a newer file is refused until this Foundry is updated.
+- The server accepts the upload streamed (any size); `foundry export --transcripts` is the comfortable path for very
+  large logs.
+
 ## Upgrading to mixed-provider goals
 
 Back up before the first startup of this revision. Startup appends provider assignments for older goals and records the data directory’s launch profile. Keep the existing Claude profile for an existing `data/`; add Codex through **Accounts** and the New goal backend selector. Changing `FOUNDRY_PROVIDER` is not a migration, and existing `data/` and `data-codex/` directories are not merged automatically.
