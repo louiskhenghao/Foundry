@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StaticRouter } from 'react-router-dom/server';
-import { ExportPanel, ImportPanel, ImportResult } from '../src/pages/settings/Transfer.tsx';
+import { ExportPanel, ImportPanel, ImportResult } from '../src/pages/TransferPage.tsx';
 import type { GoalRow, IncomingReport } from '../src/api.ts';
 
 const render = (node: React.ReactNode) => renderToStaticMarkup(<StaticRouter>{node}</StaticRouter>);

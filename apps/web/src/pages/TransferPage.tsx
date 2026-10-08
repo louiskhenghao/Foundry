@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { FolderOpen } from 'lucide-react';
-import { api, transferDownloadUrl, type GoalRow, type ImportReport, type IncomingGoal, type IncomingReport, type SecretsPreview, type TransferCategories } from '../../api.ts';
-import { FolderPicker } from '../../components/FolderPicker.tsx';
-import { Badge, Button, ButtonGroup, Input, cn } from '../../ui.tsx';
+import { ArrowLeftRight, FolderOpen } from 'lucide-react';
+import { api, transferDownloadUrl, type GoalRow, type ImportReport, type IncomingGoal, type IncomingReport, type SecretsPreview, type TransferCategories } from '../api.ts';
+import { FolderPicker } from '../components/FolderPicker.tsx';
+import { Badge, Button, ButtonGroup, Card, Input, Page, cn } from '../ui.tsx';
+import { HelpLink } from './HelpPage.tsx';
 
 const fmtBytes = (n: number) => (n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(1)} GB` : n >= 1024 ** 2 ? `${(n / 1024 ** 2).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
@@ -16,14 +17,23 @@ function Check({ checked, onChange, disabled, children }: { checked: boolean; on
   );
 }
 
-/** Settings → Transfer (ADR-0030): carry settings, keys and goals to another Foundry, or bring them in from one */
-export function TransferPanel() {
+/** Transfer (ADR-0030): carry settings, keys and goals to another Foundry, or bring them in from one */
+export function TransferPage() {
   return (
-    <div className="space-y-6">
-      <ExportPanel />
-      <div className="border-t border-zinc-800" />
-      <ImportPanel />
-    </div>
+    <Page width="md">
+      <div>
+        <h1 className="text-lg font-semibold flex items-center gap-2">
+          <ArrowLeftRight size={18} /> Transfer <HelpLink to="moving-to-a-new-computer" label="Moving to a new computer (new tab)" />
+        </h1>
+        <p className="text-sm text-zinc-400 mt-1">Carry your settings, keys and goals to another Foundry — typically on a new computer — or bring them in from one.</p>
+      </div>
+      <Card title="Export">
+        <ExportPanel />
+      </Card>
+      <Card title="Import">
+        <ImportPanel />
+      </Card>
+    </Page>
   );
 }
 
@@ -77,11 +87,10 @@ export function ExportPanel({ initialGoals }: { initialGoals?: GoalRow[] }) {
   };
   return (
     <div className="space-y-3">
-      <div className="text-sm text-zinc-200 font-medium">Export</div>
       <p className="text-xs text-zinc-500">Write a Transfer file to import on another computer. Nothing here changes: your goals carry on as they are.</p>
       <div className="space-y-1.5">
         <Check checked={cats.settings} onChange={(v) => set('settings', v)}>
-          Settings <span className="text-zinc-500 text-xs">— everything on this page except Engine (install), link addresses, tool paths, allowed folders and preview ports, which belong to this computer</span>
+          Settings <span className="text-zinc-500 text-xs">— everything in Settings except Engine (install), link addresses, tool paths, allowed folders and preview ports, which belong to this computer</span>
         </Check>
         <Check checked={cats.secrets} onChange={(v) => set('secrets', v)}>
           Keys & secrets <span className="text-zinc-500 text-xs">— API keys, notification tokens and preview variables, sealed with a password</span>
@@ -225,7 +234,6 @@ export function ImportPanel({ initial }: { initial?: IncomingReport }) {
 
   return (
     <div className="space-y-3">
-      <div className="text-sm text-zinc-200 font-medium">Import</div>
       <p className="text-xs text-zinc-500">Bring in a Transfer file from another Foundry. It merges: goals already here are skipped, never replaced, and you choose which settings win.</p>
       {!report && (
         <label className={cn('inline-flex items-center gap-2 rounded-md border border-zinc-700 px-3 py-1.5 text-sm', busy ? 'text-zinc-500' : 'text-zinc-200 cursor-pointer hover:border-zinc-500')}>

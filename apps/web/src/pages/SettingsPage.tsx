@@ -7,7 +7,6 @@ import { api, type ModelRecordView, type UpdateStatusView } from '../api.ts';
 import { LiveLog } from './LiveLog.tsx';
 import { ModelPresetsSection } from './settings/ModelPresets.tsx';
 import { CodexModelPresetsSection } from './settings/CodexModelPresets.tsx';
-import { TransferPanel } from './settings/Transfer.tsx';
 import { SectionTitle } from './settings/PresetParts.tsx';
 import { DesignPacks } from '../components/DesignPacks.tsx';
 import { UpdateDialog } from '../components/UpdateDialog.tsx';
@@ -39,7 +38,6 @@ const SECTIONS: { id: string; label: string }[] = [
   { id: 'notifications', label: 'Notifications' },
   { id: 'safety', label: 'Safety' },
   { id: 'engine', label: 'Engine (install)' },
-  { id: 'transfer', label: 'Transfer' },
   { id: 'about', label: 'About & updates' },
 ];
 
@@ -679,10 +677,6 @@ export function SettingsPage() {
             </Field>
           </>,
         )}
-      </Card>
-
-      <Card id="transfer" title={<>Transfer<HelpLink to="settings#transfer" className="ml-1.5" /></>} className="scroll-mt-16">
-        <TransferPanel />
       </Card>
 
       <Card id="about" title={<>About & updates<HelpLink to="settings#about--updates" className="ml-1.5" /></>} className="scroll-mt-16">

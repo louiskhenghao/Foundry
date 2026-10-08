@@ -1,6 +1,7 @@
 import { AccountsPage } from './pages/AccountsPage.tsx';
-import { Bot, Inbox, ListTodo, Menu, Moon, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X, HelpCircle } from 'lucide-react';
+import { ArrowLeftRight, Bot, Inbox, ListTodo, Menu, Moon, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X, HelpCircle } from 'lucide-react';
 import { HelpPage } from './pages/HelpPage.tsx';
+import { TransferPage } from './pages/TransferPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
 import { AgentsPage } from './pages/AgentsPage.tsx';
 import { AgentsPill } from './pages/agents/AgentsPill.tsx';
@@ -117,6 +118,7 @@ export function App() {
           <Route path="/usage" element={<UsagePage />} />
           <Route path="/accounts" element={<AccountsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/transfer" element={<TransferPage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/help/:slug" element={<HelpPage />} />
         </Routes>
@@ -127,8 +129,9 @@ export function App() {
 }
 
 /**
- * Settings, Setup, Help, the light/dark switch and the connection state, behind one button so the header keeps room
- * for what changes (inbox, agents, usage). A dot on the button: Setup is incomplete, or the live connection dropped.
+ * Settings, Setup, Transfer, Help, the light/dark switch and the connection state, behind one button so the header
+ * keeps room for what changes (inbox, agents, usage). A dot on the button: Setup is incomplete, or the live connection
+ * dropped.
  */
 function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolean }) {
   const nav = useNavigate();
@@ -142,7 +145,7 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
       localStorage.setItem('foundry.theme', next ? 'light' : 'dark');
     } catch {}
   };
-  const here = ['/settings', '/setup', '/help'].some((p) => loc.pathname.startsWith(p));
+  const here = ['/settings', '/setup', '/transfer', '/help'].some((p) => loc.pathname.startsWith(p));
   const go = (close: () => void, to: string) => {
     close();
     nav(to);
@@ -167,6 +170,9 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
               Setup {setupBad && <span className="text-[10px] text-rose-400">incomplete</span>}
             </span>
           </MenuItem>
+          <MenuItem icon={<ArrowLeftRight size={13} />} onClick={() => go(close, '/transfer')}>
+            Transfer — move to another computer
+          </MenuItem>
           <MenuItem icon={<HelpCircle size={13} />} onClick={() => go(close, '/help')}>
             Help — how to use Foundry
           </MenuItem>
@@ -178,6 +184,7 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
             <Radio size={12} className={connected ? 'text-emerald-400' : 'text-rose-400'} />
             {connected ? 'Live — updates arrive as they happen' : 'Reconnecting…'}
           </div>
+
         </>
       )}
     </DropMenu>
