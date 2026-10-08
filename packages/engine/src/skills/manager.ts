@@ -135,6 +135,18 @@ export class SkillsManager {
   cachedUpdates(): SkillsUpdateReport | null {
     return this.checker.cached();
   }
+  /**
+   * The last report, rebuilt offline (no git, the stored upstream facts) when the skills on disk changed since:
+   * a skill installed or removed outside Foundry (a plugin, another tool) shows up on the next page load.
+   */
+  async currentUpdates(repoPath?: string): Promise<SkillsUpdateReport | null> {
+    const cached = this.checker.cached();
+    if (!cached) return null;
+    const onDisk = new Set(this.scan(repoPath).installed.map((r) => r.dir));
+    const listed = new Set(cached.sources.flatMap((s) => s.skills.map((k) => k.dir)));
+    if (onDisk.size === listed.size && [...onDisk].every((d) => listed.has(d))) return cached;
+    return this.updates({ offline: true, repoPath });
+  }
   /** Name of the source currently being updated, if any. */
   updatingSource(): string | null {
     return this.updating;
