@@ -123,7 +123,8 @@ See [Codex setup and limits](codex.md) and [mixed-provider upgrades](updates-and
 | Line or note | Meaning | What to do |
 |---|---|---|
 | `rate_limit.paused` | New sessions for the event’s backend wait; the other backend continues. The pause survives restart. Its retry time comes from a reported reset or a short backoff when none is known. | Check `pausedUntilByProvider` on `/api/health` or the matching Usage page. |
-| `rate_limit.resumed` | The retry time was reached; unfinished goals for that backend are woken. It does not prove the account limit has reset. | A renewed rejection can pause that backend again. |
+| `rate_limit.resumed` | The retry time was reached, **Resume now** was pressed, or a saved pause longer than any usage window was lifted at start; unfinished goals for that backend are woken. It does not prove the account limit has reset. | A renewed rejection can pause that backend again. |
+| A pause weeks away while the coding agent works fine | An extra-usage (overage) window reported as rejected, which resets monthly. It no longer pauses unless sessions run on extra usage; a pause saved before that is lifted at the next start. | Update, or press **Resume now**. |
 
 ### Git and merges
 
