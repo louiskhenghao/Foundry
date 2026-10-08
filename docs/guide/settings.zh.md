@@ -299,6 +299,8 @@ key 对下一个会话生效，不用重启。保存过的 key 不会再显示�
 
 把这个 Foundry 知道的东西搬到另一个 Foundry，通常是在新电脑上。你在这里导出一个文件，再到那边导入。导出时，这台电脑上什么都不会变：goal 照常进行。
 
+![Settings → Transfer：Export 勾选了 Settings 和 Goals，Import 等待选择文件](images/settings-transfer.png)
+
 **Export** 用勾选决定文件里放什么：
 
 - **Settings**：这一页上的所有设置，但不包括只属于这台电脑的：**Engine (install)** 整个部分、**Notifications** 的链接地址和 tailnet 名称、markitdown 路径、**Folder browser roots** 以及预览端口。
@@ -314,6 +316,8 @@ key 对下一个会话生效，不用重启。保存过的 key 不会再显示�
 - **Keys & secrets**：勾选 **Bring Keys & secrets in**，输入密码并按 **Unlock**，就能看到每个 key 遮掩后的样子以及你这里现有的值。想保留自己的，就在那个 key 上勾选 **keep mine**。预览变量会加在这里已有的变量旁边。
 
 按 **Import** 后导入，并列出带进来了什么、跳过了什么以及原因。导入的 goal 是历史记录：你可以查看它的一切，也可以从它开始一个 Follow-up，但 Foundry 不会运行、交付或盯着它。它的页面上有 **imported** 标记和一张 **Came from another computer** 卡片：
+
+![一个等待 Reattach 的导入 goal：来源、待 map 的仓库和 Reattach 按钮](images/goal-imported.png)
 
 - **Map repository** 把它指向这台电脑上的项目文件夹，并把它的分支放回去。
 - **Reattach**（只有未完成的 goal，且已经 map 之后）在这里给它建一个 progress folder 并继续进行。写出文件时被打断的工作会在新的会话里重新开始，失去的那次尝试也会还给它。如果这个 goal 在另一台电脑上还在跑，两边从此会各走各的：请先在那边停掉。
