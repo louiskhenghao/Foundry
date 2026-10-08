@@ -20,7 +20,7 @@ export function AgentsPill() {
   }, [version]);
   if (!s || s.busy === 0) return null;
   return (
-    <Link to="/agents" className="flex items-center gap-1.5 rounded-md border border-emerald-500/40 text-emerald-300 px-2 py-1 text-[11px] mono" title={`${s.busy} agent session${s.busy === 1 ? '' : 's'} working · ${s.idle} idle`}>
+    <Link to="/agents" className="flex h-8 sm:h-7 items-center gap-1.5 rounded-md border border-emerald-500/40 text-emerald-300 px-2 text-[11px] mono" title={`${s.busy} agent session${s.busy === 1 ? '' : 's'} working · ${s.idle} idle`}>
       <Bot size={12} />
       <span className="whitespace-nowrap">{s.busy} busy</span>
     </Link>

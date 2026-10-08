@@ -82,8 +82,9 @@ export function App() {
         <nav className="hidden lg:flex items-center gap-1">{links}</nav>
         <div className="ml-auto flex items-center gap-2 md:gap-3 text-xs text-zinc-500 min-w-0">
           {/* the one action that starts work lives here, not in the nav, so a narrow header keeps it */}
-          <Link to="/goals/new" className="shrink-0">
-            <Button size="sm" variant="primary" title="Start a new goal">
+          {/* every control in this row is one height: 32px on a phone (where buttons get a 32px touch height), 28px above */}
+          <Link to="/goals/new" className="shrink-0 flex">
+            <Button size="sm" variant="primary" className="h-8 sm:h-7" title="Start a new goal">
               <Plus size={14} /> <span className="hidden sm:inline">New goal</span>
             </Button>
           </Link>
@@ -150,7 +151,7 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
     <DropMenu
       width="w-60"
       trigger={({ open, toggle }) => (
-        <button onClick={toggle} className={cn('relative p-1.5 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900', (open || here) && 'bg-zinc-900 text-zinc-100')} title="Settings, setup, help and theme" aria-label="Settings, setup, help and theme">
+        <button onClick={toggle} className={cn('relative h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900', (open || here) && 'bg-zinc-900 text-zinc-100')} title="Settings, setup, help and theme" aria-label="Settings, setup, help and theme">
           <Settings2 size={16} />
           {(setupBad || !connected) && <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-zinc-950" />}
         </button>

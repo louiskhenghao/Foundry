@@ -493,7 +493,7 @@ export function UsagePillView({ usages, minimaxLow = false }: { usages: Partial<
     return `${name} · ${u.pausedUntil && Date.parse(u.pausedUntil) > Date.now() ? 'sessions paused · ' : ''}${provider === 'codex' ? codexQuotaSummary(u.codexQuota) : `Foundry activity (5h) ${fmtUsd(u.fiveHour.costUsd)}`}`;
   });
   const title = [...summaries, ...(minimaxLow ? ['MiniMax quota low'] : []), 'Open Usage to view each coding agent separately.'].join('\n');
-  return <Link to="/usage" aria-label={`Usage across Claude Code and Codex${attention ? ' · needs attention' : ''}`} title={title} className={cn('flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs', attention ? 'text-amber-300 border-amber-500/40' : 'text-zinc-300 border-zinc-700 hover:bg-zinc-900')}>
+  return <Link to="/usage" aria-label={`Usage across Claude Code and Codex${attention ? ' · needs attention' : ''}`} title={title} className={cn('flex h-8 sm:h-7 shrink-0 items-center gap-1.5 rounded-md border px-2 text-xs', attention ? 'text-amber-300 border-amber-500/40' : 'text-zinc-300 border-zinc-700 hover:bg-zinc-900')}>
     <Gauge size={14} /><span className="hidden sm:inline">Usage</span>
     {attention && <span className="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true" />}
   </Link>;
