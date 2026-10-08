@@ -100,19 +100,22 @@ export async function runAutoskills(ws: string, deps: AutoskillsDeps = {}, onLin
 
   const folder = deps.provider === 'codex' ? '.agents' : '.claude';
   const before = new Set(skillDirs(ws, folder));
-  const claudeMd = join(ws, 'CLAUDE.md');
-  const hadClaudeMd = existsSync(claudeMd);
-  const claudeMdBefore = hadClaudeMd ? readFileSync(claudeMd, 'utf8') : null;
+  // the agent guidance files autoskills may write (CLAUDE.md for one agent, AGENTS.md for the other), as they were
+  const guidance = ['CLAUDE.md', 'AGENTS.md'].map((name) => {
+    const path = join(ws, name);
+    return { path, before: existsSync(path) ? readFileSync(path, 'utf8') : null };
+  });
   const lockPath = join(ws, 'skills-lock.json');
   const hadLock = existsSync(lockPath);
 
   const spawn = deps.spawn ?? spawnStreaming;
   const r = await spawn(['npx', '-y', 'autoskills@latest', '-y', '--agent', deps.provider === 'codex' ? 'codex' : 'claude-code'], ws, onLine, { timeoutMs: deps.timeoutMs ?? 4 * 60_000 });
 
-  // 1. CLAUDE.md: autoskills generates/edits it; the skills themselves are what matters, so put it back
-  if (existsSync(claudeMd)) {
-    if (!hadClaudeMd) rmSync(claudeMd, { force: true });
-    else if (readFileSync(claudeMd, 'utf8') !== claudeMdBefore) writeFileSync(claudeMd, claudeMdBefore!);
+  // 1. CLAUDE.md / AGENTS.md: autoskills generates or edits them; the skills themselves are what matters, so put them back
+  for (const { path, before } of guidance) {
+    if (!existsSync(path)) continue;
+    if (before === null) rmSync(path, { force: true });
+    else if (readFileSync(path, 'utf8') !== before) writeFileSync(path, before);
   }
   const after = skillDirs(ws, folder);
   const added = after.filter((n) => !before.has(n));
