@@ -951,7 +951,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     if (refresh || (!skillsFor(c).cachedUpdates() && !skillsFor(c).refreshing())) {
       void skillsFor(c).updates({ refresh: true, repoPath }).catch((e) => engine.config.log(`[skills] update check failed: ${e}`));
     }
-    const cached = skillsFor(c).cachedUpdates();
+    const cached = await skillsFor(c).currentUpdates(repoPath);
     if (cached) return c.json({ ...cached, ...meta() });
     // nothing cached yet: give the offline (filesystem-only) view right away
     const offline = await skillsFor(c).updates({ offline: true, repoPath });

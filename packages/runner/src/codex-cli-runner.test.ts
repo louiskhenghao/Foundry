@@ -142,3 +142,19 @@ describe('Codex CLI adapter', () => {
     expect(result.properties.child.anyOf[1]).toEqual({ type: 'object', properties: { count: { type: 'number' } }, required: ['count'], additionalProperties: false });
   });
 });
+
+test('strict MCP switches off every server config.toml defines, and only those', () => {
+  const home = mkdtempSync(join(tmpdir(), 'foundry-codex-strict-'));
+  try {
+    writeFileSync(join(home, 'config.toml'), ['model = "x"', '[mcp_servers.gitnexus]', 'command = "gitnexus"', '[mcp_servers.gitnexus.env]', 'A = "1"', '[mcp_servers."odd name"]', 'url = "http://x"', '[plugins."p@m"]', 'enabled = true'].join('\n'));
+    const runner = new CodexCliRunner({ codexHome: home });
+    const files = { canary: '/tmp/canary', guard: '/tmp/guard' };
+    const strict = runner.buildArgs({ prompt: 'x', cwd: '/tmp', strictMcp: true }, files).join(' ');
+    expect(strict).toContain('mcp_servers.gitnexus.enabled=false');
+    expect(strict).toContain('mcp_servers."odd name".enabled=false');
+    expect(strict).not.toContain('mcp_servers.gitnexus.env');
+    expect(runner.buildArgs({ prompt: 'x', cwd: '/tmp' }, files).join(' ')).not.toContain('mcp_servers.');
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});

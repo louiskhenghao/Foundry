@@ -26,6 +26,17 @@ describe('workflow section', () => {
     expect(s).toContain('/webapp-testing');
     expect(s).toContain('Do NOT run /setup-matt-pocock-skills');
   });
+  test('Codex is told to read each skill by name (it has no Skill tool), with project skills in .agents/skills', () => {
+    const s = formatWorkflowSection({ role: 'worker', taskKind: 'feature', profile: 'mattpocock', statuses, projectSkills: ['next-best-practices'], provider: 'codex' })!;
+    expect(s).toContain('open its SKILL.md and follow it');
+    expect(s).toContain('- MUST: follow the `tdd` skill — tests first');
+    expect(s).toContain('- Prefer: follow the `codebase-design` skill');
+    expect(s).toContain('webapp-testing');
+    expect(s).not.toContain('/webapp-testing');
+    expect(s).not.toContain('Skill tool');
+    expect(s).not.toContain('records which skills you invoked');
+    expect(s).toContain('(in .agents/skills): next-best-practices');
+  });
   test('media scenarios only admit skills that explicitly opt in; empty scenarios still match code scenarios', () => {
     const img = st(entry({ id: 'gpt-image-2', roles: ['worker'], scenarios: ['image'], workflow: [{ role: 'worker', mandate: 'must', when: 'any', scenarios: ['image'], instruction: 'generate' }] }), 'installed', '/gpt-image-2');
     const reviewTail = st(entry({ id: 'code-review', roles: ['reviewer-goal'], workflow: [{ role: 'reviewer-goal', mandate: 'prefer', when: 'any', scenarios: [], instruction: 'two axes' }] }), 'installed', '/mattpocock-skills:code-review');

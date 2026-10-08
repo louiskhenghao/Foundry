@@ -56,7 +56,7 @@ function statusOf(entry: CatalogEntry, scan: ScanResult, paths: SkillsPaths, whi
       entry.source.type === 'cli' || entry.source.type === 'manual'
         ? { command: entry.source.install, docs: entry.source.docs ?? null }
         : entry.source.type === 'plugin'
-          ? { command: pluginInstallCommand(entry.source), docs: entry.source.docs ?? null }
+          ? { command: pluginInstallCommand(entry.source, paths.provider), docs: entry.source.docs ?? null }
           : null;
     // plugin-first: the plugin copy is the one `claude plugin update` keeps fresh; a loose user copy of the same name is usually older
     const installedInvoke = plugin?.invoke ?? user?.invoke ?? null;
@@ -76,7 +76,7 @@ function statusOf(entry: CatalogEntry, scan: ScanResult, paths: SkillsPaths, whi
     }
     if (entry.source.type === 'plugin') {
       // the plugin is "installed" when any of its skills is on disk under the expected plugin id
-      const viaPlugin = scan.installed.find((r) => r.scope === 'plugin' && r.plugin?.name === entry.source.type && false) ?? scan.installed.find((r) => r.scope === 'plugin' && (r.plugin?.id === `${(entry.source as { plugin: string }).plugin}@${(entry.source as { marketplaceId: string }).marketplaceId}` || r.plugin?.name === (entry.source as { plugin: string }).plugin));
+      const viaPlugin = scan.installed.find((r) => r.scope === 'plugin' && (r.plugin?.id === `${(entry.source as { plugin: string }).plugin}@${(entry.source as { marketplaceId: string }).marketplaceId}` || r.plugin?.name === (entry.source as { plugin: string }).plugin));
       if (viaPlugin) return { entry, status: 'installed-via-plugin', installedInvoke: plugin?.invoke ?? viaPlugin.invoke, commit: viaPlugin.plugin?.gitCommitSha ?? null, detail: `plugin ${viaPlugin.plugin?.id}${viaPlugin.plugin?.version ? ` v${viaPlugin.plugin.version}` : ''}`, manual };
       if (user) return { entry, status: 'installed-unmanaged', installedInvoke, commit: null, detail: `present in ${paths.skillsDir} (${user.managedBy ?? 'hand-installed'})`, manual };
       return { entry, status: 'missing', installedInvoke: null, commit: null, detail: 'plugin not installed', manual };
@@ -101,7 +101,9 @@ export function useLabel(s: CatalogEntryStatus): string {
   return bin ? `the \`${bin}\` command-line tool` : (s.entry.invoke ?? s.installedInvoke ?? `/${s.entry.name}`);
 }
 
-/** The two `claude plugin` commands that install a marketplace plugin (also what the human is told to run). */
-export function pluginInstallCommand(src: Extract<CatalogEntry['source'], { type: 'plugin' }>): string {
-  return `claude plugin marketplace add ${src.marketplace} && claude plugin install ${src.plugin}@${src.marketplaceId}`;
+/** The two commands that install a marketplace plugin with the backend's own CLI (also what the human is told to run). */
+export function pluginInstallCommand(src: Extract<CatalogEntry['source'], { type: 'plugin' }>, provider: 'claude' | 'codex' = 'claude'): string {
+  return provider === 'codex'
+    ? `codex plugin marketplace add ${src.marketplace} && codex plugin add ${src.plugin}@${src.marketplaceId}`
+    : `claude plugin marketplace add ${src.marketplace} && claude plugin install ${src.plugin}@${src.marketplaceId}`;
 }

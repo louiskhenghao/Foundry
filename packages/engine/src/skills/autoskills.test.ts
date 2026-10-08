@@ -29,6 +29,24 @@ describe('autoskills', () => {
     expect(old.detail).toContain('too old');
   });
 
+  test('Codex: the AGENTS.md autoskills writes is put back too, so it never reaches a task commit', async () => {
+    const repo = await makeRepo();
+    writeFileSync(join(repo, 'package.json'), '{"name":"x"}');
+    writeFileSync(join(repo, 'AGENTS.md'), '# house rules\n');
+    await sh('git -c user.name=t -c user.email=t@t add -A && git -c user.name=t -c user.email=t@t commit -qm "chore: manifest"', repo);
+    const codexNpx = async (argv: string[], cwd: string) => {
+      expect(argv).toContain('codex');
+      mkdirSync(join(cwd, '.agents', 'skills', 'react'), { recursive: true });
+      writeFileSync(join(cwd, '.agents', 'skills', 'react', 'SKILL.md'), '---\nname: react\n---\nrules');
+      writeFileSync(join(cwd, 'AGENTS.md'), readFileSync(join(cwd, 'AGENTS.md'), 'utf8') + '\n## Skills\n- react\n');
+      return { code: 0, tail: '' };
+    };
+    const r = await runAutoskills(repo, { spawn: codexNpx as any, nodeVersion: async () => 'v22.1.0', provider: 'codex' });
+    expect(r).toMatchObject({ status: 'installed', skills: ['react'] });
+    expect(readFileSync(join(repo, 'AGENTS.md'), 'utf8')).toBe('# house rules\n');
+    expect(await sh('git status --porcelain', repo)).toBe('');
+  });
+
   test('installs, restores CLAUDE.md, excludes the skills from git, and the worktree stays clean', async () => {
     const repo = await makeRepo();
     writeFileSync(join(repo, 'package.json'), '{"name":"x"}');

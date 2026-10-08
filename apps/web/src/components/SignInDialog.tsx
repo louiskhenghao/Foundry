@@ -52,7 +52,7 @@ export function SignInDialog({ onClose, provider: selectedProvider }: { onClose:
             <X size={14} />
           </Button>
         </div>
-        {provider === 'codex' ? <p className="text-xs text-zinc-400">Sign in with ChatGPT. Open the device login link below and enter the code shown in the log on that page. Codex stores your credentials.</p> : <p className="text-xs text-zinc-400">Same flow as Claude Code: a browser window opens on this machine, you sign in, and this page updates by itself. When the engine runs where there is no browser (a container, a remote host), open the link yourself and paste the code it gives you. Foundry never sees your password or token — Claude Code stores the credential.</p>}
+        {provider === 'codex' ? <p className="text-xs text-zinc-400">Sign in with ChatGPT: Foundry asks OpenAI for a one-time code, you enter it on OpenAI's device page and approve, and this window updates by itself. Nothing has to open on the computer running Foundry. Codex stores your credentials.</p> : <p className="text-xs text-zinc-400">Same flow as Claude Code: a browser window opens on this machine, you sign in, and this page updates by itself. When the engine runs where there is no browser (a container, a remote host), open the link yourself and paste the code it gives you. Foundry never sees your password or token — Claude Code stores the credential.</p>}
         {!session ? (
           <>
             {provider !== 'codex' && <><p className="text-xs text-zinc-400">Sign in with your Claude subscription (Pro or Max). Foundry does not use Anthropic Console API billing.</p>
@@ -67,7 +67,7 @@ export function SignInDialog({ onClose, provider: selectedProvider }: { onClose:
         ) : (
           <>
             <div className={cn('rounded-md border p-3 text-sm', session.done ? (session.ok ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-rose-500/40 bg-rose-500/5') : session.needsCode ? 'border-sky-500/40 bg-sky-500/5' : 'border-zinc-800')}>
-              {session.done ? (session.ok ? '✔ Signed in.' : `✘ ${session.error ?? 'Sign-in failed'}`) : session.needsCode ? 'Open the link below, sign in, then paste the code Claude shows you.' : 'Waiting for you to finish in the browser…'}
+              {session.done ? (session.ok ? '✔ Signed in.' : `✘ ${session.error ?? 'Sign-in failed'}`) : session.needsCode ? 'Open the link below, sign in, then paste the code Claude shows you.' : provider === 'codex' ? (session.deviceCode ? 'Waiting for you to enter the code and approve…' : 'Asking OpenAI for a code…') : 'Waiting for you to finish in the browser…'}
             </div>
             {session.needsCode && !session.done && (
               <div className="space-y-1.5">
@@ -85,9 +85,18 @@ export function SignInDialog({ onClose, provider: selectedProvider }: { onClose:
                 </div>
               </div>
             )}
+            {provider === 'codex' && session.deviceCode && !session.done && (
+              <div className="text-xs space-y-1">
+                <div className="text-zinc-400">Enter this one-time code on the page below (it expires in 15 minutes):</div>
+                <div className="flex items-center gap-2">
+                  <span className="mono text-lg tracking-widest text-zinc-100 rounded border border-zinc-700 px-3 py-1">{session.deviceCode}</span>
+                  <CopyButton text={session.deviceCode} />
+                </div>
+              </div>
+            )}
             {session.url && !session.done && (
               <div className="text-xs">
-                <div className="text-zinc-400 mb-1">If the browser did not open, use this link:</div>
+                <div className="text-zinc-400 mb-1">{provider === 'codex' ? 'Open this page, sign in to ChatGPT and enter the code:' : 'If the browser did not open, use this link:'}</div>
                 <div className="flex items-center gap-2">
                   <a className="underline text-sky-300 truncate flex items-center gap-1" href={session.url} target="_blank" rel="noreferrer">
                     <ExternalLink size={12} /> {session.url}

@@ -35,10 +35,15 @@ export async function runDoctor(ctx: DoctorContext): Promise<DoctorReport> {
     const bin = ctx.codexBin ?? which('codex');
     const v = bin ? await run([bin, '--version'], process.cwd(), { timeoutMs: 15_000 }).catch(() => null) : null;
     const install = agentCliInstall('codex', which);
-    checks.push(v?.code === 0 ? ok('codex-bin', 'Codex CLI', v.stdout.trim()) : err('codex-bin', 'Codex CLI', 'Codex CLI is unavailable; install a version with hooks support.', { command: install?.command ?? 'npm install -g @openai/codex', url: 'https://github.com/openai/codex', ...(install ? { installId: install.id, action: 'install-tool' as const } : {}) }));
+    const fix = { command: install?.command ?? 'npm install -g @openai/codex', url: 'https://github.com/openai/codex', ...(install ? { installId: install.id, action: 'install-tool' as const } : {}) };
+    // Foundry's sessions run under its hooks (the guard, the session canary): a CLI without them fails every session
+    const features = v?.code === 0 ? await run([bin!, 'features', 'list'], process.cwd(), { timeoutMs: 15_000 }).catch(() => null) : null;
+    const stage = features?.code === 0 ? /^hooks\s+(\S+)/m.exec(features.stdout)?.[1] : undefined;
+    const hooks = !!stage && stage !== 'removed';
+    checks.push(v?.code !== 0 ? err('codex-bin', 'Codex CLI', 'Codex CLI is unavailable; install a version with hooks support.', fix) : hooks ? ok('codex-bin', 'Codex CLI', v.stdout.trim()) : err('codex-bin', 'Codex CLI', `${v.stdout.trim()} has no hooks support, which Foundry's sessions need; update the Codex CLI.`, fix));
     const st = await codexAuthStatus(bin, run, ctx.codexHome);
     checks.push(st.loggedIn ? ok('codex-auth', 'Codex login', 'Signed in with ChatGPT') : err('codex-auth', 'Codex login', st.error ?? 'Not signed in', { command: 'codex login' }));
-    checks.push(warn('codex-cost', 'Codex usage accounting', 'Token usage is recorded. Codex does not report USD costs; use time and attempt limits instead of dollar budgets.', null));
+    checks.push(ok('codex-cost', 'Codex usage accounting', 'Token usage is recorded. Codex does not report USD costs; use time and attempt limits instead of dollar budgets.'));
   } else {
   // claude binary
   if (!claude) {

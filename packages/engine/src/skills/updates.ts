@@ -361,6 +361,8 @@ function updaterFor(key: SourceKey, rows: SkillSourceRow[], provider: 'claude' |
     case 'agents-cli':
       return { kind, command: ['npx', '-y', 'skills@latest', 'update', '-g', '-y', '-a', provider === 'codex' ? 'codex' : 'claude-code'], hint: null };
     case 'plugin':
+      // Codex refreshes a plugin from its marketplace snapshot; Foundry leaves that to Codex
+      if (provider === 'codex') return { kind: 'hint', command: null, hint: `Codex plugin: refresh it with \`codex plugin marketplace upgrade ${mkt ?? ''}\`, then \`codex plugin add ${pluginId ?? ''}\`.` };
       return { kind, command: ['claude', 'plugin', 'marketplace', 'update', mkt ?? '', '&&', 'claude', 'plugin', 'update', pluginId ?? '', '-y'], hint: 'Restart Claude sessions afterwards; the engine picks the new version up on its next session.' };
     case 'foundry':
       return { kind, command: null, hint: null };

@@ -19,8 +19,9 @@ export class InstallError extends Error {
 export interface InstallContext {
   paths: SkillsPaths;
   log?: (m: string) => void;
-  /** for plugin sources: the claude binary and a streaming spawner (tests inject both) */
+  /** for plugin sources: the backend's binary (claude, or codex for paths.provider codex) and a streaming spawner (tests inject both) */
   claudeBin?: string;
+  codexBin?: string;
   spawn?: (argv: string[], cwd: string, onLine: (l: string) => void, opts?: { timeoutMs?: number }) => Promise<{ code: number | null; tail: string }>;
   onLine?: (l: string) => void;
 }
@@ -79,24 +80,26 @@ export function locateSkillDir(cacheDir: string, entry: CatalogEntry): string {
 }
 
 /**
- * Install a Claude Code marketplace plugin with the official CLI (non-interactive). The marketplace is
- * added first (an "already exists" failure is fine), then the plugin. Skills land wherever Claude Code
- * keeps plugins; the scanner picks them up as `installed-via-plugin`.
+ * Install a marketplace plugin with the backend's own CLI (non-interactive): Claude Code's `claude plugin`, or Codex's
+ * `codex plugin`. The marketplace is added first (an "already exists" failure is fine), then the plugin. Skills land
+ * wherever the CLI keeps plugins; the scanner picks them up as `installed-via-plugin`.
  */
 export async function installPlugin(entry: CatalogEntry, ctx: InstallContext): Promise<InstallResult> {
   if (entry.source.type !== 'plugin') throw new InstallError('not a plugin entry', 'manual');
   const src = entry.source;
-  const manual = { command: pluginInstallCommand(src), docs: src.docs ?? null };
-  const claude = ctx.claudeBin ?? Bun.which('claude');
-  if (!claude || !ctx.spawn) return { ok: false, id: entry.id, name: entry.name, path: null, commit: null, manual, error: claude ? 'no spawner configured' : 'claude CLI not found' };
+  const codex = ctx.paths.provider === 'codex';
+  const name = codex ? 'codex' : 'claude';
+  const manual = { command: pluginInstallCommand(src, ctx.paths.provider), docs: src.docs ?? null };
+  const bin = (codex ? ctx.codexBin : ctx.claudeBin) ?? Bun.which(name);
+  if (!bin || !ctx.spawn) return { ok: false, id: entry.id, name: entry.name, path: null, commit: null, manual, error: bin ? 'no spawner configured' : `${name} CLI not found` };
   const onLine = ctx.onLine ?? (() => {});
-  const add = await ctx.spawn([claude, 'plugin', 'marketplace', 'add', src.marketplace], ctx.paths.claudeHome, onLine, { timeoutMs: 180_000 });
+  const add = await ctx.spawn([bin, 'plugin', 'marketplace', 'add', src.marketplace], ctx.paths.claudeHome, onLine, { timeoutMs: 180_000 });
   if (add.code !== 0 && !/already|exists/i.test(add.tail)) {
-    return { ok: false, id: entry.id, name: entry.name, path: null, commit: null, manual, error: `claude plugin marketplace add failed: ${add.tail.slice(-300)}` };
+    return { ok: false, id: entry.id, name: entry.name, path: null, commit: null, manual, error: `${name} plugin marketplace add failed: ${add.tail.slice(-300)}` };
   }
-  const inst = await ctx.spawn([claude, 'plugin', 'install', `${src.plugin}@${src.marketplaceId}`], ctx.paths.claudeHome, onLine, { timeoutMs: 300_000 });
+  const inst = await ctx.spawn([bin, 'plugin', codex ? 'add' : 'install', `${src.plugin}@${src.marketplaceId}`], ctx.paths.claudeHome, onLine, { timeoutMs: 300_000 });
   if (inst.code !== 0 && !/already installed/i.test(inst.tail)) {
-    return { ok: false, id: entry.id, name: entry.name, path: null, commit: null, manual, error: `claude plugin install failed: ${inst.tail.slice(-300)}` };
+    return { ok: false, id: entry.id, name: entry.name, path: null, commit: null, manual, error: `${name} plugin ${codex ? 'add' : 'install'} failed: ${inst.tail.slice(-300)}` };
   }
   ctx.log?.(`[skills] installed plugin ${src.plugin}@${src.marketplaceId}`);
   return { ok: true, id: entry.id, name: entry.name, path: null, commit: null, manual: null, error: null };

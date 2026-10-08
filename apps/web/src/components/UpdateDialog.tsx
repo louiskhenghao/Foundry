@@ -24,7 +24,7 @@ export function UpdatePill() {
   if (!status?.updateAvailable) return null;
   return (
     <>
-      <button onClick={() => setOpen(true)} className="flex items-center gap-1.5 rounded-md border border-sky-500/40 text-sky-300 px-2 py-1 text-[11px] mono" title={`Foundry ${status.latest} is available — you run ${status.current}`}>
+      <button onClick={() => setOpen(true)} className="flex h-8 sm:h-7 items-center gap-1.5 rounded-md border border-sky-500/40 text-sky-300 px-2 text-[11px] mono" title={`Foundry ${status.latest} is available — you run ${status.current}`}>
         <ArrowUpCircle size={12} />
         <span className="whitespace-nowrap">{status.latest}</span>
       </button>

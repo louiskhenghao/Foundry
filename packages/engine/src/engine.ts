@@ -1,3 +1,4 @@
+import type { CodexQuota } from './usage/types.ts';
 import { CODEX_MODEL_ACTIONS, CodexEffort, Effort, effectiveCodexPresets, natureKey, type CodexModelPreset } from '@foundry/core';
 import { CodexPlugins } from './plugins/codex-plugins.ts';
 import { CodexQuotaReader } from './usage/codex-quota.ts';
@@ -153,6 +154,16 @@ const OVERAGE_PAUSE_MS = 5 * 60 * 60_000;
  * rejection (the extra-usage credit is used up or not enabled, resetting monthly) pauses only a session already running
  * on extra usage, and only for the plan's next window; any pause is capped at the longest window.
  */
+/** when the latest used-up window of a Codex account's quota resets (capped at the longest window), or null when none is used up */
+export function codexResumeAt(q: CodexQuota, now: number): number | null {
+  if (q.state !== 'available') return null;
+  const resets = q.buckets
+    .flatMap((b) => [b.primary, b.secondary])
+    .filter((w): w is NonNullable<typeof w> => !!w && (w.usedPercent ?? 0) >= 100 && !!w.resetsAt && w.resetsAt * 1000 > now)
+    .map((w) => w.resetsAt! * 1000);
+  return resets.length ? Math.min(Math.max(...resets), now + MAX_PAUSE_MS) : null;
+}
+
 export function limitPauseUntil(rl: RunResult['rateLimit'], now: number): number | null {
   if (!rl || rl.status !== 'rejected' || !rl.resetsAt || rl.resetsAt * 1000 <= now) return null;
   if (rl.rateLimitType === 'overage' && !rl.isUsingOverage) return null;
@@ -894,6 +905,15 @@ export class Engine {
     if (byStatus === null && !limitedByError) return;
     const until = byStatus ?? now + 5 * 60_000;
     this.pauseUntil(until, rl?.rateLimitType ?? null, byStatus !== null ? `rate_limit_event status=${rl!.status}` : `session error: ${(result.errorMessage ?? '').slice(0, 120)}`, provider);
+    // Codex reports no reset with the error: the account's quota windows say when the exhausted one comes back
+    if (provider === 'codex' && byStatus === null)
+      void this.codexQuota
+        .read(true)
+        .then((q) => {
+          const reset = codexResumeAt(q, Date.now());
+          if (reset) this.pauseUntil(reset, 'codex-quota', 'Codex quota window used up', 'codex');
+        })
+        .catch(() => {});
   }
 
   /** A limit on one account must not pause the other backend. */
@@ -1869,7 +1889,7 @@ export class Engine {
       task: null,
       attemptId,
       trigger: 'boundary_action',
-      message: `Claude tried to run a command that leaves the local workspace while working on "${task?.title ?? '?'}":\n\n    ${command}\n\nIt was blocked. Approve to run it once on your behalf, or deny.`,
+      message: `${(goal.provider ?? this.config.provider) === 'codex' ? 'Codex' : 'Claude'} tried to run a command that leaves the local workspace while working on "${task?.title ?? '?'}":\n\n    ${command}\n\nIt was blocked. Approve to run it once on your behalf, or deny.`,
       payload: { command, cwd: attempt?.cwd ?? null, taskId: task?.id ?? null },
     });
   }

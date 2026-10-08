@@ -23,7 +23,12 @@ export interface WorkflowSectionInput {
   projectSkills?: string[];
   /** the goal's (and task's) discipline: tdd off drops the tdd rules, preferred downgrades MUST to Prefer */
   discipline?: { tdd: 'required' | 'preferred' | 'off' };
+  /** Codex has no Skill tool: a skill is read from its SKILL.md, and project skills live in .agents/skills */
+  provider?: 'claude' | 'codex';
 }
+
+/** a skill as a Codex session finds it: by name, not as a slash command (`/ui-ux-pro-max:design` → `design`) */
+const codexName = (invoke: string) => invoke.replace(/^\//, '').split(':').at(-1)!;
 
 /** Discipline a worker session runs under: the task may switch tdd off, otherwise the goal decides. */
 export function resolveDiscipline(goal: Pick<Goal, 'workflow'>, task: Pick<Task, 'tdd'> | null): { tdd: 'required' | 'preferred' | 'off' } {
@@ -120,10 +125,11 @@ export function formatWorkflowSection(i: WorkflowSectionInput): string | null {
     .slice(0, 8);
   const project = i.projectSkills ?? [];
   if (!rules.length && !others.length && !project.length) return null;
+  const codex = i.provider === 'codex';
   const lines: string[] = ['# Workflow skills'];
   if (i.scenario && i.scenario !== 'general') lines.push(`Scenario: ${i.scenario}.`);
   if (rules.length) {
-    lines.push("This engine follows Matt Pocock's engineering workflow. The skills below are loaded in this session; invoke them with the Skill tool.");
+    lines.push(codex ? "This engine follows Matt Pocock's engineering workflow. The skills below are installed for this session: before the work one covers, open its SKILL.md and follow it." : "This engine follows Matt Pocock's engineering workflow. The skills below are loaded in this session; invoke them with the Skill tool.");
     for (const r of rules) {
       const keys = r.missingEnv.map(envLabel).join(', ');
       const degraded = !r.missingEnv.length
@@ -131,12 +137,12 @@ export function formatWorkflowSection(i: WorkflowSectionInput): string | null {
         : r.envFor
           ? ` ⚠ ${keys} is NOT set in this session, so ${r.envFor} is unavailable. Do the rest of the work, leave ${r.envFor} out, and say so explicitly in your result and manifests — never fake it.`
           : ` ⚠ ${keys} is NOT set in this session, so the skill's API/generation mode is unavailable and it can only advise. If the deliverable depends on it, build the best fallback you can and say so explicitly in your result and manifests — never present the fallback as the real output.`;
-      lines.push(`- ${r.mandate === 'must' ? 'MUST' : 'Prefer'}: ${r.cli ? `use the \`${r.cli}\` command-line tool` : `invoke \`${r.invoke}\``} — ${r.instruction}${degraded}`);
+      lines.push(`- ${r.mandate === 'must' ? 'MUST' : 'Prefer'}: ${r.cli ? `use the \`${r.cli}\` command-line tool` : codex ? `follow the \`${codexName(r.invoke)}\` skill` : `invoke \`${r.invoke}\``} — ${r.instruction}${degraded}`);
     }
     lines.push(`- Do NOT run ${NEVER_RUN.join(', ')}: Foundry is the tracker and has already done that work. Never write docs/agents/*.`);
-    lines.push('- The engine records which skills you invoked; the reviewer sees it.');
+    if (!codex) lines.push('- The engine records which skills you invoked; the reviewer sees it.');
   }
-  if (others.length) lines.push(`${rules.length ? 'Other installed' : 'Installed'} skills relevant to this role (use when appropriate): ${others.join(', ')}`);
-  if (project.length) lines.push(`Project skills installed for this repository's stack (in .claude/skills, loaded in this session): ${project.map((s) => `/${s}`).join(', ')} — use them for the frameworks and libraries they cover.`);
+  if (others.length) lines.push(`${rules.length ? 'Other installed' : 'Installed'} skills relevant to this role (use when appropriate): ${(codex ? others.map((o) => (o.startsWith('/') ? codexName(o) : o)) : others).join(', ')}`);
+  if (project.length) lines.push(codex ? `Project skills installed for this repository's stack (in .agents/skills): ${project.join(', ')} — read their SKILL.md for the frameworks and libraries they cover.` : `Project skills installed for this repository's stack (in .claude/skills, loaded in this session): ${project.map((s) => `/${s}`).join(', ')} — use them for the frameworks and libraries they cover.`);
   return lines.join('\n');
 }

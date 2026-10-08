@@ -75,7 +75,7 @@ export class SkillsManager {
 
   constructor(private opts: SkillsManagerOptions) {
     this.paths = { ...skillsPaths(opts.claudeHome, opts.dataDir, opts.provider, opts.sharedHome), ...(opts.claudeSkillsDir ? { claudeSkillsDir: opts.claudeSkillsDir } : {}) };
-    this.hints = new SkillsHints(() => this.status(), { enabled: opts.hintsEnabled, profile: opts.workflowProfile, packs: opts.packs });
+    this.hints = new SkillsHints(() => this.status(), { enabled: opts.hintsEnabled, profile: opts.workflowProfile, packs: opts.packs, provider: opts.provider });
     this.checker = new SkillsUpdateChecker(this.paths, { log: opts.log, ...(opts.updates ?? {}) });
     try {
       if (existsSync(this.paths.sessionViewFile)) this.lastView = JSON.parse(readFileSync(this.paths.sessionViewFile, 'utf8'));
@@ -93,8 +93,7 @@ export class SkillsManager {
       const provider = this.opts.provider ?? 'claude';
       this.catalogCache.entries = this.catalogCache.entries
         .filter((entry) => !entry.providers || entry.providers.includes(provider))
-        .map((entry) => ({ ...entry, source: entry.providerSources?.[provider] ?? entry.source }))
-        .filter((entry) => provider !== 'codex' || entry.source.type !== 'plugin');
+        .map((entry) => ({ ...entry, source: entry.providerSources?.[provider] ?? entry.source }));
       this.catalogMtime = mtime;
       this.hints.invalidate();
     }
@@ -135,6 +134,18 @@ export class SkillsManager {
   /** Last report without touching git (null before the first check). */
   cachedUpdates(): SkillsUpdateReport | null {
     return this.checker.cached();
+  }
+  /**
+   * The last report, rebuilt offline (no git, the stored upstream facts) when the skills on disk changed since:
+   * a skill installed or removed outside Foundry (a plugin, another tool) shows up on the next page load.
+   */
+  async currentUpdates(repoPath?: string): Promise<SkillsUpdateReport | null> {
+    const cached = this.checker.cached();
+    if (!cached) return null;
+    const onDisk = new Set(this.scan(repoPath).installed.map((r) => r.dir));
+    const listed = new Set(cached.sources.flatMap((s) => s.skills.map((k) => k.dir)));
+    if (onDisk.size === listed.size && [...onDisk].every((d) => listed.has(d))) return cached;
+    return this.updates({ offline: true, repoPath });
   }
   /** Name of the source currently being updated, if any. */
   updatingSource(): string | null {
@@ -199,7 +210,7 @@ export class SkillsManager {
     {
       const results: BundleResult[] = [];
       const statuses = await this.status();
-      const ictx = { paths: this.paths, log: this.opts.log, claudeBin: this.opts.claudeBin, spawn: this.opts.updater?.spawn ?? spawnStreaming, onLine };
+      const ictx = { paths: this.paths, log: this.opts.log, claudeBin: this.opts.claudeBin, codexBin: this.opts.codexBin, spawn: this.opts.updater?.spawn ?? spawnStreaming, onLine };
       for (const s of statuses.filter((x) => pick(x.entry) && (x.entry.source.type === 'git' || x.entry.source.type === 'plugin'))) {
         try {
           if (s.entry.source.type === 'plugin') {
@@ -275,7 +286,7 @@ export class SkillsManager {
     return this.serial(async () => {
       const entry = findEntry(this.catalog(), idOrName);
       if (!entry) throw new InstallError(`${idOrName} is not in the catalog`, 'not-found');
-      return installEntry(entry, { paths: this.paths, log: this.opts.log, claudeBin: this.opts.claudeBin, spawn: this.opts.updater?.spawn ?? spawnStreaming, onLine: opts.onLine }, opts);
+      return installEntry(entry, { paths: this.paths, log: this.opts.log, claudeBin: this.opts.claudeBin, codexBin: this.opts.codexBin, spawn: this.opts.updater?.spawn ?? spawnStreaming, onLine: opts.onLine }, opts);
     });
   }
 

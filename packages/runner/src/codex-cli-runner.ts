@@ -1,5 +1,5 @@
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EventQueue } from './event-queue.ts';
@@ -34,6 +34,23 @@ export function codexOutputSchema(schema: any): any {
   return result;
 }
 
+/** names of the `[mcp_servers.<name>]` tables in a Codex config.toml (not their sub-tables such as `.env`) */
+export function configuredMcpServers(configToml: string): string[] {
+  let text = '';
+  try {
+    text = readFileSync(configToml, 'utf8');
+  } catch {
+    return [];
+  }
+  const names = new Set<string>();
+  for (const line of text.split('\n')) {
+    const m = /^\s*\[mcp_servers\.(?:"([^"]+)"|([A-Za-z0-9_-]+))\]\s*$/.exec(line);
+    if (m) names.add(m[1] ?? m[2]!);
+  }
+  return [...names];
+}
+const tomlKey = (name: string) => (/^[A-Za-z0-9_-]+$/.test(name) ? name : JSON.stringify(name));
+
 /** Native CLI backend. Auth stays with Codex; Foundry owns process lifetime and transcripts. */
 export class CodexCliRunner implements AgentRunner {
   private sem: Semaphore;
@@ -56,6 +73,9 @@ export class CodexCliRunner implements AgentRunner {
     config('forced_login_method', 'chatgpt');
     config('model_provider', 'openai');
     config('features.hooks', true);
+    // Claude's --strict-mcp-config: start none of the MCP servers config.toml defines. Only those: switching off a
+    // server Codex gets elsewhere (a plugin) leaves a table without a command, and Codex then refuses to start.
+    if (spec.strictMcp) for (const name of configuredMcpServers(join(this.opts.codexHome ?? join(homedir(), '.codex'), 'config.toml'))) config(`mcp_servers.${tomlKey(name)}.enabled`, false);
     // Foundry orchestrates role sessions; native delegation stays disabled.
     config('features.multi_agent', false);
     config('hooks.SessionStart', [{ hooks: [{ type: 'command', command: `cat > ${shellQuote(files.canary)}` }] }]);
@@ -106,7 +126,7 @@ export class CodexCliRunner implements AgentRunner {
       const policy = join(dir, 'policy.json');
       const denials = join(dir, 'denials.jsonl');
       const hooksDir = fileURLToPath(new URL('../hooks/', import.meta.url));
-      writeFileSync(policy, JSON.stringify({ canary, denials, counter: join(dir, 'calls'), boundary: join(hooksDir, 'boundary-guard.sh'), readOnly: this.readOnly(spec), noTools: spec.allowedTools?.length === 0, mcpAllowed: (spec.allowedTools ?? []).filter((t) => t.startsWith('mcp__')), maxToolCalls: spec.maxTurns }));
+      writeFileSync(policy, JSON.stringify({ canary, denials, counter: join(dir, 'calls'), capped: join(dir, 'capped'), boundary: join(hooksDir, 'boundary-guard.sh'), readOnly: this.readOnly(spec), noTools: spec.allowedTools?.length === 0, mcpAllowed: (spec.allowedTools ?? []).filter((t) => t.startsWith('mcp__')), maxToolCalls: spec.maxTurns }));
       const schema = spec.jsonSchema ? join(dir, 'schema.json') : undefined;
       if (schema) writeFileSync(schema, JSON.stringify(codexOutputSchema(spec.jsonSchema)));
       if (spec.transcriptPath) mkdirSync(dirname(spec.transcriptPath), { recursive: true });
@@ -202,6 +222,8 @@ export class CodexCliRunner implements AgentRunner {
           verify();
           let subtype = killed ?? (exitCode === 0 && completed && !errorMessage ? 'success' : 'error_during_execution');
           if (!verified && !killed) { subtype = 'error_during_execution'; errorMessage ??= stderr.trim() || 'Codex SessionStart guard was not observed. Install a Codex CLI with hooks support.'; }
+          // it ran into the tool-call allowance: cut, not finished, so the attempt loop continues it
+          if (subtype === 'success' && existsSync(join(dir!, 'capped'))) { subtype = 'error_max_turns'; errorMessage ??= 'Foundry tool-call allowance reached'; }
           if (subtype !== 'success') errorMessage ??= stderr.trim() || subtype;
           if (existsSync(denials)) {
             const names = new Set<string>();

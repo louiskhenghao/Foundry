@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'bun:test';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 const dirs: string[] = [];
@@ -24,4 +24,14 @@ test('Codex hook blocks publishing, respects read-only roles and checks exact MC
   expect(await guard('mcp__approved_evil__tool', {})).toMatchObject({ permissionDecision: 'deny' });
   expect(await guard('Read', {}, { noTools: true })).toMatchObject({ permissionDecision: 'deny' });
   expect(await guard('Read', {}, { canary: '/nonexistent/foundry-canary' })).toMatchObject({ permissionDecision: 'deny' });
+});
+test('the tool-call allowance: calls count up, the one past it is refused and leaves a mark the runner reads as a cut session', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'foundry-guard-cap-')); dirs.push(dir);
+  const counter = join(dir, 'count');
+  const capped = join(dir, 'capped');
+  expect(await guard('Read', {}, { maxToolCalls: 2, counter, capped })).toBeNull();
+  expect(await guard('Read', {}, { maxToolCalls: 2, counter, capped })).toBeNull();
+  expect(existsSync(capped)).toBe(false);
+  expect(await guard('Read', {}, { maxToolCalls: 2, counter, capped })).toMatchObject({ permissionDecision: 'deny' });
+  expect(existsSync(capped)).toBe(true);
 });

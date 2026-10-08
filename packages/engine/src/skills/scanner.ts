@@ -13,7 +13,7 @@ export interface ScanOptions {
 export function scanSkills(paths: SkillsPaths, opts: ScanOptions = {}): ScanResult {
   const own = scanUserDir(paths);
   const shared = paths.provider === 'codex' ? sharedAgentSkills(paths, own) : [];
-  const rows: InstalledSkill[] = [...own, ...shared, ...(paths.provider === 'codex' ? [] : scanPlugins(paths))];
+  const rows: InstalledSkill[] = [...own, ...shared, ...(paths.provider === 'codex' ? scanCodexPlugins(paths) : scanPlugins(paths))];
   if (opts.repoPath) rows.push(...scanProject(opts.repoPath, paths.provider === 'codex' ? '.agents' : '.claude'));
   markDuplicates(rows);
   return { installed: rows, duplicates: [...new Set(rows.filter((r) => r.duplicateOf.length).map((r) => r.name))].sort(), scannedAt: new Date().toISOString(), skillsDir: paths.skillsDir };
@@ -306,11 +306,90 @@ export function scanPlugins(paths: SkillsPaths): InstalledSkill[] {
   return out;
 }
 
-function pluginSkillDirs(installPath: string): string[] {
-  let manifest: any = {};
+// ---------- Codex plugins ----------
+
+/** `[plugins."<name>@<marketplace>"]` tables of Codex's config.toml that are not switched off (`enabled = false`) */
+export function codexEnabledPlugins(configToml: string): string[] {
+  let text = '';
   try {
-    manifest = JSON.parse(readFileSync(join(installPath, '.claude-plugin', 'plugin.json'), 'utf8'));
-  } catch {}
+    text = readFileSync(configToml, 'utf8');
+  } catch {
+    return [];
+  }
+  const out: string[] = [];
+  let current: string | null = null;
+  let enabled = true;
+  const flush = () => current && enabled && out.push(current);
+  for (const line of text.split('\n')) {
+    const table = /^\s*\[(.+)\]\s*$/.exec(line);
+    if (table) {
+      flush();
+      current = /^plugins\."([^"]+@[^"]+)"$/.exec(table[1]!.trim())?.[1] ?? null;
+      enabled = true;
+      continue;
+    }
+    const on = /^\s*enabled\s*=\s*(true|false)\b/.exec(line);
+    if (current && on) enabled = on[1] === 'true';
+  }
+  flush();
+  return out;
+}
+
+/**
+ * Skills of the plugins Codex has on: each enabled plugin's newest version folder in plugins/cache/<marketplace>/<name>/,
+ * read through its manifest (Codex's own, or a Claude Code one, which Codex also installs). Codex updates and removes
+ * them itself (`codex plugin`), so Foundry lists them but leaves them alone.
+ */
+export function scanCodexPlugins(paths: SkillsPaths): InstalledSkill[] {
+  const out: InstalledSkill[] = [];
+  for (const id of codexEnabledPlugins(join(paths.claudeHome, 'config.toml'))) {
+    const [pluginName, marketplace] = [id.split('@')[0]!, id.split('@').slice(1).join('@')];
+    const installPath = newestDir(join(paths.pluginsDir, 'cache', marketplace, pluginName));
+    if (!installPath) continue;
+    let repo: string | null = null;
+    try {
+      const src = String(JSON.parse(readFileSync(join(installPath, '.codex-marketplace-install.json'), 'utf8')).source ?? '');
+      repo = src.replace(/^https?:\/\/github\.com\//, '').replace(/\.git$/, '') || null;
+    } catch {}
+    const pluginMeta = { id, name: pluginName, version: basename(installPath), installPath, marketplace, marketplaceRepo: repo, marketplaceClone: null, gitCommitSha: null, installedAt: null, lastUpdated: null, skillPath: null as string | null };
+    for (const skillDir of pluginSkillDirs(installPath)) {
+      const name = basename(skillDir);
+      const row = base(name, skillDir, 'plugin', `/${pluginName}:${name}`);
+      row.plugin = { ...pluginMeta, skillPath: relative(installPath, skillDir) };
+      row.managedBy = 'plugin';
+      row.canUninstall = false;
+      row.hint = `managed by Codex plugin ${id} — Extensions → Plugins, or \`codex plugin\``;
+      out.push(row);
+    }
+  }
+  return out;
+}
+
+/** the most recently written subfolder (a plugin's installed version), not the `latest` alias */
+function newestDir(dir: string): string | null {
+  const dirs = safeReaddir(dir)
+    .filter((n) => n !== 'latest' && !n.startsWith('.'))
+    .map((n) => join(dir, n))
+    .filter((d) => {
+      try {
+        return statSync(d).isDirectory();
+      } catch {
+        return false;
+      }
+    });
+  if (!dirs.length) return existsSync(join(dir, 'latest')) ? join(dir, 'latest') : null;
+  return dirs.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0]!;
+}
+
+function pluginSkillDirs(installPath: string): string[] {
+  // Codex's manifest first, then Claude Code's: a plugin may ship either or both
+  let manifest: any = {};
+  for (const m of ['.codex-plugin', '.claude-plugin']) {
+    try {
+      manifest = JSON.parse(readFileSync(join(installPath, m, 'plugin.json'), 'utf8'));
+      break;
+    } catch {}
+  }
   const skills = manifest.skills;
   const dirs: string[] = [];
   if (Array.isArray(skills)) {

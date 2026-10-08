@@ -453,7 +453,7 @@ export function SettingsPage() {
                   <option value="plain">plain (hint only)</option>
                 </Select>
               </Field>
-              {draft.engine.provider !== 'codex' && <Field label="Setting sources" aside={aside('workflow.settingSources')} help="`--setting-sources` for sessions, comma-separated (user, project, local); empty = inherit everything. Without `user`, your own skills never load.">
+              {modelProvider === 'claude' && <Field label="Setting sources" aside={aside('workflow.settingSources')} help="`--setting-sources` for sessions, comma-separated (user, project, local); empty = inherit everything. Without `user`, your own skills never load.">
                 {list('workflow.settingSources', 'user, project')}
               </Field>}
             </>,

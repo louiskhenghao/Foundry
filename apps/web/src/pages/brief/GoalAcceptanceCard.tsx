@@ -27,7 +27,7 @@ export function GoalAcceptanceCard({ brief, editable, edit }: { brief: Brief; ed
             {(close) => (
               <>
                 <MenuItem onClick={() => { add('command', null); close(); }}>Command — a shell command must exit 0</MenuItem>
-                <MenuItem onClick={() => { add('reviewer', null); close(); }}>Reviewer — Claude judges the whole diff against a rubric</MenuItem>
+                <MenuItem onClick={() => { add('reviewer', null); close(); }}>Reviewer — an AI reviewer judges the whole diff against a rubric</MenuItem>
               </>
             )}
           </Menu>
