@@ -31,8 +31,8 @@ export function startServer(engine: Engine, opts: ServeOptions = {}) {
   const server = Bun.serve({
     hostname: engine.config.host,
     port: engine.config.port,
-    // attachments upload: one file per request, 25 MB cap enforced again in the route
-    maxRequestBodySize: 30 * 1024 * 1024,
+    // a Transfer file can be gigabytes (it is streamed to disk); every other request is held to 30 MB in the app
+    maxRequestBodySize: 64 * 1024 * 1024 * 1024,
     // slow uploads / long-running handlers (Bun default is 10 s; max 255)
     idleTimeout: 120,
     fetch(req, server) {
