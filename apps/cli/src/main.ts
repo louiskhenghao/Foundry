@@ -31,7 +31,7 @@ function opts(name: string): string[] {
 }
 const has = (name: string) => rest.includes(name);
 const positional = () => rest.filter((a, i) => !a.startsWith('--') && !(i > 0 && rest[i - 1]!.startsWith('--') && !FLAGS.has(rest[i - 1]!)));
-const FLAGS = new Set(['--auto-approve', '--approve', '--verify', '--json', '--follow', '--force', '--self-check', '--no-attachments', '--no-style']);
+const FLAGS = new Set(['--auto-approve', '--approve', '--verify', '--json', '--follow', '--force', '--self-check', '--no-attachments', '--no-style', '--settings', '--secrets', '--transcripts', '--dry-run', '--password-stdin']);
 const BASE = process.env.FOUNDRY_URL ?? `http://127.0.0.1:${process.env.FOUNDRY_PORT ?? 4111}`;
 
 async function api(path: string, init?: RequestInit): Promise<any> {
@@ -68,6 +68,38 @@ async function skillsLocal(selected?: 'claude' | 'codex') {
   const provider = selected ?? cfg.provider;
   return new SkillsManager({ provider, codexBin: cfg.codexBin, codexHome: cfg.codexHome, claudeBin: cfg.claudeBin, claudeHome: provider === 'codex' ? cfg.codexHome : cfg.claudeHome, dataDir: provider === cfg.provider ? cfg.dataDir : join(cfg.dataDir, 'providers', provider), catalogPath: cfg.catalogPath, log: (m) => console.error(m) });
 }
+/** a Transfer's password: the first line of stdin with --password-stdin, else FOUNDRY_TRANSFER_PASSWORD */
+async function transferPassword(): Promise<string> {
+  const pw = has('--password-stdin') ? (await new Response(Bun.stdin.stream()).text()).split('\n')[0]!.replace(/\r$/, '') : process.env.FOUNDRY_TRANSFER_PASSWORD;
+  if (!pw) return usage('Keys & secrets need a password: pipe it with --password-stdin or set FOUNDRY_TRANSFER_PASSWORD');
+  return pw;
+}
+/** export without a running server: the data folder is read directly */
+async function localTransferHost() {
+  const { defaultConfig, SettingsStore, applySettingsToConfig, PreviewEnvStore } = await import('@foundry/engine');
+  const { EventStore, openDatabase } = await import('@foundry/core');
+  const cfg = defaultConfig(ROOT);
+  const settings = new SettingsStore(cfg.dataDir);
+  applySettingsToConfig(cfg, settings.values(), settings.fileLeaves());
+  const release = String(JSON.parse(await Bun.file(join(ROOT, 'package.json')).text()).version ?? '0.0.0');
+  return { store: new EventStore(openDatabase(join(cfg.dataDir, 'engine.db'))), dataDir: cfg.dataDir, provider: cfg.provider, release, settingsFile: () => settings.fileSnapshot(), previewEnv: () => new PreviewEnvStore(cfg.dataDir).all() };
+}
+function printIncoming(r: any): void {
+  console.log(`Transfer file from ${r.hostname}, Foundry ${r.release}, written ${r.exportedAt.slice(0, 16).replace('T', ' ')}`);
+  for (const g of r.goals) console.log(`  ${pad(g.status, 13)} ${pad(g.id, 26)} ${g.unfinished ? 'unfinished ' : 'finished   '} ${g.title}${g.follows && !g.follows.inFile && !g.follows.here ? `  (follows "${g.follows.title}", not in this file)` : ''}`);
+  for (const repo of r.repos) console.log(`  repository ${repo.original} → ${repo.match ?? 'not found here (map it with --map old=new, or later)'}`);
+  for (const s of r.settings) console.log(`  settings ${pad(s.section, 14)} differs: ${s.keys.join(', ')}`);
+  if (r.secrets) console.log('  Keys & secrets: present (bring them in with --secrets)');
+}
+function printApplied(r: any): void {
+  for (const g of r.imported) console.log(`imported   ${g.id}  ${g.title}`);
+  for (const g of r.skipped) console.log(`skipped    ${g.id}  ${g.title} — ${g.reason}`);
+  for (const m of r.repos) console.log(m.error ? `not mapped ${m.original}: ${m.error}` : `mapped     ${m.original} → ${m.to}`);
+  if (r.settings.length) console.log(`settings   ${r.settings.join(', ')}`);
+  if (r.secrets.length) console.log(`secrets    ${r.secrets.join(', ')}`);
+  if (r.previewEnv.waiting.length) console.log(`preview variables wait for: ${r.previewEnv.waiting.join(', ')}`);
+}
+
 async function serverUp(): Promise<boolean> {
   try {
     const r = await fetch(BASE + '/api/health', { signal: AbortSignal.timeout(800) });
@@ -259,6 +291,77 @@ switch (cmd) {
       for (const k of Object.keys(after)) if (JSON.stringify(before[k]) !== JSON.stringify(after[k])) console.log(`  table ${k} differs (${before[k]?.length} → ${after[k]?.length} rows)`);
       process.exit(1);
     }
+    break;
+  }
+  case 'export': {
+    const goalsArg = opt('--goals');
+    const picked = has('--settings') || has('--secrets') || goalsArg != null;
+    const categories = { settings: !picked || has('--settings'), secrets: has('--secrets'), goals: !picked || goalsArg != null, transcripts: has('--transcripts') };
+    const goalIds = !goalsArg || goalsArg === 'all' ? 'all' : goalsArg.split(',').map((s) => s.trim()).filter(Boolean);
+    const password = categories.secrets ? await transferPassword() : undefined;
+    const out = resolve(opt('--out') ?? `foundry-transfer-${new Date().toISOString().slice(0, 10)}.tgz`);
+    let goals: number;
+    if (await serverUp()) {
+      const r = await api('/api/transfer/export', { method: 'POST', body: JSON.stringify({ categories, goalIds, password }) });
+      const res = await fetch(`${BASE}/api/transfer/download/${r.downloadId}`);
+      if (!res.ok) return usage(`download failed: ${res.status}`);
+      await Bun.write(out, res);
+      goals = r.goals;
+    } else {
+      const { exportTransfer } = await import('@foundry/engine');
+      goals = (await exportTransfer(await localTransferHost(), { categories, goalIds, password, out })).manifest.goals.length;
+    }
+    console.log(`wrote ${out} — ${Object.entries(categories).filter(([, on]) => on).map(([c]) => c).join(', ')}${categories.goals ? ` (${goals} goal${goals === 1 ? '' : 's'})` : ''}`);
+    break;
+  }
+  case 'import': {
+    const file = positional()[0];
+    if (!file) return usage('import needs <file>');
+    const repos: Record<string, string | null> = {};
+    for (const m of opts('--map')) {
+      const i = m.indexOf('=');
+      if (i <= 0) return usage(`--map takes <path there>=<path here>, not "${m}"`);
+      repos[m.slice(0, i)] = resolve(m.slice(i + 1));
+    }
+    for (const p of opts('--no-map')) repos[p] = null;
+    const choices = {
+      ...(opt('--goals') && opt('--goals') !== 'all' ? { goals: opt('--goals')!.split(',').map((s) => s.trim()) } : {}),
+      settings: Object.fromEntries((opt('--keep-mine') ?? '').split(',').filter(Boolean).map((s) => [s.trim(), 'mine' as const])),
+      secrets: has('--secrets') ? { password: await transferPassword(), keepMine: (opt('--keep-key') ?? '').split(',').filter(Boolean) } : null,
+      ...(Object.keys(repos).length ? { repos } : {}),
+    };
+    if (await serverUp()) {
+      const report = await api('/api/transfer/incoming', { method: 'POST', body: Bun.file(resolve(file)), headers: { 'content-type': 'application/octet-stream' } });
+      printIncoming(report);
+      if (has('--dry-run')) {
+        await api(`/api/transfer/incoming/${report.uploadId}`, { method: 'DELETE' });
+        break;
+      }
+      printApplied(await api(`/api/transfer/incoming/${report.uploadId}/apply`, { method: 'POST', body: JSON.stringify(choices) }));
+    } else {
+      const { Engine, defaultConfig, receiveTransfer, applyIncoming, discardIncoming } = await import('@foundry/engine');
+      const engine = new Engine(defaultConfig(ROOT));
+      try {
+        const report = await receiveTransfer(engine, resolve(file));
+        printIncoming(report);
+        if (has('--dry-run')) discardIncoming(engine.config.dataDir, report.uploadId);
+        else printApplied(await applyIncoming(engine, report.uploadId, choices));
+      } finally {
+        await engine.stop();
+      }
+    }
+    break;
+  }
+  case 'reattach': {
+    const id = positional()[0];
+    if (!id) return usage('reattach needs <goalId>');
+    if (!(await serverUp())) return usage('start Foundry first (foundry serve): a Reattached goal carries on right away');
+    if (opt('--repo')) {
+      const m = await api(`/api/goals/${id}/map-repo`, { method: 'POST', body: JSON.stringify({ path: resolve(opt('--repo')!) }) });
+      console.log(`mapped ${m.original} → ${m.to}${m.restored.length ? ` (branch restored for ${m.restored.length} goal${m.restored.length === 1 ? '' : 's'})` : ''}`);
+    }
+    const g = await api(`/api/goals/${id}/reattach`, { method: 'POST' });
+    console.log(`reattached: ${g.title} — its progress folder is ${g.workspaceDir}. If it still runs on the other computer, the two now diverge.`);
     break;
   }
   case 'deliver': {
