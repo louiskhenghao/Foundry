@@ -2,7 +2,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CodexEffort, Effort, Brief, EscalationAnswer, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, type Engine, type OpenTargetId } from '@foundry/engine';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, type Engine, type OpenTargetId } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, PreviewPlace, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
@@ -623,11 +623,17 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   app.get('/api/github/status', async (c) => c.json(await engine.gh.available()));
   app.get('/api/github/orgs', async (c) => c.json(await engine.gh.orgs()));
+  // GitHub sign-in from a page (Setup, Delivery): gh's device flow, its code and address shown there; also streamed on gh-auth
+  const ghLogin = new GhLogin(() => engine.gh, (line) => engine.broadcast({ goalId: '', taskId: null, attemptId: 'gh-auth', event: { kind: 'text', text: line }, ts: new Date().toISOString() }));
   app.post('/api/github/auth/login', async (c) => {
     const a = await engine.gh.available();
     if (!a.installed) return c.json({ error: 'gh is not installed: brew install gh' }, 422);
-    void engine.gh.login((line) => engine.broadcast({ goalId: '', taskId: null, attemptId: 'gh-auth', event: { kind: 'text', text: line }, ts: new Date().toISOString() })).then((r) => engine.broadcast({ goalId: '', taskId: null, attemptId: 'gh-auth', event: { kind: 'text', text: r.ok ? '✔ GitHub login complete' : `✘ GitHub login failed: ${r.output.slice(-200)}` }, ts: new Date().toISOString() }));
-    return c.json({ started: true });
+    return c.json({ started: true, session: ghLogin.start() });
+  });
+  app.get('/api/github/auth/login', (c) => c.json({ session: ghLogin.current() }));
+  app.post('/api/github/auth/login/cancel', (c) => {
+    ghLogin.cancel();
+    return c.json({ session: ghLogin.current() });
   });
 
   app.get('/api/goals/:id', (c) => {

@@ -24,6 +24,7 @@ export * from './fs/open.ts';
 export * from './attachments.ts';
 export * from './convert/markitdown.ts';
 export * from './delivery/gh.ts';
+export * from './delivery/gh-login.ts';
 export * from './delivery/policy.ts';
 export { probeForPlan } from './delivery/pipeline.ts';
 export * from './distill/truncate.ts';
