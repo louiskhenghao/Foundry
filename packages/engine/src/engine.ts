@@ -442,6 +442,22 @@ export class Engine {
     this.applySettingsChange(changed);
     return view;
   }
+  /**
+   * Settings sections taken from another Foundry (Transfer, ADR-0030): each chosen section becomes what it saved there,
+   * this computer's own leaves and the credentials stay; validated and hot-applied like any change.
+   */
+  replaceSettingsSections(imported: SettingsPatch, sections: (keyof SettingsPatch)[]): string[] {
+    if (sections.includes('models')) {
+      const models = { ...this.settings.values().models, ...(imported.models ?? {}) };
+      const presets = effectiveCodexPresets(models.codexPresets);
+      for (const id of [models.codexPresetCode, models.codexPresetDocs, models.codexPresetMedia]) {
+        if (!presets[id]) throw new SettingsError(`Unknown Codex preset: ${id}`);
+      }
+    }
+    const { changed } = this.settings.replaceSections(imported, sections.filter((s) => s !== 'engine'));
+    this.applySettingsChange(changed);
+    return changed;
+  }
   resetSettings(path?: string): SettingsView {
     const { changed } = this.settings.reset(path);
     const models = this.settings.values().models;
