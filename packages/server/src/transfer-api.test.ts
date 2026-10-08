@@ -6,6 +6,7 @@ import { getGoal } from '@foundry/core';
 import { Engine, defaultConfig } from '@foundry/engine';
 import { FakeRunner, makeRepo, sh, waitFor } from '../../engine/src/test-helpers.ts';
 import { createApp } from './app.ts';
+import { startServer } from './index.ts';
 
 const cleanup: (() => Promise<void>)[] = [];
 afterEach(async () => {
@@ -54,3 +55,26 @@ test('the Transfer API: export and download on one Foundry, upload, unlock, appl
   // only a Transfer file may be large
   expect((await b.app.request('/api/goals', { method: 'POST', body: 'x', headers: { 'content-length': String(31 * 1024 * 1024) } })).status).toBe(413);
 });
+
+test('a Transfer file uploads through the real server, streamed to disk', async () => {
+  const tmp = mkdtempSync(join(tmpdir(), 'foundry-transfer-upload-'));
+  const repo = await makeRepo();
+  const make = (name: string, port: number) => new Engine(defaultConfig(resolve(import.meta.dir, '../../..'), { dataDir: join(tmp, name), claudeHome: join(tmp, name, 'claude'), codexHome: join(tmp, name, 'codex'), port, useGraphify: false, log: () => {} }), new FakeRunner(() => {}));
+  const a = make('a', 0);
+  a.beginUpdateDrain();
+  await a.createGoal({ prompt: 'an idea', repoPath: repo });
+  const b = make('b', 0);
+  const server = startServer(b, { webDist: join(tmp, 'no-web') });
+  cleanup.push(async () => {
+    server.stop(true);
+    await Promise.all([a.stop(), b.stop()]);
+    for (const p of [tmp, repo]) rmSync(p, { recursive: true, force: true });
+  });
+  const exported = await (await createApp(a).request('/api/transfer/export', json({ categories: { goals: true } }))).json();
+  const file = await (await createApp(a).request(`/api/transfer/download/${exported.downloadId}`)).arrayBuffer();
+  const url = `http://127.0.0.1:${server.port}`;
+  const res = await fetch(`${url}/api/transfer/incoming`, { method: 'POST', body: file, headers: { 'content-type': 'application/octet-stream', origin: url }, signal: AbortSignal.timeout(10_000) });
+  expect(res.status).toBe(201);
+  expect((await res.json()).goals).toHaveLength(1);
+});
+

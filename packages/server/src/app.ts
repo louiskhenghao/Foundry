@@ -1001,7 +1001,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     mkdirSync(transferDir('uploads'), { recursive: true });
     const tmp = join(transferDir('uploads'), `${Date.now()}-${Math.random().toString(36).slice(2)}.tgz`);
     try {
-      await Bun.write(tmp, new Response(c.req.raw.body));
+      // chunk by chunk to disk (Bun.write of a Response wrapping a served request's body never settles)
+      const out = Bun.file(tmp).writer();
+      const reader = c.req.raw.body.getReader();
+      for (let r = await reader.read(); !r.done; r = await reader.read()) out.write(r.value);
+      await out.end();
       return c.json(await receiveTransfer(engine, tmp), 201);
     } finally {
       rmSync(tmp, { force: true });
