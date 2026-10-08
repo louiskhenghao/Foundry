@@ -1,6 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import type { EngineEvent } from '../events.ts';
-import type { Attempt, Brief, Check, CheckResult, Escalation, Goal, Task } from '../schema/index.ts';
+import { isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type Task } from '../schema/index.ts';
 import type { ObservationReport } from '../schema/observation.ts';
 
 /**
@@ -21,7 +21,8 @@ export function goalWorking(g: Pick<Goal, 'state' | 'interview'>): boolean {
 /** start or stop the goal's working clock when an event moved it between working and waiting */
 function clockGoal(db: Database, goalId: string, ts: string): void {
   const g = getGoal(db, goalId);
-  if (!g || g.activeMs === undefined) return;
+  // an Imported Goal's clock stopped when it left the other computer and starts again only when it is Reattached
+  if (!g || g.activeMs === undefined || isHistory(g)) return;
   const working = goalWorking(g);
   if (working && !g.activeSince) upsertGoal(db, { ...g, activeSince: ts });
   else if (!working && g.activeSince) upsertGoal(db, { ...g, activeSince: null, activeMs: g.activeMs + Math.max(0, Date.parse(ts) - Date.parse(g.activeSince)) });
@@ -238,6 +239,39 @@ function project(db: Database, e: EngineEvent): void {
     case 'goal.workspace_set': {
       const g = getGoal(db, e.goalId!);
       if (g) upsertGoal(db, { ...g, workspaceDir: e.payload.dir, updatedAt: e.ts });
+      break;
+    }
+    // Transfer (ADR-0030): updatedAt stays, it freezes the time meter of goals from before the working clock
+    case 'goal.imported': {
+      const g = getGoal(db, e.goalId!);
+      if (!g) break;
+      const p = e.payload;
+      const remap = (path: string | null) => {
+        for (const [from, to] of Object.entries(p.remap)) if (path && (path === from || path.startsWith(`${from}/`))) return to + path.slice(from.length);
+        return path;
+      };
+      const clock = g.activeSince ? { activeMs: (g.activeMs ?? 0) + Math.max(0, Date.parse(p.from.exportedAt) - Date.parse(g.activeSince)), activeSince: null } : {};
+      const transfer = { transferId: p.transferId, from: p.from, importedAt: e.ts, unfinished: p.unfinished, bundle: p.bundle, artifacts: p.artifacts, transcripts: p.transcripts, original: { repoPath: g.repoPath, workspaceDir: g.workspaceDir, outputDir: g.outputDir }, repoMapped: null, branchRestored: null, reattachedAt: null };
+      // its folders were on the other computer: the data-dir layout holds what came along (screenshots) until it is Reattached
+      upsertGoal(db, { ...g, ...clock, transfer, workspaceDir: null, outputDir: null });
+      for (const t of listTasks(db, g.id)) if (t.worktreePath || t.branch) upsertTask(db, { ...t, worktreePath: null, branch: null });
+      for (const a of listAttemptsByGoal(db, g.id)) if (a.transcriptPath) upsertAttempt(db, { ...a, transcriptPath: remap(a.transcriptPath) });
+      for (const r of listCheckResultsByGoal(db, g.id)) if (r.rawRef) upsertCheckResult(db, { ...r, rawRef: remap(r.rawRef) });
+      break;
+    }
+    case 'goal.repo_mapped': {
+      const g = getGoal(db, e.goalId!);
+      if (g?.transfer) upsertGoal(db, { ...g, repoPath: e.payload.to, transfer: { ...g.transfer, repoMapped: { to: e.payload.to, how: e.payload.how, at: e.ts } } });
+      break;
+    }
+    case 'goal.branch_restored': {
+      const g = getGoal(db, e.goalId!);
+      if (g?.transfer) upsertGoal(db, { ...g, transfer: { ...g.transfer, branchRestored: { head: e.payload.head, at: e.ts } } });
+      break;
+    }
+    case 'goal.reattached': {
+      const g = getGoal(db, e.goalId!);
+      if (g?.transfer) upsertGoal(db, { ...g, workspaceDir: e.payload.workspaceDir, transfer: { ...g.transfer, reattachedAt: e.ts }, updatedAt: e.ts });
       break;
     }
     case 'goal.checkpoint_opened': {

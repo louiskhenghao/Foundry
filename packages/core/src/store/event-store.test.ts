@@ -164,3 +164,95 @@ describe('working time', () => {
     expect(budgetStatus({ ...done, activeMs: undefined, activeSince: undefined, runningSince: new Date(Date.UTC(2026, 0, 1, 0, 40)).toISOString(), updatedAt: new Date(Date.UTC(2026, 0, 1, 0, 95)).toISOString() }).elapsedMin).toBe(55);
   });
 });
+
+describe('Transfer (ADR-0030)', () => {
+  const t0 = (m: number) => new Date(Date.UTC(2026, 0, 1, 0, m)).toISOString();
+  const imported = (overrides: Partial<{ unfinished: boolean; remap: Record<string, string> }> = {}) => ({
+    transferId: 'tr_1',
+    from: { release: '1.2.0', hostname: 'old-mac', exportedAt: t0(30) },
+    unfinished: true,
+    bundle: 'transfer/tr_1/g_i.bundle',
+    artifacts: null,
+    transcripts: true,
+    remap: { '/old/data/transcripts': '/new/data/transcripts', '/old/data/check-output': '/new/data/check-output' },
+    ...overrides,
+  });
+  /** a running goal with a task in a worktree, one attempt with a transcript and a check result with raw output */
+  function seedRunning(store: EventStore, id = 'g_i') {
+    const g = { ...goal(id), workspaceDir: '/old/repo-foundry/x', outputDir: '/old/out', repoPath: '/old/repo', activeMs: 0, activeSince: null };
+    const rows = [
+      { type: 'goal.created', payload: { goal: g } },
+      { type: 'goal.state_changed', payload: { from: 'draft', to: 'running', reason: 't' } },
+      { type: 'task.created', payload: { task: task('t_i', id) } },
+      { type: 'task.workspace_assigned', payload: { taskId: 't_i', branch: 'task/t_i', worktreePath: '/old/repo-foundry/.foundry/x/tasks/t_i' } },
+      { type: 'attempt.started', payload: { attempt: { id: 'a_i', goalId: id, taskId: 't_i', index: 1, kind: 'work', sessionId: 's', model: null, state: 'running', costUsd: 0, numTurns: 0, resultSubtype: null, baseRef: null, endRef: null, pid: 7, cwd: '/old/repo-foundry/.foundry/x/tasks/t_i', transcriptPath: '/old/data/transcripts/a_i.jsonl', startedAt: t0(5), endedAt: null } } },
+      { type: 'check.finished', payload: { result: { id: 'cr_i', checkId: 'c_i', goalId: id, taskId: 't_i', attemptId: 'a_i', status: 'fail', summary: 's', rawRef: '/old/data/check-output/cr_i.txt', durationMs: 1, at: t0(6) } } },
+    ].map((e, i) => ({ id: `${id}_e${i}`, ts: t0(i), goalId: id, ...e }));
+    store.importGoalEvents(id, rows);
+    return g;
+  }
+
+  test('imported events keep their ids and times, project like their source and replay to the same read models', () => {
+    const store = new EventStore(openDatabase(':memory:'));
+    const heard: string[] = [];
+    store.subscribe((e) => heard.push(e.type));
+    seedRunning(store);
+    expect(heard).toEqual([]); // history is not news: no ticks, no notifications
+    expect(store.listByGoal('g_i').map((e) => [e.id, e.ts])).toEqual([0, 1, 2, 3, 4, 5].map((i) => [`g_i_e${i}`, t0(i)]));
+    expect(getGoal(store.db, 'g_i')?.state).toBe('running');
+    store.append({ type: 'goal.imported', goalId: 'g_i', payload: imported() });
+    const before = store.snapshotReadModels();
+    store.replay();
+    expect(store.snapshotReadModels()).toEqual(before);
+  });
+
+  test('an Imported Goal is history: the other computer\'s folders are let go, data-dir paths remapped and the clock stopped at export', async () => {
+    const { listAttemptsByGoal, listCheckResultsByGoal } = await import('./projections.ts');
+    const { isHistory } = await import('../schema/goal.ts');
+    const store = new EventStore(openDatabase(':memory:'));
+    seedRunning(store);
+    store.append({ type: 'goal.imported', goalId: 'g_i', payload: imported() });
+    const g = getGoal(store.db, 'g_i')!;
+    expect(isHistory(g)).toBe(true);
+    expect(g.transfer).toMatchObject({ transferId: 'tr_1', unfinished: true, original: { repoPath: '/old/repo', workspaceDir: '/old/repo-foundry/x', outputDir: '/old/out' }, repoMapped: null, reattachedAt: null });
+    expect([g.workspaceDir, g.outputDir, g.repoPath]).toEqual([null, null, '/old/repo']);
+    // working from minute 1 (running) to the export at minute 30
+    expect([g.activeMs, g.activeSince]).toEqual([29 * 60_000, null]);
+    expect(getTask(store.db, 't_i')).toMatchObject({ worktreePath: null, branch: null });
+    expect(listAttemptsByGoal(store.db, 'g_i')[0]!.transcriptPath).toBe('/new/data/transcripts/a_i.jsonl');
+    expect(listCheckResultsByGoal(store.db, 'g_i')[0]!.rawRef).toBe('/new/data/check-output/cr_i.txt');
+    // more events (the cut-off attempt being concluded) do not start the clock again
+    store.append({ type: 'goal.state_changed', goalId: 'g_i', payload: { from: 'running', to: 'running', reason: 't' } });
+    expect(getGoal(store.db, 'g_i')?.activeSince).toBeNull();
+  });
+
+  test('mapping the repository, restoring the branch and Reattaching move the goal back to work', () => {
+    const store = new EventStore(openDatabase(':memory:'));
+    seedRunning(store);
+    store.append({ type: 'goal.imported', goalId: 'g_i', payload: imported() });
+    store.append({ type: 'goal.repo_mapped', goalId: 'g_i', payload: { from: '/old/repo', to: '/new/repo', how: 'chosen' } });
+    store.append({ type: 'goal.branch_restored', goalId: 'g_i', payload: { branch: 'goal/g_i', head: 'abc' } });
+    let g = getGoal(store.db, 'g_i')!;
+    expect(g.repoPath).toBe('/new/repo');
+    expect(g.transfer).toMatchObject({ repoMapped: { to: '/new/repo', how: 'chosen' }, branchRestored: { head: 'abc' }, reattachedAt: null });
+    store.append({ type: 'goal.reattached', goalId: 'g_i', payload: { workspaceDir: '/new/repo-foundry/x' } });
+    g = getGoal(store.db, 'g_i')!;
+    expect(g.workspaceDir).toBe('/new/repo-foundry/x');
+    expect(g.transfer?.reattachedAt).toBeTruthy();
+    expect(g.activeSince).toBeTruthy(); // running again: the clock runs
+  });
+
+  test('a goal whose events are already here — alive or deleted — is refused, and a bad row imports nothing', () => {
+    const store = new EventStore(openDatabase(':memory:'));
+    seedRunning(store);
+    expect(store.hasGoalEvents('g_i')).toBe(true);
+    expect(() => seedRunning(store)).toThrow(/already/);
+    store.append({ type: 'goal.deleted', goalId: 'g_i', payload: { title: 't', deletedBranch: null, reason: 't' } });
+    expect(() => seedRunning(store)).toThrow(/already/);
+    const n = store.count();
+    expect(() => store.importGoalEvents('g_x', [{ id: 'x1', ts: t0(0), goalId: 'g_x', type: 'goal.created', payload: { goal: goal('g_x') } }, { id: 'x2', ts: t0(1), goalId: 'g_x', type: 'no.such', payload: {} }])).toThrow();
+    expect(() => store.importGoalEvents('g_y', [{ id: 'y1', ts: t0(0), goalId: 'g_other', type: 'goal.created', payload: { goal: goal('g_y') } }])).toThrow(/belongs/);
+    expect(store.count()).toBe(n);
+    expect(getGoal(store.db, 'g_x')).toBeNull();
+  });
+});
