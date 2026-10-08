@@ -109,7 +109,12 @@ save_state() {
 TTY=""
 setup_tty() {
   # piped through `curl | bash`, stdin is the script: questions go to the terminal itself
-  if [ "$YES" = 0 ] && ( : </dev/tty >/dev/tty ) 2>/dev/null; then TTY=/dev/tty; fi
+  if [ "$YES" = 0 ] && ( : </dev/tty >/dev/tty ) 2>/dev/null; then TTY=/dev/tty; else return 0; fi
+  # the terminal's own device where it has one: a CLI built with Bun (Claude Code) cannot watch a descriptor opened
+  # through /dev/tty on macOS and its sign-in dies with "EINVAL: invalid argument, kqueue"
+  local dev
+  dev="/dev/$(ps -o tty= -p $$ 2>/dev/null | tr -d ' ')"
+  case "$dev" in /dev/|*\?*) ;; *) if [ -c "$dev" ] && ( : <"$dev" >"$dev" ) 2>/dev/null; then TTY="$dev"; fi ;; esac
 }
 ask() { # ask "question" default → the answer (the default without a terminal or with --yes)
   local reply=""
