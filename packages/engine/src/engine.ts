@@ -143,6 +143,22 @@ interface InFlight {
   handle: RunHandle | null;
 }
 
+/** the longest usage window a plan has (the weekly ones), with an hour to spare: no real reset is further away */
+const MAX_PAUSE_MS = 7 * 24 * 60 * 60_000 + 60 * 60_000;
+/** extra usage (overage) that ran out stops work only while sessions already run on it, until the plan's window resets */
+const OVERAGE_PAUSE_MS = 5 * 60 * 60_000;
+
+/**
+ * Until when a session's rate-limit report pauses new sessions, or null. Only a `rejected` window pauses. An `overage`
+ * rejection (the extra-usage credit is used up or not enabled, resetting monthly) pauses only a session already running
+ * on extra usage, and only for the plan's next window; any pause is capped at the longest window.
+ */
+export function limitPauseUntil(rl: RunResult['rateLimit'], now: number): number | null {
+  if (!rl || rl.status !== 'rejected' || !rl.resetsAt || rl.resetsAt * 1000 <= now) return null;
+  if (rl.rateLimitType === 'overage' && !rl.isUsingOverage) return null;
+  return Math.min(rl.resetsAt * 1000, now + (rl.rateLimitType === 'overage' ? OVERAGE_PAUSE_MS : MAX_PAUSE_MS));
+}
+
 export class Engine {
   readonly store: EventStore;
   readonly runner: ClaudeRunner;
@@ -873,11 +889,11 @@ export class Engine {
   private observeRateLimit(result: RunResult, provider: 'claude' | 'codex'): void {
     const rl = result.rateLimit;
     const now = Date.now();
-    const limitedByStatus = !!rl && !['allowed', 'allowed_warning'].includes(rl.status) && !!rl.resetsAt && rl.resetsAt * 1000 > now;
+    const byStatus = limitPauseUntil(rl, now);
     const limitedByError = result.isError && /rate.?limit|usage limit|overloaded|too many requests|\b429\b/i.test(result.errorMessage ?? '');
-    if (!limitedByStatus && !limitedByError) return;
-    const until = limitedByStatus ? rl!.resetsAt! * 1000 : now + 5 * 60_000;
-    this.pauseUntil(until, rl?.rateLimitType ?? null, limitedByStatus ? `rate_limit_event status=${rl!.status}` : `session error: ${(result.errorMessage ?? '').slice(0, 120)}`, provider);
+    if (byStatus === null && !limitedByError) return;
+    const until = byStatus ?? now + 5 * 60_000;
+    this.pauseUntil(until, rl?.rateLimitType ?? null, byStatus !== null ? `rate_limit_event status=${rl!.status}` : `session error: ${(result.errorMessage ?? '').slice(0, 120)}`, provider);
   }
 
   /** A limit on one account must not pause the other backend. */
@@ -889,21 +905,34 @@ export class Engine {
   }
   private armResume(until: number, provider: 'claude' | 'codex'): void {
     clearTimeout(this.resumeTimers.get(provider));
-    this.resumeTimers.set(provider, setTimeout(() => {
-      this.rateLimitedUntil.delete(provider);
-      this.resumeTimers.delete(provider);
-      this.store.append({ type: 'rate_limit.resumed', goalId: null, payload: { provider, reason: 'retry time reached' } });
-      for (const g of listGoals(this.store.db)) if ((g.provider ?? this.config.provider) === provider && !['done', 'over_delivered', 'failed', 'cancelled'].includes(g.state)) this.tick(g.id);
-    }, Math.max(0, until - Date.now()) + 1000));
+    this.resumeTimers.set(provider, setTimeout(() => this.resume(provider, 'retry time reached'), Math.max(0, until - Date.now()) + 1000));
+  }
+  private resume(provider: 'claude' | 'codex', reason: string): void {
+    clearTimeout(this.resumeTimers.get(provider));
+    this.rateLimitedUntil.delete(provider);
+    this.resumeTimers.delete(provider);
+    this.store.append({ type: 'rate_limit.resumed', goalId: null, payload: { provider, reason } });
+    for (const g of listGoals(this.store.db)) if ((g.provider ?? this.config.provider) === provider && !['done', 'over_delivered', 'failed', 'cancelled'].includes(g.state)) this.tick(g.id);
+  }
+  /** Resume now (Usage banner): new sessions start again; a limit that still holds pauses the next one again */
+  resumeNow(provider = this.config.provider): boolean {
+    if (!this.isRateLimited(provider)) return false;
+    this.resume(provider, 'resumed by hand');
+    return true;
   }
   private restoreRateLimitPause(): void {
     for (const provider of ['claude', 'codex'] as const) {
       const paused = this.store.listByType('rate_limit.paused', 100).find((e) => (('provider' in e.payload ? e.payload.provider : undefined) ?? this.config.provider) === provider);
       const resumed = this.store.listByType('rate_limit.resumed', 100).find((e) => (('provider' in e.payload ? e.payload.provider : undefined) ?? this.config.provider) === provider);
       if (!paused || (resumed && resumed.seq > paused.seq)) continue;
-      const until = Date.parse((paused.payload as { until: string }).until);
-      if (!Number.isFinite(until)) continue;
-      if (until > Date.now()) { this.rateLimitedUntil.set(provider, until); this.armResume(until, provider); }
+      const saved = Date.parse((paused.payload as { until: string }).until);
+      if (!Number.isFinite(saved)) continue;
+      // a pause longer than limitPauseUntil now allows was saved under the old rule (an overage that stopped nothing, a
+      // reset weeks away) and is lifted rather than kept
+      const type = (paused.payload as { rateLimitType?: string | null }).rateLimitType ?? null;
+      const tooLong = saved - Date.parse(paused.ts) > (type === 'overage' ? OVERAGE_PAUSE_MS : MAX_PAUSE_MS);
+      if (tooLong) this.store.append({ type: 'rate_limit.resumed', goalId: null, payload: { provider, reason: 'a pause longer than the usage limit allows was lifted' } });
+      else if (saved > Date.now()) { this.rateLimitedUntil.set(provider, saved); this.armResume(saved, provider); }
       else this.store.append({ type: 'rate_limit.resumed', goalId: null, payload: { provider, reason: 'retry time passed while the engine was down' } });
     }
   }

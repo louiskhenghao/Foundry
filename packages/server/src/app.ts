@@ -1245,6 +1245,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const provider = authProvider(c);
     return c.json(await engine.probeUsage(provider));
   });
+  // Resume now: the usage pause is lifted; a limit that still holds pauses the next session again
+  app.post('/api/usage/resume', (c) => c.json({ resumed: engine.resumeNow(authProvider(c)) }));
   app.get('/api/usage/minimax', async (c) => c.json(await engine.minimaxQuota(c.req.query('refresh') === '1')));
 
   app.post('/internal/boundary', async (c) => {

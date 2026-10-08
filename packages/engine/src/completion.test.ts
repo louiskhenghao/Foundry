@@ -9,7 +9,7 @@ import { defaultConfig } from './config.ts';
 import { FakeGh } from './delivery/gh.fake.ts';
 import { runDocsGeneration } from './docs-generate.ts';
 import { raiseEscalation } from './escalation.ts';
-import { Engine } from './engine.ts';
+import { Engine, limitPauseUntil } from './engine.ts';
 import { goalWorkspacePath } from './workspace.ts';
 
 class FakeRunner implements ClaudeRunner {
@@ -394,5 +394,49 @@ describe('graph refresh', () => {
     expect(existsSync(join(ws, 'AGENTS.md'))).toBe(false);
     expect(existsSync(join(ws, '.claude'))).toBe(false);
     await engine.stop();
+  });
+});
+
+describe('which rate-limit reports pause new sessions', () => {
+  const now = Date.UTC(2026, 9, 8, 12);
+  const rl = (status: string, rateLimitType: string, hours: number, isUsingOverage = false) => ({ status, rateLimitType, resetsAt: Math.floor(now / 1000) + hours * 3600, isUsingOverage, raw: {} });
+  test('a rejected plan window pauses until it resets; allowed, warning and passed resets do not', () => {
+    expect(limitPauseUntil(rl('rejected', 'five_hour', 2), now)).toBe(now + 2 * 3600_000);
+    expect(limitPauseUntil(rl('rejected', 'seven_day', 100), now)).toBe(now + 100 * 3600_000);
+    for (const s of ['allowed', 'allowed_warning', 'unknown']) expect(limitPauseUntil(rl(s, 'five_hour', 2), now)).toBeNull();
+    expect(limitPauseUntil(rl('rejected', 'five_hour', -1), now)).toBeNull();
+    expect(limitPauseUntil(null, now)).toBeNull();
+  });
+  test('an overage that ran out pauses only a session already on extra usage, and not for the month', () => {
+    // a fresh account with no extra-usage credit: the CLI reports the monthly credit window as rejected while the plan works
+    expect(limitPauseUntil(rl('rejected', 'overage', 588), now)).toBeNull();
+    expect(limitPauseUntil(rl('rejected', 'overage', 588, true), now)).toBe(now + 5 * 3600_000);
+  });
+  test('no pause outlasts the longest window', () => {
+    expect(limitPauseUntil(rl('rejected', 'seven_day_opus', 588), now)).toBe(now + (7 * 24 + 1) * 3600_000);
+  });
+});
+
+describe('lifting a usage pause', () => {
+  test('a saved overage pause weeks away is lifted at start; Resume now lifts a pause at once', async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'foundry-pause-lift-'));
+    try {
+      const cfgL = () => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), log: () => {} });
+      const a = new Engine(cfgL(), new FakeRunner(() => {}));
+      a.store.append({ type: 'rate_limit.paused', goalId: null, payload: { provider: 'claude', rateLimitType: 'overage', until: new Date(Date.now() + 588 * 3600_000).toISOString(), reason: 'rate_limit_event status=rejected' } });
+      await a.stop();
+      const b = new Engine(cfgL(), new FakeRunner(() => {}));
+      await b.start();
+      expect(b.isRateLimited('claude')).toBe(false);
+      expect((b.store.listByType('rate_limit.resumed', 1)[0]!.payload as { reason: string }).reason).toContain('longer than the usage limit allows');
+      b.pauseUntil(Date.now() + 3600_000, 'five_hour', 'test', 'claude');
+      expect(b.resumeNow('claude')).toBe(true);
+      expect(b.isRateLimited('claude')).toBe(false);
+      expect((b.store.listByType('rate_limit.resumed', 1)[0]!.payload as { reason: string }).reason).toBe('resumed by hand');
+      expect(b.resumeNow('claude')).toBe(false);
+      await b.stop();
+    } finally {
+      rmSync(dataDir, { recursive: true, force: true });
+    }
   });
 });
