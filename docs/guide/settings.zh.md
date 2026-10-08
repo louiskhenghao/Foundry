@@ -295,6 +295,31 @@ key 对下一个会话生效，不用重启。保存过的 key 不会再显示�
 - **Codex binary** 和 **Codex home**：Codex 程序和原生账户／配置目录。留空使用 PATH 及 `CODEX_HOME` 或 `~/.codex`。需要重启。启动配置保持固定，每个 goal 的编码智能体在 New goal 选择。
 - **Progress folders**：每个 goal 的文件夹在哪里创建。留空时放在你的项目旁边，即 `<project>-foundry/<goal>`。在这里填一个文件夹，就会变成 `<folder>/<project>/<goal>`。对今后创建的 goal 生效。
 
+## Transfer
+
+把这个 Foundry 知道的东西搬到另一个 Foundry，通常是在新电脑上。你在这里导出一个文件，再到那边导入。导出时，这台电脑上什么都不会变：goal 照常进行。
+
+**Export** 用勾选决定文件里放什么：
+
+- **Settings**：这一页上的所有设置，但不包括只属于这台电脑的：**Engine (install)** 整个部分、**Notifications** 的链接地址和 tailnet 名称、markitdown 路径、**Folder browser roots** 以及预览端口。
+- **Keys & secrets**：API key、通知 token，以及你在 goal 的 Preview 卡片里填的变量。它们会用你输入两次的密码封存。没有密码就读不出来，Foundry 也无法帮你找回。
+- **Goals**：**All goals**，或者用 **Choose goals** 一个个挑。如果某个 goal 是另一个没被选中的 goal 的 Follow-up，会提示你，并附上加入它的链接。每个 goal 都会带上它的历史、附件和截图。只要 goal 的分支里有 base 分支还没有的成果，无论完成与否，分支也会一起带走。未完成的 goal 还会带上 progress folder 里被 Git 忽略的文件，例如生成的图片和风格样张。
+- **Session transcripts**：这些 goal 的完整会话日志。它们可能很大，大文件更适合在终端里用 `foundry export --transcripts`。
+
+**Import** 从 **Choose a Transfer file…** 开始。Foundry 读取文件后显示：
+
+- **Goals**：每个 goal 是新的、*already here*（已经在这里）还是 *deleted here*（在这里删过）。只有新的 goal 可以勾选。已经在这里的 goal 永远不会被覆盖。
+- **Repositories**：goal 用到的每个项目在这台电脑上的文件夹。相同路径、相同 remote 的文件夹会自动填上。留空的话，可以之后在 goal 页面上再选。
+- **Settings that differ**：逐个部分选择 **Use imported** 或 **Keep mine**，默认选中导入的。
+- **Keys & secrets**：勾选 **Bring Keys & secrets in**，输入密码并按 **Unlock**，就能看到每个 key 遮掩后的样子以及你这里现有的值。想保留自己的，就在那个 key 上勾选 **keep mine**。预览变量会加在这里已有的变量旁边。
+
+按 **Import** 后导入，并列出带进来了什么、跳过了什么以及原因。导入的 goal 是历史记录：你可以查看它的一切，也可以从它开始一个 Follow-up，但 Foundry 不会运行、交付或盯着它。它的页面上有 **imported** 标记和一张 **Came from another computer** 卡片：
+
+- **Map repository** 把它指向这台电脑上的项目文件夹，并把它的分支放回去。
+- **Reattach**（只有未完成的 goal，且已经 map 之后）在这里给它建一个 progress folder 并继续进行。写出文件时被打断的工作会在新的会话里重新开始，失去的那次尝试也会还给它。如果这个 goal 在另一台电脑上还在跑，两边从此会各走各的：请先在那边停掉。
+
+登录、skills、MCP 服务器和插件属于各个编码智能体自己的设置：请在新电脑上登录并安装。如果你要的是完整复制所有东西，请看 [updates-and-backup.md](../operate/updates-and-backup.md) 里的备份。
+
 ## About & updates
 
 显示你运行的版本以及安装方式。**Check now** 查询是否有新版本（Foundry 每天也会自己查一次）。有新版本时，会出现 **Update to X** 按钮，附带更新内容，顶栏上也会出现一个标签。
