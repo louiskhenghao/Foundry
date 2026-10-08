@@ -153,6 +153,10 @@ export class SettingsStore {
   values(): Settings {
     return this.resolve().values;
   }
+  /** the saved settings as they are in the file, credentials included (what a Transfer reads) */
+  fileSnapshot(): SettingsPatch {
+    return structuredClone(this.file);
+  }
   /** leaves whose value comes from the file (what overrides the env-built config at startup) */
   fileLeaves(): Set<string> {
     return new Set(SETTING_PATHS.filter((p) => has(this.file, p)));
