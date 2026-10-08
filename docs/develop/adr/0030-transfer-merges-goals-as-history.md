@@ -18,14 +18,17 @@ they ran in, so a goal cannot simply carry on elsewhere.
   transcripts. Import adds to whatever the receiver already has: Settings are offered section by section (imported
   side preselected); a goal whose id the receiver already has is skipped and reported, never replaced or duplicated.
 - **Never transferred:** sign-ins, skills, MCP servers and native plugins (they belong to each coding agent's home,
-  ADR-0017/0019/0020), and the settings that only make sense on one computer: the Engine (install) section and the
-  address in notification links.
+  ADR-0017/0019/0020), and the settings that only make sense on one computer: the Engine (install) section, the
+  address and tailnet name in notification links, the markitdown path, the allowed roots and the preview port range.
 - **Goals arrive as history.** An imported goal is readable (Brief, Decisions, timeline, cost) and can be followed by
-  a Follow-up, but does nothing until it is **reattached**. Reattach maps its repository to a checkout on this
-  computer (matched automatically when the same path has the same remote, otherwise chosen by the person, at import or
-  later) and restores the goal branch from a git bundle the Transfer file carries for every unfinished goal, so it does
-  not depend on the branch having been pushed. An attempt the Transfer cut off is followed by a fresh attempt that
-  consumes no retry: sessions do not travel, so a Continuation is impossible.
+  a Follow-up, but does nothing until it is **reattached**. Its repository is mapped to a checkout on this computer
+  (matched automatically when the same path has the same remote, otherwise chosen by the person, at import or later);
+  a Follow-up needs that mapping too. The Transfer file carries a git bundle for every goal whose branch has commits
+  the base branch lacks, finished or not, so nothing depends on the branch having been pushed: a finished goal's
+  branch is restored when its repository is mapped, an unfinished goal's when it is reattached. Unfinished goals also
+  carry the git-excluded files of their progress folder (media artifacts, style samples), restored with it. An
+  attempt the Transfer cut off is followed by a fresh attempt that consumes no retry: sessions do not travel, so a
+  Continuation is impossible.
 - **Exporting changes nothing on the exporting instance.** A Transfer file is a snapshot. If the person keeps a goal
   running there and reattaches it here too, the two diverge; the reattach warns about it rather than locking the
   source.
@@ -57,3 +60,6 @@ they ran in, so a goal cannot simply carry on elsewhere.
   a path from an event must cope with a goal whose repository is not mapped yet.
 - A transcript that was not transferred shows as "stayed on the computer it came from", not as an error.
 - A preview environment for an unmapped repository waits until that repository is mapped.
+- Imported goals' usage counts in the receiver's Usage totals: it was real spending. Account quota is unaffected.
+- Imported goals must be exempt from everything the engine does to goals on its own (scheduling, delivery, PR
+  polling, workspace relocation, worktree pruning) until they are reattached.
