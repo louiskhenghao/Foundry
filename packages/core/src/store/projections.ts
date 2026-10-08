@@ -271,7 +271,8 @@ function project(db: Database, e: EngineEvent): void {
     }
     case 'goal.reattached': {
       const g = getGoal(db, e.goalId!);
-      if (g?.transfer) upsertGoal(db, { ...g, workspaceDir: e.payload.workspaceDir, transfer: { ...g.transfer, reattachedAt: e.ts }, updatedAt: e.ts });
+      // project skills were installed in the other computer's folder: the new one gets its own run
+      if (g?.transfer) upsertGoal(db, { ...g, workspaceDir: e.payload.workspaceDir, autoskills: null, transfer: { ...g.transfer, reattachedAt: e.ts }, updatedAt: e.ts });
       break;
     }
     case 'goal.checkpoint_opened': {

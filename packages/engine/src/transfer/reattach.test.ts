@@ -8,7 +8,7 @@ import { Engine } from '../engine.ts';
 import { FakeRunner, makeRepo, sh, waitFor } from '../test-helpers.ts';
 import { engineTransferHost, exportTransfer } from './export.ts';
 import { applyIncoming, receiveTransfer } from './import.ts';
-import { mapRepo } from './reattach.ts';
+import { mapRepo, reattachGoal } from './reattach.ts';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
 let tmp: string;
@@ -61,13 +61,14 @@ async function exportHalfDone(): Promise<{ file: string; goal: Goal }> {
 }
 
 describe('mapping and Reattach (ADR-0030)', () => {
-  test('an Imported Goal mapped to another checkout gets its branch back there', async () => {
+  test('an unfinished goal mapped to another checkout gets its branch back, a progress folder and a fresh attempt', async () => {
     const { file, goal } = await exportHalfDone();
     const runner = new FakeRunner((spec) => writeFileSync(join(spec.cwd, 'second.txt'), 'ok'));
     const b = engine('b', runner);
     const incoming = await receiveTransfer(b, file);
     // leave it unmapped at import, as for a repository that lives elsewhere here
     await applyIncoming(b, incoming.uploadId, { repos: { [repo]: null } });
+    await expect(reattachGoal(b, goal.id)).rejects.toThrow('map its repository');
 
     const mapped = await mapRepo(b, repo, clone);
     expect(mapped).toMatchObject({ to: clone, goals: [goal.id], restored: [goal.id] });
@@ -75,6 +76,16 @@ describe('mapping and Reattach (ADR-0030)', () => {
     expect(getGoal(b.store.db, goal.id)!.repoPath).toBe(clone);
     expect(isHistory(getGoal(b.store.db, goal.id)!)).toBe(true);
 
+    const back = await reattachGoal(b, goal.id);
+    expect(isHistory(back)).toBe(false);
+    expect(back.workspaceDir!.startsWith(`${clone}-foundry/`)).toBe(true);
+    expect(readFileSync(join(back.workspaceDir!, 'first.txt'), 'utf8')).toBe('ok');
+    expect(readFileSync(join(back.workspaceDir!, 'artifacts', 'samples', 'pick.png'), 'utf8')).toBe('png\n');
+    // the cut-off task runs again here, in a fresh session: never a resume of the other computer's
+    await waitFor(() => listAttempts(b.store.db, 't_second').some((x) => x.index === 2), 30_000);
+    const fresh = runner.calls.find((c) => c.prompt.includes('second.txt'))!;
+    expect(fresh.resumeSessionId).toBeUndefined();
+    await expect(reattachGoal(b, goal.id)).rejects.toThrow('once');
   });
 
   test('a branch of that name with other commits is never overwritten, and nothing is mapped then', async () => {

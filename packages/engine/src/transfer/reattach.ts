@@ -1,8 +1,9 @@
-import { existsSync, realpathSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, realpathSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { listGoals, type Goal } from '@foundry/core';
+import { getGoal, listGoals, type Goal } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { git } from '../git/git.ts';
+import { ARTIFACTS_DIR, defaultWorkspaceDir, ensureGoalWorkspace, screenshotsDir } from '../workspace.ts';
 import { TransferError } from './errors.ts';
 import { releasePreviewEnv } from './pending-env.ts';
 
@@ -70,4 +71,36 @@ async function restoreBranch(engine: Engine, g: Goal, repo: string): Promise<str
   const r = await git(['fetch', '-q', bundle, `${ref}:${ref}`], repo);
   if (r.code !== 0) throw new TransferError(`could not restore ${g.branch} in ${repo}: ${r.stderr.trim()}`, 409);
   return head;
+}
+
+/**
+ * Reattach an unfinished Imported Goal (ADR-0030): it gets a progress folder on this computer on its restored branch,
+ * the files that travelled outside git go back in, and the engine takes it up again. Attempts the Transfer cut off were
+ * already closed, so the next one is fresh. If the goal still runs on the other computer, the two now diverge.
+ */
+export async function reattachGoal(engine: Engine, goalId: string): Promise<Goal> {
+  const g = getGoal(engine.store.db, goalId);
+  if (!g) throw new TransferError(`goal ${goalId} not found`, 404);
+  if (!g.transfer || g.transfer.reattachedAt) throw new TransferError('only a goal that came from another computer is Reattached, once', 409);
+  if (!g.transfer.unfinished) throw new TransferError('this goal was finished on the other computer; start a Follow-up to carry it on', 409);
+  if (!g.transfer.repoMapped) throw new TransferError('map its repository to a checkout here first', 409);
+  if (g.transfer.bundle && !g.transfer.branchRestored) throw new TransferError('its branch is not restored yet: map the repository again', 409);
+  const { dataDir, workspacesRoot } = engine.config;
+  const workspaceDir = defaultWorkspaceDir(workspacesRoot, g);
+  if (existsSync(workspaceDir)) throw new TransferError(`${workspaceDir} already exists; move it away, then Reattach`, 409);
+  const placed = { ...g, workspaceDir };
+  const ws = await ensureGoalWorkspace(dataDir, placed);
+  if (g.transfer.artifacts && existsSync(join(dataDir, g.transfer.artifacts))) cpSync(join(dataDir, g.transfer.artifacts), join(ws, ARTIFACTS_DIR), { recursive: true, force: false, errorOnExist: false });
+  const shotsHere = join(dataDir, 'screenshots', g.id);
+  if (existsSync(shotsHere)) {
+    mkdirSync(screenshotsDir(dataDir, placed), { recursive: true });
+    cpSync(shotsHere, screenshotsDir(dataDir, placed), { recursive: true, force: false, errorOnExist: false });
+    rmSync(shotsHere, { recursive: true, force: true });
+  }
+  engine.store.append({ type: 'goal.reattached', goalId, payload: { workspaceDir } });
+  const back = getGoal(engine.store.db, goalId)!;
+  // project skills are git-excluded: a goal past its Brief gets them installed in the new folder
+  if (!['draft', 'clarifying', 'awaiting_brief_approval'].includes(back.state)) engine.startAutoskills(back, ws);
+  engine.tick(goalId);
+  return back;
 }
