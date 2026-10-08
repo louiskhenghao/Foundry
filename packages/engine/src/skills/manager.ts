@@ -75,7 +75,7 @@ export class SkillsManager {
 
   constructor(private opts: SkillsManagerOptions) {
     this.paths = { ...skillsPaths(opts.claudeHome, opts.dataDir, opts.provider, opts.sharedHome), ...(opts.claudeSkillsDir ? { claudeSkillsDir: opts.claudeSkillsDir } : {}) };
-    this.hints = new SkillsHints(() => this.status(), { enabled: opts.hintsEnabled, profile: opts.workflowProfile, packs: opts.packs });
+    this.hints = new SkillsHints(() => this.status(), { enabled: opts.hintsEnabled, profile: opts.workflowProfile, packs: opts.packs, provider: opts.provider });
     this.checker = new SkillsUpdateChecker(this.paths, { log: opts.log, ...(opts.updates ?? {}) });
     try {
       if (existsSync(this.paths.sessionViewFile)) this.lastView = JSON.parse(readFileSync(this.paths.sessionViewFile, 'utf8'));
