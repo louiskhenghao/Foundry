@@ -82,7 +82,8 @@ describe('mapping and Reattach (ADR-0030)', () => {
     expect(readFileSync(join(back.workspaceDir!, 'first.txt'), 'utf8')).toBe('ok');
     expect(readFileSync(join(back.workspaceDir!, 'artifacts', 'samples', 'pick.png'), 'utf8')).toBe('png\n');
     // the cut-off task runs again here, in a fresh session: never a resume of the other computer's
-    await waitFor(() => listAttempts(b.store.db, 't_second').some((x) => x.index === 2), 30_000);
+    await waitFor(() => runner.calls.some((c) => c.prompt.includes('second.txt')), 30_000);
+    expect(listAttempts(b.store.db, 't_second').map((x) => x.index)).toContain(2);
     const fresh = runner.calls.find((c) => c.prompt.includes('second.txt'))!;
     expect(fresh.resumeSessionId).toBeUndefined();
     await expect(reattachGoal(b, goal.id)).rejects.toThrow('once');
