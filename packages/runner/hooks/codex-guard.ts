@@ -22,7 +22,11 @@ if (name.startsWith('mcp__') && !policy.mcpAllowed.some((prefix: string) => name
 if (policy.maxToolCalls) {
   let count = 0;
   try { count = Number(readFileSync(policy.counter, 'utf8')); } catch {}
-  if (count >= policy.maxToolCalls) deny('Foundry tool-call allowance reached. Finish with a summary of the remaining work.');
+  if (count >= policy.maxToolCalls) {
+    // the runner reports the session as cut (like a Claude --max-turns stop), so Foundry continues it
+    if (policy.capped) writeFileSync(policy.capped, '1');
+    deny('Foundry tool-call allowance reached. Finish with a summary of the remaining work.');
+  }
   writeFileSync(policy.counter, String(count + 1));
 }
 if (/^(Bash|exec_command|shell|shell_command)$/.test(name)) {

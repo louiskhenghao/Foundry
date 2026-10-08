@@ -106,7 +106,7 @@ export class CodexCliRunner implements AgentRunner {
       const policy = join(dir, 'policy.json');
       const denials = join(dir, 'denials.jsonl');
       const hooksDir = fileURLToPath(new URL('../hooks/', import.meta.url));
-      writeFileSync(policy, JSON.stringify({ canary, denials, counter: join(dir, 'calls'), boundary: join(hooksDir, 'boundary-guard.sh'), readOnly: this.readOnly(spec), noTools: spec.allowedTools?.length === 0, mcpAllowed: (spec.allowedTools ?? []).filter((t) => t.startsWith('mcp__')), maxToolCalls: spec.maxTurns }));
+      writeFileSync(policy, JSON.stringify({ canary, denials, counter: join(dir, 'calls'), capped: join(dir, 'capped'), boundary: join(hooksDir, 'boundary-guard.sh'), readOnly: this.readOnly(spec), noTools: spec.allowedTools?.length === 0, mcpAllowed: (spec.allowedTools ?? []).filter((t) => t.startsWith('mcp__')), maxToolCalls: spec.maxTurns }));
       const schema = spec.jsonSchema ? join(dir, 'schema.json') : undefined;
       if (schema) writeFileSync(schema, JSON.stringify(codexOutputSchema(spec.jsonSchema)));
       if (spec.transcriptPath) mkdirSync(dirname(spec.transcriptPath), { recursive: true });
@@ -202,6 +202,8 @@ export class CodexCliRunner implements AgentRunner {
           verify();
           let subtype = killed ?? (exitCode === 0 && completed && !errorMessage ? 'success' : 'error_during_execution');
           if (!verified && !killed) { subtype = 'error_during_execution'; errorMessage ??= stderr.trim() || 'Codex SessionStart guard was not observed. Install a Codex CLI with hooks support.'; }
+          // it ran into the tool-call allowance: cut, not finished, so the attempt loop continues it
+          if (subtype === 'success' && existsSync(join(dir!, 'capped'))) { subtype = 'error_max_turns'; errorMessage ??= 'Foundry tool-call allowance reached'; }
           if (subtype !== 'success') errorMessage ??= stderr.trim() || subtype;
           if (existsSync(denials)) {
             const names = new Set<string>();
