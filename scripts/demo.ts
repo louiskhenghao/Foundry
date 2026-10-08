@@ -467,6 +467,26 @@ async function recordMergedDelivery(engine: Engine, goalId: string): Promise<voi
   rec('delivery.cleaned', { done: true, detail: 'progress folder, worktrees and local goal branches removed' });
 }
 
+/**
+ * A goal that came from another computer through a Transfer and waits to be Reattached (ADR-0030): its events are read
+ * in as an import would, then marked imported. Seeded on demand, after the shots that count the demo's goals.
+ */
+export async function seedImportedGoal(engine: Engine, like: string): Promise<string> {
+  const { getGoal, listTasks, newId } = await import('../packages/core/src/index.ts');
+  const base = getGoal(engine.store.db, like)!;
+  const id = newId('g');
+  const at = (m: number) => new Date(Date.now() - (90 - m) * 60_000).toISOString();
+  const goal = { ...base, id, title: 'Booking calendar for studio visits', prompt: 'Let visitors book a studio visit from a calendar.', branch: `goal/${id}`, repoPath: '/Users/studio/Projects/studio-site', workspaceDir: null, state: 'running', delivery: { ...base.delivery, status: 'idle', prs: [], outcome: null }, costUsd: 1.84, createdAt: at(0), updatedAt: at(30) };
+  const tasks = listTasks(engine.store.db, like).slice(0, 2).map((t, i) => ({ ...t, id: newId('t'), goalId: id, state: i === 0 ? 'done' : 'ready' }));
+  const rows = [
+    { type: 'goal.created', payload: { goal } },
+    ...tasks.map((task) => ({ type: 'task.created', payload: { task } })),
+  ].map((e, i) => ({ id: newId('evt'), ts: at(i), goalId: id, ...e }));
+  engine.store.importGoalEvents(id, rows);
+  engine.store.append({ type: 'goal.imported', goalId: id, payload: { transferId: newId('tr'), from: { release: '1.1.3', hostname: 'studio-macbook', exportedAt: at(60) }, unfinished: true, bundle: `transfer/goals/${id}/branch.bundle`, artifacts: null, transcripts: false, remap: {} } });
+  return id;
+}
+
 /** start the demo; resolves once every seeded goal reached its state */
 export async function startDemo(): Promise<{ url: string; goals: Record<string, string>; engine: Engine; stop: () => Promise<void> }> {
   const tmp = mkdtempSync(join(tmpdir(), 'foundry-demo-'));
