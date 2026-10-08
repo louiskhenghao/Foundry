@@ -3,7 +3,7 @@ import { Github, Lock } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { api, type RepoInfo } from '../api.ts';
 import { Button, Input, Select, cn } from '../ui.tsx';
-import { LiveLog } from '../pages/LiveLog.tsx';
+import { GitHubSignInDialog } from './GitHubSignInDialog.tsx';
 
 export type PolicyDraft = Partial<DeliveryPolicy> & { mode: DeliveryPolicy['mode'] };
 const MODES: { id: DeliveryPolicy['mode']; label: string; desc: string }[] = [
@@ -208,7 +208,7 @@ export function DeliveryPolicyForm({ value, onChange, repo, taskCount = null, lo
             ) : !gh.authenticated ? (
               <>
                 <span className={needsGh ? 'text-rose-300' : 'text-zinc-500'}>gh installed, not logged in</span>
-                <Button size="sm" onClick={() => { setLoginOpen(true); api.githubLogin().catch(() => {}); }}>
+                <Button size="sm" onClick={() => setLoginOpen(true)}>
                   Connect GitHub
                 </Button>
               </>
@@ -220,13 +220,12 @@ export function DeliveryPolicyForm({ value, onChange, repo, taskCount = null, lo
             <span className="sm:ml-auto text-zinc-600 basis-full sm:basis-auto">The model is still confined to the worktree; only the engine performs these actions, exactly as listed.</span>
           </div>
           {loginOpen && (
-            <div className="space-y-2">
-              <div className="text-xs text-zinc-400">Copy the one-time code, open the URL, approve — this panel updates as gh reports progress.</div>
-              <LiveLog attemptId="gh-auth" className="max-h-40" />
-              <Button size="sm" variant="ghost" onClick={() => { setLoginOpen(false); loadGh(); }}>
-                Done
-              </Button>
-            </div>
+            <GitHubSignInDialog
+              onClose={() => {
+                setLoginOpen(false);
+                loadGh();
+              }}
+            />
           )}
         </div>
       )}

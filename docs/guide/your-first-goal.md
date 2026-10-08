@@ -37,7 +37,7 @@ Open the ⚙ menu at the right of the top bar and choose **Setup** (a red dot on
 | **git** | Keeps every version of your files. | Copy the command shown. |
 | **Bun runtime** | What Foundry itself runs on. | Copy the command shown. |
 | **Required: …** | Skills Foundry's sessions need. | Press **Install**. |
-| **GitHub CLI (optional)** | Only needed if Foundry should open pull requests for you. | Can stay yellow. |
+| **GitHub CLI (optional)** | Only needed if Foundry should open pull requests for you. | Can stay yellow. When it says *not logged in*, **Sign in** opens a window with a one-time code: copy it, open GitHub's page, paste it and approve. |
 
 When everything needed is in place the page says **Everything is in place** and offers **Create your first goal →**. **Re-run** checks again. If something is missing later, a red **Setup incomplete** banner appears with **Fix in Setup →**.
 

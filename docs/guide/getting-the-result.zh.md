@@ -72,7 +72,7 @@ pull request 类的方式需要 GitHub CLI 和一个已连接的账户：见 [�
 交付选项底部有一行 GitHub 状态：
 
 - **GitHub: yourname** 表示已连接。
-- **gh installed, not logged in** 旁边有个 **Connect GitHub** 按钮。按下它，复制显示的一次性代码，打开链接，在 GitHub 里批准，然后按 **Done**。
+- **gh installed, not logged in** 旁边有个 **Connect GitHub** 按钮。按下它会打开一个窗口，显示一次性代码。复制代码、打开链接、粘贴并在 GitHub 里批准；窗口会显示登录的账户，然后按 **Done**。Setup 页面的 **GitHub CLI (optional)** 下也有同样的登录。
 - **GitHub CLI not installed** 表示这台电脑上没有 GitHub CLI。安装 Foundry 的人可以装上它；Setup 页面在 **GitHub CLI (optional)** 下显示了命令。
 
 **Push branch** 不需要 GitHub CLI（除非要 Foundry 替你创建 GitHub 仓库）；它只需要线上副本接受你的推送。
