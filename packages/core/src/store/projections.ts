@@ -479,7 +479,11 @@ function project(db: Database, e: EngineEvent): void {
         [e.id, e.ts, e.goalId, p.kind, p.model, p.inputTokens, p.outputTokens, p.cacheReadTokens, p.cacheCreateTokens, p.costUsd, p.durationMs, p.subtype],
       );
       if (p.rateLimit) {
-        db.run('INSERT OR REPLACE INTO rate_limit_state (rate_limit_type, status, resets_at, is_using_overage, seen_at) VALUES (?, ?, ?, ?, ?)', [p.rateLimit.rateLimitType ?? 'unknown', p.rateLimit.status, p.rateLimit.resetsAt, p.rateLimit.isUsingOverage ? 1 : 0, e.ts]);
+        // the newest sighting wins: usage that came through a Transfer is older than this computer's limits
+        db.run(
+          'INSERT INTO rate_limit_state (rate_limit_type, status, resets_at, is_using_overage, seen_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(rate_limit_type) DO UPDATE SET status = excluded.status, resets_at = excluded.resets_at, is_using_overage = excluded.is_using_overage, seen_at = excluded.seen_at WHERE excluded.seen_at >= rate_limit_state.seen_at',
+          [p.rateLimit.rateLimitType ?? 'unknown', p.rateLimit.status, p.rateLimit.resetsAt, p.rateLimit.isUsingOverage ? 1 : 0, e.ts],
+        );
       }
       break;
     }

@@ -256,3 +256,18 @@ describe('Transfer (ADR-0030)', () => {
     expect(getGoal(store.db, 'g_x')).toBeNull();
   });
 });
+
+describe('rate limit state', () => {
+  test('keeps the newest sighting, so usage read in from elsewhere cannot bring back an old limit', async () => {
+    const { listRateLimitState } = await import('./projections.ts');
+    const store = new EventStore(openDatabase(':memory:'));
+    const usage = (id: string, ts: string, status: string) => ({ id, ts, goalId: 'g_rl', type: 'session.usage', payload: { sessionId: null, kind: 'work', model: null, inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheCreateTokens: 0, costUsd: 0, durationMs: 1, subtype: 'success', rateLimit: { status, resetsAt: null, rateLimitType: 'five_hour', isUsingOverage: false } } });
+    store.append({ type: 'goal.created', goalId: 'g_now', payload: { goal: goal('g_now') } });
+    store.append({ type: 'session.usage', goalId: 'g_now', payload: usage('x', '', 'allowed').payload as never });
+    store.importGoalEvents('g_rl', [{ id: 'c', ts: '2020-01-01T00:00:00.000Z', goalId: 'g_rl', type: 'goal.created', payload: { goal: goal('g_rl') } }, usage('u1', '2020-01-01T00:00:01.000Z', 'rejected')]);
+    expect(listRateLimitState(store.db).map((r) => r.status)).toEqual(['allowed']);
+    const before = store.snapshotReadModels();
+    store.replay();
+    expect(store.snapshotReadModels()).toEqual(before);
+  });
+});
