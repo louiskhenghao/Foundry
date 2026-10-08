@@ -284,6 +284,8 @@ export interface LoginSession {
   finishedAt: string | null;
   /** the CLI is waiting for the code shown in the browser (no browser on the engine's machine) */
   needsCode: boolean;
+  /** Codex device sign-in: the one-time code to enter on `url` */
+  deviceCode?: string | null;
 }
 export type AgentProvider = 'claude' | 'codex';
 export interface AccountInfo { provider: AgentProvider; installed: boolean; status: ClaudeAuthStatus; capabilities: { dollarCosts: boolean; skillTelemetry: boolean; nativeSubagents: boolean; managedMcp: boolean; externalSessions: boolean } }

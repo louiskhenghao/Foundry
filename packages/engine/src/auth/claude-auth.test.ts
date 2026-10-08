@@ -172,3 +172,29 @@ describe('the Claude home the CLI is pointed at', () => {
     expect(seen).toEqual([undefined, '/srv/claude-home']);
   });
 });
+
+test('Codex device sign-in: the one-time code and the page are picked out of what the CLI prints', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'foundry-codex-device-'));
+  const bin = join(dir, 'codex');
+  // what `codex login --device-auth` prints (colours stripped), then it waits for the approval
+  writeFileSync(bin, `#!/bin/sh
+echo "Follow these steps to sign in with ChatGPT using device code authorization:"
+echo ""
+echo "1. Open this link in your browser and sign in to your account"
+echo "   https://auth.openai.com/codex/device"
+echo ""
+echo "2. Enter this one-time code (expires in 15 minutes)"
+echo "   AB12-CD34E"
+sleep 0.3
+echo "Successfully logged in"
+`);
+  chmodSync(bin, 0o755);
+  let approved = false;
+  const auth = new ClaudeAuth({ provider: 'codex', claudeBin: bin, run: async () => ({ code: approved ? 0 : 1, stdout: approved ? 'Logged in using ChatGPT' : 'Not logged in', stderr: '' }) });
+  const s = await auth.startLogin({});
+  await settle(() => !!s.deviceCode);
+  expect([s.deviceCode, s.url, s.needsCode]).toEqual(['AB12-CD34E', 'https://auth.openai.com/codex/device', false]);
+  approved = true;
+  await settle(() => s.done);
+  expect(s.ok).toBe(true);
+});

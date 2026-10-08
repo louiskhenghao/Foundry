@@ -26,7 +26,12 @@ export interface LoginSession {
   finishedAt: string | null;
   /** the CLI is waiting for the code shown in the browser (headless machines, e.g. Docker) */
   needsCode: boolean;
+  /** Codex device sign-in: the one-time code to enter on `url` */
+  deviceCode: string | null;
 }
+
+/** the one-time code `codex login --device-auth` prints on a line of its own, e.g. ABCD-EFGH1 */
+const DEVICE_CODE = /^[A-Z0-9]{4,}-[A-Z0-9]{4,}$/;
 
 const URL_RE = /https?:\/\/[^\s"'<>)\]]+/;
 /** `claude auth login` falls back to "copy the code back" when it cannot open a browser and catch the callback */
@@ -132,7 +137,7 @@ export class ClaudeAuth {
     const bin = this.binary();
     if (!bin) throw new Error(`${this.opts.provider ?? 'claude'} CLI not installed`);
     if (this.current && !this.current.done) return this.current;
-    const session: LoginSession = { id: `login_${Date.now().toString(36)}`, startedAt: new Date().toISOString(), url: null, lines: [], done: false, ok: null, error: null, finishedAt: null, needsCode: false };
+    const session: LoginSession = { id: `login_${Date.now().toString(36)}`, startedAt: new Date().toISOString(), url: null, lines: [], done: false, ok: null, error: null, finishedAt: null, needsCode: false, deviceCode: null };
     this.current = session;
     const args = this.opts.provider === 'codex' ? [bin, 'login', '--device-auth'] : [bin, 'auth', 'login', '--claudeai', ...(input.email ? ['--email', input.email] : [])];
     let proc: ReturnType<typeof Bun.spawn>;
@@ -157,7 +162,8 @@ export class ClaudeAuth {
         session.error = session.error ?? 'login timed out';
       }, ms);
     };
-    arm(this.opts.timeoutMs ?? 5 * 60_000);
+    // a Codex device code lasts 15 minutes: the sign-in waits as long
+    arm(this.opts.timeoutMs ?? (this.opts.provider === 'codex' ? 15 : 5) * 60_000);
     this.arm = arm;
     const pump = async (stream: ReadableStream<Uint8Array>) => {
       const reader = stream.getReader();
@@ -215,6 +221,7 @@ export class ClaudeAuth {
       const m = clean.match(URL_RE);
       if (m) session.url = m[0];
     }
+    if (this.opts.provider === 'codex' && !session.deviceCode && DEVICE_CODE.test(clean)) session.deviceCode = clean;
     this.emit();
   }
 
