@@ -69,6 +69,11 @@ export function internalWorkspaceDir(goal: WorkspaceRef): string | null {
   return goal.workspaceDir ? join(dirname(goal.workspaceDir), '.foundry', basename(goal.workspaceDir)) : null;
 }
 
+/** Where reviewers' too-long diffs are saved to be read on demand: beside the progress folder, outside every worktree. */
+export function reviewDiffDir(dataDir: string, goal: WorkspaceRef): string {
+  return join(internalWorkspaceDir(goal) ?? join(dataDir, 'review'), 'review');
+}
+
 /** The goal worktree on the goal branch — the progress folder a person opens. */
 export function goalWorkspacePath(dataDir: string, goal: WorkspaceRef): string {
   return goal.workspaceDir ?? join(legacyWorkspaceRoot(dataDir, goal.id), '_goal');

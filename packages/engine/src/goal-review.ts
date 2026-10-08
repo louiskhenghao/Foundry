@@ -18,7 +18,7 @@ import { raiseEscalation } from './escalation.ts';
 import { createFixTasks, genericFixSpec } from './fix-tasks.ts';
 import { diff } from './git/git.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
-import { goalWorkspacePath, internalWorkspaceDir } from './workspace.ts';
+import { goalWorkspacePath, reviewDiffDir } from './workspace.ts';
 
 const GoalReviewOutput = z.object({
   mustVerdicts: z.array(z.object({ checkName: z.string(), pass: z.boolean(), reason: z.string() })),
@@ -221,7 +221,7 @@ function previousVerdicts(engine: Engine, goal: Goal, checks: Check[]): string {
 /** diffs longer than this are written to a file beside the progress folder and read on demand instead of pasted into the prompt */
 const INLINE_DIFF_LINES = 1500;
 function diffFile(engine: Engine, goal: Goal, d: string): string {
-  const dir = join(internalWorkspaceDir(goal) ?? join(engine.config.dataDir, 'review'), 'review');
+  const dir = reviewDiffDir(engine.config.dataDir, goal);
   mkdirSync(dir, { recursive: true });
   const p = join(dir, `goal-diff-${goal.fixCycles}.patch`);
   writeFileSync(p, d);
