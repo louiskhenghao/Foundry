@@ -72,7 +72,7 @@ Only for **PR + auto-merge**. The four switches are on by default.
 At the bottom of the delivery choices is a GitHub line:
 
 - **GitHub: yourname** means you are connected.
-- **gh installed, not logged in** comes with a **Connect GitHub** button. Press it, copy the one-time code shown, open the link, approve in GitHub, then press **Done**.
+- **gh installed, not logged in** comes with a **Connect GitHub** button. Press it: a window shows a one-time code. Copy it, open the link, paste it and approve in GitHub; the window says who signed in, then press **Done**. The Setup page has the same sign-in under **GitHub CLI (optional)**.
 - **GitHub CLI not installed** means the GitHub CLI is missing on this computer. Whoever installed Foundry can add it; the Setup page shows the command under **GitHub CLI (optional)**.
 
 **Push branch** does not need the GitHub CLI (unless Foundry should create the GitHub repository for you); it only needs the online copy to accept your pushes.

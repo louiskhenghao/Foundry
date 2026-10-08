@@ -387,8 +387,9 @@ needs the install again.
 A goal produces a local branch. For Foundry to push it, open a pull request or merge, the container needs its own
 GitHub login. Foundry never stores tokens; `gh` does. Either:
 
-- press **Connect GitHub** in the *Delivery* part of the New goal page (or on a goal's Delivery tab). It runs `gh`'s
-  device-code flow: copy the code, open the URL, approve. No terminal needed.
+- press **Sign in** under *GitHub CLI (optional)* on the Setup page, or **Connect GitHub** in the *Delivery* part of the
+  New goal page (or on a goal's Delivery tab). It runs `gh`'s device-code flow: copy the code, open the URL, approve.
+  No terminal needed.
 - or run:
 
   ```bash
@@ -442,7 +443,7 @@ docker exec foundry bun apps/cli/src/main.ts doctor   # Docker
 | Bun runtime | yes | `curl -fsSL https://bun.sh/install \| bash` |
 | Required: graphify | yes | **Install** on the Setup page, or `uv tool install graphifyy && graphify install --platform claude` |
 | Skills directory writable | yes | make the selected native home’s `skills/` directory writable |
-| GitHub CLI (optional) | no | only for push / PR / auto-merge delivery: install `gh`, then `gh auth login --web` |
+| GitHub CLI (optional) | no | only for push / PR / auto-merge delivery: install `gh`, then **Sign in** on the Setup page (or `gh auth login --web`) |
 | markitdown (optional) | no | **Install markitdown** on the Setup page |
 | Models (presets in use) | no | a model in a preset never resolved or failed last time: test it in **Settings → Models & limits** |
 | Notifications (optional) | no | see [notifications.md](./notifications.md) |

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api as baseApi, apiForProvider, type AgentProvider } from '../api.ts';
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
+import { GitHubSignInDialog } from '../components/GitHubSignInDialog.tsx';
 import { SignInDialog } from '../components/SignInDialog.tsx';
 import { LiveLog } from './LiveLog.tsx';
 import { Button, Card, CopyButton, Empty, cn } from '../ui.tsx';
@@ -79,6 +80,7 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [signIn, setSignIn] = useState(false);
+  const [ghSignIn, setGhSignIn] = useState(false);
   /** id of the tool whose install is streaming (shows the log card + polls the doctor) */
   const [installLog, setInstallLog] = useState<string | null>(null);
   const load = () => api.doctor().then(setReport).catch((e) => setMsg(e.message));
@@ -149,6 +151,11 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
                   <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
                     {['claude-auth', 'codex-auth'].includes(c.id) && (
                       <Button size="sm" variant="primary" onClick={() => setSignIn(true)}>
+                        Sign in
+                      </Button>
+                    )}
+                    {c.id === 'gh-auth' && (
+                      <Button size="sm" variant="primary" onClick={() => setGhSignIn(true)}>
                         Sign in
                       </Button>
                     )}
@@ -252,6 +259,14 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
       <p className="text-xs text-zinc-500">
         Design / image / video skill packs are chosen in <Link to={`/settings?provider=${provider}#skills`} className="underline">Settings → Skills</Link>; the full catalog and installed skills for this backend are managed on the <Link to={`/skills?provider=${provider}`} className="underline">Skills page</Link> (missing required skills also show up in the Checks above).
       </p>
+      {ghSignIn && (
+        <GitHubSignInDialog
+          onClose={() => {
+            setGhSignIn(false);
+            load();
+          }}
+        />
+      )}
       {signIn && (
         <SignInDialog
           provider={provider}

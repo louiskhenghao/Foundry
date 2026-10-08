@@ -39,7 +39,7 @@ Codex 的预算选项只有时间、尝试次数和并发限制，没有美元�
 | **git** | 保存你文件的每一个版本。 | 复制显示的命令。 |
 | **Bun runtime** | Foundry 自己运行所需的环境。 | 复制显示的命令。 |
 | **Required: …** | Foundry 的会话需要的技能（skills）。 | 按 **Install**。 |
-| **GitHub CLI (optional)** | 只有想让 Foundry 替你开 pull request 时才需要。 | 保持黄色也没关系。 |
+| **GitHub CLI (optional)** | 只有想让 Foundry 替你开 pull request 时才需要。 | 保持黄色也没关系。显示 *not logged in* 时，按 **Sign in** 会打开一个带一次性代码的窗口：复制代码，打开 GitHub 的页面，粘贴并批准。 |
 
 需要的东西都齐了，页面会显示 **Everything is in place**，并提供 **Create your first goal →**。**Re-run** 会再检查一次。之后如果缺了什么，会出现红色横幅 **Setup incomplete**，上面有 **Fix in Setup →**。
 

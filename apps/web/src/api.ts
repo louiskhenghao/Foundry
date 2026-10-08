@@ -260,6 +260,19 @@ export interface ClaudeAuthStatus {
   checkedAt: string;
   error: string | null;
 }
+/** the GitHub sign-in a page started: gh's one-time code, where to enter it, and how it ended */
+export interface GhLoginSession {
+  id: string;
+  startedAt: string;
+  code: string | null;
+  url: string | null;
+  lines: string[];
+  done: boolean;
+  ok: boolean;
+  login: string | null;
+  error: string | null;
+}
+
 export interface LoginSession {
   id: string;
   startedAt: string;
@@ -471,7 +484,9 @@ export function apiForProvider(provider?: AgentProvider) {
   initRepo: (path: string, branch?: string) => req<{ branch: string; ref: string; filesCommitted: number; identity: 'user' | 'fallback'; gitignoreWritten: boolean }>('/api/repos/init', { method: 'POST', body: JSON.stringify({ path, branch }) }),
   githubStatus: () => req<{ installed: boolean; version: string | null; authenticated: boolean; login: string | null }>('/api/github/status'),
   githubOrgs: () => req<string[]>('/api/github/orgs'),
-  githubLogin: () => req<{ started: boolean }>('/api/github/auth/login', { method: 'POST' }),
+  githubLogin: () => req<{ started: boolean; session: GhLoginSession }>('/api/github/auth/login', { method: 'POST' }),
+  githubLoginSession: () => req<{ session: GhLoginSession | null }>('/api/github/auth/login'),
+  githubLoginCancel: () => req<{ session: GhLoginSession | null }>('/api/github/auth/login/cancel', { method: 'POST' }),
   deliver: (id: string, policy: Partial<DeliveryPolicy>) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/deliver`, { method: 'POST', body: JSON.stringify(policy) }),
   rerunCompletion: (id: string, what: 'docs' | 'graph') => req<{ ok: true }>(`/api/goals/${id}/completion/rerun`, { method: 'POST', body: JSON.stringify({ what }) }),
   saveDeliveryPolicy: (id: string, policy: Partial<DeliveryPolicy>) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/delivery/policy`, { method: 'PUT', body: JSON.stringify(policy) }),
