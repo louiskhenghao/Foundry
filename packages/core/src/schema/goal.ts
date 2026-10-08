@@ -171,6 +171,11 @@ export function isHistory(g: { transfer?: GoalTransfer | null }): boolean {
   return !!g.transfer && !g.transfer.reattachedAt;
 }
 
+/** The goal's repository is a checkout on this computer: always, except for an Imported Goal whose repository is not mapped yet */
+export function repoHere(g: { transfer?: GoalTransfer | null }): boolean {
+  return !g.transfer || !!g.transfer.repoMapped;
+}
+
 /** where a finished goal's preview runs (see Goal.previewPlace) */
 export const PreviewPlace = z.enum(['auto', 'checkout', 'foundry']);
 export type PreviewPlace = z.infer<typeof PreviewPlace>;

@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { listGoals, listTasks } from '@foundry/core';
+import { isHistory, listGoals, listTasks } from '@foundry/core';
 import type { Engine } from './engine.ts';
 import { git } from './git/git.ts';
 import { baselineWorkspacePath, defaultWorkspaceDir, deliveryWorkspacePath, goalWorkspacePath, legacyWorkspaceRoot, resolveWorkspacePath, taskWorkspacePath } from './workspace.ts';
@@ -17,7 +17,8 @@ export async function relocateLegacyWorkspaces(engine: Engine): Promise<number> 
   const { store, config } = engine;
   let moved = 0;
   for (const goal of listGoals(store.db)) {
-    if (goal.workspaceDir || TERMINAL.includes(goal.state)) continue;
+    // an Imported Goal's folders were on another computer; it gets new ones when it is Reattached
+    if (goal.workspaceDir || TERMINAL.includes(goal.state) || isHistory(goal)) continue;
     const target = defaultWorkspaceDir(config.workspacesRoot, goal);
     const legacy = { id: goal.id, workspaceDir: null };
     const next = { id: goal.id, workspaceDir: target };

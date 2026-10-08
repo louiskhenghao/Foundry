@@ -1,5 +1,5 @@
 import type { CodexQuota } from './usage/types.ts';
-import { CODEX_MODEL_ACTIONS, CodexEffort, Effort, effectiveCodexPresets, natureKey, type CodexModelPreset } from '@foundry/core';
+import { CODEX_MODEL_ACTIONS, CodexEffort, Effort, effectiveCodexPresets, isHistory, natureKey, type CodexModelPreset } from '@foundry/core';
 import { CodexPlugins } from './plugins/codex-plugins.ts';
 import { CodexQuotaReader } from './usage/codex-quota.ts';
 import { discoverCodexModels } from './models/codex-discover.ts';
@@ -484,7 +484,7 @@ export class Engine {
    */
   private propagateModels(before: ModelConfig): void {
     for (const goal of listGoals(this.store.db)) {
-      if (goal.provider === 'codex') continue;
+      if (goal.provider === 'codex' || isHistory(goal)) continue;
       if (['done', 'over_delivered', 'failed', 'cancelled'].includes(goal.state)) continue;
       for (const tier of ['strong', 'worker', 'cheap'] as const) {
         const to = this.config.models[tier];
@@ -794,6 +794,8 @@ export class Engine {
   private async reconcile(): Promise<void> {
     this.restoreRateLimitPause();
     for (const a of listRunningAttempts(this.store.db)) {
+      // an Imported Goal's sessions ran on another computer: the Transfer concluded them, this pid is not theirs
+      if (isHistory(getGoal(this.store.db, a.goalId) ?? {})) continue;
       if (a.pid && isAlive(a.pid)) {
         try {
           process.kill(a.pid, 'SIGTERM');
@@ -814,6 +816,7 @@ export class Engine {
       this.store.append({ type: 'engine.note', goalId: a.goalId, payload: { level: resumable ? 'info' : 'warn', message: resumable ? `attempt ${a.id} was interrupted by an engine restart; its session will be resumed` : `attempt ${a.id} was orphaned by an engine restart` } });
     }
     for (const g of listGoals(this.store.db)) {
+      if (isHistory(g)) continue;
       if (g.delivery.status === 'running') {
         this.store.append({ type: 'delivery.failed', goalId: g.id, payload: { step: g.delivery.step ?? 'preflight', reason: 'engine restarted during delivery — run Deliver again (every step is idempotent)' } });
       }
@@ -1231,6 +1234,7 @@ export class Engine {
     if (this.stopped) return;
     const goal = getGoal(this.store.db, goalId);
     if (!goal) return;
+    if (isHistory(goal)) return; // an Imported Goal waits to be Reattached (ADR-0030)
     if (this.isRateLimited(goal.provider ?? this.config.provider)) return; // resume timer will tick again
     if (this.updateDraining) return; // endUpdateDrain re-ticks every goal
     switch (goal.state) {
