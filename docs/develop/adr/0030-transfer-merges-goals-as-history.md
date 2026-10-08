@@ -37,7 +37,7 @@ they ran in, so a goal cannot simply carry on elsewhere.
 - **The Transfer file is versioned and only moves forward.** A file from an older release imports into a newer one
   (its events are upgraded the way replay already upgrades old events, ADR-0002); a file from a newer release is
   refused with a request to update the receiver first.
-- Export and import are offered in Settings and as `foundry export` / `foundry import` over the same core; the command
+- Export and import have a page of their own (the ⚙ menu → Transfer) and are offered as `foundry export` / `foundry import` over the same core; the command
   line is the reliable path for large files (transcripts).
 
 ## Considered options

@@ -142,7 +142,7 @@ repositories at the same paths. If a repository's `git worktree list` shows work
 ## Moving to another computer: Transfer
 
 A backup copies the whole data folder and restores it as it was, at the same paths. To move to a new computer, or to
-bring some goals into a Foundry that already has its own, use a **Transfer** instead (Settings → **Transfer**, or the CLI):
+bring some goals into a Foundry that already has its own, use a **Transfer** instead (the ⚙ menu → **Transfer**, or the CLI):
 
 ```bash
 # on the old computer (with or without the server running)

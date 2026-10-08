@@ -95,10 +95,7 @@ try {
     await page.waitForTimeout(300);
   });
   await shot('usage', '/usage');
-  await shot('settings-transfer', '/settings', async () => {
-    await page.evaluate(() => document.getElementById('transfer')?.scrollIntoView({ block: 'start' }));
-    await page.waitForTimeout(300);
-  });
+  await shot('transfer', '/transfer', undefined, 760);
   // seeded last: the shots above count the demo's goals
   const imported = await seedImportedGoal(demo.engine, g.done!);
   await shot('goal-imported', `/goals/${imported}`, undefined, 620);

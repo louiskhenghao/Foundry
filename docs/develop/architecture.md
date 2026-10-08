@@ -330,7 +330,7 @@ The history endpoint returns the last 400 events, slimmed the same way, includin
 | Live log | `apps/web/src/pages/LiveLog.tsx`, `apps/web/src/store.ts` |
 | CLI | `apps/cli/src/main.ts` |
 | Event types, reducers, replay | `core/src/events.ts`, `core/src/store/*` |
-| Transfer: export, import, repository mapping, Reattach | `engine/src/transfer/*`, `core/src/schema/transfer.ts`, `apps/web/src/pages/settings/Transfer.tsx`, `apps/web/src/pages/goal/ImportedCard.tsx` |
+| Transfer: export, import, repository mapping, Reattach | `engine/src/transfer/*`, `core/src/schema/transfer.ts`, `apps/web/src/pages/TransferPage.tsx`, `apps/web/src/pages/goal/ImportedCard.tsx` |
 | Release | `scripts/release.ts` (see [release.md](release.md)) |
 
 ## Conventions
