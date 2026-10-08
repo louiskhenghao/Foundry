@@ -36,6 +36,7 @@ const home = provider === 'codex' ? process.env.CODEX_HOME : process.env.CLAUDE_
 const state = home + '/signed-in';
 const args = process.argv.slice(2);
 if (args[0] === '--version') { console.log(provider + ' fixture'); process.exit(0); }
+if (args[0] === 'features' && args[1] === 'list') { console.log('hooks                 stable   true'); process.exit(0); }
 if (args[0] === 'mcp') { console.log('[]'); process.exit(0); }
 if (args[0] === 'app-server') {
   createInterface({input:process.stdin}).on('line', line => {

@@ -64,9 +64,14 @@ describe('Codex engine integration', () => {
     // no Claude Code skills folder links to it, so the Codex side may uninstall it (see shared-uninstall.test.ts)
     expect(scan.installed[0]).toMatchObject({ name: 'example', canUninstall: true });
     const calls: string[][] = [];
-    const report = await runDoctor({ provider: 'codex', paths, catalog: { version: 1, entries: [] }, statuses: [], which: (name) => `/bin/${name}`, exec: async (args) => { calls.push(args); return { code: 0, stdout: args.includes('--version') ? 'codex-cli 0.160.0' : '', stderr: args.includes('status') ? 'Logged in using ChatGPT' : '' }; } });
+    const doctor = (hooks: string) => runDoctor({ provider: 'codex', paths, catalog: { version: 1, entries: [] }, statuses: [], which: (name) => `/bin/${name}`, exec: async (args) => { calls.push(args); return { code: 0, stdout: args.includes('--version') ? 'codex-cli 0.160.0' : args.includes('features') ? `apps  stable  true\n${hooks}\n` : '', stderr: args.includes('status') ? 'Logged in using ChatGPT' : '' }; } });
+    const report = await doctor('hooks                 stable   true');
     expect(calls.some((args) => args.some((arg) => arg.includes('claude')))).toBe(false);
     expect(report.checks.find((check) => check.id === 'codex-auth')?.ok).toBe(true);
-    expect(report.checks.find((check) => check.id === 'codex-cost')?.severity).toBe('warn');
+    expect(report.checks.find((check) => check.id === 'codex-bin')?.ok).toBe(true);
+    // the cost note explains, it does not warn
+    expect(report.checks.find((check) => check.id === 'codex-cost')?.ok).toBe(true);
+    // a CLI without hooks cannot run Foundry's sessions
+    for (const line of ['plugin_hooks  removed  false', 'hooks  removed  false']) expect((await doctor(line)).checks.find((check) => check.id === 'codex-bin')).toMatchObject({ ok: false, severity: 'error' });
   });
 });
