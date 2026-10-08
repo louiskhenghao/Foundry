@@ -9,7 +9,7 @@ import { defaultConfig } from './config.ts';
 import { FakeGh } from './delivery/gh.fake.ts';
 import { runDocsGeneration } from './docs-generate.ts';
 import { raiseEscalation } from './escalation.ts';
-import { Engine, limitPauseUntil } from './engine.ts';
+import { Engine, codexResumeAt, limitPauseUntil } from './engine.ts';
 import { goalWorkspacePath } from './workspace.ts';
 
 class FakeRunner implements ClaudeRunner {
@@ -438,5 +438,18 @@ describe('lifting a usage pause', () => {
     } finally {
       rmSync(dataDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('when a Codex limit lifts', () => {
+  const now = Date.UTC(2026, 9, 8, 12);
+  const win = (usedPercent: number, hours: number) => ({ usedPercent, windowDurationMins: 300, resetsAt: Math.floor(now / 1000) + hours * 3600 });
+  const quota = (buckets: { primary: ReturnType<typeof win> | null; secondary: ReturnType<typeof win> | null }[]) => ({ state: 'available' as const, checkedAt: '', ordinaryUsageAllowed: false, buckets: buckets.map((b, i) => ({ id: `b${i}`, label: 'x', ...b })) });
+  test('at the reset of the used-up window, the later one when several are; nothing used up or no quota: no answer', () => {
+    expect(codexResumeAt(quota([{ primary: win(100, 2), secondary: win(40, 100) }]), now)).toBe(now + 2 * 3600_000);
+    expect(codexResumeAt(quota([{ primary: win(100, 2), secondary: win(100, 30) }]), now)).toBe(now + 30 * 3600_000);
+    expect(codexResumeAt(quota([{ primary: win(90, 2), secondary: null }]), now)).toBeNull();
+    expect(codexResumeAt(quota([{ primary: win(100, 900), secondary: null }]), now)).toBe(now + (7 * 24 + 1) * 3600_000);
+    expect(codexResumeAt({ state: 'error', checkedAt: '', message: 'x' }, now)).toBeNull();
   });
 });
