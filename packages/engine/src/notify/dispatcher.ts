@@ -6,7 +6,7 @@ import { join } from 'node:path';
  * then noted as an engine.note and dropped; nothing is queued or replayed after a restart.
  */
 import type { EngineEvent, Escalation, EscalationTrigger, NotificationSettings } from '@foundry/core';
-import { getGoal } from '@foundry/core';
+import { getGoal, isHistory } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { screenshotsDir } from '../workspace.ts';
 import { DiscordNotifier, TelegramNotifier, type Link, type MediaFile, type Notifier } from './channels.ts';
@@ -105,6 +105,9 @@ export class NotificationDispatcher {
   private goalTitle = (goalId: string | null): string => (goalId ? (getGoal(this.engine.store.db, goalId)?.title ?? goalId) : '');
 
   private onEvent(e: EngineEvent): void {
+    // an Imported Goal's past, and what the Transfer wrote to close it, is not news (ADR-0030)
+    const goal = e.goalId ? getGoal(this.engine.store.db, e.goalId) : null;
+    if (goal && isHistory(goal)) return;
     const c = compose(e, this.goalTitle, this.engine.config.provider);
     if (!c) return;
     const s = this.settings();

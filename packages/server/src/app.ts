@@ -1,8 +1,8 @@
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { CodexEffort, Effort, Brief, EscalationAnswer, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, type Engine, type OpenTargetId } from '@foundry/engine';
+import { CodexEffort, Effort, Brief, EscalationAnswer, isHistory, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, PreviewPlace, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
@@ -121,6 +121,14 @@ export function extraHosts(engine: Engine): string[] {
 export const UNKNOWN_HOST = (host: string | null) =>
   `Foundry does not answer to the name "${host}". If that name is this computer, add it to FOUNDRY_ALLOWED_HOSTS (comma-separated) or set it as Settings → Notifications → Link base URL.`;
 
+/** what any request but a Transfer file may carry (attachments are capped at 25 MB in their route) */
+export const MAX_BODY_MB = 30;
+const tooLarge = (req: Request) => {
+  const length = req.headers.get('content-length');
+  if (length != null) return Number(length) > MAX_BODY_MB * 1024 * 1024;
+  return !!req.body && req.headers.get('transfer-encoding') === 'chunked';
+};
+
 export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   const app = new Hono();
   app.use('*', async (c, next) => {
@@ -130,9 +138,23 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   app.use('/api/*', async (c, next) => {
     if (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) && crossSite(c.req.raw)) return c.json({ error: 'refused: a request from another site' }, 403);
+    // only a Transfer file may be large; every other request keeps to what an attachment may weigh
+    if (c.req.path !== '/api/transfer/incoming' && tooLarge(c.req.raw)) return c.json({ error: `a request may carry at most ${MAX_BODY_MB} MB` }, 413);
     await next();
   });
   const db = engine.store.db;
+  // an Imported Goal is history (ADR-0030): it is read, mapped, Reattached, previewed once mapped or deleted — nothing else changes it
+  const historyMay = /^\/api\/goals\/[^/]+\/(map-repo|reattach|preview\/(start|stop|visit))$/;
+  const historyRefused = (goalId: string | undefined) => {
+    const goal = goalId ? getGoal(db, goalId) : null;
+    return goal && isHistory(goal) ? 'this goal came from another computer and stays as it was until it is Reattached' : null;
+  };
+  app.use('/api/goals/:id/*', async (c, next) => {
+    const may = ['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) || historyMay.test(c.req.path) || (c.req.method === 'DELETE' && /^\/api\/goals\/[^/]+$/.test(c.req.path));
+    const refused = may ? null : historyRefused(c.req.param('id'));
+    if (refused) return c.json({ error: refused }, 409);
+    await next();
+  });
   // Skills page operations: one live channel + one pollable record each (skill-ops.ts)
   const ops = new SkillOps((s) => engine.broadcast(s));
   const authProvider = (c: any): 'claude' | 'codex' => z.enum(['claude', 'codex']).parse(c.req.query('provider') ?? engine.config.provider ?? 'claude');
@@ -150,6 +172,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     if (err instanceof UpdateBusy) return json({ error: err.message }, 409);
     if (err instanceof FollowUpError) return json({ error: err.message }, err.status);
     if (err instanceof TrashError) return json({ error: err.message, code: err.code }, err.code === 'not-found' ? 404 : 409);
+    if (err instanceof TransferError) return json({ error: err.message }, err.status);
     return json({ error: String(err.message ?? err) }, 400);
   });
 
@@ -912,7 +935,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   // every escalation names its goal and task so the Inbox can say *what* needs you, not just that something does
   app.get('/api/escalations', (c) =>
     c.json(
-      listEscalations(db, { openOnly: c.req.query('open') === '1' }).map((e) => {
+      listEscalations(db, { openOnly: c.req.query('open') === '1' }).filter((e) => !historyRefused(e.goalId)).map((e) => {
         const goal = getGoal(db, e.goalId);
         const t = e.taskId ? listTasks(db, e.goalId).find((x) => x.id === e.taskId) : null;
         return { ...e, provider: goal ? goal.provider ?? engine.config.provider : null, goalTitle: goal?.title ?? e.goalId, taskTitle: t?.title ?? null, taskState: t?.state ?? null };
@@ -922,6 +945,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
 
   // the AI reads the task, the failure and the last session and proposes what to do; `apply` answers retry_with_hint on the spot
   app.post('/api/escalations/:id/suggest', async (c) => {
+    const refused = historyRefused(getEscalation(db, c.req.param('id'))?.goalId);
+    if (refused) return c.json({ error: refused }, 409);
     const body = await c.req.json().catch(() => ({}));
     const suggestion = await engine.suggestForEscalation(c.req.param('id'));
     let applied = false;
@@ -934,10 +959,76 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
 
   app.post('/api/escalations/:id/answer', async (c) => {
+    const refused = historyRefused(getEscalation(db, c.req.param('id'))?.goalId);
+    if (refused) return c.json({ error: refused }, 409);
     const answer = EscalationAnswer.parse(await c.req.json());
     await engine.answerEscalation(c.req.param('id'), answer);
     return c.json({ ok: true });
   });
+
+  // ---------- Transfer (ADR-0030): carry settings, keys and goals to another Foundry ----------
+  const transferDir = (sub: string) => join(engine.config.dataDir, 'transfer', sub);
+  const TransferExportBody = z.object({
+    categories: z.object({ settings: z.boolean().optional(), secrets: z.boolean().optional(), goals: z.boolean().optional(), transcripts: z.boolean().optional() }),
+    goalIds: z.union([z.literal('all'), z.array(z.string())]).optional(),
+    password: z.string().optional(),
+  });
+  /** written files wait an hour to be downloaded, then go */
+  const sweepOutgoing = () => {
+    if (!existsSync(transferDir('outgoing'))) return;
+    for (const name of readdirSync(transferDir('outgoing'))) {
+      const p = join(transferDir('outgoing'), name);
+      if (Date.now() - statSync(p).mtimeMs > 3_600_000) rmSync(p, { force: true });
+    }
+  };
+  app.post('/api/transfer/export', async (c) => {
+    const body = TransferExportBody.parse(await c.req.json());
+    sweepOutgoing();
+    const downloadId = `out_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+    const res = await exportTransfer(engineTransferHost(engine), { ...body, out: join(transferDir('outgoing'), `${downloadId}.tgz`) });
+    return c.json({ downloadId, bytes: res.bytes, goals: res.manifest.goals.length, categories: res.manifest.categories }, 201);
+  });
+  app.get('/api/transfer/download/:id', (c) => {
+    const id = c.req.param('id');
+    const p = join(transferDir('outgoing'), `${id}.tgz`);
+    if (!/^out_[a-z0-9]+$/.test(id) || !existsSync(p)) throw new HttpError(404, { error: 'this Transfer file is gone; export it again' });
+    const name = `foundry-transfer-${new Date().toISOString().slice(0, 10)}.tgz`;
+    return new Response(Bun.file(p), { headers: { 'content-type': 'application/gzip', 'content-disposition': `attachment; filename="${name}"` } });
+  });
+  // the file itself is the body (it can be large): streamed to disk, unpacked, described
+  app.post('/api/transfer/incoming', async (c) => {
+    if (!c.req.raw.body) throw new HttpError(400, { error: 'send the Transfer file as the request body' });
+    mkdirSync(transferDir('uploads'), { recursive: true });
+    const tmp = join(transferDir('uploads'), `${Date.now()}-${Math.random().toString(36).slice(2)}.tgz`);
+    try {
+      // chunk by chunk to disk (Bun.write of a Response wrapping a served request's body never settles)
+      const out = Bun.file(tmp).writer();
+      const reader = c.req.raw.body.getReader();
+      for (let r = await reader.read(); !r.done; r = await reader.read()) out.write(r.value);
+      await out.end();
+      return c.json(await receiveTransfer(engine, tmp), 201);
+    } finally {
+      rmSync(tmp, { force: true });
+    }
+  });
+  app.get('/api/transfer/incoming/:id', async (c) => c.json(await inspectIncoming(engine, c.req.param('id'))));
+  app.post('/api/transfer/incoming/:id/secrets', async (c) => {
+    const { password } = z.object({ password: z.string() }).parse(await c.req.json());
+    return c.json(unlockIncomingSecrets(engine, c.req.param('id'), password));
+  });
+  app.post('/api/transfer/incoming/:id/apply', async (c) => c.json(await applyIncoming(engine, c.req.param('id'), ImportChoices.parse(await c.req.json()))));
+  app.delete('/api/transfer/incoming/:id', (c) => {
+    discardIncoming(engine.config.dataDir, c.req.param('id'));
+    return c.json({ ok: true });
+  });
+  // an Imported Goal: map the repository it named to a checkout here (every goal that named it follows), then Reattach
+  app.post('/api/goals/:id/map-repo', async (c) => {
+    const goal = goalOr404(c);
+    if (!goal.transfer) throw new HttpError(409, { error: 'this goal was made here; its repository is already its own' });
+    const { path } = z.object({ path: z.string().min(1) }).parse(await c.req.json());
+    return c.json(await mapRepo(engine, goal.transfer.original.repoPath, path, 'chosen'));
+  });
+  app.post('/api/goals/:id/reattach', async (c) => c.json(await reattachGoal(engine, goalOr404(c).id)));
 
   // ---------- skills & setup ----------
   app.get('/api/skills', async (c) => c.json(await skillsFor(c).overview(c.req.query('repo') || undefined)));

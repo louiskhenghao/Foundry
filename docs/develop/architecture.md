@@ -27,7 +27,7 @@ flowchart LR
 | `packages/engine` | The `Engine` class and everything that decides what happens next: the tick, scheduler, attempt loop, Clarify/Interview, Draft/Revise, reviews, merges and catch-up, milestones, delivery, preview and self-check, notifications, models and presets, skills, settings, self-update, the agents monitor and the usage ledger. | `src/engine.ts`, `src/index.ts`, `src/config.ts` (`defaultConfig`) |
 | `packages/server` | The Hono HTTP API (`src/app.ts`) and the `Bun.serve` wrapper with the `/ws` WebSocket (`src/index.ts`). It also serves `apps/web/dist`. | `startServer(engine)` |
 | `apps/web` | The UI: React 18, react-router, zustand, Tailwind v4, built by Vite into `apps/web/dist`. | `src/App.tsx` (routes), `src/store.ts` (WS client + live store), `src/api.ts` |
-| `apps/cli` | The `foundry` CLI. Most commands are a thin HTTP client of the server. `serve` builds `Engine` + server in-process, `replay` opens the store directly, and `doctor`/`skills` work without a server. | `src/main.ts` |
+| `apps/cli` | The `foundry` CLI. Most commands are a thin HTTP client of the server. `serve` builds `Engine` + server in-process, `replay` opens the store directly, and `doctor`/`skills`/`export`/`import` work without a server. | `src/main.ts` |
 
 Around them: `roles/*.md` are the role prompts (see [roles.md](roles.md)). `catalog/skills.json` is the curated skill catalog and `catalog/mcp.json` the recommended MCP servers. `scripts/` holds `dev.ts`, `release.ts`, `gen-docs.ts` (the generated references), `demo.ts` and `screenshots.ts` (the seeded demo and the guide's screenshots), `e2e-conflict.ts` and fixture helpers. The launch profile selects the default state directory: `<repo root>/data` for Claude or `<repo root>/data-codex` for Codex. `FOUNDRY_DATA_DIR` overrides it (`packages/engine/src/config.ts`). Both goal backends share that instance's event store; native account homes remain separate. See [the operator guide](../operate/codex.md) for authentication and migration.
 
@@ -45,6 +45,7 @@ Around them: `roles/*.md` are the role prompts (see [roles.md](roles.md)). `cata
 | `attachments/` | Attachments and their markdown renditions (`engine/src/attachments.ts`) |
 | `skills-*` | skills cache, trash and update state (`engine/src/skills/*`) |
 | `worktrees/<goal>/` | the **legacy** workspace layout, from before progress folders (ADR-0011) |
+| `transfer/` | Transfer working space (`engine/src/transfer/*`): `staging/` while exporting, `outgoing/` files to download, `incoming/` unpacked files awaiting import, `goals/<id>/` the branch bundle and git-excluded files an Imported Goal brought, `pending-preview-env.json` preview variables waiting for a repository to be mapped |
 
 ## The event log is the source of truth
 
@@ -54,6 +55,7 @@ Every state change is an event appended to one SQLite table ([ADR-0002](adr/0002
 - **`applyEvent`** (`core/src/store/projections.ts`) is a reducer from one event to the read-model tables: `goals`, `tasks`, `attempts`, `checks`, `check_results`, `briefs`, `observations`, `escalations`, `usage_ledger`, `rate_limit_state`. Entities are stored as JSON in a `data` column. Read them with the getters in the same file (`getGoal`, `listTasks`, `listAttempts`, `getBrief`, `listEscalations`, ...).
 - **`EventStore.replay()`** drops the read models and rebuilds them from the log. `bun run cli replay --verify` snapshots the tables, replays, and exits non-zero if anything differs. Use it after touching a reducer. (The CLI opens `engine.db` in the configured data directory; use the same launch profile and `FOUNDRY_DATA_DIR` as the server.)
 - Schema changes to the tables go in `core/src/store/migrations.ts`.
+- **`EventStore.importGoalEvents(goalId, rows)`** brings one goal's events from another instance (Transfer, [ADR-0030](adr/0030-transfer-merges-goals-as-history.md)). They keep their ids and times, are parsed like any old event, get new `seq`s and are projected in one transaction without notifying listeners. A goal the log already has events for, alive or deleted, is refused. `goal.imported` then marks it as history: `Goal.transfer` keeps where it came from, its old folders are let go and data-dir paths remapped. `goal.repo_mapped`, `goal.branch_restored` and `goal.reattached` record the way back to work.
 
 **Adding or changing an event.** Add it to `EngineEvent` in `core/src/events.ts`, handle it in `applyEvent`, and emit it from the engine. Old events are never rewritten, so a new field on an entity needs a Zod `.default(...)` that keeps older payloads parseable. Look for the "default keeps pre-X events replayable" comments in `core/src/schema/goal.ts`. `replay --verify` against a real `data/engine.db` is the check.
 
@@ -64,6 +66,7 @@ Every state change is an event appended to one SQLite table ([ADR-0002](adr/0002
 `Engine` (`engine/src/engine.ts`) subscribes to the store. **Every event that carries a `goalId` schedules a tick for that goal.**
 
 - `tick(goalId)` chains ticks per goal, so they never run concurrently for one goal, and coalesces bursts: a tick already pending is not queued twice.
+- `runTick` returns early for an Imported Goal that is not Reattached (`isHistory`, core `schema/goal.ts`): the start-up reconcile, workspace relocation, model propagation, PR polling and notifications skip it too, and the server answers changes to it with 409.
 - `runTick` returns early when the engine is stopped, usage-paused for that goal’s backend (`isRateLimited`, see Usage Pause) or draining for a self-update. Then it switches on `goal.state`:
 
 | State | What the tick does |
@@ -327,6 +330,7 @@ The history endpoint returns the last 400 events, slimmed the same way, includin
 | Live log | `apps/web/src/pages/LiveLog.tsx`, `apps/web/src/store.ts` |
 | CLI | `apps/cli/src/main.ts` |
 | Event types, reducers, replay | `core/src/events.ts`, `core/src/store/*` |
+| Transfer: export, import, repository mapping, Reattach | `engine/src/transfer/*`, `core/src/schema/transfer.ts`, `apps/web/src/pages/TransferPage.tsx`, `apps/web/src/pages/goal/ImportedCard.tsx` |
 | Release | `scripts/release.ts` (see [release.md](release.md)) |
 
 ## Conventions

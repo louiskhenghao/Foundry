@@ -217,6 +217,11 @@ export class PreviewEnvStore {
     return { rev: current.rev + 1, vars };
   }
 
+  /** every repository's variables, by repository path (what a Transfer reads) */
+  all(): Record<string, Record<string, string>> {
+    return Object.fromEntries(Object.entries(this.read().repos).map(([repo, e]) => [repo, { ...e.vars }]));
+  }
+
   /** add the given variables, keeping keys that are already set; returns the keys added */
   merge(repoPath: string, add: Record<string, string>): string[] {
     const { rev, vars } = this.get(repoPath);

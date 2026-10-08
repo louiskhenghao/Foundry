@@ -69,6 +69,25 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.follow_up_linked', { follows: z.object({ goalId: z.string(), title: z.string() }) }),
   /** the goal's progress folder was chosen at creation, or the goal was moved there from the legacy data-dir layout */
   ev('goal.workspace_set', { dir: z.string(), reason: z.enum(['created', 'migrated']) }),
+  /**
+   * the goal arrived through a Transfer (ADR-0030) and is history until Reattached; `bundle` / `artifacts` are what the
+   * Transfer file carried (data-dir-relative), `remap` maps the other computer's data-dir paths to this one's
+   */
+  ev('goal.imported', {
+    transferId: z.string(),
+    from: z.object({ release: z.string(), hostname: z.string(), exportedAt: z.string() }),
+    unfinished: z.boolean(),
+    bundle: z.string().nullable(),
+    artifacts: z.string().nullable(),
+    transcripts: z.boolean(),
+    remap: z.record(z.string(), z.string()),
+  }),
+  /** an Imported Goal's repository was mapped to a checkout on this computer: found at the same path, or chosen by the human */
+  ev('goal.repo_mapped', { from: z.string(), to: z.string(), how: z.enum(['same-path', 'chosen']) }),
+  /** an Imported Goal's branch was restored into its mapped repository from the bundle the Transfer file carried */
+  ev('goal.branch_restored', { branch: z.string(), head: z.string() }),
+  /** an unfinished Imported Goal got a progress folder on this computer and carries on */
+  ev('goal.reattached', { workspaceDir: z.string() }),
   /** the goal paused at a milestone task for the human to look (state awaiting_feedback); recheck = the one second look after feedback fixes */
   ev('goal.checkpoint_opened', { taskId: z.string(), lookFor: z.string(), recheck: z.boolean() }),
   /** the human continued or gave feedback at a milestone; plan = what the feedback became (null on continue) */

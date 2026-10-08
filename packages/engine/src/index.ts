@@ -6,7 +6,7 @@ export * from './workspace.ts';
 export { adoptLocalBin, agentCliInstall } from './agent-cli.ts';
 export { PreviewError, type PreviewAppStatus, type PreviewStatus } from './preview/manager.ts';
 export type { ServicesStatus } from './preview/services.ts';
-export { EnvConflictError } from './preview/env.ts';
+export { EnvConflictError, PreviewEnvStore } from './preview/env.ts';
 export { detectRun } from './preview/detect.ts';
 export { classifyFeedback } from './feedback.ts';
 export * from './context/provider.ts';
@@ -50,3 +50,7 @@ export { canResolve, startResolution, describeResolution, resolveFile, takeSide,
 export { FollowUpError, previousWorkOnBase, type FollowUpDraft, type FollowUpInput } from './follow-up.ts';
 
 export { codexAuthStatus } from './auth/claude-auth.ts';
+export { TransferError } from './transfer/errors.ts';
+export { engineTransferHost, exportTransfer, type ExportOptions, type ExportResult, type TransferHost } from './transfer/export.ts';
+export { ImportChoices, applyIncoming, discardIncoming, inspectIncoming, receiveTransfer, sweepIncoming, unlockIncomingSecrets, type ImportReport, type IncomingReport, type SecretsPreview } from './transfer/import.ts';
+export { mapRepo, reattachGoal, type MapResult } from './transfer/reattach.ts';

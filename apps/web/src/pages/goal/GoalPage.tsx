@@ -1,4 +1,4 @@
-import { taskUsage } from '@foundry/core/browser';
+import { isHistory, taskUsage } from '@foundry/core/browser';
 import { Ban, CornerDownRight, Folder, GitBranch, Link2, RotateCcw, Trash2 } from 'lucide-react';
 import { RestartDialog } from '../../components/RestartDialog.tsx';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
@@ -7,6 +7,7 @@ import { FollowLinks, MarkFollowUpDialog } from './FollowUps.tsx';
 import { ClarifyProgress } from './ClarifyProgress.tsx';
 import { InterviewPanel } from './InterviewPanel.tsx';
 import { MilestoneCard } from './MilestoneCard.tsx';
+import { ImportedCard } from './ImportedCard.tsx';
 import { api, type GoalDetail } from '../../api.ts';
 import { useLive } from '../../store.ts';
 import { Badge, Button, ButtonGroup, Card, ConfirmDialog, CopyButton, Empty, Meter, Tabs, fmtLimitMin, fmtLimitUsd, fmtUsd } from '../../ui.tsx';
@@ -89,7 +90,9 @@ export function GoalPage() {
   const awaiting = g.state === 'awaiting_brief_approval';
   const repoName = g.repoPath.replace(/\/+$/, '').split('/').pop() || g.repoPath;
   const isExpert = expert ?? g.mode !== 'simple';
-  const more: MoreItem[] = [
+  // an Imported Goal not Reattached yet is history: it can be read, mapped, Reattached or deleted (ADR-0030)
+  const history = isHistory(g);
+  const more: MoreItem[] = history ? [{ label: 'Delete goal…', icon: <Trash2 size={13} />, onClick: () => setDel(true), danger: true }] : [
     ...(terminal || g.state === 'blocked' ? [{ label: 'Restart…', icon: <RotateCcw size={13} />, onClick: () => setRestart(true), title: 'Restart from a task of your choice (or from the beginning)' }] : []),
     ...(awaiting ? [{ label: 'Re-run Clarify', icon: <RotateCcw size={13} />, onClick: () => api.reclarify(id, 'fetch the latest base branch and explore again').catch((e) => setErr(e.message)), title: 'Fetch the base branch again and rebuild the Brief from the fresh tip' }] : []),
     ...(!terminal && awaiting ? [{ label: 'Cancel goal', icon: <Ban size={13} />, onClick: () => api.cancelGoal(id) }] : []),
@@ -107,6 +110,7 @@ export function GoalPage() {
               {g.title}
             </h1>
             <Badge state={g.state} className="mt-1" />
+            {g.transfer && <span className="text-[10px] rounded-full border border-sky-800 text-sky-300 px-1.5 mt-1.5" title={`came from ${g.transfer.from.hostname}`}>imported</span>}
             {g.workflow.pace === 'fast' && <span className="text-[10px] rounded-full border border-amber-800 text-amber-300 px-1.5 mt-1.5">fast</span>}
           </div>
           <div className="text-xs text-zinc-500 flex items-center gap-1.5 mt-1.5 min-w-0 flex-wrap">
@@ -151,7 +155,7 @@ export function GoalPage() {
               ]}
               working={['running', 'goal_review'].includes(g.state)}
             />
-            {awaiting ? (
+            {history ? null : awaiting ? (
               <Link to={`/goals/${id}/brief`}>
                 <Button size="sm" variant="primary">Review brief →</Button>
               </Link>
@@ -164,7 +168,7 @@ export function GoalPage() {
                 <Ban size={13} /> Cancel
               </Button>
             ) : null}
-            {terminal && (
+            {terminal && (!history || g.transfer?.repoMapped) && (
               <Link to={`/goals/new?follows=${id}`}>
                 <Button size="sm" variant={finished ? 'default' : 'primary'} title="Start a new goal that builds on this one">
                   <CornerDownRight size={13} /> Continue with a follow-up…
@@ -175,6 +179,7 @@ export function GoalPage() {
           </div>
         </div>
       </div>
+      {history && <ImportedCard goal={g} onChanged={() => api.goal(id).then(setD).catch((e) => setErr(e.message))} />}
       <MarkFollowUpDialog d={d} open={markFollow} onClose={() => setMarkFollow(false)} />
       {restart !== false && <RestartDialog goalId={id} tasks={d.tasks} initial={typeof restart === 'string' ? restart : null} open onClose={() => setRestart(false)} onDone={() => { setRestart(false); setTab('tasks'); }} />}
       <ConfirmDialog

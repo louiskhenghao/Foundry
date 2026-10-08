@@ -8,7 +8,7 @@
  */
 import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { startDemo } from './demo.ts';
+import { seedImportedGoal, startDemo } from './demo.ts';
 
 const ROOT = resolve(import.meta.dir, '..');
 const OUT = join(ROOT, 'docs/guide/images');
@@ -95,6 +95,10 @@ try {
     await page.waitForTimeout(300);
   });
   await shot('usage', '/usage');
+  await shot('transfer', '/transfer', undefined, 760);
+  // seeded last: the shots above count the demo's goals
+  const imported = await seedImportedGoal(demo.engine, g.done!);
+  await shot('goal-imported', `/goals/${imported}`, undefined, 620);
 } finally {
   await browser.close();
   await demo.stop();

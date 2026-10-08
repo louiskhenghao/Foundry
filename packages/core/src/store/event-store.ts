@@ -44,6 +44,30 @@ export class EventStore {
     return full;
   }
 
+  /** Whether the log holds any event of this goal: one that is here, or one deleted here (its events stay) */
+  hasGoalEvents(goalId: string): boolean {
+    return !!this.db.query('SELECT 1 FROM events WHERE goal_id = ? LIMIT 1').get(goalId);
+  }
+
+  /**
+   * Bring one goal's events from another instance (Transfer, ADR-0030). They keep their ids and times, are upgraded by
+   * parsing like any old event, and are projected in one transaction: all of them or none. Listeners hear nothing —
+   * history is not news, and nothing may tick a goal that is only being read in.
+   */
+  importGoalEvents(goalId: string, rows: unknown[]): number {
+    const events = rows.map((r) => EngineEvent.parse(r));
+    const stray = events.find((e) => e.goalId !== goalId);
+    if (stray) throw new Error(`event ${stray.id} belongs to ${stray.goalId}, not ${goalId}`);
+    if (this.hasGoalEvents(goalId)) throw new Error(`goal ${goalId} is already here`);
+    this.db.transaction(() => {
+      for (const e of events) {
+        this.insert.run(e.id, e.ts, e.goalId, e.type, JSON.stringify(e.payload));
+        applyEvent(this.db, e);
+      }
+    })();
+    return events.length;
+  }
+
   subscribe(l: EventListener): () => void {
     this.listeners.add(l);
     return () => this.listeners.delete(l);

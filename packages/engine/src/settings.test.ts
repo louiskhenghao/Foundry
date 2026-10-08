@@ -49,6 +49,16 @@ describe('settings resolution', () => {
     expect(JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8'))).toEqual({});
   });
 
+  test('a section taken from another Foundry replaces what was saved here, except this computer\'s leaves and credentials', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'foundry-settings-'));
+    const s = new SettingsStore(dir, {});
+    s.update({ models: { cheap: 'haiku', presetDocs: 'economy' }, tools: { openaiApiKey: 'sk-here-0123456789', markitdownBin: '/here/markitdown', useGraphify: false }, delivery: { defaultMode: 'pr' } });
+    const r = s.replaceSections({ models: { cheap: 'sonnet' }, tools: { useGraphify: true, openaiApiKey: 'sk-there-012345678', markitdownBin: '/there/m' }, delivery: { defaultMode: 'push' } }, ['models', 'tools']);
+    expect(r.changed.sort()).toEqual(['models.cheap', 'models.presetDocs', 'tools.useGraphify']);
+    expect(JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8'))).toEqual({ models: { cheap: 'sonnet' }, tools: { useGraphify: true, openaiApiKey: 'sk-here-0123456789', markitdownBin: '/here/markitdown' }, delivery: { defaultMode: 'pr' } });
+    expect(() => s.replaceSections({ models: { cheap: '' } }, ['models'])).toThrow();
+  });
+
   test('applySettingsToConfig maps leaves onto the engine config (only the requested ones)', () => {
     const cfg = defaultConfig(ROOT, { log: () => {} });
     const { values } = resolveSettings({ sessions: { attemptTimeoutMin: 7 }, delivery: { defaultMode: 'pr', pollSec: 5 }, safety: { allowedRoots: ['/tmp'] } }, {});

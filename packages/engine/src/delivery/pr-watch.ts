@@ -5,7 +5,7 @@
  * last open PR finishes the delivery and runs the after-merge steps; a PR closed without merging is recorded and nothing
  * is removed. Only `gh pr view`, never a model.
  */
-import { getGoal, listGoals, type Goal } from '@foundry/core';
+import { getGoal, isHistory, listGoals, type Goal } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { git } from '../git/git.ts';
 import { afterMerge } from './after-merge.ts';
@@ -17,7 +17,9 @@ import { repoSlug } from './policy.ts';
 export const PR_WATCH_DAYS = 14;
 
 const hasOpenPr = (g: Goal) => g.delivery.prs.some((p) => p.state === 'open' && p.number != null);
+// an Imported Goal's pull requests are the other computer's to follow (ADR-0030)
 const watched = (g: Goal, now = Date.now()) =>
+  !isHistory(g) &&
   hasOpenPr(g) &&
   ((g.delivery.status === 'delivered' && (g.delivery.outcome === 'pr_open' || g.delivery.outcome === 'automerge_armed')) || g.delivery.status === 'failed') &&
   (!g.delivery.finishedAt || now - Date.parse(g.delivery.finishedAt) < PR_WATCH_DAYS * 86_400_000);

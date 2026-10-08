@@ -619,7 +619,80 @@ export function apiForProvider(provider?: AgentProvider) {
   resumeUsage: (provider?: AgentProvider) => req<{ resumed: boolean }>(`/api/usage/resume${provider ? `?provider=${provider}` : ''}`, { method: 'POST' }),
   probeUsage: (provider?: AgentProvider) => req<Usage>(`/api/usage/probe${provider ? `?provider=${provider}` : ''}`, { method: 'POST' }),
   minimaxQuota: (refresh = false) => req<MinimaxQuota>(`/api/usage/minimax${refresh ? '?refresh=1' : ''}`),
+  transferExport: (body: { categories: TransferCategories; goalIds: 'all' | string[]; password?: string }) => req<{ downloadId: string; bytes: number; goals: number; categories: TransferCategories }>('/api/transfer/export', { method: 'POST', body: JSON.stringify(body) }),
+  /** the file itself is the body: the browser streams it */
+  transferUpload: (file: Blob) => req<IncomingReport>('/api/transfer/incoming', { method: 'POST', body: file, headers: { 'content-type': 'application/octet-stream' } }),
+  transferSecrets: (uploadId: string, password: string) => req<SecretsPreview>(`/api/transfer/incoming/${uploadId}/secrets`, { method: 'POST', body: JSON.stringify({ password }) }),
+  transferApply: (uploadId: string, choices: ImportChoices) => req<ImportReport>(`/api/transfer/incoming/${uploadId}/apply`, { method: 'POST', body: JSON.stringify(choices) }),
+  transferDiscard: (uploadId: string) => req<{ ok: true }>(`/api/transfer/incoming/${uploadId}`, { method: 'DELETE' }),
+  mapRepo: (goalId: string, path: string) => req<MapResult>(`/api/goals/${goalId}/map-repo`, { method: 'POST', body: JSON.stringify({ path }) }),
+  reattach: (goalId: string) => req<Goal>(`/api/goals/${goalId}/reattach`, { method: 'POST' }),
 };
+}
+
+/** where the browser downloads a Transfer file written by transferExport */
+export const transferDownloadUrl = (downloadId: string) => `/api/transfer/download/${downloadId}`;
+
+/** Transfer (ADR-0030) — mirrors packages/engine/src/transfer/import.ts and reattach.ts */
+export interface TransferCategories {
+  settings?: boolean;
+  secrets?: boolean;
+  goals?: boolean;
+  transcripts?: boolean;
+}
+export interface IncomingGoal {
+  id: string;
+  title: string;
+  state: GoalState;
+  provider: AgentProvider | null;
+  createdAt: string;
+  costUsd: number;
+  repoPath: string;
+  remoteUrl: string | null;
+  baseBranch: string;
+  branch: string;
+  unfinished: boolean;
+  events: number;
+  bundle: boolean;
+  artifacts: boolean;
+  status: 'new' | 'here' | 'deleted-here';
+  follows: { goalId: string; title: string; inFile: boolean; here: boolean } | null;
+}
+export interface IncomingReport {
+  uploadId: string;
+  release: string;
+  exportedAt: string;
+  hostname: string;
+  categories: TransferCategories;
+  goals: IncomingGoal[];
+  repos: { original: string; remoteUrl: string | null; goals: string[]; match: string | null }[];
+  settings: { section: string; keys: string[] }[];
+  secrets: boolean;
+}
+export interface SecretsPreview {
+  settings: { key: string; imported: string; mine: string | null; same: boolean }[];
+  previewEnv: { repo: string; keys: string[] }[];
+}
+export interface ImportChoices {
+  goals?: string[];
+  settings?: Record<string, 'imported' | 'mine'>;
+  secrets?: { password: string; keepMine: string[] } | null;
+  repos?: Record<string, string | null>;
+}
+export interface ImportReport {
+  imported: { id: string; title: string }[];
+  skipped: { id: string; title: string; reason: string }[];
+  settings: string[];
+  secrets: string[];
+  previewEnv: { applied: string[]; waiting: string[] };
+  repos: { original: string; to: string; error: string | null }[];
+}
+export interface MapResult {
+  original: string;
+  to: string;
+  goals: string[];
+  restored: string[];
+  previewEnv: string[];
 }
 
 export const api = apiForProvider();

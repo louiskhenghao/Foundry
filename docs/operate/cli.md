@@ -39,6 +39,14 @@ foundry — drive the host Claude Code or Codex CLI to deliver on goals
   skills restore <name> · skills update [name] · skills trash
        All skills commands accept --provider claude|codex (default: the running instance).
   deliver <goalId> [--mode push|pr|pr-automerge ...]   deliver a finished goal (no --mode: print the plan)
+  export [--out <file>] [--settings] [--secrets] [--goals all|<id,id>] [--transcripts] [--password-stdin]
+                                          write a Transfer file for another Foundry (no category flag: Settings and every goal)
+                                          --secrets seals Keys & secrets with a password (stdin, or FOUNDRY_TRANSFER_PASSWORD)
+  import <file> [--dry-run] [--goals <id,id>] [--keep-mine <section,…>] [--secrets [--keep-key <key,…>]]
+       [--map <path there>=<path here>]... [--no-map <path there>]...
+                                          merge a Transfer file: goals arrive as history, a goal already here is skipped;
+                                          differing Settings sections are taken unless kept with --keep-mine
+  reattach <goalId> [--repo <path>]       carry an unfinished imported goal on here (--repo maps its repository first)
   github [status|login]                   GitHub CLI status / device-flow login (needed for PR modes)
   auth [status|login|logout] [--provider claude|codex]
                                           Independent account; running server owns login/logout and protects active work
@@ -47,7 +55,7 @@ foundry — drive the host Claude Code or Codex CLI to deliver on goals
                                           Activity and available account quota; --probe refreshes status (Claude consumes quota)
                                           Codex shows only reported account windows; weekly-only accounts are supported
 
-(doctor and skills work offline too; --provider keeps their native homes and caches separate.)
+(doctor, skills, export and import work offline too; --provider keeps their native homes and caches separate.)
 Both backends share one Foundry; select --provider when creating a goal.
 FOUNDRY_PROVIDER=codex changes the installation default (data-codex directory).
 Codex model: FOUNDRY_CODEX_MODEL=codex-default or Settings → Codex model.

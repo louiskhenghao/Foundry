@@ -142,6 +142,40 @@ export const GoalFollows = z.object({
 });
 export type GoalFollows = z.infer<typeof GoalFollows>;
 
+/**
+ * Where an Imported Goal came from and how far it got here (ADR-0030). It arrives as history; mapping its repository
+ * restores its branch, and an unfinished one can then be Reattached. Absent on goals made on this instance.
+ */
+export const GoalTransfer = z.object({
+  transferId: z.string(),
+  from: z.object({ release: z.string(), hostname: z.string(), exportedAt: z.string() }),
+  importedAt: z.string(),
+  /** the goal was not finished when it was exported: it can be Reattached */
+  unfinished: z.boolean(),
+  /** the goal branch carried as a git bundle, data-dir-relative; null = the base branch already had all of it */
+  bundle: z.string().nullable(),
+  /** the git-excluded files of its progress folder (media artifacts, style samples), data-dir-relative; null = none came */
+  artifacts: z.string().nullable(),
+  /** its session transcripts and check output came along */
+  transcripts: z.boolean(),
+  /** the paths it had on the computer it came from */
+  original: z.object({ repoPath: z.string(), workspaceDir: z.string().nullable(), outputDir: z.string().nullable() }),
+  repoMapped: z.object({ to: z.string(), how: z.enum(['same-path', 'chosen']), at: z.string() }).nullable(),
+  branchRestored: z.object({ head: z.string(), at: z.string() }).nullable(),
+  reattachedAt: z.string().nullable(),
+});
+export type GoalTransfer = z.infer<typeof GoalTransfer>;
+
+/** An Imported Goal not Reattached yet: readable history the engine never acts on by itself */
+export function isHistory(g: { transfer?: GoalTransfer | null }): boolean {
+  return !!g.transfer && !g.transfer.reattachedAt;
+}
+
+/** The goal's repository is a checkout on this computer: always, except for an Imported Goal whose repository is not mapped yet */
+export function repoHere(g: { transfer?: GoalTransfer | null }): boolean {
+  return !g.transfer || !!g.transfer.repoMapped;
+}
+
 /** where a finished goal's preview runs (see Goal.previewPlace) */
 export const PreviewPlace = z.enum(['auto', 'checkout', 'foundry']);
 export type PreviewPlace = z.infer<typeof PreviewPlace>;
@@ -228,6 +262,8 @@ export const Goal = z.object({
   completion: GoalCompletion.default(() => ({ ...IDLE_COMPLETION })),
   /** the earlier goal this one follows; default keeps pre-follow-up `goal.created` events replayable */
   follows: GoalFollows.nullable().default(null),
+  /** set when the goal arrived through a Transfer (ADR-0030) */
+  transfer: GoalTransfer.optional(),
   runningSince: z.string().nullable(),
   /**
    * Time Foundry spent working on the goal (Clarify, the run, the goal review, delivery), not counting the waits for the

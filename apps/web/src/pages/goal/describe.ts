@@ -55,6 +55,14 @@ export function describe(e: EngineEvent, costAvailable = true): { text: string; 
       return { text: p.message.split('\n')[0], tone: p.level === 'error' ? 'err' : p.level === 'warn' ? 'warn' : 'muted', ...cut(p.message, Infinity, true) };
     case 'boundary.blocked':
       return { text: `Blocked command: ${p.command}`, tone: 'warn' };
+    case 'goal.imported':
+      return { text: `Imported from ${p.from.hostname} (Foundry ${p.from.release}, written ${String(p.from.exportedAt).slice(0, 16).replace('T', ' ')})`, tone: 'info' };
+    case 'goal.repo_mapped':
+      return { text: `Repository mapped: ${p.from} → ${p.to}`, tone: 'info' };
+    case 'goal.branch_restored':
+      return { text: `Branch ${p.branch} restored at ${String(p.head).slice(0, 7)}`, tone: 'info' };
+    case 'goal.reattached':
+      return { text: `Reattached here — progress folder ${p.workspaceDir}`, tone: 'ok' };
     case 'session.usage':
       return { text: `${p.kind} session · ${p.model ?? '?'} · ${cost(p.costUsd)}`, tone: 'muted' };
     default:

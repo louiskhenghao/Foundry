@@ -5,7 +5,7 @@
 import { setCommitAuthorMode } from './git/git.ts';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEFAULT_SETTINGS, RESTART_SETTINGS, SECRET_SETTINGS, Settings, SettingsPatch, maskSecret, type SecretState, type SettingMeta, type SettingsView } from '@foundry/core';
+import { DEFAULT_SETTINGS, RESTART_SETTINGS, SECRET_SETTINGS, Settings, SettingsPatch, isLocalSetting, isSecretSetting, maskSecret, type SecretState, type SettingMeta, type SettingsView } from '@foundry/core';
 import type { EngineConfig } from './config.ts';
 
 export const SETTINGS_FILE = 'settings.json';
@@ -153,6 +153,10 @@ export class SettingsStore {
   values(): Settings {
     return this.resolve().values;
   }
+  /** the saved settings as they are in the file, credentials included (what a Transfer reads) */
+  fileSnapshot(): SettingsPatch {
+    return structuredClone(this.file);
+  }
   /** leaves whose value comes from the file (what overrides the env-built config at startup) */
   fileLeaves(): Set<string> {
     return new Set(SETTING_PATHS.filter((p) => has(this.file, p)));
@@ -185,6 +189,26 @@ export class SettingsStore {
     const after = this.values();
     const changed = SETTING_PATHS.filter((p) => JSON.stringify(get(before, p)) !== JSON.stringify(get(after, p)));
     return { changed, view: this.view() };
+  }
+  /**
+   * Take whole sections from another Foundry's settings (Transfer, ADR-0030): a chosen section becomes what that one
+   * saved, except the leaves that belong to this computer and the credentials, which stay as they are here.
+   */
+  replaceSections(imported: SettingsPatch, sections: (keyof SettingsPatch)[]): { changed: string[]; view: SettingsView } {
+    const before = this.values();
+    const next: Record<string, Record<string, unknown>> = structuredClone(this.file) as never;
+    for (const section of sections) {
+      const kept = Object.entries(next[section] ?? {}).filter(([k]) => isLocalSetting(`${section}.${k}`) || isSecretSetting(`${section}.${k}`));
+      const taken = Object.entries((imported[section] ?? {}) as Record<string, unknown>).filter(([k]) => !isLocalSetting(`${section}.${k}`) && !isSecretSetting(`${section}.${k}`));
+      next[section] = Object.fromEntries([...taken, ...kept]);
+      if (!Object.keys(next[section]!).length) delete next[section];
+    }
+    const check = Settings.safeParse({ ...DEFAULT_SETTINGS, ...mergeSections(next) });
+    if (!check.success) throw new SettingsError(check.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '));
+    this.file = SettingsPatch.parse(next);
+    this.save();
+    const after = this.values();
+    return { changed: SETTING_PATHS.filter((p) => JSON.stringify(get(before, p)) !== JSON.stringify(get(after, p))), view: this.view() };
   }
   /** Drop one leaf (or everything) from the file so env/default apply again. */
   reset(path?: string): { changed: string[]; view: SettingsView } {
