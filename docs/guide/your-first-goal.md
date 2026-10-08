@@ -13,7 +13,7 @@
 
 ## Agent accounts and coding agent
 
-Open **Accounts** in the header to see Claude Code and Codex separately. **Sign in to Codex** uses ChatGPT device authorization; enter the displayed code on the linked page. **Sign in to Claude Code** uses Claude's native login. Credentials belong to the local CLI: signing out here also signs out that CLI, but does not sign out the other provider. Foundry refuses sign-in and sign-out while work is active, including requests from the CLI. Codex supports ChatGPT sign-in only; API-key login is not used. The account card shows the native email and plan when available. Installing a CLI while Foundry is running is detected on the next account check; Setup and Accounts use the current executable. Changes to a configured binary path or native home still require a restart.
+Open **Accounts** in the header to see Claude Code and Codex separately. **Sign in to Codex** uses ChatGPT device authorization: the window shows a one-time code with a copy button and OpenAI's device page; enter the code there and approve. The code lasts 15 minutes, and the window waits as long. **Sign in to Claude Code** uses Claude's native login. Credentials belong to the local CLI: signing out here also signs out that CLI, but does not sign out the other provider. Foundry refuses sign-in and sign-out while work is active, including requests from the CLI. Codex supports ChatGPT sign-in only; API-key login is not used. The account card shows the native email and plan when available. Installing a CLI while Foundry is running is detected on the next account check; Setup and Accounts use the current executable. Changes to a configured binary path or native home still require a restart.
 
 Use **Refresh status** at the top of Accounts to recheck both native accounts. The existing cards stay visible during the check; the reserved status row reports loading or an error without replacing the page.
 
@@ -39,7 +39,7 @@ Open the ⚙ menu at the right of the top bar and choose **Setup** (a red dot on
 | **Required: …** | Skills Foundry's sessions need. | Press **Install**. |
 | **GitHub CLI (optional)** | Only needed if Foundry should open pull requests for you. | Can stay yellow. When it says *not logged in*, **Sign in** opens a window with a one-time code: copy it, open GitHub's page, paste it and approve. |
 
-When everything needed is in place the page says **Everything is in place** and offers **Create your first goal →**. **Re-run** checks again. If something is missing later, a red **Setup incomplete** banner appears with **Fix in Setup →**.
+When everything needed is in place the page says **Everything is in place** and offers **Create your first goal →**. **Re-run** checks again. If something is missing later, a red **Setup incomplete** banner appears with **Fix in Setup →**. It covers the default coding agent and any other agent an unfinished goal runs on, naming the agent when there are two. For Codex, Setup also checks that the CLI supports hooks, which Foundry's sessions need.
 
 The card **Development workflow — Matt Pocock's engineering skills** lists the skills Foundry's workers follow (for example writing tests first). If some are missing, press **Install N missing**. The bundle contains eight current upstream skills. The removed `resolving-merge-conflicts` skill is no longer requested; Foundry’s built-in Merger instructions still handle conflicts.
 
