@@ -89,4 +89,16 @@ describe('history goals (ADR-0030)', () => {
     expect(existsSync(transferGoalDir(dataDir, 'g_far'))).toBe(false);
     expect(getGoal(engine.store.db, 'g_far')).toBeNull();
   });
+
+  test('nothing written about an Imported Goal is sent as a notification', async () => {
+    const engine = track(new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), codexHome: join(dataDir, 'codex-home'), log: () => {} }), new FakeRunner(() => {})));
+    engine.updateSettings({ notifications: { discordWebhookUrl: 'https://discord.com/api/webhooks/1/x' } });
+    const sent: string[] = [];
+    (engine.notifications as unknown as { deliver: (s: unknown, text: string) => void }).deliver = (_s, text) => void sent.push(text);
+    importHistory(engine, goal('g_quiet', 'running'));
+    engine.store.append({ type: 'delivery.failed', goalId: 'g_quiet', payload: { step: 'push', reason: 'cut off by the Transfer' } });
+    engine.store.append({ type: 'goal.state_changed', goalId: 'g_quiet', payload: { from: 'running', to: 'failed', reason: 'x' } });
+    expect(sent).toEqual([]);
+  });
 });
+
