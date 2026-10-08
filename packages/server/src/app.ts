@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { CodexEffort, Effort, Brief, EscalationAnswer, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
+import { CodexEffort, Effort, Brief, EscalationAnswer, isHistory, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
 import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, type Engine, type OpenTargetId } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, PreviewPlace, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
@@ -133,6 +133,18 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     await next();
   });
   const db = engine.store.db;
+  // an Imported Goal is history (ADR-0030): it is read, mapped, Reattached, previewed once mapped or deleted — nothing else changes it
+  const historyMay = /^\/api\/goals\/[^/]+\/(map-repo|reattach|preview\/(start|stop|visit))$/;
+  const historyRefused = (goalId: string | undefined) => {
+    const goal = goalId ? getGoal(db, goalId) : null;
+    return goal && isHistory(goal) ? 'this goal came from another computer and stays as it was until it is Reattached' : null;
+  };
+  app.use('/api/goals/:id/*', async (c, next) => {
+    const may = ['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) || historyMay.test(c.req.path) || (c.req.method === 'DELETE' && /^\/api\/goals\/[^/]+$/.test(c.req.path));
+    const refused = may ? null : historyRefused(c.req.param('id'));
+    if (refused) return c.json({ error: refused }, 409);
+    await next();
+  });
   // Skills page operations: one live channel + one pollable record each (skill-ops.ts)
   const ops = new SkillOps((s) => engine.broadcast(s));
   const authProvider = (c: any): 'claude' | 'codex' => z.enum(['claude', 'codex']).parse(c.req.query('provider') ?? engine.config.provider ?? 'claude');
@@ -912,7 +924,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   // every escalation names its goal and task so the Inbox can say *what* needs you, not just that something does
   app.get('/api/escalations', (c) =>
     c.json(
-      listEscalations(db, { openOnly: c.req.query('open') === '1' }).map((e) => {
+      listEscalations(db, { openOnly: c.req.query('open') === '1' }).filter((e) => !historyRefused(e.goalId)).map((e) => {
         const goal = getGoal(db, e.goalId);
         const t = e.taskId ? listTasks(db, e.goalId).find((x) => x.id === e.taskId) : null;
         return { ...e, provider: goal ? goal.provider ?? engine.config.provider : null, goalTitle: goal?.title ?? e.goalId, taskTitle: t?.title ?? null, taskState: t?.state ?? null };
@@ -922,6 +934,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
 
   // the AI reads the task, the failure and the last session and proposes what to do; `apply` answers retry_with_hint on the spot
   app.post('/api/escalations/:id/suggest', async (c) => {
+    const refused = historyRefused(getEscalation(db, c.req.param('id'))?.goalId);
+    if (refused) return c.json({ error: refused }, 409);
     const body = await c.req.json().catch(() => ({}));
     const suggestion = await engine.suggestForEscalation(c.req.param('id'));
     let applied = false;
@@ -934,6 +948,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
 
   app.post('/api/escalations/:id/answer', async (c) => {
+    const refused = historyRefused(getEscalation(db, c.req.param('id'))?.goalId);
+    if (refused) return c.json({ error: refused }, 409);
     const answer = EscalationAnswer.parse(await c.req.json());
     await engine.answerEscalation(c.req.param('id'), answer);
     return c.json({ ok: true });
