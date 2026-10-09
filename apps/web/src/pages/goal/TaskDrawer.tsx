@@ -1,5 +1,5 @@
 import type { Attempt, CheckResult, Task } from '@foundry/core/browser';
-import { GitMerge, RotateCcw } from 'lucide-react';
+import { GitMerge, Play, RotateCcw, Square } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { type ReactNode, useEffect, useState } from 'react';
 import { api, fileKey, fileUrl, type FileRef, type GoalDetail, type TaskFile } from '../../api.ts';
@@ -15,7 +15,8 @@ import { EscalationCard } from '../InboxPage.tsx';
 export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; task: Task; onClose: () => void; onRestart?: () => void }) {
   const cost = (value: number) => d.goal.provider === 'codex' ? 'unavailable' : fmtUsd(value);
   const attempts = d.attempts.filter((a) => a.taskId === task.id);
-  const usage = d.tasks.find((t) => t.id === task.id)?.usage ?? null;
+  const row = d.tasks.find((t) => t.id === task.id);
+  const usage = row?.usage ?? null;
   const [ai, setAi] = useState(attempts.length - 1);
   const [view, setView] = useState<'log' | 'report' | 'prompt'>('log');
   const [prompt, setPrompt] = useState<string | null>(null);
@@ -70,6 +71,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
               </Button>
             </Link>
           )}
+          <UnstickButton d={d} task={task} live={row?.live} waiting={row?.waiting} />
           {onRestart && !['running', 'observing', 'merging'].includes(task.state) && (
             <Button size="sm" onClick={onRestart} title="Reset this task and everything downstream of it, then run again">
               <RotateCcw size={13} /> Restart from here
@@ -143,6 +145,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
           )}
           {openEsc.length === 0 && task.state === 'blocked' && lastState?.reason && <div className="mb-3 text-xs text-orange-300">blocked: {lastState.reason}</div>}
           {!openEsc.length && task.state !== 'done' && lastState?.reason && task.state !== 'blocked' && <div className="mb-2 text-[11px] text-zinc-500">last transition: {lastState.to} — {lastState.reason}</div>}
+          {task.state === 'ready' && row?.waiting && <div className="mb-2 text-[11px] text-zinc-500">not started yet: {row.waiting}</div>}
           <div className="flex items-center gap-1 mb-2 flex-wrap">
             {attempts.map((x, i) => (
               <button key={x.id} onClick={() => setAi(i)} className={cn('text-xs rounded px-2 py-1 border flex items-center gap-1', i === Math.min(Math.max(ai, 0), attempts.length - 1) ? 'border-emerald-500 text-emerald-300' : 'border-zinc-700 text-zinc-400')}>
@@ -298,5 +301,48 @@ function TaskFiles({ task, files }: { task: Task; files: TaskFile[] }) {
         ))}
       </div>
     </div>
+  );
+}
+
+/** how long a running task may sit without a live session before the drawer offers to stop it (checks run between sessions) */
+const QUIET_MS = 3 * 60_000;
+
+/**
+ * The way out of a stuck task without restarting Foundry. "Start now" shows on a ready task that nothing holds back (the
+ * engine says why otherwise); "Stop and retry" on a running task that has had no live session for a few minutes.
+ */
+function UnstickButton({ d, task, live, waiting }: { d: GoalDetail; task: Task; live?: { inFlight: boolean; session: boolean; since: string | null }; waiting?: string | null }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  if (!live || d.goal.state !== 'running') return null;
+  const working = ['running', 'observing', 'merging'].includes(task.state);
+  const startable = task.state === 'ready' && waiting === null;
+  const quietSince = Date.parse(task.updatedAt);
+  const stoppable = working && !live.session && (!live.inFlight || now - quietSince > QUIET_MS);
+  if (!startable && !stoppable) return null;
+  const go = async () => {
+    if (stoppable && !confirm(`"${task.title}" has had no live session for a while. Stop what it is doing and put it back to ready? A started session resumes where it left off.`)) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await api.unstickTask(d.goal.id, task.id);
+    } catch (e) {
+      setErr(String((e as Error).message ?? e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <Button size="sm" variant={startable ? 'primary' : undefined} disabled={busy} onClick={go} title={startable ? 'Ready and nothing holds it back, but it has not started: start it now' : 'No live session for a while: stop the stuck work and put the task back to ready'}>
+        {startable ? <Play size={13} /> : <Square size={13} />} {startable ? 'Start now' : 'Stop and retry'}
+      </Button>
+      {err && <span className="text-[11px] text-red-400 max-w-64 truncate" title={err}>{err}</span>}
+    </>
   );
 }
