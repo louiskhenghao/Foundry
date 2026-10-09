@@ -75,5 +75,7 @@ describe('milestones', () => {
     expect(passed!.text).toContain('press Show');
     const evidence = compose(ev('milestone.evidence', { taskId: 't1', video: 'v.webm', shots: [], summary: 'presses Show', error: null }), () => 'Demo');
     expect(evidence!.text).toBe('📸 What the milestone looks like — Demo\npresses Show');
+    const partly = compose(ev('milestone.evidence', { taskId: 't1', video: null, shots: [], summary: 'opens /dev', error: '3 screenshot(s) showed HTTP 404 at /dev and were left out' }), () => 'Demo');
+    expect(partly!.text).toBe('📸 What the milestone looks like — Demo\nopens /dev\n⚠️ 3 screenshot(s) showed HTTP 404 at /dev and were left out');
   });
 });

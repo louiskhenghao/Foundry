@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, renameSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, renameSync, rmSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
@@ -6,6 +6,7 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { Goal, Task } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { boundarySettings } from '../guards/boundary.ts';
+import type { PreviewAppStatus } from '../preview/manager.ts';
 import { metaFor, modelFor } from '../models/roles.ts';
 import { screenshotsDir } from '../workspace.ts';
 
@@ -35,6 +36,29 @@ export interface MilestoneEvidence {
   shots: { file: string; caption: string }[];
   summary: string;
   error: string | null;
+  /** the preview app walked through */
+  app?: string | null;
+  /** the app ran its mock command (fake data) because the real one could not be shown */
+  mock?: boolean;
+}
+
+/**
+ * The app a milestone is about: the one whose folder holds most of the task's files (a monorepo's mini app, not its
+ * admin), else the first app. Null when the preview has none.
+ */
+export function pickApp(task: Pick<Task, 'relevantFiles'>, apps: PreviewAppStatus[]): PreviewAppStatus | null {
+  const score = (a: PreviewAppStatus) => (a.dir ? (task.relevantFiles ?? []).filter((f) => f === a.dir || f.startsWith(`${a.dir.replace(/\/+$/, '')}/`)).length : 0);
+  return [...apps].sort((a, b) => score(b) - score(a))[0] ?? null;
+}
+
+/** what a page that shows nothing of the milestone says: an HTTP error, an error page, or nothing at all */
+const ERROR_TEXT = /\b(404|500|502|503)\b|could not be found|page not found|not found|internal server error|application error|bad gateway|ECONNREFUSED|cannot GET|unhandled runtime error/i;
+export function pageProblem(status: number | null, text: string): string | null {
+  if (status != null && status >= 400) return `HTTP ${status}`;
+  const t = text.replace(/\s+/g, ' ').trim();
+  if (!t) return 'a blank page';
+  if (t.length < 500 && ERROR_TEXT.test(t)) return `an error page ("${t.slice(0, 60)}")`;
+  return null;
 }
 
 const capturing = new Set<string>();
@@ -55,10 +79,15 @@ export async function captureMilestone(engine: Engine, goal: Goal, task: Task): 
   const stamp = `${new Date().toISOString().replace(/[:.]/g, '-')}-${task.id}`;
   const hide = engine.preview.redactorFor(goal);
   const videoDir = mkdtempSync(join(tmpdir(), 'foundry-walk-'));
+  let mocked: string | null = null;
   try {
     mkdirSync(dir, { recursive: true });
+    // keys the app needs that only the person's checkout has: taken before the apps start
+    const imported = engine.preview.importMissingEnv(goal);
+    if (imported.length) store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `milestone walkthrough: took ${imported.length} environment variable(s) the app needs from your checkout's env files (${imported.join(', ')})` } });
     const preview = await engine.preview.start(goal, 'milestone');
-    if (!preview.url || !preview.ready) throw new Error(`the preview${preview.url ? ` at ${preview.url}` : ''} did not answer`);
+    let app = pickApp(task, preview.apps);
+    if (!app) throw new Error('the preview has no app to look at');
     const pw = await import('playwright').catch(() => {
       throw new Error('Playwright is not installed (Settings → Preview & self-check)');
     });
@@ -66,54 +95,132 @@ export async function captureMilestone(engine: Engine, goal: Goal, task: Task): 
       throw new Error("Chromium is not installed (Settings → Preview & self-check → Install Chromium)");
     });
     try {
-      // what can be done on the page, for the plan
-      const look = await browser.newPage({ viewport: VIEWPORT });
-      await look.goto(preview.url, { waitUntil: 'networkidle', timeout: 30_000 }).catch(() => {});
-      const controls = await look.evaluate(outlineControls).catch(() => [] as string[]);
-      const title = await look.title().catch(() => '');
-      await look.close();
-      const plan = await planWalk(engine, goal, task, preview.url, title, controls).catch((err) => {
-        evidence.error = `no walkthrough planned: ${String((err as Error).message ?? err).slice(0, 200)}`;
-        return { steps: [], summary: '' } as WalkPlan;
-      });
-      evidence.summary = hide(plan.summary);
-      const ctx = await browser.newContext({ viewport: VIEWPORT, recordVideo: { dir: videoDir, size: VIEWPORT } });
-      const page = await ctx.newPage();
-      await page.goto(preview.url, { waitUntil: 'networkidle', timeout: 30_000 }).catch(() => {});
-      await page.waitForTimeout(800);
-      const shoot = async (caption: string) => {
-        const file = `${stamp}-${String(evidence.shots.length + 1).padStart(2, '0')}.png`;
-        await page.screenshot({ path: join(dir, file) });
-        evidence.shots.push({ file, caption: hide(caption).slice(0, 200) });
+      // the real app first; when it does not answer, or shows only error pages, the same app against fake data
+      const toMock = async (): Promise<PreviewAppStatus | null> => {
+        const m = await engine.preview.startMock(goal, app!.key).catch(() => null);
+        if (m) mocked = m.key;
+        return m?.ready && m.url ? m : null;
       };
-      for (const step of plan.steps) {
-        try {
-          await runStep(page, preview.url, step);
-          if (step.action === 'shot') await shoot(step.caption || step.target);
-        } catch {
-          // a control that is not there or a page that changed: the walkthrough goes on
+      let walk: Walk | null = null;
+      if (app.ready && app.url) walk = await walkApp(engine, browser, goal, task, app, preview.apps, `${stamp}-`, videoDir, hide);
+      if (!walk || walk.allBroken) {
+        const m = await toMock();
+        if (m) {
+          if (walk) discard(dir, walk);
+          app = m;
+          walk = await walkApp(engine, browser, goal, task, m, preview.apps, `${stamp}-mock-`, videoDir, hide);
+          walk.mock = true;
         }
       }
-      if (!evidence.shots.length) await shoot(task.milestone ?? task.title);
-      const video = page.video();
-      await ctx.close();
-      const recorded = video ? await video.path().catch(() => null) : null;
-      if (recorded && plan.steps.length) {
-        evidence.video = `${stamp}-walk.webm`;
-        renameSync(recorded, join(dir, evidence.video));
-      }
+      if (!walk) throw new Error(`the preview of ${app.name}${app.url ? ` at ${app.url}` : ''} did not answer${app.error ? `: ${app.error}` : ''}${mocked ? '' : '. A dev:mock script that serves it against fake data would let Foundry show it anyway'}`);
+      evidence.app = app.key;
+      evidence.shots = walk.shots;
+      evidence.video = walk.video;
+      evidence.summary = walk.mock ? `With mock data, because the real app could not be shown: ${walk.summary}` : walk.summary;
+      if (walk.mock) evidence.mock = true;
+      const left = walk.broken.length ? `${walk.broken.length} screenshot(s) showed ${[...new Set(walk.broken)].slice(0, 2).join(', ')} and were left out` : null;
+      const tail = walk.allBroken ? `: the preview is not showing the milestone${walk.mock || mocked ? '' : ' (a dev:mock script that serves the app against fake data would let Foundry show it anyway)'}` : '';
+      evidence.error = [walk.planError, left ? `${left}${tail}` : null].filter(Boolean).join('; ') || null;
     } finally {
       await browser.close().catch(() => {});
     }
   } catch (err) {
     evidence.error = hide(String((err as Error).message ?? err)).slice(0, 300);
   } finally {
+    if (mocked) await engine.preview.stopMock(goal, mocked).catch(() => {});
     rmSync(videoDir, { recursive: true, force: true });
     capturing.delete(goal.id);
   }
   store.append({ type: 'milestone.evidence', goalId: goal.id, payload: evidence });
   config.log(`[milestone] ${goal.id}: ${evidence.shots.length} screenshot(s)${evidence.video ? ' and a video' : ''}${evidence.error ? ` (${evidence.error})` : ''}`);
   return evidence;
+}
+
+interface Walk {
+  shots: { file: string; caption: string }[];
+  video: string | null;
+  summary: string;
+  planError: string | null;
+  /** why each left-out screenshot showed nothing of the milestone */
+  broken: string[];
+  /** every screenshot was an error page: nothing of the milestone was seen */
+  allBroken: boolean;
+  mock?: boolean;
+}
+
+type Browser = import('playwright').Browser;
+
+/**
+ * One walkthrough of one app: plan it from the page, follow it with a recording, and screenshot where the plan asks.
+ * A screenshot of an error page (an HTTP error, a "could not be found", a blank page) shows nothing of the milestone:
+ * it is left out and counted.
+ */
+async function walkApp(engine: Engine, browser: Browser, goal: Goal, task: Task, app: PreviewAppStatus, apps: PreviewAppStatus[], prefix: string, videoDir: string, hide: (t: string) => string): Promise<Walk> {
+  const dir = screenshotsDir(engine.config.dataDir, goal);
+  const url = app.url!;
+  const out: Walk = { shots: [], video: null, summary: '', planError: null, broken: [], allBroken: false };
+  // what can be done on the page, for the plan
+  const look = await browser.newPage({ viewport: VIEWPORT });
+  await look.goto(url, { waitUntil: 'networkidle', timeout: 30_000 }).catch(() => {});
+  const controls = await look.evaluate(outlineControls).catch(() => [] as string[]);
+  const title = await look.title().catch(() => '');
+  await look.close();
+  const others = apps.filter((a) => a.key !== app.key && a.ready && a.url).map((a) => ({ name: a.name, dir: a.dir, url: a.url! }));
+  const plan = await planWalk(engine, goal, task, { name: app.name, dir: app.dir, url }, others, title, controls).catch((err) => {
+    out.planError = `no walkthrough planned: ${String((err as Error).message ?? err).slice(0, 200)}`;
+    return { steps: [], summary: '' } as WalkPlan;
+  });
+  out.summary = hide(plan.summary);
+  const ctx = await browser.newContext({ viewport: VIEWPORT, recordVideo: { dir: videoDir, size: VIEWPORT } });
+  const page = await ctx.newPage();
+  // the status of the page's last navigation: a 404 route is an error page whatever it renders
+  let status: number | null = null;
+  page.on('response', (r) => {
+    if (r.request().isNavigationRequest() && r.frame() === page.mainFrame()) status = r.status();
+  });
+  await page.goto(url, { waitUntil: 'networkidle', timeout: 30_000 }).catch(() => {});
+  await page.waitForTimeout(800);
+  const shoot = async (caption: string) => {
+    const file = `${prefix}${String(out.shots.length + out.broken.length + 1).padStart(2, '0')}.png`;
+    await page.screenshot({ path: join(dir, file) });
+    const problem = pageProblem(status, await page.evaluate(() => document.body?.innerText ?? '').catch(() => ''));
+    if (problem) {
+      out.broken.push(`${problem} at ${new URL(page.url()).pathname}`);
+      try {
+        unlinkSync(join(dir, file));
+      } catch {}
+      return;
+    }
+    out.shots.push({ file, caption: hide(caption).slice(0, 200) });
+  };
+  for (const step of plan.steps) {
+    try {
+      await runStep(page, url, step);
+      if (step.action === 'shot') await shoot(step.caption || step.target);
+    } catch {
+      // a control that is not there or a page that changed: the walkthrough goes on
+    }
+  }
+  if (!out.shots.length && !out.broken.length) await shoot(task.milestone ?? task.title);
+  out.allBroken = !out.shots.length && out.broken.length > 0;
+  const video = page.video();
+  await ctx.close();
+  const recorded = video ? await video.path().catch(() => null) : null;
+  // a recording of error pages shows nothing either
+  if (recorded && plan.steps.length && !out.allBroken) {
+    out.video = `${prefix}walk.webm`;
+    renameSync(recorded, join(dir, out.video));
+  }
+  return out;
+}
+
+/** a walkthrough replaced by another (the mock run): its files go */
+function discard(dir: string, walk: Walk): void {
+  for (const f of [...walk.shots.map((s) => s.file), ...(walk.video ? [walk.video] : [])]) {
+    try {
+      unlinkSync(join(dir, f));
+    } catch {}
+  }
 }
 
 /** the page's visible controls, one line each, for the planning session (runs in the browser) */
@@ -162,11 +269,14 @@ async function runStep(page: Page, base: string, step: z.infer<typeof WalkStep>)
   }
 }
 
-async function planWalk(engine: Engine, goal: Goal, task: Task, url: string, title: string, controls: string[]): Promise<WalkPlan> {
+type AppRef = { name: string; dir: string; url: string };
+
+async function planWalk(engine: Engine, goal: Goal, task: Task, app: AppRef, others: AppRef[], title: string, controls: string[]): Promise<WalkPlan> {
   const { config } = engine;
+  const where = (a: AppRef) => `${a.name}${a.dir ? ` (${a.dir})` : ''}: ${a.url}`;
   const prompt = [
     `# What to show\nThe milestone "${task.title}" of the goal "${goal.title}" landed. The person would check:\n${task.milestone ?? task.spec.slice(0, 600)}`,
-    `# The running app\n${url}${title ? ` — "${title}"` : ''}\nControls on the first page:\n${controls.length ? controls.map((c) => `- ${c}`).join('\n') : '(none found)'}`,
+    `# The running app\n${where(app)}${title ? ` — "${title}"` : ''}\nPaths in \`goto\` are on this app. Controls on its first page:\n${controls.length ? controls.map((c) => `- ${c}`).join('\n') : '(none found)'}${others.length ? `\n\nThe goal's other apps also run (\`goto\` a full URL to use one):\n${others.map((o) => `- ${where(o)}`).join('\n')}` : ''}`,
     `# Your job\nPlan a short walkthrough (at most 12 steps) that a person would do in a browser to see this milestone working, so a recording can show it instead of them. Use only what the page offers: click controls by their visible text (role when known), fill fields by label or placeholder with realistic sample values, go to paths you know exist. Put a \`shot\` step, with a one-line caption, at each moment worth seeing; end with one. Never sign in with real credentials, delete data, pay, or send messages. \`summary\`: one sentence on what the walkthrough shows. You cannot browse; answer with the plan only.`,
   ].join('\n\n');
   const model = modelFor(config, goal, 'feedback');

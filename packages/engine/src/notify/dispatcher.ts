@@ -39,7 +39,9 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
     case 'milestone.evidence': {
       const head = `📸 What the milestone looks like — ${goalTitle(e.goalId)}`;
       const body = e.payload.summary || (e.payload.error ? `Foundry could not record a walkthrough: ${e.payload.error}` : '');
-      return { family: 'milestone', text: [head, body.slice(0, 600)].filter(Boolean).join('\n'), path: `/goals/${e.goalId}` };
+      // what went wrong next to a walkthrough that was recorded anyway (error pages left out, no plan)
+      const also = e.payload.summary && e.payload.error ? `⚠️ ${e.payload.error.slice(0, 300)}` : '';
+      return { family: 'milestone', text: [head, body.slice(0, 600), also].filter(Boolean).join('\n'), path: `/goals/${e.goalId}` };
     }
     case 'goal.milestone_passed':
       return { family: 'milestone', text: `👀 Milestone — ${goalTitle(e.goalId)}\n${e.payload.lookFor.slice(0, 600)}\nThe goal goes on (Have a look is off for it).`, path: `/goals/${e.goalId}` };
