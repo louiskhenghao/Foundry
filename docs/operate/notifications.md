@@ -81,6 +81,11 @@ round*, *Goal finished*, milestones and most *Delivery* messages, the Usage page
 *New version*. A message about an opened pull request carries the pull request's own URL too. A channel that refuses a
 link gets the address written out instead.
 
+A message's first line is its title and reads bold (Telegram HTML, Discord Markdown). Telegram drops a link to an
+address only this computer can open (`localhost`, `127.0.0.1`, a bare host name) and leaves its label as plain text, so
+such an address is written out as code instead: a tap copies it. For a link you can tap on your phone, set **Link base
+URL** or use Tailscale.
+
 - **Open in Foundry**: **Link base URL** plus the page, or `http://localhost:<port>` when it is empty. Set it when you
   reach Foundry at another address (a LAN address, a domain), scheme included.
 - **Open on your tailnet**: added when Tailscale runs on this computer (**Tailscale links** = auto, the default). It is
@@ -104,14 +109,16 @@ want.
 | **Needs you** | `notifications.onEscalation` | a goal is blocked until you answer (also a milestone's *Have a look*) |
 | **Interview round** | `notifications.onInterview` | the Clarifier asks a round of questions before writing the Brief |
 | **Goal finished** | `notifications.onGoalFinished` | a goal ends done, over-delivered or failed (never when you cancel it) |
-| **Delivery** | `notifications.onDelivery` | a pull request is opened or merged, or a delivery fails |
+| **Delivery** | `notifications.onDelivery` | a pull request is opened or merged, or a delivery fails (a stack of pull requests is told together, see below) |
 | **Usage pause** | `notifications.onRateLimit` | a backend’s usage limit pauses its new sessions, and when retrying resumes; other backends can continue |
 | **New version** | `notifications.onUpdateAvailable` | a newer Foundry release is out (once per version) |
 
 What each of these means for someone running goals, and what to do about it, is in
 [docs/guide/settings.md](../guide/settings.md).
 
-A milestone sends two messages: *Have a look* (or *Milestone* when the goal does not pause for it) at once, then *What the milestone looks like* with the screenshots and the video of the walkthrough Foundry recorded in the preview. Telegram gets them as an album (photos up to 10 MB, a video up to 50 MB); Discord as attachments of the webhook message (10 MB together). A file over the limit is left out and the message says it is on the goal page. Without a recording, the self-check's latest screenshot is attached when there is one. The *Needs you* switch covers both.
+A stacked delivery (one pull request per task) does not send a message per pull request. When it builds a stack of two or more, the channels get *Opening N pull requests* with their titles, then one *N pull requests opened* message listing each with its link once all are open (or after 15 minutes, or when the delivery ends, with the ones open by then). Merges are gathered the same way and sent once none has come for two minutes: *3 pull requests merged* with their numbers. A delivery with one pull request keeps its usual messages.
+
+A milestone sends two messages: *Have a look* (or *Milestone* when the goal does not pause for it) at once, then *What the milestone looks like* with the screenshots and the video of the walkthrough Foundry recorded in the preview. Telegram gets them as an album (photos up to 10 MB, a video up to 50 MB); Discord as attachments of the webhook message (10 MB together). A file over the limit is left out and the message says it is on the goal page. Without a recording, the self-check's latest screenshot is attached when there is one. When screenshots of error pages were left out of the walkthrough, or no walkthrough could be planned, a ⚠️ line says so. The *Needs you* switch covers both.
 
 ---
 
