@@ -1,4 +1,4 @@
-import { Download, ExternalLink, FileWarning } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, ExternalLink, FileWarning } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { create } from 'zustand';
@@ -10,13 +10,17 @@ import { MarkdownPanel } from './Markdown.tsx';
 /** text bigger than this is offered as a download instead of being loaded into the page */
 const TEXT_LIMIT = 2 * 1024 * 1024;
 
-/** The file shown in the preview dialog; any screen opens one with `openFile(pathOrTaskFile)`. */
-export const useFilePreview = create<{ file: FileRef | null; open: (file: FileRef) => void; close: () => void }>((set) => ({
+/**
+ * The file shown in the preview dialog; any screen opens one with `openFile(pathOrTaskFile)`. Pass the list it was
+ * picked from (`openFile(file, files)`) and the dialog steps through that list with its arrows or ← and →.
+ */
+export const useFilePreview = create<{ file: FileRef | null; list: FileRef[]; open: (file: FileRef, list?: FileRef[]) => void; close: () => void }>((set) => ({
   file: null,
-  open: (file) => set({ file }),
-  close: () => set({ file: null }),
+  list: [],
+  open: (file, list) => set({ file, list: list && list.some((f) => fileKey(f) === fileKey(file)) ? list : [] }),
+  close: () => set({ file: null, list: [] }),
 }));
-export const openFile = (file: FileRef) => useFilePreview.getState().open(file);
+export const openFile = (file: FileRef, list?: FileRef[]) => useFilePreview.getState().open(file, list);
 
 const fmtSize = (n: number) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1048576).toFixed(1)} MB`);
 
@@ -92,8 +96,13 @@ function CodeView({ text, name }: { text: string; name: string }) {
 
 /** The one file preview of the app, mounted once: images, PDF, video and audio play in the page; text, Markdown and JSON are shown formatted. */
 export function FilePreviewHost() {
-  const { file, close } = useFilePreview();
+  const { file, list, open, close } = useFilePreview();
   const key = file ? fileKey(file) : null;
+  const at = key ? list.findIndex((f) => fileKey(f) === key) : -1;
+  const step = (d: -1 | 1) => {
+    const next = at >= 0 ? list[at + d] : undefined;
+    if (next) open(next, list);
+  };
   const [info, setInfo] = useState<FileInfo | null>(null);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
@@ -109,13 +118,22 @@ export function FilePreviewHost() {
     if (!file) return;
     // captured and stopped: Escape closes the preview, not the dialog or task panel it opened over
     const onKey = (e: KeyboardEvent) => {
+      if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && list.length > 1 && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        // the arrows read a code view or a video while focus is in one; elsewhere they move through the list
+        const t = e.target as HTMLElement | null;
+        if (t && (t.closest('input, textarea, select, video, audio, [contenteditable="true"]') || t.isContentEditable)) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        step(e.key === 'ArrowLeft' ? -1 : 1);
+        return;
+      }
       if (e.key !== 'Escape') return;
       e.stopImmediatePropagation();
       close();
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [key, close]);
+  }, [key, close, at, list]);
   if (!file) return null;
   // what the header names: the path asked for, or the file's path in the repository
   const shown = typeof file === 'string' ? file : 'path' in file ? file.path : file.rel;
@@ -131,6 +149,17 @@ export function FilePreviewHost() {
               {info ? ` · ${fmtSize(info.size)}` : ''}
             </div>
           </div>
+          {list.length > 1 && at >= 0 && (
+            <span className="flex items-center gap-0.5 text-[11px] text-zinc-500 shrink-0">
+              <button type="button" className="rounded p-1 hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-30" disabled={at === 0} onClick={() => step(-1)} aria-label="previous file" title="Previous file (←)">
+                <ChevronLeft size={14} />
+              </button>
+              {at + 1} / {list.length}
+              <button type="button" className="rounded p-1 hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-30" disabled={at === list.length - 1} onClick={() => step(1)} aria-label="next file" title="Next file (→)">
+                <ChevronRight size={14} />
+              </button>
+            </span>
+          )}
           <CopyButton text={info?.path ?? shown} />
           {info && (
             <>

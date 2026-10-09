@@ -116,11 +116,13 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
             <div>
               <div className="text-xs text-zinc-500 mb-1">Relevant files</div>
               <div className="mono text-[11px] text-zinc-400 space-y-0.5">
-                {task.relevantFiles.map((f) => {
+                {task.relevantFiles.map((f, _, all) => {
                   // openable when the task's commit or one of the goal's folders has it; a file the plan only meant to create does not exist
                   const open = made?.relevant.find((r) => r.rel === f)?.open;
+                  // the preview steps through the openable ones in this order
+                  const openable = all.flatMap((x) => made?.relevant.find((r) => r.rel === x)?.open ?? []);
                   return open ? (
-                    <button key={f} type="button" onClick={() => openFile(open)} className="block w-full truncate text-left text-sky-300 hover:underline" title={`Open ${f}`}>
+                    <button key={f} type="button" onClick={() => openFile(open, openable)} className="block w-full truncate text-left text-sky-300 hover:underline" title={`Open ${f}`}>
                       {f}
                     </button>
                   ) : (
@@ -279,6 +281,8 @@ function TaskFiles({ task, files }: { task: Task; files: TaskFile[] }) {
   if (!files.length) return null;
   const images = files.filter((f) => f.kind === 'image');
   const others = files.filter((f) => f.kind !== 'image');
+  // the preview steps through the files in the order shown: the pictures, then the rest
+  const order = [...images, ...others].map((f) => f.open);
   return (
     <div>
       <div className="text-xs text-zinc-500 mb-1">
@@ -287,7 +291,7 @@ function TaskFiles({ task, files }: { task: Task; files: TaskFile[] }) {
       {images.length > 0 && (
         <div className="grid grid-cols-3 gap-1.5 mb-1.5">
           {images.map((f) => (
-            <button key={fileKey(f.open)} type="button" onClick={() => openFile(f.open)} title={f.rel} className="aspect-square overflow-hidden rounded border border-zinc-800 bg-[repeating-conic-gradient(#8881_0_25%,transparent_0_50%)] bg-[length:12px_12px] hover:border-zinc-500">
+            <button key={fileKey(f.open)} type="button" onClick={() => openFile(f.open, order)} title={f.rel} className="aspect-square overflow-hidden rounded border border-zinc-800 bg-[repeating-conic-gradient(#8881_0_25%,transparent_0_50%)] bg-[length:12px_12px] hover:border-zinc-500">
               <img src={fileUrl(f.open)} alt={f.rel} loading="lazy" className="h-full w-full object-contain" />
             </button>
           ))}
@@ -295,7 +299,7 @@ function TaskFiles({ task, files }: { task: Task; files: TaskFile[] }) {
       )}
       <div className="mono text-[11px] space-y-0.5">
         {others.map((f) => (
-          <button key={fileKey(f.open)} type="button" onClick={() => openFile(f.open)} title={`Open ${f.rel}`} className="block w-full truncate text-left text-sky-300 hover:underline">
+          <button key={fileKey(f.open)} type="button" onClick={() => openFile(f.open, order)} title={`Open ${f.rel}`} className="block w-full truncate text-left text-sky-300 hover:underline">
             {f.rel}
           </button>
         ))}
