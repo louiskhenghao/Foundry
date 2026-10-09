@@ -145,6 +145,7 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
             <span className="text-zinc-200">
               Running on port {a.port}
               {startedByText(a.startedBy) && <span className="text-zinc-500"> · started {startedByText(a.startedBy)}</span>}
+              {a.mock && <span className="text-amber-300" title="Running its mock command against fake data for the milestone walkthrough; the next start runs the real app"> · mock data</span>}
             </span>
             {a.url && (
               <a href={openUrl(a)!} target="_blank" rel="noreferrer" onClick={visit} className="inline-flex items-center gap-1 text-emerald-300 hover:underline">
@@ -199,6 +200,7 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
             <div className="flex items-baseline gap-x-2 flex-wrap text-[11px] text-zinc-500">
               {command && <span className="mono text-zinc-400 break-all">{command}</span>}
               {a.running && startedByText(a.startedBy) && <span>· started {startedByText(a.startedBy)}</span>}
+              {a.running && a.mock && <span className="text-amber-300">· mock data</span>}
               {(a.running || a.log.length > 0) && (
                 <button type="button" className="text-zinc-500 hover:text-zinc-300" onClick={() => toggleLog(a.key)}>
                   {showLog ? '▾ hide output' : '▸ output'}

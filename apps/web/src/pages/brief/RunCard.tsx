@@ -6,6 +6,8 @@ import { Button, Card, Field, Input, Select } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 
 const EMPTY: BriefRun = { install: null, command: null, url: null, platform: 'none' };
+const MOCK_PLACEHOLDER = 'npm run dev:mock — empty: a dev:mock, start:mock or mock script';
+const MOCK_HELP = "Serves the same app against fake data (no backend, Docker or secrets). A milestone walkthrough uses it when the real app cannot start or shows only error pages. Empty: the app's dev:mock, start:mock or mock script, when it has one.";
 
 /** an app's key from its name: lowercase letters, digits and dashes */
 const slug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -101,6 +103,9 @@ export function RunCard({ brief, editable, edit, goalId, selfCheck, milestonePau
                     <Field label="URL">
                       <Input className="mono text-xs" disabled={!editable} placeholder="http://localhost:{port}" value={a.url ?? ''} onChange={(e) => setApp(i, { url: e.target.value || null })} />
                     </Field>
+                    <Field label="Mock command (optional)" className="sm:col-span-2 lg:col-span-4">
+                      <Input className="mono text-xs" disabled={!editable} placeholder={MOCK_PLACEHOLDER} title={MOCK_HELP} value={a.mock ?? ''} onChange={(e) => setApp(i, { mock: e.target.value || null })} />
+                    </Field>
                   </div>
                   <div className="mt-1.5 flex items-center gap-2 text-[11px] text-zinc-500">
                     <span className="mono truncate" title="the app's key and the variable the other apps read its address from">
@@ -144,6 +149,9 @@ export function RunCard({ brief, editable, edit, goalId, selfCheck, milestonePau
               </Field>
               <Field label="URL">
                 <Input className="mono text-xs" disabled={!editable} placeholder="http://localhost:{port}" value={run?.url ?? ''} onChange={(e) => set({ url: e.target.value || null })} />
+              </Field>
+              <Field label="Mock command (optional)" className="md:col-span-2">
+                <Input className="mono text-xs" disabled={!editable} placeholder={MOCK_PLACEHOLDER} title={MOCK_HELP} value={run?.mock ?? ''} onChange={(e) => set({ mock: e.target.value || null })} />
               </Field>
             </div>
           </>

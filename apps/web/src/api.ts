@@ -22,6 +22,8 @@ export interface PreviewAppStatus {
   error: string | null;
   /** the last lines the app printed before it failed */
   errorDetail: string[];
+  /** it runs its mock command (fake data) for a milestone walkthrough */
+  mock?: boolean;
   /** it did not answer in time, or its dependencies failed to install */
   warning: string | null;
   /** other servers its command started, found from the ports its processes listen on */

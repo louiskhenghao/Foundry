@@ -41,6 +41,8 @@ export interface PreviewAppStatus {
   error: string | null;
   /** the last lines the app printed before it failed */
   errorDetail: string[];
+  /** it runs its mock command (fake data) for a milestone walkthrough, not the real one */
+  mock: boolean;
   /** something to know while it runs: it did not answer in time, its dependencies failed to install */
   warning: string | null;
   /** other servers its command started (a demo script, `turbo dev`), found from the ports its processes listen on */
@@ -150,6 +152,10 @@ const READY_TIMEOUT_MS = 90_000;
 const DISCOVERY_MS = 10_000;
 const PROBE_TRIES = 6;
 const id = (goalId: string, key: string) => `${goalId}/${key}`;
+/** the stop that switches an app to its mock command (the switch itself must not end the mock) */
+const MOCK_SWITCH = 'switching to mock data';
+/** package.json scripts that serve an app against fake data, in the order they are looked for */
+const MOCK_SCRIPTS = ['dev:mock', 'start:mock', 'mock'];
 /** FOUNDRY_APP_<KEY>_URL: how one app finds another (a web app its API) */
 export const appUrlVar = (key: string) => `FOUNDRY_APP_${key.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}_URL`;
 
@@ -169,6 +175,8 @@ export class PreviewManager {
   readonly services: ServicesManager;
   /** preview folders being created or moved to their branch's latest commit, per goal */
   private preparing = new Map<string, Promise<void>>();
+  /** apps running their mock command for a walkthrough (goal/app → command); any other stop ends it */
+  private mocked = new Map<string, string>();
 
   constructor(private engine: Engine) {
     this.env = new PreviewEnvStore(engine.config.dataDir);
@@ -240,6 +248,7 @@ export class PreviewManager {
   private appStatus(goalId: string, key: string, run: BriefApp | null): PreviewAppStatus {
     const l = this.live.get(id(goalId, key));
     return {
+      mock: this.mocked.has(id(goalId, key)),
       key,
       name: run?.name ?? key,
       dir: run?.dir ?? '',
@@ -279,8 +288,10 @@ export class PreviewManager {
    */
   async start(goal: Goal, by: PreviewStarter, appKey?: string): Promise<PreviewStatus> {
     if (!repoHere(goal)) throw new PreviewError('this goal came from another computer: map its repository to a checkout here first', 409);
-    const resolved = this.resolveApps(goal);
-    if (!resolved) throw new PreviewError('nothing to run: the Brief has no run command and package.json has no dev/start script', 409);
+    const found = this.resolveApps(goal);
+    if (!found) throw new PreviewError('nothing to run: the Brief has no run command and package.json has no dev/start script', 409);
+    // an app switched to fake data for a walkthrough runs its mock command instead
+    const resolved = { ...found, apps: found.apps.map((a) => (this.mocked.has(id(goal.id, a.key)) ? { ...a, command: this.mocked.get(id(goal.id, a.key))! } : a)) };
     const targets = resolved.apps.filter((a) => (!appKey || a.key === appKey) && !this.live.has(id(goal.id, a.key)));
     if (appKey && !resolved.apps.some((a) => a.key === appKey)) throw new PreviewError(`no app "${appKey}" in this goal's preview`, 404);
     this.touch(goal.id);
@@ -516,6 +527,52 @@ export class PreviewManager {
   async stop(goalId: string, reason: string, appKey?: string): Promise<void> {
     const entries = [...this.live.values()].filter((l) => l.goalId === goalId && (!appKey || l.key === appKey));
     await Promise.all(entries.map((l) => this.stopEntry(l, reason)));
+    // fake data lasts one walkthrough: whatever stops the app, its next start is the real one
+    if (reason !== MOCK_SWITCH) for (const k of [...this.mocked.keys()]) if (k.startsWith(`${goalId}/`) && (!appKey || k === id(goalId, appKey))) this.mocked.delete(k);
+  }
+
+  /** the command that serves an app against fake data: the Brief's, else a mock script in its package.json; null when none */
+  mockCommand(goal: Goal, app: BriefApp): string | null {
+    if (app.mock) return app.mock;
+    const ws = this.workspace(goal);
+    try {
+      const scripts = JSON.parse(readFileSync(join(app.dir ? join(ws, app.dir) : ws, 'package.json'), 'utf8')).scripts ?? {};
+      const name = MOCK_SCRIPTS.find((n) => typeof scripts[n] === 'string');
+      return name ? `${packageManager(ws)} run ${name}` : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** run one app against fake data, for a walkthrough whose real app could not be shown; null when the app has no mock */
+  async startMock(goal: Goal, appKey: string): Promise<PreviewAppStatus | null> {
+    const app = this.resolveApps(goal)?.apps.find((a) => a.key === appKey);
+    const command = app ? this.mockCommand(goal, app) : null;
+    if (!app || !command) return null;
+    await this.stop(goal.id, MOCK_SWITCH, appKey);
+    this.mocked.set(id(goal.id, appKey), command);
+    const st = await this.start(goal, 'milestone', appKey);
+    return st.apps.find((a) => a.key === appKey) ?? null;
+  }
+
+  /** the walkthrough is over: the mock run stops, and the next start runs the real app */
+  async stopMock(goal: Goal, appKey: string): Promise<void> {
+    if (this.mocked.has(id(goal.id, appKey))) await this.stop(goal.id, 'mock walkthrough finished', appKey);
+  }
+
+  /**
+   * Before a walkthrough: keys the example env files ask for that nothing provides are taken from the person's
+   * checkout when its untracked env files have them (keys already entered are kept). The keys taken, by name.
+   */
+  importMissingEnv(goal: Goal): string[] {
+    try {
+      const view = this.envView(goal);
+      const have = new Set(view.checkout.keys);
+      if (!view.missing.some((k) => have.has(k))) return [];
+      return this.importCheckoutEnv(goal).added;
+    } catch {
+      return [];
+    }
   }
 
   private async stopEntry(l: Live, reason: string): Promise<void> {
