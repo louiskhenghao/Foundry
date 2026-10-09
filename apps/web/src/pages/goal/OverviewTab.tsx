@@ -301,7 +301,7 @@ export function GoalReview({ review }: { review: { passed: boolean; overDelivere
         {review.notes && <span className="min-w-0 flex-1 truncate text-zinc-500">{open ? '' : review.notes.split('\n')[0]}</span>}
         {review.notes && <span className="ml-auto shrink-0 text-[11px] text-zinc-500">{open ? 'hide notes' : 'reviewer notes'}</span>}
       </button>
-      {open && <div className="mt-2"><MarkdownPanel title="reviewer notes" source={review.notes} maxHeight={240} /></div>}
+      {open && <div className="mt-2"><MarkdownPanel title="reviewer notes" source={review.notes} maxHeight={240} actions={<OpenFull value={{ title: `Goal review · ${verdict}`, text: review.notes }} />} /></div>}
     </div>
   );
 }
