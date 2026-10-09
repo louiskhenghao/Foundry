@@ -100,8 +100,8 @@ describe('milestone walkthrough', () => {
 describe('which app and which pages', () => {
   const app = (key: string, dir: string): PreviewAppStatus => ({ key, name: key, dir, ready: true, url: `http://localhost/${key}` }) as PreviewAppStatus;
   test('the app whose folder holds the task\'s files, else the first', () => {
-    const apps = [app('admin', 'apps/admin'), app('miniapp', 'apps/miniapp')];
-    expect(pickApp({ relevantFiles: ['apps/miniapp/src/a.tsx', 'apps/miniapp/e2e/b.ts', 'e2e/web/c.ts'] }, apps)!.key).toBe('miniapp');
+    const apps = [app('admin', 'apps/admin'), app('shop', 'apps/shop')];
+    expect(pickApp({ relevantFiles: ['apps/shop/src/a.tsx', 'apps/shop/e2e/b.ts', 'e2e/web/c.ts'] }, apps)!.key).toBe('shop');
     expect(pickApp({ relevantFiles: ['README.md'] }, apps)!.key).toBe('admin');
     expect(pickApp({ relevantFiles: [] }, [])).toBeNull();
   });

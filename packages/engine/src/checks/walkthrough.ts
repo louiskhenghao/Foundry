@@ -43,7 +43,7 @@ export interface MilestoneEvidence {
 }
 
 /**
- * The app a milestone is about: the one whose folder holds most of the task's files (a monorepo's mini app, not its
+ * The app a milestone is about: the one whose folder holds most of the task's files (a monorepo's shop, not its
  * admin), else the first app. Null when the preview has none.
  */
 export function pickApp(task: Pick<Task, 'relevantFiles'>, apps: PreviewAppStatus[]): PreviewAppStatus | null {
