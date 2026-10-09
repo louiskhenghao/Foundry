@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { create } from 'zustand';
 import { api, fileKey, fileUrl, type FileInfo, type FileRef } from '../api.ts';
-import { CopyButton } from '../ui.tsx';
+import { CopyButton, cn } from '../ui.tsx';
 import { JsonTree, parseJsonDoc } from './JsonTree.tsx';
 import { MarkdownPanel } from './Markdown.tsx';
 
@@ -64,7 +64,7 @@ function Body({ info, file }: { info: FileInfo; file: FileRef }) {
 }
 
 /** Source with line numbers, coloured by language once the highlighter has loaded (plain until then, or when unknown). */
-function CodeView({ text, name }: { text: string; name: string }) {
+export function CodeView({ text, name, className }: { text: string; name: string; className?: string }) {
   const [html, setHtml] = useState<string[] | null>(null);
   useEffect(() => {
     let alive = true;
@@ -78,7 +78,7 @@ function CodeView({ text, name }: { text: string; name: string }) {
   }, [text, name]);
   const lines = text.split('\n');
   return (
-    <div className="surface-card rounded-md border border-zinc-800 bg-zinc-950/60 overflow-auto max-h-[70vh]">
+    <div className={cn('surface-card rounded-md border border-zinc-800 bg-zinc-950/60 overflow-auto', className ?? 'max-h-[70vh]')}>
       <table className="mono text-xs leading-5">
         <tbody>
           {lines.map((l, i) => (
