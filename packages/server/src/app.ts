@@ -670,7 +670,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       goal,
       paths: { repo: goal.repoPath, workspace: existsSync(ws) ? ws : null },
       budget: budgetStatus(goal),
-      tasks: tasks.map((t) => ({ ...t, depth: depth.get(t.id) ?? 0, usage: taskUsage(listAttempts(db, t.id)) })),
+      // live: a slot held / a session alive, so the drawer can tell stuck from busy; waiting: why a ready task is not running
+      tasks: tasks.map((t) => ({ ...t, depth: depth.get(t.id) ?? 0, usage: taskUsage(listAttempts(db, t.id)), live: engine.taskLiveness(t.id), waiting: t.state === 'ready' ? engine.readyBlocker(goal, t) : null })),
       attempts: listAttemptsByGoal(db, id),
       checks: listChecks(db, id),
       checkResults: listCheckResultsByGoal(db, id),
@@ -791,6 +792,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     engine.cancelGoal(c.req.param('id'));
     return c.json({ ok: true });
   });
+  // a stuck task without restarting Foundry: a ready one is scheduled, a running one with no live session is stopped
+  app.post('/api/goals/:id/tasks/:taskId/unstick', (c) => c.json(engine.unstickTask(c.req.param('id'), c.req.param('taskId'))));
   app.post('/api/goals/:id/restart', async (c) => {
     const body = await c.req.json().catch(() => ({}));
     return c.json(await engine.restartGoal(c.req.param('id'), { fromTaskId: typeof body?.fromTaskId === 'string' ? body.fromTaskId : undefined }));

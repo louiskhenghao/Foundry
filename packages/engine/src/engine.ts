@@ -54,6 +54,9 @@ import { mergeBranchInto } from './merge.ts';
 import { runGoalReview } from './goal-review.ts';
 import { Roles } from './roles.ts';
 import { schedule } from './scheduler.ts';
+import { budgetStatus } from './budget.ts';
+import { dueCheckpoint } from './checkpoint.ts';
+import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
 import { UpdateManager } from './update/updater.ts';
 import { AgentsMonitor, type FoundryLiveSession } from './agents/monitor.ts';
@@ -139,11 +142,16 @@ export interface CreateGoalInput {
   follows?: FollowUpInput;
 }
 
-interface InFlight {
+export interface InFlight {
   goalId: string;
   attemptId: string | null;
   handle: RunHandle | null;
+  /** when the slot was taken: a reservation that never got going is stale after a while */
+  since: number;
 }
+
+/** a ready task whose slot was taken this long ago but never started counts as stuck */
+const STALE_RESERVATION_MS = 5 * 60_000;
 
 /** the longest usage window a plan has (the weekly ones), with an hour to spare: no real reset is further away */
 const MAX_PAUSE_MS = 7 * 24 * 60 * 60_000 + 60 * 60_000;
@@ -1170,9 +1178,15 @@ export class Engine {
     }
   }
 
-  reserve(taskId: string): void {
+  reserve(taskId: string): InFlight {
     const t = getTask(this.store.db, taskId);
-    this.inFlight.set(taskId, { goalId: t?.goalId ?? '', attemptId: null, handle: null });
+    const slot: InFlight = { goalId: t?.goalId ?? '', attemptId: null, handle: null, since: Date.now() };
+    this.inFlight.set(taskId, slot);
+    return slot;
+  }
+  /** the slot was released under the work holding it (the human unstuck the task): that work must stop touching it */
+  holds(taskId: string, slot: InFlight): boolean {
+    return this.inFlight.get(taskId) === slot;
   }
   registerInFlight(taskId: string, attemptId: string, handle: RunHandle): void {
     const f = this.inFlight.get(taskId);
@@ -1185,7 +1199,9 @@ export class Engine {
     const f = this.inFlight.get(taskId);
     if (f) f.handle = null;
   }
-  release(taskId: string): void {
+  /** with `slot`, only that reservation is released: a newer one taken after an unstick stays */
+  release(taskId: string, slot?: InFlight): void {
+    if (slot && this.inFlight.get(taskId) !== slot) return;
     this.inFlight.delete(taskId);
   }
   isInFlight(taskId: string): boolean {
@@ -1226,6 +1242,78 @@ export class Engine {
     f.handle.kill('killed_manual');
     this.config.log(`[engine] ${reason}: task ${taskId}`);
     return true;
+  }
+
+  /** what the task drawer needs to tell a stuck task from a busy one: a slot held, and a session process alive in it */
+  taskLiveness(taskId: string): { inFlight: boolean; session: boolean; since: string | null } {
+    const f = this.inFlight.get(taskId);
+    return { inFlight: !!f, session: !!f?.handle, since: f ? new Date(f.since).toISOString() : null };
+  }
+
+  /**
+   * Why a ready task of a running goal is not running, in words — or null when nothing should hold it back, which is
+   * when the task drawer offers "Start now". Mirrors the scheduler's rules.
+   */
+  readyBlocker(goal: Goal, task: Task): string | null {
+    if (task.state !== 'ready') return `the task is ${task.state}`;
+    if (goal.state !== 'running') return `the goal is ${goal.state.replace(/_/g, ' ')}`;
+    if (this.isRateLimited(goal.provider ?? this.config.provider)) return 'work is paused until the usage limit resets';
+    if (this.updateDraining) return 'Foundry is finishing work before an update';
+    const own = this.inFlight.get(task.id);
+    if (own) return Date.now() - own.since < STALE_RESERVATION_MS ? 'it is starting' : null;
+    const b = budgetStatus(goal);
+    if (b.exceeded) return 'the goal reached its budget';
+    const tasks = listTasks(this.store.db, goal.id);
+    if (dueCheckpoint(tasks)) return 'a milestone landed; Foundry waits for the work in flight, then for you';
+    const inFlight = this.inFlightForGoal(goal.id);
+    const running = tasks.filter((t) => inFlight.includes(t.id));
+    const names = (ts: Task[]) => ts.map((t) => `"${t.title}"`).join(', ');
+    if (inFlight.length >= goal.budgets.maxConcurrent) return `every slot is taken (${names(running) || `${inFlight.length} running`})`;
+    if (!task.parallelizable && inFlight.length > 0) return `it is not parallelizable and waits for ${names(running) || 'the running task'}`;
+    const clash = running.find((x) => filesOverlap(task.relevantFiles, x.relevantFiles).length > 0);
+    if (clash) return `it waits for "${clash.title}": both touch ${filesOverlap(task.relevantFiles, clash.relevantFiles).slice(0, 3).join(', ')}`;
+    return null;
+  }
+
+  /**
+   * The human's way out of a stuck task without restarting Foundry. A ready task that nothing holds back is scheduled
+   * again (a reservation that never got going is dropped first). A running task with no live session — work that hung
+   * between sessions — is concluded the way an engine restart would conclude it, and goes back to ready: its session
+   * resumes when it can, and the attempt is not counted otherwise.
+   */
+  unstickTask(goalId: string, taskId: string): { action: 'scheduled' | 'stopped' } {
+    const goal = this.mustGoal(goalId);
+    const task = getTask(this.store.db, taskId);
+    if (!task || task.goalId !== goalId) throw new Error(`task ${taskId} not found`);
+    if (task.state === 'ready') {
+      const why = this.readyBlocker(goal, task);
+      if (why) throw new Error(`"${task.title}" cannot start now: ${why}`);
+      if (this.inFlight.has(task.id)) this.inFlight.delete(task.id);
+      this.overlapNoted.delete(task.id);
+      this.store.append({ type: 'engine.note', goalId, payload: { level: 'info', message: `"${task.title}" was ready but had not started; you asked Foundry to start it now` } });
+      this.tick(goalId);
+      return { action: 'scheduled' };
+    }
+    if (task.state !== 'running' && task.state !== 'observing' && task.state !== 'merging') throw new Error(`"${task.title}" is ${task.state}; only a ready or running task can be unstuck`);
+    if (this.inFlight.get(task.id)?.handle) throw new Error(`a session of "${task.title}" is still running; stop it from the live log first`);
+    for (const a of listRunningAttempts(this.store.db).filter((x) => x.taskId === task.id)) {
+      if (a.pid && isAlive(a.pid)) {
+        try {
+          process.kill(a.pid, 'SIGTERM');
+        } catch {}
+      }
+      const resumable = a.kind === 'work' && !!a.sessionId && a.continuations < this.config.maxContinuations;
+      this.store.append({ type: 'attempt.finished', goalId, payload: { attemptId: a.id, state: resumable ? 'interrupted' : 'error', resultSubtype: 'orphaned', costUsd: a.costUsd, numTurns: a.numTurns, endRef: a.endRef, permissionDenials: [], skillsUsed: [], toolsUsed: {} } });
+      this.store.append({ type: 'attempt.concluded', goalId, payload: { attemptId: a.id, state: resumable ? 'interrupted' : 'error', reason: resumable ? 'stuck; stopped by you — resumes next' : 'stuck; stopped by you' } });
+      if (a.kind === 'work' && !resumable) this.store.append({ type: 'task.hint_set', goalId, payload: { taskId: task.id, hint: task.hint, extraAttempts: 1 } });
+    }
+    if (task.state === 'merging') this.store.append({ type: 'task.state_changed', goalId, payload: { taskId: task.id, from: 'merging', to: 'observing', reason: 'stuck; stopped by you' } });
+    this.store.append({ type: 'task.state_changed', goalId, payload: { taskId: task.id, from: task.state === 'merging' ? 'observing' : task.state, to: 'ready', reason: 'stuck with no live session; stopped by you' } });
+    // the hung work still holds the old slot; it checks `holds` and stops touching the task when it ever returns
+    this.inFlight.delete(task.id);
+    this.overlapNoted.delete(task.id);
+    this.tick(goalId);
+    return { action: 'stopped' };
   }
 
   // ---------- tick ----------

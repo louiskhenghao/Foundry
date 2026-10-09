@@ -713,3 +713,39 @@ describe('milestones', () => {
     expect(engine.store.listByGoal(goal.id).filter((e) => e.type === 'goal.checkpoint_opened')).toHaveLength(2);
   }, 60_000);
 });
+
+describe('unsticking a task without restarting Foundry', () => {
+  test('work that hung between sessions is stopped, the slot freed, and the task runs again', async () => {
+    const runner = new FakeRunner(async (spec, n) => {
+      if (n === 1) await new Promise(() => {}); // the first attempt hangs before its session ever answers
+      writeFileSync(join(spec.cwd, 'done.txt'), 'ok');
+    });
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'create done.txt', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f done.txt'] } });
+    await waitFor(() => listTasks(engine.store.db, goal.id)[0]?.state === 'running' && runner.calls.some((c) => c.label?.startsWith('attempt')));
+    const task = listTasks(engine.store.db, goal.id)[0]!;
+    expect(engine.taskLiveness(task.id)).toMatchObject({ inFlight: true, session: false });
+    expect(() => engine.unstickTask(goal.id, 'nope')).toThrow('not found');
+
+    expect(engine.unstickTask(goal.id, task.id)).toEqual({ action: 'stopped' });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state));
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+    // the hung attempt does not count against the task's one attempt
+    expect(listAttempts(engine.store.db, task.id).map((a) => a.state)).toEqual(['error', 'passed']);
+  });
+
+  test('a ready task says why it waits; "Start now" is refused while something holds it back', async () => {
+    const runner = new FakeRunner(async () => {
+      await new Promise(() => {});
+    });
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'two tasks', repoPath: repo, budgets: { maxConcurrent: 1 }, autoBrief: { mustChecks: ['true'] } });
+    await waitFor(() => listTasks(engine.store.db, goal.id)[0]?.state === 'running');
+    const g = getGoal(engine.store.db, goal.id)!;
+    const running = listTasks(engine.store.db, goal.id)[0]!;
+    const waiting = { ...running, id: 't_waiting', title: 'second', state: 'ready' as const, relevantFiles: [] };
+    expect(engine.readyBlocker(g, waiting)).toContain('every slot is taken');
+    expect(engine.readyBlocker({ ...g, budgets: { ...g.budgets, maxConcurrent: 2 } }, { ...waiting, parallelizable: true })).toBeNull();
+    expect(engine.readyBlocker({ ...g, state: 'blocked' }, waiting)).toBe('the goal is blocked');
+  });
+});
