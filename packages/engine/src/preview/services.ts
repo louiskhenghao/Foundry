@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import type { Goal } from '@foundry/core';
+import { runInGroup } from '../proc.ts';
 import { detectCompose, type ComposeService } from './detect.ts';
 
 export interface ServiceStatus extends ComposeService {
@@ -38,10 +39,11 @@ export interface ServicesDeps {
   log: (line: string) => void;
 }
 
+/** a Docker that is still starting (or wedged) can leave compose waiting forever; the preview must not wait with it */
+const DOCKER_TIMEOUT_MS = 10 * 60_000;
 const defaultExec: Exec = async (args, cwd) => {
-  const proc = Bun.spawn(args, { cwd, stdout: 'pipe', stderr: 'pipe' });
-  const [stdout, stderr, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
-  return { code, stdout, stderr };
+  const r = await runInGroup(args, { cwd, timeoutMs: DOCKER_TIMEOUT_MS });
+  return { code: r.timedOut ? 124 : r.code, stdout: r.stdout, stderr: r.timedOut ? `${r.stderr}\n${args.slice(0, 3).join(' ')} gave no answer in ${DOCKER_TIMEOUT_MS / 60_000} min; is Docker running?` : r.stderr };
 };
 
 /**

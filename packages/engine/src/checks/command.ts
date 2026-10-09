@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { Check, CheckResult } from '@foundry/core';
 import { IdPrefix, newId } from '@foundry/core';
 import { truncateOutput } from '../distill/truncate.ts';
+import { runInGroup } from '../proc.ts';
 
 export interface CommandCheckContext {
   cwd: string;
@@ -21,15 +22,11 @@ export async function runCommandCheck(check: Check, ctx: CommandCheckContext): P
   let status: CheckResult['status'] = 'error';
   let raw = '';
   try {
-    const proc = Bun.spawn(['sh', '-lc', spec.cmd], { cwd, stdout: 'pipe', stderr: 'pipe', env: { ...process.env, CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' } });
-    let killed = false;
-    const timer = setTimeout(() => {
-      killed = true;
-      proc.kill('SIGKILL');
-    }, spec.timeoutMs);
-    const [stdout, stderr, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
-    clearTimeout(timer);
-    raw = `$ ${spec.cmd}\n[exit ${code}${killed ? ', killed: timeout' : ''}]\n--- stdout ---\n${stdout}\n--- stderr ---\n${stderr}`;
+    // its own process group, killed whole: a test runner's dev server must not keep the check open after it ends
+    const r = await runInGroup(['sh', '-lc', spec.cmd], { cwd, env: { ...process.env, CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' }, timeoutMs: spec.timeoutMs, killLeftovers: true });
+    const killed = r.timedOut;
+    const code = r.code;
+    raw = `$ ${spec.cmd}\n[exit ${code}${killed ? ', killed: timeout' : ''}]\n--- stdout ---\n${r.stdout}\n--- stderr ---\n${r.stderr}`;
     status = killed ? 'error' : code === spec.expectExitCode ? 'pass' : 'fail';
   } catch (err) {
     raw = `$ ${spec.cmd}\n[spawn error] ${String(err)}`;

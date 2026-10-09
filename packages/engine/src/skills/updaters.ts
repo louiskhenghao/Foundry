@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { findEntry } from './catalog.ts';
 import { installEntry, updateEntry } from './installer.ts';
 import type { SkillsPaths } from './paths.ts';
+import { runInGroup } from '../proc.ts';
 import { trashSkill } from './trash.ts';
 import type { Catalog, SkillSource, SkillUpdateRun } from './types.ts';
 
@@ -33,7 +34,6 @@ export interface SpawnResult {
 export async function spawnStreaming(argv: string[], cwd: string, onLine: (l: string) => void, opts: { timeoutMs?: number; env?: Record<string, string> } = {}): Promise<SpawnResult> {
   const env: Record<string, string | undefined> = { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0', CI: '1', ...(opts.env ?? {}) };
   delete env.ANTHROPIC_API_KEY;
-  const proc = Bun.spawn(argv, { cwd, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', env: env as Record<string, string> });
   const tail: string[] = [];
   const push = (l: string) => {
     const clean = l.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').replace(/\r/g, '').trimEnd();
@@ -42,25 +42,28 @@ export async function spawnStreaming(argv: string[], cwd: string, onLine: (l: st
     if (tail.length > 60) tail.shift();
     onLine(clean);
   };
-  const pump = async (stream: ReadableStream<Uint8Array> | null) => {
-    if (!stream) return;
-    const dec = new TextDecoder();
-    const reader = stream.getReader();
+  const lines = () => {
     let buf = '';
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buf += dec.decode(value, { stream: true });
-      const parts = buf.split('\n');
-      buf = parts.pop() ?? '';
-      parts.forEach(push);
-    }
-    if (buf) push(buf);
+    return {
+      chunk: (c: string) => {
+        buf += c;
+        const parts = buf.split('\n');
+        buf = parts.pop() ?? '';
+        parts.forEach(push);
+      },
+      flush: () => {
+        if (buf) push(buf);
+        buf = '';
+      },
+    };
   };
-  const timer = setTimeout(() => proc.kill('SIGKILL'), opts.timeoutMs ?? 5 * 60_000);
-  await Promise.all([pump(proc.stdout as ReadableStream<Uint8Array>), pump(proc.stderr as ReadableStream<Uint8Array>)]);
-  const code = await proc.exited;
-  clearTimeout(timer);
+  const out = lines();
+  const err = lines();
+  // a process group: an installer's children are killed with it on a timeout and cannot hold the pipes open
+  const r = await runInGroup(argv, { cwd, env, timeoutMs: opts.timeoutMs ?? 5 * 60_000, onStdout: out.chunk, onStderr: err.chunk });
+  out.flush();
+  err.flush();
+  const code = r.code;
   return { code, tail: tail.join('\n') };
 }
 
