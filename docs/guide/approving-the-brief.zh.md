@@ -203,8 +203,9 @@ Foundry 从不自作主张扩大范围：stretch 检查存在，只是因为它�
 | **Install** | 安装命令，例如 `npm install`。 |
 | **Start command** | 例如 `npm run dev -- --port {port}`。`{port}` 是 Foundry 填入端口的位置。用 pnpm 时，Foundry 会去掉 `--`，否则 pnpm 会把它原样传给 dev server。 |
 | **URL** | 结果在哪里打开，例如 `http://localhost:{port}`。 |
+| **Mock command (optional)** | 用假数据启动同一个应用，不需要后端、Docker 或密钥，例如 `npm run dev:mock`。真实应用起不来、或只显示错误页面时，里程碑录制会用它。留空：使用应用的 `dev:mock`、`start:mock` 或 `mock` 脚本（如果有）。 |
 
-仓库里有几个应用时（网站、管理后台、API……），**Several apps…** 会把这些字段换成一个应用列表，并填入 Foundry 在 `package.json` 里找到的应用。每个应用有 **Name**、**Folder**（相对于仓库，留空表示仓库根目录）、**Start command** 和 **URL**。**Add app** 添加一个，**Remove** 删除一个。第一个应用是里程碑和自检会打开的那个。每个应用下面显示它的 key，也就是其它应用读取它地址的环境变量，例如 `FOUNDRY_APP_API_URL`。
+仓库里有几个应用时（网站、管理后台、API……），**Several apps…** 会把这些字段换成一个应用列表，并填入 Foundry 在 `package.json` 里找到的应用。每个应用有 **Name**、**Folder**（相对于仓库，留空表示仓库根目录）、**Start command**、**URL** 和可选的 **Mock command**。**Add app** 添加一个，**Remove** 删除一个。第一个应用是里程碑和自检会打开的那个。每个应用下面显示它的 key，也就是其它应用读取它地址的环境变量，例如 `FOUNDRY_APP_API_URL`。
 
 **Use package.json** 会清掉这些字段或应用列表，回到从 `package.json` 读取。
 
