@@ -20,17 +20,38 @@ export interface Link {
 }
 
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-/** Telegram HTML: the text escaped, each link a named anchor on its own line */
+
+/**
+ * Whether a phone could open the address: localhost and bare host names only work on the computer Foundry runs on, and
+ * Telegram drops such links, leaving their label as plain text. Set a link base URL (or use the tailnet) for links.
+ */
+export function reachableUrl(url: string): boolean {
+  const host = URL.parse(url)?.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  if (!host) return false;
+  if (host === 'localhost' || host.endsWith('.localhost') || host === '::1' || host === '0.0.0.0' || host.startsWith('127.')) return false;
+  return host.includes('.') || host.includes(':');
+}
+
+/**
+ * Telegram HTML: the first line (the message's title) bold, the rest escaped, then each link on its own line — a named
+ * anchor, or for an address only this computer can open the label and the address as code (a tap copies it).
+ */
 export function telegramHtml(text: string, links: Link[]): string {
-  return [escapeHtml(text), ...links.map((l) => `<a href="${escapeHtml(l.url).replace(/"/g, '&quot;')}">${escapeHtml(l.label)}</a>`)].join('\n');
+  const [head = '', ...rest] = text.split('\n');
+  const body = [head ? `<b>${escapeHtml(head)}</b>` : '', ...rest.map(escapeHtml)].join('\n');
+  const link = (l: Link) => (reachableUrl(l.url) ? `<a href="${escapeHtml(l.url).replace(/"/g, '&quot;')}">${escapeHtml(l.label)}</a>` : `${escapeHtml(l.label)}: <code>${escapeHtml(l.url)}</code>`);
+  return [body, ...links.map(link)].join('\n');
 }
 /** plain text with the addresses written out: what a channel gets when it refuses a link */
 export function plainLinks(text: string, links: Link[]): string {
   return [text, ...links.map((l) => `${l.label}: ${l.url}`)].join('\n');
 }
-/** Discord markdown: masked links, in angle brackets so no preview card unfolds under the message */
+/** Discord markdown: the first line (the title) bold, then masked links in angle brackets so no preview card unfolds */
 export function discordLinks(text: string, links: Link[]): string {
-  return [text, ...links.map((l) => `[${l.label.replace(/[[\]]/g, '')}](<${l.url}>)`)].join('\n');
+  const [head = '', ...rest] = text.split('\n');
+  const escaped = head.replace(/([*_~`|\\])/g, '\\$1');
+  const title = head ? `**${escaped}**` : '';
+  return [[title, ...rest].join('\n'), ...links.map((l) => `[${l.label.replace(/[[\]]/g, '')}](<${l.url}>)`)].join('\n');
 }
 
 export interface MediaFile {
@@ -74,9 +95,9 @@ export class TelegramNotifier implements Notifier {
   ) {}
   async send(text: string, links: Link[] = []): Promise<void> {
     const html = { chat_id: this.chatId, text: telegramHtml(text.slice(0, MAX_LEN - 400), links), parse_mode: 'HTML', disable_web_page_preview: true };
-    let res = await post(`${TELEGRAM_API}/bot${this.token}/sendMessage`, links.length ? html : { chat_id: this.chatId, text: text.slice(0, MAX_LEN), disable_web_page_preview: true });
-    // a link Telegram will not take (it is strict about some hosts): the addresses written out instead
-    if (!res.ok && links.length && res.status === 400) res = await post(`${TELEGRAM_API}/bot${this.token}/sendMessage`, { chat_id: this.chatId, text: plainLinks(text, links).slice(0, MAX_LEN), disable_web_page_preview: true });
+    let res = await post(`${TELEGRAM_API}/bot${this.token}/sendMessage`, html);
+    // markup or a link Telegram will not take (it is strict about some hosts): plain text, the addresses written out
+    if (!res.ok && res.status === 400) res = await post(`${TELEGRAM_API}/bot${this.token}/sendMessage`, { chat_id: this.chatId, text: plainLinks(text, links).slice(0, MAX_LEN), disable_web_page_preview: true });
     if (!res.ok) throw new Error(`telegram ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
   }
   /** sendPhoto: multipart with the PNG bytes; captions are capped at 1024 by Telegram */
@@ -108,7 +129,7 @@ export class TelegramNotifier implements Notifier {
   private async upload(method: string, caption: string, links: Link[], fill: (form: FormData, text: string, html: boolean) => Promise<void>): Promise<void> {
     const room = 1000 - links.reduce((n, l) => n + l.url.length + l.label.length + 20, 0);
     let res: Response | null = null;
-    for (const html of links.length ? [true, false] : [false]) {
+    for (const html of [true, false]) {
       const form = new FormData();
       form.set('chat_id', this.chatId);
       await fill(form, html ? telegramHtml(caption.slice(0, room), links) : plainLinks(caption.slice(0, room), links), html);

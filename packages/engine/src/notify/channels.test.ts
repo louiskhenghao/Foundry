@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DiscordNotifier, TelegramNotifier, fitting, type MediaFile } from './channels.ts';
+import { DiscordNotifier, TelegramNotifier, fitting, reachableUrl, type MediaFile } from './channels.ts';
 
 const dir = mkdtempSync(join(tmpdir(), 'foundry-channels-'));
 const file = (name: string, bytes: number, kind: MediaFile['kind']): MediaFile => {
@@ -36,14 +36,14 @@ describe('media in notifications', () => {
     await new TelegramNotifier('tok', '42').sendMedia('look', files);
     expect(calls[0]!.url).toEndWith('/sendMediaGroup');
     const form = calls[0]!.body as FormData;
-    expect(JSON.parse(String(form.get('media')))).toEqual([{ type: 'photo', media: 'attach://f0', caption: 'look' }, { type: 'photo', media: 'attach://f1' }, { type: 'video', media: 'attach://f2' }]);
+    expect(JSON.parse(String(form.get('media')))).toEqual([{ type: 'photo', media: 'attach://f0', caption: '<b>look</b>', parse_mode: 'HTML' }, { type: 'photo', media: 'attach://f1' }, { type: 'video', media: 'attach://f2' }]);
     calls = capture();
-    await new TelegramNotifier('tok', '42').sendMedia('look', files, [{ label: 'Open', url: 'http://localhost:4111/goals/g1' }]);
-    expect(JSON.parse(String((calls[0]!.body as FormData).get('media')))[0]).toEqual({ type: 'photo', media: 'attach://f0', caption: 'look\n<a href="http://localhost:4111/goals/g1">Open</a>', parse_mode: 'HTML' });
+    await new TelegramNotifier('tok', '42').sendMedia('look', files, [{ label: 'Open', url: 'https://mac.ts.net/goals/g1' }]);
+    expect(JSON.parse(String((calls[0]!.body as FormData).get('media')))[0]).toEqual({ type: 'photo', media: 'attach://f0', caption: '<b>look</b>\n<a href="https://mac.ts.net/goals/g1">Open</a>', parse_mode: 'HTML' });
     calls = capture();
     await new DiscordNotifier('https://discord.test/hook').sendMedia('look', files);
     const d = calls[0]!.body as FormData;
-    expect(JSON.parse(String(d.get('payload_json')))).toEqual({ content: 'look' });
+    expect(JSON.parse(String(d.get('payload_json')))).toEqual({ content: '**look**' });
     expect([...d.keys()].filter((k) => k.startsWith('files['))).toEqual(['files[0]', 'files[1]', 'files[2]']);
   });
 
@@ -69,16 +69,23 @@ describe('links', () => {
       }
       return new Response('{}');
     }) as typeof fetch;
-    await new TelegramNotifier('tok', '42').send('Goal <done> & dusted', [{ label: 'Open in Foundry', url: 'http://localhost:4111/goals/g1' }]);
-    expect(calls[0]!.body).toMatchObject({ parse_mode: 'HTML', text: 'Goal &lt;done&gt; &amp; dusted\n<a href="http://localhost:4111/goals/g1">Open in Foundry</a>' });
-    expect(calls[1]!.body.text).toBe('Goal <done> & dusted\nOpen in Foundry: http://localhost:4111/goals/g1');
+    await new TelegramNotifier('tok', '42').send('Goal <done> & dusted\nall checks pass', [{ label: 'Open in Foundry', url: 'https://foundry.example.com/goals/g1' }]);
+    expect(calls[0]!.body).toMatchObject({ parse_mode: 'HTML', text: '<b>Goal &lt;done&gt; &amp; dusted</b>\nall checks pass\n<a href="https://foundry.example.com/goals/g1">Open in Foundry</a>' });
+    expect(calls[1]!.body.text).toBe('Goal <done> & dusted\nall checks pass\nOpen in Foundry: https://foundry.example.com/goals/g1');
     expect(calls[1]!.body.parse_mode).toBeUndefined();
+  });
+
+  test('an address only this computer can open is written out as code on Telegram, not dropped as a dead link', async () => {
+    const calls = capture();
+    await new TelegramNotifier('tok', '42').send('done', [{ label: 'Open in Foundry', url: 'http://localhost:4111/goals/g1' }]);
+    expect(JSON.parse(String(calls[0]!.body))).toMatchObject({ parse_mode: 'HTML', text: '<b>done</b>\nOpen in Foundry: <code>http://localhost:4111/goals/g1</code>' });
+    expect([reachableUrl('http://localhost:4111/x'), reachableUrl('http://127.0.0.1:4111'), reachableUrl('http://mac:4111'), reachableUrl('https://mac.tail1.ts.net/x'), reachableUrl('http://192.168.1.5:4111')]).toEqual([false, false, false, true, true]);
   });
 
   test('Discord gets masked links that unfold no preview', async () => {
     const calls = capture();
     await new DiscordNotifier('https://discord.test/hook').send('done', [{ label: 'Open on your tailnet', url: 'https://mac.ts.net/goals/g1' }]);
-    expect(JSON.parse(String(calls[0]!.body)).content).toBe('done\n[Open on your tailnet](<https://mac.ts.net/goals/g1>)');
+    expect(JSON.parse(String(calls[0]!.body)).content).toBe('**done**\n[Open on your tailnet](<https://mac.ts.net/goals/g1>)');
   });
 });
 
