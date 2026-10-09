@@ -110,7 +110,7 @@ The dollar/turn and native sub-agent examples below describe Claude output. Code
 | `[reviewer] …` after the work finished | The task reviewer is checking the change. |
 | `[reviewer] ✗ Output does not match required schema …` | The reviewer sent its verdict in the wrong shape and resends it. Harmless. |
 | `■ success · $0.420 · 7 turns — …` | The session finished. The text after the dash is the worker's final message; click the line to read all of it. |
-| `■ error_max_turns`, `■ error_max_budget_usd`, `■ killed_timeout` | The session hit a limit. Foundry resumes it with a fresh allowance, up to twice, before starting a new attempt. |
+| `■ error_max_turns`, `■ error_max_budget_usd`, `■ killed_timeout` (amber) | The session hit a limit. In a task's worker session the line ends with *the engine resumes this session*: Foundry resumes it with a fresh allowance, up to twice, before starting a new attempt. `error_max_budget_usd` is the **Claude cost cap per session** (Settings → Models & limits), not the goal's budget: an unlimited goal budget still stops one session at that cap. |
 | `⏳ rate limit rejected` | The session’s coding agent reached a usage limit. Foundry pauses that coding agent and retries later; other coding agents can continue. A retry time is not proof of recovered quota. |
 | `⏱ sub-agent still working · 3m 30s` | A helper session is still busy. Long pauses in the log are normal while this line updates. |
 | `[claude-code:unrecognized_model] …` | Your Claude Code is older than the model you picked. The session works; updating Claude Code removes the line. |
@@ -124,6 +124,8 @@ A task moves through **pending** (waiting for the tasks it depends on) → **rea
 | *ready · "X is not parallelizable; it starts when Y finishes"* | The Brief said this task must run alone. It waits. |
 | *ready · "X waits for Y: both touch …"* | Two tasks declared the same files; this one waits so they do not collide. |
 | *ready · "retry 2/3"* | A normal new attempt after a failed one. It starts running shortly. |
+| *ready*, and it does not start | The task panel says why under the attempts (*not started yet: …*). When nothing holds it back, press **Start now**. |
+| *running* or *observing*, nothing moves | When no session has been live for three minutes, the task panel offers **Stop and retry**: the task goes back to **ready** without a restart of Foundry. |
 | *running · "continuation 1: …"* | The same session resumed after hitting a limit or with checks still failing. Not a retry. |
 | *merging* for a while | Foundry is joining the task into the goal and re-running its checks. |
 | *done · "no changes to commit"* | The work was already on the goal's branch. |

@@ -64,14 +64,14 @@ goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它
 - **Brief**：时间线下方的一行，比如 **Brief APPROVED · 36 tasks · 11/11 assumptions accepted · 9/12 questions answered · est. $380 / 1500 min**。点它打开 Brief 页面，Understanding 和 Clarifier 写的其它内容都在那里。
 - **What needs you**：和 Inbox 里一样的卡片，带按钮。
 - **goal**：你最初的描述。面板角上的 **Open full**（两个斜向箭头的图标）会在更大的窗口里显示它。
-- **Goal review**：最终审查运行后，紧跟在 goal 下面：一行显示结论（**passed**、**over-delivered** 或 **failed**）和审查员意见的开头；点 **reviewer notes** 展开全文。
+- **Goal review**：最终审查运行后，紧跟在 goal 下面：一行显示结论（**passed**、**over-delivered** 或 **failed**）和审查员意见的开头；点 **reviewer notes** 展开全文，**Open full** 图标会在更大的窗口里打开。
 - **Attachments**：紧跟在 goal 下面，和 New goal 表单上一样。随时可以再加；新的会话会收到。
 - **Workspace & preview**：goal 的工作成果在哪里，以及启动它来试用。见 [进度文件夹](#进度文件夹) 和 [Preview](#preview)。
-- **Milestones**：goal 有里程碑时，每个一行，最新的在上：要看什么、什么时候到的、goal 是暂停了还是继续了，以及你的回答。点一行会把录屏和截图显示成同样大小的格子；点一个格子会在弹窗里放大，用 **←** / **→**（或顶部的箭头）逐个切换。
+- **Milestones**：goal 有里程碑时，每个一行，最新的在上：要看什么、什么时候到的、goal 是暂停了还是继续了，以及你的回答。点一行会把录屏和截图显示成同样大小的格子；每一行各自展开、收起，可以同时打开两个里程碑来对比。点一个格子会在弹窗里放大，用 **←** / **→**（或顶部的箭头）逐个切换。
 - **Model fallback**：只在某个模型不可用、Foundry 换了另一个模型时出现。
 - **Project skills**：Foundry 为你项目的技术栈添加的 skill，按 Frontend、Backend、Database、Testing、Tooling 分组，并显示数量。它们不会进入你的提交。
 - **Completion**：文档、知识图谱刷新和媒体文件各占一行，写着结果。见 [完成后的附加项](./getting-the-result.zh.md#完成后的附加项)。
-- **Acceptance**（右侧）：每个 **must** 和 **stretch** 检查及其最新结果，比如 **3/4 passing**。点一个检查会在弹窗里打开：它检查什么（命令，或审查员的评分标准）、最近一次运行的输出（被截短时可以按 **Show the whole output** 看全部），以及它的每一次运行，新的在上；点某一次就看那一次的输出。下面是 **Self-check** 开关和它最近一次的结果（见 [Self-check](#self-check)），goal 有里程碑时还有 **Have a look: pause at milestones**（见 [Milestones](#milestones)）。
+- **Acceptance**（右侧）：每个 **must** 和 **stretch** 检查及其最新结果，比如 **3/4 passing**。点一个检查会在弹窗里打开：它检查什么（命令，或审查员的评分标准）、它的每一次运行（新的在上，点某一次就看那一次的输出），然后是所选那次运行的输出。命令的输出带行号显示，审查员的结论以 Markdown 显示（可切换 **Preview** 和 **Raw**），JSON 输出显示成树。输出上方有一行说明你看到的是 Foundry 保留的部分（长输出只保留开头、结尾和报错的行，失败时会做摘要）还是全部：**Show the whole output** 加载这次运行打印的全部内容，**Show the summary** 切回去。下面是 **Self-check** 开关和它最近一次的结果（见 [Self-check](#self-check)），goal 有里程碑时还有 **Have a look: pause at milestones**（见 [Milestones](#milestones)）。
 
 ## Tasks
 
@@ -94,11 +94,12 @@ goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它
 - 标题、状态、标签，完成后还有它的提交。点提交那一行，可以看完整的提交信息。
 - **Task total**：到目前为止的尝试次数、费用（分成 worker 和 reviewer）、轮数和分钟数。
 - **spec**，以及你给过的 **human hint**（紧跟在 spec 下面；两者都可以用 **Open full** 图标在更大的窗口里阅读）、它的 **Checks** 及最新结果，以及 **Relevant files**（点一个就能打开；灰色的表示哪里都还没有这个文件，通常是计划里要这个任务新建的文件）。
-- **Files**：这个任务新增或改动的文件（运行中显示为 **Files so far**）。图片以缩略图显示。点任何一个文件，就在页面里查看：图片、PDF、视频和音频直接播放，代码（按语言上色、带行号）、Markdown 和 JSON 排好版显示。不需要在运行 Foundry 的电脑上打开编辑器，所以用手机或通过[远程访问](../operate/remote-access.md)也能看。已完成任务的文件从它在你仓库里的提交读取，所以交付清理掉任务的文件夹之后也还能看；图片、视频类 goal 生成的图片和视频从不提交，会列在生成它们的那个任务下。
+- **Files**：这个任务新增或改动的文件（运行中显示为 **Files so far**）。图片以缩略图显示。点任何一个文件，就在页面里查看（窗口顶部的箭头，或 ← 和 →，可以切换到同一列表里的上一个或下一个文件，**Relevant files** 也一样）：图片、PDF、视频和音频直接播放，代码（按语言上色、带行号）、Markdown 和 JSON 排好版显示。不需要在运行 Foundry 的电脑上打开编辑器，所以用手机或通过[远程访问](../operate/remote-access.md)也能看。已完成任务的文件从它在你仓库里的提交读取，所以交付清理掉任务的文件夹之后也还能看；图片、视频类 goal 生成的图片和视频从不提交，会列在生成它们的那个任务下。
 - **This task is waiting for you**（任务 blocked 时出现），并附有用来回应的按钮。
 - 每次尝试一个标签：**#1**、**#2** …… 带结果和费用。**↻1** 表示会话被续接了一次，而不是从头开始，保留已有上下文。
 - 选中的那次尝试：结果、worker 模型、轮数、费用、开始时间、时长、用了哪些 skill，然后是为它运行过的每个会话。
 - 按钮：**Restart from here**（这个任务和之后的所有任务重新运行）、**Open worktree**（任务运行时它自己的文件夹），以及合并冲突需要你时的 **Resolve manually**。
+- 任务看起来卡住时，有一个按钮能让它重新动起来，不用重启 Foundry。**Start now** 出现在运行中的 goal 里一个 **ready** 的任务上：没有任何东西挡着它，但它一直没开始。**Stop and retry** 出现在一个运行中、但已经三分钟没有活跃会话的任务上：它停掉这个任务正在做的事，把它放回 **ready**；已经开始的会话会从中断的地方续接，其它情况下这次尝试不计入次数。因为某个原因在等待的 ready 任务，会在尝试列表下面写出原因，例如 *not started yet: every slot is taken*。
 
 ### 实时日志
 
@@ -220,6 +221,10 @@ Foundry 绝不会为了预览去切换、重置或拉取你的 checkout。改任
 
 - 要看什么，按 Brief 里写的。
 - **What Foundry saw**：预览的录屏和截图，让你不用自己启动任何东西就能看到。卡片刚打开时会显示 **Recording a walkthrough of the preview…**：一个小模型根据要看的内容和页面上的控件规划几个步骤（点击、填入示例数据、打开页面；绝不登录、付款或删除），由一个隐藏的浏览器照着操作，录下视频，并在值得看的地方截图。做不了的步骤会跳过；规划不出来时，保留一张页面截图，并有一行琥珀色提示说明原因。它和 self-check 一样需要 Playwright 的 Chromium。
+  - 有多个应用时，录制打开的是文件夹里装着这个任务文件的那个应用。
+  - 应用启动前，如果 Docker 已安装但没在运行（Docker Desktop、OrbStack、Rancher Desktop 或 colima），Foundry 会把它打开；应用的示例 env 文件要求、但只有你的 checkout 里的 env 文件才有的变量，会从那里取过来。
+  - 错误页面的截图（HTTP 错误、"could not be found" 页面、空白页）看不到里程碑的内容：会被剔除，琥珀色提示会说剔除了几张。
+  - 应用没有响应，或者只显示错误页面时，Foundry 会用这个应用的 mock 命令、带着假数据再录一遍：**How to run it** 里的 **Mock command**，或者应用 `package.json` 里的 `dev:mock`、`start:mock` 或 `mock` 脚本。这时摘要以 *With mock data* 开头。负责带里程碑界面的 worker，在应用需要后端、Docker 或密钥才能运行时，会被要求加上这样一个脚本。
 - 预览，已经在启动，带 **Open preview**。
 - **What the self-check saw**：自检开着时的最新截图。
 - **Artifacts**：媒体类 goal 目前产出的图片和文件。
