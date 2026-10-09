@@ -1,6 +1,8 @@
 import type { Check, CheckResult } from '@foundry/core/browser';
 import { useState } from 'react';
 import { api } from '../../api.ts';
+import { CodeView } from '../../components/FilePreview.tsx';
+import { JsonTree, parseJsonDoc } from '../../components/JsonTree.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { Badge, CopyButton, Modal, ago, cn } from '../../ui.tsx';
 
@@ -12,8 +14,20 @@ const WHAT: Record<Check['spec']['type'], string> = {
 };
 
 /**
- * One acceptance check: what it checks, the output of a run (the latest by default, in full on request) and every run
- * it had, newest first; picking a run shows its output.
+ * A run's output the way it reads best: a command's as numbered lines, an AI verdict as Markdown (Preview / Raw), and
+ * output that is one JSON document as a tree.
+ */
+function OutputView({ text, type }: { text: string; type: Check['spec']['type'] }) {
+  if (!text) return <div className="text-zinc-500">(no output)</div>;
+  const json = parseJsonDoc(text.trim());
+  if (json !== undefined && typeof json === 'object' && json !== null) return <JsonTree value={json} />;
+  if (type === 'reviewer' || type === 'llm-judge') return <MarkdownPanel title="verdict" source={text} maxHeight={420} />;
+  return <CodeView text={text} name="output.txt" className="max-h-[45vh]" />;
+}
+
+/**
+ * One acceptance check: what it checks, every run it had (newest first; picking one shows its output) and the output
+ * of the picked run — the summary Foundry kept by default, the whole output on request.
  */
 export function CheckDialog({ goalId, check, results, taskName, initial, onClose }: { goalId: string; check: Check; results: CheckResult[]; taskName: string; initial: CheckResult | undefined; onClose: () => void }) {
   const runs = [...results].filter((r) => r.checkId === check.id).sort((a, b) => b.at.localeCompare(a.at));
@@ -57,28 +71,6 @@ export function CheckDialog({ goalId, check, results, taskName, initial, onClose
           {spec.type === 'llm-judge' && <MarkdownPanel title="prompt" source={spec.prompt} maxHeight={200} />}
         </section>
 
-        <section className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <span className="text-zinc-300 font-medium">Output</span>
-            {picked && <Badge state={picked.status} />}
-            {picked && <span className="text-[11px] text-zinc-500">{ago(picked.at)} · {(picked.durationMs / 1000).toFixed(1)} s{picked.attemptId ? ' · during a task attempt' : ' · goal review'}</span>}
-            <span className="ml-auto flex items-center gap-1.5">
-              {picked?.rawRef && full === null && (
-                <button type="button" className="text-[11px] text-sky-300 hover:underline disabled:opacity-50" disabled={loading === picked.id} onClick={loadFull}>
-                  {loading === picked.id ? 'Loading…' : error ? 'Try again' : 'Show the whole output'}
-                </button>
-              )}
-              {output && <CopyButton text={output} />}
-            </span>
-          </div>
-          {error && <div className="text-[11px] text-rose-300">Could not load the whole output: {error}</div>}
-          {picked ? (
-            <pre className="mono text-[11px] text-zinc-300 bg-zinc-950 border border-zinc-800 rounded p-2 max-h-[45vh] overflow-auto whitespace-pre-wrap break-words">{output || '(no output)'}</pre>
-          ) : (
-            <div className="text-zinc-500">Not run yet.</div>
-          )}
-        </section>
-
         {runs.length > 1 && (
           <section className="space-y-1">
             <div className="text-zinc-300 font-medium">Runs ({runs.length})</div>
@@ -96,6 +88,35 @@ export function CheckDialog({ goalId, check, results, taskName, initial, onClose
             </ul>
           </section>
         )}
+
+        <section className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-zinc-300 font-medium">Output</span>
+            {picked && <Badge state={picked.status} />}
+            {picked && <span className="text-[11px] text-zinc-500">{ago(picked.at)} · {(picked.durationMs / 1000).toFixed(1)} s{picked.attemptId ? ' · during a task attempt' : ' · goal review'}</span>}
+            <span className="ml-auto flex items-center gap-1.5">
+              {picked?.rawRef && full === null && (
+                <button type="button" className="text-[11px] text-sky-300 hover:underline disabled:opacity-50" disabled={loading === picked.id} onClick={loadFull} title="Below is what Foundry kept of this run: long output is shortened (or summarised) to its start, its end and its errors. Load everything the command printed.">
+                  {loading === picked.id ? 'Loading…' : error ? 'Try again' : 'Show the whole output'}
+                </button>
+              )}
+              {full !== null && (
+                <button type="button" className="text-[11px] text-sky-300 hover:underline" onClick={() => setLoaded(null)} title="Back to what Foundry kept of this run">
+                  Show the summary
+                </button>
+              )}
+              {output && <CopyButton text={output} />}
+            </span>
+          </div>
+          {error && <div className="text-[11px] text-rose-300">Could not load the whole output: {error}</div>}
+          {picked && <div className="text-[11px] text-zinc-500">{full !== null ? 'Everything the run printed.' : picked.rawRef ? 'What Foundry kept of the run: long output is shortened to its start, its end and its errors, or summarised when it failed.' : 'Everything the run reported.'}</div>}
+          {picked ? (
+            <OutputView text={output} type={spec.type} />
+          ) : (
+            <div className="text-zinc-500">Not run yet.</div>
+          )}
+        </section>
+
       </div>
     </Modal>
   );

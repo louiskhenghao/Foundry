@@ -93,7 +93,13 @@ interface Visit {
  */
 export function MilestonesCard({ d }: { d: GoalDetail }) {
   const g = d.goal;
-  const [open, setOpen] = useState<string | null>(null);
+  // each milestone opens on its own: looking at one never folds another away
+  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
+  const toggle = (id: string) => setOpen((o) => {
+    const next = new Set(o);
+    if (!next.delete(id)) next.add(id);
+    return next;
+  });
   const visits = new Map<string, Visit[]>();
   const evidence = new Map<string, Evidence>();
   for (const e of d.milestoneEvents) {
@@ -117,10 +123,10 @@ export function MilestonesCard({ d }: { d: GoalDetail }) {
       <ul className="text-xs divide-y divide-zinc-800/70">
         {milestones.map(({ task, visits: vs, evidence: ev }) => {
           const last = vs.at(-1);
-          const expanded = open === task.id;
+          const expanded = open.has(task.id);
           return (
             <li key={task.id} className="py-2 first:pt-0 last:pb-0">
-              <button type="button" disabled={!ev} onClick={() => setOpen(expanded ? null : task.id)} className="w-full flex items-start gap-2 text-left enabled:hover:text-zinc-50" aria-expanded={ev ? expanded : undefined}>
+              <button type="button" disabled={!ev} onClick={() => toggle(task.id)} className="w-full flex items-start gap-2 text-left enabled:hover:text-zinc-50" aria-expanded={ev ? expanded : undefined}>
                 <span className="mt-0.5 shrink-0">{!last ? <Eye size={13} className="text-zinc-600" /> : last.paused ? <Eye size={13} className="text-amber-300" /> : <FastForward size={13} className="text-sky-300" />}</span>
                 <span className="min-w-0 flex-1">
                   <span className="text-zinc-200 font-medium">{task.title}</span>

@@ -45,6 +45,9 @@ export interface AttemptPromptInput {
   baseMoved?: { merged: boolean; commits: string[]; conflictFiles: string[] } | null;
 }
 
+/** scenarios whose milestones are shown by a walkthrough in a browser */
+const SHOWN_SCENARIOS = new Set(['frontend', 'fullstack', 'mobile']);
+
 export function buildAttemptPrompt(i: AttemptPromptInput): string {
   const lines: string[] = [];
   lines.push(`# Goal\n${i.goal.title}\n\n${i.goal.prompt.trim()}`);
@@ -64,6 +67,10 @@ export function buildAttemptPrompt(i: AttemptPromptInput): string {
     lines.push(`# Acceptance checks\nThe engine will run these after you finish. Run the command checks yourself before you stop.\n${[...must, ...stretch].map(fmt).join('\n')}`);
   }
   if (i.hint) lines.push(`# Hint from the human\n${i.hint}`);
+  // a milestone is shown to the person by a walkthrough in the preview: it must be able to run on a bare machine
+  if (i.task.milestone && SHOWN_SCENARIOS.has(i.task.scenario)) {
+    lines.push(`# This task is a milestone\nWhen it lands, Foundry starts the app in its preview and records a walkthrough for the person: ${i.task.milestone}\nMake sure that can be shown. If the app cannot run without a backend, Docker or secrets, add a \`dev:mock\` script to the app's package.json that serves the same screens against fake data (reuse the fakes the e2e tests use when there are some) and listens on \`PORT\`; Foundry uses it when the real app cannot be shown. It is committed with your work.`);
+  }
   if (i.baseMoved) {
     const list = i.baseMoved.commits.slice(0, 12).map((c) => `- ${c}`).join('\n');
     lines.push(

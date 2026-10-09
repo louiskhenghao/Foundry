@@ -10,6 +10,7 @@ import { getGoal, isHistory } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { screenshotsDir } from '../workspace.ts';
 import { DiscordNotifier, TelegramNotifier, type Link, type MediaFile, type Notifier } from './channels.ts';
+import { DeliveryDigest } from './digest.ts';
 
 export interface Composed {
   family: 'goalFinished' | 'delivery' | 'rateLimit' | 'updateAvailable' | 'interview' | 'milestone';
@@ -38,7 +39,9 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
     case 'milestone.evidence': {
       const head = `📸 What the milestone looks like — ${goalTitle(e.goalId)}`;
       const body = e.payload.summary || (e.payload.error ? `Foundry could not record a walkthrough: ${e.payload.error}` : '');
-      return { family: 'milestone', text: [head, body.slice(0, 600)].filter(Boolean).join('\n'), path: `/goals/${e.goalId}` };
+      // what went wrong next to a walkthrough that was recorded anyway (error pages left out, no plan)
+      const also = e.payload.summary && e.payload.error ? `⚠️ ${e.payload.error.slice(0, 300)}` : '';
+      return { family: 'milestone', text: [head, body.slice(0, 600), also].filter(Boolean).join('\n'), path: `/goals/${e.goalId}` };
     }
     case 'goal.milestone_passed':
       return { family: 'milestone', text: `👀 Milestone — ${goalTitle(e.goalId)}\n${e.payload.lookFor.slice(0, 600)}\nThe goal goes on (Have a look is off for it).`, path: `/goals/${e.goalId}` };
@@ -82,6 +85,12 @@ export function composeEscalation(esc: Escalation, goalTitle: (goalId: string | 
 const RETRY_DELAYS_MS = [2_000, 10_000];
 
 export class NotificationDispatcher {
+  /** a stacked delivery's PRs are told in a few messages, not one per PR */
+  private digest = new DeliveryDigest((m) => {
+    const s = this.settings();
+    if (s.onDelivery) this.deliver(s, m.text, m.path, m.goalId);
+  });
+
   constructor(private engine: Engine) {}
 
   /** Subscribe to the event log and the escalation hook; called once from the Engine constructor. */
@@ -108,6 +117,7 @@ export class NotificationDispatcher {
     // an Imported Goal's past, and what the Transfer wrote to close it, is not news (ADR-0030)
     const goal = e.goalId ? getGoal(this.engine.store.db, e.goalId) : null;
     if (goal && isHistory(goal)) return;
+    if (this.settings().onDelivery && this.digest.take(e, this.goalTitle(e.goalId))) return;
     const c = compose(e, this.goalTitle, this.engine.config.provider);
     if (!c) return;
     const s = this.settings();

@@ -48,6 +48,12 @@ export const BriefRun = z.object({
   /** where it serves, e.g. `http://localhost:{port}` */
   url: z.string().nullable().default(null),
   platform: z.enum(['web', 'expo', 'none']).default('none'),
+  /**
+   * a command that serves the same app against fake data (no backend, Docker or secrets), e.g. `npm run dev:mock`;
+   * a milestone walkthrough uses it when the real app cannot start or shows only error pages. Without it, a `dev:mock`,
+   * `start:mock` or `mock` script in the app's package.json is used.
+   */
+  mock: z.string().nullable().optional(),
 });
 export type BriefRun = z.infer<typeof BriefRun>;
 

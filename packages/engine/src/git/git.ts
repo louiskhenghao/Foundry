@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { runInGroup } from '../proc.ts';
 import { dropToolGuidance } from './agent-guidance.ts';
 
 export interface ExecResult {
@@ -9,11 +10,14 @@ export interface ExecResult {
 }
 
 export async function exec(cmd: string[], cwd: string, opts: { timeoutMs?: number; env?: Record<string, string> } = {}): Promise<ExecResult> {
-  const proc = Bun.spawn(cmd, { cwd, stdout: 'pipe', stderr: 'pipe', env: { ...process.env, ...(opts.env ?? {}) } });
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  if (opts.timeoutMs) timer = setTimeout(() => proc.kill('SIGKILL'), opts.timeoutMs);
+  const env = { ...process.env, ...(opts.env ?? {}) };
+  if (opts.timeoutMs) {
+    // a fetch's ssh / https helper holds the pipes too: a timeout takes the whole group down, or it never returns
+    const r = await runInGroup(cmd, { cwd, env, timeoutMs: opts.timeoutMs });
+    return { code: r.code, stdout: r.stdout, stderr: r.stderr };
+  }
+  const proc = Bun.spawn(cmd, { cwd, stdout: 'pipe', stderr: 'pipe', env });
   const [stdout, stderr, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
-  if (timer) clearTimeout(timer);
   return { code, stdout, stderr };
 }
 

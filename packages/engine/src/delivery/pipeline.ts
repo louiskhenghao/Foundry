@@ -902,7 +902,7 @@ async function fixCi(ctx: Ctx, repo: string, prNumber: number, unit: PrUnit, log
     const copy: Check = { ...c, id: newId(IdPrefix.check), taskId: task.id };
     store.append({ type: 'check.created', goalId: goal.id, payload: { check: copy } });
   }
-  engine.reserve(task.id);
+  const slot = engine.reserve(task.id);
   try {
     for (let i = 0; i < maxAttemptsFor(task); i++) {
       const out = await runAttempt(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!, unit.cwd);
@@ -933,7 +933,7 @@ async function fixCi(ctx: Ctx, repo: string, prNumber: number, unit: PrUnit, log
     store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'running', to: 'blocked', reason: 'fix attempts exhausted' } });
     return 'failed';
   } finally {
-    engine.release(task.id);
+    engine.release(task.id, slot);
   }
 }
 

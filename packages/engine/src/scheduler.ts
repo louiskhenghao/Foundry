@@ -44,7 +44,10 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
       tasks = listTasks(store.db, goal.id);
       continue;
     }
-    if (engine.inFlightForGoal(goal.id).length === 0) await openCheckpoint(engine, goal, due);
+    // not awaited: the milestone's preview can take minutes (installs, Docker) and the goal's ticks queue behind this one
+    if (engine.inFlightForGoal(goal.id).length === 0) {
+      void openCheckpoint(engine, goal, due).catch((err) => store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `opening the milestone failed: ${String(err)}` } }));
+    }
     return;
   }
 
@@ -111,7 +114,9 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
 
 async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: boolean): Promise<void> {
   const { store, config } = engine;
-  engine.reserve(task.id);
+  const slot = engine.reserve(task.id);
+  // the human unstuck the task while this work hung: whatever it comes back with must not touch the task again
+  const lost = () => !engine.holds(task.id, slot);
   try {
     let cwd = await ensureGoalWorkspace(config.dataDir, goal);
     // project skills (autoskills) are installed into the goal workspace right after approval; give them a moment
@@ -151,7 +156,7 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
     let outcome = await runAttempt(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!, cwd, { baseMoved: caught.moved ? caught : null, resume });
     engine.engineCrashes.delete(task.id);
     let fresh = getTask(store.db, task.id)!;
-    if (fresh.state !== 'running') return; // cancelled / aborted meanwhile
+    if (fresh.state !== 'running' || lost()) return; // cancelled / aborted / unstuck meanwhile
     store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'running', to: 'observing', reason: 'attempt finished' } });
     // Continuations: while the session was cut or is making progress, resume it rather than paying for a fresh one
     let prevFailed: number | null = null;
@@ -164,7 +169,7 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
       store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'observing', to: 'running', reason: `continuation ${outcome.attempt.continuations + 1}: ${next.reason.replace('_', ' ')}` } });
       outcome = await runAttempt(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!, cwd, { resume: { attempt: outcome.attempt, reason: next.reason, message } });
       fresh = getTask(store.db, task.id)!;
-      if (fresh.state !== 'running') return;
+      if (fresh.state !== 'running' || lost()) return;
       store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'running', to: 'observing', reason: 'continuation finished' } });
     }
 
@@ -174,7 +179,7 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
       // catch up once more right before landing: the conflict (if any) is met in the task worktree, with Merge Attempts
       // and, failing those, the human's manual resolution — the squash onto the goal branch is then conflict-free
       const late = await catchUp(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!, { escalate: true });
-      if (late.moved && !late.merged) return;
+      if ((late.moved && !late.merged) || lost()) return;
       const merged = await integrateTask(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!);
       if (merged) {
         // artifacts are git-excluded, so the squash merge cannot carry them: rescue them before the worktree goes
@@ -224,6 +229,7 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
       });
     }
   } catch (err) {
+    if (lost()) return;
     store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'error', message: `task ${task.id} crashed in engine: ${String((err as Error)?.stack ?? err)}` } });
     const t = getTask(store.db, task.id);
     if (t && (t.state === 'running' || t.state === 'observing' || t.state === 'merging')) {
@@ -238,7 +244,7 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
       }
     }
   } finally {
-    engine.release(task.id);
+    engine.release(task.id, slot);
     engine.tick(goal.id);
   }
 }

@@ -8,7 +8,8 @@ import { defaultConfig } from '../config.ts';
 import { Engine } from '../engine.ts';
 import { screenshotsDir } from '../workspace.ts';
 import { playwrightStatus } from './selfcheck.ts';
-import { captureMilestone, type MilestoneEvidence, type WalkPlan } from './walkthrough.ts';
+import { captureMilestone, pageProblem, pickApp, type MilestoneEvidence, type WalkPlan } from './walkthrough.ts';
+import type { PreviewAppStatus } from '../preview/manager.ts';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
 const browser = (await playwrightStatus()).browser;
@@ -78,4 +79,37 @@ describe('milestone walkthrough', () => {
     ev = (await captureMilestone(engine, goal, task))!;
     expect(ev.error).toBe('no walkthrough planned: the session returned no plan');
   }, 60_000);
+
+  test.skipIf(!browser)('a real app that shows only error pages is walked again against its mock script, and the error pages are left out', async () => {
+    // the real app answers every page with a 404; its dev:mock script serves the page the milestone is about
+    writeFileSync(join(ws, 'server.js'), `Bun.serve({ port: Number(process.env.PORT), fetch: () => new Response('<h1>404</h1><p>This page could not be found.</p>', { status: 404, headers: { 'content-type': 'text/html' } }) });`);
+    const page = `<h1>Demo</h1><button>Show</button><p>${'a real page with enough words on it to read like one. '.repeat(4)}</p>`;
+    writeFileSync(join(ws, 'mock.js'), `Bun.serve({ port: Number(process.env.PORT), fetch: () => new Response(${JSON.stringify(page)}, { headers: { 'content-type': 'text/html' } }) });`);
+    writeFileSync(join(ws, 'package.json'), JSON.stringify({ scripts: { start: 'bun server.js', 'dev:mock': 'bun mock.js' } }));
+    const { engine, goal, task } = setup(planner({ steps: [{ action: 'shot', target: '', role: null, value: '', caption: 'the page' }], summary: 'shows the page' }));
+    const ev = (await captureMilestone(engine, goal, task))!;
+    expect(ev.mock).toBe(true);
+    expect(ev.summary).toStartWith('With mock data');
+    expect(ev.shots).toHaveLength(1);
+    expect(ev.error).toBeNull();
+    // the mock lasted the walkthrough only
+    expect(engine.preview.status(goal.id).apps.every((a) => !a.mock && !a.running)).toBe(true);
+  }, 90_000);
+});
+
+describe('which app and which pages', () => {
+  const app = (key: string, dir: string): PreviewAppStatus => ({ key, name: key, dir, ready: true, url: `http://localhost/${key}` }) as PreviewAppStatus;
+  test('the app whose folder holds the task\'s files, else the first', () => {
+    const apps = [app('admin', 'apps/admin'), app('shop', 'apps/shop')];
+    expect(pickApp({ relevantFiles: ['apps/shop/src/a.tsx', 'apps/shop/e2e/b.ts', 'e2e/web/c.ts'] }, apps)!.key).toBe('shop');
+    expect(pickApp({ relevantFiles: ['README.md'] }, apps)!.key).toBe('admin');
+    expect(pickApp({ relevantFiles: [] }, [])).toBeNull();
+  });
+  test('an HTTP error, a "could not be found" page and a blank page show nothing of the milestone', () => {
+    expect(pageProblem(404, 'whatever')).toBe('HTTP 404');
+    expect(pageProblem(200, '404 | This page could not be found.')).toContain('an error page');
+    expect(pageProblem(200, '  ')).toBe('a blank page');
+    expect(pageProblem(200, 'Sign in Email Password Continue')).toBeNull();
+    expect(pageProblem(200, `Store ${'pack '.repeat(200)} not found anywhere`)).toBeNull();
+  });
 });

@@ -48,3 +48,12 @@ test('the Decisions section follows the task spec and precedes Start here', () =
   expect(p.indexOf('# Decisions from the human')).toBeLessThan(p.indexOf('# Start here'));
   expect(buildAttemptPrompt(base)).not.toContain('Decisions');
 });
+
+test('a UI milestone task is told the walkthrough must run, with a dev:mock script when the real app cannot', () => {
+  const ui = buildAttemptPrompt({ ...base, task: { title: 'T', spec: 'spec', relevantFiles: [], milestone: 'open /dev and see the kit', scenario: 'frontend' } as any });
+  expect(ui).toContain('# This task is a milestone');
+  expect(ui).toContain('open /dev and see the kit');
+  expect(ui).toContain('dev:mock');
+  expect(buildAttemptPrompt({ ...base, task: { title: 'T', spec: 'spec', relevantFiles: [], milestone: 'x', scenario: 'backend' } as any })).not.toContain('# This task is a milestone');
+  expect(buildAttemptPrompt(base)).not.toContain('# This task is a milestone');
+});

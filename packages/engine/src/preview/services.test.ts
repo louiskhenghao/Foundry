@@ -81,6 +81,34 @@ describe('ServicesManager', () => {
     expect(await m.status(goal, mkdtempSync(join(tmpdir(), 'foundry-services-none-')), true)).toBeNull();
   });
 
+  test('Docker installed but not running is started, waited for, and the services come up', async () => {
+    const ws = workspace();
+    let daemon = false;
+    const calls: string[][] = [];
+    const exec: Exec = async (args) => {
+      calls.push(args);
+      if (!daemon) return { code: 1, stdout: '', stderr: 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?\n' };
+      if (args.includes('info')) return { code: 0, stdout: '27.1.1\n', stderr: '' };
+      if (args.includes('ps')) return { code: 0, stdout: '', stderr: '' };
+      return { code: 0, stdout: '', stderr: '' };
+    };
+    let started = 0;
+    const m = new ServicesManager({ exec, which: () => 'docker', portFree: async () => true, log: () => {}, dockerPollMs: 5, startDocker: async () => (started++, setTimeout(() => (daemon = true), 20), 'opened Docker') });
+    const st = await m.up(goal, ws);
+    expect(started).toBe(1);
+    expect(st!.error).toBeNull();
+    expect(calls.some((c) => c.includes('up'))).toBe(true);
+  });
+
+  test('Docker that cannot be started here, or never answers, is said in words', async () => {
+    const ws = workspace();
+    const down: Exec = async () => ({ code: 1, stdout: '', stderr: 'Cannot connect to the Docker daemon\n' });
+    const none = new ServicesManager({ exec: down, which: () => 'docker', portFree: async () => true, log: () => {}, startDocker: async () => null });
+    expect((await none.up(goal, ws))!.error).toContain('cannot start it here');
+    const slow = new ServicesManager({ exec: down, which: () => 'docker', portFree: async () => true, log: () => {}, startDocker: async () => 'opened Docker', dockerWaitMs: 30, dockerPollMs: 5 });
+    expect((await slow.up(goal, ws))!.error).toContain('did not answer');
+  });
+
   test('compose ps output: JSON lines or one array; project names are safe', () => {
     expect(parsePs('{"Service":"db","State":"running"}\n{"Service":"x","State":"exited"}').map((r) => r.Service)).toEqual(['db', 'x']);
     expect(parsePs('[{"Service":"db"}]')).toEqual([{ Service: 'db' }]);
