@@ -37,6 +37,9 @@ const hasFull = (ev: any) => ['text', 'thinking', 'tool_use', 'tool_result', 'st
  * On mount, channels that have nothing buffered are seeded from the transcript so a page refresh keeps the history.
  * Every entry is one line; a click (or Enter) opens the whole message — shortened events are read back from the transcript.
  */
+/** only a task attempt's worker session is continued by the engine; a review or draft cut short is not */
+const resumes = (channel: string, role: string | undefined) => /^a_/.test(channel) && (!role || role === 'worker');
+
 export function LiveLog({ attemptId, className }: { attemptId: string; className?: string }) {
   const items = useLive((s) => s.streams[attemptId]) ?? [];
   const seed = useLive((s) => s.seedStream);
@@ -110,7 +113,11 @@ export function LiveLog({ attemptId, className }: { attemptId: string; className
           if (ev.kind === 'result') {
             const r = ev.result;
             const said = r.finalText ?? r.errorMessage;
-            return line('text-emerald-400', <>■ {r.subtype} · {r.costStatus === 'unavailable' ? 'cost unavailable' : `$${r.costUsd.toFixed(3)}`} · {r.costStatus === 'unavailable' ? 'turn count unavailable' : `${r.numTurns} turns`}{r.subtype === 'error_max_turns' || r.subtype === 'error_max_budget_usd' ? ' — the engine resumes this session (continuation)' : ''}{said ? <span className="text-zinc-300"> — {oneLine(said)}</span> : null}</>);
+            // a session cut by its own cap is not a failure of the work: amber, and what happens next said for the log it is in
+            const cut = r.subtype === 'error_max_turns' || r.subtype === 'error_max_budget_usd';
+            const next = cut && resumes(attemptId, it.role) ? ' — the engine resumes this session (continuation)' : '';
+            const cap = r.subtype === 'error_max_budget_usd' ? " · the cost cap per session (Settings → Models & limits), not the goal's budget" : '';
+            return line(r.subtype === 'success' ? 'text-emerald-400' : 'text-amber-400', <>■ {r.subtype} · {r.costStatus === 'unavailable' ? 'cost unavailable' : `$${r.costUsd.toFixed(3)}`} · {r.costStatus === 'unavailable' ? 'turn count unavailable' : `${r.numTurns} turns`}{cap}{next}{said ? <span className="text-zinc-300"> — {oneLine(said)}</span> : null}</>);
           }
           if (ev.kind === 'progress') {
             // one line per running tool, kept current: consecutive heartbeats of the same call replace each other
