@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { NotificationSettings } from '@foundry/core';
 import { NotificationDispatcher } from './dispatcher.ts';
-import { Tailnet } from './tailnet.ts';
+import { cliArgv, Tailnet } from './tailnet.ts';
 
 /** a scripted `tailscale`: status, serve status and serve calls, recorded */
 function fake(opts: { running?: boolean; served?: Record<string, string> } = {}) {
@@ -19,6 +19,21 @@ function fake(opts: { running?: boolean; served?: Record<string, string> } = {})
 const tailnet = (f: ReturnType<typeof fake>, mode: 'auto' | 'off' = 'auto', host: string | null = null) => new Tailnet({ mode: () => mode, host: () => host, log: () => {}, exec: f.exec, bin: '/usr/bin/tailscale' });
 
 describe('Tailnet', () => {
+  test("the Mac app's binary is called through a shell, so it acts as the CLI under launchd; a plain tailscale is called as it is", async () => {
+    const app = '/Applications/Tailscale.app/Contents/MacOS/Tailscale';
+    expect(cliArgv(app, ['status', '--json'])).toEqual(['/bin/sh', '-c', 'exec "$0" "$@"', app, 'status', '--json']);
+    expect(cliArgv('/usr/local/bin/tailscale', ['status', '--json'])).toEqual(['/usr/local/bin/tailscale', 'status', '--json']);
+    const seen: string[][] = [];
+    const t = new Tailnet({ mode: () => 'auto', host: () => null, log: () => {}, bin: app, exec: (async (cmd: string[]) => (seen.push(cmd), { code: 0, stdout: JSON.stringify({ BackendState: 'Running', Self: { DNSName: 'mini.tail-1.ts.net.' } }), stderr: '' })) as never });
+    expect(await t.host()).toBe('mini.tail-1.ts.net');
+    expect(seen[0]!.slice(0, 4)).toEqual(['/bin/sh', '-c', 'exec "$0" "$@"', app]);
+  });
+
+  test.skipIf(process.platform !== 'darwin' || !require('node:fs').existsSync('/Applications/Tailscale.app/Contents/MacOS/Tailscale'))('through the shell the real app binary answers as the CLI', async () => {
+    const r = Bun.spawnSync(cliArgv('/Applications/Tailscale.app/Contents/MacOS/Tailscale', ['version']));
+    expect(r.stdout.toString()).not.toContain('GUI failed to start');
+  });
+
   test("a port already served is reused; another is served by Foundry and taken down again; the person's stays", async () => {
     const f = fake({ served: { 'mac.tail-1.ts.net:443': 'http://127.0.0.1:4111' } });
     const t = tailnet(f);
