@@ -132,4 +132,10 @@ describe('the Ports page', () => {
     await expect(releasePort(engine, await id(engine.config.port), deps)).rejects.toThrow('Foundry itself');
     await expect(releasePort(engine, 'process:1:1', deps)).rejects.toThrow('refresh');
   });
+
+  test('a serve the page was opened through is never offered, whatever it forwards', async () => {
+    const { engine, goal } = setup();
+    const v = await listPorts(engine, { ...machine(engine, goal), viaHost: 'mac.ts.net:3000' });
+    expect(v.rows.find((r) => r.port === 3000)).toMatchObject({ kind: 'serve-self', release: { allowed: false } });
+  });
 });

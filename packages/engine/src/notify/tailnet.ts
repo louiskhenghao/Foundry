@@ -126,10 +126,11 @@ export class Tailnet {
 
   /**
    * Everything `tailscale serve` serves on this computer, for the Ports page: the tailnet port it listens on, the local
-   * address it forwards to, and whether this Foundry added it. Empty with Tailscale off, missing or not signed in.
+   * address it forwards to, and whether this Foundry added it. Listed whatever Tailscale links are set to (they only
+   * decide what Foundry adds); empty when Tailscale is missing or not signed in.
    */
   async serves(): Promise<{ port: number; target: string | null; targetPort: number | null; url: string | null; ours: boolean }[]> {
-    if (this.opts.mode() === 'off' || !this.bin) return [];
+    if (!this.bin) return [];
     try {
       const r = await this.run(['serve', 'status', '--json']);
       if (r.code !== 0) return [];

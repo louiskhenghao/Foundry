@@ -794,11 +794,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json({ ok: true });
   });
   // the Ports page: every port in use, who holds it, and releasing the ones that can be
-  app.get('/api/ports', async (c) => c.json(await listPorts(engine)));
+  app.get('/api/ports', async (c) => c.json(await listPorts(engine, { viaHost: c.req.header('host') ?? null })));
   app.post('/api/ports/release', async (c) => {
     const body = await c.req.json().catch(() => ({}));
     if (typeof body?.id !== 'string') throw new HttpError(400, { error: 'id required' });
-    return c.json(await releasePort(engine, body.id));
+    return c.json(await releasePort(engine, body.id, { viaHost: c.req.header('host') ?? null }));
   });
   // a stuck task without restarting Foundry: a ready one is scheduled, a running one with no live session is stopped
   app.post('/api/goals/:id/tasks/:taskId/unstick', (c) => c.json(engine.unstickTask(c.req.param('id'), c.req.param('taskId'))));

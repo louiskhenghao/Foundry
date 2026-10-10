@@ -64,6 +64,8 @@ export interface PortsDeps {
   stopServe?: (port: number) => Promise<void>;
   /** `docker stop` */
   dockerStop?: (container: string) => Promise<void>;
+  /** the Host the page was opened at: a serve the person is looking through is never offered */
+  viaHost?: string | null;
 }
 
 interface Container {
@@ -196,7 +198,9 @@ export async function listPorts(engine: Engine, deps: PortsDeps = {}): Promise<P
   }
 
   for (const s of serves) {
-    const self = s.targetPort === config.port;
+    // the serve that carries this Foundry, or the one this page was opened through: stopping it cuts the person off
+    const through = !!deps.viaHost && !!s.url && URL.parse(s.url)?.host === deps.viaHost.replace(/:443$/, '');
+    const self = s.targetPort === config.port || through;
     const kind: PortKind = self ? 'serve-self' : s.ours ? 'serve-foundry' : 'serve-person';
     add({
       port: s.port,
