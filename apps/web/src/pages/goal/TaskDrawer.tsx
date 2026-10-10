@@ -8,7 +8,7 @@ import { type FullText, FullTextDialog, OpenFullButton } from '../../components/
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { OpenMenu } from '../../components/OpenMenu.tsx';
 import { TaskTags } from '../../components/TaskTags.tsx';
-import { Badge, Button, Card, ago, cn, fmtUsd } from '../../ui.tsx';
+import { Badge, Button, Card, ConfirmDialog, ago, cn, fmtUsd } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { EscalationCard } from '../InboxPage.tsx';
 
@@ -318,6 +318,7 @@ const QUIET_MS = 3 * 60_000;
 function UnstickButton({ d, task, live, waiting }: { d: GoalDetail; task: Task; live?: { inFlight: boolean; session: boolean; since: string | null }; waiting?: string | null }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30_000);
@@ -330,11 +331,11 @@ function UnstickButton({ d, task, live, waiting }: { d: GoalDetail; task: Task; 
   const stoppable = working && !live.session && (!live.inFlight || now - quietSince > QUIET_MS);
   if (!startable && !stoppable) return null;
   const go = async () => {
-    if (stoppable && !confirm(`"${task.title}" has had no live session for a while. Stop what it is doing and put it back to ready? A started session resumes where it left off.`)) return;
     setBusy(true);
     setErr(null);
     try {
       await api.unstickTask(d.goal.id, task.id);
+      setAsking(false);
     } catch (e) {
       setErr(String((e as Error).message ?? e));
     } finally {
@@ -343,7 +344,11 @@ function UnstickButton({ d, task, live, waiting }: { d: GoalDetail; task: Task; 
   };
   return (
     <>
-      <Button size="sm" variant={startable ? 'primary' : undefined} disabled={busy} onClick={go} title={startable ? 'Ready and nothing holds it back, but it has not started: start it now' : 'No live session for a while: stop the stuck work and put the task back to ready'}>
+      <ConfirmDialog open={asking} danger busy={busy} title={`Stop and retry "${task.title}"?`} confirmLabel="Stop and retry" onConfirm={go} onClose={() => setAsking(false)}>
+        <p>It has had no live session for a while. What it is doing stops and it goes back to ready; a session that had started resumes where it left off.</p>
+        {err && <p className="text-rose-400">{err}</p>}
+      </ConfirmDialog>
+      <Button size="sm" variant={startable ? 'primary' : undefined} disabled={busy} onClick={() => (stoppable ? setAsking(true) : void go())} title={startable ? 'Ready and nothing holds it back, but it has not started: start it now' : 'No live session for a while: stop the stuck work and put the task back to ready'}>
         {startable ? <Play size={13} /> : <Square size={13} />} {startable ? 'Start now' : 'Stop and retry'}
       </Button>
       {err && <span className="text-[11px] text-red-400 max-w-64 truncate" title={err}>{err}</span>}

@@ -214,6 +214,17 @@ switch (cmd) {
     }
     break;
   }
+  case 'ports': {
+    // what the Ports page shows: every port in use and who holds it (stopping one is done on the page)
+    const v = await api('/api/ports');
+    if (has('--json')) return console.log(JSON.stringify(v, null, 2));
+    const rows = (v.rows as any[]).filter((r) => has('--all') || r.relevant);
+    if (v.inContainer) console.log("Foundry runs in Docker: only ports inside its container are visible here.\n");
+    if (!rows.length) console.log('no ports in use' + (has('--all') ? '' : ' (--all shows system ports too)'));
+    for (const r of rows) console.log(`${String(r.port).padStart(5)}  ${pad(r.category, 9)} ${r.label}${r.detail ? `  — ${r.detail}` : ''}${r.pid ? `  (pid ${r.pid})` : ''}`);
+    if (!has('--all') && rows.length < v.rows.length) console.log(`\n${v.rows.length - rows.length} more (system and background processes): foundry ports --all`);
+    break;
+  }
   case 'brief': {
     const id = positional()[0];
     if (!id) return usage();

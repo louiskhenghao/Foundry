@@ -225,6 +225,11 @@ const STATE_COLORS: Record<string, string> = {
   plugin: 'bg-violet-500/15 text-violet-300 border-violet-500/30',
   project: 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30',
   'foundry': 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+  // the Ports page's holders
+  tailscale: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
+  docker: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
+  process: 'bg-zinc-800 text-zinc-300 border-zinc-700',
+  'holder-unknown': 'bg-amber-500/15 text-amber-300 border-amber-500/30',
   'agents-cli': 'bg-zinc-800 text-zinc-300 border-zinc-700',
   gstack: 'bg-orange-500/15 text-orange-300 border-orange-500/30',
   'gstack-copy': 'bg-orange-500/10 text-orange-300/80 border-orange-500/20',

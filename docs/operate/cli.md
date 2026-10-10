@@ -24,6 +24,8 @@ foundry — drive the host Claude Code or Codex CLI to deliver on goals
        [--deliver push|pr|pr-automerge [--remote origin] [--remote-url URL]]   delivery policy (default local)
   status [goalId]                         list goals, or show one goal's tasks/attempts/checks
   brief <goalId> [--approve]              print the brief; --approve approves it as-is
+  ports [--all] [--json]                  ports in use and who holds them: Foundry, tailscale serve, Docker, other processes
+                                          (stop one on the Ports page; --all adds system and background processes)
   escalations                             list open escalations
   answer <escalationId> <action> [--hint "..."] [--attempts N] [--max-cost N] [--max-min N]
   watch <goalId>                          tail live stream + events for a goal

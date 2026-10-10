@@ -13,6 +13,13 @@ type Exec = typeof defaultExec;
  * tailnet name is found and every link falls back to localhost. Started through a shell — as the `tailscale` script
  * the app installs on PATH does — it acts as the command-line tool.
  */
+/** the local port a serve target points at: `http://127.0.0.1:3000`, `localhost:5432`, `3000` */
+function localPort(target: string | null): number | null {
+  if (!target) return null;
+  const m = /(?:^|:)(\d+)\/?$/.exec(target.trim());
+  return m ? Number(m[1]) : null;
+}
+
 export function cliArgv(bin: string, args: string[]): string[] {
   return /\.app\/Contents\/MacOS\//.test(bin) ? ['/bin/sh', '-c', 'exec "$0" "$@"', bin, ...args] : [bin, ...args];
 }
@@ -115,6 +122,47 @@ export class Tailnet {
 
   async unexposeAll(): Promise<void> {
     await Promise.all([...this.served].map((p) => this.unexpose(p)));
+  }
+
+  /**
+   * Everything `tailscale serve` serves on this computer, for the Ports page: the tailnet port it listens on, the local
+   * address it forwards to, and whether this Foundry added it. Listed whatever Tailscale links are set to (they only
+   * decide what Foundry adds); empty when Tailscale is missing or not signed in.
+   */
+  async serves(): Promise<{ port: number; target: string | null; targetPort: number | null; url: string | null; ours: boolean }[]> {
+    if (!this.bin) return [];
+    try {
+      const r = await this.run(['serve', 'status', '--json']);
+      if (r.code !== 0) return [];
+      const cfg = JSON.parse(r.stdout || '{}') as { TCP?: Record<string, { HTTPS?: boolean; TCPForward?: string }>; Web?: Record<string, { Handlers?: Record<string, { Proxy?: string }> }> };
+      const out = new Map<number, { port: number; target: string | null; targetPort: number | null; url: string | null; ours: boolean }>();
+      for (const [hostPort, web] of Object.entries(cfg.Web ?? {})) {
+        const port = Number(hostPort.split(':').pop());
+        if (!Number.isInteger(port)) continue;
+        const target = web.Handlers?.['/']?.Proxy ?? Object.values(web.Handlers ?? {})[0]?.Proxy ?? null;
+        out.set(port, { port, target, targetPort: localPort(target), url: `https://${hostPort.replace(/:443$/, '')}`, ours: this.served.has(port) });
+      }
+      for (const [p, tcp] of Object.entries(cfg.TCP ?? {})) {
+        const port = Number(p);
+        if (!Number.isInteger(port) || out.has(port)) continue;
+        out.set(port, { port, target: tcp.TCPForward ?? null, targetPort: localPort(tcp.TCPForward ?? null), url: null, ours: this.served.has(port) });
+      }
+      return [...out.values()].sort((a, b) => a.port - b.port);
+    } catch {
+      return [];
+    }
+  }
+
+  /** stop serving one tailnet port, Foundry's or the person's (the Ports page asks the person first for theirs) */
+  async stopServe(port: number): Promise<void> {
+    if (!this.bin) throw new Error('tailscale is not installed here');
+    const r = await this.run(['serve', `--https=${port}`, 'off']);
+    if (r.code !== 0) {
+      // a TCP forward is turned off with its own flag
+      const t = await this.run(['serve', `--tcp=${port}`, 'off']);
+      if (t.code !== 0) throw new Error(`tailscale serve could not stop port ${port}: ${(r.stderr || r.stdout).trim().slice(0, 200)}`);
+    }
+    if (this.served.delete(port)) this.save();
   }
 
   /** the HTTPS address `tailscale serve` already proxies to this local port, or null */

@@ -531,6 +531,11 @@ export class PreviewManager {
     if (reason !== MOCK_SWITCH) for (const k of [...this.mocked.keys()]) if (k.startsWith(`${goalId}/`) && (!appKey || k === id(goalId, appKey))) this.mocked.delete(k);
   }
 
+  /** what each running app holds, for the Ports page: its port, the other servers its command started, its process */
+  livePorts(): { goalId: string; key: string; port: number; pid: number; others: number[] }[] {
+    return [...this.live.values()].map((l) => ({ goalId: l.goalId, key: l.key, port: l.port, pid: l.proc.pid, others: [...new Set([...l.reserved, ...l.discovered.map((d) => d.port)])].filter((p) => p !== l.port) }));
+  }
+
   /** the command that serves an app against fake data: the Brief's, else a mock script in its package.json; null when none */
   mockCommand(goal: Goal, app: BriefApp): string | null {
     if (app.mock) return app.mock;
