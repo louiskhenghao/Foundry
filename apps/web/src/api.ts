@@ -332,6 +332,31 @@ export interface OpenTarget {
   available: boolean;
   via: string | null;
 }
+/** Mirrors the engine's PortRow (ports/ports.ts): one port in use, who holds it, and whether it can be released */
+export interface PortRow {
+  id: string;
+  port: number;
+  addresses: string[];
+  category: 'foundry' | 'tailscale' | 'docker' | 'process' | 'unknown';
+  kind: 'server' | 'preview' | 'editor' | 'task' | 'service' | 'serve-self' | 'serve-foundry' | 'serve-person' | 'container' | 'process' | 'unknown';
+  label: string;
+  detail: string | null;
+  goalId: string | null;
+  taskId: string | null;
+  pid: number | null;
+  process: string | null;
+  cwd: string | null;
+  container: string | null;
+  url: string | null;
+  relevant: boolean;
+  release: { allowed: boolean; confirm: string | null; reason: string | null };
+}
+export interface PortsView {
+  rows: PortRow[];
+  inContainer: boolean;
+  scannedAt: string;
+}
+
 export interface GoalDetail {
   goal: Goal;
   /** directories the Open menu can launch: the user's checkout and the goal branch worktree (when it exists) */
@@ -547,6 +572,8 @@ export function apiForProvider(provider?: AgentProvider) {
   streamEvent: (ref: { file: string; line: number; block: number }) => req<{ event: any }>(`/api/transcripts/${encodeURIComponent(ref.file)}/event?line=${ref.line}&block=${ref.block}`),
   workspace: (id: string) => req<{ path: string; exists: boolean; branch: string; head: string | null; packageManager: string | null; install: string | null; scripts: { name: string; command: string }[]; baseSync: Goal['baseSync']; upstream: BaseSync | null; tasks: { id: string; title: string; path: string; branch: string | null }[] }>(`/api/goals/${id}/workspace`),
   restartGoal: (id: string, fromTaskId?: string) => req<{ restarted: string[] }>(`/api/goals/${id}/restart`, { method: 'POST', body: JSON.stringify({ fromTaskId }) }),
+  ports: () => req<PortsView>('/api/ports'),
+  releasePort: (id: string) => req<{ released: PortRow }>('/api/ports/release', { method: 'POST', body: JSON.stringify({ id }) }),
   unstickTask: (id: string, taskId: string) => req<{ action: 'scheduled' | 'stopped' }>(`/api/goals/${id}/tasks/${taskId}/unstick`, { method: 'POST' }),
   deleteGoal: (id: string, deleteBranch: boolean) => req<{ ok: true; deletedBranch: string | null }>(`/api/goals/${id}${deleteBranch ? '?deleteBranch=1' : ''}`, { method: 'DELETE' }),
   viewSkill: (dir: string) => req<{ name: string; dir: string; invoke: string; skillMd: string | null; files: { path: string; size: number }[] }>(`/api/skills/view?dir=${encodeURIComponent(dir)}`),

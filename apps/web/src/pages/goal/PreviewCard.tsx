@@ -4,6 +4,8 @@ import { type PreviewAppStatus, type PreviewEnv, type PreviewPlace, type Preview
 import { Button, Card, CopyButton, Input, Modal, Select, cn } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { WorkspaceDetails } from './WorkspaceDetails.tsx';
+import { PortLine, usePorts } from '../PortsPage.tsx';
+import { Link } from 'react-router-dom';
 import type { Goal } from '@foundry/core/browser';
 
 const startedByText = (by: PreviewAppStatus['startedBy']) => (by === 'human' ? 'by you' : by === 'milestone' ? 'for the milestone' : by === 'integration' ? 'after a task landed' : null);
@@ -61,6 +63,36 @@ function Problems({ app }: { app: PreviewAppStatus }) {
     <div className="rounded border border-rose-500/30 bg-rose-500/5 px-2 py-1.5 space-y-1">
       <div className="text-rose-300">The last run failed: {app.error}</div>
       {app.errorDetail.length > 0 && <pre className="mono text-[11px] leading-snug text-zinc-300 whitespace-pre-wrap break-all max-h-40 overflow-auto">{app.errorDetail.join('\n')}</pre>}
+      {busyPort(app) != null && <PortHolder port={busyPort(app)!} />}
+    </div>
+  );
+}
+
+/** the port an app could not listen on, from its last lines (`EADDRINUSE … port: 3000`, `address already in use :::3000`) */
+function busyPort(app: PreviewAppStatus): number | null {
+  const text = [...app.errorDetail, ...app.log.slice(-40)].join('\n');
+  if (!/EADDRINUSE|address already in use/i.test(text)) return null;
+  const m = /port:\s*(\d{2,5})/.exec(text) ?? /address already in use[^\n]*?:(\d{2,5})\b/i.exec(text) ?? /EADDRINUSE[^\n]*?:(\d{2,5})\b/.exec(text);
+  return m ? Number(m[1]) : null;
+}
+
+/** who holds the port the app wanted, with the way to release it when it can be */
+function PortHolder({ port }: { port: number }) {
+  const { view, refresh } = usePorts();
+  const rows = view?.rows.filter((r) => r.port === port) ?? [];
+  return (
+    <div className="rounded border border-zinc-800 bg-zinc-950/60">
+      <div className="px-3 pt-2 text-[11px] text-zinc-400">
+        Port {port} is in use{view && !rows.length ? ', by nothing Foundry can see now: start it again, or check with sudo lsof' : ''}:
+        <Link to={`/ports?port=${port}`} className="ml-2 text-sky-300 hover:underline">
+          Ports →
+        </Link>
+      </div>
+      <ul className="divide-y divide-zinc-800/70">
+        {rows.map((r) => (
+          <PortLine key={r.id} row={r} onDone={() => void refresh()} />
+        ))}
+      </ul>
     </div>
   );
 }
