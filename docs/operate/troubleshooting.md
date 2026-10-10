@@ -162,6 +162,7 @@ See [Codex setup and limits](codex.md) and [mixed-provider upgrades](updates-and
 | *N artifact(s) delivered to …* | A media goal's files were copied to its output folder. | Nothing. |
 | *artifact delivery to … failed: …* | Copying to the output folder failed (permissions, missing disk). The goal still finishes; the files stay in the goal workspace. | Fix the folder and copy the files by hand. |
 | `[artifacts] …: N file(s) copied to the goal workspace` | A media task's files were saved into the goal workspace before its worktree was removed. | Nothing. |
+| Preview, **VS Code (web)** and notification links all point at `localhost` although Tailscale runs | Foundry found no tailnet name. Before 1.3.1, a Foundry run by launchd that called the Mac app's own binary (no `tailscale` on `PATH`) got *The Tailscale GUI failed to start* instead of an answer. | Update. Otherwise install the CLI from the Tailscale app's settings, or set **Tailscale name** in **Settings → Notifications**. |
 | *notification via telegram (or discord) failed after 3 tries: …* | A notification could not be sent and was dropped. | See [notifications.md](./notifications.md#troubleshooting). |
 
 ---
