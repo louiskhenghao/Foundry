@@ -4,7 +4,7 @@ import { type PreviewAppStatus, type PreviewEnv, type PreviewPlace, type Preview
 import { Button, Card, CopyButton, Input, Modal, Select, cn } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { WorkspaceDetails } from './WorkspaceDetails.tsx';
-import { PortLine, usePorts } from '../PortsPage.tsx';
+import { PortLine, usePortRelease, usePorts } from '../PortsPage.tsx';
 import { Link } from 'react-router-dom';
 import type { Goal } from '@foundry/core/browser';
 
@@ -79,20 +79,22 @@ function busyPort(app: PreviewAppStatus): number | null {
 /** who holds the port the app wanted, with the way to release it when it can be */
 function PortHolder({ port }: { port: number }) {
   const { view, refresh } = usePorts();
+  const { ask, dialog } = usePortRelease(() => void refresh());
   const rows = view?.rows.filter((r) => r.port === port) ?? [];
   return (
-    <div className="rounded border border-zinc-800 bg-zinc-950/60">
-      <div className="px-3 pt-2 text-[11px] text-zinc-400">
-        Port {port} is in use{view && !rows.length ? ', by nothing Foundry can see now: start it again, or check with sudo lsof' : ''}:
-        <Link to={`/ports?port=${port}`} className="ml-2 text-sky-300 hover:underline">
+    <div className="rounded-lg border border-zinc-800 px-3 surface-card">
+      <div className="pt-2 flex items-center gap-2 text-[11px] text-zinc-400">
+        <span>Port {port} is in use{view && !rows.length ? ' by nothing Foundry can see now: start the preview again, or check with sudo lsof' : ''}</span>
+        <Link to={`/ports?port=${port}`} className="ml-auto shrink-0 text-zinc-500 hover:text-emerald-300">
           Ports →
         </Link>
       </div>
       <ul className="divide-y divide-zinc-800/70">
         {rows.map((r) => (
-          <PortLine key={r.id} row={r} onDone={() => void refresh()} />
+          <PortLine key={r.id} row={r} onRelease={ask} />
         ))}
       </ul>
+      {dialog}
     </div>
   );
 }
