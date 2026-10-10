@@ -46,6 +46,11 @@ export class CodeServer {
     return Bun.which('code-server') ?? (existsSync(local) ? local : null);
   }
 
+  /** the running code-server's process, for the Ports page; null when it is not running */
+  pid(): number | null {
+    return this.proc?.pid ?? null;
+  }
+
   status(): { installed: boolean; running: boolean; port: number | null } {
     return { installed: !!this.binary(), running: !!this.proc, port: this.port };
   }
