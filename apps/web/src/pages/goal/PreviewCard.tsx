@@ -91,7 +91,7 @@ function PortHolder({ port }: { port: number }) {
       </div>
       <ul className="divide-y divide-zinc-800/70">
         {rows.map((r) => (
-          <PortLine key={r.id} row={r} onRelease={ask} />
+          <PortLine key={r.id} row={r} onRelease={ask} standalone />
         ))}
       </ul>
       {dialog}
