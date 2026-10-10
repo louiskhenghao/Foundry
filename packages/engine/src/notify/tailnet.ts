@@ -8,6 +8,16 @@ const HOST_TTL_MS = 60_000;
 type Exec = typeof defaultExec;
 
 /**
+ * The command line for one Tailscale CLI call. The Mac app's binary started straight from a process launchd runs
+ * (Foundry as a service) decides it is being opened as the app and answers "The Tailscale GUI failed to start", so no
+ * tailnet name is found and every link falls back to localhost. Started through a shell — as the `tailscale` script
+ * the app installs on PATH does — it acts as the command-line tool.
+ */
+export function cliArgv(bin: string, args: string[]): string[] {
+  return /\.app\/Contents\/MacOS\//.test(bin) ? ['/bin/sh', '-c', 'exec "$0" "$@"', bin, ...args] : [bin, ...args];
+}
+
+/**
  * This computer on the person's tailnet, so links in notifications and the UI open on their phone: the machine's
  * MagicDNS name (from `tailscale status`, or the name Settings gives), and HTTPS addresses for local ports through
  * `tailscale serve`. A port the person already serves is reused as it is; ports Foundry serves itself (previews) are
@@ -53,7 +63,7 @@ export class Tailnet {
   }
 
   private run(args: string[]) {
-    return (this.opts.exec ?? defaultExec)([this.bin!, ...args], process.cwd(), { timeoutMs: 15_000 });
+    return (this.opts.exec ?? defaultExec)(cliArgv(this.bin!, args), process.cwd(), { timeoutMs: 15_000 });
   }
 
   /** the machine's tailnet name (`mac.tailnet-123.ts.net`), or null */
