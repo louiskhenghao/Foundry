@@ -37,6 +37,7 @@ export interface PortRow {
   url: string | null;
   /** shown by default: Foundry's, Tailscale's, Docker's, a usual dev port, the preview range, a process in a project */
   relevant: boolean;
+  /** `confirm`: what stopping it does, for the confirmation dialog; `reason`: why it cannot be stopped here */
   release: { allowed: boolean; confirm: string | null; reason: string | null };
 }
 
@@ -165,13 +166,13 @@ export async function listPorts(engine: Engine, deps: PortsDeps = {}): Promise<P
       continue;
     }
     if (editorPort === s.port) {
-      add({ ...base, category: 'foundry', kind: 'editor', label: 'VS Code (web)', detail: 'code-server for Open ▾ → VS Code (web)', release: { allowed: true, confirm: null, reason: null } });
+      add({ ...base, category: 'foundry', kind: 'editor', label: 'VS Code (web)', detail: 'code-server for Open ▾ → VS Code (web)', release: { allowed: true, confirm: 'VS Code (web) stops; Open ▾ → VS Code (web) starts it again.', reason: null } });
       continue;
     }
     const preview = previews.find((v) => v.port === s.port || v.others.includes(s.port));
     if (preview) {
       const name = appName(preview.goalId, preview.key);
-      add({ ...base, goalId: preview.goalId, category: 'foundry', kind: 'preview', label: `Preview · ${name}`, detail: `${goalTitle(preview.goalId)}${preview.port === s.port ? '' : ` · another server of ${name}`}`, release: { allowed: true, confirm: null, reason: null } });
+      add({ ...base, goalId: preview.goalId, category: 'foundry', kind: 'preview', label: `Preview · ${name}`, detail: `${goalTitle(preview.goalId)}${preview.port === s.port ? '' : ` · another server of ${name}`}`, release: { allowed: true, confirm: `The preview app ${name} of "${goalTitle(preview.goalId)}" stops; start it again from the goal's Preview card.`, reason: null } });
       continue;
     }
     // Tailscale's own sockets on a served port are the serve's row; its other ports are its internals
@@ -179,7 +180,7 @@ export async function listPorts(engine: Engine, deps: PortsDeps = {}): Promise<P
     if (isDocker && containerPorts.has(s.port)) continue;
     const owner = ownerOf(base.cwd, places);
     if (owner && s.pid) {
-      add({ ...base, goalId: owner.goal.id, taskId: owner.task?.id ?? null, category: 'foundry', kind: 'task', label: owner.task ? `Task · ${owner.task.title}` : 'Started in a goal folder', detail: owner.goal.title, release: { allowed: true, confirm: `Stop ${base.process ?? `process ${s.pid}`} on port ${s.port}? ${owner.task ? `"${owner.task.title}" may be using it: its attempt can fail.` : 'Something working in this goal may be using it.'}`, reason: null } });
+      add({ ...base, goalId: owner.goal.id, taskId: owner.task?.id ?? null, category: 'foundry', kind: 'task', label: owner.task ? `Task · ${owner.task.title}` : 'Started in a goal folder', detail: owner.goal.title, release: { allowed: true, confirm: `${shortName(base.process) ?? `Process ${s.pid}`} (pid ${s.pid}) stops: SIGTERM, then SIGKILL if it is still there after a few seconds. ${owner.task ? `"${owner.task.title}" may be using it, so its attempt can fail.` : 'Something working in this goal may be using it.'}`, reason: null } });
       continue;
     }
     if (!s.pid) {
@@ -193,7 +194,7 @@ export async function listPorts(engine: Engine, deps: PortsDeps = {}): Promise<P
       kind: 'process',
       label: shortName(base.process) ?? `process ${s.pid}`,
       detail: base.cwd && base.cwd !== '/' ? base.cwd : null,
-      release: mine ? { allowed: true, confirm: `Stop ${shortName(base.process) ?? 'this process'} (pid ${s.pid})${base.cwd && base.cwd !== '/' ? ` in ${base.cwd}` : ''}? It gets SIGTERM, then SIGKILL if it is still there after a few seconds.`, reason: null } : { allowed: false, confirm: null, reason: p?.uid === 0 ? 'a system process' : "another user's process" },
+      release: mine ? { allowed: true, confirm: `${shortName(base.process) ?? 'This process'} (pid ${s.pid})${base.cwd && base.cwd !== '/' ? `, running in ${base.cwd},` : ''} stops: SIGTERM, then SIGKILL if it is still there after a few seconds.`, reason: null } : { allowed: false, confirm: null, reason: p?.uid === 0 ? 'a system process' : "another user's process" },
     });
   }
 
@@ -215,7 +216,7 @@ export async function listPorts(engine: Engine, deps: PortsDeps = {}): Promise<P
       cwd: null,
       container: null,
       url: s.url,
-      release: self ? { allowed: false, confirm: null, reason: 'it carries Foundry to your other devices' } : { allowed: true, confirm: s.ours ? null : `Stop serving port ${s.port} on your tailnet (it forwards ${s.target ?? 'a local address'})? You added it yourself.`, reason: null },
+      release: self ? { allowed: false, confirm: null, reason: 'it carries Foundry to your other devices' } : { allowed: true, confirm: s.ours ? `Your tailnet stops reaching ${s.target ?? 'this port'} at port ${s.port}. Foundry serves it again the next time the preview starts.` : `Your tailnet stops reaching ${s.target ?? 'this port'} at port ${s.port}. You added this serve yourself; tailscale serve adds it back.`, reason: null },
     });
   }
 
@@ -224,9 +225,9 @@ export async function listPorts(engine: Engine, deps: PortsDeps = {}): Promise<P
     const owner = repoGoal ? null : ownerOf(c.workingDir, places);
     for (const port of c.ports) {
       const base = { port, pid: null, process: 'docker', cwd: c.workingDir, container: c.name, url: null };
-      if (repoGoal) add({ ...base, goalId: null, taskId: null, category: 'foundry', kind: 'service', label: `Service · ${c.name}`, detail: `Docker service Foundry runs for ${repoGoal.repoPath.split('/').pop()}`, release: { allowed: true, confirm: `Stop the Docker service ${c.name}? Its container and data are kept; the next preview start brings it back.`, reason: null } });
-      else if (owner) add({ ...base, goalId: owner.goal.id, taskId: owner.task?.id ?? null, category: 'foundry', kind: 'task', label: `Task container · ${c.name}`, detail: owner.task ? `${owner.goal.title} · ${owner.task.title}` : owner.goal.title, release: { allowed: true, confirm: `Stop the container ${c.name}? ${owner.task ? `"${owner.task.title}" may be using it.` : 'Something in this goal may be using it.'} The whole container stops, not only this port.`, reason: null } });
-      else add({ ...base, goalId: null, taskId: null, category: 'docker', kind: 'container', label: `Docker · ${c.name}`, detail: c.project ? `compose project ${c.project}` : null, release: { allowed: true, confirm: `Stop the container ${c.name}? The whole container stops, not only port ${port}.`, reason: null } });
+      if (repoGoal) add({ ...base, goalId: null, taskId: null, category: 'foundry', kind: 'service', label: `Service · ${c.name}`, detail: `Docker service Foundry runs for ${repoGoal.repoPath.split('/').pop()}`, release: { allowed: true, confirm: `The Docker service ${c.name} stops. Its container and data are kept; the next preview start brings it back.`, reason: null } });
+      else if (owner) add({ ...base, goalId: owner.goal.id, taskId: owner.task?.id ?? null, category: 'foundry', kind: 'task', label: `Task container · ${c.name}`, detail: owner.task ? `${owner.goal.title} · ${owner.task.title}` : owner.goal.title, release: { allowed: true, confirm: `The container ${c.name} stops, not only this port. ${owner.task ? `"${owner.task.title}" may be using it.` : 'Something in this goal may be using it.'}`, reason: null } });
+      else add({ ...base, goalId: null, taskId: null, category: 'docker', kind: 'container', label: `Docker · ${c.name}`, detail: c.project ? `compose project ${c.project}` : null, release: { allowed: true, confirm: `The container ${c.name} stops, not only port ${port}. docker start ${c.name} brings it back.`, reason: null } });
     }
   }
 

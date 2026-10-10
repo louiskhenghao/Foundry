@@ -111,7 +111,7 @@ describe('the Ports page', () => {
     expect(at(9999)).toEqual([{ kind: 'unknown', label: 'Unknown holder', allowed: false, confirm: false, relevant: false }]);
     // Tailscale's socket on a served port is the serve's row, said once
     expect(at(443)).toEqual([{ kind: 'serve-self', label: 'Tailscale serve → Foundry', allowed: false, confirm: false, relevant: true }]);
-    expect(at(4200)).toEqual([{ kind: 'serve-foundry', label: 'Tailscale serve (by Foundry)', allowed: true, confirm: false, relevant: true }]);
+    expect(at(4200)).toEqual([{ kind: 'serve-foundry', label: 'Tailscale serve (by Foundry)', allowed: true, confirm: true, relevant: true }]);
     expect(at(3000)).toEqual([{ kind: 'serve-person', label: 'Tailscale serve (yours)', allowed: true, confirm: true, relevant: true }]);
     expect(at(5432)).toEqual([{ kind: 'service', label: 'Service · shop-db-1', allowed: true, confirm: true, relevant: true }]);
     expect(at(3300)).toEqual([{ kind: 'container', label: 'Docker · grafana', allowed: true, confirm: true, relevant: true }]);
