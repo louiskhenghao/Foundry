@@ -187,7 +187,7 @@ Foundry 绝不会为了预览去切换、重置或拉取你的 checkout。改任
 
 ### When it fails
 
-如果某个 app 自己停了，卡片会显示 **The last run failed**、原因（比如 `exited with code 1`）以及它最后打印的几行（比如错误信息），不用打开输出就能看到。如果它在运行但 90 秒内没有响应，会有一行琥珀色提示：可能还在启动，也可能它的命令没用 Foundry 分配的端口（在 Brief 的 **How to run it** 里用 `{port}` 就能解决）。安装依赖失败也会显示出来。
+如果某个 app 自己停了，卡片会显示 **The last run failed**、原因（比如 `exited with code 1`）以及它最后打印的几行（比如错误信息），不用打开输出就能看到。如果它在运行但 90 秒内没有响应，会有一行琥珀色提示：可能还在启动，也可能它的命令没用 Foundry 分配的端口（在 Brief 的 **How to run it** 里用 `{port}` 就能解决）。安装依赖失败也会显示出来。如果是因为端口被占用（`EADDRINUSE`）而停下，卡片会写出是谁占着那个端口，能释放时附带 **Stop & release**，并有一个指向[端口](./ports.zh.md)的链接。
 
 ### Environment
 

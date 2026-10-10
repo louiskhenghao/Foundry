@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 /** The user guide, in reading order. Pages not listed here are appended alphabetically. */
-export const GUIDE_ORDER = ['index', 'your-first-goal', 'answering-the-interview', 'approving-the-brief', 'while-it-runs', 'when-foundry-needs-you', 'getting-the-result', 'settings', 'costs-and-usage', 'moving-to-a-new-computer', 'faq'];
+export const GUIDE_ORDER = ['index', 'your-first-goal', 'answering-the-interview', 'approving-the-brief', 'while-it-runs', 'when-foundry-needs-you', 'getting-the-result', 'settings', 'costs-and-usage', 'moving-to-a-new-computer', 'ports', 'faq'];
 
 /** The first page is README.md so GitHub shows it when docs/guide/ is opened; the app calls it "index". */
 export const guideFile = (slug: string) => (slug === 'index' ? 'README' : slug);
