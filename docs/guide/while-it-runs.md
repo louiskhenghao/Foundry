@@ -187,7 +187,7 @@ When the start command launches more servers than the one Foundry gave a port to
 
 ### When it fails
 
-If an app stops on its own, the card says **The last run failed** with the reason (for example `exited with code 1`) and the last lines the app printed, such as the error message, without opening the output. If it runs but does not answer within 90 seconds, an amber line says so: it may still be starting, or its command ignores the port Foundry gave it (`{port}` in the Brief's **How to run it** fixes that). If installing dependencies failed, that shows too. When it stopped because its port was in use (`EADDRINUSE`), the card names what holds that port, with the ■ button when it can be freed and a link to [Ports](./ports.md).
+If an app stops on its own, the card says **The last run failed** with the reason (for example `exited with code 1`) and the last lines the app printed, such as the error message, without opening the output. If it runs but does not answer within 90 seconds, an amber line says so: it may still be starting, or its command ignores the port Foundry gave it (`{port}` in the Brief's **How to run it** fixes that). If installing dependencies failed, that shows too. When it stopped because its port was in use (`EADDRINUSE`), the card names what holds that port, with **stop & release** when it can be freed and a link to [Ports](./ports.md).
 
 ### Environment
 
