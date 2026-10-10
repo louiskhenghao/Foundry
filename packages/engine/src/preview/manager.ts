@@ -837,12 +837,25 @@ function currentBranch(repo: string): string | null {
   }
 }
 
-function portFree(port: number): Promise<boolean> {
+/** can a server listen on this port at this address: true, false when it is taken, null when the address family is not there */
+function bindable(port: number, host: string): Promise<boolean | null> {
   return new Promise((resolve) => {
     const srv = createServer();
-    srv.once('error', () => resolve(false));
-    srv.listen(port, '127.0.0.1', () => srv.close(() => resolve(true)));
+    srv.once('error', (err: NodeJS.ErrnoException) => resolve(err.code === 'EADDRINUSE' || err.code === 'EACCES' ? false : null));
+    srv.listen(port, host, () => srv.close(() => resolve(true)));
   });
+}
+
+/**
+ * Is the port free for a dev server? Loopback first, then every interface, which is where Next and others listen: a
+ * port held on one other address only — `tailscale serve --https=<port>` holds it on the tailnet address, out of sight
+ * of `lsof` without sudo — leaves loopback free while the dev server fails with EADDRINUSE.
+ */
+export async function portFree(port: number): Promise<boolean> {
+  if ((await bindable(port, '127.0.0.1')) !== true) return false;
+  const any = await bindable(port, '::');
+  // no IPv6 here (some containers): the IPv4 wildcard says the same
+  return any === null ? (await bindable(port, '0.0.0.0')) !== false : any;
 }
 
 /** does a server answer HTTP on this port, over IPv4 or IPv6 (Node ≥ 17 may bind `localhost` to ::1 only)? */
