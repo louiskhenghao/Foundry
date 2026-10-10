@@ -99,7 +99,7 @@ Click a task to open it over the goal page (Escape, × or a click beside it clos
 - One chip per attempt: **#1**, **#2** … with its result and cost. **↻1** means the session was resumed once instead of starting over, preserving its context.
 - For the chosen attempt: the result, the worker model, turns, cost, start time, duration, and which skills it used, then every session that ran for it.
 - Buttons: **Restart from here** (this task and everything after it run again), **Open worktree** (the task's own folder while it runs), and **Resolve manually** if a merge conflict needs you.
-- When a task looks stuck, a button gets it going again without restarting Foundry. **Start now** appears on a **ready** task of a running goal that nothing holds back but that has not started. **Stop and retry** appears on a running task that has had no live session for three minutes: it stops what the task was doing and puts it back to **ready**; a session that had started resumes where it left off, and the attempt is not counted otherwise. A ready task that waits for a reason says it under the attempts, for example *not started yet: every slot is taken*.
+- When a task looks stuck, a button gets it going again without restarting Foundry. **Start now** appears on a **ready** task of a running goal that nothing holds back but that has not started. **Stop and retry** appears on a running task that has had no live session for three minutes: after you confirm it in a dialog, it stops what the task was doing and puts it back to **ready**; a session that had started resumes where it left off, and the attempt is not counted otherwise. A ready task that waits for a reason says it under the attempts, for example *not started yet: every slot is taken*.
 
 ### Live logs
 
@@ -187,7 +187,7 @@ When the start command launches more servers than the one Foundry gave a port to
 
 ### When it fails
 
-If an app stops on its own, the card says **The last run failed** with the reason (for example `exited with code 1`) and the last lines the app printed, such as the error message, without opening the output. If it runs but does not answer within 90 seconds, an amber line says so: it may still be starting, or its command ignores the port Foundry gave it (`{port}` in the Brief's **How to run it** fixes that). If installing dependencies failed, that shows too. When it stopped because its port was in use (`EADDRINUSE`), the card names what holds that port, with **Stop & release** when it can be freed and a link to [Ports](./ports.md).
+If an app stops on its own, the card says **The last run failed** with the reason (for example `exited with code 1`) and the last lines the app printed, such as the error message, without opening the output. If it runs but does not answer within 90 seconds, an amber line says so: it may still be starting, or its command ignores the port Foundry gave it (`{port}` in the Brief's **How to run it** fixes that). If installing dependencies failed, that shows too. When it stopped because its port was in use (`EADDRINUSE`), the card names what holds that port, with the ■ button when it can be freed and a link to [Ports](./ports.md).
 
 ### Environment
 
