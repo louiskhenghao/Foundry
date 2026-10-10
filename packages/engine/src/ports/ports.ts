@@ -46,6 +46,9 @@ export interface PortsView {
   /** Foundry runs in its Docker image: the host's ports cannot be seen from here */
   inContainer: boolean;
   scannedAt: string;
+  /** this Foundry's own port, and the range previews get their ports from (Settings → Preview & self-check) */
+  foundryPort: number;
+  previewRange: { from: number; to: number };
 }
 
 /** ports dev servers, databases and tools usually take */
@@ -233,7 +236,7 @@ export async function listPorts(engine: Engine, deps: PortsDeps = {}): Promise<P
 
   const order: Record<PortCategory, number> = { foundry: 0, tailscale: 1, docker: 2, process: 3, unknown: 4 };
   rows.sort((a, b) => order[a.category] - order[b.category] || a.port - b.port);
-  return { rows, inContainer, scannedAt: new Date().toISOString() };
+  return { rows, inContainer, scannedAt: new Date().toISOString(), foundryPort: config.port, previewRange: { from: portFrom, to: portTo } };
 }
 
 /** a command's last path part: `/Applications/Docker.app/…/com.docker.backend` → `com.docker.backend` */

@@ -355,6 +355,8 @@ export interface PortsView {
   rows: PortRow[];
   inContainer: boolean;
   scannedAt: string;
+  foundryPort: number;
+  previewRange: { from: number; to: number };
 }
 
 export interface GoalDetail {
