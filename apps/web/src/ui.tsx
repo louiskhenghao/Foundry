@@ -118,21 +118,24 @@ export function MenuItem({ icon, children, danger, className, ...props }: Button
   );
 }
 
-export function Button({ variant = 'default', size = 'md', className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'default' | 'primary' | 'danger' | 'ghost'; size?: 'sm' | 'md' }) {
-  return (
-    <button
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-md font-medium transition disabled:opacity-40 disabled:cursor-not-allowed',
-        size === 'sm' ? 'px-2.5 py-1 text-xs' : 'px-3.5 py-1.5 text-sm',
-        variant === 'primary' && 'bg-emerald-500 text-zinc-950 hover:bg-emerald-400',
-        variant === 'default' && 'bg-zinc-800 text-zinc-100 hover:bg-zinc-700 border border-zinc-700',
-        variant === 'danger' && 'bg-rose-600/20 text-rose-300 border border-rose-700/50 hover:bg-rose-600/30',
-        variant === 'ghost' && 'text-zinc-300 hover:bg-zinc-800',
-        className,
-      )}
-      {...props}
-    />
+type ButtonVariant = 'default' | 'primary' | 'danger' | 'info' | 'ghost';
+
+/** a button's look, for a link that acts as one (an address that opens in a new tab) */
+export function buttonClass(variant: ButtonVariant = 'default', size: 'sm' | 'md' = 'md', className?: string): string {
+  return cn(
+    'inline-flex items-center gap-1.5 rounded-md font-medium transition disabled:opacity-40 disabled:cursor-not-allowed',
+    size === 'sm' ? 'px-2.5 py-1 text-xs' : 'px-3.5 py-1.5 text-sm',
+    variant === 'primary' && 'bg-emerald-500 text-zinc-950 hover:bg-emerald-400',
+    variant === 'default' && 'bg-zinc-800 text-zinc-100 hover:bg-zinc-700 border border-zinc-700',
+    variant === 'danger' && 'bg-rose-600/20 text-rose-300 border border-rose-700/50 hover:bg-rose-600/30',
+    variant === 'info' && 'bg-sky-600/20 text-sky-300 border border-sky-700/50 hover:bg-sky-600/30',
+    variant === 'ghost' && 'text-zinc-300 hover:bg-zinc-800',
+    className,
   );
+}
+
+export function Button({ variant = 'default', size = 'md', className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; size?: 'sm' | 'md' }) {
+  return <button className={buttonClass(variant, size, className)} {...props} />;
 }
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {

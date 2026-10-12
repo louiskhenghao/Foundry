@@ -154,7 +154,7 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 
 ### Repository
 
-**2 · Repository.** 按 **Select folder…** 选项目文件夹，或者直接输入路径。
+**2 · Repository.** 按 **Select folder…** 选项目文件夹，或者直接输入路径。选择器里的 **New folder** 会在当前浏览的位置建一个空文件夹，给还不存在的项目用。**Choose with Finder…** 打开 macOS 的文件夹对话框；从其它设备打开 Foundry 时不显示，因为那个对话框会出现在 Foundry 所在的电脑上。
 
 然后 Foundry 会显示它发现的情况：分支、有没有 uncommitted changes、最后保存的版本、线上副本（remote，如果有的话），以及提交会以谁的名义做出。如果线上副本比你的文件夹有更新的工作，卡片会说明 goal 从哪里开始（通常是更新的那份），而 **pull into my checkout** 会把你自己的文件夹也更新到最新。
 

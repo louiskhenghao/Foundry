@@ -2,7 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { BrowseError, defaultAllowedRoots, listDirs, pickFolder, wellKnownRoots } from './browse.ts';
+import { existsSync } from 'node:fs';
+import { BrowseError, defaultAllowedRoots, listDirs, makeDir, pickFolder, wellKnownRoots } from './browse.ts';
 
 function tree() {
   const root = mkdtempSync(join(tmpdir(), 'browse-'));
@@ -37,6 +38,28 @@ describe('listDirs', () => {
     expect(() => listDirs('/', { roots: [root] })).toThrow(BrowseError);
     expect(() => listDirs(join(root, 'nope'), { roots: [root] })).toThrow(/does not exist/);
     expect(() => listDirs(join(root, 'file.txt'), { roots: [root] })).toThrow(/not a directory/);
+  });
+});
+
+describe('makeDir', () => {
+  test('makes one empty folder inside an allowed root; refuses paths, existing names and places outside', () => {
+    const root = mkdtempSync(join(tmpdir(), 'foundry-mkdir-'));
+    const { path } = makeDir(root, '  new app ', { roots: [root] });
+    expect(path).toBe(join(root, 'new app'));
+    expect(existsSync(path)).toBe(true);
+    const code = (f: () => unknown) => {
+      try {
+        f();
+      } catch (e) {
+        return (e as BrowseError).code;
+      }
+      return null;
+    };
+    expect(code(() => makeDir(root, 'new app', { roots: [root] }))).toBe('exists');
+    expect(code(() => makeDir(root, 'a/b', { roots: [root] }))).toBe('invalid');
+    expect(code(() => makeDir(root, '..', { roots: [root] }))).toBe('invalid');
+    expect(code(() => makeDir(root, '', { roots: [root] }))).toBe('invalid');
+    expect(code(() => makeDir('/etc', 'x', { roots: [root] }))).toBe('forbidden');
   });
 });
 

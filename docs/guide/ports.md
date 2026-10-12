@@ -24,16 +24,16 @@ Open from Foundry's Docker image, the page shows only the ports inside its conta
 
 ## Stop & release
 
-**stop & release** at the end of a row stops what holds the port, so the port is free again; **open** opens a tailnet address. A dialog first says what will stop; **Stop & release** goes ahead, **Cancel** leaves it:
+The red **Stop & release** at the end of a row stops what holds the port, so the port is free again; the blue **Open** opens a tailnet address. Click a card's heading to fold or unfold it (remembered in this browser); **expand all** and **collapse all** do every card, and a search opens them all. A dialog first says what will stop; **Stop & release** goes ahead, **Cancel** leaves it:
 
 - A preview app or **VS Code (web)** stops; start it again whenever you like. A serve Foundry added comes back the next time the preview starts.
 - A task's process (its attempt may fail), a Docker service or container (the whole container stops; its data is kept), a serve you added, or one of your own programs (it gets SIGTERM, then SIGKILL after a few seconds).
-- Foundry itself, the serve that carries Foundry to your other devices (and the one you opened the page through), system programs and other users' programs have no button; the row says why.
+- Foundry itself, the serve that carries Foundry to your other devices (and the one you opened the page through), system programs and other users' programs have no button: a grey label with a lock says why in its place.
 
 Stopping something that belongs to a goal is noted in that goal's **Activity**.
 
 ## From a preview that will not start
 
-When a preview stops with `EADDRINUSE`, its card names what holds that port, with **stop & release** when it can be freed, and **Ports →** opens this page at that port. Foundry does not restart the preview by itself: press **Start preview** when the port is free.
+When a preview stops with `EADDRINUSE`, its card names what holds that port, with **Stop & release** when it can be freed, and **Ports →** opens this page at that port. Foundry does not restart the preview by itself: press **Start preview** when the port is free.
 
 In a terminal, `foundry ports` prints the same list (`--all` for everything, `--json` for the data); stopping is done on the page.

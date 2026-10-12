@@ -24,16 +24,16 @@
 
 ## Stop & release
 
-每行末尾的 **stop & release** 会停掉占着端口的东西，让端口重新空出来；**open** 打开 tailnet 地址。会先弹出对话框说明会停掉什么；按 **Stop & release** 继续，按 **Cancel** 取消：
+每行末尾红色的 **Stop & release** 会停掉占着端口的东西，让端口重新空出来；蓝色的 **Open** 打开 tailnet 地址。点卡片标题可以收起或展开（记在这个浏览器里）；**expand all** 和 **collapse all** 作用于所有卡片，搜索时所有卡片都会展开。会先弹出对话框说明会停掉什么；按 **Stop & release** 继续，按 **Cancel** 取消：
 
 - preview 应用或 **VS Code (web)** 会停掉，之后随时可以再启动。Foundry 加的 serve 会在下次启动 preview 时自动加回来。
 - 任务的程序（这次尝试可能会失败）、Docker 服务或容器（整个容器都会停，数据保留）、你自己加的 serve，或者你自己的程序（先收到 SIGTERM，几秒后还在就 SIGKILL）。
-- Foundry 自己、把 Foundry 带到你其它设备上的那条 serve（以及你打开这个页面所经过的那条）、系统程序和其它用户的程序都没有按钮；那一行会写出原因。
+- Foundry 自己、把 Foundry 带到你其它设备上的那条 serve（以及你打开这个页面所经过的那条）、系统程序和其它用户的程序都没有按钮：按钮的位置换成一个带锁的灰色标签，写明原因。
 
 停掉属于某个 goal 的东西，会记录在那个 goal 的 **Activity** 里。
 
 ## 从启动不了的 preview 过来
 
-preview 因为 `EADDRINUSE` 停下时，它的卡片会写出是谁占着那个端口，能释放时附带 **stop & release**，**Ports →** 会打开这个页面并定位到那个端口。Foundry 不会自己重启 preview：端口空出来后按 **Start preview**。
+preview 因为 `EADDRINUSE` 停下时，它的卡片会写出是谁占着那个端口，能释放时附带 **Stop & release**，**Ports →** 会打开这个页面并定位到那个端口。Foundry 不会自己重启 preview：端口空出来后按 **Start preview**。
 
 在终端里，`foundry ports` 会打印同样的列表（`--all` 显示全部，`--json` 输出数据）；停止操作在页面上做。

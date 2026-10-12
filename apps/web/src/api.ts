@@ -510,6 +510,7 @@ export function apiForProvider(provider?: AgentProvider) {
   attachmentMarkdown: (goalId: string | null, attId: string) => fetch(goalId ? `/api/goals/${goalId}/attachments/${attId}/markdown` : `/api/uploads/${attId}/markdown`).then((r) => (r.ok ? r.text() : Promise.reject(new Error(`markdown not available (${r.status})`)))),
   fsList: (path?: string, hidden = false) => req<DirListing>(`/api/fs/list?${new URLSearchParams({ ...(path ? { path } : {}), ...(hidden ? { hidden: '1' } : {}) })}`),
   fsRecent: () => req<FsRecent>('/api/fs/recent'),
+  fsMkdir: (parent: string, name: string) => req<{ path: string }>('/api/fs/mkdir', { method: 'POST', body: JSON.stringify({ parent, name }) }),
   fsPick: (defaultDir?: string) => req<{ path: string | null; cancelled: boolean }>('/api/fs/pick', { method: 'POST', body: JSON.stringify({ defaultDir }) }),
   repoUpstream: (repoPath: string, branch: string) => req<BaseSync & { start: { ref: string; from: 'local' | 'remote'; reason: string }; fetchBeforeGoal: boolean }>('/api/repos/upstream', { method: 'POST', body: JSON.stringify({ repoPath, branch }) }),
   repoPull: (repoPath: string, branch: string) => req<{ ok: boolean; detail: string; before: string | null; after: string | null }>('/api/repos/pull', { method: 'POST', body: JSON.stringify({ repoPath, branch }) }),
