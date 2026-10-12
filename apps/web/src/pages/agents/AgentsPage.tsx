@@ -168,6 +168,10 @@ export function AgentsPage() {
 }
 
 const COLLAPSED_KEY = 'foundry.agents.collapsed';
+const SUBS_KEY = 'foundry.agents.subagents';
+function readSubs(): Record<string, boolean> {
+  try { return JSON.parse(localStorage.getItem(SUBS_KEY) ?? '{}'); } catch { return {}; }
+}
 function readCollapsed(): Record<string, boolean> {
   try { return JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '{}'); } catch { return {}; }
 }
@@ -287,6 +291,15 @@ const title = (s: AgentSessionRow) => s.foundry?.taskTitle ?? s.title ?? s.found
  * group the goal and its coding agent are in the heading, so rows skip them.
  */
 function SessionList({ rows, inGoal = false, onOpen, onKill }: { rows: AgentSessionRow[]; inGoal?: boolean; onOpen: (sessionId: string, agentId?: string) => void; onKill: (row: AgentSessionRow) => void }) {
+  // a session's helper agents fold under it: open while one of them runs, until the person chooses (this browser)
+  const [subs, setSubs] = useState<Record<string, boolean>>(readSubs);
+  const subsOpen = (s: AgentSessionRow) => subs[s.sessionId] ?? s.subagents.some((a) => a.status === 'running');
+  const toggleSubs = (s: AgentSessionRow) =>
+    setSubs((m) => {
+      const next = { ...m, [s.sessionId]: !subsOpen(s) };
+      try { localStorage.setItem(SUBS_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+      return next;
+    });
   return (
     <ul className="divide-y divide-zinc-800/70">
       {rows.map((s, i) => (
@@ -300,6 +313,20 @@ function SessionList({ rows, inGoal = false, onOpen, onKill }: { rows: AgentSess
                 {s.foundry && s.foundry.taskTitle && s.title && s.title.replace(/^#+\s*/, '') !== s.foundry.taskTitle && <span className="truncate" title={s.title}>{s.title.replace(/^#+\s*/, '')}</span>}
                 {!s.foundry && s.cwd && <span className="mono truncate" title={s.cwd}>{shortCwd(s.cwd)}{s.gitBranch ? <span className="text-zinc-600"> · {s.gitBranch}</span> : null}</span>}
                 {s.status === 'unknown' && <span className="text-sky-400 whitespace-nowrap">status unknown</span>}
+                {s.subagents.length > 0 && (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-0.5 shrink-0 rounded border border-zinc-700 px-1.5 py-px text-[10px] text-zinc-400 hover:text-zinc-100 hover:border-zinc-500"
+                    aria-expanded={subsOpen(s)}
+                    title={subsOpen(s) ? 'Fold its helper agents' : 'Show its helper agents'}
+                    onClick={(e) => { e.stopPropagation(); toggleSubs(s); }}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
+                    {subsOpen(s) ? <ChevronDown size={11} aria-hidden="true" /> : <ChevronRight size={11} aria-hidden="true" />}
+                    {s.subagents.length} subagent{s.subagents.length === 1 ? '' : 's'}
+                    {s.subagents.some((a) => a.status === 'running') && <span className="text-emerald-400"> · running</span>}
+                  </button>
+                )}
               </div>
             </div>
             <div className="min-w-0 space-y-1">
@@ -321,7 +348,7 @@ function SessionList({ rows, inGoal = false, onOpen, onKill }: { rows: AgentSess
               )}
             </div>
           </div>
-          {s.subagents.length > 0 && (
+          {s.subagents.length > 0 && subsOpen(s) && (
             <ul className="pb-2">
               {s.subagents.map((a) => (
                 <li key={a.agentId}>
