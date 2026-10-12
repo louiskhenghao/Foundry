@@ -8,6 +8,7 @@
  */
 import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { getGoal } from '@foundry/core';
 import { seedImportedGoal, startDemo } from './demo.ts';
 
 const ROOT = resolve(import.meta.dir, '..');
@@ -95,6 +96,19 @@ try {
     await page.waitForTimeout(300);
   });
   await shot('usage', '/usage');
+  // Agents reads this machine's own Claude Code and Codex history: the guide shows demonstration sessions instead
+  const title = (id: string) => getGoal(demo.engine.store.db, id)?.title ?? null;
+  const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+  const session = (s: Record<string, unknown>) => ({ sessionId: crypto.randomUUID(), provider: 'claude', source: 'external', entrypoint: 'cli', status: 'finished', pid: null, model: 'claude-opus-5-5', title: null, cwd: '/Users/you/Projects/studio-site', gitBranch: 'main', startedAt: ago(40), endedAt: null, lastActivityAt: ago(2), contextUsedTokens: 182_000, contextWindowTokens: 1_000_000, version: null, subagents: [], foundry: null, ...s });
+  const sessions = [
+    session({ source: 'foundry', entrypoint: 'foundry', status: 'busy', title: 'add the export endpoint', cwd: null, foundry: { goalId: g.running, goalTitle: title(g.running!), taskId: null, taskTitle: 'add the export endpoint', attemptId: null, kind: 'work', attempt: 1, killable: true }, subagents: [{ agentId: 'a1', agentType: 'Explore', description: 'Find the orders routes and their tests', status: 'done', lastActivityAt: ago(6), model: 'claude-haiku-5-5', startedAt: ago(9), contextUsedTokens: 41_000, contextWindowTokens: 200_000 }] }),
+    session({ source: 'foundry', entrypoint: 'foundry', status: 'finished', provider: 'codex', model: 'gpt-6.1', title: 'build the sign-up form in the footer', cwd: null, contextUsedTokens: null, contextWindowTokens: null, foundry: { goalId: g.done, goalTitle: title(g.done!), taskId: null, taskTitle: 'build the sign-up form in the footer', attemptId: null, kind: 'work', attempt: 2, killable: false }, lastActivityAt: ago(55), endedAt: ago(55) }),
+    session({ status: 'idle', title: 'Review the account settings flow', entrypoint: 'claude-vscode' }),
+    session({ provider: 'codex', status: 'unknown', model: 'gpt-6.1', title: 'Explore the newsletter design', cwd: '/Users/you/Projects/newsletter', contextUsedTokens: null, contextWindowTokens: null, lastActivityAt: ago(30) }),
+  ];
+  await page.route('**/api/agents', (r) => r.fulfill({ json: { sessions, summary: { busy: 1, idle: 1, finished: 1, unknown: 1, total: 4 }, generatedAt: new Date().toISOString() } }));
+  await shot('agents', '/agents');
+  await page.unroute('**/api/agents');
   await shot('transfer', '/transfer', undefined, 760);
   // seeded last: the shots above count the demo's goals
   const imported = await seedImportedGoal(demo.engine, g.done!);
