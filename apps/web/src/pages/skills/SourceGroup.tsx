@@ -134,6 +134,7 @@ export function SourceGroup({ s, busy, updating, running, filter, a }: { s: Skil
           <Badge state={s.manager}>{MANAGER_LABEL[s.manager]}</Badge>
           {stateBadge}
           {countsEl}
+          {running && <span className="text-[11px]">{running}</span>}
         </div>
         {(hasActions || s.updater.hint) && <div className="sm:hidden flex items-center gap-1.5 flex-wrap">{hasActions ? actions : <span className="text-[11px] text-zinc-500">{s.updater.hint}</span>}</div>}
         {/* row 2 (desktop): all the status — state badge, metadata, per-skill counts */}
@@ -144,6 +145,8 @@ export function SourceGroup({ s, busy, updating, running, filter, a }: { s: Skil
             {s.error && <span className="text-rose-400"> · {s.error}</span>}
           </span>
           <div className="shrink-0">{countsEl}</div>
+          {/* an operation in progress sits with the status, not on a line of its own */}
+          {running && <div className="shrink-0 text-[11px]">{running}</div>}
         </div>
         {/* mobile keeps the metadata on its own line */}
         <div className="sm:hidden text-[11px] text-zinc-500 min-w-0">
@@ -159,7 +162,6 @@ export function SourceGroup({ s, busy, updating, running, filter, a }: { s: Skil
           {s.updater.command.join(' ')} <CopyButton text={s.updater.command.join(' ')} />
         </div>
       )}
-      {running && <div className="px-3 sm:px-4 pb-2 sm:pl-10">{running}</div>}
       {open && (
         <div className="border-t border-zinc-800">
           {rows.map((r, i) => (
