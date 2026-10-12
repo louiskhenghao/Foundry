@@ -86,7 +86,7 @@ export function SourceGroup({ s, busy, updating, running, filter, a }: { s: Skil
         </Button>
       )}
       {removable.length > 0 && (
-        <Button size="sm" variant="ghost" disabled={busy} onClick={() => a.onUninstall(removable)} title={`Uninstall all ${removable.length} user-level skills of this source (to the trash)`}>
+        <Button size="sm" variant="danger" disabled={busy} onClick={() => a.onUninstall(removable)} title={`Uninstall all ${removable.length} user-level skills of this source (to the trash)`}>
           Uninstall all
         </Button>
       )}
@@ -101,7 +101,7 @@ export function SourceGroup({ s, busy, updating, running, filter, a }: { s: Skil
             </Button>
           </>
         ) : (
-          <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirmPlugin(true)} title="A plugin's skills cannot be removed one by one; this removes the whole plugin">
+          <Button size="sm" variant="danger" disabled={busy} onClick={() => setConfirmPlugin(true)} title="A plugin's skills cannot be removed one by one; this removes the whole plugin">
             Uninstall plugin
           </Button>
         ))}
@@ -177,7 +177,7 @@ export function SourceGroup({ s, busy, updating, running, filter, a }: { s: Skil
 function Row({ r, odd, busy, selected, onSelect, onView, onAdopt, onTrashShadow, onUninstall, onUpdate }: { r: SkillSourceRow; odd: boolean; busy: boolean; selected: boolean; onSelect: (on: boolean) => void; onView: () => void; onAdopt: () => void; onTrashShadow: () => void; onUninstall: () => void; onUpdate?: () => void }) {
   const removable = r.actions.includes('uninstall');
   return (
-    <div className={cn('pl-3 sm:pl-6 pr-3 sm:pr-4 py-2 grid grid-cols-[auto_minmax(0,1fr)] md:grid-cols-[auto_17rem_minmax(0,1fr)_12rem] gap-x-3 gap-y-1 items-start text-xs ml-2 sm:ml-4 border-l-2 border-zinc-800/60', odd ? 'bg-zinc-900/50' : 'bg-transparent', selected && 'bg-emerald-500/5')}>
+    <div className={cn('pl-3 sm:pl-6 pr-3 sm:pr-4 py-2 grid grid-cols-[auto_minmax(0,1fr)] md:grid-cols-[auto_17rem_minmax(0,1fr)_15rem] gap-x-3 gap-y-1 items-start text-xs ml-2 sm:ml-4 border-l-2 border-zinc-800/60', odd ? 'bg-zinc-900/50' : 'bg-transparent', selected && 'bg-emerald-500/5')}>
       <div className="pt-0.5 w-4">{removable ? <input type="checkbox" checked={selected} onChange={(e) => onSelect(e.target.checked)} /> : <span className="inline-block w-3" />}</div>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
@@ -212,28 +212,28 @@ function Row({ r, odd, busy, selected, onSelect, onView, onAdopt, onTrashShadow,
       <div className="col-start-2 md:col-start-3 text-zinc-400 line-clamp-2 min-w-0" title={r.description}>
         {r.description || <span className="text-zinc-600">no description</span>}
       </div>
-      <div className="col-start-2 md:col-start-4 flex items-center gap-1 justify-start md:justify-end flex-wrap">
-        <Button size="sm" variant="ghost" onClick={onView} title="open SKILL.md">
-          <Eye size={12} /> view
+      <div className="col-start-2 md:col-start-4 flex items-center gap-1.5 justify-start md:justify-end flex-wrap">
+        <Button size="sm" variant="info" onClick={onView} title="open SKILL.md">
+          <Eye size={12} /> View
         </Button>
         {onUpdate && r.status === 'outdated' && (
-          <Button size="sm" variant="ghost" disabled={busy} onClick={onUpdate}>
-            update
+          <Button size="sm" variant="primary" disabled={busy} onClick={onUpdate}>
+            Update
           </Button>
         )}
         {r.actions.includes('adopt') && (
-          <Button size="sm" variant="ghost" disabled={busy} onClick={onAdopt} title="replace with the catalog version (managed by Foundry)">
-            adopt
+          <Button size="sm" variant="primary" disabled={busy} onClick={onAdopt} title="replace with the catalog version (managed by Foundry)">
+            Adopt
           </Button>
         )}
         {r.actions.includes('trash-shadow') && (
-          <Button size="sm" variant="ghost" disabled={busy} onClick={onTrashShadow} title="move this copy to the trash; the plugin copy stays">
-            trash copy
+          <Button size="sm" variant="danger" disabled={busy} onClick={onTrashShadow} title="move this copy to the trash; the plugin copy stays">
+            Trash copy
           </Button>
         )}
         {removable && (
-          <Button size="sm" variant="ghost" className="text-rose-300" disabled={busy} onClick={onUninstall}>
-            uninstall
+          <Button size="sm" variant="danger" disabled={busy} onClick={onUninstall}>
+            Uninstall
           </Button>
         )}
       </div>
