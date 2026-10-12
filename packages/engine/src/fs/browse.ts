@@ -3,7 +3,7 @@
  * and — on macOS — the native "choose folder" dialog via osascript.
  * Read-only; never lists files, never leaves the allowed roots.
  */
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { exec } from '../git/git.ts';
@@ -28,7 +28,7 @@ const CAP = 500;
 export class BrowseError extends Error {
   constructor(
     message: string,
-    public readonly code: 'forbidden' | 'not-found' | 'not-dir',
+    public readonly code: 'forbidden' | 'not-found' | 'not-dir' | 'exists' | 'invalid',
   ) {
     super(message);
   }
@@ -85,6 +85,23 @@ export function listDirs(path: string, opts: { roots?: string[]; showHidden?: bo
   const parentPath = dirname(abs);
   const parent = parentPath !== abs && roots.some((r) => parentPath === resolve(r) || parentPath.startsWith(resolve(r) + '/')) ? parentPath : null;
   return { path: abs, parent, entries, truncated };
+}
+
+/**
+ * A new, empty folder inside one the person is browsing (the folder picker's New folder): one name, no path, inside the
+ * allowed roots, never over anything that exists.
+ */
+export function makeDir(parent: string, name: string, opts: { roots?: string[] } = {}): { path: string } {
+  const roots = opts.roots ?? defaultAllowedRoots();
+  const dir = assertAllowed(parent, roots);
+  if (!existsSync(dir)) throw new BrowseError(`${dir} does not exist`, 'not-found');
+  if (!statSync(dir).isDirectory()) throw new BrowseError(`${dir} is not a directory`, 'not-dir');
+  const clean = name.trim();
+  if (!clean || clean === '.' || clean === '..' || /[/\\\0]/.test(clean) || clean.length > 255) throw new BrowseError('a folder name is one name without / (at most 255 characters)', 'invalid');
+  const path = join(dir, clean);
+  if (existsSync(path)) throw new BrowseError(`${clean} already exists here`, 'exists');
+  mkdirSync(path);
+  return { path };
 }
 
 export interface Root {
