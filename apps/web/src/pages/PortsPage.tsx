@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ExternalLink, RefreshCw, Search } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, RefreshCw, Search, Square } from 'lucide-react';
 import { api, type PortRow, type PortsView } from '../api.ts';
-import { Badge, Button, Card, ConfirmDialog, Empty, Input, Tabs, ago, cn } from '../ui.tsx';
+import { Badge, Button, Card, ConfirmDialog, Empty, Input, Tabs, ago, buttonClass, cn } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
 
 type Category = PortRow['category'];
@@ -92,15 +92,15 @@ export function PortLine({ row, onRelease, odd, highlight, standalone, plain }: 
       <div className="col-start-2 md:col-start-3 mono text-[11px] text-zinc-500 truncate" title={where}>
         {where || <span className="text-zinc-700">—</span>}
       </div>
-      <div className="col-start-2 md:col-start-4 flex items-center gap-1 justify-start md:justify-end flex-wrap">
+      <div className="col-start-2 md:col-start-4 flex items-center gap-1.5 justify-start md:justify-end flex-wrap">
         {row.url && (
-          <a href={row.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800" title={row.url}>
-            <ExternalLink size={12} /> open
+          <a href={row.url} target="_blank" rel="noreferrer" className={buttonClass('info', 'sm')} title={row.url}>
+            <ExternalLink size={12} /> Open
           </a>
         )}
         {row.release.allowed && (
-          <Button size="sm" variant="ghost" className="text-rose-300" onClick={() => onRelease(row)} title={`Stop what holds port ${row.port} and release it`}>
-            stop & release
+          <Button size="sm" variant="danger" onClick={() => onRelease(row)} title={`Stop what holds port ${row.port} and release it`}>
+            <Square size={11} /> Stop & release
           </Button>
         )}
       </div>
@@ -116,6 +116,15 @@ interface Group {
   meta: string[];
   goalId: string | null;
   rows: PortRow[];
+}
+
+const FOLDED_KEY = 'foundry.ports.folded';
+function readFolded(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(FOLDED_KEY) ?? '{}');
+  } catch {
+    return {};
+  }
 }
 
 const shortPath = (p: string) => p.replace(/^\/Users\/[^/]+/, '~').replace(/^\/home\/[^/]+/, '~');
@@ -141,16 +150,19 @@ function groupsOf(rows: PortRow[]): Group[] {
   return [...groups.values()];
 }
 
-function GroupCard({ g, onRelease, wanted }: { g: Group; onRelease: (r: PortRow) => void; wanted: number | null }) {
+function GroupCard({ g, onRelease, wanted, open, onToggle }: { g: Group; onRelease: (r: PortRow) => void; wanted: number | null; open: boolean; onToggle: () => void }) {
   const releasable = g.rows.filter((r) => r.release.allowed).length;
   return (
     <section className="rounded-lg border border-zinc-800 bg-zinc-900/60">
       <header className="px-3 sm:px-4 py-2.5 space-y-1">
         <div className="flex items-center gap-2 min-w-0">
-          <Badge state={CATEGORIES.find((c) => c.id === g.category)!.badge} className="shrink-0">
-            {BADGE_LABEL[g.category]}
-          </Badge>
-          <span className="text-sm font-semibold text-zinc-100 truncate">{g.title}</span>
+          <button type="button" className="flex items-center gap-2 min-w-0 flex-1 text-left" onClick={onToggle} aria-expanded={open} title={open ? 'collapse' : 'expand'}>
+            {open ? <ChevronDown size={14} className="text-zinc-500 shrink-0" /> : <ChevronRight size={14} className="text-zinc-500 shrink-0" />}
+            <Badge state={CATEGORIES.find((c) => c.id === g.category)!.badge} className="shrink-0">
+              {BADGE_LABEL[g.category]}
+            </Badge>
+            <span className="text-sm font-semibold text-zinc-100 truncate">{g.title}</span>
+          </button>
           {g.goalId && (
             <Link to={`/goals/${g.goalId}`} className="shrink-0 text-[11px] text-zinc-500 hover:text-emerald-300">
               Open goal →
@@ -161,13 +173,15 @@ function GroupCard({ g, onRelease, wanted }: { g: Group; onRelease: (r: PortRow)
             {releasable > 0 && releasable < g.rows.length ? ` · ${releasable} can be released` : ''}
           </span>
         </div>
-        {g.meta.length > 0 && <div className="text-[11px] text-zinc-500 truncate pl-0.5" title={g.meta.join(' · ')}>{g.meta.join(' · ')}</div>}
+        {g.meta.length > 0 && <div className="text-[11px] text-zinc-500 truncate pl-6" title={g.meta.join(' · ')}>{g.meta.join(' · ')}</div>}
       </header>
-      <div className="border-t border-zinc-800 pb-1">
-        {g.rows.map((r, i) => (
-          <PortLine key={r.id} row={r} onRelease={onRelease} odd={i % 2 === 1} highlight={r.port === wanted} plain={g.key.startsWith('pid:')} />
-        ))}
-      </div>
+      {open && (
+        <div className="border-t border-zinc-800 pb-1">
+          {g.rows.map((r, i) => (
+            <PortLine key={r.id} row={r} onRelease={onRelease} odd={i % 2 === 1} highlight={r.port === wanted} plain={g.key.startsWith('pid:')} />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -256,6 +270,27 @@ export function PortsPage() {
     return scoped.filter((r) => (scope === 'all' || r.category === scope) && (!needle || String(r.port).includes(needle) || `${r.label} ${r.detail ?? ''} ${r.process ?? ''} ${r.container ?? ''} ${r.cwd ?? ''}`.toLowerCase().includes(needle)));
   }, [scoped, scope, q]);
   const groups = groupsOf(matching);
+  // cards start open; one the person folds stays folded (this browser), and a search or a wanted port opens them all
+  const [folded, setFolded] = useState<Record<string, boolean>>(readFolded);
+  const isOpen = (g: Group) => !!q.trim() || !folded[g.key];
+  const toggle = (g: Group) =>
+    setFolded((f) => {
+      const next = { ...f, [g.key]: isOpen(g) };
+      try {
+        localStorage.setItem(FOLDED_KEY, JSON.stringify(next));
+      } catch {
+        /* private mode */
+      }
+      return next;
+    });
+  const setAll = (fold: boolean) =>
+    setFolded(() => {
+      const next = fold ? Object.fromEntries(groups.map((g) => [g.key, true])) : {};
+      try {
+        localStorage.setItem(FOLDED_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
   const releasable = all.filter((r) => r.release.allowed).length;
   const count = (c: Category | 'all') => scoped.filter((r) => c === 'all' || r.category === c).length;
 
@@ -292,6 +327,17 @@ export function PortsPage() {
           <Search size={13} className="absolute left-2 top-2 text-zinc-500" />
           <Input className="pl-7 py-1 text-xs" placeholder="search port, program, folder" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
+        {groups.length > 1 && (
+          <span className="flex items-center gap-2 text-xs text-zinc-500">
+            <button type="button" className="hover:text-zinc-200" onClick={() => setAll(false)}>
+              expand all
+            </button>
+            <span className="text-zinc-700">·</span>
+            <button type="button" className="hover:text-zinc-200" onClick={() => setAll(true)}>
+              collapse all
+            </button>
+          </span>
+        )}
         <button className="lg:hidden text-xs underline text-zinc-400" onClick={() => setShowSide(!showSide)}>
           {showSide ? 'hide overview' : 'overview & help'}
         </button>
@@ -314,7 +360,7 @@ export function PortsPage() {
                   <span className="flex-1 h-px bg-zinc-800/70" />
                 </div>
                 {list.map((g) => (
-                  <GroupCard key={g.key} g={g} onRelease={ask} wanted={wanted} />
+                  <GroupCard key={g.key} g={g} onRelease={ask} wanted={wanted} open={isOpen(g)} onToggle={() => toggle(g)} />
                 ))}
               </div>
             );
