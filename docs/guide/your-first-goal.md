@@ -152,7 +152,7 @@ Optional. Without it, the first line of your description becomes the title. The 
 
 ### Repository
 
-**2 · Repository.** Press **Select folder…** and pick the project folder, or type a path.
+**2 · Repository.** Press **Select folder…** and pick the project folder, or type a path. **New folder** in the picker makes an empty folder where you are browsing, for a project that does not exist yet. **Choose with Finder…** opens the macOS folder dialog; it is left out when you opened Foundry from another device, where that dialog would appear on Foundry's computer.
 
 Foundry then shows what it found: the branch, whether there are uncommitted changes, the last saved version, the online copy (remote) if any, and who commits are made as. If the online copy has newer work than your folder, the card says where the goal will start from (normally the newer work), and **pull into my checkout** brings your own folder up to date too.
 
