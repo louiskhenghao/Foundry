@@ -28,7 +28,7 @@ The red **Stop & release** at the end of a row stops what holds the port, so the
 
 - A preview app or **VS Code (web)** stops; start it again whenever you like. A serve Foundry added comes back the next time the preview starts.
 - A task's process (its attempt may fail), a Docker service or container (the whole container stops; its data is kept), a serve you added, or one of your own programs (it gets SIGTERM, then SIGKILL after a few seconds).
-- Foundry itself, the serve that carries Foundry to your other devices (and the one you opened the page through), system programs and other users' programs have no button; the row says why.
+- Foundry itself, the serve that carries Foundry to your other devices (and the one you opened the page through), system programs and other users' programs have no button: a grey label with a lock says why in its place.
 
 Stopping something that belongs to a goal is noted in that goal's **Activity**.
 

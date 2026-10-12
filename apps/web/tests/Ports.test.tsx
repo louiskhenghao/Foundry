@@ -20,6 +20,6 @@ test('a port says who holds it, where it listens, and offers open and stop & rel
 test('what may not be stopped says why instead', () => {
   const html = render(row({ kind: 'serve-self', category: 'tailscale', label: 'Tailscale serve → Foundry', release: { allowed: false, confirm: null, reason: 'it carries Foundry to your other devices' } }));
   expect(html).not.toContain('Stop &amp; release');
-  expect(html).toContain('can&#x27;t stop here: it carries Foundry to your other devices');
+  expect(html).toContain('title="Cannot be stopped here: it carries Foundry to your other devices"');
   expect(render(row({ category: 'foundry', kind: 'task', goalId: 'g1', taskId: 't1', label: 'Task · build the kit' }))).toContain('Task · build the kit');
 });

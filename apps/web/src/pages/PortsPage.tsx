@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ChevronDown, ChevronRight, ExternalLink, RefreshCw, Search, Square } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, Lock, RefreshCw, Search, Square } from 'lucide-react';
 import { api, type PortRow, type PortsView } from '../api.ts';
 import { Badge, Button, Card, ConfirmDialog, Empty, Input, Tabs, ago, buttonClass, cn } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
@@ -79,14 +79,13 @@ export function usePortRelease(onDone: () => void): { ask: (row: PortRow) => voi
 export function PortLine({ row, onRelease, odd, highlight, standalone, plain }: { row: PortRow; onRelease: (row: PortRow) => void; odd?: boolean; highlight?: boolean; standalone?: boolean; plain?: boolean }) {
   const where = [plain ? null : row.addresses.length ? row.addresses.join(', ') : null, row.pid ? `pid ${row.pid}` : null].filter(Boolean).join(' · ');
   return (
-    <div className={cn('pr-3 sm:pr-4 py-2 grid grid-cols-[4rem_minmax(0,1fr)] md:grid-cols-[4rem_minmax(0,1fr)_10rem_13rem] gap-x-3 gap-y-1 items-start text-xs', standalone ? 'pl-3' : 'pl-3 sm:pl-6 ml-2 sm:ml-4 border-l-2 border-zinc-800/60', odd && 'bg-zinc-900/50', highlight && 'bg-amber-500/10')}>
+    <div className={cn('pr-3 sm:pr-4 py-2 grid grid-cols-[4rem_minmax(0,1fr)] md:grid-cols-[4rem_minmax(0,1fr)_10rem_13rem] gap-x-3 gap-y-1 items-center text-xs', standalone ? 'pl-3' : 'pl-3 sm:pl-6 ml-2 sm:ml-4 border-l-2 border-zinc-800/60', odd && 'bg-zinc-900/50', highlight && 'bg-amber-500/10')}>
       <span className="mono text-sm text-zinc-100 tabular-nums text-right">{row.port}</span>
       <div className="min-w-0">
         {/* plain: the card already names the program and its folder, so the row says where it listens */}
         <div className="text-zinc-100 truncate" title={row.process ?? undefined}>{plain ? `listening on ${row.addresses.join(', ') || '—'}` : row.label}</div>
         <div className="text-[10px] text-zinc-500 mt-0.5 flex flex-wrap gap-x-2">
           {row.detail && !plain && <span className="min-w-0 break-words">{row.detail}</span>}
-          {!row.release.allowed && row.release.reason && <span className="text-zinc-600">can't stop here: {row.release.reason}</span>}
         </div>
       </div>
       <div className="col-start-2 md:col-start-3 mono text-[11px] text-zinc-500 truncate" title={where}>
@@ -98,10 +97,16 @@ export function PortLine({ row, onRelease, odd, highlight, standalone, plain }: 
             <ExternalLink size={12} /> Open
           </a>
         )}
-        {row.release.allowed && (
+        {row.release.allowed ? (
           <Button size="sm" variant="danger" onClick={() => onRelease(row)} title={`Stop what holds port ${row.port} and release it`}>
             <Square size={11} /> Stop & release
           </Button>
+        ) : (
+          // where the button would be: why this one cannot be stopped here, kept to one short line
+          <span className="inline-flex items-center gap-1 max-w-full rounded-md border border-zinc-800 px-2 py-1 text-[11px] text-zinc-500" title={`Cannot be stopped here: ${row.release.reason ?? 'not allowed'}`}>
+            <Lock size={11} className="shrink-0" aria-hidden="true" />
+            <span className="truncate">{row.release.reason ?? 'protected'}</span>
+          </span>
         )}
       </div>
     </div>
