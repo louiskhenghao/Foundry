@@ -79,7 +79,7 @@ export function usePortRelease(onDone: () => void): { ask: (row: PortRow) => voi
 export function PortLine({ row, onRelease, odd, highlight, standalone, plain }: { row: PortRow; onRelease: (row: PortRow) => void; odd?: boolean; highlight?: boolean; standalone?: boolean; plain?: boolean }) {
   const where = [plain ? null : row.addresses.length ? row.addresses.join(', ') : null, row.pid ? `pid ${row.pid}` : null].filter(Boolean).join(' · ');
   return (
-    <div className={cn('pr-3 sm:pr-4 py-2 grid grid-cols-[4rem_minmax(0,1fr)] md:grid-cols-[4rem_minmax(0,1fr)_11rem_11rem] gap-x-3 gap-y-1 items-start text-xs', standalone ? 'pl-3' : 'pl-3 sm:pl-6 ml-2 sm:ml-4 border-l-2 border-zinc-800/60', odd && 'bg-zinc-900/50', highlight && 'bg-amber-500/10')}>
+    <div className={cn('pr-3 sm:pr-4 py-2 grid grid-cols-[4rem_minmax(0,1fr)] md:grid-cols-[4rem_minmax(0,1fr)_10rem_13rem] gap-x-3 gap-y-1 items-start text-xs', standalone ? 'pl-3' : 'pl-3 sm:pl-6 ml-2 sm:ml-4 border-l-2 border-zinc-800/60', odd && 'bg-zinc-900/50', highlight && 'bg-amber-500/10')}>
       <span className="mono text-sm text-zinc-100 tabular-nums text-right">{row.port}</span>
       <div className="min-w-0">
         {/* plain: the card already names the program and its folder, so the row says where it listens */}
@@ -92,7 +92,7 @@ export function PortLine({ row, onRelease, odd, highlight, standalone, plain }: 
       <div className="col-start-2 md:col-start-3 mono text-[11px] text-zinc-500 truncate" title={where}>
         {where || <span className="text-zinc-700">—</span>}
       </div>
-      <div className="col-start-2 md:col-start-4 flex items-center gap-1.5 justify-start md:justify-end flex-wrap">
+      <div className="col-start-2 md:col-start-4 flex items-center gap-1.5 justify-start md:justify-end flex-wrap md:flex-nowrap whitespace-nowrap">
         {row.url && (
           <a href={row.url} target="_blank" rel="noreferrer" className={buttonClass('info', 'sm')} title={row.url}>
             <ExternalLink size={12} /> Open
