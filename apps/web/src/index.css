@@ -1,5 +1,31 @@
 @import 'tailwindcss';
 
+/* Tailwind v4 gives buttons the default cursor: everything clickable shows the pointer, anything disabled says it is not
+   available. In the base layer, so a component's own cursor-* utility still wins. */
+@layer base {
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  [role='radio'],
+  [role='tab'],
+  [role='menuitem'],
+  a[href],
+  summary,
+  label:has(> input[type='checkbox']:not(:disabled)),
+  label:has(> input[type='radio']:not(:disabled)),
+  input[type='checkbox']:not(:disabled),
+  input[type='radio']:not(:disabled),
+  input[type='file']:not(:disabled),
+  select:not(:disabled) {
+    cursor: pointer;
+  }
+  button:disabled,
+  select:disabled,
+  input:disabled,
+  [aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+}
+
 :root {
   color-scheme: dark;
 }
