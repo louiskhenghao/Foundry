@@ -493,11 +493,13 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.get('/api/goals/:id/screenshots/:file', (c) => {
     const goal = goalOr404(c);
     const file = c.req.param('file');
-    // screenshots, and the videos of milestone walkthroughs
-    if (!/^[\w.-]+\.(png|webm)$/.test(file)) throw new HttpError(400, { error: 'bad screenshot name' });
+    // screenshots, the videos of milestone walkthroughs, and what a milestone script attached or printed (json, txt)
+    const ext = /^[\w.-]+\.(png|webm|json|txt)$/.exec(file)?.[1];
+    if (!ext) throw new HttpError(400, { error: 'bad screenshot name' });
     const p = join(screenshotsDir(engine.config.dataDir, goal), file);
     if (!existsSync(p)) throw new HttpError(404, { error: 'screenshot not found' });
-    return new Response(Bun.file(p), { headers: { 'content-type': file.endsWith('.webm') ? 'video/webm' : 'image/png', 'cache-control': 'private, max-age=3600' } });
+    const type = { png: 'image/png', webm: 'video/webm', json: 'application/json; charset=utf-8', txt: 'text/plain; charset=utf-8' }[ext];
+    return new Response(Bun.file(p), { headers: { 'content-type': type!, 'cache-control': 'private, max-age=3600', 'x-content-type-options': 'nosniff' } });
   });
   app.get('/api/goals/:id/artifacts', (c) => c.json({ files: listArtifacts(goalWorkspacePath(engine.config.dataDir, goalOr404(c))) }));
   app.get('/api/goals/:id/artifacts/*', (c) => {
@@ -696,7 +698,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       escalations: listEscalations(db, { goalId: id }).map(e => ({ ...e, provider: goal.provider ?? engine.config.provider })),
       events: engine.store.listByGoal(id, 300),
       // every milestone visit and walkthrough, which a long goal pushes out of the latest events
-      milestoneEvents: engine.store.listByGoalOfTypes(id, ['goal.checkpoint_opened', 'goal.checkpoint_closed', 'goal.milestone_passed', 'milestone.evidence']),
+      milestoneEvents: engine.store.listByGoalOfTypes(id, ['goal.checkpoint_opened', 'goal.checkpoint_closed', 'goal.milestone_passed', 'milestone.evidence', 'milestone.final_walk']),
+      milestoneRuns: engine.milestoneRuns(id),
       // Follows / Followed by: the earlier goal may have been deleted since (then only its title remains)
       followUps: {
         followsExists: goal.follows ? !!getGoal(db, goal.follows.goalId) : false,
@@ -817,6 +820,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json(await releasePort(engine, body.id, { viaHost: c.req.header('host') ?? null }));
   });
   // a stuck task without restarting Foundry: a ready one is scheduled, a running one with no live session is stopped
+  app.post('/api/goals/:id/milestones/:taskId/rerun', (c) => c.json(engine.rerunMilestone(c.req.param('id'), c.req.param('taskId'))));
   app.post('/api/goals/:id/tasks/:taskId/unstick', async (c) => {
     const body = await c.req.json().catch(() => ({}));
     return c.json(engine.unstickTask(c.req.param('id'), c.req.param('taskId'), { force: body?.force === true }));

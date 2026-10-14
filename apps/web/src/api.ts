@@ -377,6 +377,8 @@ export interface GoalDetail {
   events: (EngineEvent & { seq: number })[];
   /** every milestone visit and walkthrough of the goal, oldest first, however far back */
   milestoneEvents: (EngineEvent & { seq: number })[];
+  /** milestones being recorded or waiting their turn ('final' while the final walkthrough runs) */
+  milestoneRuns?: string[];
   /** Follows / Followed by (goal.follows holds the earlier goal; it may have been deleted since) */
   followUps: { followsExists: boolean; followedBy: { id: string; title: string; state: GoalState }[] };
 }
@@ -580,6 +582,7 @@ export function apiForProvider(provider?: AgentProvider) {
   restartGoal: (id: string, fromTaskId?: string) => req<{ restarted: string[] }>(`/api/goals/${id}/restart`, { method: 'POST', body: JSON.stringify({ fromTaskId }) }),
   ports: () => req<PortsView>('/api/ports'),
   releasePort: (id: string) => req<{ released: PortRow }>('/api/ports/release', { method: 'POST', body: JSON.stringify({ id }) }),
+  rerunMilestone: (id: string, taskId: string) => req<{ started: string[] }>(`/api/goals/${id}/milestones/${taskId}/rerun`, { method: 'POST' }),
   unstickTask: (id: string, taskId: string, force = false) => req<{ action: 'scheduled' | 'stopped' }>(`/api/goals/${id}/tasks/${taskId}/unstick`, { method: 'POST', body: JSON.stringify({ force }) }),
   deleteGoal: (id: string, deleteBranch: boolean) => req<{ ok: true; deletedBranch: string | null }>(`/api/goals/${id}${deleteBranch ? '?deleteBranch=1' : ''}`, { method: 'DELETE' }),
   viewSkill: (dir: string) => req<{ name: string; dir: string; invoke: string; skillMd: string | null; files: { path: string; size: number }[] }>(`/api/skills/view?dir=${encodeURIComponent(dir)}`),
