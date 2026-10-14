@@ -4,7 +4,7 @@ import type { Check, CheckResult } from '@foundry/core';
 import { IdPrefix, newId } from '@foundry/core';
 import { truncateOutput } from '../distill/truncate.ts';
 import { runInGroup } from '../proc.ts';
-import { scriptPorts } from './milestone-script.ts';
+import { NO_BROWSER, scriptPorts, writeWrapper } from './milestone-script.ts';
 
 export interface CommandCheckContext {
   cwd: string;
@@ -22,17 +22,31 @@ export async function runCommandCheck(check: Check, ctx: CommandCheckContext): P
   const cwd = spec.cwd ? join(ctx.cwd, spec.cwd) : ctx.cwd;
   let status: CheckResult['status'] = 'error';
   let raw = '';
+  // a milestone script runs on Chromium through the project's config, the way Foundry records it
+  const wrapper = spec.milestone ? await writeWrapper(cwd).catch(() => null) : null;
   try {
     // its own process group, killed whole: a test runner's dev server must not keep the check open after it ends
     const ports = spec.ports ? await scriptPorts() : {};
-    const r = await runInGroup(['sh', '-lc', spec.cmd], { cwd, env: { ...process.env, ...ports, CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' }, timeoutMs: spec.timeoutMs, killLeftovers: true });
+    const env = { ...process.env, ...ports, CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' };
+    const cmd = wrapper ? `${spec.cmd} --config '${wrapper.name}'` : spec.cmd;
+    const run = () => runInGroup(['sh', '-lc', cmd], { cwd, env, timeoutMs: spec.timeoutMs, killLeftovers: true });
+    let r = await run();
+    raw = '';
+    // the project's Playwright has no Chromium on this computer yet: download it once and run again
+    if (spec.milestone && r.code !== 0 && NO_BROWSER.test(r.stdout + r.stderr)) {
+      const i = await runInGroup(['sh', '-lc', 'npx --no-install playwright install chromium'], { cwd, env, timeoutMs: spec.timeoutMs });
+      raw = `$ npx playwright install chromium\n[exit ${i.code}]\n${i.stdout.slice(-2000)}\n${i.stderr.slice(-2000)}\n`;
+      r = await run();
+    }
     const killed = r.timedOut;
     const code = r.code;
-    raw = `$ ${spec.cmd}\n[exit ${code}${killed ? ', killed: timeout' : ''}]\n--- stdout ---\n${r.stdout}\n--- stderr ---\n${r.stderr}`;
+    raw += `$ ${spec.cmd}\n[exit ${code}${killed ? ', killed: timeout' : ''}]\n--- stdout ---\n${r.stdout}\n--- stderr ---\n${r.stderr}`;
     status = killed ? 'error' : code === spec.expectExitCode ? 'pass' : 'fail';
   } catch (err) {
     raw = `$ ${spec.cmd}\n[spawn error] ${String(err)}`;
     status = 'error';
+  } finally {
+    wrapper?.remove();
   }
   mkdirSync(ctx.outputDir, { recursive: true });
   const rawRef = join(ctx.outputDir, `${id}.txt`);

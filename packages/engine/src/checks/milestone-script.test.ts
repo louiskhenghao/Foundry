@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { IDLE_DELIVERY, getGoal, type Goal, type Task } from '@foundry/core';
@@ -48,7 +48,8 @@ const setup = (files: Record<string, string> = { [SCRIPT]: 'test', 'playwright.c
 /** a stand-in for `npx playwright test`: reads the report path from Foundry's config and writes the report it is given */
 const fakeRun = (report: (dir: string) => unknown, result: Partial<GroupResult> = {}, seen: { argv: string[]; env: Record<string, string | undefined>; wrapper: string }[] = []): ScriptDeps => ({
   run: async (argv, opts) => {
-    const wrapper = join(opts.cwd, 'playwright.foundry-milestone.config.ts');
+    const name = /--config '([^']+)'/.exec(argv.join(' '))?.[1];
+    const wrapper = join(opts.cwd, name ?? 'none');
     const text = existsSync(wrapper) ? readFileSync(wrapper, 'utf8') : '';
     seen.push({ argv, env: opts.env, wrapper: text });
     const out = /outputFile: ("[^"]+")/.exec(text)?.[1];
@@ -62,7 +63,7 @@ const fakeRun = (report: (dir: string) => unknown, result: Partial<GroupResult> 
 
 describe('a milestone script', () => {
   test("is its task's must check, on free ports", () => {
-    expect(milestoneCheckSpec(SCRIPT)).toMatchObject({ type: 'command', cmd: `npx --no-install playwright test '${SCRIPT}'`, ports: true });
+    expect(milestoneCheckSpec(SCRIPT)).toMatchObject({ type: 'command', cmd: `npx --no-install playwright test '${SCRIPT}'`, ports: true, milestone: SCRIPT });
   });
 
   test('records every test: its video, its captioned screenshots and what an API answered', async () => {
@@ -96,12 +97,12 @@ describe('a milestone script', () => {
     expect(readFileSync(join(dir, 'p-03.json'), 'utf8')).toBe('{"id":1}');
     expect(readFileSync(join(dir, run.log!), 'utf8')).toContain(`npx --no-install playwright test '${SCRIPT}'`);
     // the project's own config, recorded and reported to Foundry; gone afterwards
-    expect(seen[0]!.argv.join(' ')).toContain("--config 'playwright.foundry-milestone.config.ts'");
+    expect(seen[0]!.argv.join(' ')).toMatch(/--config 'playwright\.foundry-\w+\.config\.ts'/);
     expect(seen[0]!.wrapper).toContain('import base from "./playwright.config"');
     expect(seen[0]!.wrapper).toContain("video: 'on'");
     expect(Number(seen[0]!.env.PORT)).toBeGreaterThan(0);
     expect(seen[0]!.env.PORT).not.toBe(seen[0]!.env.API_PORT);
-    expect(existsSync(join(ws, 'playwright.foundry-milestone.config.ts'))).toBe(false);
+    expect(readdirSync(ws).filter((f) => f.startsWith('playwright.foundry-'))).toEqual([]);
   });
 
   test('a failing test fails the run with its message', async () => {

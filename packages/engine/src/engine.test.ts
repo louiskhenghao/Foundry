@@ -665,9 +665,10 @@ describe('feature milestones', () => {
     });
   /** a stand-in for `npx playwright test` that writes the report Foundry's config asks for */
   const playwright = (status: 'passed' | 'failed', runs: string[] = []) => ({
-    run: async (_argv: string[], opts: { cwd: string }) => {
+    run: async (argv: string[], opts: { cwd: string }) => {
       runs.push(opts.cwd);
-      const wrapper = require('node:fs').readFileSync(join(opts.cwd, 'playwright.foundry-milestone.config.ts'), 'utf8') as string;
+      const name = /--config '([^']+)'/.exec(argv.join(' '))![1]!;
+      const wrapper = require('node:fs').readFileSync(join(opts.cwd, name), 'utf8') as string;
       const out = JSON.parse(/outputFile: ("[^"]+")/.exec(wrapper)![1]!);
       write(out, JSON.stringify({ suites: [{ title: SCRIPT, specs: [{ title: 'filters the list', tests: [{ results: [{ status, error: status === 'failed' ? { message: 'the list is empty' } : undefined, attachments: [{ name: 'the filtered list', contentType: 'image/png', body: Buffer.from('png').toString('base64') }] }] }] }] }] }));
       return { code: status === 'passed' ? 0 : 1, stdout: '', stderr: '', timedOut: false };
@@ -708,7 +709,7 @@ describe('feature milestones', () => {
     const list = listTasks(engine.store.db, goal.id).find((x) => x.title === 'add the list')!;
     expect(list.milestoneScript).toBe(SCRIPT);
     expect(listChecks(engine.store.db, goal.id).filter((c) => c.taskId === list.id).map((c) => ({ name: c.name, tier: c.tier, spec: c.spec }))).toEqual([
-      { name: `milestone script: ${SCRIPT}`, tier: 'must', spec: { type: 'command', cmd: `npx --no-install playwright test '${SCRIPT}'`, timeoutMs: 600_000, expectExitCode: 0, ports: true } },
+      { name: `milestone script: ${SCRIPT}`, tier: 'must', spec: { type: 'command', cmd: `npx --no-install playwright test '${SCRIPT}'`, timeoutMs: 600_000, expectExitCode: 0, ports: true, milestone: SCRIPT } },
     ]);
   });
 

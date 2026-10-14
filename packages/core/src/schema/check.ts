@@ -11,6 +11,8 @@ export const CommandCheckSpec = z.object({
   expectExitCode: z.number().int().default(0),
   /** PORT and API_PORT are set to free ports: a milestone script's servers never land on the preview's or another task's */
   ports: z.boolean().optional(),
+  /** a milestone script (repo-relative): it runs through the project's Playwright config on Chromium, as its recording does */
+  milestone: z.string().optional(),
 });
 
 export const ReviewerCheckSpec = z.object({

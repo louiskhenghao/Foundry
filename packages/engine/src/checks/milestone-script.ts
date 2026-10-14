@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
 import type { CheckSpec, Goal, Task } from '@foundry/core';
 import type { Engine } from '../engine.ts';
-import { portFree } from '../preview/manager.ts';
+import { installSteps, portFree } from '../preview/manager.ts';
 import { type GroupResult, runInGroup } from '../proc.ts';
 import { excludeFromGit } from '../skills/autoskills.ts';
 import { goalWorkspacePath, screenshotsDir } from '../workspace.ts';
@@ -11,8 +11,8 @@ import { goalWorkspacePath, screenshotsDir } from '../workspace.ts';
 /** a scripted milestone's check is named after its script, so a person sees which check shows which feature */
 export const MILESTONE_CHECK_PREFIX = 'milestone script: ';
 const SCRIPT_TIMEOUT_MS = 10 * 60_000;
-/** the config Foundry writes next to the project's for one run: the project's own, recording a video and reporting to Foundry */
-const WRAPPER = 'playwright.foundry-milestone.config.ts';
+/** the configs Foundry writes next to the project's for one run, kept out of git */
+const WRAPPERS = 'playwright.foundry-*.config.ts';
 const CONFIGS = ['playwright.config.ts', 'playwright.config.mts', 'playwright.config.js', 'playwright.config.mjs', 'playwright.config.cjs'];
 
 const quote = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
@@ -24,8 +24,44 @@ export function milestoneCommand(script: string, config?: string): string {
 
 /** the must check a scripted milestone's task carries: the script passes, on free ports, before the task can land */
 export function milestoneCheckSpec(script: string): Extract<CheckSpec, { type: 'command' }> {
-  return { type: 'command', cmd: milestoneCommand(script), timeoutMs: SCRIPT_TIMEOUT_MS, expectExitCode: 0, ports: true };
+  return { type: 'command', cmd: milestoneCommand(script), timeoutMs: SCRIPT_TIMEOUT_MS, expectExitCode: 0, ports: true, milestone: script };
 }
+
+/**
+ * Write a config next to the project's that is the project's own on Chromium only (a phone project is Chromium too),
+ * so the task's check and the recording run the script the same way, whatever other browsers the project tests on.
+ * `record` adds a video of every test and a JSON report for Foundry. Null when the repository has no playwright.config.
+ */
+export async function writeWrapper(cwd: string, record?: { outputDir: string; report: string }): Promise<{ name: string; remove: () => void } | null> {
+  const base = CONFIGS.find((c) => existsSync(join(cwd, c)));
+  if (!base) return null;
+  const name = `playwright.foundry-${Math.random().toString(36).slice(2, 10)}.config.ts`;
+  const from = extname(base) === '.ts' ? `./${base.replace(/\.ts$/, '')}` : `./${base}`;
+  const recording = record
+    ? `
+  outputDir: ${JSON.stringify(record.outputDir)},
+  reporter: [['json', { outputFile: ${JSON.stringify(record.report)} }]],
+  use: { ...(b.use ?? {}), video: 'on', screenshot: 'on', trace: 'off' },`
+    : '';
+  writeFileSync(
+    join(cwd, name),
+    `// written by Foundry for one milestone run, removed afterwards
+import base from ${JSON.stringify(from)};
+const b: any = (base as any)?.default ?? base;
+const chromium = (b.projects ?? []).filter((p: any) => (p.use?.browserName ?? p.use?.defaultBrowserType ?? 'chromium') === 'chromium');
+export default {
+  ...b,
+  retries: 0,${recording}
+  ...(chromium.length ? { projects: chromium } : {}),
+};
+`,
+  );
+  await excludeFromGit(cwd, [WRAPPERS]).catch(() => false);
+  return { name, remove: () => rmSync(join(cwd, name), { force: true }) };
+}
+
+/** what Playwright says when the browser it needs was never downloaded on this computer */
+export const NO_BROWSER = /Executable doesn't exist|npx playwright install/;
 
 /**
  * Two free ports for a script's servers: PORT for the web app, API_PORT for a backend. Taken from a high range, so a
@@ -88,38 +124,28 @@ export async function runMilestoneScript(engine: Engine, goal: Goal, task: Task,
   const hide = engine.preview.redactorFor(goal);
   if (!script) return { ...out, error: 'the milestone has no script' };
   if (!existsSync(join(cwd, script))) return { ...out, error: `${script} is not on the goal branch` };
-  const base = CONFIGS.find((c) => existsSync(join(cwd, c)));
-  if (!base) return { ...out, error: 'there is no playwright.config at the root of the repository' };
-  mkdirSync(dir, { recursive: true });
   const work = mkdtempSync(join(tmpdir(), 'foundry-milestone-'));
   const report = join(work, 'report.json');
-  // the project's config as it is, plus a video and the report; only Chromium projects (a phone project is Chromium too)
-  const from = extname(base) === '.ts' ? `./${base.replace(/\.ts$/, '')}` : `./${base}`;
-  writeFileSync(
-    join(cwd, WRAPPER),
-    `// written by Foundry for one milestone run, removed afterwards
-import base from ${JSON.stringify(from)};
-const b: any = (base as any)?.default ?? base;
-const chromium = (b.projects ?? []).filter((p: any) => (p.use?.browserName ?? p.use?.defaultBrowserType ?? 'chromium') === 'chromium');
-export default {
-  ...b,
-  retries: 0,
-  outputDir: ${JSON.stringify(join(work, 'results'))},
-  reporter: [['json', { outputFile: ${JSON.stringify(report)} }]],
-  use: { ...(b.use ?? {}), video: 'on', screenshot: 'on', trace: 'off' },
-  ...(chromium.length ? { projects: chromium } : {}),
-};
-`,
-  );
-  await excludeFromGit(cwd, [WRAPPER]).catch(() => false);
+  // the project's config as it is, on Chromium, plus a video and the report
+  const wrapper = await writeWrapper(cwd, { outputDir: join(work, 'results'), report });
+  if (!wrapper) {
+    rmSync(work, { recursive: true, force: true });
+    return { ...out, error: 'there is no playwright.config at the root of the repository' };
+  }
+  mkdirSync(dir, { recursive: true });
   let logText = '';
   try {
     const env = { ...process.env, ...(await scriptPorts()), CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' };
-    const run = () => deps.run(['sh', '-lc', milestoneCommand(script, WRAPPER)], { cwd, env, timeoutMs: SCRIPT_TIMEOUT_MS });
+    // the goal's folder may never have installed its dependencies (tasks ran in worktrees): the way the preview does
+    for (const step of installSteps(cwd, [])) {
+      const i = await deps.run(['sh', '-lc', step.command], { cwd: join(cwd, step.dir), env, timeoutMs: SCRIPT_TIMEOUT_MS });
+      logText += `$ ${step.command}\n[exit ${i.code}]\n${i.stdout.slice(-3000)}\n${i.stderr.slice(-3000)}\n`;
+    }
+    const run = () => deps.run(['sh', '-lc', milestoneCommand(script, wrapper.name)], { cwd, env, timeoutMs: SCRIPT_TIMEOUT_MS });
     let r = await run();
-    logText = `$ ${milestoneCommand(script)}\n[exit ${r.code}${r.timedOut ? ', killed: timeout' : ''}]\n${r.stdout}\n${r.stderr}`;
+    logText += `$ ${milestoneCommand(script)}\n[exit ${r.code}${r.timedOut ? ', killed: timeout' : ''}]\n${r.stdout}\n${r.stderr}`;
     // the project's Playwright has no browser on this computer yet: download it once and run again
-    if (r.code !== 0 && /Executable doesn't exist|playwright install/i.test(r.stdout + r.stderr) && !existsSync(report)) {
+    if (r.code !== 0 && NO_BROWSER.test(r.stdout + r.stderr)) {
       const install = await deps.run(['sh', '-lc', 'npx --no-install playwright install chromium'], { cwd, env, timeoutMs: SCRIPT_TIMEOUT_MS });
       logText += `\n$ npx playwright install chromium\n[exit ${install.code}]\n${install.stdout.slice(-2000)}\n${install.stderr.slice(-2000)}`;
       r = await run();
@@ -136,7 +162,7 @@ export default {
   } catch (err) {
     out.error = String((err as Error).message ?? err);
   } finally {
-    rmSync(join(cwd, WRAPPER), { force: true });
+    wrapper.remove();
     if (logText) {
       out.log = `${prefix}log.txt`;
       writeFileSync(join(dir, out.log), hide(logText.replace(ANSI, '')).slice(-400_000));
