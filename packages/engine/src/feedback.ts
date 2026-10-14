@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import type { Goal } from '@foundry/core';
-import { FeedbackPlan, getBrief, getTask, listTasks, renderDecisions } from '@foundry/core';
+import { FINAL_WALK, FeedbackPlan, getBrief, getTask, listTasks, renderDecisions } from '@foundry/core';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { hintOnly } from './checkpoint.ts';
 import { tryJson } from './checks/reviewer.ts';
@@ -22,7 +22,7 @@ export async function classifyFeedback(engine: Engine, goal: Goal, text: string)
   if (!cp) throw new Error('no milestone is open for this goal');
   if (!text.trim()) throw new Error('feedback is empty');
   const brief = getBrief(store.db, goal.id)?.brief;
-  const milestone = getTask(store.db, cp.taskId);
+  const milestone = cp.taskId === FINAL_WALK ? { title: 'the final walkthrough (every feature)' } : getTask(store.db, cp.taskId);
   const tasks = listTasks(store.db, goal.id);
   const prompt = [
     `# Goal\n${goal.title}\n\n${goal.prompt.slice(0, 3000)}`,

@@ -3,7 +3,7 @@ import { listTasks, getTask, getGoal, listAttempts, getObservation } from '@foun
 import { type Continuation, continuationMessage, decideNext, maxAttemptsFor, runAttempt } from './attempt-loop.ts';
 import { budgetStatus } from './budget.ts';
 import type { Engine } from './engine.ts';
-import { dueCheckpoint, openCheckpoint, passMilestone } from './checkpoint.ts';
+import { dueCheckpoint, finalLookDue, openCheckpoint, openFinalCheckpoint, passMilestone, runFinalWalk, scriptedMilestones } from './checkpoint.ts';
 import { raiseEscalation } from './escalation.ts';
 import { headRef } from './git/git.ts';
 import { integrateTask } from './merge.ts';
@@ -39,7 +39,8 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
   // 2b. a milestone landed (or a feedback fix for one): launch nothing more, let in-flight work land, then pause for the
   // human; a goal that does not pause at milestones tells them and goes on
   for (let due = dueCheckpoint(tasks); due; due = dueCheckpoint(tasks)) {
-    if (goal.milestonePause === false) {
+    // a feature milestone (one with a script) is recorded and the person told; the goal pauses only for the look at the end
+    if (goal.milestonePause === false || due.task.milestoneScript) {
       passMilestone(engine, goal, due.task);
       tasks = listTasks(store.db, goal.id);
       continue;
@@ -55,6 +56,22 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
   if (tasks.length && tasks.every((t) => t.state === 'done' || t.state === 'failed' || t.state === 'skipped')) {
     if (tasks.some((t) => t.state === 'failed')) {
       store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'running', to: 'failed', reason: `${tasks.filter((t) => t.state === 'failed').length} task(s) failed` } });
+    } else if (scriptedMilestones(tasks).length && !goal.finalWalk?.ranAt) {
+      // 3b. the final walkthrough: every feature's script once more on the finished branch (not awaited: minutes)
+      if (!engine.finalWalking.has(goal.id)) {
+        engine.finalWalking.add(goal.id);
+        void runFinalWalk(engine, goal)
+          .catch((err) => store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `the final walkthrough failed: ${String(err)}` } }))
+          .finally(() => {
+            engine.finalWalking.delete(goal.id);
+            engine.tick(goal.id);
+          });
+      }
+    } else if (scriptedMilestones(tasks).length && finalLookDue(goal, tasks)) {
+      // 3c. the look at the end: every feature's recording on one card
+      if (engine.inFlightForGoal(goal.id).length === 0) {
+        void openFinalCheckpoint(engine, goal, finalLookDue(goal, tasks)!.recheck).catch((err) => store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `opening the final walkthrough failed: ${String(err)}` } }));
+      }
     } else {
       const skipped = tasks.filter((t) => t.state === 'skipped').length;
       store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'running', to: 'goal_review', reason: skipped ? `all tasks done (${skipped} skipped by you)` : 'all tasks done' } });
