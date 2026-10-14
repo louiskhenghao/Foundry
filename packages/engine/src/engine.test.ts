@@ -642,6 +642,22 @@ describe('progress folders', () => {
   });
 });
 
+describe('an engine error mid-attempt', () => {
+  test('closes the attempt it cut short and gives the task that attempt back', async () => {
+    let calls = 0;
+    const inner = new FakeRunner(() => {});
+    // the first session cannot even start (an engine-side failure, not the model's)
+    const runner = { active: () => 0, run: async (spec: RunSpec) => (spec.label?.startsWith('attempt') && ++calls === 1 ? Promise.reject(new Error('spawn failed')) : inner.run(spec)) } as unknown as ClaudeRunner;
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'create done.txt', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['true'] } });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
+    const task = listTasks(engine.store.db, goal.id)[0]!;
+    const attempts = listAttempts(engine.store.db, task.id);
+    expect(attempts.map((a) => [a.state, a.resultSubtype])).toEqual([['error', 'engine_error'], ['passed', 'success']]);
+    expect(task.state).toBe('done');
+  });
+});
+
 describe('feature milestones', () => {
   const { writeFileSync: write, mkdirSync: mkdir } = require('node:fs') as typeof import('node:fs');
   const SCRIPT = 'e2e/milestones/list.spec.ts';

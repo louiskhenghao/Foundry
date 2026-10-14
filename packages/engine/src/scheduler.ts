@@ -265,6 +265,16 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
   } catch (err) {
     if (lost()) return;
     store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'error', message: `task ${task.id} crashed in engine: ${String((err as Error)?.stack ?? err)}` } });
+    // the attempt the error cut short is over: it would read "running" forever, and it was not the model's failure, so
+    // the task gets the attempt back (as after an engine restart)
+    for (const a of listAttempts(store.db, task.id)) {
+      if (a.state !== 'created' && a.state !== 'running' && a.state !== 'observing') continue;
+      const reason = `engine error: ${String((err as Error)?.message ?? err).slice(0, 160)}`;
+      store.append({ type: 'attempt.finished', goalId: goal.id, payload: { attemptId: a.id, state: 'error', resultSubtype: 'engine_error', costUsd: a.costUsd, numTurns: a.numTurns, endRef: a.endRef, permissionDenials: [], skillsUsed: [], toolsUsed: {} } });
+      store.append({ type: 'attempt.concluded', goalId: goal.id, payload: { attemptId: a.id, state: 'error', reason } });
+      const now = getTask(store.db, task.id);
+      if (a.kind === 'work' && now) store.append({ type: 'task.hint_set', goalId: goal.id, payload: { taskId: task.id, hint: now.hint, extraAttempts: 1 } });
+    }
     const t = getTask(store.db, task.id);
     if (t && (t.state === 'running' || t.state === 'observing' || t.state === 'merging')) {
       // an engine error is not the model's failure: retry a couple of times (no attempt consumed) before asking the human
