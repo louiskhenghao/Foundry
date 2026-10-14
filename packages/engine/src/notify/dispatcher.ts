@@ -37,14 +37,19 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
       return { family: 'interview', text: `❓ Round ${e.payload.round} — ${goalTitle(e.goalId)}\n${qs.length} question(s) before the plan is written. First: ${(qs[0]?.text ?? '').slice(0, 200)}`, path: `/goals/${e.goalId}` };
     }
     case 'milestone.evidence': {
-      const head = `📸 What the milestone looks like — ${goalTitle(e.goalId)}`;
+      // the final walkthrough says it once for every feature (milestone.final_walk)
+      if (e.payload.final) return null;
+      const head =
+        e.payload.status === 'fail' ? `⚠️ A milestone did not show — ${goalTitle(e.goalId)}` : e.payload.status === 'unverified' ? `📸 A milestone, with fake data only — ${goalTitle(e.goalId)}` : `📸 What the milestone looks like — ${goalTitle(e.goalId)}`;
       const body = e.payload.summary || (e.payload.error ? `Foundry could not record a walkthrough: ${e.payload.error}` : '');
       // what went wrong next to a walkthrough that was recorded anyway (error pages left out, no plan)
       const also = e.payload.summary && e.payload.error ? `⚠️ ${e.payload.error.slice(0, 300)}` : '';
       return { family: 'milestone', text: [head, body.slice(0, 600), also].filter(Boolean).join('\n'), path: `/goals/${e.goalId}` };
     }
+    case 'milestone.final_walk':
+      return { family: 'milestone', text: e.payload.passed ? `🎬 Final walkthrough — ${goalTitle(e.goalId)}\nEvery feature's script passed on the finished branch.` : `⚠️ Final walkthrough — ${goalTitle(e.goalId)}\n${e.payload.failed.length} feature script(s) failed on the finished branch; Foundry repairs each once.`, path: `/goals/${e.goalId}` };
     case 'goal.milestone_passed':
-      return { family: 'milestone', text: `👀 Milestone — ${goalTitle(e.goalId)}\n${e.payload.lookFor.slice(0, 600)}\nThe goal goes on (Have a look is off for it).`, path: `/goals/${e.goalId}` };
+      return { family: 'milestone', text: `👀 Milestone — ${goalTitle(e.goalId)}\n${e.payload.lookFor.slice(0, 600)}\nThe goal goes on; what it shows follows.`, path: `/goals/${e.goalId}` };
     case 'goal.state_changed': {
       const { to, reason } = e.payload;
       // cancelled is always the human's own act — telling them what they just did carries no information
@@ -164,11 +169,11 @@ export class NotificationDispatcher {
   }
 
   /** a walkthrough's screenshots and video as files; without any, the self-check's newest screenshot */
-  private evidenceFiles(goalId: string, ev: { video: string | null; shots: { file: string }[] }): MediaFile[] {
+  private evidenceFiles(goalId: string, ev: { video: string | null; shots: { file: string }[]; clips?: { file: string }[] }): MediaFile[] {
     const goal = getGoal(this.engine.store.db, goalId);
     if (!goal) return [];
     const dir = screenshotsDir(this.engine.config.dataDir, goal);
-    const files: MediaFile[] = [...ev.shots.map((s) => ({ path: join(dir, s.file), kind: 'photo' as const })), ...(ev.video ? [{ path: join(dir, ev.video), kind: 'video' as const }] : [])].filter((f) => existsSync(f.path));
+    const files: MediaFile[] = [...ev.shots.map((s) => ({ path: join(dir, s.file), kind: 'photo' as const })), ...(ev.video ? [{ path: join(dir, ev.video), kind: 'video' as const }] : []), ...(ev.clips ?? []).map((c) => ({ path: join(dir, c.file), kind: 'video' as const }))].filter((f) => existsSync(f.path));
     if (files.length) return files;
     const last = this.latestScreenshot(goalId);
     return last ? [{ path: last, kind: 'photo' }] : [];
