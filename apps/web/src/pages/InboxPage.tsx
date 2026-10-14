@@ -2,13 +2,14 @@ import type { EscalationAction } from '@foundry/core/browser';
 import { ACTIONS_BY_TRIGGER } from '@foundry/core/browser';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Sparkles } from 'lucide-react';
+import { AlertTriangle, Ban, CheckCircle2, Eye, GitPullRequest, HelpCircle, RotateCcw, ShieldAlert, Sparkles, Wallet } from 'lucide-react';
 import { api, apiForProvider, type EscalationRow } from '../api.ts';
 import { FullTextDialog, OpenFullButton } from '../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../components/Markdown.tsx';
 import { suggestEscalation, useEscalationDraft, useEscalationDrafts, useLive } from '../store.ts';
 import { UsagePausedBanner } from '../components/UsageBanner.tsx';
-import { Badge, Button, Empty, Input, Textarea, ago } from '../ui.tsx';
+import { Badge, Button, Empty, Input, Textarea, ago, buttonClass, cn } from '../ui.tsx';
+import { ProviderBadge } from './agents/rows.tsx';
 import { HelpLink } from './HelpPage.tsx';
 
 const TRIGGER_LABEL: Record<string, string> = {
@@ -139,150 +140,185 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
       setBusy(false);
     }
   };
+  const kind = (e.payload as { kind?: string }).kind;
+  const open = e.state === 'open';
+  const Icon = TRIGGER_ICON[e.trigger] ?? AlertTriangle;
+  const tone = e.trigger === 'milestone' ? TONE.look : e.trigger === 'budget_exceeded' || e.trigger === 'boundary_action' ? TONE.ask : TONE.stop;
+  const plain = kind === 'merge' ? 'Two pieces of work changed the same files and the automatic merge could not combine them.' : kind === 'engine' ? 'The engine itself hit an error (not the model).' : (PLAIN[e.trigger] ?? '');
+  const choices = actions.filter((a) => a !== 'resolve_manually' && a !== 'feedback');
+  const label = (a: EscalationAction) => (a === 'skip_task' && !e.taskId ? 'Accept as-is (finish goal)' : ACTION_LABEL[a]);
+  const variant = (a: EscalationAction) => (a === 'abort_goal' || a === 'deny' ? 'danger' : a === 'retry_with_hint' || a === 'approve' || a === 'raise_budget' || a === 'retry_delivery' ? 'primary' : 'default');
   return (
-    <div className={embedded ? 'rounded-lg border border-orange-500/40 bg-orange-500/5 p-3' : 'rounded-lg border border-orange-500/40 bg-orange-500/5 p-4'}>
-      <div className="flex items-center gap-2 mb-1 flex-wrap">
-        <Badge state={e.state} />
-        <span className="text-sm font-medium">{TRIGGER_LABEL[e.trigger] ?? e.trigger}</span>
-        {e.provider && <span className="text-[10px] rounded border border-zinc-700 px-1.5 text-zinc-400">{e.provider === 'codex' ? 'Codex' : 'Claude Code'}</span>}
-        {(e.payload as { kind?: string }).kind === 'merge' && <span className="text-[10px] uppercase rounded border border-orange-500/50 text-orange-300 px-1">merge conflict</span>}
-        <span className="text-xs text-zinc-500">{ago(e.createdAt)}</span>
-        {!embedded && (
-          <span className="ml-auto flex items-center gap-3 text-xs">
-            {e.taskId && (
-              <Link to={`/goals/${e.goalId}?task=${e.taskId}#tasks`} className="underline text-zinc-300">
-                open task →
-              </Link>
-            )}
-            <Link to={`/goals/${e.goalId}`} className="underline text-zinc-400">
-              open goal
-            </Link>
+    <section className={cn('rounded-lg border bg-zinc-900/60 overflow-hidden', open ? tone.border : 'border-zinc-800')}>
+      {/* header: what stopped, in one line and one plain sentence; where it belongs when shown outside its task */}
+      <header className={cn('px-3 sm:px-4 py-2.5 space-y-1 border-b border-zinc-800', open && tone.wash)}>
+        <div className="flex items-center gap-2 min-w-0 flex-wrap">
+          <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-md', open ? tone.icon : 'bg-zinc-800 text-zinc-400')}>
+            <Icon size={13} aria-hidden="true" />
           </span>
+          <span className="text-sm font-semibold text-zinc-100">{TRIGGER_LABEL[e.trigger] ?? e.trigger}</span>
+          <Badge state={e.state} />
+          {kind === 'merge' && <Badge state="warn">merge conflict</Badge>}
+          {e.provider && <ProviderBadge provider={e.provider} />}
+          <span className="text-[11px] text-zinc-500">{ago(e.createdAt)}</span>
+          {!embedded && (
+            <span className="ml-auto flex items-center gap-3 text-[11px]">
+              {e.taskId && (
+                <Link to={`/goals/${e.goalId}?task=${e.taskId}#tasks`} className="text-zinc-400 hover:text-emerald-300">
+                  Open task →
+                </Link>
+              )}
+              <Link to={`/goals/${e.goalId}`} className="text-zinc-500 hover:text-emerald-300">
+                Open goal →
+              </Link>
+            </span>
+          )}
+        </div>
+        {plain && <div className="text-xs text-zinc-300 pl-8">{plain}</div>}
+        {!embedded && (
+          <div className="text-[11px] text-zinc-500 pl-8 min-w-0 truncate">
+            {e.goalTitle ?? e.goalId}
+            {e.taskId && (
+              <>
+                <span className="text-zinc-600"> › </span>
+                <span className="text-zinc-300">{e.taskTitle ?? e.taskId}</span>
+              </>
+            )}
+          </div>
+        )}
+      </header>
+
+      <div className="p-3 sm:p-4 space-y-3">
+        <MarkdownPanel title="details" source={e.message} maxHeight={260} actions={long && <OpenFullButton onClick={() => setFull(true)} />} />
+        <FullTextDialog value={full ? { title: TRIGGER_LABEL[e.trigger] ?? e.trigger, text: e.message } : null} onClose={() => setFull(false)} />
+        {suggestion && (
+          <div className="rounded-md border border-sky-500/30 bg-sky-500/5 overflow-hidden text-xs">
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-sky-500/20 flex-wrap">
+              <Sparkles size={12} className="text-sky-300" />
+              <span className="text-sky-200 font-medium">AI diagnosis</span>
+              <span className="text-zinc-500">{suggestion.confidence} confidence · {suggestion.costAvailable === false ? 'cost unavailable' : `$${suggestion.costUsd.toFixed(2)}`}</span>
+              <span className="ml-auto text-zinc-400">
+                suggests <b className="text-zinc-200">{ACTION_LABEL[suggestion.action as EscalationAction] ?? suggestion.action}</b>
+              </span>
+            </div>
+            <div className="px-3 py-2 space-y-1">
+              <div className="text-zinc-300 whitespace-pre-wrap">{suggestion.diagnosis}</div>
+              {suggestion.action === 'retry_with_hint' && suggestion.hint && <div className="text-zinc-400">Hint filled in below — press <b>Retry with hint</b> to use it.</div>}
+              {suggestion.action === 'resolve_manually' && <div className="text-zinc-400">Open <b>Resolve manually</b> and settle the conflict yourself.</div>}
+              {suggestion.action === 'skip_task' && <div className="text-zinc-400">The AI thinks this part is not worth pursuing here — your call: <b>Skip task</b>.</div>}
+            </div>
+          </div>
+        )}
+        {open && mcpDenied.length > 0 && e.taskId && mcpAllowed && mcpToAllow.length === 0 && (
+          <div className="rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-xs text-zinc-300">
+            Refused MCP server: <span className="mono">{mcpNames}</span>. It is already allowed in goals, so something else stopped it — often it needs signing in.{' '}
+            <Link to={`/skills?provider=${e.provider}#mcp`} className="underline">
+              Check it under Extensions → MCP servers
+            </Link>
+            , then retry.
+          </div>
+        )}
+        {open && mcpDenied.length > 0 && (mcpError || !e.provider) && <p className="text-xs text-amber-300">{mcpError ?? 'The goal backend is unavailable; MCP permissions cannot be changed here.'}</p>}
+        {open && mcpToAllow.length > 0 && e.taskId && mcpAllowed && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2">
+            <span className="text-xs text-zinc-300">
+              Refused MCP server: <span className="mono">{mcpNames}</span> — goals may only use servers you allowed.
+            </span>
+            <Button size="sm" variant="primary" disabled={busy} onClick={allowAndRetry} title="Ticks Allowed in goals for this server (Extensions → MCP servers) and retries the task">
+              Allow this server and retry
+            </Button>
+          </div>
+        )}
+        {/* what the answer carries: a hint and its extra attempts, or the new limits */}
+        {open && actions.includes('retry_with_hint') && (
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] uppercase tracking-wide text-zinc-500">Hint for the next attempt</span>
+              <span className="text-[10px] text-zinc-600">optional</span>
+              <label className="ml-auto flex items-center gap-1.5 whitespace-nowrap text-[11px] text-zinc-400" title="How many more tries the task gets with this hint">
+                extra attempts
+                <select className="rounded-md bg-zinc-900 border border-zinc-700 px-1.5 py-0.5 text-xs text-zinc-100 focus:outline-none focus:border-emerald-500" value={attempts} onChange={(x) => patch(e.id, { attempts: Number(x.target.value) })}>
+                  {[1, 2, 3, 5].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <Textarea className="min-h-[76px] resize-y" rows={3} placeholder="The real cause, the files, the command to run, the decision to take…" value={hint} onChange={(x) => setHint(x.target.value)} />
+          </div>
+        )}
+        {open && actions.includes('raise_budget') && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] uppercase tracking-wide text-zinc-500">New limits</span>
+            {e.provider !== 'codex' && <Input type="number" min={0.5} step={0.5} className="w-36" placeholder="new max $ (blank = ×2)" value={cost} onChange={(x) => setCost(x.target.value)} />}
+            <Input type="number" min={5} step={5} className="w-40" placeholder="new max min (blank = ×2)" value={minutes} onChange={(x) => setMinutes(x.target.value)} />
+          </div>
         )}
       </div>
-      <div className="text-xs text-zinc-300 mb-1">{(e.payload as { kind?: string }).kind === 'merge' ? 'Two pieces of work changed the same files and the automatic merge could not combine them.' : (e.payload as { kind?: string }).kind === 'engine' ? 'The engine itself hit an error (not the model).' : PLAIN[e.trigger] ?? ''}</div>
-      {!embedded && (
-        <div className="text-xs text-zinc-400 mb-2 min-w-0 truncate">
-          <span className="text-zinc-500">goal</span> {e.goalTitle ?? e.goalId}
-          {e.taskId && (
-            <>
-              <span className="text-zinc-600"> › </span>
-              <span className="text-zinc-500">task</span> <span className="text-zinc-200">{e.taskTitle ?? e.taskId}</span>
-            </>
-          )}
-        </div>
-      )}
-      <MarkdownPanel
-        title="details"
-        source={e.message}
-        maxHeight={260}
-        actions={
-          long && <OpenFullButton onClick={() => setFull(true)} />
-        }
-      />
-      <FullTextDialog value={full ? { title: TRIGGER_LABEL[e.trigger] ?? e.trigger, text: e.message } : null} onClose={() => setFull(false)} />
-      {suggestion && (
-        <div className="mt-2 rounded-md border border-sky-500/30 bg-sky-500/5 p-2.5 text-xs space-y-1">
-          <div className="flex items-center gap-2">
-            <Sparkles size={12} className="text-sky-300" />
-            <span className="text-sky-200 font-medium">AI diagnosis</span>
-            <span className="text-zinc-500">{suggestion.confidence} confidence · {suggestion.costAvailable === false ? 'cost unavailable' : `$${suggestion.costUsd.toFixed(2)}`}</span>
-            <span className="ml-auto text-zinc-400">
-              suggests: <b className="text-zinc-200">{ACTION_LABEL[suggestion.action as EscalationAction] ?? suggestion.action}</b>
+
+      {/* footer: help from the AI on the left, the answers on the right — or what was answered */}
+      <footer className="px-3 sm:px-4 py-2.5 border-t border-zinc-800 bg-zinc-950/30 flex flex-wrap items-center gap-2">
+        {open ? (
+          <>
+            {canSuggest && (
+              <>
+                <Button size="sm" variant="info" disabled={busy || !!suggesting} onClick={() => suggest(false)} title={`The AI reads the task, the failing checks and the last session, explains the cause and writes a hint for you (${e.provider === 'codex' ? 'uses ChatGPT quota; USD cost unavailable' : '≤ $1'})`}>
+                  <Sparkles size={12} /> {suggesting === 'suggest' ? 'Analysing…' : 'Suggest a hint'}
+                </Button>
+                <Button size="sm" variant="info" disabled={busy || !!suggesting} onClick={() => suggest(true)} title="Same analysis; when the answer is 'retry with this hint' it is applied immediately (one extra attempt). Skipping, budget and manual merges are never applied for you.">
+                  <Sparkles size={12} /> {suggesting === 'apply' ? 'Analysing…' : 'Let AI handle it'}
+                </Button>
+              </>
+            )}
+            <span className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              {err && <span className="text-xs text-rose-400">{err}</span>}
+              {e.taskId && kind === 'merge' && (
+                <Link to={`/goals/${e.goalId}/resolve/${e.taskId}`} className={buttonClass('primary', 'sm')} title="See the conflicted files with both sides and resolve them yourself (in the browser or your editor)">
+                  Resolve manually →
+                </Link>
+              )}
+              {e.trigger === 'milestone' && (
+                <Link to={`/goals/${e.goalId}`} className={buttonClass('primary', 'sm')} title="The goal page shows the preview, screenshots and artifacts, and takes your feedback">
+                  Look &amp; give feedback →
+                </Link>
+              )}
+              {/* the quieter choices first, the main one last (rightmost) */}
+              {[...choices].sort((a, b) => RANK[variant(a)] - RANK[variant(b)]).map((a) => (
+                <Button key={a} size="sm" disabled={busy} variant={variant(a)} onClick={() => answer(a)} title={!e.taskId && a === 'skip_task' ? 'Finish the goal with what is there; the failing checks are waived (no more review runs)' : !e.taskId && a === 'retry_with_hint' ? "Turn the reviewer's findings into fix tasks (your hint rides along), run them, then review again" : undefined}>
+                  {label(a)}
+                </Button>
+              ))}
             </span>
-          </div>
-          <div className="text-zinc-300 whitespace-pre-wrap">{suggestion.diagnosis}</div>
-          {suggestion.action === 'retry_with_hint' && suggestion.hint && <div className="text-zinc-400">Hint filled in below — press <b>Retry with hint</b> to use it.</div>}
-          {suggestion.action === 'resolve_manually' && <div className="text-zinc-400">Open <b>Resolve manually</b> and settle the conflict yourself.</div>}
-          {suggestion.action === 'skip_task' && <div className="text-zinc-400">The AI thinks this part is not worth pursuing here — your call: <b>Skip task</b>.</div>}
-        </div>
-      )}
-      {e.state === 'open' && mcpDenied.length > 0 && e.taskId && mcpAllowed && mcpToAllow.length === 0 && (
-        <div className="mt-3 rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-xs text-zinc-300">
-          Refused MCP server: <span className="mono">{mcpNames}</span>. It is already allowed in goals, so something else stopped it — often it needs signing in.{' '}
-          <Link to={`/skills?provider=${e.provider}#mcp`} className="underline">
-            Check it under Extensions → MCP servers
-          </Link>
-          , then retry.
-        </div>
-      )}
-      {e.state === 'open' && mcpDenied.length > 0 && (mcpError || !e.provider) && <p className="mt-3 text-xs text-amber-300">{mcpError ?? 'The goal backend is unavailable; MCP permissions cannot be changed here.'}</p>}
-      {e.state === 'open' && mcpToAllow.length > 0 && e.taskId && mcpAllowed && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2">
-          <span className="text-xs text-zinc-300">
-            Refused MCP server: <span className="mono">{mcpNames}</span> — goals may only use servers you allowed.
+          </>
+        ) : (
+          <span className="flex items-center gap-1.5 text-xs text-zinc-400 min-w-0">
+            <CheckCircle2 size={13} className="text-emerald-400 shrink-0" aria-hidden="true" />
+            Answered: <b className="text-zinc-200">{ACTION_LABEL[e.answer?.action as EscalationAction] ?? e.answer?.action}</b>
+            {e.answer?.hint ? <span className="truncate"> — “{e.answer.hint}”</span> : null}
           </span>
-          <Button size="sm" variant="primary" disabled={busy} onClick={allowAndRetry} title="Ticks Allowed in goals for this server (Extensions → MCP servers) and retries the task">
-            Allow this server and retry
-          </Button>
-        </div>
-      )}
-      {e.state === 'open' && actions.includes('retry_with_hint') && (
-        <Textarea
-          className="mt-3 min-h-[76px] resize-y"
-          rows={3}
-          placeholder="Hint for the next attempt (optional): the real cause, the files, the command to run, the decision to take…"
-          value={hint}
-          onChange={(x) => setHint(x.target.value)}
-        />
-      )}
-      {e.state === 'open' ? (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          {canSuggest && (
-            <>
-              <Button size="sm" disabled={busy || !!suggesting} onClick={() => suggest(false)} title={`The AI reads the task, the failing checks and the last session, explains the cause and writes a hint for you (${e.provider === 'codex' ? 'uses ChatGPT quota; USD cost unavailable' : '≤ $1'})`}>
-                <Sparkles size={12} /> {suggesting === 'suggest' ? 'Analysing…' : 'Suggest a hint'}
-              </Button>
-              <Button size="sm" variant="primary" disabled={busy || !!suggesting} onClick={() => suggest(true)} title="Same analysis; when the answer is 'retry with this hint' it is applied immediately (one extra attempt). Skipping, budget and manual merges are never applied for you.">
-                <Sparkles size={12} /> {suggesting === 'apply' ? 'Analysing…' : 'Let AI handle it'}
-              </Button>
-            </>
-          )}
-          {actions.includes('retry_with_hint') && (
-            <label className="ml-auto flex items-center gap-1.5 whitespace-nowrap text-xs text-zinc-400" title="How many more tries the task gets with this hint">
-              extra attempts
-              <select className="rounded-md bg-zinc-900 border border-zinc-700 px-1.5 py-1 text-xs text-zinc-100 focus:outline-none focus:border-emerald-500" value={attempts} onChange={(x) => patch(e.id, { attempts: Number(x.target.value) })}>
-                {[1, 2, 3, 5].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          {actions.includes('raise_budget') && (
-            <>
-              {e.provider !== 'codex' && <Input type="number" min={0.5} step={0.5} className="w-32" placeholder="new max $ (blank = ×2)" value={cost} onChange={(x) => setCost(x.target.value)} />}
-              <Input type="number" min={5} step={5} className="w-36" placeholder="new max min (blank = ×2)" value={minutes} onChange={(x) => setMinutes(x.target.value)} />
-            </>
-          )}
-          {e.taskId && (e.payload as { kind?: string }).kind === 'merge' && (
-            <Link to={`/goals/${e.goalId}/resolve/${e.taskId}`}>
-              <Button size="sm" variant="primary" title="See the conflicted files with both sides and resolve them yourself (in the browser or your editor)">
-                Resolve manually →
-              </Button>
-            </Link>
-          )}
-          {e.trigger === 'milestone' && (
-            <Link to={`/goals/${e.goalId}`}>
-              <Button size="sm" variant="primary" title="The goal page shows the preview, screenshots and artifacts, and takes your feedback">
-                Look &amp; give feedback →
-              </Button>
-            </Link>
-          )}
-          {actions.filter((a) => a !== 'resolve_manually' && a !== 'feedback').map((a) => (
-            <Button key={a} size="sm" disabled={busy} variant={a === 'abort_goal' || a === 'deny' ? 'danger' : a === 'retry_with_hint' || a === 'approve' || a === 'raise_budget' || a === 'retry_delivery' ? 'primary' : 'default'} onClick={() => answer(a)} title={!e.taskId && a === 'skip_task' ? 'Finish the goal with what is there; the failing checks are waived (no more review runs)' : !e.taskId && a === 'retry_with_hint' ? "Turn the reviewer's findings into fix tasks (your hint rides along), run them, then review again" : undefined}>
-              {a === 'skip_task' && !e.taskId ? 'Accept as-is (finish goal)' : ACTION_LABEL[a]}
-            </Button>
-          ))}
-          {err && <span className="text-xs text-rose-400">{err}</span>}
-        </div>
-      ) : (
-        <div className="mt-2 text-xs text-zinc-400">
-          answered: {e.answer?.action}
-          {e.answer?.hint ? ` — "${e.answer.hint}"` : ''}
-        </div>
-      )}
-    </div>
+        )}
+      </footer>
+    </section>
   );
 }
+
+/** a trigger's icon in the card's header */
+const TRIGGER_ICON: Record<string, typeof AlertTriangle> = {
+  brief_question: HelpCircle,
+  retries_exhausted: RotateCcw,
+  boundary_action: ShieldAlert,
+  budget_exceeded: Wallet,
+  permission_denial: Ban,
+  milestone: Eye,
+  delivery_failed: GitPullRequest,
+};
+/** a card's colours: something failed (orange), a question or a limit (amber), a milestone to look at (sky) */
+const TONE = {
+  stop: { border: 'border-orange-500/40', wash: 'bg-orange-500/5', icon: 'bg-orange-500/15 text-orange-300' },
+  ask: { border: 'border-amber-500/40', wash: 'bg-amber-500/5', icon: 'bg-amber-500/15 text-amber-300' },
+  look: { border: 'border-sky-500/40', wash: 'bg-sky-500/5', icon: 'bg-sky-500/15 text-sky-300' },
+};
+/** buttons in the footer, quieter first so the main answer sits rightmost */
+const RANK: Record<string, number> = { default: 0, danger: 1, primary: 2 };
