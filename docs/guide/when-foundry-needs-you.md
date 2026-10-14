@@ -123,7 +123,7 @@ A task moves through **pending** (waiting for the tasks it depends on) → **rea
 
 | You see | What it means |
 |---|---|
-| *ready · "X is not parallelizable; it starts when Y finishes"* | The Brief said this task must run alone. It waits. |
+| *ready · "X runs alone (not parallelizable): it starts once Y finishes — a wait for quiet, not a dependency"* | The Brief said this task must run alone, so it waits until nothing else of the goal is running. Y is simply what runs now; no line leads from it in the task graph, where the task is marked **runs alone**. |
 | *ready · "X waits for Y: both touch …"* | Two tasks declared the same files; this one waits so they do not collide. |
 | *ready · "retry 2/3"* | A normal new attempt after a failed one. It starts running shortly. |
 | *ready*, and it does not start | The task panel says why under the attempts (*not started yet: …*). When nothing holds it back, press **Start now**. |

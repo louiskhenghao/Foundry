@@ -190,6 +190,11 @@ function TaskNode({ t, selected, linked, dim, onSelect, className, style, after 
         <TaskTags kind={t.kind} scenario={t.scenario} area={t.plain ? null : t.area} difficulty={t.difficulty} />
         {t.model && <span className="mono text-[10px] text-zinc-500 whitespace-nowrap" title="The model the latest attempt ran on (the difficulty picks it from the preset)">{t.model}</span>}
         {t.worktreePath && t.state !== 'done' && <span className="text-[10px] text-zinc-500 whitespace-nowrap">own worktree</span>}
+        {!t.parallelizable && !t.plain && !['done', 'skipped', 'failed'].includes(t.state) && (
+          <span className="text-[10px] text-amber-300/80 whitespace-nowrap" title="Marked not parallelizable in the Brief: it starts only when no other task of the goal is running. A wait, not a dependency, so no line leads to it.">
+            runs alone
+          </span>
+        )}
       </div>
       {after && after.length > 0 && <div className="text-[10px] text-zinc-500 mt-1 truncate">after: {after.join(', ')}</div>}
     </button>

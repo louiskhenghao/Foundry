@@ -91,7 +91,8 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
       // serial task waits for quiet — say so once, so "ready but not running" is not a mystery
       if (!engine.overlapNoted.has(t.id)) {
         engine.overlapNoted.add(t.id);
-        store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `"${t.title}" is not parallelizable; it starts when ${tasks.filter((x) => inFlight.includes(x.id)).map((x) => `"${x.title}"`).join(', ') || 'the running task'} finishes` } });
+        const busy = tasks.filter((x) => inFlight.includes(x.id)).map((x) => `"${x.title}"`);
+        store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `"${t.title}" runs alone (not parallelizable): it starts once ${busy.join(', ') || 'the running task'} ${busy.length > 1 ? 'finish' : 'finishes'} — a wait for quiet, not a dependency` } });
       }
       continue;
     }
