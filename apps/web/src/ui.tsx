@@ -344,6 +344,12 @@ export function Modal({ open, title, onClose, children, wide }: { open: boolean;
   );
 }
 
+/**
+ * A page's side panel (Extensions' Catalog, Ports' and Agents' Overview): on a wide screen it stays in view under the
+ * top bar while the list beside it scrolls, and scrolls on its own when it is taller than the window.
+ */
+export const AFFIX_SIDE = 'lg:sticky lg:top-16 lg:self-start lg:max-h-[calc(100dvh-5rem)] lg:overflow-y-auto';
+
 export function Empty({ children }: { children: ReactNode }) {
   return <div className="text-sm text-zinc-500 py-8 text-center">{children}</div>;
 }

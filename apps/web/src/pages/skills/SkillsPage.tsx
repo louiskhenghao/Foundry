@@ -4,7 +4,7 @@ import { RefreshCw, Search, Trash2 } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { apiForProvider, type AgentProvider } from '../../api.ts';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
-import { Button, ConfirmDialog, Empty, Input, Modal, ago, cn } from '../../ui.tsx';
+import { AFFIX_SIDE, Button, ConfirmDialog, Empty, Input, Modal, ago, cn } from '../../ui.tsx';
 import { OpsDock } from './OpsDock.tsx';
 import { startOp, useRunningOp, useSkillOps } from './ops.ts';
 import { SessionLine, SidePanelTabs } from './SidePanels.tsx';
@@ -251,7 +251,7 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
           ))}
           {report.sources.every((s) => !s.skills.some(filter)) && <Empty>Nothing matches.</Empty>}
         </div>
-        <div className={cn(showCatalog ? 'block' : 'hidden lg:block')}>
+        <div className={cn(showCatalog ? 'block' : 'hidden lg:block', AFFIX_SIDE)}>
           <SidePanelTabs catalog={overview.catalog} trash={trash} runs={runs} busy={(key) => pending.has(key) || !!runningOp(key)} opLink={opLink} onInstall={(id, force) => void install(id, force)} onInstallTier={(tiers) => void installTier(tiers)} onInstallTool={(id) => void installTool(id)} onRestore={restore} />
         </div>
       </div>

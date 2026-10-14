@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api, type AgentProvider, type GoalRow } from '../../api.ts';
 import { useLive } from '../../store.ts';
-import { ago, Badge, Button, Card, cn, ConfirmDialog, Empty, Input, Page } from '../../ui.tsx';
+import { AFFIX_SIDE, ago, Badge, Button, Card, cn, ConfirmDialog, Empty, Input, Page } from '../../ui.tsx';
 import { ContextGauge } from './ContextGauge.tsx';
 import { SessionDetail, SubagentStatus } from './SessionDetail.tsx';
 import { AttemptChip, ProviderBadge, ranFor, SourceBadge, StatusDot, shortCwd, shortModel } from './rows.tsx';
@@ -157,7 +157,7 @@ export function AgentsPage() {
             </div>
           )}
         </div>
-        <div className={cn(showSide ? 'block' : 'hidden lg:block')}>{list && <Overview sessions={sessions} />}</div>
+        <div className={cn(showSide ? 'block' : 'hidden lg:block', AFFIX_SIDE)}>{list && <Overview sessions={sessions} />}</div>
       </div>
 
       <ConfirmDialog open={!!killRow} danger busy={killing} title="Stop this session?" confirmLabel="Stop session" onConfirm={doKill} onClose={() => setKillRow(null)}>
