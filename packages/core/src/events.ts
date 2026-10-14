@@ -116,7 +116,28 @@ export const EngineEvent = z.discriminatedUnion('type', [
   /** the headless self-check looked at the preview after a task landed (taskId) or at goal review (null); screenshot is a file name under the goal's screenshots folder */
   /** what a milestone looks like, recorded in the preview without the person: a video and screenshots (file names under the goal's screenshots folder) */
   /** `app`: the preview app walked through; `mock`: it ran against fake data because the real one could not be shown */
-  ev('milestone.evidence', { taskId: z.string(), video: z.string().nullable(), shots: z.array(z.object({ file: z.string(), caption: z.string() })), summary: z.string(), error: z.string().nullable(), app: z.string().nullable().optional(), mock: z.boolean().optional() }),
+  /** `script`: the milestone's Playwright script that produced it; `status`: pass, fail (the script failed or nothing could be
+   * shown) or unverified (only fake data could be shown); `clips`: one video per scripted test; `outputs`: text a script
+   * attached (an API's responses); `log`: the runner's output; `steps`: the walkthrough Foundry planned, replayed on a rerun;
+   * `final`: recorded by the final walkthrough */
+  ev('milestone.evidence', {
+    taskId: z.string(),
+    video: z.string().nullable(),
+    shots: z.array(z.object({ file: z.string(), caption: z.string() })),
+    summary: z.string(),
+    error: z.string().nullable(),
+    app: z.string().nullable().optional(),
+    mock: z.boolean().optional(),
+    script: z.string().nullable().optional(),
+    status: z.enum(['pass', 'fail', 'unverified']).optional(),
+    clips: z.array(z.object({ file: z.string(), caption: z.string() })).optional(),
+    outputs: z.array(z.object({ file: z.string(), caption: z.string() })).optional(),
+    log: z.string().nullable().optional(),
+    steps: z.array(z.record(z.unknown())).optional(),
+    final: z.boolean().optional(),
+  }),
+  /** the final walkthrough ran every milestone script once all tasks were done; failed = the milestone tasks whose script failed */
+  ev('milestone.final_walk', { passed: z.boolean(), failed: z.array(z.string()) }),
   ev('selfcheck.finished', { taskId: z.string().nullable(), status: z.enum(['pass', 'fail', 'error']), url: z.string().nullable(), screenshot: z.string().nullable(), errors: z.array(z.string()), summary: z.string() }),
   /** per-goal autoskills run: project skills matched to the repository's stack, installed in the goal workspace */
   ev('goal.autoskills', { status: z.enum(['installed', 'skipped', 'failed']), skills: z.array(z.string()), detail: z.string() }),

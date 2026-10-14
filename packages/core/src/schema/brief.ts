@@ -89,6 +89,9 @@ export const BriefTask = z.object({
   difficulty: TaskDifficulty.optional(),
   /** what to look at or try when this task lands; set = milestone, the goal pauses there for a human look */
   milestone: z.string().nullable().optional(),
+  /** a feature milestone's Playwright script (repo-relative, e2e/milestones/<feature>.spec.ts): the task writes it, it must
+   * pass, and Foundry runs it to record what the milestone shows; null = shown by a walkthrough Foundry plans itself */
+  milestoneScript: z.string().nullable().optional(),
 });
 export type BriefTask = z.infer<typeof BriefTask>;
 
@@ -171,7 +174,11 @@ const OutputTask = z.object({
   milestone: z
     .string()
     .nullish()
-    .describe('Set on 1–3 tasks per goal after which a person can SEE or TRY something meaningful for the first time (first playable round, first page rendering real data, first full render). One or two sentences in the goal\'s language: what to open, what to try, what to judge. null for every other task (scaffolding, pure backend, docs). A goal with a single task has none.'),
+    .describe('Set on the closing task of EVERY user-visible feature: the task after which that feature can be tried end to end (it depends on the feature\'s other tasks). As many as the goal has features, not a fixed count. One or two sentences in the goal\'s language: what to open, what to try (the states worth seeing: empty, filled, an error, a phone width…), what to judge. null for every other task (scaffolding, refactors, docs). A goal with a single task has none.'),
+  milestoneScript: z
+    .string()
+    .nullish()
+    .describe('With a milestone on a feature that has a web UI or an HTTP API: the Playwright script that shows it, repo-relative, e2e/milestones/<feature-slug>.spec.ts. The task writes it and it must pass; Foundry runs it to record the milestone. null for other milestones (documents, media, CLIs) and for every task without a milestone.'),
 });
 
 const OutputCheck = z.object({

@@ -9,6 +9,8 @@ export const CommandCheckSpec = z.object({
   cwd: z.string().optional(),
   timeoutMs: z.number().int().positive().default(300_000),
   expectExitCode: z.number().int().default(0),
+  /** PORT and API_PORT are set to free ports: a milestone script's servers never land on the preview's or another task's */
+  ports: z.boolean().optional(),
 });
 
 export const ReviewerCheckSpec = z.object({

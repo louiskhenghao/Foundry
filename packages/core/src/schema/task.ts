@@ -12,6 +12,9 @@ export const TaskDifficulty = z.preprocess(
 );
 export type TaskDifficulty = 'simple' | 'standard' | 'complex';
 
+/** the task id a goal's final walkthrough uses where a milestone's task id goes (its checkpoint, its feedback fixes) */
+export const FINAL_WALK = 'final';
+
 export const TaskOrigin = z.enum(['brief', 'goal-review-fix', 'merge', 'delivery-fix', 'feedback-fix']);
 
 /** What kind of work a task is; selects the workflow discipline the worker is asked to follow (tdd vs diagnosing-bugs …). */
@@ -53,6 +56,8 @@ export const Task = z.object({
   origin: TaskOrigin,
   /** what a person should look at or try once this task lands — non-null makes the task a milestone (the goal pauses there) */
   milestone: z.string().nullable().default(null),
+  /** a feature milestone's Playwright script (repo-relative): it must pass for the task to land, and Foundry runs it to record the milestone */
+  milestoneScript: z.string().nullable().optional(),
   /** how many times the goal has paused at this milestone: the first look, then at most one re-check after feedback fixes */
   milestoneVisits: z.number().int().nonnegative().default(0),
   /** for a feedback-fix task: the milestone task whose checkpoint re-opens once this one lands */
