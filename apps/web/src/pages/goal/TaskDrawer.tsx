@@ -139,7 +139,11 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
         <div className="lg:col-span-2 min-w-0 lg:overflow-y-auto lg:pr-1">
           {openEsc.length > 0 && (
             <div className="mb-3 space-y-2">
-              <div className="text-xs text-orange-300 font-medium">This task is waiting for you</div>
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-orange-400 shrink-0" />
+                <span className="text-[10px] uppercase tracking-wide text-orange-300">This task is waiting for you</span>
+                <span className="flex-1 h-px bg-zinc-800/70" />
+              </div>
               {openEsc.map((e) => (
                 <EscalationCard key={e.id} e={e} embedded />
               ))}

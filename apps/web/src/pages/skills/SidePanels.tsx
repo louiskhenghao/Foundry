@@ -59,6 +59,9 @@ function CatalogBody({ catalog, busy, opLink, onInstall, onInstallTier, onInstal
           <Button size="sm" disabled={busy('tier') || !missing.some((c) => c.entry.tier !== 'optional')} onClick={() => onInstallTier(['required', 'recommended'])}>
             + recommended
           </Button>
+          <Button size="sm" disabled={busy('tier') || !missing.length} onClick={() => onInstallTier(['required', 'recommended', 'optional'])} title="Install every skill of the catalog that is still missing">
+            + optional
+          </Button>
         </div>
         {opLink('tier') && <div className="basis-full">{opLink('tier')}</div>}
       </div>
@@ -70,11 +73,19 @@ function CatalogBody({ catalog, busy, opLink, onInstall, onInstallTier, onInstal
         const open = openTiers.has(tier);
         return (
           <div key={tier} className="mb-3">
-            <button type="button" className="flex items-center gap-2 mb-1.5 w-full text-left" onClick={() => setOpenTiers((s) => toggle(s, tier))}>
-              {open ? <ChevronDown size={13} className="text-zinc-500 shrink-0" /> : <ChevronRight size={13} className="text-zinc-500 shrink-0" />}
-              <Badge state={tier} />
-              <span className="text-[11px] text-zinc-500 truncate">{open ? TIER_LABEL[tier] : `${list.length} skill${list.length === 1 ? '' : 's'}${miss.length ? ` · ${miss.length} missing` : ' · all installed'}`}</span>
-            </button>
+            <div className="flex items-center gap-2 mb-1.5">
+              <button type="button" className="flex items-center gap-2 min-w-0 flex-1 text-left" onClick={() => setOpenTiers((s) => toggle(s, tier))}>
+                {open ? <ChevronDown size={13} className="text-zinc-500 shrink-0" /> : <ChevronRight size={13} className="text-zinc-500 shrink-0" />}
+                <Badge state={tier} />
+                <span className="text-[11px] text-zinc-500 truncate">{open ? TIER_LABEL[tier] : `${list.length} skill${list.length === 1 ? '' : 's'}${miss.length ? ` · ${miss.length} missing` : ' · all installed'}`}</span>
+              </button>
+              {/* one click for the whole tier, optional included: only what is still missing is installed */}
+              {miss.length > 0 && (
+                <Button size="sm" variant={tier === 'required' ? 'primary' : 'default'} className="shrink-0" disabled={busy('tier')} onClick={() => onInstallTier([tier])} title={`Install the ${miss.length} missing ${tier} skill${miss.length === 1 ? '' : 's'}`}>
+                  Install {miss.length}
+                </Button>
+              )}
+            </div>
             {open && (
               <div className="space-y-1.5">
                 {miss.map((c) => (

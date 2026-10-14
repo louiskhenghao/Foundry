@@ -60,7 +60,7 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
       return { family: 'delivery', text: `⚠️ Delivery failed at ${e.payload.step} — ${goalTitle(e.goalId)}\n${e.payload.reason.slice(0, 300)}`, path: e.goalId ? `/goals/${e.goalId}` : null };
     case 'rate_limit.paused': {
       const provider = e.payload.provider ?? defaultProvider;
-      return { family: 'rateLimit', text: `⏸️ ${provider === 'codex' ? 'Codex' : 'Claude Code'} usage limit — new sessions paused; retry at ${e.payload.until}`, path: `/usage?provider=${provider}` };
+      return { family: 'rateLimit', text: `⏸️ ${provider === 'codex' ? 'Codex' : 'Claude Code'} usage limit — new sessions paused; retry at ${localTime(e.payload.until)}`, path: `/usage?provider=${provider}` };
     }
     case 'rate_limit.resumed': {
       const provider = e.payload.provider ?? defaultProvider;
@@ -72,6 +72,12 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
     default:
       return null;
   }
+}
+
+/** a timestamp as this computer's clock shows it (Foundry and the person share it): `Oct 5, 16:00`, not UTC */
+function localTime(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 /** Escalation → message ("needs you" — the one family that maps to the domain's blocked). */

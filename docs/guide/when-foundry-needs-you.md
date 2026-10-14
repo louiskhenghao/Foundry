@@ -10,6 +10,8 @@ Everything else you see while a goal runs is normal and needs nothing from you. 
 
 ## The eight reasons Foundry stops
 
+Each one is a card. Its heading names what stopped, with an icon and colour of its own (orange when something failed, amber for a question or a limit, blue for a milestone to look at), and one plain sentence under it; outside its task it also says which goal and task. The details come next, then what your answer carries (a hint and its extra attempts, or new limits). The buttons sit in the card's footer: help from the AI on the left, your answers on the right with the main one last. Once answered, the footer says what was chosen.
+
 ### A piece could not be finished
 
 **Inbox:** *Retries exhausted* — "used N of M attempts; Must checks still failing".
@@ -121,7 +123,7 @@ A task moves through **pending** (waiting for the tasks it depends on) → **rea
 
 | You see | What it means |
 |---|---|
-| *ready · "X is not parallelizable; it starts when Y finishes"* | The Brief said this task must run alone. It waits. |
+| *ready · "X runs alone (not parallelizable): it starts once Y finishes — a wait for quiet, not a dependency"* | The Brief said this task must run alone, so it waits until nothing else of the goal is running. Y is simply what runs now; no line leads from it in the task graph, where the task is marked **runs alone**. |
 | *ready · "X waits for Y: both touch …"* | Two tasks declared the same files; this one waits so they do not collide. |
 | *ready · "retry 2/3"* | A normal new attempt after a failed one. It starts running shortly. |
 | *ready*, and it does not start | The task panel says why under the attempts (*not started yet: …*). When nothing holds it back, press **Start now**. |

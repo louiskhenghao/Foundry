@@ -1269,7 +1269,8 @@ export class Engine {
     const running = tasks.filter((t) => inFlight.includes(t.id));
     const names = (ts: Task[]) => ts.map((t) => `"${t.title}"`).join(', ');
     if (inFlight.length >= goal.budgets.maxConcurrent) return `every slot is taken (${names(running) || `${inFlight.length} running`})`;
-    if (!task.parallelizable && inFlight.length > 0) return `it is not parallelizable and waits for ${names(running) || 'the running task'}`;
+    // not a dependency: a task the Brief marked not parallelizable runs alone, so it waits for whatever runs now
+    if (!task.parallelizable && inFlight.length > 0) return `it runs alone (not parallelizable), so it starts once ${names(running) || 'the running task'} ${running.length > 1 ? 'finish' : 'finishes'}; it does not depend on ${running.length > 1 ? 'them' : 'it'}`;
     const clash = running.find((x) => filesOverlap(task.relevantFiles, x.relevantFiles).length > 0);
     if (clash) return `it waits for "${clash.title}": both touch ${filesOverlap(task.relevantFiles, clash.relevantFiles).slice(0, 3).join(', ')}`;
     return null;

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ChevronDown, ChevronRight, ExternalLink, Lock, RefreshCw, Search, Square } from 'lucide-react';
 import { api, type PortRow, type PortsView } from '../api.ts';
-import { Badge, Button, Card, ConfirmDialog, Empty, Input, Tabs, ago, buttonClass, cn } from '../ui.tsx';
+import { AFFIX_SIDE, Badge, Button, Card, ConfirmDialog, Empty, Input, Tabs, ago, buttonClass, cn } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
 
 type Category = PortRow['category'];
@@ -371,7 +371,7 @@ export function PortsPage() {
             );
           })}
         </div>
-        <div className={cn(showSide ? 'block' : 'hidden lg:block')}>{view && <SidePanel view={view} scoped={scoped} />}</div>
+        <div className={cn(showSide ? 'block' : 'hidden lg:block', AFFIX_SIDE)}>{view && <SidePanel view={view} scoped={scoped} />}</div>
       </div>
       {dialog}
     </div>

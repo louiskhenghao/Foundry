@@ -10,6 +10,8 @@ goal 运行时你看到的其它信息都属正常，不需要你做什么。本
 
 ## Foundry 停下来的八种原因
 
+每一种都是一张卡片。卡片标题写明是什么停了下来，带着各自的图标和颜色（出错是橙色，问题或限额是琥珀色，要你看一眼的里程碑是蓝色），下面一句白话说明；不在任务里显示时，还会写明是哪个 goal、哪个任务。接着是详情，再下面是你的回答要带上的内容（提示和额外尝试次数，或者新的限额）。按钮在卡片底部：左边是 AI 帮忙，右边是你的回答，主要的那个在最右边。回答之后，底部会写明选了什么。
+
 ### 某一部分做不完
 
 **Inbox：** *Retries exhausted* ——"used N of M attempts; Must checks still failing"。
@@ -121,7 +123,7 @@ Brief 出来之前，goal 页面可能显示 **Round N — K questions**。这�
 
 | 你看到 | 意思 |
 |---|---|
-| *ready · "X is not parallelizable; it starts when Y finishes"* | Brief 说这个任务必须单独跑。它在等。 |
+| *ready · "X runs alone (not parallelizable): it starts once Y finishes — a wait for quiet, not a dependency"* | Brief 说这个任务必须单独跑，所以它要等到这个 goal 没有其它任务在跑才开始。Y 只是此刻正在跑的任务，并不是依赖：任务图里没有从 Y 连过来的线，这个任务标着 **runs alone**。 |
 | *ready · "X waits for Y: both touch …"* | 两个任务声明了同样的文件；这个在等，免得互相冲突。 |
 | *ready · "retry 2/3"* | 上一次失败后的正常新尝试。很快就会开始运行。 |
 | *ready*，但一直没开始 | 任务面板会在尝试列表下面写出原因（*not started yet: …*）。没有任何东西挡着它时，按 **Start now**。 |

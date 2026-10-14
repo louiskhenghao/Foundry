@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { stamp } from '../src/time.ts';
 import type { Goal } from '@foundry/core/browser';
 import { ImportedCard } from '../src/pages/goal/ImportedCard.tsx';
 import { describe as describeEvent } from '../src/pages/goal/describe.ts';
@@ -25,6 +26,7 @@ test('once mapped it shows where its branch went; a finished one points at Follo
 
 test('the timeline names the Transfer events', () => {
   const e = (type: string, payload: object) => describeEvent({ id: 'e', ts: '', goalId: 'g', type, payload } as never).text;
-  expect(e('goal.imported', { from: { hostname: 'old-mac', release: '1.2.0', exportedAt: '2026-10-09T08:00:00Z' } })).toBe('Imported from old-mac (Foundry 1.2.0, written 2026-10-09 08:00)');
+  // shown in this computer's time zone, whatever the machine running the test is set to
+  expect(e('goal.imported', { from: { hostname: 'old-mac', release: '1.2.0', exportedAt: '2026-10-09T08:00:00Z' } })).toBe(`Imported from old-mac (Foundry 1.2.0, written ${stamp('2026-10-09T08:00:00Z')})`);
   expect(e('goal.reattached', { workspaceDir: '/w/app-foundry/x' })).toContain('Reattached here');
 });
