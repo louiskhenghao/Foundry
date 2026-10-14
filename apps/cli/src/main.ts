@@ -454,7 +454,7 @@ switch (cmd) {
         for (const bucket of quota.buckets) {
           const windows = codexQuotaWindows(bucket);
           if (!windows.length) console.log(`  ${bucket.label}: no quota windows reported`);
-          for (const { window, label } of windows) console.log(`  ${bucket.label} · ${label}: ${window.usedPercent == null ? 'usage unknown' : `${window.usedPercent}% used`}; ${window.resetsAt == null ? 'reset unknown' : `reported reset ${new Date(window.resetsAt * 1000).toISOString()}`}`);
+          for (const { window, label } of windows) console.log(`  ${bucket.label} · ${label}: ${window.usedPercent == null ? 'usage unknown' : `${window.usedPercent}% used`}; ${window.resetsAt == null ? 'reset unknown' : `reported reset ${new Date(window.resetsAt * 1000).toLocaleString()}`}`);
         }
         if (!quota.buckets.length) console.log('No quota windows were returned for this account.');
         console.log('Reported windows do not prove recovery.');

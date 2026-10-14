@@ -1,4 +1,5 @@
 import type { EngineEvent } from '@foundry/core/browser';
+import { stamp } from '../../time.ts';
 
 export type Tone = 'info' | 'ok' | 'warn' | 'err' | 'muted';
 
@@ -56,7 +57,7 @@ export function describe(e: EngineEvent, costAvailable = true): { text: string; 
     case 'boundary.blocked':
       return { text: `Blocked command: ${p.command}`, tone: 'warn' };
     case 'goal.imported':
-      return { text: `Imported from ${p.from.hostname} (Foundry ${p.from.release}, written ${String(p.from.exportedAt).slice(0, 16).replace('T', ' ')})`, tone: 'info' };
+      return { text: `Imported from ${p.from.hostname} (Foundry ${p.from.release}, written ${stamp(String(p.from.exportedAt))})`, tone: 'info' };
     case 'goal.repo_mapped':
       return { text: `Repository mapped: ${p.from} → ${p.to}`, tone: 'info' };
     case 'goal.branch_restored':

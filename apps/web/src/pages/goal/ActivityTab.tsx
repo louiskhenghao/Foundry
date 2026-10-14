@@ -3,6 +3,7 @@ import type { GoalDetail } from '../../api.ts';
 import { type FullText, FullTextDialog } from '../../components/FullTextDialog.tsx';
 import { useLive } from '../../store.ts';
 import { cn } from '../../ui.tsx';
+import { clock } from '../../time.ts';
 import { NOISY, describe, type Tone } from './describe.ts';
 
 const TONE: Record<Tone, string> = { info: 'text-sky-300', ok: 'text-emerald-300', warn: 'text-amber-300', err: 'text-rose-300', muted: 'text-zinc-400' };
@@ -48,7 +49,7 @@ export function ActivityTab({ d }: { d: GoalDetail }) {
         {items.map((it) => {
           const row = (
             <>
-              <span className="mono text-zinc-600 w-16 shrink-0">{it.ts.slice(11, 19)}</span>
+              <span className="mono text-zinc-600 w-16 shrink-0" title={new Date(it.ts).toLocaleString()}>{clock(it.ts)}</span>
               <span className={cn('mt-1.5 h-1.5 w-1.5 rounded-full shrink-0', DOT[it.tone])} />
               <span className={cn('flex-1 min-w-0 break-words', it.kind === 'text' ? 'text-zinc-500 italic' : TONE[it.tone])}>
                 {it.text}
