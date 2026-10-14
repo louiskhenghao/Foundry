@@ -762,7 +762,7 @@ describe('unsticking a task without restarting Foundry', () => {
     const second = listTasks(engine.store.db, goal.id).find((x) => x.state === 'ready')!;
     expect(engine.readyHold(g, second)).toMatchObject({ kind: 'capacity' });
     expect(engine.readyHold({ ...g, budgets: { ...g.budgets, maxConcurrent: 2 } }, second)).toMatchObject({ kind: 'serial' });
-    expect(engine.readyHold({ ...g, state: 'paused' }, second)).toMatchObject({ kind: 'hard' });
+    expect(engine.readyHold({ ...g, state: 'blocked' }, second)).toMatchObject({ kind: 'hard' });
     expect(() => engine.unstickTask(goal.id, second.id)).toThrow('every slot is taken');
     expect(engine.unstickTask(goal.id, second.id, { force: true })).toEqual({ action: 'scheduled' });
     await waitFor(() => listTasks(engine.store.db, goal.id).every((x) => x.state === 'running'));
