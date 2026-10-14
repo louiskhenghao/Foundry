@@ -48,6 +48,17 @@ export interface AttemptPromptInput {
 /** scenarios whose milestones are shown by a walkthrough in a browser */
 const SHOWN_SCENARIOS = new Set(['frontend', 'fullstack', 'mobile']);
 
+/** what a task that closes a feature milestone writes: the Playwright script that shows the feature */
+export function milestoneScriptSection(milestone: string, script: string): string {
+  return `# This task is a milestone: write its script
+When it lands, Foundry runs \`${script}\` to show the person this feature: ${milestone}
+- Write it with Playwright Test (\`@playwright/test\`). Add it as a dev dependency when the repository lacks it, and run \`npx playwright install chromium\` once.
+- \`playwright.config.ts\` at the repository root (create it, or extend the one there): \`testDir\` covers \`e2e/\`, \`use.baseURL\` is the app's address, and \`webServer\` starts everything the feature needs on a bare checkout: the app, its backend, \`docker compose up -d --wait\` for databases and other services, migrations and seed data. The web app listens on \`process.env.PORT\` and a backend on \`process.env.API_PORT\` when they are set (Foundry sets both to free ports), with \`reuseExistingServer: !process.env.CI\`. Use commands any machine with the repository's tools has (npx, its package manager), not ones only your shell knows.
+- Walk through the feature the way a person would try it, through every state worth seeing (an empty list, a filled form, a validation error, a phone width with \`page.setViewportSize({ width: 375, height: 812 })\`…). At each, attach a captioned screenshot: \`await test.info().attach('<one line on what it shows>', { body: await page.screenshot(), contentType: 'image/png' })\`. For an HTTP API, call it with the \`request\` fixture and attach each response: \`await test.info().attach('POST /api/users → 201', { body: JSON.stringify(body, null, 2), contentType: 'application/json' })\`.
+- Assert what it shows (\`expect\`), so the script fails when the feature breaks. Use seeded or test accounts, never real credentials, payments or messages.
+- The acceptance check below runs it; it must pass before you stop. It is committed with your work and stays in the repository as the feature's end-to-end test.`;
+}
+
 export function buildAttemptPrompt(i: AttemptPromptInput): string {
   const lines: string[] = [];
   lines.push(`# Goal\n${i.goal.title}\n\n${i.goal.prompt.trim()}`);
@@ -67,8 +78,11 @@ export function buildAttemptPrompt(i: AttemptPromptInput): string {
     lines.push(`# Acceptance checks\nThe engine will run these after you finish. Run the command checks yourself before you stop.\n${[...must, ...stretch].map(fmt).join('\n')}`);
   }
   if (i.hint) lines.push(`# Hint from the human\n${i.hint}`);
-  // a milestone is shown to the person by a walkthrough in the preview: it must be able to run on a bare machine
-  if (i.task.milestone && SHOWN_SCENARIOS.has(i.task.scenario)) {
+  // a feature milestone is shown by its own script: the task writes it, and it must pass on a bare checkout
+  if (i.task.milestone && i.task.milestoneScript) {
+    lines.push(milestoneScriptSection(i.task.milestone, i.task.milestoneScript));
+  } else if (i.task.milestone && SHOWN_SCENARIOS.has(i.task.scenario)) {
+    // a milestone is shown to the person by a walkthrough in the preview: it must be able to run on a bare machine
     lines.push(`# This task is a milestone\nWhen it lands, Foundry starts the app in its preview and records a walkthrough for the person: ${i.task.milestone}\nMake sure that can be shown. If the app cannot run without a backend, Docker or secrets, add a \`dev:mock\` script to the app's package.json that serves the same screens against fake data (reuse the fakes the e2e tests use when there are some) and listens on \`PORT\`; Foundry uses it when the real app cannot be shown. It is committed with your work.`);
   }
   if (i.baseMoved) {
