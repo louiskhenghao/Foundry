@@ -3,12 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import type { Goal, Task } from '@foundry/core';
+import { getGoal, getTask, type Goal, type Task } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { boundarySettings } from '../guards/boundary.ts';
 import type { PreviewAppStatus } from '../preview/manager.ts';
 import { metaFor, modelFor } from '../models/roles.ts';
 import { screenshotsDir } from '../workspace.ts';
+import { runMilestoneScript, type ScriptDeps } from './milestone-script.ts';
 
 export const WALK_MAX_BUDGET_USD = 0.5;
 const VIEWPORT = { width: 1280, height: 800 };
@@ -40,6 +41,27 @@ export interface MilestoneEvidence {
   app?: string | null;
   /** the app ran its mock command (fake data) because the real one could not be shown */
   mock?: boolean;
+  /** the milestone's Playwright script, when a script recorded it */
+  script?: string | null;
+  /** pass: it showed the milestone; fail: the script failed or nothing could be shown; unverified: only fake data could be shown */
+  status?: 'pass' | 'fail' | 'unverified';
+  /** one video per scripted test */
+  clips?: { file: string; caption: string }[];
+  /** text a script attached: an API's responses */
+  outputs?: { file: string; caption: string }[];
+  /** the script runner's output */
+  log?: string | null;
+  /** the walkthrough Foundry planned, replayed as it is on a rerun */
+  steps?: z.infer<typeof WalkStep>[];
+  /** recorded by the final walkthrough */
+  final?: boolean;
+}
+
+export interface CaptureOptions {
+  /** the final walkthrough's run */
+  final?: boolean;
+  /** replay the walkthrough recorded last time instead of planning a new one (a rerun) */
+  replay?: boolean;
 }
 
 /**
@@ -61,7 +83,83 @@ export function pageProblem(status: number | null, text: string): string | null 
   return null;
 }
 
-const capturing = new Set<string>();
+/** captures of one goal run one after another: two milestones landing together are both recorded, in order */
+const queues = new Map<string, Promise<unknown>>();
+/** the milestones (task ids) of each goal being recorded or waiting their turn */
+const pending = new Map<string, string[]>();
+
+/** every recording still running or queued, for a shutdown to wait on (bounded by the caller) */
+export function milestoneQueues(): Promise<unknown>[] {
+  return [...queues.values()];
+}
+
+/** the milestones of a goal being recorded now or waiting their turn */
+export function milestoneRunsFor(goalId: string): string[] {
+  return [...(pending.get(goalId) ?? [])];
+}
+
+/** how a scripted milestone's script is run; tests replace it */
+export const scriptDeps: { current: ScriptDeps | undefined } = { current: undefined };
+
+/**
+ * Record what a milestone looks like, after any recording of the same goal still running: by its Playwright script when
+ * it has one, else by a walkthrough Foundry plans (or replays). The result is a `milestone.evidence` event. Never throws.
+ */
+export function captureMilestone(engine: Engine, goal: Goal, task: Task, opts: CaptureOptions = {}): Promise<MilestoneEvidence | null> {
+  pending.set(goal.id, [...(pending.get(goal.id) ?? []), task.id]);
+  const next = (queues.get(goal.id) ?? Promise.resolve())
+    .catch(() => {})
+    .then(() => {
+      // the goal and the task as they are now: a script that changed while this waited is the one run
+      const g = getGoal(engine.store.db, goal.id) ?? goal;
+      const t = getTask(engine.store.db, task.id) ?? task;
+      return t.milestoneScript ? captureScripted(engine, g, t, opts) : captureWalk(engine, g, t, opts);
+    })
+    .catch(() => null)
+    .finally(() => {
+      const left = [...(pending.get(goal.id) ?? [])];
+      left.splice(left.indexOf(task.id), 1);
+      if (left.length) pending.set(goal.id, left);
+      else pending.delete(goal.id);
+    });
+  queues.set(goal.id, next);
+  void next.finally(() => {
+    if (queues.get(goal.id) === next) queues.delete(goal.id);
+  });
+  return next;
+}
+
+/** A scripted milestone: its Playwright script runs in the goal's folder, and what it attached is the evidence. */
+async function captureScripted(engine: Engine, goal: Goal, task: Task, opts: CaptureOptions): Promise<MilestoneEvidence> {
+  const stamp = `${new Date().toISOString().replace(/[:.]/g, '-')}-${task.id}-`;
+  const run = await runMilestoneScript(engine, goal, task, stamp, scriptDeps.current);
+  const evidence: MilestoneEvidence = {
+    taskId: task.id,
+    video: null,
+    clips: run.clips,
+    shots: run.shots,
+    outputs: run.outputs,
+    summary: run.summary,
+    error: run.error,
+    script: task.milestoneScript,
+    status: run.status,
+    log: run.log,
+    ...(opts.final ? { final: true } : {}),
+  };
+  engine.store.append({ type: 'milestone.evidence', goalId: goal.id, payload: evidence });
+  engine.config.log(`[milestone] ${goal.id}: ${task.milestoneScript} ${run.status}${run.error ? ` (${run.error.split('\n')[0]})` : ''}`);
+  return evidence;
+}
+
+/** the walkthrough recorded last time for a milestone, to replay on a rerun */
+function lastSteps(engine: Engine, goalId: string, taskId: string): WalkPlan | null {
+  const ev = engine.store
+    .listByGoalOfTypes(goalId, ['milestone.evidence'])
+    .map((e) => e.payload as MilestoneEvidence)
+    .filter((p) => p.taskId === taskId && p.steps?.length)
+    .at(-1);
+  return ev ? { steps: ev.steps!, summary: ev.summary.replace(/^With mock data, because the real app could not be shown: /, '') } : null;
+}
 
 /**
  * Show a person what a milestone looks like without them running anything: a cheap session plans a short walkthrough
@@ -70,10 +168,9 @@ const capturing = new Set<string>();
  * recorded, one screenshot of the page is kept. The result is a `milestone.evidence` event: the milestone card shows it
  * and the notification channels get it. Never throws.
  */
-export async function captureMilestone(engine: Engine, goal: Goal, task: Task): Promise<MilestoneEvidence | null> {
-  if (capturing.has(goal.id)) return null;
-  capturing.add(goal.id);
+async function captureWalk(engine: Engine, goal: Goal, task: Task, opts: CaptureOptions): Promise<MilestoneEvidence | null> {
   const { store, config } = engine;
+  const replay = opts.replay ? lastSteps(engine, goal.id, task.id) : null;
   const evidence: MilestoneEvidence = { taskId: task.id, video: null, shots: [], summary: '', error: null };
   const dir = screenshotsDir(config.dataDir, goal);
   const stamp = `${new Date().toISOString().replace(/[:.]/g, '-')}-${task.id}`;
@@ -102,13 +199,13 @@ export async function captureMilestone(engine: Engine, goal: Goal, task: Task): 
         return m?.ready && m.url ? m : null;
       };
       let walk: Walk | null = null;
-      if (app.ready && app.url) walk = await walkApp(engine, browser, goal, task, app, preview.apps, `${stamp}-`, videoDir, hide);
+      if (app.ready && app.url) walk = await walkApp(engine, browser, goal, task, app, preview.apps, `${stamp}-`, videoDir, hide, replay);
       if (!walk || walk.allBroken) {
         const m = await toMock();
         if (m) {
           if (walk) discard(dir, walk);
           app = m;
-          walk = await walkApp(engine, browser, goal, task, m, preview.apps, `${stamp}-mock-`, videoDir, hide);
+          walk = await walkApp(engine, browser, goal, task, m, preview.apps, `${stamp}-mock-`, videoDir, hide, replay ?? (walk?.steps.length ? { steps: walk.steps, summary: walk.summary } : null));
           walk.mock = true;
         }
       }
@@ -118,6 +215,7 @@ export async function captureMilestone(engine: Engine, goal: Goal, task: Task): 
       evidence.video = walk.video;
       evidence.summary = walk.mock ? `With mock data, because the real app could not be shown: ${walk.summary}` : walk.summary;
       if (walk.mock) evidence.mock = true;
+      if (walk.steps.length) evidence.steps = walk.steps;
       const left = walk.broken.length ? `${walk.broken.length} screenshot(s) showed ${[...new Set(walk.broken)].slice(0, 2).join(', ')} and were left out` : null;
       const tail = walk.allBroken ? `: the preview is not showing the milestone${walk.mock || mocked ? '' : ' (a dev:mock script that serves the app against fake data would let Foundry show it anyway)'}` : '';
       evidence.error = [walk.planError, left ? `${left}${tail}` : null].filter(Boolean).join('; ') || null;
@@ -129,8 +227,10 @@ export async function captureMilestone(engine: Engine, goal: Goal, task: Task): 
   } finally {
     if (mocked) await engine.preview.stopMock(goal, mocked).catch(() => {});
     rmSync(videoDir, { recursive: true, force: true });
-    capturing.delete(goal.id);
   }
+  // fake data proves nothing about the real app: shown, but not counted as reached
+  evidence.status = evidence.mock ? 'unverified' : evidence.shots.length || evidence.video ? 'pass' : 'fail';
+  if (opts.final) evidence.final = true;
   store.append({ type: 'milestone.evidence', goalId: goal.id, payload: evidence });
   config.log(`[milestone] ${goal.id}: ${evidence.shots.length} screenshot(s)${evidence.video ? ' and a video' : ''}${evidence.error ? ` (${evidence.error})` : ''}`);
   return evidence;
@@ -146,6 +246,8 @@ interface Walk {
   /** every screenshot was an error page: nothing of the milestone was seen */
   allBroken: boolean;
   mock?: boolean;
+  /** the steps followed, kept so a rerun replays the same walkthrough */
+  steps: z.infer<typeof WalkStep>[];
 }
 
 type Browser = import('playwright').Browser;
@@ -155,21 +257,25 @@ type Browser = import('playwright').Browser;
  * A screenshot of an error page (an HTTP error, a "could not be found", a blank page) shows nothing of the milestone:
  * it is left out and counted.
  */
-async function walkApp(engine: Engine, browser: Browser, goal: Goal, task: Task, app: PreviewAppStatus, apps: PreviewAppStatus[], prefix: string, videoDir: string, hide: (t: string) => string): Promise<Walk> {
+async function walkApp(engine: Engine, browser: Browser, goal: Goal, task: Task, app: PreviewAppStatus, apps: PreviewAppStatus[], prefix: string, videoDir: string, hide: (t: string) => string, given: WalkPlan | null = null): Promise<Walk> {
   const dir = screenshotsDir(engine.config.dataDir, goal);
   const url = app.url!;
-  const out: Walk = { shots: [], video: null, summary: '', planError: null, broken: [], allBroken: false };
-  // what can be done on the page, for the plan
-  const look = await browser.newPage({ viewport: VIEWPORT });
-  await look.goto(url, { waitUntil: 'networkidle', timeout: 30_000 }).catch(() => {});
-  const controls = await look.evaluate(outlineControls).catch(() => [] as string[]);
-  const title = await look.title().catch(() => '');
-  await look.close();
-  const others = apps.filter((a) => a.key !== app.key && a.ready && a.url).map((a) => ({ name: a.name, dir: a.dir, url: a.url! }));
-  const plan = await planWalk(engine, goal, task, { name: app.name, dir: app.dir, url }, others, title, controls).catch((err) => {
-    out.planError = `no walkthrough planned: ${String((err as Error).message ?? err).slice(0, 200)}`;
-    return { steps: [], summary: '' } as WalkPlan;
-  });
+  const out: Walk = { shots: [], video: null, summary: '', planError: null, broken: [], allBroken: false, steps: [] };
+  let plan = given;
+  if (!plan) {
+    // what can be done on the page, for the plan
+    const look = await browser.newPage({ viewport: VIEWPORT });
+    await look.goto(url, { waitUntil: 'networkidle', timeout: 30_000 }).catch(() => {});
+    const controls = await look.evaluate(outlineControls).catch(() => [] as string[]);
+    const title = await look.title().catch(() => '');
+    await look.close();
+    const others = apps.filter((a) => a.key !== app.key && a.ready && a.url).map((a) => ({ name: a.name, dir: a.dir, url: a.url! }));
+    plan = await planWalk(engine, goal, task, { name: app.name, dir: app.dir, url }, others, title, controls).catch((err) => {
+      out.planError = `no walkthrough planned: ${String((err as Error).message ?? err).slice(0, 200)}`;
+      return { steps: [], summary: '' } as WalkPlan;
+    });
+  }
+  out.steps = plan.steps;
   out.summary = hide(plan.summary);
   const ctx = await browser.newContext({ viewport: VIEWPORT, recordVideo: { dir: videoDir, size: VIEWPORT } });
   const page = await ctx.newPage();

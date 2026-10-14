@@ -81,14 +81,20 @@ If you merge the pull request on GitHub yourself, Foundry notices within a few m
 
 ### A milestone is ready to look at
 
-**Inbox:** *Have a look*, with **Continue** and **Look & give feedback →** (which opens the goal page). **Goal page:** a card *Have a look — task name* with what to look at and the running preview.
+**Inbox:** *Have a look*, with **Continue** and **Look & give feedback →** (which opens the goal page). **Goal page:** a card *Have a look — task name*, or *Have a look — the final walkthrough*, with what to look at and the running preview.
 
-The Brief marked this task as a milestone, so the goal paused after it landed. Nothing else starts until you respond. On the goal page you find the preview (start, stop, open), the self-check's screenshots if it is on, and any files produced so far.
+The goal pauses for a look in three cases:
+
+- **At the final walkthrough**, once every task is done. The card shows every feature's latest recording, failing ones first.
+- **When a milestone without a script lands.**
+- **When a milestone's script still fails after Foundry repaired it once.** The card shows the failing recording and its runner log.
+
+Nothing else starts until you respond. On the goal page you find the preview (start, stop, open), the self-check's screenshots if it is on, and any files produced so far.
 
 - **Continue** if it looks right.
 - Or write what you saw and press **Turn into a plan**. Foundry proposes what your note becomes — a *hint* for the remaining tasks, *fix tasks* for what is missing or wrong (the milestone then opens once more so you can check), or a *decision* every later task must follow. Change the kind if it guessed wrong, then **Confirm & continue**.
 
-A milestone pauses at most twice. The second time the card reads **Second look — task name**; anything you write then becomes a hint, and the goal does not pause there again.
+A milestone pauses at most twice. The second time the card reads **Second look — task name**; anything you write then becomes a hint, and the goal does not pause there again. At the final walkthrough no task is left to take a hint, so what you write there always becomes fix tasks, the second time too.
 
 ### Before it starts: questions on the Brief
 

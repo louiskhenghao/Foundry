@@ -3,7 +3,7 @@ import { Eye, MessageSquare, Play } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { type GoalDetail, api } from '../../api.ts';
 import { Button, Card, Select, Textarea, cn } from '../../ui.tsx';
-import { type Evidence, EvidenceView } from './MilestoneEvidence.tsx';
+import { type Evidence, EvidenceView, FINAL_WALK, evidenceStatus } from './MilestoneEvidence.tsx';
 import { PreviewCard } from './PreviewCard.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 
@@ -54,15 +54,16 @@ export function MilestoneCard({ d }: { d: GoalDetail }) {
     <Card
       title={
         <span className="flex items-center gap-2">
-          <Eye size={14} className="text-amber-300" /> {cp.recheck ? 'Second look' : 'Have a look'} — {task?.title ?? cp.taskId}
+          <Eye size={14} className="text-amber-300" /> {cp.recheck ? 'Second look' : 'Have a look'} — {cp.taskId === FINAL_WALK ? 'the final walkthrough' : (task?.title ?? cp.taskId)}
           <HelpLink to="while-it-runs#milestones" label="What a milestone look is for (new tab)" />
         </span>
       }
     >
       <div className="space-y-3 text-xs text-zinc-400">
         <p className="text-sm text-zinc-200 whitespace-pre-wrap">{cp.lookFor}</p>
-        {cp.recheck && <p className="text-[11px] text-amber-300">This is the second look at this milestone, after the fix tasks from your feedback landed. Anything you write now becomes a hint for the remaining tasks; the goal does not pause here again.</p>}
-        <Walkthrough d={d} taskId={cp.taskId} since={cp.openedAt} />
+        {cp.recheck && cp.taskId !== FINAL_WALK && <p className="text-[11px] text-amber-300">This is the second look at this milestone, after the fix tasks from your feedback landed. Anything you write now becomes a hint for the remaining tasks; the goal does not pause here again.</p>}
+        {cp.recheck && cp.taskId === FINAL_WALK && <p className="text-[11px] text-amber-300">This is the second look at the final walkthrough, after the fixes from your feedback landed. What you write now still becomes fix tasks, but the goal does not pause here again.</p>}
+        {cp.taskId === FINAL_WALK ? <FinalWalkthrough d={d} /> : <Walkthrough d={d} taskId={cp.taskId} since={cp.openedAt} />}
         <PreviewCard goalId={g.id} embedded />
         {shots.length > 0 && (
           <div>
@@ -145,9 +146,32 @@ export function MilestoneCard({ d }: { d: GoalDetail }) {
   );
 }
 
+/** the final walkthrough: every feature's latest recording, one after another, the failing ones first */
+function FinalWalkthrough({ d }: { d: GoalDetail }) {
+  const latest = new Map<string, Evidence>();
+  for (const e of d.milestoneEvents) if (e.type === 'milestone.evidence') latest.set((e.payload as Evidence).taskId, e.payload as Evidence);
+  const rows = d.tasks.filter((t) => t.milestone && latest.has(t.id)).map((t) => ({ task: t, ev: latest.get(t.id)! }));
+  rows.sort((a, b) => Number(evidenceStatus(a.ev) === 'pass') - Number(evidenceStatus(b.ev) === 'pass'));
+  if (!rows.length) return null;
+  return (
+    <div className="space-y-3">
+      {rows.map(({ task, ev }) => (
+        <div key={task.id} className="space-y-1">
+          <div className="text-xs font-medium text-zinc-200">
+            {task.title}
+            {evidenceStatus(ev) !== 'pass' && <span className={cn('ml-2 text-[11px] font-normal', evidenceStatus(ev) === 'fail' ? 'text-rose-300' : 'text-amber-300')}>{evidenceStatus(ev) === 'fail' ? 'failed' : 'fake data only'}</span>}
+          </div>
+          <EvidenceView goalId={d.goal.id} evidence={ev} taskId={task.id} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** what Foundry recorded in the preview for this milestone, so the person can look without starting anything */
 function Walkthrough({ d, taskId, since }: { d: GoalDetail; taskId: string; since: string }) {
   const ev = d.milestoneEvents.filter((e) => e.type === 'milestone.evidence' && (e.payload as Evidence).taskId === taskId).at(-1);
-  if (!ev || ev.ts < since) return <div className="text-[11px] text-zinc-500 flex items-center gap-1.5"><Play size={11} /> Recording a walkthrough of the preview…</div>;
-  return <EvidenceView goalId={d.goal.id} evidence={ev.payload as Evidence} />;
+  // an older recording shows while no new one is on its way (a milestone that paused after its script failed again)
+  if (!ev || (ev.ts < since && (d.milestoneRuns ?? []).includes(taskId))) return <div className="text-[11px] text-zinc-500 flex items-center gap-1.5"><Play size={11} /> Recording a walkthrough of the preview…</div>;
+  return <EvidenceView goalId={d.goal.id} evidence={ev.payload as Evidence} taskId={taskId} />;
 }

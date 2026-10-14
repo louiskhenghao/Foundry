@@ -1,5 +1,5 @@
 import type { CodexQuota } from './usage/types.ts';
-import { CODEX_MODEL_ACTIONS, CodexEffort, Effort, effectiveCodexPresets, isHistory, natureKey, repoHere, type CodexModelPreset } from '@foundry/core';
+import { CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, Effort, effectiveCodexPresets, isHistory, natureKey, repoHere, type CodexModelPreset } from '@foundry/core';
 import { CodexPlugins } from './plugins/codex-plugins.ts';
 import { CodexQuotaReader } from './usage/codex-quota.ts';
 import { discoverCodexModels } from './models/codex-discover.ts';
@@ -55,7 +55,9 @@ import { runGoalReview } from './goal-review.ts';
 import { Roles } from './roles.ts';
 import { schedule } from './scheduler.ts';
 import { budgetStatus } from './budget.ts';
-import { dueCheckpoint } from './checkpoint.ts';
+import { dueCheckpoint, recordMilestone } from './checkpoint.ts';
+import { milestoneQueues, milestoneRunsFor } from './checks/walkthrough.ts';
+import { MILESTONE_CHECK_PREFIX, milestoneCheckSpec } from './checks/milestone-script.ts';
 import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
 import { UpdateManager } from './update/updater.ts';
@@ -212,6 +214,10 @@ export class Engine {
   readonly overlapNoted = new Set<string>();
   /** ready tasks the person started with Start now: the next scheduling pass starts them past slots, running alone and shared files */
   readonly forceStart = new Set<string>();
+  /** goals whose final walkthrough (every milestone script once all tasks are done) is running */
+  readonly finalWalking = new Set<string>();
+  /** a scripted milestone whose script still fails after its repair: the goal pauses at it once no task is in flight */
+  readonly pauseDue = new Map<string, string>();
   /** consecutive engine-side crashes per task (reset when an attempt runs) */
   readonly engineCrashes = new Map<string, number>();
   /** must checks already failing on a goal-branch commit (merges are judged on regressions only) */
@@ -816,6 +822,8 @@ export class Engine {
     const t0 = Date.now();
     while (this.busy().total > 0 && Date.now() - t0 < 3000) await new Promise((r) => setTimeout(r, 25));
     await Promise.allSettled([...this.chains.values()]);
+    // milestone recordings write their evidence when they finish: wait for them too (a script is killed by its timeout)
+    await Promise.race([Promise.allSettled(milestoneQueues()), new Promise((r) => setTimeout(r, 5000))]);
   }
 
   private async reconcile(): Promise<void> {
@@ -1288,6 +1296,31 @@ export class Engine {
     const clash = running.find((x) => filesOverlap(task.relevantFiles, x.relevantFiles).length > 0);
     if (clash) return { kind: 'overlap', reason: `it waits for "${clash.title}": both touch ${filesOverlap(task.relevantFiles, clash.relevantFiles).slice(0, 3).join(', ')}` };
     return null;
+  }
+
+  /**
+   * Record a milestone again (taskId = FINAL_WALK: every milestone that landed): a scripted one runs its script, one
+   * Foundry walked through replays the walkthrough it recorded last time. In a running goal a script that fails gets its
+   * repair task, as when it landed. Runs in the background; the milestone card shows it until the recording arrives.
+   */
+  rerunMilestone(goalId: string, taskId: string): { started: string[] } {
+    const goal = this.mustGoal(goalId);
+    const tasks = listTasks(this.store.db, goalId);
+    const targets = taskId === FINAL_WALK ? tasks.filter((t) => t.milestone && t.state === 'done') : tasks.filter((t) => t.id === taskId);
+    if (!targets.length) throw new Error(taskId === FINAL_WALK ? 'no milestone has landed yet' : `task ${taskId} not found`);
+    for (const t of targets) {
+      if (!t.milestone) throw new Error(`"${t.title}" is not a milestone`);
+      if (t.state !== 'done') throw new Error(`"${t.title}" has not landed yet`);
+    }
+    const running = new Set(milestoneRunsFor(goalId));
+    const started = targets.filter((t) => !running.has(t.id));
+    for (const t of started) void recordMilestone(this, goal, t, { replay: true });
+    return { started: started.map((t) => t.id) };
+  }
+
+  /** the milestones of a goal being recorded or waiting their turn; FINAL_WALK while its final walkthrough runs */
+  milestoneRuns(goalId: string): string[] {
+    return [...milestoneRunsFor(goalId), ...(this.finalWalking.has(goalId) ? [FINAL_WALK] : [])];
   }
 
   /**
@@ -1798,6 +1831,7 @@ export class Engine {
         dependsOn: t.dependsOnKeys.map((k) => idByKey.get(k)!),
         relevantFiles: t.relevantFiles,
         milestone: t.milestone ?? null,
+        milestoneScript: t.milestone ? (t.milestoneScript ?? null) : null,
         milestoneVisits: 0,
         checkpointOf: null,
         difficulty: t.difficulty ?? 'standard',
@@ -1816,11 +1850,20 @@ export class Engine {
         updatedAt: now,
       };
       this.store.append({ type: 'task.created', goalId, payload: { task } });
+      // a feature milestone's script is its task's must check: the feature cannot land unless what it shows works
+      const script = task.milestoneScript;
+      if (script && !brief.checks.some((c) => c.taskKey === t.key && c.spec.type === 'command' && c.spec.cmd.includes(script) && /playwright/.test(c.spec.cmd))) {
+        const check: Check = { id: newId(IdPrefix.check), goalId, taskId: task.id, name: `${MILESTONE_CHECK_PREFIX}${script}`, tier: 'must', spec: milestoneCheckSpec(script) };
+        this.store.append({ type: 'check.created', goalId, payload: { check } });
+      }
     }
     for (const c of brief.checks) {
       const taskId = c.taskKey ? idByKey.get(c.taskKey) : null;
       if (c.taskKey && !taskId) throw new Error(`check ${c.name} references unknown task ${c.taskKey}`);
-      const check: Check = { id: newId(IdPrefix.check), goalId, taskId: taskId ?? null, name: c.name, tier: c.tier, spec: c.spec };
+      // the planner ran a task's milestone script itself: on free ports and Chromium, the way Foundry records it
+      const script = brief.tasks.find((t) => t.key === c.taskKey && t.milestone)?.milestoneScript;
+      const spec = script && c.spec.type === 'command' && c.spec.cmd.includes(script) && /playwright/.test(c.spec.cmd) ? { ...c.spec, ports: true, milestone: script } : c.spec;
+      const check: Check = { id: newId(IdPrefix.check), goalId, taskId: taskId ?? null, name: c.name, tier: c.tier, spec };
       this.store.append({ type: 'check.created', goalId, payload: { check } });
     }
     ensureSelfCheck(this, getGoal(this.store.db, goalId)!);

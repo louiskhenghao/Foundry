@@ -3,7 +3,7 @@ import { listTasks, getTask, getGoal, listAttempts, getObservation } from '@foun
 import { type Continuation, continuationMessage, decideNext, maxAttemptsFor, runAttempt } from './attempt-loop.ts';
 import { budgetStatus } from './budget.ts';
 import type { Engine } from './engine.ts';
-import { dueCheckpoint, openCheckpoint, passMilestone } from './checkpoint.ts';
+import { dueCheckpoint, finalLookDue, openCheckpoint, openFinalCheckpoint, passMilestone, runFinalWalk, scriptedMilestones } from './checkpoint.ts';
 import { raiseEscalation } from './escalation.ts';
 import { headRef } from './git/git.ts';
 import { integrateTask } from './merge.ts';
@@ -36,10 +36,22 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
   }
   tasks = listTasks(store.db, goal.id);
 
+  // 2a. a milestone script failed again after its repair: launch nothing more, then pause there once nothing is in flight
+  const failing = engine.pauseDue.get(goal.id);
+  if (failing) {
+    const task = tasks.find((t) => t.id === failing);
+    if (engine.inFlightForGoal(goal.id).length === 0) {
+      engine.pauseDue.delete(goal.id);
+      if (task) void openCheckpoint(engine, goal, { task, recheck: false }, { capture: false }).catch((err) => store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `opening the milestone failed: ${String(err)}` } }));
+    }
+    return;
+  }
+
   // 2b. a milestone landed (or a feedback fix for one): launch nothing more, let in-flight work land, then pause for the
   // human; a goal that does not pause at milestones tells them and goes on
   for (let due = dueCheckpoint(tasks); due; due = dueCheckpoint(tasks)) {
-    if (goal.milestonePause === false) {
+    // a feature milestone (one with a script) is recorded and the person told; the goal pauses only for the look at the end
+    if (goal.milestonePause === false || due.task.milestoneScript) {
       passMilestone(engine, goal, due.task);
       tasks = listTasks(store.db, goal.id);
       continue;
@@ -55,6 +67,22 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
   if (tasks.length && tasks.every((t) => t.state === 'done' || t.state === 'failed' || t.state === 'skipped')) {
     if (tasks.some((t) => t.state === 'failed')) {
       store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'running', to: 'failed', reason: `${tasks.filter((t) => t.state === 'failed').length} task(s) failed` } });
+    } else if (scriptedMilestones(tasks).length && !goal.finalWalk?.ranAt) {
+      // 3b. the final walkthrough: every feature's script once more on the finished branch (not awaited: minutes)
+      if (!engine.finalWalking.has(goal.id)) {
+        engine.finalWalking.add(goal.id);
+        void runFinalWalk(engine, goal)
+          .catch((err) => store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `the final walkthrough failed: ${String(err)}` } }))
+          .finally(() => {
+            engine.finalWalking.delete(goal.id);
+            engine.tick(goal.id);
+          });
+      }
+    } else if (scriptedMilestones(tasks).length && finalLookDue(goal, tasks)) {
+      // 3c. the look at the end: every feature's recording on one card
+      if (engine.inFlightForGoal(goal.id).length === 0) {
+        void openFinalCheckpoint(engine, goal, finalLookDue(goal, tasks)!.recheck).catch((err) => store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `opening the final walkthrough failed: ${String(err)}` } }));
+      }
     } else {
       const skipped = tasks.filter((t) => t.state === 'skipped').length;
       store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'running', to: 'goal_review', reason: skipped ? `all tasks done (${skipped} skipped by you)` : 'all tasks done' } });
@@ -75,7 +103,8 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
     return;
   }
 
-  // 5. start ready tasks within capacity
+  // 5. start ready tasks within capacity — none while the final walkthrough runs: it records the branch as it is
+  if (engine.finalWalking.has(goal.id)) return;
   const inFlight = engine.inFlightForGoal(goal.id);
   let capacity = Math.max(0, goal.budgets.maxConcurrent - inFlight.length);
   const ready = tasks.filter((t) => t.state === 'ready' && !engine.isInFlight(t.id));
@@ -236,6 +265,16 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
   } catch (err) {
     if (lost()) return;
     store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'error', message: `task ${task.id} crashed in engine: ${String((err as Error)?.stack ?? err)}` } });
+    // the attempt the error cut short is over: it would read "running" forever, and it was not the model's failure, so
+    // the task gets the attempt back (as after an engine restart)
+    for (const a of listAttempts(store.db, task.id)) {
+      if (a.state !== 'created' && a.state !== 'running' && a.state !== 'observing') continue;
+      const reason = `engine error: ${String((err as Error)?.message ?? err).slice(0, 160)}`;
+      store.append({ type: 'attempt.finished', goalId: goal.id, payload: { attemptId: a.id, state: 'error', resultSubtype: 'engine_error', costUsd: a.costUsd, numTurns: a.numTurns, endRef: a.endRef, permissionDenials: [], skillsUsed: [], toolsUsed: {} } });
+      store.append({ type: 'attempt.concluded', goalId: goal.id, payload: { attemptId: a.id, state: 'error', reason } });
+      const now = getTask(store.db, task.id);
+      if (a.kind === 'work' && now) store.append({ type: 'task.hint_set', goalId: goal.id, payload: { taskId: task.id, hint: now.hint, extraAttempts: 1 } });
+    }
     const t = getTask(store.db, task.id);
     if (t && (t.state === 'running' || t.state === 'observing' || t.state === 'merging')) {
       // an engine error is not the model's failure: retry a couple of times (no attempt consumed) before asking the human

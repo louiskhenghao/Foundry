@@ -57,3 +57,12 @@ test('a UI milestone task is told the walkthrough must run, with a dev:mock scri
   expect(buildAttemptPrompt({ ...base, task: { title: 'T', spec: 'spec', relevantFiles: [], milestone: 'x', scenario: 'backend' } as any })).not.toContain('# This task is a milestone');
   expect(buildAttemptPrompt(base)).not.toContain('# This task is a milestone');
 });
+
+test('a feature milestone task, whatever its scenario, is told to write its Playwright script and make it pass', () => {
+  const p = buildAttemptPrompt({ ...base, task: { title: 'T', spec: 'spec', relevantFiles: [], milestone: 'call the users API', milestoneScript: 'e2e/milestones/users-api.spec.ts', scenario: 'backend' } as any });
+  expect(p).toContain('# This task is a milestone: write its script');
+  expect(p).toContain('`e2e/milestones/users-api.spec.ts`');
+  expect(p).toContain('process.env.API_PORT');
+  expect(p).toContain("test.info().attach(");
+  expect(p).not.toContain('dev:mock');
+});

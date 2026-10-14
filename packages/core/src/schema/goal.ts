@@ -207,6 +207,9 @@ export const Goal = z.object({
   selfCheck: z.boolean().default(false),
   /** pause at milestones for the human's look ("Have a look"); off = the goal goes on and the milestone is only notified */
   milestonePause: z.boolean().default(true),
+  /** the final walkthrough: every milestone script run once all tasks are done (ranAt null = due again after new tasks);
+   * looks = how many times the goal paused for it (a first look, then at most one more after feedback fixes) */
+  finalWalk: z.object({ ranAt: z.string().nullable(), passed: z.boolean().nullable(), looks: z.number().int().nonnegative() }).optional(),
   /** the branch a finished goal's preview runs from; null = the goal branch while its folder exists, else the base branch */
   previewRef: z.string().nullable().default(null),
   /**

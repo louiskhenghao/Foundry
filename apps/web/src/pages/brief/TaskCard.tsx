@@ -146,7 +146,17 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
           )}
         </div>
         {task.milestone != null && (
-          <Input className="text-xs mt-1" disabled={!editable} placeholder="what to open, try and judge when this lands — e.g. open the game, play one round, try the revive button" value={task.milestone} onChange={(e) => change({ milestone: e.target.value })} />
+          <>
+            <Input className="text-xs mt-1" disabled={!editable} placeholder="what to open, try and judge when this lands — e.g. open the game, play one round, try the revive button" value={task.milestone} onChange={(e) => change({ milestone: e.target.value })} />
+            <Input
+              className="text-xs mt-1 mono"
+              disabled={!editable}
+              title="The Playwright script that shows this feature: the task writes it, it must pass, and Foundry runs it to record the milestone. Empty: Foundry walks through the preview itself."
+              placeholder="milestone script, e.g. e2e/milestones/user-list.spec.ts (empty: Foundry walks through it itself)"
+              value={task.milestoneScript ?? ''}
+              onChange={(e) => change({ milestoneScript: e.target.value.trim() || null })}
+            />
+          </>
         )}
 
         <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -184,8 +194,8 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
           <label className="text-zinc-400 flex items-center gap-1 whitespace-nowrap" title="May run at the same time as other ready tasks (in its own worktree)">
             <input type="checkbox" disabled={!editable} checked={task.parallelizable} onChange={(e) => change({ parallelizable: e.target.checked })} /> parallel
           </label>
-          <label className="text-zinc-400 flex items-center gap-1 whitespace-nowrap" title="The goal pauses after this task lands so you can look at the result (preview, screenshots) and give feedback before the rest runs">
-            <input type="checkbox" disabled={!editable} checked={task.milestone != null} onChange={(e) => change({ milestone: e.target.checked ? (task.milestone ?? '') : null })} /> milestone
+          <label className="text-zinc-400 flex items-center gap-1 whitespace-nowrap" title="A feature you can see: when this task lands Foundry records what it shows (by its script when it has one), and every feature is shown again in the final walkthrough">
+            <input type="checkbox" disabled={!editable} checked={task.milestone != null} onChange={(e) => change(e.target.checked ? { milestone: task.milestone ?? '' } : { milestone: null, milestoneScript: null })} /> milestone
           </label>
           {next.length > 0 && (
             <span className="flex items-center gap-1.5 flex-wrap">

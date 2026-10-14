@@ -27,7 +27,7 @@
 |---|---|---|
 | **Default goal view** | expert | goal 打开时用哪个视图：simple 或 expert。 |
 | **Pace for new goals** | thorough | **thorough — engine reviews the work** 或 **fast — approved checks only**。图片和视频 goal 总是以 fast 开始。 |
-| **Have a look: pause new goals at milestones** | 开 | 里程碑任务完成时 goal 暂停，让你看一看。关掉：goal 继续往下跑，里程碑的内容发到你的通知渠道。每个 goal 有自己的开关。 |
+| **Have a look: pause new goals at milestones** | 开 | 所有任务完成后的最终走查、以及没有脚本的里程碑完成时，goal 会暂停让你看一看。关掉：goal 继续往下跑，每个里程碑的内容发到你的通知渠道。每个 goal 有自己的开关。 |
 | **Interview depth** | 3 | 写 Brief 之前 Clarifier 问你问得多深：从 **Skip**（不问）和 **1**（只问猜错会白做的事）到 **5**（每个细节，直到没有可问的）。见 [Interview depth](./your-first-goal.zh.md#interview-depth)。 |
 | **Effort for new goals** | Role preset / CLI default | 从 **low** 到 **max** 的全任务覆盖。默认使用 Codex 各角色预设，或 Claude CLI 默认值。 |
 | **TDD for new Expert goals** | required | 测试先行：**required**、**preferred** 或 **off**。 |

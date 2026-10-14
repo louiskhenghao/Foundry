@@ -18,7 +18,7 @@ You get the finished work on a separate branch, and Foundry only pushes or publi
 2. **Foundry asks.** It reads the project first. If something is open that only you can decide, it asks in short rounds of questions, each with a recommended answer. Small, clear goals skip this. See [Answering the interview](./answering-the-interview.md).
 3. **You approve the Brief.** The Brief says what Foundry understood, what it will build, how it will check the result, and its time estimate (plus a cost estimate for Claude). Change what you want, then approve. See [Approving the Brief](./approving-the-brief.md).
 4. **It works.** Foundry splits the goal into tasks and runs them, several at once when they do not depend on each other. Each task is checked and reviewed before it joins the rest. See [While it runs](./while-it-runs.md).
-5. **Milestones pause for a look.** If the Brief marked a task as a milestone, Foundry stops after it and shows you the result running. You press **Continue**, or say what to change.
+5. **Milestones show each feature.** The Brief gives every feature you can see or try a milestone. When one lands, Foundry records it (screenshots, a video, what an API answered) by a script the task wrote. Once every task is done, the final walkthrough runs every script again and the goal pauses so you can look. You press **Continue**, or say what to change.
 6. **Final review.** When every task is done, a reviewer checks the whole result against the acceptance checks you approved. It fixes what it can.
 7. **You get the result.** The work is on its own branch in your project, and in a folder you can open. If you chose it, Foundry also pushes it or opens a pull request. See [Getting the result](./getting-the-result.md).
 
@@ -33,7 +33,7 @@ Between steps 3 and 7 Foundry only stops for a short list of reasons. They are a
 | **Brief** | The plan Foundry writes and you approve before any work starts. |
 | **Area** | A part of the product the goal touches, for example "student portal", "teacher portal", or "shared groundwork". Every task belongs to one. |
 | **Task** | One piece of work in the plan. A goal usually has a handful. |
-| **Milestone** | A task after which there is something to see or try for the first time. The goal pauses there so you can look. |
+| **Milestone** | A feature you can see or try, on the task that finishes it. Foundry records what it shows when it lands, and again in the final walkthrough. |
 | **Inbox** | The list of things waiting for you, with a number in the top bar. |
 | **Progress folder** | The folder where the work happens, next to your project: `<project>-foundry/<goal>/`, or under the folder set in Settings. It is named after the goal's title (up to its first punctuation mark, at most 40 characters) plus the last 6 characters of the goal's id. You can open it at any time. |
 | **Model preset** | Which model does each job (planning, tasks, reviews). Each coding agent has its own Max, Production, Balanced and Economy presets. Codex also captures each role’s reasoning effort. |

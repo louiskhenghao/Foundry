@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import type { Task } from '@foundry/core';
-import { dueCheckpoint, hintOnly } from './checkpoint.ts';
+import { FINAL_WALK, type Goal, type Task } from '@foundry/core';
+import { dueCheckpoint, finalLookDue, hintOnly, repairTitle, scriptedMilestones } from './checkpoint.ts';
 
 const task = (id: string, over: Partial<Task> = {}): Task => ({
   id, goalId: 'g', title: id, spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief',
@@ -30,5 +30,24 @@ describe('hintOnly', () => {
     expect(plan.fixTasks).toEqual([]);
     expect(plan.decision).toBeNull();
     expect(plan.hint).toBe('keep it\nno accounts\nfix x: do x');
+  });
+});
+
+describe('the final walkthrough', () => {
+  const goal = (finalWalk: Goal['finalWalk'], milestonePause = true) => ({ milestonePause, finalWalk }) as Goal;
+  test('runs the scripts of the feature milestones that landed', () => {
+    const tasks = [task('t1', { milestone: 'look', milestoneScript: 'e2e/milestones/a.spec.ts' }), task('t2', { milestone: 'look' }), task('t3', { milestone: 'look', milestoneScript: 'e2e/milestones/c.spec.ts', state: 'running' })];
+    expect(scriptedMilestones(tasks).map((t) => t.id)).toEqual(['t1']);
+  });
+  test('pauses for a first look, and once more only after fixes from that look landed', () => {
+    expect(finalLookDue(goal({ ranAt: 'x', passed: true, looks: 0 }), [])).toEqual({ recheck: false });
+    expect(finalLookDue(goal({ ranAt: null, passed: null, looks: 0 }), [])).toBeNull();
+    expect(finalLookDue(goal({ ranAt: 'x', passed: true, looks: 0 }, false), [])).toBeNull();
+    expect(finalLookDue(goal({ ranAt: 'x', passed: true, looks: 1 }), [])).toBeNull();
+    expect(finalLookDue(goal({ ranAt: 'x', passed: true, looks: 1 }), [task('f1', { checkpointOf: FINAL_WALK })])).toEqual({ recheck: true });
+    expect(finalLookDue(goal({ ranAt: 'x', passed: true, looks: 2 }), [task('f1', { checkpointOf: FINAL_WALK })])).toBeNull();
+  });
+  test("a repair task is named after the feature's script", () => {
+    expect(repairTitle(task('t1', { milestoneScript: 'e2e/milestones/user-list.spec.ts' }))).toBe('fix the user-list milestone script');
   });
 });

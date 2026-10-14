@@ -1,6 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import type { EngineEvent } from '../events.ts';
-import { isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type Task } from '../schema/index.ts';
+import { FINAL_WALK, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type Task } from '../schema/index.ts';
 import type { ObservationReport } from '../schema/observation.ts';
 
 /**
@@ -97,6 +97,11 @@ function project(db: Database, e: EngineEvent): void {
       break;
     case 'task.created': {
       upsertTask(db, e.payload.task);
+      // new work: the final walkthrough is due again once it lands
+      {
+        const g = getGoal(db, e.goalId!);
+        if (g?.finalWalk?.ranAt) upsertGoal(db, { ...g, finalWalk: { ...g.finalWalk, ranAt: null, passed: null }, updatedAt: e.ts });
+      }
       if (e.payload.task.origin === 'delivery-fix') {
         const g = getGoal(db, e.goalId!);
         if (g) upsertGoal(db, { ...g, delivery: { ...g.delivery, fixCycles: g.delivery.fixCycles + 1 }, updatedAt: e.ts });
@@ -277,7 +282,7 @@ function project(db: Database, e: EngineEvent): void {
     }
     case 'goal.checkpoint_opened': {
       const g = getGoal(db, e.goalId!);
-      if (g) upsertGoal(db, { ...g, checkpoint: { taskId: e.payload.taskId, lookFor: e.payload.lookFor, openedAt: e.ts, recheck: e.payload.recheck }, updatedAt: e.ts });
+      if (g) upsertGoal(db, { ...g, checkpoint: { taskId: e.payload.taskId, lookFor: e.payload.lookFor, openedAt: e.ts, recheck: e.payload.recheck }, ...(e.payload.taskId === FINAL_WALK ? { finalWalk: { ranAt: g.finalWalk?.ranAt ?? null, passed: g.finalWalk?.passed ?? null, looks: (g.finalWalk?.looks ?? 0) + 1 } } : {}), updatedAt: e.ts });
       const t = getTask(db, e.payload.taskId);
       if (t) upsertTask(db, { ...t, milestoneVisits: t.milestoneVisits + 1, updatedAt: e.ts });
       break;
@@ -315,6 +320,11 @@ function project(db: Database, e: EngineEvent): void {
     case 'goal.milestone_pause_set': {
       const g = getGoal(db, e.goalId!);
       if (g) upsertGoal(db, { ...g, milestonePause: e.payload.on, updatedAt: e.ts });
+      break;
+    }
+    case 'milestone.final_walk': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, finalWalk: { ranAt: e.ts, passed: e.payload.passed, looks: g.finalWalk?.looks ?? 0 }, updatedAt: e.ts });
       break;
     }
     case 'goal.milestone_passed': {

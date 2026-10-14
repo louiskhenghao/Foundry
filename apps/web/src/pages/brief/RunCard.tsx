@@ -168,7 +168,7 @@ export function RunCard({ brief, editable, edit, goalId, selfCheck, milestonePau
           />
           Self-check after each task (screenshot + console errors)
         </label>
-        <label className="flex items-center gap-2 text-[11px] text-zinc-400 cursor-pointer" title="On: the goal pauses when a milestone task lands, so you can look at the result before it goes on. Off: it goes on, and what the milestone shows is sent to your notification channels.">
+        <label className="flex items-center gap-2 text-[11px] text-zinc-400 cursor-pointer" title="On: once every task is done the goal pauses for the final walkthrough (and at a milestone without a script, when it lands), so you can look before it goes on. Off: it goes on, and what each milestone shows is sent to your notification channels.">
           <input
             type="checkbox"
             className="accent-emerald-500"

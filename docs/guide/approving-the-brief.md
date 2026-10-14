@@ -152,11 +152,17 @@ Raising a task to complex selects its preset’s Complex model and, for Codex, t
 
 ### Milestones
 
-Tick **milestone** on a task after which there is something to see or try for the first time: the first screen that opens, the first playable round. Foundry marks one to three per goal; you can add or remove them.
+Tick **milestone** on the task that finishes a feature you can see or try: the user list with its filters, the sign-up form, an API endpoint. Foundry marks one per feature, as many as the goal has; you can add or remove them.
 
-A text box appears for **what to look at**: what to open, try and judge when this lands, for example "open the game, play one round, try the revive button". That text is shown to you when the goal pauses.
+A text box appears for **what to look at**: what to open, try and judge, with the states worth seeing, for example "open Users, filter by role, create a user with a bad email, then look at it at phone width".
 
-When a milestone task lands, Foundry starts nothing new, lets running tasks finish, starts the preview and waits for you. What to do then is in [When Foundry needs you](./when-foundry-needs-you.md#a-milestone-is-ready-to-look-at).
+Below it is the **milestone script**: a Playwright script in the repository, `e2e/milestones/<feature>.spec.ts`, for a feature with a web page or an API. The task writes it, and it must pass before the task lands. Foundry then runs it to record the milestone, and it stays in the repository as the feature's end-to-end test. Leave it empty and Foundry walks through the preview itself instead.
+
+- **With a script**, the goal goes on when the milestone lands, and Foundry records it.
+- **Without one**, the goal pauses as soon as the milestone lands: Foundry starts nothing new, lets running tasks finish, starts the preview and waits for you.
+- **Once every task is done**, the final walkthrough runs every script again, and the goal pauses for one look at the end.
+
+What to do when it pauses is in [When Foundry needs you](./when-foundry-needs-you.md#a-milestone-is-ready-to-look-at).
 
 ### Parallel and runs after
 

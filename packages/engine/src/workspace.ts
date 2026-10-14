@@ -93,6 +93,11 @@ export function previewWorkspacePath(dataDir: string, goal: WorkspaceRef): strin
   const internal = internalWorkspaceDir(goal);
   return internal ? join(internal, 'preview') : join(legacyWorkspaceRoot(dataDir, goal.id), '_preview');
 }
+/** detached worktree at the goal branch's tip where milestone scripts are recorded, out of the way of tasks working in the goal's folder; kept between runs so its dependencies stay installed */
+export function milestoneWorkspacePath(dataDir: string, goal: WorkspaceRef): string {
+  const internal = internalWorkspaceDir(goal);
+  return internal ? join(internal, 'milestone') : join(legacyWorkspaceRoot(dataDir, goal.id), '_milestone');
+}
 /** worktree where docs are written once the goal's work merged and its progress folder was cleaned up */
 export function docsWorkspacePath(dataDir: string, goal: WorkspaceRef): string {
   const internal = internalWorkspaceDir(goal);

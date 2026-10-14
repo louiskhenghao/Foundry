@@ -2,12 +2,14 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { getGoal, listAttempts, listChecks, listEscalations, listTasks } from '@foundry/core';
+import { FINAL_WALK, getGoal, listAttempts, listChecks, listEscalations, listTasks } from '@foundry/core';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
 import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
 import { ESCALATION_MESSAGE_MAX, raiseEscalation } from './escalation.ts';
 import { goalWorkspacePath } from './workspace.ts';
+import { scriptDeps } from './checks/walkthrough.ts';
+import { repairTitle } from './checkpoint.ts';
 
 /** Scripted stand-in for claude: runs `behave(spec, callIndex)` then returns a success result. */
 class FakeRunner implements ClaudeRunner {
@@ -640,6 +642,126 @@ describe('progress folders', () => {
   });
 });
 
+describe('an engine error mid-attempt', () => {
+  test('closes the attempt it cut short and gives the task that attempt back', async () => {
+    let calls = 0;
+    const inner = new FakeRunner(() => {});
+    // the first session cannot even start (an engine-side failure, not the model's)
+    const runner = { active: () => 0, run: async (spec: RunSpec) => (spec.label?.startsWith('attempt') && ++calls === 1 ? Promise.reject(new Error('spawn failed')) : inner.run(spec)) } as unknown as ClaudeRunner;
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'create done.txt', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['true'] } });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
+    const task = listTasks(engine.store.db, goal.id)[0]!;
+    const attempts = listAttempts(engine.store.db, task.id);
+    expect(attempts.map((a) => [a.state, a.resultSubtype])).toEqual([['error', 'engine_error'], ['passed', 'success']]);
+    expect(task.state).toBe('done');
+  });
+});
+
+describe('feature milestones', () => {
+  const { writeFileSync: write, mkdirSync: mkdir } = require('node:fs') as typeof import('node:fs');
+  const SCRIPT = 'e2e/milestones/list.spec.ts';
+  const t = (key: string, title: string, deps: string[], milestone: string | null = null, milestoneScript: string | null = null) => ({ key, title, spec: `do ${title}`, kind: 'feature' as const, scope: null, scenario: 'general' as const, areaKey: null, tdd: 'off' as const, dependsOnKeys: deps, parallelizable: false, relevantFiles: [], milestone, milestoneScript });
+  // general, not frontend: a finished coding goal refreshes its graph in the background, past the test's end
+  // the task's own check names the script, so Foundry adds no `npx playwright` check of its own (these tests run no Playwright)
+  const brief = {
+    title: 'feat(demo): a list and a footer', understanding: 'u', areas: [], assumptions: [], questions: [], styleOptions: [], costEstimateUsd: 0, timeEstimateMin: 0,
+    checks: [{ key: 'C1', name: 'the script is there', tier: 'must' as const, taskKey: 'T1', areaKey: null, spec: { type: 'command' as const, cmd: `test -f ${SCRIPT} # stands in for npx playwright test`, timeoutMs: 30_000, expectExitCode: 0 } }],
+    tasks: [t('T1', 'add the list', [], 'open the list and filter it', SCRIPT), t('T2', 'add the footer', ['T1'])],
+  };
+  /** hang: tasks whose session never ends (a repair task here: its real `npx playwright` check must not run in a test) */
+  const worker = (hang?: RegExp) =>
+    new FakeRunner(async (spec) => {
+      if (!spec.label?.startsWith('attempt')) return;
+      if (hang?.test(spec.label)) await new Promise(() => {});
+      mkdir(join(spec.cwd, 'e2e/milestones'), { recursive: true });
+      write(join(spec.cwd, SCRIPT), 'test');
+      write(join(spec.cwd, 'playwright.config.ts'), 'export default {}');
+      write(join(spec.cwd, `${spec.label.replace(/^attempt /, '').replace(/ #\d+$/, '').replace(/\s+/g, '-')}.txt`), 'ok');
+    });
+  /** a stand-in for `npx playwright test` that writes the report Foundry's config asks for */
+  const playwright = (status: 'passed' | 'failed', runs: string[] = []) => ({
+    run: async (argv: string[], opts: { cwd: string }) => {
+      runs.push(opts.cwd);
+      const name = /--config '([^']+)'/.exec(argv.join(' '))![1]!;
+      const wrapper = require('node:fs').readFileSync(join(opts.cwd, name), 'utf8') as string;
+      const out = JSON.parse(/outputFile: ("[^"]+")/.exec(wrapper)![1]!);
+      write(out, JSON.stringify({ suites: [{ title: SCRIPT, specs: [{ title: 'filters the list', tests: [{ results: [{ status, error: status === 'failed' ? { message: 'the list is empty' } : undefined, attachments: [{ name: 'the filtered list', contentType: 'image/png', body: Buffer.from('png').toString('base64') }] }] }] }] }] }));
+      return { code: status === 'passed' ? 0 : 1, stdout: '', stderr: '', timedOut: false };
+    },
+  });
+  afterEach(() => {
+    scriptDeps.current = undefined;
+  });
+  const evidence = (engine: Engine, goalId: string) => engine.store.listByGoalOfTypes(goalId, ['milestone.evidence']).map((e) => e.payload as { taskId: string; status?: string; final?: boolean; script?: string | null });
+
+  test('a feature milestone is recorded without a pause; once every task is done its script runs again, then the goal pauses for the look at the end', async () => {
+    scriptDeps.current = playwright('passed');
+    const engine = track(new Engine(cfg(), worker()));
+    const goal = await engine.createGoal({ prompt: 'a list and a footer', repoPath: repo, brief, workflow: { pace: 'fast' } });
+    const list = () => listTasks(engine.store.db, goal.id).find((x) => x.title === 'add the list')!;
+    expect(() => engine.rerunMilestone(goal.id, list().id)).toThrow('has not landed yet');
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.checkpoint?.taskId === FINAL_WALK, 30_000);
+    const g = getGoal(engine.store.db, goal.id)!;
+    expect(g.state).toBe('awaiting_feedback');
+    expect(g.finalWalk).toMatchObject({ passed: true, looks: 1 });
+    // never paused at the feature itself: it was recorded when it landed, and again by the final walkthrough
+    expect(engine.store.listByGoalOfTypes(goal.id, ['goal.checkpoint_opened']).map((e) => (e.payload as { taskId: string }).taskId)).toEqual([FINAL_WALK]);
+    expect(evidence(engine, goal.id)).toMatchObject([{ taskId: list().id, status: 'pass', script: SCRIPT }, { taskId: list().id, status: 'pass', final: true }]);
+    expect(listChecks(engine.store.db, goal.id).filter((c) => c.name.startsWith('milestone script'))).toEqual([]);
+    // a rerun records it again, whatever the goal is doing
+    expect(engine.rerunMilestone(goal.id, FINAL_WALK)).toEqual({ started: [list().id] });
+    await waitFor(() => evidence(engine, goal.id).length === 3);
+    const esc = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).find((e) => e.trigger === 'milestone')!;
+    await engine.answerEscalation(esc.id, { action: 'continue' });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 30_000);
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+    expect(engine.store.listByGoalOfTypes(goal.id, ['goal.checkpoint_opened']).length).toBe(1);
+  });
+
+  test('what the person says at the look at the end becomes a fix task, and the walkthrough runs again before a second look', async () => {
+    scriptDeps.current = playwright('passed');
+    const engine = track(new Engine(cfg(), worker()));
+    const goal = await engine.createGoal({ prompt: 'a list and a footer', repoPath: repo, brief, workflow: { pace: 'fast' } });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.checkpoint?.taskId === FINAL_WALK, 30_000);
+    const look = () => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).find((e) => e.trigger === 'milestone')!;
+    // a plain hint: no task is left to carry it, so it becomes one
+    await engine.answerEscalation(look().id, { action: 'feedback', feedback: 'make the footer darker', plan: { kind: 'hint', rationale: 'r', hint: 'darker footer', fixTasks: [], decision: null } });
+    const fix = () => listTasks(engine.store.db, goal.id).find((x) => x.checkpointOf === FINAL_WALK);
+    expect(fix()).toMatchObject({ title: 'apply the feedback from the final walkthrough', origin: 'feedback-fix' });
+    expect(fix()!.spec).toContain('make the footer darker');
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.checkpoint?.recheck === true, 30_000);
+    expect(getGoal(engine.store.db, goal.id)!.finalWalk).toMatchObject({ passed: true, looks: 2 });
+    expect(engine.store.listByGoalOfTypes(goal.id, ['milestone.final_walk']).length).toBe(2);
+    await engine.answerEscalation(look().id, { action: 'continue' });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 30_000);
+  });
+
+  test("the script is its task's must check, unless the Brief already runs it", async () => {
+    const engine = track(new Engine(cfg(), worker(/add the list/)));
+    const goal = await engine.createGoal({ prompt: 'a list and a footer', repoPath: repo, brief: { ...brief, checks: [] }, workflow: { pace: 'fast' } });
+    const list = listTasks(engine.store.db, goal.id).find((x) => x.title === 'add the list')!;
+    expect(list.milestoneScript).toBe(SCRIPT);
+    expect(listChecks(engine.store.db, goal.id).filter((c) => c.taskId === list.id).map((c) => ({ name: c.name, tier: c.tier, spec: c.spec }))).toEqual([
+      { name: `milestone script: ${SCRIPT}`, tier: 'must', spec: { type: 'command', cmd: `npx --no-install playwright test '${SCRIPT}'`, timeoutMs: 600_000, expectExitCode: 0, ports: true, milestone: SCRIPT } },
+    ]);
+  });
+
+  test('a script that fails after its feature landed gets one repair task, with the script as its check', async () => {
+    scriptDeps.current = playwright('failed');
+    const engine = track(new Engine(cfg(), worker(/milestone script/)));
+    const goal = await engine.createGoal({ prompt: 'a list and a footer', repoPath: repo, brief, workflow: { pace: 'fast' } });
+    await waitFor(() => listTasks(engine.store.db, goal.id).some((x) => x.origin === 'feedback-fix'), 30_000);
+    const list = listTasks(engine.store.db, goal.id).find((x) => x.title === 'add the list')!;
+    const repair = listTasks(engine.store.db, goal.id).find((x) => x.origin === 'feedback-fix')!;
+    expect(repair).toMatchObject({ title: repairTitle(list), checkpointOf: list.id });
+    expect(repair.spec).toContain('the list is empty');
+    expect(listChecks(engine.store.db, goal.id).find((c) => c.taskId === repair.id && c.name === `milestone script: ${SCRIPT}`)?.spec).toMatchObject({ type: 'command', ports: true });
+    expect(evidence(engine, goal.id)[0]).toMatchObject({ taskId: list.id, status: 'fail' });
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('running');
+  });
+});
+
 describe('milestones', () => {
   const { writeFileSync: write } = require('node:fs') as typeof import('node:fs');
   const t = (key: string, title: string, deps: string[], milestone: string | null = null) => ({ key, title, spec: `do ${title}`, kind: 'feature' as const, scope: null, scenario: 'general' as const, areaKey: null, tdd: 'off' as const, dependsOnKeys: deps, parallelizable: false, relevantFiles: [], milestone });
@@ -762,7 +884,7 @@ describe('unsticking a task without restarting Foundry', () => {
     const second = listTasks(engine.store.db, goal.id).find((x) => x.state === 'ready')!;
     expect(engine.readyHold(g, second)).toMatchObject({ kind: 'capacity' });
     expect(engine.readyHold({ ...g, budgets: { ...g.budgets, maxConcurrent: 2 } }, second)).toMatchObject({ kind: 'serial' });
-    expect(engine.readyHold({ ...g, state: 'paused' }, second)).toMatchObject({ kind: 'hard' });
+    expect(engine.readyHold({ ...g, state: 'blocked' }, second)).toMatchObject({ kind: 'hard' });
     expect(() => engine.unstickTask(goal.id, second.id)).toThrow('every slot is taken');
     expect(engine.unstickTask(goal.id, second.id, { force: true })).toEqual({ action: 'scheduled' });
     await waitFor(() => listTasks(engine.store.db, goal.id).every((x) => x.state === 'running'));
