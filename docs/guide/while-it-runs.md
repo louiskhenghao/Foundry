@@ -67,7 +67,10 @@ From top to bottom:
 - **Goal review**: right under the goal once the final review ran: one line with the verdict (**passed**, **over-delivered** or **failed**) and the start of the reviewer's notes; **reviewer notes** unfolds them, and the **Open full** icon reads them in a larger window.
 - **Attachments**: right under the goal, as on the New goal form. You can add more at any time; new sessions receive them.
 - **Workspace & preview**: where the goal's work is, and starting it to try it. See [The progress folder](#the-progress-folder) and [Preview](#preview).
-- **Milestones**: when the goal has milestones, one row each, the latest first: what to look at, when it landed, whether the goal paused for it or went on, and your answer. Click a row to see its recording and screenshots as same-size tiles; each row opens and closes on its own, so you can compare two milestones. A tile opens them large in a window, where **←** / **→** (or the arrows at the top) go through them.
+- **Milestones**: one row per feature, in the plan's order, with what to look at and a label: **shown**, **unverified · fake data**, **failed**, **recording…** or **not reached yet**. The title counts the ones shown, for example **Milestones (4/6 shown)**. Each row also says when the milestone landed, whether the goal paused for it, and your answer.
+  - Click a row to see its latest recording as same-size tiles, plus what an API answered, the script, and the **runner log** when it failed. Each row opens and closes on its own, so you can compare two milestones. A tile opens large in a window, where **←** / **→** (or the arrows at the top) go through them.
+  - **Rerun** records one milestone again; **Rerun all** records every milestone that landed. See [Milestones](#milestones).
+  - Above the rows, **Final walkthrough** says whether every script passed once all tasks were done.
 - **Model fallback**: only if a model was unavailable and Foundry switched to another one.
 - **Project skills**: skills Foundry added for your project's technology, grouped as Frontend, Backend, Database, Testing and Tooling, with how many there are. They never reach your commits.
 - **Completion**: one row each for the documents, the graph refresh and media files, with how it went. See [Completion extras](./getting-the-result.md#completion-extras).
@@ -211,9 +214,22 @@ It is not the same as a milestone's look: the self-check is a quick automatic sm
 
 ## Milestones
 
-**Have a look: pause at milestones** decides whether a goal stops at its milestones. It is on by default ([Settings](./settings.md)); each goal has its own switch on the Brief's **How to run it** section and in the Overview's **Acceptance** card, which applies from the next milestone. With it off, the goal goes on, and the note below and its recording are sent to your notification channels instead.
+The Brief gives every feature you can see or try a milestone, on the task that finishes it. A feature with a web page or an API also has a **milestone script**: a Playwright script in the repository (`e2e/milestones/<feature>.spec.ts`) that walks through the feature and takes a captioned screenshot at each state worth seeing (an empty list, a filled form, an error, a phone width), or calls the API and keeps its answers.
 
-When a milestone task lands, the goal pauses. Its badge reads **have a look**, the Inbox shows **Have a look**, and at the top of the goal page appears a card: **Have a look — task name**.
+**With a script:**
+
+- **The task writes it, and it must pass.** It is one of the task's must checks, so the feature cannot land unless what the script shows works. It runs with the project's own Playwright config, which starts everything the feature needs on a bare checkout: the app, its backend, Docker services, seed data. Each run gets two free ports, `PORT` and `API_PORT`, so it never lands on the preview or another task.
+- **When it lands, Foundry runs it again on the goal branch** and records what it shows: a video of each test, its screenshots, and the API's answers. The goal does not pause; the recording appears in the **Milestones** card and in your notification channels.
+- **When it fails there**, Foundry adds one task that repairs it: the app, how the config starts it, or the script, never by weakening what it checks. When the repair has landed and the script still fails, the goal pauses at that milestone with the failing recording and its runner log.
+- **Once every task is done, the final walkthrough runs every script again** on the finished branch, so a later task that broke an earlier feature shows. A script that fails there gets its repair task too. Then the goal pauses once more for a look at the end.
+
+**Without a script** (documents, media, older goals): when the milestone task lands, the goal pauses and Foundry records a walkthrough of the preview, described below.
+
+**Rerun** on a row of the **Milestones** card records that milestone again at any time: a script runs once more, and a walkthrough replays the steps it recorded last time instead of planning new ones. **Rerun all** does this for every milestone that landed.
+
+**Have a look: pause at milestones** decides whether the goal pauses for the final walkthrough and at milestones without a script. It is on by default ([Settings](./settings.md)); each goal has its own switch on the Brief's **How to run it** section and in the Overview's **Acceptance** card, which applies from the next milestone. With it off, the goal goes on, and the note below and its recording are sent to your notification channels instead.
+
+When the goal pauses, its badge reads **have a look**, the Inbox shows **Have a look**, and at the top of the goal page appears a card: **Have a look — task name**, or **Have a look — the final walkthrough** with every feature's recording, failing ones first.
 
 ![The Have a look card with what to look at, the running preview and the self-check's screenshots](images/milestone.png)
 
@@ -224,7 +240,7 @@ The card shows:
   - With several apps, the walkthrough opens the one whose folder holds the task's files.
   - Before the apps start, Docker is opened if it is installed but not running (Docker Desktop, OrbStack, Rancher Desktop or colima), and variables the app's example env files ask for are taken from your checkout's env files when only they have them.
   - A screenshot of an error page (an HTTP error, a "could not be found" page, a blank page) shows nothing of the milestone: it is left out, and the amber line says how many.
-  - When the app does not answer, or shows only error pages, Foundry walks the same app again with its mock command, against fake data: the **Mock command** in **How to run it**, or a `dev:mock`, `start:mock` or `mock` script in the app's `package.json`. The summary then starts with *With mock data*. Workers on a screen with a milestone are asked to add such a script when the app needs a backend, Docker or secrets to run.
+  - When the app does not answer, or shows only error pages, Foundry walks the same app again with its mock command, against fake data: the **Mock command** in **How to run it**, or a `dev:mock`, `start:mock` or `mock` script in the app's `package.json`. The summary then starts with *With mock data*, and the milestone reads **unverified · fake data**: it does not count as shown. Workers on a screen with a milestone without a script are asked to add such a script when the app needs a backend, Docker or secrets to run.
 - The preview, already starting, with **Open preview**.
 - **What the self-check saw**: its latest screenshots, if the self-check is on.
 - **Artifacts**: images and files produced so far, for media goals.
@@ -232,7 +248,7 @@ The card shows:
 
 Then either press **Continue**, or write what you saw and press **Turn into a plan**. How that works, step by step, is in [When Foundry needs you](./when-foundry-needs-you.md#a-milestone-is-ready-to-look-at).
 
-The same screenshots and video are sent to your notification channels in a second message, **📸 What the milestone looks like**, whether or not the goal pauses, and stay in the Overview's **Milestones** card to watch again later. A video too large for the channel (50 MB on Telegram, 10 MB on Discord) stays on the goal page, and the message says so.
+The same screenshots and videos are sent to your notification channels in a second message, **📸 What the milestone looks like** (**⚠️ A milestone did not show** when a script failed), whether or not the goal pauses; the final walkthrough sends one message for every feature, and stay in the Overview's **Milestones** card to watch again later. A video too large for the channel (50 MB on Telegram, 10 MB on Discord) stays on the goal page, and the message says so.
 
 ## Activity
 

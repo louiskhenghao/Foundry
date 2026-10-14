@@ -27,7 +27,7 @@ What a new goal starts with. Most of them can be changed for one goal on the New
 |---|---|---|
 | **Default goal view** | expert | Which view a goal opens in: simple or expert. |
 | **Pace for new goals** | thorough | **thorough — engine reviews the work**, or **fast — approved checks only**. Image and video goals always start fast. |
-| **Have a look: pause new goals at milestones** | on | A goal pauses when a milestone task lands so you can look. Off: it goes on, and what the milestone shows is sent to your notification channels. Each goal has its own switch. |
+| **Have a look: pause new goals at milestones** | on | A goal pauses for the final walkthrough once every task is done, and when a milestone without a script lands, so you can look. Off: it goes on, and what each milestone shows is sent to your notification channels. Each goal has its own switch. |
 | **Interview depth** | 3 | How deep the Clarifier questions you before the Brief: from **Skip** (no questions) and **1** (only what a wrong guess would waste) to **5** (every detail, until nothing is left). See [Interview depth](./your-first-goal.md#interview-depth). |
 | **Effort for new goals** | Role preset / CLI default | A goal-wide override, **low** to **max**. Default uses Codex role presets or Claude's CLI default. |
 | **TDD for new Expert goals** | required | Test-first: **required**, **preferred** or **off**. |

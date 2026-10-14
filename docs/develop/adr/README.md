@@ -35,3 +35,4 @@ record is never rewritten when a later decision changes it; its status says what
 | [0028](0028-planner-writes-the-plan-once.md) | The planner writes the task plan once, in a session of its own | accepted · 2026-10-08 · amends ADR-0013 and ADR-0018 |
 | [0029](0029-vs-code-in-the-browser.md) | VS Code in the browser, behind a generated password, on loopback and the tailnet | accepted · 2026-10-08 |
 | [0030](0030-transfer-merges-goals-as-history.md) | Transfer merges goals into another Foundry as history, and unfinished ones can be reattached | accepted · 2026-10-09 |
+| [0031](0031-feature-milestones-with-scripts.md) | A milestone per feature, shown by a Playwright script its task writes | accepted · 2026-10-14 · amends ADR-0012 |

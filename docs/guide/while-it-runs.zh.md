@@ -67,7 +67,10 @@ goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它
 - **Goal review**：最终审查运行后，紧跟在 goal 下面：一行显示结论（**passed**、**over-delivered** 或 **failed**）和审查员意见的开头；点 **reviewer notes** 展开全文，**Open full** 图标会在更大的窗口里打开。
 - **Attachments**：紧跟在 goal 下面，和 New goal 表单上一样。随时可以再加；新的会话会收到。
 - **Workspace & preview**：goal 的工作成果在哪里，以及启动它来试用。见 [进度文件夹](#进度文件夹) 和 [Preview](#preview)。
-- **Milestones**：goal 有里程碑时，每个一行，最新的在上：要看什么、什么时候到的、goal 是暂停了还是继续了，以及你的回答。点一行会把录屏和截图显示成同样大小的格子；每一行各自展开、收起，可以同时打开两个里程碑来对比。点一个格子会在弹窗里放大，用 **←** / **→**（或顶部的箭头）逐个切换。
+- **Milestones**：每个功能一行，按计划顺序排列，写着要看什么，并带一个标签：**shown**、**unverified · fake data**、**failed**、**recording…** 或 **not reached yet**。标题会数出已展示的个数，比如 **Milestones (4/6 shown)**。每一行还写着里程碑什么时候完成、goal 有没有为它暂停，以及你的回答。
+  - 点一行会显示它最新的录制，截图和视频是同样大小的格子；还有 API 的返回、脚本，失败时还有 **runner log**。每一行各自展开、收起，可以同时打开两个里程碑来对比。点一个格子会在弹窗里放大，用 **←** / **→**（或顶部的箭头）逐个切换。
+  - **Rerun** 重新录制一个里程碑；**Rerun all** 重新录制所有已完成的里程碑。见 [Milestones](#milestones)。
+  - 各行上方的 **Final walkthrough** 写着所有任务完成后，每个脚本是否都通过了。
 - **Model fallback**：只在某个模型不可用、Foundry 换了另一个模型时出现。
 - **Project skills**：Foundry 为你项目的技术栈添加的 skill，按 Frontend、Backend、Database、Testing、Tooling 分组，并显示数量。它们不会进入你的提交。
 - **Completion**：文档、知识图谱刷新和媒体文件各占一行，写着结果。见 [完成后的附加项](./getting-the-result.zh.md#完成后的附加项)。
@@ -211,9 +214,22 @@ Foundry 绝不会为了预览去切换、重置或拉取你的 checkout。改任
 
 ## Milestones
 
-**Have a look: pause at milestones** 决定 goal 到了里程碑要不要停下来。默认开启（[Settings](./settings.md)）；每个 goal 在 Brief 的 **How to run it** 部分和 Overview 的 **Acceptance** 卡片里都有自己的开关，从下一个里程碑开始生效。关掉后 goal 会继续往下跑，下面这段说明和它的录屏会发到你的通知渠道。
+Brief 会给每个看得见、可以试的功能设一个里程碑，放在完成这个功能的任务上。有网页或 API 的功能还有一个 **milestone script**：仓库里的 Playwright 脚本（`e2e/milestones/<feature>.spec.ts`），它会把这个功能走一遍，在每个值得看的状态（空列表、填好的表单、一个错误、手机宽度）截一张带说明的图，或者调用 API 并保留它的返回。
 
-里程碑任务并入后，goal 会暂停。它的状态标记显示 **have a look**，Inbox 显示 **Have a look**，goal 页面顶部出现一张卡片：**Have a look — task name**。
+**有脚本时：**
+
+- **任务会写这个脚本，而且它必须通过。** 它是任务的 must 检查之一，所以脚本展示的东西不能用，这个功能就不能并入。它用项目自己的 Playwright 配置运行，这个配置要能在一份干净的 checkout 上启动功能需要的一切：应用、后端、Docker 服务、种子数据。每次运行都会拿到两个空闲端口 `PORT` 和 `API_PORT`，所以不会撞上预览或别的任务。
+- **功能完成时，Foundry 会在 goal 分支上再跑一次**，把它展示的东西录下来：每个测试的视频、截图和 API 的返回。goal 不会暂停；录制会出现在 **Milestones** 卡片和你的通知渠道里。
+- **在那里失败时**，Foundry 会加一个修复任务：修应用、修配置启动它的方式，或者修脚本，但绝不会把脚本检查的东西改弱。修复并入后脚本还是失败的话，goal 会在这个里程碑暂停，带着失败的录制和它的运行日志。
+- **所有任务完成后，最终走查会在完成的分支上把每个脚本再跑一遍**，这样后面的任务弄坏了前面的功能也会暴露出来。在那里失败的脚本同样会有修复任务。之后 goal 再暂停一次，让你最后看一遍。
+
+**没有脚本时**（文档、媒体、旧的 goal）：里程碑任务完成后 goal 暂停，Foundry 在预览里录一段演示，见下文。
+
+**Milestones** 卡片上每一行的 **Rerun** 可以随时重新录制那个里程碑：有脚本的再跑一次脚本，演示则重放上次录下的步骤，而不是重新规划。**Rerun all** 对所有已完成的里程碑这样做。
+
+**Have a look: pause at milestones** 决定 goal 要不要为最终走查和没有脚本的里程碑暂停。默认开启（[Settings](./settings.md)）；每个 goal 在 Brief 的 **How to run it** 部分和 Overview 的 **Acceptance** 卡片里都有自己的开关，从下一个里程碑开始生效。关掉后 goal 会继续往下跑，下面这段说明和它的录屏会发到你的通知渠道。
+
+goal 暂停时，它的状态标记显示 **have a look**，Inbox 显示 **Have a look**，goal 页面顶部出现一张卡片：**Have a look — task name**，或者是列出每个功能录制的 **Have a look — the final walkthrough**，失败的排在前面。
 
 ![Have a look 卡片：要看什么、运行中的预览和自检截图](images/milestone.png)
 
@@ -224,7 +240,7 @@ Foundry 绝不会为了预览去切换、重置或拉取你的 checkout。改任
   - 有多个应用时，录制打开的是文件夹里装着这个任务文件的那个应用。
   - 应用启动前，如果 Docker 已安装但没在运行（Docker Desktop、OrbStack、Rancher Desktop 或 colima），Foundry 会把它打开；应用的示例 env 文件要求、但只有你的 checkout 里的 env 文件才有的变量，会从那里取过来。
   - 错误页面的截图（HTTP 错误、"could not be found" 页面、空白页）看不到里程碑的内容：会被剔除，琥珀色提示会说剔除了几张。
-  - 应用没有响应，或者只显示错误页面时，Foundry 会用这个应用的 mock 命令、带着假数据再录一遍：**How to run it** 里的 **Mock command**，或者应用 `package.json` 里的 `dev:mock`、`start:mock` 或 `mock` 脚本。这时摘要以 *With mock data* 开头。负责带里程碑界面的 worker，在应用需要后端、Docker 或密钥才能运行时，会被要求加上这样一个脚本。
+  - 应用没有响应，或者只显示错误页面时，Foundry 会用这个应用的 mock 命令、带着假数据再录一遍：**How to run it** 里的 **Mock command**，或者应用 `package.json` 里的 `dev:mock`、`start:mock` 或 `mock` 脚本。这时摘要以 *With mock data* 开头，里程碑显示 **unverified · fake data**：不算已展示。负责没有脚本的里程碑界面的 worker，在应用需要后端、Docker 或密钥才能运行时，会被要求加上这样一个脚本。
 - 预览，已经在启动，带 **Open preview**。
 - **What the self-check saw**：自检开着时的最新截图。
 - **Artifacts**：媒体类 goal 目前产出的图片和文件。
@@ -232,7 +248,7 @@ Foundry 绝不会为了预览去切换、重置或拉取你的 checkout。改任
 
 然后要么按 **Continue**，要么写下你看到的，按 **Turn into a plan**。具体怎么运作，一步步写在 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md#里程碑可以看了)。
 
-同样的截图和视频会在第二条消息 **📸 What the milestone looks like** 里发到你的通知渠道，不管 goal 有没有暂停；之后也可以在 Overview 的 **Milestones** 卡片里重看。视频太大、超过渠道上限（Telegram 50 MB，Discord 10 MB）时，留在 goal 页面上，消息里会说明。
+同样的截图和视频会在第二条消息 **📸 What the milestone looks like**（脚本失败时是 **⚠️ A milestone did not show**）里发到你的通知渠道，不管 goal 有没有暂停；最终走查只为所有功能发一条消息；之后也可以在 Overview 的 **Milestones** 卡片里重看。视频太大、超过渠道上限（Telegram 50 MB，Discord 10 MB）时，留在 goal 页面上，消息里会说明。
 
 ## Activity
 

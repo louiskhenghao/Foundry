@@ -145,7 +145,17 @@ The isolated checkout a Goal or Task works in. A Goal has its own workspace on a
 Where the Goal workspace lives: next to the user's repository as `<repo>-foundry/<goal>/` (or under the root chosen in Settings), named after the Goal's title so a person finds it without knowing Foundry. It is the Goal branch checked out — open it, run it, read it at any time. The engine's own worktrees (Tasks, delivery, resolve, baseline) sit beside it under a hidden `.foundry/` folder, never inside it. The folder is fixed when the Goal is created; Goals from before this layout are moved there when the engine starts.
 
 **Milestone**
-A Task after which a person can see or try something meaningful for the first time. The Clarifier marks 1–3 per Goal with a "look for" note; the human edits them at approval. When a milestone Task lands, the engine launches nothing more, lets in-flight work land, then pauses the Goal (`awaiting_feedback`) with a `milestone` Escalation: the Preview starts, and the Inbox and the notification channels carry the note, the preview link and the latest screenshot. A Goal whose "Have a look" switch is off does not pause: the milestone is noted, the notification channels carry the same note, and the Goal goes on.
+A feature a person can see or try, on the Task that closes it; the planner marks one per feature with a "look for" note naming the states worth seeing, and the human edits them at approval. A Milestone with a Milestone script is recorded when it lands and the Goal goes on; it pauses only in the Final walkthrough.
+A Milestone without a script (documents, media, older Goals): when its Task lands, the engine launches nothing more, lets in-flight work land, then pauses the Goal (`awaiting_feedback`) with a `milestone` Escalation: the Preview starts, and the Inbox and the notification channels carry the note, the preview link and the latest screenshot. A Goal whose "Have a look" switch is off does not pause: the milestone is noted, the notification channels carry the same note, and the Goal goes on.
+
+**Milestone script**
+A feature Milestone's Playwright Test file in the repository (`e2e/milestones/<feature>.spec.ts`), written by its Task and run through the project's root `playwright.config` (whose `webServer` starts the app, its backend and services on a bare checkout, on the free ports PORT and API_PORT). It is the Task's must Check; Foundry runs it again to record the Milestone (a video per test, its captioned screenshots, an API's responses). When it fails after landing, one repair Task mends it; when it still fails, the Goal pauses at that Milestone.
+
+**Final walkthrough**
+Once every Task is done, every Milestone script runs again on the finished Goal branch, and the Goal pauses once (when "Have a look" is on) with every feature's recording; a failing script gets its repair Task first. It is due again whenever a Task is created after it ran, and opens at most twice.
+
+**Recording status**
+What a Milestone's latest recording proved: shown, failed (a script failed or nothing could be shown), or unverified (only the mock command's fake data could be shown, which does not count as reached).
 
 **Checkpoint**
 One pause at a Milestone. The human continues, or writes what they saw; a small triage session proposes what the feedback becomes — a *hint* for the remaining Tasks, *fix* Tasks (after which the same Milestone opens once more for a second look), or a *Decision* recorded with the Brief's Decisions — and the human confirms before anything changes. A Milestone opens at most twice; later feedback becomes hints.
