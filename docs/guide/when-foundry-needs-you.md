@@ -10,6 +10,8 @@ Everything else you see while a goal runs is normal and needs nothing from you. 
 
 ## The eight reasons Foundry stops
 
+Each one is a card. Its heading names what stopped, with an icon and colour of its own (orange when something failed, amber for a question or a limit, blue for a milestone to look at), and one plain sentence under it; outside its task it also says which goal and task. The details come next, then what your answer carries (a hint and its extra attempts, or new limits). The buttons sit in the card's footer: help from the AI on the left, your answers on the right with the main one last. Once answered, the footer says what was chosen.
+
 ### A piece could not be finished
 
 **Inbox:** *Retries exhausted* — "used N of M attempts; Must checks still failing".
