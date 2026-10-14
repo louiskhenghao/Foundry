@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
 import type { CheckSpec, Goal, Task } from '@foundry/core';
@@ -6,7 +6,8 @@ import type { Engine } from '../engine.ts';
 import { installSteps, portFree } from '../preview/manager.ts';
 import { type GroupResult, runInGroup } from '../proc.ts';
 import { excludeFromGit } from '../skills/autoskills.ts';
-import { goalWorkspacePath, screenshotsDir } from '../workspace.ts';
+import { git } from '../git/git.ts';
+import { goalWorkspacePath, milestoneWorkspacePath, screenshotsDir } from '../workspace.ts';
 
 /** a scripted milestone's check is named after its script, so a person sees which check shows which feature */
 export const MILESTONE_CHECK_PREFIX = 'milestone script: ';
@@ -48,11 +49,22 @@ export async function writeWrapper(cwd: string, record?: { outputDir: string; re
     `// written by Foundry for one milestone run, removed afterwards
 import base from ${JSON.stringify(from)};
 const b: any = (base as any)?.default ?? base;
-const chromium = (b.projects ?? []).filter((p: any) => (p.use?.browserName ?? p.use?.defaultBrowserType ?? 'chromium') === 'chromium');
+const all: any[] = b.projects ?? [];
+const isChromium = (p: any) => (p.use?.browserName ?? p.use?.defaultBrowserType ?? 'chromium') === 'chromium';
+const onChromium = (p: any) => (isChromium(p) ? p : { ...p, use: { ...p.use, browserName: 'chromium', defaultBrowserType: 'chromium' } });
+// Chromium projects, and phone projects of any browser run on Chromium (an iPhone keeps its size and touch)
+const kept = all.filter((p) => isChromium(p) || p.use?.isMobile).map(onChromium);
+// plus the setup and teardown projects they depend on, or Playwright rejects the config
+for (let i = 0; i < kept.length; i++) {
+  for (const dep of [...(kept[i].dependencies ?? []), ...(kept[i].teardown ? [kept[i].teardown] : [])]) {
+    const p = all.find((x) => x.name === dep);
+    if (p && !kept.some((x) => x.name === dep)) kept.push(onChromium(p));
+  }
+}
 export default {
   ...b,
   retries: 0,${recording}
-  ...(chromium.length ? { projects: chromium } : {}),
+  ...(kept.length ? { projects: kept } : {}),
 };
 `,
   );
@@ -119,10 +131,10 @@ export async function runMilestoneScript(engine: Engine, goal: Goal, task: Task,
   const { config } = engine;
   const out: ScriptRun = { status: 'fail', error: null, summary: '', clips: [], shots: [], outputs: [], log: null };
   const script = task.milestoneScript;
-  const cwd = goalWorkspacePath(config.dataDir, goal);
   const dir = screenshotsDir(config.dataDir, goal);
   const hide = engine.preview.redactorFor(goal);
   if (!script) return { ...out, error: 'the milestone has no script' };
+  const cwd = await recordingFolder(engine, goal);
   if (!existsSync(join(cwd, script))) return { ...out, error: `${script} is not on the goal branch` };
   const work = mkdtempSync(join(tmpdir(), 'foundry-milestone-'));
   const report = join(work, 'report.json');
@@ -171,6 +183,33 @@ export async function runMilestoneScript(engine: Engine, goal: Goal, task: Task,
     out.error = out.error ? hide(out.error).slice(0, 600) : null;
   }
   return out;
+}
+
+/**
+ * Where a recording runs: a worktree of its own at the goal branch's tip, so a task working in the goal's folder, or a
+ * merge into it, never changes the files under a running script. It is kept between recordings (only what git tracks
+ * is reset), so its dependencies stay installed; the env files the goal's folder has beside git are copied in. Falls
+ * back to the goal's folder when the branch is gone (a delivered goal).
+ */
+async function recordingFolder(engine: Engine, goal: Goal): Promise<string> {
+  const ws = goalWorkspacePath(engine.config.dataDir, goal);
+  const path = milestoneWorkspacePath(engine.config.dataDir, goal);
+  try {
+    const tip = (await git(['rev-parse', '--verify', '--quiet', `${goal.branch}^{commit}`], goal.repoPath)).stdout.trim();
+    if (!tip) return ws;
+    if (!existsSync(join(path, '.git'))) {
+      mkdirSync(join(path, '..'), { recursive: true });
+      rmSync(path, { recursive: true, force: true });
+      await git(['worktree', 'prune'], goal.repoPath);
+      if ((await git(['worktree', 'add', '--detach', path, tip], goal.repoPath)).code !== 0) return ws;
+    } else if ((await git(['checkout', '-q', '--force', '--detach', tip], path)).code !== 0) return ws;
+    // untracked files from the last run go; ignored ones (node_modules, build caches) stay
+    await git(['clean', '-fdq'], path);
+    if (existsSync(ws)) for (const f of readdirSync(ws)) if (/^\.env/.test(f) && statSync(join(ws, f)).isFile()) copyFileSync(join(ws, f), join(path, f));
+    return path;
+  } catch {
+    return ws;
+  }
 }
 
 /** a test's video, its captioned screenshots and the text it attached, copied under the goal's screenshots folder */

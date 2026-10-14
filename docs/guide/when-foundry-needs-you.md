@@ -94,7 +94,7 @@ Nothing else starts until you respond. On the goal page you find the preview (st
 - **Continue** if it looks right.
 - Or write what you saw and press **Turn into a plan**. Foundry proposes what your note becomes — a *hint* for the remaining tasks, *fix tasks* for what is missing or wrong (the milestone then opens once more so you can check), or a *decision* every later task must follow. Change the kind if it guessed wrong, then **Confirm & continue**.
 
-A milestone pauses at most twice. The second time the card reads **Second look — task name**; anything you write then becomes a hint, and the goal does not pause there again.
+A milestone pauses at most twice. The second time the card reads **Second look — task name**; anything you write then becomes a hint, and the goal does not pause there again. At the final walkthrough no task is left to take a hint, so what you write there always becomes fix tasks, the second time too.
 
 ### Before it starts: questions on the Brief
 

@@ -154,7 +154,7 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
               title="The Playwright script that shows this feature: the task writes it, it must pass, and Foundry runs it to record the milestone. Empty: Foundry walks through the preview itself."
               placeholder="milestone script, e.g. e2e/milestones/user-list.spec.ts (empty: Foundry walks through it itself)"
               value={task.milestoneScript ?? ''}
-              onChange={(e) => change({ milestoneScript: e.target.value.trim() ? e.target.value : null })}
+              onChange={(e) => change({ milestoneScript: e.target.value.trim() || null })}
             />
           </>
         )}

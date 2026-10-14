@@ -61,7 +61,8 @@ export function MilestoneCard({ d }: { d: GoalDetail }) {
     >
       <div className="space-y-3 text-xs text-zinc-400">
         <p className="text-sm text-zinc-200 whitespace-pre-wrap">{cp.lookFor}</p>
-        {cp.recheck && <p className="text-[11px] text-amber-300">This is the second look at this milestone, after the fix tasks from your feedback landed. Anything you write now becomes a hint for the remaining tasks; the goal does not pause here again.</p>}
+        {cp.recheck && cp.taskId !== FINAL_WALK && <p className="text-[11px] text-amber-300">This is the second look at this milestone, after the fix tasks from your feedback landed. Anything you write now becomes a hint for the remaining tasks; the goal does not pause here again.</p>}
+        {cp.recheck && cp.taskId === FINAL_WALK && <p className="text-[11px] text-amber-300">This is the second look at the final walkthrough, after the fixes from your feedback landed. What you write now still becomes fix tasks, but the goal does not pause here again.</p>}
         {cp.taskId === FINAL_WALK ? <FinalWalkthrough d={d} /> : <Walkthrough d={d} taskId={cp.taskId} since={cp.openedAt} />}
         <PreviewCard goalId={g.id} embedded />
         {shots.length > 0 && (

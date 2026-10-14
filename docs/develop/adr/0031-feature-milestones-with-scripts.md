@@ -22,15 +22,19 @@ followed were thrown away, so what a milestone showed could not be reproduced.
   repository root, whose `webServer` starts everything the feature needs on a bare checkout. The script is the task's
   must check, run on two free ports (`PORT`, `API_PORT`), so the feature cannot land unless what it shows works. It
   stays in the repository as the feature's end-to-end test.
-- **Foundry records a scripted milestone by running its script** in the goal's folder through a config of its own that
-  extends the project's with a video and a JSON report, then removes it. The evidence is the script's attachments, a
+- **Foundry records a scripted milestone by running its script** in a worktree of its own at the goal branch's tip
+  (kept between recordings so its dependencies stay installed, never where a task is working), through a config of
+  its own that extends the project's with a video and a JSON report, on Chromium, then removes it. The task's check
+  runs through the same Chromium config, so a project that also tests other browsers is judged the way it is recorded. The evidence is the script's attachments, a
   video per test, and the runner log. There is no mock fallback: a script either passes or fails.
 - **A scripted milestone does not pause the goal.** Once every task is done, the **final walkthrough** runs every
   script again on the finished branch, and the goal pauses once for a look at it ("Have a look" decides that pause).
+  No task starts while it runs; a task created meanwhile makes it run again later. What the person says at that look
+  always becomes fix tasks, since no task is left to carry a hint.
   A milestone without a script (documents, media, older goals) pauses as before.
 - **A script that fails after its feature landed is repaired once:** a fix task, with the script as its check, mends
   the app, its start or the script. When it still fails after that, the goal pauses at the milestone with the failing
-  recording and its log, so the person decides.
+  recording and its log, so the person decides; that pause waits until no task is in flight.
 - **A recording has a status:** shown, failed, or unverified when only fake data could be shown. Unverified does not
   count as reached.
 - **Any milestone can be recorded again (Rerun).** A script runs again; a walkthrough replays the steps it recorded,

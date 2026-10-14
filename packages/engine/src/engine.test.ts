@@ -650,7 +650,7 @@ describe('feature milestones', () => {
   // the task's own check names the script, so Foundry adds no `npx playwright` check of its own (these tests run no Playwright)
   const brief = {
     title: 'feat(demo): a list and a footer', understanding: 'u', areas: [], assumptions: [], questions: [], styleOptions: [], costEstimateUsd: 0, timeEstimateMin: 0,
-    checks: [{ key: 'C1', name: 'the script is there', tier: 'must' as const, taskKey: 'T1', areaKey: null, spec: { type: 'command' as const, cmd: `test -f ${SCRIPT}`, timeoutMs: 30_000, expectExitCode: 0 } }],
+    checks: [{ key: 'C1', name: 'the script is there', tier: 'must' as const, taskKey: 'T1', areaKey: null, spec: { type: 'command' as const, cmd: `test -f ${SCRIPT} # stands in for npx playwright test`, timeoutMs: 30_000, expectExitCode: 0 } }],
     tasks: [t('T1', 'add the list', [], 'open the list and filter it', SCRIPT), t('T2', 'add the footer', ['T1'])],
   };
   /** hang: tasks whose session never ends (a repair task here: its real `npx playwright` check must not run in a test) */
@@ -701,6 +701,24 @@ describe('feature milestones', () => {
     await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 30_000);
     expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
     expect(engine.store.listByGoalOfTypes(goal.id, ['goal.checkpoint_opened']).length).toBe(1);
+  });
+
+  test('what the person says at the look at the end becomes a fix task, and the walkthrough runs again before a second look', async () => {
+    scriptDeps.current = playwright('passed');
+    const engine = track(new Engine(cfg(), worker()));
+    const goal = await engine.createGoal({ prompt: 'a list and a footer', repoPath: repo, brief, workflow: { pace: 'fast' } });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.checkpoint?.taskId === FINAL_WALK, 30_000);
+    const look = () => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).find((e) => e.trigger === 'milestone')!;
+    // a plain hint: no task is left to carry it, so it becomes one
+    await engine.answerEscalation(look().id, { action: 'feedback', feedback: 'make the footer darker', plan: { kind: 'hint', rationale: 'r', hint: 'darker footer', fixTasks: [], decision: null } });
+    const fix = () => listTasks(engine.store.db, goal.id).find((x) => x.checkpointOf === FINAL_WALK);
+    expect(fix()).toMatchObject({ title: 'apply the feedback from the final walkthrough', origin: 'feedback-fix' });
+    expect(fix()!.spec).toContain('make the footer darker');
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.checkpoint?.recheck === true, 30_000);
+    expect(getGoal(engine.store.db, goal.id)!.finalWalk).toMatchObject({ passed: true, looks: 2 });
+    expect(engine.store.listByGoalOfTypes(goal.id, ['milestone.final_walk']).length).toBe(2);
+    await engine.answerEscalation(look().id, { action: 'continue' });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 30_000);
   });
 
   test("the script is its task's must check, unless the Brief already runs it", async () => {

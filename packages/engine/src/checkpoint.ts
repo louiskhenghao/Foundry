@@ -70,16 +70,23 @@ export async function recordMilestone(engine: Engine, goal: Goal, task: Task, op
   return ev;
 }
 
-/** a scripted milestone's script failed: repair it once, then ask the person; false = nothing could be done now */
+/** the goal states in which a failed script is repaired: the goal still works (a pause for a look included) */
+const WORKING = new Set(['running', 'awaiting_feedback']);
+
+/**
+ * A scripted milestone's script failed: repair it once; when it fails again after that, the goal pauses at it — by the
+ * scheduler, once no task is in flight (a recording never pauses the goal under a running task). False = nothing done.
+ */
 function afterScriptFailed(engine: Engine, task: Task, ev: MilestoneEvidence): boolean {
   const goal = getGoal(engine.store.db, task.goalId);
-  if (!goal || goal.state !== 'running') return false;
+  if (!goal || !WORKING.has(goal.state)) return false;
   if (repairMilestone(engine, goal, task, ev)) return true;
   if (goal.milestonePause === false) {
     engine.store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `the "${task.title}" milestone script still fails after its repair: ${ev.error ?? 'see its log'}` } });
     return false;
   }
-  void openCheckpoint(engine, goal, { task, recheck: false }, { capture: false }).catch(() => {});
+  engine.pauseDue.set(goal.id, task.id);
+  engine.tick(goal.id);
   return true;
 }
 
@@ -115,16 +122,20 @@ export function scriptedMilestones(tasks: Task[]): Task[] {
  */
 export async function runFinalWalk(engine: Engine, goal: Goal): Promise<void> {
   const { store } = engine;
+  const startedAt = new Date().toISOString();
   const milestones = scriptedMilestones(listTasks(store.db, goal.id));
   const failed: { task: Task; ev: MilestoneEvidence | null }[] = [];
   for (const t of milestones) {
     const ev = await captureMilestone(engine, goal, t, { final: true });
     if (ev?.status !== 'pass') failed.push({ task: t, ev });
   }
+  // a task created while it ran (a repair after a recording, a sync with the base) is not covered: it runs again later
+  const tasks = listTasks(store.db, goal.id);
+  if (tasks.some((t) => t.createdAt > startedAt || (t.state !== 'done' && t.state !== 'skipped'))) return;
   // recorded first: a repair task created after it makes the final walkthrough due again once it lands
   store.append({ type: 'milestone.final_walk', goalId: goal.id, payload: { passed: failed.length === 0, failed: failed.map((f) => f.task.id) } });
   const now = getGoal(store.db, goal.id);
-  if (now?.state !== 'running') return;
+  if (!now || !WORKING.has(now.state)) return;
   for (const f of failed) if (f.ev) repairMilestone(engine, now, f.task, f.ev);
 }
 
@@ -182,8 +193,14 @@ export function applyFeedback(engine: Engine, goal: Goal, feedback: string, plan
   const { store } = engine;
   const cp = goal.checkpoint;
   if (!cp) throw new Error('no milestone is open');
-  const plan = cp.recheck ? hintOnly(planIn) : planIn;
-  const milestone = cp.taskId === FINAL_WALK ? { title: 'the final walkthrough' } : getTask(store.db, cp.taskId);
+  const final = cp.taskId === FINAL_WALK;
+  // the look at the end leaves no task to carry a hint: what the person says there always becomes work
+  let plan = cp.recheck && !final ? hintOnly(planIn) : planIn;
+  if (final && !plan.fixTasks.length) {
+    const what = [plan.hint, plan.kind === 'decision' ? plan.decision : null].filter(Boolean).join('\n') || feedback;
+    plan = { ...plan, fixTasks: [{ title: 'apply the feedback from the final walkthrough', spec: `The person looked at every feature at the end and said:\n\n${feedback}\n\nWhat it asks for:\n${what}`, relevantFiles: [] }] };
+  }
+  const milestone = final ? { title: 'the final walkthrough' } : getTask(store.db, cp.taskId);
   const hintText = [plan.hint, plan.kind === 'decision' ? plan.decision : null].filter(Boolean).join('\n');
   if (hintText) {
     for (const t of listTasks(store.db, goal.id)) {

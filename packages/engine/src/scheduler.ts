@@ -36,6 +36,17 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
   }
   tasks = listTasks(store.db, goal.id);
 
+  // 2a. a milestone script failed again after its repair: launch nothing more, then pause there once nothing is in flight
+  const failing = engine.pauseDue.get(goal.id);
+  if (failing) {
+    const task = tasks.find((t) => t.id === failing);
+    if (engine.inFlightForGoal(goal.id).length === 0) {
+      engine.pauseDue.delete(goal.id);
+      if (task) void openCheckpoint(engine, goal, { task, recheck: false }, { capture: false }).catch((err) => store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `opening the milestone failed: ${String(err)}` } }));
+    }
+    return;
+  }
+
   // 2b. a milestone landed (or a feedback fix for one): launch nothing more, let in-flight work land, then pause for the
   // human; a goal that does not pause at milestones tells them and goes on
   for (let due = dueCheckpoint(tasks); due; due = dueCheckpoint(tasks)) {
@@ -92,7 +103,8 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
     return;
   }
 
-  // 5. start ready tasks within capacity
+  // 5. start ready tasks within capacity — none while the final walkthrough runs: it records the branch as it is
+  if (engine.finalWalking.has(goal.id)) return;
   const inFlight = engine.inFlightForGoal(goal.id);
   let capacity = Math.max(0, goal.budgets.maxConcurrent - inFlight.length);
   const ready = tasks.filter((t) => t.state === 'ready' && !engine.isInFlight(t.id));

@@ -216,6 +216,8 @@ export class Engine {
   readonly forceStart = new Set<string>();
   /** goals whose final walkthrough (every milestone script once all tasks are done) is running */
   readonly finalWalking = new Set<string>();
+  /** a scripted milestone whose script still fails after its repair: the goal pauses at it once no task is in flight */
+  readonly pauseDue = new Map<string, string>();
   /** consecutive engine-side crashes per task (reset when an attempt runs) */
   readonly engineCrashes = new Map<string, number>();
   /** must checks already failing on a goal-branch commit (merges are judged on regressions only) */
@@ -1850,7 +1852,7 @@ export class Engine {
       this.store.append({ type: 'task.created', goalId, payload: { task } });
       // a feature milestone's script is its task's must check: the feature cannot land unless what it shows works
       const script = task.milestoneScript;
-      if (script && !brief.checks.some((c) => c.taskKey === t.key && c.spec.type === 'command' && c.spec.cmd.includes(script))) {
+      if (script && !brief.checks.some((c) => c.taskKey === t.key && c.spec.type === 'command' && c.spec.cmd.includes(script) && /playwright/.test(c.spec.cmd))) {
         const check: Check = { id: newId(IdPrefix.check), goalId, taskId: task.id, name: `${MILESTONE_CHECK_PREFIX}${script}`, tier: 'must', spec: milestoneCheckSpec(script) };
         this.store.append({ type: 'check.created', goalId, payload: { check } });
       }
@@ -1858,7 +1860,10 @@ export class Engine {
     for (const c of brief.checks) {
       const taskId = c.taskKey ? idByKey.get(c.taskKey) : null;
       if (c.taskKey && !taskId) throw new Error(`check ${c.name} references unknown task ${c.taskKey}`);
-      const check: Check = { id: newId(IdPrefix.check), goalId, taskId: taskId ?? null, name: c.name, tier: c.tier, spec: c.spec };
+      // the planner ran a task's milestone script itself: on free ports and Chromium, the way Foundry records it
+      const script = brief.tasks.find((t) => t.key === c.taskKey && t.milestone)?.milestoneScript;
+      const spec = script && c.spec.type === 'command' && c.spec.cmd.includes(script) && /playwright/.test(c.spec.cmd) ? { ...c.spec, ports: true, milestone: script } : c.spec;
+      const check: Check = { id: newId(IdPrefix.check), goalId, taskId: taskId ?? null, name: c.name, tier: c.tier, spec };
       this.store.append({ type: 'check.created', goalId, payload: { check } });
     }
     ensureSelfCheck(this, getGoal(this.store.db, goalId)!);

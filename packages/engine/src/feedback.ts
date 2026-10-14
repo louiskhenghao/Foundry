@@ -28,7 +28,7 @@ export async function classifyFeedback(engine: Engine, goal: Goal, text: string)
     `# Goal\n${goal.title}\n\n${goal.prompt.slice(0, 3000)}`,
     brief ? `# Approved understanding\n${brief.understanding}` : '',
     brief ? renderDecisions(brief) : '',
-    `# Milestone\n"${milestone?.title ?? cp.taskId}" — the person was asked to look at: ${cp.lookFor}${cp.recheck ? '\n\nThis is the SECOND look at this milestone, after fix tasks from earlier feedback. Only kind "hint" is allowed now: fold anything else into the hint text.' : ''}`,
+    `# Milestone\n"${milestone?.title ?? cp.taskId}" — the person was asked to look at: ${cp.lookFor}${cp.recheck && cp.taskId !== FINAL_WALK ? '\n\nThis is the SECOND look at this milestone, after fix tasks from earlier feedback. Only kind "hint" is allowed now: fold anything else into the hint text.' : ''}`,
     `# Landed tasks\n${tasks.filter((t) => t.state === 'done').map((t) => `- ${t.title}`).join('\n') || '(none)'}\n\n# Tasks still to run\n${tasks.filter((t) => t.state === 'pending' || t.state === 'ready').map((t) => `- ${t.title}`).join('\n') || '(none)'}`,
     `# What the person wrote\n${text.trim()}`,
   ]
