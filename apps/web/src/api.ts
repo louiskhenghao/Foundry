@@ -359,13 +359,16 @@ export interface PortsView {
   previewRange: { from: number; to: number };
 }
 
+export type WaitingKind = 'capacity' | 'serial' | 'overlap' | 'hard';
+
 export interface GoalDetail {
   goal: Goal;
   /** directories the Open menu can launch: the user's checkout and the goal branch worktree (when it exists) */
   paths: { repo: string; workspace: string | null };
   budget: BudgetStatus;
-  /** live: a slot held / a session process alive; waiting: why a ready task is not running (null: nothing holds it back) */
-  tasks: (Task & { depth: number; usage: TaskUsage | null; live?: { inFlight: boolean; session: boolean; since: string | null }; waiting?: string | null })[];
+  /** live: a slot held / a session process alive; waiting: why a ready task is not running (null: nothing holds it back);
+   * waitingKind: the scheduler's caution (slots, running alone, shared files), which Start now may override, or 'hard' */
+  tasks: (Task & { depth: number; usage: TaskUsage | null; live?: { inFlight: boolean; session: boolean; since: string | null }; waiting?: string | null; waitingKind?: WaitingKind | null })[];
   attempts: Attempt[];
   checks: Check[];
   checkResults: CheckResult[];
@@ -577,7 +580,7 @@ export function apiForProvider(provider?: AgentProvider) {
   restartGoal: (id: string, fromTaskId?: string) => req<{ restarted: string[] }>(`/api/goals/${id}/restart`, { method: 'POST', body: JSON.stringify({ fromTaskId }) }),
   ports: () => req<PortsView>('/api/ports'),
   releasePort: (id: string) => req<{ released: PortRow }>('/api/ports/release', { method: 'POST', body: JSON.stringify({ id }) }),
-  unstickTask: (id: string, taskId: string) => req<{ action: 'scheduled' | 'stopped' }>(`/api/goals/${id}/tasks/${taskId}/unstick`, { method: 'POST' }),
+  unstickTask: (id: string, taskId: string, force = false) => req<{ action: 'scheduled' | 'stopped' }>(`/api/goals/${id}/tasks/${taskId}/unstick`, { method: 'POST', body: JSON.stringify({ force }) }),
   deleteGoal: (id: string, deleteBranch: boolean) => req<{ ok: true; deletedBranch: string | null }>(`/api/goals/${id}${deleteBranch ? '?deleteBranch=1' : ''}`, { method: 'DELETE' }),
   viewSkill: (dir: string) => req<{ name: string; dir: string; invoke: string; skillMd: string | null; files: { path: string; size: number }[] }>(`/api/skills/view?dir=${encodeURIComponent(dir)}`),
   uninstallMany: (names: string[], force = true, opId?: string) => req<{ results: { name: string; ok: boolean; error: string | null; note: string | null }[]; op: SkillOp }>('/api/skills/uninstall-many', { method: 'POST', body: JSON.stringify({ names, force, opId }) }),

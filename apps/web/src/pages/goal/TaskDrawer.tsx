@@ -2,7 +2,7 @@ import type { Attempt, CheckResult, Task } from '@foundry/core/browser';
 import { GitMerge, Play, RotateCcw, Square } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { type ReactNode, useEffect, useState } from 'react';
-import { api, fileKey, fileUrl, type FileRef, type GoalDetail, type TaskFile } from '../../api.ts';
+import { api, fileKey, fileUrl, type FileRef, type GoalDetail, type TaskFile, type WaitingKind } from '../../api.ts';
 import { openFile } from '../../components/FilePreview.tsx';
 import { type FullText, FullTextDialog, OpenFullButton } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
@@ -71,7 +71,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
               </Button>
             </Link>
           )}
-          <UnstickButton d={d} task={task} live={row?.live} waiting={row?.waiting} />
+          <UnstickButton d={d} task={task} live={row?.live} waiting={row?.waiting} waitingKind={row?.waitingKind} />
           {onRestart && !['running', 'observing', 'merging'].includes(task.state) && (
             <Button size="sm" onClick={onRestart} title="Reset this task and everything downstream of it, then run again">
               <RotateCcw size={13} /> Restart from here
@@ -315,11 +315,18 @@ function TaskFiles({ task, files }: { task: Task; files: TaskFile[] }) {
 /** how long a running task may sit without a live session before the drawer offers to stop it (checks run between sessions) */
 const QUIET_MS = 3 * 60_000;
 
+/** what starting past the scheduler's caution costs, said before the person confirms */
+const FORCE_NOTE: Record<Exclude<WaitingKind, 'hard'>, string> = {
+  capacity: 'Starting it now runs one more session than the goal allows at once, so it spends usage faster; it works in its own worktree.',
+  serial: 'The Brief marked it to run alone. Starting it now runs it beside the work in flight, in its own worktree; their changes may conflict when they merge.',
+  overlap: 'Both tasks change the same files. Starting it now runs it in its own worktree beside the other; their changes may conflict when they merge.',
+};
+
 /**
- * The way out of a stuck task without restarting Foundry. "Start now" shows on a ready task that nothing holds back (the
- * engine says why otherwise); "Stop and retry" on a running task that has had no live session for a few minutes.
+ * The way out of a stuck task without restarting Foundry. "Start now" shows on a ready task that nothing holds back, or
+ * only the scheduler's caution does (then it asks first, saying what that costs); "Stop and retry" on a running task that has had no live session for a few minutes.
  */
-function UnstickButton({ d, task, live, waiting }: { d: GoalDetail; task: Task; live?: { inFlight: boolean; session: boolean; since: string | null }; waiting?: string | null }) {
+function UnstickButton({ d, task, live, waiting, waitingKind }: { d: GoalDetail; task: Task; live?: { inFlight: boolean; session: boolean; since: string | null }; waiting?: string | null; waitingKind?: WaitingKind | null }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
@@ -330,7 +337,9 @@ function UnstickButton({ d, task, live, waiting }: { d: GoalDetail; task: Task; 
   }, []);
   if (!live || d.goal.state !== 'running') return null;
   const working = ['running', 'observing', 'merging'].includes(task.state);
-  const startable = task.state === 'ready' && waiting === null;
+  // ready with its dependencies done: nothing holds it back, or only the scheduler's caution, which the person may override
+  const forcing = task.state === 'ready' && !!waiting && !!waitingKind && waitingKind !== 'hard';
+  const startable = (task.state === 'ready' && waiting === null) || forcing;
   const quietSince = Date.parse(task.updatedAt);
   const stoppable = working && !live.session && (!live.inFlight || now - quietSince > QUIET_MS);
   if (!startable && !stoppable) return null;
@@ -338,7 +347,7 @@ function UnstickButton({ d, task, live, waiting }: { d: GoalDetail; task: Task; 
     setBusy(true);
     setErr(null);
     try {
-      await api.unstickTask(d.goal.id, task.id);
+      await api.unstickTask(d.goal.id, task.id, forcing);
       setAsking(false);
     } catch (e) {
       setErr(String((e as Error).message ?? e));
@@ -348,11 +357,19 @@ function UnstickButton({ d, task, live, waiting }: { d: GoalDetail; task: Task; 
   };
   return (
     <>
-      <ConfirmDialog open={asking} danger busy={busy} title={`Stop and retry "${task.title}"?`} confirmLabel="Stop and retry" onConfirm={go} onClose={() => setAsking(false)}>
-        <p>It has had no live session for a while. What it is doing stops and it goes back to ready; a session that had started resumes where it left off.</p>
-        {err && <p className="text-rose-400">{err}</p>}
-      </ConfirmDialog>
-      <Button size="sm" variant={startable ? 'primary' : undefined} disabled={busy} onClick={() => (stoppable ? setAsking(true) : void go())} title={startable ? 'Ready and nothing holds it back, but it has not started: start it now' : 'No live session for a while: stop the stuck work and put the task back to ready'}>
+      {forcing ? (
+        <ConfirmDialog open={asking} busy={busy} title={`Start "${task.title}" now?`} confirmLabel="Start now" onConfirm={go} onClose={() => setAsking(false)}>
+          <p>It has not started because {waiting}.</p>
+          <p>{FORCE_NOTE[waitingKind as Exclude<WaitingKind, 'hard'>]}</p>
+          {err && <p className="text-rose-400">{err}</p>}
+        </ConfirmDialog>
+      ) : (
+        <ConfirmDialog open={asking} danger busy={busy} title={`Stop and retry "${task.title}"?`} confirmLabel="Stop and retry" onConfirm={go} onClose={() => setAsking(false)}>
+          <p>It has had no live session for a while. What it is doing stops and it goes back to ready; a session that had started resumes where it left off.</p>
+          {err && <p className="text-rose-400">{err}</p>}
+        </ConfirmDialog>
+      )}
+      <Button size="sm" variant={startable ? 'primary' : undefined} disabled={busy} onClick={() => (stoppable || forcing ? setAsking(true) : void go())} title={forcing ? 'Its dependencies are done; only the scheduler holds it back: start it anyway' : startable ? 'Ready and nothing holds it back, but it has not started: start it now' : 'No live session for a while: stop the stuck work and put the task back to ready'}>
         {startable ? <Play size={13} /> : <Square size={13} />} {startable ? 'Start now' : 'Stop and retry'}
       </Button>
       {err && <span className="text-[11px] text-red-400 max-w-64 truncate" title={err}>{err}</span>}
