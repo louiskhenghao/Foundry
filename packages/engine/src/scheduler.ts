@@ -82,12 +82,15 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
   const goalWsBusy = tasks.some((t) => engine.isInFlight(t.id) && !t.worktreePath);
   const started: Task[] = [];
   for (const t of ready) {
-    if (capacity <= 0) break;
+    // Start now: the person chose to start this one past the scheduler's caution (a full set of slots, running alone,
+    // files another task is changing); it gets its own worktree whenever anything else runs
+    const forced = engine.forceStart.has(t.id);
+    if (capacity <= 0 && !forced) continue;
     // Workspace policy: a task runs in the goal workspace only if it is the sole active task;
     // otherwise it gets its own worktree (sticky for the task's lifetime).
     const others = tasks.filter((x) => x.id !== t.id && (engine.isInFlight(x.id) || (x.state === 'ready' && x.parallelizable)));
-    const useOwnWorktree = t.worktreePath != null || goalWsBusy || (t.parallelizable && others.length > 0);
-    if (!t.parallelizable && inFlight.length > 0) {
+    const useOwnWorktree = t.worktreePath != null || goalWsBusy || (t.parallelizable && others.length > 0) || (forced && (inFlight.length > 0 || started.length > 0));
+    if (!t.parallelizable && inFlight.length > 0 && !forced) {
       // serial task waits for quiet — say so once, so "ready but not running" is not a mystery
       if (!engine.overlapNoted.has(t.id)) {
         engine.overlapNoted.add(t.id);
@@ -100,7 +103,7 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
     // Conflict avoidance: two tasks that declare the same files do not run at the same time, whatever the Brief says
     const active = [...tasks.filter((x) => inFlight.includes(x.id)), ...started];
     const clash = active.find((x) => filesOverlap(t.relevantFiles, x.relevantFiles).length > 0);
-    if (clash) {
+    if (clash && !forced) {
       if (!engine.overlapNoted.has(t.id)) {
         engine.overlapNoted.add(t.id);
         store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `"${t.title}" waits for "${clash.title}": both touch ${filesOverlap(t.relevantFiles, clash.relevantFiles).slice(0, 3).join(', ')}` } });
@@ -109,6 +112,7 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
     }
     capacity--;
     started.push(t);
+    engine.forceStart.delete(t.id);
     void startTask(engine, goal, t, useOwnWorktree);
   }
 }

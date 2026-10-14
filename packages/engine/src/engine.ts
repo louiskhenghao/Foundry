@@ -210,6 +210,8 @@ export class Engine {
   readonly clarifying = new Set<string>();
   /** tasks already noted as waiting for an overlapping task (one note each, not one per tick) */
   readonly overlapNoted = new Set<string>();
+  /** ready tasks the person started with Start now: the next scheduling pass starts them past slots, running alone and shared files */
+  readonly forceStart = new Set<string>();
   /** consecutive engine-side crashes per task (reset when an attempt runs) */
   readonly engineCrashes = new Map<string, number>();
   /** must checks already failing on a goal-branch commit (merges are judged on regressions only) */
@@ -1255,24 +1257,36 @@ export class Engine {
    * when the task drawer offers "Start now". Mirrors the scheduler's rules.
    */
   readyBlocker(goal: Goal, task: Task): string | null {
-    if (task.state !== 'ready') return `the task is ${task.state}`;
-    if (goal.state !== 'running') return `the goal is ${goal.state.replace(/_/g, ' ')}`;
-    if (this.isRateLimited(goal.provider ?? this.config.provider)) return 'work is paused until the usage limit resets';
-    if (this.updateDraining) return 'Foundry is finishing work before an update';
+    return this.readyHold(goal, task)?.reason ?? null;
+  }
+
+  /**
+   * What holds a ready task back, and whether the person may start it anyway: a full set of slots, running alone or
+   * files another task is changing are the scheduler's caution (`capacity`, `serial`, `overlap`) and can be overridden
+   * with Start now; a goal that is not running, a usage pause, an update, a reached budget or a milestone waiting for the
+   * person (`hard`) cannot.
+   */
+  readyHold(goal: Goal, task: Task): { reason: string; kind: 'capacity' | 'serial' | 'overlap' | 'hard' } | null {
+    const hard = (reason: string) => ({ reason, kind: 'hard' as const });
+    if (task.state !== 'ready') return hard(`the task is ${task.state}`);
+    if (goal.state !== 'running') return hard(`the goal is ${goal.state.replace(/_/g, ' ')}`);
+    if (this.isRateLimited(goal.provider ?? this.config.provider)) return hard('work is paused until the usage limit resets');
+    if (this.updateDraining) return hard('Foundry is finishing work before an update');
     const own = this.inFlight.get(task.id);
-    if (own) return Date.now() - own.since < STALE_RESERVATION_MS ? 'it is starting' : null;
+    if (own) return Date.now() - own.since < STALE_RESERVATION_MS ? hard('it is starting') : null;
     const b = budgetStatus(goal);
-    if (b.exceeded) return 'the goal reached its budget';
+    if (b.exceeded) return hard('the goal reached its budget');
     const tasks = listTasks(this.store.db, goal.id);
-    if (dueCheckpoint(tasks)) return 'a milestone landed; Foundry waits for the work in flight, then for you';
+    if (dueCheckpoint(tasks)) return hard('a milestone landed; Foundry waits for the work in flight, then for you');
+    if (this.forceStart.has(task.id)) return hard('it is starting (you asked for it)');
     const inFlight = this.inFlightForGoal(goal.id);
     const running = tasks.filter((t) => inFlight.includes(t.id));
     const names = (ts: Task[]) => ts.map((t) => `"${t.title}"`).join(', ');
-    if (inFlight.length >= goal.budgets.maxConcurrent) return `every slot is taken (${names(running) || `${inFlight.length} running`})`;
+    if (inFlight.length >= goal.budgets.maxConcurrent) return { kind: 'capacity', reason: `every slot is taken (${names(running) || `${inFlight.length} running`})` };
     // not a dependency: a task the Brief marked not parallelizable runs alone, so it waits for whatever runs now
-    if (!task.parallelizable && inFlight.length > 0) return `it runs alone (not parallelizable), so it starts once ${names(running) || 'the running task'} ${running.length > 1 ? 'finish' : 'finishes'}; it does not depend on ${running.length > 1 ? 'them' : 'it'}`;
+    if (!task.parallelizable && inFlight.length > 0) return { kind: 'serial', reason: `it runs alone (not parallelizable), so it starts once ${names(running) || 'the running task'} ${running.length > 1 ? 'finish' : 'finishes'}; it does not depend on ${running.length > 1 ? 'them' : 'it'}` };
     const clash = running.find((x) => filesOverlap(task.relevantFiles, x.relevantFiles).length > 0);
-    if (clash) return `it waits for "${clash.title}": both touch ${filesOverlap(task.relevantFiles, clash.relevantFiles).slice(0, 3).join(', ')}`;
+    if (clash) return { kind: 'overlap', reason: `it waits for "${clash.title}": both touch ${filesOverlap(task.relevantFiles, clash.relevantFiles).slice(0, 3).join(', ')}` };
     return null;
   }
 
@@ -1282,16 +1296,18 @@ export class Engine {
    * between sessions — is concluded the way an engine restart would conclude it, and goes back to ready: its session
    * resumes when it can, and the attempt is not counted otherwise.
    */
-  unstickTask(goalId: string, taskId: string): { action: 'scheduled' | 'stopped' } {
+  unstickTask(goalId: string, taskId: string, opts: { force?: boolean } = {}): { action: 'scheduled' | 'stopped' } {
     const goal = this.mustGoal(goalId);
     const task = getTask(this.store.db, taskId);
     if (!task || task.goalId !== goalId) throw new Error(`task ${taskId} not found`);
     if (task.state === 'ready') {
-      const why = this.readyBlocker(goal, task);
-      if (why) throw new Error(`"${task.title}" cannot start now: ${why}`);
+      const hold = this.readyHold(goal, task);
+      // the scheduler's caution (slots, running alone, shared files) gives way when the person says so; nothing else does
+      if (hold && (hold.kind === 'hard' || !opts.force)) throw new Error(`"${task.title}" cannot start now: ${hold.reason}`);
       if (this.inFlight.has(task.id)) this.inFlight.delete(task.id);
       this.overlapNoted.delete(task.id);
-      this.store.append({ type: 'engine.note', goalId, payload: { level: 'info', message: `"${task.title}" was ready but had not started; you asked Foundry to start it now` } });
+      if (hold) this.forceStart.add(task.id);
+      this.store.append({ type: 'engine.note', goalId, payload: { level: 'info', message: hold ? `you started "${task.title}" now, although ${hold.reason}` : `"${task.title}" was ready but had not started; you asked Foundry to start it now` } });
       this.tick(goalId);
       return { action: 'scheduled' };
     }
