@@ -195,7 +195,7 @@ function MilestonePauseSection({ d }: { d: GoalDetail }) {
         <input type="checkbox" className="accent-emerald-500" checked={g.milestonePause ?? true} onChange={(e) => api.setMilestonePause(g.id, e.target.checked).catch((x) => setErr(x.body?.error ?? x.message))} />
         <span className="text-xs text-zinc-200">Have a look: pause at milestones</span>
       </label>
-      <p className="text-[11px] text-zinc-500">Off: the goal goes on when a milestone lands, and what it shows is sent to your notification channels. Applies from the next milestone.</p>
+      <p className="text-[11px] text-zinc-500">On: the goal pauses for the final walkthrough, and when a milestone without a script lands. Off: it goes on, and what each milestone shows is sent to your notification channels. Applies from the next milestone.</p>
       {err && <div className="text-[11px] text-rose-300">{err}</div>}
     </div>
   );
