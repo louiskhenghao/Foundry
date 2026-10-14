@@ -748,4 +748,25 @@ describe('unsticking a task without restarting Foundry', () => {
     expect(engine.readyBlocker({ ...g, budgets: { ...g.budgets, maxConcurrent: 2 } }, { ...waiting, parallelizable: true })).toBeNull();
     expect(engine.readyBlocker({ ...g, state: 'blocked' }, waiting)).toBe('the goal is blocked');
   });
+
+  test('"Start now" starts a ready task past the scheduler\'s caution when the person confirms, never past a hard hold', async () => {
+    const runner = new FakeRunner(async () => {
+      await new Promise(() => {});
+    });
+    const engine = track(new Engine(cfg(), runner));
+    const t = (key: string) => ({ key, title: `step ${key}`, spec: `do ${key}`, kind: 'feature' as const, scope: null, scenario: 'general' as const, areaKey: null, tdd: 'off' as const, dependsOnKeys: [], parallelizable: false, relevantFiles: [], milestone: null });
+    const brief = { title: 'feat(demo): two steps', understanding: 'u', areas: [], assumptions: [], questions: [], styleOptions: [], checks: [], costEstimateUsd: 0, timeEstimateMin: 0, tasks: [t('T1'), t('T2')] };
+    const goal = await engine.createGoal({ prompt: 'two steps', repoPath: repo, brief, budgets: { maxConcurrent: 1 } });
+    await waitFor(() => listTasks(engine.store.db, goal.id).some((x) => x.state === 'running'));
+    const g = getGoal(engine.store.db, goal.id)!;
+    const second = listTasks(engine.store.db, goal.id).find((x) => x.state === 'ready')!;
+    expect(engine.readyHold(g, second)).toMatchObject({ kind: 'capacity' });
+    expect(engine.readyHold({ ...g, budgets: { ...g.budgets, maxConcurrent: 2 } }, second)).toMatchObject({ kind: 'serial' });
+    expect(engine.readyHold({ ...g, state: 'paused' }, second)).toMatchObject({ kind: 'hard' });
+    expect(() => engine.unstickTask(goal.id, second.id)).toThrow('every slot is taken');
+    expect(engine.unstickTask(goal.id, second.id, { force: true })).toEqual({ action: 'scheduled' });
+    await waitFor(() => listTasks(engine.store.db, goal.id).every((x) => x.state === 'running'));
+    expect(engine.forceStart.size).toBe(0);
+    expect(engine.store.listByGoal(goal.id).some((e) => e.type === 'engine.note' && String((e.payload as { message: string }).message).startsWith(`you started "${second.title}" now`))).toBe(true);
+  });
 });

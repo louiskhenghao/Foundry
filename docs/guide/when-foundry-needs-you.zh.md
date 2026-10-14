@@ -126,7 +126,7 @@ Brief 出来之前，goal 页面可能显示 **Round N — K questions**。这�
 | *ready · "X runs alone (not parallelizable): it starts once Y finishes — a wait for quiet, not a dependency"* | Brief 说这个任务必须单独跑，所以它要等到这个 goal 没有其它任务在跑才开始。Y 只是此刻正在跑的任务，并不是依赖：任务图里没有从 Y 连过来的线，这个任务标着 **runs alone**。 |
 | *ready · "X waits for Y: both touch …"* | 两个任务声明了同样的文件；这个在等，免得互相冲突。 |
 | *ready · "retry 2/3"* | 上一次失败后的正常新尝试。很快就会开始运行。 |
-| *ready*，但一直没开始 | 任务面板会在尝试列表下面写出原因（*not started yet: …*）。没有任何东西挡着它时，按 **Start now**。 |
+| *ready*，但一直没开始 | 任务面板会在尝试列表下面写出原因（*not started yet: …*）。没有任何东西挡着它时，按 **Start now**。如果挡着它的只是调度上的谨慎（名额已满、它要单独跑、或另一个任务正在改同样的文件），**Start now** 也会出现：对话框会说明现在开始的代价，你确认后它在自己的 worktree 里开始。goal 暂停或受阻、用量额度暂停、预算用完、或里程碑在等你时，不能强行开始。 |
 | *running* 或 *observing*，一直没动静 | 三分钟内没有活跃会话时，任务面板会提供 **Stop and retry**：任务回到 **ready**，不用重启 Foundry。 |
 | *running · "continuation 1: …"* | 同一个会话在碰到上限或检查仍未通过后被续接。不算重试。 |
 | 长时间 *merging* | Foundry 正在把任务并入 goal 并重跑检查。 |

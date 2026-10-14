@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CodexEffort, Effort, Brief, EscalationAnswer, isHistory, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
 import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId } from '@foundry/engine';
+import type { Task } from '@foundry/core';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, PreviewPlace, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
@@ -674,6 +675,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const id = c.req.param('id');
     const goal = getGoal(db, id);
     if (!goal) return c.json({ error: 'not found' }, 404);
+    // why a ready task is not running, and whether Start now may override it
+    const readyView = (t: Task) => {
+      const hold = t.state === 'ready' ? engine.readyHold(goal, t) : null;
+      return { waiting: hold?.reason ?? null, waitingKind: hold?.kind ?? null };
+    };
     const tasks = listTasks(db, id);
     const depth = safeDepths(tasks);
     const ws = goalWorkspacePath(engine.config.dataDir, goal);
@@ -682,7 +688,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       paths: { repo: goal.repoPath, workspace: existsSync(ws) ? ws : null },
       budget: budgetStatus(goal),
       // live: a slot held / a session alive, so the drawer can tell stuck from busy; waiting: why a ready task is not running
-      tasks: tasks.map((t) => ({ ...t, depth: depth.get(t.id) ?? 0, usage: taskUsage(listAttempts(db, t.id)), live: engine.taskLiveness(t.id), waiting: t.state === 'ready' ? engine.readyBlocker(goal, t) : null })),
+      tasks: tasks.map((t) => ({ ...t, depth: depth.get(t.id) ?? 0, usage: taskUsage(listAttempts(db, t.id)), live: engine.taskLiveness(t.id), ...readyView(t) })),
       attempts: listAttemptsByGoal(db, id),
       checks: listChecks(db, id),
       checkResults: listCheckResultsByGoal(db, id),
@@ -811,7 +817,10 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json(await releasePort(engine, body.id, { viaHost: c.req.header('host') ?? null }));
   });
   // a stuck task without restarting Foundry: a ready one is scheduled, a running one with no live session is stopped
-  app.post('/api/goals/:id/tasks/:taskId/unstick', (c) => c.json(engine.unstickTask(c.req.param('id'), c.req.param('taskId'))));
+  app.post('/api/goals/:id/tasks/:taskId/unstick', async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    return c.json(engine.unstickTask(c.req.param('id'), c.req.param('taskId'), { force: body?.force === true }));
+  });
   app.post('/api/goals/:id/restart', async (c) => {
     const body = await c.req.json().catch(() => ({}));
     return c.json(await engine.restartGoal(c.req.param('id'), { fromTaskId: typeof body?.fromTaskId === 'string' ? body.fromTaskId : undefined }));
