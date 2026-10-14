@@ -126,7 +126,7 @@ A task moves through **pending** (waiting for the tasks it depends on) → **rea
 | *ready · "X runs alone (not parallelizable): it starts once Y finishes — a wait for quiet, not a dependency"* | The Brief said this task must run alone, so it waits until nothing else of the goal is running. Y is simply what runs now; no line leads from it in the task graph, where the task is marked **runs alone**. |
 | *ready · "X waits for Y: both touch …"* | Two tasks declared the same files; this one waits so they do not collide. |
 | *ready · "retry 2/3"* | A normal new attempt after a failed one. It starts running shortly. |
-| *ready*, and it does not start | The task panel says why under the attempts (*not started yet: …*). When nothing holds it back, press **Start now**. |
+| *ready*, and it does not start | The task panel says why under the attempts (*not started yet: …*). When nothing holds it back, press **Start now**. When only the scheduler's caution holds it back (every slot is taken, it runs alone, or another task is changing the same files), **Start now** still shows: a dialog says what starting it costs, and it runs in its own worktree once you confirm. A paused or blocked goal, a usage pause, a reached budget or a milestone waiting for you cannot be overridden. |
 | *running* or *observing*, nothing moves | When no session has been live for three minutes, the task panel offers **Stop and retry**: the task goes back to **ready** without a restart of Foundry. |
 | *running · "continuation 1: …"* | The same session resumed after hitting a limit or with checks still failing. Not a retry. |
 | *merging* for a while | Foundry is joining the task into the goal and re-running its checks. |
