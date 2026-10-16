@@ -221,8 +221,11 @@ function ServerRow({ s, health, running, onAllow, onRemove, onConnect, keys, onC
 function CatalogCard({ provider, c, others, running, onInstall }: { provider: AgentProvider; c: McpCatalogStatus; others: McpCatalogStatus[]; running: boolean; onInstall: (keys: Record<string, string>) => void }) {
   const [keys, setKeys] = useState<Record<string, string>>({});
   const [open, setOpen] = useState(false);
+  // a server with a disclaimer (what it may be used for, what leaves the computer) is confirmed once before it installs
+  const [confirming, setConfirming] = useState(false);
   const e = c.entry;
   const ready = e.keys.every((k) => keys[k.name]?.trim());
+  const start = () => (e.disclaimer ? setConfirming(true) : onInstall(keys));
   const otherInstalled = others.find((o) => o.installed);
   return (
     <div className="rounded-md border border-zinc-800 bg-zinc-950/50 p-2.5 space-y-1.5">
@@ -261,9 +264,24 @@ function CatalogCard({ provider, c, others, running, onInstall }: { provider: Ag
           <div className="text-[10px] text-zinc-500">Stored by {provider === 'codex' ? 'Codex' : 'Claude Code'} with the server, not in Foundry settings.</div>
         </div>
       )}
-      <Button size="sm" variant={e.tier === 'recommended' ? 'primary' : 'default'} disabled={running || (open && !ready)} onClick={() => (e.keys.length && !open ? setOpen(true) : onInstall(keys))}>
+      <Button size="sm" variant={e.tier === 'recommended' ? 'primary' : 'default'} disabled={running || (open && !ready)} onClick={() => (e.keys.length && !open ? setOpen(true) : start())}>
         {running ? 'Installing…' : e.keys.length && !open ? 'Install…' : 'Install'}
       </Button>
+      {e.disclaimer && (
+        <ConfirmDialog
+          open={confirming}
+          title={`Before ${e.name} is installed`}
+          confirmLabel="I understand, install"
+          onClose={() => setConfirming(false)}
+          onConfirm={() => {
+            setConfirming(false);
+            onInstall(keys);
+          }}
+        >
+          <p className="text-sm text-zinc-300 whitespace-pre-wrap">{e.disclaimer}</p>
+          {e.denyTools.length > 0 && <p className="text-xs text-zinc-500">{e.denyTools.length} of its tools run or change things (the target app, a debugger, a connected device); Foundry's sessions cannot use them unless you open them in Settings → Skills.</p>}
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

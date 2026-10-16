@@ -7,9 +7,14 @@
       "tier": "recommended",
       "summary": "Current documentation for libraries and frameworks, looked up by name and version.",
       "why": "Workers read the docs of the library version the project uses instead of what the model remembers.",
-      "suits": ["code"],
+      "suits": [
+        "code"
+      ],
       "homepage": "https://github.com/upstash/context7",
-      "config": { "type": "http", "url": "https://mcp.context7.com/mcp" },
+      "config": {
+        "type": "http",
+        "url": "https://mcp.context7.com/mcp"
+      },
       "keys": []
     },
     {
@@ -18,9 +23,18 @@
       "tier": "recommended",
       "summary": "Drives a real browser: open pages, click, fill forms, read the page and take screenshots.",
       "why": "A worker can try the web UI it just built, step by step, beyond the headless self-check.",
-      "suits": ["code"],
+      "suits": [
+        "code"
+      ],
       "homepage": "https://github.com/microsoft/playwright-mcp",
-      "config": { "type": "stdio", "command": "npx", "args": ["-y", "@playwright/mcp@latest"] },
+      "config": {
+        "type": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@playwright/mcp@latest"
+        ]
+      },
       "keys": []
     },
     {
@@ -30,10 +44,26 @@
       "pack": "web-search",
       "summary": "Web search built for AI: returns the content of the pages it finds.",
       "why": "Research and document goals get fresh, citable sources beyond the built-in web search.",
-      "suits": ["research", "docs"],
+      "suits": [
+        "research",
+        "docs"
+      ],
       "homepage": "https://github.com/exa-labs/exa-mcp-server",
-      "config": { "type": "stdio", "command": "npx", "args": ["-y", "exa-mcp-server"] },
-      "keys": [{ "name": "EXA_API_KEY", "label": "Exa API key", "url": "https://dashboard.exa.ai/api-keys" }]
+      "config": {
+        "type": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "exa-mcp-server"
+        ]
+      },
+      "keys": [
+        {
+          "name": "EXA_API_KEY",
+          "label": "Exa API key",
+          "url": "https://dashboard.exa.ai/api-keys"
+        }
+      ]
     },
     {
       "id": "brave-search",
@@ -42,10 +72,100 @@
       "pack": "web-search",
       "summary": "Brave's independent web index: web, news and image search.",
       "why": "Research and document goals get fresh sources beyond the built-in web search.",
-      "suits": ["research", "docs"],
+      "suits": [
+        "research",
+        "docs"
+      ],
       "homepage": "https://github.com/brave/brave-search-mcp-server",
-      "config": { "type": "stdio", "command": "npx", "args": ["-y", "@brave/brave-search-mcp-server"] },
-      "keys": [{ "name": "BRAVE_API_KEY", "label": "Brave Search API key", "url": "https://api-dashboard.search.brave.com/app/keys" }]
+      "config": {
+        "type": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@brave/brave-search-mcp-server"
+        ]
+      },
+      "keys": [
+        {
+          "name": "BRAVE_API_KEY",
+          "label": "Brave Search API key",
+          "url": "https://api-dashboard.search.brave.com/app/keys"
+        }
+      ]
+    },
+    {
+      "id": "rea",
+      "name": "rea",
+      "tier": "optional",
+      "summary": "Reverse engineers shipped software on this computer: native binaries, JavaScript and Electron apps, .NET, Android packages, websites and captures, with the evidence behind each conclusion.",
+      "why": "A goal can study how a reference app or an undocumented interface does something and build its own version from the evidence; research goals get a tool that reads binaries. Tools that run the target, attach a debugger or touch a connected device stay off unless Settings opens them.",
+      "suits": [
+        "code",
+        "research"
+      ],
+      "homepage": "https://github.com/morluto/rea",
+      "config": {
+        "type": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "rea-agents@6.5.0",
+          "mcp"
+        ]
+      },
+      "keys": [],
+      "disclaimer": "REA analyses software you own or are authorised to examine: security research, interoperability, preservation, learning how a feature works. Never use it to bypass licences, DRM or authentication, to build cheats, or to copy proprietary code; Foundry's sessions are told the same. What it finds reaches your model provider like any other context. Native binaries also need Hopper, Ghidra or IDA on this computer; everything else works without them.",
+      "denyTools": [
+        "capture_process_scenario",
+        "observe_native_calls",
+        "observe_native_ui",
+        "capture_native_ui_scenario",
+        "capture_browser_scenario",
+        "capture_electron_scenario",
+        "observe_web_execution",
+        "trace_web_module_imports",
+        "start_gdb_session",
+        "gdb_console",
+        "close_gdb_session",
+        "start_rizin_debug_session",
+        "rizin_debug_command",
+        "close_rizin_debug_session",
+        "execute_rizin_command",
+        "cutter_command",
+        "start_frida_session",
+        "load_frida_script",
+        "resume_frida_session",
+        "unload_frida_script",
+        "close_frida_session",
+        "instrument_with_frida",
+        "list_frida_devices",
+        "list_frida_processes",
+        "inspect_adb_client",
+        "list_adb_devices",
+        "inspect_adb_device",
+        "list_adb_packages",
+        "resolve_adb_packages",
+        "inspect_adb_package",
+        "list_adb_processes",
+        "list_adb_directory",
+        "list_adb_features",
+        "list_adb_services",
+        "inspect_adb_display",
+        "inspect_adb_window",
+        "read_adb_setting",
+        "read_adb_logcat",
+        "pull_adb_package",
+        "pull_adb_file",
+        "capture_adb_screen",
+        "collect_adb_bugreport",
+        "push_adb_file",
+        "install_adb_package",
+        "uninstall_adb_package",
+        "start_adb_app",
+        "start_adb_activity",
+        "stop_adb_app",
+        "export_evidence_bundle"
+      ]
     }
   ]
 }

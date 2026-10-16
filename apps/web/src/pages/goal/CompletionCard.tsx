@@ -1,8 +1,10 @@
 import { AlertTriangle, CheckCircle2, ChevronRight, CircleDashed, ExternalLink, Loader2, RotateCcw, XCircle } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
+import type { AuditFinding } from '@foundry/core/browser';
 import { api, type GoalDetail } from '../../api.ts';
 import { openFile } from '../../components/FilePreview.tsx';
-import { Button, Card, CopyButton, cn, fmtUsd } from '../../ui.tsx';
+import { Badge, Button, Card, CopyButton, cn, fmtUsd } from '../../ui.tsx';
 
 type Status = 'ok' | 'partial' | 'failed' | 'skipped' | 'pending' | 'running';
 const ICON: Record<Status, ReactNode> = {
@@ -48,7 +50,8 @@ export function CompletionCard({ d }: { d: GoalDetail }) {
   // a re-run asked for, until the result it produces (a newer `at`) arrives
   const [rerun, setRerun] = useState<{ docs?: string | null; graph?: string | null }>({});
   const [err, setErr] = useState<string | null>(null);
-  if (!c.graphRefresh && !c.docs.length && !c.artifactsRun) return null;
+  const nav = useNavigate();
+  if (!c.graphRefresh && !c.docs.length && !c.artifactsRun && !c.audit) return null;
   const finished = g.state === 'done' || g.state === 'over_delivered';
   const docsBusy = 'docs' in rerun && rerun.docs === (c.docsRun?.at ?? null);
   const graphBusy = 'graph' in rerun && rerun.graph === (c.graphRun?.at ?? null);
@@ -97,9 +100,53 @@ export function CompletionCard({ d }: { d: GoalDetail }) {
 
   const art = c.artifactsRun;
   const ws = d.paths.workspace;
+
+  const audit = c.auditRun;
+  const auditStatus: Status = d.auditRunning ? 'running' : !audit ? 'pending' : audit.status === 'ok' ? (audit.findings.some((f) => f.severity === 'must') ? 'partial' : 'ok') : audit.status === 'failed' ? 'failed' : 'skipped';
+  // what the goal did not fix itself: for a follow-up goal
+  // what this goal did not fix: everything but the must-fix findings that became fix tasks (and the nice-to-haves)
+  const rest = audit?.findings.filter((f) => f.severity !== 'nice' && !f.fixTaskId) ?? [];
+  const followUp = () => {
+    const text = [`Fix what the audit of "${g.title}" found and this goal did not cover:`, ...rest.map((f) => `- [${f.severity} fix] ${f.title}: ${f.problem}\n  Fix: ${f.fix}${f.files.length ? `\n  Files: ${f.files.join(', ')}` : ''}`)].join('\n');
+    nav(`/goals/new?follows=${encodeURIComponent(g.id)}&prompt=${encodeURIComponent(text)}`);
+  };
+  const SEVERITY_LABEL: Record<AuditFinding['severity'], string> = { must: 'Must fix', should: 'Should fix', nice: 'Nice to have' };
+  const SEVERITY_TONE: Record<AuditFinding['severity'], string> = { must: 'text-rose-300', should: 'text-amber-300', nice: 'text-zinc-400' };
   return (
     <Card title="Completion">
       <ul className="text-xs divide-y divide-zinc-800/70">
+        {c.audit && (
+          <Row
+            status={auditStatus}
+            label="Audit"
+            summary={d.auditRunning ? 'ponytail-audit is reading the finished branch…' : !audit ? 'runs once every task is done, before the final review' : audit.status === 'ok' ? `${audit.detail}${g.provider !== 'codex' && audit.costUsd > 0 ? ` · ${fmtUsd(audit.costUsd)}` : ''}` : audit.detail}
+            open={audit?.status === 'failed' || (audit?.findings.some((f) => f.severity === 'must') ?? false)}
+            action={finished && rest.length > 0 && (
+              <Button size="sm" variant="info" className="shrink-0" onClick={followUp} title="Start a follow-up goal that fixes what the audit found outside this goal's code">
+                Follow-up with the rest
+              </Button>
+            )}
+          >
+            {audit?.summary && <p className="text-zinc-300">{audit.summary}</p>}
+            {audit?.status === 'ok' && audit.findings.length > 0 && (
+              <ol className="space-y-1.5">
+                {audit.findings.map((f, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className={cn('shrink-0 w-20 text-[10px] uppercase tracking-wide pt-0.5', SEVERITY_TONE[f.severity])}>{SEVERITY_LABEL[f.severity]}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="text-zinc-200">{f.title}</span>
+                      {f.severity === 'must' && f.inScope && <Badge state={f.fixTaskId ? 'done' : 'ready'} className="ml-1.5 normal-case">{f.fixTaskId ? 'fix task created' : "in this goal's code, for a follow-up"}</Badge>}
+                      <span className="block text-zinc-400 whitespace-pre-wrap">{f.problem}</span>
+                      <span className="block text-zinc-500">Fix: {f.fix}</span>
+                      {f.files.length > 0 && <span className="block mono text-[11px] text-zinc-500 break-all">{f.files.join(', ')}</span>}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+            {audit && audit.status !== 'ok' && <div className={audit.status === 'failed' ? 'text-rose-300' : 'text-zinc-400'}>{audit.detail}</div>}
+          </Row>
+        )}
         {c.docs.length > 0 && (
           <Row status={docsStatus} label="Docs" summary={docsSummary} open={docs?.status === 'failed'} action={docs?.status !== 'ok' && rerunButton('docs', docsBusy)}>
             <div className="flex flex-wrap gap-1.5">

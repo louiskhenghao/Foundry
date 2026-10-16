@@ -1,6 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import type { EngineEvent } from '../events.ts';
-import { FINAL_WALK, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type Task } from '../schema/index.ts';
+import { FINAL_WALK, IDLE_COMPLETION, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type Task } from '../schema/index.ts';
 import type { ObservationReport } from '../schema/observation.ts';
 
 /**
@@ -392,7 +392,32 @@ function project(db: Database, e: EngineEvent): void {
     }
     case 'goal.completion_set': {
       const g = getGoal(db, e.goalId!);
-      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, graphRefresh: e.payload.graphRefresh, docs: e.payload.docs }, updatedAt: e.ts });
+      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, graphRefresh: e.payload.graphRefresh, docs: e.payload.docs, audit: e.payload.audit ?? g.completion.audit }, updatedAt: e.ts });
+      break;
+    }
+    case 'goal.audit_finished': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, auditRun: { status: e.payload.status, summary: e.payload.summary, findings: e.payload.findings, fixTaskIds: e.payload.fixTaskIds, costUsd: e.payload.costUsd, detail: e.payload.detail, at: e.ts } }, updatedAt: e.ts });
+      break;
+    }
+    case 'goal.references_set': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, references: e.payload.references, updatedAt: e.ts });
+      break;
+    }
+    case 'goal.investigation_requested': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, investigation: null, updatedAt: e.ts });
+      break;
+    }
+    case 'goal.investigation_finished': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, investigation: { status: e.payload.status, summary: e.payload.summary, attachmentId: e.payload.attachmentId, docPath: e.payload.docPath, docRef: e.payload.docRef ?? null, costUsd: e.payload.costUsd, detail: e.payload.detail, at: e.ts }, updatedAt: e.ts });
+      break;
+    }
+    case 'goal.ponytail_set': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, workflow: { ...g.workflow, ponytail: e.payload.on ? 'on' : 'off' }, updatedAt: e.ts });
       break;
     }
     case 'goal.docs_generated': {
@@ -519,11 +544,23 @@ function row<T>(r: unknown): T | null {
   return JSON.parse((r as { data: string }).data) as T;
 }
 
+/**
+ * A goal row written by an older Foundry lacks the fields added since (nothing replays the projections on an update):
+ * it reads as if the defaults had been stored, the way the event schema fills them on replay.
+ */
+function normalizeGoal(g: Goal): Goal {
+  g.references ??= [];
+  g.investigation ??= null;
+  if (g.workflow && g.workflow.ponytail == null) g.workflow.ponytail = 'on';
+  g.completion = { ...IDLE_COMPLETION, ...(g.completion ?? {}) };
+  return g;
+}
 export function getGoal(db: Database, id: string): Goal | null {
-  return row<Goal>(db.query('SELECT data FROM goals WHERE id = ?').get(id));
+  const g = row<Goal>(db.query('SELECT data FROM goals WHERE id = ?').get(id));
+  return g ? normalizeGoal(g) : null;
 }
 export function listGoals(db: Database): Goal[] {
-  return (db.query('SELECT data FROM goals ORDER BY created_at DESC').all() as { data: string }[]).map((r) => JSON.parse(r.data));
+  return (db.query('SELECT data FROM goals ORDER BY created_at DESC').all() as { data: string }[]).map((r) => normalizeGoal(JSON.parse(r.data)));
 }
 /** "Followed by": the goals that follow this one (oldest first). */
 export function listFollowUps(db: Database, goalId: string): Goal[] {

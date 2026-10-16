@@ -21,8 +21,9 @@ export interface WorkflowSectionInput {
   packs?: Record<string, string | undefined>;
   /** project skills installed by autoskills for this goal's repository */
   projectSkills?: string[];
-  /** the goal's (and task's) discipline: tdd off drops the tdd rules, preferred downgrades MUST to Prefer */
-  discipline?: { tdd: 'required' | 'preferred' | 'off' };
+  /** the goal's (and task's) discipline: tdd off drops the tdd rules, preferred downgrades MUST to Prefer; ponytail off drops
+   * the ponytail skills, on replaces code-review with ponytail-review when that is installed */
+  discipline?: Discipline;
   /** Codex has no Skill tool: a skill is read from its SKILL.md, and project skills live in .agents/skills */
   provider?: 'claude' | 'codex';
 }
@@ -30,9 +31,36 @@ export interface WorkflowSectionInput {
 /** a skill as a Codex session finds it: by name, not as a slash command (`/ui-ux-pro-max:design` → `design`) */
 const codexName = (invoke: string) => invoke.replace(/^\//, '').split(':').at(-1)!;
 
-/** Discipline a worker session runs under: the task may switch tdd off, otherwise the goal decides. */
-export function resolveDiscipline(goal: Pick<Goal, 'workflow'>, task: Pick<Task, 'tdd'> | null): { tdd: 'required' | 'preferred' | 'off' } {
-  return { tdd: task?.tdd === 'off' ? 'off' : goal.workflow.tdd };
+export interface Discipline {
+  tdd: 'required' | 'preferred' | 'off';
+  ponytail?: 'on' | 'off';
+}
+
+/** the skills Ponytail brings; they come and go with the goal's switch */
+const PONYTAIL_SKILLS = new Set(['ponytail', 'ponytail-review', 'ponytail-audit']);
+/** work that is not code: Ponytail, a coding discipline, is never mentioned there */
+const NO_PONYTAIL_SCENARIOS = new Set(['docs', 'research', 'image', 'video']);
+
+/**
+ * Discipline a session runs under: the task may switch tdd off, otherwise the goal decides; Ponytail follows the goal's
+ * switch, except for work that is not code (docs, research, media), where it is off.
+ */
+/** work Ponytail has a say in: code of any scenario, not documents, research or media */
+export const codeWork = (task: Partial<Pick<Task, 'scenario' | 'kind'>>): boolean => !NO_PONYTAIL_SCENARIOS.has(task.scenario ?? 'general') && task.kind !== 'research';
+
+export function resolveDiscipline(goal: Pick<Goal, 'workflow'>, task: Pick<Task, 'tdd'> & Partial<Pick<Task, 'scenario' | 'kind'>> | null): Discipline {
+  const code = !task || codeWork(task);
+  return { tdd: task?.tdd === 'off' ? 'off' : goal.workflow.tdd, ponytail: code ? (goal.workflow.ponytail ?? 'on') : 'off' };
+}
+
+/** entries the discipline hides from a session: Ponytail's skills while it is off, code-review while ponytail-review replaces it */
+function hiddenByDiscipline(entry: { name: string }, i: Pick<WorkflowSectionInput, 'discipline' | 'statuses' | 'packs'>): boolean {
+  const d = i.discipline;
+  if (!d) return false;
+  if (d.tdd === 'off' && entry.name === 'tdd') return true;
+  if (d.ponytail === 'off' && PONYTAIL_SKILLS.has(entry.name)) return true;
+  if (d.ponytail === 'on' && entry.name === 'code-review' && visibleStatuses(i).some((s) => s.entry.name === 'ponytail-review')) return true;
+  return false;
 }
 
 export interface MandatedSkill {
@@ -70,16 +98,14 @@ export function applicableRules(i: WorkflowSectionInput): MandatedSkill[] {
   const out: MandatedSkill[] = [];
   for (const s of visibleStatuses(i)) {
     const invoke = s.entry.invoke ?? s.installedInvoke ?? `/${s.entry.name}`;
+    if (hiddenByDiscipline(s.entry, i)) continue;
     for (const r of s.entry.workflow) {
       if (r.role !== i.role) continue;
       if (r.when !== 'any' && i.taskKind && r.when !== i.taskKind) continue;
       if (r.when !== 'any' && !i.taskKind && i.role === 'worker') continue; // unknown kind: only `any` rules
       if (!scenarioOk(r.scenarios, i.scenario)) continue;
       let mandate = r.mandate;
-      if (s.entry.name === 'tdd' && i.discipline) {
-        if (i.discipline.tdd === 'off') continue;
-        if (i.discipline.tdd === 'preferred') mandate = 'prefer';
-      }
+      if (s.entry.name === 'tdd' && i.discipline?.tdd === 'preferred') mandate = 'prefer';
       out.push({ name: s.entry.name, invoke, mandate, instruction: r.instruction, missingEnv: s.missingEnv, envFor: s.entry.envFor, cli: cliOnly(s.entry) });
     }
   }
@@ -111,15 +137,14 @@ export function goalScenario(tasks: Pick<Task, 'scenario' | 'origin'>[]): TaskSc
 
 /** Full prompt section (with its own heading), or null when there is nothing to say. */
 export function formatWorkflowSection(i: WorkflowSectionInput): string | null {
-  const visible = visibleStatuses(i);
+  const visible = visibleStatuses(i).filter((s) => !hiddenByDiscipline(s.entry, i));
   const hint = formatSkillsHint(i.role, visible);
   if (i.profile === 'plain') return hint ? `# Skills\n${hint}` : null;
   const rules = applicableRules(i);
   const ruleNames = new Set(rules.map((r) => r.invoke));
   const others = visible
+    // discipline off = not mentioned at all, not even as "installed" (filtered above)
     .filter((s) => s.entry.roles.includes(i.role) && scenarioOk(s.entry.scenarios, i.scenario))
-    // discipline off = not mentioned at all, not even as "installed"
-    .filter((s) => !(s.entry.name === 'tdd' && i.discipline?.tdd === 'off'))
     .filter((s) => !ruleNames.has(s.entry.invoke ?? s.installedInvoke ?? `/${s.entry.name}`))
     .map(useLabel)
     .slice(0, 8);

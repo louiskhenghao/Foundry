@@ -1,4 +1,5 @@
 import type { BriefStyleOption, Check, Goal, ObservationReport, Task } from '@foundry/core';
+import { renderReferences } from './references.ts';
 
 /** Scenarios whose deliverables have no look — the chosen Style Proposal is noise to them. Everything else (UI, mobile, media, general) must follow it. */
 const STYLE_FREE_SCENARIOS: ReadonlySet<string> = new Set(['backend', 'infra', 'docs', 'data', 'research']);
@@ -69,6 +70,8 @@ export function buildAttemptPrompt(i: AttemptPromptInput): string {
   if (styleSection) lines.push(styleSection);
   if (i.task.relevantFiles.length) lines.push(`# Start here\n${i.task.relevantFiles.map((f) => `- ${f}`).join('\n')}`);
   if (i.attachments) lines.push(i.attachments);
+  // the shipped software the goal learns from: the report is among the attachments, the rules travel with it
+  if (i.goal.references?.length) lines.push(renderReferences(i.goal));
   if (i.relevantContext) lines.push(`# Repository context\n${i.relevantContext}`);
 
   const must = i.checks.filter((c) => c.tier === 'must');

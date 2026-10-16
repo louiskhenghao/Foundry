@@ -18,6 +18,11 @@ if (name.startsWith('mcp__') && !policy.mcpAllowed.some((prefix: string) => name
   if (policy.denials && name.length <= 512 && (!existsSync(policy.denials) || statSync(policy.denials).size < 64 * 1024)) appendFileSync(policy.denials, JSON.stringify(name) + '\n');
   deny('This MCP server is not enabled for Foundry sessions.');
 }
+// an allowed server's tools that run or change things (the target app, a debugger, a connected device), unless Settings opened them
+if (name.startsWith('mcp__') && Array.isArray(policy.mcpDenied) && policy.mcpDenied.includes(name)) {
+  if (policy.denials && name.length <= 512 && (!existsSync(policy.denials) || statSync(policy.denials).size < 64 * 1024)) appendFileSync(policy.denials, JSON.stringify(name) + '\n');
+  deny('This tool runs or changes things outside the workspace; Settings → Skills → "MCP tools that run or change things" opens it.');
+}
 // Bound tool calls because codex exec has no Claude-style --max-turns switch.
 if (policy.maxToolCalls) {
   let count = 0;

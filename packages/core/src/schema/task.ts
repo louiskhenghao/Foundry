@@ -15,7 +15,7 @@ export type TaskDifficulty = 'simple' | 'standard' | 'complex';
 /** the task id a goal's final walkthrough uses where a milestone's task id goes (its checkpoint, its feedback fixes) */
 export const FINAL_WALK = 'final';
 
-export const TaskOrigin = z.enum(['brief', 'goal-review-fix', 'merge', 'delivery-fix', 'feedback-fix']);
+export const TaskOrigin = z.enum(['brief', 'goal-review-fix', 'merge', 'delivery-fix', 'feedback-fix', 'audit-fix']);
 
 /** What kind of work a task is; selects the workflow discipline the worker is asked to follow (tdd vs diagnosing-bugs …). */
 export const TaskKind = z.enum(['feature', 'bug', 'refactor', 'research', 'chore']);

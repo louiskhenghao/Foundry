@@ -1,7 +1,7 @@
 import { CodexModelPreset } from './codex-presets.ts';
 import { DEFAULT_NATURE_PRESETS, ModelPreset } from './model-presets.ts';
 import { z } from 'zod';
-import { Discipline, GoalMode } from './goal.ts';
+import { Discipline, GoalMode, PonytailSwitch } from './goal.ts';
 import { DeliveryMode, DeliveryUnit } from './delivery.ts';
 
 /**
@@ -65,6 +65,10 @@ export const WorkflowSettings = z.object({
   profile: z.enum(['mattpocock', 'plain']).default('mattpocock'),
   /** TDD discipline new goals start with (Expert mode); Simple mode starts with `preferred` */
   tdd: Discipline.default('required'),
+  /** Ponytail (the lazy senior dev: the smallest change that fully solves the task) for new goals; each goal has its own switch */
+  ponytail: PonytailSwitch.default('on'),
+  /** new goals run ponytail-audit on the finished branch before the goal review (chosen per goal at Brief approval) */
+  audit: z.boolean().default(false),
   /** which view new goals open in */
   defaultMode: GoalMode.default('expert'),
   designPack: DesignPack.default('ui-ux-pro-max'),
@@ -90,6 +94,12 @@ export const WorkflowSettings = z.object({
   mcpAllowed: z.array(z.string().regex(/^mcp__[A-Za-z0-9_-]+$/)).default(() => [...DEFAULT_MCP_ALLOWED]),
   /** Codex server permissions are independent of Claude server permissions. */
   codexMcpAllowed: z.array(z.string().regex(/^mcp__[A-Za-z0-9_-]+$/)).default([]),
+  /** let sessions use the tools of allowed catalog servers that run or change things (REA: launching the target, debuggers, connected devices); off = static analysis only */
+  mcpDynamicTools: z.boolean().default(false),
+  /** cost cap of the session that investigates a goal's reference with REA before Clarify */
+  investigationMaxCostUsd: z.number().min(0.5).max(50).default(3),
+  /** time cap of that session, in minutes */
+  investigationMaxMinutes: z.number().int().min(5).max(120).default(20),
 });
 export const ReviewSettings = z.object({
   alwaysReviewTasks: z.boolean().default(true),

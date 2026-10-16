@@ -1,6 +1,6 @@
 # ADR-0016: MCP servers: listed from Claude Code's config, installed at user scope, allowed in goals per server
 
-**Status:** accepted · 2026-09-28 · amended by ADR-0019 (provider-scoped extensions and native status)
+**Status:** accepted · 2026-09-28 · amended by ADR-0019 (provider-scoped extensions and native status) · amended by [ADR-0032](0032-ponytail-discipline-and-reverse-engineering.md) (a disclaimer at install, tools denied by name)
 
 ## Context
 

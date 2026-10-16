@@ -73,7 +73,7 @@ goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它
   - 各行上方的 **Final walkthrough** 写着所有任务完成后，每个脚本是否都通过了。
 - **Model fallback**：只在某个模型不可用、Foundry 换了另一个模型时出现。
 - **Project skills**：Foundry 为你项目的技术栈添加的 skill，按 Frontend、Backend、Database、Testing、Tooling 分组，并显示数量。它们不会进入你的提交。
-- **Completion**：文档、知识图谱刷新和媒体文件各占一行，写着结果。见 [完成后的附加项](./getting-the-result.zh.md#完成后的附加项)。
+- **Completion**：审计、文档、知识图谱刷新和媒体文件各占一行，写着结果。见 [完成后的附加项](./getting-the-result.zh.md#完成后的附加项)。
 - **Acceptance**（右侧）：每个 **must** 和 **stretch** 检查及其最新结果，比如 **3/4 passing**。点一个检查会在弹窗里打开：它检查什么（命令，或审查员的评分标准）、它的每一次运行（新的在上，点某一次就看那一次的输出），然后是所选那次运行的输出。命令的输出带行号显示，审查员的结论以 Markdown 显示（可切换 **Preview** 和 **Raw**），JSON 输出显示成树。输出上方有一行说明你看到的是 Foundry 保留的部分（长输出只保留开头、结尾和报错的行，失败时会做摘要）还是全部：**Show the whole output** 加载这次运行打印的全部内容，**Show the summary** 切回去。下面是 **Self-check** 开关和它最近一次的结果（见 [Self-check](#self-check)），goal 有里程碑时还有 **Have a look: pause at milestones**（见 [Milestones](#milestones)）。
 
 ## Tasks

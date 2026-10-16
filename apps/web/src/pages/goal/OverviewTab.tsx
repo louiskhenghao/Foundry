@@ -178,9 +178,26 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
             {shownCheck && <CheckDialog goalId={g.id} check={shownCheck} results={d.checkResults} taskName={taskName(shownCheck.taskId)} initial={latestResult(shownCheck.id)} onClose={() => setOpenCheck(null)} />}
             {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <SelfCheckSection d={d} />}
             {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && d.tasks.some((t) => t.milestone) && <MilestonePauseSection d={d} />}
+            {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <PonytailSection d={d} />}
           </Card>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Ponytail, the lazy senior dev: switchable while the goal runs, from its next session */
+function PonytailSection({ d }: { d: GoalDetail }) {
+  const g = d.goal;
+  const [err, setErr] = useState<string | null>(null);
+  return (
+    <div className="border-t border-zinc-800 pt-3 space-y-1.5">
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" className="accent-emerald-500" checked={(g.workflow.ponytail ?? 'on') === 'on'} onChange={(e) => api.setPonytail(g.id, e.target.checked).catch((x) => setErr(x.body?.error ?? x.message))} />
+        <span className="text-xs text-zinc-200">Ponytail: the smallest change that fully solves the task</span>
+      </label>
+      <p className="text-[11px] text-zinc-500">On: workers reuse what exists before writing new code and ponytail-review reviews; TDD still decides how tests are written. Applies from the next session.</p>
+      {err && <div className="text-[11px] text-rose-300">{err}</div>}
     </div>
   );
 }

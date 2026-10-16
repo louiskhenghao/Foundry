@@ -14,7 +14,7 @@ import { reviewTaskDiff } from './checks/reviewer.ts';
 import type { Engine } from './engine.ts';
 import { taskCommitMessage } from './git/conventional.ts';
 import { commitAll, headRef, numstat, resetHard } from './git/git.ts';
-import { workerTools, boundarySettings } from './guards/boundary.ts';
+import { boundarySettings } from './guards/boundary.ts';
 import { isBoundaryCommand } from './guards/patterns.ts';
 
 export interface AttemptOutcome {
@@ -171,7 +171,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
     maxTurns: config.attemptMaxTurns,
     maxBudgetUsd: Math.max(0.05, remaining == null ? config.attemptMaxCostUsd : Math.min(config.attemptMaxCostUsd, remaining)),
     permissionMode: 'dontAsk',
-    allowedTools: workerTools(engine.mcpAllowedFor(goal)),
+    ...engine.workerToolPolicy(goal),
     appendSystemPromptFile: engine.roles.path('worker'),
     settings: boundarySettings(config.hooksDir),
     settingSources: config.settingSources,

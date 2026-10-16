@@ -61,11 +61,14 @@ export function NewGoalPage() {
   const [params] = useSearchParams();
   const requestedProvider = params.get('provider');
   const initialProvider = requestedProvider === 'claude' || requestedProvider === 'codex' ? requestedProvider : null;
-  const [prompt, setPrompt] = useState('');
+  // a follow-up started from a goal page (the audit's remaining findings) arrives with its text
+  const [prompt, setPrompt] = useState(() => params.get('prompt') ?? '');
   const [repoPath, setRepoPath] = useState('');
   const [title, setTitle] = useState('');
   const [repoInfo, setRepoInfo] = useState<RepoInfo | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  /** shipped software the goal learns from: REA studies each before Clarify */
+  const [references, setReferences] = useState<{ target: string; lookAt: string }[]>([]);
   const [delivery, setDelivery] = useState<PolicyDraft>(loadDraft());
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const [budget, setBudget] = useState<BudgetDraft>(loadBudget());
@@ -91,6 +94,7 @@ export function NewGoalPage() {
   useEffect(() => localStorage.setItem(NATURE_KEY, nature), [nature]);
   const [mode, setModeState] = useState<'simple' | 'expert'>('expert');
   const [tdd, setTddState] = useState<'required' | 'preferred' | 'off'>('required');
+  const [ponytail, setPonytailState] = useState<'on' | 'off'>('on');
   const [pace, setPace] = useState<'thorough' | 'fast'>('thorough');
   const [defaultRemote, setDefaultRemote] = useState('origin');
   /** fields the human changed on this page: the Settings defaults arriving later never overwrite them */
@@ -127,6 +131,7 @@ export function NewGoalPage() {
         if (!changed.current.has('interviewDepth')) setInterviewDepth(String(d.workflow.interviewDepth ?? { never: 0, auto: 3, always: 4 }[d.workflow.interview]));
         if (!changed.current.has('mode')) setModeState(d.workflow.defaultMode);
         if (!changed.current.has('tdd')) setTddState(d.workflow.tdd);
+        if (!changed.current.has('ponytail')) setPonytailState(d.workflow.ponytail ?? 'on');
         basePace.current = d.workflow.defaultPace;
         // media goals default to fast on top of the Settings pace, as when the goal type is picked by hand
         if (!paceTouched.current) setPace(nature === 'image' || nature === 'video' ? 'fast' : d.workflow.defaultPace);
@@ -257,9 +262,11 @@ export function NewGoalPage() {
         autoBrief: auto ? { mustChecks: checks.split('\n').map((s) => s.trim()).filter(Boolean), stretchChecks: stretch.split('\n').map((s) => s.trim()).filter(Boolean) } : undefined,
         delivery,
         attachments,
+        // a goal that skips Clarify has no investigation before it: its references would be refused
+        references: auto ? [] : references.map((r) => ({ target: r.target.trim(), lookAt: r.lookAt.trim() })).filter((r) => r.target),
         mode,
         // fast: let the engine default the TDD mandate off instead of pinning it here
-        workflow: pace === 'fast' ? { pace } : { pace, tdd: mode === 'simple' ? 'preferred' : tdd },
+        workflow: pace === 'fast' ? { pace, ponytail } : { pace, tdd: mode === 'simple' ? 'preferred' : tdd, ponytail },
         nature,
         outputDir: (nature === 'image' || nature === 'video') && outputDir.trim() ? outputDir.trim() : undefined,
         interviewDepth: Number(interviewDepth),
@@ -450,11 +457,45 @@ export function NewGoalPage() {
             <span className="text-[11px] text-zinc-500">docs, infra, research, image and video tasks never get a TDD mandate; a task can also switch it off in the Brief.</span>
           </div>
         )}
+        {mode === 'expert' && (
+          <label className="mt-3 flex items-start gap-2 text-xs text-zinc-300 cursor-pointer" title="Ponytail, the lazy senior dev: before writing, a worker checks whether the code needs to exist, whether the repository, the standard library or an installed dependency already has it, and only then writes the smallest complete change. The planner plans lean; ponytail-review reviews each task and the whole goal. TDD still decides how tests are written. Switchable later on the goal page.">
+            <input type="checkbox" className="mt-0.5 accent-emerald-500" checked={ponytail === 'on'} onChange={(e) => { changed.current.add('ponytail'); setPonytailState(e.target.checked ? 'on' : 'off'); }} />
+            <span>
+              Ponytail — the smallest change that fully solves the task<HelpLink to="your-first-goal#ponytail-less-code" className="ml-1.5" />
+              <span className="block text-[11px] text-zinc-500">Workers reuse what exists before writing new code; ponytail-review reviews. Needs the Ponytail skills (Setup page).</span>
+            </span>
+          </label>
+        )}
       </Card>
 
       <Card title={<>1 · What do you want done?<HelpLink to="your-first-goal#what-do-you-want-done" className="ml-1.5" /></>}>
         <Textarea rows={6} placeholder="Describe the goal as you would to a senior engineer. The system clarifies, proposes Must / Stretch acceptance checks and a task plan for you to approve." value={prompt} onChange={(e) => setPrompt(e.target.value)} />
         <AttachmentInput className="mt-2" items={attachments} onChange={setAttachments} />
+        <div className="mt-3 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-zinc-400">
+              Reference (optional)<HelpLink to="your-first-goal#reference" className="ml-1.5" />
+            </span>
+            <Button size="sm" variant="ghost" disabled={references.length >= 5} onClick={() => setReferences((r) => [...r, { target: '', lookAt: '' }])} title="A site, an app or a package whose feature this goal should learn from; REA studies it before Clarify">
+              + add a reference
+            </Button>
+          </div>
+          {references.map((r, i) => (
+            <div key={i} className="grid gap-1.5 sm:grid-cols-[1fr_1fr_auto]">
+              <Input placeholder="https://app.example.com, or /Applications/Notes.app" value={r.target} onChange={(e) => setReferences((rs) => rs.map((x, j) => (j === i ? { ...x, target: e.target.value } : x)))} />
+              <Input placeholder="which feature to look at, e.g. how search ranks results" value={r.lookAt} onChange={(e) => setReferences((rs) => rs.map((x, j) => (j === i ? { ...x, lookAt: e.target.value } : x)))} />
+              <Button size="sm" variant="ghost" onClick={() => setReferences((rs) => rs.filter((_, j) => j !== i))}>
+                remove
+              </Button>
+            </div>
+          ))}
+          {references.length > 0 && auto && <p className="text-[11px] text-amber-300">Skip Clarify is on: the references are dropped (REA studies them before Clarify).</p>}
+          {references.length > 0 && (
+            <p className="text-[11px] text-zinc-500">
+              Before Clarify, REA studies each reference and writes a report with its evidence; every session reads it, and it is committed under docs/reference. Only software you are allowed to examine: the goal builds its own version, never a copy. Needs the REA server (Extensions → MCP servers); native apps and binaries also need Hopper, Ghidra or IDA on this computer (Setup page).
+            </p>
+          )}
+        </div>
         <div className="mt-3">
           <label className="text-xs text-zinc-400">Title (optional — defaults to the first line)</label>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} />

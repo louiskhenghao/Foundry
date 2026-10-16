@@ -87,10 +87,39 @@ export type Discipline = z.infer<typeof Discipline>;
 export const GoalPace = z.enum(['thorough', 'fast']);
 export type GoalPace = z.infer<typeof GoalPace>;
 
+/** shipped software a goal learns from: where it is (a URL or a path on this computer) and which feature to study */
+export const GoalReference = z.object({
+  target: z.string().min(1),
+  /** which feature or behaviour to understand, in the person's words */
+  lookAt: z.string().default(''),
+});
+export type GoalReference = z.infer<typeof GoalReference>;
+
+/** what the investigation of a goal's references produced: a report (an attachment, and a document on the goal branch) */
+export const GoalInvestigation = z.object({
+  status: z.enum(['ok', 'failed', 'skipped']),
+  summary: z.string(),
+  /** the report among the goal's attachments */
+  attachmentId: z.string().nullable(),
+  /** the report committed on the goal branch, repository-relative, and that commit */
+  docPath: z.string().nullable(),
+  docRef: z.string().nullable().default(null),
+  costUsd: z.number(),
+  detail: z.string(),
+  at: z.string(),
+});
+export type GoalInvestigation = z.infer<typeof GoalInvestigation>;
+
+/** Ponytail, the lazy senior dev: on = workers climb its ladder before writing, the planner plans lean, ponytail-review reviews */
+export const PonytailSwitch = z.enum(['on', 'off']);
+export type PonytailSwitch = z.infer<typeof PonytailSwitch>;
+
 export const GoalWorkflow = z.object({
   tdd: Discipline.default('required'),
   /** default keeps pre-pace goals replayable */
   pace: GoalPace.default('thorough'),
+  /** default: goals from before the switch get it too, from their next session */
+  ponytail: PonytailSwitch.default('on'),
 });
 export type GoalWorkflow = z.infer<typeof GoalWorkflow>;
 
@@ -103,9 +132,28 @@ export type DocType = z.infer<typeof DocType>;
  * Docs are generated after the goal review passes and committed to the goal branch (same delivery unit as the code);
  * the graph refresh (graphify / gitnexus, whichever is on PATH) runs after delivery so the graph reflects the landed code.
  */
+/** one thing the audit found, ranked the way ponytail-audit ranks: must fix, should fix, nice to have */
+export const AuditFinding = z.object({
+  severity: z.enum(['must', 'should', 'nice']),
+  title: z.string(),
+  /** what the code does and what goes wrong, with the concrete case */
+  problem: z.string(),
+  fix: z.string(),
+  files: z.array(z.string()).default([]),
+  /** in code this goal changed: a must-fix finding here becomes a fix task */
+  inScope: z.boolean().default(false),
+  /** the fix task this finding became, when it did (a must-fix finding in scope beyond the cap, or after the goal stopped, has none) */
+  fixTaskId: z.string().nullable().default(null),
+});
+export type AuditFinding = z.infer<typeof AuditFinding>;
+
 export const GoalCompletion = z.object({
   graphRefresh: z.boolean().default(false),
   docs: z.array(DocType).default([]),
+  /** ponytail-audit on the finished branch once every task is done, before the goal review */
+  audit: z.boolean().default(false),
+  /** result of the audit (null = not run yet): its findings, and the fix tasks its in-scope must-fix findings became */
+  auditRun: z.object({ status: z.enum(['ok', 'skipped', 'failed']), summary: z.string(), findings: z.array(AuditFinding), fixTaskIds: z.array(z.string()), costUsd: z.number(), detail: z.string(), at: z.string() }).nullable().default(null),
   /** result of the docs-generation session (null = not run yet) */
   docsRun: z.object({ status: z.enum(['ok', 'skipped', 'failed']), types: z.array(DocType), files: z.array(z.string()), costUsd: z.number(), detail: z.string(), at: z.string(), ref: z.string().nullable().default(null), pr: z.object({ number: z.number().int(), url: z.string(), branch: z.string() }).nullable().default(null) }).nullable().default(null),
   /** result of the graph refresh (null = not run yet) */
@@ -114,7 +162,7 @@ export const GoalCompletion = z.object({
   artifactsRun: z.object({ status: z.enum(['ok', 'skipped', 'failed']), files: z.array(z.string()), dest: z.string(), detail: z.string(), at: z.string() }).nullable().default(null),
 });
 export type GoalCompletion = z.infer<typeof GoalCompletion>;
-export const IDLE_COMPLETION: GoalCompletion = { graphRefresh: false, docs: [], docsRun: null, graphRun: null, artifactsRun: null };
+export const IDLE_COMPLETION: GoalCompletion = { graphRefresh: false, docs: [], audit: false, auditRun: null, docsRun: null, graphRun: null, artifactsRun: null };
 
 /** Goal states a Follow-up can be created from: the earlier goal is finished, whatever the outcome. */
 export const FOLLOWABLE_STATES: GoalState[] = ['done', 'over_delivered', 'failed', 'cancelled'];
@@ -218,7 +266,11 @@ export const Goal = z.object({
    */
   previewPlace: PreviewPlace.default('auto'),
   /** which Clarify session runs and since when: the Clarifier (reading the repository, writing its answer) or the planner */
-  clarifyStage: z.object({ stage: z.enum(['clarifying', 'planning']), at: z.string() }).nullable().default(null),
+  clarifyStage: z.object({ stage: z.enum(['investigating', 'clarifying', 'planning']), at: z.string() }).nullable().default(null),
+  /** shipped software the goal learns from (a site, an app, a package): REA investigates each one before Clarify */
+  references: z.array(GoalReference).default([]),
+  /** the investigation of the references; its report is an attachment and a committed document (null = not run yet) */
+  investigation: GoalInvestigation.nullable().default(null),
   /** the Clarify interview (rounds of questions before the Brief); null = the one-shot Clarify of before */
   interview: Interview.nullable().default(null),
   /** effort level for every session of this goal; null = Settings default / CLI default */

@@ -4,6 +4,8 @@ import { FeedbackPlan } from './schema/feedback.ts';
 import { InterviewQuestion } from './schema/interview.ts';
 import {
   Attempt,
+  AuditFinding,
+  GoalReference,
   Brief,
   Budgets,
   ChecksState,
@@ -104,6 +106,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.selfcheck_set', { on: z.boolean() }),
   /** the human switched whether the goal pauses at its milestones ("Have a look") */
   ev('goal.milestone_pause_set', { on: z.boolean() }),
+  /** the human switched Ponytail (the lazy senior dev) on or off for the goal; applies from its next session */
+  ev('goal.ponytail_set', { on: z.boolean() }),
   /** a milestone landed in a goal that does not pause for it: the human is told, the goal goes on */
   ev('goal.milestone_passed', { taskId: z.string(), lookFor: z.string() }),
   /** the branch a finished goal's preview runs from; null = the goal branch while its folder exists, else the base branch */
@@ -146,7 +150,9 @@ export const EngineEvent = z.discriminatedUnion('type', [
   /** media artifacts were copied from the goal workspace to the goal's output folder at done */
   ev('goal.artifacts_delivered', { status: z.enum(['ok', 'skipped', 'failed']), files: z.array(z.string()), dest: z.string(), detail: z.string() }),
   /** completion actions chosen at Brief approval (defaults inferred from the tasks' scenarios when the UI sends nothing) */
-  ev('goal.completion_set', { graphRefresh: z.boolean(), docs: z.array(DocType), reason: z.string() }),
+  ev('goal.completion_set', { graphRefresh: z.boolean(), docs: z.array(DocType), audit: z.boolean().optional(), reason: z.string() }),
+  /** ponytail-audit ran on the finished branch (once per goal): what it found, and the fix tasks its in-scope must-fix findings became */
+  ev('goal.audit_finished', { status: z.enum(['ok', 'skipped', 'failed']), summary: z.string(), findings: z.array(AuditFinding), fixTaskIds: z.array(z.string()), costUsd: z.number(), detail: z.string() }),
   /** the docs-generation session ran (after the goal review passed); files are repo-relative paths it committed */
   /** `ref`: the docs commit on the goal branch (absent on events written before it was recorded) */
   /** docs written after the goal's work merged went out on a branch of their own, as this pull request */
@@ -159,7 +165,13 @@ export const EngineEvent = z.discriminatedUnion('type', [
 
   ev('clarify.started', { attemptId: z.string().nullable() }),
   /** where Clarify is: the Clarifier reading the repository and writing its answer (a round or the Brief), or the planner splitting the goal into tasks */
-  ev('clarify.stage', { stage: z.enum(['clarifying', 'planning']) }),
+  ev('clarify.stage', { stage: z.enum(['investigating', 'clarifying', 'planning']) }),
+  /** the human changed the shipped software the goal learns from */
+  ev('goal.references_set', { references: z.array(GoalReference) }),
+  /** the investigation of the references is wanted again (a re-run of Clarify, a changed reference, the person's request) */
+  ev('goal.investigation_requested', {}),
+  /** REA investigated the references: the report is attachment `attachmentId` and the document `docPath` on the goal branch */
+  ev('goal.investigation_finished', { status: z.enum(['ok', 'failed', 'skipped']), summary: z.string(), attachmentId: z.string().nullable(), docPath: z.string().nullable(), docRef: z.string().nullable().optional(), costUsd: z.number(), detail: z.string() }),
   /** one style sample was generated for a Style Proposal (file appended to its samples, never replacing) */
   ev('brief.style_sampled', { styleKey: z.string(), file: z.string(), costUsd: z.number(), status: z.enum(['ok', 'failed']), detail: z.string() }),
   ev('brief.proposed', { brief: Brief }),

@@ -66,3 +66,13 @@ test('a feature milestone task, whatever its scenario, is told to write its Play
   expect(p).toContain("test.info().attach(");
   expect(p).not.toContain('dev:mock');
 });
+
+test('a goal with a reference tells the worker where the report is and the rules', () => {
+  const goal = { ...base.goal, references: [{ target: 'https://notes.example.com', lookAt: 'how search ranks results' }], investigation: { status: 'ok', summary: 'recency first', attachmentId: 'att_1', docPath: 'docs/reference/notes-example-com.md', costUsd: 1, detail: '', at: 'x' }, attachments: [{ id: 'att_1', kind: 'file', name: 'reference-notes-example-com.md', mime: 'text/markdown', size: 1, path: 'p', url: null, note: null, addedAt: 'x', markdown: null }] } as any;
+  const p = buildAttemptPrompt({ ...base, goal });
+  expect(p).toContain('# Reference');
+  expect(p).toContain('https://notes.example.com — look at: how search ranks results');
+  expect(p).toContain('attached as reference-notes-example-com.md and committed as docs/reference/notes-example-com.md');
+  expect(p).toContain('never copy proprietary code');
+  expect(buildAttemptPrompt(base)).not.toContain('# Reference');
+});

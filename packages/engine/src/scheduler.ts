@@ -3,6 +3,7 @@ import { listTasks, getTask, getGoal, listAttempts, getObservation } from '@foun
 import { type Continuation, continuationMessage, decideNext, maxAttemptsFor, runAttempt } from './attempt-loop.ts';
 import { budgetStatus } from './budget.ts';
 import type { Engine } from './engine.ts';
+import { runAudit } from './audit.ts';
 import { dueCheckpoint, finalLookDue, openCheckpoint, openFinalCheckpoint, passMilestone, runFinalWalk, scriptedMilestones } from './checkpoint.ts';
 import { raiseEscalation } from './escalation.ts';
 import { headRef } from './git/git.ts';
@@ -67,8 +68,20 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
   if (tasks.length && tasks.every((t) => t.state === 'done' || t.state === 'failed' || t.state === 'skipped')) {
     if (tasks.some((t) => t.state === 'failed')) {
       store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'running', to: 'failed', reason: `${tasks.filter((t) => t.state === 'failed').length} task(s) failed` } });
+    } else if (goal.completion.audit && !goal.completion.auditRun) {
+      // 3b. the audit: ponytail-audit on the finished branch, once; its must-fix findings in the goal's code become fix
+      // tasks, so it runs before the final walkthrough and the review see the branch (not awaited: minutes)
+      if (!engine.auditing.has(goal.id)) {
+        engine.auditing.add(goal.id);
+        void runAudit(engine, goal)
+          .catch((err) => store.append({ type: 'goal.audit_finished', goalId: goal.id, payload: { status: 'failed', summary: '', findings: [], fixTaskIds: [], costUsd: 0, detail: `the audit crashed: ${String(err).slice(0, 280)}` } }))
+          .finally(() => {
+            engine.auditing.delete(goal.id);
+            engine.tick(goal.id);
+          });
+      }
     } else if (scriptedMilestones(tasks).length && !goal.finalWalk?.ranAt) {
-      // 3b. the final walkthrough: every feature's script once more on the finished branch (not awaited: minutes)
+      // 3c. the final walkthrough: every feature's script once more on the finished branch (not awaited: minutes)
       if (!engine.finalWalking.has(goal.id)) {
         engine.finalWalking.add(goal.id);
         void runFinalWalk(engine, goal)
@@ -103,8 +116,8 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
     return;
   }
 
-  // 5. start ready tasks within capacity — none while the final walkthrough runs: it records the branch as it is
-  if (engine.finalWalking.has(goal.id)) return;
+  // 5. start ready tasks within capacity — none while the final walkthrough or the audit runs: they read the branch as it is
+  if (engine.finalWalking.has(goal.id) || engine.auditing.has(goal.id)) return;
   const inFlight = engine.inFlightForGoal(goal.id);
   let capacity = Math.max(0, goal.budgets.maxConcurrent - inFlight.length);
   const ready = tasks.filter((t) => t.state === 'ready' && !engine.isInFlight(t.id));

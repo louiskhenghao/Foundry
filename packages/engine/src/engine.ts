@@ -57,6 +57,8 @@ import { schedule } from './scheduler.ts';
 import { budgetStatus } from './budget.ts';
 import { dueCheckpoint, recordMilestone } from './checkpoint.ts';
 import { milestoneQueues, milestoneRunsFor } from './checks/walkthrough.ts';
+import { runInvestigation } from './investigation.ts';
+import { needsInvestigation } from './references.ts';
 import { MILESTONE_CHECK_PREFIX, milestoneCheckSpec } from './checks/milestone-script.ts';
 import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
@@ -100,6 +102,7 @@ import { type FollowUpDraft, type FollowUpInput, followUpDraft, linkFollowUp, pr
 import { Tailnet } from './notify/tailnet.ts';
 import { SessionCosts } from './session-costs.ts';
 import { CODE_SERVER_INSTALL, CodeServer } from './editor/code-server.ts';
+import { workerTools } from './guards/boundary.ts';
 
 export interface CreateGoalInput {
   provider?: 'claude' | 'codex';
@@ -132,6 +135,8 @@ export interface CreateGoalInput {
   delivery?: Partial<DeliveryPolicy>;
   /** Staged uploads (from POST /api/uploads) and links; files are moved under the goal on creation. */
   attachments?: Attachment[];
+  /** shipped software to learn from: REA investigates each before Clarify, when it is installed */
+  references?: { target: string; lookAt?: string }[];
   /** simple = plain-language Brief and progress; default from Settings */
   mode?: GoalMode;
   /** engineering discipline; Simple mode defaults tdd to `preferred`, Expert to the Settings default */
@@ -216,6 +221,25 @@ export class Engine {
   readonly forceStart = new Set<string>();
   /** goals whose final walkthrough (every milestone script once all tasks are done) is running */
   readonly finalWalking = new Set<string>();
+  /** goals whose audit (ponytail-audit on the finished branch) is running */
+  readonly auditing = new Set<string>();
+  /** goals whose references REA is investigating */
+  readonly investigating = new Set<string>();
+  /** sessions run for a goal outside a task (the audit, an investigation): killed with the goal's in-flight sessions */
+  readonly background = new Map<string, Set<RunHandle>>();
+  /** remember a background session until it ends, so cancelling the goal or stopping Foundry kills it too */
+  trackBackground(goalId: string, handle: RunHandle): () => void {
+    let set = this.background.get(goalId);
+    if (!set) this.background.set(goalId, (set = new Set()));
+    set.add(handle);
+    return () => {
+      set.delete(handle);
+      if (!set.size) this.background.delete(goalId);
+    };
+  }
+  get isStopped(): boolean {
+    return this.stopped;
+  }
   /** a scripted milestone whose script still fails after its repair: the goal pauses at it once no task is in flight */
   readonly pauseDue = new Map<string, string>();
   /** consecutive engine-side crashes per task (reset when an attempt runs) */
@@ -547,6 +571,37 @@ export class Engine {
     this.store.append({ type: 'goal.milestone_pause_set', goalId, payload: { on } });
   }
 
+  /** run the investigation of a goal's references in the background, once at a time; the tick goes on when it ends */
+  private startInvestigation(goal: Goal): void {
+    if (this.investigating.has(goal.id)) return;
+    this.investigating.add(goal.id);
+    void runInvestigation(this, goal)
+      .catch((err) => this.config.log(`[investigate] ${goal.id}: ${String((err as Error).message ?? err)}`))
+      .finally(() => {
+        this.investigating.delete(goal.id);
+        this.tick(goal.id);
+      });
+  }
+
+  /**
+   * Study the goal's references again (a changed target, a new look): the report is replaced; the Brief changes only
+   * with Re-run Clarify. Possible until the Brief is approved.
+   */
+  investigate(goalId: string): void {
+    const goal = this.mustGoal(goalId);
+    if (!goal.references.length) throw new Error('this goal has no reference to investigate');
+    if (!['draft', 'clarifying', 'awaiting_brief_approval'].includes(goal.state)) throw new Error(`the goal is ${goal.state}; its references can be investigated again until the Brief is approved`);
+    if (this.investigating.has(goalId)) throw new Error('the references are being investigated now; wait for the report');
+    this.store.append({ type: 'goal.investigation_requested', goalId, payload: {} });
+    this.startInvestigation(getGoal(this.store.db, goalId)!);
+  }
+
+  /** switch Ponytail (the lazy senior dev) on or off for a goal; applies from its next session */
+  setPonytail(goalId: string, on: boolean): void {
+    if ((this.mustGoal(goalId).workflow.ponytail === 'on') === on) return;
+    this.store.append({ type: 'goal.ponytail_set', goalId, payload: { on } });
+  }
+
   /** after a task landed on the goal branch: the self-check looks at the preview when the goal asked for one */
   async afterIntegration(goal: Goal, task: Task): Promise<void> {
     if (!goal.selfCheck) return;
@@ -587,6 +642,8 @@ export class Engine {
     const goal = this.mustGoal(goalId);
     if (goal.state !== 'awaiting_brief_approval') throw new Error(`goal is ${goal.state}; Clarify can only be re-run while the Brief awaits approval`);
     if (listTasks(this.store.db, goalId).length) throw new Error('tasks already exist for this goal; restart the goal instead');
+    // the investigation session works in the worktree this discards
+    if (this.investigating.has(goalId)) throw new Error('the references are being investigated now; re-run Clarify when the report is in');
     const ws = goalWorkspacePath(this.config.dataDir, goal);
     let rebuilt = false;
     if (await isGitRepo(goal.repoPath).catch(() => false)) {
@@ -598,6 +655,8 @@ export class Engine {
     // the Brief is discarded, the human's Decisions are not: the new Clarify receives them and must not ask again
     const prior = getBrief(this.store.db, goalId)?.brief;
     const decisions = prior ? renderDecisions(prior, '# Decisions already made by the human') : '';
+    // the references are studied again before the new Brief
+    if (goal.references.length) this.store.append({ type: 'goal.investigation_requested', goalId, payload: {} });
     this.store.append({ type: 'goal.reclarified', goalId, payload: { reason, workspaceRebuilt: rebuilt, decisions } });
     this.store.append({ type: 'goal.state_changed', goalId, payload: { from: 'awaiting_brief_approval', to: 'clarifying', reason: `re-run clarify: ${reason}` } });
   }
@@ -814,6 +873,7 @@ export class Engine {
     await this.codeServer.dispose();
     await this.tailnet.unexposeAll();
     for (const [, f] of this.inFlight) f.handle?.kill('killed_manual');
+    for (const set of this.background.values()) for (const h of set) h.kill('killed_manual');
     // reviews, clarify, merges and probes are not in `inFlight`: kill every child the runner still owns
     const n = (this.runner as { killAll?: () => number }).killAll?.() ?? 0;
     if (n) this.config.log(`[engine] stopped ${n} agent session(s) on shutdown`);
@@ -1234,6 +1294,7 @@ export class Engine {
   }
   killGoal(goalId: string, reason: string): void {
     for (const [, f] of this.inFlight) if (f.goalId === goalId) f.handle?.kill('killed_manual');
+    for (const h of this.background.get(goalId) ?? []) h.kill('killed_manual');
     this.config.log(`[engine] killed in-flight sessions for ${goalId}: ${reason}`);
   }
   /** In-flight sessions joined with their attempt records — what the agents monitor shows as Foundry rows. */
@@ -1400,6 +1461,11 @@ export class Engine {
         return; // the human continues or gives feedback (escalation answer); nothing to schedule
       case 'clarifying': {
         if (this.clarifying.has(goalId)) return;
+        // a goal with references: REA studies them first, so the Brief is grounded in how they work
+        if (needsInvestigation(goal)) {
+          this.startInvestigation(goal);
+          return;
+        }
         const iv = goal.interview;
         if (iv?.status === 'awaiting_answers') return; // a round is open: the human answers on the goal page
         // a round was answered but no session settled it (engine restarted mid-interview): pick it up again
@@ -1407,6 +1473,10 @@ export class Engine {
         else void runClarify(this, goal);
         return;
       }
+      case 'awaiting_brief_approval':
+        // "Investigate again" cleared the report; a restart in between lost the session: study the references once more
+        if (needsInvestigation(goal)) this.startInvestigation(goal);
+        return;
       case 'running':
         await schedule(this, goal);
         return;
@@ -1469,6 +1539,50 @@ export class Engine {
     return (goal.provider ?? this.config.provider) === 'codex' ? this.config.codexMcpAllowed : this.config.mcpAllowed;
   }
 
+  /**
+   * The MCP servers a session may use and the tools of theirs it may not: the catalog's deny lists (REA: launching the
+   * target, a debugger, a connected device, writing files where the caller says), as `mcp__<server>__<tool>` names,
+   * unless Settings opened them. The catalog is data on disk; when it cannot be read (a broken install) there is no
+   * deny list to apply, so no MCP server reaches the session at all: safe by default, and the Setup page says why.
+   */
+  mcpToolPolicy(provider: 'claude' | 'codex', allowed: readonly string[]): { allowed: string[]; denied: string[] | undefined; catalogUnreadable: boolean } {
+    const servers = allowed.filter((p) => p.startsWith('mcp__'));
+    if (this.config.mcpDynamicTools || !servers.length) return { allowed: [...allowed], denied: undefined, catalogUnreadable: false };
+    let entries: { name: string; denyTools: string[] }[];
+    try {
+      entries = this.mcpFor(provider).catalog().entries;
+    } catch (err) {
+      this.config.log(`[mcp] the catalog cannot be read (${String((err as Error).message ?? err)}): no MCP server reaches this session`);
+      return { allowed: allowed.filter((p) => !p.startsWith('mcp__')), denied: undefined, catalogUnreadable: true };
+    }
+    const denied: string[] = [];
+    for (const e of entries) {
+      const prefix = `mcp__${e.name}`;
+      if (!allowed.includes(prefix)) continue;
+      for (const t of e.denyTools) denied.push(`${prefix}__${t}`);
+    }
+    return { allowed: [...allowed], denied: denied.length ? denied : undefined, catalogUnreadable: false };
+  }
+
+  /** the tools to deny for these servers; undefined = nothing to deny (see mcpToolPolicy) */
+  deniedMcpTools(provider: 'claude' | 'codex', allowed: readonly string[]): string[] | undefined {
+    return this.mcpToolPolicy(provider, allowed).denied;
+  }
+
+  /** goals already told that the MCP catalog is unreadable: one note each, not one per session */
+  private catalogNoted = new Set<string>();
+
+  /** a worker session's tools: the base set plus the allowed MCP servers, minus the tools that run or change things */
+  workerToolPolicy(goal: Goal): { allowedTools: string[]; disallowedTools: string[] | undefined } {
+    const provider = goal.provider ?? this.config.provider;
+    const policy = this.mcpToolPolicy(provider, this.mcpAllowedFor(goal));
+    if (policy.catalogUnreadable && !this.catalogNoted.has(goal.id)) {
+      this.catalogNoted.add(goal.id);
+      this.store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: 'the MCP catalog cannot be read, so no MCP server reaches the sessions of this goal (its deny lists cannot be applied); the Setup page has the details' } });
+    }
+    return { allowedTools: workerTools(policy.allowed), disallowedTools: policy.denied };
+  }
+
   skillsFor(goal: Goal): SkillsManager {
     return this.providerSkills[goal.provider ?? this.config.provider];
   }
@@ -1478,6 +1592,8 @@ export class Engine {
   async createGoal(input: CreateGoalInput): Promise<Goal> {
     const provider = input.provider ?? this.config.provider;
     if (!['claude', 'codex'].includes(provider)) throw new Error('Unknown coding agent');
+    // the investigation runs before Clarify: a goal that skips Clarify has nowhere to learn from a reference
+    if ((input.autoBrief || input.brief) && input.references?.some((r) => r.target.trim())) throw new Error('A goal that skips Clarify cannot learn from a reference: the investigation runs before Clarify.');
     const codexModel = input.codexModel?.trim() || this.config.codexModel;
     // an unknown preset would silently fall back to the Settings pick while the goal still shows the typo
     if (provider === 'codex' && input.models) throw new Error('Codex uses its own model presets, not Claude tiers.');
@@ -1529,6 +1645,8 @@ export class Engine {
       selfCheck: input.selfCheck ?? this.config.selfCheck,
       milestonePause: input.milestonePause ?? this.config.milestonePause,
       clarifyStage: null,
+      references: (input.references ?? []).map((r) => ({ target: r.target.trim(), lookAt: (r.lookAt ?? '').trim() })).filter((r) => r.target),
+      investigation: null,
       previewRef: null,
       previewPlace: 'auto',
       effort: input.effort === undefined ? this.config.effort : input.effort,
@@ -1551,7 +1669,7 @@ export class Engine {
         // media goals default to fast: their deliverables are judged by the human's eye, not by $5 review sessions
         const pace = input.workflow?.pace ?? (MEDIA_NATURES.includes(nature) ? 'fast' : this.config.workflowPace);
         // fast goals run only what the Brief asks for: no TDD mandate unless the caller insists
-        return { pace, tdd: input.workflow?.tdd ?? (pace === 'fast' ? ('off' as const) : mode === 'simple' ? ('preferred' as const) : this.config.workflowTdd) };
+        return { pace, tdd: input.workflow?.tdd ?? (pace === 'fast' ? ('off' as const) : mode === 'simple' ? ('preferred' as const) : this.config.workflowTdd), ponytail: input.workflow?.ponytail ?? this.config.workflowPonytail };
       })(),
       models: provider === 'codex' ? { strong: codexPreset!.tables[natureKey(nature)].clarifier.model, cheap: codexPreset!.tables[natureKey(nature)].housekeeping.model, worker: codexPreset!.tables[natureKey(nature)].standard.model } : { ...this.config.models, ...(input.models ?? {}) },
       state: 'draft',
@@ -1739,7 +1857,28 @@ export class Engine {
     const notif = notifChannels.length
       ? { id: 'notifications', label: 'Notifications (optional)', ok: true, severity: 'warn' as const, detail: `${notifChannels.join(' + ')} configured — you get pinged when a goal needs you, finishes, delivers, or usage pauses`, fix: null }
       : { id: 'notifications', label: 'Notifications (optional)', ok: false, severity: 'warn' as const, detail: 'not configured — get a Telegram or Discord ping when a goal needs you, finishes, or a delivery fails', fix: { url: '/settings' } };
-    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...await this.mcpFor(provider).doctorChecks()]);
+    const rea = await this.reaEnginesCheck(provider);
+    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), ...await this.mcpFor(provider).doctorChecks()]);
+  }
+
+  /**
+   * With REA installed: whether a native analysis engine is on this computer. Websites, JavaScript and Electron apps,
+   * .NET and Android packages need none; native apps and binaries need Hopper, Ghidra or IDA.
+   */
+  private async reaEnginesCheck(provider: 'claude' | 'codex') {
+    const view = await this.mcpFor(provider).view();
+    if (!view.catalog.some((c) => c.entry.id === 'rea' && c.installed)) return null;
+    const env = process.env;
+    const found = [
+      env.GHIDRA_INSTALL_DIR && existsSync(env.GHIDRA_INSTALL_DIR) ? `Ghidra at ${env.GHIDRA_INSTALL_DIR}` : null,
+      !env.GHIDRA_INSTALL_DIR && (Bun.which('ghidraRun') || Bun.which('ghidra')) ? 'Ghidra on PATH' : null,
+      env.HOPPER_LAUNCHER_PATH && existsSync(env.HOPPER_LAUNCHER_PATH) ? 'Hopper (HOPPER_LAUNCHER_PATH)' : null,
+      ['/Applications/Hopper Disassembler v5.app', '/Applications/Hopper Disassembler.app'].some((p) => existsSync(p)) ? 'Hopper in /Applications' : null,
+      env.REA_IDA_MCP_CONFIG && existsSync(env.REA_IDA_MCP_CONFIG) ? 'IDA (REA_IDA_MCP_CONFIG)' : null,
+    ].filter((x): x is string => !!x);
+    return found.length
+      ? { id: 'rea-native', label: 'REA native engines (optional)', ok: true, severity: 'warn' as const, detail: `${found.join(', ')} — REA can analyse native apps and binaries`, fix: null }
+      : { id: 'rea-native', label: 'REA native engines (optional)', ok: false, severity: 'warn' as const, detail: 'no Hopper, Ghidra or IDA found — REA analyses websites, JavaScript/Electron apps, .NET and Android packages; native apps and binaries need one of them (Ghidra is free: install it and set GHIDRA_INSTALL_DIR)', fix: { url: 'https://github.com/morluto/rea/blob/main/docs/installation.md' } };
   }
 
   /** Attach a staged upload or a link to an existing goal; later sessions see it. */
@@ -1788,9 +1927,11 @@ export class Engine {
    * `budgets` (optional) is applied first — this is how the Auto preset's proposed budget, confirmed or edited
    * by the human on the Brief page, becomes the goal's budget before any work starts.
    */
-  async approveBrief(goalId: string, edited?: Brief, budgets?: Partial<Budgets>, completion?: { graphRefresh?: boolean; docs?: DocType[] }): Promise<void> {
+  async approveBrief(goalId: string, edited?: Brief, budgets?: Partial<Budgets>, completion?: { graphRefresh?: boolean; docs?: DocType[]; audit?: boolean }): Promise<void> {
     const goal = this.mustGoal(goalId);
     if (goal.state !== 'awaiting_brief_approval') throw new Error(`goal is ${goal.state}, cannot approve`);
+    // the report lands as an attachment and a commit on the goal branch: not under running tasks
+    if (this.investigating.has(goalId)) throw new Error('the references are being investigated now; approve the Brief when the report is in');
     const brief = BriefSchema.parse({ ...(edited ?? getBrief(this.store.db, goalId)?.brief), goalId });
     const unanswered = brief.questions.filter((q) => q.blocking && !q.answer?.trim());
     if (unanswered.length) throw new Error(`blocking questions unanswered: ${unanswered.map((q) => q.text).join(' | ')}`);
@@ -1800,11 +1941,11 @@ export class Engine {
     const ws = await this.ensureSyncedWorkspace(goal);
     this.startAutoskills(goal, ws);
     // completion actions: what the UI sent, holes filled from the Brief (Simple mode and API callers send nothing)
-    const inferred = inferCompletion(brief, ws, goal.workflow.pace);
+    const inferred = inferCompletion(brief, ws, goal.workflow.pace, this.config.workflowAudit);
     this.store.append({
       type: 'goal.completion_set',
       goalId,
-      payload: { graphRefresh: completion?.graphRefresh ?? inferred.graphRefresh, docs: completion?.docs ?? inferred.docs, reason: completion ? 'set at brief approval' : inferred.reason },
+      payload: { graphRefresh: completion?.graphRefresh ?? inferred.graphRefresh, docs: completion?.docs ?? inferred.docs, audit: completion?.audit ?? inferred.audit, reason: completion ? 'set at brief approval' : inferred.reason },
     });
     if (budgets && Object.keys(budgets).length) {
       const next = Budgets.parse({ ...goal.budgets, ...budgets, ...(goal.provider === 'codex' ? { maxCostUsd: null } : {}) });

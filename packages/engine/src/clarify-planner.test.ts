@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { BriefOutput, BUILTIN_CODEX_PRESETS, getBrief, getGoal } from '@foundry/core';
+import { BriefOutput, BUILTIN_CODEX_PRESETS, getBrief, getGoal, type Goal } from '@foundry/core';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
 import { defaultConfig, type EngineConfig } from './config.ts';
 import { Engine } from './engine.ts';
@@ -230,5 +230,17 @@ describe('Clarify writes the Brief, a planner session writes its plan', () => {
     await waitFor(() => getGoal(e.store.db, goal.id)!.state === 'awaiting_brief_approval');
     expect(runner.calls.map((c) => c.label?.split(' ')[0])).toEqual(['clarify']);
     expect(getBrief(e.store.db, goal.id)!.brief.tasks[0]!.title).toBe('Clarifier task');
+  });
+});
+
+describe('the planner prompt', () => {
+  test('Plan lean is for coding plans: a research, docs or media goal gets none even with Ponytail on, a coding goal none with it off', async () => {
+    const { buildPlannerPrompt } = await import('./clarify.ts');
+    const base = { prompt: 'p', workflow: { tdd: 'required', pace: 'thorough', ponytail: 'on' }, references: [], investigation: null, attachments: [], nature: 'code', outputDir: null } as unknown as Goal;
+    const skeleton = { planningNotes: 'n', title: 't', understanding: 'u', areas: [], assumptions: [], questions: [], styleOptions: [], checks: [], costEstimateUsd: 0, timeEstimateMin: 0 } as never;
+    const ctx = { overview: null, attachments: '', decisions: '', interview: null, emptyRepo: false, imageGen: false, previous: '', plannerHint: null };
+    expect(buildPlannerPrompt(base, skeleton, ctx)).toContain('# Plan lean');
+    for (const nature of ['research', 'docs', 'image'] as const) expect(buildPlannerPrompt({ ...base, nature }, skeleton, ctx)).not.toContain('# Plan lean');
+    expect(buildPlannerPrompt({ ...base, workflow: { ...base.workflow, ponytail: 'off' } }, skeleton, ctx)).not.toContain('# Plan lean');
   });
 });

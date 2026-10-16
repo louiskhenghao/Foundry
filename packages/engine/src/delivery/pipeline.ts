@@ -58,6 +58,9 @@ interface Ctx {
   leases: Map<string, { remote: string; from: string }>;
 }
 
+/** a PR body stays readable: a reviewer's notes past this length are cut with a marker */
+const clip = (text: string, max = 4000) => (text.length > max ? `${text.slice(0, max)}\n…(${text.length - max} more characters in the review notes on the task)` : text);
+
 /** the switches a person may change while a delivery runs; everything else keeps the value the run started with */
 const SWITCHES = ['requireChecks', 'mergeIfNoChecks', 'autoResolveConflicts', 'deleteRemoteBranch', 'fixCiCycles'] as const;
 
@@ -303,9 +306,9 @@ async function buildStack(ctx: Ctx, step: StepFn): Promise<StackBranch[] | null>
         stack.push({ task: t, index, branch: expected[i]!, base: baseFor(i), commit, title: headerOf(t.commitMessage ?? t.title) });
         continue;
       }
-      // a docs commit that is gone (the goal branch was rewritten) is left out rather than failing the delivery
-      if (t.id.endsWith(':docs') && (await git(['cat-file', '-e', `${t.commitRef}^{commit}`], ctx.repoPath)).code !== 0) {
-        note(`the docs commit ${t.commitRef} is no longer in the repository; it is not delivered`);
+      // a docs or reference commit that is gone (the goal branch was rewritten) is left out rather than failing the delivery
+      if ((t.id.endsWith(':docs') || t.id.includes(':reference:')) && (await git(['cat-file', '-e', `${t.commitRef}^{commit}`], ctx.repoPath)).code !== 0) {
+        note(`the commit ${t.commitRef} (${t.title}) is no longer in the repository; it is not delivered`);
         continue;
       }
       // on top of the entry below as it is now (it may carry fix commits or a rebase), or the base for the first
@@ -402,7 +405,10 @@ async function runStacked(ctx: Ctx, stack: StackBranch[], step: StepFn, done: (o
       const results = taskCheckResults(ctx, b.task);
       const reviewNote = [...store.listByGoal(goal.id, 5000)].reverse().find((e) => e.type === 'review.task.finished' && (e.payload as any).taskId === b.task.id)?.payload as any;
       const bodyFile = bodyPath(ctx, `pr-${b.index}.md`);
-      writeFileSync(bodyFile, buildTaskPrBody(goal, b.task, { index: b.index, total: stack.length, goalTitle, prevPr: out[i - 1]?.number ?? null, prevBranch: i === 0 ? null : base }, results, reviewNote?.verdict?.summary ?? null));
+      // the reviewer's notes (what it would still fix, what it left as advice) and any blockers it raised at the time
+      const verdict = reviewNote?.verdict as { notes?: string; blockers?: string[] } | undefined;
+      const reviewText = verdict ? clip([verdict.notes, verdict.blockers?.length ? `Blockers at review time: ${verdict.blockers.join('; ')}` : null].filter(Boolean).join('\n')) || null : null;
+      writeFileSync(bodyFile, buildTaskPrBody(goal, b.task, { index: b.index, total: stack.length, goalTitle, prevPr: out[i - 1]?.number ?? null, prevBranch: i === 0 ? null : base }, results, reviewText));
       const created = await ctx.gh.prCreate(ctx.goalWs, { repo, head: b.branch, base, title: b.title, bodyFile });
       ev({ type: 'delivery.pr_opened', goalId: goal.id, payload: { number: created.number, url: created.url, base, head: b.branch, taskId: b.task.id, title: b.title } });
       out.push({ b, number: created.number, url: created.url });

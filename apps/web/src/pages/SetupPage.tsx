@@ -256,6 +256,16 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
         })} />
       </Card>
 
+      <Card title="Less code — Ponytail">
+        <p className="text-xs text-zinc-400 mb-3">
+          The lazy senior dev: before writing, a worker checks whether the code needs to exist, whether the repository, the standard library or an installed dependency already has it, and only then writes the smallest complete change. The planner plans the same way, and <span className="mono">ponytail-review</span> reviews each task and the whole goal (the code a change touches, not only the diff). Every goal has a Ponytail switch, on by default; TDD still decides how tests are written. The optional audit at the end of a goal uses <span className="mono">ponytail-audit</span>.
+        </p>
+        <BundleStatus provider={provider} bundle="ponytail" busy={busy} onInstall={() => runAction('bundle', async () => {
+          const r = await api.installBundle('ponytail');
+          return r.results.map((x) => `${x.action}: ${x.name} — ${x.detail}`).join('\n');
+        })} />
+      </Card>
+
       <p className="text-xs text-zinc-500">
         Design / image / video skill packs are chosen in <Link to={`/settings?provider=${provider}#skills`} className="underline">Settings → Skills</Link>; the full catalog and installed skills for this backend are managed on the <Link to={`/skills?provider=${provider}`} className="underline">Skills page</Link> (missing required skills also show up in the Checks above).
       </p>

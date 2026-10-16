@@ -354,6 +354,13 @@ export function SettingsPage() {
                   <option value="off">off</option>
                 </Select>
               </Field>
+              <Field label="Ponytail for new goals" aside={aside('workflow.ponytail')} help="on: workers write the smallest change that fully solves the task and reuse what the repository already has, the planner plans lean, and ponytail-review reviews tasks and the goal (TDD still decides how tests are written) · off: the Ponytail skills are never mentioned. Each goal has its own switch.">
+                <Select value={draft.workflow.ponytail} onChange={(e) => set('workflow.ponytail', e.target.value)}>
+                  <option value="on">on</option>
+                  <option value="off">off</option>
+                </Select>
+              </Field>
+              {bool('workflow.audit', 'Audit at the end of new goals', 'Once every task is done, ponytail-audit maps the finished branch and ranks what to fix; must-fix findings in the code the goal touched become fix tasks before the final review, the rest is listed for a follow-up. Chosen per goal at Brief approval.')}
               <Field label="Goal-level fix cycles" aside={aside('reviews.maxFixCycles')} help="How many review → fix-task rounds before the goal escalates to you (thorough pace only).">
                 {num('reviews.maxFixCycles', { min: 0, max: 5 })}
               </Field>
@@ -425,6 +432,12 @@ export function SettingsPage() {
               <Field label="Attempt timeout (minutes)" aside={aside('sessions.attemptTimeoutMin')} help="A session killed at this mark keeps what it committed; the attempt then continues or restarts.">
                 {num('sessions.attemptTimeoutMin', { min: 5, max: 240 })}
               </Field>
+              <Field label="Reference investigation: cost cap" aside={aside('workflow.investigationMaxCostUsd')} help="The session that studies a goal's reference app or site with REA before Clarify stops at this cost and writes up what it found so far.">
+                {num('workflow.investigationMaxCostUsd', { min: 0.5, max: 50, step: 0.5 })}
+              </Field>
+              <Field label="Reference investigation: minutes" aside={aside('workflow.investigationMaxMinutes')} help="Its time cap.">
+                {num('workflow.investigationMaxMinutes', { min: 5, max: 120 })}
+              </Field>
               <Field label="Continuations per attempt" aside={aside('sessions.maxContinuations')} help="How often one attempt may resume its own session (after a restart, a turn/cost cap, a timeout, or failing checks with progress) before a fresh attempt is started. Resuming keeps the session's context — far cheaper than starting over. 0 = always start fresh.">
                 {num('sessions.maxContinuations', { min: 0, max: 5 })}
               </Field>
@@ -458,6 +471,7 @@ export function SettingsPage() {
               </Field>}
             </>,
           )}
+          {bool('workflow.mcpDynamicTools', 'MCP tools that run or change things', 'Let sessions use the tools of allowed MCP servers that run or change things — for REA: launching the target app, attaching a debugger, touching a connected Android device. Off: static analysis only (binaries, apps, packages, websites, captures).')}
           {bool('workflow.autoskills', 'autoskills per goal', 'After the Brief is approved, run `npx autoskills` in the goal workspace to install skills matching the repository’s stack (needs Node ≥ 22). Uses .claude/skills for Claude and .agents/skills for Codex. The generated CLAUDE.md is restored and the skills are git-excluded.')}
           <div>
             <div className="flex items-center gap-2 mb-1.5">

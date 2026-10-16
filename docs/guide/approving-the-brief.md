@@ -215,11 +215,16 @@ For a repository with several apps (a web app, an admin, an API…), **Several a
 
 **Use package.json** forgets these fields, or the list of apps, and goes back to reading `package.json`.
 
+## Reference
+
+When the goal was given a reference (see [Your first goal](./your-first-goal.md#reference)), this card lists it and what REA found: a summary, the report among the attachments, and the document committed under `docs/reference/`. While the investigation runs, the card says so. **Investigate again** studies the reference once more and replaces the report; the Brief itself changes only with **Re-run Clarify**, which investigates again first. A failed or skipped investigation says why; the Brief was then written without it.
+
 ## Completion
 
 **Completion** (Expert view only) says what runs by itself when the goal finishes. The defaults follow the kind of work; change them here.
 
 - **Refresh the knowledge graph**: updates the code map some tools use, after delivery.
+- **Audit the repository at the end**: once every task is done, `ponytail-audit` maps the finished branch and ranks what to fix. Must-fix findings in the code this goal touched become fix tasks before the final review; the rest is listed on the goal page, where **Follow-up with the rest** starts a goal for them. Off by default (Settings has the default for new goals); needs the Ponytail skills and budget left on the goal.
 - Document chips: **PRD** (what was asked and what was built), **README update**, **Changelog**, **Confirmation sheet** (for someone else to confirm the decisions). Click a chip to switch it on or off.
 
 Documents are written after the final review passes and saved on the goal's branch, so they ship with the work. Claude has a $3 session cap for this; Codex uses ChatGPT quota without a USD cap. More in [Getting the result](./getting-the-result.md#completion-extras).

@@ -9,6 +9,7 @@ import type { Engine } from '../engine.ts';
 import { diff } from '../git/git.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from '../guards/boundary.ts';
 import { reviewDiffDir } from '../workspace.ts';
+import { resolveDiscipline } from '../skills/workflow.ts';
 
 /**
  * Task-level lightweight review: cheap model, diff + spec only, blockers only.
@@ -154,7 +155,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
     .map((c) => (c.spec.type === 'reviewer' ? `- ${c.name}: ${c.spec.rubric}` : ''))
     .filter(Boolean)
     .join('\n');
-  const reviewerHint = await engine.skillsFor(goal).hints.sectionFor('reviewer-task', { scenario: task.scenario });
+  const reviewerHint = await engine.skillsFor(goal).hints.sectionFor('reviewer-task', { scenario: task.scenario, discipline: resolveDiscipline(goal, task) });
   const media =
     task.scenario === 'image'
       ? `# Media review\nThe artifacts themselves are the deliverable and they are NOT in the diff (the \`artifacts/\` folder is kept out of git). Read the task's manifest (\`docs/artifacts/…\` in the diff), then open each listed image under \`artifacts/\` with the Read tool — it renders images — and judge what you see against the task and rubric. An artifact listed in the manifest but missing on disk, or clearly not matching its description, is a blocker.`

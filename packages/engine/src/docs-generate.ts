@@ -11,7 +11,7 @@ import { getBrief, getGoal, renderDecisions } from '@foundry/core';
 import type { Engine } from './engine.ts';
 import { repoSlug } from './delivery/policy.ts';
 import { commitStaged, git, gitOk, headRef, removeWorktree } from './git/git.ts';
-import { workerTools, boundarySettings } from './guards/boundary.ts';
+import { boundarySettings } from './guards/boundary.ts';
 import { docsWorkspacePath, goalWorkspacePath } from './workspace.ts';
 import { metaFor, modelFor } from './models/roles.ts';
 
@@ -63,7 +63,7 @@ export async function runDocsGeneration(engine: Engine, goalIn: Goal, opts: { re
       maxTurns: 50,
       maxBudgetUsd: DOCS_MAX_BUDGET_USD,
       permissionMode: 'dontAsk',
-      allowedTools: workerTools(engine.mcpAllowedFor(goal)),
+      ...engine.workerToolPolicy(goal),
       appendSystemPromptFile: engine.roles.path('documenter'),
       settings: boundarySettings(config.hooksDir),
       settingSources: config.settingSources,

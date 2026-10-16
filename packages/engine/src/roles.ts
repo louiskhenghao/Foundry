@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export type RoleName = 'clarifier' | 'planner' | 'worker' | 'reviewer-task' | 'reviewer-goal' | 'merger' | 'documenter' | 'feedback';
+export type RoleName = 'clarifier' | 'planner' | 'worker' | 'reviewer-task' | 'reviewer-goal' | 'merger' | 'documenter' | 'feedback' | 'auditor';
 
 export class Roles {
   constructor(private dir: string) {}
