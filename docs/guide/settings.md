@@ -112,7 +112,7 @@ Under **Preset per goal type** you pick which preset each kind of goal uses:
 
 | Goal type | Used for | Default |
 |---|---|---|
-| **Code** | software goals, and goals not yet classified | Production |
+| **Code** | software and CAD goals, and goals not yet classified | Production |
 | **Docs & research** | documents and cited research reports | Balanced |
 | **Media** | image and video goals | Balanced |
 
@@ -292,6 +292,7 @@ Turn off what you do not want. The switches apply to every channel alike.
 
 - **Extra boundary patterns**: commands Foundry must never let a session run on its own, on top of the built-in ones (pushes, pull requests, releases, publishing, deploys, cloud tools), for example `terraform apply|kubectl`. A blocked command comes to your Inbox for approval.
 - **Folder browser roots**: which folders the **Select folder…** picker may open. Empty means your home folder and external drives.
+- **Desktop apps & printers**: off by default. On, sessions may open desktop apps and hand files to printers on this computer — text-to-cad's Bambu hand-off (Bambu Connect, Bambu Studio), `open …`, `xdg-open`, the slicers' windows. Off, the boundary guard refuses those commands and the hand-off skill (Foundry does not point sessions at it either); headless slicing, preflight reports and part lookups still work. A refused command comes to your Inbox, where you can run it once yourself; a refused skill is noted on the goal page and the work goes on without it.
 
 ## Engine (install)
 

@@ -144,7 +144,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
   const open = e.state === 'open';
   const Icon = TRIGGER_ICON[e.trigger] ?? AlertTriangle;
   const tone = e.trigger === 'milestone' ? TONE.look : e.trigger === 'budget_exceeded' || e.trigger === 'boundary_action' ? TONE.ask : TONE.stop;
-  const plain = kind === 'merge' ? 'Two pieces of work changed the same files and the automatic merge could not combine them.' : kind === 'engine' ? 'The engine itself hit an error (not the model).' : (PLAIN[e.trigger] ?? '');
+  const plain = kind === 'merge' ? 'Two pieces of work changed the same files and the automatic merge could not combine them.' : kind === 'engine' ? 'The engine itself hit an error (not the model).' : kind === 'desktop' ? 'It wants to open a desktop app or hand a file to a printer on this computer (Settings → Safety → Desktop apps & printers is off) and needs your OK.' : (PLAIN[e.trigger] ?? '');
   const choices = actions.filter((a) => a !== 'resolve_manually' && a !== 'feedback');
   const label = (a: EscalationAction) => (a === 'skip_task' && !e.taskId ? 'Accept as-is (finish goal)' : ACTION_LABEL[a]);
   const variant = (a: EscalationAction) => (a === 'abort_goal' || a === 'deny' ? 'danger' : a === 'retry_with_hint' || a === 'approve' || a === 'raise_budget' || a === 'retry_delivery' ? 'primary' : 'default');
@@ -156,7 +156,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
           <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-md', open ? tone.icon : 'bg-zinc-800 text-zinc-400')}>
             <Icon size={13} aria-hidden="true" />
           </span>
-          <span className="text-sm font-semibold text-zinc-100">{TRIGGER_LABEL[e.trigger] ?? e.trigger}</span>
+          <span className="text-sm font-semibold text-zinc-100">{kind === 'desktop' ? 'Wants to open a desktop app' : (TRIGGER_LABEL[e.trigger] ?? e.trigger)}</span>
           <Badge state={e.state} />
           {kind === 'merge' && <Badge state="warn">merge conflict</Badge>}
           {e.provider && <ProviderBadge provider={e.provider} />}

@@ -1,8 +1,8 @@
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Attachment } from '@foundry/core/browser';
-import { BUDGET_PRESETS } from '@foundry/core/browser';
+import { ARTIFACT_NATURES, BUDGET_PRESETS } from '@foundry/core/browser';
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { CornerDownRight, X } from 'lucide-react';
 import { ACTION_INFO, CODEX_MODEL_ACTIONS, effectiveCodexPresets, effectivePresets, natureKey, type CodexModelPreset, type ModelNature, type ModelPreset } from '@foundry/core/browser';
 import { api, type AccountsInfo, type AgentProvider, type FollowUpDraft, type GoalRow, type ModelRecordView, type RepoInfo } from '../api.ts';
@@ -19,7 +19,7 @@ const DELIVERY_KEY = 'foundry.delivery';
 const BUDGET_KEY = 'foundry.budget';
 const NATURE_KEY = 'foundry.nature';
 
-type Nature = 'auto' | 'code' | 'docs' | 'research' | 'image' | 'video';
+type Nature = 'auto' | 'code' | 'docs' | 'research' | 'image' | 'video' | 'cad';
 const NATURES: { id: Nature; label: string; text: string }[] = [
   { id: 'auto', label: 'Auto', text: 'The system reads your description and decides.' },
   { id: 'code', label: 'Code', text: 'Software: features, fixes, whole apps.' },
@@ -27,6 +27,7 @@ const NATURES: { id: Nature; label: string; text: string }[] = [
   { id: 'research', label: 'Research', text: 'An investigation ending in a cited report.' },
   { id: 'image', label: 'Images', text: 'Posters, logos, illustrations.' },
   { id: 'video', label: 'Video', text: 'Generated video or narrated presentations.' },
+  { id: 'cad', label: 'CAD', text: '3D parts and assemblies (STEP), drawings, DXF profiles, robot files.' },
 ];
 /** the browser remembers the finer delivery options; mode and unit always start from Settings → New goal defaults */
 function loadDraft(): PolicyDraft {
@@ -92,6 +93,12 @@ export function NewGoalPage() {
   const [presetInfo, setPresetInfo] = useState<{ ids: { id: string; label: string }[]; picks: Record<ModelNature, string> } | null>(null);
   const [codexPresetInfo, setCodexPresetInfo] = useState<{ ids: { id: string; label: string }[]; picks: Record<ModelNature, string>; presets: Record<string, CodexModelPreset> } | null>(null);
   useEffect(() => localStorage.setItem(NATURE_KEY, nature), [nature]);
+  // the cad tile says when text-to-cad is missing for this coding agent (a cad goal waits for it before Clarify)
+  const [cad, setCad] = useState<{ installed: boolean; uv: boolean } | null>(null);
+  useEffect(() => {
+    setCad(null);
+    void api.cad(provider).then(setCad).catch(() => setCad(null));
+  }, [provider]);
   const [mode, setModeState] = useState<'simple' | 'expert'>('expert');
   const [tdd, setTddState] = useState<'required' | 'preferred' | 'off'>('required');
   const [ponytail, setPonytailState] = useState<'on' | 'off'>('on');
@@ -268,7 +275,7 @@ export function NewGoalPage() {
         // fast: let the engine default the TDD mandate off instead of pinning it here
         workflow: pace === 'fast' ? { pace, ponytail } : { pace, tdd: mode === 'simple' ? 'preferred' : tdd, ponytail },
         nature,
-        outputDir: (nature === 'image' || nature === 'video') && outputDir.trim() ? outputDir.trim() : undefined,
+        outputDir: ARTIFACT_NATURES.includes(nature) && outputDir.trim() ? outputDir.trim() : undefined,
         interviewDepth: Number(interviewDepth),
         effort: effort || (provider === 'codex' ? null : undefined),
         modelPreset: (provider === 'codex' ? codexPreset : modelPreset) || undefined,
@@ -330,8 +337,8 @@ export function NewGoalPage() {
               type="button"
               onClick={() => {
                 setNature(n.id);
-                // anyone-facing default: prose/media goals open in the plain-language view
-                if (n.id !== 'code' && n.id !== 'auto') setMode('simple');
+                // anyone-facing default: prose/media goals open in the plain-language view (cad is code work and keeps the default)
+                if (n.id !== 'code' && n.id !== 'auto' && n.id !== 'cad') setMode('simple');
                 // media deliverables are judged by eye — default to fast (no engine AI reviews) unless the human chose a pace
                 if (!paceTouched.current) setPace(n.id === 'image' || n.id === 'video' ? 'fast' : basePace.current);
               }}
@@ -343,7 +350,12 @@ export function NewGoalPage() {
             </button>
           ))}
         </div>
-        {(nature === 'image' || nature === 'video') && (
+        {nature === 'cad' && cad && !cad.installed && (
+          <p className="mt-2 text-xs text-amber-300" role="status">
+            text-to-cad is not installed for this coding agent: a CAD goal waits for it before Clarify. Install it on the <Link to={`/setup?provider=${provider}`} className="underline">Setup page</Link> (3D models){cad.uv ? '' : '; uv, which runs its CAD kernel, is missing too'}.
+          </p>
+        )}
+        {ARTIFACT_NATURES.includes(nature) && (
           <div className="mt-3">
             <label className="text-xs text-zinc-400">Output folder — the finished files are copied here when the goal completes (optional; otherwise they stay in the goal's workspace)</label>
             <div className="flex gap-2 mt-1">
@@ -434,7 +446,7 @@ export function NewGoalPage() {
         {missingPreset && <p role="alert" className="mt-3 text-xs text-amber-300">The earlier goal’s preset “{selectedPreset}” is no longer available. Choose a preset for this new goal.</p>}
         {provider === 'codex' && <div className="mt-4 space-y-3 rounded-md border border-zinc-800 p-3">
           <p className="text-xs text-zinc-400">This goal captures its Codex preset and fallback order when created. An explicit effort above overrides every role; Default uses each role’s preset.</p>
-          {nature === 'auto' && !codexPreset && <p className="text-xs text-zinc-400">Auto captures the defaults for every goal type. The preview shows Code roles until classification; the inferred type uses its captured Code, Docs & research or Media table.</p>}
+          {nature === 'auto' && !codexPreset && <p className="text-xs text-zinc-400">Auto captures the defaults for every goal type. The preview shows Code roles until classification; the inferred type uses its captured Code (software and CAD), Docs & research or Media table.</p>}
           <label className="flex items-start gap-2 text-xs text-zinc-300"><input type="checkbox" className="accent-emerald-500 mt-0.5" checked={codexOverride} onChange={(e) => setCodexOverride(e.target.checked)} />Use one model for every role in this goal</label>
           {codexOverride && <div className="max-w-lg"><CodexModelSelect label="Codex goal model override" known={codexKnown} value={codexModel} defaultLabel="CLI default model" onChange={(value) => { changed.current.add('codexModel'); setCodexModel(value); }} /><p className="text-[11px] text-zinc-500 mt-1">This replaces each role’s model while keeping its preset effort unless you choose a goal-wide effort. CLI default model follows your native Codex configuration.</p></div>}
           {codexPreview && <details className="text-xs"><summary className="cursor-pointer text-zinc-300">View {codexPreview.label} role assignments</summary><p className="text-zinc-500 mt-2">{codexPreview.description}</p><div className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5 mt-3">{CODEX_MODEL_ACTIONS.map((role) => { const choice = codexPreview.tables[natureKey(nature)][role]; const model = codexOverride || choice.model === 'codex-default' ? codexModel : choice.model; return <div key={role} className="flex justify-between gap-3 border-b border-zinc-800 py-1"><span className="text-zinc-400">{role === 'housekeeping' ? 'Housekeeping' : ACTION_INFO[role].label}</span><span className="text-right mono text-zinc-300">{model === 'codex-default' ? 'CLI default model' : model} · {effort || choice.effort || 'CLI effort'}</span></div>; })}</div></details>}

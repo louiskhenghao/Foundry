@@ -89,7 +89,7 @@ A Continuation sends only `continuationMessage(reason)` into the resumed session
 
 **Drives** a blockers-only review of one Task's cumulative diff (task base ref → HEAD). Up to 20k characters are pasted (`fitDiff`): whole files in git's order while they fit, then the first part of the next one, cut at a line boundary and marked. A longer diff is also saved whole to `<internal>/review/task-diff-<attemptId>.patch`, and the prompt lists every changed file with how much of it is pasted, so a file past the cut is read rather than reported as incomplete or missing. It runs only after every Must command Check passed, and only when the task has reviewer-type Checks or `alwaysReviewTasks` is on and the goal's pace is not `fast`.
 
-**Input:** the task and its spec, the reviewer-check rubric, the chosen Style (UI and media scenarios), a media review section for `image` / `video`, the reviewer skill hint, the **Workflow** observation (which mandated skills the worker did or did not invoke, from `formatWorkflowObservation`), and the diff.
+**Input:** the task and its spec, the reviewer-check rubric, the chosen Style (UI and media scenarios), a media review section for `image` / `video` and a CAD review section for `cad`, the reviewer skill hint, the **Workflow** observation (which mandated skills the worker did or did not invoke, from `formatWorkflowObservation`), and the diff.
 
 **Output:** `ReviewerVerdict` (`core/src/schema/observation.ts`). A missing verdict after the nudge turn marks the reviewer checks `skipped`, and the objective Checks decide. It runs with 20 turns and $0.80, and the nudge gets 2 turns and $0.20.
 

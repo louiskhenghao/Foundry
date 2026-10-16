@@ -71,13 +71,16 @@ export type GoalMode = z.infer<typeof GoalMode>;
 
 /**
  * What kind of thing the goal produces. Drives the Clarify prompt (no tech-stack question for prose,
- * artifact conventions for media), the default view (non-code goals open Simple) and completion defaults.
+ * artifact conventions for media and CAD), the default view (prose and media goals open Simple; cad, code work with a
+ * geometry kernel, keeps the default) and completion defaults.
  * `auto` = the user did not say; the Clarifier decides from the prompt and the engine records its verdict.
  */
-export const GoalNature = z.enum(['auto', 'code', 'docs', 'research', 'image', 'video']);
+export const GoalNature = z.enum(['auto', 'code', 'docs', 'research', 'image', 'video', 'cad']);
 export type GoalNature = z.infer<typeof GoalNature>;
-/** natures whose artifacts are media files (kept out of git, delivered to the output folder at done) */
+/** natures judged by eye: the fast pace by default, image tools writing into artifacts/ (delivery reads ARTIFACT_NATURES) */
 export const MEDIA_NATURES: GoalNature[] = ['image', 'video'];
+/** natures whose deliverables are files under artifacts/ (kept out of git, delivered to the output folder) */
+export const ARTIFACT_NATURES: GoalNature[] = ['image', 'video', 'cad'];
 
 /** How hard the engine pushes a discipline: required = MUST + noted when skipped; preferred = suggested only; off = not mentioned. */
 export const Discipline = z.enum(['required', 'preferred', 'off']);

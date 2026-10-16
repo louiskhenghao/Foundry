@@ -67,6 +67,8 @@ export interface EngineConfig {
   attemptMaxCostUsd: number;
   /** Extra ERE patterns for the boundary guard, '|'-separated. */
   extraBoundaryPatterns?: string;
+  /** Sessions may open desktop apps and hand files to printers (Settings → Safety → Desktop apps & printers). */
+  desktopApps: boolean;
   /** Use graphify for relevant-file discovery when available. */
   useGraphify: boolean;
   /** Run the lightweight task reviewer even when the task has no explicit reviewer check. */
@@ -202,6 +204,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     workflowPonytail: process.env.FOUNDRY_PONYTAIL === 'off' ? 'off' : 'on',
     workflowAudit: process.env.FOUNDRY_AUDIT === '1' || process.env.FOUNDRY_AUDIT === 'true',
     mcpDynamicTools: process.env.FOUNDRY_MCP_DYNAMIC_TOOLS === '1' || process.env.FOUNDRY_MCP_DYNAMIC_TOOLS === 'true',
+    desktopApps: process.env.FOUNDRY_DESKTOP_APPS === '1' || process.env.FOUNDRY_DESKTOP_APPS === 'true',
     investigationMaxCostUsd: Number(process.env.FOUNDRY_INVESTIGATION_MAX_COST ?? 3) || 3,
     investigationMaxMinutes: Number(process.env.FOUNDRY_INVESTIGATION_MAX_MINUTES ?? 20) || 20,
     defaultGoalMode: process.env.FOUNDRY_GOAL_MODE === 'simple' ? 'simple' : 'expert',

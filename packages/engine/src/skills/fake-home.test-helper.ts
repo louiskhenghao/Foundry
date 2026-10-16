@@ -7,6 +7,20 @@ export function skillMd(name: string, description = `${name} does things`, extra
   return `---\nname: ${name}\ndescription: ${description}\n${extra}---\n\n# ${name}\n`;
 }
 
+/** text-to-cad as Claude Code installs it: the plugin registry row and the plugin folder with its manifest, MCP config and skills; returns the folder */
+export function fakeCadPlugin(claudeHome: string, skills: string[] = ['cad', 'dxf', 'bambu-labs']): string {
+  const root = join(claudeHome, 'plugins', 'cache', 'earthtojake', 'text-to-cad', '0.7.21');
+  mkdirSync(join(root, '.claude-plugin'), { recursive: true });
+  writeFileSync(join(root, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'text-to-cad', skills: './skills/', mcpServers: './claude.mcp.json' }));
+  writeFileSync(join(root, 'claude.mcp.json'), JSON.stringify({ mcpServers: { cad: { command: 'uvx', args: ['--no-config', '--from', 'cadgen==0.7.21', 'cadgen', 'mcp'], env: { CADGEN_INSTALL_CHANNEL: 'claude' } } } }));
+  for (const s of skills) {
+    mkdirSync(join(root, 'skills', s), { recursive: true });
+    writeFileSync(join(root, 'skills', s, 'SKILL.md'), skillMd(s, `${s} from text-to-cad`));
+  }
+  writeFileSync(join(claudeHome, 'plugins', 'installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'text-to-cad@earthtojake': [{ scope: 'user', installPath: root, version: '0.7.21' }] } }));
+  return root;
+}
+
 export interface FakeHome {
   home: string;
   claudeHome: string;

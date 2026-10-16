@@ -138,14 +138,14 @@ You can change the mode at any time on the Delivery tab:
 - A goal that is still running: pick the new mode and press **Save (runs when the goal is done)**.
 - A goal whose delivery already started: see [Delivery settings](#the-delivery-tab) above (**Save**, **Resume delivery**, **Start over…**).
 
-## Media goals and the output folder
+## Media and CAD goals and the output folder
 
-Image and video goals produce files, not code. Those files are never added to git; the branch only records a list of them (what each file shows and how it was made).
+Image, video and CAD goals produce files, not only code. Those files are never added to git; the branch only records a list of them (what each file shows and how it was made). A CAD goal commits the model's source (a build123d Python script, where the repository keeps such things) and keeps the exports out of git: the STEP file, the other formats you asked for, and the front, top, right and isometric snapshots the review reads.
 
 - If you chose an **Output folder** on the New goal form, the finished files are copied there when the goal is done. The Result card says "N file(s) are in … — open the folder and have a look."
 - Without an output folder they stay in the `artifacts` folder inside the progress folder. Use **Open ▾** to get there.
 
-While the goal runs, milestone cards show the files produced so far.
+While the goal runs, milestone cards show the files produced so far. A CAD goal's preview card also lists **CAD Viewer**, text-to-cad's own viewer: press its **Start** to open the models in the browser (it opens on its home with the recent models; the walkthroughs never start it by themselves).
 
 ## Completion extras
 

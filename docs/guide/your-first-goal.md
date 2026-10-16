@@ -43,6 +43,8 @@ When everything needed is in place the page says **Everything is in place** and 
 
 The card **Development workflow — Matt Pocock's engineering skills** lists the skills Foundry's workers follow (for example writing tests first). If some are missing, press **Install N missing**. The bundle contains eight current upstream skills. The removed `resolving-merge-conflicts` skill is no longer requested; Foundry’s built-in Merger instructions still handle conflicts.
 
+The card **3D models — text-to-cad (CAD)** installs the plugin behind **CAD** goals: its skills (parts and assemblies, drawings, DXF, robot files, printability and manufacturability checks, headless slicing) and a `cad` viewer server, from earthtojake/text-to-cad (MIT). The install adds the plugin for the selected coding agent, allows its server for sessions and downloads the CAD runtime once (Python 3.13 and OpenCASCADE, a few hundred MB, through uv), with the progress shown under the card; it runs in the background, so the page can be left meanwhile. The **CAD tools** check above says whether uv is on this computer and which slicer or printer apps were found; hand-offs to those apps stay off until **Settings → Safety → Desktop apps & printers** is on. Foundry's sessions run cadgen with usage statistics and update checks off; your own use of text-to-cad keeps its settings.
+
 ### Pick a repository folder
 
 Foundry works in a *repository*: a project folder that git keeps history for. You do not need to know git. What matters:
@@ -71,10 +73,13 @@ Pick what the goal produces. If you are not sure, leave it on **Auto**.
 | **Research** | An investigation ending in a report with sources. |
 | **Images** | Posters, logos, illustrations. |
 | **Video** | Generated video or narrated presentations. |
+| **CAD** | 3D parts and assemblies (STEP, and STL, 3MF or GLB on request), engineering drawings, DXF cut profiles, URDF/SRDF/SDF robot files. Needs text-to-cad, installed on the Setup page. |
 
-Picking **Documents**, **Research**, **Images** or **Video** switches the view to **Simple**. Picking **Images** or **Video** also ticks **Fast mode**, unless you already changed it yourself.
+Picking **Documents**, **Research**, **Images** or **Video** switches the view to **Simple**. Picking **Images** or **Video** also ticks **Fast mode**, unless you already changed it yourself. **CAD** keeps your defaults: it is code work with a geometry kernel, so the Brief's checks matter; its TDD mandate is *preferred* (the geometry checks are written before the model) and Ponytail applies.
 
-For **Images** and **Video** a field appears: **Output folder**. When the goal finishes, the finished files are copied there. Press **Choose…** to pick a folder. It is optional; without it the files stay in the progress folder. Image goals also need an image key, see [Costs and usage](./costs-and-usage.md#image-goals-need-an-image-key).
+For **Images**, **Video** and **CAD** a field appears: **Output folder**. When the goal finishes, the finished files are copied there. Press **Choose…** to pick a folder. It is optional; without it the files stay in the progress folder. Image goals also need an image key, see [Costs and usage](./costs-and-usage.md#image-goals-need-an-image-key).
+
+A **CAD** goal needs the text-to-cad plugin for the coding agent you picked. The tile says when it is missing; the goal still saves, and waits on its page, with an **Install text-to-cad** button, until the plugin is in (the Setup page has the same install, with uv and slicer detection). Without the plugin, **Auto** never judges a goal to be CAD: it is treated as code work.
 
 ### How much do you want to see
 

@@ -21,6 +21,7 @@ You are executing one Task of a larger Goal inside an isolated git workspace man
 
 - **Writing / research** (scenario `docs` / `research`): the deliverable is committed prose. "Match the codebase" here means match the repository's existing documents; test-suite habits do not apply. Research: cite a source for every claim, where the claim is made.
 - **Media** (scenario `image` / `video`): generated files go to `artifacts/` (kept out of git; the engine delivers them when the goal finishes) and the manifest named in your spec (`docs/artifacts/…`) is the committed record — every artifact listed with its prompt/parameters. Invoke the media skill marked MUST before generating; iterate on the weakest artifact, not by regenerating everything.
+- **CAD** (scenario `cad`): the model's source (build123d Python) is committed where the repository keeps it; its exports (STEP always, other formats when asked) and the front, top, right and isometric snapshots of every deliverable go to `artifacts/` (kept out of git; delivered when the goal finishes) and are listed in the manifest named in your spec. Write the geometry checks before the model; MUST invoke the `cad` skill first. Never open a desktop app or send a file to a printer.
 
 ## Context economy
 

@@ -177,6 +177,8 @@ export type NotificationSettings = z.infer<typeof NotificationSettings>;
 export const SafetySettings = z.object({
   /** extra ERE patterns for the boundary guard, '|'-separated */
   extraBoundaryPatterns: z.string().nullable().default(null),
+  /** sessions may open desktop apps and hand files to printers (text-to-cad's Bambu hand-off, `open -a …`); off = hidden and blocked */
+  desktopApps: z.boolean().default(false),
   /** roots the folder browser may enter; null = home + /Volumes */
   allowedRoots: z.array(z.string()).nullable().default(null),
 });

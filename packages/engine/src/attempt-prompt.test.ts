@@ -76,3 +76,14 @@ test('a goal with a reference tells the worker where the report is and the rules
   expect(p).toContain('never copy proprietary code');
   expect(buildAttemptPrompt(base)).not.toContain('# Reference');
 });
+
+test('a cad task gets the CAD conventions (source in the repository, exports and snapshots in artifacts/) and no style direction', () => {
+  const { styleApplies } = require('./attempt-prompt.ts') as typeof import('./attempt-prompt.ts');
+  const p = buildAttemptPrompt({ ...base, task: { title: 'T', spec: 'a bracket', relevantFiles: [], scenario: 'cad' } as any });
+  expect(p).toContain('# CAD conventions');
+  expect(p).toContain('snapshots');
+  expect(p).not.toContain('# Media conventions');
+  expect(p.indexOf('# CAD conventions')).toBeLessThan(p.indexOf('# How to work'));
+  expect(styleApplies('cad')).toBe(false);
+  expect(styleApplies('image')).toBe(true);
+});

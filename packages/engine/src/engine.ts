@@ -3,8 +3,8 @@ import { CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, Effort, effectiveCodexPre
 import { CodexPlugins } from './plugins/codex-plugins.ts';
 import { CodexQuotaReader } from './usage/codex-quota.ts';
 import { discoverCodexModels } from './models/codex-discover.ts';
-import { dirname, join } from 'node:path';
-import type { Attachment, Brief, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalWorkflow, ModelConfig, Task, Check } from '@foundry/core';
+import { basename, dirname, join } from 'node:path';
+import type { Attachment, Brief, BriefApp, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalWorkflow, ModelConfig, Task, Check } from '@foundry/core';
 import {
   BUDGET_PRESETS,
   Budgets,
@@ -62,6 +62,7 @@ import { needsInvestigation } from './references.ts';
 import { MILESTONE_CHECK_PREFIX, milestoneCheckSpec } from './checks/milestone-script.ts';
 import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
+import { SATISFIED } from './skills/catalog.ts';
 import { UpdateManager } from './update/updater.ts';
 import { AgentsMonitor, type FoundryLiveSession } from './agents/monitor.ts';
 import { ClaudeAuth } from './auth/claude-auth.ts';
@@ -74,7 +75,7 @@ import type { StreamEvent, StreamListener } from './types.ts';
 import { ARTIFACTS_DIR, defaultWorkspaceDir, deliveryWorkspacePath, dropTaskWorkspace, ensureGoalWorkspace, goalWorkspacePath, internalWorkspaceDir, listStackBranches, previewWorkspacePath } from './workspace.ts';
 import { transferGoalDir } from './transfer/paths.ts';
 import { relocateLegacyWorkspaces } from './workspace-migrate.ts';
-import { PreviewManager } from './preview/manager.ts';
+import { CAD_VIEWER_KEY, PreviewManager } from './preview/manager.ts';
 import { ensureSelfCheck, playwrightInstallCommand, playwrightStatus, runSelfCheck } from './checks/selfcheck.ts';
 import { afterMerge, type AfterMergeOptions } from './delivery/after-merge.ts';
 import { startOver, structuralChanges } from './delivery/start-over.ts';
@@ -103,6 +104,9 @@ import { Tailnet } from './notify/tailnet.ts';
 import { SessionCosts } from './session-costs.ts';
 import { CODE_SERVER_INSTALL, CodeServer } from './editor/code-server.ts';
 import { workerTools } from './guards/boundary.ts';
+import { DESKTOP_APPS_PATTERNS, SLICER_APP_PATTERNS, SLICER_HEADLESS_PATTERNS } from './guards/patterns.ts';
+import { pluginServerPrefix } from './mcp/servers.ts';
+import { serverBaseArgs } from './skills/installer.ts';
 
 export interface CreateGoalInput {
   provider?: 'claude' | 'codex';
@@ -141,7 +145,7 @@ export interface CreateGoalInput {
   mode?: GoalMode;
   /** engineering discipline; Simple mode defaults tdd to `preferred`, Expert to the Settings default */
   workflow?: Partial<GoalWorkflow>;
-  /** what the goal produces; auto (default) = the Clarifier decides. Non-code goals open in Simple mode unless mode says otherwise. */
+  /** what the goal produces; auto (default) = the Clarifier decides. Prose and media goals open in Simple mode unless mode says otherwise; cad keeps the default view. */
   nature?: GoalNature;
   /** where media artifacts are copied at done; null = they stay in the goal workspace */
   outputDir?: string | null;
@@ -350,6 +354,14 @@ export class Engine {
       hintsEnabled: () => provider === 'codex' || !config.settingSources || config.settingSources.includes('user'),
       workflowProfile: () => config.workflowProfile ?? 'mattpocock',
       packs: () => ({ design: config.designPack, image: config.imagePack, video: config.videoPack }),
+      // a plugin that ships MCP servers (text-to-cad's `cad`) is allowed for sessions as soon as it is installed, under the prefix this coding agent gives it
+      onPluginServers: (prefixes) => {
+        for (const p of prefixes) this.mcpFor(provider).allow(p, true);
+      },
+      sessionEnv: () => this.sessionEnvExtra(),
+      gates: () => ({ desktopApps: this.config.desktopApps }),
+      // a cad goal that waited for text-to-cad goes on to Clarify once the plugin is in
+      onPluginInstalled: () => this.pluginInstalled(provider),
       // mmx signed in with `mmx auth login` needs no key from Foundry
       // `||`, not `??`: an empty variable in the engine's environment must not hide a key from Settings
       envProbe: (name) => !!(process.env[name] || this.sessionEnvExtra()[name]) || (name === 'MINIMAX_API_KEY' && mmxSignedIn()),
@@ -445,7 +457,76 @@ export class Engine {
       ...(this.minimaxKey() ? { MINIMAX_API_KEY: this.minimaxKey()!, ...(this.mmxReady ? { MMX_CONFIG_DIR: mmxConfigDir(this.config.dataDir) } : {}) } : {}),
       ...(this.config.elevenlabsApiKey ? { ELEVENLABS_API_KEY: this.config.elevenlabsApiKey } : {}),
       ...(this.config.groqApiKey ? { GROQ_API_KEY: this.config.groqApiKey } : {}),
+      // text-to-cad's cadgen: no usage stats and no update check from Foundry's own processes (the person's setting stays theirs)
+      CADGEN_TELEMETRY: '0',
+      CADGEN_UPDATE_CHECK: '0',
+      // Settings → Safety → Desktop apps & printers: off = the boundary hook refuses the openers, the slicers' windows and the gated skills
+      ...(this.config.desktopApps ? {} : this.desktopGateEnv()),
     };
+  }
+
+  /** what the boundary hook needs while the switch is off: the openers, the slicers' programs with their headless switches, and the gated skills as ERE alternatives */
+  private desktopGateEnv(): Record<string, string> {
+    const denied = this.gatedSkills('desktopApps').map((n) => n.replace(/[^\w-]/g, '\\$&'));
+    return { FOUNDRY_DESKTOP_PATTERNS: DESKTOP_APPS_PATTERNS, FOUNDRY_SLICER_PATTERNS: SLICER_APP_PATTERNS, FOUNDRY_HEADLESS_PATTERNS: SLICER_HEADLESS_PATTERNS, ...(denied.length ? { FOUNDRY_DENIED_SKILLS: denied.join('|') } : {}) };
+  }
+
+  /**
+   * text-to-cad's viewer as a preview app of a cad goal, started by the person from the milestone or preview card: the
+   * plugin's own pinned cadgen command with `viewer` in place of `mcp`, on a preview port. Null without the plugin.
+   */
+  cadViewerApp(goal: Goal): BriefApp | null {
+    if (goal.nature !== 'cad') return null;
+    const server = this.skillsFor(goal).pluginServerCommand('text-to-cad', 'cad');
+    if (!server) return null;
+    // quoted for the preview manager's `sh -lc` where needed; the usual tokens stay bare, so the command reads well and {port} is substituted
+    const q = (a: string) => (/^[\w./:=@%+{}-]+$/.test(a) ? a : `'${a.replace(/'/g, `'\\''`)}'`);
+    return { key: CAD_VIEWER_KEY, name: 'CAD Viewer', dir: '', install: null, command: [server.command, ...serverBaseArgs(server.args), 'viewer', '--port', '{port}'].map(q).join(' '), url: 'http://localhost:{port}', platform: 'web' };
+  }
+
+  /** text-to-cad installed: the bundle's `cad` entry satisfied for a coding agent */
+  private static cadInstalled = (s: { entry: { bundle?: string | null; name: string }; status: string }) => s.entry.bundle === 'text-to-cad' && s.entry.name === 'cad' && (SATISFIED as readonly string[]).includes(s.status);
+  /** the answer per coding agent and repository, good for 10 s: a waiting goal's ticks and the pages' polls must not rescan the skills tree every time */
+  private cadMemo = new Map<string, { at: number; value: boolean }>();
+
+  /** text-to-cad installed for this goal's provider: the cad nature can be offered, classified and planned */
+  async cadAvailable(goal: Pick<Goal, 'provider' | 'repoPath'>): Promise<boolean> {
+    const provider = goal.provider ?? this.config.provider;
+    const key = `${provider}:${goal.repoPath}`;
+    const hit = this.cadMemo.get(key);
+    if (hit && Date.now() - hit.at < 10_000) return hit.value;
+    const statuses = await this.providerSkills[provider].status(goal.repoPath).catch(() => []);
+    const value = statuses.some(Engine.cadInstalled);
+    this.cadMemo.set(key, { at: Date.now(), value });
+    return value;
+  }
+
+  /**
+   * What the New goal form and a waiting goal's page ask: the plugin and uv, for a coding agent. A cad goal waiting for
+   * the plugin goes on when it turned up (installed by hand, say): the page asks while it waits.
+   */
+  async cadStatus(provider: 'claude' | 'codex'): Promise<{ installed: boolean; uv: boolean }> {
+    const installed = await this.cadAvailable({ provider, repoPath: '' });
+    if (installed) for (const id of this.cadWaiting) {
+      const g = getGoal(this.store.db, id);
+      if (g && (g.provider ?? this.config.provider) === provider) void this.tick(id);
+    }
+    return { installed, uv: !!(Bun.which('uvx') ?? Bun.which('uv')) };
+  }
+
+  /** a plugin was installed for this coding agent: forget what was known, and let the cad goals waiting for it go on to Clarify */
+  pluginInstalled(provider: 'claude' | 'codex'): void {
+    this.cadMemo.clear();
+    for (const g of listGoals(this.store.db)) if (g.state === 'clarifying' && g.nature === 'cad' && (g.provider ?? this.config.provider) === provider) void this.tick(g.id);
+  }
+
+  /** catalog skills behind a Settings switch (text-to-cad's Bambu hand-off), by name */
+  gatedSkills(gate: 'desktopApps'): string[] {
+    try {
+      return this.skills.catalog().entries.filter((e) => e.gate === gate).map((e) => e.name);
+    } catch {
+      return [];
+    }
   }
 
   /** the MiniMax key sessions get: Settings first, else the engine's own environment; undefined = mmx uses the user's ~/.mmx login */
@@ -1461,6 +1542,16 @@ export class Engine {
         return; // the human continues or gives feedback (escalation answer); nothing to schedule
       case 'clarifying': {
         if (this.clarifying.has(goalId)) return;
+        // a cad goal needs text-to-cad: it waits (the goal page offers the install) until the plugin is in
+        if (goal.nature === 'cad' && !(await this.cadAvailable(goal))) {
+          this.cadWaiting.add(goalId);
+          // one note per goal, across restarts: the store remembers it
+          if (!this.store.listByGoalOfTypes(goalId, ['engine.note']).some((e) => String((e.payload as { message?: string }).message ?? '').startsWith('text-to-cad is not installed'))) {
+            this.store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: 'text-to-cad is not installed for this coding agent: Clarify waits for it (Setup → 3D models, or the button on this page)' } });
+          }
+          return;
+        }
+        this.cadWaiting.delete(goalId);
         // a goal with references: REA studies them first, so the Brief is grounded in how they work
         if (needsInvestigation(goal)) {
           this.startInvestigation(goal);
@@ -1548,20 +1639,26 @@ export class Engine {
   mcpToolPolicy(provider: 'claude' | 'codex', allowed: readonly string[]): { allowed: string[]; denied: string[] | undefined; catalogUnreadable: boolean } {
     const servers = allowed.filter((p) => p.startsWith('mcp__'));
     if (this.config.mcpDynamicTools || !servers.length) return { allowed: [...allowed], denied: undefined, catalogUnreadable: false };
-    let entries: { name: string; denyTools: string[] }[];
+    let lists: { prefix: string; denyTools: string[] }[];
     try {
-      entries = this.mcpFor(provider).catalog().entries;
+      lists = [
+        ...this.mcpFor(provider).catalog().entries.map((e) => ({ prefix: `mcp__${e.name}`, denyTools: e.denyTools })),
+        // servers a catalog plugin ships (text-to-cad's `cad`) carry their deny list on the skills catalog, under the prefix this coding agent gives them
+        ...this.providerSkills[provider].catalog().entries.flatMap((e) => {
+          const src = e.source;
+          return src.type === 'plugin' ? src.mcpServers.map((s) => ({ prefix: pluginServerPrefix(provider, src.plugin, s.name), denyTools: s.denyTools })) : [];
+        }),
+      ];
     } catch (err) {
-      this.config.log(`[mcp] the catalog cannot be read (${String((err as Error).message ?? err)}): no MCP server reaches this session`);
+      this.config.log(`[mcp] a catalog cannot be read (${String((err as Error).message ?? err)}): no MCP server reaches this session`);
       return { allowed: allowed.filter((p) => !p.startsWith('mcp__')), denied: undefined, catalogUnreadable: true };
     }
     const denied: string[] = [];
-    for (const e of entries) {
-      const prefix = `mcp__${e.name}`;
-      if (!allowed.includes(prefix)) continue;
-      for (const t of e.denyTools) denied.push(`${prefix}__${t}`);
+    for (const e of lists) {
+      if (!allowed.includes(e.prefix)) continue;
+      for (const t of e.denyTools) denied.push(`${e.prefix}__${t}`);
     }
-    return { allowed: [...allowed], denied: denied.length ? denied : undefined, catalogUnreadable: false };
+    return { allowed: [...allowed], denied: denied.length ? [...new Set(denied)] : undefined, catalogUnreadable: false };
   }
 
   /** the tools to deny for these servers; undefined = nothing to deny (see mcpToolPolicy) */
@@ -1571,6 +1668,8 @@ export class Engine {
 
   /** goals already told that the MCP catalog is unreadable: one note each, not one per session */
   private catalogNoted = new Set<string>();
+  /** cad goals told once that they wait for text-to-cad */
+  private cadWaiting = new Set<string>();
 
   /** a worker session's tools: the base set plus the allowed MCP servers, minus the tools that run or change things */
   workerToolPolicy(goal: Goal): { allowedTools: string[]; disallowedTools: string[] | undefined } {
@@ -1578,7 +1677,7 @@ export class Engine {
     const policy = this.mcpToolPolicy(provider, this.mcpAllowedFor(goal));
     if (policy.catalogUnreadable && !this.catalogNoted.has(goal.id)) {
       this.catalogNoted.add(goal.id);
-      this.store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: 'the MCP catalog cannot be read, so no MCP server reaches the sessions of this goal (its deny lists cannot be applied); the Setup page has the details' } });
+      this.store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: 'the MCP catalog (or the skills catalog, which holds a plugin server\'s deny list) cannot be read, so no MCP server reaches the sessions of this goal; the Setup page has the details' } });
     }
     return { allowedTools: workerTools(policy.allowed), disallowedTools: policy.denied };
   }
@@ -1594,6 +1693,8 @@ export class Engine {
     if (!['claude', 'codex'].includes(provider)) throw new Error('Unknown coding agent');
     // the investigation runs before Clarify: a goal that skips Clarify has nowhere to learn from a reference
     if ((input.autoBrief || input.brief) && input.references?.some((r) => r.target.trim())) throw new Error('A goal that skips Clarify cannot learn from a reference: the investigation runs before Clarify.');
+    // a cad goal that skips Clarify skips the wait for text-to-cad too: refused here, not in paid attempts
+    if (input.nature === 'cad' && (input.autoBrief || input.brief) && !(await this.cadAvailable({ provider, repoPath: input.repoPath }))) throw new Error('text-to-cad is not installed for this coding agent: install it on the Setup page (3D models) before creating a CAD goal with a ready Brief.');
     const codexModel = input.codexModel?.trim() || this.config.codexModel;
     // an unknown preset would silently fall back to the Settings pick while the goal still shows the typo
     if (provider === 'codex' && input.models) throw new Error('Codex uses its own model presets, not Claude tiers.');
@@ -1630,8 +1731,8 @@ export class Engine {
       }
       for (const choice of Object.values(codexPreset.tables[natureKey(nature)])) this.validateCodexChoice(choice.model, (input.effort === undefined ? this.config.effort : input.effort) ?? choice.effort ?? undefined);
     }
-    // anyone-facing default: a goal that produces prose or media opens in the plain-language view
-    const mode: GoalMode = input.mode ?? (nature !== 'auto' && nature !== 'code' ? 'simple' : this.config.defaultGoalMode);
+    // anyone-facing default: prose and media goals open in the plain-language view; cad is code work with a geometry kernel and keeps the default
+    const mode: GoalMode = input.mode ?? (nature !== 'auto' && nature !== 'code' && nature !== 'cad' ? 'simple' : this.config.defaultGoalMode);
     const title = input.title?.trim() || input.prompt.trim().split('\n')[0]!.slice(0, 80);
     const goal: Goal = {
       provider,
@@ -1669,7 +1770,8 @@ export class Engine {
         // media goals default to fast: their deliverables are judged by the human's eye, not by $5 review sessions
         const pace = input.workflow?.pace ?? (MEDIA_NATURES.includes(nature) ? 'fast' : this.config.workflowPace);
         // fast goals run only what the Brief asks for: no TDD mandate unless the caller insists
-        return { pace, tdd: input.workflow?.tdd ?? (pace === 'fast' ? ('off' as const) : mode === 'simple' ? ('preferred' as const) : this.config.workflowTdd), ponytail: input.workflow?.ponytail ?? this.config.workflowPonytail };
+        // cad: geometry checks are the tests, written before the model — preferred, never forced
+        return { pace, tdd: input.workflow?.tdd ?? (pace === 'fast' ? ('off' as const) : mode === 'simple' || nature === 'cad' ? ('preferred' as const) : this.config.workflowTdd), ponytail: input.workflow?.ponytail ?? this.config.workflowPonytail };
       })(),
       models: provider === 'codex' ? { strong: codexPreset!.tables[natureKey(nature)].clarifier.model, cheap: codexPreset!.tables[natureKey(nature)].housekeeping.model, worker: codexPreset!.tables[natureKey(nature)].standard.model } : { ...this.config.models, ...(input.models ?? {}) },
       state: 'draft',
@@ -1858,7 +1960,27 @@ export class Engine {
       ? { id: 'notifications', label: 'Notifications (optional)', ok: true, severity: 'warn' as const, detail: `${notifChannels.join(' + ')} configured — you get pinged when a goal needs you, finishes, delivers, or usage pauses`, fix: null }
       : { id: 'notifications', label: 'Notifications (optional)', ok: false, severity: 'warn' as const, detail: 'not configured — get a Telegram or Discord ping when a goal needs you, finishes, or a delivery fails', fix: { url: '/settings' } };
     const rea = await this.reaEnginesCheck(provider);
-    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), ...await this.mcpFor(provider).doctorChecks()]);
+    const cad = await this.cadToolsCheck(provider);
+    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...await this.mcpFor(provider).doctorChecks()]);
+  }
+
+  /**
+   * text-to-cad's tools on this computer: uv, which runs cadgen (a problem only once the plugin is installed), and the
+   * desktop apps its hand-offs would open, which stay behind Settings → Safety → Desktop apps & printers.
+   */
+  private async cadToolsCheck(provider: 'claude' | 'codex') {
+    const statuses = await this.providerSkills[provider].status().catch(() => []);
+    const installed = statuses.some(Engine.cadInstalled);
+    const uv = Bun.which('uvx') ?? Bun.which('uv');
+    const apps = [
+      ...(['/Applications/OrcaSlicer.app', '/Applications/BambuStudio.app', '/Applications/Bambu Studio.app', '/Applications/Bambu Connect.app'].filter((p) => existsSync(p)).map((p) => basename(p, '.app'))),
+      ...(Bun.which('orca-slicer') ? ['orca-slicer'] : []),
+      ...(Bun.which('bambu-studio') ? ['bambu-studio'] : []),
+    ];
+    const appsNote = apps.length ? `${apps.join(', ')} found: hand-offs to them run only while Settings → Safety → Desktop apps & printers is on` : 'no slicer or printer app found (optional: OrcaSlicer, Bambu Studio, Bambu Connect)';
+    const label = 'CAD tools — text-to-cad (optional)';
+    if (uv) return { id: 'cad-tools', label, ok: true, severity: 'warn' as const, detail: `uv at ${uv} runs cadgen${installed ? '' : ' once text-to-cad is installed (Setup → 3D models)'}; ${appsNote}`, fix: null };
+    return { id: 'cad-tools', label, ok: !installed, severity: 'warn' as const, detail: `uv not found: cadgen, the CAD kernel behind text-to-cad's skills and its cad server, runs through uv${installed ? ' — the installed plugin cannot work without it' : ''}; ${appsNote}`, fix: { command: 'curl -LsSf https://astral.sh/uv/install.sh | sh', url: 'https://docs.astral.sh/uv/getting-started/installation/' } };
   }
 
   /**
@@ -2184,25 +2306,38 @@ export class Engine {
     return { deletedBranch };
   }
 
-  /** Called by the boundary hook (via the server) when a command was blocked. */
-  handleBoundaryCallback(attemptId: string | null, payload: any): void {
+  /**
+   * Called by the boundary hook (via the server) when a call was refused: a command that leaves the workspace, a command
+   * that opens a desktop app or hands a file to a printer (`desktop`), or a skill that does (`skill`). A refused skill
+   * is nothing a person could run on the agent's behalf: it is noted on the goal, not put in the Inbox.
+   */
+  handleBoundaryCallback(attemptId: string | null, payload: any, reason: string | null = null): void {
     const command = String(payload?.tool_input?.command ?? '');
+    const skill = String(payload?.tool_input?.skill ?? '');
     const attempt = attemptId ? getAttempt(this.store.db, attemptId) : null;
     const goalId = attempt?.goalId ?? null;
     if (!goalId) {
-      this.config.log(`[boundary] blocked command outside a known attempt: ${command}`);
+      this.config.log(`[boundary] blocked ${reason === 'skill' ? `skill ${skill}` : `command ${command}`} outside a known attempt`);
       return;
     }
     const goal = getGoal(this.store.db, goalId)!;
     const task = attempt ? getTask(this.store.db, attempt.taskId) : null;
-    this.store.append({ type: 'boundary.blocked', goalId, payload: { taskId: task?.id ?? null, attemptId, command } });
+    const agent = (goal.provider ?? this.config.provider) === 'codex' ? 'Codex' : 'Claude';
+    this.store.append({ type: 'boundary.blocked', goalId, payload: { taskId: task?.id ?? null, attemptId, command, ...(reason ? { reason } : {}), ...(skill ? { skill } : {}) } });
+    if (reason === 'skill') {
+      this.store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `${agent} asked for the skill ${skill}, which opens a desktop app or hands a file to a printer on this computer; it was refused and the work goes on without it. Settings → Safety → Desktop apps & printers opens it.` } });
+      return;
+    }
+    const desktop = reason === 'desktop';
     raiseEscalation(this, {
       goal,
       task: null,
       attemptId,
       trigger: 'boundary_action',
-      message: `${(goal.provider ?? this.config.provider) === 'codex' ? 'Codex' : 'Claude'} tried to run a command that leaves the local workspace while working on "${task?.title ?? '?'}":\n\n    ${command}\n\nIt was blocked. Approve to run it once on your behalf, or deny.`,
-      payload: { command, cwd: attempt?.cwd ?? null, taskId: task?.id ?? null },
+      message: desktop
+        ? `${agent} tried to open a desktop app or hand a file to a printer on this computer while working on "${task?.title ?? '?'}":\n\n    ${command}\n\nSettings → Safety → Desktop apps & printers is off, so it was blocked. Approve to run it once on your behalf (the app opens on this computer), or deny.`
+        : `${agent} tried to run a command that leaves the local workspace while working on "${task?.title ?? '?'}":\n\n    ${command}\n\nIt was blocked. Approve to run it once on your behalf, or deny.`,
+      payload: { command, cwd: attempt?.cwd ?? null, taskId: task?.id ?? null, ...(desktop ? { kind: 'desktop' } : {}) },
     });
   }
 

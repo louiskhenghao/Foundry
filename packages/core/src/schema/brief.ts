@@ -162,8 +162,8 @@ const OutputTask = z.object({
   kind: z.enum(['feature', 'bug', 'refactor', 'research', 'chore']).describe('feature = new behaviour; bug = something is broken and must be reproduced first; refactor = behaviour-preserving restructure; research = a spike whose output is knowledge, not production code; chore = config/tooling.'),
   scope: z.string().nullish().describe('Conventional Commits scope (e.g. "quotes", "api", "ui"); null = use the Area slug.'),
   scenario: z
-    .enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'general'])
-    .describe('Where the work happens: frontend = UI, pages, styling, components; backend = APIs, services, database; fullstack = substantial changes on both sides; data = data processing, scripts, analysis; mobile = native/mobile app; infra = CI, build, deploy, configuration; docs = documentation/prose writing; research = investigation whose output is a cited report; image = generating or editing images; video = generating or editing video/audio; general = anything else.'),
+    .enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'cad', 'general'])
+    .describe('Where the work happens: frontend = UI, pages, styling, components; backend = APIs, services, database; fullstack = substantial changes on both sides; data = data processing, scripts, analysis; mobile = native/mobile app; infra = CI, build, deploy, configuration; docs = documentation/prose writing; research = investigation whose output is a cited report; image = generating or editing images; video = generating or editing video/audio; cad = 3D parts and assemblies, drawings, DXF profiles, robot description files; general = anything else.'),
   areaKey: z.string().describe('Key of the Area this task belongs to.'),
   dependsOnKeys: z.array(z.string()),
   parallelizable: z.boolean(),
@@ -178,7 +178,7 @@ const OutputTask = z.object({
   milestoneScript: z
     .string()
     .nullish()
-    .describe('With a milestone on a feature that has a web UI or an HTTP API: the Playwright script that shows it, repo-relative, e2e/milestones/<feature-slug>.spec.ts. The task writes it and it must pass; Foundry runs it to record the milestone. null for other milestones (documents, media, CLIs) and for every task without a milestone.'),
+    .describe('With a milestone on a feature that has a web UI or an HTTP API: the Playwright script that shows it, repo-relative, e2e/milestones/<feature-slug>.spec.ts. The task writes it and it must pass; Foundry runs it to record the milestone. null for other milestones (documents, media, CAD, CLIs) and for every task without a milestone.'),
 });
 
 const OutputCheck = z.object({
@@ -196,9 +196,9 @@ export const BriefOutput = z.object({
   title: z.string().describe('One Conventional Commits header for the whole goal, e.g. "feat(site): add resort landing page". ≤ 72 chars. Used as the pull request title.'),
   understanding: z.string().describe('Your understanding of the goal in 3-8 sentences.'),
   nature: z
-    .enum(['code', 'docs', 'research', 'image', 'video'])
+    .enum(['code', 'docs', 'research', 'image', 'video', 'cad'])
     .default('code')
-    .describe('What the goal produces: code = software changes; docs = prose/documents; research = an investigation ending in a cited report; image = generated/edited images; video = generated/edited video or audio. Pick the dominant one for mixed goals.'),
+    .describe('What the goal produces: code = software changes; docs = prose/documents; research = an investigation ending in a cited report; image = generated/edited images; video = generated/edited video or audio; cad = 3D parts and assemblies, drawings, robot description files. Pick the dominant one for mixed goals.'),
   areas: z
     .array(
       z.object({
@@ -240,7 +240,7 @@ export const BriefOutput = z.object({
       }),
     )
     .default([])
-    .describe('Visual directions for the human to SEE and pick from before generation starts. REQUIRED for image/video goals and UI-heavy code goals: 2-4 distinct directions, YOUR recommendation first. Empty for prose/research/backend goals.'),
+    .describe('Visual directions for the human to SEE and pick from before generation starts. REQUIRED for image/video goals and UI-heavy code goals: 2-4 distinct directions, YOUR recommendation first. Empty for prose/research/backend/cad goals.'),
   run: z
     .object({
       install: z.string().nullable().describe('Install command from the repo root, e.g. "npm install"; null if none.'),

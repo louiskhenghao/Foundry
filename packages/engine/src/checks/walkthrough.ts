@@ -6,7 +6,7 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 import { getGoal, getTask, type Goal, type Task } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { boundarySettings } from '../guards/boundary.ts';
-import type { PreviewAppStatus } from '../preview/manager.ts';
+import { CAD_VIEWER_KEY, type PreviewAppStatus } from '../preview/manager.ts';
 import { metaFor, modelFor } from '../models/roles.ts';
 import { screenshotsDir } from '../workspace.ts';
 import { runMilestoneScript, type ScriptDeps } from './milestone-script.ts';
@@ -183,7 +183,8 @@ async function captureWalk(engine: Engine, goal: Goal, task: Task, opts: Capture
     const imported = engine.preview.importMissingEnv(goal);
     if (imported.length) store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `milestone walkthrough: took ${imported.length} environment variable(s) the app needs from your checkout's env files (${imported.join(', ')})` } });
     const preview = await engine.preview.start(goal, 'milestone');
-    let app = pickApp(task, preview.apps);
+    // the CAD viewer is the person's to start: never the page a walkthrough records
+    let app = pickApp(task, preview.apps.filter((a) => a.key !== CAD_VIEWER_KEY));
     if (!app) throw new Error('the preview has no app to look at');
     const pw = await import('playwright').catch(() => {
       throw new Error('Playwright is not installed (Settings → Preview & self-check)');

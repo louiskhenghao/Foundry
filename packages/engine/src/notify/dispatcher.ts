@@ -90,7 +90,9 @@ export function composeEscalation(esc: Escalation, goalTitle: (goalId: string | 
   // a milestone is an invitation, not a problem: the whole note (what to look at, the preview link) and the goal page
   // the preview's address goes under the message as links (see links()), not in its text
   if (esc.trigger === 'milestone') return { text: `👀 Have a look — ${goalTitle(esc.goalId)}\n${esc.message.replace(/\s*Preview: \S+\s*$/, '').slice(0, 700)}`, path: `/goals/${esc.goalId}` };
-  return { text: `🛑 Needs you — ${goalTitle(esc.goalId)}\n${TRIGGER_COPY[esc.trigger]}\n${(esc.message.split('\n')[0] ?? '').slice(0, 300)}`, path: '/inbox' };
+  // a command refused by the desktop-apps switch is a boundary item with its own wording
+  const copy = esc.trigger === 'boundary_action' && (esc.payload as { kind?: string } | undefined)?.kind === 'desktop' ? 'an action wants to open a desktop app or hand a file to a printer on this computer' : TRIGGER_COPY[esc.trigger];
+  return { text: `🛑 Needs you — ${goalTitle(esc.goalId)}\n${copy}\n${(esc.message.split('\n')[0] ?? '').slice(0, 300)}`, path: '/inbox' };
 }
 
 const RETRY_DELAYS_MS = [2_000, 10_000];

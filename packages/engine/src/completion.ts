@@ -8,7 +8,7 @@
 import { cpSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { Brief, DocType, Goal } from '@foundry/core';
-import { MEDIA_NATURES, pendingDecisions } from '@foundry/core';
+import { ARTIFACT_NATURES, pendingDecisions } from '@foundry/core';
 import type { Engine } from './engine.ts';
 import { dropEmptyGraphDir } from './context/graphify-provider.ts';
 import { restoreGuidance, snapshotGuidance } from './git/agent-guidance.ts';
@@ -46,7 +46,7 @@ export async function deliverArtifacts(engine: Engine, goal: Goal): Promise<void
   const files = listArtifacts(ws);
   const record = (payload: { status: 'ok' | 'skipped' | 'failed'; files: string[]; dest: string; detail: string }) => store.append({ type: 'goal.artifacts_delivered', goalId: goal.id, payload });
   if (!files.length) {
-    if (MEDIA_NATURES.includes(goal.nature)) record({ status: 'skipped', files: [], dest: goal.outputDir ?? '', detail: 'no artifacts were produced' });
+    if (ARTIFACT_NATURES.includes(goal.nature)) record({ status: 'skipped', files: [], dest: goal.outputDir ?? '', detail: 'no artifacts were produced' });
     return;
   }
   if (!goal.outputDir) {

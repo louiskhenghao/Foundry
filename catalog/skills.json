@@ -1561,6 +1561,535 @@
         "general",
         "research"
       ]
+    },
+    {
+      "id": "text-to-cad-cad",
+      "name": "cad",
+      "summary": "Creates and edits parametric CAD models (build123d) from plain-language or image requests; STEP as the main output, STL, 3MF and GLB on request; measures geometry and renders snapshots.",
+      "why": "The heart of a cad goal: the model contract (a Python source that builds and exports STEP when run), cadgen's geometry checks, and the snapshots the review reads. The plugin also ships the `cad` MCP server (the viewer), allowed for sessions once installed.",
+      "tier": "optional",
+      "bundle": "text-to-cad",
+      "source": {
+        "type": "plugin",
+        "marketplace": "earthtojake/text-to-cad",
+        "ref": "latest",
+        "marketplaceId": "earthtojake",
+        "plugin": "text-to-cad",
+        "docs": "https://www.texttocad.dev",
+        "mcpServers": [
+          {
+            "name": "cad",
+            "denyTools": [
+              "cad_telemetry",
+              "cad_http",
+              "cad_sync",
+              "cad_capture_reply"
+            ]
+          }
+        ],
+        "warmup": {
+          "mcpServer": "cad",
+          "args": [
+            "--version"
+          ],
+          "note": "downloading the CAD runtime (Python 3.13 and OpenCASCADE, a few hundred MB, once)"
+        }
+      },
+      "roles": [
+        "worker",
+        "reviewer-task",
+        "reviewer-goal"
+      ],
+      "tags": [
+        "cad",
+        "3d",
+        "step"
+      ],
+      "homepage": "https://github.com/earthtojake/text-to-cad",
+      "scenarios": [
+        "cad"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "any",
+          "scenarios": [
+            "cad"
+          ],
+          "instruction": "Invoke it first and follow its model contract: a build123d source that builds and exports STEP when run, geometry measured with cadgen checks, and front, top, right and isometric snapshots of every deliverable written to artifacts/ for the review."
+        },
+        {
+          "role": "reviewer-task",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "cad"
+          ],
+          "instruction": "Use its inspection workflow to measure the delivered geometry against the Brief's dimensions; a deliverable without snapshots, or with dimensions off the Brief, is a blocker."
+        },
+        {
+          "role": "reviewer-goal",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "cad"
+          ],
+          "instruction": "Use its inspection workflow to measure every deliverable of the goal against the Brief's dimensions and check that the manifest lists each file with its snapshots; a missing snapshot or a dimension off the Brief is a blocker."
+        }
+      ]
+    },
+    {
+      "id": "text-to-cad-step-parts",
+      "name": "step-parts",
+      "summary": "Finds, evaluates and downloads off-the-shelf STEP parts (screws, bearings, motors, servos, connectors) from the step.parts catalog.",
+      "why": "An assembly with a named purchasable part gets the real part's geometry instead of a guessed placeholder, with its provenance recorded.",
+      "tier": "optional",
+      "bundle": "text-to-cad",
+      "source": {
+        "type": "plugin",
+        "marketplace": "earthtojake/text-to-cad",
+        "ref": "latest",
+        "marketplaceId": "earthtojake",
+        "plugin": "text-to-cad",
+        "docs": "https://www.texttocad.dev"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "cad",
+        "parts"
+      ],
+      "homepage": "https://github.com/earthtojake/text-to-cad",
+      "scenarios": [
+        "cad"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "cad"
+          ],
+          "instruction": "Before modelling a placeholder for a named off-the-shelf part (a motor, bearing, screw, connector), search step.parts and record the part id and provenance in the manifest."
+        }
+      ]
+    },
+    {
+      "id": "text-to-cad-engineering-drawing",
+      "name": "engineering-drawing",
+      "summary": "Dimensioned engineering drawings from a part, as a PDF: views, hidden lines, dimensions, hole callouts, title block.",
+      "why": "A part meant for a machine shop or a review needs a drawing, not only a model.",
+      "tier": "optional",
+      "bundle": "text-to-cad",
+      "source": {
+        "type": "plugin",
+        "marketplace": "earthtojake/text-to-cad",
+        "ref": "latest",
+        "marketplaceId": "earthtojake",
+        "plugin": "text-to-cad",
+        "docs": "https://www.texttocad.dev"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "cad",
+        "drawing"
+      ],
+      "homepage": "https://github.com/earthtojake/text-to-cad",
+      "scenarios": [
+        "cad"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "cad"
+          ],
+          "instruction": "When the Brief asks for a drawing, produce the dimensioned PDF with it and list it in the manifest next to the model."
+        }
+      ]
+    },
+    {
+      "id": "text-to-cad-dxf",
+      "name": "dxf",
+      "summary": "2D DXF drawings (profiles, templates, gaskets, cut layouts) from Python sources or CAD geometry.",
+      "why": "Laser cutting, routing and sheet metal take 2D profiles; this writes them from the same source as the model.",
+      "tier": "optional",
+      "bundle": "text-to-cad",
+      "source": {
+        "type": "plugin",
+        "marketplace": "earthtojake/text-to-cad",
+        "ref": "latest",
+        "marketplaceId": "earthtojake",
+        "plugin": "text-to-cad",
+        "docs": "https://www.texttocad.dev"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "cad",
+        "2d"
+      ],
+      "homepage": "https://github.com/earthtojake/text-to-cad",
+      "scenarios": [
+        "cad"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "cad"
+          ],
+          "instruction": "For 2D profiles, templates, gaskets and cut layouts, produce the DXF with it from the model's source, never by hand."
+        }
+      ]
+    },
+    {
+      "id": "text-to-cad-urdf",
+      "name": "urdf",
+      "summary": "Robot structure files: links, joints, limits, inertials and meshes.",
+      "why": "A robot's description belongs to the same goal as its parts; this keeps the file consistent with the geometry.",
+      "tier": "optional",
+      "bundle": "text-to-cad",
+      "source": {
+        "type": "plugin",
+        "marketplace": "earthtojake/text-to-cad",
+        "ref": "latest",
+        "marketplaceId": "earthtojake",
+        "plugin": "text-to-cad",
+        "docs": "https://www.texttocad.dev"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "cad",
+        "robotics"
+      ],
+      "homepage": "https://github.com/earthtojake/text-to-cad",
+      "scenarios": [
+        "cad"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "cad"
+          ],
+          "instruction": "For a robot's structure file (links, joints, limits, inertials, meshes), write it with this skill from the modelled parts."
+        }
+      ]
+    },
+    {
+      "id": "text-to-cad-srdf",
+      "name": "srdf",
+      "summary": "MoveIt planning groups, end effectors, poses and collision rules on top of a URDF.",
+      "why": "Motion planning needs the semantic layer over the URDF; this writes it against the actual robot file.",
+      "tier": "optional",
+      "bundle": "text-to-cad",
+      "source": {
+        "type": "plugin",
+        "marketplace": "earthtojake/text-to-cad",
+        "ref": "latest",
+        "marketplaceId": "earthtojake",
+        "plugin": "text-to-cad",
+        "docs": "https://www.texttocad.dev"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "cad",
+        "robotics"
+      ],
+      "homepage": "https://github.com/earthtojake/text-to-cad",
+      "scenarios": [
+        "cad"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "cad"
+          ],
+          "instruction": "For MoveIt planning groups, end effectors, poses and collision rules, write the SRDF with it against the goal's URDF."
+        }
+      ]
+    },
+    {
+      "id": "text-to-cad-sdf",
+      "name": "sdf",
+      "summary": "Simulator models and worlds: frames, physics, sensors and lights.",
+      "why": "A part or robot that is simulated needs an SDF that matches its geometry and mass properties.",
+      "tier": "optional",
+      "bundle": "text-to-cad",
+      "source": {
+        "type": "plugin",
+        "marketplace": "earthtojake/text-to-cad",
+        "ref": "latest",
+        "marketplaceId": "earthtojake",
+        "plugin": "text-to-cad",
+        "docs": "https://www.texttocad.dev"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "cad",
+        "robotics",
+        "simulation"
+      ],
+      "homepage": "https://github.com/earthtojake/text-to-cad",
+      "scenarios": [
+        "cad"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "cad"
+          ],
+          "instruction": "For simulator models and worlds (frames, physics, sensors, lights), write the SDF with it from the modelled parts."
+        }
+      ]
+    },
+    {
+      "id": "text-to-cad-dfam-check",
+      "name": "dfam-check",
+      "summary": "Measures a mesh's printability per process: wall thickness, overhangs, support volume and build orientation.",
+      "why": "A part that prints badly is a defect the geometry alone does not show; the check gives measured evidence before the review.",
+      "tier": "optional",
+      "bundle": "text-to-cad",
+      "source": {
+        "type": "plugin",
+        "marketplace": "earthtojake/text-to-cad",
+        "ref": "latest",
+        "marketplaceId": "earthtojake",
+        "plugin": "text-to-cad",
+        "docs": "https://www.texttocad.dev"
+      },
+      "roles": [
+        "worker",
+        "reviewer-task",
+        "reviewer-goal"
+      ],
+      "tags": [
+        "cad",
+        "printing",
+        "dfm"
+      ],
+      "homepage": "https://github.com/earthtojake/text-to-cad",
+      "scenarios": [
+        "cad"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "cad"
+          ],
+          "instruction": "For a part to be 3D-printed, run it before you finish (wall thickness, overhangs, support volume, orientation for the process the Brief names) and record the measurements in the manifest."
+        },
+        {
+          "role": "reviewer-task",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "cad"
+          ],
+          "instruction": "For printed parts, check the manifest's DfAM measurements against the process the Brief names, and run it yourself when they are missing."
+        },
+        {
+          "role": "reviewer-goal",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "cad"
+          ],
+          "instruction": "For printed parts, check the manifest's DfAM measurements against the process the Brief names, and run it yourself when they are missing."
+        }
+      ]
+    },
+    {
+      "id": "text-to-cad-dfm",
+      "name": "dfm",
+      "summary": "Reviews a part for sheet metal, CNC machining or injection moulding with measured evidence (draft, undercuts, projected area) and the cited rule behind each finding.",
+      "why": "Manufacturability is part of correctness for a machined or moulded part; the findings cite the rule they rest on.",
+      "tier": "optional",
+      "bundle": "text-to-cad",
+      "source": {
+        "type": "plugin",
+        "marketplace": "earthtojake/text-to-cad",
+        "ref": "latest",
+        "marketplaceId": "earthtojake",
+        "plugin": "text-to-cad",
+        "docs": "https://www.texttocad.dev"
+      },
+      "roles": [
+        "worker",
+        "reviewer-task",
+        "reviewer-goal"
+      ],
+      "tags": [
+        "cad",
+        "manufacturing",
+        "dfm"
+      ],
+      "homepage": "https://github.com/earthtojake/text-to-cad",
+      "scenarios": [
+        "cad"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "cad"
+          ],
+          "instruction": "For CNC, sheet metal or injection moulding parts, review the part with it before you finish and record the cited findings in the manifest."
+        },
+        {
+          "role": "reviewer-task",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "cad"
+          ],
+          "instruction": "For CNC, sheet metal or injection moulding parts, read the manifest's DFM findings and run it yourself when they are missing; an unaddressed must-fix finding is a blocker."
+        },
+        {
+          "role": "reviewer-goal",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "cad"
+          ],
+          "instruction": "For CNC, sheet metal or injection moulding parts, read the manifest's DFM findings and run it yourself when they are missing; an unaddressed must-fix finding is a blocker."
+        }
+      ]
+    },
+    {
+      "id": "text-to-cad-gcode",
+      "name": "gcode",
+      "summary": "Slices models into printer-ready G-code with OrcaSlicer and the person's own printer presets, headless.",
+      "why": "Printer-ready output is a deliverable some goals ask for; the slice runs on this computer with OrcaSlicer's command line.",
+      "tier": "optional",
+      "bundle": "text-to-cad",
+      "source": {
+        "type": "plugin",
+        "marketplace": "earthtojake/text-to-cad",
+        "ref": "latest",
+        "marketplaceId": "earthtojake",
+        "plugin": "text-to-cad",
+        "docs": "https://www.texttocad.dev"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "cad",
+        "printing"
+      ],
+      "homepage": "https://github.com/earthtojake/text-to-cad",
+      "scenarios": [
+        "cad"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "cad"
+          ],
+          "instruction": "When the Brief asks for printer-ready output, slice headless with OrcaSlicer's command line and the person's presets; never open the slicer's window."
+        }
+      ]
+    },
+    {
+      "id": "text-to-cad-sendcutsend",
+      "name": "sendcutsend",
+      "summary": "Preflight reports for DXF and STEP uploads to SendCutSend: upload readiness, material and service checks against the current official sources.",
+      "why": "A cut-and-bend order fails at upload for reasons the model never shows; the report finds them first and never places an order.",
+      "tier": "optional",
+      "bundle": "text-to-cad",
+      "source": {
+        "type": "plugin",
+        "marketplace": "earthtojake/text-to-cad",
+        "ref": "latest",
+        "marketplaceId": "earthtojake",
+        "plugin": "text-to-cad",
+        "docs": "https://www.texttocad.dev"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "cad",
+        "fabrication"
+      ],
+      "homepage": "https://github.com/earthtojake/text-to-cad",
+      "scenarios": [
+        "cad"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "cad"
+          ],
+          "instruction": "Before a DXF or STEP is meant for a SendCutSend order, write its preflight report against the current official sources and attach it to the manifest."
+        }
+      ]
+    },
+    {
+      "id": "text-to-cad-bambu-labs",
+      "name": "bambu-labs",
+      "summary": "Hands a sliced file to Bambu Connect, or an unsliced model to Bambu Studio, on this computer; the person picks the printer and starts the print there.",
+      "why": "It opens desktop apps on this computer, so unattended sessions do not see it until Settings → Safety → Desktop apps & printers is on.",
+      "tier": "optional",
+      "bundle": "text-to-cad",
+      "source": {
+        "type": "plugin",
+        "marketplace": "earthtojake/text-to-cad",
+        "ref": "latest",
+        "marketplaceId": "earthtojake",
+        "plugin": "text-to-cad",
+        "docs": "https://www.texttocad.dev"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "cad",
+        "printing"
+      ],
+      "homepage": "https://github.com/earthtojake/text-to-cad",
+      "scenarios": [
+        "cad"
+      ],
+      "workflow": [],
+      "gate": "desktopApps"
     }
   ]
 }

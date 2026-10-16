@@ -9,7 +9,7 @@ import { Badge, Button, Field, Input, Select, cn } from '../../ui.tsx';
  * block. Presentational only — each panel keeps its own state, settings keys and API calls.
  */
 
-export const NATURE_HINT: Record<ModelNature, string> = { code: 'software goals, and goals not yet classified', docs: 'documents and cited research reports', media: 'image and video goals' };
+export const NATURE_HINT: Record<ModelNature, string> = { code: 'software and CAD goals, and goals not yet classified', docs: 'documents and cited research reports', media: 'image and video goals' };
 
 export function SectionTitle({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={cn('text-sm text-zinc-200', className)}>{children}</div>;

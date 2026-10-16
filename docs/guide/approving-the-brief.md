@@ -136,7 +136,7 @@ The kind decides which working method the worker follows (for example tests firs
 
 ### Scenario
 
-Where the work happens: **frontend**, **backend**, **fullstack**, **data**, **mobile**, **infra**, **docs**, **research**, **image**, **video** or **general**. It decides which specialist skills the worker gets: design skills for frontend and fullstack work, image skills for image work, and so on.
+Where the work happens: **frontend**, **backend**, **fullstack**, **data**, **mobile**, **infra**, **docs**, **research**, **image**, **video**, **cad** or **general**. It decides which specialist skills the worker gets: design skills for frontend and fullstack work, image skills for image work, text-to-cad's skills for cad work, and so on.
 
 ### Difficulty
 

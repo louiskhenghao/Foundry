@@ -1230,10 +1230,19 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     );
     return c.json({ ...result, op });
   });
+  // runs in the background on the operation's channel (a plugin's runtime warm-up can download for minutes, longer than a
+  // request may stay open); the page polls /api/skills/ops/:id until it ends
   app.post('/api/skills/install-bundle', async (c) => {
-    const { bundle } = z.object({ bundle: z.string().min(1) }).parse(await c.req.json());
-    return c.json(await skillsFor(c).installBundle(bundle));
+    const { bundle, opId } = z.object({ bundle: z.string().min(1), opId: OpId }).parse(await c.req.json());
+    const op = ops.start('install-bundle', `Install the ${bundle} bundle`, { id: opId }, (say) => skillsFor(c).installBundle(bundle, say), ({ results }) => {
+      const failed = results.filter((r) => r.action === 'failed');
+      const warm = results.find((r) => r.detail.includes('runtime warm-up failed'));
+      return { ok: !failed.length, summary: failed.length ? `failed: ${failed.map((f) => `${f.name} (${f.detail})`).join(', ')}` : `${results.length} entr${results.length === 1 ? 'y' : 'ies'}: ${[...new Set(results.map((r) => r.action))].join(', ')}${warm ? `; ${warm.detail.slice(warm.detail.indexOf('runtime warm-up failed'))} (the first attempt downloads it)` : ''}` };
+    });
+    return c.json({ started: true, channel: op.channel, op }, 202);
   });
+  // whether text-to-cad and uv are there for a provider (the New goal form's cad tile and a waiting goal's page ask)
+  app.get('/api/cad', async (c) => c.json(await engine.cadStatus(authProvider(c))));
   // mutually exclusive packs (design / image / video skills): options + install status, and a streamed one-click install
   app.get('/api/skills/packs', async (c) => {
     const statuses = await skillsFor(c).status();
@@ -1391,7 +1400,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
 
   app.post('/internal/boundary', async (c) => {
     const payload = await c.req.json().catch(() => ({}));
-    engine.handleBoundaryCallback(c.req.header('x-foundry-attempt') || null, payload);
+    engine.handleBoundaryCallback(c.req.header('x-foundry-attempt') || null, payload, c.req.header('x-foundry-reason') || null);
     return c.json({ ok: true });
   });
 

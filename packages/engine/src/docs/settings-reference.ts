@@ -100,6 +100,7 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   // Safety
   'safety.extraBoundaryPatterns': { section: 'Safety', help: "Extra command patterns (ERE, '|'-separated) the boundary guard blocks in sessions." },
   'safety.allowedRoots': { section: 'Safety', help: 'Folders the folder browser may enter; empty = home and /Volumes.' },
+  'safety.desktopApps': { section: 'Safety', help: 'Let sessions open desktop apps and hand files to printers (text-to-cad\'s Bambu hand-off, `open …`, `xdg-open`, the slicers\' windows). Off: the boundary guard refuses those commands and the hand-off skill; headless slicing stays available.' },
   // Engine (install)
   'engine.port': { section: 'Engine (install)', help: 'Port the UI and API listen on.' },
   'engine.host': { section: 'Engine (install)', help: 'Interface to bind; keep 127.0.0.1 (the UI has no login).' },

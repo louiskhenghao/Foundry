@@ -39,6 +39,7 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'workflow.ponytail': { name: 'FOUNDRY_PONYTAIL', parse: str },
   'workflow.audit': { name: 'FOUNDRY_AUDIT', parse: bool },
   'workflow.mcpDynamicTools': { name: 'FOUNDRY_MCP_DYNAMIC_TOOLS', parse: bool },
+  'safety.desktopApps': { name: 'FOUNDRY_DESKTOP_APPS', parse: bool },
   'workflow.investigationMaxCostUsd': { name: 'FOUNDRY_INVESTIGATION_MAX_COST', parse: num },
   'workflow.investigationMaxMinutes': { name: 'FOUNDRY_INVESTIGATION_MAX_MINUTES', parse: num },
   'workflow.defaultMode': { name: 'FOUNDRY_GOAL_MODE', parse: str },
@@ -326,5 +327,6 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('tools.elevenlabsApiKey')) config.elevenlabsApiKey = s.tools.elevenlabsApiKey ?? undefined;
   if (on('tools.groqApiKey')) config.groqApiKey = s.tools.groqApiKey ?? undefined;
   if (on('safety.extraBoundaryPatterns')) config.extraBoundaryPatterns = s.safety.extraBoundaryPatterns ?? undefined;
+  if (on('safety.desktopApps')) config.desktopApps = s.safety.desktopApps;
   if (on('safety.allowedRoots')) config.allowedRoots = s.safety.allowedRoots ?? undefined;
 }

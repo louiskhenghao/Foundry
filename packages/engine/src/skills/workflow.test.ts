@@ -82,6 +82,15 @@ describe('workflow section', () => {
     expect(s.startsWith('# Skills\nInstalled skills relevant to this role')).toBe(true);
     expect(s).not.toContain('MUST');
   });
+  test('an entry behind a Settings switch is invisible to sessions until the switch is on', () => {
+    const gated = [...statuses, st(entry({ id: 'bambu-labs', roles: ['worker'], gate: 'desktopApps', workflow: [{ role: 'worker', mandate: 'prefer', when: 'any', scenarios: [], instruction: 'hand the print over' }] }), 'installed-via-plugin', '/text-to-cad:bambu-labs')];
+    const off = formatWorkflowSection({ role: 'worker', taskKind: 'feature', profile: 'mattpocock', statuses: gated })!;
+    expect(off).not.toContain('bambu-labs');
+    expect(formatWorkflowSection({ role: 'worker', taskKind: 'feature', profile: 'mattpocock', statuses: gated, gates: { desktopApps: false } })!).not.toContain('bambu-labs');
+    expect(applicableRules({ role: 'worker', taskKind: 'feature', profile: 'mattpocock', statuses: gated }).map((r) => r.name)).not.toContain('bambu-labs');
+    const on = formatWorkflowSection({ role: 'worker', taskKind: 'feature', profile: 'mattpocock', statuses: gated, gates: { desktopApps: true } })!;
+    expect(on).toContain('- Prefer: invoke `/text-to-cad:bambu-labs`');
+  });
   test('the plain profile hides what the discipline hides, like the full section', () => {
     const withPonytail = [...statuses, st(entry({ id: 'ponytail', roles: ['worker'] }), 'installed', '/ponytail')];
     expect(formatWorkflowSection({ role: 'worker', taskKind: 'feature', profile: 'plain', statuses: withPonytail, discipline: { tdd: 'required', ponytail: 'on' } })).toContain('/ponytail');
@@ -201,5 +210,7 @@ describe('ponytail discipline', () => {
     expect(resolveDiscipline(goal, { tdd: 'off', scenario: 'docs', kind: 'feature' })).toEqual({ tdd: 'off', ponytail: 'off' });
     expect(resolveDiscipline(goal, { tdd: 'inherit', scenario: 'general', kind: 'research' }).ponytail).toBe('off');
     expect(resolveDiscipline({ workflow: { ...goal.workflow, ponytail: 'off' } }, null).ponytail).toBe('off');
+    // cad is code work: Ponytail applies, and the goal's TDD mandate stands
+    expect(resolveDiscipline(goal, { tdd: 'inherit', scenario: 'cad', kind: 'feature' })).toEqual({ tdd: 'required', ponytail: 'on' });
   });
 });

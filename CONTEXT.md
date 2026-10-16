@@ -216,7 +216,7 @@ A Skill a Role is told to follow for a kind of work — *must* or *prefer* — b
 The nature of a Task — feature, bug, refactor, research or chore — set in the Brief. It selects the Workflow Skills the Worker is asked to follow.
 
 **Scenario**
-The area a Task works in — frontend, backend, fullstack, data, mobile, infra, docs, research, image, video or general — set in the Brief. A Goal's scenario is the one most of its Tasks share. Scenario-bound Skills (the Design Pack, presentation skills…) are shown to a session only when the scenario matches.
+The area a Task works in — frontend, backend, fullstack, data, mobile, infra, docs, research, image, video, cad or general — set in the Brief. A Goal's scenario is the one most of its Tasks share. Scenario-bound Skills (the Design Pack, presentation skills…) are shown to a session only when the scenario matches.
 
 **Design Pack**
 The one design skill set the engine hands to UI work (frontend / fullstack Scenarios): ui-ux-pro-max, Anthropic's frontend-design, impeccable, bencium, garden or taste — or none. Packs are mutually exclusive: the Worker gets the chosen pack as a MUST and the Goal Reviewer its review counterpart; the others stay invisible even when installed.
@@ -252,13 +252,22 @@ A program that gives a coding agent extra tools (library docs, a browser, web se
 ## Goal natures
 
 **Nature**
-What a Goal produces: *code* (software), *documents* (prose), *research* (a cited report), *image* or *video* (media files) — or *auto*, meaning the user did not say and the Clarifier decides. The engine is the same for every nature; the nature only changes what the Brief asks about, what acceptance looks like, and where the result ends up. Non-code Goals open in Simple mode. A mixed Goal carries its dominant nature; its Tasks keep their own Scenarios.
+What a Goal produces: *code* (software), *documents* (prose), *research* (a cited report), *image* or *video* (media files), *cad* (parts and assemblies, drawings, robot description files) — or *auto*, meaning the user did not say and the Clarifier decides. The engine is the same for every nature; the nature only changes what the Brief asks about, what acceptance looks like, and where the result ends up. Prose and media Goals open in Simple mode; a CAD Goal is code work and keeps the default view. A mixed Goal carries its dominant nature; its Tasks keep their own Scenarios.
 
 **Artifact**
-A media file a Goal produces (an image, a video, audio). Artifacts are generated inside the Workspace but never enter git; when the Goal finishes they are copied to the Output Folder — or stay in the Workspace when none is set.
+A file a Goal produces outside git: a media file (an image, a video, audio) or a CAD export (STEP, STL, 3MF, GLB, DXF, a drawing PDF) with the snapshots that show it. Artifacts are generated inside the Workspace but never enter git; when the Goal finishes they are copied to the Output Folder — or stay in the Workspace when none is set.
+
+**CAD Goal**
+A Goal of nature cad: parts and assemblies, drawings, DXF profiles or robot description files, made with text-to-cad's skills (build123d and OpenCASCADE through cadgen). Code work with a geometry kernel: the Clarifier makes the manufacturing process and the key dimensions blocking questions, the planner cuts one Task per part with geometry checks first, TDD is preferred and Ponytail applies; sources are committed, exports and snapshots are Artifacts. A cad Goal waits before Clarify until text-to-cad is installed for its coding agent.
+
+**CAD Viewer**
+text-to-cad's own viewer (`cadgen viewer`), listed as a preview app of every CAD Goal and started only by the person from the milestone or preview card; the plugin's pinned cadgen command, on a preview port.
+
+**Desktop apps & printers**
+The Safety switch (off by default) that lets sessions open desktop apps and hand files to printers on this computer: text-to-cad's Bambu hand-off (Bambu Connect, Bambu Studio), `open …`, `xdg-open`, the slicers' windows. Off, the boundary hook (on the Bash and the Skill tool) refuses the opener commands, a slicer run without its headless switches, and the gated skills under their bare or plugin-prefixed name; the gated skills are not recommended to sessions either. A refused command comes to the Inbox as a boundary item; a refused skill is noted on the goal. Headless slicing and preflight reports stay available.
 
 **Artifact Manifest**
-The committed record of a media Task's Artifacts: one entry per file — its name, what it shows, and the prompt/parameters that produced it. The Manifest is what reviews and diffs see; an Artifact missing from disk or contradicting its Manifest entry is a blocker.
+The committed record of a media or CAD Task's Artifacts: one entry per file — its name, what it shows, and the prompt/parameters that produced it; for a CAD deliverable also its process, material, the key dimensions with units, the checks that measured it and its snapshots. The Manifest is what reviews and diffs see; an Artifact missing from disk or contradicting its Manifest entry is a blocker.
 
 **Output Folder**
 Where a Goal's Artifacts are delivered when it finishes. Chosen by the user when the Goal is created; optional.

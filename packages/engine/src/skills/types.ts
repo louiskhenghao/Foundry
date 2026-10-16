@@ -45,17 +45,23 @@ export const CatalogSource = z.discriminatedUnion('type', [
     type: z.literal('plugin'),
     /** marketplace repo on GitHub (owner/name) */
     marketplace: z.string().regex(/^[\w.-]+\/[\w.-]+$/),
+    /** a branch or tag of the marketplace the install follows (text-to-cad publishes releases on `latest`) */
+    ref: z.string().min(1).optional(),
     /** marketplace name as registered in Claude Code (the part after @) */
     marketplaceId: z.string().min(1),
     /** plugin name inside that marketplace */
     plugin: z.string().min(1),
     docs: z.string().url().optional(),
+    /** MCP servers the plugin ships: allowed for sessions once it is installed, minus the tools of theirs that change things */
+    mcpServers: z.array(z.object({ name: z.string().min(1), denyTools: z.array(z.string()).default([]) })).default([]),
+    /** run once after the install: a shipped server's command with its subcommand replaced by `args`, so its runtime downloads while the person watches */
+    warmup: z.object({ mcpServer: z.string().min(1), args: z.array(z.string()).min(1), note: z.string().min(1) }).optional(),
   }),
 ]);
 export type CatalogSource = z.infer<typeof CatalogSource>;
 
 export const TaskKindForSkill = z.enum(['feature', 'bug', 'refactor', 'research', 'chore', 'any']);
-export const SkillScenario = z.enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'general']);
+export const SkillScenario = z.enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'cad', 'general']);
 export type SkillScenario = z.infer<typeof SkillScenario>;
 
 /** How a role must/should use a skill inside the engine's own workflow (see ADR-0004). */
@@ -101,6 +107,8 @@ export const CatalogEntry = z.object({
   packOption: z.string().optional(),
   /** scenarios this entry is relevant to (filters the "other installed skills" tail); empty = any */
   scenarios: z.array(SkillScenario).default([]),
+  /** a Settings switch that must be on before sessions see or may call this entry (Safety → Desktop apps & printers) */
+  gate: z.enum(['desktopApps']).optional(),
   /** env vars the skill needs to work fully (e.g. an API key); "A|B" = any one of them. Sessions without them get a degraded-mode warning */
   requiresEnv: z.array(z.string()).default([]),
   /** what the skill loses without requiresEnv, e.g. "narration audio"; unset = its whole API/generation mode */

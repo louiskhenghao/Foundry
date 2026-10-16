@@ -24,6 +24,11 @@ export function boundaryHook(scriptPath: string): HookSpec {
   return { event: 'PreToolUse', matcher: 'Bash', command: scriptPath, timeout: 10 };
 }
 
+/** the boundary script on the Skill tool too: a skill behind a closed Settings switch (FOUNDRY_DENIED_SKILLS) is refused */
+export function skillGuardHook(scriptPath: string): HookSpec {
+  return { event: 'PreToolUse', matcher: 'Skill', command: scriptPath, timeout: 10 };
+}
+
 export function canaryHook(scriptPath: string): HookSpec {
   return { event: 'SessionStart', command: scriptPath, timeout: 5 };
 }

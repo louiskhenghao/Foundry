@@ -136,7 +136,7 @@ Foundry 用自己的话说它理解了什么。先读这个：如果这里错了
 
 ### Scenario
 
-工作发生在哪里：**frontend**、**backend**、**fullstack**、**data**、**mobile**、**infra**、**docs**、**research**、**image**、**video** 或 **general**。它决定执行者能拿到哪些专门技能：前端和全栈工作有设计技能，图片工作有图片技能，依此类推。
+工作发生在哪里：**frontend**、**backend**、**fullstack**、**data**、**mobile**、**infra**、**docs**、**research**、**image**、**video**、**cad** 或 **general**。它决定执行者能拿到哪些专门技能：前端和全栈工作有设计技能，图片工作有图片技能，cad 工作有 text-to-cad 的技能，依此类推。
 
 ### Difficulty
 

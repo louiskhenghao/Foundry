@@ -45,6 +45,8 @@ Codex 的预算选项只有时间、尝试次数和并发限制，没有美元�
 
 **Development workflow — Matt Pocock's engineering skills** 这张卡片列出 Foundry 的执行者遵循的技能（比如先写测试）。如果缺了一些，按 **Install N missing**。该包包含上游现有的八项技能，不再安装已被删除的 `resolving-merge-conflicts`；冲突处理仍由 Foundry 内置的 Merger 指令负责。
 
+**3D models — text-to-cad (CAD)** 这张卡片安装 **CAD** goal 背后的插件：它的技能（零件与装配体、工程图、DXF、机器人文件、可打印性和可制造性检查、无头切片）和一个 `cad` 查看器 server，来自 earthtojake/text-to-cad（MIT）。安装会为所选编码智能体加上这个插件，允许会话使用它的 server，并下载一次 CAD 运行时（Python 3.13 和 OpenCASCADE，几百 MB，通过 uv），进度显示在卡片下方；安装在后台进行，期间可以离开这个页面。上面的 **CAD tools** 检查项会说明这台电脑上有没有 uv，以及找到了哪些切片或打印机应用；向这些应用的移交在 **Settings → Safety → Desktop apps & printers** 打开之前一直是关的。Foundry 的会话运行 cadgen 时关闭使用统计和更新检查；你自己使用 text-to-cad 时的设置不受影响。
+
 ### 选一个仓库文件夹
 
 Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历史的项目文件夹。你不需要懂 git。要紧的是：
@@ -73,10 +75,13 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 | **Research** | 一次调查，最后给出一份带来源的报告。 |
 | **Images** | 海报、logo、插画。 |
 | **Video** | 生成的视频或带旁白的演示。 |
+| **CAD** | 3D 零件和装配体（STEP，按需也出 STL、3MF 或 GLB）、工程图、DXF 切割轮廓、URDF/SRDF/SDF 机器人文件。需要 text-to-cad，在 Setup 页安装。 |
 
-选 **Documents**、**Research**、**Images** 或 **Video** 会把视图切到 **Simple**。选 **Images** 或 **Video** 还会勾上 **Fast mode**，除非你已经自己改过它。
+选 **Documents**、**Research**、**Images** 或 **Video** 会把视图切到 **Simple**。选 **Images** 或 **Video** 还会勾上 **Fast mode**，除非你已经自己改过它。**CAD** 保留你的默认值：它是带几何内核的代码工作，所以 Brief 的检查很要紧；它的 TDD 要求是 *preferred*（几何检查写在模型之前），Ponytail 也适用。
 
-选 **Images** 和 **Video** 时会多出一个字段：**Output folder**。goal 完成后，做好的文件会复制到那里。按 **Choose…** 选一个文件夹。这是可选的；不选的话文件就留在进度文件夹里。图片类 goal 还需要图片 key，见 [费用与用量](./costs-and-usage.zh.md#图片类-goal-需要图片-key)。
+选 **Images**、**Video** 和 **CAD** 时会多出一个字段：**Output folder**。goal 完成后，做好的文件会复制到那里。按 **Choose…** 选一个文件夹。这是可选的；不选的话文件就留在进度文件夹里。图片类 goal 还需要图片 key，见 [费用与用量](./costs-and-usage.zh.md#图片类-goal-需要图片-key)。
+
+**CAD** goal 需要你所选编码智能体的 text-to-cad 插件。插件缺失时，这一项上会写明；goal 照样保存，然后在它的页面上等着，带一个 **Install text-to-cad** 按钮，直到插件装好（Setup 页有同样的安装，还会检测 uv 和切片软件）。没有插件时，**Auto** 从不把 goal 判定为 CAD：它会被当作代码工作。
 
 ### How much do you want to see
 

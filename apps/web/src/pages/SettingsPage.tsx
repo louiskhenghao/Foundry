@@ -663,6 +663,9 @@ export function SettingsPage() {
             </Field>
           </>,
         )}
+        <div className="mt-3">
+          {bool('safety.desktopApps', 'Desktop apps & printers', "Let sessions open desktop apps and hand files to printers on this computer — text-to-cad's Bambu hand-off (Bambu Connect / Bambu Studio), `open …`, `xdg-open`, the slicers' windows. Off: the boundary guard refuses those commands and the hand-off skill (sessions are not pointed at it either); a refused command comes to your Inbox. Headless slicing and preflight reports stay available.")}
+        </div>
       </Card>
 
       <Card id="engine" title={<>Engine (install)<HelpLink to="settings#engine-install" className="ml-1.5" /></>} className="scroll-mt-16">

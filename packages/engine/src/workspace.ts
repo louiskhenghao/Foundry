@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import type { Goal, Task } from '@foundry/core';
 import { ensureWorktree, git, headRef, removeWorktree } from './git/git.ts';
@@ -7,13 +7,17 @@ import { copyProjectSkills } from './skills/autoskills.ts';
 /** Where media tasks generate their files, workspace-relative. Kept out of git; delivered to the goal's output folder at done. */
 export const ARTIFACTS_DIR = 'artifacts';
 
-/** Every file under a workspace's artifacts/, as paths relative to that folder. */
+/** in a task worktree's artifacts/: what it inherited from the goal workspace, by content hash (see inheritArtifacts) */
+const INHERITED = '.inherited.json';
+const hashOf = (file: string) => String(Bun.hash(readFileSync(file)));
+
+/** Every file under a workspace's artifacts/, as paths relative to that folder (the inherited-files marker is not one). */
 export function listArtifacts(ws: string): string[] {
   const root = join(ws, ARTIFACTS_DIR);
   if (!existsSync(root)) return [];
   try {
     return readdirSync(root, { recursive: true, withFileTypes: true })
-      .filter((e) => e.isFile())
+      .filter((e) => e.isFile() && e.name !== INHERITED)
       .map((e) => relative(root, join(e.parentPath, e.name)))
       .sort();
   } catch {
@@ -24,15 +28,38 @@ export function listArtifacts(ws: string): string[] {
 /**
  * Merge one workspace's artifacts into another's (task worktree → goal workspace after integrate:
  * the squash merge cannot carry them, they are git-excluded). Existing files are overwritten —
- * parallel media tasks write disjoint names by convention (their manifests declare them).
+ * parallel media tasks write disjoint names by convention (their manifests declare them). What the source
+ * inherited and left untouched (a cad task's starting exports) stays where it is, so a task that finishes
+ * later never puts an older copy over a newer export.
  */
 export function copyArtifacts(fromWs: string, toWs: string): number {
-  const files = listArtifacts(fromWs);
-  for (const f of files) {
+  let inherited: Record<string, string> = {};
+  try {
+    inherited = JSON.parse(readFileSync(join(fromWs, ARTIFACTS_DIR, INHERITED), 'utf8'));
+  } catch {}
+  let n = 0;
+  for (const f of listArtifacts(fromWs)) {
+    const src = join(fromWs, ARTIFACTS_DIR, f);
+    if (inherited[f] && inherited[f] === hashOf(src)) continue;
     const dest = join(toWs, ARTIFACTS_DIR, f);
     mkdirSync(dirname(dest), { recursive: true });
-    cpSync(join(fromWs, ARTIFACTS_DIR, f), dest);
+    cpSync(src, dest);
+    n++;
   }
+  return n;
+}
+
+/** Give a task worktree the goal workspace's artifacts to build on, remembering them so that only what the task changes or adds comes back. */
+export function inheritArtifacts(goalWs: string, taskWs: string): number {
+  const files = listArtifacts(goalWs);
+  const marker: Record<string, string> = {};
+  for (const f of files) {
+    const dest = join(taskWs, ARTIFACTS_DIR, f);
+    mkdirSync(dirname(dest), { recursive: true });
+    cpSync(join(goalWs, ARTIFACTS_DIR, f), dest);
+    marker[f] = hashOf(dest);
+  }
+  if (files.length) writeFileSync(join(taskWs, ARTIFACTS_DIR, INHERITED), JSON.stringify(marker));
   return files.length;
 }
 
@@ -170,6 +197,8 @@ export async function ensureTaskWorkspace(dataDir: string, goal: Goal, task: Tas
   // project skills and the Brief's style samples are git-excluded, so a fresh checkout lacks them: copy them over from the goal workspace
   copyProjectSkills(goalPath, path, goal.provider);
   copyStyleSamples(goalPath, path);
+  // a cad task builds on what earlier tasks exported (a drawing or an assembly needs their STEP): artifacts are git-excluded too
+  if (task.scenario === 'cad') inheritArtifacts(goalPath, path);
   return { path, branch };
 }
 

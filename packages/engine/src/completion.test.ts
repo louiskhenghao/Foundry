@@ -11,6 +11,7 @@ import { runDocsGeneration } from './docs-generate.ts';
 import { raiseEscalation } from './escalation.ts';
 import { Engine, codexResumeAt, limitPauseUntil } from './engine.ts';
 import { goalWorkspacePath } from './workspace.ts';
+import { fakeCadPlugin } from './skills/fake-home.test-helper.ts';
 
 class FakeRunner implements ClaudeRunner {
   calls: RunSpec[] = [];
@@ -331,6 +332,50 @@ describe('media artifacts', () => {
       const tracked = (await Bun.$`git -C ${ws} ls-files artifacts docs/artifacts`.text()).trim().split('\n').filter(Boolean);
       expect(tracked.some((f) => f.endsWith('.png'))).toBe(false);
       expect(tracked.filter((f) => f.endsWith('.md'))).toHaveLength(2);
+      await engine.stop();
+      await Bun.sleep(100);
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('cad artifacts', () => {
+  test('a cad goal keeps its exports and snapshots out of git and delivers them; it opens in the expert view with TDD preferred', async () => {
+    const { join: j } = await import('node:path');
+    const runner = new FakeRunner((spec) => {
+      if (!spec.label?.startsWith('attempt')) return;
+      mkdirSync(j(spec.cwd, 'cad'), { recursive: true });
+      writeFileSync(j(spec.cwd, 'cad', 'bracket.py'), 'from build123d import *\n');
+      mkdirSync(j(spec.cwd, 'artifacts'), { recursive: true });
+      for (const f of ['bracket.step', 'bracket-front.png', 'bracket-iso.png']) writeFileSync(j(spec.cwd, 'artifacts', f), 'bytes');
+      mkdirSync(j(spec.cwd, 'docs', 'artifacts'), { recursive: true });
+      writeFileSync(j(spec.cwd, 'docs', 'artifacts', 'bracket.md'), '# bracket\n- bracket.step — 40 × 20 × 3 mm, FDM, PLA; snapshots bracket-front.png, bracket-iso.png');
+    });
+    // a cad goal with a ready Brief needs text-to-cad up front (there is no Clarify to wait in)
+    fakeCadPlugin(join(dataDir, 'claude-home'));
+    const engine = track(new Engine(cfg(), runner));
+    const outputDir = mkdtempSync(join(tmpdir(), 'foundry-cad-out-'));
+    try {
+      const goal = await engine.createGoal({
+        prompt: 'a wall bracket',
+        repoPath: repo,
+        nature: 'cad',
+        outputDir,
+        brief: { ...briefBase, title: '', areas: [{ key: 'A1', name: 'Bracket', slug: 'bracket', description: '' }], tasks: [{ key: 'T1', title: 'model the bracket', spec: 'cad/bracket.py, manifest docs/artifacts/bracket.md', kind: 'feature', scope: null, scenario: 'cad', areaKey: 'A1', tdd: 'inherit', dependsOnKeys: [], parallelizable: false, relevantFiles: ['cad/bracket.py', 'docs/artifacts/bracket.md'], milestone: null }], checks: [{ key: 'C1', name: 'exports exist', tier: 'must', taskKey: 'T1', areaKey: null, spec: { type: 'command', cmd: 'test -f artifacts/bracket.step', timeoutMs: 300_000, expectExitCode: 0 } }] },
+      });
+      // cad is code work with a geometry kernel: the expert view, TDD preferred (checks before the model), Ponytail on
+      expect(goal.mode).toBe('expert');
+      expect(goal.workflow).toMatchObject({ pace: 'thorough', tdd: 'preferred', ponytail: 'on' });
+      await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state));
+      expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+      await waitFor(() => getGoal(engine.store.db, goal.id)!.completion.artifactsRun != null);
+      const run = getGoal(engine.store.db, goal.id)!.completion.artifactsRun!;
+      expect(run.status).toBe('ok');
+      expect(run.files.sort()).toEqual(['bracket-front.png', 'bracket-iso.png', 'bracket.step']);
+      const ws = goalWorkspacePath(dataDir, goal);
+      const tracked = (await Bun.$`git -C ${ws} ls-files artifacts docs/artifacts cad`.text()).trim().split('\n').filter(Boolean);
+      expect(tracked.sort()).toEqual(['cad/bracket.py', 'docs/artifacts/bracket.md']);
       await engine.stop();
       await Bun.sleep(100);
     } finally {

@@ -242,5 +242,10 @@ describe('the planner prompt', () => {
     expect(buildPlannerPrompt(base, skeleton, ctx)).toContain('# Plan lean');
     for (const nature of ['research', 'docs', 'image'] as const) expect(buildPlannerPrompt({ ...base, nature }, skeleton, ctx)).not.toContain('# Plan lean');
     expect(buildPlannerPrompt({ ...base, workflow: { ...base.workflow, ponytail: 'off' } }, skeleton, ctx)).not.toContain('# Plan lean');
+    // cad is code work with a geometry kernel: its own planning rules, and Plan lean with them
+    const cad = buildPlannerPrompt({ ...base, nature: 'cad' }, skeleton, ctx);
+    expect(cad).toContain('# CAD');
+    expect(cad).toContain('# Plan lean');
+    expect(cad).not.toContain('# Media');
   });
 });

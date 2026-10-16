@@ -13,7 +13,7 @@ foundry — drive the host Claude Code or Codex CLI to deliver on goals
        [--title t] [--base branch] [--preset auto|quick|thorough|unlimited|custom] [--max-cost 5|none] [--max-min 120|none] [--concurrency 3] [--attempts 3]
        [--auto-approve --check "<cmd>"]... [--stretch "<cmd>"]...   skip Clarify: one task + command checks
        [--models max|production|balanced|economy|<your preset>]   Selected agent model preset (default: Settings' preset for the goal type)
-       [--nature auto|code|docs|research|image|video] [--pace thorough|fast] [--interview auto|always|never]
+       [--nature auto|code|docs|research|image|video|cad] [--pace thorough|fast] [--interview auto|always|never]
        [--effort default|none|minimal|low|medium|high|xhigh|max|ultra] [--self-check]
        [--follows <goalId> [--start-from base|previous] [--no-attachments] [--no-style]]
          Follow-ups inherit the agent and preset; --effort default explicitly clears inherited effort.

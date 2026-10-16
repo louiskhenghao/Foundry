@@ -243,7 +243,7 @@ The card shows:
   - When the app does not answer, or shows only error pages, Foundry walks the same app again with its mock command, against fake data: the **Mock command** in **How to run it**, or a `dev:mock`, `start:mock` or `mock` script in the app's `package.json`. The summary then starts with *With mock data*, and the milestone reads **unverified · fake data**: it does not count as shown. Workers on a screen with a milestone without a script are asked to add such a script when the app needs a backend, Docker or secrets to run.
 - The preview, already starting, with **Open preview**.
 - **What the self-check saw**: its latest screenshots, if the self-check is on.
-- **Artifacts**: images and files produced so far, for media goals.
+- **Artifacts**: images and files produced so far, for media and CAD goals (a CAD goal's exports and the snapshots that show them).
 - The code so far is on the **Diff** tab; the folder is under **Open ▾**.
 
 Then either press **Continue**, or write what you saw and press **Turn into a plan**. How that works, step by step, is in [When Foundry needs you](./when-foundry-needs-you.md#a-milestone-is-ready-to-look-at).

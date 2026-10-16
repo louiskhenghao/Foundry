@@ -157,7 +157,9 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
     .join('\n');
   const reviewerHint = await engine.skillsFor(goal).hints.sectionFor('reviewer-task', { scenario: task.scenario, discipline: resolveDiscipline(goal, task) });
   const media =
-    task.scenario === 'image'
+    task.scenario === 'cad'
+      ? `# CAD review\nThe deliverables are the model's source in the diff and its exports and snapshots under \`artifacts/\`, which are NOT in the diff (the folder is kept out of git). Read the task's manifest (\`docs/artifacts/…\` in the diff), open the snapshots with the Read tool and compare what you see with the Brief's dimensions and features, run the task's geometry checks, and verify every listed file exists under \`artifacts/\`. A deliverable without snapshots, a missing export, or a dimension off the Brief is a BLOCKER.`
+      : task.scenario === 'image'
       ? `# Media review\nThe artifacts themselves are the deliverable and they are NOT in the diff (the \`artifacts/\` folder is kept out of git). Read the task's manifest (\`docs/artifacts/…\` in the diff), then open each listed image under \`artifacts/\` with the Read tool — it renders images — and judge what you see against the task and rubric. An artifact listed in the manifest but missing on disk, or clearly not matching its description, is a blocker.`
       : task.scenario === 'video'
         ? `# Media review\nThe artifacts themselves are the deliverable and they are NOT in the diff (the \`artifacts/\` folder is kept out of git). Read the task's manifest (\`docs/artifacts/…\` in the diff) and verify each listed file exists under \`artifacts/\`. You cannot watch video: verify metadata with \`ffprobe\` if available, and if \`ffmpeg\` is available extract 2–3 frames (\`ffmpeg -i <file> -vf "select=gt(scene\\,0.3)" -frames:v 3 /tmp/frame%d.png\`) and view them with the Read tool. A file listed but missing, or metadata contradicting the spec (duration, resolution), is a blocker; final visual quality stays with the human.`
