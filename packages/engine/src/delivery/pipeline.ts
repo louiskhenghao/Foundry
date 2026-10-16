@@ -402,7 +402,10 @@ async function runStacked(ctx: Ctx, stack: StackBranch[], step: StepFn, done: (o
       const results = taskCheckResults(ctx, b.task);
       const reviewNote = [...store.listByGoal(goal.id, 5000)].reverse().find((e) => e.type === 'review.task.finished' && (e.payload as any).taskId === b.task.id)?.payload as any;
       const bodyFile = bodyPath(ctx, `pr-${b.index}.md`);
-      writeFileSync(bodyFile, buildTaskPrBody(goal, b.task, { index: b.index, total: stack.length, goalTitle, prevPr: out[i - 1]?.number ?? null, prevBranch: i === 0 ? null : base }, results, reviewNote?.verdict?.summary ?? null));
+      // the reviewer's notes (what it would still fix, what it left as advice) and any blockers it raised at the time
+      const verdict = reviewNote?.verdict as { notes?: string; blockers?: string[] } | undefined;
+      const reviewText = verdict ? [verdict.notes, verdict.blockers?.length ? `Blockers at review time: ${verdict.blockers.join('; ')}` : null].filter(Boolean).join('\n') || null : null;
+      writeFileSync(bodyFile, buildTaskPrBody(goal, b.task, { index: b.index, total: stack.length, goalTitle, prevPr: out[i - 1]?.number ?? null, prevBranch: i === 0 ? null : base }, results, reviewText));
       const created = await ctx.gh.prCreate(ctx.goalWs, { repo, head: b.branch, base, title: b.title, bodyFile });
       ev({ type: 'delivery.pr_opened', goalId: goal.id, payload: { number: created.number, url: created.url, base, head: b.branch, taskId: b.task.id, title: b.title } });
       out.push({ b, number: created.number, url: created.url });
