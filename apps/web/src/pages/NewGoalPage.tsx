@@ -262,7 +262,8 @@ export function NewGoalPage() {
         autoBrief: auto ? { mustChecks: checks.split('\n').map((s) => s.trim()).filter(Boolean), stretchChecks: stretch.split('\n').map((s) => s.trim()).filter(Boolean) } : undefined,
         delivery,
         attachments,
-        references: references.map((r) => ({ target: r.target.trim(), lookAt: r.lookAt.trim() })).filter((r) => r.target),
+        // a goal that skips Clarify has no investigation before it: its references would be refused
+        references: auto ? [] : references.map((r) => ({ target: r.target.trim(), lookAt: r.lookAt.trim() })).filter((r) => r.target),
         mode,
         // fast: let the engine default the TDD mandate off instead of pinning it here
         workflow: pace === 'fast' ? { pace, ponytail } : { pace, tdd: mode === 'simple' ? 'preferred' : tdd, ponytail },
@@ -488,6 +489,7 @@ export function NewGoalPage() {
               </Button>
             </div>
           ))}
+          {references.length > 0 && auto && <p className="text-[11px] text-amber-300">Skip Clarify is on: the references are dropped (REA studies them before Clarify).</p>}
           {references.length > 0 && (
             <p className="text-[11px] text-zinc-500">
               Before Clarify, REA studies each reference and writes a report with its evidence; every session reads it, and it is committed under docs/reference. Only software you are allowed to examine: the goal builds its own version, never a copy. Needs the REA server (Extensions → MCP servers); native apps and binaries also need Hopper, Ghidra or IDA on this computer (Setup page).

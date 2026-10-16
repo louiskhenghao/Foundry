@@ -6,8 +6,9 @@ import { Button, Card, ago, fmtUsd } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 
 /** the shipped software this goal learns from, and what REA found out about it: the report every session reads */
-export function ReferenceCard({ goal }: { goal: Goal }) {
+export function ReferenceCard({ goal, investigating = false }: { goal: Goal; investigating?: boolean }) {
   const inv = goal.investigation;
+  const running = investigating || !inv;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const report = inv?.attachmentId ? goal.attachments.find((a) => a.id === inv.attachmentId) : null;
@@ -28,7 +29,7 @@ export function ReferenceCard({ goal }: { goal: Goal }) {
       title={<>Reference<HelpLink to="approving-the-brief#reference" className="ml-1.5" /></>}
       actions={
         again && (
-          <Button size="sm" variant="info" disabled={busy || !inv} onClick={() => void rerun()} title="Study the references again with REA and replace the report; the Brief changes only with Re-run Clarify">
+          <Button size="sm" variant="info" disabled={busy || running} onClick={() => void rerun()} title="Study the references again with REA and replace the report; the Brief changes only with Re-run Clarify">
             <RotateCcw size={12} /> Investigate again
           </Button>
         )
@@ -43,11 +44,11 @@ export function ReferenceCard({ goal }: { goal: Goal }) {
         ))}
       </ul>
       <div className="mt-2 text-xs">
-        {!inv ? (
+        {running ? (
           <span className="inline-flex items-center gap-1.5 text-zinc-400">
             <Loader2 size={12} className="animate-spin" /> REA is studying the reference and writing the report…
           </span>
-        ) : inv.status === 'ok' ? (
+        ) : inv!.status === 'ok' ? (
           <div className="space-y-1">
             <p className="text-zinc-200">{inv.summary}</p>
             <div className="flex flex-wrap items-center gap-3 text-[11px] text-zinc-500">

@@ -104,7 +104,8 @@ export function CompletionCard({ d }: { d: GoalDetail }) {
   const audit = c.auditRun;
   const auditStatus: Status = d.auditRunning ? 'running' : !audit ? 'pending' : audit.status === 'ok' ? (audit.findings.some((f) => f.severity === 'must') ? 'partial' : 'ok') : audit.status === 'failed' ? 'failed' : 'skipped';
   // what the goal did not fix itself: for a follow-up goal
-  const rest = audit?.findings.filter((f) => f.severity !== 'nice' && !(f.severity === 'must' && f.inScope)) ?? [];
+  // what this goal did not fix: everything but the must-fix findings that became fix tasks (and the nice-to-haves)
+  const rest = audit?.findings.filter((f) => f.severity !== 'nice' && !f.fixTaskId) ?? [];
   const followUp = () => {
     const text = [`Fix what the audit of "${g.title}" found and this goal did not cover:`, ...rest.map((f) => `- [${f.severity} fix] ${f.title}: ${f.problem}\n  Fix: ${f.fix}${f.files.length ? `\n  Files: ${f.files.join(', ')}` : ''}`)].join('\n');
     nav(`/goals/new?follows=${encodeURIComponent(g.id)}&prompt=${encodeURIComponent(text)}`);
@@ -134,7 +135,7 @@ export function CompletionCard({ d }: { d: GoalDetail }) {
                     <span className={cn('shrink-0 w-20 text-[10px] uppercase tracking-wide pt-0.5', SEVERITY_TONE[f.severity])}>{SEVERITY_LABEL[f.severity]}</span>
                     <span className="min-w-0 flex-1">
                       <span className="text-zinc-200">{f.title}</span>
-                      {f.severity === 'must' && f.inScope && <Badge state={audit.fixTaskIds.length ? 'done' : 'ready'} className="ml-1.5 normal-case">{audit.fixTaskIds.length ? 'fix task created' : "in this goal's code"}</Badge>}
+                      {f.severity === 'must' && f.inScope && <Badge state={f.fixTaskId ? 'done' : 'ready'} className="ml-1.5 normal-case">{f.fixTaskId ? 'fix task created' : "in this goal's code, for a follow-up"}</Badge>}
                       <span className="block text-zinc-400 whitespace-pre-wrap">{f.problem}</span>
                       <span className="block text-zinc-500">Fix: {f.fix}</span>
                       {f.files.length > 0 && <span className="block mono text-[11px] text-zinc-500 break-all">{f.files.join(', ')}</span>}

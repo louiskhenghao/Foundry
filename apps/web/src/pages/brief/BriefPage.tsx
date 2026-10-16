@@ -112,6 +112,7 @@ export function BriefPage() {
     brief.tasks.length === 0 ? 'no tasks' : '',
     badTasks.length ? `${badTasks.length} task${badTasks.length > 1 ? 's' : ''} without a title` : '',
     badChecks.length ? `${badChecks.length} incomplete check${badChecks.length > 1 ? 's' : ''}` : '',
+    detail?.investigating ? 'REA is still studying the references' : '',
   ].filter(Boolean);
 
   const save = async () => {
@@ -289,7 +290,7 @@ export function BriefPage() {
           </section>
           {g.references.length > 0 && (
             <section id="brief-reference" className={sec}>
-              <ReferenceCard goal={g} />
+              <ReferenceCard goal={g} investigating={detail?.investigating} />
             </section>
           )}
           <section id="brief-run" className={sec}>
