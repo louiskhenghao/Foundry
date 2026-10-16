@@ -25,7 +25,29 @@ export function stackEntries(engine: Engine, goal: Goal): { task: Task; index: n
     .map((id) => tasks.find((t) => t.id === id))
     .filter((t): t is Task => !!t && !!t.commitRef && t.state === 'done' && t.origin !== 'delivery-fix');
   const docs = committed.length >= 2 ? docsTask(goal, events) : null;
-  return [...committed, ...(docs ? [docs] : [])].map((task, i) => ({ task, index: i + 1, merged: mergedTaskIds.has(task.id) }));
+  const reference = committed.length >= 2 ? referenceTasks(goal, events) : [];
+  return [...reference, ...committed, ...(docs ? [docs] : [])].map((task, i) => ({ task, index: i + 1, merged: mergedTaskIds.has(task.id) }));
+}
+
+/**
+ * The reference reports committed before Clarify (one per investigation; a second one edits the first's file, so each
+ * commit is its own entry, in order), as task-shaped stack entries. They are the first commits on the goal branch.
+ */
+function referenceTasks(goal: Goal, events: { type: string; payload: unknown; ts: string }[]): Task[] {
+  const out: Task[] = [];
+  for (const e of events) {
+    if (e.type !== 'goal.investigation_finished') continue;
+    const p = e.payload as { status: string; docPath?: string | null; docRef?: string | null };
+    if (p.status !== 'ok' || !p.docRef || !p.docPath || out.some((t) => t.commitRef === p.docRef)) continue;
+    const title = `docs(reference): ${p.docPath}`;
+    out.push({
+      id: `${goal.id}:reference:${p.docRef.slice(0, 7)}`, goalId: goal.id, title, kind: 'chore', scope: 'docs', scenario: 'docs', area: null, tdd: 'inherit',
+      spec: `The report of the investigation of this goal's references, written before Clarify: ${p.docPath}.`,
+      dependsOn: [], relevantFiles: [p.docPath], parallelizable: false, retryBudget: 0, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'simple',
+      state: 'done', branch: null, worktreePath: null, baseRef: null, commitRef: p.docRef, commitMessage: title, hint: null, extraAttempts: 0, createdAt: e.ts, updatedAt: e.ts,
+    } satisfies Task);
+  }
+  return out;
 }
 
 /**
