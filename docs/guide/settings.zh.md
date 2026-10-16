@@ -112,7 +112,7 @@ Foundry 自带四个预设：
 
 | goal 类型 | 用于 | 默认 |
 |---|---|---|
-| **Code** | 软件类 goal，以及还没分类的 goal | Production |
+| **Code** | 软件和 CAD 类 goal，以及还没分类的 goal | Production |
 | **Docs & research** | 文档和带引用的调研报告 | Balanced |
 | **Media** | 图片和视频 goal | Balanced |
 
@@ -292,6 +292,7 @@ key 对下一个会话生效，不用重启。保存过的 key 不会再显示�
 
 - **Extra boundary patterns**：除了内置的那些（推送、pull request、发布版本、发布包、部署、云工具）之外，Foundry 绝不能让会话自己执行的命令，比如 `terraform apply|kubectl`。被拦下的命令会进入你的 Inbox 等你批准。
 - **Folder browser roots**：**Select folder…** 选择器可以打开哪些文件夹。留空表示你的主文件夹和外接硬盘。
+- **Desktop apps & printers**：默认关闭。打开后，会话可以打开这台电脑上的桌面应用，并把文件交给打印机 —— text-to-cad 的 Bambu 移交（Bambu Connect、Bambu Studio）、`open -a …`、`xdg-open`。关着时，这些技能对会话不可见，边界守卫会拦下它们和那些打开应用的命令；无头切片、预检报告和零件查询照常可用。被拦下的移交会像其它被拦下的命令一样进入你的 Inbox。
 
 ## Engine (install)
 

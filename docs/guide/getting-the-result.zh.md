@@ -138,14 +138,14 @@ CI 是你的线上仓库对每个 pull request 运行的一组自动检查。交
 - 还在运行的 goal：选新方式，按 **Save (runs when the goal is done)**。
 - 交付已经开始的 goal：见上面的 [Delivery settings](#the-delivery-tab)（**Save**、**Resume delivery**、**Start over…**）。
 
-## 媒体类 goal 和输出文件夹
+## 媒体类与 CAD 类 goal 和输出文件夹
 
-图片和视频 goal 产出的是文件，不是代码。这些文件从不加入 git；分支上只记录它们的清单（每个文件是什么内容、怎么做出来的）。
+图片、视频和 CAD goal 产出的是文件，不只是代码。这些文件从不加入 git；分支上只记录它们的清单（每个文件是什么内容、怎么做出来的）。CAD goal 会提交模型的源码（一个 build123d Python 脚本，放在仓库存放这类东西的位置），导出件则不进 git：STEP 文件、你要求的其它格式，以及审查要看的前视、俯视、右视和等轴测快照。
 
 - 如果你在 New goal 表单里选了 **Output folder**，goal 完成时成品文件会复制到那里。Result 卡片会显示 "N file(s) are in … — open the folder and have a look."
 - 没选输出文件夹时，它们留在进度文件夹里的 `artifacts` 文件夹中。用 **Open ▾** 过去。
 
-goal 运行时，里程碑卡片会显示目前产出的文件。
+goal 运行时，里程碑卡片会显示目前产出的文件。CAD goal 的预览卡片上还会列出 **CAD Viewer**，也就是 text-to-cad 自带的查看器：按它的 **Start** 就能在浏览器里打开模型（它打开的是自己的首页，列着最近的模型；走查从不会自己启动它）。
 
 ## 完成后的附加项
 

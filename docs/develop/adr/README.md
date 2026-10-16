@@ -37,3 +37,4 @@ record is never rewritten when a later decision changes it; its status says what
 | [0030](0030-transfer-merges-goals-as-history.md) | Transfer merges goals into another Foundry as history, and unfinished ones can be reattached | accepted · 2026-10-09 |
 | [0031](0031-feature-milestones-with-scripts.md) | A milestone per feature, shown by a Playwright script its task writes | accepted · 2026-10-14 · amends ADR-0012 |
 | [0032](0032-ponytail-discipline-and-reverse-engineering.md) | Ponytail as a per-goal discipline, an audit at the end, and reverse engineering with REA | accepted · 2026-10-16 · amends ADR-0004 and ADR-0016 |
+| [0033](0033-cad-goals-with-text-to-cad.md) | CAD goals with text-to-cad, behind a Desktop apps & printers switch | accepted · 2026-10-16 · amends ADR-0008 and ADR-0016 |
