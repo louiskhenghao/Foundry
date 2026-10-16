@@ -2,7 +2,7 @@ import type { DoctorReport, SkillsOverview } from '@foundry/engine/skills-types'
 import { CheckCircle2, CircleAlert, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { api as baseApi, apiForProvider, type AgentProvider } from '../api.ts';
+import { api as baseApi, apiForProvider, awaitSkillOp, type AgentProvider } from '../api.ts';
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import { GitHubSignInDialog } from '../components/GitHubSignInDialog.tsx';
 import { SignInDialog } from '../components/SignInDialog.tsx';
@@ -78,7 +78,7 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
   const api = apiForProvider(provider);
   const [report, setReport] = useState<DoctorReport | null>(null);
   /** a bundle install streaming on its own channel (text-to-cad's warm-up takes minutes) */
-  const [bundleLog, setBundleLog] = useState<{ title: string; channel: string } | null>(null);
+  const [bundleLog, setBundleLog] = useState<{ title: string; channel: string; status: 'running' | 'ok' | 'failed' } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [signIn, setSignIn] = useState(false);
@@ -254,8 +254,8 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
           Foundry's roles follow this workflow: workers use <span className="mono">tdd</span> for features and refactors and <span className="mono">diagnosing-bugs</span> for bugs, the merger follows built-in conflict-resolution instructions, and the goal reviewer applies <span className="mono">code-review</span>'s two axes. {provider === 'codex' ? 'Codex reads native SKILL.md instructions. Skill invocation telemetry is unavailable; reviews assess the work and tests instead of treating missing telemetry as a skipped skill.' : <>The engine records which skills each session invoked. Skills provided by the <span className="mono">mattpocock-skills</span> plugin are used as-is; others are installed from the catalog.</>}
         </p>
         <BundleStatus provider={provider} bundle="mattpocock" busy={busy} onInstall={() => runAction('bundle', async () => {
-          const r = await api.installBundle('mattpocock');
-          return r.results.map((x) => `${x.action}: ${x.name} — ${x.detail}`).join('\n');
+          const op = await awaitSkillOp(api, (await api.installBundle('mattpocock')).op);
+          return op.summary ?? op.status;
         })} />
       </Card>
 
@@ -264,35 +264,44 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
           The lazy senior dev: before writing, a worker checks whether the code needs to exist, whether the repository, the standard library or an installed dependency already has it, and only then writes the smallest complete change. The planner plans the same way, and <span className="mono">ponytail-review</span> reviews each task and the whole goal (the code a change touches, not only the diff). Every goal has a Ponytail switch, on by default; TDD still decides how tests are written. The optional audit at the end of a goal uses <span className="mono">ponytail-audit</span>.
         </p>
         <BundleStatus provider={provider} bundle="ponytail" busy={busy} onInstall={() => runAction('bundle', async () => {
-          const r = await api.installBundle('ponytail');
-          return r.results.map((x) => `${x.action}: ${x.name} — ${x.detail}`).join('\n');
+          const op = await awaitSkillOp(api, (await api.installBundle('ponytail')).op);
+          return op.summary ?? op.status;
         })} />
       </Card>
 
       <Card title="3D models — text-to-cad (CAD)">
-        <p className="text-xs text-zinc-400 mb-2">
-          Parts and assemblies as STEP (STL, 3MF and GLB on request), engineering drawings, DXF cut profiles, URDF/SRDF/SDF robot files, printability and manufacturability checks: twelve skills and a <span className="mono">cad</span> viewer server from{' '}
+        <p className="text-xs text-zinc-400 mb-2 max-w-3xl">
+          Parts and assemblies as STEP (STL, 3MF and GLB on request), engineering drawings, DXF cut profiles, URDF/SRDF/SDF robot files, printability and manufacturability checks, headless slicing: skills and a <span className="mono">cad</span> viewer server from{' '}
           <a className="underline" href="https://github.com/earthtojake/text-to-cad" target="_blank" rel="noreferrer">earthtojake/text-to-cad</a> (MIT). Goals get the <span className="mono">cad</span> nature; code goals use the same skills in their CAD tasks.
         </p>
-        <p className="text-xs text-zinc-500 mb-3">
-          Installing adds the plugin for this coding agent, allows its <span className="mono">cad</span> server for sessions (its telemetry switch stays out of their reach) and downloads the CAD runtime once (Python 3.13 and OpenCASCADE, a few hundred MB, through uv). Foundry's sessions run cadgen with usage statistics and update checks off; your own use of text-to-cad keeps its settings. Hand-offs to Bambu Connect, Bambu Studio or OrcaSlicer's window stay off until Settings → Safety → Desktop apps &amp; printers is on.
-        </p>
+        <ul className="text-xs text-zinc-500 mb-3 max-w-3xl list-disc pl-4 space-y-0.5">
+          <li>Needs uv: the CAD kernel (cadgen) runs through it. The line below says whether it is on this computer.</li>
+          <li>Install adds the plugin for this coding agent, allows its <span className="mono">cad</span> server for sessions (its telemetry switch and page-only tools stay out of reach) and downloads the CAD runtime once (Python 3.13 and OpenCASCADE, a few hundred MB); the progress shows here and the page can be left meanwhile.</li>
+          <li>Sessions run cadgen with usage statistics and update checks off; your own use of text-to-cad keeps its settings. Hand-offs to Bambu Connect, Bambu Studio or OrcaSlicer's window stay off until Settings → Safety → Desktop apps &amp; printers is on.</li>
+        </ul>
         {cadTools && (
           <p className={cn('text-xs mb-3', cadTools.ok ? 'text-zinc-400' : 'text-amber-300')}>
             {cadTools.detail}
-            {cadTools.fix?.command ? <> — <span className="mono">{cadTools.fix.command}</span></> : null}
+            {cadTools.fix?.command ? (
+              <>
+                {' '}— <span className="mono bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-200">{cadTools.fix.command} <CopyButton text={cadTools.fix.command} /></span>
+              </>
+            ) : null}
           </p>
         )}
         <BundleStatus provider={provider} bundle="text-to-cad" busy={busy} onInstall={() => runAction('bundle', async () => {
           const opId = `cad-${Date.now().toString(36)}`;
-          setBundleLog({ title: 'text-to-cad', channel: `skills-op:${opId}` });
-          const r = await api.installBundle('text-to-cad', opId);
-          return r.results.map((x) => `${x.action}: ${x.name} — ${x.detail}`).join('\n');
+          setBundleLog({ title: 'text-to-cad', channel: `skills-op:${opId}`, status: 'running' });
+          const op = await awaitSkillOp(api, (await api.installBundle('text-to-cad', opId)).op);
+          setBundleLog({ title: 'text-to-cad', channel: op.channel, status: op.status });
+          return op.summary ?? op.status;
         })} />
         {bundleLog && (
           <div className="mt-3">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-zinc-400">Installing {bundleLog.title}</span>
+              <span className={cn('text-xs', bundleLog.status === 'failed' ? 'text-rose-300' : 'text-zinc-400')} role="status">
+                {bundleLog.status === 'running' ? `Installing ${bundleLog.title}…` : bundleLog.status === 'ok' ? `${bundleLog.title} installed` : `${bundleLog.title}: install failed`}
+              </span>
               <Button size="sm" variant="ghost" onClick={() => { setBundleLog(null); load(); }}>close</Button>
             </div>
             <LiveLog attemptId={bundleLog.channel} className="max-h-64" />

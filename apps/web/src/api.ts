@@ -464,6 +464,16 @@ const safeJson = (t: string) => {
   }
 };
 
+/** wait for a background skills operation to end (its record is polled), for a page that wants the outcome where it started it */
+export async function awaitSkillOp(client: { skillOp: (id: string) => Promise<SkillOp> }, op: SkillOp, everyMs = 2000): Promise<SkillOp> {
+  let cur = op;
+  while (cur.status === 'running') {
+    await new Promise((r) => setTimeout(r, everyMs));
+    cur = await client.skillOp(cur.id);
+  }
+  return cur;
+}
+
 /** An immutable client scope keeps in-flight extension operations on their selected provider. */
 export function apiForProvider(provider?: AgentProvider) {
   const req = <T>(path: string, init?: RequestInit) => {
@@ -636,7 +646,8 @@ export function apiForProvider(provider?: AgentProvider) {
   mcpRemove: (name: string, opId?: string) => req<{ ok: boolean; error: string | null; op: SkillOp }>('/api/mcp/remove', { method: 'POST', body: JSON.stringify({ name, opId }) }),
   uninstallPlugin: (sourceId: string, opId?: string) => req<{ ok: boolean; error: string | null; op: SkillOp }>('/api/skills/plugins/uninstall', { method: 'POST', body: JSON.stringify({ sourceId, opId }) }),
   cleanupShadows: (names: string[]) => req<{ trashed: TrashEntry[]; skipped: { name: string; reason: string }[] }>('/api/skills/cleanup-shadows', { method: 'POST', body: JSON.stringify({ names }) }),
-  installBundle: (bundle: string, opId?: string) => req<{ results: { id: string; name: string; action: 'plugin' | 'updated' | 'adopted' | 'installed' | 'kept' | 'failed'; detail: string }[]; op: SkillOp }>('/api/skills/install-bundle', { method: 'POST', body: JSON.stringify({ bundle, opId }) }),
+  /** starts the install in the background: follow its channel, or awaitSkillOp(op) for the outcome */
+  installBundle: (bundle: string, opId?: string) => req<{ started: true; channel: string; op: SkillOp }>('/api/skills/install-bundle', { method: 'POST', body: JSON.stringify({ bundle, opId }) }),
   /** text-to-cad for this provider: installed, and uv (which runs cadgen) on this computer */
   cad: (provider?: AgentProvider) => req<{ installed: boolean; uv: boolean }>(`/api/cad${provider ? `?provider=${provider}` : ''}`),
   updateRuns: () => req<(EngineEvent & { seq: number })[]>('/api/skills/update-runs'),

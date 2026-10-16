@@ -105,12 +105,13 @@ describe('engine + settings', () => {
     const engine = new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'ch'), log: () => {} }), new FakeRunner(() => {}));
     const off = engine.sessionEnvExtra();
     expect(off).toMatchObject({ CADGEN_TELEMETRY: '0', CADGEN_UPDATE_CHECK: '0', FOUNDRY_DENIED_SKILLS: 'bambu-labs' });
-    expect(off.FOUNDRY_DESKTOP_PATTERNS).toContain('bambu-connect://');
+    expect(off.FOUNDRY_DESKTOP_PATTERNS).toContain('xdg-open');
+    expect(off.FOUNDRY_SLICER_PATTERNS).toContain('orca-slicer');
+    expect(off.FOUNDRY_HEADLESS_PATTERNS).toContain('slice');
     engine.updateSettings({ safety: { desktopApps: true } });
     const on = engine.sessionEnvExtra();
     expect(on).toMatchObject({ CADGEN_TELEMETRY: '0', CADGEN_UPDATE_CHECK: '0' });
-    expect(on).not.toHaveProperty('FOUNDRY_DESKTOP_PATTERNS');
-    expect(on).not.toHaveProperty('FOUNDRY_DENIED_SKILLS');
+    for (const k of ['FOUNDRY_DESKTOP_PATTERNS', 'FOUNDRY_SLICER_PATTERNS', 'FOUNDRY_HEADLESS_PATTERNS', 'FOUNDRY_DENIED_SKILLS']) expect(on).not.toHaveProperty(k);
   });
 
   test('API keys reach sessions via sessionEnvExtra (Kimi under both conventional names)', () => {

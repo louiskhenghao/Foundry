@@ -26,8 +26,10 @@ export function capEscalationMessage(message: string): string {
 
 export function raiseEscalation(engine: Engine, i: RaiseInput): Escalation {
   const { store } = engine;
-  // de-dup: one open escalation per (goal, task, trigger)
-  const existing = listEscalations(store.db, { goalId: i.goal.id, openOnly: true }).find((e) => e.trigger === i.trigger && e.taskId === (i.task?.id ?? null));
+  // de-dup: one open escalation per (goal, task, trigger), and per kind where the payload names one (a desktop-app block
+  // and a push block are both boundary items; one must not swallow the other)
+  const kind = (p: Record<string, unknown> | undefined) => (p && typeof p.kind === 'string' ? p.kind : null);
+  const existing = listEscalations(store.db, { goalId: i.goal.id, openOnly: true }).find((e) => e.trigger === i.trigger && e.taskId === (i.task?.id ?? null) && kind(e.payload) === kind(i.payload));
   if (existing) return existing;
   const esc: Escalation = {
     id: newId(IdPrefix.escalation),

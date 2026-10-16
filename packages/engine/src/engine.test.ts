@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { FINAL_WALK, getGoal, listAttempts, listChecks, listEscalations, listTasks } from '@foundry/core';
@@ -8,6 +8,7 @@ import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
 import { ESCALATION_MESSAGE_MAX, raiseEscalation } from './escalation.ts';
 import { goalWorkspacePath } from './workspace.ts';
+import { writeCatalog } from './skills/fake-home.test-helper.ts';
 import { scriptDeps } from './checks/walkthrough.ts';
 import { repairTitle } from './checkpoint.ts';
 
@@ -803,6 +804,28 @@ describe('MCP tools that run or change things', () => {
     // the switch that opens the dynamic tools opens the servers too: there is no list to apply then
     engine.config.mcpDynamicTools = true;
     expect(engine.workerToolPolicy(getGoal(engine.store.db, goal.id)!).allowedTools).toContain('mcp__rea');
+  });
+});
+
+describe('MCP servers a catalog plugin ships', () => {
+  test('the deny list rides under the prefix the coding agent gives the server; a broken skills catalog still keeps every MCP server out', async () => {
+    const dir = join(dataDir, 'catalog-plugin');
+    const catalogPath = writeCatalog(dir, [{ id: 'text-to-cad-cad', name: 'cad', bundle: 'text-to-cad', summary: '', why: '', tier: 'optional', roles: ['worker'], source: { type: 'plugin', marketplace: 'earthtojake/text-to-cad', marketplaceId: 'earthtojake', plugin: 'text-to-cad', mcpServers: [{ name: 'cad', denyTools: ['cad_telemetry', 'cad_http'] }] } }]);
+    cpSync(resolve(ROOT, 'catalog/mcp.json'), join(dir, 'mcp.json'));
+    const engine = track(new Engine(cfg({ catalogPath, mcpAllowed: ['mcp__plugin_text-to-cad_cad'] }), new FakeRunner(() => {})));
+    const goal = await engine.createGoal({ prompt: 'p', repoPath: repo, autoBrief: { mustChecks: ['true'] } });
+    const policy = engine.workerToolPolicy(getGoal(engine.store.db, goal.id)!);
+    // Claude Code names a plugin's server under the plugin
+    expect(policy.allowedTools).toContain('mcp__plugin_text-to-cad_cad');
+    expect(policy.disallowedTools).toEqual(['mcp__plugin_text-to-cad_cad__cad_telemetry', 'mcp__plugin_text-to-cad_cad__cad_http']);
+    // Codex by its own name
+    expect(engine.deniedMcpTools('codex', ['mcp__cad'])).toEqual(['mcp__cad__cad_telemetry', 'mcp__cad__cad_http']);
+    // an edit of skills.json gone wrong: no MCP server reaches the session, and nothing throws
+    await Bun.sleep(5);
+    writeFileSync(catalogPath, '{');
+    const broken = engine.workerToolPolicy(getGoal(engine.store.db, goal.id)!);
+    expect(broken.allowedTools.filter((t) => t.startsWith('mcp__'))).toEqual([]);
+    expect(broken.disallowedTools).toBeUndefined();
   });
 });
 

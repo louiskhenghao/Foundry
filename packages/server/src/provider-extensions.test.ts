@@ -39,7 +39,8 @@ describe('provider-scoped extensions and setup', () => {
   test('skill mutations and MCP permissions stay in the selected provider', async () => {
     const { send, calls } = fixture();
     expect((await send('/api/skills/install?provider=codex', 'POST', { id: 'tdd' })).status).toBe(200);
-    expect((await send('/api/skills/install-bundle?provider=claude', 'POST', { bundle: 'workflow' })).status).toBe(200);
+    // a bundle install is a background operation: accepted, then run on the selected provider
+    expect((await send('/api/skills/install-bundle?provider=claude', 'POST', { bundle: 'workflow' })).status).toBe(202);
     expect((await send('/api/skills/test/restore?provider=codex', 'POST', {})).status).toBe(200);
     expect((await send('/api/mcp/allowed?provider=codex', 'PUT', { prefix: 'mcp__example', on: true })).status).toBe(200);
     expect((await send('/api/mcp/remove?provider=claude', 'POST', { name: 'example' })).status).toBe(200);
