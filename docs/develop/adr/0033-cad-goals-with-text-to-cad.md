@@ -80,7 +80,9 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
 - **Exports travel with the tasks.** A cad task's worktree starts with the goal workspace's `artifacts/` (what earlier
   tasks exported), the way it gets project skills and style samples: a drawing or an assembly needs the parts' STEP,
   and artifacts never come through git. What a task inherited and left untouched is not copied back at integration, so
-  a task that finishes later never puts an older copy over a newer export.
+  a task that finishes later never puts an older copy over a newer export. The throw-away worktrees that run the
+  goal's checks (the merge baseline, a manual merge resolution, the stacked delivery) get the goal's artifacts too:
+  without them every check that measures an export read as "already failing" and merges were judged blind to it.
 
 ## Consequences
 

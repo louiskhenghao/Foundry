@@ -4,7 +4,7 @@ import { listChecks } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { ensureDetachedWorktree, removeWorktree } from '../git/git.ts';
 import { runCommandCheck } from './command.ts';
-import { baselineWorkspacePath } from '../workspace.ts';
+import { baselineWorkspacePath, copyArtifacts, goalWorkspacePath } from '../workspace.ts';
 
 /**
  * Which must command checks already fail on a given goal-branch commit, *before* a merge.
@@ -12,7 +12,8 @@ import { baselineWorkspacePath } from '../workspace.ts';
  * A merge (automatic or manual) is judged against this baseline: a check that was already red on the goal
  * branch is not the merge's fault and must not keep a correctly resolved merge from landing — otherwise a goal
  * whose suite is red for an unrelated reason loops forever (work → merge "fails" → retry → …).
- * Computed in a throw-away `_baseline` worktree and cached per commit.
+ * Computed in a throw-away `_baseline` worktree, given the goal workspace's artifacts (they never come through git), and
+ * cached per commit.
  */
 export class BaselineChecks {
   private cache = new Map<string, Promise<Set<string>>>();
@@ -41,6 +42,8 @@ export class BaselineChecks {
     if (!must.length) return new Set();
     const path = baselineWorkspacePath(config.dataDir, goal);
     await ensureDetachedWorktree(goal.repoPath, path, ref);
+    // artifacts never come through git: a check that measures an export sees the goal's exports here, as in the goal workspace
+    copyArtifacts(goalWorkspacePath(config.dataDir, goal), path);
     try {
       const failing = new Set<string>();
       for (const c of must) {

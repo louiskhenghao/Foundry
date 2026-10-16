@@ -12,7 +12,7 @@ import { detectRun } from '../preview/detect.ts';
 import { abortInProgress, commitAuthorMode, commitStaged, conflictedFiles, ensureDetachedWorktree, exec, git, gitIdent, gitOk, headRef, isGitRepo, removeWorktree, withCoauthor, type ExecResult } from '../git/git.ts';
 import { mergeBranchInto, resolveConflicts } from '../merge.ts';
 import { stackEntries } from './stack-entries.ts';
-import { deliveryWorkspacePath, ensureGoalWorkspace, goalWorkspacePath, isStackBranch, listStackBranches, stackBranchName } from '../workspace.ts';
+import { copyArtifacts, deliveryWorkspacePath, ensureGoalWorkspace, goalWorkspacePath, isStackBranch, listStackBranches, stackBranchName } from '../workspace.ts';
 import { describeFailing, failingChecks, reduceChecks, type GhClient, type PrView } from './gh.ts';
 import { closeDeliveryFailures, raiseDeliveryFailure } from './inbox.ts';
 import { baseOf, buildPrBody, buildTaskPrBody, needsGh, planDelivery, repoSlug } from './policy.ts';
@@ -289,6 +289,8 @@ async function buildStack(ctx: Ctx, step: StepFn): Promise<StackBranch[] | null>
     if (stale.length) note(`kept ${stale.length} branch(es) from an earlier run that are no longer part of the stack: ${stale.join(', ')}`);
 
     await ensureDetachedWorktree(ctx.repoPath, ctx.deliveryWs, baseRef);
+    // the goal's checks run here after a fix or a base resync: they see the exports, which never come through git
+    copyArtifacts(ctx.goalWs, ctx.deliveryWs);
     const stack: StackBranch[] = [];
     const built: string[] = [];
     const bail = async (why: string) => {
