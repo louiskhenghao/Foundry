@@ -678,6 +678,18 @@ async function settlePr(ctx: Ctx, step: StepFn, repo: string, number: number, un
   }
 }
 
+/** a PR's view once GitHub has computed whether it can merge (not UNKNOWN), polled for up to a minute; the last view seen otherwise */
+async function settleMergeable(ctx: Ctx, repo: string, number: number): Promise<PrView | null> {
+  const until = Date.now() + Math.min(60_000, 12 * ctx.opts.pollMs);
+  let v: PrView | null = null;
+  do {
+    await sleep(Math.min(ctx.opts.pollMs, 2_000), ctx.signal);
+    v = await ctx.gh.prView(ctx.goalWs, { repo, number }).catch(() => null);
+    if (v && v.mergeable !== 'UNKNOWN') return v;
+  } while (Date.now() < until);
+  return v;
+}
+
 /** merge one PR; true = merged, false = auto-merge armed under branch protection (GitHub merges later) */
 async function mergePr(ctx: Ctx, step: StepFn, repo: string, number: number, view: PrView, unit: PrUnit): Promise<boolean> {
   const { engine, goal, policy, signal } = ctx;
@@ -688,8 +700,16 @@ async function mergePr(ctx: Ctx, step: StepFn, repo: string, number: number, vie
     async () => {
     if (view.state !== 'OPEN') return { status: 'skipped', detail: `PR #${number} is ${view.state}`, value: view.state === 'MERGED' };
     if (view.mergeable !== 'MERGEABLE' && view.mergeable !== 'UNKNOWN') throw new DeliveryFailed('merge', `PR #${number} is ${view.mergeable}`);
-    const r = await ctx.gh.prMerge(config.dataDir, { repo, number, method: policy.mergeMethod, auto: false });
+    let r = await ctx.gh.prMerge(config.dataDir, { repo, number, method: policy.mergeMethod, auto: false });
     logCmd(ctx, 'merge', ['gh', 'pr', 'merge', String(number), `--${policy.mergeMethod}`], config.dataDir, r, 0);
+    // right after a push (a rebase onto a base that just took the PR below) GitHub is still computing mergeability and
+    // refuses as "not mergeable": wait until it settles, then try once more before reading it as branch protection
+    if (r.code !== 0 && /not mergeable/i.test(r.stderr + r.stdout)) {
+      const settled = await settleMergeable(ctx, repo, number);
+      if (settled?.mergeable === 'CONFLICTING') throw new DeliveryFailed('merge', `PR #${number} conflicts with its base`);
+      r = await ctx.gh.prMerge(config.dataDir, { repo, number, method: policy.mergeMethod, auto: false });
+      logCmd(ctx, 'merge', ['gh', 'pr', 'merge', String(number), `--${policy.mergeMethod}`], config.dataDir, r, 0);
+    }
     if (r.code === 0) {
       const v = await ctx.gh.prView(ctx.goalWs, { repo, number }).catch(() => null);
       ev({ type: 'delivery.merged', goalId: goal.id, payload: { prNumber: number, method: policy.mergeMethod, ref: v?.mergeCommit ?? null, taskId: unit.taskId } });

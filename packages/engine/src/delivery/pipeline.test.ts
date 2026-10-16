@@ -140,6 +140,18 @@ describe('delivery pipeline', () => {
     expect(prot.calls.some((c) => c[0] === 'prMerge' && c[3] === 'auto')).toBe(true);
   });
 
+  test("a merge refused as not mergeable right after a push waits for GitHub to settle and merges, instead of reading it as branch protection", async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'settling';
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await engine.createGoal({ prompt: 'settle', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 30_000);
+    expect(deliveredStatus(engine, goal.id)).toMatchObject({ status: 'delivered', outcome: 'merged' });
+    const merges = gh.calls.filter((c) => c[0] === 'prMerge');
+    // refused once, merged on the second try, auto-merge never asked for
+    expect(merges.map((c) => c[3])).toEqual(['now', 'now']);
+  });
+
   // ---- stacked, one PR per task
   const t = (key: string, title: string, deps: string[], kind: 'feature' | 'bug' = 'feature') => ({ key, title, spec: `write ${title}.txt`, kind, scope: null, scenario: 'general' as const, areaKey: null, tdd: 'inherit' as const, dependsOnKeys: deps, parallelizable: false, relevantFiles: [] });
   const c = (key: string, taskKey: string | null, cmd: string) => ({ key, name: key, tier: 'must' as const, taskKey, areaKey: null, spec: { type: 'command' as const, cmd, timeoutMs: 60_000, expectExitCode: 0 } });

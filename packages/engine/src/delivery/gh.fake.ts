@@ -16,7 +16,11 @@ export class FakeGh implements GhClient {
   /** checks state returned on successive prView calls (last value repeats) */
   checksSequence: ('pending' | 'passing' | 'failing' | 'none')[] = ['passing'];
   private viewCount = 0;
-  mergeBehavior: 'ok' | 'protected' | 'fail' = 'ok';
+  /** 'settling': right after a push GitHub has not recomputed mergeability — the first merge of a PR is refused as not
+   * mergeable and its next view says UNKNOWN; after that it merges */
+  mergeBehavior: 'ok' | 'protected' | 'fail' | 'settling' = 'ok';
+  private settled = new Set<number>();
+  private unknownOnce = new Set<number>();
   /** 'squash' writes one new commit on the base with the head's content, as GitHub's squash merge does */
   mergeStyle: 'fast-forward' | 'squash' = 'fast-forward';
   failedLogText: string | null = null;
@@ -62,6 +66,7 @@ export class FakeGh implements GhClient {
   async prView(_cwd: string, i: { repo: string; number: number }): Promise<PrView> {
     const pr = this.prs.get(i.number);
     if (!pr) throw new Error('no such PR');
+    if (this.unknownOnce.delete(i.number)) return { ...pr, mergeable: 'UNKNOWN', mergeStateStatus: 'UNKNOWN', checks: [] };
     const state = this.checksSequence[Math.min(this.viewCount, this.checksSequence.length - 1)]!;
     this.viewCount++;
     const checks =
@@ -77,6 +82,12 @@ export class FakeGh implements GhClient {
     const pr = this.prs.get(i.number);
     if (!pr) return { code: 1, stdout: '', stderr: 'no such PR' };
     if (this.mergeBehavior === 'fail') return { code: 1, stdout: '', stderr: 'Pull request is not mergeable' };
+    if (this.mergeBehavior === 'settling' && !i.auto && !this.settled.has(i.number)) {
+      this.settled.add(i.number);
+      this.unknownOnce.add(i.number);
+      return { code: 1, stdout: '', stderr: 'GraphQL: Pull Request is not mergeable (mergePullRequest)' };
+    }
+    if (this.mergeBehavior === 'settling' && i.auto) return { code: 1, stdout: '', stderr: 'GraphQL: Auto merge is not allowed for this repository (enablePullRequestAutoMerge)' };
     if (this.mergeBehavior === 'protected' && !i.auto) return { code: 1, stdout: '', stderr: 'GraphQL: Base branch requires review (protected branch)' };
     if (this.mergeBehavior === 'protected' && i.auto) return { code: 0, stdout: 'auto-merge enabled', stderr: '' }; // never actually merges in the fake
     if (this.bareRemote) pr.mergeCommit = await this.land(pr.head, pr.base);
