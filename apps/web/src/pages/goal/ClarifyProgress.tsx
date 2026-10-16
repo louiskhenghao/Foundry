@@ -19,6 +19,7 @@ export function ClarifyProgress({ goal, writingBrief }: { goal: Goal; writingBri
   const stage = goal.clarifyStage;
   const since = stage ? Math.max(0, Math.round((now - Date.parse(stage.at)) / 1000)) : null;
   const steps = [
+    ...(goal.references.length ? [{ key: 'investigating', label: `REA: studying ${goal.references.length === 1 ? 'the reference' : 'the references'} and writing the report` }] : []),
     { key: 'clarifying', label: writingBrief ? 'Clarifier: reading the repository, then writing the Brief' : 'Clarifier: reading the repository, then asking or writing the Brief' },
     ...(writingBrief ? [{ key: 'planning', label: 'Planner: splitting the goal into tasks' }] : []),
   ];

@@ -10,6 +10,7 @@ import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { useLive } from '../../store.ts';
 import { Badge, Button, Card, Empty, Input, Textarea, cn, fmtLimitMin, fmtLimitUsd } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
+import { ReferenceCard } from './ReferenceCard.tsx';
 import { AreasCard } from './AreasCard.tsx';
 import { CompletionCard, type CompletionChoice } from './CompletionCard.tsx';
 import { StyleCards } from './StyleCards.tsx';
@@ -286,6 +287,11 @@ export function BriefPage() {
           <section id="brief-acceptance" className={sec}>
             <GoalAcceptanceCard brief={brief} editable={editable} edit={edit} />
           </section>
+          {g.references.length > 0 && (
+            <section id="brief-reference" className={sec}>
+              <ReferenceCard goal={g} />
+            </section>
+          )}
           <section id="brief-run" className={sec}>
             <RunCard brief={brief} editable={editable} edit={edit} goalId={g.id} selfCheck={g.selfCheck} milestonePause={g.milestonePause ?? true} ponytail={(g.workflow.ponytail ?? 'on') === 'on'} />
           </section>

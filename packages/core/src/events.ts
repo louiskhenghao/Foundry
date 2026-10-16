@@ -5,6 +5,7 @@ import { InterviewQuestion } from './schema/interview.ts';
 import {
   Attempt,
   AuditFinding,
+  GoalReference,
   Brief,
   Budgets,
   ChecksState,
@@ -164,7 +165,13 @@ export const EngineEvent = z.discriminatedUnion('type', [
 
   ev('clarify.started', { attemptId: z.string().nullable() }),
   /** where Clarify is: the Clarifier reading the repository and writing its answer (a round or the Brief), or the planner splitting the goal into tasks */
-  ev('clarify.stage', { stage: z.enum(['clarifying', 'planning']) }),
+  ev('clarify.stage', { stage: z.enum(['investigating', 'clarifying', 'planning']) }),
+  /** the human changed the shipped software the goal learns from */
+  ev('goal.references_set', { references: z.array(GoalReference) }),
+  /** the investigation of the references is wanted again (a re-run of Clarify, a changed reference, the person's request) */
+  ev('goal.investigation_requested', {}),
+  /** REA investigated the references: the report is attachment `attachmentId` and the document `docPath` on the goal branch */
+  ev('goal.investigation_finished', { status: z.enum(['ok', 'failed', 'skipped']), summary: z.string(), attachmentId: z.string().nullable(), docPath: z.string().nullable(), costUsd: z.number(), detail: z.string() }),
   /** one style sample was generated for a Style Proposal (file appended to its samples, never replacing) */
   ev('brief.style_sampled', { styleKey: z.string(), file: z.string(), costUsd: z.number(), status: z.enum(['ok', 'failed']), detail: z.string() }),
   ev('brief.proposed', { brief: Brief }),

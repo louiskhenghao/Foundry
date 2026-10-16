@@ -658,6 +658,57 @@ describe('an engine error mid-attempt', () => {
   });
 });
 
+describe('a goal with a reference', () => {
+  const { existsSync: exists } = require('node:fs') as typeof import('node:fs');
+  const report = { summary: 'Search ranks by recency, then by title match.', report: '## How search works\n\nEvidence: the request `GET /api/search?q=` returns items sorted by `updatedAt`…' };
+  /** the investigation session answers with the report; every other session is the plain fake */
+  const investigating = () => {
+    const inner = new FakeRunner(() => {});
+    return {
+      active: () => 0,
+      run: async (spec: RunSpec) => {
+        const h = await inner.run(spec);
+        if (!spec.label?.startsWith('investigate')) return h;
+        expect(spec.allowedTools).toContain('mcp__rea');
+        expect(spec.disallowedTools).toContain('mcp__rea__start_adb_app');
+        const result = { ...(await h.result), finalText: JSON.stringify(report) };
+        return { ...h, result: Promise.resolve(result), events: (async function* () { yield { kind: 'result', result } as RunnerEvent; })() };
+      },
+      calls: inner.calls,
+    } as unknown as ClaudeRunner & { calls: RunSpec[] };
+  };
+
+  test('REA studies the reference before Clarify: the report is an attachment and a document on the goal branch', async () => {
+    const runner = investigating();
+    const engine = track(new Engine(cfg({ mcpAllowed: ['mcp__rea'] }), runner));
+    const goal = await engine.createGoal({ prompt: 'a search box like the one in Notes', repoPath: repo, references: [{ target: 'https://notes.example.com', lookAt: 'how search ranks results' }] });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.investigation != null, 20_000);
+    const g = getGoal(engine.store.db, goal.id)!;
+    expect(g.investigation).toMatchObject({ status: 'ok', summary: report.summary, docPath: 'docs/reference/notes-example-com.md' });
+    const att = g.attachments.find((a) => a.id === g.investigation!.attachmentId)!;
+    expect(att.name).toBe('reference-notes-example-com.md');
+    expect(exists(join(goalWorkspacePath(dataDir, g), 'docs/reference/notes-example-com.md'))).toBe(true);
+    // the subject stays a commit subject: at most 72 characters
+    expect((await Bun.$`git -C ${goalWorkspacePath(dataDir, g)} log -1 --format=%s`.text()).trim()).toBe('docs(reference): how https://notes.example.com does how search ranks res');
+    // the Clarifier runs after it, with the report among its attachments
+    await waitFor(() => runner.calls.some((c) => c.label?.startsWith('clarify')), 20_000);
+    const clarify = runner.calls.find((c) => c.label?.startsWith('clarify'))!;
+    expect(clarify.prompt).toContain('# Reference');
+    expect(clarify.prompt).toContain('reference-notes-example-com.md');
+    expect(engine.store.listByGoalOfTypes(goal.id, ['clarify.stage']).map((e) => (e.payload as { stage: string }).stage)[0]).toBe('investigating');
+  });
+
+  test('without REA the investigation is skipped and Clarify goes on', async () => {
+    const runner = investigating();
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'p', repoPath: repo, references: [{ target: '/Applications/Notes.app', lookAt: 'search' }] });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.investigation != null, 20_000);
+    expect(getGoal(engine.store.db, goal.id)!.investigation).toMatchObject({ status: 'skipped' });
+    await waitFor(() => runner.calls.some((c) => c.label?.startsWith('clarify')), 20_000);
+    expect(runner.calls.some((c) => c.label?.startsWith('investigate'))).toBe(false);
+  });
+});
+
 describe('MCP tools that run or change things', () => {
   test('an allowed catalog server keeps its dynamic tools out of worker sessions until Settings opens them', async () => {
     const engine = track(new Engine(cfg({ mcpAllowed: ['mcp__rea'] }), new FakeRunner(() => {})));

@@ -400,6 +400,21 @@ function project(db: Database, e: EngineEvent): void {
       if (g) upsertGoal(db, { ...g, completion: { ...g.completion, auditRun: { status: e.payload.status, summary: e.payload.summary, findings: e.payload.findings, fixTaskIds: e.payload.fixTaskIds, costUsd: e.payload.costUsd, detail: e.payload.detail, at: e.ts } }, updatedAt: e.ts });
       break;
     }
+    case 'goal.references_set': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, references: e.payload.references, updatedAt: e.ts });
+      break;
+    }
+    case 'goal.investigation_requested': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, investigation: null, updatedAt: e.ts });
+      break;
+    }
+    case 'goal.investigation_finished': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, investigation: { status: e.payload.status, summary: e.payload.summary, attachmentId: e.payload.attachmentId, docPath: e.payload.docPath, costUsd: e.payload.costUsd, detail: e.payload.detail, at: e.ts }, updatedAt: e.ts });
+      break;
+    }
     case 'goal.ponytail_set': {
       const g = getGoal(db, e.goalId!);
       if (g) upsertGoal(db, { ...g, workflow: { ...g.workflow, ponytail: e.payload.on ? 'on' : 'off' }, updatedAt: e.ts });

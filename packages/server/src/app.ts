@@ -53,6 +53,8 @@ const CreateGoalBody = z.object({
   brief: Brief.omit({ goalId: true }).optional(),
   delivery: DeliveryPolicy.partial().optional(),
   attachments: z.array(Attachment).optional(),
+  /** shipped software the goal learns from: REA investigates each before Clarify */
+  references: z.array(z.object({ target: z.string().trim().min(1), lookAt: z.string().optional() })).max(5).optional(),
   mode: GoalMode.optional(),
   workflow: GoalWorkflow.partial().optional(),
   nature: GoalNature.optional(),
@@ -369,6 +371,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.post('/api/goals/:id/milestone-pause', async (c) => {
     const { on } = z.object({ on: z.boolean() }).parse(await c.req.json());
     engine.setMilestonePause(goalOr404(c).id, on);
+    return c.json({ ok: true });
+  });
+  // study the goal's references again with REA: the report is replaced; the Brief changes only with Re-run Clarify
+  app.post('/api/goals/:id/investigate', (c) => {
+    engine.investigate(goalOr404(c).id);
     return c.json({ ok: true });
   });
   app.post('/api/goals/:id/ponytail', async (c) => {
@@ -707,6 +714,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       milestoneEvents: engine.store.listByGoalOfTypes(id, ['goal.checkpoint_opened', 'goal.checkpoint_closed', 'goal.milestone_passed', 'milestone.evidence', 'milestone.final_walk']),
       milestoneRuns: engine.milestoneRuns(id),
       auditRunning: engine.auditing.has(id),
+      investigating: engine.investigating.has(id),
       // Follows / Followed by: the earlier goal may have been deleted since (then only its title remains)
       followUps: {
         followsExists: goal.follows ? !!getGoal(db, goal.follows.goalId) : false,

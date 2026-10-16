@@ -14,6 +14,7 @@ import { hasStackManifest } from './skills/autoskills.ts';
 import { startSentence } from './follow-up.ts';
 import { readdirSync } from 'node:fs';
 import { resolveDiscipline } from './skills/workflow.ts';
+import { renderReferences } from './references.ts';
 
 /** Files that do not make a repository "have code": a freshly initialised repo may carry any of these. */
 const EMPTY_REPO_IGNORE = new Set(['.git', '.claude', '.agents', '.DS_Store', 'graphify-out', 'CLAUDE.md', 'AGENTS.md', 'README.md', '.gitignore', '.gitattributes', 'LICENSE', 'docs']);
@@ -542,6 +543,7 @@ function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: str
     `# Goal from the user\n${goal.prompt}`,
     decisions ? `${decisions}\nTreat these as settled: plan with them, record them as assumptions, and do not ask about them again.` : '',
     previous,
+    goal.references.length ? `${renderReferences(goal)}\nGround the Brief in the report: what the reference does becomes the understanding and the acceptance checks, in the person's words. A goal that only asks to understand the reference, not to change this repository, is of nature research: its deliverable is the report under docs/, and its tasks analyse rather than build. Never plan copying the reference's code or assets.` : '',
     natureSection(goal, emptyRepo, imageGen),
     attachments ? `${attachments}\nWhen an attachment matters for a specific task, name it (by file name) in that task's spec.` : '',
     overview ? `# Repository overview\n${overview}` : '',
@@ -565,6 +567,7 @@ export function buildPlannerPrompt(goal: Goal, skeleton: BriefSkeleton, c: { ove
     c.decisions ? `${c.decisions}\nThese are settled: plan with them.` : '',
     answers.length ? `# The human's answers in the interview (settled)\n${answers.map(({ question, answer }) => `- ${question.text}\n  A: ${answer}`).join('\n')}` : '',
     c.previous,
+    renderReferences(goal),
     plannerNatureSection({ ...goal, nature: skeleton.nature ?? goal.nature }, c.emptyRepo),
     c.attachments,
     c.overview ? `# Repository overview\n${c.overview}` : '',

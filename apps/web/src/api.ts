@@ -381,6 +381,8 @@ export interface GoalDetail {
   milestoneRuns?: string[];
   /** ponytail-audit is reading the finished branch */
   auditRunning?: boolean;
+  /** REA is studying the goal's references */
+  investigating?: boolean;
   /** Follows / Followed by (goal.follows holds the earlier goal; it may have been deleted since) */
   followUps: { followsExists: boolean; followedBy: { id: string; title: string; state: GoalState }[] };
 }
@@ -565,6 +567,7 @@ export function apiForProvider(provider?: AgentProvider) {
   previewServicesStop: (id: string, names?: string[]) => req<ServicesStatus | null>(`/api/goals/${id}/preview/services/stop`, { method: 'POST', body: JSON.stringify(names ? { names } : {}) }),
   previewVisit: (id: string) => req<{ ok: true }>(`/api/goals/${id}/preview/visit`, { method: 'POST' }),
   checkOutput: (id: string, resultId: string) => req<{ text: string; full: boolean }>(`/api/goals/${id}/check-results/${resultId}/output`),
+  investigate: (id: string) => req<{ ok: true }>(`/api/goals/${id}/investigate`, { method: 'POST' }),
   setPonytail: (id: string, on: boolean) => req<{ ok: true }>(`/api/goals/${id}/ponytail`, { method: 'POST', body: JSON.stringify({ on }) }),
   setMilestonePause: (id: string, on: boolean) => req<{ ok: true }>(`/api/goals/${id}/milestone-pause`, { method: 'POST', body: JSON.stringify({ on }) }),
   setSelfCheck: (id: string, on: boolean) => req<{ ok: true }>(`/api/goals/${id}/selfcheck`, { method: 'POST', body: JSON.stringify({ on }) }),

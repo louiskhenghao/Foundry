@@ -57,6 +57,7 @@ import { schedule } from './scheduler.ts';
 import { budgetStatus } from './budget.ts';
 import { dueCheckpoint, recordMilestone } from './checkpoint.ts';
 import { milestoneQueues, milestoneRunsFor } from './checks/walkthrough.ts';
+import { needsInvestigation, runInvestigation } from './investigation.ts';
 import { MILESTONE_CHECK_PREFIX, milestoneCheckSpec } from './checks/milestone-script.ts';
 import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
@@ -133,6 +134,8 @@ export interface CreateGoalInput {
   delivery?: Partial<DeliveryPolicy>;
   /** Staged uploads (from POST /api/uploads) and links; files are moved under the goal on creation. */
   attachments?: Attachment[];
+  /** shipped software to learn from: REA investigates each before Clarify, when it is installed */
+  references?: { target: string; lookAt?: string }[];
   /** simple = plain-language Brief and progress; default from Settings */
   mode?: GoalMode;
   /** engineering discipline; Simple mode defaults tdd to `preferred`, Expert to the Settings default */
@@ -219,6 +222,8 @@ export class Engine {
   readonly finalWalking = new Set<string>();
   /** goals whose audit (ponytail-audit on the finished branch) is running */
   readonly auditing = new Set<string>();
+  /** goals whose references REA is investigating */
+  readonly investigating = new Set<string>();
   /** a scripted milestone whose script still fails after its repair: the goal pauses at it once no task is in flight */
   readonly pauseDue = new Map<string, string>();
   /** consecutive engine-side crashes per task (reset when an attempt runs) */
@@ -550,6 +555,31 @@ export class Engine {
     this.store.append({ type: 'goal.milestone_pause_set', goalId, payload: { on } });
   }
 
+  /** run the investigation of a goal's references in the background, once at a time; the tick goes on when it ends */
+  private startInvestigation(goal: Goal): void {
+    if (this.investigating.has(goal.id)) return;
+    this.investigating.add(goal.id);
+    void runInvestigation(this, goal)
+      .catch((err) => this.config.log(`[investigate] ${goal.id}: ${String((err as Error).message ?? err)}`))
+      .finally(() => {
+        this.investigating.delete(goal.id);
+        this.tick(goal.id);
+      });
+  }
+
+  /**
+   * Study the goal's references again (a changed target, a new look): the report is replaced; the Brief changes only
+   * with Re-run Clarify. Possible until the Brief is approved.
+   */
+  investigate(goalId: string): void {
+    const goal = this.mustGoal(goalId);
+    if (!goal.references.length) throw new Error('this goal has no reference to investigate');
+    if (!['draft', 'clarifying', 'awaiting_brief_approval'].includes(goal.state)) throw new Error(`the goal is ${goal.state}; its references can be investigated again until the Brief is approved`);
+    if (this.investigating.has(goalId)) return;
+    this.store.append({ type: 'goal.investigation_requested', goalId, payload: {} });
+    this.startInvestigation(getGoal(this.store.db, goalId)!);
+  }
+
   /** switch Ponytail (the lazy senior dev) on or off for a goal; applies from its next session */
   setPonytail(goalId: string, on: boolean): void {
     if ((this.mustGoal(goalId).workflow.ponytail === 'on') === on) return;
@@ -607,6 +637,8 @@ export class Engine {
     // the Brief is discarded, the human's Decisions are not: the new Clarify receives them and must not ask again
     const prior = getBrief(this.store.db, goalId)?.brief;
     const decisions = prior ? renderDecisions(prior, '# Decisions already made by the human') : '';
+    // the references are studied again before the new Brief
+    if (goal.references.length) this.store.append({ type: 'goal.investigation_requested', goalId, payload: {} });
     this.store.append({ type: 'goal.reclarified', goalId, payload: { reason, workspaceRebuilt: rebuilt, decisions } });
     this.store.append({ type: 'goal.state_changed', goalId, payload: { from: 'awaiting_brief_approval', to: 'clarifying', reason: `re-run clarify: ${reason}` } });
   }
@@ -1409,6 +1441,11 @@ export class Engine {
         return; // the human continues or gives feedback (escalation answer); nothing to schedule
       case 'clarifying': {
         if (this.clarifying.has(goalId)) return;
+        // a goal with references: REA studies them first, so the Brief is grounded in how they work
+        if (needsInvestigation(goal)) {
+          this.startInvestigation(goal);
+          return;
+        }
         const iv = goal.interview;
         if (iv?.status === 'awaiting_answers') return; // a round is open: the human answers on the goal page
         // a round was answered but no session settled it (engine restarted mid-interview): pick it up again
@@ -1560,6 +1597,8 @@ export class Engine {
       selfCheck: input.selfCheck ?? this.config.selfCheck,
       milestonePause: input.milestonePause ?? this.config.milestonePause,
       clarifyStage: null,
+      references: (input.references ?? []).map((r) => ({ target: r.target.trim(), lookAt: (r.lookAt ?? '').trim() })).filter((r) => r.target),
+      investigation: null,
       previewRef: null,
       previewPlace: 'auto',
       effort: input.effort === undefined ? this.config.effort : input.effort,
@@ -1770,7 +1809,28 @@ export class Engine {
     const notif = notifChannels.length
       ? { id: 'notifications', label: 'Notifications (optional)', ok: true, severity: 'warn' as const, detail: `${notifChannels.join(' + ')} configured — you get pinged when a goal needs you, finishes, delivers, or usage pauses`, fix: null }
       : { id: 'notifications', label: 'Notifications (optional)', ok: false, severity: 'warn' as const, detail: 'not configured — get a Telegram or Discord ping when a goal needs you, finishes, or a delivery fails', fix: { url: '/settings' } };
-    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...await this.mcpFor(provider).doctorChecks()]);
+    const rea = await this.reaEnginesCheck(provider);
+    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), ...await this.mcpFor(provider).doctorChecks()]);
+  }
+
+  /**
+   * With REA installed: whether a native analysis engine is on this computer. Websites, JavaScript and Electron apps,
+   * .NET and Android packages need none; native apps and binaries need Hopper, Ghidra or IDA.
+   */
+  private async reaEnginesCheck(provider: 'claude' | 'codex') {
+    const view = await this.mcpFor(provider).view();
+    if (!view.catalog.some((c) => c.entry.id === 'rea' && c.installed)) return null;
+    const env = process.env;
+    const found = [
+      env.GHIDRA_INSTALL_DIR && existsSync(env.GHIDRA_INSTALL_DIR) ? `Ghidra at ${env.GHIDRA_INSTALL_DIR}` : null,
+      !env.GHIDRA_INSTALL_DIR && (Bun.which('ghidraRun') || Bun.which('ghidra')) ? 'Ghidra on PATH' : null,
+      env.HOPPER_LAUNCHER_PATH && existsSync(env.HOPPER_LAUNCHER_PATH) ? 'Hopper (HOPPER_LAUNCHER_PATH)' : null,
+      ['/Applications/Hopper Disassembler v5.app', '/Applications/Hopper Disassembler.app'].some((p) => existsSync(p)) ? 'Hopper in /Applications' : null,
+      env.REA_IDA_MCP_CONFIG && existsSync(env.REA_IDA_MCP_CONFIG) ? 'IDA (REA_IDA_MCP_CONFIG)' : null,
+    ].filter((x): x is string => !!x);
+    return found.length
+      ? { id: 'rea-native', label: 'REA native engines (optional)', ok: true, severity: 'warn' as const, detail: `${found.join(', ')} — REA can analyse native apps and binaries`, fix: null }
+      : { id: 'rea-native', label: 'REA native engines (optional)', ok: false, severity: 'warn' as const, detail: 'no Hopper, Ghidra or IDA found — REA analyses websites, JavaScript/Electron apps, .NET and Android packages; native apps and binaries need one of them (Ghidra is free: install it and set GHIDRA_INSTALL_DIR)', fix: { url: 'https://github.com/morluto/rea/blob/main/docs/installation.md' } };
   }
 
   /** Attach a staged upload or a link to an existing goal; later sessions see it. */

@@ -67,6 +67,8 @@ export function NewGoalPage() {
   const [title, setTitle] = useState('');
   const [repoInfo, setRepoInfo] = useState<RepoInfo | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  /** shipped software the goal learns from: REA studies each before Clarify */
+  const [references, setReferences] = useState<{ target: string; lookAt: string }[]>([]);
   const [delivery, setDelivery] = useState<PolicyDraft>(loadDraft());
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const [budget, setBudget] = useState<BudgetDraft>(loadBudget());
@@ -260,6 +262,7 @@ export function NewGoalPage() {
         autoBrief: auto ? { mustChecks: checks.split('\n').map((s) => s.trim()).filter(Boolean), stretchChecks: stretch.split('\n').map((s) => s.trim()).filter(Boolean) } : undefined,
         delivery,
         attachments,
+        references: references.map((r) => ({ target: r.target.trim(), lookAt: r.lookAt.trim() })).filter((r) => r.target),
         mode,
         // fast: let the engine default the TDD mandate off instead of pinning it here
         workflow: pace === 'fast' ? { pace, ponytail } : { pace, tdd: mode === 'simple' ? 'preferred' : tdd, ponytail },
@@ -467,6 +470,30 @@ export function NewGoalPage() {
       <Card title={<>1 · What do you want done?<HelpLink to="your-first-goal#what-do-you-want-done" className="ml-1.5" /></>}>
         <Textarea rows={6} placeholder="Describe the goal as you would to a senior engineer. The system clarifies, proposes Must / Stretch acceptance checks and a task plan for you to approve." value={prompt} onChange={(e) => setPrompt(e.target.value)} />
         <AttachmentInput className="mt-2" items={attachments} onChange={setAttachments} />
+        <div className="mt-3 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-zinc-400">
+              Reference (optional)<HelpLink to="your-first-goal#reference" className="ml-1.5" />
+            </span>
+            <Button size="sm" variant="ghost" disabled={references.length >= 5} onClick={() => setReferences((r) => [...r, { target: '', lookAt: '' }])} title="A site, an app or a package whose feature this goal should learn from; REA studies it before Clarify">
+              + add a reference
+            </Button>
+          </div>
+          {references.map((r, i) => (
+            <div key={i} className="grid gap-1.5 sm:grid-cols-[1fr_1fr_auto]">
+              <Input placeholder="https://app.example.com, or /Applications/Notes.app" value={r.target} onChange={(e) => setReferences((rs) => rs.map((x, j) => (j === i ? { ...x, target: e.target.value } : x)))} />
+              <Input placeholder="which feature to look at, e.g. how search ranks results" value={r.lookAt} onChange={(e) => setReferences((rs) => rs.map((x, j) => (j === i ? { ...x, lookAt: e.target.value } : x)))} />
+              <Button size="sm" variant="ghost" onClick={() => setReferences((rs) => rs.filter((_, j) => j !== i))}>
+                remove
+              </Button>
+            </div>
+          ))}
+          {references.length > 0 && (
+            <p className="text-[11px] text-zinc-500">
+              Before Clarify, REA studies each reference and writes a report with its evidence; every session reads it, and it is committed under docs/reference. Only software you are allowed to examine: the goal builds its own version, never a copy. Needs the REA server (Extensions → MCP servers); native apps and binaries also need Hopper, Ghidra or IDA on this computer (Setup page).
+            </p>
+          )}
+        </div>
         <div className="mt-3">
           <label className="text-xs text-zinc-400">Title (optional — defaults to the first line)</label>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} />

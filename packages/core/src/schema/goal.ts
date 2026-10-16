@@ -87,6 +87,28 @@ export type Discipline = z.infer<typeof Discipline>;
 export const GoalPace = z.enum(['thorough', 'fast']);
 export type GoalPace = z.infer<typeof GoalPace>;
 
+/** shipped software a goal learns from: where it is (a URL or a path on this computer) and which feature to study */
+export const GoalReference = z.object({
+  target: z.string().min(1),
+  /** which feature or behaviour to understand, in the person's words */
+  lookAt: z.string().default(''),
+});
+export type GoalReference = z.infer<typeof GoalReference>;
+
+/** what the investigation of a goal's references produced: a report (an attachment, and a document on the goal branch) */
+export const GoalInvestigation = z.object({
+  status: z.enum(['ok', 'failed', 'skipped']),
+  summary: z.string(),
+  /** the report among the goal's attachments */
+  attachmentId: z.string().nullable(),
+  /** the report committed on the goal branch, repository-relative */
+  docPath: z.string().nullable(),
+  costUsd: z.number(),
+  detail: z.string(),
+  at: z.string(),
+});
+export type GoalInvestigation = z.infer<typeof GoalInvestigation>;
+
 /** Ponytail, the lazy senior dev: on = workers climb its ladder before writing, the planner plans lean, ponytail-review reviews */
 export const PonytailSwitch = z.enum(['on', 'off']);
 export type PonytailSwitch = z.infer<typeof PonytailSwitch>;
@@ -241,7 +263,11 @@ export const Goal = z.object({
    */
   previewPlace: PreviewPlace.default('auto'),
   /** which Clarify session runs and since when: the Clarifier (reading the repository, writing its answer) or the planner */
-  clarifyStage: z.object({ stage: z.enum(['clarifying', 'planning']), at: z.string() }).nullable().default(null),
+  clarifyStage: z.object({ stage: z.enum(['investigating', 'clarifying', 'planning']), at: z.string() }).nullable().default(null),
+  /** shipped software the goal learns from (a site, an app, a package): REA investigates each one before Clarify */
+  references: z.array(GoalReference).default([]),
+  /** the investigation of the references; its report is an attachment and a committed document (null = not run yet) */
+  investigation: GoalInvestigation.nullable().default(null),
   /** the Clarify interview (rounds of questions before the Brief); null = the one-shot Clarify of before */
   interview: Interview.nullable().default(null),
   /** effort level for every session of this goal; null = Settings default / CLI default */
