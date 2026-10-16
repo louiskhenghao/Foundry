@@ -1,14 +1,14 @@
-import { mkdirSync, mkdtempSync, renameSync, rmSync, unlinkSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, statSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import { getGoal, getTask, type Goal, type Task } from '@foundry/core';
+import { getGoal, getTask, listAttempts, type Goal, type Task } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { boundarySettings } from '../guards/boundary.ts';
 import { CAD_VIEWER_KEY, type PreviewAppStatus } from '../preview/manager.ts';
 import { metaFor, modelFor } from '../models/roles.ts';
-import { screenshotsDir } from '../workspace.ts';
+import { ARTIFACTS_DIR, goalWorkspacePath, listArtifacts, screenshotsDir } from '../workspace.ts';
 import { runMilestoneScript, type ScriptDeps } from './milestone-script.ts';
 
 export const WALK_MAX_BUDGET_USD = 0.5;
@@ -101,9 +101,13 @@ export function milestoneRunsFor(goalId: string): string[] {
 /** how a scripted milestone's script is run; tests replace it */
 export const scriptDeps: { current: ScriptDeps | undefined } = { current: undefined };
 
+/** tasks whose deliverables are files under artifacts/ (a model and its snapshots, images, video): those files show the milestone */
+export const FILE_SCENARIOS: readonly string[] = ['cad', 'image', 'video'];
+
 /**
  * Record what a milestone looks like, after any recording of the same goal still running: by its Playwright script when
- * it has one, else by a walkthrough Foundry plans (or replays). The result is a `milestone.evidence` event. Never throws.
+ * it has one; by the files it produced when its deliverables are files (a model's snapshots, images, video), since there
+ * is no app to walk; else by a walkthrough Foundry plans (or replays). The result is a `milestone.evidence` event. Never throws.
  */
 export function captureMilestone(engine: Engine, goal: Goal, task: Task, opts: CaptureOptions = {}): Promise<MilestoneEvidence | null> {
   pending.set(goal.id, [...(pending.get(goal.id) ?? []), task.id]);
@@ -113,7 +117,8 @@ export function captureMilestone(engine: Engine, goal: Goal, task: Task, opts: C
       // the goal and the task as they are now: a script that changed while this waited is the one run
       const g = getGoal(engine.store.db, goal.id) ?? goal;
       const t = getTask(engine.store.db, task.id) ?? task;
-      return t.milestoneScript ? captureScripted(engine, g, t, opts) : captureWalk(engine, g, t, opts);
+      if (t.milestoneScript) return captureScripted(engine, g, t, opts);
+      return FILE_SCENARIOS.includes(t.scenario) ? captureFiles(engine, g, t, opts) : captureWalk(engine, g, t, opts);
     })
     .catch(() => null)
     .finally(() => {
@@ -148,6 +153,64 @@ async function captureScripted(engine: Engine, goal: Goal, task: Task, opts: Cap
   };
   engine.store.append({ type: 'milestone.evidence', goalId: goal.id, payload: evidence });
   engine.config.log(`[milestone] ${goal.id}: ${task.milestoneScript} ${run.status}${run.error ? ` (${run.error.split('\n')[0]})` : ''}`);
+  return evidence;
+}
+
+const IMAGE = /\.(png|jpe?g|webp|gif)$/i;
+const VIDEO = /\.(mp4|webm|mov)$/i;
+const MODEL = /\.(step|stp|stl|3mf|glb|dxf)$/i;
+
+/**
+ * A milestone whose deliverables are files: what the task left under the goal workspace's `artifacts/` — the images
+ * (a model's snapshots, generated images) as screenshots, a video as a clip, the model files named in the summary. The
+ * files the task wrote are those changed since its first attempt started (an integration copies only what a task
+ * changed); when none can be told apart, every file of the goal shows. Copies go to the goal's screenshots folder, so
+ * the milestone card and the notification channels show them like a walkthrough's.
+ */
+async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: CaptureOptions): Promise<MilestoneEvidence> {
+  const { store, config } = engine;
+  const evidence: MilestoneEvidence = { taskId: task.id, video: null, shots: [], summary: '', error: null, app: null, ...(opts.final ? { final: true } : {}) };
+  try {
+    const ws = goalWorkspacePath(config.dataDir, goal);
+    let root = join(ws, ARTIFACTS_DIR);
+    let files = listArtifacts(ws);
+    // a finished goal whose folder was cleaned up: the copies delivered to its output folder
+    const run = goal.completion.artifactsRun;
+    if (!files.length && run?.status === 'ok' && run.dest) {
+      root = run.dest;
+      files = run.files.filter((f) => existsSync(join(root, f)));
+    }
+    const since = Math.min(...listAttempts(store.db, task.id).map((a) => Date.parse(a.startedAt)).filter((n) => !Number.isNaN(n)), Number.POSITIVE_INFINITY);
+    const all = files
+      .filter((f) => !f.startsWith('samples/'))
+      .map((f) => ({ f, at: statSync(join(root, f)).mtimeMs }));
+    const mine = Number.isFinite(since) ? all.filter((x) => x.at >= since) : [];
+    const pool = (mine.length ? mine : all).sort((a, b) => b.at - a.at || a.f.localeCompare(b.f));
+    const dir = screenshotsDir(config.dataDir, goal);
+    mkdirSync(dir, { recursive: true });
+    const stamp = `${new Date().toISOString().replace(/[:.]/g, '-')}-${task.id}`;
+    const copy = (f: string) => {
+      const name = `${stamp}-${f.replace(/[^\w.-]+/g, '_')}`;
+      copyFileSync(join(root, f), join(dir, name));
+      return name;
+    };
+    const images = pool.filter((x) => IMAGE.test(x.f)).slice(0, 8).sort((a, b) => a.f.localeCompare(b.f));
+    evidence.shots = images.map((x) => ({ file: copy(x.f), caption: x.f }));
+    const clip = pool.find((x) => VIDEO.test(x.f));
+    if (clip) evidence.clips = [{ file: copy(clip.f), caption: clip.f }];
+    const models = pool.filter((x) => MODEL.test(x.f)).map((x) => x.f);
+    const shown = evidence.shots.length + (evidence.clips?.length ?? 0);
+    evidence.summary = shown
+      ? `What the task left under artifacts/: ${[...images.map((x) => x.f), ...(clip ? [clip.f] : [])].join(', ')}${models.length ? `. Models: ${models.join(', ')}` : ''}.`
+      : '';
+    evidence.error = shown ? null : task.scenario === 'cad' ? 'the task left no snapshots under artifacts/: there is nothing to look at' : 'the task left no images or video under artifacts/';
+    evidence.status = shown ? 'pass' : 'fail';
+  } catch (err) {
+    evidence.error = `could not collect the task's files: ${String((err as Error).message ?? err)}`;
+    evidence.status = 'fail';
+  }
+  store.append({ type: 'milestone.evidence', goalId: goal.id, payload: evidence });
+  config.log(`[milestone] ${goal.id}: ${task.id} files ${evidence.status}${evidence.error ? ` (${evidence.error})` : ''}`);
   return evidence;
 }
 

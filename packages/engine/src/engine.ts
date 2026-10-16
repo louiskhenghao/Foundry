@@ -72,7 +72,7 @@ import { planDelivery } from './delivery/policy.ts';
 import { usageSummary, type UsageSummary } from './usage/ledger.ts';
 import type { RunResult } from '@foundry/runner';
 import type { StreamEvent, StreamListener } from './types.ts';
-import { ARTIFACTS_DIR, defaultWorkspaceDir, deliveryWorkspacePath, dropTaskWorkspace, ensureGoalWorkspace, goalWorkspacePath, internalWorkspaceDir, listStackBranches, previewWorkspacePath } from './workspace.ts';
+import { ARTIFACTS_DIR, defaultWorkspaceDir, deliveryWorkspacePath, dropTaskWorkspace, ensureGoalWorkspace, goalWorkspacePath, internalWorkspaceDir, listArtifacts, listStackBranches, previewWorkspacePath } from './workspace.ts';
 import { transferGoalDir } from './transfer/paths.ts';
 import { relocateLegacyWorkspaces } from './workspace-migrate.ts';
 import { CAD_VIEWER_KEY, PreviewManager } from './preview/manager.ts';
@@ -94,7 +94,7 @@ import { deliverArtifacts, inferCompletion, runGraphRefresh, shouldRunGraphRefre
 import type { SettingsPatch, SettingsView } from '@foundry/core';
 import { ACTION_INFO, BUILTIN_PRESETS, DEFAULT_NATURE_PRESETS, MODEL_ACTIONS, MODEL_NATURES, NATURE_LABEL, effectivePresets } from '@foundry/core';
 import { spawnStreaming } from './skills/updaters.ts';
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { removeWorktree } from './git/git.ts';
 import { BaselineChecks } from './checks/baseline.ts';
 import { relative, resolve } from 'node:path';
@@ -481,7 +481,37 @@ export class Engine {
     if (!server) return null;
     // quoted for the preview manager's `sh -lc` where needed; the usual tokens stay bare, so the command reads well and {port} is substituted
     const q = (a: string) => (/^[\w./:=@%+{}-]+$/.test(a) ? a : `'${a.replace(/'/g, `'\\''`)}'`);
-    return { key: CAD_VIEWER_KEY, name: 'CAD Viewer', dir: '', install: null, command: [server.command, ...serverBaseArgs(server.args), 'viewer', '--port', '{port}'].map(q).join(' '), url: 'http://localhost:{port}', platform: 'web' };
+    // the viewer opens a model named by its absolute path (`?file=`, with / and : kept, as cadgen's own links do)
+    const model = this.cadModel(goal);
+    const file = model ? `/?file=${encodeURIComponent(model).replace(/%2F/gi, '/').replace(/%3A/gi, ':')}` : '';
+    return { key: CAD_VIEWER_KEY, name: 'CAD Viewer', dir: '', install: null, command: [server.command, ...serverBaseArgs(server.args), 'viewer', '--port', '{port}'].map(q).join(' '), url: `http://localhost:{port}${file}`, platform: 'web' };
+  }
+
+  /**
+   * The model the CAD Viewer opens on: the goal's assembly when it exported one (a STEP whose name says assembly or
+   * stack), else the newest STEP it exported — from its workspace while it runs, from the output folder once delivered.
+   * Null = the viewer's home.
+   */
+  cadModel(goal: Goal): string | null {
+    const pick = (root: string, files: string[]): string | null => {
+      const steps = files
+        .filter((f) => /\.(step|stp)$/i.test(f) && !f.startsWith('samples/'))
+        .flatMap((f) => {
+          try {
+            return [{ f, at: statSync(join(root, f)).mtimeMs }];
+          } catch {
+            return [];
+          }
+        });
+      const assemblies = steps.filter((s) => /assembl|stack|(^|[_-])asm([_.-]|$)/i.test(basename(s.f)));
+      const best = (assemblies.length ? assemblies : steps).sort((a, b) => b.at - a.at)[0];
+      return best ? join(root, best.f) : null;
+    };
+    const ws = goalWorkspacePath(this.config.dataDir, goal);
+    const live = pick(join(ws, ARTIFACTS_DIR), listArtifacts(ws));
+    if (live) return live;
+    const run = goal.completion.artifactsRun;
+    return run?.status === 'ok' && run.dest ? pick(run.dest, run.files) : null;
   }
 
   /** text-to-cad installed: the bundle's `cad` entry satisfied for a coding agent */

@@ -343,6 +343,13 @@ describe('the CAD viewer', () => {
     await expect(engine.preview.start(g, 'milestone')).rejects.toThrow(/nothing to run/);
     await expect(engine.preview.start(g, 'integration')).rejects.toThrow(/nothing to run/);
     expect(engine.preview.status(g.id).apps.map((a) => a.running)).toEqual([false]);
+    // once the goal exported models, the viewer opens on one of them: the assembly when there is one, else the newest STEP
+    mkdirSync(join(ws, 'artifacts', 'parts'), { recursive: true });
+    writeFileSync(join(ws, 'artifacts', 'parts', 'grid fin.step'), 'x');
+    expect(engine.cadViewerApp(g)!.url).toBe(`http://localhost:{port}/?file=${ws}/artifacts/parts/grid%20fin.step`);
+    writeFileSync(join(ws, 'artifacts', 'starship_stack.step'), 'x');
+    writeFileSync(join(ws, 'artifacts', 'parts', 'flap.step'), 'x');
+    expect(engine.cadViewerApp(g)!.url).toBe(`http://localhost:{port}/?file=${ws}/artifacts/starship_stack.step`);
     // a goal of another nature has no viewer
     expect(engine.cadViewerApp(goal({ id: 'g_cadview02', nature: 'code', repoPath: repo, branch: 'goal/g_cadview02' }))).toBeNull();
   });

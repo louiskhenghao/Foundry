@@ -3,7 +3,7 @@ import { Eye, MessageSquare, Play } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { type GoalDetail, api } from '../../api.ts';
 import { Button, Card, Select, Textarea, cn } from '../../ui.tsx';
-import { type Evidence, EvidenceView, FINAL_WALK, evidenceStatus } from './MilestoneEvidence.tsx';
+import { type Evidence, EvidenceView, FILE_SCENARIOS, FINAL_WALK, evidenceStatus } from './MilestoneEvidence.tsx';
 import { PreviewCard } from './PreviewCard.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 
@@ -172,6 +172,8 @@ function FinalWalkthrough({ d }: { d: GoalDetail }) {
 function Walkthrough({ d, taskId, since }: { d: GoalDetail; taskId: string; since: string }) {
   const ev = d.milestoneEvents.filter((e) => e.type === 'milestone.evidence' && (e.payload as Evidence).taskId === taskId).at(-1);
   // an older recording shows while no new one is on its way (a milestone that paused after its script failed again)
-  if (!ev || (ev.ts < since && (d.milestoneRuns ?? []).includes(taskId))) return <div className="text-[11px] text-zinc-500 flex items-center gap-1.5"><Play size={11} /> Recording a walkthrough of the preview…</div>;
+  // a task whose deliverables are files (a model's snapshots, images, video) shows those files, not a walkthrough
+  const files = FILE_SCENARIOS.includes(d.tasks.find((t) => t.id === taskId)?.scenario ?? '');
+  if (!ev || (ev.ts < since && (d.milestoneRuns ?? []).includes(taskId))) return <div className="text-[11px] text-zinc-500 flex items-center gap-1.5"><Play size={11} /> {files ? 'Collecting what the task produced…' : 'Recording a walkthrough of the preview…'}</div>;
   return <EvidenceView goalId={d.goal.id} evidence={ev.payload as Evidence} taskId={taskId} />;
 }

@@ -19,6 +19,9 @@ export type Evidence = {
   final?: boolean;
 };
 
+/** tasks whose milestone shows the files they produced (a model's snapshots, images, video) instead of a walkthrough; the engine's list */
+export const FILE_SCENARIOS: readonly string[] = ['cad', 'image', 'video'];
+
 /** the task id the final walkthrough uses where a milestone's goes */
 export const FINAL_WALK = 'final';
 
@@ -293,7 +296,7 @@ export function MilestonesCard({ d }: { d: GoalDetail }) {
                   {rec && <ChevronRight size={13} className={cn('mt-0.5 shrink-0 text-zinc-500 transition-transform', expanded && 'rotate-90')} />}
                 </button>
                 {task.state === 'done' && (
-                  <Button size="sm" variant="info" className="shrink-0" disabled={running} onClick={() => void rerun(task.id)} title={task.milestoneScript ? `Run ${task.milestoneScript} again and record what it shows` : 'Replay the walkthrough recorded last time in the preview'}>
+                  <Button size="sm" variant="info" className="shrink-0" disabled={running} onClick={() => void rerun(task.id)} title={task.milestoneScript ? `Run ${task.milestoneScript} again and record what it shows` : FILE_SCENARIOS.includes(task.scenario) ? "Show the task's files again (snapshots, images, video)" : 'Replay the walkthrough recorded last time in the preview'}>
                     <RotateCcw size={12} /> Rerun
                   </Button>
                 )}

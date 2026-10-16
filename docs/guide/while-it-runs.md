@@ -223,9 +223,11 @@ The Brief gives every feature you can see or try a milestone, on the task that f
 - **When it fails there**, Foundry adds one task that repairs it: the app, how the config starts it, or the script, never by weakening what it checks. When the repair has landed and the script still fails, the goal pauses at that milestone with the failing recording and its runner log.
 - **Once every task is done, the final walkthrough runs every script again** on the finished branch, so a later task that broke an earlier feature shows. A script that fails there gets its repair task too. Then the goal pauses once more for a look at the end.
 
-**Without a script** (documents, media, older goals): when the milestone task lands, the goal pauses and Foundry records a walkthrough of the preview, described below.
+**Without a script** (documents, older goals): when the milestone task lands, the goal pauses and Foundry records a walkthrough of the preview, described below.
 
-**Rerun** on a row of the **Milestones** card records that milestone again at any time: a script runs once more, and a walkthrough replays the steps it recorded last time instead of planning new ones. **Rerun all** does this for every milestone that landed.
+**Files instead of an app** (a CAD model, images, video): the milestone shows what the task produced under `artifacts/` — a model's snapshots, the images, the video — and names the model files; there is no walkthrough, since there is no app to walk.
+
+**Rerun** on a row of the **Milestones** card records that milestone again at any time: a script runs once more, a walkthrough replays the steps it recorded last time instead of planning new ones, and a milestone of files shows the task's files as they are now. **Rerun all** does this for every milestone that landed.
 
 **Have a look: pause at milestones** decides whether the goal pauses for the final walkthrough and at milestones without a script. It is on by default ([Settings](./settings.md)); each goal has its own switch on the Brief's **How to run it** section and in the Overview's **Acceptance** card, which applies from the next milestone. With it off, the goal goes on, and the note below and its recording are sent to your notification channels instead.
 
