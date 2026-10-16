@@ -1,7 +1,7 @@
 import { CodexModelPreset } from './codex-presets.ts';
 import { DEFAULT_NATURE_PRESETS, ModelPreset } from './model-presets.ts';
 import { z } from 'zod';
-import { Discipline, GoalMode } from './goal.ts';
+import { Discipline, GoalMode, PonytailSwitch } from './goal.ts';
 import { DeliveryMode, DeliveryUnit } from './delivery.ts';
 
 /**
@@ -65,6 +65,10 @@ export const WorkflowSettings = z.object({
   profile: z.enum(['mattpocock', 'plain']).default('mattpocock'),
   /** TDD discipline new goals start with (Expert mode); Simple mode starts with `preferred` */
   tdd: Discipline.default('required'),
+  /** Ponytail (the lazy senior dev: the smallest change that fully solves the task) for new goals; each goal has its own switch */
+  ponytail: PonytailSwitch.default('on'),
+  /** new goals run ponytail-audit on the finished branch before the goal review (chosen per goal at Brief approval) */
+  audit: z.boolean().default(false),
   /** which view new goals open in */
   defaultMode: GoalMode.default('expert'),
   designPack: DesignPack.default('ui-ux-pro-max'),

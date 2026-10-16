@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { CatalogEntry, type CatalogEntryStatus } from './types.ts';
-import { applicableRules, formatWorkflowSection, goalScenario, mandatedSkillsFor } from './workflow.ts';
+import { applicableRules, formatWorkflowSection, goalScenario, mandatedSkillsFor, resolveDiscipline } from './workflow.ts';
 import { formatWorkflowObservation, usedSkill } from '../checks/reviewer.ts';
 import { summarizeReport } from '../attempt-prompt.ts';
 
@@ -164,5 +164,36 @@ describe('discipline', () => {
     expect(pref).toContain('Prefer: invoke `/mattpocock-skills:tdd`');
     // bug tasks are unaffected
     expect(mandatedSkillsFor({ ...base, taskKind: 'bug', discipline: { tdd: 'off' } }).map((m) => m.name)).toEqual(['diagnosing-bugs']);
+  });
+});
+
+describe('ponytail discipline', () => {
+  const pony = st(entry({ id: 'ponytail', roles: ['worker', 'planner'], workflow: [{ role: 'worker', mandate: 'must', when: 'feature', scenarios: [], instruction: 'climb the ladder' }, { role: 'planner', mandate: 'prefer', when: 'any', scenarios: [], instruction: 'plan lean' }] }), 'installed', '/ponytail');
+  const ponyReview = st(entry({ id: 'ponytail-review', roles: ['reviewer-task', 'reviewer-goal'], workflow: [{ role: 'reviewer-goal', mandate: 'must', when: 'any', scenarios: [], instruction: 'must fix only blocks' }] }), 'installed', '/ponytail-review');
+  const codeReview = st(entry({ id: 'code-review', roles: ['reviewer-goal'], workflow: [{ role: 'reviewer-goal', mandate: 'prefer', when: 'any', scenarios: [], instruction: 'two axes' }] }), 'installed', '/mattpocock-skills:code-review');
+  const all = [...statuses, pony, ponyReview, codeReview];
+  test('on: the worker must climb the ladder next to tdd, and ponytail-review replaces code-review for the reviewer', () => {
+    const worker = applicableRules({ role: 'worker', taskKind: 'feature', profile: 'mattpocock', statuses: all, discipline: { tdd: 'required', ponytail: 'on' } }).map((r) => r.name);
+    expect(worker).toEqual(['tdd', 'ponytail', 'codebase-design']);
+    const reviewer = applicableRules({ role: 'reviewer-goal', profile: 'mattpocock', statuses: all, discipline: { tdd: 'required', ponytail: 'on' } }).map((r) => r.name);
+    expect(reviewer).toEqual(['ponytail-review']);
+    expect(formatWorkflowSection({ role: 'reviewer-goal', profile: 'mattpocock', statuses: all, discipline: { tdd: 'required', ponytail: 'on' } })).not.toContain('code-review');
+  });
+  test('off: the ponytail skills are not mentioned at all, and code-review is back', () => {
+    const off = { tdd: 'required' as const, ponytail: 'off' as const };
+    expect(applicableRules({ role: 'worker', taskKind: 'feature', profile: 'mattpocock', statuses: all, discipline: off }).map((r) => r.name)).toEqual(['tdd', 'codebase-design']);
+    expect(applicableRules({ role: 'reviewer-goal', profile: 'mattpocock', statuses: all, discipline: off }).map((r) => r.name)).toEqual(['code-review']);
+    const s = formatWorkflowSection({ role: 'worker', taskKind: 'feature', profile: 'mattpocock', statuses: all, discipline: off })!;
+    expect(s).not.toContain('ponytail');
+  });
+  test('on without ponytail-review installed: code-review stays', () => {
+    expect(applicableRules({ role: 'reviewer-goal', profile: 'mattpocock', statuses: [...statuses, pony, codeReview], discipline: { tdd: 'required', ponytail: 'on' } }).map((r) => r.name)).toEqual(['code-review']);
+  });
+  test('resolveDiscipline: the goal decides, except for work that is not code', () => {
+    const goal = { workflow: { tdd: 'required' as const, pace: 'thorough' as const, ponytail: 'on' as const } };
+    expect(resolveDiscipline(goal, { tdd: 'inherit', scenario: 'backend', kind: 'feature' })).toEqual({ tdd: 'required', ponytail: 'on' });
+    expect(resolveDiscipline(goal, { tdd: 'off', scenario: 'docs', kind: 'feature' })).toEqual({ tdd: 'off', ponytail: 'off' });
+    expect(resolveDiscipline(goal, { tdd: 'inherit', scenario: 'general', kind: 'research' }).ponytail).toBe('off');
+    expect(resolveDiscipline({ workflow: { ...goal.workflow, ponytail: 'off' } }, null).ponytail).toBe('off');
   });
 });

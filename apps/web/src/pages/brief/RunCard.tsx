@@ -23,7 +23,7 @@ const blankApp = (taken: string[]): BriefApp => ({ key: uniqueKey('app', taken),
  * How the engine starts the result for previews and the self-check: one start command, or a list of apps (a monorepo's
  * web app, admin, API…) each started in its own folder. Empty = read package.json (dev / start script, or its workspaces).
  */
-export function RunCard({ brief, editable, edit, goalId, selfCheck, milestonePause }: { brief: Brief; editable: boolean; edit: (fn: (b: Brief) => Brief) => void; goalId: string; selfCheck: boolean; milestonePause: boolean }) {
+export function RunCard({ brief, editable, edit, goalId, selfCheck, milestonePause, ponytail }: { brief: Brief; editable: boolean; edit: (fn: (b: Brief) => Brief) => void; goalId: string; selfCheck: boolean; milestonePause: boolean; ponytail: boolean }) {
   const [selfCheckErr, setSelfCheckErr] = useState<string | null>(null);
   const [converting, setConverting] = useState(false);
   const run = brief.run ?? null;
@@ -179,6 +179,18 @@ export function RunCard({ brief, editable, edit, goalId, selfCheck, milestonePau
             }}
           />
           Have a look: pause at milestones
+        </label>
+        <label className="flex items-center gap-2 text-[11px] text-zinc-400 cursor-pointer" title="Ponytail, the lazy senior dev: workers check whether the code needs to exist and whether the repository, the standard library or an installed dependency already has it before writing the smallest complete change; the planner plans lean; ponytail-review reviews each task and the goal. TDD still decides how tests are written.">
+          <input
+            type="checkbox"
+            className="accent-emerald-500"
+            checked={ponytail}
+            onChange={(e) => {
+              setSelfCheckErr(null);
+              api.setPonytail(goalId, e.target.checked).catch((err) => setSelfCheckErr(err.message));
+            }}
+          />
+          Ponytail: the smallest change that fully solves the task
         </label>
         {selfCheckErr && <div className="text-rose-300">{selfCheckErr}</div>}
       </div>

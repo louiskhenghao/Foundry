@@ -104,6 +104,10 @@ export interface EngineConfig {
   workflowProfile: 'mattpocock' | 'plain';
   /** TDD discipline new Expert-mode goals start with */
   workflowTdd: 'required' | 'preferred' | 'off';
+  /** Ponytail (the lazy senior dev) for new goals */
+  workflowPonytail: 'on' | 'off';
+  /** new goals run ponytail-audit on the finished branch before the goal review */
+  workflowAudit: boolean;
   /** view new goals open in */
   defaultGoalMode: 'simple' | 'expert';
   /** markitdown binary override (env FOUNDRY_MARKITDOWN); auto-detected on PATH and ~/.local/bin otherwise */
@@ -190,6 +194,8 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     delivery: { pollMs: 30_000, noChecksGraceMs: 90_000, checksTimeoutMs: 30 * 60_000, automergeWaitMs: 10 * 60_000, updateLocalBase: true, prWatchMs: 5 * 60_000 },
     workflowProfile: process.env.FOUNDRY_WORKFLOW === 'plain' ? 'plain' : 'mattpocock',
     workflowTdd: (['required', 'preferred', 'off'].includes(process.env.FOUNDRY_TDD ?? '') ? process.env.FOUNDRY_TDD : 'required') as 'required' | 'preferred' | 'off',
+    workflowPonytail: process.env.FOUNDRY_PONYTAIL === 'off' || process.env.FOUNDRY_PONYTAIL === '0' ? 'off' : 'on',
+    workflowAudit: process.env.FOUNDRY_AUDIT === '1' || process.env.FOUNDRY_AUDIT === 'true',
     defaultGoalMode: process.env.FOUNDRY_GOAL_MODE === 'simple' ? 'simple' : 'expert',
     markitdownBin: process.env.FOUNDRY_MARKITDOWN,
     log: (m) => console.log(m),

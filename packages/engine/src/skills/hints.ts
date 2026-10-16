@@ -21,7 +21,7 @@ export interface SectionOpts {
   /** skills autoskills installed in the goal workspace */
   projectSkills?: string[];
   /** goal/task discipline (see resolveDiscipline) */
-  discipline?: { tdd: 'required' | 'preferred' | 'off' };
+  discipline?: { tdd: 'required' | 'preferred' | 'off'; ponytail?: 'on' | 'off' };
 }
 
 /** TTL-cached catalog statuses → prompt sections; the manager invalidates on install/uninstall. */

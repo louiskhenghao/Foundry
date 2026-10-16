@@ -190,6 +190,203 @@
       ]
     },
     {
+      "id": "ponytail",
+      "name": "ponytail",
+      "summary": "Lazy senior dev mode: the smallest change that fully solves the task, reusing what the codebase, the standard library and the installed dependencies already have.",
+      "why": "Workers stop at the first rung that holds — does it need to exist, is it already here, does the platform do it — so goals ship less code with the same validation, error handling and tests. Per goal: the Ponytail switch.",
+      "tier": "recommended",
+      "source": {
+        "type": "git",
+        "repo": "DietrichGebert/ponytail",
+        "path": "skills/ponytail"
+      },
+      "roles": [
+        "worker",
+        "planner"
+      ],
+      "tags": [
+        "discipline"
+      ],
+      "homepage": "https://github.com/DietrichGebert/ponytail",
+      "bundle": "ponytail",
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "feature",
+          "instruction": "Invoke it first and climb its ladder before you write: nothing new when the codebase, the standard library, the platform or an installed dependency already does it; the smallest complete change, callers, tests and fixtures included; never cut validation, error handling, security or accessibility. When a TDD rule applies here too, TDD decides how tests are written and Ponytail how much code. End your result with what you skipped or did not check and any risk.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
+        },
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "refactor",
+          "instruction": "Invoke it first and climb its ladder before you write: nothing new when the codebase, the standard library, the platform or an installed dependency already does it; the smallest complete change, callers, tests and fixtures included; never cut validation, error handling, security or accessibility. When a TDD rule applies here too, TDD decides how tests are written and Ponytail how much code. End your result with what you skipped or did not check and any risk.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
+        },
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "chore",
+          "instruction": "Invoke it first and climb its ladder before you write: nothing new when the codebase, the standard library, the platform or an installed dependency already does it; the smallest complete change, callers, tests and fixtures included; never cut validation, error handling, security or accessibility. When a TDD rule applies here too, TDD decides how tests are written and Ponytail how much code. End your result with what you skipped or did not check and any risk.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
+        },
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "bug",
+          "instruction": "Invoke it first: grep every caller of what you touch, fix the root cause once in the shared code, and change nothing the fix does not need. When the diagnosing-bugs rule applies too, follow its steps; Ponytail decides how much code. End your result with what you skipped or did not check and any risk.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
+        },
+        {
+          "role": "planner",
+          "mandate": "prefer",
+          "when": "any",
+          "instruction": "Read it before carving tasks: plan only what the goal needs, reuse what the repository already has, and never plan a task for flexibility nobody asked for.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
+        }
+      ],
+      "scenarios": [
+        "frontend",
+        "backend",
+        "fullstack",
+        "data",
+        "mobile",
+        "infra",
+        "general"
+      ]
+    },
+    {
+      "id": "ponytail-review",
+      "name": "ponytail-review",
+      "summary": "Reviews a change like the senior dev who gets paged: the code it touches, not only the diff — bugs, security, real load, missing tests, speed, what to cut.",
+      "why": "Each finding names a concrete case, the fix and what happens if it is skipped, so blockers are real and the rest stays advice. Replaces code-review while the goal's Ponytail switch is on.",
+      "tier": "recommended",
+      "source": {
+        "type": "git",
+        "repo": "DietrichGebert/ponytail",
+        "path": "skills/ponytail-review"
+      },
+      "roles": [
+        "reviewer-task",
+        "reviewer-goal"
+      ],
+      "tags": [
+        "review"
+      ],
+      "homepage": "https://github.com/DietrichGebert/ponytail",
+      "bundle": "ponytail",
+      "workflow": [
+        {
+          "role": "reviewer-task",
+          "mandate": "must",
+          "when": "any",
+          "instruction": "Review with it: read the code the change touches, not only the diff. Only its Must fix findings (a bug, a security hole, data loss, breaking at the expected load) are blockers; put its Should fix and Nice to have findings in your notes, each with its concrete case.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
+        },
+        {
+          "role": "reviewer-goal",
+          "mandate": "must",
+          "when": "any",
+          "instruction": "Review with it: read the code the change touches, not only the diff. Only its Must fix findings (a bug, a security hole, data loss, breaking at the expected load) are blockers; put its Should fix and Nice to have findings in your notes, each with its concrete case. The base branch named under \"Fixed point\" is your fixed point.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
+        }
+      ],
+      "scenarios": [
+        "frontend",
+        "backend",
+        "fullstack",
+        "data",
+        "mobile",
+        "infra",
+        "general"
+      ]
+    },
+    {
+      "id": "ponytail-audit",
+      "name": "ponytail-audit",
+      "summary": "Maps the whole repository and ranks what to fix first: bugs, security, load, missing tests, speed, code to cut.",
+      "why": "The optional audit at the end of a goal runs it on the finished branch: Must fix findings in the code the goal touched become fix tasks before the final review, the rest is listed for a follow-up.",
+      "tier": "recommended",
+      "source": {
+        "type": "git",
+        "repo": "DietrichGebert/ponytail",
+        "path": "skills/ponytail-audit"
+      },
+      "roles": [],
+      "tags": [
+        "review"
+      ],
+      "homepage": "https://github.com/DietrichGebert/ponytail",
+      "bundle": "ponytail",
+      "workflow": [],
+      "scenarios": [
+        "frontend",
+        "backend",
+        "fullstack",
+        "data",
+        "mobile",
+        "infra",
+        "general"
+      ]
+    },
+    {
       "id": "grilling",
       "name": "grilling",
       "summary": "Relentless clarifying interview technique for plans.",

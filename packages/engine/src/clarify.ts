@@ -13,6 +13,7 @@ import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/
 import { hasStackManifest } from './skills/autoskills.ts';
 import { startSentence } from './follow-up.ts';
 import { readdirSync } from 'node:fs';
+import { resolveDiscipline } from './skills/workflow.ts';
 
 /** Files that do not make a repository "have code": a freshly initialised repo may carry any of these. */
 const EMPTY_REPO_IGNORE = new Set(['.git', '.claude', '.agents', '.DS_Store', 'graphify-out', 'CLAUDE.md', 'AGENTS.md', 'README.md', '.gitignore', '.gitattributes', 'LICENSE', 'docs']);
@@ -119,7 +120,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
   if (log && log.code === 0 && log.stdout.trim()) overview = `${overview ?? ''}\n\n## Recent commits\n${log.stdout.trim()}`.trim();
 
   const scenario = natureScenario(nature);
-  const [clarifierHint, plannerHint] = await Promise.all([engine.skillsFor(goal).hints.sectionFor('clarifier', { scenario }), engine.skillsFor(goal).hints.sectionFor('planner', { scenario })]);
+  const [clarifierHint, plannerHint] = await Promise.all([engine.skillsFor(goal).hints.sectionFor('clarifier', { scenario }), engine.skillsFor(goal).hints.sectionFor('planner', { scenario, discipline: resolveDiscipline(goal, null) })]);
   // a re-run keeps the human's Decisions from the discarded Brief
   const reclarified = store.listByGoal(goal.id, 5000).filter((e) => e.type === 'goal.reclarified').at(-1);
   const decisions = reclarified ? ((reclarified.payload as { decisions?: string }).decisions ?? '') : '';
@@ -552,6 +553,10 @@ function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: str
 }
 
 /** The planner's prompt: what the Clarifier learned and wrote, and the rules for splitting it into tasks. */
+/** the plan a lazy senior dev would write: only what the goal needs, built on what the repository already has */
+const PLAN_LEAN = `# Plan lean (Ponytail is on for this goal)
+Before you carve tasks, check what already exists: a helper, component, service or pattern in this repository, the standard library, a platform feature, an installed dependency. Plan on top of it, never a task to rebuild it. Plan only what the goal asks for: no task for options, abstractions or flexibility nobody asked for, and the fewest tasks that cover every Area. A task that exists only to prepare for a possible later need is cut. Never cut validation, error handling, security, accessibility or the tests the work needs.`;
+
 export function buildPlannerPrompt(goal: Goal, skeleton: BriefSkeleton, c: { overview: string | null; attachments: string; decisions: string; interview: Interview | null; emptyRepo: boolean; imageGen: boolean; previous: string; plannerHint: string | null }): string {
   const { planningNotes, ...brief } = skeleton;
   const answers = c.interview ? interviewAnswers(c.interview) : [];
@@ -566,6 +571,7 @@ export function buildPlannerPrompt(goal: Goal, skeleton: BriefSkeleton, c: { ove
     `# The Brief from the Clarifier\nAreas, assumptions and goal-level checks are settled; plan within them.\n\`\`\`json\n${JSON.stringify(brief, null, 1)}\n\`\`\``,
     `# Planning notes from the Clarifier\n${planningNotes}`,
     c.plannerHint ?? '',
+    goal.workflow.ponytail === 'on' ? PLAN_LEAN : '',
     `# Your job\nSplit the goal into tasks for EVERY Area of the Brief and return the plan as JSON matching the schema: \`tasks\`, their task-level \`checks\`, and the estimate (\`costEstimateUsd\`, \`timeEstimateMin\`). The notes above are the Clarifier's findings: read the repository (read-only) only where they leave a file, command or convention open. Do not interview anyone and do not change files.\n- Put the test/typecheck/lint commands on the task that must make them pass (the goal-level checks above already verify the merged result); a task whose result is judged rather than run gets a reviewer check with a precise rubric.\n- Give every user-visible feature a \`milestone\` on its closing task (the one after which the feature can be tried end to end), and a \`milestoneScript\` when the feature has a web UI or an HTTP API; null on every other task.\n- Each task's \`title\` is its Conventional Commits subject: imperative, ≤ 60 chars, no trailing period, no type prefix, in the language of the repository's recent commits; \`scope\` defaults to the Area's slug.\nOutput the JSON only.`,
   ]
     .filter(Boolean)

@@ -36,6 +36,7 @@ const BudgetsBody = z.object({
 const CompletionBody = z.object({
   graphRefresh: z.boolean().optional(),
   docs: z.array(DocType).optional(),
+  audit: z.boolean().optional(),
 });
 
 const CreateGoalBody = z.object({
@@ -368,6 +369,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.post('/api/goals/:id/milestone-pause', async (c) => {
     const { on } = z.object({ on: z.boolean() }).parse(await c.req.json());
     engine.setMilestonePause(goalOr404(c).id, on);
+    return c.json({ ok: true });
+  });
+  app.post('/api/goals/:id/ponytail', async (c) => {
+    const { on } = z.object({ on: z.boolean() }).parse(await c.req.json());
+    engine.setPonytail(goalOr404(c).id, on);
     return c.json({ ok: true });
   });
   app.post('/api/goals/:id/selfcheck', async (c) => {

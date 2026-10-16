@@ -547,6 +547,12 @@ export class Engine {
     this.store.append({ type: 'goal.milestone_pause_set', goalId, payload: { on } });
   }
 
+  /** switch Ponytail (the lazy senior dev) on or off for a goal; applies from its next session */
+  setPonytail(goalId: string, on: boolean): void {
+    if ((this.mustGoal(goalId).workflow.ponytail === 'on') === on) return;
+    this.store.append({ type: 'goal.ponytail_set', goalId, payload: { on } });
+  }
+
   /** after a task landed on the goal branch: the self-check looks at the preview when the goal asked for one */
   async afterIntegration(goal: Goal, task: Task): Promise<void> {
     if (!goal.selfCheck) return;
@@ -1551,7 +1557,7 @@ export class Engine {
         // media goals default to fast: their deliverables are judged by the human's eye, not by $5 review sessions
         const pace = input.workflow?.pace ?? (MEDIA_NATURES.includes(nature) ? 'fast' : this.config.workflowPace);
         // fast goals run only what the Brief asks for: no TDD mandate unless the caller insists
-        return { pace, tdd: input.workflow?.tdd ?? (pace === 'fast' ? ('off' as const) : mode === 'simple' ? ('preferred' as const) : this.config.workflowTdd) };
+        return { pace, tdd: input.workflow?.tdd ?? (pace === 'fast' ? ('off' as const) : mode === 'simple' ? ('preferred' as const) : this.config.workflowTdd), ponytail: input.workflow?.ponytail ?? this.config.workflowPonytail };
       })(),
       models: provider === 'codex' ? { strong: codexPreset!.tables[natureKey(nature)].clarifier.model, cheap: codexPreset!.tables[natureKey(nature)].housekeeping.model, worker: codexPreset!.tables[natureKey(nature)].standard.model } : { ...this.config.models, ...(input.models ?? {}) },
       state: 'draft',
@@ -1788,7 +1794,7 @@ export class Engine {
    * `budgets` (optional) is applied first — this is how the Auto preset's proposed budget, confirmed or edited
    * by the human on the Brief page, becomes the goal's budget before any work starts.
    */
-  async approveBrief(goalId: string, edited?: Brief, budgets?: Partial<Budgets>, completion?: { graphRefresh?: boolean; docs?: DocType[] }): Promise<void> {
+  async approveBrief(goalId: string, edited?: Brief, budgets?: Partial<Budgets>, completion?: { graphRefresh?: boolean; docs?: DocType[]; audit?: boolean }): Promise<void> {
     const goal = this.mustGoal(goalId);
     if (goal.state !== 'awaiting_brief_approval') throw new Error(`goal is ${goal.state}, cannot approve`);
     const brief = BriefSchema.parse({ ...(edited ?? getBrief(this.store.db, goalId)?.brief), goalId });
@@ -1804,7 +1810,7 @@ export class Engine {
     this.store.append({
       type: 'goal.completion_set',
       goalId,
-      payload: { graphRefresh: completion?.graphRefresh ?? inferred.graphRefresh, docs: completion?.docs ?? inferred.docs, reason: completion ? 'set at brief approval' : inferred.reason },
+      payload: { graphRefresh: completion?.graphRefresh ?? inferred.graphRefresh, docs: completion?.docs ?? inferred.docs, audit: completion?.audit ?? this.config.workflowAudit, reason: completion ? 'set at brief approval' : inferred.reason },
     });
     if (budgets && Object.keys(budgets).length) {
       const next = Budgets.parse({ ...goal.budgets, ...budgets, ...(goal.provider === 'codex' ? { maxCostUsd: null } : {}) });

@@ -91,6 +91,7 @@ export function NewGoalPage() {
   useEffect(() => localStorage.setItem(NATURE_KEY, nature), [nature]);
   const [mode, setModeState] = useState<'simple' | 'expert'>('expert');
   const [tdd, setTddState] = useState<'required' | 'preferred' | 'off'>('required');
+  const [ponytail, setPonytailState] = useState<'on' | 'off'>('on');
   const [pace, setPace] = useState<'thorough' | 'fast'>('thorough');
   const [defaultRemote, setDefaultRemote] = useState('origin');
   /** fields the human changed on this page: the Settings defaults arriving later never overwrite them */
@@ -127,6 +128,7 @@ export function NewGoalPage() {
         if (!changed.current.has('interviewDepth')) setInterviewDepth(String(d.workflow.interviewDepth ?? { never: 0, auto: 3, always: 4 }[d.workflow.interview]));
         if (!changed.current.has('mode')) setModeState(d.workflow.defaultMode);
         if (!changed.current.has('tdd')) setTddState(d.workflow.tdd);
+        if (!changed.current.has('ponytail')) setPonytailState(d.workflow.ponytail ?? 'on');
         basePace.current = d.workflow.defaultPace;
         // media goals default to fast on top of the Settings pace, as when the goal type is picked by hand
         if (!paceTouched.current) setPace(nature === 'image' || nature === 'video' ? 'fast' : d.workflow.defaultPace);
@@ -259,7 +261,7 @@ export function NewGoalPage() {
         attachments,
         mode,
         // fast: let the engine default the TDD mandate off instead of pinning it here
-        workflow: pace === 'fast' ? { pace } : { pace, tdd: mode === 'simple' ? 'preferred' : tdd },
+        workflow: pace === 'fast' ? { pace, ponytail } : { pace, tdd: mode === 'simple' ? 'preferred' : tdd, ponytail },
         nature,
         outputDir: (nature === 'image' || nature === 'video') && outputDir.trim() ? outputDir.trim() : undefined,
         interviewDepth: Number(interviewDepth),
@@ -449,6 +451,15 @@ export function NewGoalPage() {
             />
             <span className="text-[11px] text-zinc-500">docs, infra, research, image and video tasks never get a TDD mandate; a task can also switch it off in the Brief.</span>
           </div>
+        )}
+        {mode === 'expert' && (
+          <label className="mt-3 flex items-start gap-2 text-xs text-zinc-300 cursor-pointer" title="Ponytail, the lazy senior dev: before writing, a worker checks whether the code needs to exist, whether the repository, the standard library or an installed dependency already has it, and only then writes the smallest complete change. The planner plans lean; ponytail-review reviews each task and the whole goal. TDD still decides how tests are written. Switchable later on the goal page.">
+            <input type="checkbox" className="mt-0.5 accent-emerald-500" checked={ponytail === 'on'} onChange={(e) => { changed.current.add('ponytail'); setPonytailState(e.target.checked ? 'on' : 'off'); }} />
+            <span>
+              Ponytail — the smallest change that fully solves the task<HelpLink to="your-first-goal#ponytail-less-code" className="ml-1.5" />
+              <span className="block text-[11px] text-zinc-500">Workers reuse what exists before writing new code; ponytail-review reviews. Needs the Ponytail skills (Setup page).</span>
+            </span>
+          </label>
         )}
       </Card>
 

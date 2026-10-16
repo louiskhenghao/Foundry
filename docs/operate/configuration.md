@@ -9,6 +9,8 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
 | `workflow.tdd` | `required` | `FOUNDRY_TDD` | Test-driven discipline for new expert goals: required (observed), preferred (suggested) or off. |
+| `workflow.ponytail` | `on` | `FOUNDRY_PONYTAIL` | Ponytail, the lazy senior dev, for new goals: workers write the smallest change that fully solves the task and reuse what exists, the planner plans lean, and ponytail-review reviews. Each goal has its own switch. |
+| `workflow.audit` | `false` | `FOUNDRY_AUDIT` | New goals run ponytail-audit on the finished branch before the goal review; must-fix findings in the code the goal touched become fix tasks. Chosen per goal at Brief approval. |
 | `workflow.defaultMode` | `expert` | `FOUNDRY_GOAL_MODE` | Which view a new goal opens in: simple (plain-language Brief and progress) or expert (every control). |
 | `workflow.defaultPace` | `thorough` | `FOUNDRY_PACE` | thorough = the engine adds its own task and goal reviews and can spawn fix tasks; fast = only the checks you approved run. Image and video goals start fast. |
 | `workflow.interview` | `auto` | `FOUNDRY_INTERVIEW` | The older switch for the interview: auto, always (at least one round) or never (one-shot Brief). Interview depth, when set, takes its place. |

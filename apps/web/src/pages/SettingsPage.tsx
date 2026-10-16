@@ -354,6 +354,13 @@ export function SettingsPage() {
                   <option value="off">off</option>
                 </Select>
               </Field>
+              <Field label="Ponytail for new goals" aside={aside('workflow.ponytail')} help="on: workers write the smallest change that fully solves the task and reuse what the repository already has, the planner plans lean, and ponytail-review reviews tasks and the goal (TDD still decides how tests are written) · off: the Ponytail skills are never mentioned. Each goal has its own switch.">
+                <Select value={draft.workflow.ponytail} onChange={(e) => set('workflow.ponytail', e.target.value)}>
+                  <option value="on">on</option>
+                  <option value="off">off</option>
+                </Select>
+              </Field>
+              {bool('workflow.audit', 'Audit at the end of new goals', 'Once every task is done, ponytail-audit maps the finished branch and ranks what to fix; must-fix findings in the code the goal touched become fix tasks before the final review, the rest is listed for a follow-up. Chosen per goal at Brief approval.')}
               <Field label="Goal-level fix cycles" aside={aside('reviews.maxFixCycles')} help="How many review → fix-task rounds before the goal escalates to you (thorough pace only).">
                 {num('reviews.maxFixCycles', { min: 0, max: 5 })}
               </Field>

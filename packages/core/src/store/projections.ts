@@ -392,7 +392,17 @@ function project(db: Database, e: EngineEvent): void {
     }
     case 'goal.completion_set': {
       const g = getGoal(db, e.goalId!);
-      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, graphRefresh: e.payload.graphRefresh, docs: e.payload.docs }, updatedAt: e.ts });
+      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, graphRefresh: e.payload.graphRefresh, docs: e.payload.docs, audit: e.payload.audit ?? g.completion.audit }, updatedAt: e.ts });
+      break;
+    }
+    case 'goal.audit_finished': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, auditRun: { status: e.payload.status, summary: e.payload.summary, findings: e.payload.findings, fixTaskIds: e.payload.fixTaskIds, costUsd: e.payload.costUsd, detail: e.payload.detail, at: e.ts } }, updatedAt: e.ts });
+      break;
+    }
+    case 'goal.ponytail_set': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, workflow: { ...g.workflow, ponytail: e.payload.on ? 'on' : 'off' }, updatedAt: e.ts });
       break;
     }
     case 'goal.docs_generated': {
