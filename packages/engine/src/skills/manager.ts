@@ -1,10 +1,10 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { catalogStatus, defaultEnvProbe, findEntry, loadCatalog, type EnvProbe, type WhichFn, defaultWhich } from './catalog.ts';
+import { catalogStatus, defaultEnvProbe, findEntry, loadCatalog, pluginId, type EnvProbe, type PluginSource, type WhichFn, defaultWhich } from './catalog.ts';
 import { runDoctor } from './doctor.ts';
 import { SkillsHints } from './hints.ts';
-import { InstallError, installEntry, updateEntry } from './installer.ts';
+import { InstallError, installEntry, updateEntry, warmupPlugin } from './installer.ts';
 import { skillsPaths, type SkillsPaths } from './paths.ts';
 import { scanSkills } from './scanner.ts';
 import { TrashError, listTrash, restoreSkill, trashSkill } from './trash.ts';
@@ -41,8 +41,14 @@ export interface SkillsManagerOptions {
   workflowProfile?: () => 'mattpocock' | 'plain';
   /** chosen option per mutually exclusive pack, e.g. { design: 'ui-ux-pro-max' } */
   packs?: () => Record<string, string | undefined>;
+  /** Settings switches gated entries need (Safety → Desktop apps & printers) */
+  gates?: () => Record<string, boolean>;
   /** receives every updater run (the engine appends it as a `skills.update_run` event) */
   onRun?: (run: SkillUpdateRun) => void;
+  /** a plugin was installed and ships these MCP servers: the engine allows them for sessions */
+  onPluginServers?: (names: string[]) => void | Promise<void>;
+  /** what the engine gives every session: a plugin's warm-up runs with it too */
+  sessionEnv?: () => Record<string, string>;
   updates?: UpdateCheckerOptions;
   updater?: Pick<UpdaterContext, 'spawn' | 'npxBin' | 'timeoutMs'>;
 }
@@ -75,7 +81,7 @@ export class SkillsManager {
 
   constructor(private opts: SkillsManagerOptions) {
     this.paths = { ...skillsPaths(opts.claudeHome, opts.dataDir, opts.provider, opts.sharedHome), ...(opts.claudeSkillsDir ? { claudeSkillsDir: opts.claudeSkillsDir } : {}) };
-    this.hints = new SkillsHints(() => this.status(), { enabled: opts.hintsEnabled, profile: opts.workflowProfile, packs: opts.packs, provider: opts.provider });
+    this.hints = new SkillsHints(() => this.status(), { enabled: opts.hintsEnabled, profile: opts.workflowProfile, packs: opts.packs, gates: opts.gates, provider: opts.provider });
     this.checker = new SkillsUpdateChecker(this.paths, { log: opts.log, ...(opts.updates ?? {}) });
     try {
       if (existsSync(this.paths.sessionViewFile)) this.lastView = JSON.parse(readFileSync(this.paths.sessionViewFile, 'utf8'));
@@ -211,13 +217,20 @@ export class SkillsManager {
       const results: BundleResult[] = [];
       const statuses = await this.status();
       const ictx = { paths: this.paths, log: this.opts.log, claudeBin: this.opts.claudeBin, codexBin: this.opts.codexBin, spawn: this.opts.updater?.spawn ?? spawnStreaming, onLine };
+      // a plugin bundle shares one install: the first member installs it, the others ride along
+      const plugins = new Map<string, { ok: boolean; detail: string }>();
       for (const s of statuses.filter((x) => pick(x.entry) && (x.entry.source.type === 'git' || x.entry.source.type === 'plugin'))) {
         try {
           if (s.entry.source.type === 'plugin') {
+            const pid = pluginId(s.entry.source);
             if (s.status === 'installed-via-plugin') results.push({ id: s.entry.id, name: s.entry.name, action: 'plugin', detail: s.detail });
+            else if (plugins.has(pid)) results.push({ id: s.entry.id, name: s.entry.name, action: plugins.get(pid)!.ok ? 'plugin' : 'failed', detail: plugins.get(pid)!.detail });
             else {
               const r = await installEntry(s.entry, ictx);
-              results.push({ id: s.entry.id, name: s.entry.name, action: r.ok ? 'installed' : 'failed', detail: r.ok ? `plugin ${s.entry.source.plugin}@${s.entry.source.marketplaceId}` : (r.error ?? 'failed') });
+              const done = { ok: r.ok, detail: r.ok ? `plugin ${pid}` : (r.error ?? 'failed') };
+              plugins.set(pid, done);
+              results.push({ id: s.entry.id, name: s.entry.name, action: r.ok ? 'installed' : 'failed', detail: done.detail });
+              if (r.ok) await this.afterPluginInstall(s.entry.source, onLine);
             }
             continue;
           }
@@ -286,8 +299,34 @@ export class SkillsManager {
     return this.serial(async () => {
       const entry = findEntry(this.catalog(), idOrName);
       if (!entry) throw new InstallError(`${idOrName} is not in the catalog`, 'not-found');
-      return installEntry(entry, { paths: this.paths, log: this.opts.log, claudeBin: this.opts.claudeBin, codexBin: this.opts.codexBin, spawn: this.opts.updater?.spawn ?? spawnStreaming, onLine: opts.onLine }, opts);
+      const r = await installEntry(entry, { paths: this.paths, log: this.opts.log, claudeBin: this.opts.claudeBin, codexBin: this.opts.codexBin, spawn: this.opts.updater?.spawn ?? spawnStreaming, onLine: opts.onLine }, opts);
+      if (r.ok && entry.source.type === 'plugin') await this.afterPluginInstall(entry.source, opts.onLine);
+      return r;
     });
+  }
+
+  /**
+   * What follows a plugin install: the MCP servers it ships are allowed for sessions (the engine's job) and its runtime
+   * is warmed up. A bundle's members share the plugin, so its servers and warm-up are read from every member.
+   */
+  private async afterPluginInstall(src: PluginSource, onLine?: (l: string) => void): Promise<void> {
+    const pid = pluginId(src);
+    const members = this.catalog().entries.flatMap((e) => (e.source.type === 'plugin' && pluginId(e.source) === pid ? [e.source] : []));
+    const servers = [...new Set(members.flatMap((m) => m.mcpServers.map((s) => s.name)))];
+    if (servers.length) {
+      await this.opts.onPluginServers?.(servers);
+      onLine?.(`✔ ${servers.map((s) => `mcp__${s}`).join(', ')} allowed for sessions`);
+    }
+    const warmup = members.map((m) => m.warmup).find(Boolean);
+    if (!warmup) return;
+    const row = this.scan().installed.find((r) => r.scope === 'plugin' && (r.plugin?.id === pid || r.plugin?.name === src.plugin));
+    if (!row?.plugin?.installPath) {
+      onLine?.(`✘ ${warmup.note}: the installed plugin was not found on disk`);
+      return;
+    }
+    const r = await warmupPlugin({ ...src, warmup }, row.plugin.installPath, { paths: this.paths, log: this.opts.log, spawn: this.opts.updater?.spawn ?? spawnStreaming, onLine, env: this.opts.sessionEnv?.() });
+    onLine?.(r.ok ? `✔ ${warmup.note}: ${r.detail}` : `✘ ${warmup.note}: ${r.detail}`);
+    this.opts.log?.(`[skills] warm-up of ${pid}: ${r.ok ? 'ok' : r.detail}`);
   }
 
   /** Install every missing entry of the tiers; `onLine` gets one line per entry (and the plugin CLI's output). */

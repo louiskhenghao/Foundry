@@ -1231,8 +1231,17 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json({ ...result, op });
   });
   app.post('/api/skills/install-bundle', async (c) => {
-    const { bundle } = z.object({ bundle: z.string().min(1) }).parse(await c.req.json());
-    return c.json(await skillsFor(c).installBundle(bundle));
+    const { bundle, opId } = z.object({ bundle: z.string().min(1), opId: OpId }).parse(await c.req.json());
+    const { op, result } = await ops.run('install-bundle', `Install the ${bundle} bundle`, { id: opId }, (say) => skillsFor(c).installBundle(bundle, say), ({ results }) => {
+      const failed = results.filter((r) => r.action === 'failed');
+      return { ok: !failed.length, summary: failed.length ? `failed: ${failed.map((f) => `${f.name} (${f.detail})`).join(', ')}` : `${results.length} entr${results.length === 1 ? 'y' : 'ies'}: ${[...new Set(results.map((r) => r.action))].join(', ')}` };
+    });
+    return c.json({ ...result, op });
+  });
+  // whether text-to-cad is installed for a provider (the New goal form's cad tile says so before a goal exists)
+  app.get('/api/cad', async (c) => {
+    const provider = authProvider(c);
+    return c.json({ installed: await engine.cadAvailable({ provider, repoPath: '' }), uv: !!(Bun.which('uvx') ?? Bun.which('uv')) });
   });
   // mutually exclusive packs (design / image / video skills): options + install status, and a streamed one-click install
   app.get('/api/skills/packs', async (c) => {

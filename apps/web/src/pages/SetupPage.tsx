@@ -77,6 +77,8 @@ export function SetupPage() {
 function SetupChecks({ provider }: { provider: AgentProvider }) {
   const api = apiForProvider(provider);
   const [report, setReport] = useState<DoctorReport | null>(null);
+  /** a bundle install streaming on its own channel (text-to-cad's warm-up takes minutes) */
+  const [bundleLog, setBundleLog] = useState<{ title: string; channel: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [signIn, setSignIn] = useState(false);
@@ -121,6 +123,7 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
 
   if (!report) return <Empty>{msg ?? 'Checking your environment…'}</Empty>;
   const errors = report.checks.filter((c) => !c.ok && c.severity === 'error');
+  const cadTools = report.checks.find((c) => c.id === 'cad-tools');
 
   return (
     <div className="space-y-4">
@@ -264,6 +267,37 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
           const r = await api.installBundle('ponytail');
           return r.results.map((x) => `${x.action}: ${x.name} — ${x.detail}`).join('\n');
         })} />
+      </Card>
+
+      <Card title="3D models — text-to-cad (CAD)">
+        <p className="text-xs text-zinc-400 mb-2">
+          Parts and assemblies as STEP (STL, 3MF and GLB on request), engineering drawings, DXF cut profiles, URDF/SRDF/SDF robot files, printability and manufacturability checks: twelve skills and a <span className="mono">cad</span> viewer server from{' '}
+          <a className="underline" href="https://github.com/earthtojake/text-to-cad" target="_blank" rel="noreferrer">earthtojake/text-to-cad</a> (MIT). Goals get the <span className="mono">cad</span> nature; code goals use the same skills in their CAD tasks.
+        </p>
+        <p className="text-xs text-zinc-500 mb-3">
+          Installing adds the plugin for this coding agent, allows its <span className="mono">cad</span> server for sessions (its telemetry switch stays out of their reach) and downloads the CAD runtime once (Python 3.13 and OpenCASCADE, a few hundred MB, through uv). Foundry's sessions run cadgen with usage statistics and update checks off; your own use of text-to-cad keeps its settings. Hand-offs to Bambu Connect, Bambu Studio or OrcaSlicer's window stay off until Settings → Safety → Desktop apps &amp; printers is on.
+        </p>
+        {cadTools && (
+          <p className={cn('text-xs mb-3', cadTools.ok ? 'text-zinc-400' : 'text-amber-300')}>
+            {cadTools.detail}
+            {cadTools.fix?.command ? <> — <span className="mono">{cadTools.fix.command}</span></> : null}
+          </p>
+        )}
+        <BundleStatus provider={provider} bundle="text-to-cad" busy={busy} onInstall={() => runAction('bundle', async () => {
+          const opId = `cad-${Date.now().toString(36)}`;
+          setBundleLog({ title: 'text-to-cad', channel: `skills-op:${opId}` });
+          const r = await api.installBundle('text-to-cad', opId);
+          return r.results.map((x) => `${x.action}: ${x.name} — ${x.detail}`).join('\n');
+        })} />
+        {bundleLog && (
+          <div className="mt-3">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-zinc-400">Installing {bundleLog.title}</span>
+              <Button size="sm" variant="ghost" onClick={() => { setBundleLog(null); load(); }}>close</Button>
+            </div>
+            <LiveLog attemptId={bundleLog.channel} className="max-h-64" />
+          </div>
+        )}
       </Card>
 
       <p className="text-xs text-zinc-500">

@@ -1,7 +1,7 @@
 import type { StreamEvent } from '@foundry/engine';
 
 /** What the Skills page can start; each one gets its own live channel and a record the page can poll. */
-export type SkillOpKind = 'install' | 'install-tier' | 'update' | 'adopt' | 'uninstall' | 'tool-install';
+export type SkillOpKind = 'install' | 'install-tier' | 'install-bundle' | 'update' | 'adopt' | 'uninstall' | 'tool-install';
 export type SkillOpStatus = 'running' | 'ok' | 'failed';
 export interface SkillOp {
   id: string;

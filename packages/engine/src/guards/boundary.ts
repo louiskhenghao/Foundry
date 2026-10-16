@@ -1,12 +1,12 @@
 import { join } from 'node:path';
-import { boundaryHook, buildSettings, canaryHook, rmGuardHook } from '@foundry/runner';
+import { boundaryHook, buildSettings, canaryHook, rmGuardHook, skillGuardHook } from '@foundry/runner';
 
 /**
  * The mechanical enforcement of Escalation trigger 3. The patterns themselves live in
  * packages/runner/hooks/boundary-guard.sh so the hook has no runtime dependency on the engine.
  */
 export function boundarySettings(hooksDir: string): object {
-  return buildSettings([canaryHook(join(hooksDir, 'canary.sh')), boundaryHook(join(hooksDir, 'boundary-guard.sh')), rmGuardHook(join(hooksDir, 'rm-guard.ts'))]);
+  return buildSettings([canaryHook(join(hooksDir, 'canary.sh')), boundaryHook(join(hooksDir, 'boundary-guard.sh')), skillGuardHook(join(hooksDir, 'boundary-guard.sh')), rmGuardHook(join(hooksDir, 'rm-guard.ts'))]);
 }
 
 /** Tools a worker may use without asking. Bash is guarded by the boundary hook. */

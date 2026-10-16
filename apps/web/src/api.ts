@@ -105,7 +105,7 @@ export interface ServicesStatus {
 export interface SkillOp {
   id: string;
   channel: string;
-  kind: 'install' | 'install-tier' | 'update' | 'adopt' | 'uninstall' | 'tool-install';
+  kind: 'install' | 'install-tier' | 'install-bundle' | 'update' | 'adopt' | 'uninstall' | 'tool-install';
   label: string;
   status: 'running' | 'ok' | 'failed';
   startedAt: string;
@@ -636,7 +636,9 @@ export function apiForProvider(provider?: AgentProvider) {
   mcpRemove: (name: string, opId?: string) => req<{ ok: boolean; error: string | null; op: SkillOp }>('/api/mcp/remove', { method: 'POST', body: JSON.stringify({ name, opId }) }),
   uninstallPlugin: (sourceId: string, opId?: string) => req<{ ok: boolean; error: string | null; op: SkillOp }>('/api/skills/plugins/uninstall', { method: 'POST', body: JSON.stringify({ sourceId, opId }) }),
   cleanupShadows: (names: string[]) => req<{ trashed: TrashEntry[]; skipped: { name: string; reason: string }[] }>('/api/skills/cleanup-shadows', { method: 'POST', body: JSON.stringify({ names }) }),
-  installBundle: (bundle: string) => req<{ results: { id: string; name: string; action: 'plugin' | 'updated' | 'adopted' | 'installed' | 'kept' | 'failed'; detail: string }[] }>('/api/skills/install-bundle', { method: 'POST', body: JSON.stringify({ bundle }) }),
+  installBundle: (bundle: string, opId?: string) => req<{ results: { id: string; name: string; action: 'plugin' | 'updated' | 'adopted' | 'installed' | 'kept' | 'failed'; detail: string }[]; op: SkillOp }>('/api/skills/install-bundle', { method: 'POST', body: JSON.stringify({ bundle, opId }) }),
+  /** text-to-cad for this provider: installed, and uv (which runs cadgen) on this computer */
+  cad: () => req<{ installed: boolean; uv: boolean }>('/api/cad'),
   updateRuns: () => req<(EngineEvent & { seq: number })[]>('/api/skills/update-runs'),
   doctor: () => req<DoctorReport>('/api/doctor'),
   packs: () => req<PacksView>('/api/skills/packs'),

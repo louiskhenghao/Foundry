@@ -2,7 +2,7 @@ import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Attachment } from '@foundry/core/browser';
 import { BUDGET_PRESETS } from '@foundry/core/browser';
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { CornerDownRight, X } from 'lucide-react';
 import { ACTION_INFO, CODEX_MODEL_ACTIONS, effectiveCodexPresets, effectivePresets, natureKey, type CodexModelPreset, type ModelNature, type ModelPreset } from '@foundry/core/browser';
 import { api, type AccountsInfo, type AgentProvider, type FollowUpDraft, type GoalRow, type ModelRecordView, type RepoInfo } from '../api.ts';
@@ -19,7 +19,7 @@ const DELIVERY_KEY = 'foundry.delivery';
 const BUDGET_KEY = 'foundry.budget';
 const NATURE_KEY = 'foundry.nature';
 
-type Nature = 'auto' | 'code' | 'docs' | 'research' | 'image' | 'video';
+type Nature = 'auto' | 'code' | 'docs' | 'research' | 'image' | 'video' | 'cad';
 const NATURES: { id: Nature; label: string; text: string }[] = [
   { id: 'auto', label: 'Auto', text: 'The system reads your description and decides.' },
   { id: 'code', label: 'Code', text: 'Software: features, fixes, whole apps.' },
@@ -27,6 +27,7 @@ const NATURES: { id: Nature; label: string; text: string }[] = [
   { id: 'research', label: 'Research', text: 'An investigation ending in a cited report.' },
   { id: 'image', label: 'Images', text: 'Posters, logos, illustrations.' },
   { id: 'video', label: 'Video', text: 'Generated video or narrated presentations.' },
+  { id: 'cad', label: 'CAD', text: '3D parts and assemblies (STEP), drawings, DXF profiles, robot files.' },
 ];
 /** the browser remembers the finer delivery options; mode and unit always start from Settings → New goal defaults */
 function loadDraft(): PolicyDraft {
@@ -92,6 +93,11 @@ export function NewGoalPage() {
   const [presetInfo, setPresetInfo] = useState<{ ids: { id: string; label: string }[]; picks: Record<ModelNature, string> } | null>(null);
   const [codexPresetInfo, setCodexPresetInfo] = useState<{ ids: { id: string; label: string }[]; picks: Record<ModelNature, string>; presets: Record<string, CodexModelPreset> } | null>(null);
   useEffect(() => localStorage.setItem(NATURE_KEY, nature), [nature]);
+  // the cad tile says when text-to-cad is missing for this coding agent (a cad goal waits for it before Clarify)
+  const [cad, setCad] = useState<{ installed: boolean; uv: boolean } | null>(null);
+  useEffect(() => {
+    void api.cad().then(setCad).catch(() => setCad(null));
+  }, [provider]);
   const [mode, setModeState] = useState<'simple' | 'expert'>('expert');
   const [tdd, setTddState] = useState<'required' | 'preferred' | 'off'>('required');
   const [ponytail, setPonytailState] = useState<'on' | 'off'>('on');
@@ -268,7 +274,7 @@ export function NewGoalPage() {
         // fast: let the engine default the TDD mandate off instead of pinning it here
         workflow: pace === 'fast' ? { pace, ponytail } : { pace, tdd: mode === 'simple' ? 'preferred' : tdd, ponytail },
         nature,
-        outputDir: (nature === 'image' || nature === 'video') && outputDir.trim() ? outputDir.trim() : undefined,
+        outputDir: (nature === 'image' || nature === 'video' || nature === 'cad') && outputDir.trim() ? outputDir.trim() : undefined,
         interviewDepth: Number(interviewDepth),
         effort: effort || (provider === 'codex' ? null : undefined),
         modelPreset: (provider === 'codex' ? codexPreset : modelPreset) || undefined,
@@ -343,7 +349,12 @@ export function NewGoalPage() {
             </button>
           ))}
         </div>
-        {(nature === 'image' || nature === 'video') && (
+        {nature === 'cad' && cad && !cad.installed && (
+          <p className="mt-2 text-xs text-amber-300">
+            text-to-cad is not installed for this coding agent: a CAD goal waits for it before Clarify. Install it on the <Link to={`/setup?provider=${provider}`} className="underline">Setup page</Link> (3D models){cad.uv ? '' : '; uv, which runs its CAD kernel, is missing too'}.
+          </p>
+        )}
+        {(nature === 'image' || nature === 'video' || nature === 'cad') && (
           <div className="mt-3">
             <label className="text-xs text-zinc-400">Output folder — the finished files are copied here when the goal completes (optional; otherwise they stay in the goal's workspace)</label>
             <div className="flex gap-2 mt-1">

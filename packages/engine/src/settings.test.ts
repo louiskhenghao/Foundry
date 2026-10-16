@@ -97,16 +97,32 @@ describe('engine + settings', () => {
     expect(engine.settingsView().restartNeeded).toEqual([]);
   });
 
+  /** the keys a setting adds: the constant part of every session's environment (cadgen quiet, desktop hand-offs closed) is left out */
+  const keys = (env: Record<string, string>) => Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('CADGEN_') && !k.startsWith('FOUNDRY_')));
+
+  test('every session runs cadgen quiet, and with the desktop hand-offs closed until Settings opens them', () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'foundry-settings-desktop-'));
+    const engine = new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'ch'), log: () => {} }), new FakeRunner(() => {}));
+    const off = engine.sessionEnvExtra();
+    expect(off).toMatchObject({ CADGEN_TELEMETRY: '0', CADGEN_UPDATE_CHECK: '0', FOUNDRY_DENIED_SKILLS: 'bambu-labs' });
+    expect(off.FOUNDRY_DESKTOP_PATTERNS).toContain('bambu-connect://');
+    engine.updateSettings({ safety: { desktopApps: true } });
+    const on = engine.sessionEnvExtra();
+    expect(on).toMatchObject({ CADGEN_TELEMETRY: '0', CADGEN_UPDATE_CHECK: '0' });
+    expect(on).not.toHaveProperty('FOUNDRY_DESKTOP_PATTERNS');
+    expect(on).not.toHaveProperty('FOUNDRY_DENIED_SKILLS');
+  });
+
   test('API keys reach sessions via sessionEnvExtra (Kimi under both conventional names)', () => {
     const dataDir = mkdtempSync(join(tmpdir(), 'foundry-settings-keys-'));
     const engine = new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'ch'), log: () => {} }), new FakeRunner(() => {}));
-    expect(engine.sessionEnvExtra()).toEqual({});
+    expect(keys(engine.sessionEnvExtra())).toEqual({});
     engine.updateSettings({ tools: { openaiApiKey: 'sk-o', kimiApiKey: 'sk-k', geminiApiKey: 'g-1' } });
-    expect(engine.sessionEnvExtra()).toEqual({ OPENAI_API_KEY: 'sk-o', MOONSHOT_API_KEY: 'sk-k', KIMI_API_KEY: 'sk-k', GEMINI_API_KEY: 'g-1' });
+    expect(keys(engine.sessionEnvExtra())).toEqual({ OPENAI_API_KEY: 'sk-o', MOONSHOT_API_KEY: 'sk-k', KIMI_API_KEY: 'sk-k', GEMINI_API_KEY: 'g-1' });
     engine.updateSettings({ tools: { kimiApiKey: null, geminiApiKey: null } });
-    expect(engine.sessionEnvExtra()).toEqual({ OPENAI_API_KEY: 'sk-o' });
+    expect(keys(engine.sessionEnvExtra())).toEqual({ OPENAI_API_KEY: 'sk-o' });
     engine.updateSettings({ tools: { elevenlabsApiKey: 'el-1', groqApiKey: 'gsk-1' } });
-    expect(engine.sessionEnvExtra()).toEqual({ OPENAI_API_KEY: 'sk-o', ELEVENLABS_API_KEY: 'el-1', GROQ_API_KEY: 'gsk-1' });
+    expect(keys(engine.sessionEnvExtra())).toEqual({ OPENAI_API_KEY: 'sk-o', ELEVENLABS_API_KEY: 'el-1', GROQ_API_KEY: 'gsk-1' });
   });
 
   test('a MiniMax key is written where mmx reads it, and removed with the setting', () => {
@@ -117,11 +133,11 @@ describe('engine + settings', () => {
     delete process.env.MINIMAX_API_KEY;
     try {
       engine.updateSettings({ tools: { minimaxApiKey: 'sk-cp-1' } });
-      expect(engine.sessionEnvExtra()).toEqual({ MINIMAX_API_KEY: 'sk-cp-1', MMX_CONFIG_DIR: join(dataDir, 'mmx') });
+      expect(keys(engine.sessionEnvExtra())).toEqual({ MINIMAX_API_KEY: 'sk-cp-1', MMX_CONFIG_DIR: join(dataDir, 'mmx') });
       expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ api_key: 'sk-cp-1' });
       expect(statSync(file).mode & 0o777).toBe(0o600);
       engine.updateSettings({ tools: { minimaxApiKey: null } });
-      expect(engine.sessionEnvExtra()).toEqual({});
+      expect(keys(engine.sessionEnvExtra())).toEqual({});
       expect(existsSync(file)).toBe(false);
     } finally {
       if (saved !== undefined) process.env.MINIMAX_API_KEY = saved;
@@ -181,7 +197,7 @@ describe('engine + settings', () => {
     try {
       const engine = new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'ch'), log: () => {} }), new FakeRunner(() => {}));
       engine.updateSettings({ tools: { minimaxApiKey: 'sk-cp-1' } });
-      expect(engine.sessionEnvExtra()).toEqual({ MINIMAX_API_KEY: 'sk-cp-1' });
+      expect(keys(engine.sessionEnvExtra())).toEqual({ MINIMAX_API_KEY: 'sk-cp-1' });
     } finally {
       if (saved !== undefined) process.env.MINIMAX_API_KEY = saved;
     }

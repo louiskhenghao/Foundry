@@ -101,9 +101,14 @@ export function useLabel(s: CatalogEntryStatus): string {
   return bin ? `the \`${bin}\` command-line tool` : (s.entry.invoke ?? s.installedInvoke ?? `/${s.entry.name}`);
 }
 
+export type PluginSource = Extract<CatalogEntry['source'], { type: 'plugin' }>;
+
+/** the id the CLIs give an installed plugin: name@marketplace */
+export const pluginId = (src: PluginSource): string => `${src.plugin}@${src.marketplaceId}`;
+
 /** The two commands that install a marketplace plugin with the backend's own CLI (also what the human is told to run). */
-export function pluginInstallCommand(src: Extract<CatalogEntry['source'], { type: 'plugin' }>, provider: 'claude' | 'codex' = 'claude'): string {
-  return provider === 'codex'
-    ? `codex plugin marketplace add ${src.marketplace} && codex plugin add ${src.plugin}@${src.marketplaceId}`
-    : `claude plugin marketplace add ${src.marketplace} && claude plugin install ${src.plugin}@${src.marketplaceId}`;
+export function pluginInstallCommand(src: PluginSource, provider: 'claude' | 'codex' = 'claude'): string {
+  // a marketplace ref (a release branch such as text-to-cad's `latest`) is spelled differently by each CLI
+  const market = src.ref ? (provider === 'codex' ? `${src.marketplace} --ref ${src.ref}` : `${src.marketplace}#${src.ref}`) : src.marketplace;
+  return provider === 'codex' ? `codex plugin marketplace add ${market} && codex plugin add ${pluginId(src)}` : `claude plugin marketplace add ${market} && claude plugin install ${pluginId(src)}`;
 }

@@ -12,7 +12,8 @@ afterAll(() => rmSync(fake.home, { recursive: true, force: true }));
 describe('catalog', () => {
   test('the shipped catalog parses and has exactly one required entry (graphify)', () => {
     const c = loadCatalog(resolve(import.meta.dir, '../../../../catalog/skills.json'));
-    expect(c.entries.length).toBeLessThanOrEqual(40);
+    // curated, not a directory: the ceiling moves only for a bundle (text-to-cad brought twelve skills)
+    expect(c.entries.length).toBeLessThanOrEqual(60);
     expect(c.entries.filter((e) => e.tier === 'required').map((e) => e.id)).toEqual(['graphify']);
     for (const e of c.entries) expect(e.why.length).toBeGreaterThan(20);
   });

@@ -29,7 +29,7 @@ export class SkillsHints {
   private cache: { at: number; statuses: CatalogEntryStatus[] } | null = null;
   constructor(
     private load: () => Promise<CatalogEntryStatus[]>,
-    private opts: { ttlMs?: number; enabled?: () => boolean; profile?: () => 'mattpocock' | 'plain'; packs?: () => Record<string, string | undefined>; provider?: 'claude' | 'codex' } = {},
+    private opts: { ttlMs?: number; enabled?: () => boolean; profile?: () => 'mattpocock' | 'plain'; packs?: () => Record<string, string | undefined>; gates?: () => Record<string, boolean>; provider?: 'claude' | 'codex' } = {},
   ) {}
   invalidate(): void {
     this.cache = null;
@@ -58,12 +58,12 @@ export class SkillsHints {
   async sectionFor(role: SkillRole, opts: SectionOpts = {}): Promise<string | null> {
     const s = await this.statuses();
     if (!s) return null;
-    return formatWorkflowSection({ role, taskKind: opts.taskKind, scenario: opts.scenario, projectSkills: opts.projectSkills, discipline: opts.discipline, profile: this.opts.profile?.() ?? 'mattpocock', statuses: s, packs: this.packs(), provider: this.opts.provider });
+    return formatWorkflowSection({ role, taskKind: opts.taskKind, scenario: opts.scenario, projectSkills: opts.projectSkills, discipline: opts.discipline, profile: this.opts.profile?.() ?? 'mattpocock', statuses: s, packs: this.packs(), gates: this.opts.gates?.(), provider: this.opts.provider });
   }
   /** Skills this role MUST invoke for this task kind / scenario (for the reviewer's note). */
   async mandatedFor(role: SkillRole, opts: SectionOpts = {}): Promise<MandatedSkill[]> {
     const s = await this.statuses();
     if (!s || (this.opts.profile?.() ?? 'mattpocock') === 'plain') return [];
-    return mandatedSkillsFor({ role, taskKind: opts.taskKind, scenario: opts.scenario, discipline: opts.discipline, profile: 'mattpocock', statuses: s, packs: this.packs() });
+    return mandatedSkillsFor({ role, taskKind: opts.taskKind, scenario: opts.scenario, discipline: opts.discipline, profile: 'mattpocock', statuses: s, packs: this.packs(), gates: this.opts.gates?.() });
   }
 }

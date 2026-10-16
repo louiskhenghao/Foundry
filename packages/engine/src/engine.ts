@@ -3,7 +3,7 @@ import { CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, Effort, effectiveCodexPre
 import { CodexPlugins } from './plugins/codex-plugins.ts';
 import { CodexQuotaReader } from './usage/codex-quota.ts';
 import { discoverCodexModels } from './models/codex-discover.ts';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import type { Attachment, Brief, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalWorkflow, ModelConfig, Task, Check } from '@foundry/core';
 import {
   BUDGET_PRESETS,
@@ -62,6 +62,7 @@ import { needsInvestigation } from './references.ts';
 import { MILESTONE_CHECK_PREFIX, milestoneCheckSpec } from './checks/milestone-script.ts';
 import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
+import { SATISFIED } from './skills/catalog.ts';
 import { UpdateManager } from './update/updater.ts';
 import { AgentsMonitor, type FoundryLiveSession } from './agents/monitor.ts';
 import { ClaudeAuth } from './auth/claude-auth.ts';
@@ -103,6 +104,7 @@ import { Tailnet } from './notify/tailnet.ts';
 import { SessionCosts } from './session-costs.ts';
 import { CODE_SERVER_INSTALL, CodeServer } from './editor/code-server.ts';
 import { workerTools } from './guards/boundary.ts';
+import { DESKTOP_APPS_PATTERNS } from './guards/patterns.ts';
 
 export interface CreateGoalInput {
   provider?: 'claude' | 'codex';
@@ -350,6 +352,12 @@ export class Engine {
       hintsEnabled: () => provider === 'codex' || !config.settingSources || config.settingSources.includes('user'),
       workflowProfile: () => config.workflowProfile ?? 'mattpocock',
       packs: () => ({ design: config.designPack, image: config.imagePack, video: config.videoPack }),
+      // a plugin that ships MCP servers (text-to-cad's `cad`) is allowed for sessions as soon as it is installed
+      onPluginServers: (names) => {
+        for (const n of names) this.mcpFor(provider).allow(`mcp__${n}`, true);
+      },
+      sessionEnv: () => this.sessionEnvExtra(),
+      gates: () => ({ desktopApps: this.config.desktopApps }),
       // mmx signed in with `mmx auth login` needs no key from Foundry
       // `||`, not `??`: an empty variable in the engine's environment must not hide a key from Settings
       envProbe: (name) => !!(process.env[name] || this.sessionEnvExtra()[name]) || (name === 'MINIMAX_API_KEY' && mmxSignedIn()),
@@ -445,7 +453,27 @@ export class Engine {
       ...(this.minimaxKey() ? { MINIMAX_API_KEY: this.minimaxKey()!, ...(this.mmxReady ? { MMX_CONFIG_DIR: mmxConfigDir(this.config.dataDir) } : {}) } : {}),
       ...(this.config.elevenlabsApiKey ? { ELEVENLABS_API_KEY: this.config.elevenlabsApiKey } : {}),
       ...(this.config.groqApiKey ? { GROQ_API_KEY: this.config.groqApiKey } : {}),
+      // text-to-cad's cadgen: no usage stats and no update check from Foundry's own processes (the person's setting stays theirs)
+      CADGEN_TELEMETRY: '0',
+      CADGEN_UPDATE_CHECK: '0',
+      // Settings → Safety → Desktop apps & printers: off = the boundary hook blocks the openers and the gated skills
+      ...(this.config.desktopApps ? {} : { FOUNDRY_DESKTOP_PATTERNS: DESKTOP_APPS_PATTERNS, ...(this.gatedSkills('desktopApps').length ? { FOUNDRY_DENIED_SKILLS: this.gatedSkills('desktopApps').join('|') } : {}) }),
     };
+  }
+
+  /** text-to-cad installed for this goal's provider: the cad nature can be offered, classified and planned */
+  async cadAvailable(goal: Pick<Goal, 'provider' | 'repoPath'>): Promise<boolean> {
+    const statuses = await this.providerSkills[goal.provider ?? this.config.provider].status(goal.repoPath).catch(() => []);
+    return statuses.some((s) => s.entry.bundle === 'text-to-cad' && s.entry.name === 'cad' && SATISFIED.includes(s.status));
+  }
+
+  /** catalog skills behind a Settings switch (text-to-cad's Bambu hand-off), by name */
+  gatedSkills(gate: 'desktopApps'): string[] {
+    try {
+      return this.skills.catalog().entries.filter((e) => e.gate === gate).map((e) => e.name);
+    } catch {
+      return [];
+    }
   }
 
   /** the MiniMax key sessions get: Settings first, else the engine's own environment; undefined = mmx uses the user's ~/.mmx login */
@@ -1556,12 +1584,14 @@ export class Engine {
       return { allowed: allowed.filter((p) => !p.startsWith('mcp__')), denied: undefined, catalogUnreadable: true };
     }
     const denied: string[] = [];
-    for (const e of entries) {
+    // servers a catalog plugin ships (text-to-cad's `cad`) carry their deny list on the skills catalog
+    const shipped = this.providerSkills[provider].catalog().entries.flatMap((e) => (e.source.type === 'plugin' ? e.source.mcpServers : []));
+    for (const e of [...entries, ...shipped]) {
       const prefix = `mcp__${e.name}`;
       if (!allowed.includes(prefix)) continue;
       for (const t of e.denyTools) denied.push(`${prefix}__${t}`);
     }
-    return { allowed: [...allowed], denied: denied.length ? denied : undefined, catalogUnreadable: false };
+    return { allowed: [...allowed], denied: denied.length ? [...new Set(denied)] : undefined, catalogUnreadable: false };
   }
 
   /** the tools to deny for these servers; undefined = nothing to deny (see mcpToolPolicy) */
@@ -1858,7 +1888,27 @@ export class Engine {
       ? { id: 'notifications', label: 'Notifications (optional)', ok: true, severity: 'warn' as const, detail: `${notifChannels.join(' + ')} configured — you get pinged when a goal needs you, finishes, delivers, or usage pauses`, fix: null }
       : { id: 'notifications', label: 'Notifications (optional)', ok: false, severity: 'warn' as const, detail: 'not configured — get a Telegram or Discord ping when a goal needs you, finishes, or a delivery fails', fix: { url: '/settings' } };
     const rea = await this.reaEnginesCheck(provider);
-    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), ...await this.mcpFor(provider).doctorChecks()]);
+    const cad = await this.cadToolsCheck(provider);
+    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...await this.mcpFor(provider).doctorChecks()]);
+  }
+
+  /**
+   * text-to-cad's tools on this computer: uv, which runs cadgen (a problem only once the plugin is installed), and the
+   * desktop apps its hand-offs would open, which stay behind Settings → Safety → Desktop apps & printers.
+   */
+  private async cadToolsCheck(provider: 'claude' | 'codex') {
+    const statuses = await this.providerSkills[provider].status().catch(() => []);
+    const installed = statuses.some((s) => s.entry.bundle === 'text-to-cad' && SATISFIED.includes(s.status));
+    const uv = Bun.which('uvx') ?? Bun.which('uv');
+    const apps = [
+      ...(['/Applications/OrcaSlicer.app', '/Applications/BambuStudio.app', '/Applications/Bambu Studio.app', '/Applications/Bambu Connect.app'].filter((p) => existsSync(p)).map((p) => basename(p, '.app'))),
+      ...(Bun.which('orca-slicer') ? ['orca-slicer'] : []),
+      ...(Bun.which('bambu-studio') ? ['bambu-studio'] : []),
+    ];
+    const appsNote = apps.length ? `${apps.join(', ')} found: hand-offs to them run only while Settings → Safety → Desktop apps & printers is on` : 'no slicer or printer app found (optional: OrcaSlicer, Bambu Studio, Bambu Connect)';
+    const label = 'CAD tools — text-to-cad (optional)';
+    if (uv) return { id: 'cad-tools', label, ok: true, severity: 'warn' as const, detail: `uv at ${uv} runs cadgen${installed ? '' : ' once text-to-cad is installed (Setup → 3D models)'}; ${appsNote}`, fix: null };
+    return { id: 'cad-tools', label, ok: !installed, severity: 'warn' as const, detail: `uv not found: cadgen, the CAD kernel behind text-to-cad's skills and its cad server, runs through uv${installed ? ' — the installed plugin cannot work without it' : ''}; ${appsNote}`, fix: { command: 'curl -LsSf https://astral.sh/uv/install.sh | sh', url: 'https://docs.astral.sh/uv/getting-started/installation/' } };
   }
 
   /**

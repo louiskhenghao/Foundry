@@ -19,6 +19,8 @@ export interface WorkflowSectionInput {
   statuses: CatalogEntryStatus[];
   /** chosen option per mutually exclusive pack, e.g. { design: 'ui-ux-pro-max' } */
   packs?: Record<string, string | undefined>;
+  /** Settings switches a gated entry needs (Safety → Desktop apps & printers); a closed gate hides the entry from sessions */
+  gates?: Record<string, boolean>;
   /** project skills installed by autoskills for this goal's repository */
   projectSkills?: string[];
   /** the goal's (and task's) discipline: tdd off drops the tdd rules, preferred downgrades MUST to Prefer; ponytail off drops
@@ -80,9 +82,9 @@ export interface MandatedSkill {
 
 const NEVER_RUN = ['/setup-matt-pocock-skills', '/to-spec', '/to-tickets', '/triage', '/implement', '/wayfinder'];
 
-/** Entries a session may see at all: installed, and not a member of an unchosen pack. */
-export function visibleStatuses(i: Pick<WorkflowSectionInput, 'statuses' | 'packs'>): CatalogEntryStatus[] {
-  return i.statuses.filter((s) => SATISFIED.includes(s.status) && packAllows(s.entry, i.packs ?? {}));
+/** Entries a session may see at all: installed, not a member of an unchosen pack, and not behind a closed gate. */
+export function visibleStatuses(i: Pick<WorkflowSectionInput, 'statuses' | 'packs' | 'gates'>): CatalogEntryStatus[] {
+  return i.statuses.filter((s) => SATISFIED.includes(s.status) && packAllows(s.entry, i.packs ?? {}) && (!s.entry.gate || !!i.gates?.[s.entry.gate]));
 }
 
 const MEDIA_SCENARIOS: readonly string[] = ['image', 'video'];

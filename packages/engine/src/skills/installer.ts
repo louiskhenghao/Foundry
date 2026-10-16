@@ -1,7 +1,7 @@
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
 import { exec } from '../git/git.ts';
-import { pluginInstallCommand } from './catalog.ts';
+import { pluginInstallCommand, type PluginSource } from './catalog.ts';
 import { LEGACY_MARKER_FILE, MARKER_FILE, type SkillsPaths } from './paths.ts';
 import { trashSkill } from './trash.ts';
 import { FoundryMarker, type CatalogEntry, type InstallResult } from './types.ts';
@@ -22,8 +22,10 @@ export interface InstallContext {
   /** for plugin sources: the backend's binary (claude, or codex for paths.provider codex) and a streaming spawner (tests inject both) */
   claudeBin?: string;
   codexBin?: string;
-  spawn?: (argv: string[], cwd: string, onLine: (l: string) => void, opts?: { timeoutMs?: number }) => Promise<{ code: number | null; tail: string }>;
+  spawn?: (argv: string[], cwd: string, onLine: (l: string) => void, opts?: { timeoutMs?: number; env?: Record<string, string> }) => Promise<{ code: number | null; tail: string }>;
   onLine?: (l: string) => void;
+  /** what the engine gives every session (API keys, telemetry switches): a warm-up runs with it too */
+  env?: Record<string, string>;
 }
 
 const cloneUrl = (src: Extract<CatalogEntry['source'], { type: 'git' }>) => src.url ?? `https://github.com/${src.repo}.git`;
@@ -93,7 +95,7 @@ export async function installPlugin(entry: CatalogEntry, ctx: InstallContext): P
   const bin = (codex ? ctx.codexBin : ctx.claudeBin) ?? Bun.which(name);
   if (!bin || !ctx.spawn) return { ok: false, id: entry.id, name: entry.name, path: null, commit: null, manual, error: bin ? 'no spawner configured' : `${name} CLI not found` };
   const onLine = ctx.onLine ?? (() => {});
-  const add = await ctx.spawn([bin, 'plugin', 'marketplace', 'add', src.marketplace], ctx.paths.claudeHome, onLine, { timeoutMs: 180_000 });
+  const add = await ctx.spawn([bin, 'plugin', 'marketplace', 'add', ...(codex ? [src.marketplace, ...(src.ref ? ['--ref', src.ref] : [])] : [src.ref ? `${src.marketplace}#${src.ref}` : src.marketplace])], ctx.paths.claudeHome, onLine, { timeoutMs: 180_000 });
   if (add.code !== 0 && !/already|exists/i.test(add.tail)) {
     return { ok: false, id: entry.id, name: entry.name, path: null, commit: null, manual, error: `${name} plugin marketplace add failed: ${add.tail.slice(-300)}` };
   }
@@ -103,6 +105,29 @@ export async function installPlugin(entry: CatalogEntry, ctx: InstallContext): P
   }
   ctx.log?.(`[skills] installed plugin ${src.plugin}@${src.marketplaceId}`);
   return { ok: true, id: entry.id, name: entry.name, path: null, commit: null, manual: null, error: null };
+}
+
+/**
+ * After a plugin install: run a shipped MCP server's own command once with `warmup.args` in place of its subcommand, so
+ * a runtime it downloads on first start (text-to-cad: Python and OpenCASCADE, hundreds of MB) arrives while the person
+ * watches, not inside the first task's attempt. The command and its pinned version come from the plugin's MCP config.
+ */
+export async function warmupPlugin(src: PluginSource, installPath: string, ctx: InstallContext): Promise<{ ok: boolean; detail: string }> {
+  const w = src.warmup;
+  if (!w) return { ok: true, detail: 'nothing to warm up' };
+  if (!ctx.spawn) return { ok: false, detail: 'no spawner configured' };
+  try {
+    const manifest = JSON.parse(readFileSync(join(installPath, ctx.paths.provider === 'codex' ? '.codex-plugin' : '.claude-plugin', 'plugin.json'), 'utf8')) as { mcpServers?: string | Record<string, unknown> };
+    const servers = (typeof manifest.mcpServers === 'string' ? (JSON.parse(readFileSync(join(installPath, manifest.mcpServers), 'utf8')) as { mcpServers?: Record<string, unknown> }).mcpServers : manifest.mcpServers) ?? {};
+    const server = servers[w.mcpServer] as { command?: string; args?: string[]; env?: Record<string, string> } | undefined;
+    if (!server?.command) return { ok: false, detail: `the plugin ships no MCP server named ${w.mcpServer}` };
+    const argv = [server.command, ...(server.args ?? []).slice(0, -1), ...w.args];
+    ctx.onLine?.(`${w.note}: ${argv.join(' ')}`);
+    const r = await ctx.spawn(argv, installPath, ctx.onLine ?? (() => {}), { timeoutMs: 20 * 60_000, env: { ...(server.env ?? {}), ...(ctx.env ?? {}) } });
+    return r.code === 0 ? { ok: true, detail: 'runtime ready' } : { ok: false, detail: `exit ${r.code}: ${r.tail.slice(-200)}` };
+  } catch (err) {
+    return { ok: false, detail: String((err as Error).message ?? err) };
+  }
 }
 
 export async function installEntry(entry: CatalogEntry, ctx: InstallContext, opts: { force?: boolean; refresh?: boolean } = {}): Promise<InstallResult> {

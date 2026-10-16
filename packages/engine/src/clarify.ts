@@ -24,7 +24,7 @@ export function natureScenario(nature: GoalNature): TaskScenario | undefined {
   return nature === 'docs' || nature === 'research' || nature === 'image' || nature === 'video' ? nature : undefined;
 }
 
-const NatureVerdict = z.object({ nature: z.enum(['code', 'docs', 'research', 'image', 'video']) });
+const NatureVerdict = z.object({ nature: z.enum(['code', 'docs', 'research', 'image', 'video', 'cad']) });
 
 /**
  * One cheap single-turn call that classifies an `auto` goal's nature BEFORE the Clarify prompt is built,
@@ -33,8 +33,10 @@ const NatureVerdict = z.object({ nature: z.enum(['code', 'docs', 'research', 'im
  */
 async function classifyNature(engine: Engine, goal: Goal, ws: string): Promise<GoalNature | null> {
   try {
+    // cad is offered only where text-to-cad is installed: a goal that needs it on another machine is code work
+    const cad = await engine.cadAvailable(goal);
     const handle = await engine.runner.run({
-      prompt: `Classify what this goal produces. code = software changes; docs = prose/documents; research = an investigation ending in a cited report; image = generated/edited images; video = generated/edited video or audio. Pick the dominant one for mixed goals.\n\n# Goal\n${goal.prompt.slice(0, 4000)}`,
+      prompt: `Classify what this goal produces. code = software changes; docs = prose/documents; research = an investigation ending in a cited report; image = generated/edited images; video = generated/edited video or audio${cad ? '; cad = 3D parts or assemblies (STEP/STL/3MF), engineering drawings, DXF cut profiles or robot description files (URDF/SDF)' : ''}. Pick the dominant one for mixed goals.\n\n# Goal\n${goal.prompt.slice(0, 4000)}`,
       cwd: ws,
       model: goal.models.cheap,
       meta: { goalId: goal.id, tier: 'cheap' },
@@ -51,7 +53,8 @@ async function classifyNature(engine: Engine, goal: Goal, ws: string): Promise<G
     engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: r.costUsd, source: 'clarify' } });
     engine.recordSessionUsage(r, { goalId: goal.id, kind: 'clarify', model: goal.models.cheap });
     const parsed = NatureVerdict.safeParse(r.structuredOutput ?? tryJson(r.finalText));
-    return parsed.success ? parsed.data.nature : null;
+    if (!parsed.success) return null;
+    return parsed.data.nature === 'cad' && !cad ? 'code' : parsed.data.nature;
   } catch {
     return null;
   }
@@ -128,7 +131,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
   // a Follow-up: the earlier goal's snapshot, plus where this checkout actually started (recorded by the Base Sync)
   const synced = getGoal(store.db, goal.id) ?? goal;
   const previous = goal.follows?.context ? [goal.follows.context, startSentence(synced)].filter(Boolean).join('\n') : '';
-  const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview ? interviewDepth(goal.interview) : null, previous);
+  const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview ? interviewDepth(goal.interview) : null, previous, await engine.cadAvailable(goal));
   const addDirs = goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined;
   const schema = zodToJsonSchema(goal.interview ? InterviewOutput : BriefSkeleton, { $refStrategy: 'none' });
   const transcriptPath = join(config.dataDir, 'transcripts', `clarify-${goal.id}.jsonl`);
@@ -500,12 +503,17 @@ function plannerNatureSection(goal: Goal, emptyRepo: boolean): string {
   if (nature === 'docs') return docs;
   if (nature === 'research') return research;
   if (nature === 'image' || nature === 'video') return media(nature);
+  if (nature === 'cad') return CAD_PLAN;
   if (nature === 'code') return emptyRepo ? scaffold : '';
-  return [`# Plan by the Brief's nature\nThe Brief sets \`nature\`; follow the rules below that match it.`, emptyRepo ? scaffold : '', docs, research, media('image'), media('video')].filter(Boolean).join('\n\n');
+  return [`# Plan by the Brief's nature\nThe Brief sets \`nature\`; follow the rules below that match it.`, emptyRepo ? scaffold : '', docs, research, media('image'), media('video'), CAD_PLAN].filter(Boolean).join('\n\n');
 }
 
+/** how a cad goal is cut: one task per part or assembly, geometry checks first, the robot files after the parts they describe */
+const CAD_PLAN =
+  '# CAD\nOne task per part or assembly (scenario `cad`); robot description files (URDF, SRDF, SDF) and drawings are tasks of their own, after the parts they describe. Each task delivers its build123d source in the repository (the repository\'s own layout, else `cad/`), its exports under `artifacts/` (STEP always; STL, 3MF, GLB, DXF or a drawing PDF when the Brief asks), front, top, right and isometric snapshots next to them, and a manifest entry under `docs/artifacts/` with the dimensions, process, material, checks and files. Checks: Python geometry checks (key dimensions, interference, wall thickness) as command checks, a DfAM or DFM check for the process the Brief names, and a reviewer rubric against the Brief\'s dimensions. No web tech stacks; no build/test/lint checks beyond the geometry checks.';
+
 /** Nature-specific planning rules. Auto goals get the conditional form: judge the nature first, then apply its rules. */
-function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true): string {
+function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true, cadAvailable = false): string {
   const ffprobe = Bun.which('ffprobe') != null;
   const styleAsk = `\nAlso output 2–4 \`styleOptions\` — distinct visual directions the human can SEE before any generation starts: real hex palette, 1–3 typefaces, 3–6 style keywords, one or two sentences on feel/composition; YOUR recommendation FIRST (the human's pick from the interview, if any, marked \`chosen: true\`). Plan the tasks assuming the first direction.`;
   const noBackend = `\n- IMPORTANT: no image-generation backend is configured on this machine (sessions have no OPENAI_API_KEY), so workers cannot call a generation API — at best they hand-author SVG/HTML and render it, at noticeably lower fidelity. Record this as an explicit assumption (e.g. "No AI image backend is configured; image deliverables will be hand-authored SVG renders") so the human can reject it and configure a key in Settings → Tools before approving the plan.`;
@@ -513,6 +521,7 @@ function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true): string 
     `# Nature: ${kind}\nThis goal produces media files, not software. Set \`nature: "${kind}"\` and plan tasks per deliverable batch (scenario \`${kind}\`).${styleAsk}${kind === 'image' && !imageGen ? noBackend : ''}\n${mediaConventions(kind, ffprobe)} Never ask about tech stacks and never propose build/test/lint checks.`;
   const docs = `# Nature: documents\nThis goal produces prose, not software. Set \`nature: "docs"\` and plan writing tasks (scenario \`docs\`), one per document or chapter; Areas are documents or audiences, not apps. Acceptance: reviewer checks with a precise rubric (audience, structure, tone, completeness, factual grounding); command checks only for objective facts (a file exists, links resolve). Never ask about tech stacks and never propose build/test/lint checks.`;
   const research = `# Nature: research\nThis goal produces knowledge. Set \`nature: "research"\` and plan investigation tasks (scenario \`research\`) whose output is cited markdown reports committed to the repository; Areas are questions or topics. Every claim needs a source; acceptance: reviewer checks whose rubric verifies sources are cited and conclusions follow from them, plus command checks that the report files exist. Never ask about tech stacks and never propose build/test/lint checks.`;
+  const cad = `# Nature: cad\nThis goal produces geometry and mechanical descriptions: parts and assemblies (STEP always; STL, 3MF or GLB when asked), engineering drawings, DXF cut profiles, robot description files. Set \`nature: "cad"\` and plan one task per part or assembly (scenario \`cad\`), robot files and drawings after the parts they describe; Areas are assemblies or sub-systems. Settle before planning: the manufacturing process (FDM or SLA printing, CNC, sheet metal, injection moulding) and the key dimensions with their unit are BLOCKING questions unless the prompt states them; material, tolerances and fits, mating parts (an attached STEP, drawing or photo), the printer's build volume and extra formats are assumptions the human can change. Acceptance: Python geometry checks (key dimensions, interference, wall thickness) as command checks, a DfAM or DFM check for the named process, and a reviewer rubric against the dimensions. Output an empty \`styleOptions\` (no visual directions); never ask about web tech stacks and never propose build/test/lint checks beyond the geometry checks.`;
   switch (goal.nature) {
     case 'docs':
       return docs;
@@ -522,29 +531,32 @@ function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true): string 
       return media('image');
     case 'video':
       return media('video');
+    case 'cad':
+      return cad;
     case 'code':
       return [emptyRepo ? `# Empty repository\n${TECH_STACK_SECTION}` : '', `# Style directions for UI goals\nWhen this goal's main deliverable is a user interface (a landing page, a product UI), also output 2–4 \`styleOptions\` (real hex palette, typefaces, keywords, a one-line feel; recommendation first) so the human can SEE the direction before work starts; one the interview already settled goes first with \`chosen: true\`. Skip them for backend/tooling goals.`]
         .filter(Boolean)
         .join('\n\n');
     case 'auto':
       return [
-        `# Judge the nature first\nThe user did not say what kind of goal this is. Decide from the prompt and set \`nature\` accordingly: code (software), docs (prose), research (a cited report), image or video (media files). Then follow the matching rules:\n- code${emptyRepo ? `, empty repository: ${TECH_STACK_SECTION}` : ': explore the repo as below.'}\n- docs / research / image / video: apply the corresponding section below and ignore build/test/stack concerns entirely.`,
+        `# Judge the nature first\nThe user did not say what kind of goal this is. Decide from the prompt and set \`nature\` accordingly: code (software), docs (prose), research (a cited report), image or video (media files)${cadAvailable ? ', cad (parts, drawings, robot description files)' : ''}. Then follow the matching rules:\n- code${emptyRepo ? `, empty repository: ${TECH_STACK_SECTION}` : ': explore the repo as below.'}\n- docs / research / image / video${cadAvailable ? ' / cad' : ''}: apply the corresponding section below and ignore build/test/stack concerns entirely.`,
         docs,
         research,
         media('image'),
         media('video'),
+        ...(cadAvailable ? [cad] : []),
       ].join('\n\n');
   }
 }
 
-function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: string | null = null, attachments = '', decisions = '', emptyRepo = false, imageGen = true, interview: number | null = null, previous = ''): string {
+function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: string | null = null, attachments = '', decisions = '', emptyRepo = false, imageGen = true, interview: number | null = null, previous = '', cadAvailable = false): string {
   return [
     interview ? interviewSection(interview) : '',
     `# Goal from the user\n${goal.prompt}`,
     decisions ? `${decisions}\nTreat these as settled: plan with them, record them as assumptions, and do not ask about them again.` : '',
     previous,
     goal.references.length ? `${renderReferences(goal)}\nGround the Brief in the report: what the reference does becomes the understanding and the acceptance checks, in the person's words. A goal that only asks to understand the reference, not to change this repository, is of nature research: its deliverable is the report under docs/, and its tasks analyse rather than build. Never plan copying the reference's code or assets.` : '',
-    natureSection(goal, emptyRepo, imageGen),
+    natureSection(goal, emptyRepo, imageGen, cadAvailable),
     attachments ? `${attachments}\nWhen an attachment matters for a specific task, name it (by file name) in that task's spec.` : '',
     overview ? `# Repository overview\n${overview}` : '',
     skillsHint ?? '',

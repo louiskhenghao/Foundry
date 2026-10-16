@@ -5,7 +5,7 @@ import { Modal, cn } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { type OpTab, useOpsPoller, useSkillOps } from './ops.ts';
 
-const KIND_LABEL: Record<OpTab['kind'], string> = { install: 'install', 'install-tier': 'install tier', update: 'update', adopt: 'adopt', uninstall: 'uninstall', 'tool-install': 'tool install' };
+const KIND_LABEL: Record<OpTab['kind'], string> = { install: 'install', 'install-tier': 'install tier', 'install-bundle': 'install bundle', update: 'update', adopt: 'adopt', uninstall: 'uninstall', 'tool-install': 'tool install' };
 const DOT: Record<OpTab['status'], string> = { running: 'bg-sky-400 animate-pulse', ok: 'bg-emerald-400', failed: 'bg-rose-400' };
 const STATUS_TEXT: Record<OpTab['status'], string> = { running: 'text-sky-300', ok: 'text-emerald-300', failed: 'text-rose-300' };
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });

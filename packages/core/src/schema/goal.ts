@@ -74,7 +74,7 @@ export type GoalMode = z.infer<typeof GoalMode>;
  * artifact conventions for media), the default view (non-code goals open Simple) and completion defaults.
  * `auto` = the user did not say; the Clarifier decides from the prompt and the engine records its verdict.
  */
-export const GoalNature = z.enum(['auto', 'code', 'docs', 'research', 'image', 'video']);
+export const GoalNature = z.enum(['auto', 'code', 'docs', 'research', 'image', 'video', 'cad']);
 export type GoalNature = z.infer<typeof GoalNature>;
 /** natures whose artifacts are media files (kept out of git, delivered to the output folder at done) */
 export const MEDIA_NATURES: GoalNature[] = ['image', 'video'];
