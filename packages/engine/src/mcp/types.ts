@@ -47,6 +47,10 @@ export const McpCatalogEntry = z.object({
   config: z.record(z.string(), z.unknown()),
   /** keys asked for at install, handed to the server as its environment */
   keys: z.array(McpKey).default([]),
+  /** what the person confirms once before this server is installed (lawful use, what leaves the computer) */
+  disclaimer: z.string().optional(),
+  /** tools of this server that run or change things (the target app, a debugger, a connected device): denied in sessions unless Settings opens them */
+  denyTools: z.array(z.string()).default([]),
 });
 export type McpCatalogEntry = z.infer<typeof McpCatalogEntry>;
 export const McpCatalog = z.object({ version: z.literal(1), entries: z.array(McpCatalogEntry) });

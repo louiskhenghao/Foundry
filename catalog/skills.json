@@ -1504,6 +1504,64 @@
         "video"
       ],
       "workflow": []
+    },
+    {
+      "id": "reverse-engineer-anything",
+      "name": "reverse-engineer-anything",
+      "summary": "REA's own workflow for the rea tools: open the target, trace the feature, keep the evidence, state the limits.",
+      "why": "With the rea MCP server installed, a worker studying a reference app or an undocumented interface follows a method instead of poking at tools; the investigation of a goal's reference uses it too.",
+      "tier": "optional",
+      "source": {
+        "type": "git",
+        "repo": "morluto/rea",
+        "path": ".agents/skills/reverse-engineer-anything"
+      },
+      "roles": [
+        "worker",
+        "clarifier"
+      ],
+      "tags": [
+        "research",
+        "reverse-engineering"
+      ],
+      "homepage": "https://github.com/morluto/rea",
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "any",
+          "instruction": "When you must understand a shipped app, an SDK or an interface without documentation (the goal's reference included), invoke it and use the rea tools: keep the evidence behind each conclusion and build your own implementation from it — never copy proprietary code, never bypass a licence or a login.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
+        },
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "research",
+          "instruction": "Invoke it to analyse the goal's reference with the rea tools; the report states what the evidence shows, its limits, and what to build — never proprietary code copied out.",
+          "scenarios": [
+            "research",
+            "general"
+          ]
+        }
+      ],
+      "scenarios": [
+        "frontend",
+        "backend",
+        "fullstack",
+        "data",
+        "mobile",
+        "infra",
+        "general",
+        "research"
+      ]
     }
   ]
 }

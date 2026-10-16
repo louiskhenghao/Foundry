@@ -7,7 +7,7 @@ import type { Engine } from './engine.ts';
 import { raiseEscalation } from './escalation.ts';
 import { abortInProgress, commitAll, commitStaged, conflictedFiles, git, gitIdent, gitOk, headRef, refExists, withCoauthor } from './git/git.ts';
 import { ccHeader, taskCommitMessage } from './git/conventional.ts';
-import { READONLY_DISALLOWED, workerTools, boundarySettings } from './guards/boundary.ts';
+import { READONLY_DISALLOWED, boundarySettings } from './guards/boundary.ts';
 import { goalWorkspacePath } from './workspace.ts';
 
 const MERGE_ATTEMPT_BUDGET = 2;
@@ -217,7 +217,7 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
     maxTurns: 50,
     maxBudgetUsd: 2,
     permissionMode: 'dontAsk',
-    allowedTools: workerTools(engine.mcpAllowedFor(goal)),
+    ...engine.workerToolPolicy(goal),
     appendSystemPromptFile: engine.roles.path('merger'),
     settings: boundarySettings(config.hooksDir),
     settingSources: config.settingSources,

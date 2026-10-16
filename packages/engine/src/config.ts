@@ -108,6 +108,11 @@ export interface EngineConfig {
   workflowPonytail: 'on' | 'off';
   /** new goals run ponytail-audit on the finished branch before the goal review */
   workflowAudit: boolean;
+  /** tools of allowed catalog MCP servers that run or change things are usable in sessions */
+  mcpDynamicTools: boolean;
+  /** caps of the session that investigates a goal's reference */
+  investigationMaxCostUsd: number;
+  investigationMaxMinutes: number;
   /** view new goals open in */
   defaultGoalMode: 'simple' | 'expert';
   /** markitdown binary override (env FOUNDRY_MARKITDOWN); auto-detected on PATH and ~/.local/bin otherwise */
@@ -196,6 +201,9 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     workflowTdd: (['required', 'preferred', 'off'].includes(process.env.FOUNDRY_TDD ?? '') ? process.env.FOUNDRY_TDD : 'required') as 'required' | 'preferred' | 'off',
     workflowPonytail: process.env.FOUNDRY_PONYTAIL === 'off' || process.env.FOUNDRY_PONYTAIL === '0' ? 'off' : 'on',
     workflowAudit: process.env.FOUNDRY_AUDIT === '1' || process.env.FOUNDRY_AUDIT === 'true',
+    mcpDynamicTools: process.env.FOUNDRY_MCP_DYNAMIC_TOOLS === '1' || process.env.FOUNDRY_MCP_DYNAMIC_TOOLS === 'true',
+    investigationMaxCostUsd: Number(process.env.FOUNDRY_INVESTIGATION_MAX_COST ?? 3) || 3,
+    investigationMaxMinutes: Number(process.env.FOUNDRY_INVESTIGATION_MAX_MINUTES ?? 20) || 20,
     defaultGoalMode: process.env.FOUNDRY_GOAL_MODE === 'simple' ? 'simple' : 'expert',
     markitdownBin: process.env.FOUNDRY_MARKITDOWN,
     log: (m) => console.log(m),

@@ -100,6 +100,7 @@ import { type FollowUpDraft, type FollowUpInput, followUpDraft, linkFollowUp, pr
 import { Tailnet } from './notify/tailnet.ts';
 import { SessionCosts } from './session-costs.ts';
 import { CODE_SERVER_INSTALL, CodeServer } from './editor/code-server.ts';
+import { workerTools } from './guards/boundary.ts';
 
 export interface CreateGoalInput {
   provider?: 'claude' | 'codex';
@@ -1475,6 +1476,28 @@ export class Engine {
 
   mcpAllowedFor(goal: Goal): string[] {
     return (goal.provider ?? this.config.provider) === 'codex' ? this.config.codexMcpAllowed : this.config.mcpAllowed;
+  }
+
+  /**
+   * Tools of the allowed catalog servers that run or change things (REA: launching the target, a debugger, a connected
+   * device), as `mcp__<server>__<tool>` names to deny — unless Settings opened them. Undefined = nothing to deny.
+   */
+  deniedMcpTools(provider: 'claude' | 'codex', allowed: readonly string[]): string[] | undefined {
+    if (this.config.mcpDynamicTools) return undefined;
+    const out: string[] = [];
+    for (const e of this.mcpFor(provider).catalog().entries) {
+      const prefix = `mcp__${e.name}`;
+      if (!allowed.includes(prefix)) continue;
+      for (const t of e.denyTools) out.push(`${prefix}__${t}`);
+    }
+    return out.length ? out : undefined;
+  }
+
+  /** a worker session's tools: the base set plus the allowed MCP servers, minus the tools that run or change things */
+  workerToolPolicy(goal: Goal): { allowedTools: string[]; disallowedTools: string[] | undefined } {
+    const provider = goal.provider ?? this.config.provider;
+    const allowed = this.mcpAllowedFor(goal);
+    return { allowedTools: workerTools(allowed), disallowedTools: this.deniedMcpTools(provider, allowed) };
   }
 
   skillsFor(goal: Goal): SkillsManager {

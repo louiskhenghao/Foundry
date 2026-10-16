@@ -22,6 +22,9 @@ test('Codex hook blocks publishing, respects read-only roles and checks exact MC
   expect(await guard('apply_patch', {}, { readOnly: true })).toMatchObject({ permissionDecision: 'deny' });
   expect(await guard('mcp__approved__tool', {})).toBeNull();
   expect(await guard('mcp__approved_evil__tool', {})).toMatchObject({ permissionDecision: 'deny' });
+  // an allowed server's tools that run or change things are denied by name, the rest of the server stays open
+  expect(await guard('mcp__approved__start_adb_app', {}, { mcpDenied: ['mcp__approved__start_adb_app'] })).toMatchObject({ permissionDecision: 'deny' });
+  expect(await guard('mcp__approved__inspect_macho', {}, { mcpDenied: ['mcp__approved__start_adb_app'] })).toBeNull();
   expect(await guard('Read', {}, { noTools: true })).toMatchObject({ permissionDecision: 'deny' });
   expect(await guard('Read', {}, { canary: '/nonexistent/foundry-canary' })).toMatchObject({ permissionDecision: 'deny' });
 });

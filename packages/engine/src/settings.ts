@@ -38,6 +38,9 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'workflow.tdd': { name: 'FOUNDRY_TDD', parse: str },
   'workflow.ponytail': { name: 'FOUNDRY_PONYTAIL', parse: str },
   'workflow.audit': { name: 'FOUNDRY_AUDIT', parse: bool },
+  'workflow.mcpDynamicTools': { name: 'FOUNDRY_MCP_DYNAMIC_TOOLS', parse: bool },
+  'workflow.investigationMaxCostUsd': { name: 'FOUNDRY_INVESTIGATION_MAX_COST', parse: num },
+  'workflow.investigationMaxMinutes': { name: 'FOUNDRY_INVESTIGATION_MAX_MINUTES', parse: num },
   'workflow.defaultMode': { name: 'FOUNDRY_GOAL_MODE', parse: str },
   'workflow.designPack': { name: 'FOUNDRY_DESIGN_PACK', parse: str },
   'workflow.defaultPace': { name: 'FOUNDRY_PACE', parse: str },
@@ -284,6 +287,9 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('workflow.tdd')) config.workflowTdd = s.workflow.tdd;
   if (on('workflow.ponytail')) config.workflowPonytail = s.workflow.ponytail;
   if (on('workflow.audit')) config.workflowAudit = s.workflow.audit;
+  if (on('workflow.mcpDynamicTools')) config.mcpDynamicTools = s.workflow.mcpDynamicTools;
+  if (on('workflow.investigationMaxCostUsd')) config.investigationMaxCostUsd = s.workflow.investigationMaxCostUsd;
+  if (on('workflow.investigationMaxMinutes')) config.investigationMaxMinutes = s.workflow.investigationMaxMinutes;
   if (on('workflow.defaultMode')) config.defaultGoalMode = s.workflow.defaultMode;
   if (on('workflow.designPack')) config.designPack = s.workflow.designPack;
   if (on('workflow.defaultPace')) config.workflowPace = s.workflow.defaultPace;

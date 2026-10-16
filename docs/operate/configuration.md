@@ -46,6 +46,8 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `sessions.attemptMaxTurns` | `150` | `FOUNDRY_ATTEMPT_MAX_TURNS` | Model-turn cap for a Claude attempt; tool-call cap for a Codex attempt. |
 | `sessions.attemptMaxCostUsd` | `10` | `FOUNDRY_ATTEMPT_MAX_COST` | Claude-only cost cap (USD) for one attempt session, also bounded by the goal budget. Codex does not report USD costs. |
 | `sessions.attemptTimeoutMin` | `20` | — | Wall-clock cap for one attempt session. |
+| `workflow.investigationMaxCostUsd` | `3` | `FOUNDRY_INVESTIGATION_MAX_COST` | Cost cap of the session that investigates a goal's reference with REA before Clarify. |
+| `workflow.investigationMaxMinutes` | `20` | `FOUNDRY_INVESTIGATION_MAX_MINUTES` | Time cap of that investigation, in minutes. |
 
 ## Skills
 
@@ -59,6 +61,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `workflow.settingSources` | — | — | Which Claude settings sources sessions load (e.g. user, project, local); empty = all of them. |
 | `workflow.mcpAllowed` | `mcp__plugin_media-pipeline_media-pipeline` | — | Claude MCP servers worker sessions may use, as tool prefixes (`mcp__<server>`, `mcp__plugin_<plugin>_<server>`, `mcp__claude_ai_<name>`). Set with the switches on the Skills page's MCP tab; sessions run without asking, so an unlisted server's tools are refused. |
 | `workflow.codexMcpAllowed` | — | — | Codex MCP servers worker sessions may use, as `mcp__<server>` prefixes. Managed in Extensions → Codex → MCP servers. Independent of the Claude allow list; empty by default. |
+| `workflow.mcpDynamicTools` | `false` | `FOUNDRY_MCP_DYNAMIC_TOOLS` | Let sessions use the tools of allowed MCP servers that run or change things: for REA, launching the target app, attaching a debugger, touching a connected Android device. Off = static analysis only. |
 
 ## Git & delivery
 

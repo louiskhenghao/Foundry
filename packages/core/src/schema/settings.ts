@@ -94,6 +94,12 @@ export const WorkflowSettings = z.object({
   mcpAllowed: z.array(z.string().regex(/^mcp__[A-Za-z0-9_-]+$/)).default(() => [...DEFAULT_MCP_ALLOWED]),
   /** Codex server permissions are independent of Claude server permissions. */
   codexMcpAllowed: z.array(z.string().regex(/^mcp__[A-Za-z0-9_-]+$/)).default([]),
+  /** let sessions use the tools of allowed catalog servers that run or change things (REA: launching the target, debuggers, connected devices); off = static analysis only */
+  mcpDynamicTools: z.boolean().default(false),
+  /** cost cap of the session that investigates a goal's reference with REA before Clarify */
+  investigationMaxCostUsd: z.number().min(0.5).max(50).default(3),
+  /** time cap of that session, in minutes */
+  investigationMaxMinutes: z.number().int().min(5).max(120).default(20),
 });
 export const ReviewSettings = z.object({
   alwaysReviewTasks: z.boolean().default(true),

@@ -126,7 +126,7 @@ export class CodexCliRunner implements AgentRunner {
       const policy = join(dir, 'policy.json');
       const denials = join(dir, 'denials.jsonl');
       const hooksDir = fileURLToPath(new URL('../hooks/', import.meta.url));
-      writeFileSync(policy, JSON.stringify({ canary, denials, counter: join(dir, 'calls'), capped: join(dir, 'capped'), boundary: join(hooksDir, 'boundary-guard.sh'), readOnly: this.readOnly(spec), noTools: spec.allowedTools?.length === 0, mcpAllowed: (spec.allowedTools ?? []).filter((t) => t.startsWith('mcp__')), maxToolCalls: spec.maxTurns }));
+      writeFileSync(policy, JSON.stringify({ canary, denials, counter: join(dir, 'calls'), capped: join(dir, 'capped'), boundary: join(hooksDir, 'boundary-guard.sh'), readOnly: this.readOnly(spec), noTools: spec.allowedTools?.length === 0, mcpAllowed: (spec.allowedTools ?? []).filter((t) => t.startsWith('mcp__')), mcpDenied: (spec.disallowedTools ?? []).filter((t) => t.startsWith('mcp__')), maxToolCalls: spec.maxTurns }));
       const schema = spec.jsonSchema ? join(dir, 'schema.json') : undefined;
       if (schema) writeFileSync(schema, JSON.stringify(codexOutputSchema(spec.jsonSchema)));
       if (spec.transcriptPath) mkdirSync(dirname(spec.transcriptPath), { recursive: true });

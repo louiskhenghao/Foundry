@@ -658,6 +658,22 @@ describe('an engine error mid-attempt', () => {
   });
 });
 
+describe('MCP tools that run or change things', () => {
+  test('an allowed catalog server keeps its dynamic tools out of worker sessions until Settings opens them', async () => {
+    const engine = track(new Engine(cfg({ mcpAllowed: ['mcp__rea'] }), new FakeRunner(() => {})));
+    const goal = await engine.createGoal({ prompt: 'p', repoPath: repo, autoBrief: { mustChecks: ['true'] } });
+    const policy = engine.workerToolPolicy(getGoal(engine.store.db, goal.id)!);
+    expect(policy.allowedTools).toContain('mcp__rea');
+    expect(policy.disallowedTools).toContain('mcp__rea__start_adb_app');
+    expect(policy.disallowedTools).toContain('mcp__rea__capture_process_scenario');
+    expect(policy.disallowedTools).not.toContain('mcp__rea__inspect_macho');
+    // a server that is not allowed denies nothing extra; the switch opens everything
+    expect(engine.deniedMcpTools('claude', [])).toBeUndefined();
+    engine.config.mcpDynamicTools = true;
+    expect(engine.workerToolPolicy(getGoal(engine.store.db, goal.id)!).disallowedTools).toBeUndefined();
+  });
+});
+
 describe('the audit at the end', () => {
   const { writeFileSync: write, mkdirSync: mkdir } = require('node:fs') as typeof import('node:fs');
   const findings = {
