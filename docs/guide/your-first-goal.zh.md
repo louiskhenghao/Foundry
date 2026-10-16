@@ -45,7 +45,7 @@ Codex 的预算选项只有时间、尝试次数和并发限制，没有美元�
 
 **Development workflow — Matt Pocock's engineering skills** 这张卡片列出 Foundry 的执行者遵循的技能（比如先写测试）。如果缺了一些，按 **Install N missing**。该包包含上游现有的八项技能，不再安装已被删除的 `resolving-merge-conflicts`；冲突处理仍由 Foundry 内置的 Merger 指令负责。
 
-**3D models — text-to-cad (CAD)** 这张卡片安装 **CAD** goal 背后的插件：十二项技能（零件与装配体、工程图、DXF、机器人文件、可打印性和可制造性检查、无头切片）和一个 `cad` 查看器 server，来自 earthtojake/text-to-cad（MIT）。安装会为所选编码智能体加上这个插件，允许会话使用它的 server，并下载一次 CAD 运行时（Python 3.13 和 OpenCASCADE，几百 MB，通过 uv），进度显示在卡片下方。上面的 **CAD tools** 检查项会说明这台电脑上有没有 uv，以及找到了哪些切片或打印机应用；向这些应用的移交在 **Settings → Safety → Desktop apps & printers** 打开之前一直是关的。Foundry 的会话运行 cadgen 时关闭使用统计和更新检查；你自己使用 text-to-cad 时的设置不受影响。
+**3D models — text-to-cad (CAD)** 这张卡片安装 **CAD** goal 背后的插件：它的技能（零件与装配体、工程图、DXF、机器人文件、可打印性和可制造性检查、无头切片）和一个 `cad` 查看器 server，来自 earthtojake/text-to-cad（MIT）。安装会为所选编码智能体加上这个插件，允许会话使用它的 server，并下载一次 CAD 运行时（Python 3.13 和 OpenCASCADE，几百 MB，通过 uv），进度显示在卡片下方；安装在后台进行，期间可以离开这个页面。上面的 **CAD tools** 检查项会说明这台电脑上有没有 uv，以及找到了哪些切片或打印机应用；向这些应用的移交在 **Settings → Safety → Desktop apps & printers** 打开之前一直是关的。Foundry 的会话运行 cadgen 时关闭使用统计和更新检查；你自己使用 text-to-cad 时的设置不受影响。
 
 ### 选一个仓库文件夹
 

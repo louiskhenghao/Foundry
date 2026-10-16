@@ -300,10 +300,12 @@ export class PreviewManager {
   async start(goal: Goal, by: PreviewStarter, appKey?: string): Promise<PreviewStatus> {
     if (!repoHere(goal)) throw new PreviewError('this goal came from another computer: map its repository to a checkout here first', 409);
     const found = this.resolveApps(goal);
-    if (!found) throw new PreviewError('nothing to run: the Brief has no run command and package.json has no dev/start script', 409);
+    // text-to-cad's viewer is the person's: a milestone, self-check or integration start never counts it, and a goal with nothing else has nothing to run
+    const usable = found && by !== 'human' ? { ...found, apps: found.apps.filter((a) => a.key !== CAD_VIEWER_KEY) } : found;
+    if (!usable?.apps.length) throw new PreviewError('nothing to run: the Brief has no run command and package.json has no dev/start script', 409);
     // an app switched to fake data for a walkthrough runs its mock command instead
-    const resolved = { ...found, apps: found.apps.map((a) => (this.mocked.has(id(goal.id, a.key)) ? { ...a, command: this.mocked.get(id(goal.id, a.key))! } : a)) };
-    const targets = resolved.apps.filter((a) => (!appKey || a.key === appKey) && !this.live.has(id(goal.id, a.key)) && (a.key !== CAD_VIEWER_KEY || by === 'human'));
+    const resolved = { ...usable, apps: usable.apps.map((a) => (this.mocked.has(id(goal.id, a.key)) ? { ...a, command: this.mocked.get(id(goal.id, a.key))! } : a)) };
+    const targets = resolved.apps.filter((a) => (!appKey || a.key === appKey) && !this.live.has(id(goal.id, a.key)));
     if (appKey && !resolved.apps.some((a) => a.key === appKey)) throw new PreviewError(`no app "${appKey}" in this goal's preview`, 404);
     this.touch(goal.id);
     if (!targets.length) return this.status(goal.id);
@@ -613,11 +615,11 @@ export class PreviewManager {
     this.engine.config.log(`[preview] ${key}: stopped (${reason})`);
   }
 
-  /** after an integration: the running apps pick up the new code */
+  /** after an integration: the running apps pick up the new code (the CAD viewer serves files from disk and keeps running) */
   async restartIfRunning(goal: Goal): Promise<void> {
-    const running = [...this.live.values()].filter((l) => l.goalId === goal.id).map((l) => l.key);
+    const running = [...this.live.values()].filter((l) => l.goalId === goal.id && l.key !== CAD_VIEWER_KEY).map((l) => l.key);
     if (!running.length) return;
-    await this.stop(goal.id, 'restart after integration');
+    for (const key of running) await this.stop(goal.id, 'restart after integration', key);
     for (const key of running) await this.start(goal, 'integration', key).catch((err) => this.engine.config.log(`[preview] ${goal.id}/${key}: restart failed: ${String((err as Error).message ?? err)}`));
   }
 

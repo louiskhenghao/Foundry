@@ -7,6 +7,7 @@ import { INTERVIEW_MAX_ROUNDS, getBrief, getGoal, listTasks } from '@foundry/cor
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
 import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
+import { fakeCadPlugin } from './skills/fake-home.test-helper.ts';
 import { makeRepo, waitFor } from './test-helpers.ts';
 
 const ROOT = resolve(import.meta.dir, '../../..');
@@ -141,6 +142,33 @@ describe('nature pre-classification', () => {
     expect(clarify.prompt).toContain('BLOCKING');
     expect(clarify.prompt).not.toContain('# Nature: image');
     engine2.cancelGoal(g2.id);
+    await Bun.sleep(150);
+  }, 30_000);
+
+  test('a cad goal waits in clarifying until text-to-cad is in, says so once, and then clarifies by itself', async () => {
+    const brief = () => ({ ...briefWith([{ ...task('T1', 'A1', 'model the bracket'), scenario: 'cad' as const }], [check('C1', 'T1')]), nature: 'cad' as const });
+    const runner = new StructuredRunner(() => brief());
+    const engine = track(new Engine(cfg(), runner));
+    const g = await engine.createGoal({ prompt: 'a bracket', repoPath: repo, nature: 'cad' });
+    const notes = () => engine.store.listByGoal(g.id).filter((e) => e.type === 'engine.note' && String((e.payload as { message: string }).message).startsWith('text-to-cad is not installed'));
+    await waitFor(() => notes().length > 0);
+    engine.tick(g.id);
+    await Bun.sleep(100);
+    engine.tick(g.id);
+    await Bun.sleep(100);
+    expect(notes()).toHaveLength(1);
+    expect(getGoal(engine.store.db, g.id)!.state).toBe('clarifying');
+    expect(runner.calls.some((c) => c.label?.startsWith('clarify') || c.label?.startsWith('classify'))).toBe(false);
+    expect(await engine.cadStatus('claude')).toMatchObject({ installed: false });
+    // a goal that skips Clarify is refused up front instead
+    await expect(engine.createGoal({ prompt: 'a bracket', repoPath: repo, nature: 'cad', autoBrief: { mustChecks: ['true'] } })).rejects.toThrow(/text-to-cad is not installed/);
+    // the plugin turns up (installed by hand): the next answer about it lets the goal go on
+    fakeCadPlugin(join(dataDir, 'claude-home'));
+    engine.pluginInstalled('claude');
+    expect(await engine.cadStatus('claude')).toMatchObject({ installed: true });
+    await waitFor(() => getGoal(engine.store.db, g.id)!.state === 'awaiting_brief_approval', 20_000);
+    expect(getGoal(engine.store.db, g.id)!.nature).toBe('cad');
+    engine.cancelGoal(g.id);
     await Bun.sleep(150);
   }, 30_000);
 

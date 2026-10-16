@@ -11,6 +11,7 @@ import { runDocsGeneration } from './docs-generate.ts';
 import { raiseEscalation } from './escalation.ts';
 import { Engine, codexResumeAt, limitPauseUntil } from './engine.ts';
 import { goalWorkspacePath } from './workspace.ts';
+import { fakeCadPlugin } from './skills/fake-home.test-helper.ts';
 
 class FakeRunner implements ClaudeRunner {
   calls: RunSpec[] = [];
@@ -351,6 +352,8 @@ describe('cad artifacts', () => {
       mkdirSync(j(spec.cwd, 'docs', 'artifacts'), { recursive: true });
       writeFileSync(j(spec.cwd, 'docs', 'artifacts', 'bracket.md'), '# bracket\n- bracket.step — 40 × 20 × 3 mm, FDM, PLA; snapshots bracket-front.png, bracket-iso.png');
     });
+    // a cad goal with a ready Brief needs text-to-cad up front (there is no Clarify to wait in)
+    fakeCadPlugin(join(dataDir, 'claude-home'));
     const engine = track(new Engine(cfg(), runner));
     const outputDir = mkdtempSync(join(tmpdir(), 'foundry-cad-out-'));
     try {

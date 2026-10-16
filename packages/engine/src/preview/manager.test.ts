@@ -8,6 +8,7 @@ import { ensureSelfCheck, runSelfCheck } from '../checks/selfcheck.ts';
 import { defaultConfig } from '../config.ts';
 import { Engine } from '../engine.ts';
 import { failureTail, installSteps } from './manager.ts';
+import { fakeCadPlugin } from '../skills/fake-home.test-helper.ts';
 import { makeRepo, sh } from '../test-helpers.ts';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
@@ -328,5 +329,21 @@ describe('installSteps', () => {
   test('an app folder without a package.json is the person\'s to set up', () => {
     mkdirSync(join(ws, 'svc'));
     expect(installSteps(ws, [app('svc', 'pip install -r requirements.txt')])).toEqual([]);
+  });
+});
+
+describe('the CAD viewer', () => {
+  test("a cad goal lists text-to-cad's viewer with the plugin's pinned command, for the person; a milestone or integration start neither counts nor starts it", async () => {
+    fakeCadPlugin(join(dataDir, 'claude-home'));
+    const repo = await makeRepo();
+    const g = goal({ id: 'g_cadview01', nature: 'cad', repoPath: repo, branch: 'goal/g_cadview01' });
+    expect(engine.cadViewerApp(g)).toMatchObject({ key: 'cad-viewer', name: 'CAD Viewer', command: 'uvx --no-config --from cadgen==0.7.21 cadgen viewer --port {port}', url: 'http://localhost:{port}' });
+    expect(engine.preview.status(g.id).apps.map((a) => [a.key, a.running])).toEqual([['cad-viewer', false]]);
+    // nothing of the goal's own to run: the walkthrough and the self-check hear so, as they did before the viewer existed
+    await expect(engine.preview.start(g, 'milestone')).rejects.toThrow(/nothing to run/);
+    await expect(engine.preview.start(g, 'integration')).rejects.toThrow(/nothing to run/);
+    expect(engine.preview.status(g.id).apps.map((a) => a.running)).toEqual([false]);
+    // a goal of another nature has no viewer
+    expect(engine.cadViewerApp(goal({ id: 'g_cadview02', nature: 'code', repoPath: repo, branch: 'goal/g_cadview02' }))).toBeNull();
   });
 });

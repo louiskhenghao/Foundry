@@ -31,10 +31,9 @@ const NatureVerdict = z.object({ nature: z.enum(['code', 'docs', 'research', 'im
  * so the prompt sections and skill hints match the goal (a poster goal should never be handed
  * codebase-design). Null on any failure — Clarify then runs with the judge-it-yourself sections.
  */
-async function classifyNature(engine: Engine, goal: Goal, ws: string): Promise<GoalNature | null> {
+async function classifyNature(engine: Engine, goal: Goal, ws: string, cad: boolean): Promise<GoalNature | null> {
   try {
     // cad is offered only where text-to-cad is installed: a goal that needs it on another machine is code work
-    const cad = await engine.cadAvailable(goal);
     const handle = await engine.runner.run({
       prompt: `Classify what this goal produces. code = software changes; docs = prose/documents; research = an investigation ending in a cited report; image = generated/edited images; video = generated/edited video or audio${cad ? '; cad = 3D parts or assemblies (STEP/STL/3MF), engineering drawings, DXF cut profiles or robot description files (URDF/SDF)' : ''}. Pick the dominant one for mixed goals.\n\n# Goal\n${goal.prompt.slice(0, 4000)}`,
       cwd: ws,
@@ -107,11 +106,13 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
   }
   // explore the goal worktree, not the user's checkout: it was just fetched and may be ahead of the local base
   const ws = await engine.ensureSyncedWorkspace(goal);
+  // text-to-cad installed for this goal's coding agent: cad can be offered, judged and planned (asked once for the whole run)
+  const cadAvailable = await engine.cadAvailable(goal);
   // auto goals: settle the nature BEFORE building the prompt, so its sections and skill hints match the goal
   const wasAuto = goal.nature === 'auto';
   let nature = goal.nature;
   if (wasAuto) {
-    const n = await classifyNature(engine, goal, ws);
+    const n = await classifyNature(engine, goal, ws, cadAvailable);
     if (n) {
       nature = n;
       store.append({ type: 'goal.nature_set', goalId: goal.id, payload: { nature: n, reason: 'pre-clarify classification' } });
@@ -133,7 +134,6 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
   // a Follow-up: the earlier goal's snapshot, plus where this checkout actually started (recorded by the Base Sync)
   const synced = getGoal(store.db, goal.id) ?? goal;
   const previous = goal.follows?.context ? [goal.follows.context, startSentence(synced)].filter(Boolean).join('\n') : '';
-  const cadAvailable = await engine.cadAvailable(goal);
   const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview ? interviewDepth(goal.interview) : null, previous, cadAvailable);
   const addDirs = goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined;
   const schema = zodToJsonSchema(goal.interview ? InterviewOutput : BriefSkeleton, { $refStrategy: 'none' });

@@ -252,7 +252,7 @@ A program that gives a coding agent extra tools (library docs, a browser, web se
 ## Goal natures
 
 **Nature**
-What a Goal produces: *code* (software), *documents* (prose), *research* (a cited report), *image* or *video* (media files), *cad* (parts and assemblies, drawings, robot description files) — or *auto*, meaning the user did not say and the Clarifier decides. The engine is the same for every nature; the nature only changes what the Brief asks about, what acceptance looks like, and where the result ends up. Non-code Goals open in Simple mode. A mixed Goal carries its dominant nature; its Tasks keep their own Scenarios.
+What a Goal produces: *code* (software), *documents* (prose), *research* (a cited report), *image* or *video* (media files), *cad* (parts and assemblies, drawings, robot description files) — or *auto*, meaning the user did not say and the Clarifier decides. The engine is the same for every nature; the nature only changes what the Brief asks about, what acceptance looks like, and where the result ends up. Prose and media Goals open in Simple mode; a CAD Goal is code work and keeps the default view. A mixed Goal carries its dominant nature; its Tasks keep their own Scenarios.
 
 **Artifact**
 A file a Goal produces outside git: a media file (an image, a video, audio) or a CAD export (STEP, STL, 3MF, GLB, DXF, a drawing PDF) with the snapshots that show it. Artifacts are generated inside the Workspace but never enter git; when the Goal finishes they are copied to the Output Folder — or stay in the Workspace when none is set.
@@ -264,10 +264,10 @@ A Goal of nature cad: parts and assemblies, drawings, DXF profiles or robot desc
 text-to-cad's own viewer (`cadgen viewer`), listed as a preview app of every CAD Goal and started only by the person from the milestone or preview card; the plugin's pinned cadgen command, on a preview port.
 
 **Desktop apps & printers**
-The Safety switch (off by default) that lets sessions open desktop apps and hand files to printers on this computer: text-to-cad's Bambu hand-off (Bambu Connect, Bambu Studio), `open -a …`, `xdg-open`. Off, the gated skills are hidden from sessions and the boundary hook (now also on the Skill tool) blocks them and the opener commands; headless slicing and preflight reports stay available.
+The Safety switch (off by default) that lets sessions open desktop apps and hand files to printers on this computer: text-to-cad's Bambu hand-off (Bambu Connect, Bambu Studio), `open …`, `xdg-open`, the slicers' windows. Off, the boundary hook (on the Bash and the Skill tool) refuses the opener commands, a slicer run without its headless switches, and the gated skills under their bare or plugin-prefixed name; the gated skills are not recommended to sessions either. A refused command comes to the Inbox as a boundary item; a refused skill is noted on the goal. Headless slicing and preflight reports stay available.
 
 **Artifact Manifest**
-The committed record of a media Task's Artifacts: one entry per file — its name, what it shows, and the prompt/parameters that produced it. The Manifest is what reviews and diffs see; an Artifact missing from disk or contradicting its Manifest entry is a blocker.
+The committed record of a media or CAD Task's Artifacts: one entry per file — its name, what it shows, and the prompt/parameters that produced it; for a CAD deliverable also its process, material, the key dimensions with units, the checks that measured it and its snapshots. The Manifest is what reviews and diffs see; an Artifact missing from disk or contradicting its Manifest entry is a blocker.
 
 **Output Folder**
 Where a Goal's Artifacts are delivered when it finishes. Chosen by the user when the Goal is created; optional.
