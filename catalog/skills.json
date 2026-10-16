@@ -319,7 +319,7 @@
       "workflow": [
         {
           "role": "reviewer-task",
-          "mandate": "must",
+          "mandate": "prefer",
           "when": "any",
           "instruction": "Review with it: read the code the change touches, not only the diff. Only its Must fix findings (a bug, a security hole, data loss, breaking at the expected load) are blockers; put its Should fix and Nice to have findings in your notes, each with its concrete case.",
           "scenarios": [
@@ -1517,8 +1517,7 @@
         "path": ".agents/skills/reverse-engineer-anything"
       },
       "roles": [
-        "worker",
-        "clarifier"
+        "worker"
       ],
       "tags": [
         "research",
