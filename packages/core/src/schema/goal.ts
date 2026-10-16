@@ -101,8 +101,9 @@ export const GoalInvestigation = z.object({
   summary: z.string(),
   /** the report among the goal's attachments */
   attachmentId: z.string().nullable(),
-  /** the report committed on the goal branch, repository-relative */
+  /** the report committed on the goal branch, repository-relative, and that commit */
   docPath: z.string().nullable(),
+  docRef: z.string().nullable().default(null),
   costUsd: z.number(),
   detail: z.string(),
   at: z.string(),
@@ -139,8 +140,10 @@ export const AuditFinding = z.object({
   problem: z.string(),
   fix: z.string(),
   files: z.array(z.string()).default([]),
-  /** in code this goal changed or directly affects: a must-fix finding here becomes a fix task */
+  /** in code this goal changed: a must-fix finding here becomes a fix task */
   inScope: z.boolean().default(false),
+  /** the fix task this finding became, when it did (a must-fix finding in scope beyond the cap, or after the goal stopped, has none) */
+  fixTaskId: z.string().nullable().default(null),
 });
 export type AuditFinding = z.infer<typeof AuditFinding>;
 

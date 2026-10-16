@@ -171,7 +171,7 @@ export const EngineEvent = z.discriminatedUnion('type', [
   /** the investigation of the references is wanted again (a re-run of Clarify, a changed reference, the person's request) */
   ev('goal.investigation_requested', {}),
   /** REA investigated the references: the report is attachment `attachmentId` and the document `docPath` on the goal branch */
-  ev('goal.investigation_finished', { status: z.enum(['ok', 'failed', 'skipped']), summary: z.string(), attachmentId: z.string().nullable(), docPath: z.string().nullable(), costUsd: z.number(), detail: z.string() }),
+  ev('goal.investigation_finished', { status: z.enum(['ok', 'failed', 'skipped']), summary: z.string(), attachmentId: z.string().nullable(), docPath: z.string().nullable(), docRef: z.string().nullable().optional(), costUsd: z.number(), detail: z.string() }),
   /** one style sample was generated for a Style Proposal (file appended to its samples, never replacing) */
   ev('brief.style_sampled', { styleKey: z.string(), file: z.string(), costUsd: z.number(), status: z.enum(['ok', 'failed']), detail: z.string() }),
   ev('brief.proposed', { brief: Brief }),

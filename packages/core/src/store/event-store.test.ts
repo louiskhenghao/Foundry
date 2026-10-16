@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { openDatabase } from './db.ts';
 import { EventStore } from './event-store.ts';
-import { getGoal, getTask, listTasks } from './projections.ts';
+import { getGoal, getTask, listGoals, listTasks } from './projections.ts';
 import { IDLE_DELIVERY, type Goal, type Task } from '../schema/index.ts';
 
 function goal(id: string): Goal {
@@ -269,5 +269,25 @@ describe('rate limit state', () => {
     const before = store.snapshotReadModels();
     store.replay();
     expect(store.snapshotReadModels()).toEqual(before);
+  });
+});
+
+describe('goal rows written by an older Foundry', () => {
+  test('read with the defaults of the fields added since: nothing replays the projections on an update', () => {
+    const db = openDatabase(':memory:');
+    const old = goal('g_old') as unknown as Record<string, unknown> & { workflow: Record<string, unknown>; completion: Record<string, unknown> };
+    delete old.references;
+    delete old.investigation;
+    delete old.workflow.ponytail;
+    delete old.completion.audit;
+    delete old.completion.auditRun;
+    db.run('INSERT INTO goals (id, state, created_at, updated_at, data) VALUES (?, ?, ?, ?, ?)', ['g_old', 'draft', old.createdAt as string, old.updatedAt as string, JSON.stringify(old)]);
+    for (const g of [getGoal(db, 'g_old')!, listGoals(db).find((x) => x.id === 'g_old')!]) {
+      expect(g.references).toEqual([]);
+      expect(g.investigation).toBeNull();
+      expect(g.workflow.ponytail).toBe('on');
+      expect(g.completion).toMatchObject({ audit: false, auditRun: null, graphRefresh: false, docs: [] });
+    }
+    expect(getGoal(db, 'g_missing')).toBeNull();
   });
 });
