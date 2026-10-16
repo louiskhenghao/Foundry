@@ -57,7 +57,8 @@ import { schedule } from './scheduler.ts';
 import { budgetStatus } from './budget.ts';
 import { dueCheckpoint, recordMilestone } from './checkpoint.ts';
 import { milestoneQueues, milestoneRunsFor } from './checks/walkthrough.ts';
-import { needsInvestigation, runInvestigation } from './investigation.ts';
+import { runInvestigation } from './investigation.ts';
+import { needsInvestigation } from './references.ts';
 import { MILESTONE_CHECK_PREFIX, milestoneCheckSpec } from './checks/milestone-script.ts';
 import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
@@ -224,6 +225,21 @@ export class Engine {
   readonly auditing = new Set<string>();
   /** goals whose references REA is investigating */
   readonly investigating = new Set<string>();
+  /** sessions run for a goal outside a task (the audit, an investigation): killed with the goal's in-flight sessions */
+  readonly background = new Map<string, Set<RunHandle>>();
+  /** remember a background session until it ends, so cancelling the goal or stopping Foundry kills it too */
+  trackBackground(goalId: string, handle: RunHandle): () => void {
+    let set = this.background.get(goalId);
+    if (!set) this.background.set(goalId, (set = new Set()));
+    set.add(handle);
+    return () => {
+      set.delete(handle);
+      if (!set.size) this.background.delete(goalId);
+    };
+  }
+  get isStopped(): boolean {
+    return this.stopped;
+  }
   /** a scripted milestone whose script still fails after its repair: the goal pauses at it once no task is in flight */
   readonly pauseDue = new Map<string, string>();
   /** consecutive engine-side crashes per task (reset when an attempt runs) */
@@ -575,7 +591,7 @@ export class Engine {
     const goal = this.mustGoal(goalId);
     if (!goal.references.length) throw new Error('this goal has no reference to investigate');
     if (!['draft', 'clarifying', 'awaiting_brief_approval'].includes(goal.state)) throw new Error(`the goal is ${goal.state}; its references can be investigated again until the Brief is approved`);
-    if (this.investigating.has(goalId)) return;
+    if (this.investigating.has(goalId)) throw new Error('the references are being investigated now; wait for the report');
     this.store.append({ type: 'goal.investigation_requested', goalId, payload: {} });
     this.startInvestigation(getGoal(this.store.db, goalId)!);
   }
@@ -626,6 +642,8 @@ export class Engine {
     const goal = this.mustGoal(goalId);
     if (goal.state !== 'awaiting_brief_approval') throw new Error(`goal is ${goal.state}; Clarify can only be re-run while the Brief awaits approval`);
     if (listTasks(this.store.db, goalId).length) throw new Error('tasks already exist for this goal; restart the goal instead');
+    // the investigation session works in the worktree this discards
+    if (this.investigating.has(goalId)) throw new Error('the references are being investigated now; re-run Clarify when the report is in');
     const ws = goalWorkspacePath(this.config.dataDir, goal);
     let rebuilt = false;
     if (await isGitRepo(goal.repoPath).catch(() => false)) {
@@ -855,6 +873,7 @@ export class Engine {
     await this.codeServer.dispose();
     await this.tailnet.unexposeAll();
     for (const [, f] of this.inFlight) f.handle?.kill('killed_manual');
+    for (const set of this.background.values()) for (const h of set) h.kill('killed_manual');
     // reviews, clarify, merges and probes are not in `inFlight`: kill every child the runner still owns
     const n = (this.runner as { killAll?: () => number }).killAll?.() ?? 0;
     if (n) this.config.log(`[engine] stopped ${n} agent session(s) on shutdown`);
@@ -1275,6 +1294,7 @@ export class Engine {
   }
   killGoal(goalId: string, reason: string): void {
     for (const [, f] of this.inFlight) if (f.goalId === goalId) f.handle?.kill('killed_manual');
+    for (const h of this.background.get(goalId) ?? []) h.kill('killed_manual');
     this.config.log(`[engine] killed in-flight sessions for ${goalId}: ${reason}`);
   }
   /** In-flight sessions joined with their attempt records — what the agents monitor shows as Foundry rows. */
@@ -1453,6 +1473,10 @@ export class Engine {
         else void runClarify(this, goal);
         return;
       }
+      case 'awaiting_brief_approval':
+        // "Investigate again" cleared the report; a restart in between lost the session: study the references once more
+        if (needsInvestigation(goal)) this.startInvestigation(goal);
+        return;
       case 'running':
         await schedule(this, goal);
         return;
@@ -1516,32 +1540,47 @@ export class Engine {
   }
 
   /**
-   * Tools of the allowed catalog servers that run or change things (REA: launching the target, a debugger, a connected
-   * device), as `mcp__<server>__<tool>` names to deny — unless Settings opened them. Undefined = nothing to deny.
+   * The MCP servers a session may use and the tools of theirs it may not: the catalog's deny lists (REA: launching the
+   * target, a debugger, a connected device, writing files where the caller says), as `mcp__<server>__<tool>` names,
+   * unless Settings opened them. The catalog is data on disk; when it cannot be read (a broken install) there is no
+   * deny list to apply, so no MCP server reaches the session at all: safe by default, and the Setup page says why.
    */
-  deniedMcpTools(provider: 'claude' | 'codex', allowed: readonly string[]): string[] | undefined {
-    if (this.config.mcpDynamicTools) return undefined;
-    // the catalog is data on disk: unreadable (a test's own catalog folder, a broken install) means nothing to deny, never a failed session
-    let entries: { name: string; denyTools: string[] }[] = [];
+  mcpToolPolicy(provider: 'claude' | 'codex', allowed: readonly string[]): { allowed: string[]; denied: string[] | undefined; catalogUnreadable: boolean } {
+    const servers = allowed.filter((p) => p.startsWith('mcp__'));
+    if (this.config.mcpDynamicTools || !servers.length) return { allowed: [...allowed], denied: undefined, catalogUnreadable: false };
+    let entries: { name: string; denyTools: string[] }[];
     try {
       entries = this.mcpFor(provider).catalog().entries;
-    } catch {
-      return undefined;
+    } catch (err) {
+      this.config.log(`[mcp] the catalog cannot be read (${String((err as Error).message ?? err)}): no MCP server reaches this session`);
+      return { allowed: allowed.filter((p) => !p.startsWith('mcp__')), denied: undefined, catalogUnreadable: true };
     }
-    const out: string[] = [];
+    const denied: string[] = [];
     for (const e of entries) {
       const prefix = `mcp__${e.name}`;
       if (!allowed.includes(prefix)) continue;
-      for (const t of e.denyTools) out.push(`${prefix}__${t}`);
+      for (const t of e.denyTools) denied.push(`${prefix}__${t}`);
     }
-    return out.length ? out : undefined;
+    return { allowed: [...allowed], denied: denied.length ? denied : undefined, catalogUnreadable: false };
   }
+
+  /** the tools to deny for these servers; undefined = nothing to deny (see mcpToolPolicy) */
+  deniedMcpTools(provider: 'claude' | 'codex', allowed: readonly string[]): string[] | undefined {
+    return this.mcpToolPolicy(provider, allowed).denied;
+  }
+
+  /** goals already told that the MCP catalog is unreadable: one note each, not one per session */
+  private catalogNoted = new Set<string>();
 
   /** a worker session's tools: the base set plus the allowed MCP servers, minus the tools that run or change things */
   workerToolPolicy(goal: Goal): { allowedTools: string[]; disallowedTools: string[] | undefined } {
     const provider = goal.provider ?? this.config.provider;
-    const allowed = this.mcpAllowedFor(goal);
-    return { allowedTools: workerTools(allowed), disallowedTools: this.deniedMcpTools(provider, allowed) };
+    const policy = this.mcpToolPolicy(provider, this.mcpAllowedFor(goal));
+    if (policy.catalogUnreadable && !this.catalogNoted.has(goal.id)) {
+      this.catalogNoted.add(goal.id);
+      this.store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: 'the MCP catalog cannot be read, so no MCP server reaches the sessions of this goal (its deny lists cannot be applied); the Setup page has the details' } });
+    }
+    return { allowedTools: workerTools(policy.allowed), disallowedTools: policy.denied };
   }
 
   skillsFor(goal: Goal): SkillsManager {
@@ -1553,6 +1592,8 @@ export class Engine {
   async createGoal(input: CreateGoalInput): Promise<Goal> {
     const provider = input.provider ?? this.config.provider;
     if (!['claude', 'codex'].includes(provider)) throw new Error('Unknown coding agent');
+    // the investigation runs before Clarify: a goal that skips Clarify has nowhere to learn from a reference
+    if ((input.autoBrief || input.brief) && input.references?.some((r) => r.target.trim())) throw new Error('A goal that skips Clarify cannot learn from a reference: the investigation runs before Clarify.');
     const codexModel = input.codexModel?.trim() || this.config.codexModel;
     // an unknown preset would silently fall back to the Settings pick while the goal still shows the typo
     if (provider === 'codex' && input.models) throw new Error('Codex uses its own model presets, not Claude tiers.');
@@ -1889,6 +1930,8 @@ export class Engine {
   async approveBrief(goalId: string, edited?: Brief, budgets?: Partial<Budgets>, completion?: { graphRefresh?: boolean; docs?: DocType[]; audit?: boolean }): Promise<void> {
     const goal = this.mustGoal(goalId);
     if (goal.state !== 'awaiting_brief_approval') throw new Error(`goal is ${goal.state}, cannot approve`);
+    // the report lands as an attachment and a commit on the goal branch: not under running tasks
+    if (this.investigating.has(goalId)) throw new Error('the references are being investigated now; approve the Brief when the report is in');
     const brief = BriefSchema.parse({ ...(edited ?? getBrief(this.store.db, goalId)?.brief), goalId });
     const unanswered = brief.questions.filter((q) => q.blocking && !q.answer?.trim());
     if (unanswered.length) throw new Error(`blocking questions unanswered: ${unanswered.map((q) => q.text).join(' | ')}`);
@@ -1898,11 +1941,11 @@ export class Engine {
     const ws = await this.ensureSyncedWorkspace(goal);
     this.startAutoskills(goal, ws);
     // completion actions: what the UI sent, holes filled from the Brief (Simple mode and API callers send nothing)
-    const inferred = inferCompletion(brief, ws, goal.workflow.pace);
+    const inferred = inferCompletion(brief, ws, goal.workflow.pace, this.config.workflowAudit);
     this.store.append({
       type: 'goal.completion_set',
       goalId,
-      payload: { graphRefresh: completion?.graphRefresh ?? inferred.graphRefresh, docs: completion?.docs ?? inferred.docs, audit: completion?.audit ?? this.config.workflowAudit, reason: completion ? 'set at brief approval' : inferred.reason },
+      payload: { graphRefresh: completion?.graphRefresh ?? inferred.graphRefresh, docs: completion?.docs ?? inferred.docs, audit: completion?.audit ?? inferred.audit, reason: completion ? 'set at brief approval' : inferred.reason },
     });
     if (budgets && Object.keys(budgets).length) {
       const next = Budgets.parse({ ...goal.budgets, ...budgets, ...(goal.provider === 'codex' ? { maxCostUsd: null } : {}) });

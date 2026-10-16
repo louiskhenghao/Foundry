@@ -21,3 +21,6 @@ export const workerTools = (mcpAllowed: readonly string[]): string[] => [...WORK
 /** Read-only tool set for clarifier / reviewers. */
 export const READONLY_TOOLS = ['Bash', 'Read', 'Glob', 'Grep', 'LS', 'Task', 'Agent', 'Skill', 'WebFetch', 'WebSearch', 'TodoWrite'];
 export const READONLY_DISALLOWED = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
+
+/** what the boundary hook reads from a session's environment: the goal it runs for, and the patterns Settings → Safety adds */
+export const boundaryEnv = (config: { extraBoundaryPatterns?: string }, goalId: string): Record<string, string> => ({ FOUNDRY_GOAL_ID: goalId, ...(config.extraBoundaryPatterns ? { FOUNDRY_EXTRA_PATTERNS: config.extraBoundaryPatterns } : {}) });

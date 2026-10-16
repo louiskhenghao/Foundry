@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { FINAL_WALK, getGoal, listAttempts, listChecks, listEscalations, listTasks } from '@foundry/core';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
 import { defaultConfig } from './config.ts';
@@ -661,8 +661,9 @@ describe('an engine error mid-attempt', () => {
 describe('a goal with a reference', () => {
   const { existsSync: exists } = require('node:fs') as typeof import('node:fs');
   const report = { summary: 'Search ranks by recency, then by title match.', report: '## How search works\n\nEvidence: the request `GET /api/search?q=` returns items sorted by `updatedAt`…' };
-  /** the investigation session answers with the report; every other session is the plain fake */
-  const investigating = () => {
+  /** the investigation session answers with the report (and may leave a stray file behind); every other session is the plain fake */
+  const investigating = (opts: { stray?: boolean; report?: typeof report } = {}) => {
+    const { mkdirSync: mkdir, writeFileSync: write } = require('node:fs') as typeof import('node:fs');
     const inner = new FakeRunner(() => {});
     return {
       active: () => 0,
@@ -671,7 +672,13 @@ describe('a goal with a reference', () => {
         if (!spec.label?.startsWith('investigate')) return h;
         expect(spec.allowedTools).toContain('mcp__rea');
         expect(spec.disallowedTools).toContain('mcp__rea__start_adb_app');
-        const result = { ...(await h.result), finalText: JSON.stringify(report) };
+        expect(spec.disallowedTools).toContain('mcp__rea__export_evidence_bundle');
+        expect(spec.env?.FOUNDRY_GOAL_ID).toBeTruthy();
+        if (opts.stray) {
+          mkdir(join(spec.cwd, '.github', 'workflows'), { recursive: true });
+          write(join(spec.cwd, '.github', 'workflows', 'injected.yml'), 'on: push\n');
+        }
+        const result = { ...(await h.result), finalText: JSON.stringify(opts.report ?? report) };
         return { ...h, result: Promise.resolve(result), events: (async function* () { yield { kind: 'result', result } as RunnerEvent; })() };
       },
       calls: inner.calls,
@@ -687,7 +694,9 @@ describe('a goal with a reference', () => {
     expect(g.investigation).toMatchObject({ status: 'ok', summary: report.summary, docPath: 'docs/reference/notes-example-com.md' });
     const att = g.attachments.find((a) => a.id === g.investigation!.attachmentId)!;
     expect(att.name).toBe('reference-notes-example-com.md');
+    expect(att.note).toContain('REA investigation report');
     expect(exists(join(goalWorkspacePath(dataDir, g), 'docs/reference/notes-example-com.md'))).toBe(true);
+    expect(g.investigation!.docRef).toBe((await Bun.$`git -C ${goalWorkspacePath(dataDir, g)} rev-parse HEAD`.text()).trim());
     // the subject stays a commit subject: at most 72 characters
     expect((await Bun.$`git -C ${goalWorkspacePath(dataDir, g)} log -1 --format=%s`.text()).trim()).toBe('docs(reference): how https://notes.example.com does how search ranks res');
     // the Clarifier runs after it, with the report among its attachments
@@ -707,6 +716,57 @@ describe('a goal with a reference', () => {
     await waitFor(() => runner.calls.some((c) => c.label?.startsWith('clarify')), 20_000);
     expect(runner.calls.some((c) => c.label?.startsWith('investigate'))).toBe(false);
   });
+
+  test('the commit holds the report alone, and a URL typed with credentials is written down without them', async () => {
+    const target = 'https://user:s3cret@notes.example.com/app';
+    const runner = investigating({ stray: true, report: { ...report, report: `${report.report}\n\nSeen at ${target}/search.` } });
+    const engine = track(new Engine(cfg({ mcpAllowed: ['mcp__rea'] }), runner));
+    const goal = await engine.createGoal({ prompt: 'p', repoPath: repo, references: [{ target, lookAt: 'search' }] });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.investigation != null, 20_000);
+    const g = getGoal(engine.store.db, goal.id)!;
+    const ws = goalWorkspacePath(dataDir, g);
+    expect(g.investigation).toMatchObject({ status: 'ok', docPath: 'docs/reference/notes-example-com-app.md' });
+    expect(g.investigation!.detail).toContain('1 change(s) the session left in the workspace were discarded');
+    const text = await Bun.file(join(ws, 'docs/reference/notes-example-com-app.md')).text();
+    expect(text).not.toContain('s3cret');
+    expect(text).toContain('Seen at https://notes.example.com/app/search.');
+    expect((await Bun.$`git -C ${ws} log -1 --format=%s`.text()).trim()).toBe('docs(reference): how https://notes.example.com/app does search');
+    // only the report rode the commit; what the session left behind is gone, not waiting for the next task's commit
+    expect((await Bun.$`git -C ${ws} show --name-only --pretty=format: HEAD`.text()).trim().split('\n')).toEqual(['docs/reference/notes-example-com-app.md']);
+    expect(exists(join(ws, '.github/workflows/injected.yml'))).toBe(false);
+    expect((await Bun.$`git -C ${ws} status --porcelain`.text()).trim()).toBe('');
+  });
+
+  test('a goal that skips Clarify cannot take a reference: the investigation runs before Clarify', async () => {
+    const engine = track(new Engine(cfg(), investigating()));
+    await expect(engine.createGoal({ prompt: 'p', repoPath: repo, references: [{ target: 'https://x.example.com' }], autoBrief: { mustChecks: ['true'] } })).rejects.toThrow(/skips Clarify/);
+  });
+
+  test('while the references are being studied the Brief waits: no approval, no re-run, no second investigation; a lost request resumes on the next tick', async () => {
+    const runner = investigating();
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'p', repoPath: repo, references: [{ target: '/Applications/Notes.app' }] });
+    await waitFor(() => runner.calls.some((c) => c.label?.startsWith('clarify')), 20_000);
+    await waitFor(() => !engine.clarifying.has(goal.id), 20_000);
+    const g = getGoal(engine.store.db, goal.id)!;
+    engine.store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: g.state, to: 'awaiting_brief_approval', reason: 'test' } });
+    engine.investigating.add(goal.id);
+    try {
+      await expect(engine.approveBrief(goal.id)).rejects.toThrow(/being investigated/);
+      await expect(engine.reclarify(goal.id)).rejects.toThrow(/being investigated/);
+      expect(() => engine.investigate(goal.id)).toThrow(/being investigated/);
+    } finally {
+      engine.investigating.delete(goal.id);
+    }
+    // "Investigate again" whose session was lost (a restart): the waiting goal studies the references once more on its next tick
+    const before = getGoal(engine.store.db, goal.id)!.investigation!.at;
+    engine.store.append({ type: 'goal.investigation_requested', goalId: goal.id, payload: {} });
+    expect(getGoal(engine.store.db, goal.id)!.investigation).toBeNull();
+    void engine.tick(goal.id);
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.investigation != null, 20_000);
+    expect(getGoal(engine.store.db, goal.id)!.investigation!.at).not.toBe(before);
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('awaiting_brief_approval');
+  });
 });
 
 describe('MCP tools that run or change things', () => {
@@ -722,6 +782,27 @@ describe('MCP tools that run or change things', () => {
     expect(engine.deniedMcpTools('claude', [])).toBeUndefined();
     engine.config.mcpDynamicTools = true;
     expect(engine.workerToolPolicy(getGoal(engine.store.db, goal.id)!).disallowedTools).toBeUndefined();
+  });
+
+  test('an unreadable catalog keeps every MCP server out of unattended sessions, with one note per goal; the investigation says why', async () => {
+    // a catalog folder with a skills catalog but no mcp.json: the MCP catalog cannot be read
+    const catalogPath = join(dataDir, 'catalog-no-mcp', 'skills.json');
+    mkdirSync(dirname(catalogPath), { recursive: true });
+    writeFileSync(catalogPath, JSON.stringify({ version: 1, entries: [] }));
+    const engine = track(new Engine(cfg({ catalogPath, mcpAllowed: ['mcp__rea', 'mcp__context7'] }), new FakeRunner(() => {})));
+    const ref = await engine.createGoal({ prompt: 'p', repoPath: repo, references: [{ target: 'https://x.example.com' }] });
+    await waitFor(() => getGoal(engine.store.db, ref.id)!.investigation != null, 20_000);
+    expect(getGoal(engine.store.db, ref.id)!.investigation).toMatchObject({ status: 'skipped' });
+    expect(getGoal(engine.store.db, ref.id)!.investigation!.detail).toContain('the MCP catalog cannot be read');
+    const goal = await engine.createGoal({ prompt: 'p', repoPath: repo, autoBrief: { mustChecks: ['true'] } });
+    const policy = engine.workerToolPolicy(getGoal(engine.store.db, goal.id)!);
+    expect(policy.allowedTools.filter((t) => t.startsWith('mcp__'))).toEqual([]);
+    expect(policy.disallowedTools).toBeUndefined();
+    engine.workerToolPolicy(getGoal(engine.store.db, goal.id)!);
+    expect(engine.store.listByGoal(goal.id).filter((e) => e.type === 'engine.note' && (e.payload as { message: string }).message.includes('MCP catalog'))).toHaveLength(1);
+    // the switch that opens the dynamic tools opens the servers too: there is no list to apply then
+    engine.config.mcpDynamicTools = true;
+    expect(engine.workerToolPolicy(getGoal(engine.store.db, goal.id)!).allowedTools).toContain('mcp__rea');
   });
 });
 
@@ -769,6 +850,8 @@ describe('the audit at the end', () => {
     const fix = listTasks(engine.store.db, goal.id).filter((t) => t.origin === 'audit-fix');
     expect(fix.map((t) => [t.title, t.state])).toEqual([['audit: empty input crashes', 'done']]);
     expect(run.fixTaskIds).toEqual([fix[0]!.id]);
+    expect(run.findings.map((f) => f.fixTaskId)).toEqual([fix[0]!.id, null, null]);
+    expect(fix[0]!.relevantFiles).toEqual(['done.txt']);
     const types = engine.store.listByGoal(goal.id).map((e) => e.type);
     expect(types.filter((t) => t === 'goal.audit_finished')).toHaveLength(1);
     const review = types.indexOf('review.goal.finished');

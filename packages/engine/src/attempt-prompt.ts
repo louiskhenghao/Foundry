@@ -1,4 +1,5 @@
 import type { BriefStyleOption, Check, Goal, ObservationReport, Task } from '@foundry/core';
+import { renderReferences } from './references.ts';
 
 /** Scenarios whose deliverables have no look — the chosen Style Proposal is noise to them. Everything else (UI, mobile, media, general) must follow it. */
 const STYLE_FREE_SCENARIOS: ReadonlySet<string> = new Set(['backend', 'infra', 'docs', 'data', 'research']);
@@ -44,8 +45,6 @@ export interface AttemptPromptInput {
   /** the goal branch moved since this task's worktree was created (see catchup.ts), or null */
   baseMoved?: { merged: boolean; commits: string[]; conflictFiles: string[] } | null;
 }
-
-import { renderReferences } from './references.ts';
 
 /** scenarios whose milestones are shown by a walkthrough in a browser */
 const SHOWN_SCENARIOS = new Set(['frontend', 'fullstack', 'mobile']);

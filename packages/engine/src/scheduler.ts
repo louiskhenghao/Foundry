@@ -74,7 +74,7 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
       if (!engine.auditing.has(goal.id)) {
         engine.auditing.add(goal.id);
         void runAudit(engine, goal)
-          .catch((err) => store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `the audit failed: ${String(err)}` } }))
+          .catch((err) => store.append({ type: 'goal.audit_finished', goalId: goal.id, payload: { status: 'failed', summary: '', findings: [], fixTaskIds: [], costUsd: 0, detail: `the audit crashed: ${String(err).slice(0, 280)}` } }))
           .finally(() => {
             engine.auditing.delete(goal.id);
             engine.tick(goal.id);
