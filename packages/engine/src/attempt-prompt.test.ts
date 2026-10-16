@@ -82,6 +82,11 @@ test('a cad task gets the CAD conventions (source in the repository, exports and
   const p = buildAttemptPrompt({ ...base, task: { title: 'T', spec: 'a bracket', relevantFiles: [], scenario: 'cad' } as any });
   expect(p).toContain('# CAD conventions');
   expect(p).toContain('snapshots');
+  // the cad skill's own example layout would commit exports beside the source: the convention says which wins
+  expect(p).toContain("overrides the cad skill's example layout");
+  expect(p).toContain('commit no STEP, STL, 3MF, GLB or snapshot file');
+  // a committed check that imports a skill's tool from the plugin folder breaks with the next plugin update
+  expect(p).toContain("Nothing you commit may reach into the coding agent's plugin folder");
   expect(p).not.toContain('# Media conventions');
   expect(p.indexOf('# CAD conventions')).toBeLessThan(p.indexOf('# How to work'));
   expect(styleApplies('cad')).toBe(false);

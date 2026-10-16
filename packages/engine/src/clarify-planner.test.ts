@@ -246,6 +246,9 @@ describe('the planner prompt', () => {
     const cad = buildPlannerPrompt({ ...base, nature: 'cad' }, skeleton, ctx);
     expect(cad).toContain('# CAD');
     expect(cad).toContain('# Plan lean');
+    // checks name the exports under artifacts/, never the cad skill's tracked STEP/ folder or the plugin's install path
+    expect(cad).toContain('checks name `artifacts/<part>.step`');
+    expect(cad).toContain("never reaches into the coding agent's plugin folder");
     expect(cad).not.toContain('# Media');
   });
 });
