@@ -61,7 +61,8 @@ export function NewGoalPage() {
   const [params] = useSearchParams();
   const requestedProvider = params.get('provider');
   const initialProvider = requestedProvider === 'claude' || requestedProvider === 'codex' ? requestedProvider : null;
-  const [prompt, setPrompt] = useState('');
+  // a follow-up started from a goal page (the audit's remaining findings) arrives with its text
+  const [prompt, setPrompt] = useState(() => params.get('prompt') ?? '');
   const [repoPath, setRepoPath] = useState('');
   const [title, setTitle] = useState('');
   const [repoInfo, setRepoInfo] = useState<RepoInfo | null>(null);

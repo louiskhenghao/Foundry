@@ -379,6 +379,8 @@ export interface GoalDetail {
   milestoneEvents: (EngineEvent & { seq: number })[];
   /** milestones being recorded or waiting their turn ('final' while the final walkthrough runs) */
   milestoneRuns?: string[];
+  /** ponytail-audit is reading the finished branch */
+  auditRunning?: boolean;
   /** Follows / Followed by (goal.follows holds the earlier goal; it may have been deleted since) */
   followUps: { followsExists: boolean; followedBy: { id: string; title: string; state: GoalState }[] };
 }

@@ -26,6 +26,8 @@ export function describe(e: EngineEvent, costAvailable = true): { text: string; 
       return { text: p.verdict.pass ? 'Task reviewer: no blockers' : `Task reviewer blockers: ${p.verdict.blockers.join(' | ')}`, tone: p.verdict.pass ? 'ok' : 'warn' };
     case 'review.goal.finished':
       return { text: p.passed ? (p.overDelivered ? 'Goal review: over-delivered ✨' : 'Goal review: passed') : `Goal review failed; ${p.fixTaskIds.length} fix task(s)`, tone: p.passed ? 'ok' : 'warn' };
+    case 'goal.audit_finished':
+      return { text: p.status === 'ok' ? `Audit: ${p.detail}` : `Audit ${p.status}: ${p.detail}`, tone: p.status === 'failed' ? 'warn' : p.fixTaskIds.length ? 'warn' : 'ok', ...cut(p.summary) };
     case 'escalation.raised':
       return { text: `Needs you: ${p.escalation.trigger.replace(/_/g, ' ')} — ${p.escalation.message.split('\n')[0]}`, tone: 'warn', ...cut(p.escalation.message) };
     case 'escalation.answered':

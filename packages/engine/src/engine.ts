@@ -216,6 +216,8 @@ export class Engine {
   readonly forceStart = new Set<string>();
   /** goals whose final walkthrough (every milestone script once all tasks are done) is running */
   readonly finalWalking = new Set<string>();
+  /** goals whose audit (ponytail-audit on the finished branch) is running */
+  readonly auditing = new Set<string>();
   /** a scripted milestone whose script still fails after its repair: the goal pauses at it once no task is in flight */
   readonly pauseDue = new Map<string, string>();
   /** consecutive engine-side crashes per task (reset when an attempt runs) */

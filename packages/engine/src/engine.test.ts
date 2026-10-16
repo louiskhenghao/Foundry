@@ -658,6 +658,65 @@ describe('an engine error mid-attempt', () => {
   });
 });
 
+describe('the audit at the end', () => {
+  const { writeFileSync: write, mkdirSync: mkdir } = require('node:fs') as typeof import('node:fs');
+  const findings = {
+    summary: 'A small repository with one file.',
+    findings: [
+      { severity: 'must', title: 'empty input crashes', problem: 'reading done.txt crashes when it is empty', fix: 'guard the empty case', files: ['done.txt'] },
+      { severity: 'must', title: 'the README lies', problem: 'README.md describes a flag that does not exist', fix: 'rewrite the paragraph', files: ['README.md'] },
+      { severity: 'should', title: 'no test', problem: 'the risky logic has no test', fix: 'add one', files: ['done.txt'] },
+    ],
+  };
+  /** attempts write done.txt; the audit session answers with the findings */
+  const auditing = () => {
+    const inner = new FakeRunner((spec) => {
+      if (spec.label?.startsWith('attempt')) write(join(spec.cwd, 'done.txt'), 'ok');
+    });
+    return {
+      active: () => 0,
+      run: async (spec: RunSpec) => {
+        const h = await inner.run(spec);
+        if (!spec.label?.startsWith('audit')) return h;
+        const result = { ...(await h.result), finalText: JSON.stringify(findings) };
+        return { ...h, result: Promise.resolve(result), events: (async function* () { yield { kind: 'result', result } as RunnerEvent; })() };
+      },
+    } as unknown as ClaudeRunner;
+  };
+  const installAuditSkill = () => {
+    mkdir(join(dataDir, 'claude-home', 'skills', 'ponytail-audit'), { recursive: true });
+    write(join(dataDir, 'claude-home', 'skills', 'ponytail-audit', 'SKILL.md'), '---\nname: ponytail-audit\ndescription: audit\n---\naudit the repo');
+  };
+
+  test('must-fix findings in the code the goal changed become fix tasks before the review; the rest waits for a follow-up', async () => {
+    installAuditSkill();
+    const engine = track(new Engine(cfg({ workflowAudit: true }), auditing()));
+    const goal = await engine.createGoal({ prompt: 'create done.txt', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] } });
+    expect(getGoal(engine.store.db, goal.id)!.completion.audit).toBe(true);
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 30_000);
+    const g = getGoal(engine.store.db, goal.id)!;
+    expect(g.state).toBe('done');
+    const run = g.completion.auditRun!;
+    expect(run.status).toBe('ok');
+    expect(run.findings.map((f) => [f.severity, f.inScope])).toEqual([['must', true], ['must', false], ['should', true]]);
+    const fix = listTasks(engine.store.db, goal.id).filter((t) => t.origin === 'audit-fix');
+    expect(fix.map((t) => [t.title, t.state])).toEqual([['audit: empty input crashes', 'done']]);
+    expect(run.fixTaskIds).toEqual([fix[0]!.id]);
+    const types = engine.store.listByGoal(goal.id).map((e) => e.type);
+    expect(types.filter((t) => t === 'goal.audit_finished')).toHaveLength(1);
+    const review = types.indexOf('review.goal.finished');
+    if (review !== -1) expect(types.indexOf('goal.audit_finished')).toBeLessThan(review);
+  });
+
+  test('without the skill the audit is skipped and the goal goes on', async () => {
+    const engine = track(new Engine(cfg({ workflowAudit: true }), auditing()));
+    const goal = await engine.createGoal({ prompt: 'create done.txt', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] } });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 30_000);
+    expect(getGoal(engine.store.db, goal.id)!.completion.auditRun).toMatchObject({ status: 'skipped' });
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+  });
+});
+
 describe('feature milestones', () => {
   const { writeFileSync: write, mkdirSync: mkdir } = require('node:fs') as typeof import('node:fs');
   const SCRIPT = 'e2e/milestones/list.spec.ts';
