@@ -1521,8 +1521,15 @@ export class Engine {
    */
   deniedMcpTools(provider: 'claude' | 'codex', allowed: readonly string[]): string[] | undefined {
     if (this.config.mcpDynamicTools) return undefined;
+    // the catalog is data on disk: unreadable (a test's own catalog folder, a broken install) means nothing to deny, never a failed session
+    let entries: { name: string; denyTools: string[] }[] = [];
+    try {
+      entries = this.mcpFor(provider).catalog().entries;
+    } catch {
+      return undefined;
+    }
     const out: string[] = [];
-    for (const e of this.mcpFor(provider).catalog().entries) {
+    for (const e of entries) {
       const prefix = `mcp__${e.name}`;
       if (!allowed.includes(prefix)) continue;
       for (const t of e.denyTools) out.push(`${prefix}__${t}`);
