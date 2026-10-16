@@ -154,8 +154,11 @@ On the Brief you chose what runs by itself at the end (see [Approving the Brief]
 - **Documents** (PRD, README update, Changelog, Confirmation sheet) are written after the final review passes, or after you accept the goal as-is when it did not, and saved on the goal's branch as one commit, so they ship with the work in the same pull request.
 - **Refresh the knowledge graph** updates the code map after delivery: in the progress folder for a Local only goal, in your own folder for a delivered one. It only refreshes the index: GitNexus runs with `--index-only`, and anything a tool still writes into `CLAUDE.md`, `AGENTS.md` or `.claude/` is put back, so the folder is left without uncommitted changes. A GitNexus section or skill folder that appears while a task works (a global hook of yours can run GitNexus) is kept out of the task's commit too.
 
+- **Audit the repository at the end** runs `ponytail-audit` once every task is done, before the final review: must-fix findings in the code the goal touched become fix tasks, and every finding stays on the goal.
+
 The Overview tab's **Completion** card has one row for each, with a tick, a warning or a cross and how it went in one line. Click a row's name for the details:
 
+- **Audit**: what it found, ranked must fix, should fix and nice to have, with the files; a must-fix finding in this goal's code says that a fix task was created. **Follow-up with the rest** starts a goal for the findings this one did not fix.
 - **Docs**: the documents chosen, the files written (click one to read it), the commit, what it cost, and the pull request it went out in.
 - **Graph refresh**: each tool (updating your checkout, graphify, GitNexus) with its result; a failed one shows why, for example a missing program.
 

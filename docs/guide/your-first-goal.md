@@ -136,6 +136,10 @@ Only in Expert view. TDD means writing a test first, then the code that makes it
 
 Docs, infra, research, image and video tasks never get a TDD rule, and a single task can switch it off in the Brief. With **Fast mode** ticked, TDD is off.
 
+### Ponytail: less code
+
+Only in Expert view, and on by default. Ponytail is "the lazy senior dev": before writing, a worker checks whether the code needs to exist at all, whether the repository, the standard library, the platform or an installed dependency already has it, and only then writes the smallest change that fully solves the task, callers, tests and fixtures included. The planner plans the same way, and `ponytail-review` reviews each task and the whole goal: it reads the code a change touches, not only the diff, and only its *must fix* findings (a bug, a security hole, data loss, breaking under the expected load) block; the rest goes into the review notes and the pull request. TDD still decides how tests are written. Work that is not code (documents, research, media) never sees it, and the switch can be changed later on the goal page, from the goal's next session. It needs the Ponytail skills, installed from the Setup page.
+
 ### What do you want done
 
 The big text box, **1 · What do you want done?** Describe the goal as you would to a senior colleague: what you want, for whom, and anything that must or must not happen. Foundry will turn it into acceptance checks and a plan for you to approve, so you do not need to be complete.
@@ -145,6 +149,12 @@ The big text box, **1 · What do you want done?** Describe the goal as you would
 Below the text box: **Attach screenshots, PDFs, files or links — or drop / paste them here.** Use **Files** to pick files, or **Link** to add a web address, then **Add**. You can also paste a screenshot straight into the page.
 
 Every session of the goal can read the attachments. They are never added to your project. Documents are converted to text in the background; a small tag shows when that is done. You can add more attachments later from the goal page.
+
+### Reference
+
+**+ add a reference** names shipped software the goal should learn from: a website, an app on this computer (`/Applications/Notes.app`), a package or an extracted app, and which feature to look at. Before Clarify, REA, a reverse-engineering server you install once from **Extensions → MCP servers**, studies each reference and writes a report with its evidence: how the feature works, what could not be verified, what to build. Every session of the goal reads the report, it is committed as `docs/reference/<name>.md` on the goal branch, and the Brief page shows it with **Investigate again**. Up to five references; the investigation has a cost and time cap in Settings.
+
+Only software you are allowed to examine. The goal builds its own version from the evidence, never a copy; the sessions are told the same. Websites, JavaScript and Electron apps, .NET and Android packages need nothing else; native apps and binaries need Hopper, Ghidra or IDA on this computer, which the Setup page checks. Without REA the investigation is skipped and Clarify goes on.
 
 ### Title
 

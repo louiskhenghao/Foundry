@@ -138,6 +138,10 @@ Codex 任务创建后保留这些设置；以后编辑或删除预设不会改�
 
 docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单个任务也可以在 Brief 里关掉它。勾上 **Fast mode** 时，TDD 是关闭的。
 
+### Ponytail: less code
+
+只在 Expert 视图里有，默认开启。Ponytail 是"懒惰的资深工程师"：写代码之前，worker 先问这段代码需不需要存在，仓库、标准库、平台或已装的依赖是不是已经有了，然后才写能完整解决任务的最小改动，连同调用方、测试和 fixture。planner 也这样规划；`ponytail-review` 审查每个任务和整个 goal：它读改动牵连到的代码，不只看 diff，只有它的 *must fix* 发现（bug、安全漏洞、丢数据、在预期负载下出问题）会阻断，其余写进审查笔记和 pull request。测试怎么写仍由 TDD 决定。不是代码的工作（文档、调研、媒体）从来不会用到它；开关之后可以在 goal 页面上改，从 goal 的下一个会话起生效。它需要 Ponytail 的 skill，在 Setup 页安装。
+
 ### What do you want done
 
 大文本框 **1 · What do you want done?**。像跟一位资深同事说话那样描述 goal：你想要什么、给谁用、有什么必须发生或绝不能发生。Foundry 会把它变成验收检查和计划交给你批准，所以你不用写得面面俱到。
@@ -147,6 +151,12 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 文本框下面：**Attach screenshots, PDFs, files or links — or drop / paste them here.** 用 **Files** 选文件，或者用 **Link** 加一个网址，然后按 **Add**。你也可以直接把截图粘贴到页面上。
 
 这个 goal 的每个会话都能读到这些附件。它们永远不会被加进你的项目。文档会在后台转成文本，转好后会显示一个小标签。之后你还可以在 goal 页面上继续添加附件。
+
+### Reference
+
+**+ add a reference** 填入这个 goal 要学习的已发布软件：一个网站、这台电脑上的一个应用（`/Applications/Notes.app`）、一个安装包或解包后的应用，以及要看哪个功能。Clarify 之前，REA（一个逆向工程 server，在 **Extensions → MCP servers** 装一次）会调查每个参考对象，写出带证据的报告：功能怎么实现、哪些没能核实、该做什么。goal 的每个会话都读得到这份报告，它还会以 `docs/reference/<name>.md` 提交到 goal 分支上，Brief 页面会显示它，并带 **Investigate again**。最多五个参考对象；调查的花费和时间上限在 Settings 里。
+
+只能分析你有权分析的软件。goal 会根据证据做自己的版本，绝不拷贝；各个会话也被这样要求。网站、JavaScript 和 Electron 应用、.NET 和 Android 安装包不需要别的东西；原生应用和二进制需要这台电脑上有 Hopper、Ghidra 或 IDA，Setup 页会检查。没装 REA 时调查会跳过，Clarify 照常进行。
 
 ### Title
 

@@ -44,6 +44,7 @@ buttons.
 | Codex CLI | selected executable supports native execution and required hooks | install/update `@openai/codex`, or use the pinned Docker build |
 | Codex login | the configured native home is signed in with ChatGPT | **Sign in** for Codex on Setup, or `codex login`; API-key inference is unsupported |
 | git | `git` is on the `PATH` | install git (`xcode-select --install` on macOS) |
+| REA native engines (optional) | with the `rea` MCP server installed: Hopper, Ghidra (`GHIDRA_INSTALL_DIR`) or IDA was found, so native apps and binaries can be analysed; websites, JavaScript/Electron, .NET and Android packages need none | install one of them; Ghidra is free |
 | Bun runtime | `bun` is on the `PATH` | `curl -fsSL https://bun.sh/install \| bash` |
 | Required: graphify | the graphify CLI is installed | **Install** on the Setup page, or `uv tool install graphifyy && graphify install --platform claude` |
 | `<skill> backend` (⚠) | an installed image skill has the API key it needs | see [Image-generation keys](#image-generation-keys) |

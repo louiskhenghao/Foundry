@@ -110,6 +110,12 @@ How a Goal's Budget was chosen: *Auto* (no cap while clarifying; the Brief's est
 **Attachment**
 Something the user hands to a Goal that cannot be said in the prompt: a file (screenshot, PDF, document) kept by the system, or a link. Every session of the Goal receives the Attachments as read-only references; they are never part of the repository.
 
+**Reference**
+Shipped software a Goal learns from (a website, an app or a package on this computer), with the feature to look at. Given on the New goal form, up to five per Goal.
+
+**Investigation**
+The capped session that studies a Goal's References with REA before Clarify and writes a report with its evidence: an Attachment every session reads, and `docs/reference/<name>.md` on the Goal branch. Re-run Clarify investigates again first; without REA it is skipped and recorded, and Clarify goes on.
+
 **Markdown rendition**
 The markdown version of an Attachment the system produces ahead of time (documents converted with markitdown, links fetched as a snapshot). Sessions are pointed at the rendition first and at the original only as a fallback; images keep no rendition because the model reads them directly. A rendition can be *ready*, *failed*, *pending* or *skipped*.
 
@@ -235,13 +241,13 @@ The requested reasoning strength of a session. Supported values depend on the co
 A Goal viewed by someone who does not want the machinery: one plain-language Brief (what the system understood, what it will build, the questions only they can answer, the assumptions they can veto, the price) and a progress view (how far, what it costs, what needs them). The engine underneath is the same; Expert view — every control — is one click away on any Goal, and a Goal's mode is just which view it opens in.
 
 **Discipline**
-How hard the engine pushes an engineering practice on its sessions. For TDD: *required* (the Worker must follow the skill), *preferred* (suggested only), or *off* (never mentioned). Claude's Reviewer can also receive missing-invocation evidence; Codex is judged from the work and tests because invocation telemetry is unavailable. Set per Goal, overridable per Task; Tasks in the docs, infra, research, image or video Scenarios never carry a TDD mandate, and the TDD rules only apply to feature and refactor Tasks. Simple-mode Goals start with *preferred*.
+How hard the engine pushes an engineering practice on its sessions. For TDD: *required* (the Worker must follow the skill), *preferred* (suggested only), or *off* (never mentioned). Claude's Reviewer can also receive missing-invocation evidence; Codex is judged from the work and tests because invocation telemetry is unavailable. Set per Goal, overridable per Task; Tasks in the docs, infra, research, image or video Scenarios never carry a TDD mandate, and the TDD rules only apply to feature and refactor Tasks. Simple-mode Goals start with *preferred*. Ponytail is the second Discipline: *on* (the Worker climbs its ladder before writing, the Planner plans lean, `ponytail-review` replaces `code-review` in reviews) or *off*; work that is not code never sees it.
 
 **Settings**
 The engine's user-editable configuration: concurrency, models, session caps, workflow profile, Design Pack, autoskills, review and delivery defaults, tools, safety limits. A saved value beats an environment variable, which beats the default; most changes apply immediately, a few only after the engine restarts.
 
 **MCP Server**
-A program that gives a coding agent extra tools (library docs, a browser, web search). Each coding agent owns its native configuration and independent Allowed in goals policy. Foundry manages Claude servers/connectors and Codex user-configured stdio/HTTP servers through their respective native clients. Only work-performing sessions receive the selected coding agent's allowed prefixes.
+A program that gives a coding agent extra tools (library docs, a browser, web search). Each coding agent owns its native configuration and independent Allowed in goals policy. Foundry manages Claude servers/connectors and Codex user-configured stdio/HTTP servers through their respective native clients. Only work-performing sessions receive the selected coding agent's allowed prefixes. A catalog server may carry a disclaimer, confirmed once before it installs, and the names of its tools that run or change things; those are denied in sessions until Settings opens them.
 
 ## Goal natures
 
@@ -273,6 +279,9 @@ How much the engine adds on top of what the human approved. *Thorough* (default)
 
 **Completion Actions**
 The automatic wrap-up of a finished Goal, chosen once at Brief approval (defaults inferred from the kind of work planned; every choice editable in Expert view): which documents to generate, and whether to refresh the knowledge graph. They never block a Goal — every outcome is recorded and a failure is only a note.
+
+**Audit**
+A Completion Action: once every Task has landed, `ponytail-audit` maps the finished Goal branch and ranks what to fix. Must-fix findings in the code the Goal changed become fix Tasks (origin `audit-fix`) before the final walkthrough and the Goal review; every finding stays on the Goal, and a Follow-up can start with the rest. One pass per Goal, with the Goal review's cost cap.
 
 **Documenter**
 The session that writes a finished Goal's documentation (PRD, README updates, changelog entry, stakeholder confirmation sheet) after the Goal review passes. It may only touch documentation; its files land as one `docs:` commit on the Goal branch, so they ship in the same delivery as the code they describe.

@@ -31,6 +31,8 @@
 | **Interview depth** | 3 | 写 Brief 之前 Clarifier 问你问得多深：从 **Skip**（不问）和 **1**（只问猜错会白做的事）到 **5**（每个细节，直到没有可问的）。见 [Interview depth](./your-first-goal.zh.md#interview-depth)。 |
 | **Effort for new goals** | Role preset / CLI default | 从 **low** 到 **max** 的全任务覆盖。默认使用 Codex 各角色预设，或 Claude CLI 默认值。 |
 | **TDD for new Expert goals** | required | 测试先行：**required**、**preferred** 或 **off**。 |
+| **Ponytail for new goals** | on | 懒惰的资深工程师：worker 写能完整解决任务的最小改动并复用已有的东西，planner 精简地规划，`ponytail-review` 负责审查。测试怎么写仍由 TDD 决定。每个 goal 有自己的开关。见 [Ponytail: less code](./your-first-goal.zh.md#ponytail-less-code)。 |
+| **Audit at the end of new goals** | off | 新 goal 在最终审查前对完成的分支运行 `ponytail-audit`；goal 改过的代码里的 must fix 发现会变成修复任务。批准 Brief 时按 goal 选择。 |
 | **Goal-level fix cycles** | 1 | 最终审查在问你之前，最多可以派几轮修复任务。只用于 thorough 节奏。 |
 | **Small goal (diff lines)** | 400 | 改动行数不超过这个数的 goal，最终审查更轻、更便宜。0 = 从不。 |
 | **Review every task** | on | 对每个任务做一次简短审查，即使 Brief 没要求。只用于 thorough 节奏。 |
@@ -61,6 +63,8 @@
 | **Production** | 大部分使用 `high`；Planner、Complex tasks、Goal reviewer 使用 `xhigh`，Simple tasks、Feedback triage 使用 `medium`，Housekeeping 使用 `low`。 |
 | **Balanced** | 大部分使用 `medium`；Planner、Complex tasks、Goal reviewer 使用 `high`，Housekeeping 使用 `low`。 |
 | **Economy** | 所有角色使用 `low`。 |
+| **Reference investigation: cost cap** | $3 | Clarify 之前用 REA 调查 goal 参考对象的会话到这个花费就停下，把已有的发现写成报告。 |
+| **Reference investigation: minutes** | 20 | 它的时间上限。 |
 
 这些预设初始都使用 **Default model · from Settings**。**Other models** 下的 **Default Codex model** 决定新任务如何解析这个默认模型；仍选 **CLI default model** 就跟随本机 Codex 配置，填写明确 ID 则固定模型。实际速度、额度消耗和可用性取决于模型与账户；Foundry 不会根据预设名称推算美元费用。
 
@@ -177,6 +181,7 @@ skill 是所选编码智能体可以遵循的打包指令。在这里选择 Foun
 - **Profile**：**mattpocock (mandated + observed)**（默认）告诉 worker 要遵循哪种工作方法（功能先写测试，bug 先诊断），并记录它们有没有照做。**plain (hint only)** 只是提一下。
 - **Setting sources**（仅 Claude）：会话加载哪些 Claude Code 设置。留空。
 - **autoskills per goal**（开）：你批准 Brief 后，把匹配你项目技术栈（React、Tailwind……）的 skill 加到 goal 的文件夹里。它们不会进入你的提交。
+- **MCP tools that run or change things**（关）：让会话使用已允许的 MCP server 里会运行或改动东西的工具。对 REA 来说：启动目标程序、挂调试器、操作连接的 Android 设备。关着时会话只能做静态分析。
 - **Design skills**、**Image skills**、**Video skills**：每类选一个包；只有这个包会交给前端、图片或视频任务。每个包显示 **installed** 或 **N missing**，并带一个 **Install** 按钮。选包会立即保存。图片包只有在 [Tools & keys](#tools--keys) 里有 key 时，才能生成真正的图片。已安装的技能缺少它需要的 key 时，它的卡片上会显示 **⚠ key missing**，写明是哪个 key、缺了它会少什么；点它就会跳到 **Tools & keys**。
 
 顶栏上的 **Extensions** 页面放着 skill、MCP server 和原生 Codex 插件。下述技能更新状态及整包卸载细节适用于 Claude。Codex 的 **Skills** 清单显示原生及共享技能，以及 Codex 已启用的每个插件里的技能，按插件分组（这些由 Codex 自己更新和移除，行上会说明怎么做）。在 Foundry 之外安装的技能，下次打开页面就会出现。插件包本身另在 **Plugins** 显示。以插件形式提供的设计或图像技能包，只要 Codex 装了那个插件就算已安装。共享技能（在 `~/.agents/skills`，其他智能体也会读取）可以在这里卸载，包括手动安装的；卸载后进入回收站，恢复时回到原来的文件夹。如果 Claude Code 也通过它自己技能目录里的链接使用某个共享技能，就不能在这里卸载：请先在 **Claude Code** 那边卸载，免得 Claude Code 留下一个失效的链接。每个技能都有一个状态：**outdated**（有新版本 —— 按 **Update**）、**unreleased**（插件作者在上游改了它，但没有提高版本号，所以 CLI 暂时没有新东西可装）、**modified**（你的副本被改过）或 **up to date**（只有 README 或 changelog 不同不算）。像 ffmpeg 这样的命令行工具，只要找得到它的命令就算已安装。插件的技能只能一起删除，用 **Uninstall plugin**。你手动安装的副本，如果 Foundry 自己能安装这个技能，就会出现 **Adopt**：用一个由 Foundry 负责更新的副本替换它。你在那里发起的每次安装、更新、接管（adopt）或卸载，都会在页面底部的 **Operations** 栏里打开一个标签页，带着它自己的日志；几个操作可以同时进行。完成的标签页会一直留着，直到你关掉它；这个栏也可以收起成一行计数。右边的 **Catalog** 在你滚动列表时一直留在视野里。**Install required**、**+ recommended** 和 **+ optional** 会把到那一级为止还没装的全部装上；某一级还有没装的技能时，它的标题上会出现 **Install N**，只装那一级。已经装好的不会动。
@@ -219,6 +224,8 @@ MCP server 让 Claude Code 能用文件和命令行以外的工具，比如最�
 goal 运行时不会问你，所以只有勾上 **Allowed in goals** 的 server，它的工具才会被 goal 用到，而且只在真正干活的会话里，Clarify 和审查都不会用。你自己装的 server 和 claude.ai 连接器默认不勾：邮箱连接器可能会自己发邮件。
 
 **Recommended by Foundry** 列出值得装的 server。**context7**（库的最新文档）和 **playwright**（一个真的浏览器）不需要 key，是推荐项；它们没装时 Setup 会提醒你。**exa** 和 **brave-search** 给调研类 goal 加上网页搜索，需要 key：按 **Install…**，贴上 key，再按 **Install**。两个装一个就够了。从这里装的 server 会直接允许 goal 使用。
+
+**rea**（可选）在这台电脑上逆向已发布的软件：原生二进制、JavaScript 和 Electron 应用、.NET、Android 安装包、网站和抓包文件，每个结论都带证据。goal 的[参考对象](./your-first-goal.zh.md#reference)就是用它调查的，需要弄懂没有文档的接口的 worker 也能用。安装前 Foundry 会让你确认一次它的条款：只分析你拥有或有权分析的软件，不绕过授权或登录，不拷贝专有代码，发现会像其它上下文一样送到你的模型服务商。它的工具里，会运行目标程序、挂调试器或操作连接设备的那些，在 [Skills](#skills) 下的 **MCP tools that run or change things** 打开之前，会话里都不可用。原生应用和二进制还需要这台电脑上有 Hopper、Ghidra 或 IDA；Setup 页会说有没有找到。
 
 **+ add your own server** 填一个名字和一个命令或 URL。命令类的 server 可以按 `NAME=value` 一行一个填 key；URL 类的 server 不填 key，而是在它那一行按 **Sign in** 登录。装好后默认不勾；已装的 server 那一行的 **Change key…** 可以换掉它的 key。server 是给你整个用户账号装的，所以你终端里的 Claude Code 也能用，**Remove** 也会把它从那里删掉。key 由 Claude Code 跟 server 一起保存，Foundry 不留副本。插件带来的 server 随插件一起删；claude.ai 连接器在 claude.ai 上管理。
 
