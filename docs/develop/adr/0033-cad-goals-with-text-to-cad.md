@@ -33,6 +33,11 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
   manifest under `docs/artifacts/`. Reviewers read the snapshots and run the geometry checks; a deliverable without
   snapshots, a missing export or a dimension off the Brief is a blocker; the person is the final judge at milestones.
   The worker renders the snapshots, like media workers render their files: the engine never calls cadgen itself.
+  The cad skill's own examples write exports beside the source (`STEP/`, `STL/`, `snapshots/`); the planner, worker
+  and reviewer prompts say that Foundry's layout overrides them, so nothing generated is committed twice. Nothing
+  committed may reach into the coding agent's plugin folder (its path carries the plugin's version and differs per
+  machine and agent): a check that needs one of the skills' tools, such as the DfAM measurer, runs a copy the task puts
+  in the repository with its licence. Both rules came from the first real run, whose checks did each of these.
 - **text-to-cad is one plugin, a bundle in the catalog.** Twelve entries share the plugin source (the marketplace
   ref `latest`, spelled `#latest` for Claude and `--ref latest` for Codex); the Setup page shows one card. A plugin
   source can now declare the MCP servers it ships, with their deny lists, and a warm-up: once installed, the `cad`
@@ -65,7 +70,13 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
 - **The viewer is the person's.** text-to-cad's `cadgen viewer` is listed as a preview app of every cad goal, started
   only by a person from the milestone or preview card, with the plugin's pinned command on a preview port; walkthroughs,
   self-checks and integrations never start it, do not count it (a cad goal with no app of its own still has "nothing to
-  run"), and an integration's restart of the running apps leaves it alone.
+  run"), and an integration's restart of the running apps leaves it alone. It opens on the goal's model, not on its
+  home: `?file=` with the absolute path of the assembly when one was exported (a STEP named for an assembly or a stack),
+  else of the newest STEP, from the workspace while the goal runs and from the output folder once delivered.
+- **A milestone of files shows the files.** A milestone of a cad, image or video task records what the task left under
+  `artifacts/` (images as screenshots, a video as a clip, the model files named), copied to the goal's screenshots
+  folder like a walkthrough's, so the milestone card and the notification channels show the snapshots; there is no
+  walkthrough of a preview such a goal does not have.
 - **Exports travel with the tasks.** A cad task's worktree starts with the goal workspace's `artifacts/` (what earlier
   tasks exported), the way it gets project skills and style samples: a drawing or an assembly needs the parts' STEP,
   and artifacts never come through git. What a task inherited and left untouched is not copied back at integration, so
@@ -84,7 +95,7 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
 - A bundle install is a background operation on its own channel (the Setup page and the goal page follow it and poll
   its record); `/api/cad` tells the New goal form and the goal page whether the plugin and uv are there, for the coding
   agent asked about, and wakes a waiting cad goal.
-- Not done: a deep link from a milestone to the model in the viewer (the viewer opens on its home), the viewer's bind
+- Not done: the viewer's bind
   address in Docker (unverified), a `cad` file preview in the task drawer (STEP/STL show as binaries), per-tool allow
   lists for the plugin's server (its remaining tools are read-only by its own annotation), and a marketplace added
   earlier without the `latest` ref (the add says "already exists" and the install follows that other ref).
