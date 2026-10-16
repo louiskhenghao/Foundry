@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, statSync, unlinkSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
@@ -159,6 +159,26 @@ async function captureScripted(engine: Engine, goal: Goal, task: Task, opts: Cap
 const IMAGE = /\.(png|jpe?g|webp|gif)$/i;
 const VIDEO = /\.(mp4|webm|mov)$/i;
 const MODEL = /\.(step|stp|stl|3mf|glb|dxf)$/i;
+const VIEW = '(front|back|top|bottom|left|right|iso|isometric|opposite_iso|side|section(_[a-z]+)?|[a-z]*_?closeup)';
+
+/** what an image shows: its file name without a view suffix, or its folder when the name is only a view (`stack/front.png` → stack) */
+export function imageSubject(f: string): string {
+  const parts = f.split('/');
+  const stem = parts.at(-1)!.replace(/\.[^.]+$/, '');
+  if (new RegExp(`^${VIEW}$`, 'i').test(stem) && parts.length > 1) return parts.at(-2)!;
+  return stem.replace(new RegExp(`_${VIEW}$`, 'i'), '');
+}
+
+/**
+ * How strongly a text names an image: its own path (8), else its subject (4) in the milestone's text; its path (2), else
+ * its subject (1) in the task's manifest. A task can rewrite files of other parts (an assembly re-renders them), so the
+ * images the milestone and the manifest are about come before the newest ones.
+ */
+export function imageRank(f: string, milestone: string, manifest: string): number {
+  const subject = imageSubject(f);
+  const named = (text: string) => text.includes(`artifacts/${f}`) || text.includes(f);
+  return (named(milestone) ? 8 : milestone.includes(subject) ? 4 : 0) + (named(manifest) ? 2 : manifest.includes(subject) ? 1 : 0);
+}
 
 /**
  * A milestone whose deliverables are files: what the task left under the goal workspace's `artifacts/` — the images
@@ -194,7 +214,19 @@ async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: Captur
       copyFileSync(join(root, f), join(dir, name));
       return name;
     };
-    const images = pool.filter((x) => IMAGE.test(x.f)).slice(0, 8).sort((a, b) => a.f.localeCompare(b.f));
+    // the images the milestone and the task's manifest name first, then the newest; shown in that order
+    const manifest = (task.relevantFiles ?? [])
+      .filter((f) => /^docs\/artifacts\/.+\.md$/.test(f))
+      .map((f) => {
+        try {
+          return readFileSync(join(ws, f), 'utf8');
+        } catch {
+          return '';
+        }
+      })
+      .join('\n');
+    const rank = (f: string) => imageRank(f, task.milestone ?? '', manifest);
+    const images = pool.filter((x) => IMAGE.test(x.f)).sort((a, b) => rank(b.f) - rank(a.f) || b.at - a.at || a.f.localeCompare(b.f)).slice(0, 8);
     evidence.shots = images.map((x) => ({ file: copy(x.f), caption: x.f }));
     const clip = pool.find((x) => VIDEO.test(x.f));
     if (clip) evidence.clips = [{ file: copy(clip.f), caption: clip.f }];

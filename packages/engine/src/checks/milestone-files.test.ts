@@ -7,7 +7,7 @@ import { defaultConfig } from '../config.ts';
 import { Engine } from '../engine.ts';
 import { FakeRunner, makeRepo } from '../test-helpers.ts';
 import { goalWorkspacePath, screenshotsDir } from '../workspace.ts';
-import { captureMilestone } from './walkthrough.ts';
+import { captureMilestone, imageRank, imageSubject } from './walkthrough.ts';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
 let dataDir: string;
@@ -59,4 +59,35 @@ test('after the goal folder is gone, the copies delivered to the output folder s
   const ev = await captureMilestone(engine, getGoal(engine.store.db, goal.id)!, task);
   expect(ev).toMatchObject({ status: 'pass', shots: [{ caption: 'bracket_iso.png' }] });
   rmSync(out, { recursive: true, force: true });
+});
+
+test('an image is named by its file or its folder without the view; the milestone text and the manifest rank it', () => {
+  expect(imageSubject('snapshots/starship_stack.png')).toBe('starship_stack');
+  expect(imageSubject('snapshots/starship_stack_front.png')).toBe('starship_stack');
+  expect(imageSubject('snapshots/starship_stack/iso.png')).toBe('starship_stack');
+  expect(imageSubject('snapshots/starship_stack/base_closeup.png')).toBe('starship_stack');
+  expect(imageSubject('snapshots/ship_fwd/section_yz.png')).toBe('ship_fwd');
+  const milestone = '打开 artifacts/snapshots/starship_stack.png：从底座到鼻锥完整堆叠';
+  expect(imageRank('snapshots/starship_stack.png', milestone, '')).toBe(8);
+  expect(imageRank('snapshots/starship_stack/front.png', milestone, '')).toBe(4);
+  expect(imageRank('snapshots/ship_fwd.png', milestone, '| `artifacts/snapshots/ship_fwd.png` |')).toBe(2);
+  expect(imageRank('snapshots/ship_fwd.png', milestone, '')).toBe(0);
+});
+
+test("an assembly that re-rendered other parts still shows the stack the milestone names, first", async () => {
+  const repo = await makeRepo();
+  const b = brief('cad');
+  b.tasks[0]!.milestone = 'open artifacts/snapshots/stack.png: the whole stack, base to nose';
+  const goal = await engine.createGoal({ prompt: 'a stack', repoPath: repo, brief: b as never });
+  const task = listTasks(engine.store.db, goal.id)[0]!;
+  const art = join(goalWorkspacePath(dataDir, getGoal(engine.store.db, goal.id)!), 'artifacts', 'snapshots');
+  mkdirSync(join(art, 'stack'), { recursive: true });
+  writeFileSync(join(art, 'stack.png'), 'x');
+  writeFileSync(join(art, 'stack', 'front.png'), 'x');
+  await Bun.sleep(20);
+  // ten newer renders of other parts would have pushed the stack out of the newest eight
+  for (let i = 0; i < 10; i++) writeFileSync(join(art, `part_${i}.png`), 'x');
+  const ev = await captureMilestone(engine, goal, task);
+  expect(ev!.shots).toHaveLength(8);
+  expect(ev!.shots.slice(0, 2).map((s) => s.caption)).toEqual(['snapshots/stack.png', 'snapshots/stack/front.png']);
 });
