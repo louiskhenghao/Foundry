@@ -574,7 +574,7 @@ export function buildPlannerPrompt(goal: Goal, skeleton: BriefSkeleton, c: { ove
     `# The Brief from the Clarifier\nAreas, assumptions and goal-level checks are settled; plan within them.\n\`\`\`json\n${JSON.stringify(brief, null, 1)}\n\`\`\``,
     `# Planning notes from the Clarifier\n${planningNotes}`,
     c.plannerHint ?? '',
-    goal.workflow.ponytail === 'on' ? PLAN_LEAN : '',
+    resolveDiscipline(goal, { tdd: 'inherit', scenario: natureScenario(skeleton.nature ?? goal.nature) }).ponytail === 'on' ? PLAN_LEAN : '',
     `# Your job\nSplit the goal into tasks for EVERY Area of the Brief and return the plan as JSON matching the schema: \`tasks\`, their task-level \`checks\`, and the estimate (\`costEstimateUsd\`, \`timeEstimateMin\`). The notes above are the Clarifier's findings: read the repository (read-only) only where they leave a file, command or convention open. Do not interview anyone and do not change files.\n- Put the test/typecheck/lint commands on the task that must make them pass (the goal-level checks above already verify the merged result); a task whose result is judged rather than run gets a reviewer check with a precise rubric.\n- Give every user-visible feature a \`milestone\` on its closing task (the one after which the feature can be tried end to end), and a \`milestoneScript\` when the feature has a web UI or an HTTP API; null on every other task.\n- Each task's \`title\` is its Conventional Commits subject: imperative, ≤ 60 chars, no trailing period, no type prefix, in the language of the repository's recent commits; \`scope\` defaults to the Area's slug.\nOutput the JSON only.`,
   ]
     .filter(Boolean)

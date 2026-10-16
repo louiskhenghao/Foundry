@@ -82,6 +82,12 @@ describe('workflow section', () => {
     expect(s.startsWith('# Skills\nInstalled skills relevant to this role')).toBe(true);
     expect(s).not.toContain('MUST');
   });
+  test('the plain profile hides what the discipline hides, like the full section', () => {
+    const withPonytail = [...statuses, st(entry({ id: 'ponytail', roles: ['worker'] }), 'installed', '/ponytail')];
+    expect(formatWorkflowSection({ role: 'worker', taskKind: 'feature', profile: 'plain', statuses: withPonytail, discipline: { tdd: 'required', ponytail: 'on' } })).toContain('/ponytail');
+    expect(formatWorkflowSection({ role: 'worker', taskKind: 'feature', profile: 'plain', statuses: withPonytail, discipline: { tdd: 'required', ponytail: 'off' } })).not.toContain('/ponytail');
+    expect(formatWorkflowSection({ role: 'worker', taskKind: 'feature', profile: 'plain', statuses: withPonytail, discipline: { tdd: 'off', ponytail: 'off' } })).not.toContain('tdd');
+  });
 });
 
 describe('scenarios and packs', () => {

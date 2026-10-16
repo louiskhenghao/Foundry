@@ -15,19 +15,22 @@ import { restoreGuidance, snapshotGuidance } from './git/agent-guidance.ts';
 import { exec } from './git/git.ts';
 import { pullFastForward } from './git/sync.ts';
 import { ARTIFACTS_DIR, goalWorkspacePath, listArtifacts } from './workspace.ts';
+import { codeWork } from './skills/workflow.ts';
 
 /** Task scenarios that mean the goal changes code (research/video/docs-only goals have none of these). */
 const CODE_SCENARIOS = new Set(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra']);
 
 /** Defaults when the UI sends nothing (Simple mode, API callers): inferred from the Brief. */
-export function inferCompletion(brief: Brief, ws: string, pace: 'thorough' | 'fast' = 'thorough'): { graphRefresh: boolean; docs: DocType[]; reason: string } {
+export function inferCompletion(brief: Brief, ws: string, pace: 'thorough' | 'fast' = 'thorough', auditDefault = false): { graphRefresh: boolean; docs: DocType[]; audit: boolean; reason: string } {
   const code = brief.tasks.some((t) => CODE_SCENARIOS.has(t.scenario ?? 'general'));
-  if (pace === 'fast') return { graphRefresh: code, docs: [], reason: 'fast pace: no generated docs' };
+  // the audit is Ponytail's review of the finished branch: a goal of documents, research or media alone gets none
+  const audit = auditDefault && brief.tasks.some((t) => codeWork(t));
+  if (pace === 'fast') return { graphRefresh: code, docs: [], audit, reason: 'fast pace: no generated docs' };
   const docs: DocType[] = [];
   if (code) docs.push('to-prd', 'readme-update');
   if (code && existsSync(join(ws, 'CHANGELOG.md'))) docs.push('changelog');
   if (pendingDecisions(brief).length) docs.push('to-questionnaire');
-  return { graphRefresh: code, docs, reason: code ? 'inferred: coding goal' : 'inferred: no coding tasks' };
+  return { graphRefresh: code, docs, audit, reason: code ? 'inferred: coding goal' : 'inferred: no coding tasks' };
 }
 
 /**

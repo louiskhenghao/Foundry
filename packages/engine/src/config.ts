@@ -199,7 +199,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     delivery: { pollMs: 30_000, noChecksGraceMs: 90_000, checksTimeoutMs: 30 * 60_000, automergeWaitMs: 10 * 60_000, updateLocalBase: true, prWatchMs: 5 * 60_000 },
     workflowProfile: process.env.FOUNDRY_WORKFLOW === 'plain' ? 'plain' : 'mattpocock',
     workflowTdd: (['required', 'preferred', 'off'].includes(process.env.FOUNDRY_TDD ?? '') ? process.env.FOUNDRY_TDD : 'required') as 'required' | 'preferred' | 'off',
-    workflowPonytail: process.env.FOUNDRY_PONYTAIL === 'off' || process.env.FOUNDRY_PONYTAIL === '0' ? 'off' : 'on',
+    workflowPonytail: process.env.FOUNDRY_PONYTAIL === 'off' ? 'off' : 'on',
     workflowAudit: process.env.FOUNDRY_AUDIT === '1' || process.env.FOUNDRY_AUDIT === 'true',
     mcpDynamicTools: process.env.FOUNDRY_MCP_DYNAMIC_TOOLS === '1' || process.env.FOUNDRY_MCP_DYNAMIC_TOOLS === 'true',
     investigationMaxCostUsd: Number(process.env.FOUNDRY_INVESTIGATION_MAX_COST ?? 3) || 3,

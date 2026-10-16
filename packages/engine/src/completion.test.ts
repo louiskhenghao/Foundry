@@ -85,6 +85,14 @@ describe('completion inference', () => {
     const withDecision = { ...briefBase, tasks: [task('docs' as const)], questions: [{ id: 'q1', text: 'Which stack?', answer: 'Next.js', blocking: true, areaKey: null, options: ['Next.js', 'Laravel'], kind: 'text' as const, applied: false }] };
     expect(inferCompletion(withDecision, ws).docs).toContain('to-questionnaire');
   });
+  test('the audit default from Settings applies to goals with code to review, at either pace; not to documents, research or media alone', () => {
+    const ws = mkdtempSync(join(tmpdir(), 'foundry-infer-'));
+    expect(inferCompletion({ ...briefBase, tasks: [task('frontend')] }, ws).audit).toBe(false);
+    expect(inferCompletion({ ...briefBase, tasks: [task('frontend')] }, ws, 'thorough', true).audit).toBe(true);
+    expect(inferCompletion({ ...briefBase, tasks: [task('general')] }, ws, 'fast', true).audit).toBe(true);
+    for (const scenario of ['docs', 'research', 'image'] as const) expect(inferCompletion({ ...briefBase, tasks: [task(scenario)] }, ws, 'thorough', true).audit).toBe(false);
+    expect(inferCompletion({ ...briefBase, tasks: [task('docs'), task('backend')] }, ws, 'thorough', true).audit).toBe(true);
+  });
 });
 
 describe('autoskills retry for empty repositories', () => {
