@@ -1,5 +1,5 @@
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { basename, join, relative } from 'node:path';
+import { basename, join, relative, resolve, sep } from 'node:path';
 import { exec } from '../git/git.ts';
 import { pluginInstallCommand, type PluginSource } from './catalog.ts';
 import { LEGACY_MARKER_FILE, MARKER_FILE, type SkillsPaths } from './paths.ts';
@@ -24,7 +24,7 @@ export interface InstallContext {
   codexBin?: string;
   spawn?: (argv: string[], cwd: string, onLine: (l: string) => void, opts?: { timeoutMs?: number; env?: Record<string, string> }) => Promise<{ code: number | null; tail: string }>;
   onLine?: (l: string) => void;
-  /** what the engine gives every session (API keys, telemetry switches): a warm-up runs with it too */
+  /** what the engine gives every session: a warm-up runs with its switches (CADGEN_*), never with its keys */
   env?: Record<string, string>;
 }
 
@@ -107,29 +107,45 @@ export async function installPlugin(entry: CatalogEntry, ctx: InstallContext): P
   return { ok: true, id: entry.id, name: entry.name, path: null, commit: null, manual: null, error: null };
 }
 
-/**
- * After a plugin install: run a shipped MCP server's own command once with `warmup.args` in place of its subcommand, so
- * a runtime it downloads on first start (text-to-cad: Python and OpenCASCADE, hundreds of MB) arrives while the person
- * watches, not inside the first task's attempt. The command and its pinned version come from the plugin's MCP config.
- */
+/** an MCP server as a plugin's own config starts it */
 export interface PluginMcpServer {
   command: string;
   args: string[];
   env?: Record<string, string>;
 }
 
-/** an MCP server as the plugin's own config starts it (its manifest's `mcpServers` names the file); null when it ships none by that name */
+/** the server's arguments up to its `mcp` subcommand (else all but the last): the base of its other commands, a warm-up or the viewer */
+export const serverBaseArgs = (args: string[]): string[] => {
+  const at = args.lastIndexOf('mcp');
+  return at >= 0 ? args.slice(0, at) : args.slice(0, -1);
+};
+
+/** an MCP server as the plugin's own config starts it (its manifest's `mcpServers` holds the map or names a file inside the plugin); null when it ships none by that name */
 export function readPluginMcpServer(installPath: string, provider: 'claude' | 'codex' | undefined, name: string): PluginMcpServer | null {
   try {
     const manifest = JSON.parse(readFileSync(join(installPath, provider === 'codex' ? '.codex-plugin' : '.claude-plugin', 'plugin.json'), 'utf8')) as { mcpServers?: string | Record<string, unknown> };
-    const servers = (typeof manifest.mcpServers === 'string' ? (JSON.parse(readFileSync(join(installPath, manifest.mcpServers), 'utf8')) as { mcpServers?: Record<string, unknown> }).mcpServers : manifest.mcpServers) ?? {};
-    const server = servers[name] as { command?: string; args?: string[]; env?: Record<string, string> } | undefined;
+    let servers: Record<string, unknown> | undefined;
+    if (typeof manifest.mcpServers === 'string') {
+      const file = resolve(installPath, manifest.mcpServers);
+      // a plugin's config stays inside the plugin: a manifest pointing elsewhere is not followed
+      if (!file.startsWith(resolve(installPath) + sep)) return null;
+      servers = (JSON.parse(readFileSync(file, 'utf8')) as { mcpServers?: Record<string, unknown> }).mcpServers;
+    } else servers = manifest.mcpServers;
+    const server = (servers ?? {})[name] as { command?: string; args?: string[]; env?: Record<string, string> } | undefined;
     return server?.command ? { command: server.command, args: server.args ?? [], env: server.env } : null;
   } catch {
     return null;
   }
 }
 
+/** keys and tokens stay out of a plugin's warm-up: a `--version` run needs only the switches (CADGEN_*) */
+const SECRET_ENV = /KEY|TOKEN|SECRET|PASSWORD/i;
+
+/**
+ * After a plugin install: run a shipped MCP server's own command once with `warmup.args` in place of its `mcp` subcommand,
+ * so a runtime it downloads on first start (text-to-cad: Python and OpenCASCADE, hundreds of MB) arrives while the person
+ * watches, not inside the first task's attempt. The command and its pinned version come from the plugin's MCP config.
+ */
 export async function warmupPlugin(src: PluginSource, installPath: string, ctx: InstallContext): Promise<{ ok: boolean; detail: string }> {
   const w = src.warmup;
   if (!w) return { ok: true, detail: 'nothing to warm up' };
@@ -137,9 +153,10 @@ export async function warmupPlugin(src: PluginSource, installPath: string, ctx: 
   try {
     const server = readPluginMcpServer(installPath, ctx.paths.provider, w.mcpServer);
     if (!server) return { ok: false, detail: `the plugin ships no MCP server named ${w.mcpServer}` };
-    const argv = [server.command, ...server.args.slice(0, -1), ...w.args];
+    const argv = [server.command, ...serverBaseArgs(server.args), ...w.args];
     ctx.onLine?.(`${w.note}: ${argv.join(' ')}`);
-    const r = await ctx.spawn(argv, installPath, ctx.onLine ?? (() => {}), { timeoutMs: 20 * 60_000, env: { ...(server.env ?? {}), ...(ctx.env ?? {}) } });
+    const env = { ...(server.env ?? {}), ...Object.fromEntries(Object.entries(ctx.env ?? {}).filter(([k]) => !SECRET_ENV.test(k))) };
+    const r = await ctx.spawn(argv, installPath, ctx.onLine ?? (() => {}), { timeoutMs: 20 * 60_000, env });
     return r.code === 0 ? { ok: true, detail: 'runtime ready' } : { ok: false, detail: `exit ${r.code}: ${r.tail.slice(-200)}` };
   } catch (err) {
     return { ok: false, detail: String((err as Error).message ?? err) };

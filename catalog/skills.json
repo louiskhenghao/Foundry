@@ -1580,7 +1580,10 @@
           {
             "name": "cad",
             "denyTools": [
-              "cad_telemetry"
+              "cad_telemetry",
+              "cad_http",
+              "cad_sync",
+              "cad_capture_reply"
             ]
           }
         ],
