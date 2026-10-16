@@ -23,24 +23,34 @@ and advertised, with effects only as hints.
   research, media) never sees it.
 - **TDD decides how tests are written; Ponytail how much code.** Both rules reach a worker when both are on; the
   Ponytail rule says so. The planner gets a lean-planning section. `ponytail-review` replaces `code-review` for task
-  and goal reviews while the switch is on and the skill is installed; only its must-fix findings are blockers, the rest
-  goes into the notes and from there into the pull request. Review frequency does not change.
+  and goal reviews while the switch is on and the skill is installed (preferred for the many task reviews, required for
+  the one goal review); only its must-fix findings are blockers, the rest goes into the notes and from there into the
+  pull request. Review frequency does not change.
 - **An optional audit at the end.** Chosen per goal in the Brief's Completion section (Settings default off): once
   every task has landed, `ponytail-audit` maps the branch and ranks what to fix. Must-fix findings in the code the goal
-  changed become fix tasks (bounded), run before the final walkthrough and the review; every finding stays on the
-  Completion card, and a follow-up goal can be started with the rest. One pass per goal, the goal review's cost cap.
+  changed (the files themselves, named exactly; a folder holding one is not a match, or the auditor could promote any
+  finding into a fix task) become fix tasks (bounded), run before the final walkthrough and the review; every finding
+  stays on the Completion card with the fix task it became, and a follow-up goal can be started with the rest. One pass
+  per goal, the goal review's cost cap; a goal with no budget left skips it.
 - **REA is an optional MCP server with a disclaimer and a deny list.** Its catalog entry carries the disclaimer the
   person confirms once before installing (lawful use, what leaves the computer, which native engines it needs) and the
-  names of the tools that run the target, attach a debugger or touch a connected device. Those are denied in sessions
+  names of the tools that run the target, attach a debugger, touch a connected device or write files where the caller
+  says (the evidence bundle). Those are denied in sessions
   by name, through `--disallowedTools` for Claude and a deny list in the Codex guard, until a Settings switch opens
-  them; static analysis works at once. The filter is Foundry's, because REA has none.
+  them; static analysis works at once. The filter is Foundry's, because REA has none. A list of names holds only for
+  the version it was written against, so the catalog pins `rea-agents` to a version and a bump re-checks the list.
+  When the catalog itself cannot be read there is no list to apply: then no MCP server reaches an unattended session
+  until it is fixed (the Setup page says so), rather than every tool reaching it.
 - **A goal can have references.** The New goal form takes up to five (a URL or a path, and which feature to look at).
   Before Clarify, a capped session studies them with REA and writes a report with its evidence. The report is an
   attachment, so every later session reads it, and a document under `docs/reference/` on the goal branch, so it ships
   with the code. The Clarifier grounds the Brief in it; a goal that only asks to understand the reference is of nature
   research and delivers the report. Workers get the same rules: learn the behaviour, never copy the code. Re-run Clarify
   investigates again first; the Brief page can investigate again on its own. Without REA the investigation is skipped
-  and recorded, and Clarify goes on.
+  and recorded, and Clarify goes on. The session reads third-party content with a shell at hand, so only the report is
+  committed and whatever else it left in the worktree is discarded; the report is marked as third-party content for the
+  sessions that read it, and credentials typed into a URL never reach the report or its commit. The Brief cannot be
+  approved, nor Clarify re-run, while an investigation runs; a goal that skips Clarify takes no reference.
 - **Native engines are the person's.** REA analyses websites, JavaScript and Electron apps, .NET and Android packages
   without them; native apps and binaries need Hopper, Ghidra or IDA, which Foundry detects and reports on the Setup page
   but never installs.

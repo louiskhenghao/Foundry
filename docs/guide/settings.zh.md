@@ -63,8 +63,6 @@
 | **Production** | 大部分使用 `high`；Planner、Complex tasks、Goal reviewer 使用 `xhigh`，Simple tasks、Feedback triage 使用 `medium`，Housekeeping 使用 `low`。 |
 | **Balanced** | 大部分使用 `medium`；Planner、Complex tasks、Goal reviewer 使用 `high`，Housekeeping 使用 `low`。 |
 | **Economy** | 所有角色使用 `low`。 |
-| **Reference investigation: cost cap** | $3 | Clarify 之前用 REA 调查 goal 参考对象的会话到这个花费就停下，把已有的发现写成报告。 |
-| **Reference investigation: minutes** | 20 | 它的时间上限。 |
 
 这些预设初始都使用 **Default model · from Settings**。**Other models** 下的 **Default Codex model** 决定新任务如何解析这个默认模型；仍选 **CLI default model** 就跟随本机 Codex 配置，填写明确 ID 则固定模型。实际速度、额度消耗和可用性取决于模型与账户；Foundry 不会根据预设名称推算美元费用。
 
@@ -171,6 +169,8 @@ Foundry 启动时，如果发现 Claude Code 自上次同步后更新过，也�
 | **Continuations per attempt** | 2 | 被停止的会话在开始新尝试之前最多续接几次（续接更便宜，会保留它读过的内容）。 |
 | **Turn cap per session** | 150 | Claude 的模型轮数；Codex 的工具调用次数。设宽松一点。 |
 | **Concurrent agent sessions** | 3 | 两种编码智能体的所有 goal 加起来同时运行的会话总数。 |
+| **Reference investigation: cost cap** | $3 | Clarify 之前用 REA 调查 goal 参考对象的会话到这个花费就停下，把已有的发现写成报告。 |
+| **Reference investigation: minutes** | 20 | 它的时间上限。 |
 
 什么时候改：如果大任务总是被中途截断，调高超时或 Claude 费用上限；如果你经常碰到套餐的用量上限，调低 **Concurrent agent sessions**。
 

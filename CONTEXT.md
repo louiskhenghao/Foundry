@@ -114,7 +114,7 @@ Something the user hands to a Goal that cannot be said in the prompt: a file (sc
 Shipped software a Goal learns from (a website, an app or a package on this computer), with the feature to look at. Given on the New goal form, up to five per Goal.
 
 **Investigation**
-The capped session that studies a Goal's References with REA before Clarify and writes a report with its evidence: an Attachment every session reads, and `docs/reference/<name>.md` on the Goal branch. Re-run Clarify investigates again first; without REA it is skipped and recorded, and Clarify goes on.
+The capped session that studies a Goal's References with REA before Clarify and writes a report with its evidence: an Attachment every session reads (marked as third-party content), and `docs/reference/<name>.md` on the Goal branch, committed alone (whatever else the session left in the worktree is discarded). The Brief waits for it: no approval, no Re-run Clarify while it runs. Re-run Clarify investigates again first; without REA it is skipped and recorded, and Clarify goes on.
 
 **Markdown rendition**
 The markdown version of an Attachment the system produces ahead of time (documents converted with markitdown, links fetched as a snapshot). Sessions are pointed at the rendition first and at the original only as a fallback; images keep no rendition because the model reads them directly. A rendition can be *ready*, *failed*, *pending* or *skipped*.
@@ -281,7 +281,7 @@ How much the engine adds on top of what the human approved. *Thorough* (default)
 The automatic wrap-up of a finished Goal, chosen once at Brief approval (defaults inferred from the kind of work planned; every choice editable in Expert view): which documents to generate, and whether to refresh the knowledge graph. They never block a Goal — every outcome is recorded and a failure is only a note.
 
 **Audit**
-A Completion Action: once every Task has landed, `ponytail-audit` maps the finished Goal branch and ranks what to fix. Must-fix findings in the code the Goal changed become fix Tasks (origin `audit-fix`) before the final walkthrough and the Goal review; every finding stays on the Goal, and a Follow-up can start with the rest. One pass per Goal, with the Goal review's cost cap.
+A Completion Action: once every Task has landed, `ponytail-audit` maps the finished Goal branch and ranks what to fix. Must-fix findings in the code the Goal changed (the files themselves) become fix Tasks (origin `audit-fix`) before the final walkthrough and the Goal review; every finding stays on the Goal with the fix Task it became, and a Follow-up can start with the rest. One pass per Goal, with the Goal review's cost cap; a Goal with no budget left skips it.
 
 **Documenter**
 The session that writes a finished Goal's documentation (PRD, README updates, changelog entry, stakeholder confirmation sheet) after the Goal review passes. It may only touch documentation; its files land as one `docs:` commit on the Goal branch, so they ship in the same delivery as the code they describe.

@@ -156,7 +156,7 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 
 **+ add a reference** 填入这个 goal 要学习的已发布软件：一个网站、这台电脑上的一个应用（`/Applications/Notes.app`）、一个安装包或解包后的应用，以及要看哪个功能。Clarify 之前，REA（一个逆向工程 server，在 **Extensions → MCP servers** 装一次）会调查每个参考对象，写出带证据的报告：功能怎么实现、哪些没能核实、该做什么。goal 的每个会话都读得到这份报告，它还会以 `docs/reference/<name>.md` 提交到 goal 分支上，Brief 页面会显示它，并带 **Investigate again**。最多五个参考对象；调查的花费和时间上限在 Settings 里。
 
-只能分析你有权分析的软件。goal 会根据证据做自己的版本，绝不拷贝；各个会话也被这样要求。网站、JavaScript 和 Electron 应用、.NET 和 Android 安装包不需要别的东西；原生应用和二进制需要这台电脑上有 Hopper、Ghidra 或 IDA，Setup 页会检查。没装 REA 时调查会跳过，Clarify 照常进行。
+只能分析你有权分析的软件。goal 会根据证据做自己的版本，绝不拷贝；各个会话也被这样要求。网站、JavaScript 和 Electron 应用、.NET 和 Android 安装包不需要别的东西；原生应用和二进制需要这台电脑上有 Hopper、Ghidra 或 IDA，Setup 页会检查。没装 REA 时调查会跳过，Clarify 照常进行。跳过 Clarify 的 goal（**Skip Clarify (advanced)**）不能带参考对象：调查发生在 Clarify 之前。
 
 ### Title
 

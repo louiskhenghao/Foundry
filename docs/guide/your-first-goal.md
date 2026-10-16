@@ -154,7 +154,7 @@ Every session of the goal can read the attachments. They are never added to your
 
 **+ add a reference** names shipped software the goal should learn from: a website, an app on this computer (`/Applications/Notes.app`), a package or an extracted app, and which feature to look at. Before Clarify, REA, a reverse-engineering server you install once from **Extensions → MCP servers**, studies each reference and writes a report with its evidence: how the feature works, what could not be verified, what to build. Every session of the goal reads the report, it is committed as `docs/reference/<name>.md` on the goal branch, and the Brief page shows it with **Investigate again**. Up to five references; the investigation has a cost and time cap in Settings.
 
-Only software you are allowed to examine. The goal builds its own version from the evidence, never a copy; the sessions are told the same. Websites, JavaScript and Electron apps, .NET and Android packages need nothing else; native apps and binaries need Hopper, Ghidra or IDA on this computer, which the Setup page checks. Without REA the investigation is skipped and Clarify goes on.
+Only software you are allowed to examine. The goal builds its own version from the evidence, never a copy; the sessions are told the same. Websites, JavaScript and Electron apps, .NET and Android packages need nothing else; native apps and binaries need Hopper, Ghidra or IDA on this computer, which the Setup page checks. Without REA the investigation is skipped and Clarify goes on. A goal that skips Clarify (**Skip Clarify (advanced)**) takes no reference: the investigation runs before Clarify.
 
 ### Title
 

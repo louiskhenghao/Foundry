@@ -63,8 +63,6 @@ With **Coding agent → Codex** selected, pick a preset for **Code**, **Docs & r
 | **Production** | Mostly `high`; `xhigh` for Planner, Complex tasks and Goal reviewer, `medium` for Simple tasks and Feedback triage, `low` for Housekeeping. |
 | **Balanced** | Mostly `medium`; `high` for Planner, Complex tasks and Goal reviewer, `low` for Housekeeping. |
 | **Economy** | `low` for every role. |
-| **Reference investigation: cost cap** | $3 | The session that studies a goal's reference with REA before Clarify stops at this cost and writes up what it found so far. |
-| **Reference investigation: minutes** | 20 | Its time cap. |
 
 These profiles initially use **Default model · from Settings**. **Default Codex model**, under **Other models**, selects what that means for new goals. Leaving it as **CLI default model** follows the local Codex configuration; an explicit ID pins a model. Actual speed, quota use and availability depend on that model and your account. Foundry does not infer USD prices from preset names.
 
@@ -171,6 +169,8 @@ On by default. When a task is allowed two or more attempts, its last attempt, an
 | **Continuations per attempt** | 2 | How often a stopped session is resumed (cheaper, it keeps what it read) before a fresh attempt starts. |
 | **Turn cap per session** | 150 | Model turns for Claude; tool calls for Codex. Keep it generous. |
 | **Concurrent agent sessions** | 3 | Total simultaneous sessions across both providers and all goals. |
+| **Reference investigation: cost cap** | $3 | The session that studies a goal's reference with REA before Clarify stops at this cost and writes up what it found so far. |
+| **Reference investigation: minutes** | 20 | Its time cap. |
 
 When to change: raise the timeout or Claude cost cap if big tasks keep getting cut off; lower **Concurrent agent sessions** if you hit your plan's usage limit often.
 
