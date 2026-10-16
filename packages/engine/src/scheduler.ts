@@ -184,9 +184,9 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
         cwd = ws.path;
       } else cwd = task.worktreePath;
     }
-    // media tasks generate into artifacts/, which must never reach a commit (info/exclude is shared by all
+    // media and CAD tasks generate into artifacts/, which must never reach a commit (info/exclude is shared by all
     // worktrees); the leading slash anchors to the workspace root so docs/artifacts/ manifests stay tracked
-    if (task.scenario === 'image' || task.scenario === 'video') await excludeFromGit(cwd, ['/artifacts/'], (m) => config.log(m));
+    if (task.scenario === 'image' || task.scenario === 'video' || task.scenario === 'cad') await excludeFromGit(cwd, ['/artifacts/'], (m) => config.log(m));
     task = getTask(store.db, task.id)!;
     // an attempt cut by an engine restart is resumed (its session keeps its context) instead of being redone
     const last = listAttempts(store.db, task.id).filter((a) => a.kind === 'work').at(-1);

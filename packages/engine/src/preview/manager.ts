@@ -17,6 +17,9 @@ import { ServicesManager } from './services.ts';
 
 export type PreviewStarter = 'human' | 'milestone' | 'integration';
 
+/** the preview app key of text-to-cad's viewer on a cad goal: started by the person, never by a walkthrough */
+export const CAD_VIEWER_KEY = 'cad-viewer';
+
 /** one app of the goal's preview */
 export interface PreviewAppStatus {
   key: string;
@@ -199,6 +202,14 @@ export class PreviewManager {
 
   /** the apps that apply: the Brief's apps, else its run command, else package.json workspaces, else the root package.json */
   resolveApps(goal: Goal): { apps: BriefApp[]; source: 'brief' | 'detected' } | null {
+    const found = this.resolveRepoApps(goal);
+    // a cad goal also has text-to-cad's viewer, for the person to open (a walkthrough never starts it)
+    const viewer = this.engine.cadViewerApp(goal);
+    if (!viewer) return found;
+    return found ? { ...found, apps: [...found.apps, viewer] } : { apps: [viewer], source: 'detected' };
+  }
+
+  private resolveRepoApps(goal: Goal): { apps: BriefApp[]; source: 'brief' | 'detected' } | null {
     const brief = getBrief(this.engine.store.db, goal.id)?.brief;
     const startable = (apps: BriefApp[]) => apps.filter((a) => a.command);
     if (brief?.apps?.length && startable(brief.apps).length) return { apps: startable(brief.apps), source: 'brief' };
@@ -292,7 +303,7 @@ export class PreviewManager {
     if (!found) throw new PreviewError('nothing to run: the Brief has no run command and package.json has no dev/start script', 409);
     // an app switched to fake data for a walkthrough runs its mock command instead
     const resolved = { ...found, apps: found.apps.map((a) => (this.mocked.has(id(goal.id, a.key)) ? { ...a, command: this.mocked.get(id(goal.id, a.key))! } : a)) };
-    const targets = resolved.apps.filter((a) => (!appKey || a.key === appKey) && !this.live.has(id(goal.id, a.key)));
+    const targets = resolved.apps.filter((a) => (!appKey || a.key === appKey) && !this.live.has(id(goal.id, a.key)) && (a.key !== CAD_VIEWER_KEY || by === 'human'));
     if (appKey && !resolved.apps.some((a) => a.key === appKey)) throw new PreviewError(`no app "${appKey}" in this goal's preview`, 404);
     this.touch(goal.id);
     if (!targets.length) return this.status(goal.id);

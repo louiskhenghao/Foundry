@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { catalogStatus, defaultEnvProbe, findEntry, loadCatalog, pluginId, type EnvProbe, type PluginSource, type WhichFn, defaultWhich } from './catalog.ts';
 import { runDoctor } from './doctor.ts';
 import { SkillsHints } from './hints.ts';
-import { InstallError, installEntry, updateEntry, warmupPlugin } from './installer.ts';
+import { InstallError, installEntry, readPluginMcpServer, updateEntry, warmupPlugin, type PluginMcpServer } from './installer.ts';
 import { skillsPaths, type SkillsPaths } from './paths.ts';
 import { scanSkills } from './scanner.ts';
 import { TrashError, listTrash, restoreSkill, trashSkill } from './trash.ts';
@@ -49,6 +49,8 @@ export interface SkillsManagerOptions {
   onPluginServers?: (names: string[]) => void | Promise<void>;
   /** what the engine gives every session: a plugin's warm-up runs with it too */
   sessionEnv?: () => Record<string, string>;
+  /** a plugin's install, allow and warm-up are done (goals waiting for it can go on) */
+  onPluginInstalled?: (pluginId: string) => void;
   updates?: UpdateCheckerOptions;
   updater?: Pick<UpdaterContext, 'spawn' | 'npxBin' | 'timeoutMs'>;
 }
@@ -318,15 +320,26 @@ export class SkillsManager {
       onLine?.(`✔ ${servers.map((s) => `mcp__${s}`).join(', ')} allowed for sessions`);
     }
     const warmup = members.map((m) => m.warmup).find(Boolean);
-    if (!warmup) return;
+    if (!warmup) {
+      this.opts.onPluginInstalled?.(pid);
+      return;
+    }
     const row = this.scan().installed.find((r) => r.scope === 'plugin' && (r.plugin?.id === pid || r.plugin?.name === src.plugin));
     if (!row?.plugin?.installPath) {
       onLine?.(`✘ ${warmup.note}: the installed plugin was not found on disk`);
+      this.opts.onPluginInstalled?.(pid);
       return;
     }
     const r = await warmupPlugin({ ...src, warmup }, row.plugin.installPath, { paths: this.paths, log: this.opts.log, spawn: this.opts.updater?.spawn ?? spawnStreaming, onLine, env: this.opts.sessionEnv?.() });
     onLine?.(r.ok ? `✔ ${warmup.note}: ${r.detail}` : `✘ ${warmup.note}: ${r.detail}`);
     this.opts.log?.(`[skills] warm-up of ${pid}: ${r.ok ? 'ok' : r.detail}`);
+    this.opts.onPluginInstalled?.(pid);
+  }
+
+  /** how the CLI starts an MCP server an installed catalog plugin ships (text-to-cad's `cad`): its pinned command, or null when the plugin is not on disk */
+  pluginServerCommand(pluginName: string, server: string): PluginMcpServer | null {
+    const row = this.scan().installed.find((r) => r.scope === 'plugin' && r.plugin?.name === pluginName);
+    return row?.plugin?.installPath ? readPluginMcpServer(row.plugin.installPath, this.opts.provider, server) : null;
   }
 
   /** Install every missing entry of the tiers; `onLine` gets one line per entry (and the plugin CLI's output). */

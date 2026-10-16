@@ -21,7 +21,7 @@ const EMPTY_REPO_IGNORE = new Set(['.git', '.claude', '.agents', '.DS_Store', 'g
 
 /** The scenario that filters clarifier/planner skill hints for a nature; undefined = no filter (code and unclassified goals). */
 export function natureScenario(nature: GoalNature): TaskScenario | undefined {
-  return nature === 'docs' || nature === 'research' || nature === 'image' || nature === 'video' ? nature : undefined;
+  return nature === 'docs' || nature === 'research' || nature === 'image' || nature === 'video' || nature === 'cad' ? nature : undefined;
 }
 
 const NatureVerdict = z.object({ nature: z.enum(['code', 'docs', 'research', 'image', 'video', 'cad']) });
@@ -82,6 +82,8 @@ interface ClarifyContext {
   prompt: string;
   wasAuto: boolean;
   nature: GoalNature;
+  /** text-to-cad installed for this goal: a cad verdict stands; without it, cad work is code work */
+  cadAvailable: boolean;
   /** engine-made questions (dirty repo …) that ride into the Brief */
   extraQuestions: Brief['questions'];
   run: (p: string, resume?: string) => Promise<RunHandle>;
@@ -131,7 +133,8 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
   // a Follow-up: the earlier goal's snapshot, plus where this checkout actually started (recorded by the Base Sync)
   const synced = getGoal(store.db, goal.id) ?? goal;
   const previous = goal.follows?.context ? [goal.follows.context, startSentence(synced)].filter(Boolean).join('\n') : '';
-  const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview ? interviewDepth(goal.interview) : null, previous, await engine.cadAvailable(goal));
+  const cadAvailable = await engine.cadAvailable(goal);
+  const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview ? interviewDepth(goal.interview) : null, previous, cadAvailable);
   const addDirs = goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined;
   const schema = zodToJsonSchema(goal.interview ? InterviewOutput : BriefSkeleton, { $refStrategy: 'none' });
   const transcriptPath = join(config.dataDir, 'transcripts', `clarify-${goal.id}.jsonl`);
@@ -190,7 +193,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
         label: `planner ${goal.title}`,
       }),
   };
-  return { ws, prompt, wasAuto, nature, extraQuestions, run, planner };
+  return { ws, prompt, wasAuto, nature, cadAvailable, extraQuestions, run, planner };
 }
 
 /**
@@ -444,6 +447,8 @@ async function settle(engine: Engine, goal: Goal, ctx: ClarifyContext, first: Ru
     }
   }
 
+  // a cad verdict without text-to-cad on this computer is code work (the Clarifier was not offered cad, but may still say it)
+  if (parsed && parsed.nature === 'cad' && !ctx.cadAvailable) parsed.nature = 'code';
   // the Clarifier's verdict wins over the pre-classification, but never over a nature the user chose
   if (parsed && ctx.wasAuto && parsed.nature !== ctx.nature) {
     store.append({ type: 'goal.nature_set', goalId: goal.id, payload: { nature: parsed.nature, reason: ctx.nature === 'auto' ? 'clarifier verdict' : `clarifier verdict (over pre-classification: ${ctx.nature})` } });

@@ -210,5 +210,7 @@ describe('ponytail discipline', () => {
     expect(resolveDiscipline(goal, { tdd: 'off', scenario: 'docs', kind: 'feature' })).toEqual({ tdd: 'off', ponytail: 'off' });
     expect(resolveDiscipline(goal, { tdd: 'inherit', scenario: 'general', kind: 'research' }).ponytail).toBe('off');
     expect(resolveDiscipline({ workflow: { ...goal.workflow, ponytail: 'off' } }, null).ponytail).toBe('off');
+    // cad is code work: Ponytail applies, and the goal's TDD mandate stands
+    expect(resolveDiscipline(goal, { tdd: 'inherit', scenario: 'cad', kind: 'feature' })).toEqual({ tdd: 'required', ponytail: 'on' });
   });
 });

@@ -2,7 +2,7 @@ import type { BriefStyleOption, Check, Goal, ObservationReport, Task } from '@fo
 import { renderReferences } from './references.ts';
 
 /** Scenarios whose deliverables have no look — the chosen Style Proposal is noise to them. Everything else (UI, mobile, media, general) must follow it. */
-const STYLE_FREE_SCENARIOS: ReadonlySet<string> = new Set(['backend', 'infra', 'docs', 'data', 'research']);
+const STYLE_FREE_SCENARIOS: ReadonlySet<string> = new Set(['backend', 'infra', 'docs', 'data', 'research', 'cad']);
 export const styleApplies = (scenario: string): boolean => !STYLE_FREE_SCENARIOS.has(scenario);
 
 /** The chosen Style Proposal rendered for workers and reviewers; '' when none. */
@@ -102,7 +102,11 @@ export function buildAttemptPrompt(i: AttemptPromptInput): string {
   }
   // the section carries its own heading (`# Workflow skills` or `# Skills`)
   if (i.skillsHint) lines.push(i.skillsHint.startsWith('#') ? i.skillsHint : `# Skills\n${i.skillsHint}`);
-  if (i.task.scenario === 'image' || i.task.scenario === 'video') {
+  if (i.task.scenario === 'cad') {
+    lines.push(
+      `# CAD conventions\n- The model's source (build123d Python) lives in the repository where its layout says (else under \`cad/\`); running it builds and exports STEP. Exports (STEP always; STL, 3MF, GLB, DXF or a drawing PDF when the spec asks) go into \`artifacts/\` in this workspace, which never reaches git — the engine delivers it when the goal finishes.\n- Write the geometry checks first (key dimensions, interference, wall thickness) as a Python script the task's command checks run; the model is done when they pass.\n- Render front, top, right and isometric snapshots of every deliverable (\`cadgen snapshot\`) next to it under \`artifacts/\`: the review reads them and treats a missing snapshot as a blocker.\n- Keep the manifest named in your task spec (\`docs/artifacts/…\`) up to date: one entry per deliverable — file name, what it is, key dimensions with units, process and material, the checks and their results, the snapshots.\n- Never open a desktop app or send anything to a printer: slicing is headless; a hand-off to Bambu or a slicer's window is the person's.`,
+    );
+  } else if (i.task.scenario === 'image' || i.task.scenario === 'video') {
     lines.push(
       `# Media conventions\n- Every generated file goes into \`artifacts/\` in this workspace. That folder never reaches git — the engine delivers it to the user when the goal finishes.\n- Keep the manifest named in your task spec (\`docs/artifacts/…\`) up to date: one bullet per artifact — file name, what it shows, and the prompt/parameters used. The manifest is committed and is what the reviewer reads first.\n- Codebase conventions and test suites do not apply here; the craft is the artifacts themselves and an honest manifest.`,
     );

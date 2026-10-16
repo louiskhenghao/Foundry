@@ -78,6 +78,8 @@ export const GoalNature = z.enum(['auto', 'code', 'docs', 'research', 'image', '
 export type GoalNature = z.infer<typeof GoalNature>;
 /** natures whose artifacts are media files (kept out of git, delivered to the output folder at done) */
 export const MEDIA_NATURES: GoalNature[] = ['image', 'video'];
+/** natures whose deliverables are files under artifacts/ (kept out of git, delivered to the output folder) */
+export const ARTIFACT_NATURES: GoalNature[] = ['image', 'video', 'cad'];
 
 /** How hard the engine pushes a discipline: required = MUST + noted when skipped; preferred = suggested only; off = not mentioned. */
 export const Discipline = z.enum(['required', 'preferred', 'off']);

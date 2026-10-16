@@ -4,7 +4,7 @@ import { CodexPlugins } from './plugins/codex-plugins.ts';
 import { CodexQuotaReader } from './usage/codex-quota.ts';
 import { discoverCodexModels } from './models/codex-discover.ts';
 import { basename, dirname, join } from 'node:path';
-import type { Attachment, Brief, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalWorkflow, ModelConfig, Task, Check } from '@foundry/core';
+import type { Attachment, Brief, BriefApp, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalWorkflow, ModelConfig, Task, Check } from '@foundry/core';
 import {
   BUDGET_PRESETS,
   Budgets,
@@ -75,7 +75,7 @@ import type { StreamEvent, StreamListener } from './types.ts';
 import { ARTIFACTS_DIR, defaultWorkspaceDir, deliveryWorkspacePath, dropTaskWorkspace, ensureGoalWorkspace, goalWorkspacePath, internalWorkspaceDir, listStackBranches, previewWorkspacePath } from './workspace.ts';
 import { transferGoalDir } from './transfer/paths.ts';
 import { relocateLegacyWorkspaces } from './workspace-migrate.ts';
-import { PreviewManager } from './preview/manager.ts';
+import { CAD_VIEWER_KEY, PreviewManager } from './preview/manager.ts';
 import { ensureSelfCheck, playwrightInstallCommand, playwrightStatus, runSelfCheck } from './checks/selfcheck.ts';
 import { afterMerge, type AfterMergeOptions } from './delivery/after-merge.ts';
 import { startOver, structuralChanges } from './delivery/start-over.ts';
@@ -358,6 +358,10 @@ export class Engine {
       },
       sessionEnv: () => this.sessionEnvExtra(),
       gates: () => ({ desktopApps: this.config.desktopApps }),
+      // a cad goal that waited for text-to-cad goes on to Clarify once the plugin is in
+      onPluginInstalled: () => {
+        for (const g of listGoals(this.store.db)) if (g.state === 'clarifying' && g.nature === 'cad') void this.tick(g.id);
+      },
       // mmx signed in with `mmx auth login` needs no key from Foundry
       // `||`, not `??`: an empty variable in the engine's environment must not hide a key from Settings
       envProbe: (name) => !!(process.env[name] || this.sessionEnvExtra()[name]) || (name === 'MINIMAX_API_KEY' && mmxSignedIn()),
@@ -459,6 +463,18 @@ export class Engine {
       // Settings → Safety → Desktop apps & printers: off = the boundary hook blocks the openers and the gated skills
       ...(this.config.desktopApps ? {} : { FOUNDRY_DESKTOP_PATTERNS: DESKTOP_APPS_PATTERNS, ...(this.gatedSkills('desktopApps').length ? { FOUNDRY_DENIED_SKILLS: this.gatedSkills('desktopApps').join('|') } : {}) }),
     };
+  }
+
+  /**
+   * text-to-cad's viewer as a preview app of a cad goal, started by the person from the milestone or preview card: the
+   * plugin's own pinned cadgen command with `viewer` in place of `mcp`, on a preview port. Null without the plugin.
+   */
+  cadViewerApp(goal: Goal): BriefApp | null {
+    if (goal.nature !== 'cad') return null;
+    const server = this.skillsFor(goal).pluginServerCommand('text-to-cad', 'cad');
+    if (!server) return null;
+    const q = (a: string) => (/^[\w./:=@%+{}-]+$/.test(a) ? a : `'${a.replace(/'/g, `'\\''`)}'`);
+    return { key: CAD_VIEWER_KEY, name: 'CAD Viewer', dir: '', install: null, command: [server.command, ...server.args.slice(0, -1), 'viewer', '--port', '{port}'].map(q).join(' '), url: 'http://localhost:{port}', platform: 'web' };
   }
 
   /** text-to-cad installed for this goal's provider: the cad nature can be offered, classified and planned */
@@ -1489,6 +1505,15 @@ export class Engine {
         return; // the human continues or gives feedback (escalation answer); nothing to schedule
       case 'clarifying': {
         if (this.clarifying.has(goalId)) return;
+        // a cad goal needs text-to-cad: it waits (the goal page offers the install) until the plugin is in
+        if (goal.nature === 'cad' && !(await this.cadAvailable(goal))) {
+          if (!this.cadWaiting.has(goalId)) {
+            this.cadWaiting.add(goalId);
+            this.store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: 'text-to-cad is not installed for this coding agent: Clarify waits for it (Setup → 3D models, or the button on this page)' } });
+          }
+          return;
+        }
+        this.cadWaiting.delete(goalId);
         // a goal with references: REA studies them first, so the Brief is grounded in how they work
         if (needsInvestigation(goal)) {
           this.startInvestigation(goal);
@@ -1601,6 +1626,8 @@ export class Engine {
 
   /** goals already told that the MCP catalog is unreadable: one note each, not one per session */
   private catalogNoted = new Set<string>();
+  /** cad goals told once that they wait for text-to-cad */
+  private cadWaiting = new Set<string>();
 
   /** a worker session's tools: the base set plus the allowed MCP servers, minus the tools that run or change things */
   workerToolPolicy(goal: Goal): { allowedTools: string[]; disallowedTools: string[] | undefined } {
@@ -1661,7 +1688,8 @@ export class Engine {
       for (const choice of Object.values(codexPreset.tables[natureKey(nature)])) this.validateCodexChoice(choice.model, (input.effort === undefined ? this.config.effort : input.effort) ?? choice.effort ?? undefined);
     }
     // anyone-facing default: a goal that produces prose or media opens in the plain-language view
-    const mode: GoalMode = input.mode ?? (nature !== 'auto' && nature !== 'code' ? 'simple' : this.config.defaultGoalMode);
+    // prose and media goals open in the plain-language view; cad is code work with a geometry kernel and keeps the default
+    const mode: GoalMode = input.mode ?? (nature !== 'auto' && nature !== 'code' && nature !== 'cad' ? 'simple' : this.config.defaultGoalMode);
     const title = input.title?.trim() || input.prompt.trim().split('\n')[0]!.slice(0, 80);
     const goal: Goal = {
       provider,
@@ -1699,7 +1727,8 @@ export class Engine {
         // media goals default to fast: their deliverables are judged by the human's eye, not by $5 review sessions
         const pace = input.workflow?.pace ?? (MEDIA_NATURES.includes(nature) ? 'fast' : this.config.workflowPace);
         // fast goals run only what the Brief asks for: no TDD mandate unless the caller insists
-        return { pace, tdd: input.workflow?.tdd ?? (pace === 'fast' ? ('off' as const) : mode === 'simple' ? ('preferred' as const) : this.config.workflowTdd), ponytail: input.workflow?.ponytail ?? this.config.workflowPonytail };
+        // cad: geometry checks are the tests, written before the model — preferred, never forced
+        return { pace, tdd: input.workflow?.tdd ?? (pace === 'fast' ? ('off' as const) : mode === 'simple' || nature === 'cad' ? ('preferred' as const) : this.config.workflowTdd), ponytail: input.workflow?.ponytail ?? this.config.workflowPonytail };
       })(),
       models: provider === 'codex' ? { strong: codexPreset!.tables[natureKey(nature)].clarifier.model, cheap: codexPreset!.tables[natureKey(nature)].housekeeping.model, worker: codexPreset!.tables[natureKey(nature)].standard.model } : { ...this.config.models, ...(input.models ?? {}) },
       state: 'draft',

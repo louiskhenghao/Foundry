@@ -36,7 +36,7 @@ afterEach(async () => {
  */
 class StructuredRunner implements ClaudeRunner {
   calls: RunSpec[] = [];
-  classifyAs: 'code' | 'docs' | 'research' | 'image' | 'video' = 'code';
+  classifyAs: 'code' | 'docs' | 'research' | 'image' | 'video' | 'cad' = 'code';
   private mainCalls = 0;
   constructor(private answers: (spec: RunSpec, n: number) => unknown) {}
   active() {
@@ -114,6 +114,36 @@ describe('clarify coverage gate', () => {
 });
 
 describe('nature pre-classification', () => {
+  test('cad is a verdict only where text-to-cad is installed; without it the goal is code work, with it the Clarifier gets the cad rules', async () => {
+    const { mkdirSync: mkdir, writeFileSync: write } = require('node:fs') as typeof import('node:fs');
+    const cadBrief = () => ({ ...briefWith([{ ...task('T1', 'A1', 'model the bracket'), scenario: 'cad' as const }], [check('C1', 'T1')]), nature: 'cad' as const });
+    // not installed: the classifier is not even offered cad, and a cad answer is read as code
+    const bare = new StructuredRunner(() => cadBrief());
+    bare.classifyAs = 'cad';
+    const engine = track(new Engine(cfg(), bare));
+    const g1 = await engine.createGoal({ prompt: 'a wall bracket for a 40 mm pipe, FDM printed', repoPath: repo });
+    await waitFor(() => bare.calls.some((c) => c.label?.startsWith('clarify')), 20_000);
+    expect(bare.calls.find((c) => c.label?.startsWith('classify nature'))!.prompt).not.toContain('cad =');
+    expect(getGoal(engine.store.db, g1.id)!.nature).toBe('code');
+    engine.cancelGoal(g1.id);
+    // installed (a cad skill on disk counts): the verdict stands and the Clarifier is told the cad rules
+    mkdir(join(dataDir, 'claude-home', 'skills', 'cad'), { recursive: true });
+    write(join(dataDir, 'claude-home', 'skills', 'cad', 'SKILL.md'), '---\nname: cad\ndescription: cad\n---\nmodel');
+    const runner = new StructuredRunner(() => cadBrief());
+    runner.classifyAs = 'cad';
+    const engine2 = track(new Engine(cfg(), runner));
+    const g2 = await engine2.createGoal({ prompt: 'a wall bracket for a 40 mm pipe, FDM printed', repoPath: repo });
+    await waitFor(() => getGoal(engine2.store.db, g2.id)!.state === 'awaiting_brief_approval', 20_000);
+    expect(getGoal(engine2.store.db, g2.id)!.nature).toBe('cad');
+    expect(runner.calls.find((c) => c.label?.startsWith('classify nature'))!.prompt).toContain('cad =');
+    const clarify = runner.calls.find((c) => c.label?.startsWith('clarify'))!;
+    expect(clarify.prompt).toContain('# Nature: cad');
+    expect(clarify.prompt).toContain('BLOCKING');
+    expect(clarify.prompt).not.toContain('# Nature: image');
+    engine2.cancelGoal(g2.id);
+    await Bun.sleep(150);
+  }, 30_000);
+
   test('an auto goal is classified before the prompt is built; the media sections replace the code ones', async () => {
     const runner = new StructuredRunner(() => ({ ...briefWith([{ ...task('T1', 'A1', 'render posters'), scenario: 'image' as const }], [check('C1', 'T1')]), nature: 'image' as const }));
     runner.classifyAs = 'image';

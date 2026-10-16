@@ -140,7 +140,9 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
   const reviewer = modelFor(engine.config, goal, small ? 'taskReviewer' : 'goalReviewer');
   const reviewerHint = small ? null : await engine.skillsFor(goal).hints.sectionFor('reviewer-goal', { scenario, discipline: resolveDiscipline(goal, null) });
   const media =
-    scenario === 'image' || scenario === 'video'
+    scenario === 'cad'
+      ? `# CAD review\nThis goal's deliverables are model sources in the diff and exports and snapshots under \`artifacts/\` — those are NOT in the diff (kept out of git); the committed \`docs/artifacts/\` manifests describe them. Verify every manifest entry exists on disk, open the snapshots with the Read tool and compare them with the Brief's dimensions and features, and run the goal's geometry checks. A deliverable without snapshots, a missing export, or a dimension off the Brief is a BLOCKER.`
+      : scenario === 'image' || scenario === 'video'
       ? `# Media review\nThis goal's deliverables are media files under \`artifacts/\` — they are NOT in the diff (kept out of git); the committed \`docs/artifacts/\` manifests describe them. Verify every manifest entry exists on disk${scenario === 'image' ? ' and open the images with the Read tool (it renders them) to judge them against the checks' : '; verify video metadata with ffprobe when available (you cannot watch video — final visual quality stays with the human)'}.`
       : '';
   const prompt = [

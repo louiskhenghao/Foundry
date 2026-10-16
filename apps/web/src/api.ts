@@ -638,7 +638,7 @@ export function apiForProvider(provider?: AgentProvider) {
   cleanupShadows: (names: string[]) => req<{ trashed: TrashEntry[]; skipped: { name: string; reason: string }[] }>('/api/skills/cleanup-shadows', { method: 'POST', body: JSON.stringify({ names }) }),
   installBundle: (bundle: string, opId?: string) => req<{ results: { id: string; name: string; action: 'plugin' | 'updated' | 'adopted' | 'installed' | 'kept' | 'failed'; detail: string }[]; op: SkillOp }>('/api/skills/install-bundle', { method: 'POST', body: JSON.stringify({ bundle, opId }) }),
   /** text-to-cad for this provider: installed, and uv (which runs cadgen) on this computer */
-  cad: () => req<{ installed: boolean; uv: boolean }>('/api/cad'),
+  cad: (provider?: AgentProvider) => req<{ installed: boolean; uv: boolean }>(`/api/cad${provider ? `?provider=${provider}` : ''}`),
   updateRuns: () => req<(EngineEvent & { seq: number })[]>('/api/skills/update-runs'),
   doctor: () => req<DoctorReport>('/api/doctor'),
   packs: () => req<PacksView>('/api/skills/packs'),

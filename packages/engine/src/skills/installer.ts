@@ -112,16 +112,32 @@ export async function installPlugin(entry: CatalogEntry, ctx: InstallContext): P
  * a runtime it downloads on first start (text-to-cad: Python and OpenCASCADE, hundreds of MB) arrives while the person
  * watches, not inside the first task's attempt. The command and its pinned version come from the plugin's MCP config.
  */
+export interface PluginMcpServer {
+  command: string;
+  args: string[];
+  env?: Record<string, string>;
+}
+
+/** an MCP server as the plugin's own config starts it (its manifest's `mcpServers` names the file); null when it ships none by that name */
+export function readPluginMcpServer(installPath: string, provider: 'claude' | 'codex' | undefined, name: string): PluginMcpServer | null {
+  try {
+    const manifest = JSON.parse(readFileSync(join(installPath, provider === 'codex' ? '.codex-plugin' : '.claude-plugin', 'plugin.json'), 'utf8')) as { mcpServers?: string | Record<string, unknown> };
+    const servers = (typeof manifest.mcpServers === 'string' ? (JSON.parse(readFileSync(join(installPath, manifest.mcpServers), 'utf8')) as { mcpServers?: Record<string, unknown> }).mcpServers : manifest.mcpServers) ?? {};
+    const server = servers[name] as { command?: string; args?: string[]; env?: Record<string, string> } | undefined;
+    return server?.command ? { command: server.command, args: server.args ?? [], env: server.env } : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function warmupPlugin(src: PluginSource, installPath: string, ctx: InstallContext): Promise<{ ok: boolean; detail: string }> {
   const w = src.warmup;
   if (!w) return { ok: true, detail: 'nothing to warm up' };
   if (!ctx.spawn) return { ok: false, detail: 'no spawner configured' };
   try {
-    const manifest = JSON.parse(readFileSync(join(installPath, ctx.paths.provider === 'codex' ? '.codex-plugin' : '.claude-plugin', 'plugin.json'), 'utf8')) as { mcpServers?: string | Record<string, unknown> };
-    const servers = (typeof manifest.mcpServers === 'string' ? (JSON.parse(readFileSync(join(installPath, manifest.mcpServers), 'utf8')) as { mcpServers?: Record<string, unknown> }).mcpServers : manifest.mcpServers) ?? {};
-    const server = servers[w.mcpServer] as { command?: string; args?: string[]; env?: Record<string, string> } | undefined;
-    if (!server?.command) return { ok: false, detail: `the plugin ships no MCP server named ${w.mcpServer}` };
-    const argv = [server.command, ...(server.args ?? []).slice(0, -1), ...w.args];
+    const server = readPluginMcpServer(installPath, ctx.paths.provider, w.mcpServer);
+    if (!server) return { ok: false, detail: `the plugin ships no MCP server named ${w.mcpServer}` };
+    const argv = [server.command, ...server.args.slice(0, -1), ...w.args];
     ctx.onLine?.(`${w.note}: ${argv.join(' ')}`);
     const r = await ctx.spawn(argv, installPath, ctx.onLine ?? (() => {}), { timeoutMs: 20 * 60_000, env: { ...(server.env ?? {}), ...(ctx.env ?? {}) } });
     return r.code === 0 ? { ok: true, detail: 'runtime ready' } : { ok: false, detail: `exit ${r.code}: ${r.tail.slice(-200)}` };

@@ -336,8 +336,8 @@ export function NewGoalPage() {
               type="button"
               onClick={() => {
                 setNature(n.id);
-                // anyone-facing default: prose/media goals open in the plain-language view
-                if (n.id !== 'code' && n.id !== 'auto') setMode('simple');
+                // anyone-facing default: prose/media goals open in the plain-language view (cad is code work and keeps the default)
+                if (n.id !== 'code' && n.id !== 'auto' && n.id !== 'cad') setMode('simple');
                 // media deliverables are judged by eye — default to fast (no engine AI reviews) unless the human chose a pace
                 if (!paceTouched.current) setPace(n.id === 'image' || n.id === 'video' ? 'fast' : basePace.current);
               }}
@@ -445,7 +445,7 @@ export function NewGoalPage() {
         {missingPreset && <p role="alert" className="mt-3 text-xs text-amber-300">The earlier goal’s preset “{selectedPreset}” is no longer available. Choose a preset for this new goal.</p>}
         {provider === 'codex' && <div className="mt-4 space-y-3 rounded-md border border-zinc-800 p-3">
           <p className="text-xs text-zinc-400">This goal captures its Codex preset and fallback order when created. An explicit effort above overrides every role; Default uses each role’s preset.</p>
-          {nature === 'auto' && !codexPreset && <p className="text-xs text-zinc-400">Auto captures the defaults for every goal type. The preview shows Code roles until classification; the inferred type uses its captured Code, Docs & research or Media table.</p>}
+          {nature === 'auto' && !codexPreset && <p className="text-xs text-zinc-400">Auto captures the defaults for every goal type. The preview shows Code roles until classification; the inferred type uses its captured Code (software and CAD), Docs & research or Media table.</p>}
           <label className="flex items-start gap-2 text-xs text-zinc-300"><input type="checkbox" className="accent-emerald-500 mt-0.5" checked={codexOverride} onChange={(e) => setCodexOverride(e.target.checked)} />Use one model for every role in this goal</label>
           {codexOverride && <div className="max-w-lg"><CodexModelSelect label="Codex goal model override" known={codexKnown} value={codexModel} defaultLabel="CLI default model" onChange={(value) => { changed.current.add('codexModel'); setCodexModel(value); }} /><p className="text-[11px] text-zinc-500 mt-1">This replaces each role’s model while keeping its preset effort unless you choose a goal-wide effort. CLI default model follows your native Codex configuration.</p></div>}
           {codexPreview && <details className="text-xs"><summary className="cursor-pointer text-zinc-300">View {codexPreview.label} role assignments</summary><p className="text-zinc-500 mt-2">{codexPreview.description}</p><div className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5 mt-3">{CODEX_MODEL_ACTIONS.map((role) => { const choice = codexPreview.tables[natureKey(nature)][role]; const model = codexOverride || choice.model === 'codex-default' ? codexModel : choice.model; return <div key={role} className="flex justify-between gap-3 border-b border-zinc-800 py-1"><span className="text-zinc-400">{role === 'housekeeping' ? 'Housekeeping' : ACTION_INFO[role].label}</span><span className="text-right mono text-zinc-300">{model === 'codex-default' ? 'CLI default model' : model} · {effort || choice.effort || 'CLI effort'}</span></div>; })}</div></details>}
