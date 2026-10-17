@@ -29,11 +29,16 @@ test("the baseline sees the goal's artifacts: a check that measures an export is
   const g = getGoal(engine.store.db, goal.id)!;
   // no export yet anywhere: it really fails
   expect((await engine.baseline.failing(g, head)).has(check.id)).toBe(true);
-  // the goal workspace holds the export (git-excluded): the baseline worktree gets it, so the check passes there too
   const art = join(goalWorkspacePath(dataDir, g), 'artifacts', 'STEP');
   mkdirSync(art, { recursive: true });
   writeFileSync(join(art, 'bracket.step'), 'ISO-10303-21;');
-  await sh('git commit -q --allow-empty -m "chore: next"', repo);
-  const next = (await sh('git rev-parse HEAD', repo)).trim();
-  expect((await engine.baseline.failing(g, next)).has(check.id)).toBe(false);
+  const commit = async (m: string) => {
+    await sh(`git commit -q --allow-empty -m "${m}"`, repo);
+    return (await sh('git rev-parse HEAD', repo)).trim();
+  };
+  // a goal that keeps no artifacts (nothing of it is judged by files): its baseline is left as git has it
+  expect((await engine.baseline.failing(g, await commit('chore: next'))).has(check.id)).toBe(true);
+  // a cad goal's workspace holds the export (git-excluded): the baseline worktree gets it, so the check passes there too
+  engine.store.append({ type: 'goal.nature_set', goalId: goal.id, payload: { nature: 'cad', reason: 'a model' } });
+  expect((await engine.baseline.failing(getGoal(engine.store.db, goal.id)!, await commit('chore: after'))).has(check.id)).toBe(false);
 });

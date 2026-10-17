@@ -6,8 +6,8 @@ import { runCommandCheck } from './checks/command.ts';
 import type { Engine } from './engine.ts';
 import { taskCommitMessage } from './git/conventional.ts';
 import { abortInProgress, conflictedFiles, ensureDetachedWorktree, git, gitIdent, gitOk, headRef, removeWorktree, withCoauthor } from './git/git.ts';
-import { landTaskArtifacts } from './artifact-landing.ts';
-import { copyArtifacts, dropTaskWorkspace, goalWorkspacePath, resolveWorkspacePath } from './workspace.ts';
+import { artifactsForChecks, landTaskArtifacts } from './goal-artifacts.ts';
+import { dropTaskWorkspace, goalWorkspacePath, resolveWorkspacePath } from './workspace.ts';
 
 /**
  * Manual resolution of a conflicted task integration.
@@ -88,9 +88,6 @@ export async function startResolution(engine: Engine, goalId: string, taskId: st
   if (!inProgress || opts.fresh) {
     const head = await headRef(goalWs);
     await ensureDetachedWorktree(goal.repoPath, path, head);
-    // the checks that judge the resolution see the exports as the merged goal will have them: the goal's, then the task's
-    copyArtifacts(goalWs, path);
-    if (task.worktreePath && existsSync(task.worktreePath)) copyArtifacts(task.worktreePath, path);
     const r = await git(['merge', '--squash', '--no-commit', task.branch!], path);
     const files = await conflictedFiles(path);
     if (r.code === 0 || !files.length) {
@@ -99,6 +96,10 @@ export async function startResolution(engine: Engine, goalId: string, taskId: st
       await removeWorktree(goal.repoPath, path).catch(() => {});
       throw new Error(r.code === 0 ? 'the merge no longer conflicts — use "Retry with hint" (no hint needed) and the engine will integrate it' : `squash merge failed without conflicts: ${r.stderr.slice(0, 300)}`);
     }
+    // the checks that judge the resolution see the exports as the merged goal will have them (git-excluded, so the merge
+    // did not bring them): the goal's, then what the task changed
+    await artifactsForChecks(engine, goal, goalWs, path, `resolution of "${task.title}"`);
+    if (task.worktreePath) await artifactsForChecks(engine, goal, task.worktreePath, path, `resolution of "${task.title}"`, { onlyChanged: true });
     engine.store.append({ type: 'merge.manual_started', goalId, payload: { taskId, files, path } });
   }
   return describeResolution(engine, goalId, taskId);

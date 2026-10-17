@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
-import { ARTIFACT_SCENARIOS, type Goal, type Task } from '@foundry/core';
+import { ARTIFACT_NATURES, ARTIFACT_SCENARIOS, listTasks, type Goal, type Task } from '@foundry/core';
 import type { Engine } from './engine.ts';
-import { copyArtifactFiles, goalWorkspacePath } from './workspace.ts';
+import { copyArtifactFiles, copyUntrackedArtifacts, goalWorkspacePath } from './workspace.ts';
 
 /**
  * Bring a landed task's artifacts into the goal workspace: they are git-excluded, so its commit cannot carry them. What
@@ -24,4 +24,23 @@ export function landTaskArtifacts(engine: Engine, goal: Goal, task: Task): strin
 export function landedArtifacts(engine: Engine, goalId: string, taskId: string): Set<string> | null {
   const landings = engine.store.listByGoalOfTypes(goalId, ['task.artifacts_landed']).filter((e) => (e.payload as { taskId: string }).taskId === taskId);
   return landings.length ? new Set(landings.flatMap((e) => (e.payload as { files: string[] }).files)) : null;
+}
+
+/** whether Foundry keeps artifacts/ for this goal: a goal judged by its files, or one with a task whose deliverables are files */
+export function goalUsesArtifacts(engine: Engine, goal: Goal): boolean {
+  return ARTIFACT_NATURES.includes(goal.nature) || listTasks(engine.store.db, goal.id).some((t) => ARTIFACT_SCENARIOS.includes(t.scenario));
+}
+
+/**
+ * Give a worktree that runs the goal's checks the artifacts of another (the goal workspace, a task's worktree), which
+ * git never carries: only for a goal that keeps artifacts, never over a file git tracks, and never at the cost of the
+ * checks. A copy that fails is noted, and the checks run without it.
+ */
+export async function artifactsForChecks(engine: Engine, goal: Goal, fromWs: string, toWs: string, where: string, opts: { onlyChanged?: boolean } = {}): Promise<void> {
+  if (!existsSync(fromWs) || !goalUsesArtifacts(engine, goal)) return;
+  try {
+    await copyUntrackedArtifacts(fromWs, toWs, opts);
+  } catch (err) {
+    engine.store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `${where}: the artifacts could not be copied (${String((err as Error)?.message ?? err)}); a check that measures an export may fail there` } });
+  }
 }

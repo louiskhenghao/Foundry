@@ -4,7 +4,8 @@ import { listChecks } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { ensureDetachedWorktree, removeWorktree } from '../git/git.ts';
 import { runCommandCheck } from './command.ts';
-import { baselineWorkspacePath, copyArtifacts, goalWorkspacePath } from '../workspace.ts';
+import { artifactsForChecks } from '../goal-artifacts.ts';
+import { baselineWorkspacePath, goalWorkspacePath } from '../workspace.ts';
 
 /**
  * Which must command checks already fail on a given goal-branch commit, *before* a merge.
@@ -12,19 +13,23 @@ import { baselineWorkspacePath, copyArtifacts, goalWorkspacePath } from '../work
  * A merge (automatic or manual) is judged against this baseline: a check that was already red on the goal
  * branch is not the merge's fault and must not keep a correctly resolved merge from landing — otherwise a goal
  * whose suite is red for an unrelated reason loops forever (work → merge "fails" → retry → …).
- * Computed in a throw-away `_baseline` worktree, given the goal workspace's artifacts (they never come through git), and
- * cached per commit.
+ * Computed in a throw-away `_baseline` worktree, given the artifacts (they never come through git) of the worktree the
+ * merge happens in, so both sides of the comparison measure the same exports; cached per commit and artifact source.
  */
 export class BaselineChecks {
   private cache = new Map<string, Promise<Set<string>>>();
   constructor(private engine: Engine) {}
 
-  /** ids of the must command checks failing at `ref` (an empty set when everything passes) */
-  failing(goal: Goal, ref: string): Promise<Set<string>> {
-    const key = `${goal.id}@${ref}`;
+  /**
+   * ids of the must command checks failing at `ref` (an empty set when everything passes), with the artifacts of
+   * `artifactsFrom`: the worktree the merge happens in (a task's on a catch-up), the goal workspace by default
+   */
+  failing(goal: Goal, ref: string, artifactsFrom?: string): Promise<Set<string>> {
+    const from = artifactsFrom ?? goalWorkspacePath(this.engine.config.dataDir, goal);
+    const key = `${goal.id}@${ref}@${from}`;
     let p = this.cache.get(key);
     if (!p) {
-      p = this.compute(goal, ref).catch((err) => {
+      p = this.compute(goal, ref, from).catch((err) => {
         this.cache.delete(key);
         this.engine.config.log(`[baseline] ${goal.id}@${ref.slice(0, 7)} failed: ${err}`);
         return new Set<string>();
@@ -36,15 +41,15 @@ export class BaselineChecks {
     return p;
   }
 
-  private async compute(goal: Goal, ref: string): Promise<Set<string>> {
+  private async compute(goal: Goal, ref: string, from: string): Promise<Set<string>> {
     const { config, store } = this.engine;
     const must = listChecks(store.db, goal.id).filter((c) => c.spec.type === 'command' && c.tier === 'must');
     if (!must.length) return new Set();
     const path = baselineWorkspacePath(config.dataDir, goal);
     await ensureDetachedWorktree(goal.repoPath, path, ref);
-    // artifacts never come through git: a check that measures an export sees the goal's exports here, as in the goal workspace
-    copyArtifacts(goalWorkspacePath(config.dataDir, goal), path);
     try {
+      // artifacts never come through git: a check that measures an export sees the exports the merged side has
+      await artifactsForChecks(this.engine, goal, from, path, `baseline at ${ref.slice(0, 7)}`);
       const failing = new Set<string>();
       for (const c of must) {
         const r = await runCommandCheck(c as Check, { cwd: path, outputDir: join(config.dataDir, 'check-output'), attemptId: `baseline-${ref.slice(0, 7)}` });

@@ -12,7 +12,7 @@ import { catchUp, filesOverlap } from './catchup.ts';
 import { existsSync } from 'node:fs';
 import { excludeFromGit } from './skills/autoskills.ts';
 import { dropTaskWorkspace, ensureGoalWorkspace, ensureTaskWorkspace, goalWorkspacePath } from './workspace.ts';
-import { landTaskArtifacts } from './artifact-landing.ts';
+import { landTaskArtifacts } from './goal-artifacts.ts';
 
 /**
  * One scheduling pass for a running goal. Idempotent; called after every event.

@@ -36,15 +36,20 @@ export function copyArtifacts(fromWs: string, toWs: string): number {
   return copyArtifactFiles(fromWs, toWs).length;
 }
 
-/** copyArtifacts, saying which files it copied (paths relative to artifacts/); `skip` names files left where they are */
-export function copyArtifactFiles(fromWs: string, toWs: string, skip: ReadonlySet<string> = new Set()): string[] {
+/**
+ * copyArtifacts, saying which files it copied (paths relative to artifacts/). `skip`: files left where they are;
+ * `inherited`: copy what the source inherited and left as it was too, so the destination mirrors its artifacts.
+ */
+export function copyArtifactFiles(fromWs: string, toWs: string, opts: { skip?: ReadonlySet<string>; inherited?: boolean } = {}): string[] {
   let inherited: Record<string, string> = {};
-  try {
-    inherited = JSON.parse(readFileSync(join(fromWs, ARTIFACTS_DIR, INHERITED), 'utf8'));
-  } catch {}
+  if (!opts.inherited) {
+    try {
+      inherited = JSON.parse(readFileSync(join(fromWs, ARTIFACTS_DIR, INHERITED), 'utf8'));
+    } catch {}
+  }
   const copied: string[] = [];
   for (const f of listArtifacts(fromWs)) {
-    if (skip.has(f)) continue;
+    if (opts.skip?.has(f)) continue;
     const src = join(fromWs, ARTIFACTS_DIR, f);
     if (inherited[f] && inherited[f] === hashOf(src)) continue;
     const dest = join(toWs, ARTIFACTS_DIR, f);
@@ -53,6 +58,23 @@ export function copyArtifactFiles(fromWs: string, toWs: string, skip: ReadonlySe
     copied.push(f);
   }
   return copied;
+}
+
+/** the files under a worktree's artifacts/ that git tracks (relative to artifacts/): they come through git, never by copy */
+export async function trackedArtifacts(ws: string): Promise<Set<string>> {
+  const r = await git(['ls-files', '-z', '--', ARTIFACTS_DIR], ws).catch(() => null);
+  if (!r || r.code !== 0) return new Set();
+  return new Set(r.stdout.split('\0').map((p) => p.trim()).filter(Boolean).map((p) => relative(ARTIFACTS_DIR, p)));
+}
+
+/**
+ * Artifacts into a worktree that runs checks, leaving alone what git tracks on either side (a repository's own
+ * artifacts/ folder comes through git). `onlyChanged`: of a task worktree, only what the task changed or added (layered
+ * over the goal's); otherwise everything, inherited files included.
+ */
+export async function copyUntrackedArtifacts(fromWs: string, toWs: string, opts: { onlyChanged?: boolean } = {}): Promise<string[]> {
+  const [from, to] = await Promise.all([trackedArtifacts(fromWs), trackedArtifacts(toWs)]);
+  return copyArtifactFiles(fromWs, toWs, { skip: new Set([...from, ...to]), inherited: !opts.onlyChanged });
 }
 
 /** Give a task worktree the goal workspace's artifacts to build on, remembering them so that only what the task changes or adds comes back. */

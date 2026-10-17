@@ -204,6 +204,51 @@ describe('manual merge resolution of tasks that export files', () => {
   }, 60_000);
 });
 
+describe('merge attempts of tasks that export files', () => {
+  test("a catch-up merge is judged with the task's own exports on both sides, not against exports it never had", async () => {
+    // cad tasks write their export under artifacts/ and rewrite shared.txt; beta is slower, so alpha lands first and
+    // beta meets the conflict when it catches up, in its own worktree, which never received alpha's export
+    const runner = new FakeRunner(async (spec) => {
+      if (spec.label?.startsWith('attempt')) {
+        const title = spec.label.replace(/^attempt /, '').replace(/ #\d+$/, '');
+        if (title === 'add beta') await Bun.sleep(1500);
+        writeFileSync(join(spec.cwd, 'shared.txt'), `${spec.label}\n`);
+        mkdirSync(join(spec.cwd, 'artifacts'), { recursive: true });
+        writeFileSync(join(spec.cwd, 'artifacts', `${title.replace(/ /g, '_')}.step`), 'ISO-10303-21;');
+      }
+      if (spec.label?.startsWith('merge')) {
+        writeFileSync(join(spec.cwd, 'shared.txt'), 'merged by the fake merger\n');
+        await sh('git add shared.txt', spec.cwd);
+      }
+    });
+    const engine = new Engine(cfg(), runner);
+    const cad = (key: string, title: string) => ({ ...t(key, title, [], true), scenario: 'cad' as const });
+    const goal = await engine.createGoal({
+      prompt: 'two parts',
+      repoPath: repo,
+      brief: {
+        title: 'feat: two parts',
+        understanding: 'u',
+        areas: [],
+        assumptions: [],
+        questions: [], styleOptions: [],
+        costEstimateUsd: 0,
+        timeEstimateMin: 0,
+        tasks: [cad('T1', 'add alpha'), cad('T2', 'add beta')],
+        checks: [c('C1', 'T1', 'test -s artifacts/add_alpha.step'), c('C2', 'T2', 'test -s artifacts/add_beta.step')],
+      },
+    });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state) || listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).length > 0, 40_000);
+    expect(listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).map((e) => e.message)).toEqual([]);
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+    // the catch-up merge attempt ran and was accepted: alpha's check fails in beta's worktree and in its baseline alike
+    const merges = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'attempt.concluded').map((e) => e.payload as { state: string; reason: string });
+    expect(merges.some((m) => m.reason === 'merged and checks pass')).toBe(true);
+    const ws = goalWorkspacePath(dataDir, goal);
+    expect(existsSync(join(ws, 'artifacts', 'add_alpha.step')) && existsSync(join(ws, 'artifacts', 'add_beta.step'))).toBe(true);
+  }, 60_000);
+});
+
 describe('merge judged on regressions only', () => {
   test('a must check that already fails on the goal branch does not sink a correctly resolved merge', async () => {
     // workers rewrite the same file; the fake merger resolves by writing a clean file and staging it

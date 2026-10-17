@@ -254,7 +254,8 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
   if (ok && op.runChecks !== false) {
     const checks = listChecks(store.db, goal.id).filter((c) => c.spec.type === 'command' && c.tier === 'must');
     // only regressions count: a check already red on the goal branch before this merge is not the merge's fault
-    const baseline = await engine.baseline.failing(goal, attempt.baseRef!);
+    // judged with the exports of the worktree the merge happens in: a task's own on a catch-up, the goal's on integration
+    const baseline = await engine.baseline.failing(goal, attempt.baseRef!, cwd);
     const failed: string[] = [];
     const preexisting: string[] = [];
     for (const c of checks) {

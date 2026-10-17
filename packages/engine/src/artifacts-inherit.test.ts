@@ -26,3 +26,28 @@ test("a task worktree inherits the goal's artifacts, and only what it changed or
   writeFileSync(join(media, 'artifacts', 'poster.png'), 'png');
   expect(copyArtifacts(media, goal)).toBe(1);
 });
+
+test("artifacts copied into a worktree that runs checks leave alone what git tracks, and mirror a task's inherited files unless only its changes are asked for", async () => {
+  const { copyUntrackedArtifacts } = await import('./workspace.ts');
+  const { makeRepo, sh } = await import('./test-helpers.ts');
+  // the repository keeps a file of its own under artifacts/
+  const repo = await makeRepo();
+  mkdirSync(join(repo, 'artifacts'), { recursive: true });
+  writeFileSync(join(repo, 'artifacts', 'abi.json'), 'v1');
+  await sh('git add artifacts/abi.json && git commit -qm abi', repo);
+  const check = join(mkdtempSync(join(tmpdir(), 'foundry-art-check-')), 'wt');
+  await sh(`git worktree add -q --detach "${check}" HEAD`, repo);
+  // the source changed the tracked file and made an export git does not track
+  writeFileSync(join(repo, 'artifacts', 'abi.json'), 'v2');
+  writeFileSync(join(repo, 'artifacts', 'part.step'), 'part');
+  expect(await copyUntrackedArtifacts(repo, check)).toEqual(['part.step']);
+  expect(readFileSync(join(check, 'artifacts', 'abi.json'), 'utf8')).toBe('v1');
+  // no tracked file changed: a merge or checkout in that worktree is not refused
+  expect(await sh('git status --porcelain --untracked-files=no', check)).toBe('');
+  // a task worktree that inherited the export: mirrored by default, left out when only the task's changes are asked for
+  const task = mkdtempSync(join(tmpdir(), 'foundry-art-task-'));
+  inheritArtifacts(join(check), task);
+  const fresh = mkdtempSync(join(tmpdir(), 'foundry-art-fresh-'));
+  expect(await copyUntrackedArtifacts(task, fresh, { onlyChanged: true })).toEqual([]);
+  expect((await copyUntrackedArtifacts(task, fresh)).sort()).toEqual(['abi.json', 'part.step']);
+});
