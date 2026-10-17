@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test } from 'bun:test';
+import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test';
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -94,4 +94,31 @@ test('a re-export of the same size that kept its times is another state of the e
   writeFileSync(join(art, 'bracket.step'), 'rev2');
   utimesSync(join(art, 'bracket.step'), at, at);
   expect((await engine.baseline.failing(g, head)).has(check.id)).toBe(false);
+});
+
+test('a goal with no must command checks reads none of its exports for a baseline', async () => {
+  const repo = await makeRepo();
+  const goal = await engine.createGoal({ prompt: 'a bracket', repoPath: repo, autoBrief: { mustChecks: [] } });
+  engine.store.append({ type: 'goal.nature_set', goalId: goal.id, payload: { nature: 'cad', reason: 'a model' } });
+  const g = getGoal(engine.store.db, goal.id)!;
+  for (const c of engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'check.created')) expect((c.payload as { check: Check }).check.tier === 'must' && (c.payload as { check: Check }).check.spec.type === 'command').toBe(false);
+  const print = spyOn(engine.baseline as unknown as { exportsPrint: () => Promise<string> }, 'exportsPrint');
+  expect((await engine.baseline.failing(g, (await sh('git rev-parse HEAD', repo)).trim())).size).toBe(0);
+  expect(print).not.toHaveBeenCalled();
+});
+
+test("one file's bytes never pass for another file's name in the exports' print", async () => {
+  const repo = await makeRepo();
+  const goal = await engine.createGoal({ prompt: 'a bracket', repoPath: repo, autoBrief: { mustChecks: ['true'] } });
+  engine.store.append({ type: 'goal.nature_set', goalId: goal.id, payload: { nature: 'cad', reason: 'a model' } });
+  const g = getGoal(engine.store.db, goal.id)!;
+  const print = (ws: string) => (engine.baseline as unknown as { exportsPrint: (g: unknown, ws: string) => Promise<string> }).exportsPrint(g, ws);
+  const one = mkdtempSync(join(tmpdir(), 'foundry-print-one-'));
+  const two = mkdtempSync(join(tmpdir(), 'foundry-print-two-'));
+  for (const d of [one, two]) mkdirSync(join(d, 'artifacts'), { recursive: true });
+  writeFileSync(join(one, 'artifacts', 'a.bin'), 'X\0b.bin\0Y');
+  writeFileSync(join(two, 'artifacts', 'a.bin'), 'X');
+  writeFileSync(join(two, 'artifacts', 'b.bin'), 'Y');
+  expect(await print(one)).not.toBe(await print(two));
+  for (const d of [one, two]) rmSync(d, { recursive: true, force: true });
 });
