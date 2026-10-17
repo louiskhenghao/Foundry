@@ -1,5 +1,5 @@
 import type { Goal, Task } from '@foundry/core';
-import { listTasks, getTask, getGoal, listAttempts, getObservation } from '@foundry/core';
+import { ARTIFACT_SCENARIOS, listTasks, getTask, getGoal, listAttempts, getObservation } from '@foundry/core';
 import { type Continuation, continuationMessage, decideNext, maxAttemptsFor, runAttempt } from './attempt-loop.ts';
 import { budgetStatus } from './budget.ts';
 import type { Engine } from './engine.ts';
@@ -11,7 +11,8 @@ import { integrateTask } from './merge.ts';
 import { catchUp, filesOverlap } from './catchup.ts';
 import { existsSync } from 'node:fs';
 import { excludeFromGit } from './skills/autoskills.ts';
-import { copyArtifacts, dropTaskWorkspace, ensureGoalWorkspace, ensureTaskWorkspace, goalWorkspacePath } from './workspace.ts';
+import { dropTaskWorkspace, ensureGoalWorkspace, ensureTaskWorkspace, goalWorkspacePath } from './workspace.ts';
+import { landTaskArtifacts } from './artifact-landing.ts';
 
 /**
  * One scheduling pass for a running goal. Idempotent; called after every event.
@@ -186,7 +187,7 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
     }
     // media and CAD tasks generate into artifacts/, which must never reach a commit (info/exclude is shared by all
     // worktrees); the leading slash anchors to the workspace root so docs/artifacts/ manifests stay tracked
-    if (task.scenario === 'image' || task.scenario === 'video' || task.scenario === 'cad') await excludeFromGit(cwd, ['/artifacts/'], (m) => config.log(m));
+    if (ARTIFACT_SCENARIOS.includes(task.scenario)) await excludeFromGit(cwd, ['/artifacts/'], (m) => config.log(m));
     task = getTask(store.db, task.id)!;
     // an attempt cut by an engine restart is resumed (its session keeps its context) instead of being redone
     const last = listAttempts(store.db, task.id).filter((a) => a.kind === 'work').at(-1);
@@ -230,10 +231,7 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
       const merged = await integrateTask(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!);
       if (merged) {
         // artifacts are git-excluded, so the squash merge cannot carry them: rescue them before the worktree goes
-        if (fresh.worktreePath && existsSync(fresh.worktreePath)) {
-          const n = copyArtifacts(fresh.worktreePath, goalWorkspacePath(config.dataDir, goal));
-          if (n) config.log(`[artifacts] ${task.id}: ${n} file(s) copied to the goal workspace`);
-        }
+        landTaskArtifacts(engine, goal, fresh);
         if (fresh.worktreePath) {
           await dropTaskWorkspace(goal, getTask(store.db, task.id)!).catch(() => {});
           // the worktree (and its branch) are gone — clear the pointers so the UI stops offering them

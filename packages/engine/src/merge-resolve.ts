@@ -6,6 +6,7 @@ import { runCommandCheck } from './checks/command.ts';
 import type { Engine } from './engine.ts';
 import { taskCommitMessage } from './git/conventional.ts';
 import { abortInProgress, conflictedFiles, ensureDetachedWorktree, git, gitIdent, gitOk, headRef, removeWorktree, withCoauthor } from './git/git.ts';
+import { landTaskArtifacts } from './artifact-landing.ts';
 import { copyArtifacts, dropTaskWorkspace, goalWorkspacePath, resolveWorkspacePath } from './workspace.ts';
 
 /**
@@ -227,6 +228,13 @@ export async function finishResolution(engine: Engine, goalId: string, taskId: s
     return { ok: false, ref: null, error: `the goal branch moved and the resolution no longer applies cleanly: ${cp.stderr.slice(0, 300)}` };
   });
   if (!landed.ok) return { ok: false, ref, checks, reason: `${landed.error} — start the resolution again from the current goal branch` };
+  // the task's exports are git-excluded, so the commit did not carry them: they reach the goal workspace here, as when a
+  // task lands by itself, before its worktree goes
+  try {
+    landTaskArtifacts(engine, getGoal(store.db, goalId) ?? goal, task);
+  } catch (err) {
+    store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `"${task.title}": its artifacts could not be copied to the goal workspace (${String((err as Error)?.message ?? err)})` } });
+  }
 
   store.append({ type: 'merge.completed', goalId, payload: { taskId, ref: landed.ref! } });
   store.append({ type: 'task.committed', goalId, payload: { taskId, ref: existing.code === 0 ? null : landed.ref!, message } });

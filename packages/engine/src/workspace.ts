@@ -33,20 +33,26 @@ export function listArtifacts(ws: string): string[] {
  * later never puts an older copy over a newer export.
  */
 export function copyArtifacts(fromWs: string, toWs: string): number {
+  return copyArtifactFiles(fromWs, toWs).length;
+}
+
+/** copyArtifacts, saying which files it copied (paths relative to artifacts/); `skip` names files left where they are */
+export function copyArtifactFiles(fromWs: string, toWs: string, skip: ReadonlySet<string> = new Set()): string[] {
   let inherited: Record<string, string> = {};
   try {
     inherited = JSON.parse(readFileSync(join(fromWs, ARTIFACTS_DIR, INHERITED), 'utf8'));
   } catch {}
-  let n = 0;
+  const copied: string[] = [];
   for (const f of listArtifacts(fromWs)) {
+    if (skip.has(f)) continue;
     const src = join(fromWs, ARTIFACTS_DIR, f);
     if (inherited[f] && inherited[f] === hashOf(src)) continue;
     const dest = join(toWs, ARTIFACTS_DIR, f);
     mkdirSync(dirname(dest), { recursive: true });
     cpSync(src, dest);
-    n++;
+    copied.push(f);
   }
-  return n;
+  return copied;
 }
 
 /** Give a task worktree the goal workspace's artifacts to build on, remembering them so that only what the task changes or adds comes back. */

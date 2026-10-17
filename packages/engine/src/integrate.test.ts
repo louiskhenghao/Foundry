@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { getGoal, listEscalations, listTasks } from '@foundry/core';
@@ -156,6 +156,51 @@ describe('manual merge resolution', () => {
     const before = engine.store.snapshotReadModels();
     engine.store.replay();
     expect(engine.store.snapshotReadModels()).toEqual(before);
+  }, 60_000);
+});
+
+describe('manual merge resolution of tasks that export files', () => {
+  test("a manually resolved task's exports reach the goal workspace, recorded as its landing, and the checks that measure them pass", async () => {
+    const { startResolution, takeSide, finishResolution } = await import('./merge-resolve.ts');
+    // cad tasks: their exports live under artifacts/, which git never sees; both also rewrite shared.txt, so they conflict
+    const runner = new FakeRunner((spec) => {
+      if (!spec.label?.startsWith('attempt')) return;
+      const title = spec.label.replace(/^attempt /, '').replace(/ #\d+$/, '');
+      writeFileSync(join(spec.cwd, 'shared.txt'), `${spec.label}\n`);
+      mkdirSync(join(spec.cwd, 'artifacts'), { recursive: true });
+      writeFileSync(join(spec.cwd, 'artifacts', `${title.replace(/ /g, '_')}.step`), 'ISO-10303-21;');
+    });
+    const engine = new Engine(cfg(), runner);
+    const cad = (key: string, title: string) => ({ ...t(key, title, [], true), scenario: 'cad' as const });
+    const goal = await engine.createGoal({
+      prompt: 'conflicting exports',
+      repoPath: repo,
+      brief: {
+        title: 'feat: two parts',
+        understanding: 'u',
+        areas: [],
+        assumptions: [],
+        questions: [], styleOptions: [],
+        costEstimateUsd: 0,
+        timeEstimateMin: 0,
+        tasks: [cad('T1', 'add alpha'), cad('T2', 'add beta')],
+        checks: [c('C1', 'T1', 'test -s artifacts/add_alpha.step'), c('C2', 'T2', 'test -s artifacts/add_beta.step')],
+      },
+    });
+    const mergeEsc = () => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).find((e) => (e.payload as { kind?: string }).kind === 'merge');
+    await waitFor(() => !!mergeEsc(), 30_000);
+    const taskId = mergeEsc()!.taskId!;
+    const file = `${listTasks(engine.store.db, goal.id).find((x) => x.id === taskId)!.title.replace(/ /g, '_')}.step`;
+    await startResolution(engine, goal.id, taskId);
+    await takeSide(engine, goal.id, taskId, 'shared.txt', 'both');
+    const fin = await finishResolution(engine, goal.id, taskId);
+    // the resolution sees the exports as the merged goal has them: the other task's (landed) and this task's own
+    expect(fin.checks.map((x) => [x.name, x.status])).toEqual([['C1', 'pass'], ['C2', 'pass']]);
+    expect(fin.ok).toBe(true);
+    // the task's export is in the goal workspace once its worktree is gone, recorded as its landing
+    expect(existsSync(join(goalWorkspacePath(dataDir, goal), 'artifacts', file))).toBe(true);
+    const landed = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'task.artifacts_landed').map((e) => e.payload);
+    expect(landed).toContainEqual({ taskId, files: [file] });
   }, 60_000);
 });
 
