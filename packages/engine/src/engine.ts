@@ -1,5 +1,5 @@
 import type { CodexQuota } from './usage/types.ts';
-import { CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, Effort, effectiveCodexPresets, isHistory, natureKey, repoHere, type CodexModelPreset } from '@foundry/core';
+import { CAD_VIEWER_KEY, CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, Effort, effectiveCodexPresets, isHistory, natureKey, repoHere, type CodexModelPreset } from '@foundry/core';
 import { CodexPlugins } from './plugins/codex-plugins.ts';
 import { CodexQuotaReader } from './usage/codex-quota.ts';
 import { discoverCodexModels } from './models/codex-discover.ts';
@@ -75,7 +75,7 @@ import type { StreamEvent, StreamListener } from './types.ts';
 import { ARTIFACTS_DIR, defaultWorkspaceDir, deliveryWorkspacePath, dropTaskWorkspace, ensureGoalWorkspace, goalWorkspacePath, internalWorkspaceDir, listArtifacts, listStackBranches, previewWorkspacePath } from './workspace.ts';
 import { transferGoalDir } from './transfer/paths.ts';
 import { relocateLegacyWorkspaces } from './workspace-migrate.ts';
-import { CAD_VIEWER_KEY, PreviewManager } from './preview/manager.ts';
+import { PreviewManager } from './preview/manager.ts';
 import { ensureSelfCheck, playwrightInstallCommand, playwrightStatus, runSelfCheck } from './checks/selfcheck.ts';
 import { afterMerge, type AfterMergeOptions } from './delivery/after-merge.ts';
 import { startOver, structuralChanges } from './delivery/start-over.ts';

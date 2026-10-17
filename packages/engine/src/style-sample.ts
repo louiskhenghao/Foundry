@@ -11,7 +11,7 @@ import { renderStyle } from './attempt-prompt.ts';
 import type { Engine } from './engine.ts';
 import { boundarySettings } from './guards/boundary.ts';
 import { excludeFromGit } from './skills/autoskills.ts';
-import { goalWorkspacePath } from './workspace.ts';
+import { ARTIFACTS_DIR, SAMPLES_DIR, goalWorkspacePath } from './workspace.ts';
 import { metaFor, modelFor } from './models/roles.ts';
 
 /** soft cap per proposal: keeps a stuck regenerate loop from burning money */
@@ -44,7 +44,7 @@ export function startStyleSample(engine: Engine, goalId: string, styleKey: strin
   if (opt.samples.length >= STYLE_SAMPLE_MAX) throw new StyleSampleError(`this direction already has ${STYLE_SAMPLE_MAX} samples — pick one, or edit the Brief`, 409);
   const key = `${goalId}:${styleKey}`;
   if (running.has(key)) throw new StyleSampleError('a sample for this direction is already being generated', 409);
-  const file = `artifacts/samples/${styleKey}-${opt.samples.length + 1}.png`;
+  const file = `${ARTIFACTS_DIR}/${SAMPLES_DIR}/${styleKey}-${opt.samples.length + 1}.png`;
   running.add(key);
   void generate(engine, goalId, opt, file)
     .catch((err) => engine.store.append({ type: 'brief.style_sampled', goalId, payload: { styleKey, file, costUsd: 0, status: 'failed', detail: String((err as Error).message ?? err).slice(0, 300) } }))
@@ -57,7 +57,7 @@ async function generate(engine: Engine, goalId: string, opt: BriefStyleOption, f
   const goal = getGoal(store.db, goalId)!;
   const ws = goalWorkspacePath(config.dataDir, goal);
   await excludeFromGit(ws, ['/artifacts/'], (m) => config.log(m));
-  mkdirSync(join(ws, 'artifacts', 'samples'), { recursive: true });
+  mkdirSync(join(ws, ARTIFACTS_DIR, SAMPLES_DIR), { recursive: true });
   const skillsHint = await engine.skillsFor(goal).hints.sectionFor('worker', { scenario: 'image' });
   const prompt = [
     `# Goal (for context)\n${goal.prompt.slice(0, 2000)}`,

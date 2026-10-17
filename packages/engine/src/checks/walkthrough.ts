@@ -4,13 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import { ARTIFACT_SCENARIOS, getGoal, getTask, listAttempts, type Goal, type Task } from '@foundry/core';
+import { ARTIFACT_SCENARIOS, CAD_VIEWER_KEY, getGoal, getTask, listAttempts, type Goal, type Task } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { landedArtifacts } from '../goal-artifacts.ts';
 import { boundarySettings } from '../guards/boundary.ts';
-import { CAD_VIEWER_KEY, type PreviewAppStatus } from '../preview/manager.ts';
+import type { PreviewAppStatus } from '../preview/manager.ts';
 import { metaFor, modelFor } from '../models/roles.ts';
-import { ARTIFACTS_DIR, goalWorkspacePath, listArtifacts, screenshotsDir } from '../workspace.ts';
+import { ARTIFACTS_DIR, goalWorkspacePath, isStyleSample, listArtifacts, screenshotsDir } from '../workspace.ts';
 import { runMilestoneScript, type ScriptDeps } from './milestone-script.ts';
 
 export const WALK_MAX_BUDGET_USD = 0.5;
@@ -238,7 +238,7 @@ async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: Captur
         return null;
       }
     };
-    const shows = (f: string) => !f.startsWith('samples/') && (IMAGE.test(f) || VIDEO.test(f) || NAMED.test(f));
+    const shows = (f: string) => !isStyleSample(f) && (IMAGE.test(f) || VIDEO.test(f) || NAMED.test(f));
     let pool = files
       .filter((f) => shows(f) && (!landed || landed.has(f)))
       .map(stat)

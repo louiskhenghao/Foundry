@@ -4,7 +4,7 @@ import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
 import { spawnStreaming } from '../skills/updaters.ts';
 import type { BriefApp, BriefRun, Goal, PreviewPlace } from '@foundry/core';
-import { getBrief, getGoal, repoHere } from '@foundry/core';
+import { CAD_VIEWER_KEY, getBrief, getGoal, repoHere } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { ensureDetachedWorktree, git, gitOk } from '../git/git.ts';
 import { goalWorkspacePath, previewWorkspacePath } from '../workspace.ts';
@@ -17,8 +17,6 @@ import { ServicesManager } from './services.ts';
 
 export type PreviewStarter = 'human' | 'milestone' | 'integration';
 
-/** the preview app key of text-to-cad's viewer on a cad goal: started by the person, never by a walkthrough */
-export const CAD_VIEWER_KEY = 'cad-viewer';
 
 /** an address on the person's tailnet for a local url: the tailnet origin with the url's path and query */
 export function tailnetAddress(base: string, url: string): string {
