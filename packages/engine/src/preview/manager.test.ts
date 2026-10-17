@@ -400,6 +400,13 @@ describe('the CAD viewer', () => {
     writeFileSync(join(ws, 'artifacts', 'frame_assembly.step'), 'x');
     expect(viewer().url).toBe(`http://localhost:${port}/?file=${ws}/artifacts/frame_assembly.step`);
     expect(viewer().tailnetUrl).toBe(`https://box.example.ts.net:${port}/?file=${ws}/artifacts/frame_assembly.step`);
+    // a tailnet name a URL cannot hold (the setting is free text) leaves the address as started, never a failed status
+    engine.preview.stop(g.id, 'human', 'cad-viewer');
+    await waitFor(() => !viewer().running, 10_000);
+    engine.tailnet.expose = async (p: number) => `https://my box:${p}/`;
+    await engine.preview.start(g, 'human', 'cad-viewer');
+    await waitFor(() => viewer().ready && !!viewer().tailnetUrl, 15_000);
+    expect(viewer().tailnetUrl).toStartWith('https://my box:');
     await engine.preview.stop(g.id, 'human', 'cad-viewer');
-  }, 30_000);
+  }, 45_000);
 });

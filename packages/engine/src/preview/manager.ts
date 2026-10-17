@@ -268,7 +268,9 @@ export class PreviewManager {
     // the CAD Viewer opens the model chosen now (an assembly exported after it started), not the one it started on
     const current = l && key === CAD_VIEWER_KEY && run?.url ? run.url.replaceAll('{port}', String(l.port)) : null;
     const url = current ?? l?.url ?? null;
-    const tailnetUrl = l?.tailnetUrl && current ? tailnetAddress(new URL(l.tailnetUrl).origin, current) : (l?.tailnetUrl ?? null);
+    // a tailnet name the settings allow but a URL does not (a space) leaves the address as it was started, never a failed status
+    const origin = l?.tailnetUrl && current ? URL.parse(l.tailnetUrl)?.origin : null;
+    const tailnetUrl = origin && current ? tailnetAddress(origin, current) : (l?.tailnetUrl ?? null);
     return {
       mock: this.mocked.has(id(goalId, key)),
       key,
