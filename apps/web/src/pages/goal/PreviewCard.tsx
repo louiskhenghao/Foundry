@@ -1,4 +1,4 @@
-import { ExternalLink, Eye, EyeOff, GitBranch, Play, Plus, Square, X } from 'lucide-react';
+import { ExternalLink, Eye, EyeOff, GitBranch, Lock, Play, Plus, Square, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { type PreviewAppStatus, type PreviewEnv, type PreviewPlace, type PreviewSources, type PreviewStatus, type ServicesStatus, api } from '../../api.ts';
 import { Button, Card, CopyButton, Input, Modal, Select, cn } from '../../ui.tsx';
@@ -6,7 +6,8 @@ import { LiveLog } from '../LiveLog.tsx';
 import { WorkspaceDetails } from './WorkspaceDetails.tsx';
 import { PortLine, usePortRelease, usePorts } from '../PortsPage.tsx';
 import { Link } from 'react-router-dom';
-import type { Goal } from '@foundry/core/browser';
+import { CAD_VIEWER_KEY, type Goal } from '@foundry/core/browser';
+import { HelpLink } from '../HelpPage.tsx';
 
 const startedByText = (by: PreviewAppStatus['startedBy']) => (by === 'human' ? 'by you' : by === 'milestone' ? 'for the milestone' : by === 'integration' ? 'after a task landed' : null);
 
@@ -33,13 +34,41 @@ function AlsoServing({ app, onVisit }: { app: PreviewAppStatus; onVisit: () => v
   );
 }
 
-/** this page was opened from another device (over the tailnet), where localhost is that device, not this computer */
+/** this page was not opened by localhost: from another device (over the tailnet), or on this computer by its network name */
 const remote = typeof location !== 'undefined' && !['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
 /** where to open an app: its tailnet address when the page itself came over the tailnet */
 const openUrl = (a: PreviewAppStatus) => (remote && a.tailnetUrl ? a.tailnetUrl : a.url);
-/** the CAD Viewer is never on the tailnet (it serves any file of this computer by its path): another device has nothing to open */
-const hereOnly = (a: PreviewAppStatus) => remote && a.key === 'cad-viewer';
-const HERE_ONLY = 'The CAD Viewer opens only on the computer Foundry runs on: it can read any file there, so it is not put on your tailnet';
+/** the CAD Viewer is never on the tailnet (it serves any file of Foundry's computer by its path): see HereOnly */
+const hereOnly = (a: PreviewAppStatus) => remote && a.key === CAD_VIEWER_KEY;
+
+/** the address an app answers on (localhost:4178), without the path and query its link carries (the CAD Viewer's names the model's whole path) */
+export const viewerAddress = (url: string) => {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+};
+
+/**
+ * The CAD Viewer seen from an address other than localhost. A phone has nothing to open; Foundry's own computer reached by
+ * another name (its LAN address, its tailnet name) still opens the localhost address, so that address stays a link, shown
+ * as it is: on another device it names that device. Kept to the height of the line it sits in, on its text's baseline.
+ */
+function HereOnly({ app, onVisit }: { app: PreviewAppStatus; onVisit: () => void }) {
+  return (
+    <span className="inline-flex max-w-full items-baseline gap-1.5 rounded border border-zinc-700 px-1.5 text-[11px] leading-[14px] text-zinc-400">
+      <Lock size={11} aria-hidden="true" className="self-center" />
+      <span>only on Foundry's computer</span>
+      {app.running && app.url && (
+        <a href={app.url} target="_blank" rel="noreferrer" onClick={onVisit} title="Opens in a browser on Foundry's computer; on another device this address is that device" className="mono min-w-0 truncate text-emerald-300 hover:underline">
+          {viewerAddress(app.url)}
+        </a>
+      )}
+      <HelpLink to="getting-the-result#cad-viewer" label="Why the CAD Viewer opens only on Foundry's computer (new tab)" className="self-center" />
+    </span>
+  );
+}
 
 /** why the last run ended, with the lines the app printed last; or what to know while it runs */
 function Problems({ app }: { app: PreviewAppStatus }) {
@@ -162,7 +191,7 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
   const anyRunning = apps.some((a) => a.running);
   const allRunning = apps.every((a) => a.running || !a.run.command);
   // a CAD goal whose repository has nothing to run itself: the preview is text-to-cad's viewer alone
-  const viewerOnly = apps.length === 1 && apps[0]?.key === 'cad-viewer';
+  const viewerOnly = apps.length === 1 && apps[0]?.key === CAD_VIEWER_KEY;
   const fromText = st?.source === 'brief' ? 'the Brief' : viewerOnly ? 'text-to-cad' : multi ? 'package.json workspaces' : 'package.json';
   const allButtons = multi && (
     <>
@@ -186,7 +215,7 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
               {startedByText(a.startedBy) && <span className="text-zinc-500"> · started {startedByText(a.startedBy)}</span>}
               {a.mock && <span className="text-amber-300" title="Running its mock command against fake data for the milestone walkthrough; the next start runs the real app"> · mock data</span>}
             </span>
-            {a.url && hereOnly(a) && <span className="text-zinc-500" title={HERE_ONLY}>opens on the computer Foundry runs on</span>}
+            {hereOnly(a) && <HereOnly app={a} onVisit={visit} />}
             {a.url && !hereOnly(a) && (
               <a href={openUrl(a)!} target="_blank" rel="noreferrer" onClick={visit} className="inline-flex items-center gap-1 text-emerald-300 hover:underline">
                 {viewerOnly ? 'Open the model' : 'Open preview'} <ExternalLink size={12} />
@@ -199,6 +228,7 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
         ) : (
           <>
             <span className="text-zinc-300">{st!.run?.command ? (viewerOnly ? 'CAD Viewer not running' : 'Not running') : 'Nothing to run yet'}</span>
+            {viewerOnly && hereOnly(apps[0]!) && <HereOnly app={apps[0]!} onVisit={visit} />}
             <Button size="sm" variant="primary" className="ml-auto" disabled={!!busy || !st!.run?.command} onClick={() => run('start:*', () => api.previewStart(goalId))} title={st!.run?.command ? `runs: ${st!.run.command}` : 'no dev/start script in package.json — the Brief\'s "How to run it" can set a command'}>
               <Play size={12} /> {busy === 'start:*' ? 'Starting…' : viewerOnly ? 'Start the viewer' : 'Start preview'}
             </Button>
@@ -231,7 +261,7 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
               <span className="text-zinc-200 font-medium">{a.name}</span>
               {a.dir && <span className="mono text-[11px] text-zinc-500 truncate max-w-[14rem]" title={a.dir}>{a.dir}</span>}
               {a.running && a.port != null && <span className="text-[11px] text-zinc-500">:{a.port}</span>}
-              {a.running && a.url && hereOnly(a) && <span className="text-[11px] text-zinc-500" title={HERE_ONLY}>opens on the computer Foundry runs on</span>}
+              {hereOnly(a) && <HereOnly app={a} onVisit={visit} />}
               {a.running && a.url && !hereOnly(a) && (
                 <a href={openUrl(a)!} target="_blank" rel="noreferrer" onClick={visit} title={openUrl(a)!} className="inline-flex items-center gap-1 self-center text-emerald-300 hover:underline">
                   Open <ExternalLink size={12} />
