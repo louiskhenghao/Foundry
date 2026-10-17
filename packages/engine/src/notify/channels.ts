@@ -113,17 +113,23 @@ export class TelegramNotifier implements Notifier {
     const { files, note } = fitting(all, { photo: 10e6, video: 50e6, total: 50e6, count: 10 });
     const plain = [caption, note].filter(Boolean).join('\n');
     if (!files.length) return this.send(plain, links);
-    if (files.length === 1 && files[0]!.kind === 'photo') return this.sendPhoto(plain, files[0]!.path, links);
-    if (files.length === 1)
-      return this.upload('sendVideo', plain, links, async (form, text, html) => {
-        form.set('caption', text);
-        if (html) form.set('parse_mode', 'HTML');
-        form.set('video', await blob(files[0]!), fileName(files[0]!));
+    try {
+      if (files.length === 1 && files[0]!.kind === 'photo') return await this.sendPhoto(plain, files[0]!.path, links);
+      if (files.length === 1)
+        return await this.upload('sendVideo', plain, links, async (form, text, html) => {
+          form.set('caption', text);
+          if (html) form.set('parse_mode', 'HTML');
+          form.set('video', await blob(files[0]!), fileName(files[0]!));
+        });
+      await this.upload('sendMediaGroup', plain, links, async (form, text, html) => {
+        form.set('media', JSON.stringify(files.map((f, i) => ({ type: f.kind, media: `attach://f${i}`, ...(i === 0 ? { caption: text, ...(html ? { parse_mode: 'HTML' } : {}) } : {}) }))));
+        for (const [i, f] of files.entries()) form.set(`f${i}`, await blob(f), fileName(f));
       });
-    await this.upload('sendMediaGroup', plain, links, async (form, text, html) => {
-      form.set('media', JSON.stringify(files.map((f, i) => ({ type: f.kind, media: `attach://f${i}`, ...(i === 0 ? { caption: text, ...(html ? { parse_mode: 'HTML' } : {}) } : {}) }))));
-      for (const [i, f] of files.entries()) form.set(`f${i}`, await blob(f), fileName(f));
-    });
+    } catch (err) {
+      // a file Telegram will not take (a picture with too many pixels or an odd shape) must not drop the message
+      if (!/^telegram 400/.test(String((err as Error)?.message))) throw err;
+      await this.send(`${plain}\n(the files could not be attached)`, links);
+    }
   }
   /** a multipart upload with a caption (1024 at most): its links as HTML, written out when Telegram refuses them */
   private async upload(method: string, caption: string, links: Link[], fill: (form: FormData, text: string, html: boolean) => Promise<void>): Promise<void> {

@@ -78,4 +78,11 @@ describe('milestones', () => {
     const partly = compose(ev('milestone.evidence', { taskId: 't1', video: null, shots: [], summary: 'opens /dev', error: '3 screenshot(s) showed HTTP 404 at /dev and were left out' }), () => 'Demo');
     expect(partly!.text).toBe('📸 What the milestone looks like — Demo\nopens /dev\n⚠️ 3 screenshot(s) showed HTTP 404 at /dev and were left out');
   });
+
+  test("a milestone of files speaks of what the task produced, never of a walkthrough", () => {
+    const shown = compose(ev('milestone.evidence', { taskId: 't1', video: null, shots: [{ file: 's.png', caption: 'bracket_iso.png' }], summary: 'Files: bracket.step.', error: null, status: 'pass', kind: 'files' }), () => 'Demo');
+    expect(shown!.text).toBe('📸 What the task produced — Demo\nFiles: bracket.step.');
+    const nothing = compose(ev('milestone.evidence', { taskId: 't1', video: null, shots: [], summary: '', error: 'the task left no snapshots or exports under artifacts/: there is nothing to look at', status: 'fail', kind: 'files' }), () => 'Demo');
+    expect(nothing!.text).toBe('⚠️ Nothing to look at yet — Demo\nThe task left no snapshots or exports under artifacts/: there is nothing to look at');
+  });
 });

@@ -57,6 +57,23 @@ describe('media in notifications', () => {
   });
 });
 
+describe('a picture Telegram refuses', () => {
+  test('does not drop the message: the text goes alone, saying the files could not be attached', async () => {
+    const methods: string[] = [];
+    let text = '';
+    globalThis.fetch = (async (url: string, init: RequestInit) => {
+      methods.push(String(url).split('/').pop()!);
+      if (String(url).endsWith('/sendPhoto')) return new Response('{"ok":false,"description":"Bad Request: PHOTO_INVALID_DIMENSIONS"}', { status: 400 });
+      text = JSON.parse(String(init.body)).text;
+      return new Response('{}', { status: 200 });
+    }) as typeof fetch;
+    await new TelegramNotifier('tok', '42').sendMedia('look', [file('wide.png', 10, 'photo')]);
+    expect(methods).toEqual(['sendPhoto', 'sendPhoto', 'sendMessage']);
+    expect(text).toContain('look');
+    expect(text).toContain('could not be attached');
+  });
+});
+
 describe('links', () => {
   test('Telegram gets named links in HTML, and the addresses written out when it refuses them', async () => {
     const calls: { body: any }[] = [];
