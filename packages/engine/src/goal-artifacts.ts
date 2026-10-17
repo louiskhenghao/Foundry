@@ -36,7 +36,7 @@ export async function landTaskArtifacts(engine: Engine, goal: Goal, task: Task, 
   } else {
     return { files: [], failed };
   }
-  if (files.length || failed.length || ARTIFACT_SCENARIOS.includes(task.scenario)) engine.store.append({ type: 'task.artifacts_landed', goalId: goal.id, payload: { taskId: task.id, files } });
+  if (files.length || failed.length || ARTIFACT_SCENARIOS.includes(task.scenario)) engine.store.append({ type: 'task.artifacts_landed', goalId: goal.id, payload: { taskId: task.id, files, ...(failed.length ? { failed } : {}) } });
   return { files, failed };
 }
 
@@ -61,12 +61,12 @@ function changedInGoalWorkspace(engine: Engine, goal: Goal, task: Task, goalWs: 
 }
 
 /**
- * The files a task's landings brought into the goal workspace (relative to artifacts/). Null when none was recorded: a
- * goal from before landings were, or a task that worked in the goal workspace itself.
+ * The files a task's landings brought into the goal workspace (relative to artifacts/), and those they could not copy.
+ * Null when none was recorded: a goal from before landings were, or a task with no artifacts to land.
  */
-export function landedArtifacts(engine: Engine, goalId: string, taskId: string): Set<string> | null {
-  const landings = engine.store.listByGoalOfTypes(goalId, ['task.artifacts_landed']).filter((e) => (e.payload as { taskId: string }).taskId === taskId);
-  return landings.length ? new Set(landings.flatMap((e) => (e.payload as { files: string[] }).files)) : null;
+export function landedArtifacts(engine: Engine, goalId: string, taskId: string): { files: Set<string>; failed: string[] } | null {
+  const landings = engine.store.listByGoalOfTypes(goalId, ['task.artifacts_landed']).map((e) => e.payload as { taskId: string; files: string[]; failed?: string[] }).filter((p) => p.taskId === taskId);
+  return landings.length ? { files: new Set(landings.flatMap((p) => p.files)), failed: landings.flatMap((p) => p.failed ?? []) } : null;
 }
 
 /** whether Foundry keeps artifacts/ for this goal: a goal judged by its files, or one with a task whose deliverables are files */

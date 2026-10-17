@@ -227,7 +227,8 @@ async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: Captur
       root = run.dest;
       files = run.files.filter((f) => existsSync(join(root, f)));
     }
-    const landed = landedArtifacts(engine, goal.id, task.id);
+    const landing = landedArtifacts(engine, goal.id, task.id);
+    const landed = landing?.files ?? null;
     // one file that cannot be read is left out, not the whole milestone
     const stat = (f: string): FileStat | null => {
       try {
@@ -249,7 +250,8 @@ async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: Captur
     // the task's landing brought nothing new (its exports came out exactly as they were): the files its milestone names
     // by path stand in, rather than a milestone with nothing to look at
     let byMilestone = false;
-    if (landed && !pool.length && task.milestone) {
+    // (not when some of the task's files could not be landed: the milestone says so instead of showing older ones)
+    if (landed && !pool.length && task.milestone && !landing?.failed.length) {
       pool = files
         .filter((f) => shows(f) && mentions(task.milestone!, f))
         .map(stat)
@@ -307,13 +309,15 @@ async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: Captur
       if (file) shownClips.push({ file, caption: x.f });
     }
     if (shownClips.length) evidence.clips = shownClips;
-    const linked = [...tooLarge, ...named];
+    // the deliverables first (models, drawings), then what was too large to copy
+    const linked = [...named, ...tooLarge];
     if (linked.length) evidence.files = linked.slice(0, MAX_NAMED);
     const shown = evidence.shots.length + shownClips.length;
     const uncopied = missed.images + missed.clips;
     // what the shots and clips do not say; the files themselves are listed apart (the card links them)
     const notes: string[] = [];
     if (byMilestone) notes.push('the task changed none of its files: these are the ones its milestone names');
+    if (landing?.failed.length) notes.push(`${landing.failed.length} file(s) of the task could not be landed in the goal workspace (${landing.failed.slice(0, 3).join(', ')})`);
     if (!shown && linked.length) notes.push('nothing to preview');
     if (showable.length > evidence.shots.length + missed.images) notes.push(`${evidence.shots.length} of ${showable.length} images shown, the ones the milestone names first`);
     if (clips.length > MAX_CLIPS) notes.push(`${MAX_CLIPS} of ${clips.length} clips shown`);
@@ -325,7 +329,9 @@ async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: Captur
       evidence.status = 'pass';
     } else {
       evidence.status = 'fail';
-      evidence.error = uncopied
+      evidence.error = landing?.failed.length
+        ? `the task's files could not be landed in the goal workspace (${landing.failed.slice(0, 3).join(', ')})`
+        : uncopied
         ? "the task's files could not be copied for the card"
         : task.scenario === 'cad'
           ? 'the task left no snapshots or exports under artifacts/: there is nothing to look at'

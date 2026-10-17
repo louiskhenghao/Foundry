@@ -184,8 +184,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('task.created', { task: Task }),
   ev('task.state_changed', { taskId: z.string(), from: TaskState, to: TaskState, reason: z.string() }),
   ev('task.workspace_assigned', { taskId: z.string(), branch: z.string().nullable(), worktreePath: z.string().nullable() }),
-  /** a landed task's artifacts (git-excluded, so outside its commit) were copied into the goal workspace: the files it made or changed, relative to artifacts/ */
-  ev('task.artifacts_landed', { taskId: z.string(), files: z.array(z.string()) }),
+  /** a landed task's artifacts (git-excluded, so outside its commit) were copied into the goal workspace: the files it made or changed, relative to artifacts/; `failed`: those that could not be copied */
+  ev('task.artifacts_landed', { taskId: z.string(), files: z.array(z.string()), failed: z.array(z.string()).optional() }),
   ev('task.hint_set', { taskId: z.string(), hint: z.string().nullable(), extraAttempts: z.number().int() }),
   /** human restarted the task (and its dependents): back to pending with a fresh attempt budget */
   ev('task.restarted', { taskId: z.string(), extraAttempts: z.number().int(), reason: z.string() }),

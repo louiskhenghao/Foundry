@@ -185,7 +185,8 @@ test('a copy cut short is made again, an image too large to copy is linked inste
   const look = task('t_part', 'look at the part');
   const ev = (await captureMilestone(engine, goal, look))!;
   expect(ev.shots.map((s) => s.caption)).toEqual(['part_iso.png']);
-  expect(ev.files![0]).toBe('poster_8k.png');
+  // the deliverables first, then the render too large to copy (past the twelve shown)
+  expect(ev.files![0]).toBe('part_00.step');
   expect(ev.files).toHaveLength(12);
   expect(ev.summary).toBe('1 file(s) too large to copy, listed with the files. 2 more file(s) not listed.');
   // a restart cut the copy short: the next look makes it again instead of serving the half
@@ -203,4 +204,12 @@ test('a task whose landing brought nothing new shows the files its milestone nam
   const ev = (await captureMilestone(engine, goal, task('t_fix', 'open artifacts/bracket_iso.png again')))!;
   expect(ev).toMatchObject({ status: 'pass', shots: [{ caption: 'bracket_iso.png' }] });
   expect(ev.summary).toBe('The task changed none of its files: these are the ones its milestone names.');
+});
+
+test('a task whose landing could not copy some files says so, instead of showing older files the milestone names', async () => {
+  const goal = seed('g_files10');
+  art('bracket_iso.png', 1);
+  engine.store.append({ type: 'task.artifacts_landed', goalId: goal.id, payload: { taskId: 't_full', files: [], failed: ['bracket_iso.png'] } });
+  const ev = (await captureMilestone(engine, goal, task('t_full', 'open artifacts/bracket_iso.png')))!;
+  expect(ev).toMatchObject({ status: 'fail', shots: [], error: "the task's files could not be landed in the goal workspace (bracket_iso.png)" });
 });

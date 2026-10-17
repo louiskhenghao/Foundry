@@ -57,7 +57,7 @@ test('a task that worked in the goal workspace records the files it changed ther
   engine.store.append({ type: 'task.artifacts_landed', goalId: goal.id, payload: { taskId: 't_hinge', files: ['hinge.step'] } });
   const task = { id: 't_serial', title: 'model the bracket', scenario: 'cad', worktreePath: null } as Task;
   expect(await landTaskArtifacts(engine, goal, task)).toEqual({ files: ['bracket.step', 'bracket_iso.png'], failed: [] });
-  expect(landedArtifacts(engine, goal.id, 't_serial')).toEqual(new Set(['bracket.step', 'bracket_iso.png']));
+  expect(landedArtifacts(engine, goal.id, 't_serial')).toEqual({ files: new Set(['bracket.step', 'bracket_iso.png']), failed: [] });
   // a code task in the goal workspace records nothing
   expect(await landTaskArtifacts(engine, goal, { id: 't_code', title: 'wire it', scenario: 'backend', worktreePath: null } as Task)).toEqual({ files: [], failed: [] });
   expect(landedArtifacts(engine, goal.id, 't_code')).toBeNull();
@@ -89,5 +89,6 @@ test('a file that cannot be copied is reported, and the others still land', asyn
   mkdirSync(join(ws, 'artifacts', 'b.step'), { recursive: true });
   const landing = await landTaskArtifacts(engine, goal, { id: 't_ab', title: 'ab', scenario: 'cad', worktreePath: taskWs } as Task);
   expect(landing).toEqual({ files: ['a.step'], failed: ['b.step'] });
-  expect(landedArtifacts(engine, goal.id, 't_ab')).toEqual(new Set(['a.step']));
+  // the landing records what it could not copy, so the milestone can say so
+  expect(landedArtifacts(engine, goal.id, 't_ab')).toEqual({ files: new Set(['a.step']), failed: ['b.step'] });
 });
