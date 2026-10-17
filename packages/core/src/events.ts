@@ -230,8 +230,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('merge.conflict', { taskId: z.string(), files: z.array(z.string()) }),
   ev('merge.completed', { taskId: z.string(), ref: z.string() }),
   /** the human took over a conflicted integration in the `_resolve` worktree */
-  /** `base`: the goal-branch commit the resolution started from (absent on events written before it was recorded) */
-  ev('merge.manual_started', { taskId: z.string(), files: z.array(z.string()), path: z.string(), base: z.string().optional() }),
+  /** `base`: the goal-branch commit the resolution started from; `tip`: the task branch's commit it merged (both absent on events written before they were recorded) */
+  ev('merge.manual_started', { taskId: z.string(), files: z.array(z.string()), path: z.string(), base: z.string().optional(), tip: z.string().optional() }),
   ev('merge.manual_finished', { taskId: z.string(), ref: z.string(), checksPassed: z.boolean(), forced: z.boolean() }),
   ev('merge.manual_aborted', { taskId: z.string(), reason: z.string() }),
 

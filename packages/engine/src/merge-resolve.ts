@@ -60,23 +60,59 @@ function mergeEscalation(engine: Engine, goalId: string, taskId: string) {
   return listEscalations(engine.store.db, { goalId, openOnly: true }).find((e) => e.taskId === taskId && e.trigger === 'retries_exhausted' && (e.payload as { kind?: string }).kind === 'merge') ?? null;
 }
 
-/** the goal-branch commit a task's resolution started from, as its start recorded it (null for one started before that was) */
-function resolutionBase(engine: Engine, goalId: string, taskId: string): string | null {
-  const started = engine.store.listByGoal(goalId, 5000).filter((e) => e.type === 'merge.manual_started' && (e.payload as { taskId: string }).taskId === taskId).at(-1);
-  return (started?.payload as { base?: string } | undefined)?.base ?? null;
+/**
+ * What a task's latest resolution start recorded: the goal-branch commit it started from, the task branch's tip it
+ * merged, and the files that conflicted (base and tip are null for a start recorded before they were).
+ */
+function resolutionStart(engine: Engine, goalId: string, taskId: string): { base: string | null; tip: string | null; files: string[] } | null {
+  const started = engine.store
+    .listByGoalOfTypes(goalId, ['merge.manual_started'])
+    .map((e) => e.payload as { taskId: string; files: string[]; base?: string; tip?: string })
+    .filter((p) => p.taskId === taskId)
+    .at(-1);
+  return started ? { base: started.base ?? null, tip: started.tip ?? null, files: started.files } : null;
+}
+
+/** git's own record of a squash merge not yet committed */
+async function squashPending(path: string): Promise<boolean> {
+  const r = await git(['rev-parse', '--git-path', 'SQUASH_MSG'], path);
+  return r.code === 0 && existsSync(resolve(path, r.stdout.trim()));
 }
 
 /**
- * Whether a resolve worktree holds anything of the resolution: git's squash merge in it (SQUASH_MSG), a change (staged,
- * unstaged or new), or a commit made on top of where it started (a Finish cut short). SQUASH_MSG alone is not enough:
- * an unstage, a stash or an editor's commit removes it while the person's work stays. A worktree with none of these
- * was left before its merge (a crash between creating it and merging) and is safe to start over.
+ * Whether a resolve worktree holds anything of the resolution: git's squash merge in it (SQUASH_MSG), a change to a
+ * tracked file (staged or not), or a commit made on top of where it started (a Finish cut short). SQUASH_MSG alone is
+ * not enough: an unstage or an editor's commit removes it while the person's work stays. Untracked files do not count
+ * (a mergetool's *.orig, a check's output are not a resolution), and a status that cannot be read counts as work. A
+ * worktree with none of these was left before its merge, or emptied (a stash keeps the work in the stash), and is safe
+ * to start over.
  */
 async function holdsWork(path: string, base: string | null): Promise<boolean> {
-  const squash = await git(['rev-parse', '--git-path', 'SQUASH_MSG'], path);
-  if (squash.code === 0 && existsSync(resolve(path, squash.stdout.trim()))) return true;
-  if ((await git(['status', '--porcelain'], path)).stdout.trim()) return true;
+  if (await squashPending(path)) return true;
+  const status = await git(['status', '--porcelain', '--untracked-files=no'], path);
+  if (status.code !== 0 || status.stdout.trim()) return true;
   return !!base && (await headRef(path)) !== base;
+}
+
+/** the task branch moved since the resolution merged it (a retry ran more attempts): the resolution is of older work */
+async function staleTip(goal: Goal, task: Task, tip: string | null): Promise<boolean> {
+  if (!tip || !task.branch) return false;
+  const now = (await git(['rev-parse', '-q', '--verify', `refs/heads/${task.branch}`], goal.repoPath)).stdout.trim();
+  return !!now && now !== tip;
+}
+
+/** a resolution session to keep: its worktree is there, of the task's current work, and holds something of the resolution */
+async function liveSession(engine: Engine, goal: Goal, task: Task, path: string): Promise<boolean> {
+  if (!existsSync(path) || (await git(['rev-parse', '--git-dir'], path)).code !== 0) return false;
+  const start = resolutionStart(engine, goal.id, task.id);
+  if (await staleTip(goal, task, start?.tip ?? null)) return false;
+  return holdsWork(path, start?.base ?? null);
+}
+
+/** edits and Finish only while the task still waits on its merge (not after a skip, or a retry that runs it again) */
+function mustStillResolve(engine: Engine, goalId: string, taskId: string): void {
+  const can = canResolve(engine, goalId, taskId);
+  if (!can.ok) throw new Error(can.reason!);
 }
 
 /** one change at a time per task's resolution: a Finish running its checks never meets a start, an edit or an abort */
@@ -119,9 +155,9 @@ async function startUnlocked(engine: Engine, goalId: string, taskId: string, opt
   if (!can.ok) throw new Error(can.reason!);
   const path = resolveWorkspacePath(engine.config.dataDir, refOf(engine, goalId), taskId);
   const goalWs = goalWorkspacePath(engine.config.dataDir, refOf(engine, goalId));
-  const inProgress = existsSync(path) && (await git(['rev-parse', '--git-dir'], path)).code === 0 && (await holdsWork(path, resolutionBase(engine, goalId, taskId)));
-  if (!inProgress || opts.fresh) {
+  if (!(await liveSession(engine, goal, task, path)) || opts.fresh) {
     const head = await headRef(goalWs);
+    const tip = (await git(['rev-parse', '-q', '--verify', `refs/heads/${task.branch}`], goal.repoPath)).stdout.trim() || undefined;
     await ensureDetachedWorktree(goal.repoPath, path, head);
     const r = await git(['merge', '--squash', '--no-commit', task.branch!], path);
     const files = await conflictedFiles(path);
@@ -131,11 +167,12 @@ async function startUnlocked(engine: Engine, goalId: string, taskId: string, opt
       await removeWorktree(goal.repoPath, path).catch(() => {});
       throw new Error(r.code === 0 ? 'the merge no longer conflicts — use "Retry with hint" (no hint needed) and the engine will integrate it' : `squash merge failed without conflicts: ${r.stderr.slice(0, 300)}`);
     }
+    // recorded first: a restart while the exports below are copied still knows where this resolution started
+    engine.store.append({ type: 'merge.manual_started', goalId, payload: { taskId, files, path, base: head, ...(tip ? { tip } : {}) } });
     // the checks that judge the resolution see the exports as the merged goal will have them (git-excluded, so the merge
     // did not bring them): the goal's, then what the task changed
     await artifactsForChecks(engine, goal, goalWs, path, `resolution of "${task.title}"`);
     if (task.worktreePath) await artifactsForChecks(engine, goal, task.worktreePath, path, `resolution of "${task.title}"`, { onlyChanged: true });
-    engine.store.append({ type: 'merge.manual_started', goalId, payload: { taskId, files, path, base: head } });
   }
   return describeResolution(engine, goalId, taskId);
 }
@@ -143,10 +180,10 @@ async function startUnlocked(engine: Engine, goalId: string, taskId: string, opt
 export async function describeResolution(engine: Engine, goalId: string, taskId: string): Promise<ResolveState> {
   const { goal, task } = mustTask(engine, goalId, taskId);
   const path = resolveWorkspacePath(engine.config.dataDir, refOf(engine, goalId), taskId);
-  // a worktree that holds nothing of the resolution is reported as none, so the page starts it again (nothing is lost)
-  if (!existsSync(path) || !(await holdsWork(path, resolutionBase(engine, goalId, taskId)))) throw new Error('no manual resolution in progress for this task');
-  const started = engine.store.listByGoal(goalId, 5000).filter((e) => e.type === 'merge.manual_started' && (e.payload as { taskId: string }).taskId === taskId).at(-1);
-  const all = new Set<string>((started?.payload as { files?: string[] } | undefined)?.files ?? []);
+  // a worktree that holds nothing of the resolution, or a resolution of the task's older work, is reported as none, so the
+  // page starts it again (nothing of the current work is lost)
+  if (!(await liveSession(engine, goal, task, path))) throw new Error('no manual resolution in progress for this task');
+  const all = new Set<string>(resolutionStart(engine, goalId, taskId)?.files ?? []);
   const conflicted = new Set(await conflictedFiles(path));
   for (const f of conflicted) all.add(f);
   const files: ResolveFile[] = [];
@@ -169,6 +206,7 @@ export async function describeResolution(engine: Engine, goalId: string, taskId:
 /** Write the human's version of one file and stage it (no markers allowed). */
 export function resolveFile(engine: Engine, goalId: string, taskId: string, file: string, content: string): Promise<ResolveState> {
   return serial(goalId, taskId, async () => {
+  mustStillResolve(engine, goalId, taskId);
   const path = resolveWorkspacePath(engine.config.dataDir, refOf(engine, goalId), taskId);
   if (!existsSync(path)) throw new Error('no manual resolution in progress');
   if (file.includes('..') || file.startsWith('/')) throw new Error('bad path');
@@ -182,6 +220,7 @@ export function resolveFile(engine: Engine, goalId: string, taskId: string, file
 /** Take one side of a conflicted file wholesale. `both` = ours followed by theirs (for append-style conflicts). */
 export function takeSide(engine: Engine, goalId: string, taskId: string, file: string, side: 'ours' | 'theirs' | 'both'): Promise<ResolveState> {
   return serial(goalId, taskId, async () => {
+  mustStillResolve(engine, goalId, taskId);
   const path = resolveWorkspacePath(engine.config.dataDir, refOf(engine, goalId), taskId);
   if (!existsSync(path)) throw new Error('no manual resolution in progress');
   if (file.includes('..') || file.startsWith('/')) throw new Error('bad path');
@@ -205,6 +244,7 @@ export function takeSide(engine: Engine, goalId: string, taskId: string, file: s
 /** Re-create the conflict for one file (undo the human's resolution of it). */
 export function unresolveFile(engine: Engine, goalId: string, taskId: string, file: string): Promise<ResolveState> {
   return serial(goalId, taskId, async () => {
+  mustStillResolve(engine, goalId, taskId);
   const path = resolveWorkspacePath(engine.config.dataDir, refOf(engine, goalId), taskId);
   if (!existsSync(path)) throw new Error('no manual resolution in progress');
   if (file.includes('..') || file.startsWith('/')) throw new Error('bad path');
@@ -226,11 +266,19 @@ async function finishUnlocked(engine: Engine, goalId: string, taskId: string, op
   const { goal, task } = mustTask(engine, goalId, taskId);
   const path = resolveWorkspacePath(config.dataDir, refOf(engine, goalId), taskId);
   if (!existsSync(path)) throw new Error('no manual resolution in progress');
-  const startedAt = resolutionBase(engine, goalId, taskId);
+  // not after a skip, or a retry that runs the task again (it would mark the task done under a running attempt)
+  const can = canResolve(engine, goalId, taskId);
+  if (!can.ok) return { ok: false, ref: null, checks: [], reason: can.reason };
+  const start = resolutionStart(engine, goalId, taskId);
+  const startedAt = start?.base ?? null;
+  if (await staleTip(goal, task, start?.tip ?? null)) return { ok: false, ref: null, checks: [], reason: 'the task changed since this resolution started (a retry ran it again) — start the resolution again' };
   // a worktree that holds nothing of the resolution: finishing would land nothing and drop the task's work
   if (!(await holdsWork(path, startedAt))) return { ok: false, ref: null, checks: [], reason: 'this resolution has no merge in progress — start the resolution again' };
   const message = `${taskCommitMessage(goal, task)}\n\nResolved manually by the human`;
-  if (startedAt && (await headRef(path)) !== startedAt) {
+  if (startedAt && !(await squashPending(path)) && (await headRef(path)) !== startedAt) {
+    // only a commit made on top of where the resolution started is taken back: a worktree moved anywhere else would land
+    // a tree that drops goal commits
+    if ((await git(['merge-base', '--is-ancestor', startedAt, 'HEAD'], path)).code !== 0) return { ok: false, ref: null, checks: [], reason: "the resolution's worktree moved off the commit it started from — start the resolution again" };
     // a Finish cut short after its commit (a restart). Landed already (the goal branch carries it): what was left is the
     // bookkeeping and the exports. Not landed: the commit goes back into the index, so one commit carries the whole
     // resolution and it is landed, not read as "nothing staged"
@@ -250,7 +298,9 @@ async function finishUnlocked(engine: Engine, goalId: string, taskId: string, op
       .catch(() => '');
     if (MARKER.test(txt)) return { ok: false, ref: null, checks: [], reason: `${f} still contains conflict markers` };
   }
-  await gitOk(['add', '-A'], path);
+  // the tracked files the resolution changed (the squash merge staged the task's new files already); an untracked
+  // leftover (a mergetool's *.orig, a check's output) is not part of the task's commit
+  await gitOk(['add', '-u'], path);
   const existing = await git(['diff', '--cached', '--quiet'], path);
   let ref: string;
   if (existing.code === 0) {
@@ -264,10 +314,14 @@ async function finishUnlocked(engine: Engine, goalId: string, taskId: string, op
 
   const must = listChecks(store.db, goalId).filter((c) => c.spec.type === 'command' && c.tier === 'must');
   const checks: FinishResult['checks'] = [];
-  // the resolve worktree started at `base`; checks already red there are not this resolution's fault, measured with the
-  // exports this worktree has (the goal's when the resolution started, and the task's changes)
+  // the checks see the exports as the goal has them now (other tasks may have landed since the start), with the task's
+  // changes over them; the baseline measures the goal's own, so a regression the task's exports cause is not excused
+  const goalWs = goalWorkspacePath(config.dataDir, refOf(engine, goalId));
+  await artifactsForChecks(engine, goal, goalWs, path, `resolution of "${task.title}"`);
+  if (task.worktreePath) await artifactsForChecks(engine, goal, task.worktreePath, path, `resolution of "${task.title}"`, { onlyChanged: true });
+  // the resolve worktree started at `base`; checks already red there are not this resolution's fault
   const base = startedAt ?? (existing.code === 0 ? ref : (await git(['rev-parse', 'HEAD~1'], path)).stdout.trim());
-  const baseline = await engine.baseline.failing(goal, base, path);
+  const baseline = await engine.baseline.failing(goal, base);
   let passed = true;
   for (const c of must) {
     const r = await runCommandCheck(c as Check, { cwd: path, outputDir: join(config.dataDir, 'check-output'), attemptId: `manual-${taskId}` });

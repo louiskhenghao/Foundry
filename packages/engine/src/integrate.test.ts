@@ -250,6 +250,50 @@ describe('manual merge resolution: finishing safely', () => {
     expect(listTasks(engine.store.db, goal.id).find((x) => x.id === taskId)!.state).toBe('done');
   }, 60_000);
 
+  test('a stash that leaves only an untracked leftover is not a resolution to finish: it starts over, and the stash keeps the work', async () => {
+    const { startResolution, resolveFile, finishResolution } = await import('./merge-resolve.ts');
+    const { engine, goal, taskId } = await conflicting('test -f shared.txt');
+    await startResolution(engine, goal.id, taskId);
+    await resolveFile(engine, goal.id, taskId, 'shared.txt', 'stashed resolution\n');
+    const path = resolveWorkspacePath(dataDir, goal, taskId);
+    await sh('git stash -q && echo leftover > shared.txt.orig', path);
+    const fin = await finishResolution(engine, goal.id, taskId);
+    expect(fin.ok).toBe(false);
+    expect(listTasks(engine.store.db, goal.id).find((x) => x.id === taskId)!.state).toBe('blocked');
+    expect((await startResolution(engine, goal.id, taskId)).remaining).toBe(1);
+  }, 60_000);
+
+  test("a resolution of the task's older work (a retry moved its branch) is refused and replaced, and so is Finish after a skip", async () => {
+    const { startResolution, resolveFile, finishResolution } = await import('./merge-resolve.ts');
+    const { engine, goal, taskId } = await conflicting('test -f shared.txt');
+    await startResolution(engine, goal.id, taskId);
+    await resolveFile(engine, goal.id, taskId, 'shared.txt', 'resolved against the first attempt\n');
+    const task = listTasks(engine.store.db, goal.id).find((x) => x.id === taskId)!;
+    // a retry ran another attempt: the task branch moved past what the resolution merged
+    await sh('echo second > shared.txt && git -c user.email=t@t -c user.name=t commit -qam "attempt 2"', task.worktreePath!);
+    const fin = await finishResolution(engine, goal.id, taskId);
+    expect(fin).toMatchObject({ ok: false });
+    expect(fin.reason).toContain('the task changed since this resolution started');
+    const again = await startResolution(engine, goal.id, taskId);
+    expect(again.files.find((f) => f.path === 'shared.txt')!.theirs).toBe('second\n');
+    // skipped meanwhile: Finish does not land it, nor turn the task done
+    engine.store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId, from: 'blocked', to: 'skipped', reason: 'skipped by the human' } });
+    const skipped = await finishResolution(engine, goal.id, taskId);
+    expect(skipped.ok).toBe(false);
+    expect(listTasks(engine.store.db, goal.id).find((x) => x.id === taskId)!.state).toBe('skipped');
+  }, 60_000);
+
+  test('a resolution worktree moved off the commit it started from is refused, not landed over the goal', async () => {
+    const { startResolution, finishResolution } = await import('./merge-resolve.ts');
+    const { engine, goal, taskId } = await conflicting('test -f shared.txt');
+    await startResolution(engine, goal.id, taskId);
+    const path = resolveWorkspacePath(dataDir, goal, taskId);
+    await sh('git reset -q --hard $(git rev-list --max-parents=0 HEAD)', path);
+    const fin = await finishResolution(engine, goal.id, taskId);
+    expect(fin.ok).toBe(false);
+    expect(fin.reason).toContain('moved off the commit it started from');
+  }, 60_000);
+
   test('a resolution worktree left without its merge is started over, never finished as a resolution without changes', async () => {
     const { startResolution, finishResolution } = await import('./merge-resolve.ts');
     const { engine, goal, taskId } = await conflicting('test -f shared.txt');
