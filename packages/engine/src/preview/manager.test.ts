@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { IDLE_DELIVERY, getGoal, type Goal } from '@foundry/core';
 import type { ClaudeRunner } from '@foundry/runner';
 import { ensureSelfCheck, runSelfCheck } from '../checks/selfcheck.ts';
@@ -9,7 +9,7 @@ import { defaultConfig } from '../config.ts';
 import { Engine } from '../engine.ts';
 import { failureTail, installSteps } from './manager.ts';
 import { fakeCadPlugin } from '../skills/fake-home.test-helper.ts';
-import { makeRepo, sh } from '../test-helpers.ts';
+import { makeRepo, sh, waitFor } from '../test-helpers.ts';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
 const noRunner = { active: () => 0, run: async () => { throw new Error('no sessions in this test'); } } as unknown as ClaudeRunner;
@@ -345,12 +345,61 @@ describe('the CAD viewer', () => {
     expect(engine.preview.status(g.id).apps.map((a) => a.running)).toEqual([false]);
     // once the goal exported models, the viewer opens on one of them: the assembly when there is one, else the newest STEP
     mkdirSync(join(ws, 'artifacts', 'parts'), { recursive: true });
-    writeFileSync(join(ws, 'artifacts', 'parts', 'grid fin.step'), 'x');
-    expect(engine.cadViewerApp(g)!.url).toBe(`http://localhost:{port}/?file=${ws}/artifacts/parts/grid%20fin.step`);
-    writeFileSync(join(ws, 'artifacts', 'starship_stack.step'), 'x');
-    writeFileSync(join(ws, 'artifacts', 'parts', 'flap.step'), 'x');
-    expect(engine.cadViewerApp(g)!.url).toBe(`http://localhost:{port}/?file=${ws}/artifacts/starship_stack.step`);
+    writeFileSync(join(ws, 'artifacts', 'parts', 'side bracket.step'), 'x');
+    expect(engine.cadViewerApp(g)!.url).toBe(`http://localhost:{port}/?file=${ws}/artifacts/parts/side%20bracket.step`);
+    writeFileSync(join(ws, 'artifacts', 'frame_stack.step'), 'x');
+    writeFileSync(join(ws, 'artifacts', 'parts', 'hinge.step'), 'x');
+    expect(engine.cadViewerApp(g)!.url).toBe(`http://localhost:{port}/?file=${ws}/artifacts/frame_stack.step`);
     // a goal of another nature has no viewer
     expect(engine.cadViewerApp(goal({ id: 'g_cadview02', nature: 'code', repoPath: repo, branch: 'goal/g_cadview02' }))).toBeNull();
   });
+
+  test("without an assembly the viewer opens the newest STEP, never a sample, and \"stack\" inside a word makes no assembly; after cleanup it opens the delivered copy", async () => {
+    fakeCadPlugin(join(dataDir, 'claude-home'));
+    const g = goal({ id: 'g_cadview03', nature: 'cad', repoPath: await makeRepo(), branch: 'goal/g_cadview03' });
+    const at = (f: string, s: number) => {
+      const p = join(ws, 'artifacts', f);
+      mkdirSync(dirname(p), { recursive: true });
+      writeFileSync(p, 'x');
+      const t = new Date(Date.UTC(2026, 0, 1) + s * 1000);
+      utimesSync(p, t, t);
+    };
+    at('bracket.step', 1);
+    at('clip.step', 2);
+    at('samples/reference.step', 3);
+    expect(engine.cadViewerApp(g)!.url).toBe(`http://localhost:{port}/?file=${ws}/artifacts/clip.step`);
+    at('stacking_pin.step', 0);
+    expect(engine.cadViewerApp(g)!.url).toBe(`http://localhost:{port}/?file=${ws}/artifacts/clip.step`);
+    rmSync(join(ws, 'artifacts'), { recursive: true, force: true });
+    const out = mkdtempSync(join(tmpdir(), 'foundry-cad-out-'));
+    writeFileSync(join(out, 'bracket.step'), 'x');
+    engine.store.append({ type: 'goal.artifacts_delivered', goalId: g.id, payload: { status: 'ok', files: ['bracket.step'], dest: out, detail: '1 artifact(s) copied' } });
+    expect(engine.cadViewerApp(getGoal(engine.store.db, g.id)!)!.url).toBe(`http://localhost:{port}/?file=${out}/bracket.step`);
+    rmSync(out, { recursive: true, force: true });
+  });
+
+  test('a running viewer opens the assembly exported after it started, and its tailnet link keeps the model', async () => {
+    fakeCadPlugin(join(dataDir, 'claude-home'));
+    const g = goal({ id: 'g_cadview04', nature: 'cad', repoPath: await makeRepo(), branch: 'goal/g_cadview04' });
+    // a stand-in for cadgen's viewer that answers on PORT, with the real link
+    const real = engine.cadViewerApp.bind(engine);
+    engine.cadViewerApp = (x) => {
+      const app = real(x);
+      return app && { ...app, command: `bun -e 'Bun.serve({ port: Number(process.env.PORT), fetch: () => new Response("viewer") })'` };
+    };
+    engine.tailnet.expose = async (port: number) => `https://box.example.ts.net:${port}/`;
+    engine.tailnet.unexpose = async () => {};
+    mkdirSync(join(ws, 'artifacts', 'parts'), { recursive: true });
+    writeFileSync(join(ws, 'artifacts', 'parts', 'hinge.step'), 'x');
+    await engine.preview.start(g, 'human', 'cad-viewer');
+    const viewer = () => engine.preview.status(g.id).apps.find((a) => a.key === 'cad-viewer')!;
+    await waitFor(() => viewer().ready && !!viewer().tailnetUrl, 15_000);
+    const port = viewer().port!;
+    expect(viewer().url).toBe(`http://localhost:${port}/?file=${ws}/artifacts/parts/hinge.step`);
+    expect(viewer().tailnetUrl).toBe(`https://box.example.ts.net:${port}/?file=${ws}/artifacts/parts/hinge.step`);
+    writeFileSync(join(ws, 'artifacts', 'frame_assembly.step'), 'x');
+    expect(viewer().url).toBe(`http://localhost:${port}/?file=${ws}/artifacts/frame_assembly.step`);
+    expect(viewer().tailnetUrl).toBe(`https://box.example.ts.net:${port}/?file=${ws}/artifacts/frame_assembly.step`);
+    await engine.preview.stop(g.id, 'human', 'cad-viewer');
+  }, 30_000);
 });

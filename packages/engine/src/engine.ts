@@ -488,9 +488,9 @@ export class Engine {
   }
 
   /**
-   * The model the CAD Viewer opens on: the goal's assembly when it exported one (a STEP whose name says assembly or
-   * stack), else the newest STEP it exported — from its workspace while it runs, from the output folder once delivered.
-   * Null = the viewer's home.
+   * The model the CAD Viewer opens on: the goal's assembly when it exported one (a STEP whose name says assembly, or
+   * has asm, assy or stack as a word of its own), else the newest STEP it exported — from its workspace while it runs,
+   * from the output folder once delivered. Null = the viewer's home.
    */
   cadModel(goal: Goal): string | null {
     const pick = (root: string, files: string[]): string | null => {
@@ -503,7 +503,7 @@ export class Engine {
             return [];
           }
         });
-      const assemblies = steps.filter((s) => /assembl|stack|(^|[_-])asm([_.-]|$)/i.test(basename(s.f)));
+      const assemblies = steps.filter((s) => /assembl|(^|[_-])(asm|assy|stack)([_.-]|$)/i.test(basename(s.f)));
       const best = (assemblies.length ? assemblies : steps).sort((a, b) => b.at - a.at)[0];
       return best ? join(root, best.f) : null;
     };

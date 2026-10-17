@@ -20,6 +20,13 @@ export type PreviewStarter = 'human' | 'milestone' | 'integration';
 /** the preview app key of text-to-cad's viewer on a cad goal: started by the person, never by a walkthrough */
 export const CAD_VIEWER_KEY = 'cad-viewer';
 
+/** an address on the person's tailnet for a local url: the tailnet origin with the url's path and query (the CAD Viewer's ?file=) */
+export function tailnetAddress(base: string, url: string): string {
+  const u = URL.parse(url);
+  const rest = u && (u.pathname !== '/' || u.search) ? `${u.pathname}${u.search}` : '';
+  return `${base.replace(/\/+$/, '')}${rest}`;
+}
+
 /** one app of the goal's preview */
 export interface PreviewAppStatus {
   key: string;
@@ -258,6 +265,10 @@ export class PreviewManager {
 
   private appStatus(goalId: string, key: string, run: BriefApp | null): PreviewAppStatus {
     const l = this.live.get(id(goalId, key));
+    // the CAD Viewer opens the model chosen now (an assembly exported after it started), not the one it started on
+    const current = l && key === CAD_VIEWER_KEY && run?.url ? run.url.replaceAll('{port}', String(l.port)) : null;
+    const url = current ?? l?.url ?? null;
+    const tailnetUrl = l?.tailnetUrl && current ? tailnetAddress(new URL(l.tailnetUrl).origin, current) : (l?.tailnetUrl ?? null);
     return {
       mock: this.mocked.has(id(goalId, key)),
       key,
@@ -266,7 +277,7 @@ export class PreviewManager {
       running: !!l,
       ready: l?.ready ?? false,
       port: l?.port ?? null,
-      url: l?.url ?? null,
+      url,
       command: l?.command ?? null,
       startedAt: l?.startedAt ?? null,
       startedBy: l?.startedBy ?? null,
@@ -281,7 +292,7 @@ export class PreviewManager {
       stopped: l ? null : (this.lastStop.get(id(goalId, key)) ?? null),
       nativePort: l?.nativePort ?? null,
       rewrites: l?.rewrites ?? [],
-      tailnetUrl: l?.tailnetUrl ?? null,
+      tailnetUrl,
     };
   }
 
@@ -487,7 +498,10 @@ export class PreviewManager {
     }, 3_000);
     entry.ready = await waitForHttp(url, READY_TIMEOUT_MS, () => this.current(entry));
     // reachable from the person's phone over their tailnet, when they use Tailscale
-    if (this.current(entry)) entry.tailnetUrl = await this.engine.tailnet.expose(port).catch(() => null);
+    if (this.current(entry)) {
+      const base = await this.engine.tailnet.expose(port).catch(() => null);
+      entry.tailnetUrl = base ? tailnetAddress(base, url) : null;
+    }
     if (!this.current(entry) && entry.tailnetUrl) void this.engine.tailnet.unexpose(port);
     if (!entry.ready && this.current(entry)) {
       entry.warning = `${url} did not answer within ${READY_TIMEOUT_MS / 1000} s; it may still be starting, or the command ignores PORT ({port} in the Brief's How to run it)`;
