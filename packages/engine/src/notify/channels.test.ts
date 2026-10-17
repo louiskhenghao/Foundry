@@ -104,6 +104,17 @@ describe('Discord', () => {
     await new DiscordNotifier('https://discord.test/hook').send('look at @everyone.png');
     expect(JSON.parse(String(calls[0]!.body)).allowed_mentions).toEqual({ parse: [] });
   });
+
+  test('the plain-links retry after Discord refuses the links pings nobody either', async () => {
+    const bodies: { allowed_mentions?: unknown }[] = [];
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)));
+      return bodies.length === 1 ? new Response('bad link', { status: 400 }) : new Response('{}');
+    }) as typeof fetch;
+    await new DiscordNotifier('https://discord.test/hook').send('@everyone look', [{ label: 'Open', url: 'https://mac.ts.net/g' }]);
+    expect(bodies).toHaveLength(2);
+    for (const b of bodies) expect(b.allowed_mentions).toEqual({ parse: [] });
+  });
 });
 
 describe('links', () => {
