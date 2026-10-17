@@ -22,6 +22,10 @@ export class FakeGh implements GhClient {
   mergeBehavior: 'ok' | 'protected' | 'fail' | 'settling' = 'ok';
   unknownViews = 1;
   settlesAs: 'MERGEABLE' | 'CONFLICTING' = 'MERGEABLE';
+  /** someone merges the PR on GitHub right after the refusal (its views may still say UNKNOWN) */
+  mergedWhileSettling = false;
+  /** how many times a PR was looked at after its first merge was refused */
+  viewsAfterRefusal = 0;
   /** what gh prints when branch protection refuses a plain merge ('protected') */
   protectedStderr = 'GraphQL: Base branch requires review (protected branch)';
   private settled = new Set<number>();
@@ -71,6 +75,7 @@ export class FakeGh implements GhClient {
   async prView(_cwd: string, i: { repo: string; number: number }): Promise<PrView> {
     const pr = this.prs.get(i.number);
     if (!pr) throw new Error('no such PR');
+    if (this.settled.has(i.number)) this.viewsAfterRefusal++;
     const unknown = this.unknownLeft.get(i.number) ?? 0;
     if (unknown > 0) {
       this.unknownLeft.set(i.number, unknown - 1);
@@ -97,6 +102,7 @@ export class FakeGh implements GhClient {
       if (!this.settled.has(i.number)) {
         this.settled.add(i.number);
         this.unknownLeft.set(i.number, this.unknownViews);
+        if (this.mergedWhileSettling) await this.mergeOnGitHub(i.number);
         return refused;
       }
       // still computing, or settled as a conflict: refused as GitHub refuses

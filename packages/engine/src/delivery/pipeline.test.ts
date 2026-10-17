@@ -164,6 +164,21 @@ describe('delivery pipeline', () => {
     expect(gh.calls.filter((c) => c[0] === 'prMerge').map((c) => c[3])).toEqual(['now', 'now']);
   });
 
+  test('a PR merged on GitHub during the wait ends the wait at once and counts as merged', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'settling';
+    // its views would say UNKNOWN for a long while: a wait that only looked at mergeability would sit them all out
+    gh.unknownViews = 50;
+    gh.mergedWhileSettling = true;
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await engine.createGoal({ prompt: 'merged meanwhile', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 30_000);
+    expect(deliveredStatus(engine, goal.id)).toMatchObject({ status: 'delivered', outcome: 'merged' });
+    expect(gh.calls.filter((c) => c[0] === 'prMerge').map((c) => c[3])).toEqual(['now']);
+    // one look at the settled PR, then the merge view: not a minute of polling
+    expect(gh.viewsAfterRefusal).toBeLessThanOrEqual(3);
+  });
+
   test('a refusal that settles as a conflict fails the merge as a conflict, without asking for auto-merge', async () => {
     const gh = new FakeGh(bare);
     gh.mergeBehavior = 'settling';

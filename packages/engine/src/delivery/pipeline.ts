@@ -692,7 +692,8 @@ async function settleMergeable(ctx: Ctx, repo: string, number: number): Promise<
   do {
     await sleep(Math.min(ctx.opts.pollMs, SETTLE_POLL_MS), ctx.signal);
     v = await ctx.gh.prView(ctx.goalWs, { repo, number }).catch(() => null);
-    if (v && v.mergeable !== 'UNKNOWN') return v;
+    // settled, or no longer open (GitHub may keep a merged PR's mergeability UNKNOWN)
+    if (v && (v.mergeable !== 'UNKNOWN' || v.state !== 'OPEN')) return v;
   } while (Date.now() < until);
   return v;
 }
