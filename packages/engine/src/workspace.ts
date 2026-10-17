@@ -62,13 +62,14 @@ export async function copyArtifacts(fromWs: string, toWs: string): Promise<numbe
 
 /**
  * copyArtifacts, saying which files it copied (paths relative to artifacts/). `skip`: files left where they are;
- * `inherited`: copy what the source inherited and left as it was too, so the destination mirrors its artifacts;
+ * `inherited`: copy what the source inherited and left as it was too, so the destination mirrors its artifacts; `before`:
+ * called with each file about to be written (a file it fails for is not copied);
  * `onError`: a file that cannot be copied (or a folder the listing could not read) is reported and the others still go
  * (without it, the first error throws). Each file is written beside its destination and renamed over it (copyInto).
  * The copies run off the event loop: a model or a clip of hundreds of MB is not cloned where the disk cannot (Linux),
  * and a server copying it must keep answering.
  */
-export async function copyArtifactFiles(fromWs: string, toWs: string, opts: { skip?: ReadonlySet<string>; inherited?: boolean; onError?: (f: string, err: unknown) => void } = {}): Promise<string[]> {
+export async function copyArtifactFiles(fromWs: string, toWs: string, opts: { skip?: ReadonlySet<string>; inherited?: boolean; onError?: (f: string, err: unknown) => void; before?: (f: string) => Promise<void> } = {}): Promise<string[]> {
   let inherited: Record<string, string> = {};
   if (!opts.inherited) {
     try {
@@ -88,6 +89,7 @@ export async function copyArtifactFiles(fromWs: string, toWs: string, opts: { sk
       if (inherited[f] && inherited[f] === (await hashOf(src))) continue;
       const dest = join(root, f);
       writableInside(root, dest);
+      await opts.before?.(f);
       await copyInto(src, dest);
       copied.push(f);
     } catch (err) {

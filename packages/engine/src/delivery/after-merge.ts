@@ -112,7 +112,7 @@ export async function afterMerge(engine: Engine, goalId: string, opts: AfterMerg
     rmSync(ws, { recursive: true, force: true });
     const internal = internalWorkspaceDir(goal);
     // screenshots and review records stay: the goal page's history shows them
-    if (internal) for (const d of ['tasks', 'delivery', 'resolve', 'baseline']) rmSync(join(internal, d), { recursive: true, force: true });
+    if (internal) for (const d of ['tasks', 'delivery', 'resolve', 'baseline', 'overlay']) rmSync(join(internal, d), { recursive: true, force: true });
     else rmSync(join(config.dataDir, 'worktrees', goal.id), { recursive: true, force: true });
     cleaned(true, `removed the progress folder, ${worktrees} worktree${worktrees === 1 ? '' : 's'} and ${branches} local branch${branches === 1 ? '' : 'es'}${opts.force ? ' (cleaned up anyway)' : ''}; screenshots and the goal's history are kept`);
   });

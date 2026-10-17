@@ -95,7 +95,11 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
   artifacts, never over a file git tracks (a repository's own `artifacts/` folder comes through git), and never at the
   cost of the checks: a failed copy is noted. A merge attempt's baseline takes its artifacts from the worktree the merge
   happens in (a task's own on a catch-up), so both sides of the comparison measure the same exports, and a resolution's
-  worktree gets the goal's artifacts and then the task's changes, after its squash merge. The artifacts listing follows
+  worktree gets the goal's artifacts and then the task's changes, after its squash merge. A squash that conflicts at
+  integration (another task landed between the task's last catch-up and its squash) has its merge attempt checked in
+  the goal workspace with the task's changed exports laid over the goal's, after the baseline measured the goal as it
+  was: what they cover is saved beside the progress folder with a list of what they add, put back when the merge does
+  not land, and undone before the next overlay when a run was cut short. The artifacts listing follows
   no symbolic link, and no copy writes through one: each file is copied beside its destination and renamed over it, so
   a copy cut short leaves the old file. A landing leaves files git tracks to the commit, still copies the other files
   when one fails (a folder it cannot read counts as failed), records the failures for the milestone, and then keeps the
@@ -123,9 +127,6 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
 - Not done: the viewer's bind
   address in Docker (unverified), a `cad` file preview in the task drawer (STEP/STL show as binaries), per-tool allow
   lists for the plugin's server (its remaining tools are read-only by its own annotation), and a marketplace added
-  earlier without the `latest` ref (the add says "already exists" and the install follows that other ref). A squash
-  that conflicts at integration (another task landed between a task's last catch-up and its squash) runs its merge
-  attempt in the goal workspace before the task's exports land there, so a task that changes an existing export and
-  the check that measures it together can still read as a regression in that window. Milestone copies of images and
+  earlier without the `latest` ref (the add says "already exists" and the install follows that other ref). Milestone copies of images and
   clips stay in the screenshots folder, which a Transfer carries. A landing whose copy failed keeps the task's worktree
   and says so, but a later restart of the goal or its after-merge cleanup can still remove it.
