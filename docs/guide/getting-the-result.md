@@ -145,7 +145,11 @@ Image, video and CAD goals produce files, not only code. Those files are never a
 - If you chose an **Output folder** on the New goal form, the finished files are copied there when the goal is done. The Result card says "N file(s) are in … — open the folder and have a look."
 - Without an output folder they stay in the `artifacts` folder inside the progress folder. Use **Open ▾** to get there.
 
-While the goal runs, milestone cards show the files produced so far. A CAD goal's preview card also shows **CAD Viewer**, text-to-cad's own viewer: **Start** runs it, then **Open** (**Open the model** when it is the only app) shows the model in the browser, where you can turn it, measure it and cut sections. It opens on the goal's assembly when one was exported, else on the newest STEP, and follows a newer assembly while it runs; its home lists the other models. The walkthroughs never start it by themselves. It opens only on the computer Foundry runs on: it can read any file there, so Foundry never puts it on your tailnet, and from another device the card says so instead of offering **Open**.
+While the goal runs, milestone cards show the files produced so far.
+
+### CAD Viewer
+
+A CAD goal's preview card also shows **CAD Viewer**, text-to-cad's own viewer: **Start** runs it, then **Open** (**Open the model** when it is the only app) shows the model in the browser, where you can turn it, measure it and cut sections. It opens on the goal's assembly when one was exported, else on the newest STEP, and follows a newer assembly while it runs; its home lists the other models. The walkthroughs never start it by themselves. It opens only on the computer Foundry runs on: it can read any file there, so Foundry never puts it on your tailnet. When the page is opened at an address other than localhost, the card says **only on Foundry's computer** instead of offering **Open**, with the viewer's localhost address as a link. That link works on Foundry's computer reached by its network name, not on a phone, where localhost is the phone itself.
 
 ## Completion extras
 
@@ -180,7 +184,7 @@ The goal page shows where things stand, on the Delivery tab and on the Simple vi
 |---|---|
 | **Merged into main on GitHub** | The pull request merged. Before that it says **Waiting for the pull request to merge**; if it was closed instead, **closed without merging** (nothing is changed or removed). |
 | **Your local main is up to date** | Your own folder has the work. If Foundry could not update it, the line says why, with a button **Pull into my checkout** that tries again (for example after you committed or stashed your changes). You can also run `git pull` yourself. |
-| **Workspace cleaned up** | The progress folder and local branches are gone. If they stay, the line says why (your folder does not have the work yet, the progress folder has unsaved changes, or it holds files no output folder received, such as a CAD goal's exports when the goal has no output folder) with a button **Clean up anyway**. |
+| **Workspace cleaned up** | The progress folder and local branches are gone. If they stay, the line says why (your folder does not have the work yet, the progress folder has unsaved changes, or it holds files the output folder does not have as they are now, such as a CAD goal's exports when the goal has no output folder, a file changed after its delivery, or one replaced in the output folder by another goal's) with a button **Clean up anyway**. While the files are still being copied to the output folder, the tidy-up waits and then runs by itself. |
 
 A pull request that merges later — auto-merge that took longer than Foundry waits, or one you merged yourself on GitHub — is noticed within a few minutes, or as soon as you open the goal page, and the same steps run. You can turn all of this off in [Settings → Git & delivery](./settings.md#git--delivery); then your folder only changes when you press **Pull into my checkout**, and the folders stay until you delete the goal.
 

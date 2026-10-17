@@ -1,6 +1,6 @@
 # ADR-0015: Bring merged work to the local checkout, then tidy up
 
-**Status:** accepted · 2026-09-25 · amends the "only the user moves the local base branch" rule of the base-sync design (`git/sync.ts`)
+**Status:** accepted · 2026-09-25 · amends the "only the user moves the local base branch" rule of the base-sync design (`git/sync.ts`) · amended by ADR-0033 (files that exist nowhere else keep the progress folder)
 
 ## Context
 
@@ -28,9 +28,7 @@ Foundry from ever touching the user's checkout unasked.
   local goal branch and the stacked branches. Screenshots, review records and the goal's history stay. It does this
   only when:
   - the local base branch contains the goal's work, compared by content so that squash and rebase merges count;
-  - the progress folder has no uncommitted changes;
-  - no file exists only there or in a task worktree: an artifact (outside `artifacts/samples/`, not tracked by git)
-    that no output folder received, or a file a task's landing could not copy into the progress folder (ADR-0033).
+  - the progress folder has no uncommitted changes.
 
   In any other case everything stays, and the goal page offers **Clean up anyway**. Goals delivered as Local only,
   Push branch, or with a PR that never merged are never tidied.
