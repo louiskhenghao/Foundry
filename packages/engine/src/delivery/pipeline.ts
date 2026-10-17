@@ -719,6 +719,7 @@ async function mergePr(ctx: Ctx, step: StepFn, repo: string, number: number, vie
         ev({ type: 'delivery.merged', goalId: goal.id, payload: { prNumber: number, method: policy.mergeMethod, ref: settled.mergeCommit ?? null, taskId: unit.taskId } });
         return { status: 'ok', detail: `PR #${number} was merged`, value: true };
       }
+      if (settled?.state === 'CLOSED') throw new DeliveryFailed('merge', `PR #${number} was closed`);
       if (settled?.mergeable === 'CONFLICTING') throw new DeliveryFailed('merge', `PR #${number} conflicts with its base`);
       r = await ctx.gh.prMerge(config.dataDir, { repo, number, method: policy.mergeMethod, auto: false });
       logCmd(ctx, 'merge', ['gh', 'pr', 'merge', String(number), `--${policy.mergeMethod}`], config.dataDir, r, 0);

@@ -179,6 +179,18 @@ describe('delivery pipeline', () => {
     expect(gh.viewsAfterRefusal).toBeLessThanOrEqual(3);
   });
 
+  test('a PR closed on GitHub during the wait fails the merge as closed, without another merge or auto-merge', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'settling';
+    gh.closedWhileSettling = true;
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await engine.createGoal({ prompt: 'closed meanwhile', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 30_000);
+    expect(deliveredStatus(engine, goal.id)).toMatchObject({ status: 'failed' });
+    expect(deliveredStatus(engine, goal.id).error).toContain('was closed');
+    expect(gh.calls.filter((c) => c[0] === 'prMerge').map((c) => c[3])).toEqual(['now']);
+  });
+
   test('a refusal that settles as a conflict fails the merge as a conflict, without asking for auto-merge', async () => {
     const gh = new FakeGh(bare);
     gh.mergeBehavior = 'settling';
