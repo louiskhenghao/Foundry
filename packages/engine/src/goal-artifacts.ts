@@ -61,12 +61,46 @@ function changedInGoalWorkspace(engine: Engine, goal: Goal, task: Task, goalWs: 
 }
 
 /**
- * The files a task's landings brought into the goal workspace (relative to artifacts/), and those they could not copy.
- * Null when none was recorded: a goal from before landings were, or a task with no artifacts to land.
+ * The files a task's landings brought into the goal workspace (relative to artifacts/), and those they could not copy
+ * that no later landing brought. Null when none was recorded: a goal from before landings were, or a task with no
+ * artifacts to land.
  */
 export function landedArtifacts(engine: Engine, goalId: string, taskId: string): { files: Set<string>; failed: string[] } | null {
   const landings = engine.store.listByGoalOfTypes(goalId, ['task.artifacts_landed']).map((e) => e.payload as { taskId: string; files: string[]; failed?: string[] }).filter((p) => p.taskId === taskId);
-  return landings.length ? { files: new Set(landings.flatMap((p) => p.files)), failed: landings.flatMap((p) => p.failed ?? []) } : null;
+  if (!landings.length) return null;
+  const failed = new Set<string>();
+  for (const p of landings) {
+    for (const f of p.files) failed.delete(f);
+    for (const f of p.failed ?? []) failed.add(f);
+  }
+  return { files: new Set(landings.flatMap((p) => p.files)), failed: [...failed] };
+}
+
+/** what a task's landings could not copy that is still in its worktree (a file, or a folder ending in /): the worktree must not go while it holds them */
+export function unlandedFiles(engine: Engine, goal: Goal, task: Task): string[] {
+  const goalWs = goalWorkspacePath(engine.config.dataDir, goal);
+  if (!task.worktreePath || task.worktreePath === goalWs || !existsSync(task.worktreePath)) return [];
+  return (landedArtifacts(engine, goal.id, task.id)?.failed ?? []).filter((f) => existsSync(join(task.worktreePath!, ARTIFACTS_DIR, f)));
+}
+
+/**
+ * Copy again what tasks' landings could not copy and their kept worktrees still hold, before the goal's files are
+ * delivered: each retry is a landing of its own, recording what came over and what still did not.
+ */
+export async function retryUnlanded(engine: Engine, goal: Goal): Promise<void> {
+  const goalWs = goalWorkspacePath(engine.config.dataDir, goal);
+  for (const task of listTasks(engine.store.db, goal.id)) {
+    const left = unlandedFiles(engine, goal, task);
+    if (!left.length) continue;
+    const from = task.worktreePath!;
+    const wanted = (f: string) => left.some((m) => (m.endsWith('/') ? m === './' || f.startsWith(m) : f === m));
+    const [mine, theirs] = await Promise.all([trackedArtifacts(from), trackedArtifacts(goalWs)]);
+    const skip = new Set([...mine, ...theirs, ...listArtifacts(from).filter((f) => !wanted(f))]);
+    const failed: string[] = [];
+    const files = copyArtifactFiles(from, goalWs, { skip, onError: (f) => failed.push(f) });
+    engine.store.append({ type: 'task.artifacts_landed', goalId: goal.id, payload: { taskId: task.id, files, ...(failed.length ? { failed } : {}) } });
+    engine.config.log(`[artifacts] ${task.id}: ${files.length} file(s) copied again${failed.length ? `, ${failed.length} still not` : ''}`);
+  }
 }
 
 /** whether Foundry keeps artifacts/ for this goal: a goal judged by its files, or one with a task whose deliverables are files */

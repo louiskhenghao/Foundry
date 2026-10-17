@@ -2,10 +2,11 @@ import { afterEach, beforeEach, expect, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { IDLE_DELIVERY, getGoal, type Goal, type Task } from '@foundry/core';
+import { IDLE_DELIVERY, getGoal, getTask, type Goal, type Task } from '@foundry/core';
+import { deliverArtifacts } from './completion.ts';
 import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
-import { landTaskArtifacts, landedArtifacts } from './goal-artifacts.ts';
+import { landTaskArtifacts, landedArtifacts, unlandedFiles } from './goal-artifacts.ts';
 import { FakeRunner, makeRepo, sh } from './test-helpers.ts';
 
 const ROOT = resolve(import.meta.dir, '../../..');
@@ -22,16 +23,25 @@ afterEach(async () => {
   for (const d of [dataDir, ws]) rmSync(d, { recursive: true, force: true });
 });
 
-const seed = (workspaceDir = ws): Goal => {
+const seed = (workspaceDir = ws, extra: Partial<Goal> = {}): Goal => {
   const now = new Date().toISOString();
   const g = {
     id: 'g_land01', title: 'parts', prompt: 'p', workspaceDir, checkpoint: null, selfCheck: false, previewRef: null, previewPlace: 'auto', milestonePause: true, clarifyStage: null, references: [], investigation: null, interview: null, effort: null, modelPreset: null, modelSubstitutions: {}, repoPath: '/nowhere', baseBranch: 'main', branch: 'goal/g_land01',
     budgets: { maxCostUsd: 5, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3 }, budgetPreset: 'custom', mode: 'expert', workflow: { tdd: 'off', pace: 'thorough', ponytail: 'on' },
     models: { strong: 'opus', cheap: 'haiku', worker: 'opus' }, state: 'running', stateBeforeBlock: null, costUsd: 0, fixCycles: 0, delivery: IDLE_DELIVERY, attachments: [], baseSync: null, autoskills: null, follows: null,
     completion: { graphRefresh: false, docs: [], audit: false, auditRun: null, docsRun: null, graphRun: null, artifactsRun: null }, nature: 'cad', outputDir: null, runningSince: null, createdAt: now, updatedAt: now,
+    ...extra,
   } as Goal;
   engine.store.append({ type: 'goal.created', goalId: g.id, payload: { goal: g } });
   return getGoal(engine.store.db, g.id)!;
+};
+/** a done cad task of the goal whose worktree is `worktreePath` */
+const created = (goal: Goal, id: string, worktreePath: string): Task => {
+  const now = new Date().toISOString();
+  const t = { id, goalId: goal.id, title: id, spec: 's', kind: 'feature', scope: null, scenario: 'cad', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: false, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'done', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now } as Task;
+  engine.store.append({ type: 'task.created', goalId: goal.id, payload: { task: t } });
+  engine.store.append({ type: 'task.workspace_assigned', goalId: goal.id, payload: { taskId: id, branch: null, worktreePath } });
+  return getTask(engine.store.db, id)!;
 };
 const art = (f: string, s: number) => {
   const p = join(ws, 'artifacts', f);
@@ -91,4 +101,27 @@ test('a file that cannot be copied is reported, and the others still land', asyn
   expect(landing).toEqual({ files: ['a.step'], failed: ['b.step'] });
   // the landing records what it could not copy, so the milestone can say so
   expect(landedArtifacts(engine, goal.id, 't_ab')).toEqual({ files: new Set(['a.step']), failed: ['b.step'] });
+});
+
+test('what a landing could not copy goes again before the delivery, and the landing that brings it clears the failure', async () => {
+  const out = mkdtempSync(join(tmpdir(), 'foundry-land-out-'));
+  const goal = seed(ws, { outputDir: out });
+  const taskWs = mkdtempSync(join(tmpdir(), 'foundry-land-task-'));
+  mkdirSync(join(taskWs, 'artifacts'), { recursive: true });
+  writeFileSync(join(taskWs, 'artifacts', 'a.step'), 'a');
+  writeFileSync(join(taskWs, 'artifacts', 'b.step'), 'b');
+  mkdirSync(join(ws, 'artifacts', 'b.step'), { recursive: true });
+  const task = created(goal, 't_ab', taskWs);
+  expect(await landTaskArtifacts(engine, goal, task)).toEqual({ files: ['a.step'], failed: ['b.step'] });
+  expect(unlandedFiles(engine, goal, task)).toEqual(['b.step']);
+  // a failure whose file the worktree no longer holds keeps nothing there
+  engine.store.append({ type: 'task.artifacts_landed', goalId: goal.id, payload: { taskId: 't_ab', files: [], failed: ['gone.step'] } });
+  expect(unlandedFiles(engine, goal, task)).toEqual(['b.step']);
+  // what stood in the way is gone when the goal finishes: the delivery copies b.step again first, and delivers it
+  rmSync(join(ws, 'artifacts', 'b.step'), { recursive: true });
+  await deliverArtifacts(engine, getGoal(engine.store.db, goal.id)!);
+  expect(readFileSync(join(out, 'b.step'), 'utf8')).toBe('b');
+  expect(landedArtifacts(engine, goal.id, 't_ab')).toEqual({ files: new Set(['a.step', 'b.step']), failed: ['gone.step'] });
+  expect(unlandedFiles(engine, goal, task)).toEqual([]);
+  for (const d of [out, taskWs]) rmSync(d, { recursive: true, force: true });
 });

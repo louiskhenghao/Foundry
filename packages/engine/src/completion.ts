@@ -14,6 +14,7 @@ import { dropEmptyGraphDir } from './context/graphify-provider.ts';
 import { restoreGuidance, snapshotGuidance } from './git/agent-guidance.ts';
 import { exec } from './git/git.ts';
 import { pullFastForward } from './git/sync.ts';
+import { retryUnlanded } from './goal-artifacts.ts';
 import { ARTIFACTS_DIR, goalWorkspacePath, listArtifacts } from './workspace.ts';
 import { codeWork } from './skills/workflow.ts';
 
@@ -43,6 +44,8 @@ export async function deliverArtifacts(engine: Engine, goal: Goal): Promise<void
   const { store, config } = engine;
   if (goal.completion.artifactsRun) return;
   const ws = goalWorkspacePath(config.dataDir, goal);
+  // what a landing could not copy goes again first, from the task worktree kept for it, so the delivery has it
+  await retryUnlanded(engine, goal).catch((err) => store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `copying the files a landing missed failed: ${String((err as Error)?.message ?? err).slice(0, 200)}` } }));
   const files = listArtifacts(ws);
   const record = (payload: { status: 'ok' | 'skipped' | 'failed'; files: string[]; dest: string; detail: string }) => store.append({ type: 'goal.artifacts_delivered', goalId: goal.id, payload });
   if (!files.length) {
