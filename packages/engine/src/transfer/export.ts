@@ -128,6 +128,15 @@ function link(stage: string, rel: string, target: string): void {
 
 const hasFiles = (dir: string) => existsSync(dir) && readdirSync(dir, { recursive: true }).length > 0;
 
+/** the copies of clips that milestones of files made in the goal's screenshots folder (file names) */
+const clipsOfFiles = (host: TransferHost, goalId: string) =>
+  new Set(
+    host.store.listByGoalOfTypes(goalId, ['milestone.evidence']).flatMap((e) => {
+      const p = e.payload as { kind?: string; clips?: { file: string }[] };
+      return p.kind === 'files' ? (p.clips ?? []).map((c) => c.file) : [];
+    }),
+  );
+
 async function stageGoal(host: TransferHost, g: Goal, stage: string, transcripts: boolean): Promise<TransferGoalEntry> {
   const { store, dataDir } = host;
   const dir = join('goals', g.id);
@@ -154,7 +163,13 @@ async function stageGoal(host: TransferHost, g: Goal, stage: string, transcripts
     if (g.transfer.artifacts && hasFiles(join(dataDir, g.transfer.artifacts))) (link(stage, join(dir, 'artifacts'), join(dataDir, g.transfer.artifacts)), (artifacts = true));
   }
   const shots = screenshotsDir(dataDir, g);
-  if (hasFiles(shots)) link(stage, join(dir, 'screenshots'), shots);
+  if (hasFiles(shots)) {
+    // a finished goal leaves its artifacts behind (its output folder has them), and with them the clips a milestone of
+    // files copied from them: up to 200 MB each, they would make most of the file
+    const left = unfinished ? new Set<string>() : clipsOfFiles(host, g.id);
+    if (!left.size) link(stage, join(dir, 'screenshots'), shots);
+    else for (const name of readdirSync(shots)) if (!left.has(name)) link(stage, join(dir, 'screenshots', name), join(shots, name));
+  }
   if (hasFiles(attachmentsDir(dataDir, g.id))) link(stage, join('attachments', g.id), attachmentsDir(dataDir, g.id));
   if (transcripts) stageLogs(host, g, stage);
 
