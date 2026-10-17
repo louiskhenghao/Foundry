@@ -76,7 +76,10 @@ export function fitting(files: MediaFile[], max: { photo: number; video: number;
   return { files: out, note: droppedVideo ? 'The recording is too large to attach here; it is on the goal page.' : null };
 }
 
-const blob = async (f: MediaFile) => new Blob([await Bun.file(f.path).arrayBuffer()], { type: f.kind === 'video' ? 'video/webm' : 'image/png' });
+/** the content type a file is uploaded with, by its extension (a milestone of files sends JPEG, WebP, GIF, MP4 and MOV too) */
+const TYPES: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', webm: 'video/webm', mp4: 'video/mp4', mov: 'video/quicktime' };
+export const mediaType = (f: MediaFile) => TYPES[(/\.([^./]+)$/.exec(f.path)?.[1] ?? '').toLowerCase()] ?? (f.kind === 'video' ? 'video/webm' : 'image/png');
+const blob = async (f: MediaFile) => new Blob([await Bun.file(f.path).arrayBuffer()], { type: mediaType(f) });
 const fileName = (f: MediaFile) => f.path.split('/').pop() ?? (f.kind === 'video' ? 'recording.webm' : 'screenshot.png');
 
 const TELEGRAM_API = 'https://api.telegram.org';
