@@ -100,3 +100,30 @@ test('artifacts are never written through a symbolic link on the destination sid
   expect(copyArtifactFiles(from, linked, { onError: (f) => refused.push(f) })).toEqual([]);
   expect(refused.sort()).toEqual(['latest.png', 'sub/a.png']);
 });
+
+test('a copy replaces the file instead of writing into it: a hard link is not written through, an unreadable folder is reported, a copy in progress is never an artifact', async () => {
+  const { copyArtifactFiles } = await import('./workspace.ts');
+  const { chmodSync, linkSync } = await import('node:fs');
+  const from = mkdtempSync(join(tmpdir(), 'foundry-art-from-'));
+  mkdirSync(join(from, 'artifacts', 'locked'), { recursive: true });
+  writeFileSync(join(from, 'artifacts', 'part.step'), 'the task');
+  writeFileSync(join(from, 'artifacts', 'locked', 'hidden.step'), 'x');
+  writeFileSync(join(from, 'artifacts', '.foundry-part-1-0-left.step'), 'a copy cut short');
+  const outside = mkdtempSync(join(tmpdir(), 'foundry-art-outside-'));
+  writeFileSync(join(outside, 'victim.step'), 'victim');
+  const to = mkdtempSync(join(tmpdir(), 'foundry-art-to-'));
+  mkdirSync(join(to, 'artifacts'));
+  linkSync(join(outside, 'victim.step'), join(to, 'artifacts', 'part.step'));
+  const failed: string[] = [];
+  const root = process.getuid?.() === 0;
+  if (!root) chmodSync(join(from, 'artifacts', 'locked'), 0o000);
+  try {
+    expect(copyArtifactFiles(from, to, { onError: (f) => failed.push(f) })).toEqual(['part.step']);
+  } finally {
+    chmodSync(join(from, 'artifacts', 'locked'), 0o755);
+  }
+  expect(readFileSync(join(outside, 'victim.step'), 'utf8')).toBe('victim');
+  expect(readFileSync(join(to, 'artifacts', 'part.step'), 'utf8')).toBe('the task');
+  if (!root) expect(failed).toEqual(['locked/']);
+  expect(listArtifacts(to)).toEqual(['part.step']);
+});

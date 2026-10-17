@@ -1,4 +1,4 @@
-import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, unlinkSync, writeFileSync, type Dirent } from 'node:fs';
+import { constants, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync, type Dirent } from 'node:fs';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import type { Goal, Task } from '@foundry/core';
 import { ensureWorktree, git, headRef, removeWorktree } from './git/git.ts';
@@ -9,18 +9,25 @@ export const ARTIFACTS_DIR = 'artifacts';
 
 /** in a task worktree's artifacts/: what it inherited from the goal workspace, by content hash (see inheritArtifacts) */
 const INHERITED = '.inherited.json';
+/** a copy in progress (written beside its destination, then renamed over it): never an artifact itself */
+const PART = '.foundry-part-';
 const hashOf = (file: string) => String(Bun.hash(readFileSync(file)));
 
 /**
- * Every file under a workspace's artifacts/, as paths relative to that folder (the inherited-files marker is not one).
- * No symbolic link is followed: one can point anywhere, or at its own folder. A folder that cannot be read is left out,
- * not the whole listing.
+ * Every file under a workspace's artifacts/, as paths relative to that folder (the inherited-files marker and copies
+ * in progress are not). No symbolic link is followed: one can point anywhere, or at its own folder. A folder that
+ * cannot be read is left out, not the whole listing, and `onSkip` hears of it (and of an artifacts/ that is a link).
  */
-export function listArtifacts(ws: string): string[] {
+export function listArtifacts(ws: string, opts: { onSkip?: (rel: string, err: unknown) => void } = {}): string[] {
   const root = join(ws, ARTIFACTS_DIR);
+  let top;
   try {
-    if (!lstatSync(root).isDirectory()) return [];
+    top = lstatSync(root);
   } catch {
+    return [];
+  }
+  if (!top.isDirectory()) {
+    if (top.isSymbolicLink()) opts.onSkip?.(`${ARTIFACTS_DIR}/`, new Error(`${ARTIFACTS_DIR}/ is a symbolic link`));
     return [];
   }
   const files: string[] = [];
@@ -28,12 +35,13 @@ export function listArtifacts(ws: string): string[] {
     let entries: Dirent[];
     try {
       entries = readdirSync(dir, { withFileTypes: true });
-    } catch {
+    } catch (err) {
+      opts.onSkip?.(`${relative(root, dir) || '.'}/`, err);
       return;
     }
     for (const e of entries) {
       if (e.isDirectory()) walk(join(dir, e.name));
-      else if (e.isFile() && e.name !== INHERITED) files.push(relative(root, join(dir, e.name)));
+      else if (e.isFile() && e.name !== INHERITED && !e.name.startsWith(PART)) files.push(relative(root, join(dir, e.name)));
     }
   };
   walk(root);
@@ -54,8 +62,9 @@ export function copyArtifacts(fromWs: string, toWs: string): number {
 /**
  * copyArtifacts, saying which files it copied (paths relative to artifacts/). `skip`: files left where they are;
  * `inherited`: copy what the source inherited and left as it was too, so the destination mirrors its artifacts;
- * `onError`: a file that cannot be copied is reported and the others still go (without it, the first error throws).
- * Nothing is written through a symbolic link on the destination side.
+ * `onError`: a file that cannot be copied (or a folder the listing could not read) is reported and the others still go
+ * (without it, the first error throws). Each file is written beside its destination and renamed over it, so a copy cut
+ * short (a full disk) leaves the old file, and no link (symbolic or hard) at the destination is written through.
  */
 export function copyArtifactFiles(fromWs: string, toWs: string, opts: { skip?: ReadonlySet<string>; inherited?: boolean; onError?: (f: string, err: unknown) => void } = {}): string[] {
   let inherited: Record<string, string> = {};
@@ -65,8 +74,12 @@ export function copyArtifactFiles(fromWs: string, toWs: string, opts: { skip?: R
     } catch {}
   }
   const root = join(toWs, ARTIFACTS_DIR);
+  const failed = (f: string, err: unknown) => {
+    if (!opts.onError) throw err;
+    opts.onError(f, err);
+  };
   const copied: string[] = [];
-  for (const f of listArtifacts(fromWs)) {
+  for (const f of listArtifacts(fromWs, { onSkip: failed })) {
     if (opts.skip?.has(f)) continue;
     try {
       const src = join(fromWs, ARTIFACTS_DIR, f);
@@ -74,20 +87,24 @@ export function copyArtifactFiles(fromWs: string, toWs: string, opts: { skip?: R
       const dest = join(root, f);
       writableInside(root, dest);
       mkdirSync(dirname(dest), { recursive: true });
-      cpSync(src, dest);
+      const part = join(dirname(dest), `${PART}${process.pid}-${(partSeq++).toString(36)}-${basename(dest)}`);
+      try {
+        copyFileSync(src, part, constants.COPYFILE_EXCL | constants.COPYFILE_FICLONE);
+        renameSync(part, dest);
+      } catch (err) {
+        rmSync(part, { force: true });
+        throw err;
+      }
       copied.push(f);
     } catch (err) {
-      if (!opts.onError) throw err;
-      opts.onError(f, err);
+      failed(f, err);
     }
   }
   return copied;
 }
+let partSeq = 0;
 
-/**
- * Refuse a destination that a symbolic link would carry outside `root` (the artifacts folder itself a link, or a link
- * on the way), and take a link at the file itself away instead of writing through it.
- */
+/** Refuse a destination that a symbolic link would carry outside `root`: the artifacts folder itself a link, or a link on the way. */
 function writableInside(root: string, dest: string): void {
   if (existsSync(root) && lstatSync(root).isSymbolicLink()) throw new Error(`${ARTIFACTS_DIR}/ is a symbolic link`);
   let dir = dirname(dest);
@@ -97,9 +114,6 @@ function writableInside(root: string, dest: string): void {
     const top = existsSync(root) ? realpathSync(root) : null;
     if (top && real !== top && !real.startsWith(top + sep)) throw new Error(`${relative(root, dest)} would be written through a symbolic link`);
   }
-  try {
-    if (lstatSync(dest).isSymbolicLink()) unlinkSync(dest);
-  } catch {}
 }
 
 /** the files under a worktree's artifacts/ that git tracks (relative to artifacts/): they come through git, never by copy */
