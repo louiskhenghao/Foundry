@@ -25,6 +25,8 @@ export type TaskKind = z.infer<typeof TaskKind>;
 export const TaskScenario = z.enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'cad', 'general']);
 export type TaskScenario = z.infer<typeof TaskScenario>;
 export const TASK_SCENARIOS = TaskScenario.options;
+/** tasks whose deliverables are files under artifacts/ (a model and its snapshots, images, video): kept out of git, carried between workspaces, shown by their milestone */
+export const ARTIFACT_SCENARIOS: readonly TaskScenario[] = ['image', 'video', 'cad'];
 
 export const Task = z.object({
   id: z.string(),

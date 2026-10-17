@@ -39,9 +39,22 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
     case 'milestone.evidence': {
       // the final walkthrough says it once for every feature (milestone.final_walk)
       if (e.payload.final) return null;
+      // a milestone of files shows what a task produced: there is no walkthrough to speak of
+      const files = e.payload.kind === 'files';
       const head =
-        e.payload.status === 'fail' ? `⚠️ A milestone did not show — ${goalTitle(e.goalId)}` : e.payload.status === 'unverified' ? `📸 A milestone, with fake data only — ${goalTitle(e.goalId)}` : `📸 What the milestone looks like — ${goalTitle(e.goalId)}`;
-      const body = e.payload.summary || (e.payload.error ? `Foundry could not record a walkthrough: ${e.payload.error}` : '');
+        e.payload.status === 'fail'
+          ? files
+            ? `⚠️ Nothing to look at yet — ${goalTitle(e.goalId)}`
+            : `⚠️ A milestone did not show — ${goalTitle(e.goalId)}`
+          : e.payload.status === 'unverified'
+            ? `📸 A milestone, with fake data only — ${goalTitle(e.goalId)}`
+            : files
+              ? `📸 What the task produced — ${goalTitle(e.goalId)}`
+              : `📸 What the milestone looks like — ${goalTitle(e.goalId)}`;
+      const error = e.payload.error ? (files ? `${e.payload.error[0]!.toUpperCase()}${e.payload.error.slice(1)}` : `Foundry could not record a walkthrough: ${e.payload.error}`) : '';
+      const named = e.payload.files ?? [];
+      const listed = files && named.length ? `Files: ${named.slice(0, 6).join(', ')}${named.length > 6 ? ` and ${named.length - 6} more` : ''}` : '';
+      const body = [e.payload.summary, listed].filter(Boolean).join('\n') || error;
       // what went wrong next to a walkthrough that was recorded anyway (error pages left out, no plan)
       const also = e.payload.summary && e.payload.error ? `⚠️ ${e.payload.error.slice(0, 300)}` : '';
       return { family: 'milestone', text: [head, body.slice(0, 600), also].filter(Boolean).join('\n'), path: `/goals/${e.goalId}` };

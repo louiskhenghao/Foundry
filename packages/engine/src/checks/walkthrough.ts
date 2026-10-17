@@ -1,14 +1,16 @@
-import { mkdirSync, mkdtempSync, renameSync, rmSync, unlinkSync } from 'node:fs';
+import { constants, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, unlinkSync } from 'node:fs';
+import { copyFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import { getGoal, getTask, type Goal, type Task } from '@foundry/core';
+import { ARTIFACT_SCENARIOS, getGoal, getTask, listAttempts, type Goal, type Task } from '@foundry/core';
 import type { Engine } from '../engine.ts';
+import { landedArtifacts } from '../goal-artifacts.ts';
 import { boundarySettings } from '../guards/boundary.ts';
 import { CAD_VIEWER_KEY, type PreviewAppStatus } from '../preview/manager.ts';
 import { metaFor, modelFor } from '../models/roles.ts';
-import { screenshotsDir } from '../workspace.ts';
+import { ARTIFACTS_DIR, goalWorkspacePath, listArtifacts, screenshotsDir } from '../workspace.ts';
 import { runMilestoneScript, type ScriptDeps } from './milestone-script.ts';
 
 export const WALK_MAX_BUDGET_USD = 0.5;
@@ -55,6 +57,10 @@ export interface MilestoneEvidence {
   steps?: z.infer<typeof WalkStep>[];
   /** recorded by the final walkthrough */
   final?: boolean;
+  /** 'files': a milestone of files, what a task produced (not a walkthrough of an app) */
+  kind?: 'files';
+  /** a milestone of files: the models, drawings and clips too large to copy that it names, relative to artifacts/ (the card links them) */
+  files?: string[];
 }
 
 export interface CaptureOptions {
@@ -103,7 +109,8 @@ export const scriptDeps: { current: ScriptDeps | undefined } = { current: undefi
 
 /**
  * Record what a milestone looks like, after any recording of the same goal still running: by its Playwright script when
- * it has one, else by a walkthrough Foundry plans (or replays). The result is a `milestone.evidence` event. Never throws.
+ * it has one; by the files it produced when its deliverables are files (a model's snapshots, images, video), since there
+ * is no app to walk; else by a walkthrough Foundry plans (or replays). The result is a `milestone.evidence` event. Never throws.
  */
 export function captureMilestone(engine: Engine, goal: Goal, task: Task, opts: CaptureOptions = {}): Promise<MilestoneEvidence | null> {
   pending.set(goal.id, [...(pending.get(goal.id) ?? []), task.id]);
@@ -113,7 +120,8 @@ export function captureMilestone(engine: Engine, goal: Goal, task: Task, opts: C
       // the goal and the task as they are now: a script that changed while this waited is the one run
       const g = getGoal(engine.store.db, goal.id) ?? goal;
       const t = getTask(engine.store.db, task.id) ?? task;
-      return t.milestoneScript ? captureScripted(engine, g, t, opts) : captureWalk(engine, g, t, opts);
+      if (t.milestoneScript) return captureScripted(engine, g, t, opts);
+      return ARTIFACT_SCENARIOS.includes(t.scenario) ? captureFiles(engine, g, t, opts) : captureWalk(engine, g, t, opts);
     })
     .catch(() => null)
     .finally(() => {
@@ -148,6 +156,194 @@ async function captureScripted(engine: Engine, goal: Goal, task: Task, opts: Cap
   };
   engine.store.append({ type: 'milestone.evidence', goalId: goal.id, payload: evidence });
   engine.config.log(`[milestone] ${goal.id}: ${task.milestoneScript} ${run.status}${run.error ? ` (${run.error.split('\n')[0]})` : ''}`);
+  return evidence;
+}
+
+const IMAGE = /\.(png|jpe?g|webp|gif)$/i;
+const VIDEO = /\.(mp4|webm|mov)$/i;
+/** what a milestone of files names without showing: models, and drawings (a drawing task's one PDF) */
+const NAMED = /\.(step|stp|stl|3mf|glb|dxf|pdf)$/i;
+const MAX_SHOTS = 8;
+const MAX_CLIPS = 4;
+const MAX_NAMED = 12;
+/** a clip or an image larger than this is named, not copied: the screenshots folder is kept for good and travels with a Transfer */
+const MAX_CLIP_BYTES = 200 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
+const VIEW = '(front|back|top|bottom|left|right|iso|isometric|opposite_iso|side|section(_[a-z]+)?|[a-z]*_?closeup)';
+const VIEW_ONLY = new RegExp(`^${VIEW}$`, 'i');
+const VIEW_SUFFIX = new RegExp(`_${VIEW}$`, 'i');
+/** folders that hold images without saying what they show */
+const GENERIC_DIR = /^(snapshots?|renders?|images?|views?|frames?|shots?|screenshots?|previews?|stills?|png|out|output)$/i;
+
+/**
+ * What an image shows: its file name without a view suffix, or its folder when the name is only a view
+ * (`stack/front.png` → stack). Empty when neither says (`snapshots/iso.png`): such an image is named by nothing.
+ */
+export function imageSubject(f: string): string {
+  const parts = f.split('/');
+  const stem = parts.at(-1)!.replace(/\.[^.]+$/, '');
+  if (VIEW_ONLY.test(stem)) {
+    const folder = parts.at(-2);
+    return folder && !GENERIC_DIR.test(folder) ? folder : '';
+  }
+  return stem.replace(VIEW_SUFFIX, '');
+}
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** whether a text names a file or a part as a whole name, not as part of a longer one (`fin.png` is not `side_fin.png`, `arm` is not `forearm`) */
+const mentions = (text: string, name: string) => !!name && new RegExp(`(^|[^\\p{L}\\p{N}_.-])${escapeRe(name)}(?![\\p{L}\\p{N}_-])`, 'iu').test(text);
+
+/**
+ * How strongly a text names an image or a clip: its own path (8), else its subject (4) in the milestone's text; its path
+ * (2), else its subject (1) in the task's manifest. A task can rewrite files of other parts (an assembly re-renders
+ * them), so the files the milestone and the manifest are about come before the newest ones.
+ */
+function fileRank(f: string, milestone: string, manifest: string): number {
+  const subject = imageSubject(f);
+  return (mentions(milestone, f) ? 8 : mentions(milestone, subject) ? 4 : 0) + (mentions(manifest, f) ? 2 : mentions(manifest, subject) ? 1 : 0);
+}
+
+type FileStat = { f: string; at: number; size: number };
+
+/**
+ * A milestone whose deliverables are files: what the task left under the goal workspace's `artifacts/`. Its images (a
+ * model's snapshots, generated images) are shown, then its clips, the files the milestone and the task's manifest name
+ * first; its models and drawings are named, and the card links them. The task's own files are the ones its landing
+ * recorded (task.artifacts_landed); for a goal from before that, the files changed since the task's first attempt
+ * started stand in. After cleanup, the copies delivered to the output folder are read. Images and clips are copied to the
+ * goal's screenshots folder, where the card and the notification channels read them, under names drawn from what they
+ * copy: two files never share a copy, and a rerun over unchanged files copies nothing again.
+ */
+async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: CaptureOptions): Promise<MilestoneEvidence> {
+  const { store, config } = engine;
+  const evidence: MilestoneEvidence = { taskId: task.id, video: null, shots: [], summary: '', error: null, app: null, kind: 'files', ...(opts.final ? { final: true } : {}) };
+  try {
+    const ws = goalWorkspacePath(config.dataDir, goal);
+    let root = join(ws, ARTIFACTS_DIR);
+    let files = listArtifacts(ws);
+    // a finished goal whose folder was cleaned up: the copies delivered to its output folder
+    const run = goal.completion.artifactsRun;
+    if (!files.length && run?.status === 'ok' && run.dest) {
+      root = run.dest;
+      files = run.files.filter((f) => existsSync(join(root, f)));
+    }
+    const landing = landedArtifacts(engine, goal.id, task.id);
+    const landed = landing?.files ?? null;
+    // one file that cannot be read is left out, not the whole milestone
+    const stat = (f: string): FileStat | null => {
+      try {
+        const s = statSync(join(root, f));
+        return s.isFile() ? { f, at: s.mtimeMs, size: s.size } : null;
+      } catch {
+        return null;
+      }
+    };
+    const shows = (f: string) => !f.startsWith('samples/') && (IMAGE.test(f) || VIDEO.test(f) || NAMED.test(f));
+    let pool = files
+      .filter((f) => shows(f) && (!landed || landed.has(f)))
+      .map(stat)
+      .filter((x): x is FileStat => !!x);
+    if (!landed) {
+      const since = Math.min(...listAttempts(store.db, task.id).map((a) => Date.parse(a.startedAt)).filter((n) => !Number.isNaN(n)), Number.POSITIVE_INFINITY);
+      if (Number.isFinite(since)) pool = pool.filter((x) => x.at >= since);
+    }
+    // the task's landing brought nothing new (its exports came out exactly as they were): the files its milestone names
+    // by path stand in, rather than a milestone with nothing to look at
+    let byMilestone = false;
+    // (not when some of the task's files could not be landed: the milestone says so instead of showing older ones)
+    if (landed && !pool.length && task.milestone && !landing?.failed.length) {
+      pool = files
+        .filter((f) => shows(f) && mentions(task.milestone!, f))
+        .map(stat)
+        .filter((x): x is FileStat => !!x);
+      byMilestone = pool.length > 0;
+    }
+    const manifest = (task.relevantFiles ?? [])
+      .filter((f) => /^docs\/artifacts\/.+\.md$/.test(f) && !f.split('/').includes('..'))
+      .map((f) => {
+        try {
+          return readFileSync(join(ws, f), 'utf8');
+        } catch {
+          return '';
+        }
+      })
+      .join('\n');
+    const ranked = (re: RegExp) =>
+      pool
+        .filter((x) => re.test(x.f))
+        .map((x) => ({ ...x, rank: fileRank(x.f, task.milestone ?? '', manifest) }))
+        .sort((a, b) => b.rank - a.rank || b.at - a.at || a.f.localeCompare(b.f));
+    const images = ranked(IMAGE);
+    const clips = ranked(VIDEO);
+    const named = pool.filter((x) => NAMED.test(x.f)).map((x) => x.f).sort();
+    const dir = screenshotsDir(config.dataDir, goal);
+    mkdirSync(dir, { recursive: true });
+    const missed = { images: 0, clips: 0 };
+    const copy = async (x: FileStat, kind: keyof typeof missed): Promise<string | null> => {
+      const ext = (/\.[^./]+$/.exec(x.f)?.[0] ?? '').toLowerCase();
+      const stem = x.f.slice(0, x.f.length - ext.length).replace(/[^\w.-]+/g, '_').slice(-48);
+      const name = `${task.id}-${Bun.hash(`${x.f}\0${x.size}\0${x.at}`).toString(36)}-${stem}${ext}`;
+      const dest = join(dir, name);
+      try {
+        // reused only when whole; a copy goes under a temporary name first (a clone where the file system can make one,
+        // off the event loop), so one cut short by a restart is never taken for the file
+        if (!existsSync(dest) || statSync(dest).size !== x.size) {
+          await copyFile(join(root, x.f), `${dest}.part`, constants.COPYFILE_FICLONE);
+          renameSync(`${dest}.part`, dest);
+        }
+        return name;
+      } catch {
+        missed[kind]++;
+        return null;
+      }
+    };
+    const showable = images.filter((x) => x.size <= MAX_IMAGE_BYTES);
+    for (const x of showable.slice(0, MAX_SHOTS)) {
+      const file = await copy(x, 'images');
+      if (file) evidence.shots.push({ file, caption: x.f });
+    }
+    const tooLarge = [...images.filter((x) => x.size > MAX_IMAGE_BYTES), ...clips.slice(0, MAX_CLIPS).filter((x) => x.size > MAX_CLIP_BYTES)].map((x) => x.f);
+    const shownClips: { file: string; caption: string }[] = [];
+    for (const x of clips.slice(0, MAX_CLIPS).filter((c) => c.size <= MAX_CLIP_BYTES)) {
+      const file = await copy(x, 'clips');
+      if (file) shownClips.push({ file, caption: x.f });
+    }
+    if (shownClips.length) evidence.clips = shownClips;
+    // the deliverables first (models, drawings), then what was too large to copy
+    const linked = [...named, ...tooLarge];
+    if (linked.length) evidence.files = linked.slice(0, MAX_NAMED);
+    const shown = evidence.shots.length + shownClips.length;
+    const uncopied = missed.images + missed.clips;
+    // what the shots and clips do not say; the files themselves are listed apart (the card links them)
+    const notes: string[] = [];
+    if (byMilestone) notes.push('the task changed none of its files: these are the ones its milestone names');
+    if (landing?.failed.length) notes.push(`${landing.failed.length} file(s) of the task could not be landed in the goal workspace (${landing.failed.slice(0, 3).join(', ')})`);
+    if (!shown && linked.length) notes.push('nothing to preview');
+    if (showable.length > evidence.shots.length + missed.images) notes.push(`${evidence.shots.length} of ${showable.length} images shown, the ones the milestone names first`);
+    if (clips.length > MAX_CLIPS) notes.push(`${MAX_CLIPS} of ${clips.length} clips shown`);
+    if (tooLarge.length) notes.push(`${tooLarge.length} file(s) too large to copy, listed with the files`);
+    if (linked.length > MAX_NAMED) notes.push(`${linked.length - MAX_NAMED} more file(s) not listed`);
+    if (uncopied) notes.push(`${uncopied} file(s) could not be copied for the card`);
+    evidence.summary = notes.map((n) => `${n[0]!.toUpperCase()}${n.slice(1)}.`).join(' ');
+    if (shown || linked.length) {
+      evidence.status = 'pass';
+    } else {
+      evidence.status = 'fail';
+      evidence.error = landing?.failed.length
+        ? `the task's files could not be landed in the goal workspace (${landing.failed.slice(0, 3).join(', ')})`
+        : uncopied
+        ? "the task's files could not be copied for the card"
+        : task.scenario === 'cad'
+          ? 'the task left no snapshots or exports under artifacts/: there is nothing to look at'
+          : 'the task left no images or video under artifacts/';
+    }
+  } catch (err) {
+    // the code, not the message: a file system error names absolute paths, and this text reaches the notification channels
+    evidence.error = `could not collect the task's files (${(err as NodeJS.ErrnoException)?.code ?? 'error'})`;
+    evidence.status = 'fail';
+  }
+  store.append({ type: 'milestone.evidence', goalId: goal.id, payload: evidence });
+  config.log(`[milestone] ${goal.id}: ${task.id} files ${evidence.status}${evidence.error ? ` (${evidence.error})` : ''}`);
   return evidence;
 }
 

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DiscordNotifier, TelegramNotifier, fitting, reachableUrl, type MediaFile } from './channels.ts';
+import { DiscordNotifier, TelegramNotifier, fitting, mediaType, reachableUrl, type MediaFile } from './channels.ts';
 
 const dir = mkdtempSync(join(tmpdir(), 'foundry-channels-'));
 const file = (name: string, bytes: number, kind: MediaFile['kind']): MediaFile => {
@@ -54,6 +54,27 @@ describe('media in notifications', () => {
     calls = capture();
     await new DiscordNotifier('https://discord.test/hook').sendMedia('look', [file('huge.webm', 10_000_001, 'video')]);
     expect(JSON.parse(String(calls[0]!.body)).content).toContain('too large');
+  });
+});
+
+test('files are uploaded with the content type of their format', () => {
+  expect([mediaType({ path: '/x/a.JPG', kind: 'photo' }), mediaType({ path: '/x/b.webp', kind: 'photo' }), mediaType({ path: '/x/c.mp4', kind: 'video' }), mediaType({ path: '/x/d.mov', kind: 'video' }), mediaType({ path: '/x/shot', kind: 'photo' })]).toEqual(['image/jpeg', 'image/webp', 'video/mp4', 'video/quicktime', 'image/png']);
+});
+
+describe('a picture Telegram refuses', () => {
+  test('does not drop the message: the text goes alone, saying the files could not be attached', async () => {
+    const methods: string[] = [];
+    let text = '';
+    globalThis.fetch = (async (url: string, init: RequestInit) => {
+      methods.push(String(url).split('/').pop()!);
+      if (String(url).endsWith('/sendPhoto')) return new Response('{"ok":false,"description":"Bad Request: PHOTO_INVALID_DIMENSIONS"}', { status: 400 });
+      text = JSON.parse(String(init.body)).text;
+      return new Response('{}', { status: 200 });
+    }) as typeof fetch;
+    await new TelegramNotifier('tok', '42').sendMedia('look', [file('wide.png', 10, 'photo')]);
+    expect(methods).toEqual(['sendPhoto', 'sendPhoto', 'sendMessage']);
+    expect(text).toContain('look');
+    expect(text).toContain('could not be attached');
   });
 });
 

@@ -76,7 +76,10 @@ export function fitting(files: MediaFile[], max: { photo: number; video: number;
   return { files: out, note: droppedVideo ? 'The recording is too large to attach here; it is on the goal page.' : null };
 }
 
-const blob = async (f: MediaFile) => new Blob([await Bun.file(f.path).arrayBuffer()], { type: f.kind === 'video' ? 'video/webm' : 'image/png' });
+/** the content type a file is uploaded with, by its extension (a milestone of files sends JPEG, WebP, GIF, MP4 and MOV too) */
+const TYPES: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', webm: 'video/webm', mp4: 'video/mp4', mov: 'video/quicktime' };
+export const mediaType = (f: MediaFile) => TYPES[(/\.([^./]+)$/.exec(f.path)?.[1] ?? '').toLowerCase()] ?? (f.kind === 'video' ? 'video/webm' : 'image/png');
+const blob = async (f: MediaFile) => new Blob([await Bun.file(f.path).arrayBuffer()], { type: mediaType(f) });
 const fileName = (f: MediaFile) => f.path.split('/').pop() ?? (f.kind === 'video' ? 'recording.webm' : 'screenshot.png');
 
 const TELEGRAM_API = 'https://api.telegram.org';
@@ -113,17 +116,23 @@ export class TelegramNotifier implements Notifier {
     const { files, note } = fitting(all, { photo: 10e6, video: 50e6, total: 50e6, count: 10 });
     const plain = [caption, note].filter(Boolean).join('\n');
     if (!files.length) return this.send(plain, links);
-    if (files.length === 1 && files[0]!.kind === 'photo') return this.sendPhoto(plain, files[0]!.path, links);
-    if (files.length === 1)
-      return this.upload('sendVideo', plain, links, async (form, text, html) => {
-        form.set('caption', text);
-        if (html) form.set('parse_mode', 'HTML');
-        form.set('video', await blob(files[0]!), fileName(files[0]!));
+    try {
+      if (files.length === 1 && files[0]!.kind === 'photo') return await this.sendPhoto(plain, files[0]!.path, links);
+      if (files.length === 1)
+        return await this.upload('sendVideo', plain, links, async (form, text, html) => {
+          form.set('caption', text);
+          if (html) form.set('parse_mode', 'HTML');
+          form.set('video', await blob(files[0]!), fileName(files[0]!));
+        });
+      await this.upload('sendMediaGroup', plain, links, async (form, text, html) => {
+        form.set('media', JSON.stringify(files.map((f, i) => ({ type: f.kind, media: `attach://f${i}`, ...(i === 0 ? { caption: text, ...(html ? { parse_mode: 'HTML' } : {}) } : {}) }))));
+        for (const [i, f] of files.entries()) form.set(`f${i}`, await blob(f), fileName(f));
       });
-    await this.upload('sendMediaGroup', plain, links, async (form, text, html) => {
-      form.set('media', JSON.stringify(files.map((f, i) => ({ type: f.kind, media: `attach://f${i}`, ...(i === 0 ? { caption: text, ...(html ? { parse_mode: 'HTML' } : {}) } : {}) }))));
-      for (const [i, f] of files.entries()) form.set(`f${i}`, await blob(f), fileName(f));
-    });
+    } catch (err) {
+      // a file Telegram will not take (a picture with too many pixels or an odd shape) must not drop the message
+      if (!/^telegram 400/.test(String((err as Error)?.message))) throw err;
+      await this.send(`${plain}\n(the files could not be attached)`, links);
+    }
   }
   /** a multipart upload with a caption (1024 at most): its links as HTML, written out when Telegram refuses them */
   private async upload(method: string, caption: string, links: Link[], fill: (form: FormData, text: string, html: boolean) => Promise<void>): Promise<void> {

@@ -33,6 +33,11 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
   manifest under `docs/artifacts/`. Reviewers read the snapshots and run the geometry checks; a deliverable without
   snapshots, a missing export or a dimension off the Brief is a blocker; the person is the final judge at milestones.
   The worker renders the snapshots, like media workers render their files: the engine never calls cadgen itself.
+  The cad skill's own examples write exports beside the source (`STEP/`, `STL/`, `snapshots/`); the planner, worker
+  and reviewer prompts say that Foundry's layout overrides them, so nothing generated is committed twice. Nothing
+  committed may reach into the coding agent's plugin folder (its path carries the plugin's version and differs per
+  machine and agent): a check that needs one of the skills' tools, such as the DfAM measurer, runs a copy the task puts
+  in the repository with its licence. Both rules came from the first real run, whose checks did each of these.
 - **text-to-cad is one plugin, a bundle in the catalog.** Twelve entries share the plugin source (the marketplace
   ref `latest`, spelled `#latest` for Claude and `--ref latest` for Codex); the Setup page shows one card. A plugin
   source can now declare the MCP servers it ships, with their deny lists, and a warm-up: once installed, the `cad`
@@ -65,11 +70,40 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
 - **The viewer is the person's.** text-to-cad's `cadgen viewer` is listed as a preview app of every cad goal, started
   only by a person from the milestone or preview card, with the plugin's pinned command on a preview port; walkthroughs,
   self-checks and integrations never start it, do not count it (a cad goal with no app of its own still has "nothing to
-  run"), and an integration's restart of the running apps leaves it alone.
+  run"), and an integration's restart of the running apps leaves it alone. It opens on the goal's model, not on its
+  home: `?file=` with the absolute path of the assembly when one was exported (a STEP whose name says assembly, or has
+  asm, assy or stack as a word of its own), else of the newest STEP, from the workspace while the goal runs and from the
+  output folder once delivered. The link is built when the card reads it, so a running viewer follows a newer assembly,
+  and its tailnet address carries the same path and query.
+- **A milestone of files shows the task's own files.** A milestone of a cad, image or video task shows what that task
+  produced: the files its landing copied into the goal workspace, recorded as `task.artifacts_landed` (a goal from
+  before that falls back to the files changed since the task's first attempt). Its images and up to four clips, the
+  ones the milestone and the task's manifest name first, are copied to the goal's screenshots folder under names drawn
+  from what they copy (path, size, time): two files never share a copy, a rerun over unchanged files copies nothing, and
+  a clip over 200 MB is named instead. Models and drawings are named, and the card links them (the delivered copy once
+  the goal folder is gone); a task that landed nothing has nothing to look at. The card shows the pictures whole, the
+  screenshots route serves every format collected, and there is no walkthrough of a preview such a goal does not have.
 - **Exports travel with the tasks.** A cad task's worktree starts with the goal workspace's `artifacts/` (what earlier
   tasks exported), the way it gets project skills and style samples: a drawing or an assembly needs the parts' STEP,
   and artifacts never come through git. What a task inherited and left untouched is not copied back at integration, so
-  a task that finishes later never puts an older copy over a newer export.
+  a task that finishes later never puts an older copy over a newer export. A manual merge resolution lands the task's
+  artifacts the same way before its worktree goes. The throw-away worktrees that run the goal's checks (the merge
+  baseline, a manual merge resolution, the stacked delivery) get artifacts too: without them every check that measures
+  an export read as "already failing" and merges were judged blind to it. Those copies happen only for goals that keep
+  artifacts, never over a file git tracks (a repository's own `artifacts/` folder comes through git), and never at the
+  cost of the checks: a failed copy is noted. A merge attempt's baseline takes its artifacts from the worktree the merge
+  happens in (a task's own on a catch-up), so both sides of the comparison measure the same exports, and a resolution's
+  worktree gets the goal's artifacts and then the task's changes, after its squash merge. The artifacts listing follows
+  no symbolic link, and no copy writes through one: each file is copied beside its destination and renamed over it, so
+  a copy cut short leaves the old file. A landing leaves files git tracks to the commit, still copies the other files
+  when one fails (a folder it cannot read counts as failed), records the failures for the milestone, and then keeps the
+  task's worktree; a task that worked in the goal workspace records the files it changed there. Baselines of a goal run one at a time, are keyed by the state of the exports they measure,
+  and count nothing as already failing when those exports cannot be copied. A manual resolution holds work while its
+  squash merge, a change to a tracked file, or a commit past its recorded start is there (untracked leftovers do not
+  count), so a page load never starts it over under the person's edits, and a Finish cut short after its commit is
+  completed by the next one (finished up, when the commit had already landed). A session merged from an older tip of the
+  task branch (before a retry) is replaced, and Finish runs only while the task still waits on its merge. The exports a resolution lands follow the code it kept: none when it kept the goal's side throughout,
+  only the ones the goal lacks when it kept the goal's side for some of the task's files.
 
 ## Consequences
 
@@ -84,7 +118,12 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
 - A bundle install is a background operation on its own channel (the Setup page and the goal page follow it and poll
   its record); `/api/cad` tells the New goal form and the goal page whether the plugin and uv are there, for the coding
   agent asked about, and wakes a waiting cad goal.
-- Not done: a deep link from a milestone to the model in the viewer (the viewer opens on its home), the viewer's bind
+- Not done: the viewer's bind
   address in Docker (unverified), a `cad` file preview in the task drawer (STEP/STL show as binaries), per-tool allow
   lists for the plugin's server (its remaining tools are read-only by its own annotation), and a marketplace added
-  earlier without the `latest` ref (the add says "already exists" and the install follows that other ref).
+  earlier without the `latest` ref (the add says "already exists" and the install follows that other ref). A squash
+  that conflicts at integration (another task landed between a task's last catch-up and its squash) runs its merge
+  attempt in the goal workspace before the task's exports land there, so a task that changes an existing export and
+  the check that measures it together can still read as a regression in that window. Milestone copies of images and
+  clips stay in the screenshots folder, which a Transfer carries. A landing whose copy failed keeps the task's worktree
+  and says so, but a later restart of the goal or its after-merge cleanup can still remove it.

@@ -158,7 +158,9 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
   const multi = apps.length > 1;
   const anyRunning = apps.some((a) => a.running);
   const allRunning = apps.every((a) => a.running || !a.run.command);
-  const fromText = st?.source === 'brief' ? 'the Brief' : multi ? 'package.json workspaces' : 'package.json';
+  // a CAD goal whose repository has nothing to run itself: the preview is text-to-cad's viewer alone
+  const viewerOnly = apps.length === 1 && apps[0]?.key === 'cad-viewer';
+  const fromText = st?.source === 'brief' ? 'the Brief' : viewerOnly ? 'text-to-cad' : multi ? 'package.json workspaces' : 'package.json';
   const allButtons = multi && (
     <>
       <Button size="sm" variant="primary" disabled={!!busy || allRunning} onClick={() => run('start:*', () => api.previewStart(goalId))} title="Start every app that is not running (Docker services first)">
@@ -177,13 +179,13 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
           <>
             <StatusDot app={a} />
             <span className="text-zinc-200">
-              Running on port {a.port}
+              {viewerOnly ? 'CAD Viewer running' : 'Running'} on port {a.port}
               {startedByText(a.startedBy) && <span className="text-zinc-500"> · started {startedByText(a.startedBy)}</span>}
               {a.mock && <span className="text-amber-300" title="Running its mock command against fake data for the milestone walkthrough; the next start runs the real app"> · mock data</span>}
             </span>
             {a.url && (
               <a href={openUrl(a)!} target="_blank" rel="noreferrer" onClick={visit} className="inline-flex items-center gap-1 text-emerald-300 hover:underline">
-                Open preview <ExternalLink size={12} />
+                {viewerOnly ? 'Open the model' : 'Open preview'} <ExternalLink size={12} />
               </a>
             )}
             <Button size="sm" variant="ghost" className="ml-auto" disabled={!!busy} onClick={() => run('stop:*', () => api.previewStop(goalId))}>
@@ -192,9 +194,9 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
           </>
         ) : (
           <>
-            <span className="text-zinc-300">{st!.run?.command ? 'Not running' : 'Nothing to run yet'}</span>
+            <span className="text-zinc-300">{st!.run?.command ? (viewerOnly ? 'CAD Viewer not running' : 'Not running') : 'Nothing to run yet'}</span>
             <Button size="sm" variant="primary" className="ml-auto" disabled={!!busy || !st!.run?.command} onClick={() => run('start:*', () => api.previewStart(goalId))} title={st!.run?.command ? `runs: ${st!.run.command}` : 'no dev/start script in package.json — the Brief\'s "How to run it" can set a command'}>
-              <Play size={12} /> {busy === 'start:*' ? 'Starting…' : 'Start preview'}
+              <Play size={12} /> {busy === 'start:*' ? 'Starting…' : viewerOnly ? 'Start the viewer' : 'Start preview'}
             </Button>
           </>
         )}

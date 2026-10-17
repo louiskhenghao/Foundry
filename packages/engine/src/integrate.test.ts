@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { getGoal, listEscalations, listTasks } from '@foundry/core';
@@ -156,6 +156,296 @@ describe('manual merge resolution', () => {
     const before = engine.store.snapshotReadModels();
     engine.store.replay();
     expect(engine.store.snapshotReadModels()).toEqual(before);
+  }, 60_000);
+});
+
+describe('manual merge resolution: finishing safely', () => {
+  const conflicting = async (gate: string) => {
+    const runner = new FakeRunner((spec) => {
+      if (spec.label?.startsWith('attempt')) writeFileSync(join(spec.cwd, 'shared.txt'), `${spec.label}\n`);
+    });
+    const engine = new Engine(cfg(), runner);
+    const goal = await engine.createGoal({
+      prompt: 'conflict',
+      repoPath: repo,
+      brief: {
+        title: 'feat: conflicting',
+        understanding: 'u',
+        areas: [],
+        assumptions: [],
+        questions: [], styleOptions: [],
+        costEstimateUsd: 0,
+        timeEstimateMin: 0,
+        tasks: [t('T1', 'add alpha', [], true), t('T2', 'add beta', [], true)],
+        checks: [c('C1', 'T1', 'test -f shared.txt'), c('C2', 'T2', 'test -f shared.txt'), c('G', null, gate)],
+      },
+    });
+    const mergeEsc = () => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).find((e) => (e.payload as { kind?: string }).kind === 'merge');
+    await waitFor(() => !!mergeEsc(), 30_000);
+    return { engine, goal, taskId: mergeEsc()!.taskId! };
+  };
+
+  test('finishing anyway after the checks regressed lands the resolution', async () => {
+    const { startResolution, resolveFile, finishResolution } = await import('./merge-resolve.ts');
+    // the gate passes on the goal branch and fails on the resolution below: a regression the person lands anyway
+    const { engine, goal, taskId } = await conflicting('test "$(cat shared.txt)" != broken');
+    await startResolution(engine, goal.id, taskId);
+    await resolveFile(engine, goal.id, taskId, 'shared.txt', 'broken\n');
+    const first = await finishResolution(engine, goal.id, taskId);
+    expect(first.ok).toBe(false);
+    expect(first.reason).toContain('regressed');
+    const forced = await finishResolution(engine, goal.id, taskId, { force: true });
+    expect(forced.ok).toBe(true);
+    const ws = goalWorkspacePath(dataDir, goal);
+    expect(await sh('cat shared.txt', ws)).toBe('broken');
+    expect(await sh('git log -1 --format=%B', ws)).toContain('Resolved manually by the human');
+  }, 60_000);
+
+  test("a resolution whose squash record is gone keeps the person's edits: a reload neither drops nor restarts it", async () => {
+    const { startResolution, describeResolution, resolveFile, finishResolution } = await import('./merge-resolve.ts');
+    const { engine, goal, taskId } = await conflicting('test -f shared.txt');
+    await startResolution(engine, goal.id, taskId);
+    await resolveFile(engine, goal.id, taskId, 'shared.txt', 'resolved by hand\n');
+    // an unstage (or a stash and pop, or an editor's commit) removes git's SQUASH_MSG while the edits stay
+    const path = resolveWorkspacePath(dataDir, goal, taskId);
+    await sh('git reset -q', path);
+    expect(await sh('test -e "$(git rev-parse --git-path SQUASH_MSG)" && echo yes || echo no', path)).toBe('no');
+    expect((await describeResolution(engine, goal.id, taskId)).path).toBe(path);
+    await startResolution(engine, goal.id, taskId);
+    expect(await sh('cat shared.txt', path)).toBe('resolved by hand');
+    const fin = await finishResolution(engine, goal.id, taskId);
+    expect(fin.ok).toBe(true);
+    expect(await sh('cat shared.txt', goalWorkspacePath(dataDir, goal))).toBe('resolved by hand');
+  }, 60_000);
+
+  test('a Finish cut short after its commit is completed by the next one, which lands the resolution', async () => {
+    const { startResolution, resolveFile, finishResolution } = await import('./merge-resolve.ts');
+    const { engine, goal, taskId } = await conflicting('test -f shared.txt');
+    await startResolution(engine, goal.id, taskId);
+    await resolveFile(engine, goal.id, taskId, 'shared.txt', 'resolved before the restart\n');
+    // the state a restart leaves between Finish's commit and the landing
+    const path = resolveWorkspacePath(dataDir, goal, taskId);
+    await sh('git -c user.email=t@t -c user.name=t commit -qm "resolution"', path);
+    const fin = await finishResolution(engine, goal.id, taskId);
+    expect(fin.ok).toBe(true);
+    const ws = goalWorkspacePath(dataDir, goal);
+    expect(await sh('cat shared.txt', ws)).toBe('resolved before the restart');
+    expect(await sh('git log -1 --format=%B', ws)).toContain('Resolved manually by the human');
+  }, 60_000);
+
+  test('a Finish retried after its resolution already landed finishes what was left, without a second commit', async () => {
+    const { startResolution, resolveFile, finishResolution } = await import('./merge-resolve.ts');
+    const { engine, goal, taskId } = await conflicting('test -f shared.txt');
+    await startResolution(engine, goal.id, taskId);
+    await resolveFile(engine, goal.id, taskId, 'shared.txt', 'resolved and landed\n');
+    // what a Finish stopped by a restart had done: its commit, landed on the goal branch, and nothing recorded after
+    const path = resolveWorkspacePath(dataDir, goal, taskId);
+    await sh(`git -c user.email=t@t -c user.name=t commit -qm "feat: resolved" -m "Task: ${taskId}" -m "Resolved manually by the human"`, path);
+    const ws = goalWorkspacePath(dataDir, goal);
+    await sh(`git merge -q --ff-only ${await sh('git rev-parse HEAD', path)}`, ws);
+    const before = await sh('git rev-parse HEAD', ws);
+    const fin = await finishResolution(engine, goal.id, taskId);
+    expect(fin).toMatchObject({ ok: true, ref: before });
+    expect(await sh('git rev-parse HEAD', ws)).toBe(before);
+    expect(listTasks(engine.store.db, goal.id).find((x) => x.id === taskId)!.state).toBe('done');
+  }, 60_000);
+
+  test('a stash that leaves only an untracked leftover is not a resolution to finish: it starts over, and the stash keeps the work', async () => {
+    const { startResolution, resolveFile, finishResolution } = await import('./merge-resolve.ts');
+    const { engine, goal, taskId } = await conflicting('test -f shared.txt');
+    await startResolution(engine, goal.id, taskId);
+    await resolveFile(engine, goal.id, taskId, 'shared.txt', 'stashed resolution\n');
+    const path = resolveWorkspacePath(dataDir, goal, taskId);
+    await sh('git stash -q && echo leftover > shared.txt.orig', path);
+    const fin = await finishResolution(engine, goal.id, taskId);
+    expect(fin.ok).toBe(false);
+    expect(listTasks(engine.store.db, goal.id).find((x) => x.id === taskId)!.state).toBe('blocked');
+    expect((await startResolution(engine, goal.id, taskId)).remaining).toBe(1);
+  }, 60_000);
+
+  test("a resolution of the task's older work (a retry moved its branch) is refused and replaced, and so is Finish after a skip", async () => {
+    const { startResolution, resolveFile, finishResolution } = await import('./merge-resolve.ts');
+    const { engine, goal, taskId } = await conflicting('test -f shared.txt');
+    await startResolution(engine, goal.id, taskId);
+    await resolveFile(engine, goal.id, taskId, 'shared.txt', 'resolved against the first attempt\n');
+    const task = listTasks(engine.store.db, goal.id).find((x) => x.id === taskId)!;
+    // a retry ran another attempt: the task branch moved past what the resolution merged
+    await sh('echo second > shared.txt && git -c user.email=t@t -c user.name=t commit -qam "attempt 2"', task.worktreePath!);
+    const fin = await finishResolution(engine, goal.id, taskId);
+    expect(fin).toMatchObject({ ok: false });
+    expect(fin.reason).toContain('the task changed since this resolution started');
+    const again = await startResolution(engine, goal.id, taskId);
+    expect(again.files.find((f) => f.path === 'shared.txt')!.theirs).toBe('second\n');
+    // skipped meanwhile: Finish does not land it, nor turn the task done
+    engine.store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId, from: 'blocked', to: 'skipped', reason: 'skipped by the human' } });
+    const skipped = await finishResolution(engine, goal.id, taskId);
+    expect(skipped.ok).toBe(false);
+    expect(listTasks(engine.store.db, goal.id).find((x) => x.id === taskId)!.state).toBe('skipped');
+  }, 60_000);
+
+  test('a resolution worktree moved off the commit it started from is refused, not landed over the goal', async () => {
+    const { startResolution, finishResolution } = await import('./merge-resolve.ts');
+    const { engine, goal, taskId } = await conflicting('test -f shared.txt');
+    await startResolution(engine, goal.id, taskId);
+    const path = resolveWorkspacePath(dataDir, goal, taskId);
+    await sh('git reset -q --hard $(git rev-list --max-parents=0 HEAD)', path);
+    const fin = await finishResolution(engine, goal.id, taskId);
+    expect(fin.ok).toBe(false);
+    expect(fin.reason).toContain('moved off the commit it started from');
+  }, 60_000);
+
+  test('a resolution worktree left without its merge is started over, never finished as a resolution without changes', async () => {
+    const { startResolution, finishResolution } = await import('./merge-resolve.ts');
+    const { engine, goal, taskId } = await conflicting('test -f shared.txt');
+    await startResolution(engine, goal.id, taskId);
+    // the state an engine crash leaves between creating the worktree and merging into it
+    const path = resolveWorkspacePath(dataDir, goal, taskId);
+    await sh(`git worktree remove --force "${path}" && git worktree add -q --detach "${path}" ${goal.branch}`, repo);
+    const refused = await finishResolution(engine, goal.id, taskId);
+    expect(refused.ok).toBe(false);
+    expect(refused.reason).toContain('start the resolution again');
+    expect(listTasks(engine.store.db, goal.id).find((x) => x.id === taskId)!.state).toBe('blocked');
+    const again = await startResolution(engine, goal.id, taskId);
+    expect(again.remaining).toBe(1);
+  }, 60_000);
+});
+
+describe('manual merge resolution of tasks that export files', () => {
+  test("a manually resolved task's exports reach the goal workspace, recorded as its landing, and the checks that measure them pass", async () => {
+    const { startResolution, takeSide, finishResolution } = await import('./merge-resolve.ts');
+    // cad tasks: their exports live under artifacts/, which git never sees; both also rewrite shared.txt, so they conflict
+    const runner = new FakeRunner((spec) => {
+      if (!spec.label?.startsWith('attempt')) return;
+      const title = spec.label.replace(/^attempt /, '').replace(/ #\d+$/, '');
+      writeFileSync(join(spec.cwd, 'shared.txt'), `${spec.label}\n`);
+      mkdirSync(join(spec.cwd, 'artifacts'), { recursive: true });
+      writeFileSync(join(spec.cwd, 'artifacts', `${title.replace(/ /g, '_')}.step`), 'ISO-10303-21;');
+    });
+    const engine = new Engine(cfg(), runner);
+    const cad = (key: string, title: string) => ({ ...t(key, title, [], true), scenario: 'cad' as const });
+    const goal = await engine.createGoal({
+      prompt: 'conflicting exports',
+      repoPath: repo,
+      brief: {
+        title: 'feat: two parts',
+        understanding: 'u',
+        areas: [],
+        assumptions: [],
+        questions: [], styleOptions: [],
+        costEstimateUsd: 0,
+        timeEstimateMin: 0,
+        tasks: [cad('T1', 'add alpha'), cad('T2', 'add beta')],
+        checks: [c('C1', 'T1', 'test -s artifacts/add_alpha.step'), c('C2', 'T2', 'test -s artifacts/add_beta.step')],
+      },
+    });
+    const mergeEsc = () => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).find((e) => (e.payload as { kind?: string }).kind === 'merge');
+    await waitFor(() => !!mergeEsc(), 30_000);
+    const taskId = mergeEsc()!.taskId!;
+    const file = `${listTasks(engine.store.db, goal.id).find((x) => x.id === taskId)!.title.replace(/ /g, '_')}.step`;
+    await startResolution(engine, goal.id, taskId);
+    await takeSide(engine, goal.id, taskId, 'shared.txt', 'both');
+    const fin = await finishResolution(engine, goal.id, taskId);
+    // the resolution sees the exports as the merged goal has them: the other task's (landed) and this task's own
+    expect(fin.checks.map((x) => [x.name, x.status])).toEqual([['C1', 'pass'], ['C2', 'pass']]);
+    expect(fin.ok).toBe(true);
+    // the task's export is in the goal workspace once its worktree is gone, recorded as its landing
+    expect(existsSync(join(goalWorkspacePath(dataDir, goal), 'artifacts', file))).toBe(true);
+    const landed = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'task.artifacts_landed').map((e) => e.payload);
+    expect(landed).toContainEqual({ taskId, files: [file] });
+  }, 60_000);
+});
+
+describe('manual merge resolution: which exports land', () => {
+  // cad tasks rewrite shared.txt (the conflict) and export frame.step and a part of their own; with `own`, each also
+  // writes a tracked file of its own, so a resolution that keeps the goal's shared.txt still lands a change
+  const resolveKeepingGoalSide = async (own: boolean) => {
+    const { startResolution, takeSide, finishResolution } = await import('./merge-resolve.ts');
+    const runner = new FakeRunner((spec) => {
+      if (!spec.label?.startsWith('attempt')) return;
+      const slug = spec.label.replace(/^attempt /, '').replace(/ #\d+$/, '').replace(/ /g, '_');
+      writeFileSync(join(spec.cwd, 'shared.txt'), `${spec.label}\n`);
+      if (own) writeFileSync(join(spec.cwd, `${slug}.txt`), slug);
+      mkdirSync(join(spec.cwd, 'artifacts'), { recursive: true });
+      writeFileSync(join(spec.cwd, 'artifacts', 'frame.step'), `${slug} frame`);
+      writeFileSync(join(spec.cwd, 'artifacts', `${slug}_only.step`), slug);
+    });
+    const engine = new Engine(cfg(), runner);
+    const cad = (key: string, title: string) => ({ ...t(key, title, [], true), scenario: 'cad' as const });
+    const goal = await engine.createGoal({
+      prompt: 'two parts',
+      repoPath: repo,
+      brief: { title: 'feat: two parts', understanding: 'u', areas: [], assumptions: [], questions: [], styleOptions: [], costEstimateUsd: 0, timeEstimateMin: 0, tasks: [cad('T1', 'add alpha'), cad('T2', 'add beta')], checks: [c('C1', 'T1', 'test -f shared.txt'), c('C2', 'T2', 'test -f shared.txt')] },
+    });
+    const mergeEsc = () => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).find((e) => (e.payload as { kind?: string }).kind === 'merge');
+    await waitFor(() => !!mergeEsc(), 30_000);
+    const taskId = mergeEsc()!.taskId!;
+    const slug = listTasks(engine.store.db, goal.id).find((x) => x.id === taskId)!.title.replace(/ /g, '_');
+    const art = join(goalWorkspacePath(dataDir, goal), 'artifacts');
+    const landedFrame = await Bun.file(join(art, 'frame.step')).text();
+    await startResolution(engine, goal.id, taskId);
+    await takeSide(engine, goal.id, taskId, 'shared.txt', 'ours');
+    expect((await finishResolution(engine, goal.id, taskId)).ok).toBe(true);
+    const notes = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'engine.note').map((e) => (e.payload as { message: string }).message);
+    return { art, slug, landedFrame, notes };
+  };
+
+  test("a resolution that kept the goal's side for a file the task changed lands only the exports the goal lacks", async () => {
+    const { art, slug, landedFrame, notes } = await resolveKeepingGoalSide(true);
+    // the goal's frame stays as it was (consistent with the shared file it kept); the task's own part arrives
+    expect(await Bun.file(join(art, 'frame.step')).text()).toBe(landedFrame);
+    expect(existsSync(join(art, `${slug}_only.step`))).toBe(true);
+    expect(notes.some((m) => m.includes("the resolution kept the goal's version of 1 file(s) the task changed (shared.txt)"))).toBe(true);
+  }, 60_000);
+
+  test("a resolution that kept the goal's side throughout lands none of the task's exports", async () => {
+    const { art, slug, landedFrame } = await resolveKeepingGoalSide(false);
+    expect(await Bun.file(join(art, 'frame.step')).text()).toBe(landedFrame);
+    expect(existsSync(join(art, `${slug}_only.step`))).toBe(false);
+  }, 60_000);
+});
+
+describe('merge attempts of tasks that export files', () => {
+  test("a catch-up merge is judged with the task's own exports on both sides, not against exports it never had", async () => {
+    // cad tasks write their export under artifacts/ and rewrite shared.txt; beta is slower, so alpha lands first and
+    // beta meets the conflict when it catches up, in its own worktree, which never received alpha's export
+    const runner = new FakeRunner(async (spec) => {
+      if (spec.label?.startsWith('attempt')) {
+        const title = spec.label.replace(/^attempt /, '').replace(/ #\d+$/, '');
+        if (title === 'add beta') await Bun.sleep(1500);
+        writeFileSync(join(spec.cwd, 'shared.txt'), `${spec.label}\n`);
+        mkdirSync(join(spec.cwd, 'artifacts'), { recursive: true });
+        writeFileSync(join(spec.cwd, 'artifacts', `${title.replace(/ /g, '_')}.step`), 'ISO-10303-21;');
+      }
+      if (spec.label?.startsWith('merge')) {
+        writeFileSync(join(spec.cwd, 'shared.txt'), 'merged by the fake merger\n');
+        await sh('git add shared.txt', spec.cwd);
+      }
+    });
+    const engine = new Engine(cfg(), runner);
+    const cad = (key: string, title: string) => ({ ...t(key, title, [], true), scenario: 'cad' as const });
+    const goal = await engine.createGoal({
+      prompt: 'two parts',
+      repoPath: repo,
+      brief: {
+        title: 'feat: two parts',
+        understanding: 'u',
+        areas: [],
+        assumptions: [],
+        questions: [], styleOptions: [],
+        costEstimateUsd: 0,
+        timeEstimateMin: 0,
+        tasks: [cad('T1', 'add alpha'), cad('T2', 'add beta')],
+        checks: [c('C1', 'T1', 'test -s artifacts/add_alpha.step'), c('C2', 'T2', 'test -s artifacts/add_beta.step')],
+      },
+    });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state) || listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).length > 0, 40_000);
+    expect(listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).map((e) => e.message)).toEqual([]);
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+    // the catch-up merge attempt ran and was accepted: alpha's check fails in beta's worktree and in its baseline alike
+    const merges = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'attempt.concluded').map((e) => e.payload as { state: string; reason: string });
+    expect(merges.some((m) => m.reason === 'merged and checks pass')).toBe(true);
+    const ws = goalWorkspacePath(dataDir, goal);
+    expect(existsSync(join(ws, 'artifacts', 'add_alpha.step')) && existsSync(join(ws, 'artifacts', 'add_beta.step'))).toBe(true);
   }, 60_000);
 });
 

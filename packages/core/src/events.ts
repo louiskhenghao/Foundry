@@ -123,7 +123,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   /** `script`: the milestone's Playwright script that produced it; `status`: pass, fail (the script failed or nothing could be
    * shown) or unverified (only fake data could be shown); `clips`: one video per scripted test; `outputs`: text a script
    * attached (an API's responses); `log`: the runner's output; `steps`: the walkthrough Foundry planned, replayed on a rerun;
-   * `final`: recorded by the final walkthrough */
+   * `final`: recorded by the final walkthrough; `kind: 'files'`: a milestone of files, what a task produced, whose
+   * `files` are the models, drawings and too-large clips it names (relative to artifacts/) */
   ev('milestone.evidence', {
     taskId: z.string(),
     video: z.string().nullable(),
@@ -139,6 +140,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
     log: z.string().nullable().optional(),
     steps: z.array(z.record(z.unknown())).optional(),
     final: z.boolean().optional(),
+    kind: z.enum(['files']).optional(),
+    files: z.array(z.string()).optional(),
   }),
   /** the final walkthrough ran every milestone script once all tasks were done; failed = the milestone tasks whose script failed */
   ev('milestone.final_walk', { passed: z.boolean(), failed: z.array(z.string()) }),
@@ -181,6 +184,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('task.created', { task: Task }),
   ev('task.state_changed', { taskId: z.string(), from: TaskState, to: TaskState, reason: z.string() }),
   ev('task.workspace_assigned', { taskId: z.string(), branch: z.string().nullable(), worktreePath: z.string().nullable() }),
+  /** a landed task's artifacts (git-excluded, so outside its commit) were copied into the goal workspace: the files it made or changed, relative to artifacts/; `failed`: those that could not be copied */
+  ev('task.artifacts_landed', { taskId: z.string(), files: z.array(z.string()), failed: z.array(z.string()).optional() }),
   ev('task.hint_set', { taskId: z.string(), hint: z.string().nullable(), extraAttempts: z.number().int() }),
   /** human restarted the task (and its dependents): back to pending with a fresh attempt budget */
   ev('task.restarted', { taskId: z.string(), extraAttempts: z.number().int(), reason: z.string() }),
@@ -225,7 +230,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('merge.conflict', { taskId: z.string(), files: z.array(z.string()) }),
   ev('merge.completed', { taskId: z.string(), ref: z.string() }),
   /** the human took over a conflicted integration in the `_resolve` worktree */
-  ev('merge.manual_started', { taskId: z.string(), files: z.array(z.string()), path: z.string() }),
+  /** `base`: the goal-branch commit the resolution started from; `tip`: the task branch's commit it merged (both absent on events written before they were recorded) */
+  ev('merge.manual_started', { taskId: z.string(), files: z.array(z.string()), path: z.string(), base: z.string().optional(), tip: z.string().optional() }),
   ev('merge.manual_finished', { taskId: z.string(), ref: z.string(), checksPassed: z.boolean(), forced: z.boolean() }),
   ev('merge.manual_aborted', { taskId: z.string(), reason: z.string() }),
 

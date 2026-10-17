@@ -133,6 +133,20 @@ const tooLarge = (req: Request) => {
   return !!req.body && req.headers.get('transfer-encoding') === 'chunked';
 };
 
+/** what a goal's screenshots folder serves, by lower-case extension */
+const SCREENSHOT_TYPES: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  webm: 'video/webm',
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  json: 'application/json; charset=utf-8',
+  txt: 'text/plain; charset=utf-8',
+};
+
 export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   const app = new Hono();
   app.use('*', async (c, next) => {
@@ -506,12 +520,13 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.get('/api/goals/:id/screenshots/:file', (c) => {
     const goal = goalOr404(c);
     const file = c.req.param('file');
-    // screenshots, the videos of milestone walkthroughs, and what a milestone script attached or printed (json, txt)
-    const ext = /^[\w.-]+\.(png|webm|json|txt)$/.exec(file)?.[1];
+    // screenshots, the videos of milestone walkthroughs, what a milestone script attached or printed (json, txt), and
+    // the copies of the images and clips a milestone of files collected (any case: a task names its files as it likes)
+    const ext = /^[\w.-]+\.(png|jpe?g|webp|gif|webm|mp4|mov|json|txt)$/i.exec(file)?.[1]?.toLowerCase();
     if (!ext) throw new HttpError(400, { error: 'bad screenshot name' });
     const p = join(screenshotsDir(engine.config.dataDir, goal), file);
     if (!existsSync(p)) throw new HttpError(404, { error: 'screenshot not found' });
-    const type = { png: 'image/png', webm: 'video/webm', json: 'application/json; charset=utf-8', txt: 'text/plain; charset=utf-8' }[ext];
+    const type = SCREENSHOT_TYPES[ext];
     return new Response(Bun.file(p), { headers: { 'content-type': type!, 'cache-control': 'private, max-age=3600', 'x-content-type-options': 'nosniff' } });
   });
   app.get('/api/goals/:id/artifacts', (c) => c.json({ files: listArtifacts(goalWorkspacePath(engine.config.dataDir, goalOr404(c))) }));
@@ -519,7 +534,10 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const goal = goalOr404(c);
     const rel = decodeURIComponent(c.req.path.slice(c.req.path.indexOf('/artifacts/') + '/artifacts/'.length));
     if (!rel || rel.split('/').some((seg) => seg === '..' || seg === '' || seg.startsWith('.git'))) throw new HttpError(400, { error: 'bad artifact path' });
-    const p = join(goalWorkspacePath(engine.config.dataDir, goal), 'artifacts', rel);
+    let p = join(goalWorkspacePath(engine.config.dataDir, goal), 'artifacts', rel);
+    // a finished goal whose folder was cleaned up: the copy delivered to its output folder (a milestone of files links it)
+    const run = goal.completion.artifactsRun;
+    if (!existsSync(p) && run?.status === 'ok' && run.dest && run.files.includes(rel)) p = join(run.dest, rel);
     if (!existsSync(p)) throw new HttpError(404, { error: 'artifact not found' });
     return new Response(Bun.file(p), { headers: { 'cache-control': 'private, max-age=60' } });
   });

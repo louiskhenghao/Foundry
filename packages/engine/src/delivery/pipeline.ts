@@ -12,6 +12,7 @@ import { detectRun } from '../preview/detect.ts';
 import { abortInProgress, commitAuthorMode, commitStaged, conflictedFiles, ensureDetachedWorktree, exec, git, gitIdent, gitOk, headRef, isGitRepo, removeWorktree, withCoauthor, type ExecResult } from '../git/git.ts';
 import { mergeBranchInto, resolveConflicts } from '../merge.ts';
 import { stackEntries } from './stack-entries.ts';
+import { artifactsForChecks } from '../goal-artifacts.ts';
 import { deliveryWorkspacePath, ensureGoalWorkspace, goalWorkspacePath, isStackBranch, listStackBranches, stackBranchName } from '../workspace.ts';
 import { describeFailing, failingChecks, reduceChecks, type GhClient, type PrView } from './gh.ts';
 import { closeDeliveryFailures, raiseDeliveryFailure } from './inbox.ts';
@@ -289,6 +290,8 @@ async function buildStack(ctx: Ctx, step: StepFn): Promise<StackBranch[] | null>
     if (stale.length) note(`kept ${stale.length} branch(es) from an earlier run that are no longer part of the stack: ${stale.join(', ')}`);
 
     await ensureDetachedWorktree(ctx.repoPath, ctx.deliveryWs, baseRef);
+    // the goal's checks run here after a fix or a base resync: they see the exports, which never come through git
+    await artifactsForChecks(engine, goal, ctx.goalWs, ctx.deliveryWs, 'stacked delivery');
     const stack: StackBranch[] = [];
     const built: string[] = [];
     const bail = async (why: string) => {
@@ -676,6 +679,25 @@ async function settlePr(ctx: Ctx, step: StepFn, repo: string, number: number, un
   }
 }
 
+/** a PR's view once GitHub has computed whether it can merge (not UNKNOWN), polled for up to a minute; the last view seen otherwise */
+/** after a "not mergeable" refusal, GitHub gets at most a minute to settle the PR's mergeability, asked every 2 s */
+const SETTLE_MAX_MS = 60_000;
+const SETTLE_POLL_MS = 2_000;
+/** a delivery whose own poll is short (tests poll every few ms) waits as many of its polls as there are 5 s in a minute */
+const SETTLE_POLLS = 12;
+
+async function settleMergeable(ctx: Ctx, repo: string, number: number): Promise<PrView | null> {
+  const until = Date.now() + Math.min(SETTLE_MAX_MS, SETTLE_POLLS * ctx.opts.pollMs);
+  let v: PrView | null = null;
+  do {
+    await sleep(Math.min(ctx.opts.pollMs, SETTLE_POLL_MS), ctx.signal);
+    v = await ctx.gh.prView(ctx.goalWs, { repo, number }).catch(() => null);
+    // settled, or no longer open (GitHub may keep a merged PR's mergeability UNKNOWN)
+    if (v && (v.mergeable !== 'UNKNOWN' || v.state !== 'OPEN')) return v;
+  } while (Date.now() < until);
+  return v;
+}
+
 /** merge one PR; true = merged, false = auto-merge armed under branch protection (GitHub merges later) */
 async function mergePr(ctx: Ctx, step: StepFn, repo: string, number: number, view: PrView, unit: PrUnit): Promise<boolean> {
   const { engine, goal, policy, signal } = ctx;
@@ -686,8 +708,22 @@ async function mergePr(ctx: Ctx, step: StepFn, repo: string, number: number, vie
     async () => {
     if (view.state !== 'OPEN') return { status: 'skipped', detail: `PR #${number} is ${view.state}`, value: view.state === 'MERGED' };
     if (view.mergeable !== 'MERGEABLE' && view.mergeable !== 'UNKNOWN') throw new DeliveryFailed('merge', `PR #${number} is ${view.mergeable}`);
-    const r = await ctx.gh.prMerge(config.dataDir, { repo, number, method: policy.mergeMethod, auto: false });
+    let r = await ctx.gh.prMerge(config.dataDir, { repo, number, method: policy.mergeMethod, auto: false });
     logCmd(ctx, 'merge', ['gh', 'pr', 'merge', String(number), `--${policy.mergeMethod}`], config.dataDir, r, 0);
+    // right after a push (a rebase onto a base that just took the PR below) GitHub is still computing mergeability and
+    // refuses as "not mergeable": wait until it settles, then try once more before reading it as branch protection
+    if (r.code !== 0 && /not mergeable/i.test(r.stderr + r.stdout)) {
+      const settled = await settleMergeable(ctx, repo, number);
+      // merged meanwhile (by the person, or an auto-merge armed earlier): nothing left to do
+      if (settled?.state === 'MERGED') {
+        ev({ type: 'delivery.merged', goalId: goal.id, payload: { prNumber: number, method: policy.mergeMethod, ref: settled.mergeCommit ?? null, taskId: unit.taskId } });
+        return { status: 'ok', detail: `PR #${number} was merged`, value: true };
+      }
+      if (settled?.state === 'CLOSED') throw new DeliveryFailed('merge', `PR #${number} was closed`);
+      if (settled?.mergeable === 'CONFLICTING') throw new DeliveryFailed('merge', `PR #${number} conflicts with its base`);
+      r = await ctx.gh.prMerge(config.dataDir, { repo, number, method: policy.mergeMethod, auto: false });
+      logCmd(ctx, 'merge', ['gh', 'pr', 'merge', String(number), `--${policy.mergeMethod}`], config.dataDir, r, 0);
+    }
     if (r.code === 0) {
       const v = await ctx.gh.prView(ctx.goalWs, { repo, number }).catch(() => null);
       ev({ type: 'delivery.merged', goalId: goal.id, payload: { prNumber: number, method: policy.mergeMethod, ref: v?.mergeCommit ?? null, taskId: unit.taskId } });
@@ -946,11 +982,16 @@ async function fixCi(ctx: Ctx, repo: string, prNumber: number, unit: PrUnit, log
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) return reject(new DeliveryCancelled('cancelled'));
-    const t = setTimeout(resolve, ms);
-    signal.addEventListener('abort', () => {
+    // the listener goes with the wait: a loop of short waits on one delivery's signal leaves none behind
+    const onAbort = () => {
       clearTimeout(t);
       reject(new DeliveryCancelled('cancelled'));
-    });
+    };
+    const t = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener('abort', onAbort, { once: true });
   });
 }
 

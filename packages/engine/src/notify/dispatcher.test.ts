@@ -78,4 +78,13 @@ describe('milestones', () => {
     const partly = compose(ev('milestone.evidence', { taskId: 't1', video: null, shots: [], summary: 'opens /dev', error: '3 screenshot(s) showed HTTP 404 at /dev and were left out' }), () => 'Demo');
     expect(partly!.text).toBe('📸 What the milestone looks like — Demo\nopens /dev\n⚠️ 3 screenshot(s) showed HTTP 404 at /dev and were left out');
   });
+
+  test("a milestone of files speaks of what the task produced, never of a walkthrough", () => {
+    const shown = compose(ev('milestone.evidence', { taskId: 't1', video: null, shots: [{ file: 's.png', caption: 'bracket_iso.png' }], summary: '', error: null, status: 'pass', kind: 'files', files: ['bracket.step', 'bracket.stl'] }), () => 'Demo');
+    expect(shown!.text).toBe('📸 What the task produced — Demo\nFiles: bracket.step, bracket.stl');
+    const many = compose(ev('milestone.evidence', { taskId: 't1', video: null, shots: [], summary: 'Nothing to preview.', error: null, status: 'pass', kind: 'files', files: ['a.step', 'b.step', 'c.step', 'd.step', 'e.step', 'f.step', 'g.pdf'] }), () => 'Demo');
+    expect(many!.text).toBe('📸 What the task produced — Demo\nNothing to preview.\nFiles: a.step, b.step, c.step, d.step, e.step, f.step and 1 more');
+    const nothing = compose(ev('milestone.evidence', { taskId: 't1', video: null, shots: [], summary: '', error: 'the task left no snapshots or exports under artifacts/: there is nothing to look at', status: 'fail', kind: 'files' }), () => 'Demo');
+    expect(nothing!.text).toBe('⚠️ Nothing to look at yet — Demo\nThe task left no snapshots or exports under artifacts/: there is nothing to look at');
+  });
 });

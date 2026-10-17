@@ -140,6 +140,80 @@ describe('delivery pipeline', () => {
     expect(prot.calls.some((c) => c[0] === 'prMerge' && c[3] === 'auto')).toBe(true);
   });
 
+  test("a merge refused as not mergeable right after a push waits for GitHub to settle and merges, instead of reading it as branch protection", async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'settling';
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await engine.createGoal({ prompt: 'settle', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 30_000);
+    expect(deliveredStatus(engine, goal.id)).toMatchObject({ status: 'delivered', outcome: 'merged' });
+    const merges = gh.calls.filter((c) => c[0] === 'prMerge');
+    // refused once, merged on the second try, auto-merge never asked for
+    expect(merges.map((c) => c[3])).toEqual(['now', 'now']);
+  });
+
+  test('the plain merge is tried again only once GitHub reports a settled state', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'settling';
+    // three views still say UNKNOWN: a retry before them would be refused and fall back to auto-merge, which this repository refuses
+    gh.unknownViews = 3;
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await engine.createGoal({ prompt: 'settle slowly', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 30_000);
+    expect(deliveredStatus(engine, goal.id)).toMatchObject({ status: 'delivered', outcome: 'merged' });
+    expect(gh.calls.filter((c) => c[0] === 'prMerge').map((c) => c[3])).toEqual(['now', 'now']);
+  });
+
+  test('a PR merged on GitHub during the wait ends the wait at once and counts as merged', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'settling';
+    // its views would say UNKNOWN for a long while: a wait that only looked at mergeability would sit them all out
+    gh.unknownViews = 50;
+    gh.mergedWhileSettling = true;
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await engine.createGoal({ prompt: 'merged meanwhile', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 30_000);
+    expect(deliveredStatus(engine, goal.id)).toMatchObject({ status: 'delivered', outcome: 'merged' });
+    expect(gh.calls.filter((c) => c[0] === 'prMerge').map((c) => c[3])).toEqual(['now']);
+    // one look at the settled PR, then the merge view: not a minute of polling
+    expect(gh.viewsAfterRefusal).toBeLessThanOrEqual(3);
+  });
+
+  test('a PR closed on GitHub during the wait fails the merge as closed, without another merge or auto-merge', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'settling';
+    gh.closedWhileSettling = true;
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await engine.createGoal({ prompt: 'closed meanwhile', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 30_000);
+    expect(deliveredStatus(engine, goal.id)).toMatchObject({ status: 'failed' });
+    expect(deliveredStatus(engine, goal.id).error).toContain('was closed');
+    expect(gh.calls.filter((c) => c[0] === 'prMerge').map((c) => c[3])).toEqual(['now']);
+  });
+
+  test('a refusal that settles as a conflict fails the merge as a conflict, without asking for auto-merge', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'settling';
+    gh.settlesAs = 'CONFLICTING';
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await engine.createGoal({ prompt: 'settle into a conflict', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 30_000);
+    expect(deliveredStatus(engine, goal.id)).toMatchObject({ status: 'failed' });
+    expect(deliveredStatus(engine, goal.id).error).toContain('conflicts with its base');
+    expect(gh.calls.filter((c) => c[0] === 'prMerge').map((c) => c[3])).toEqual(['now']);
+  });
+
+  test("gh's own refusal under branch protection (\"is not mergeable: the base branch policy prohibits the merge\") still arms auto-merge", async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'protected';
+    gh.protectedStderr = 'X Pull request o/r#1 is not mergeable: the base branch policy prohibits the merge.';
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await engine.createGoal({ prompt: 'protected', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 30_000);
+    expect(deliveredStatus(engine, goal.id)).toMatchObject({ status: 'delivered', outcome: 'automerge_armed' });
+    expect(gh.calls.filter((c) => c[0] === 'prMerge').map((c) => c[3])).toEqual(['now', 'now', 'auto']);
+  });
+
   // ---- stacked, one PR per task
   const t = (key: string, title: string, deps: string[], kind: 'feature' | 'bug' = 'feature') => ({ key, title, spec: `write ${title}.txt`, kind, scope: null, scenario: 'general' as const, areaKey: null, tdd: 'inherit' as const, dependsOnKeys: deps, parallelizable: false, relevantFiles: [] });
   const c = (key: string, taskKey: string | null, cmd: string) => ({ key, name: key, tier: 'must' as const, taskKey, areaKey: null, spec: { type: 'command' as const, cmd, timeoutMs: 60_000, expectExitCode: 0 } });

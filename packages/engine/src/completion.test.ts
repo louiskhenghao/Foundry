@@ -384,6 +384,34 @@ describe('cad artifacts', () => {
   });
 });
 
+describe('cad review', () => {
+  test("a cad task's review holds the CAD rules: no export committed outside artifacts/, nothing that reaches into the plugin folder", async () => {
+    const { join: j } = await import('node:path');
+    const runner = new FakeRunner((spec) => {
+      if (!spec.label?.startsWith('attempt')) return;
+      mkdirSync(j(spec.cwd, 'cad'), { recursive: true });
+      writeFileSync(j(spec.cwd, 'cad', 'bracket.py'), 'from build123d import *\n');
+      mkdirSync(j(spec.cwd, 'artifacts'), { recursive: true });
+      writeFileSync(j(spec.cwd, 'artifacts', 'bracket.step'), 'bytes');
+    });
+    fakeCadPlugin(join(dataDir, 'claude-home'));
+    const engine = track(new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: true, log: () => {} }), runner));
+    const goal = await engine.createGoal({
+      prompt: 'a wall bracket',
+      repoPath: repo,
+      nature: 'cad',
+      brief: { ...briefBase, title: '', areas: [], tasks: [{ key: 'T1', title: 'model the bracket', spec: 'cad/bracket.py', kind: 'feature', scope: null, scenario: 'cad', areaKey: null, tdd: 'inherit', dependsOnKeys: [], parallelizable: false, relevantFiles: ['cad/bracket.py'], milestone: null }], checks: [{ key: 'C1', name: 'exports exist', tier: 'must', taskKey: 'T1', areaKey: null, spec: { type: 'command', cmd: 'test -f artifacts/bracket.step', timeoutMs: 300_000, expectExitCode: 0 } }] },
+    });
+    await waitFor(() => runner.calls.some((c) => c.label === 'review model the bracket'), 20_000);
+    const prompt = runner.calls.find((c) => c.label === 'review model the bracket')!.prompt;
+    expect(prompt).toContain('# CAD review');
+    expect(prompt).toContain('so is an export or snapshot committed outside `artifacts/`');
+    expect(prompt).toContain("a committed file that reaches into the coding agent's plugin folder");
+    engine.cancelGoal(goal.id);
+    await engine.stop();
+  });
+});
+
 describe('image tools', () => {
   test("sessions tell image tools to save outside a code goal's folder, and into artifacts/ of an image goal's", async () => {
     const runner = new FakeRunner(() => {});

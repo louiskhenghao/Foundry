@@ -140,6 +140,9 @@ describe('nature pre-classification', () => {
     const clarify = runner.calls.find((c) => c.label?.startsWith('clarify'))!;
     expect(clarify.prompt).toContain('# Nature: cad');
     expect(clarify.prompt).toContain('BLOCKING');
+    // checks measure the exports under artifacts/, never the cad skill's own folders or its plugin path
+    expect(clarify.prompt).toContain("on the exports under `artifacts/` (not the cad skill's `STEP/` and `STL/` folders)");
+    expect(clarify.prompt).toContain("no check reaches into the coding agent's plugin folder");
     expect(clarify.prompt).not.toContain('# Nature: image');
     engine2.cancelGoal(g2.id);
     await Bun.sleep(150);
