@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { getGoal, listEscalations, listTasks } from '@foundry/core';
 import { deliveryWorkspacePath, goalWorkspacePath } from '../workspace.ts';
 import { defaultConfig } from '../config.ts';
@@ -590,38 +590,327 @@ describe('after a merge (ADR-0015)', () => {
     await engine.stop();
   });
 
-  test('artifacts no output folder received, and files a landing could not copy, keep the progress folder until "clean up anyway"', async () => {
-    const gh = new FakeGh(bare);
-    gh.mergeBehavior = 'protected';
-    const engine = new Engine(cfgWith(true), worker(), gh);
+  /** a merged goal that keeps artifacts (a cad goal), its progress folder holding an export git does not carry */
+  const mergedCadGoal = async (engine: Engine, gh: FakeGh) => {
     const goal = await mergedGoal(engine);
+    engine.store.append({ type: 'goal.nature_set', goalId: goal.id, payload: { nature: 'cad', reason: 'a model' } });
     const ws = goalWorkspacePath(dataDir, goal);
-    // an export the goal kept (git-excluded, as for every goal that keeps artifacts) and the Brief's style sample
     await sh('echo /artifacts/ >> "$(git rev-parse --git-common-dir)/info/exclude"', ws);
     mkdirSync(join(ws, 'artifacts', 'samples'), { recursive: true });
     writeFileSync(join(ws, 'artifacts', 'bracket.step'), 'step');
     writeFileSync(join(ws, 'artifacts', 'samples', 'style-1.png'), 'png');
     await gh.mergeOnGitHub(1);
+    return { goal: getGoal(engine.store.db, goal.id)!, ws };
+  };
+  /** a delivery of `files` from the progress folder `ws` into an output folder of their own, which it returns */
+  const delivered = (engine: Engine, goalId: string, ws: string, files: string[], extra: { startedAt?: string } = {}) => {
+    const out = mkdtempSync(join(tmpdir(), 'foundry-deliv-out-'));
+    for (const f of files) {
+      mkdirSync(dirname(join(out, f)), { recursive: true });
+      copyFileSync(join(ws, 'artifacts', f), join(out, f));
+    }
+    engine.store.append({ type: 'goal.artifacts_delivered', goalId, payload: { status: 'ok', files, dest: out, detail: `${files.length} artifact(s) copied`, ...extra } });
+    return out;
+  };
+
+  test('a cad goal keeps its progress folder while an export no output folder received is there, or one changed since its delivery', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'protected';
+    const engine = new Engine(cfgWith(true), worker(), gh);
+    const { goal, ws } = await mergedCadGoal(engine, gh);
     await engine.refreshDelivery(goal.id);
     let d = deliveredStatus(engine, goal.id);
     expect(d.outcome).toBe('merged');
     expect(d.cleanup).toMatchObject({ done: false });
+    // the style sample was there to choose a look by: only the export holds
     expect(d.cleanup!.detail).toContain('1 artifact no output folder received (bracket.step)');
-    expect(existsSync(ws)).toBe(true);
-    // the export delivered, a task worktree still holding a file its landing could not copy keeps everything too
-    engine.store.append({ type: 'goal.artifacts_delivered', goalId: goal.id, payload: { status: 'ok', files: ['bracket.step'], dest: '/out', detail: '1 artifact(s) copied' } });
+    // delivered, then written again (a task run again after the delivery): the output folder has only the older copy
+    delivered(engine, goal.id, ws, ['bracket.step']);
+    const later = new Date(Date.now() + 60_000);
+    utimesSync(join(ws, 'artifacts', 'bracket.step'), later, later);
+    await engine.finishAfterMerge(goal.id, {});
+    expect(deliveredStatus(engine, goal.id).cleanup!.detail).toContain('1 artifact whose copy in the output folder is missing or older (bracket.step)');
+    // what the folder received, unchanged since: nothing holds the tidy-up any more
+    const before = new Date(Date.now() - 60_000);
+    utimesSync(join(ws, 'artifacts', 'bracket.step'), before, before);
+    await engine.finishAfterMerge(goal.id, {});
+    d = deliveredStatus(engine, goal.id);
+    expect(d.cleanup?.done).toBe(true);
+    expect(existsSync(ws)).toBe(false);
+    await engine.stop();
+  });
+
+  test('a file a landing could not copy keeps the worktree that holds it, and the progress folder, until "clean up anyway"', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'protected';
+    const engine = new Engine(cfgWith(true), worker(), gh);
+    const { goal, ws } = await mergedCadGoal(engine, gh);
+    delivered(engine, goal.id, ws, ['bracket.step']);
     const task = listTasks(engine.store.db, goal.id)[0]!;
     const taskWs = mkdtempSync(join(tmpdir(), 'foundry-kept-task-'));
     mkdirSync(join(taskWs, 'artifacts'), { recursive: true });
     writeFileSync(join(taskWs, 'artifacts', 'hinge.step'), 'step');
     engine.store.append({ type: 'task.workspace_assigned', goalId: goal.id, payload: { taskId: task.id, branch: null, worktreePath: taskWs } });
     engine.store.append({ type: 'task.artifacts_landed', goalId: goal.id, payload: { taskId: task.id, files: [], failed: ['hinge.step'] } });
-    await engine.finishAfterMerge(goal.id, {});
-    d = deliveredStatus(engine, goal.id);
+    await engine.refreshDelivery(goal.id);
+    const d = deliveredStatus(engine, goal.id);
     expect(d.cleanup).toMatchObject({ done: false });
     expect(d.cleanup!.detail).toContain(`could not be copied into the progress folder and is only in its worktree (${task.title}: hinge.step)`);
     expect(existsSync(taskWs)).toBe(true);
     await engine.finishAfterMerge(goal.id, { force: true });
+    expect(deliveredStatus(engine, goal.id).cleanup?.done).toBe(true);
+    expect(existsSync(ws)).toBe(false);
+    await engine.stop();
+  });
+
+  test('the tidy-up waits for an artifact delivery still copying, and the delivery tidies up once its files are there', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'protected';
+    const engine = new Engine(cfgWith(true), worker(), gh);
+    const { goal, ws } = await mergedCadGoal(engine, gh);
+    let release!: () => void;
+    const copying = new Promise<void>((r) => (release = r));
+    engine.artifactDelivery = () => copying;
+    await engine.refreshDelivery(goal.id);
+    expect(deliveredStatus(engine, goal.id).cleanup!.detail).toContain('still being copied to the output folder');
+    expect(existsSync(ws)).toBe(true);
+    delivered(engine, goal.id, ws, ['bracket.step']);
+    release();
+    engine.artifactDelivery = () => undefined;
+    await engine.finishAfterMerge(goal.id, {});
+    expect(deliveredStatus(engine, goal.id).cleanup?.done).toBe(true);
+    await engine.stop();
+  });
+
+  test('an artifact delivery that ends after the merge was noticed runs the tidy-up itself, and "clean up anyway" meanwhile tidies up once', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'protected';
+    const engine = new Engine(cfgWith(true), worker(), gh);
+    const goal = await mergedGoal(engine);
+    // the delivery's first step (the retry of what landings missed) waits for the goal workspace: hold it there
+    let release: (() => void) | null = null;
+    const held = engine.withGoalWsLock(goal.id, () => new Promise<void>((r) => (release = r)));
+    await waitFor(() => release !== null);
+    engine.store.append({ type: 'goal.nature_set', goalId: goal.id, payload: { nature: 'cad', reason: 'a model' } });
+    await waitFor(() => !!engine.artifactDelivery(goal.id), 5_000);
+    await gh.mergeOnGitHub(1);
+    await engine.refreshDelivery(goal.id);
+    expect(deliveredStatus(engine, goal.id).cleanup!.detail).toContain('still being copied');
+    // "clean up anyway" pressed while the copy runs waits for it
+    const anyway = engine.finishAfterMerge(goal.id, { force: true });
+    await Bun.sleep(500);
+    expect(existsSync(goalWorkspacePath(dataDir, goal))).toBe(true);
+    release!();
+    await held;
+    await anyway;
+    await waitFor(() => deliveredStatus(engine, goal.id).cleanup?.done === true, 10_000);
+    expect(existsSync(goalWorkspacePath(dataDir, goal))).toBe(false);
+    const cleaned = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'delivery.cleaned' && (e.payload as { done: boolean }).done);
+    expect(cleaned).toHaveLength(1);
+    await engine.stop();
+  }, 60_000);
+
+  test('"clean up anyway" waits for an artifact copy still running before it removes the folder', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'protected';
+    const engine = new Engine(cfgWith(true), worker(), gh);
+    const { goal, ws } = await mergedCadGoal(engine, gh);
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.completion.artifactsRun != null && !engine.artifactDelivery(goal.id));
+    await engine.refreshDelivery(goal.id);
+    expect(deliveredStatus(engine, goal.id).cleanup).toMatchObject({ done: false });
+    let release!: () => void;
+    const copying = new Promise<void>((r) => (release = r));
+    engine.artifactDelivery = () => copying;
+    const cleaning = engine.finishAfterMerge(goal.id, { force: true });
+    await Bun.sleep(300);
+    expect(existsSync(ws)).toBe(true);
+    release();
+    await cleaning;
+    expect(existsSync(ws)).toBe(false);
+    await engine.stop();
+  }, 60_000);
+
+  test('a held tidy-up is not tried again on every tick: a merged goal with the setting off records its hold once', async () => {
+    const engine = new Engine(cfgWith(false), worker(), new FakeGh(bare));
+    const goal = await mergedGoal(engine);
+    expect(deliveredStatus(engine, goal.id).cleanup).toMatchObject({ done: false });
+    const synced = () => eventsOf(engine, goal.id).filter((e) => e === 'delivery.local_synced').length;
+    const n = synced();
+    await Bun.sleep(1500);
+    expect(synced()).toBe(n);
+    await engine.stop();
+  }, 60_000);
+
+  test('a file written while its delivery was copying counts as not received: delivered means as it was when the copy began', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'protected';
+    const engine = new Engine(cfgWith(true), worker(), gh);
+    const { goal, ws } = await mergedCadGoal(engine, gh);
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.completion.artifactsRun != null && !engine.artifactDelivery(goal.id));
+    // the output folder has its copy: only the time the copy began can tell the file changed while it ran
+    delivered(engine, goal.id, ws, ['bracket.step'], { startedAt: new Date(Date.now() - 60_000).toISOString() });
+    const during = new Date(Date.now() - 30_000);
+    utimesSync(join(ws, 'artifacts', 'bracket.step'), during, during);
+    await engine.refreshDelivery(goal.id);
+    expect(deliveredStatus(engine, goal.id).cleanup).toMatchObject({ done: false });
+    expect(deliveredStatus(engine, goal.id).cleanup!.detail).toContain('bracket.step');
+    expect(existsSync(ws)).toBe(true);
+    await engine.stop();
+  }, 60_000);
+
+  test("a delivered export whose copy in the output folder was replaced or removed since holds the tidy-up", async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'protected';
+    const engine = new Engine(cfgWith(true), worker(), gh);
+    const { goal, ws } = await mergedCadGoal(engine, gh);
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.completion.artifactsRun != null && !engine.artifactDelivery(goal.id));
+    const before = new Date(Date.now() - 60_000);
+    utimesSync(join(ws, 'artifacts', 'bracket.step'), before, before);
+    // another goal delivering into the same folder put its own bracket.step over this one's
+    const out = delivered(engine, goal.id, ws, ['bracket.step']);
+    writeFileSync(join(out, 'bracket.step'), 'another goal');
+    await engine.refreshDelivery(goal.id);
+    expect(deliveredStatus(engine, goal.id).cleanup).toMatchObject({ done: false });
+    expect(deliveredStatus(engine, goal.id).cleanup!.detail).toContain('missing or older (bracket.step)');
+    // gone from the output folder altogether
+    rmSync(join(out, 'bracket.step'));
+    await engine.finishAfterMerge(goal.id, {});
+    expect(deliveredStatus(engine, goal.id).cleanup).toMatchObject({ done: false });
+    expect(existsSync(ws)).toBe(true);
+    await engine.stop();
+  }, 60_000);
+
+  test("the files Finder and Windows leave in a folder never hold the tidy-up", async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'protected';
+    const engine = new Engine(cfgWith(true), worker(), gh);
+    const { goal, ws } = await mergedCadGoal(engine, gh);
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.completion.artifactsRun != null && !engine.artifactDelivery(goal.id));
+    mkdirSync(join(ws, 'artifacts', 'renders'), { recursive: true });
+    for (const f of ['.DS_Store', 'renders/._front.png', 'renders/Thumbs.db', 'renders/desktop.ini']) writeFileSync(join(ws, 'artifacts', f), 'os');
+    delivered(engine, goal.id, ws, ['bracket.step']);
+    const before = new Date(Date.now() - 60_000);
+    utimesSync(join(ws, 'artifacts', 'bracket.step'), before, before);
+    await engine.refreshDelivery(goal.id);
+    expect(deliveredStatus(engine, goal.id).cleanup?.done).toBe(true);
+    expect(existsSync(ws)).toBe(false);
+    await engine.stop();
+  }, 60_000);
+
+  /** a merged goal whose tidy-up was put off for its cad delivery, held on the goal workspace's lock until `release` */
+  const putOffForDelivery = async (engine: Engine, gh: FakeGh) => {
+    const goal = await mergedGoal(engine);
+    let release: (() => void) | null = null;
+    const held = engine.withGoalWsLock(goal.id, () => new Promise<void>((r) => (release = r)));
+    await waitFor(() => release !== null);
+    engine.store.append({ type: 'goal.nature_set', goalId: goal.id, payload: { nature: 'cad', reason: 'a model' } });
+    await waitFor(() => !!engine.artifactDelivery(goal.id), 5_000);
+    const copying = engine.artifactDelivery(goal.id)!;
+    await gh.mergeOnGitHub(1);
+    await engine.refreshDelivery(goal.id);
+    expect(deliveredStatus(engine, goal.id).cleanup!.detail).toContain('still being copied');
+    return { goal, copying, release: async () => (release!(), await held) };
+  };
+
+  test('a delivery that ends after the tidy-up was put off for it tidies up by itself', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'protected';
+    const engine = new Engine(cfgWith(true), worker(), gh);
+    const { goal, release } = await putOffForDelivery(engine, gh);
+    await release();
+    await waitFor(() => deliveredStatus(engine, goal.id).cleanup?.done === true, 10_000);
+    expect(deliveredStatus(engine, goal.id).cleanup!.detail).not.toContain('cleaned up anyway');
+    expect(existsSync(goalWorkspacePath(dataDir, goal))).toBe(false);
+    await engine.stop();
+  }, 60_000);
+
+  test('a tidy-up put off for a copy the engine stopped during still runs after the restart', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'protected';
+    let engine = new Engine(cfgWith(true), worker(), gh);
+    const { goal, release } = await putOffForDelivery(engine, gh);
+    const stopping = engine.stop();
+    await release();
+    await stopping;
+    engine = new Engine(cfgWith(true), worker(), gh);
+    await engine.start();
+    await waitFor(() => deliveredStatus(engine, goal.id).cleanup?.done === true, 10_000);
+    expect(existsSync(goalWorkspacePath(dataDir, goal))).toBe(false);
+    await engine.stop();
+  }, 60_000);
+
+  test('a goal running again is not tidied up: neither when its copy ends nor by a later refresh or button', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'protected';
+    const engine = new Engine(cfgWith(true), worker(), gh);
+    const { goal, copying, release } = await putOffForDelivery(engine, gh);
+    engine.beginUpdateDrain(); // nothing runs the goal on to done again meanwhile
+    engine.store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'done', to: 'running', reason: 'restarted' } });
+    await release();
+    await copying;
+    await Bun.sleep(200);
+    await engine.finishAfterMerge(goal.id, {});
+    await engine.finishAfterMerge(goal.id, { force: true });
+    expect(existsSync(goalWorkspacePath(dataDir, goal))).toBe(true);
+    expect(deliveredStatus(engine, goal.id).cleanup?.done).toBe(false);
+    await engine.stop();
+  }, 60_000);
+
+  test('a goal whose image task could not land a file is not tidied up over and over: its hold is recorded once', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'protected';
+    const engine = new Engine(cfgWith(true), worker(), gh);
+    const goal = await mergedGoal(engine);
+    // a goal of nature auto that keeps artifacts only for its image task, whose one file never lands
+    const taskWs = mkdtempSync(join(tmpdir(), 'foundry-kept-task-'));
+    mkdirSync(join(taskWs, 'artifacts'), { recursive: true });
+    writeFileSync(join(taskWs, 'artifacts', 'hinge.png'), 'png');
+    chmodSync(join(taskWs, 'artifacts', 'hinge.png'), 0o000);
+    const t0 = listTasks(engine.store.db, goal.id)[0]!;
+    engine.store.append({ type: 'task.created', goalId: goal.id, payload: { task: { ...t0, id: 't_img', title: 'an image', scenario: 'image', worktreePath: taskWs } } });
+    engine.store.append({ type: 'task.artifacts_landed', goalId: goal.id, payload: { taskId: 't_img', files: [], failed: ['hinge.png'] } });
+    try {
+      await gh.mergeOnGitHub(1);
+      await engine.refreshDelivery(goal.id);
+      const synced = () => eventsOf(engine, goal.id).filter((e) => e === 'delivery.local_synced').length;
+      await Bun.sleep(500);
+      const n = synced();
+      await Bun.sleep(1500);
+      expect(synced()).toBe(n);
+    } finally {
+      chmodSync(join(taskWs, 'artifacts', 'hinge.png'), 0o644);
+      await engine.stop();
+    }
+  }, 60_000);
+
+  test('an export whose name only looks like what Finder leaves still holds the tidy-up', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'protected';
+    const engine = new Engine(cfgWith(true), worker(), gh);
+    const { goal, ws } = await mergedCadGoal(engine, gh);
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.completion.artifactsRun != null && !engine.artifactDelivery(goal.id));
+    mkdirSync(join(ws, 'artifacts', 'renders'), { recursive: true });
+    writeFileSync(join(ws, 'artifacts', 'renders', 'part._v2.step'), 'step');
+    delivered(engine, goal.id, ws, ['bracket.step']);
+    const before = new Date(Date.now() - 60_000);
+    utimesSync(join(ws, 'artifacts', 'bracket.step'), before, before);
+    await engine.refreshDelivery(goal.id);
+    expect(deliveredStatus(engine, goal.id).cleanup).toMatchObject({ done: false });
+    expect(deliveredStatus(engine, goal.id).cleanup!.detail).toContain('renders/part._v2.step');
+    await engine.stop();
+  }, 60_000);
+
+  test("a code goal's git-ignored build output under artifacts/ (a Hardhat repository) never holds the tidy-up", async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'protected';
+    const engine = new Engine(cfgWith(true), worker(), gh);
+    const goal = await mergedGoal(engine);
+    const ws = goalWorkspacePath(dataDir, goal);
+    await sh('echo /artifacts/ >> "$(git rev-parse --git-common-dir)/info/exclude"', ws);
+    mkdirSync(join(ws, 'artifacts', 'build-info'), { recursive: true });
+    writeFileSync(join(ws, 'artifacts', 'build-info', 'abc.json'), '{}');
+    await gh.mergeOnGitHub(1);
+    await engine.refreshDelivery(goal.id);
     expect(deliveredStatus(engine, goal.id).cleanup?.done).toBe(true);
     expect(existsSync(ws)).toBe(false);
     await engine.stop();

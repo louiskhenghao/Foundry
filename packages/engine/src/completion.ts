@@ -14,7 +14,7 @@ import { dropEmptyGraphDir } from './context/graphify-provider.ts';
 import { restoreGuidance, snapshotGuidance } from './git/agent-guidance.ts';
 import { exec } from './git/git.ts';
 import { pullFastForward } from './git/sync.ts';
-import { cadModelIn, retryUnlanded } from './goal-artifacts.ts';
+import { cadModelIn, goalUsesArtifacts, recoverOverlays, retryUnlanded } from './goal-artifacts.ts';
 import { ARTIFACTS_DIR, copyInto, goalWorkspacePath, listArtifacts } from './workspace.ts';
 import { codeWork } from './skills/workflow.ts';
 
@@ -37,31 +37,40 @@ export function inferCompletion(brief: Brief, ws: string, pace: 'thorough' | 'fa
 /**
  * Copy the goal workspace's artifacts/ to the goal's output folder when the goal finishes.
  * Never throws and never blocks the goal; the outcome lands on `goal.artifacts_delivered`.
- * Media goals without an output folder get a `skipped` record (the artifacts stay in the workspace);
- * other goals with no artifacts get no record at all.
+ * Media goals without an output folder get a `skipped` record (the artifacts stay in the workspace), and so does a goal
+ * that keeps artifacts but has none (no tick delivers it again); a goal that keeps no artifacts gets no record at all.
  */
 export async function deliverArtifacts(engine: Engine, goal: Goal): Promise<void> {
   const { store, config } = engine;
   if (goal.completion.artifactsRun) return;
   const ws = goalWorkspacePath(config.dataDir, goal);
-  // what a landing could not copy goes again first, from the task worktree kept for it, so the delivery has it
-  await retryUnlanded(engine, goal).catch((err) => store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `copying the files a landing missed failed: ${String((err as Error)?.message ?? err).slice(0, 200)}` } }));
+  // under the goal workspace's lock, like any landing: what an unfinished undo left laid over goes first (the goal's own
+  // exports are delivered, not a task's that never landed), then what a landing could not copy comes again from the task
+  // worktree kept for it, so the delivery has it
+  await engine
+    .withGoalWsLock(goal.id, async () => {
+      await recoverOverlays(engine, goal);
+      await retryUnlanded(engine, goal);
+    })
+    .catch((err) => store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `copying the files a landing missed failed: ${String((err as Error)?.message ?? err).slice(0, 200)}` } }));
   const files = listArtifacts(ws);
-  const record = (payload: { status: 'ok' | 'skipped' | 'failed'; files: string[]; dest: string; detail: string; model?: string | null }) => store.append({ type: 'goal.artifacts_delivered', goalId: goal.id, payload });
+  const record = (payload: { status: 'ok' | 'skipped' | 'failed'; files: string[]; dest: string; detail: string; model?: string | null; startedAt?: string }) => store.append({ type: 'goal.artifacts_delivered', goalId: goal.id, payload });
   if (!files.length) {
-    if (ARTIFACT_NATURES.includes(goal.nature)) record({ status: 'skipped', files: [], dest: goal.outputDir ?? '', detail: 'no artifacts were produced' });
+    if (ARTIFACT_NATURES.includes(goal.nature) || goalUsesArtifacts(engine, goal)) record({ status: 'skipped', files: [], dest: goal.outputDir ?? '', detail: 'no artifacts were produced' });
     return;
   }
   if (!goal.outputDir) {
     record({ status: 'skipped', files, dest: '', detail: `no output folder set — ${files.length} artifact(s) stay in the goal workspace (Open ▾)` });
     return;
   }
+  // a file written after this moment may not be what the output folder gets: the tidy-up after a merge keeps it
+  const startedAt = new Date().toISOString();
   try {
     // off the event loop, and renamed into place: a delivery cut short leaves the output folder's earlier copy whole
     for (const f of files) await copyInto(join(ws, ARTIFACTS_DIR, f), join(goal.outputDir, f));
     // the model the CAD Viewer opens once the workspace is gone, chosen here by the files' own times (a copy's are new)
     const model = goal.nature === 'cad' ? cadModelIn(join(ws, ARTIFACTS_DIR), files) : undefined;
-    record({ status: 'ok', files, dest: goal.outputDir, detail: `${files.length} artifact(s) copied`, ...(model !== undefined ? { model } : {}) });
+    record({ status: 'ok', files, dest: goal.outputDir, detail: `${files.length} artifact(s) copied`, startedAt, ...(model !== undefined ? { model } : {}) });
     store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `${files.length} artifact(s) delivered to ${goal.outputDir}` } });
     config.log(`[completion] ${goal.id}: ${files.length} artifact(s) → ${goal.outputDir}`);
   } catch (err) {

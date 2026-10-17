@@ -211,8 +211,29 @@ export class Engine {
   private suggesting = new Map<string, Promise<EscalationSuggestion>>();
   /** post-completion graph refreshes in progress, per goal */
   private completing = new Set<string>();
-  /** artifact deliveries in progress, per goal */
-  private deliveringArtifacts = new Set<string>();
+  /** the artifact delivery of each goal in flight: a tidy-up after its merge waits for it, and so does stop() */
+  private deliveringArtifacts = new Map<string, Promise<void>>();
+  /** the goal's artifact delivery while it is copying, else undefined */
+  artifactDelivery(goalId: string): Promise<void> | undefined {
+    return this.deliveringArtifacts.get(goalId);
+  }
+  /** the tidy-ups after a merge that a delivery put off, running now, per goal */
+  private tidying = new Map<string, Promise<void>>();
+  /**
+   * Run the tidy-up after a merge that was put off for the goal's artifact delivery (its hold is recorded as waiting),
+   * once no copy is in flight: only that hold (one of another kind waits for a refresh or a button, or every tick of a
+   * held goal would run it again), only for a goal still finished, and one at a time. A delivery that ended while the
+   * engine was stopped is covered too: the first tick after the start finds the waiting hold.
+   */
+  private tidyAfterDelivery(goalId: string): void {
+    const g = getGoal(this.store.db, goalId);
+    const c = g?.delivery.cleanup;
+    if (this.stopped || this.tidying.has(goalId) || this.deliveringArtifacts.has(goalId) || !c?.waiting || c.done || g!.delivery.outcome !== 'merged' || !['done', 'over_delivered'].includes(g!.state)) return;
+    const run = afterMerge(this, goalId, { afterDelivery: true })
+      .catch(() => {})
+      .finally(() => this.tidying.delete(goalId));
+    this.tidying.set(goalId, run);
+  }
 
   private streamListeners = new Set<StreamListener>();
   private escalationListeners = new Set<(e: Escalation) => void>();
@@ -1604,11 +1625,13 @@ export class Engine {
       case 'over_delivered': {
         // media artifacts leave the workspace first (independent of delivery mode — they never ride a PR)
         if (!goal.completion.artifactsRun && !this.deliveringArtifacts.has(goalId)) {
-          this.deliveringArtifacts.add(goalId);
-          void deliverArtifacts(this, goal)
-            .catch((err) => this.store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `artifact delivery crashed: ${String(err)}` } }))
+          const copy = deliverArtifacts(this, goal)
+            .catch((err) => void this.store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `artifact delivery crashed: ${String(err)}` } }))
             .finally(() => this.deliveringArtifacts.delete(goalId));
-        }
+          this.deliveringArtifacts.set(goalId, copy);
+          // a tidy-up put off for these files runs once they are there (ADR-0033)
+          void copy.then(() => this.tidyAfterDelivery(goalId));
+        } else if (!this.deliveringArtifacts.has(goalId)) this.tidyAfterDelivery(goalId);
         // docs still being written (the goal finished without its goal review): they ship with the code, so wait
         if (this.documenting.has(goalId)) return;
         // graph refresh: after delivery for goals that leave the machine, right away for local ones
