@@ -633,6 +633,8 @@ async function settlePr(ctx: Ctx, step: StepFn, repo: string, number: number, un
       },
       unit.branch,
     ))!;
+    // merged or closed on GitHub meanwhile: nothing is left to settle, whatever its checks say (mergePr records which)
+    if (view.state === 'MERGED' || view.state === 'CLOSED') return view;
     const policy = live(ctx);
     const state = policy.requireChecks ? reduceChecks(view.checks) : 'passing';
     if (view.mergeable === 'CONFLICTING') {
@@ -727,7 +729,12 @@ async function mergePr(ctx: Ctx, step: StepFn, repo: string, number: number, vie
   const merged = await step<'merged' | 'armed' | 'conflict'>(
     'merge',
     async () => {
-    if (view.state !== 'OPEN') return { status: 'skipped', detail: `PR #${number} is ${view.state}`, value: view.state === 'MERGED' ? 'merged' : 'armed' };
+    // settled on GitHub while its checks were waited for: closed is a failure the person hears of, merged is recorded as merged
+    if (view.state === 'CLOSED') throw new DeliveryFailed('merge', `PR #${number} was closed`);
+    if (view.state === 'MERGED') {
+      ev({ type: 'delivery.merged', goalId: goal.id, payload: { prNumber: number, method: policy.mergeMethod, ref: view.mergeCommit ?? null, taskId: unit.taskId } });
+      return { status: 'ok', detail: `PR #${number} was merged`, value: 'merged' };
+    }
     if (view.mergeable !== 'MERGEABLE' && view.mergeable !== 'UNKNOWN') throw new DeliveryFailed('merge', `PR #${number} is ${view.mergeable}`);
     let r = await ctx.gh.prMerge(config.dataDir, { repo, number, method: policy.mergeMethod, auto: false });
     logCmd(ctx, 'merge', ['gh', 'pr', 'merge', String(number), `--${policy.mergeMethod}`], config.dataDir, r, 0);
@@ -919,7 +926,7 @@ async function waitForChecks(ctx: Ctx, repo: string, number: number): Promise<Pr
       ctx.engine.store.append({ type: 'delivery.checks', goalId: ctx.goal.id, payload: { state, summary: v.checks.map((c) => `${c.name}: ${c.conclusion ?? c.status}`).join(', ') || 'no checks reported', prNumber: number, failing } });
       last = state;
     }
-    if (state !== 'pending' || v.mergedAt) return v;
+    if (state !== 'pending' || v.mergedAt || v.state === 'CLOSED') return v;
     if (Date.now() - start > ctx.opts.checksTimeoutMs) throw new DeliveryFailed('wait-checks', `checks still pending after ${Math.round(ctx.opts.checksTimeoutMs / 60_000)} min; PR #${number} stays open`);
     // checks usually appear within a minute: poll fast at first, then settle to the configured interval
     await sleep(Date.now() - start < 120_000 ? Math.min(ctx.opts.pollMs, 10_000) : ctx.opts.pollMs, ctx.signal);

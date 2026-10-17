@@ -221,8 +221,106 @@ describe('delivery pipeline', () => {
     expect(deliveredStatus(engine, goal.id)).toMatchObject({ status: 'failed' });
     expect(deliveredStatus(engine, goal.id).error).toContain('still conflicts with its base after 5 re-syncs');
     expect(gh.calls.filter((c) => c[0] === 'prMerge').map((c) => c[3])).toEqual(['now']);
-    expect(deliverySteps(engine, goal.id).filter((s) => s === 'sync-base').length).toBeGreaterThanOrEqual(6);
+    // the sync before the PR existed is not a re-sync: from the refused merge on, five re-syncs and the one that gives up
+    const steps = deliverySteps(engine, goal.id);
+    expect(steps.slice(steps.indexOf('merge')).filter((s) => s === 'sync-base')).toHaveLength(6);
   });
+
+  test('a PR closed on GitHub while its checks were waited for fails the delivery as closed, not as auto-merge armed', async () => {
+    const gh = new FakeGh(bare);
+    gh.beforeView = (pr) => {
+      if (pr.state === 'OPEN') pr.state = 'CLOSED';
+    };
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await engine.createGoal({ prompt: 'closed meanwhile', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 30_000);
+    expect(deliveredStatus(engine, goal.id)).toMatchObject({ status: 'failed' });
+    expect(deliveredStatus(engine, goal.id).error).toContain('was closed');
+    expect(gh.calls.filter((c) => c[0] === 'prMerge')).toEqual([]);
+  });
+
+  test('a PR merged on GitHub while its checks were waited for is recorded as merged', async () => {
+    const gh = new FakeGh(bare);
+    gh.beforeView = async (pr) => {
+      if (pr.state === 'OPEN') await gh.mergeOnGitHub(pr.number);
+    };
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await engine.createGoal({ prompt: 'merged meanwhile', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 30_000);
+    expect(deliveredStatus(engine, goal.id)).toMatchObject({ status: 'delivered', outcome: 'merged' });
+    expect(eventsOf(engine, goal.id)).toContain('delivery.merged');
+    expect(deliveredStatus(engine, goal.id).prs[0]!.state).toBe('merged');
+    expect(gh.calls.filter((c) => c[0] === 'prMerge')).toEqual([]);
+  });
+
+  test('a PR merged on GitHub while a failing check was waited for is recorded as merged, with no fix-CI for it', async () => {
+    const gh = new FakeGh(bare);
+    gh.checksSequence = ['failing'];
+    gh.failingCheck = { name: 'Deploy preview', description: 'Deployment was blocked', url: 'https://deploy.example/abc', kind: 'status' };
+    gh.beforeView = async (pr) => {
+      if (pr.state === 'OPEN') await gh.mergeOnGitHub(pr.number);
+    };
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await engine.createGoal({ prompt: 'merged meanwhile', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 30_000);
+    expect(deliveredStatus(engine, goal.id)).toMatchObject({ status: 'delivered', outcome: 'merged' });
+    expect(listTasks(engine.store.db, goal.id).some((t) => t.origin === 'delivery-fix')).toBe(false);
+    await engine.stop();
+  });
+
+  test('a PR closed on GitHub while a failing or conflicting one was waited for fails as closed, not as failing checks or a re-sync', async () => {
+    for (const settle of ['failing', 'conflicting'] as const) {
+      const gh = new FakeGh(bare);
+      if (settle === 'failing') {
+        gh.checksSequence = ['failing'];
+        gh.failingCheck = { name: 'Deploy preview', description: 'Deployment was blocked', url: 'https://deploy.example/abc', kind: 'status' };
+      }
+      gh.beforeView = (pr) => {
+        if (pr.state !== 'OPEN') return;
+        pr.state = 'CLOSED';
+        if (settle === 'conflicting') pr.mergeable = 'CONFLICTING';
+      };
+      const engine = new Engine(cfg(), worker(), gh);
+      const goal = await engine.createGoal({ prompt: 'closed meanwhile', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
+      await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 30_000);
+      expect(deliveredStatus(engine, goal.id)).toMatchObject({ status: 'failed' });
+      expect(deliveredStatus(engine, goal.id).error).toContain('was closed');
+      // the sync before the PR existed is part of every delivery: none after the wait began
+      const steps = deliverySteps(engine, goal.id);
+      expect(steps.slice(steps.indexOf('wait-checks'))).not.toContain('sync-base');
+      await engine.stop();
+    }
+  }, 60_000);
+
+  test('a PR merged on GitHub while it read as conflicting is recorded as merged, without a re-sync', async () => {
+    const gh = new FakeGh(bare);
+    gh.beforeView = async (pr) => {
+      if (pr.state !== 'OPEN') return;
+      await gh.mergeOnGitHub(pr.number);
+      pr.mergeable = 'CONFLICTING';
+    };
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await engine.createGoal({ prompt: 'merged meanwhile', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 30_000);
+    expect(deliveredStatus(engine, goal.id)).toMatchObject({ status: 'delivered', outcome: 'merged' });
+    const steps = deliverySteps(engine, goal.id);
+    expect(steps.slice(steps.indexOf('wait-checks'))).not.toContain('sync-base');
+    await engine.stop();
+  }, 60_000);
+
+  test('a PR closed on GitHub while its checks are still pending stops the wait and fails as closed', async () => {
+    const gh = new FakeGh(bare);
+    gh.checksSequence = ['pending'];
+    gh.beforeView = (pr) => {
+      if (pr.state === 'OPEN') pr.state = 'CLOSED';
+    };
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await engine.createGoal({ prompt: 'closed while pending', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 30_000);
+    expect(deliveredStatus(engine, goal.id)).toMatchObject({ status: 'failed' });
+    expect(deliveredStatus(engine, goal.id).error).toContain('was closed');
+    await engine.stop();
+  }, 60_000);
 
   test("gh's own refusal under branch protection (\"is not mergeable: the base branch policy prohibits the merge\") still arms auto-merge", async () => {
     const gh = new FakeGh(bare);

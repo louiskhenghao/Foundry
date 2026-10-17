@@ -27,6 +27,8 @@ export class FakeGh implements GhClient {
   /** someone merges (or closes) the PR on GitHub right after the refusal (its views may still say UNKNOWN) */
   mergedWhileSettling = false;
   closedWhileSettling = false;
+  /** runs before each look at a PR: a test closes or merges it on GitHub while its checks are waited for */
+  beforeView: ((pr: PrView & { head: string; base: string; repo: string }) => void | Promise<void>) | null = null;
   /** how many times a PR was looked at after its first merge was refused */
   viewsAfterRefusal = 0;
   /** what gh prints when branch protection refuses a plain merge ('protected') */
@@ -80,6 +82,7 @@ export class FakeGh implements GhClient {
   async prView(_cwd: string, i: { repo: string; number: number }): Promise<PrView> {
     const pr = this.prs.get(i.number);
     if (!pr) throw new Error('no such PR');
+    await this.beforeView?.(pr);
     if (this.settled.has(i.number)) this.viewsAfterRefusal++;
     const unknown = this.unknownLeft.get(i.number) ?? 0;
     if (unknown > 0) {
