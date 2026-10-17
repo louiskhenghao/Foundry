@@ -77,24 +77,7 @@ export function MilestoneCard({ d }: { d: GoalDetail }) {
             </div>
           </div>
         )}
-        {artifacts.length > 0 && (
-          <div>
-            <div className="text-[11px] text-zinc-500 mb-1">Artifacts ({artifacts.length})</div>
-            <div className="flex gap-2 flex-wrap items-end">
-              {artifacts.slice(0, 12).map((f) =>
-                IMAGE.test(f) ? (
-                  <a key={f} href={api.artifactUrl(g.id, f)} target="_blank" rel="noreferrer" title={f}>
-                    <img src={api.artifactUrl(g.id, f)} alt={f} className="h-24 w-24 object-cover rounded border border-zinc-700" />
-                  </a>
-                ) : (
-                  <a key={f} href={api.artifactUrl(g.id, f)} target="_blank" rel="noreferrer" className="mono text-[11px] text-zinc-300 hover:underline">
-                    {f}
-                  </a>
-                ),
-              )}
-            </div>
-          </div>
-        )}
+        <ArtifactsStrip goalId={g.id} files={artifacts} task={task} />
         <div className="text-[11px] text-zinc-500">The code so far is on the Diff tab; the folder itself is under Open ▾ above.</div>
         <div className="border-t border-zinc-800 pt-3 space-y-2">
           <Textarea className="w-full text-sm min-h-[72px]" placeholder="What did you see? Anything to change, keep, or that is wrong… (leave empty and press Continue if it looks right)" value={text} onChange={(e) => { setText(e.target.value); setPlan(null); }} disabled={!esc || busy !== null} />
@@ -143,6 +126,29 @@ export function MilestoneCard({ d }: { d: GoalDetail }) {
         </div>
       </div>
     </Card>
+  );
+}
+
+/** the goal's artifacts; a milestone of files leaves them out, its evidence above already shows what the task produced */
+export function ArtifactsStrip({ goalId, files, task }: { goalId: string; files: string[]; task: { scenario: string; milestoneScript?: string | null } | null | undefined }) {
+  if (!files.length || (task && showsFiles(task))) return null;
+  return (
+    <div>
+      <div className="text-[11px] text-zinc-500 mb-1">Artifacts ({files.length})</div>
+      <div className="flex gap-2 flex-wrap items-end">
+        {files.slice(0, 12).map((f) =>
+          IMAGE.test(f) ? (
+            <a key={f} href={api.artifactUrl(goalId, f)} target="_blank" rel="noreferrer" title={f}>
+              <img src={api.artifactUrl(goalId, f)} alt={f} className="h-24 w-24 object-cover rounded border border-zinc-700" />
+            </a>
+          ) : (
+            <a key={f} href={api.artifactUrl(goalId, f)} target="_blank" rel="noreferrer" className="mono text-[11px] text-zinc-300 hover:underline">
+              {f}
+            </a>
+          ),
+        )}
+      </div>
+    </div>
   );
 }
 
