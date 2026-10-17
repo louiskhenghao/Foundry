@@ -124,7 +124,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
    * shown) or unverified (only fake data could be shown); `clips`: one video per scripted test; `outputs`: text a script
    * attached (an API's responses); `log`: the runner's output; `steps`: the walkthrough Foundry planned, replayed on a rerun;
    * `final`: recorded by the final walkthrough; `kind: 'files'`: a milestone of files, what a task produced, whose
-   * `files` are the models, drawings and too-large clips it names (relative to artifacts/) */
+   * `files` are the models, drawings and too-large clips it names (relative to artifacts/), and whose shots' and clips'
+   * captions are the paths of the files they were copied from (relative to artifacts/: what the output folder receives) */
   ev('milestone.evidence', {
     taskId: z.string(),
     video: z.string().nullable(),
@@ -150,8 +151,9 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.autoskills', { status: z.enum(['installed', 'skipped', 'failed']), skills: z.array(z.string()), detail: z.string() }),
   /** the goal's nature was settled (user chose it at creation, or the Clarifier decided for an `auto` goal) */
   ev('goal.nature_set', { nature: GoalNature, reason: z.string() }),
-  /** media artifacts were copied from the goal workspace to the goal's output folder at done */
-  ev('goal.artifacts_delivered', { status: z.enum(['ok', 'skipped', 'failed']), files: z.array(z.string()), dest: z.string(), detail: z.string(), model: z.string().nullable().optional() }),
+  /** media artifacts were copied from the goal workspace to the goal's output folder at done; `startedAt`: when the copy
+   * began (a file written after it may not be what the folder received; absent on deliveries before it was recorded) */
+  ev('goal.artifacts_delivered', { status: z.enum(['ok', 'skipped', 'failed']), files: z.array(z.string()), dest: z.string(), detail: z.string(), model: z.string().nullable().optional(), startedAt: z.string().optional() }),
   /** completion actions chosen at Brief approval (defaults inferred from the tasks' scenarios when the UI sends nothing) */
   ev('goal.completion_set', { graphRefresh: z.boolean(), docs: z.array(DocType), audit: z.boolean().optional(), reason: z.string() }),
   /** ponytail-audit ran on the finished branch (once per goal): what it found, and the fix tasks its in-scope must-fix findings became */
@@ -184,8 +186,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('task.created', { task: Task }),
   ev('task.state_changed', { taskId: z.string(), from: TaskState, to: TaskState, reason: z.string() }),
   ev('task.workspace_assigned', { taskId: z.string(), branch: z.string().nullable(), worktreePath: z.string().nullable() }),
-  /** a landed task's artifacts (git-excluded, so outside its commit) were copied into the goal workspace: the files it made or changed, relative to artifacts/; `failed`: those that could not be copied */
-  ev('task.artifacts_landed', { taskId: z.string(), files: z.array(z.string()), failed: z.array(z.string()).optional() }),
+  /** a landed task's artifacts (git-excluded, so outside its commit) were copied into the goal workspace: the files it made or changed, relative to artifacts/; `failed`: those that could not be copied; `settled`: earlier failures a retry read through (what they held came over, or nothing was left to copy) */
+  ev('task.artifacts_landed', { taskId: z.string(), files: z.array(z.string()), failed: z.array(z.string()).optional(), settled: z.array(z.string()).optional() }),
   ev('task.hint_set', { taskId: z.string(), hint: z.string().nullable(), extraAttempts: z.number().int() }),
   /** human restarted the task (and its dependents): back to pending with a fresh attempt budget */
   ev('task.restarted', { taskId: z.string(), extraAttempts: z.number().int(), reason: z.string() }),
@@ -286,8 +288,9 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('delivery.completed', { outcome: DeliveryOutcome }),
   /** after a merge: whether the user's local base branch now contains the work, and why not when it does not */
   ev('delivery.local_synced', { upToDate: z.boolean(), detail: z.string() }),
-  /** after a merge: the progress folder, worktrees and local goal branches removed (done) or kept, with the reason */
-  ev('delivery.cleaned', { done: z.boolean(), detail: z.string() }),
+  /** after a merge: the progress folder, worktrees and local goal branches removed (done) or kept, with the reason;
+   * `waiting`: kept until the artifact delivery in flight ends, which runs the tidy-up again */
+  ev('delivery.cleaned', { done: z.boolean(), detail: z.string(), waiting: z.boolean().optional() }),
   /** a pull request was closed on GitHub without being merged (noticed after the delivery finished) */
   ev('delivery.pr_closed', { prNumber: z.number().int() }),
   ev('delivery.failed', { step: DeliveryStep, reason: z.string() }),

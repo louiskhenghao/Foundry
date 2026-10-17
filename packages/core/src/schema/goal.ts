@@ -171,6 +171,8 @@ export const GoalCompletion = z.object({
       at: z.string(),
       /** a cad goal's model for the CAD Viewer among `files` (null = none); not recorded by deliveries before it was */
       model: z.string().nullable().optional(),
+      /** when the copy began; not recorded by deliveries before it was */
+      startedAt: z.string().optional(),
     })
     .nullable()
     .default(null),
