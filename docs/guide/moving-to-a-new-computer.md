@@ -10,7 +10,7 @@ Tick what goes into the file, then press **Export**. The file downloads; nothing
 
 - **Settings**: everything in Settings, except what belongs to this computer: the **Engine (install)** section, the link address and tailnet name of **Notifications**, the markitdown path, the **Folder browser roots** and the preview ports.
 - **Keys & secrets**: the API keys, the notification tokens and the variables you entered on goals' Preview cards. They are sealed with a password you type twice. Without it they cannot be read, and Foundry cannot recover it.
-- **Goals**: **All goals**, or **Choose goals** one by one. A goal that follows one you left out says so, with a link to add it. Each goal brings its history, attachments and screenshots. When a goal's branch has work the base branch lacks, finished or not, the branch comes too. An unfinished goal also brings the files Git ignores in its progress folder, such as generated images and style samples.
+- **Goals**: **All goals**, or **Choose goals** one by one. A goal that follows one you left out says so, with a link to add it. Each goal brings its history, attachments and screenshots. When a goal's branch has work the base branch lacks, finished or not, the branch comes too. An unfinished goal also brings the files Git ignores in its progress folder, such as generated images and style samples. A finished goal leaves those behind (its output folder has them), and with them the clips its milestones copied from its files; their pictures still come.
 - **Session transcripts**: the full session logs of those goals. They can be large; `foundry export --transcripts` in a terminal suits a big file better.
 
 ## Import

@@ -5,8 +5,8 @@
  *   leave the machine, at `done` for local ones — so the knowledge graph reflects the code that actually landed.
  * Failures never block the goal: every outcome is recorded on `goal.completion_ran` and the goal stays done.
  */
-import { cpSync, existsSync, mkdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Brief, DocType, Goal } from '@foundry/core';
 import { ARTIFACT_NATURES, pendingDecisions } from '@foundry/core';
 import type { Engine } from './engine.ts';
@@ -14,7 +14,8 @@ import { dropEmptyGraphDir } from './context/graphify-provider.ts';
 import { restoreGuidance, snapshotGuidance } from './git/agent-guidance.ts';
 import { exec } from './git/git.ts';
 import { pullFastForward } from './git/sync.ts';
-import { ARTIFACTS_DIR, goalWorkspacePath, listArtifacts } from './workspace.ts';
+import { cadModelIn, retryUnlanded } from './goal-artifacts.ts';
+import { ARTIFACTS_DIR, copyInto, goalWorkspacePath, listArtifacts } from './workspace.ts';
 import { codeWork } from './skills/workflow.ts';
 
 /** Task scenarios that mean the goal changes code (research/video/docs-only goals have none of these). */
@@ -43,8 +44,10 @@ export async function deliverArtifacts(engine: Engine, goal: Goal): Promise<void
   const { store, config } = engine;
   if (goal.completion.artifactsRun) return;
   const ws = goalWorkspacePath(config.dataDir, goal);
+  // what a landing could not copy goes again first, from the task worktree kept for it, so the delivery has it
+  await retryUnlanded(engine, goal).catch((err) => store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `copying the files a landing missed failed: ${String((err as Error)?.message ?? err).slice(0, 200)}` } }));
   const files = listArtifacts(ws);
-  const record = (payload: { status: 'ok' | 'skipped' | 'failed'; files: string[]; dest: string; detail: string }) => store.append({ type: 'goal.artifacts_delivered', goalId: goal.id, payload });
+  const record = (payload: { status: 'ok' | 'skipped' | 'failed'; files: string[]; dest: string; detail: string; model?: string | null }) => store.append({ type: 'goal.artifacts_delivered', goalId: goal.id, payload });
   if (!files.length) {
     if (ARTIFACT_NATURES.includes(goal.nature)) record({ status: 'skipped', files: [], dest: goal.outputDir ?? '', detail: 'no artifacts were produced' });
     return;
@@ -54,12 +57,11 @@ export async function deliverArtifacts(engine: Engine, goal: Goal): Promise<void
     return;
   }
   try {
-    for (const f of files) {
-      const dest = join(goal.outputDir, f);
-      mkdirSync(dirname(dest), { recursive: true });
-      cpSync(join(ws, ARTIFACTS_DIR, f), dest);
-    }
-    record({ status: 'ok', files, dest: goal.outputDir, detail: `${files.length} artifact(s) copied` });
+    // off the event loop, and renamed into place: a delivery cut short leaves the output folder's earlier copy whole
+    for (const f of files) await copyInto(join(ws, ARTIFACTS_DIR, f), join(goal.outputDir, f));
+    // the model the CAD Viewer opens once the workspace is gone, chosen here by the files' own times (a copy's are new)
+    const model = goal.nature === 'cad' ? cadModelIn(join(ws, ARTIFACTS_DIR), files) : undefined;
+    record({ status: 'ok', files, dest: goal.outputDir, detail: `${files.length} artifact(s) copied`, ...(model !== undefined ? { model } : {}) });
     store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `${files.length} artifact(s) delivered to ${goal.outputDir}` } });
     config.log(`[completion] ${goal.id}: ${files.length} artifact(s) → ${goal.outputDir}`);
   } catch (err) {

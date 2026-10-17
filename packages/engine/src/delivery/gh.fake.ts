@@ -22,6 +22,8 @@ export class FakeGh implements GhClient {
   mergeBehavior: 'ok' | 'protected' | 'fail' | 'settling' = 'ok';
   unknownViews = 1;
   settlesAs: 'MERGEABLE' | 'CONFLICTING' = 'MERGEABLE';
+  /** how many views say CONFLICTING once the PR settled as a conflict, before a re-sync and push cleared it (never, by default) */
+  conflictViews = Infinity;
   /** someone merges (or closes) the PR on GitHub right after the refusal (its views may still say UNKNOWN) */
   mergedWhileSettling = false;
   closedWhileSettling = false;
@@ -31,6 +33,8 @@ export class FakeGh implements GhClient {
   protectedStderr = 'GraphQL: Base branch requires review (protected branch)';
   private settled = new Set<number>();
   private unknownLeft = new Map<number, number>();
+  private conflictLeft = new Map<number, number>();
+  private conflicting = (n: number) => this.settlesAs === 'CONFLICTING' && (this.conflictLeft.get(n) ?? this.conflictViews) > 0;
   /** 'squash' writes one new commit on the base with the head's content, as GitHub's squash merge does */
   mergeStyle: 'fast-forward' | 'squash' = 'fast-forward';
   failedLogText: string | null = null;
@@ -82,7 +86,10 @@ export class FakeGh implements GhClient {
       this.unknownLeft.set(i.number, unknown - 1);
       return { ...pr, mergeable: 'UNKNOWN', mergeStateStatus: 'UNKNOWN', checks: [] };
     }
-    if (this.mergeBehavior === 'settling' && this.settled.has(i.number) && this.settlesAs === 'CONFLICTING' && pr.state === 'OPEN') return { ...pr, mergeable: 'CONFLICTING', mergeStateStatus: 'DIRTY', checks: [] };
+    if (this.mergeBehavior === 'settling' && this.settled.has(i.number) && this.conflicting(i.number) && pr.state === 'OPEN') {
+      this.conflictLeft.set(i.number, (this.conflictLeft.get(i.number) ?? this.conflictViews) - 1);
+      return { ...pr, mergeable: 'CONFLICTING', mergeStateStatus: 'DIRTY', checks: [] };
+    }
     const state = this.checksSequence[Math.min(this.viewCount, this.checksSequence.length - 1)]!;
     this.viewCount++;
     const checks =
@@ -108,7 +115,7 @@ export class FakeGh implements GhClient {
         return refused;
       }
       // still computing, or settled as a conflict: refused as GitHub refuses
-      if ((this.unknownLeft.get(i.number) ?? 0) > 0 || this.settlesAs === 'CONFLICTING') return refused;
+      if ((this.unknownLeft.get(i.number) ?? 0) > 0 || this.conflicting(i.number)) return refused;
     }
     if (this.mergeBehavior === 'settling' && i.auto) return { code: 1, stdout: '', stderr: 'GraphQL: Auto merge is not allowed for this repository (enablePullRequestAutoMerge)' };
     if (this.mergeBehavior === 'protected' && !i.auto) return { code: 1, stdout: '', stderr: this.protectedStderr };

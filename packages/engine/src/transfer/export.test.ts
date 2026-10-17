@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { SealedSecrets, TransferManifest, getGoal, listAttemptsByGoal } from '@foundry/core';
 import { defaultConfig } from '../config.ts';
 import { Engine } from '../engine.ts';
 import { FakeRunner, makeRepo, sh, waitFor } from '../test-helpers.ts';
+import { screenshotsDir } from '../workspace.ts';
 import { unpackTransfer } from './archive.ts';
 import { engineTransferHost, exportTransfer } from './export.ts';
 import { openSecrets } from './secrets.ts';
@@ -81,4 +82,21 @@ test('goals can be picked one by one; Keys & secrets refuse to travel without a 
   await expect(exportTransfer(host, { categories: { secrets: true }, out: file })).rejects.toThrow('need a password');
   await expect(exportTransfer(host, { categories: { transcripts: true }, out: file })).rejects.toThrow('tick at least one');
   await expect(exportTransfer(host, { categories: { goals: true }, goalIds: ['g_nope'], out: file })).rejects.toThrow('not found');
+});
+
+test("a finished goal leaves behind the clips its milestones of files copied, with its artifacts; an unfinished one carries them", async () => {
+  const { engine, done, draft } = await twoGoals();
+  for (const g of [done, draft]) {
+    const shots = screenshotsDir(dataDir, g);
+    mkdirSync(shots, { recursive: true });
+    for (const f of ['walk.webm', 't_render-1a-front.png', 't_render-2b-turntable.mp4']) writeFileSync(join(shots, f), f);
+    engine.store.append({ type: 'milestone.evidence', goalId: g.id, payload: { taskId: 't_render', video: null, shots: [{ file: 't_render-1a-front.png', caption: 'front.png' }], clips: [{ file: 't_render-2b-turntable.mp4', caption: 'turntable.mp4' }], summary: '', error: null, kind: 'files', files: [] } });
+  }
+  const file = join(out, 'f.tgz');
+  await exportTransfer(engineTransferHost(engine), { categories: { goals: true }, goalIds: 'all', out: file });
+  const x = join(out, 'x');
+  await unpackTransfer(file, x);
+  // the walkthrough recording and the pictures travel: they are the goal's history
+  expect(readdirSync(join(x, 'goals', done.id, 'screenshots')).sort()).toEqual(['t_render-1a-front.png', 'walk.webm']);
+  expect(readdirSync(join(x, 'goals', draft.id, 'screenshots')).sort()).toEqual(['t_render-1a-front.png', 't_render-2b-turntable.mp4', 'walk.webm']);
 });

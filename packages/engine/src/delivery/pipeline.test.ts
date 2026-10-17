@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { getGoal, listEscalations, listTasks } from '@foundry/core';
@@ -191,7 +191,27 @@ describe('delivery pipeline', () => {
     expect(gh.calls.filter((c) => c[0] === 'prMerge').map((c) => c[3])).toEqual(['now']);
   });
 
-  test('a refusal that settles as a conflict fails the merge as a conflict, without asking for auto-merge', async () => {
+  const deliverySteps = (engine: Engine, goalId: string) =>
+    engine.store
+      .listByGoal(goalId, 5000)
+      .filter((e) => e.type === 'delivery.step' && (e.payload as { status: string }).status !== 'started')
+      .map((e) => (e.payload as { step: string }).step);
+
+  test('a refusal that settles as a conflict syncs the branch with its base, pushes it and merges once the conflict is gone', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'settling';
+    gh.settlesAs = 'CONFLICTING';
+    gh.conflictViews = 1;
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await engine.createGoal({ prompt: 'settle into a conflict', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 30_000);
+    expect(deliveredStatus(engine, goal.id)).toMatchObject({ status: 'delivered', outcome: 'merged' });
+    expect(gh.calls.filter((c) => c[0] === 'prMerge').map((c) => c[3])).toEqual(['now', 'now']);
+    const steps = deliverySteps(engine, goal.id);
+    expect(steps.slice(steps.indexOf('merge'))).toEqual(['merge', 'sync-base', 'push', 'wait-checks', 'merge', 'cleanup']);
+  });
+
+  test('a conflict GitHub keeps reporting fails after a few re-syncs, without asking for auto-merge', async () => {
     const gh = new FakeGh(bare);
     gh.mergeBehavior = 'settling';
     gh.settlesAs = 'CONFLICTING';
@@ -199,8 +219,9 @@ describe('delivery pipeline', () => {
     const goal = await engine.createGoal({ prompt: 'settle into a conflict', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
     await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 30_000);
     expect(deliveredStatus(engine, goal.id)).toMatchObject({ status: 'failed' });
-    expect(deliveredStatus(engine, goal.id).error).toContain('conflicts with its base');
+    expect(deliveredStatus(engine, goal.id).error).toContain('still conflicts with its base after 5 re-syncs');
     expect(gh.calls.filter((c) => c[0] === 'prMerge').map((c) => c[3])).toEqual(['now']);
+    expect(deliverySteps(engine, goal.id).filter((s) => s === 'sync-base').length).toBeGreaterThanOrEqual(6);
   });
 
   test("gh's own refusal under branch protection (\"is not mergeable: the base branch policy prohibits the merge\") still arms auto-merge", async () => {
@@ -467,6 +488,43 @@ describe('after a merge (ADR-0015)', () => {
     await engine.finishAfterMerge(goal.id, { force: true });
     d = deliveredStatus(engine, goal.id);
     expect(d.cleanup?.done).toBe(true);
+    expect(existsSync(ws)).toBe(false);
+    await engine.stop();
+  });
+
+  test('artifacts no output folder received, and files a landing could not copy, keep the progress folder until "clean up anyway"', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'protected';
+    const engine = new Engine(cfgWith(true), worker(), gh);
+    const goal = await mergedGoal(engine);
+    const ws = goalWorkspacePath(dataDir, goal);
+    // an export the goal kept (git-excluded, as for every goal that keeps artifacts) and the Brief's style sample
+    await sh('echo /artifacts/ >> "$(git rev-parse --git-common-dir)/info/exclude"', ws);
+    mkdirSync(join(ws, 'artifacts', 'samples'), { recursive: true });
+    writeFileSync(join(ws, 'artifacts', 'bracket.step'), 'step');
+    writeFileSync(join(ws, 'artifacts', 'samples', 'style-1.png'), 'png');
+    await gh.mergeOnGitHub(1);
+    await engine.refreshDelivery(goal.id);
+    let d = deliveredStatus(engine, goal.id);
+    expect(d.outcome).toBe('merged');
+    expect(d.cleanup).toMatchObject({ done: false });
+    expect(d.cleanup!.detail).toContain('1 artifact no output folder received (bracket.step)');
+    expect(existsSync(ws)).toBe(true);
+    // the export delivered, a task worktree still holding a file its landing could not copy keeps everything too
+    engine.store.append({ type: 'goal.artifacts_delivered', goalId: goal.id, payload: { status: 'ok', files: ['bracket.step'], dest: '/out', detail: '1 artifact(s) copied' } });
+    const task = listTasks(engine.store.db, goal.id)[0]!;
+    const taskWs = mkdtempSync(join(tmpdir(), 'foundry-kept-task-'));
+    mkdirSync(join(taskWs, 'artifacts'), { recursive: true });
+    writeFileSync(join(taskWs, 'artifacts', 'hinge.step'), 'step');
+    engine.store.append({ type: 'task.workspace_assigned', goalId: goal.id, payload: { taskId: task.id, branch: null, worktreePath: taskWs } });
+    engine.store.append({ type: 'task.artifacts_landed', goalId: goal.id, payload: { taskId: task.id, files: [], failed: ['hinge.step'] } });
+    await engine.finishAfterMerge(goal.id, {});
+    d = deliveredStatus(engine, goal.id);
+    expect(d.cleanup).toMatchObject({ done: false });
+    expect(d.cleanup!.detail).toContain(`could not be copied into the progress folder and is only in its worktree (${task.title}: hinge.step)`);
+    expect(existsSync(taskWs)).toBe(true);
+    await engine.finishAfterMerge(goal.id, { force: true });
+    expect(deliveredStatus(engine, goal.id).cleanup?.done).toBe(true);
     expect(existsSync(ws)).toBe(false);
     await engine.stop();
   });

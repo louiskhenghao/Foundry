@@ -73,8 +73,13 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
   run"), and an integration's restart of the running apps leaves it alone. It opens on the goal's model, not on its
   home: `?file=` with the absolute path of the assembly when one was exported (a STEP whose name says assembly, or has
   asm, assy or stack as a word of its own), else of the newest STEP, from the workspace while the goal runs and from the
-  output folder once delivered. The link is built when the card reads it, so a running viewer follows a newer assembly,
-  and its tailnet address carries the same path and query.
+  output folder once delivered. The link is built when the card reads it, so a running viewer follows a newer assembly;
+  the model is kept for ten seconds and dropped at every landing or delivery, since every status poll asks for it, and
+  a cad goal's delivery records the model it picked by the exports' own times (`goal.artifacts_delivered` `model`), so
+  the output folder, perhaps a network share, is never searched for it.
+  It is never put on the tailnet: cadgen serves any file it is given the path of, with no root to keep it in, so there it
+  would hand this computer's files to every device on the tailnet. From another device the card says it opens on
+  Foundry's computer instead of offering a link.
 - **A milestone of files shows the task's own files.** A milestone of a cad, image or video task shows what that task
   produced: the files its landing copied into the goal workspace, recorded as `task.artifacts_landed` (a goal from
   before that falls back to the files changed since the task's first attempt). Its images and up to four clips, the
@@ -83,6 +88,7 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
   a clip over 200 MB is named instead. Models and drawings are named, and the card links them (the delivered copy once
   the goal folder is gone); a task that landed nothing has nothing to look at. The card shows the pictures whole, the
   screenshots route serves every format collected, and there is no walkthrough of a preview such a goal does not have.
+  A finished goal's Transfer leaves the clip copies behind with the artifacts they came from; the pictures travel.
 - **Exports travel with the tasks.** A cad task's worktree starts with the goal workspace's `artifacts/` (what earlier
   tasks exported), the way it gets project skills and style samples: a drawing or an assembly needs the parts' STEP,
   and artifacts never come through git. What a task inherited and left untouched is not copied back at integration, so
@@ -93,12 +99,21 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
   artifacts, never over a file git tracks (a repository's own `artifacts/` folder comes through git), and never at the
   cost of the checks: a failed copy is noted. A merge attempt's baseline takes its artifacts from the worktree the merge
   happens in (a task's own on a catch-up), so both sides of the comparison measure the same exports, and a resolution's
-  worktree gets the goal's artifacts and then the task's changes, after its squash merge. The artifacts listing follows
+  worktree gets the goal's artifacts and then the task's changes, after its squash merge. A squash that conflicts at
+  integration (another task landed between the task's last catch-up and its squash) has its merge attempt checked in
+  the goal workspace with the task's changed exports laid over the goal's, after the baseline measured the goal as it
+  was: what they cover is saved beside the progress folder with a list of what they add, put back when the merge does
+  not land, and undone before the next overlay when a run was cut short. The artifacts listing follows
   no symbolic link, and no copy writes through one: each file is copied beside its destination and renamed over it, so
-  a copy cut short leaves the old file. A landing leaves files git tracks to the commit, still copies the other files
+  a copy cut short leaves the old file, and the copies run off the event loop (a disk that cannot clone copies hundreds
+  of MB while the server keeps answering). A landing leaves files git tracks to the commit, still copies the other files
   when one fails (a folder it cannot read counts as failed), records the failures for the milestone, and then keeps the
-  task's worktree; a task that worked in the goal workspace records the files it changed there. Baselines of a goal run one at a time, are keyed by the state of the exports they measure,
-  and count nothing as already failing when those exports cannot be copied. A manual resolution holds work while its
+  task's worktree; a task that worked in the goal workspace records the files it changed there. The delivery first
+  copies again what a landing missed, as a landing of its own that clears the failures it brings, and the after-merge
+  cleanup waits while a kept worktree still holds such files (ADR-0015); a restart from the task reruns it, which makes
+  them again. Baselines of a goal run one at a time, are keyed by the contents of the exports they measure (not their
+  sizes and times, which a re-export can keep), and count nothing as already failing when those exports cannot be
+  copied. A manual resolution holds work while its
   squash merge, a change to a tracked file, or a commit past its recorded start is there (untracked leftovers do not
   count), so a page load never starts it over under the person's edits, and a Finish cut short after its commit is
   completed by the next one (finished up, when the commit had already landed). A session merged from an older tip of the
@@ -121,9 +136,4 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
 - Not done: the viewer's bind
   address in Docker (unverified), a `cad` file preview in the task drawer (STEP/STL show as binaries), per-tool allow
   lists for the plugin's server (its remaining tools are read-only by its own annotation), and a marketplace added
-  earlier without the `latest` ref (the add says "already exists" and the install follows that other ref). A squash
-  that conflicts at integration (another task landed between a task's last catch-up and its squash) runs its merge
-  attempt in the goal workspace before the task's exports land there, so a task that changes an existing export and
-  the check that measures it together can still read as a regression in that window. Milestone copies of images and
-  clips stay in the screenshots folder, which a Transfer carries. A landing whose copy failed keeps the task's worktree
-  and says so, but a later restart of the goal or its after-merge cleanup can still remove it.
+  earlier without the `latest` ref (the add says "already exists" and the install follows that other ref).

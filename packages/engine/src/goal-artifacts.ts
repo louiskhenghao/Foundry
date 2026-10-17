@@ -1,8 +1,9 @@
 import { existsSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { appendFile, mkdir, readFile, rm } from 'node:fs/promises';
+import { basename, join } from 'node:path';
 import { ARTIFACT_NATURES, ARTIFACT_SCENARIOS, listAttempts, listTasks, type Goal, type Task } from '@foundry/core';
 import type { Engine } from './engine.ts';
-import { ARTIFACTS_DIR, copyArtifactFiles, copyUntrackedArtifacts, goalWorkspacePath, listArtifacts, trackedArtifacts } from './workspace.ts';
+import { ARTIFACTS_DIR, copyArtifactFiles, copyInto, copyUntrackedArtifacts, goalWorkspacePath, internalWorkspaceDir, legacyWorkspaceRoot, listArtifacts, trackedArtifacts } from './workspace.ts';
 
 /** what a landing brought into the goal workspace, and what it could not copy */
 export interface Landing {
@@ -29,7 +30,7 @@ export async function landTaskArtifacts(engine: Engine, goal: Goal, task: Task, 
     const [mine, theirs] = await Promise.all([trackedArtifacts(task.worktreePath), trackedArtifacts(goalWs)]);
     // `keepExisting`: only what the goal does not have yet (a resolution that kept the goal's source keeps its exports)
     const skip = new Set([...mine, ...theirs, ...(opts.keepExisting ? listArtifacts(goalWs) : [])]);
-    files = copyArtifactFiles(task.worktreePath, goalWs, { skip, onError: (f) => failed.push(f) });
+    files = await copyArtifactFiles(task.worktreePath, goalWs, { skip, onError: (f) => failed.push(f) });
     if (files.length) engine.config.log(`[artifacts] ${task.id}: ${files.length} file(s) copied to the goal workspace`);
   } else if (ARTIFACT_SCENARIOS.includes(task.scenario)) {
     files = changedInGoalWorkspace(engine, goal, task, goalWs);
@@ -61,12 +62,64 @@ function changedInGoalWorkspace(engine: Engine, goal: Goal, task: Task, goalWs: 
 }
 
 /**
- * The files a task's landings brought into the goal workspace (relative to artifacts/), and those they could not copy.
- * Null when none was recorded: a goal from before landings were, or a task with no artifacts to land.
+ * The files a task's landings brought into the goal workspace (relative to artifacts/), and those they could not copy
+ * that no later landing brought. Null when none was recorded: a goal from before landings were, or a task with no
+ * artifacts to land.
  */
 export function landedArtifacts(engine: Engine, goalId: string, taskId: string): { files: Set<string>; failed: string[] } | null {
   const landings = engine.store.listByGoalOfTypes(goalId, ['task.artifacts_landed']).map((e) => e.payload as { taskId: string; files: string[]; failed?: string[] }).filter((p) => p.taskId === taskId);
-  return landings.length ? { files: new Set(landings.flatMap((p) => p.files)), failed: landings.flatMap((p) => p.failed ?? []) } : null;
+  if (!landings.length) return null;
+  const failed = new Set<string>();
+  for (const p of landings) {
+    for (const f of p.files) failed.delete(f);
+    for (const f of p.failed ?? []) failed.add(f);
+  }
+  return { files: new Set(landings.flatMap((p) => p.files)), failed: [...failed] };
+}
+
+/** what a task's landings could not copy that is still in its worktree (a file, or a folder ending in /): the worktree must not go while it holds them */
+export function unlandedFiles(engine: Engine, goal: Goal, task: Task): string[] {
+  const goalWs = goalWorkspacePath(engine.config.dataDir, goal);
+  if (!task.worktreePath || task.worktreePath === goalWs || !existsSync(task.worktreePath)) return [];
+  return (landedArtifacts(engine, goal.id, task.id)?.failed ?? []).filter((f) => existsSync(join(task.worktreePath!, ARTIFACTS_DIR, f)));
+}
+
+/**
+ * Copy again what tasks' landings could not copy and their kept worktrees still hold, before the goal's files are
+ * delivered: each retry is a landing of its own, recording what came over and what still did not.
+ */
+export async function retryUnlanded(engine: Engine, goal: Goal): Promise<void> {
+  const goalWs = goalWorkspacePath(engine.config.dataDir, goal);
+  for (const task of listTasks(engine.store.db, goal.id)) {
+    const left = unlandedFiles(engine, goal, task);
+    if (!left.length) continue;
+    const from = task.worktreePath!;
+    const wanted = (f: string) => left.some((m) => (m.endsWith('/') ? m === './' || f.startsWith(m) : f === m));
+    const [mine, theirs] = await Promise.all([trackedArtifacts(from), trackedArtifacts(goalWs)]);
+    const skip = new Set([...mine, ...theirs, ...listArtifacts(from).filter((f) => !wanted(f))]);
+    const failed: string[] = [];
+    const files = await copyArtifactFiles(from, goalWs, { skip, onError: (f) => failed.push(f) });
+    engine.store.append({ type: 'task.artifacts_landed', goalId: goal.id, payload: { taskId: task.id, files, ...(failed.length ? { failed } : {}) } });
+    engine.config.log(`[artifacts] ${task.id}: ${files.length} file(s) copied again${failed.length ? `, ${failed.length} still not` : ''}`);
+  }
+}
+
+/**
+ * The model the CAD Viewer opens among `files` (relative to `root`): the assembly when one was exported (a STEP whose
+ * name says assembly, or has asm, assy or stack as a word of its own), else the newest STEP; never a style sample.
+ */
+export function cadModelIn(root: string, files: string[]): string | null {
+  const steps = files
+    .filter((f) => /\.(step|stp)$/i.test(f) && !f.startsWith('samples/'))
+    .flatMap((f) => {
+      try {
+        return [{ f, at: statSync(join(root, f)).mtimeMs }];
+      } catch {
+        return [];
+      }
+    });
+  const assemblies = steps.filter((s) => /assembl|(^|[_-])(asm|assy|stack)([_.-]|$)/i.test(basename(s.f)));
+  return (assemblies.length ? assemblies : steps).sort((a, b) => b.at - a.at)[0]?.f ?? null;
 }
 
 /** whether Foundry keeps artifacts/ for this goal: a goal judged by its files, or one with a task whose deliverables are files */
@@ -88,4 +141,45 @@ export async function artifactsForChecks(engine: Engine, goal: Goal, fromWs: str
     if (opts.strict) throw err;
     engine.store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `${where}: the artifacts could not be copied (${String((err as Error)?.message ?? err)}); a check that measures an export may fail there` } });
   }
+}
+
+/**
+ * Lay a task's changed exports over the goal workspace's while its integration is checked there: they land only after
+ * the merge, so a check that measures an export the task remade would read the goal's older one against the task's
+ * newer source, a regression of nothing. What they cover is saved first, beside the progress folder, with a list of
+ * what they add: `done(false)` puts the goal's files back (a merge that does not land must not leave the task's exports
+ * behind), `done(true)` keeps them for the landing. A list left by a run cut short is undone before a new overlay.
+ */
+export async function overlayTaskExports(engine: Engine, goal: Goal, task: Task): Promise<{ files: string[]; done: (keep: boolean) => Promise<void> }> {
+  const goalWs = goalWorkspacePath(engine.config.dataDir, goal);
+  const backup = join(internalWorkspaceDir(goal) ?? legacyWorkspaceRoot(engine.config.dataDir, goal.id), 'overlay', task.id);
+  await undoOverlay(goalWs, backup);
+  if (!task.worktreePath || task.worktreePath === goalWs || !existsSync(task.worktreePath) || !goalUsesArtifacts(engine, goal)) return { files: [], done: async () => {} };
+  const [mine, theirs] = await Promise.all([trackedArtifacts(task.worktreePath), trackedArtifacts(goalWs)]);
+  await mkdir(backup, { recursive: true });
+  const files = await copyArtifactFiles(task.worktreePath, goalWs, {
+    skip: new Set([...mine, ...theirs]),
+    // a file that cannot be laid over, or saved first, is measured as the goal has it
+    onError: () => {},
+    before: async (f) => {
+      const dest = join(goalWs, ARTIFACTS_DIR, f);
+      const saved = existsSync(dest);
+      if (saved) await copyInto(dest, join(backup, 'files', f));
+      await appendFile(join(backup, 'list'), `${JSON.stringify({ f, saved })}\n`);
+    },
+  });
+  return { files, done: async (keep) => (keep ? rm(backup, { recursive: true, force: true }) : undoOverlay(goalWs, backup)) };
+}
+
+/** put back what an overlay covered and take away what it added, from the list it left; the list stays while any file could not be */
+async function undoOverlay(goalWs: string, backup: string): Promise<void> {
+  const list = await readFile(join(backup, 'list'), 'utf8').catch(() => null);
+  const failed: string[] = [];
+  for (const line of (list ?? '').split('\n').filter(Boolean)) {
+    const { f, saved } = JSON.parse(line) as { f: string; saved: boolean };
+    const dest = join(goalWs, ARTIFACTS_DIR, f);
+    await (saved ? copyInto(join(backup, 'files', f), dest) : rm(dest, { force: true })).catch(() => failed.push(f));
+  }
+  if (failed.length) throw new Error(`could not put back ${failed.slice(0, 3).join(', ')}${failed.length > 3 ? ', …' : ''}`);
+  await rm(backup, { recursive: true, force: true });
 }

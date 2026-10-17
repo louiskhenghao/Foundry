@@ -1,4 +1,5 @@
-import { constants, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync, type Dirent } from 'node:fs';
+import { constants, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, type Dirent } from 'node:fs';
+import { copyFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import type { Goal, Task } from '@foundry/core';
 import { ensureWorktree, git, headRef, removeWorktree } from './git/git.ts';
@@ -11,7 +12,7 @@ export const ARTIFACTS_DIR = 'artifacts';
 const INHERITED = '.inherited.json';
 /** a copy in progress (written beside its destination, then renamed over it): never an artifact itself */
 const PART = '.foundry-part-';
-const hashOf = (file: string) => String(Bun.hash(readFileSync(file)));
+const hashOf = async (file: string) => String(Bun.hash(await readFile(file)));
 
 /**
  * Every file under a workspace's artifacts/, as paths relative to that folder (the inherited-files marker and copies
@@ -55,22 +56,24 @@ export function listArtifacts(ws: string, opts: { onSkip?: (rel: string, err: un
  * inherited and left untouched (a cad task's starting exports) stays where it is, so a task that finishes
  * later never puts an older copy over a newer export.
  */
-export function copyArtifacts(fromWs: string, toWs: string): number {
-  return copyArtifactFiles(fromWs, toWs).length;
+export async function copyArtifacts(fromWs: string, toWs: string): Promise<number> {
+  return (await copyArtifactFiles(fromWs, toWs)).length;
 }
 
 /**
  * copyArtifacts, saying which files it copied (paths relative to artifacts/). `skip`: files left where they are;
- * `inherited`: copy what the source inherited and left as it was too, so the destination mirrors its artifacts;
+ * `inherited`: copy what the source inherited and left as it was too, so the destination mirrors its artifacts; `before`:
+ * called with each file about to be written (a file it fails for is not copied);
  * `onError`: a file that cannot be copied (or a folder the listing could not read) is reported and the others still go
- * (without it, the first error throws). Each file is written beside its destination and renamed over it, so a copy cut
- * short (a full disk) leaves the old file, and no link (symbolic or hard) at the destination is written through.
+ * (without it, the first error throws). Each file is written beside its destination and renamed over it (copyInto).
+ * The copies run off the event loop: a model or a clip of hundreds of MB is not cloned where the disk cannot (Linux),
+ * and a server copying it must keep answering.
  */
-export function copyArtifactFiles(fromWs: string, toWs: string, opts: { skip?: ReadonlySet<string>; inherited?: boolean; onError?: (f: string, err: unknown) => void } = {}): string[] {
+export async function copyArtifactFiles(fromWs: string, toWs: string, opts: { skip?: ReadonlySet<string>; inherited?: boolean; onError?: (f: string, err: unknown) => void; before?: (f: string) => Promise<void> } = {}): Promise<string[]> {
   let inherited: Record<string, string> = {};
   if (!opts.inherited) {
     try {
-      inherited = JSON.parse(readFileSync(join(fromWs, ARTIFACTS_DIR, INHERITED), 'utf8'));
+      inherited = JSON.parse(await readFile(join(fromWs, ARTIFACTS_DIR, INHERITED), 'utf8'));
     } catch {}
   }
   const root = join(toWs, ARTIFACTS_DIR);
@@ -83,24 +86,33 @@ export function copyArtifactFiles(fromWs: string, toWs: string, opts: { skip?: R
     if (opts.skip?.has(f)) continue;
     try {
       const src = join(fromWs, ARTIFACTS_DIR, f);
-      if (inherited[f] && inherited[f] === hashOf(src)) continue;
+      if (inherited[f] && inherited[f] === (await hashOf(src))) continue;
       const dest = join(root, f);
       writableInside(root, dest);
-      mkdirSync(dirname(dest), { recursive: true });
-      const part = join(dirname(dest), `${PART}${process.pid}-${(partSeq++).toString(36)}-${basename(dest)}`);
-      try {
-        copyFileSync(src, part, constants.COPYFILE_EXCL | constants.COPYFILE_FICLONE);
-        renameSync(part, dest);
-      } catch (err) {
-        rmSync(part, { force: true });
-        throw err;
-      }
+      await opts.before?.(f);
+      await copyInto(src, dest);
       copied.push(f);
     } catch (err) {
       failed(f, err);
     }
   }
   return copied;
+}
+
+/**
+ * Copy a file beside its destination, then rename it over: a copy cut short (a full disk) leaves the old file, and no
+ * link (symbolic or hard) at the destination is written through.
+ */
+export async function copyInto(src: string, dest: string): Promise<void> {
+  await mkdir(dirname(dest), { recursive: true });
+  const part = join(dirname(dest), `${PART}${process.pid}-${(partSeq++).toString(36)}-${basename(dest)}`);
+  try {
+    await copyFile(src, part, constants.COPYFILE_EXCL | constants.COPYFILE_FICLONE);
+    await rename(part, dest);
+  } catch (err) {
+    await rm(part, { force: true });
+    throw err;
+  }
 }
 let partSeq = 0;
 
@@ -134,16 +146,16 @@ export async function copyUntrackedArtifacts(fromWs: string, toWs: string, opts:
 }
 
 /** Give a task worktree the goal workspace's artifacts to build on, remembering them so that only what the task changes or adds comes back. */
-export function inheritArtifacts(goalWs: string, taskWs: string): number {
+export async function inheritArtifacts(goalWs: string, taskWs: string): Promise<number> {
   const files = listArtifacts(goalWs);
   const marker: Record<string, string> = {};
   for (const f of files) {
     const dest = join(taskWs, ARTIFACTS_DIR, f);
-    mkdirSync(dirname(dest), { recursive: true });
-    cpSync(join(goalWs, ARTIFACTS_DIR, f), dest);
-    marker[f] = hashOf(dest);
+    await mkdir(dirname(dest), { recursive: true });
+    await copyFile(join(goalWs, ARTIFACTS_DIR, f), dest, constants.COPYFILE_FICLONE);
+    marker[f] = await hashOf(dest);
   }
-  if (files.length) writeFileSync(join(taskWs, ARTIFACTS_DIR, INHERITED), JSON.stringify(marker));
+  if (files.length) await writeFile(join(taskWs, ARTIFACTS_DIR, INHERITED), JSON.stringify(marker));
   return files.length;
 }
 
@@ -282,7 +294,7 @@ export async function ensureTaskWorkspace(dataDir: string, goal: Goal, task: Tas
   copyProjectSkills(goalPath, path, goal.provider);
   copyStyleSamples(goalPath, path);
   // a cad task builds on what earlier tasks exported (a drawing or an assembly needs their STEP): artifacts are git-excluded too
-  if (task.scenario === 'cad') inheritArtifacts(goalPath, path);
+  if (task.scenario === 'cad') await inheritArtifacts(goalPath, path);
   return { path, branch };
 }
 

@@ -8,6 +8,7 @@ import { raiseEscalation } from './escalation.ts';
 import { abortInProgress, commitAll, commitStaged, conflictedFiles, git, gitIdent, gitOk, headRef, refExists, withCoauthor } from './git/git.ts';
 import { ccHeader, taskCommitMessage } from './git/conventional.ts';
 import { READONLY_DISALLOWED, boundarySettings } from './guards/boundary.ts';
+import { overlayTaskExports } from './goal-artifacts.ts';
 import { goalWorkspacePath } from './workspace.ts';
 
 const MERGE_ATTEMPT_BUDGET = 2;
@@ -256,18 +257,27 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
     // only regressions count: a check already red on the goal branch before this merge is not the merge's fault
     // judged with the exports of the worktree the merge happens in: a task's own on a catch-up, the goal's on integration
     const baseline = await engine.baseline.failing(goal, attempt.baseRef!, cwd);
-    const failed: string[] = [];
-    const preexisting: string[] = [];
-    for (const c of checks) {
-      const r = await runCommandCheck(c, { cwd, outputDir: join(config.dataDir, 'check-output'), attemptId: attempt.id });
-      store.append({ type: 'check.finished', goalId: goal.id, payload: { result: r } });
-      if (r.status !== 'pass') (baseline.has(c.id) ? preexisting : failed).push(`${c.name} (${r.status}: ${r.summary.slice(0, 160).replace(/\s+/g, ' ')})`);
-    }
-    if (failed.length) {
-      ok = false;
-      reason = `conflicts resolved but must checks regressed — ${failed.join('; ')}${preexisting.length ? ` (ignored, already failing before the merge: ${preexisting.map((x) => x.split(' (')[0]).join(', ')})` : ''}`;
-    } else if (preexisting.length) {
-      store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `merge attempt ${n} for ${src.label}: ${preexisting.length} must check(s) fail but already failed on the goal branch before the merge — accepted` } });
+    const note = (message: string) => store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message } });
+    // a task integrated in the goal workspace: its exports land only after this merge, so its checks get them laid over
+    // the goal's (after the baseline, which measures the goal as it was), taken back if the merge does not land
+    const integrating = cwd === goalWorkspacePath(config.dataDir, goal) && !!task.branch && src.ref === task.branch;
+    const overlay = integrating ? await overlayTaskExports(engine, goal, task).catch((err) => (note(`merge attempt ${n} for ${src.label}: the task's exports could not be laid over the goal's for its checks (${String((err as Error)?.message ?? err).slice(0, 200)})`), null)) : null;
+    try {
+      const failed: string[] = [];
+      const preexisting: string[] = [];
+      for (const c of checks) {
+        const r = await runCommandCheck(c, { cwd, outputDir: join(config.dataDir, 'check-output'), attemptId: attempt.id });
+        store.append({ type: 'check.finished', goalId: goal.id, payload: { result: r } });
+        if (r.status !== 'pass') (baseline.has(c.id) ? preexisting : failed).push(`${c.name} (${r.status}: ${r.summary.slice(0, 160).replace(/\s+/g, ' ')})`);
+      }
+      if (failed.length) {
+        ok = false;
+        reason = `conflicts resolved but must checks regressed — ${failed.join('; ')}${preexisting.length ? ` (ignored, already failing before the merge: ${preexisting.map((x) => x.split(' (')[0]).join(', ')})` : ''}`;
+      } else if (preexisting.length) {
+        store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `merge attempt ${n} for ${src.label}: ${preexisting.length} must check(s) fail but already failed on the goal branch before the merge — accepted` } });
+      }
+    } finally {
+      await overlay?.done(ok).catch((err) => note(`merge attempt ${n} for ${src.label}: the goal's exports could not all be put back after a merge that did not land (${String((err as Error)?.message ?? err).slice(0, 200)})`));
     }
   }
   store.append({

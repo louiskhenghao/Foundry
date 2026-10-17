@@ -10,7 +10,8 @@ import { getGoal, listTasks, type Goal } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { git, removeWorktree } from '../git/git.ts';
 import { fetchBase, pullFastForward } from '../git/sync.ts';
-import { deliveryWorkspacePath, goalWorkspacePath, internalWorkspaceDir, listStackBranches } from '../workspace.ts';
+import { deliveryWorkspacePath, goalWorkspacePath, internalWorkspaceDir, listArtifacts, listStackBranches, trackedArtifacts } from '../workspace.ts';
+import { unlandedFiles } from '../goal-artifacts.ts';
 import { pendingStackEntries } from './stack-entries.ts';
 
 export const baseBranchOf = (goal: Goal) => goal.delivery.policy.baseBranch ?? goal.baseBranch;
@@ -81,6 +82,19 @@ export async function afterMerge(engine: Engine, goalId: string, opts: AfterMerg
     const dirty = (await git(['status', '--porcelain'], ws)).stdout.split('\n').filter(Boolean);
     if (dirty.length) return cleaned(false, `the progress folder has ${dirty.length} uncommitted change${dirty.length === 1 ? '' : 's'}; commit them, or clean up anyway`);
   }
+  // files that exist nowhere else: what a task made that never reached the progress folder (its worktree was kept for
+  // them), and artifacts no output folder received — git never carries either
+  if (!opts.force) {
+    const fresh = getGoal(store.db, goalId)!;
+    const unlanded = listTasks(store.db, goalId).flatMap((t) => unlandedFiles(engine, fresh, t).map((f) => `${t.title}: ${f}`));
+    if (unlanded.length) return cleaned(false, `${unlanded.length} file${unlanded.length === 1 ? '' : 's'} a task made could not be copied into the progress folder and ${unlanded.length === 1 ? 'is' : 'are'} only in its worktree (${unlanded.slice(0, 3).join(', ')}${unlanded.length > 3 ? ', …' : ''}); copy them out, or clean up anyway`);
+    const run = fresh.completion.artifactsRun;
+    const delivered = new Set(run?.status === 'ok' ? run.files : []);
+    // what git tracks is in the base already; the Brief's style samples were only there to choose a look by
+    const tracked = await trackedArtifacts(ws);
+    const kept = listArtifacts(ws).filter((f) => !delivered.has(f) && !tracked.has(f) && !f.startsWith('samples/'));
+    if (kept.length) return cleaned(false, `the progress folder holds ${kept.length} artifact${kept.length === 1 ? '' : 's'} no output folder received (${kept.slice(0, 3).join(', ')}${kept.length > 3 ? ', …' : ''}); copy them out, or clean up anyway`);
+  }
   await engine.withGoalWsLock(goal.id, async () => {
     let worktrees = 0;
     for (const t of listTasks(store.db, goal.id)) {
@@ -98,7 +112,7 @@ export async function afterMerge(engine: Engine, goalId: string, opts: AfterMerg
     rmSync(ws, { recursive: true, force: true });
     const internal = internalWorkspaceDir(goal);
     // screenshots and review records stay: the goal page's history shows them
-    if (internal) for (const d of ['tasks', 'delivery', 'resolve', 'baseline']) rmSync(join(internal, d), { recursive: true, force: true });
+    if (internal) for (const d of ['tasks', 'delivery', 'resolve', 'baseline', 'overlay']) rmSync(join(internal, d), { recursive: true, force: true });
     else rmSync(join(config.dataDir, 'worktrees', goal.id), { recursive: true, force: true });
     cleaned(true, `removed the progress folder, ${worktrees} worktree${worktrees === 1 ? '' : 's'} and ${branches} local branch${branches === 1 ? '' : 'es'}${opts.force ? ' (cleaned up anyway)' : ''}; screenshots and the goal's history are kept`);
   });

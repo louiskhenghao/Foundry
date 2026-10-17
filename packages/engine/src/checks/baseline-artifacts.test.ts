@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { IdPrefix, getGoal, newId, type Check } from '@foundry/core';
@@ -53,6 +53,7 @@ test('a re-export at the same commit gets a baseline of its own, and a copy that
   const g = getGoal(engine.store.db, goal.id)!;
   const head = (await sh('git rev-parse HEAD', repo)).trim();
   expect((await engine.baseline.failing(g, head)).has(exported.id)).toBe(true);
+  await sh('echo /artifacts/ >> .git/info/exclude', repo);
   // the export appears in the goal workspace without a commit: the same commit, another baseline
   const art = join(goalWorkspacePath(dataDir, g), 'artifacts');
   mkdirSync(art, { recursive: true });
@@ -71,4 +72,26 @@ test('a re-export at the same commit gets a baseline of its own, and a copy that
     chmodSync(join(art, 'part.step'), 0o644);
   }
   expect((await engine.baseline.failing(g, head)).has(red.id)).toBe(true);
+});
+
+test('a re-export of the same size that kept its times is another state of the exports: its baseline is measured again', async () => {
+  const repo = await makeRepo();
+  const goal = await engine.createGoal({ prompt: 'a bracket', repoPath: repo, autoBrief: { mustChecks: ['true'] } });
+  engine.store.append({ type: 'goal.nature_set', goalId: goal.id, payload: { nature: 'cad', reason: 'a model' } });
+  const check: Check = { id: newId(IdPrefix.check), goalId: goal.id, taskId: null, name: 'second revision', tier: 'must', spec: { type: 'command', cmd: 'grep -q rev2 artifacts/bracket.step', timeoutMs: 60_000, expectExitCode: 0 } };
+  engine.store.append({ type: 'check.created', goalId: goal.id, payload: { check } });
+  const g = getGoal(engine.store.db, goal.id)!;
+  const head = (await sh('git rev-parse HEAD', repo)).trim();
+  // git-excluded, as for every goal that keeps artifacts: the goal's own merges never commit the export
+  await sh('echo /artifacts/ >> .git/info/exclude', repo);
+  const art = join(goalWorkspacePath(dataDir, g), 'artifacts');
+  mkdirSync(art, { recursive: true });
+  const at = new Date(Date.UTC(2026, 0, 1));
+  writeFileSync(join(art, 'bracket.step'), 'rev1');
+  utimesSync(join(art, 'bracket.step'), at, at);
+  expect((await engine.baseline.failing(g, head)).has(check.id)).toBe(true);
+  // the same size and the same time (a coarse clock, or a copy that keeps times), other content
+  writeFileSync(join(art, 'bracket.step'), 'rev2');
+  utimesSync(join(art, 'bracket.step'), at, at);
+  expect((await engine.baseline.failing(g, head)).has(check.id)).toBe(false);
 });

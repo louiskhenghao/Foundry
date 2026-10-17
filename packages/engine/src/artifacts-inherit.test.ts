@@ -2,21 +2,21 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { copyArtifacts, inheritArtifacts, listArtifacts } from './workspace.ts';
+import { copyArtifactFiles, copyArtifacts, copyInto, inheritArtifacts, listArtifacts } from './workspace.ts';
 
-test("a task worktree inherits the goal's artifacts, and only what it changed or added comes back", () => {
+test("a task worktree inherits the goal's artifacts, and only what it changed or added comes back", async () => {
   const goal = mkdtempSync(join(tmpdir(), 'foundry-art-goal-'));
   const task = mkdtempSync(join(tmpdir(), 'foundry-art-task-'));
   mkdirSync(join(goal, 'artifacts'), { recursive: true });
   writeFileSync(join(goal, 'artifacts', 'pipe.step'), 'pipe v1');
   writeFileSync(join(goal, 'artifacts', 'clamp.step'), 'clamp v1');
-  expect(inheritArtifacts(goal, task)).toBe(2);
+  expect(await inheritArtifacts(goal, task)).toBe(2);
   expect(listArtifacts(task)).toEqual(['clamp.step', 'pipe.step']);
   // meanwhile another task exported a newer pipe; this one touched only the clamp and added its drawing
   writeFileSync(join(goal, 'artifacts', 'pipe.step'), 'pipe v2');
   writeFileSync(join(task, 'artifacts', 'clamp.step'), 'clamp v2');
   writeFileSync(join(task, 'artifacts', 'clamp.pdf'), 'drawing');
-  expect(copyArtifacts(task, goal)).toBe(2);
+  expect(await copyArtifacts(task, goal)).toBe(2);
   expect(readFileSync(join(goal, 'artifacts', 'pipe.step'), 'utf8')).toBe('pipe v2');
   expect(readFileSync(join(goal, 'artifacts', 'clamp.step'), 'utf8')).toBe('clamp v2');
   expect(listArtifacts(goal)).toEqual(['clamp.pdf', 'clamp.step', 'pipe.step']);
@@ -24,7 +24,7 @@ test("a task worktree inherits the goal's artifacts, and only what it changed or
   const media = mkdtempSync(join(tmpdir(), 'foundry-art-media-'));
   mkdirSync(join(media, 'artifacts'));
   writeFileSync(join(media, 'artifacts', 'poster.png'), 'png');
-  expect(copyArtifacts(media, goal)).toBe(1);
+  expect(await copyArtifacts(media, goal)).toBe(1);
 });
 
 test("artifacts copied into a worktree that runs checks leave alone what git tracks, and mirror a task's inherited files unless only its changes are asked for", async () => {
@@ -46,7 +46,7 @@ test("artifacts copied into a worktree that runs checks leave alone what git tra
   expect(await sh('git status --porcelain --untracked-files=no', check)).toBe('');
   // a task worktree that inherited the export: mirrored by default, left out when only the task's changes are asked for
   const task = mkdtempSync(join(tmpdir(), 'foundry-art-task-'));
-  inheritArtifacts(join(check), task);
+  await inheritArtifacts(join(check), task);
   const fresh = mkdtempSync(join(tmpdir(), 'foundry-art-fresh-'));
   expect(await copyUntrackedArtifacts(task, fresh, { onlyChanged: true })).toEqual([]);
   expect((await copyUntrackedArtifacts(task, fresh)).sort()).toEqual(['abi.json', 'part.step']);
@@ -72,7 +72,6 @@ test('the artifacts listing follows no symbolic link: one pointing outside is no
 });
 
 test('artifacts are never written through a symbolic link on the destination side', async () => {
-  const { copyArtifactFiles } = await import('./workspace.ts');
   const { existsSync, lstatSync, symlinkSync } = await import('node:fs');
   const from = mkdtempSync(join(tmpdir(), 'foundry-art-from-'));
   mkdirSync(join(from, 'artifacts', 'sub'), { recursive: true });
@@ -86,7 +85,7 @@ test('artifacts are never written through a symbolic link on the destination sid
   symlinkSync(join(outside, 'victim.png'), join(to, 'artifacts', 'latest.png'));
   symlinkSync(join(outside, 'elsewhere'), join(to, 'artifacts', 'sub'));
   const failed: string[] = [];
-  expect(copyArtifactFiles(from, to, { onError: (f) => failed.push(f) })).toEqual(['latest.png']);
+  expect(await copyArtifactFiles(from, to, { onError: (f) => failed.push(f) })).toEqual(['latest.png']);
   // the link at the file is replaced by the file, the file it pointed at is untouched, and the linked folder is refused
   expect(readFileSync(join(outside, 'victim.png'), 'utf8')).toBe('victim');
   expect(lstatSync(join(to, 'artifacts', 'latest.png')).isSymbolicLink()).toBe(false);
@@ -97,12 +96,11 @@ test('artifacts are never written through a symbolic link on the destination sid
   const linked = mkdtempSync(join(tmpdir(), 'foundry-art-linked-to-'));
   symlinkSync(outside, join(linked, 'artifacts'));
   const refused: string[] = [];
-  expect(copyArtifactFiles(from, linked, { onError: (f) => refused.push(f) })).toEqual([]);
+  expect(await copyArtifactFiles(from, linked, { onError: (f) => refused.push(f) })).toEqual([]);
   expect(refused.sort()).toEqual(['latest.png', 'sub/a.png']);
 });
 
 test('a copy replaces the file instead of writing into it: a hard link is not written through, an unreadable folder is reported, a copy in progress is never an artifact', async () => {
-  const { copyArtifactFiles } = await import('./workspace.ts');
   const { chmodSync, linkSync } = await import('node:fs');
   const from = mkdtempSync(join(tmpdir(), 'foundry-art-from-'));
   mkdirSync(join(from, 'artifacts', 'locked'), { recursive: true });
@@ -118,7 +116,7 @@ test('a copy replaces the file instead of writing into it: a hard link is not wr
   const root = process.getuid?.() === 0;
   if (!root) chmodSync(join(from, 'artifacts', 'locked'), 0o000);
   try {
-    expect(copyArtifactFiles(from, to, { onError: (f) => failed.push(f) })).toEqual(['part.step']);
+    expect(await copyArtifactFiles(from, to, { onError: (f) => failed.push(f) })).toEqual(['part.step']);
   } finally {
     chmodSync(join(from, 'artifacts', 'locked'), 0o755);
   }
@@ -126,4 +124,26 @@ test('a copy replaces the file instead of writing into it: a hard link is not wr
   expect(readFileSync(join(to, 'artifacts', 'part.step'), 'utf8')).toBe('the task');
   if (!root) expect(failed).toEqual(['locked/']);
   expect(listArtifacts(to)).toEqual(['part.step']);
+});
+
+test('copies leave the event loop free: nothing is in place yet when a copy is asked for, all of it once it is done', async () => {
+  const from = mkdtempSync(join(tmpdir(), 'foundry-art-from-'));
+  mkdirSync(join(from, 'artifacts', 'parts'), { recursive: true });
+  for (const n of ['a', 'b', 'c']) writeFileSync(join(from, 'artifacts', 'parts', `${n}.step`), n.repeat(1 << 16));
+  // landing a task's exports, a check worktree's, a delivery
+  const to = mkdtempSync(join(tmpdir(), 'foundry-art-to-'));
+  const landing = copyArtifactFiles(from, to);
+  expect(listArtifacts(to)).toEqual([]);
+  expect(await landing).toEqual(['parts/a.step', 'parts/b.step', 'parts/c.step']);
+  // a cad task's worktree starting from the goal's exports
+  const task = mkdtempSync(join(tmpdir(), 'foundry-art-task-'));
+  const inheriting = inheritArtifacts(from, task);
+  expect(listArtifacts(task)).toEqual([]);
+  expect(await inheriting).toBe(3);
+  expect(readFileSync(join(task, 'artifacts', 'parts', 'b.step'), 'utf8')).toBe('b'.repeat(1 << 16));
+  const out = join(mkdtempSync(join(tmpdir(), 'foundry-art-out-')), 'model.step');
+  const delivering = copyInto(join(from, 'artifacts', 'parts', 'c.step'), out);
+  expect(require('node:fs').existsSync(out)).toBe(false);
+  await delivering;
+  expect(readFileSync(out, 'utf8')).toBe('c'.repeat(1 << 16));
 });

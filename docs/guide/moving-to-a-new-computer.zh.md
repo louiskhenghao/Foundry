@@ -10,7 +10,7 @@
 
 - **Settings**：Settings 里的所有设置，但不包括只属于这台电脑的：**Engine (install)** 整个部分、**Notifications** 的链接地址和 tailnet 名称、markitdown 路径、**Folder browser roots** 以及预览端口。
 - **Keys & secrets**：API key、通知 token，以及你在 goal 的 Preview 卡片里填的变量。它们会用你输入两次的密码封存。没有密码就读不出来，Foundry 也无法帮你找回。
-- **Goals**：**All goals**，或者用 **Choose goals** 一个个挑。如果某个 goal 是另一个没被选中的 goal 的 Follow-up，会提示你，并附上加入它的链接。每个 goal 都会带上它的历史、附件和截图。只要 goal 的分支里有 base 分支还没有的成果，无论完成与否，分支也会一起带走。未完成的 goal 还会带上 progress folder 里被 Git 忽略的文件，例如生成的图片和风格样张。
+- **Goals**：**All goals**，或者用 **Choose goals** 一个个挑。如果某个 goal 是另一个没被选中的 goal 的 Follow-up，会提示你，并附上加入它的链接。每个 goal 都会带上它的历史、附件和截图。只要 goal 的分支里有 base 分支还没有的成果，无论完成与否，分支也会一起带走。未完成的 goal 还会带上 progress folder 里被 Git 忽略的文件，例如生成的图片和风格样张。已完成的 goal 不带这些文件（它们已经在输出文件夹里），也不带里程碑从这些文件复制出来的视频片段；里程碑的图片照样会带上。
 - **Session transcripts**：这些 goal 的完整会话日志。它们可能很大，大文件更适合在终端里用 `foundry export --transcripts`。
 
 ## Import

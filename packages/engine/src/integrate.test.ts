@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { getGoal, listEscalations, listTasks } from '@foundry/core';
-import { baselineWorkspacePath, goalWorkspacePath, resolveWorkspacePath, taskWorkspacePath } from './workspace.ts';
+import { IdPrefix, getGoal, getTask, listEscalations, listTasks, newId, type Check, type Task } from '@foundry/core';
+import { baselineWorkspacePath, ensureGoalWorkspace, goalWorkspacePath, internalWorkspaceDir, resolveWorkspacePath, taskWorkspacePath } from './workspace.ts';
+import { git } from './git/git.ts';
+import { resolveConflicts } from './merge.ts';
 import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
 import { FakeRunner, makeRepo, sh, terminal, waitFor } from './test-helpers.ts';
@@ -446,6 +448,68 @@ describe('merge attempts of tasks that export files', () => {
     expect(merges.some((m) => m.reason === 'merged and checks pass')).toBe(true);
     const ws = goalWorkspacePath(dataDir, goal);
     expect(existsSync(join(ws, 'artifacts', 'add_alpha.step')) && existsSync(join(ws, 'artifacts', 'add_beta.step'))).toBe(true);
+  }, 60_000);
+});
+
+describe('a squash that conflicts at integration (the goal branch moved after the last catch-up)', () => {
+  /** the goal holds revision 1 of a part and its export; the task remade both as revision 2; another task's commit conflicts */
+  const integrationWindow = async (extraCheck?: string) => {
+    const runner = new FakeRunner(async (spec) => {
+      if (spec.label?.startsWith('merge')) {
+        writeFileSync(join(spec.cwd, 'shared.txt'), 'merged by the fake merger\n');
+        await sh('git add shared.txt', spec.cwd);
+      }
+    });
+    const engine = new Engine(cfg(), runner);
+    engine.beginUpdateDrain(); // nothing runs on its own: the integration is driven by hand
+    const draft = await engine.createGoal({ prompt: 'a part', repoPath: repo });
+    engine.store.append({ type: 'goal.nature_set', goalId: draft.id, payload: { nature: 'cad', reason: 'a model' } });
+    const goal = getGoal(engine.store.db, draft.id)!;
+    const ws = await ensureGoalWorkspace(dataDir, goal);
+    await sh('echo /artifacts/ >> .git/info/exclude', repo);
+    writeFileSync(join(ws, 'params.txt'), 'rev1\n');
+    writeFileSync(join(ws, 'shared.txt'), 'base\n');
+    await sh('git add -A && git commit -qm "feat: part rev1"', ws);
+    mkdirSync(join(ws, 'artifacts'), { recursive: true });
+    writeFileSync(join(ws, 'artifacts', 'part.step'), 'rev1\n');
+    const taskWs = taskWorkspacePath(dataDir, goal, 't_rev2');
+    await sh(`git worktree add -q -b task/t_rev2 "${taskWs}" ${goal.branch}`, repo);
+    writeFileSync(join(taskWs, 'params.txt'), 'rev2\n');
+    writeFileSync(join(taskWs, 'shared.txt'), 'task side\n');
+    await sh('git add -A && git commit -qm "feat: part rev2"', taskWs);
+    mkdirSync(join(taskWs, 'artifacts'), { recursive: true });
+    writeFileSync(join(taskWs, 'artifacts', 'part.step'), 'rev2\n');
+    writeFileSync(join(ws, 'shared.txt'), 'goal side\n');
+    await sh('git commit -qam "feat: another task"', ws);
+    const check = (name: string, cmd: string): Check => ({ id: newId(IdPrefix.check), goalId: goal.id, taskId: null, name, tier: 'must', spec: { type: 'command', cmd, timeoutMs: 60_000, expectExitCode: 0 } });
+    for (const ch of [check('export matches its source', 'cmp -s artifacts/part.step params.txt'), ...(extraCheck ? [check('extra', extraCheck)] : [])]) engine.store.append({ type: 'check.created', goalId: goal.id, payload: { check: ch } });
+    const now = new Date().toISOString();
+    const task = { id: 't_rev2', goalId: goal.id, title: 'part rev2', spec: 'remake the part', kind: 'feature', scope: null, scenario: 'cad', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now } as Task;
+    engine.store.append({ type: 'task.created', goalId: goal.id, payload: { task } });
+    engine.store.append({ type: 'task.workspace_assigned', goalId: goal.id, payload: { taskId: task.id, branch: 'task/t_rev2', worktreePath: taskWs } });
+    const squash = () => git(['merge', '--squash', '--no-commit', 'task/t_rev2'], ws);
+    expect((await squash()).code).not.toBe(0);
+    const ok = await resolveConflicts(engine, getGoal(engine.store.db, goal.id)!, getTask(engine.store.db, task.id)!, ['shared.txt'], { ref: 'task/t_rev2', label: 'task/t_rev2', intent: 'remake the part' }, { cwd: ws, redo: async () => void (await squash()), commitMessage: 'feat: part rev2' });
+    return { engine, ws, ok, backup: join(internalWorkspaceDir(goal)!, 'overlay', task.id) };
+  };
+
+  test("its merge attempt is checked with the task's exports laid over the goal's, which a merge that lands keeps", async () => {
+    const { engine, ws, ok, backup } = await integrationWindow();
+    // without them, revision 2's source against revision 1's export read as a regression of the merge
+    expect(ok).toBe(true);
+    expect(await sh('cat params.txt', ws)).toBe('rev2');
+    expect(readFileSync(join(ws, 'artifacts', 'part.step'), 'utf8')).toBe('rev2\n');
+    expect(existsSync(backup)).toBe(false);
+    await engine.stop();
+  }, 60_000);
+
+  test("a merge that does not land takes the task's exports back off the goal's", async () => {
+    // a real regression: the merged shared.txt breaks a check the goal passed
+    const { engine, ws, ok, backup } = await integrationWindow('grep -q "goal side" shared.txt');
+    expect(ok).toBe(false);
+    expect(readFileSync(join(ws, 'artifacts', 'part.step'), 'utf8')).toBe('rev1\n');
+    expect(existsSync(backup)).toBe(false);
+    await engine.stop();
   }, 60_000);
 });
 

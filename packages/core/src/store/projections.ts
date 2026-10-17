@@ -387,7 +387,7 @@ function project(db: Database, e: EngineEvent): void {
     }
     case 'goal.artifacts_delivered': {
       const g = getGoal(db, e.goalId!);
-      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, artifactsRun: { status: e.payload.status, files: e.payload.files, dest: e.payload.dest, detail: e.payload.detail, at: e.ts } }, updatedAt: e.ts });
+      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, artifactsRun: { status: e.payload.status, files: e.payload.files, dest: e.payload.dest, detail: e.payload.detail, at: e.ts, ...(e.payload.model !== undefined ? { model: e.payload.model } : {}) } }, updatedAt: e.ts });
       break;
     }
     case 'goal.completion_set': {
