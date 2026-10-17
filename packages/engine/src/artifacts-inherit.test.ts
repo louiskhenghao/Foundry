@@ -70,3 +70,33 @@ test('the artifacts listing follows no symbolic link: one pointing outside is no
   symlinkSync(join(ws, 'artifacts'), join(linked, 'artifacts'));
   expect(listArtifacts(linked)).toEqual([]);
 });
+
+test('artifacts are never written through a symbolic link on the destination side', async () => {
+  const { copyArtifactFiles } = await import('./workspace.ts');
+  const { existsSync, lstatSync, symlinkSync } = await import('node:fs');
+  const from = mkdtempSync(join(tmpdir(), 'foundry-art-from-'));
+  mkdirSync(join(from, 'artifacts', 'sub'), { recursive: true });
+  writeFileSync(join(from, 'artifacts', 'latest.png'), 'new');
+  writeFileSync(join(from, 'artifacts', 'sub', 'a.png'), 'a');
+  const outside = mkdtempSync(join(tmpdir(), 'foundry-art-outside-'));
+  writeFileSync(join(outside, 'victim.png'), 'victim');
+  mkdirSync(join(outside, 'elsewhere'));
+  const to = mkdtempSync(join(tmpdir(), 'foundry-art-to-'));
+  mkdirSync(join(to, 'artifacts'));
+  symlinkSync(join(outside, 'victim.png'), join(to, 'artifacts', 'latest.png'));
+  symlinkSync(join(outside, 'elsewhere'), join(to, 'artifacts', 'sub'));
+  const failed: string[] = [];
+  expect(copyArtifactFiles(from, to, { onError: (f) => failed.push(f) })).toEqual(['latest.png']);
+  // the link at the file is replaced by the file, the file it pointed at is untouched, and the linked folder is refused
+  expect(readFileSync(join(outside, 'victim.png'), 'utf8')).toBe('victim');
+  expect(lstatSync(join(to, 'artifacts', 'latest.png')).isSymbolicLink()).toBe(false);
+  expect(readFileSync(join(to, 'artifacts', 'latest.png'), 'utf8')).toBe('new');
+  expect(failed).toEqual(['sub/a.png']);
+  expect(existsSync(join(outside, 'elsewhere', 'a.png'))).toBe(false);
+  // an artifacts/ folder that is itself a link takes nothing
+  const linked = mkdtempSync(join(tmpdir(), 'foundry-art-linked-to-'));
+  symlinkSync(outside, join(linked, 'artifacts'));
+  const refused: string[] = [];
+  expect(copyArtifactFiles(from, linked, { onError: (f) => refused.push(f) })).toEqual([]);
+  expect(refused.sort()).toEqual(['latest.png', 'sub/a.png']);
+});

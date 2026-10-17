@@ -231,8 +231,11 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
       const merged = await integrateTask(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!);
       if (merged) {
         // artifacts are git-excluded, so the squash merge cannot carry them: rescue them before the worktree goes
-        landTaskArtifacts(engine, goal, fresh);
-        if (fresh.worktreePath) {
+        const landing = await landTaskArtifacts(engine, goal, fresh);
+        if (fresh.worktreePath && landing.failed.length) {
+          // some could not be copied (a full disk, a file it cannot read): the worktree stays, so they are not lost
+          store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `"${task.title}": ${landing.failed.length} artifact(s) could not be copied to the goal workspace (${landing.failed.slice(0, 3).join(', ')}); its worktree is kept so they are not lost` } });
+        } else if (fresh.worktreePath) {
           await dropTaskWorkspace(goal, getTask(store.db, task.id)!).catch(() => {});
           // the worktree (and its branch) are gone — clear the pointers so the UI stops offering them
           store.append({ type: 'task.workspace_assigned', goalId: goal.id, payload: { taskId: task.id, branch: null, worktreePath: null } });

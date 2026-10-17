@@ -251,12 +251,8 @@ export async function finishResolution(engine: Engine, goalId: string, taskId: s
   });
   if (!landed.ok) return { ok: false, ref, checks, reason: `${landed.error} — start the resolution again from the current goal branch` };
   // the task's exports are git-excluded, so the commit did not carry them: they reach the goal workspace here, as when a
-  // task lands by itself, before its worktree goes
-  try {
-    landTaskArtifacts(engine, getGoal(store.db, goalId) ?? goal, task);
-  } catch (err) {
-    store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `"${task.title}": its artifacts could not be copied to the goal workspace (${String((err as Error)?.message ?? err)})` } });
-  }
+  // task lands by itself, before its worktree goes (kept when some could not be copied, so nothing is lost)
+  const artifacts = await landTaskArtifacts(engine, getGoal(store.db, goalId) ?? goal, task).catch((err) => ({ files: [] as string[], failed: [String((err as Error)?.message ?? err)] }));
 
   store.append({ type: 'merge.completed', goalId, payload: { taskId, ref: landed.ref! } });
   store.append({ type: 'task.committed', goalId, payload: { taskId, ref: existing.code === 0 ? null : landed.ref!, message } });
@@ -266,8 +262,12 @@ export async function finishResolution(engine: Engine, goalId: string, taskId: s
   const fresh = getTask(store.db, taskId)!;
   store.append({ type: 'task.state_changed', goalId, payload: { taskId, from: fresh.state, to: 'done', reason: `resolved manually, committed ${landed.ref!.slice(0, 7)}` } });
   await removeWorktree(goal.repoPath, path).catch(() => {});
-  await dropTaskWorkspace(goal, fresh).catch(() => {});
-  if (fresh.worktreePath) store.append({ type: 'task.workspace_assigned', goalId, payload: { taskId, branch: null, worktreePath: null } });
+  if (artifacts.failed.length) {
+    store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `"${task.title}": ${artifacts.failed.length} artifact(s) could not be copied to the goal workspace (${artifacts.failed.slice(0, 3).join(', ')}); its worktree is kept so they are not lost` } });
+  } else {
+    await dropTaskWorkspace(goal, fresh).catch(() => {});
+    if (fresh.worktreePath) store.append({ type: 'task.workspace_assigned', goalId, payload: { taskId, branch: null, worktreePath: null } });
+  }
   const g = getGoal(store.db, goalId)!;
   if (g.state === 'blocked' && !listEscalations(store.db, { goalId, openOnly: true }).length) store.append({ type: 'goal.state_changed', goalId, payload: { from: 'blocked', to: 'running', reason: 'merge resolved manually' } });
   engine.tick(goalId);
