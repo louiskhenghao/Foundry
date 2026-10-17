@@ -77,7 +77,7 @@ export function MilestoneCard({ d }: { d: GoalDetail }) {
             </div>
           </div>
         )}
-        <ArtifactsStrip goalId={g.id} files={artifacts} task={task} />
+        <ArtifactsStrip goalId={g.id} files={artifacts} shown={stripShown(d, task, cp.openedAt)} />
         <div className="text-[11px] text-zinc-500">The code so far is on the Diff tab; the folder itself is under Open ▾ above.</div>
         <div className="border-t border-zinc-800 pt-3 space-y-2">
           <Textarea className="w-full text-sm min-h-[72px]" placeholder="What did you see? Anything to change, keep, or that is wrong… (leave empty and press Continue if it looks right)" value={text} onChange={(e) => { setText(e.target.value); setPlan(null); }} disabled={!esc || busy !== null} />
@@ -129,17 +129,34 @@ export function MilestoneCard({ d }: { d: GoalDetail }) {
   );
 }
 
-/** the goal's artifacts; a milestone of files leaves them out, its evidence above already shows what the task produced */
-export function ArtifactsStrip({ goalId, files, task }: { goalId: string; files: string[]; task: { scenario: string; milestoneScript?: string | null } | null | undefined }) {
-  if (!files.length || (task && showsFiles(task))) return null;
+/**
+ * what a milestone of files' evidence shows (paths relative to artifacts/: its pictures, clips and named files), or null
+ * while that evidence is on its way or failed
+ */
+export function evidenceShows(d: Pick<GoalDetail, 'milestoneEvents' | 'milestoneRuns'>, taskId: string, since: string): Set<string> | null {
+  const ev = d.milestoneEvents.filter((e) => e.type === 'milestone.evidence' && (e.payload as Evidence).taskId === taskId).at(-1);
+  if (!ev || (ev.ts < since && (d.milestoneRuns ?? []).includes(taskId))) return null;
+  const p = ev.payload as Evidence;
+  if (evidenceStatus(p) === 'fail') return null;
+  return new Set([...p.shots.map((s) => s.caption), ...(p.clips ?? []).map((c) => c.caption), ...(p.files ?? [])]);
+}
+
+/** what the artifacts strip leaves out at a milestone: what the evidence of a milestone of files shows; a walkthrough or a scripted milestone leaves out nothing */
+export const stripShown = (d: Pick<GoalDetail, 'milestoneEvents' | 'milestoneRuns'>, task: { id: string; scenario: string; milestoneScript?: string | null } | null | undefined, since: string): Set<string> | null =>
+  task && showsFiles(task) ? evidenceShows(d, task.id, since) : null;
+
+/** the goal's artifacts; `shown`: what a milestone of files' evidence above already shows, listed here only when not */
+export function ArtifactsStrip({ goalId, files, shown }: { goalId: string; files: string[]; shown: ReadonlySet<string> | null }) {
+  const rest = shown ? files.filter((f) => !shown.has(f)) : files;
+  if (!rest.length) return null;
   return (
     <div>
-      <div className="text-[11px] text-zinc-500 mb-1">Artifacts ({files.length})</div>
+      <div className="text-[11px] text-zinc-500 mb-1">{shown ? 'Other artifacts' : 'Artifacts'} ({rest.length})</div>
       <div className="flex gap-2 flex-wrap items-end">
-        {files.slice(0, 12).map((f) =>
+        {rest.slice(0, 12).map((f) =>
           IMAGE.test(f) ? (
             <a key={f} href={api.artifactUrl(goalId, f)} target="_blank" rel="noreferrer" title={f}>
-              <img src={api.artifactUrl(goalId, f)} alt={f} className="h-24 w-24 object-cover rounded border border-zinc-700" />
+              <img src={api.artifactUrl(goalId, f)} alt={f} loading="lazy" decoding="async" className="h-24 w-24 object-cover rounded border border-zinc-700" />
             </a>
           ) : (
             <a key={f} href={api.artifactUrl(goalId, f)} target="_blank" rel="noreferrer" className="mono text-[11px] text-zinc-300 hover:underline">
@@ -154,20 +171,20 @@ export function ArtifactsStrip({ goalId, files, task }: { goalId: string; files:
 
 /** the final walkthrough: every feature's latest recording, one after another, the failing ones first */
 function FinalWalkthrough({ d }: { d: GoalDetail }) {
-  const latest = new Map<string, Evidence>();
-  for (const e of d.milestoneEvents) if (e.type === 'milestone.evidence') latest.set((e.payload as Evidence).taskId, e.payload as Evidence);
-  const rows = d.tasks.filter((t) => t.milestone && latest.has(t.id)).map((t) => ({ task: t, ev: latest.get(t.id)! }));
+  const latest = new Map<string, { ev: Evidence; at: string }>();
+  for (const e of d.milestoneEvents) if (e.type === 'milestone.evidence') latest.set((e.payload as Evidence).taskId, { ev: e.payload as Evidence, at: e.ts });
+  const rows = d.tasks.filter((t) => t.milestone && latest.has(t.id)).map((t) => ({ task: t, ...latest.get(t.id)! }));
   rows.sort((a, b) => Number(evidenceStatus(a.ev) === 'pass') - Number(evidenceStatus(b.ev) === 'pass'));
   if (!rows.length) return null;
   return (
     <div className="space-y-3">
-      {rows.map(({ task, ev }) => (
+      {rows.map(({ task, ev, at }) => (
         <div key={task.id} className="space-y-1">
           <div className="text-xs font-medium text-zinc-200">
             {task.title}
             {evidenceStatus(ev) !== 'pass' && <span className={cn('ml-2 text-[11px] font-normal', evidenceStatus(ev) === 'fail' ? 'text-rose-300' : 'text-amber-300')}>{evidenceStatus(ev) === 'fail' ? 'failed' : 'fake data only'}</span>}
           </div>
-          <EvidenceView goalId={d.goal.id} evidence={ev} taskId={task.id} />
+          <EvidenceView key={at} goalId={d.goal.id} evidence={ev} taskId={task.id} />
         </div>
       ))}
     </div>
@@ -183,5 +200,5 @@ function Walkthrough({ d, taskId, since }: { d: GoalDetail; taskId: string; sinc
   // an older recording shows while no new one is on its way (a milestone that paused after its script failed again)
   if (!ev || (ev.ts < since && (d.milestoneRuns ?? []).includes(taskId)))
     return <div className="text-[11px] text-zinc-500 flex items-center gap-1.5">{files ? <><Loader2 size={11} className="animate-spin" /> Collecting what the task produced…</> : <><Play size={11} /> Recording a walkthrough of the preview…</>}</div>;
-  return <EvidenceView goalId={d.goal.id} evidence={ev.payload as Evidence} taskId={taskId} />;
+  return <EvidenceView key={ev.ts} goalId={d.goal.id} evidence={ev.payload as Evidence} taskId={taskId} />;
 }

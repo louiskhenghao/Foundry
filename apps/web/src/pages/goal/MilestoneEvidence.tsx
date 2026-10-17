@@ -1,5 +1,5 @@
 import { ARTIFACT_SCENARIOS } from '@foundry/core/browser';
-import { CheckCircle2, ChevronLeft, ChevronRight, Eye, FastForward, FileCode2, FileDown, Loader2, MessageSquare, Play, RotateCcw, ScrollText } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ChevronRight, ExternalLink, Eye, FastForward, FileCode2, FileDown, Loader2, MessageSquare, Play, RotateCcw, ScrollText } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { type GoalDetail, api, fileUrl } from '../../api.ts';
 import { Button, Card, Modal, ago, cn } from '../../ui.tsx';
@@ -54,6 +54,10 @@ function StatusChip({ status, files = false }: { status: keyof typeof STATUS; fi
 
 type Media = { kind: 'video' | 'image'; file: string; caption: string };
 
+/** why an item's media would not load: the file is not on this computer (a goal moved from another one leaves the clips of
+ * delivered files behind), or it is there and this browser cannot show it (a clip in a format it does not play) */
+type Broken = 'gone' | 'unplayable';
+
 /** the recording as one row of items: the videos first (one per scripted test), then the screenshots in the order taken */
 const mediaOf = (e: Evidence): Media[] => [
   ...(e.video ? [{ kind: 'video' as const, file: e.video, caption: 'Walkthrough video' }] : []),
@@ -61,9 +65,10 @@ const mediaOf = (e: Evidence): Media[] => [
   ...e.shots.map((s) => ({ kind: 'image' as const, ...s })),
 ];
 
-/** one item large in a window, the others a click or an arrow key away */
-function MediaViewer({ goalId, items, index, onIndex, onClose }: { goalId: string; items: Media[]; index: number; onIndex: (i: number) => void; onClose: () => void }) {
+/** one item large in a window, the others a click or an arrow key away; one that cannot be shown says why */
+function MediaViewer({ goalId, items, index, broken, onBroken, onIndex, onClose }: { goalId: string; items: Media[]; index: number; broken: ReadonlyMap<string, Broken>; onBroken: (file: string) => void; onIndex: (i: number) => void; onClose: () => void }) {
   const m = items[index]!;
+  const why = broken.get(m.file);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.defaultPrevented) return;
@@ -87,7 +92,21 @@ function MediaViewer({ goalId, items, index, onIndex, onClose }: { goalId: strin
           {step(1, 'next', ChevronRight)}
         </div>
         {/* keyed by file: switching items starts the next video from its beginning */}
-        {m.kind === 'video' ? <video key={m.file} src={api.screenshotUrl(goalId, m.file)} controls autoPlay muted className="w-full max-h-[70vh] rounded border border-zinc-800 bg-black" /> : <img key={m.file} src={api.screenshotUrl(goalId, m.file)} alt={m.caption} className="w-full max-h-[70vh] object-contain rounded border border-zinc-800 bg-zinc-950" />}
+        {why ? (
+          <div className="flex h-48 items-center justify-center rounded border border-zinc-800 text-xs text-zinc-500">
+            {why === 'gone' ? (
+              'Not on this computer'
+            ) : (
+              <a href={api.screenshotUrl(goalId, m.file)} target="_blank" rel="noreferrer" className="text-sky-300 hover:underline">
+                This browser cannot show it: open the file
+              </a>
+            )}
+          </div>
+        ) : m.kind === 'video' ? (
+          <video key={m.file} src={api.screenshotUrl(goalId, m.file)} controls autoPlay muted onError={() => onBroken(m.file)} className="w-full max-h-[70vh] rounded border border-zinc-800 bg-black" />
+        ) : (
+          <img key={m.file} src={api.screenshotUrl(goalId, m.file)} alt={m.caption} onError={() => onBroken(m.file)} className="w-full max-h-[70vh] object-contain rounded border border-zinc-800 bg-zinc-950" />
+        )}
       </div>
     </Modal>
   );
@@ -128,6 +147,14 @@ function OutputBlock({ goalId, item }: { goalId: string; item: Item }) {
  */
 export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evidence: Evidence; taskId?: string }) {
   const [shown, setShown] = useState<number | null>(null);
+  // an item whose media would not load says why; only a file the server does not have is "not on this computer"
+  const [broken, setBroken] = useState<ReadonlyMap<string, Broken>>(new Map());
+  const failed = (file: string) => {
+    if (broken.has(file)) return;
+    void fetch(api.screenshotUrl(goalId, file), { method: 'HEAD' })
+      .then((r): Broken => (r.status === 404 ? 'gone' : 'unplayable'), (): Broken => 'unplayable')
+      .then((why) => setBroken((b) => new Map(b).set(file, why)));
+  };
   const items = mediaOf(evidence);
   const status = evidenceStatus(evidence);
   const files = evidence.kind === 'files';
@@ -167,13 +194,24 @@ export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evi
       )}
       {items.length > 0 && (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2">
-          {items.map((m, i) => (
-            <button key={m.file} type="button" onClick={() => setShown(i)} title={m.caption} className="min-w-0 text-left group">
-              <span className={cn('relative block aspect-video overflow-hidden rounded border border-zinc-700 group-hover:border-zinc-500', files ? 'bg-zinc-950' : 'bg-black')}>
-                {m.kind === 'video' ? (
+          {items.map((m, i) => {
+            const why = broken.get(m.file);
+            // a file this browser cannot show opens in a tab of its own (a download, or a player that can)
+            const open = () => (why === 'unplayable' ? void window.open(api.screenshotUrl(goalId, m.file), '_blank', 'noreferrer') : setShown(i));
+            return (
+            <button key={m.file} type="button" onClick={open} disabled={why === 'gone'} title={m.caption} className="min-w-0 text-left group disabled:cursor-default">
+              <span className={cn('relative block aspect-video overflow-hidden rounded border border-zinc-700', why !== 'gone' && 'group-hover:border-zinc-500', files ? 'bg-zinc-950' : 'bg-black')}>
+                {why === 'gone' ? (
+                  <span className="flex h-full w-full items-center justify-center px-2 text-center text-[10px] text-zinc-500">not on this computer</span>
+                ) : why ? (
+                  // a click opens it: shown as the link it is, not as the dead tile above
+                  <span className="flex h-full w-full items-center justify-center gap-1 px-2 text-center text-[10px] text-sky-300">
+                    <ExternalLink size={10} className="shrink-0" /> can't be shown here · open the file
+                  </span>
+                ) : m.kind === 'video' ? (
                   <>
                     {/* the first frame as the tile's picture */}
-                    <video src={`${api.screenshotUrl(goalId, m.file)}#t=0.1`} muted preload="metadata" playsInline className={cn('h-full w-full pointer-events-none', fit)} />
+                    <video src={`${api.screenshotUrl(goalId, m.file)}#t=0.1`} muted preload="metadata" playsInline onError={() => failed(m.file)} className={cn('h-full w-full pointer-events-none', fit)} />
                     <span className="absolute inset-0 flex items-center justify-center">
                       <span className="rounded-full bg-black/60 p-2 text-zinc-100">
                         <Play size={14} fill="currentColor" />
@@ -181,13 +219,14 @@ export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evi
                     </span>
                   </>
                 ) : (
-                  <img src={api.screenshotUrl(goalId, m.file)} alt={m.caption} loading="lazy" className={cn('h-full w-full', fit)} />
+                  <img src={api.screenshotUrl(goalId, m.file)} alt={m.caption} loading="lazy" onError={() => failed(m.file)} className={cn('h-full w-full', fit)} />
                 )}
               </span>
               {/* a file's caption keeps its folder and name, where a long path would lose the view that tells two apart */}
               <span className="block text-[10px] text-zinc-500 truncate mt-0.5">{files ? m.caption.split('/').slice(-2).join('/') : m.caption}</span>
             </button>
-          ))}
+            );
+          })}
         </div>
       )}
       {(evidence.outputs ?? []).length > 0 && (
@@ -199,7 +238,7 @@ export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evi
       )}
       {status === 'unverified' && <div className="text-[11px] text-amber-300/90">Shown with fake data only: it does not count as reached. Rerun it once the real app can start.</div>}
       {evidence.error && <div className={cn('text-[11px] whitespace-pre-wrap', status === 'fail' ? 'text-rose-300/90' : 'text-amber-300/90')}>{evidence.error}</div>}
-      {shown !== null && items[shown] && <MediaViewer goalId={goalId} items={items} index={shown} onIndex={setShown} onClose={() => setShown(null)} />}
+      {shown !== null && items[shown] && <MediaViewer goalId={goalId} items={items} index={shown} broken={broken} onBroken={failed} onIndex={setShown} onClose={() => setShown(null)} />}
     </div>
   );
 }
@@ -329,7 +368,7 @@ export function MilestonesCard({ d }: { d: GoalDetail }) {
               </div>
               {expanded && rec && (
                 <div className="mt-2 ml-5">
-                  <EvidenceView goalId={g.id} evidence={rec.evidence} taskId={task.id} />
+                  <EvidenceView key={rec.at} goalId={g.id} evidence={rec.evidence} taskId={task.id} />
                 </div>
               )}
             </li>
