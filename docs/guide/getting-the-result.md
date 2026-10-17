@@ -145,7 +145,7 @@ Image, video and CAD goals produce files, not only code. Those files are never a
 - If you chose an **Output folder** on the New goal form, the finished files are copied there when the goal is done. The Result card says "N file(s) are in … — open the folder and have a look."
 - Without an output folder they stay in the `artifacts` folder inside the progress folder. Use **Open ▾** to get there.
 
-While the goal runs, milestone cards show the files produced so far. A CAD goal's preview card also shows **CAD Viewer**, text-to-cad's own viewer: **Start** runs it, then **Open** (**Open the model** when it is the only app) shows the model in the browser, where you can turn it, measure it and cut sections. It opens on the goal's assembly when one was exported, else on the newest STEP, and follows a newer assembly while it runs; its home lists the other models. The walkthroughs never start it by themselves.
+While the goal runs, milestone cards show the files produced so far. A CAD goal's preview card also shows **CAD Viewer**, text-to-cad's own viewer: **Start** runs it, then **Open** (**Open the model** when it is the only app) shows the model in the browser, where you can turn it, measure it and cut sections. It opens on the goal's assembly when one was exported, else on the newest STEP, and follows a newer assembly while it runs; its home lists the other models. The walkthroughs never start it by themselves. It opens only on the computer Foundry runs on: it can read any file there, so Foundry never puts it on your tailnet, and from another device the card says so instead of offering **Open**.
 
 ## Completion extras
 

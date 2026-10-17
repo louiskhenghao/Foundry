@@ -378,7 +378,7 @@ describe('the CAD viewer', () => {
     rmSync(out, { recursive: true, force: true });
   });
 
-  test('a running viewer opens the assembly exported after it started, and its tailnet link keeps the model', async () => {
+  test('a running viewer opens the assembly exported after it started, and is never put on the tailnet', async () => {
     fakeCadPlugin(join(dataDir, 'claude-home'));
     const g = goal({ id: 'g_cadview04', nature: 'cad', repoPath: await makeRepo(), branch: 'goal/g_cadview04' });
     // a stand-in for cadgen's viewer that answers on PORT, with the real link
@@ -387,26 +387,21 @@ describe('the CAD viewer', () => {
       const app = real(x);
       return app && { ...app, command: `bun -e 'Bun.serve({ port: Number(process.env.PORT), fetch: () => new Response("viewer") })'` };
     };
-    engine.tailnet.expose = async (port: number) => `https://box.example.ts.net:${port}/`;
+    // it serves any file on this computer by its path: Tailscale is never asked to serve it
+    const exposed: number[] = [];
+    engine.tailnet.expose = async (port: number) => (exposed.push(port), `https://box.example.ts.net:${port}/`);
     engine.tailnet.unexpose = async () => {};
     mkdirSync(join(ws, 'artifacts', 'parts'), { recursive: true });
     writeFileSync(join(ws, 'artifacts', 'parts', 'hinge.step'), 'x');
     await engine.preview.start(g, 'human', 'cad-viewer');
     const viewer = () => engine.preview.status(g.id).apps.find((a) => a.key === 'cad-viewer')!;
-    await waitFor(() => viewer().ready && !!viewer().tailnetUrl, 15_000);
+    await waitFor(() => viewer().ready, 15_000);
     const port = viewer().port!;
     expect(viewer().url).toBe(`http://localhost:${port}/?file=${ws}/artifacts/parts/hinge.step`);
-    expect(viewer().tailnetUrl).toBe(`https://box.example.ts.net:${port}/?file=${ws}/artifacts/parts/hinge.step`);
     writeFileSync(join(ws, 'artifacts', 'frame_assembly.step'), 'x');
     expect(viewer().url).toBe(`http://localhost:${port}/?file=${ws}/artifacts/frame_assembly.step`);
-    expect(viewer().tailnetUrl).toBe(`https://box.example.ts.net:${port}/?file=${ws}/artifacts/frame_assembly.step`);
-    // a tailnet name a URL cannot hold (the setting is free text) leaves the address as started, never a failed status
-    engine.preview.stop(g.id, 'human', 'cad-viewer');
-    await waitFor(() => !viewer().running, 10_000);
-    engine.tailnet.expose = async (p: number) => `https://my box:${p}/`;
-    await engine.preview.start(g, 'human', 'cad-viewer');
-    await waitFor(() => viewer().ready && !!viewer().tailnetUrl, 15_000);
-    expect(viewer().tailnetUrl).toStartWith('https://my box:');
+    expect(viewer().tailnetUrl).toBeNull();
+    expect(exposed).toEqual([]);
     await engine.preview.stop(g.id, 'human', 'cad-viewer');
   }, 45_000);
 });

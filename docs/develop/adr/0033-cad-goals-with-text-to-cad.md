@@ -73,8 +73,10 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
   run"), and an integration's restart of the running apps leaves it alone. It opens on the goal's model, not on its
   home: `?file=` with the absolute path of the assembly when one was exported (a STEP whose name says assembly, or has
   asm, assy or stack as a word of its own), else of the newest STEP, from the workspace while the goal runs and from the
-  output folder once delivered. The link is built when the card reads it, so a running viewer follows a newer assembly,
-  and its tailnet address carries the same path and query.
+  output folder once delivered. The link is built when the card reads it, so a running viewer follows a newer assembly.
+  It is never put on the tailnet: cadgen serves any file it is given the path of, with no root to keep it in, so there it
+  would hand this computer's files to every device on the tailnet. From another device the card says it opens on
+  Foundry's computer instead of offering a link.
 - **A milestone of files shows the task's own files.** A milestone of a cad, image or video task shows what that task
   produced: the files its landing copied into the goal workspace, recorded as `task.artifacts_landed` (a goal from
   before that falls back to the files changed since the task's first attempt). Its images and up to four clips, the
