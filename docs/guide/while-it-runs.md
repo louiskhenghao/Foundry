@@ -225,7 +225,7 @@ The Brief gives every feature you can see or try a milestone, on the task that f
 
 **Without a script** (documents, older goals): when the milestone task lands, the goal pauses and Foundry records a walkthrough of the preview, described below.
 
-**Files instead of an app** (a CAD model, images, video): the milestone shows what the task produced under `artifacts/` — a model's snapshots, the images, the video — and names the model files; there is no walkthrough, since there is no app to walk.
+**Files instead of an app** (a CAD model, images, video): the milestone shows what the task itself produced under `artifacts/`, its snapshots or images whole and up to four clips, the ones the milestone names first, and links the models and drawings it exported; there is no walkthrough, since there is no app to walk.
 
 **Rerun** on a row of the **Milestones** card records that milestone again at any time: a script runs once more, a walkthrough replays the steps it recorded last time instead of planning new ones, and a milestone of files shows the task's files as they are now. **Rerun all** does this for every milestone that landed.
 

@@ -145,7 +145,7 @@ CI 是你的线上仓库对每个 pull request 运行的一组自动检查。交
 - 如果你在 New goal 表单里选了 **Output folder**，goal 完成时成品文件会复制到那里。Result 卡片会显示 "N file(s) are in … — open the folder and have a look."
 - 没选输出文件夹时，它们留在进度文件夹里的 `artifacts` 文件夹中。用 **Open ▾** 过去。
 
-goal 运行时，里程碑卡片会显示目前产出的文件。CAD goal 的预览卡片上还会列出 **CAD Viewer**，也就是 text-to-cad 自带的查看器：按它的 **Start** 就能在浏览器里打开模型，可以旋转、测量、剖切。它会直接打开这个 goal 导出的装配体，没有装配体时打开最新的 STEP；它的首页列着其它模型。走查从不会自己启动它。
+goal 运行时，里程碑卡片会显示目前产出的文件。CAD goal 的预览卡片上还会显示 **CAD Viewer**，也就是 text-to-cad 自带的查看器：按 **Start** 启动它，再按 **Open**（只有它一个应用时是 **Open the model**）就在浏览器里打开模型，可以旋转、测量、剖切。它会打开这个 goal 导出的装配体，没有装配体时打开最新的 STEP，运行中导出了新的装配体也会跟着换；它的首页列着其它模型。走查从不会自己启动它。
 
 ## 完成后的附加项
 
