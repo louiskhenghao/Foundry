@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync, type Dirent } from 'node:fs';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import type { Goal, Task } from '@foundry/core';
 import { ensureWorktree, git, headRef, removeWorktree } from './git/git.ts';
@@ -11,18 +11,33 @@ export const ARTIFACTS_DIR = 'artifacts';
 const INHERITED = '.inherited.json';
 const hashOf = (file: string) => String(Bun.hash(readFileSync(file)));
 
-/** Every file under a workspace's artifacts/, as paths relative to that folder (the inherited-files marker is not one). */
+/**
+ * Every file under a workspace's artifacts/, as paths relative to that folder (the inherited-files marker is not one).
+ * No symbolic link is followed: one can point anywhere, or at its own folder. A folder that cannot be read is left out,
+ * not the whole listing.
+ */
 export function listArtifacts(ws: string): string[] {
   const root = join(ws, ARTIFACTS_DIR);
-  if (!existsSync(root)) return [];
   try {
-    return readdirSync(root, { recursive: true, withFileTypes: true })
-      .filter((e) => e.isFile() && e.name !== INHERITED)
-      .map((e) => relative(root, join(e.parentPath, e.name)))
-      .sort();
+    if (!lstatSync(root).isDirectory()) return [];
   } catch {
     return [];
   }
+  const files: string[] = [];
+  const walk = (dir: string) => {
+    let entries: Dirent[];
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (e.isDirectory()) walk(join(dir, e.name));
+      else if (e.isFile() && e.name !== INHERITED) files.push(relative(root, join(dir, e.name)));
+    }
+  };
+  walk(root);
+  return files.sort();
 }
 
 /**

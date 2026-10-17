@@ -51,3 +51,22 @@ test("artifacts copied into a worktree that runs checks leave alone what git tra
   expect(await copyUntrackedArtifacts(task, fresh, { onlyChanged: true })).toEqual([]);
   expect((await copyUntrackedArtifacts(task, fresh)).sort()).toEqual(['abi.json', 'part.step']);
 });
+
+test('the artifacts listing follows no symbolic link: one pointing outside is not listed through, one pointing at its own folder does not empty the listing', () => {
+  const { symlinkSync } = require('node:fs') as typeof import('node:fs');
+  const ws = mkdtempSync(join(tmpdir(), 'foundry-art-links-'));
+  const outside = mkdtempSync(join(tmpdir(), 'foundry-art-outside-'));
+  writeFileSync(join(outside, 'key.png'), 'not the goal');
+  mkdirSync(join(ws, 'artifacts', 'sub'), { recursive: true });
+  writeFileSync(join(ws, 'artifacts', 'top.png'), 'png');
+  writeFileSync(join(ws, 'artifacts', 'sub', 'a.png'), 'png');
+  writeFileSync(join(ws, 'artifacts', '.inherited.json'), '{}');
+  symlinkSync(outside, join(ws, 'artifacts', 'linkdir'));
+  symlinkSync(join(outside, 'key.png'), join(ws, 'artifacts', 'linkfile.png'));
+  symlinkSync('..', join(ws, 'artifacts', 'sub', 'loop'));
+  expect(listArtifacts(ws)).toEqual(['sub/a.png', 'top.png']);
+  // a symbolic link in place of the folder itself lists nothing
+  const linked = mkdtempSync(join(tmpdir(), 'foundry-art-linked-'));
+  symlinkSync(join(ws, 'artifacts'), join(linked, 'artifacts'));
+  expect(listArtifacts(linked)).toEqual([]);
+});
