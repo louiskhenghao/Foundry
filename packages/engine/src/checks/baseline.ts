@@ -1,11 +1,12 @@
+import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Check, Goal } from '@foundry/core';
 import { listChecks } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { ensureDetachedWorktree, removeWorktree } from '../git/git.ts';
 import { runCommandCheck } from './command.ts';
-import { artifactsForChecks } from '../goal-artifacts.ts';
-import { baselineWorkspacePath, goalWorkspacePath } from '../workspace.ts';
+import { artifactsForChecks, goalUsesArtifacts } from '../goal-artifacts.ts';
+import { ARTIFACTS_DIR, baselineWorkspacePath, goalWorkspacePath, listArtifacts } from '../workspace.ts';
 
 /**
  * Which must command checks already fail on a given goal-branch commit, *before* a merge.
@@ -14,10 +15,13 @@ import { baselineWorkspacePath, goalWorkspacePath } from '../workspace.ts';
  * branch is not the merge's fault and must not keep a correctly resolved merge from landing — otherwise a goal
  * whose suite is red for an unrelated reason loops forever (work → merge "fails" → retry → …).
  * Computed in a throw-away `_baseline` worktree, given the artifacts (they never come through git) of the worktree the
- * merge happens in, so both sides of the comparison measure the same exports; cached per commit and artifact source.
+ * merge happens in, so both sides of the comparison measure the same exports; cached per commit and per state of those
+ * exports, and computed one at a time per goal (they share the goal's one `_baseline` worktree).
  */
 export class BaselineChecks {
   private cache = new Map<string, Promise<Set<string>>>();
+  /** the last computation of each goal: the next one waits for it */
+  private running = new Map<string, Promise<unknown>>();
   constructor(private engine: Engine) {}
 
   /**
@@ -26,19 +30,39 @@ export class BaselineChecks {
    */
   failing(goal: Goal, ref: string, artifactsFrom?: string): Promise<Set<string>> {
     const from = artifactsFrom ?? goalWorkspacePath(this.engine.config.dataDir, goal);
-    const key = `${goal.id}@${ref}@${from}`;
+    // a re-export at the same commit is another baseline: the exports' state is part of the key
+    const key = `${goal.id}@${ref}@${from}@${this.exportsPrint(goal, from)}`;
     let p = this.cache.get(key);
     if (!p) {
-      p = this.compute(goal, ref, from).catch((err) => {
-        this.cache.delete(key);
-        this.engine.config.log(`[baseline] ${goal.id}@${ref.slice(0, 7)} failed: ${err}`);
-        return new Set<string>();
-      });
+      const before = this.running.get(goal.id) ?? Promise.resolve();
+      p = before
+        .catch(() => {})
+        .then(() => this.compute(goal, ref, from))
+        .catch((err) => {
+          this.cache.delete(key);
+          this.engine.config.log(`[baseline] ${goal.id}@${ref.slice(0, 7)} failed: ${err}`);
+          return new Set<string>();
+        });
+      this.running.set(goal.id, p);
       this.cache.set(key, p);
       // keep the map small: only the last few commits per goal matter
       if (this.cache.size > 32) this.cache.delete(this.cache.keys().next().value!);
     }
     return p;
+  }
+
+  /** names, sizes and times of the exports a baseline measures, for a goal that keeps artifacts ('' otherwise) */
+  private exportsPrint(goal: Goal, ws: string): string {
+    if (!goalUsesArtifacts(this.engine, goal)) return '';
+    const parts = listArtifacts(ws).map((f) => {
+      try {
+        const s = statSync(join(ws, ARTIFACTS_DIR, f));
+        return `${f}:${s.size}:${s.mtimeMs}`;
+      } catch {
+        return f;
+      }
+    });
+    return Bun.hash(parts.join('\n')).toString(36);
   }
 
   private async compute(goal: Goal, ref: string, from: string): Promise<Set<string>> {
@@ -49,7 +73,7 @@ export class BaselineChecks {
     await ensureDetachedWorktree(goal.repoPath, path, ref);
     try {
       // artifacts never come through git: a check that measures an export sees the exports the merged side has
-      await artifactsForChecks(this.engine, goal, from, path, `baseline at ${ref.slice(0, 7)}`);
+      await artifactsForChecks(this.engine, goal, from, path, `baseline at ${ref.slice(0, 7)}`, { strict: true });
       const failing = new Set<string>();
       for (const c of must) {
         const r = await runCommandCheck(c as Check, { cwd: path, outputDir: join(config.dataDir, 'check-output'), attemptId: `baseline-${ref.slice(0, 7)}` });

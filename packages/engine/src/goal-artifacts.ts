@@ -74,14 +74,16 @@ export function goalUsesArtifacts(engine: Engine, goal: Goal): boolean {
 
 /**
  * Give a worktree that runs the goal's checks the artifacts of another (the goal workspace, a task's worktree), which
- * git never carries: only for a goal that keeps artifacts, never over a file git tracks, and never at the cost of the
- * checks. A copy that fails is noted, and the checks run without it.
+ * git never carries: only for a goal that keeps artifacts, and never over a file git tracks. A copy that fails is noted
+ * and the checks run without it, except where `strict` says a missing export would make the result wrong (a baseline).
  */
-export async function artifactsForChecks(engine: Engine, goal: Goal, fromWs: string, toWs: string, where: string, opts: { onlyChanged?: boolean } = {}): Promise<void> {
+export async function artifactsForChecks(engine: Engine, goal: Goal, fromWs: string, toWs: string, where: string, opts: { onlyChanged?: boolean; strict?: boolean } = {}): Promise<void> {
   if (!existsSync(fromWs) || !goalUsesArtifacts(engine, goal)) return;
   try {
     await copyUntrackedArtifacts(fromWs, toWs, opts);
   } catch (err) {
+    // a baseline without the exports would excuse a real regression as "already failing": it fails instead
+    if (opts.strict) throw err;
     engine.store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `${where}: the artifacts could not be copied (${String((err as Error)?.message ?? err)}); a check that measures an export may fail there` } });
   }
 }
