@@ -159,6 +159,64 @@ describe('manual merge resolution', () => {
   }, 60_000);
 });
 
+describe('manual merge resolution: finishing safely', () => {
+  const conflicting = async (gate: string) => {
+    const runner = new FakeRunner((spec) => {
+      if (spec.label?.startsWith('attempt')) writeFileSync(join(spec.cwd, 'shared.txt'), `${spec.label}\n`);
+    });
+    const engine = new Engine(cfg(), runner);
+    const goal = await engine.createGoal({
+      prompt: 'conflict',
+      repoPath: repo,
+      brief: {
+        title: 'feat: conflicting',
+        understanding: 'u',
+        areas: [],
+        assumptions: [],
+        questions: [], styleOptions: [],
+        costEstimateUsd: 0,
+        timeEstimateMin: 0,
+        tasks: [t('T1', 'add alpha', [], true), t('T2', 'add beta', [], true)],
+        checks: [c('C1', 'T1', 'test -f shared.txt'), c('C2', 'T2', 'test -f shared.txt'), c('G', null, gate)],
+      },
+    });
+    const mergeEsc = () => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).find((e) => (e.payload as { kind?: string }).kind === 'merge');
+    await waitFor(() => !!mergeEsc(), 30_000);
+    return { engine, goal, taskId: mergeEsc()!.taskId! };
+  };
+
+  test('finishing anyway after the checks regressed lands the resolution', async () => {
+    const { startResolution, resolveFile, finishResolution } = await import('./merge-resolve.ts');
+    // the gate passes on the goal branch and fails on the resolution below: a regression the person lands anyway
+    const { engine, goal, taskId } = await conflicting('test "$(cat shared.txt)" != broken');
+    await startResolution(engine, goal.id, taskId);
+    await resolveFile(engine, goal.id, taskId, 'shared.txt', 'broken\n');
+    const first = await finishResolution(engine, goal.id, taskId);
+    expect(first.ok).toBe(false);
+    expect(first.reason).toContain('regressed');
+    const forced = await finishResolution(engine, goal.id, taskId, { force: true });
+    expect(forced.ok).toBe(true);
+    const ws = goalWorkspacePath(dataDir, goal);
+    expect(await sh('cat shared.txt', ws)).toBe('broken');
+    expect(await sh('git log -1 --format=%B', ws)).toContain('Resolved manually by the human');
+  }, 60_000);
+
+  test('a resolution worktree left without its merge is started over, never finished as a resolution without changes', async () => {
+    const { startResolution, finishResolution } = await import('./merge-resolve.ts');
+    const { engine, goal, taskId } = await conflicting('test -f shared.txt');
+    await startResolution(engine, goal.id, taskId);
+    // the state an engine crash leaves between creating the worktree and merging into it
+    const path = resolveWorkspacePath(dataDir, goal, taskId);
+    await sh(`git worktree remove --force "${path}" && git worktree add -q --detach "${path}" ${goal.branch}`, repo);
+    const refused = await finishResolution(engine, goal.id, taskId);
+    expect(refused.ok).toBe(false);
+    expect(refused.reason).toContain('start the resolution again');
+    expect(listTasks(engine.store.db, goal.id).find((x) => x.id === taskId)!.state).toBe('blocked');
+    const again = await startResolution(engine, goal.id, taskId);
+    expect(again.remaining).toBe(1);
+  }, 60_000);
+});
+
 describe('manual merge resolution of tasks that export files', () => {
   test("a manually resolved task's exports reach the goal workspace, recorded as its landing, and the checks that measure them pass", async () => {
     const { startResolution, takeSide, finishResolution } = await import('./merge-resolve.ts');

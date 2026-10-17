@@ -1,5 +1,5 @@
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import type { Check, CheckResult, Goal, Task } from '@foundry/core';
 import { getEscalation, getGoal, getTask, listChecks, listEscalations } from '@foundry/core';
 import { runCommandCheck } from './checks/command.ts';
@@ -60,6 +60,19 @@ function mergeEscalation(engine: Engine, goalId: string, taskId: string) {
   return listEscalations(engine.store.db, { goalId, openOnly: true }).find((e) => e.taskId === taskId && e.trigger === 'retries_exhausted' && (e.payload as { kind?: string }).kind === 'merge') ?? null;
 }
 
+/** git's own record of a squash merge not yet committed (SQUASH_MSG), the state a resolution works in */
+async function squashInProgress(path: string): Promise<boolean> {
+  const r = await git(['rev-parse', '--git-path', 'SQUASH_MSG'], path);
+  return r.code === 0 && existsSync(resolve(path, r.stdout.trim()));
+}
+
+/** take back the commit Finish made, keeping the resolved files staged and the squash merge in progress */
+async function undoFinish(path: string, message: string): Promise<void> {
+  await gitOk(['reset', '--soft', 'HEAD~1'], path);
+  const r = await git(['rev-parse', '--git-path', 'SQUASH_MSG'], path);
+  if (r.code === 0) writeFileSync(resolve(path, r.stdout.trim()), `${message}\n`);
+}
+
 function mustTask(engine: Engine, goalId: string, taskId: string): { goal: Goal; task: Task } {
   const goal = getGoal(engine.store.db, goalId);
   const task = getTask(engine.store.db, taskId);
@@ -84,7 +97,8 @@ export async function startResolution(engine: Engine, goalId: string, taskId: st
   if (!can.ok) throw new Error(can.reason!);
   const path = resolveWorkspacePath(engine.config.dataDir, refOf(engine, goalId), taskId);
   const goalWs = goalWorkspacePath(engine.config.dataDir, refOf(engine, goalId));
-  const inProgress = existsSync(path) && (await git(['rev-parse', '--git-dir'], path)).code === 0;
+  // a resolution is in progress while its squash merge is: a worktree left without one (a crash before the merge) starts over
+  const inProgress = existsSync(path) && (await squashInProgress(path));
   if (!inProgress || opts.fresh) {
     const head = await headRef(goalWs);
     await ensureDetachedWorktree(goal.repoPath, path, head);
@@ -108,7 +122,7 @@ export async function startResolution(engine: Engine, goalId: string, taskId: st
 export async function describeResolution(engine: Engine, goalId: string, taskId: string): Promise<ResolveState> {
   const { goal, task } = mustTask(engine, goalId, taskId);
   const path = resolveWorkspacePath(engine.config.dataDir, refOf(engine, goalId), taskId);
-  if (!existsSync(path)) throw new Error('no manual resolution in progress for this task');
+  if (!existsSync(path) || !(await squashInProgress(path))) throw new Error('no manual resolution in progress for this task');
   const started = engine.store.listByGoal(goalId, 5000).filter((e) => e.type === 'merge.manual_started' && (e.payload as { taskId: string }).taskId === taskId).at(-1);
   const all = new Set<string>((started?.payload as { files?: string[] } | undefined)?.files ?? []);
   const conflicted = new Set(await conflictedFiles(path));
@@ -180,6 +194,8 @@ export async function finishResolution(engine: Engine, goalId: string, taskId: s
   const { goal, task } = mustTask(engine, goalId, taskId);
   const path = resolveWorkspacePath(config.dataDir, refOf(engine, goalId), taskId);
   if (!existsSync(path)) throw new Error('no manual resolution in progress');
+  // without its squash merge the worktree holds nothing of the task: finishing would land nothing and drop the task's work
+  if (!(await squashInProgress(path))) return { ok: false, ref: null, checks: [], reason: 'this resolution has no merge in progress — start the resolution again' };
   const remaining = await conflictedFiles(path);
   if (remaining.length) return { ok: false, ref: null, checks: [], reason: `${remaining.length} file(s) still conflicted: ${remaining.slice(0, 5).join(', ')}` };
   // markers left in a file that was staged anyway
@@ -215,7 +231,12 @@ export async function finishResolution(engine: Engine, goalId: string, taskId: s
     checks.push({ name: c.name, status: r.status, summary: (preexisting ? '(already failing on the goal branch before this merge — not counted) ' : '') + r.summary.slice(0, 600) });
     if (r.status !== 'pass' && !preexisting) passed = false;
   }
-  if (!passed && !opts.force) return { ok: false, ref, checks, reason: 'must checks regressed in the resolved workspace — fix and finish again, or finish anyway' };
+  if (!passed && !opts.force) {
+    // the resolution stays as it was before Finish (the commit undone, the merge in progress), so finishing again or
+    // anyway commits and lands it, instead of finding nothing staged and landing nothing
+    if (existing.code !== 0) await undoFinish(path, message);
+    return { ok: false, ref, checks, reason: 'must checks regressed in the resolved workspace — fix and finish again, or finish anyway' };
+  }
 
   // land on the goal branch: fast-forward if it did not move, otherwise carry the squash commit over
   const landed = await engine.withGoalWsLock(goalId, async () => {
