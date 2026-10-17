@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { IdPrefix, getGoal, getTask, listEscalations, listTasks, newId, type Check, type Task } from '@foundry/core';
-import { baselineWorkspacePath, ensureGoalWorkspace, goalWorkspacePath, internalWorkspaceDir, resolveWorkspacePath, taskWorkspacePath } from './workspace.ts';
+import { IdPrefix, getGoal, getTask, listEscalations, listTasks, newId, type Check, type Goal, type Task } from '@foundry/core';
+import { baselineWorkspacePath, ensureGoalWorkspace, goalWorkspacePath, overlayBackupPath, resolveWorkspacePath, taskWorkspacePath } from './workspace.ts';
 import { git } from './git/git.ts';
-import { resolveConflicts } from './merge.ts';
+import { integrateTask, resolveConflicts } from './merge.ts';
 import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
 import { FakeRunner, makeRepo, sh, terminal, waitFor } from './test-helpers.ts';
@@ -360,8 +360,7 @@ describe('manual merge resolution of tasks that export files', () => {
 describe('manual merge resolution: which exports land', () => {
   // cad tasks rewrite shared.txt (the conflict) and export frame.step and a part of their own; with `own`, each also
   // writes a tracked file of its own, so a resolution that keeps the goal's shared.txt still lands a change
-  const resolveKeepingGoalSide = async (own: boolean) => {
-    const { startResolution, takeSide, finishResolution } = await import('./merge-resolve.ts');
+  const conflicted = async (own: boolean) => {
     const runner = new FakeRunner((spec) => {
       if (!spec.label?.startsWith('attempt')) return;
       const slug = spec.label.replace(/^attempt /, '').replace(/ #\d+$/, '').replace(/ /g, '_');
@@ -383,12 +382,30 @@ describe('manual merge resolution: which exports land', () => {
     const taskId = mergeEsc()!.taskId!;
     const slug = listTasks(engine.store.db, goal.id).find((x) => x.id === taskId)!.title.replace(/ /g, '_');
     const art = join(goalWorkspacePath(dataDir, goal), 'artifacts');
+    return { engine, goal, taskId, slug, art, mergeEsc };
+  };
+  const resolveKeepingGoalSide = async (own: boolean, watchLanding = false) => {
+    const { startResolution, takeSide, finishResolution } = await import('./merge-resolve.ts');
+    const { engine, goal, taskId, slug, art } = await conflicted(own);
     const landedFrame = await Bun.file(join(art, 'frame.step')).text();
+    // what whoever holds the goal workspace next finds: the resolution's commit without its exports is a gap another
+    // task's integration could fall into
+    const gaps: string[] = [];
+    if (watchLanding) {
+      const lock = engine.withGoalWsLock.bind(engine);
+      engine.withGoalWsLock = (<T>(goalId: string, fn: () => Promise<T>) =>
+        lock(goalId, async () => {
+          const r = await fn();
+          const head = (await git(['log', '-1', '--format=%B'], goalWorkspacePath(dataDir, goal))).stdout;
+          if (head.includes('Resolved manually by the human') && !existsSync(join(art, `${slug}_only.step`))) gaps.push(head.split('\n')[0]!);
+          return r;
+        })) as Engine['withGoalWsLock'];
+    }
     await startResolution(engine, goal.id, taskId);
     await takeSide(engine, goal.id, taskId, 'shared.txt', 'ours');
     expect((await finishResolution(engine, goal.id, taskId)).ok).toBe(true);
     const notes = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'engine.note').map((e) => (e.payload as { message: string }).message);
-    return { art, slug, landedFrame, notes };
+    return { art, slug, landedFrame, notes, gaps };
   };
 
   test("a resolution that kept the goal's side for a file the task changed lands only the exports the goal lacks", async () => {
@@ -397,6 +414,35 @@ describe('manual merge resolution: which exports land', () => {
     expect(await Bun.file(join(art, 'frame.step')).text()).toBe(landedFrame);
     expect(existsSync(join(art, `${slug}_only.step`))).toBe(true);
     expect(notes.some((m) => m.includes("the resolution kept the goal's version of 1 file(s) the task changed (shared.txt)"))).toBe(true);
+  }, 60_000);
+
+  test("a resolution's commit and its exports land in one step: nothing on the goal workspace comes between them", async () => {
+    const { art, slug, gaps } = await resolveKeepingGoalSide(true, true);
+    expect(existsSync(join(art, `${slug}_only.step`))).toBe(true);
+    expect(gaps).toEqual([]);
+  }, 60_000);
+
+  test('a Finish that waited for the goal workspace while the task was skipped lands nothing', async () => {
+    const { startResolution, takeSide, finishResolution } = await import('./merge-resolve.ts');
+    const { engine, goal, taskId, mergeEsc } = await conflicted(true);
+    await startResolution(engine, goal.id, taskId);
+    await takeSide(engine, goal.id, taskId, 'shared.txt', 'ours');
+    // another task's merge holds the goal workspace while Finish waits for it
+    let release: (() => void) | null = null;
+    const held = engine.withGoalWsLock(goal.id, () => new Promise<void>((r) => (release = r)));
+    await waitFor(() => release !== null);
+    // Finish is past its own first check, waiting for the goal workspace, when the task is skipped
+    let waiting = false;
+    const lock = engine.withGoalWsLock.bind(engine);
+    engine.withGoalWsLock = (<T>(goalId: string, fn: () => Promise<T>) => ((waiting = true), lock(goalId, fn))) as Engine['withGoalWsLock'];
+    const finishing = finishResolution(engine, goal.id, taskId);
+    await waitFor(() => waiting);
+    await engine.answerEscalation(mergeEsc()!.id, { action: 'skip_task' });
+    release!();
+    await held;
+    expect((await finishing).ok).toBe(false);
+    expect(getTask(engine.store.db, taskId)!.state).toBe('skipped');
+    await engine.stop();
   }, 60_000);
 
   test("a resolution that kept the goal's side throughout lands none of the task's exports", async () => {
@@ -453,9 +499,10 @@ describe('merge attempts of tasks that export files', () => {
 
 describe('a squash that conflicts at integration (the goal branch moved after the last catch-up)', () => {
   /** the goal holds revision 1 of a part and its export; the task remade both as revision 2; another task's commit conflicts */
-  const integrationWindow = async (extraCheck?: string) => {
+  const integrationWindow = async (extraCheck?: string, opts: { noChecks?: boolean; onMerge?: (cwd: string) => Promise<void>; beforeResolve?: (at: { goal: Goal; ws: string }) => void | Promise<void> } = {}) => {
     const runner = new FakeRunner(async (spec) => {
       if (spec.label?.startsWith('merge')) {
+        await opts.onMerge?.(spec.cwd);
         writeFileSync(join(spec.cwd, 'shared.txt'), 'merged by the fake merger\n');
         await sh('git add shared.txt', spec.cwd);
       }
@@ -479,18 +526,21 @@ describe('a squash that conflicts at integration (the goal branch moved after th
     await sh('git add -A && git commit -qm "feat: part rev2"', taskWs);
     mkdirSync(join(taskWs, 'artifacts'), { recursive: true });
     writeFileSync(join(taskWs, 'artifacts', 'part.step'), 'rev2\n');
+    writeFileSync(join(taskWs, 'artifacts', 'drawing.pdf'), 'new\n');
     writeFileSync(join(ws, 'shared.txt'), 'goal side\n');
     await sh('git commit -qam "feat: another task"', ws);
+    const tip = await sh('git rev-parse HEAD', ws);
     const check = (name: string, cmd: string): Check => ({ id: newId(IdPrefix.check), goalId: goal.id, taskId: null, name, tier: 'must', spec: { type: 'command', cmd, timeoutMs: 60_000, expectExitCode: 0 } });
-    for (const ch of [check('export matches its source', 'cmp -s artifacts/part.step params.txt'), ...(extraCheck ? [check('extra', extraCheck)] : [])]) engine.store.append({ type: 'check.created', goalId: goal.id, payload: { check: ch } });
+    if (!opts.noChecks) for (const ch of [check('export matches its source', 'cmp -s artifacts/part.step params.txt'), ...(extraCheck ? [check('extra', extraCheck)] : [])]) engine.store.append({ type: 'check.created', goalId: goal.id, payload: { check: ch } });
     const now = new Date().toISOString();
     const task = { id: 't_rev2', goalId: goal.id, title: 'part rev2', spec: 'remake the part', kind: 'feature', scope: null, scenario: 'cad', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now } as Task;
     engine.store.append({ type: 'task.created', goalId: goal.id, payload: { task } });
     engine.store.append({ type: 'task.workspace_assigned', goalId: goal.id, payload: { taskId: task.id, branch: 'task/t_rev2', worktreePath: taskWs } });
     const squash = () => git(['merge', '--squash', '--no-commit', 'task/t_rev2'], ws);
     expect((await squash()).code).not.toBe(0);
+    await opts.beforeResolve?.({ goal, ws });
     const ok = await resolveConflicts(engine, getGoal(engine.store.db, goal.id)!, getTask(engine.store.db, task.id)!, ['shared.txt'], { ref: 'task/t_rev2', label: 'task/t_rev2', intent: 'remake the part' }, { cwd: ws, redo: async () => void (await squash()), commitMessage: 'feat: part rev2' });
-    return { engine, ws, ok, backup: join(internalWorkspaceDir(goal)!, 'overlay', task.id) };
+    return { engine, ws, ok, tip, goalId: goal.id, backup: overlayBackupPath(dataDir, goal, task.id) };
   };
 
   test("its merge attempt is checked with the task's exports laid over the goal's, which a merge that lands keeps", async () => {
@@ -499,16 +549,112 @@ describe('a squash that conflicts at integration (the goal branch moved after th
     expect(ok).toBe(true);
     expect(await sh('cat params.txt', ws)).toBe('rev2');
     expect(readFileSync(join(ws, 'artifacts', 'part.step'), 'utf8')).toBe('rev2\n');
+    expect(readFileSync(join(ws, 'artifacts', 'drawing.pdf'), 'utf8')).toBe('new\n');
+    expect(existsSync(backup)).toBe(false);
+    await engine.stop();
+  }, 60_000);
+
+  test('with no must checks to read them, nothing is laid over', async () => {
+    const { engine, ws, ok, backup } = await integrationWindow(undefined, { noChecks: true });
+    expect(ok).toBe(true);
+    // the landing brings revision 2 afterwards; the merge attempt itself copied and saved nothing
+    expect(readFileSync(join(ws, 'artifacts', 'part.step'), 'utf8')).toBe('rev1\n');
+    expect(existsSync(join(ws, 'artifacts', 'drawing.pdf'))).toBe(false);
     expect(existsSync(backup)).toBe(false);
     await engine.stop();
   }, 60_000);
 
   test("a merge that does not land takes the task's exports back off the goal's", async () => {
     // a real regression: the merged shared.txt breaks a check the goal passed
-    const { engine, ws, ok, backup } = await integrationWindow('grep -q "goal side" shared.txt');
+    const { engine, ws, ok, tip, backup } = await integrationWindow('grep -q "goal side" shared.txt');
     expect(ok).toBe(false);
     expect(readFileSync(join(ws, 'artifacts', 'part.step'), 'utf8')).toBe('rev1\n');
+    expect(existsSync(join(ws, 'artifacts', 'drawing.pdf'))).toBe(false);
     expect(existsSync(backup)).toBe(false);
+    // the attempts committed their resolutions before their checks regressed: those commits are taken back too
+    expect(await sh('git rev-parse HEAD', ws)).toBe(tip);
+    expect(await sh('cat params.txt', ws)).toBe('rev1');
+    await engine.stop();
+  }, 60_000);
+
+  test('a regressed attempt takes its commit back before the next one, which meets the conflict on the goal branch as it was', async () => {
+    const heads: string[] = [];
+    const { engine, ok, tip } = await integrationWindow('grep -q "goal side" shared.txt', { onMerge: async (cwd) => void heads.push(await sh('git rev-parse HEAD', cwd)) });
+    expect(ok).toBe(false);
+    expect(heads).toEqual([tip, tip]);
+    await engine.stop();
+  }, 60_000);
+
+  test('a commit that cannot be taken back stops the attempts and the escalation says the goal branch still holds it', async () => {
+    // the regressed check leaves a lock in the goal worktree's git folder (as a git client holding it would): the reset fails
+    const { engine, ws, ok, goalId } = await integrationWindow('case "$PWD" in */baseline*) exit 0;; esac; touch "$(git rev-parse --git-dir)/index.lock"; exit 1');
+    try {
+      expect(ok).toBe(false);
+      const esc = listEscalations(engine.store.db, { goalId, openOnly: true }).find((e) => (e.payload as { kind?: string }).kind === 'merge');
+      expect(esc?.message).toContain('could not be taken back');
+      expect(esc?.message).toContain('1 merge attempt could not resolve it');
+      expect(esc?.message).toContain(`\`${getGoal(engine.store.db, goalId)!.branch}\` still holds`);
+      expect(engine.store.listByGoal(goalId, 5000).filter((e) => e.type === 'attempt.concluded')).toHaveLength(1);
+      // nothing more lands on the unverified commit until the person has dealt with it
+      expect(getGoal(engine.store.db, goalId)!.state).toBe('blocked');
+    } finally {
+      rmSync(join(await sh('git rev-parse --absolute-git-dir', ws), 'index.lock'), { force: true });
+    }
+    await engine.stop();
+  }, 60_000);
+
+  test('a must check that cannot run proves nothing: the attempt does not land, and its commit and the exports laid over are taken back', async () => {
+    // the checks' output folder is a file: every check run throws before it can say how it went
+    const { engine, ws, ok, tip, backup, goalId } = await integrationWindow(undefined, { beforeResolve: () => writeFileSync(join(dataDir, 'check-output'), 'in the way') });
+    expect(ok).toBe(false);
+    // a second paid session cannot make checks run that cannot: no further attempt
+    expect(engine.store.listByGoal(goalId, 5000).filter((e) => e.type === 'attempt.concluded')).toHaveLength(1);
+    expect(await sh('git rev-parse HEAD', ws)).toBe(tip);
+    expect(readFileSync(join(ws, 'artifacts', 'part.step'), 'utf8')).toBe('rev1\n');
+    expect(existsSync(join(ws, 'artifacts', 'drawing.pdf'))).toBe(false);
+    expect(existsSync(backup)).toBe(false);
+    await engine.stop();
+  }, 60_000);
+
+  test("a merge attempt does not measure its baseline over exports another merge left laid over: it fails and says why", async () => {
+    const { contentHash } = await import('./workspace.ts');
+    const { engine, ok, goalId } = await integrationWindow(undefined, {
+      // another task's overlay whose undo cannot finish: the goal's saved copy of part.step is gone
+      beforeResolve: async ({ goal, ws }) => {
+        const backup = overlayBackupPath(dataDir, goal, 't_other');
+        mkdirSync(backup, { recursive: true });
+        writeFileSync(join(backup, 'list'), `${JSON.stringify({ f: 'part.step', saved: true, hash: await contentHash(join(ws, 'artifacts', 'part.step')) })}\n`);
+      },
+    });
+    expect(ok).toBe(false);
+    const reasons = engine.store.listByGoal(goalId, 5000).filter((e) => e.type === 'attempt.concluded').map((e) => (e.payload as { reason: string }).reason);
+    expect(reasons.some((r) => r.includes('could not all be put back'))).toBe(true);
+    await engine.stop();
+  }, 60_000);
+});
+
+describe('integration and landing in one step', () => {
+  test("nothing else on the goal workspace runs between a task's commit and the landing of its exports", async () => {
+    const engine = new Engine(cfg(), new FakeRunner(() => {}));
+    engine.beginUpdateDrain();
+    const draft = await engine.createGoal({ prompt: 'a part', repoPath: repo });
+    engine.store.append({ type: 'goal.nature_set', goalId: draft.id, payload: { nature: 'cad', reason: 'a model' } });
+    const goal = getGoal(engine.store.db, draft.id)!;
+    const ws = await ensureGoalWorkspace(dataDir, goal);
+    await sh('echo /artifacts/ >> .git/info/exclude', repo);
+    const taskWs = taskWorkspacePath(dataDir, goal, 't_part');
+    await sh(`git worktree add -q -b task/t_part "${taskWs}" ${goal.branch}`, repo);
+    writeFileSync(join(taskWs, 'part.txt'), 'part\n');
+    mkdirSync(join(taskWs, 'artifacts'), { recursive: true });
+    writeFileSync(join(taskWs, 'artifacts', 'part.step'), 'step\n');
+    const now = new Date().toISOString();
+    const task = { id: 't_part', goalId: goal.id, title: 'part', spec: 'model the part', kind: 'feature', scope: null, scenario: 'cad', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now } as Task;
+    engine.store.append({ type: 'task.created', goalId: goal.id, payload: { task } });
+    engine.store.append({ type: 'task.workspace_assigned', goalId: goal.id, payload: { taskId: task.id, branch: 'task/t_part', worktreePath: taskWs } });
+    const integrating = integrateTask(engine, getGoal(engine.store.db, goal.id)!, getTask(engine.store.db, task.id)!);
+    const seen = engine.withGoalWsLock(goal.id, async () => existsSync(join(ws, 'artifacts', 'part.step')));
+    expect((await integrating).merged).toBe(true);
+    expect(await seen).toBe(true);
     await engine.stop();
   }, 60_000);
 });

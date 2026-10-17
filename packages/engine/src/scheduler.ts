@@ -8,11 +8,11 @@ import { dueCheckpoint, finalLookDue, openCheckpoint, openFinalCheckpoint, passM
 import { raiseEscalation } from './escalation.ts';
 import { headRef } from './git/git.ts';
 import { integrateTask } from './merge.ts';
+import { recoverOverlays } from './goal-artifacts.ts';
 import { catchUp, filesOverlap } from './catchup.ts';
 import { existsSync } from 'node:fs';
 import { excludeFromGit } from './skills/autoskills.ts';
 import { dropTaskWorkspace, ensureGoalWorkspace, ensureTaskWorkspace, goalWorkspacePath } from './workspace.ts';
-import { landTaskArtifacts } from './goal-artifacts.ts';
 
 /**
  * One scheduling pass for a running goal. Idempotent; called after every event.
@@ -180,7 +180,10 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
         task = { ...task, worktreePath: null, branch: null };
       }
       if (!task.worktreePath) {
-        const ws = await ensureTaskWorkspace(config.dataDir, goal, task);
+        // a cad task inherits the goal's exports: under the goal workspace's lock, after any leftover overlay is undone,
+        // so never a merge attempt's laid over them for its checks
+        const make = () => ensureTaskWorkspace(config.dataDir, goal, task);
+        const ws = task.scenario === 'cad' ? await engine.withGoalWsLock(goal.id, async () => (await recoverOverlays(engine, goal), make())) : await make();
         store.append({ type: 'task.workspace_assigned', goalId: goal.id, payload: { taskId: task.id, branch: ws.branch, worktreePath: ws.path } });
         cwd = ws.path;
       } else cwd = task.worktreePath;
@@ -228,10 +231,9 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
       // and, failing those, the human's manual resolution — the squash onto the goal branch is then conflict-free
       const late = await catchUp(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!, { escalate: true });
       if ((late.moved && !late.merged) || lost()) return;
-      const merged = await integrateTask(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!);
-      if (merged) {
-        // artifacts are git-excluded, so the squash merge cannot carry them: rescue them before the worktree goes
-        const landing = await landTaskArtifacts(engine, goal, fresh);
+      // artifacts are git-excluded, so the squash merge cannot carry them: the integration lands them before the worktree goes
+      const { merged, landing } = await integrateTask(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!);
+      if (merged && landing) {
         if (fresh.worktreePath && landing.failed.length) {
           // some could not be copied (a full disk, a file it cannot read): the worktree stays, so they are not lost
           store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `"${task.title}": ${landing.failed.length} artifact(s) could not be copied to the goal workspace (${landing.failed.slice(0, 3).join(', ')}); its worktree is kept so they are not lost` } });

@@ -6,7 +6,7 @@ import { runCommandCheck } from './checks/command.ts';
 import type { Engine } from './engine.ts';
 import { taskCommitMessage } from './git/conventional.ts';
 import { abortInProgress, conflictedFiles, ensureDetachedWorktree, git, gitIdent, gitOk, headRef, removeWorktree, withCoauthor } from './git/git.ts';
-import { artifactsForChecks, landTaskArtifacts, type Landing } from './goal-artifacts.ts';
+import { artifactsForChecks, landTaskArtifacts, recoverOverlays, type Landing } from './goal-artifacts.ts';
 import { dropTaskWorkspace, goalWorkspacePath, resolveWorkspacePath } from './workspace.ts';
 
 /**
@@ -170,8 +170,12 @@ async function startUnlocked(engine: Engine, goalId: string, taskId: string, opt
     // recorded first: a restart while the exports below are copied still knows where this resolution started
     engine.store.append({ type: 'merge.manual_started', goalId, payload: { taskId, files, path, base: head, ...(tip ? { tip } : {}) } });
     // the checks that judge the resolution see the exports as the merged goal will have them (git-excluded, so the merge
-    // did not bring them): the goal's, then what the task changed
-    await artifactsForChecks(engine, goal, goalWs, path, `resolution of "${task.title}"`);
+    // did not bring them): the goal's (its own, never a merge attempt's laid over them: under the lock, after any
+    // leftover is undone), then what the task changed
+    await engine.withGoalWsLock(goalId, async () => {
+      await recoverOverlays(engine, goal);
+      await artifactsForChecks(engine, goal, goalWs, path, `resolution of "${task.title}"`);
+    });
     if (task.worktreePath) await artifactsForChecks(engine, goal, task.worktreePath, path, `resolution of "${task.title}"`, { onlyChanged: true });
   }
   return describeResolution(engine, goalId, taskId);
@@ -317,7 +321,12 @@ async function finishUnlocked(engine: Engine, goalId: string, taskId: string, op
   // the checks see the exports as the goal has them now (other tasks may have landed since the start), with the task's
   // changes over them; the baseline measures the goal's own, so a regression the task's exports cause is not excused
   const goalWs = goalWorkspacePath(config.dataDir, refOf(engine, goalId));
-  await artifactsForChecks(engine, goal, goalWs, path, `resolution of "${task.title}"`);
+  // under the goal workspace's lock: never the exports a merge attempt laid over the goal's for its own checks, and none
+  // an unfinished undo left
+  await engine.withGoalWsLock(goalId, async () => {
+    await recoverOverlays(engine, goal);
+    await artifactsForChecks(engine, goal, goalWs, path, `resolution of "${task.title}"`);
+  });
   if (task.worktreePath) await artifactsForChecks(engine, goal, task.worktreePath, path, `resolution of "${task.title}"`, { onlyChanged: true });
   // the resolve worktree started at `base`; checks already red there are not this resolution's fault
   const base = startedAt ?? (existing.code === 0 ? ref : (await git(['rev-parse', 'HEAD~1'], path)).stdout.trim());
@@ -337,19 +346,31 @@ async function finishUnlocked(engine: Engine, goalId: string, taskId: string, op
     return { ok: false, ref, checks, reason: 'must checks regressed in the resolved workspace — fix and finish again, or finish anyway' };
   }
 
-  // land on the goal branch: fast-forward if it did not move, otherwise carry the squash commit over
-  const landed = await engine.withGoalWsLock(goalId, async () => {
+  // land on the goal branch: fast-forward if it did not move, otherwise carry the squash commit over; the task's exports
+  // land in the same step, so another task's integration never comes between the commit and them
+  const kept = existing.code !== 0 ? await keptGoalSide(path, base, task.branch!, ref).catch(() => [] as string[]) : [];
+  const landed = await engine.withGoalWsLock(goalId, async (): Promise<{ ok: boolean; ref: string | null; artifacts: Landing | null; error?: string; reason?: string }> => {
     const goalWs = goalWorkspacePath(config.dataDir, refOf(engine, goalId));
-    if (existing.code === 0) return { ok: true, ref: await headRef(goalWs) };
+    // the task may have been skipped, or run again, while this Finish waited for the lock
+    const still = canResolve(engine, goalId, taskId);
+    if (!still.ok) return { ok: false, ref: null, artifacts: null, reason: still.reason ?? 'the task no longer waits on its merge' };
+    if (await staleTip(goal, task, start?.tip ?? null)) return { ok: false, ref: null, artifacts: null, reason: 'the task changed since this resolution started (a retry ran it again) — start the resolution again' };
+    if (existing.code === 0) return { ok: true, ref: await headRef(goalWs), artifacts: null };
+    const withExports = async () => ({ ok: true, ref: await headRef(goalWs), artifacts: await landExports(engine, goal, task, kept) });
     const ff = await git(['merge', '--ff-only', ref], goalWs);
-    if (ff.code === 0) return { ok: true, ref: await headRef(goalWs) };
+    if (ff.code === 0) return withExports();
     const cp = await git([...(await gitIdent(goalWs)), 'cherry-pick', '--allow-empty', ref], goalWs);
-    if (cp.code === 0) return { ok: true, ref: await headRef(goalWs) };
+    if (cp.code === 0) return withExports();
     await abortInProgress(goalWs);
-    return { ok: false, ref: null, error: `the goal branch moved and the resolution no longer applies cleanly: ${cp.stderr.slice(0, 300)}` };
+    return { ok: false, ref: null, artifacts: null, error: `the goal branch moved and the resolution no longer applies cleanly: ${cp.stderr.slice(0, 300)}` };
   });
-  if (!landed.ok) return { ok: false, ref, checks, reason: `${landed.error} — start the resolution again from the current goal branch` };
-  return complete(engine, goal, task, path, { ref: landed.ref!, resolved: ref, base, message, landsCode: existing.code !== 0, passed, checks });
+  if (!landed.ok) return { ok: false, ref, checks, reason: landed.reason ?? `${landed.error} — start the resolution again from the current goal branch` };
+  return complete(engine, goal, task, path, { ref: landed.ref!, resolved: ref, base, message, landsCode: existing.code !== 0, passed, checks, landing: landed.artifacts ? { artifacts: landed.artifacts, kept } : undefined });
+}
+
+/** the task's exports after its resolution landed: only those the goal lacks where the resolution kept the goal's side (`kept`) */
+function landExports(engine: Engine, goal: Goal, task: Task, kept: string[]): Promise<Landing> {
+  return landTaskArtifacts(engine, getGoal(engine.store.db, goal.id) ?? goal, task, { keepExisting: kept.length > 0 }).catch((err) => ({ files: [] as string[], failed: [String((err as Error)?.message ?? err)] }));
 }
 
 /** the commit on the goal branch since `since` that already carries this task's manual resolution, or null */
@@ -369,17 +390,18 @@ async function keptGoalSide(path: string, base: string, branch: string, resolved
  * Everything after the resolution landed: the task's exports, the events that close the merge and the task, and its
  * worktrees. The exports (git-excluded) follow the code that landed: none when the resolution kept the goal's side
  * throughout; when it kept the goal's side for some files the task changed, only the exports the goal does not have yet,
- * so the goal's stay consistent with the source it kept, said in a note. The task's worktree is kept when an export
- * could not be copied, so nothing is lost.
+ * so the goal's stay consistent with the source it kept, said in a note. They come with the commit (`landing`), or here
+ * for a resolution that had landed before the engine stopped. The task's worktree is kept when an export could not be
+ * copied, so nothing is lost.
  */
-async function complete(engine: Engine, goal: Goal, task: Task, path: string, r: { ref: string; resolved: string; base: string; message: string; landsCode: boolean; passed: boolean; checks: FinishResult['checks'] }): Promise<FinishResult> {
+async function complete(engine: Engine, goal: Goal, task: Task, path: string, r: { ref: string; resolved: string; base: string; message: string; landsCode: boolean; passed: boolean; checks: FinishResult['checks']; landing?: { artifacts: Landing; kept: string[] } }): Promise<FinishResult> {
   const { store } = engine;
   const goalId = goal.id;
   const taskId = task.id;
   let artifacts: Landing = { files: [], failed: [] };
   if (r.landsCode) {
-    const kept = await keptGoalSide(path, r.base, task.branch!, r.resolved).catch(() => [] as string[]);
-    artifacts = await landTaskArtifacts(engine, getGoal(store.db, goalId) ?? goal, task, { keepExisting: kept.length > 0 }).catch((err) => ({ files: [] as string[], failed: [String((err as Error)?.message ?? err)] }));
+    const kept = r.landing?.kept ?? (await keptGoalSide(path, r.base, task.branch!, r.resolved).catch(() => [] as string[]));
+    artifacts = r.landing?.artifacts ?? (await engine.withGoalWsLock(goalId, () => landExports(engine, goal, task, kept)));
     if (kept.length) store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `"${task.title}": the resolution kept the goal's version of ${kept.length} file(s) the task changed (${kept.slice(0, 3).join(', ')}): only the task's new exports were landed and the goal's existing ones kept; re-export where they depend on those files` } });
   }
   store.append({ type: 'merge.completed', goalId, payload: { taskId, ref: r.ref } });
