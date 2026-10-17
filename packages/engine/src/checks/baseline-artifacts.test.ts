@@ -65,6 +65,8 @@ test('a re-export at the same commit gets a baseline of its own, and a copy that
   chmodSync(join(art, 'part.step'), 0o000);
   try {
     expect((await engine.baseline.failing(g, head)).size).toBe(0);
+    const notes = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'engine.note').map((e) => (e.payload as { message: string }).message);
+    expect(notes.some((m) => m.includes('could not be measured') && m.includes('counts as a regression'))).toBe(true);
   } finally {
     chmodSync(join(art, 'part.step'), 0o644);
   }

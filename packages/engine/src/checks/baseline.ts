@@ -41,6 +41,8 @@ export class BaselineChecks {
         .catch((err) => {
           this.cache.delete(key);
           this.engine.config.log(`[baseline] ${goal.id}@${ref.slice(0, 7)} failed: ${err}`);
+          // the person sees why every failing check now counts against the merge
+          this.engine.store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `baseline at ${ref.slice(0, 7)} could not be measured (${String((err as Error)?.message ?? err).slice(0, 200)}): every failing must check counts as a regression of this merge` } });
           return new Set<string>();
         });
       this.running.set(goal.id, p);
