@@ -84,6 +84,8 @@ test('a cad task gets the CAD conventions (source in the repository, exports and
   expect(p).toContain('snapshots');
   // the cad skill's own example layout would commit exports beside the source: the convention says which wins
   expect(p).toContain("overrides the cad skill's example layout");
+  // a decorator's out= is relative to the model script, so the root artifacts/ folder is spelled out
+  expect(p).toContain('from `cad/part.py` it is `../artifacts/part.step`');
   expect(p).toContain('commit no STEP, STL, 3MF, GLB or snapshot file');
   // a committed check that imports a skill's tool from the plugin folder breaks with the next plugin update
   expect(p).toContain("Nothing you commit may reach into the coding agent's plugin folder");
