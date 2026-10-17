@@ -166,8 +166,9 @@ const NAMED = /\.(step|stp|stl|3mf|glb|dxf|pdf)$/i;
 const MAX_SHOTS = 8;
 const MAX_CLIPS = 4;
 const MAX_NAMED = 12;
-/** a clip larger than this is named, not copied: the screenshots folder is kept for good and travels with a Transfer */
+/** a clip or an image larger than this is named, not copied: the screenshots folder is kept for good and travels with a Transfer */
 const MAX_CLIP_BYTES = 200 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 const VIEW = '(front|back|top|bottom|left|right|iso|isometric|opposite_iso|side|section(_[a-z]+)?|[a-z]*_?closeup)';
 const VIEW_ONLY = new RegExp(`^${VIEW}$`, 'i');
 const VIEW_SUFFIX = new RegExp(`_${VIEW}$`, 'i');
@@ -236,13 +237,24 @@ async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: Captur
         return null;
       }
     };
+    const shows = (f: string) => !f.startsWith('samples/') && (IMAGE.test(f) || VIDEO.test(f) || NAMED.test(f));
     let pool = files
-      .filter((f) => !f.startsWith('samples/') && (IMAGE.test(f) || VIDEO.test(f) || NAMED.test(f)) && (!landed || landed.has(f)))
+      .filter((f) => shows(f) && (!landed || landed.has(f)))
       .map(stat)
       .filter((x): x is FileStat => !!x);
     if (!landed) {
       const since = Math.min(...listAttempts(store.db, task.id).map((a) => Date.parse(a.startedAt)).filter((n) => !Number.isNaN(n)), Number.POSITIVE_INFINITY);
       if (Number.isFinite(since)) pool = pool.filter((x) => x.at >= since);
+    }
+    // the task's landing brought nothing new (its exports came out exactly as they were): the files its milestone names
+    // by path stand in, rather than a milestone with nothing to look at
+    let byMilestone = false;
+    if (landed && !pool.length && task.milestone) {
+      pool = files
+        .filter((f) => shows(f) && mentions(task.milestone!, f))
+        .map(stat)
+        .filter((x): x is FileStat => !!x);
+      byMilestone = pool.length > 0;
     }
     const manifest = (task.relevantFiles ?? [])
       .filter((f) => /^docs\/artifacts\/.+\.md$/.test(f) && !f.split('/').includes('..'))
@@ -264,40 +276,49 @@ async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: Captur
     const named = pool.filter((x) => NAMED.test(x.f)).map((x) => x.f).sort();
     const dir = screenshotsDir(config.dataDir, goal);
     mkdirSync(dir, { recursive: true });
-    let uncopied = 0;
-    const copy = async (x: FileStat): Promise<string | null> => {
+    const missed = { images: 0, clips: 0 };
+    const copy = async (x: FileStat, kind: keyof typeof missed): Promise<string | null> => {
       const ext = (/\.[^./]+$/.exec(x.f)?.[0] ?? '').toLowerCase();
       const stem = x.f.slice(0, x.f.length - ext.length).replace(/[^\w.-]+/g, '_').slice(-48);
       const name = `${task.id}-${Bun.hash(`${x.f}\0${x.size}\0${x.at}`).toString(36)}-${stem}${ext}`;
+      const dest = join(dir, name);
       try {
-        // a clone where the file system can make one, else a copy, off the event loop
-        if (!existsSync(join(dir, name))) await copyFile(join(root, x.f), join(dir, name), constants.COPYFILE_FICLONE);
+        // reused only when whole; a copy goes under a temporary name first (a clone where the file system can make one,
+        // off the event loop), so one cut short by a restart is never taken for the file
+        if (!existsSync(dest) || statSync(dest).size !== x.size) {
+          await copyFile(join(root, x.f), `${dest}.part`, constants.COPYFILE_FICLONE);
+          renameSync(`${dest}.part`, dest);
+        }
         return name;
       } catch {
-        uncopied++;
+        missed[kind]++;
         return null;
       }
     };
-    for (const x of images.slice(0, MAX_SHOTS)) {
-      const file = await copy(x);
+    const showable = images.filter((x) => x.size <= MAX_IMAGE_BYTES);
+    for (const x of showable.slice(0, MAX_SHOTS)) {
+      const file = await copy(x, 'images');
       if (file) evidence.shots.push({ file, caption: x.f });
     }
-    const tooLarge = clips.slice(0, MAX_CLIPS).filter((x) => x.size > MAX_CLIP_BYTES).map((x) => x.f);
+    const tooLarge = [...images.filter((x) => x.size > MAX_IMAGE_BYTES), ...clips.slice(0, MAX_CLIPS).filter((x) => x.size > MAX_CLIP_BYTES)].map((x) => x.f);
     const shownClips: { file: string; caption: string }[] = [];
     for (const x of clips.slice(0, MAX_CLIPS).filter((c) => c.size <= MAX_CLIP_BYTES)) {
-      const file = await copy(x);
+      const file = await copy(x, 'clips');
       if (file) shownClips.push({ file, caption: x.f });
     }
     if (shownClips.length) evidence.clips = shownClips;
     const linked = [...tooLarge, ...named];
     if (linked.length) evidence.files = linked.slice(0, MAX_NAMED);
     const shown = evidence.shots.length + shownClips.length;
+    const uncopied = missed.images + missed.clips;
     // what the shots and clips do not say; the files themselves are listed apart (the card links them)
     const notes: string[] = [];
+    if (byMilestone) notes.push('the task changed none of its files: these are the ones its milestone names');
     if (!shown && linked.length) notes.push('nothing to preview');
-    if (images.length > evidence.shots.length + uncopied) notes.push(`${evidence.shots.length} of ${images.length} images shown, the ones the milestone names first`);
+    if (showable.length > evidence.shots.length + missed.images) notes.push(`${evidence.shots.length} of ${showable.length} images shown, the ones the milestone names first`);
     if (clips.length > MAX_CLIPS) notes.push(`${MAX_CLIPS} of ${clips.length} clips shown`);
-    if (tooLarge.length) notes.push(`${tooLarge.length} clip(s) too large to copy, listed with the files`);
+    if (tooLarge.length) notes.push(`${tooLarge.length} file(s) too large to copy, listed with the files`);
+    if (linked.length > MAX_NAMED) notes.push(`${linked.length - MAX_NAMED} more file(s) not listed`);
     if (uncopied) notes.push(`${uncopied} file(s) could not be copied for the card`);
     evidence.summary = notes.map((n) => `${n[0]!.toUpperCase()}${n.slice(1)}.`).join(' ');
     if (shown || linked.length) {

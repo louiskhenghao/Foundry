@@ -150,7 +150,7 @@ test('a video task shows its clips, the one its milestone names first, and names
   expect(ev.clips!.map((c) => c.caption)).toEqual(['teaser.mp4', 'cut_b.mp4']);
   expect(ev.shots.map((s) => s.caption)).toEqual(['poster.jpg']);
   expect(ev.files).toEqual(['master.mov']);
-  expect(ev.summary).toBe('1 clip(s) too large to copy, listed with the files.');
+  expect(ev.summary).toBe('1 file(s) too large to copy, listed with the files.');
   expect(existsSync(join(screenshotsDir(dataDir, goal), ev.clips![0]!.file))).toBe(true);
   expect(readdirSync(screenshotsDir(dataDir, goal)).some((f) => f.endsWith('.mov'))).toBe(false);
 });
@@ -173,4 +173,34 @@ test('an image is named by its file or its folder without the view, and by nothi
   expect(imageSubject('snapshots/iso.png')).toBe('');
   expect(imageSubject('front.png')).toBe('');
   expect(imageSubject('_front.png')).toBe('');
+});
+
+test('a copy cut short is made again, an image too large to copy is linked instead, and links past twelve are counted', async () => {
+  const goal = seed('g_files08');
+  art('part_iso.png', 1, 'the whole render');
+  truncateSync(art('poster_8k.png', 1), 26 * 1024 * 1024);
+  const named = Array.from({ length: 13 }, (_, i) => `part_${String(i).padStart(2, '0')}.step`);
+  for (const f of named) art(f, 1);
+  land(goal, 't_part', ['part_iso.png', 'poster_8k.png', ...named]);
+  const look = task('t_part', 'look at the part');
+  const ev = (await captureMilestone(engine, goal, look))!;
+  expect(ev.shots.map((s) => s.caption)).toEqual(['part_iso.png']);
+  expect(ev.files![0]).toBe('poster_8k.png');
+  expect(ev.files).toHaveLength(12);
+  expect(ev.summary).toBe('1 file(s) too large to copy, listed with the files. 2 more file(s) not listed.');
+  // a restart cut the copy short: the next look makes it again instead of serving the half
+  const copy = join(screenshotsDir(dataDir, goal), ev.shots[0]!.file);
+  writeFileSync(copy, 'the whole');
+  await captureMilestone(engine, goal, look);
+  expect(readFileSync(copy, 'utf8')).toBe('the whole render');
+});
+
+test('a task whose landing brought nothing new shows the files its milestone names, saying so', async () => {
+  const goal = seed('g_files09');
+  art('bracket_iso.png', 1);
+  art('hinge_iso.png', 1);
+  land(goal, 't_fix', []);
+  const ev = (await captureMilestone(engine, goal, task('t_fix', 'open artifacts/bracket_iso.png again')))!;
+  expect(ev).toMatchObject({ status: 'pass', shots: [{ caption: 'bracket_iso.png' }] });
+  expect(ev.summary).toBe('The task changed none of its files: these are the ones its milestone names.');
 });
