@@ -50,3 +50,21 @@ test("a milestone's copies are served in every format a milestone of files colle
     await done();
   }
 });
+
+test("a milestone's file links open the delivered copy once the goal folder is gone, and nothing the delivery did not record", async () => {
+  const { engine, app, goal, done } = await setup();
+  const out = mkdtempSync(join(tmpdir(), 'foundry-milestone-out-'));
+  try {
+    mkdirSync(join(out, 'parts'), { recursive: true });
+    writeFileSync(join(out, 'parts', 'bracket.step'), 'ISO-10303-21;');
+    writeFileSync(join(out, 'notes.txt'), 'not delivered by Foundry');
+    engine.store.append({ type: 'goal.artifacts_delivered', goalId: goal.id, payload: { status: 'ok', files: ['parts/bracket.step'], dest: out, detail: '1 artifact(s) copied' } });
+    const r = await app.request(`/api/goals/${goal.id}/artifacts/parts/bracket.step`);
+    expect(r.status).toBe(200);
+    expect(await r.text()).toBe('ISO-10303-21;');
+    expect((await app.request(`/api/goals/${goal.id}/artifacts/notes.txt`)).status).toBe(404);
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+    await done();
+  }
+});

@@ -292,12 +292,12 @@ async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: Captur
     const linked = [...tooLarge, ...named];
     if (linked.length) evidence.files = linked.slice(0, MAX_NAMED);
     const shown = evidence.shots.length + shownClips.length;
+    // what the shots and clips do not say; the files themselves are listed apart (the card links them)
     const notes: string[] = [];
-    if (!shown && linked.length) notes.push('nothing to preview: the files are linked below');
+    if (!shown && linked.length) notes.push('nothing to preview');
     if (images.length > evidence.shots.length + uncopied) notes.push(`${evidence.shots.length} of ${images.length} images shown, the ones the milestone names first`);
     if (clips.length > MAX_CLIPS) notes.push(`${MAX_CLIPS} of ${clips.length} clips shown`);
-    if (tooLarge.length) notes.push(`too large to copy, open from the files: ${tooLarge.join(', ')}`);
-    if (named.length) notes.push(`files: ${named.slice(0, 6).join(', ')}${named.length > 6 ? ` and ${named.length - 6} more` : ''}`);
+    if (tooLarge.length) notes.push(`${tooLarge.length} clip(s) too large to copy, listed with the files`);
     if (uncopied) notes.push(`${uncopied} file(s) could not be copied for the card`);
     evidence.summary = notes.map((n) => `${n[0]!.toUpperCase()}${n.slice(1)}.`).join(' ');
     if (shown || linked.length) {

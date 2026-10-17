@@ -534,7 +534,10 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const goal = goalOr404(c);
     const rel = decodeURIComponent(c.req.path.slice(c.req.path.indexOf('/artifacts/') + '/artifacts/'.length));
     if (!rel || rel.split('/').some((seg) => seg === '..' || seg === '' || seg.startsWith('.git'))) throw new HttpError(400, { error: 'bad artifact path' });
-    const p = join(goalWorkspacePath(engine.config.dataDir, goal), 'artifacts', rel);
+    let p = join(goalWorkspacePath(engine.config.dataDir, goal), 'artifacts', rel);
+    // a finished goal whose folder was cleaned up: the copy delivered to its output folder (a milestone of files links it)
+    const run = goal.completion.artifactsRun;
+    if (!existsSync(p) && run?.status === 'ok' && run.dest && run.files.includes(rel)) p = join(run.dest, rel);
     if (!existsSync(p)) throw new HttpError(404, { error: 'artifact not found' });
     return new Response(Bun.file(p), { headers: { 'cache-control': 'private, max-age=60' } });
   });

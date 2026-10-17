@@ -52,7 +52,9 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
               ? `📸 What the task produced — ${goalTitle(e.goalId)}`
               : `📸 What the milestone looks like — ${goalTitle(e.goalId)}`;
       const error = e.payload.error ? (files ? `${e.payload.error[0]!.toUpperCase()}${e.payload.error.slice(1)}` : `Foundry could not record a walkthrough: ${e.payload.error}`) : '';
-      const body = e.payload.summary || error;
+      const named = e.payload.files ?? [];
+      const listed = files && named.length ? `Files: ${named.slice(0, 6).join(', ')}${named.length > 6 ? ` and ${named.length - 6} more` : ''}` : '';
+      const body = [e.payload.summary, listed].filter(Boolean).join('\n') || error;
       // what went wrong next to a walkthrough that was recorded anyway (error pages left out, no plan)
       const also = e.payload.summary && e.payload.error ? `⚠️ ${e.payload.error.slice(0, 300)}` : '';
       return { family: 'milestone', text: [head, body.slice(0, 600), also].filter(Boolean).join('\n'), path: `/goals/${e.goalId}` };

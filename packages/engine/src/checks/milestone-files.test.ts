@@ -62,7 +62,7 @@ test("a cad task's milestone shows the snapshots and names the exports its landi
   const ev = (await captureMilestone(engine, goal, bracket))!;
   expect(ev).toMatchObject({ kind: 'files', status: 'pass', error: null, files: ['bracket.step', 'bracket.stl', 'bracket_drawing.pdf'] });
   expect(ev.shots.map((s) => s.caption)).toEqual(['bracket_front.png', 'bracket_iso.png']);
-  expect(ev.summary).toBe('Files: bracket.step, bracket.stl, bracket_drawing.pdf.');
+  expect(ev.summary).toBe('');
   // the copies sit in the screenshots folder, where the card and the notification channels read them
   expect(ev.shots.map((s) => readFileSync(join(screenshotsDir(dataDir, goal), s.file), 'utf8'))).toEqual(['front', 'iso']);
   // a task whose landing brought nothing says so, instead of showing the goal's other files
@@ -150,7 +150,7 @@ test('a video task shows its clips, the one its milestone names first, and names
   expect(ev.clips!.map((c) => c.caption)).toEqual(['teaser.mp4', 'cut_b.mp4']);
   expect(ev.shots.map((s) => s.caption)).toEqual(['poster.jpg']);
   expect(ev.files).toEqual(['master.mov']);
-  expect(ev.summary).toContain('Too large to copy, open from the files: master.mov.');
+  expect(ev.summary).toBe('1 clip(s) too large to copy, listed with the files.');
   expect(existsSync(join(screenshotsDir(dataDir, goal), ev.clips![0]!.file))).toBe(true);
   expect(readdirSync(screenshotsDir(dataDir, goal)).some((f) => f.endsWith('.mov'))).toBe(false);
 });
@@ -161,7 +161,7 @@ test('a drawing task that left only its PDF reaches its milestone: the drawing i
   land(goal, 't_drawing', ['bracket_drawing.pdf']);
   const ev = (await captureMilestone(engine, goal, task('t_drawing', 'read the bracket drawing')))!;
   expect(ev).toMatchObject({ status: 'pass', error: null, shots: [], files: ['bracket_drawing.pdf'] });
-  expect(ev.summary).toBe('Nothing to preview: the files are linked below. Files: bracket_drawing.pdf.');
+  expect(ev.summary).toBe('Nothing to preview.');
 });
 
 test('an image is named by its file or its folder without the view, and by nothing when neither says', () => {

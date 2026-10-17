@@ -1,4 +1,5 @@
-import { CheckCircle2, ChevronLeft, ChevronRight, Eye, FastForward, FileCode2, Loader2, MessageSquare, Play, RotateCcw, ScrollText } from 'lucide-react';
+import { ARTIFACT_SCENARIOS } from '@foundry/core/browser';
+import { CheckCircle2, ChevronLeft, ChevronRight, Eye, FastForward, FileCode2, FileDown, Loader2, MessageSquare, Play, RotateCcw, ScrollText } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { type GoalDetail, api, fileUrl } from '../../api.ts';
 import { Button, Card, Modal, ago, cn } from '../../ui.tsx';
@@ -17,10 +18,14 @@ export type Evidence = {
   outputs?: Item[];
   log?: string | null;
   final?: boolean;
+  /** 'files': what a task produced (a model's snapshots, images, video), not a walkthrough */
+  kind?: 'files';
+  /** a milestone of files: the models, drawings and too-large clips it names, relative to artifacts/ */
+  files?: string[];
 };
 
-/** tasks whose milestone shows the files they produced (a model's snapshots, images, video) instead of a walkthrough; the engine's list */
-export const FILE_SCENARIOS: readonly string[] = ['cad', 'image', 'video'];
+/** a task whose milestone shows the files it produced (a model's snapshots, images, video) instead of a walkthrough, as the engine decides: a milestone script comes first */
+export const showsFiles = (t: { scenario: string; milestoneScript?: string | null }) => !t.milestoneScript && (ARTIFACT_SCENARIOS as readonly string[]).includes(t.scenario);
 
 /** the task id the final walkthrough uses where a milestone's goes */
 export const FINAL_WALK = 'final';
@@ -36,12 +41,13 @@ const STATUS: Record<'pass' | 'fail' | 'unverified' | 'running' | 'none', { labe
   none: { label: 'not reached yet', className: 'bg-zinc-800 text-zinc-400 border-zinc-700' },
 };
 
-function StatusChip({ status }: { status: keyof typeof STATUS }) {
+/** `files`: a milestone of files, which is collected, not recorded */
+function StatusChip({ status, files = false }: { status: keyof typeof STATUS; files?: boolean }) {
   const s = STATUS[status];
   return (
     <span className={cn('inline-flex items-center gap-1 whitespace-nowrap rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide', s.className)}>
       {status === 'running' && <Loader2 size={10} className="animate-spin" />}
-      {s.label}
+      {status === 'running' && files ? 'collecting…' : s.label}
     </span>
   );
 }
@@ -115,14 +121,32 @@ function OutputBlock({ goalId, item }: { goalId: string; item: Item }) {
   );
 }
 
-/** a milestone's recording: the videos and screenshots as same-size tiles (a click opens them in a viewer), what an API answered, the script and its log, and why when it could not show it */
+/**
+ * a milestone's recording: the videos and screenshots as same-size tiles (a click opens them in a viewer), what an API
+ * answered, the script and its log, and why when it could not show it. A milestone of files shows what the task
+ * produced: its pictures whole (a model's snapshot is not a page to crop), and its models and drawings as links.
+ */
 export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evidence: Evidence; taskId?: string }) {
   const [shown, setShown] = useState<number | null>(null);
   const items = mediaOf(evidence);
   const status = evidenceStatus(evidence);
+  const files = evidence.kind === 'files';
+  const fit = files ? 'object-contain' : 'object-cover object-top';
   return (
     <div className="space-y-1.5">
-      <div className="text-[11px] text-zinc-500">What Foundry saw{evidence.summary ? `: ${evidence.summary}` : ''}</div>
+      <div className="text-[11px] text-zinc-500">
+        {files ? 'What the task produced' : 'What Foundry saw'}
+        {evidence.summary ? `${files ? ' · ' : ': '}${evidence.summary}` : ''}
+      </div>
+      {files && (evidence.files ?? []).length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+          {evidence.files!.map((f) => (
+            <a key={f} href={api.artifactUrl(goalId, f)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sky-300 hover:underline mono" title={`${f}: opens or downloads in a new tab`}>
+              <FileDown size={11} /> {f}
+            </a>
+          ))}
+        </div>
+      )}
       {(evidence.script || evidence.log) && (
         <div className="flex flex-wrap items-center gap-3 text-[11px]">
           {evidence.script && (
@@ -145,11 +169,11 @@ export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evi
         <div className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2">
           {items.map((m, i) => (
             <button key={m.file} type="button" onClick={() => setShown(i)} title={m.caption} className="min-w-0 text-left group">
-              <span className="relative block aspect-video overflow-hidden rounded border border-zinc-700 group-hover:border-zinc-500 bg-black">
+              <span className={cn('relative block aspect-video overflow-hidden rounded border border-zinc-700 group-hover:border-zinc-500', files ? 'bg-zinc-950' : 'bg-black')}>
                 {m.kind === 'video' ? (
                   <>
                     {/* the first frame as the tile's picture */}
-                    <video src={`${api.screenshotUrl(goalId, m.file)}#t=0.1`} muted preload="metadata" playsInline className="h-full w-full object-cover object-top pointer-events-none" />
+                    <video src={`${api.screenshotUrl(goalId, m.file)}#t=0.1`} muted preload="metadata" playsInline className={cn('h-full w-full pointer-events-none', fit)} />
                     <span className="absolute inset-0 flex items-center justify-center">
                       <span className="rounded-full bg-black/60 p-2 text-zinc-100">
                         <Play size={14} fill="currentColor" />
@@ -157,10 +181,11 @@ export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evi
                     </span>
                   </>
                 ) : (
-                  <img src={api.screenshotUrl(goalId, m.file)} alt={m.caption} loading="lazy" className="h-full w-full object-cover object-top" />
+                  <img src={api.screenshotUrl(goalId, m.file)} alt={m.caption} loading="lazy" className={cn('h-full w-full', fit)} />
                 )}
               </span>
-              <span className="block text-[10px] text-zinc-500 truncate mt-0.5">{m.caption}</span>
+              {/* a file's caption keeps its folder and name, where a long path would lose the view that tells two apart */}
+              <span className="block text-[10px] text-zinc-500 truncate mt-0.5">{files ? m.caption.split('/').slice(-2).join('/') : m.caption}</span>
             </button>
           ))}
         </div>
@@ -191,10 +216,10 @@ interface Visit {
 type Recording = { at: string; evidence: Evidence };
 
 /**
- * Every milestone of the goal in plan order, one per feature: whether it was shown (a passing script, or a walkthrough of
- * the real app), shown with fake data only, or failed; when it landed and what the person answered; its latest
- * recording, so it can be watched again; and a Rerun. On top, the final walkthrough that ran every script once all
- * tasks were done.
+ * Every milestone of the goal in plan order, one per feature: whether it was shown (a passing script, a walkthrough of
+ * the real app, or the files a task produced), shown with fake data only, or failed; when it landed and what the person
+ * answered; its latest recording, so it can be looked at again; and a Rerun. On top, the final walkthrough that ran
+ * every script once all tasks were done.
  */
 export function MilestonesCard({ d }: { d: GoalDetail }) {
   const g = d.goal;
@@ -253,7 +278,7 @@ export function MilestonesCard({ d }: { d: GoalDetail }) {
       title={`Milestones (${reached}/${milestones.length} shown)`}
       actions={
         landed.length > 0 && (
-          <Button size="sm" variant="info" disabled={landed.every((m) => runs.has(m.task.id))} onClick={() => void rerun(FINAL_WALK)} title="Record every milestone that landed again: scripts run, walkthroughs replay">
+          <Button size="sm" variant="info" disabled={landed.every((m) => runs.has(m.task.id))} onClick={() => void rerun(FINAL_WALK)} title="Record every milestone that landed again: scripts run, walkthroughs replay, milestones of files collect their files again">
             <RotateCcw size={12} /> Rerun all
           </Button>
         )
@@ -274,6 +299,7 @@ export function MilestonesCard({ d }: { d: GoalDetail }) {
           const last = vs.at(-1);
           const expanded = open.has(task.id);
           const running = runs.has(task.id);
+          const files = showsFiles(task);
           const status = running ? 'running' : rec ? evidenceStatus(rec.evidence) : 'none';
           return (
             <li key={task.id} className="py-2 first:pt-0 last:pb-0">
@@ -283,12 +309,12 @@ export function MilestonesCard({ d }: { d: GoalDetail }) {
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="text-zinc-200 font-medium">{task.title}</span>
-                      <StatusChip status={status} />
+                      <StatusChip status={status} files={files} />
                     </span>
                     <span className="block text-zinc-500 truncate">{task.milestone}</span>
                     <span className="block text-[11px] text-zinc-500">
                       {!last ? (task.state === 'done' ? 'landed' : 'not reached yet') : `${ago(last.at)} · ${last.paused ? (last.recheck ? 'second look' : 'paused for a look') : task.milestoneScript ? 'recorded, the goal went on' : 'went on (Have a look off)'}`}
-                      {rec && rec.at !== last?.at && <span> · recorded {ago(rec.at)}{rec.evidence.final ? ' (final walkthrough)' : ''}</span>}
+                      {rec && rec.at !== last?.at && <span> · {files ? 'collected' : 'recorded'} {ago(rec.at)}{rec.evidence.final ? ' (final walkthrough)' : ''}</span>}
                       {last?.outcome?.action === 'continue' && <span className="inline-flex items-center gap-0.5 text-emerald-300/90"> · <CheckCircle2 size={10} /> continued</span>}
                       {last?.outcome?.action === 'feedback' && <span className="inline-flex items-center gap-0.5 text-sky-300/90"> · <MessageSquare size={10} /> feedback: {last.outcome.feedback?.slice(0, 80)}</span>}
                     </span>
@@ -296,7 +322,7 @@ export function MilestonesCard({ d }: { d: GoalDetail }) {
                   {rec && <ChevronRight size={13} className={cn('mt-0.5 shrink-0 text-zinc-500 transition-transform', expanded && 'rotate-90')} />}
                 </button>
                 {task.state === 'done' && (
-                  <Button size="sm" variant="info" className="shrink-0" disabled={running} onClick={() => void rerun(task.id)} title={task.milestoneScript ? `Run ${task.milestoneScript} again and record what it shows` : FILE_SCENARIOS.includes(task.scenario) ? "Show the task's files again (snapshots, images, video)" : 'Replay the walkthrough recorded last time in the preview'}>
+                  <Button size="sm" variant="info" className="shrink-0" disabled={running} onClick={() => void rerun(task.id)} title={task.milestoneScript ? `Run ${task.milestoneScript} again and record what it shows` : files ? "Show the task's files again (snapshots, images, video)" : 'Replay the walkthrough recorded last time in the preview'}>
                     <RotateCcw size={12} /> Rerun
                   </Button>
                 )}
