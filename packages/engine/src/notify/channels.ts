@@ -129,10 +129,29 @@ export class TelegramNotifier implements Notifier {
         for (const [i, f] of files.entries()) form.set(`f${i}`, await blob(f), fileName(f));
       });
     } catch (err) {
-      // a file Telegram will not take (a picture with too many pixels or an odd shape) must not drop the message
-      if (!/^telegram 400/.test(String((err as Error)?.message))) throw err;
-      await this.send(`${plain}\n(the files could not be attached)`, links);
+      // a picture Telegram will not take as a photo (too many pixels, an odd shape) still goes, as a file; only when
+      // even that is refused does the text go alone
+      if (!refused(err)) throw err;
+      try {
+        await this.sendDocuments(plain, files, links);
+      } catch (again) {
+        if (!refused(again)) throw again;
+        await this.send(`${plain}\n(the files could not be attached)`, links);
+      }
     }
+  }
+  /** files as documents, which carry no limit on a picture's pixels or shape: one by sendDocument, several as an album of documents */
+  private async sendDocuments(caption: string, files: MediaFile[], links: Link[]): Promise<void> {
+    if (files.length === 1)
+      return this.upload('sendDocument', caption, links, async (form, text, html) => {
+        form.set('caption', text);
+        if (html) form.set('parse_mode', 'HTML');
+        form.set('document', await blob(files[0]!), fileName(files[0]!));
+      });
+    await this.upload('sendMediaGroup', caption, links, async (form, text, html) => {
+      form.set('media', JSON.stringify(files.map((f, i) => ({ type: 'document', media: `attach://f${i}`, ...(i === 0 ? { caption: text, ...(html ? { parse_mode: 'HTML' } : {}) } : {}) }))));
+      for (const [i, f] of files.entries()) form.set(`f${i}`, await blob(f), fileName(f));
+    });
   }
   /** a multipart upload with a caption (1024 at most): its links as HTML, written out when Telegram refuses them */
   private async upload(method: string, caption: string, links: Link[], fill: (form: FormData, text: string, html: boolean) => Promise<void>): Promise<void> {
@@ -149,12 +168,18 @@ export class TelegramNotifier implements Notifier {
   }
 }
 
+/** a Telegram upload it refused for what was sent (a 400), not for being unreachable */
+const refused = (err: unknown) => /^telegram 400/.test(String((err as Error)?.message));
+
+/** no @everyone, role or user mention in a message is acted on: its text comes partly from file names and model output */
+const NO_MENTIONS = { parse: [] as string[] };
+
 export class DiscordNotifier implements Notifier {
   readonly name = 'discord';
   constructor(private webhookUrl: string) {}
   async send(text: string, links: Link[] = []): Promise<void> {
-    let res = await post(this.webhookUrl, { content: discordLinks(text, links).slice(0, MAX_LEN) });
-    if (!res.ok && links.length && res.status === 400) res = await post(this.webhookUrl, { content: plainLinks(text, links).slice(0, MAX_LEN) });
+    let res = await post(this.webhookUrl, { content: discordLinks(text, links).slice(0, MAX_LEN), allowed_mentions: NO_MENTIONS });
+    if (!res.ok && links.length && res.status === 400) res = await post(this.webhookUrl, { content: plainLinks(text, links).slice(0, MAX_LEN), allowed_mentions: NO_MENTIONS });
     if (!res.ok) throw new Error(`discord ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
   }
   async sendPhoto(caption: string, file: string, links: Link[] = []): Promise<void> {
@@ -167,7 +192,7 @@ export class DiscordNotifier implements Notifier {
     if (!files.length) return this.send(plain, links);
     const content = discordLinks(plain, links).slice(0, MAX_LEN);
     const form = new FormData();
-    form.set('payload_json', JSON.stringify({ content }));
+    form.set('payload_json', JSON.stringify({ content, allowed_mentions: NO_MENTIONS }));
     for (const [i, f] of files.entries()) form.set(`files[${i}]`, await blob(f), fileName(f));
     const res = await fetch(this.webhookUrl, { method: 'POST', body: form, signal: AbortSignal.timeout(120_000) });
     if (!res.ok) throw new Error(`discord ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
