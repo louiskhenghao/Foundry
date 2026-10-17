@@ -1,5 +1,5 @@
 import { existsSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { ARTIFACT_NATURES, ARTIFACT_SCENARIOS, listAttempts, listTasks, type Goal, type Task } from '@foundry/core';
 import type { Engine } from './engine.ts';
 import { ARTIFACTS_DIR, copyArtifactFiles, copyUntrackedArtifacts, goalWorkspacePath, listArtifacts, trackedArtifacts } from './workspace.ts';
@@ -101,6 +101,24 @@ export async function retryUnlanded(engine: Engine, goal: Goal): Promise<void> {
     engine.store.append({ type: 'task.artifacts_landed', goalId: goal.id, payload: { taskId: task.id, files, ...(failed.length ? { failed } : {}) } });
     engine.config.log(`[artifacts] ${task.id}: ${files.length} file(s) copied again${failed.length ? `, ${failed.length} still not` : ''}`);
   }
+}
+
+/**
+ * The model the CAD Viewer opens among `files` (relative to `root`): the assembly when one was exported (a STEP whose
+ * name says assembly, or has asm, assy or stack as a word of its own), else the newest STEP; never a style sample.
+ */
+export function cadModelIn(root: string, files: string[]): string | null {
+  const steps = files
+    .filter((f) => /\.(step|stp)$/i.test(f) && !f.startsWith('samples/'))
+    .flatMap((f) => {
+      try {
+        return [{ f, at: statSync(join(root, f)).mtimeMs }];
+      } catch {
+        return [];
+      }
+    });
+  const assemblies = steps.filter((s) => /assembl|(^|[_-])(asm|assy|stack)([_.-]|$)/i.test(basename(s.f)));
+  return (assemblies.length ? assemblies : steps).sort((a, b) => b.at - a.at)[0]?.f ?? null;
 }
 
 /** whether Foundry keeps artifacts/ for this goal: a goal judged by its files, or one with a task whose deliverables are files */

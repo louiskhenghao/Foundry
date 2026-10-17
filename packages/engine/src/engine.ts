@@ -91,10 +91,11 @@ import { EffortRunner } from './effort-runner.ts';
 import { ModelRegistry, SEED_MODELS, isPinnedId, type ModelRecord } from './models/registry.ts';
 import { copyProjectSkills, hasStackManifest, runAutoskills, type AutoskillsDeps } from './skills/autoskills.ts';
 import { deliverArtifacts, inferCompletion, runGraphRefresh, shouldRunGraphRefresh, type GraphRefreshDeps } from './completion.ts';
+import { cadModelIn } from './goal-artifacts.ts';
 import type { SettingsPatch, SettingsView } from '@foundry/core';
 import { ACTION_INFO, BUILTIN_PRESETS, DEFAULT_NATURE_PRESETS, MODEL_ACTIONS, MODEL_NATURES, NATURE_LABEL, effectivePresets } from '@foundry/core';
 import { spawnStreaming } from './skills/updaters.ts';
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { removeWorktree } from './git/git.ts';
 import { BaselineChecks } from './checks/baseline.ts';
 import { relative, resolve } from 'node:path';
@@ -409,6 +410,7 @@ export class Engine {
     config.log(`[engine] context provider: ${this.context.name}`);
     this.store.subscribe((e) => {
       if (e.type === 'session.usage' && e.payload.sessionId) this.ownedSessionIds.add(e.payload.sessionId);
+      if ((e.type === 'task.artifacts_landed' || e.type === 'goal.artifacts_delivered') && e.goalId) this.cadModelMemo.delete(e.goalId);
       if (e.goalId) this.tick(e.goalId);
     });
     this.notifications = new NotificationDispatcher(this);
@@ -488,30 +490,27 @@ export class Engine {
   }
 
   /**
-   * The model the CAD Viewer opens on: the goal's assembly when it exported one (a STEP whose name says assembly, or
-   * has asm, assy or stack as a word of its own), else the newest STEP it exported — from its workspace while it runs,
-   * from the output folder once delivered. Null = the viewer's home.
+   * The model the CAD Viewer opens on (cadModelIn): from the goal's workspace while it runs, from the output folder
+   * once delivered. Null = the viewer's home. Every status poll of the preview asks, so the answer is kept for 10 s and
+   * dropped when a landing or a delivery changes the goal's files.
    */
   cadModel(goal: Goal): string | null {
-    const pick = (root: string, files: string[]): string | null => {
-      const steps = files
-        .filter((f) => /\.(step|stp)$/i.test(f) && !f.startsWith('samples/'))
-        .flatMap((f) => {
-          try {
-            return [{ f, at: statSync(join(root, f)).mtimeMs }];
-          } catch {
-            return [];
-          }
-        });
-      const assemblies = steps.filter((s) => /assembl|(^|[_-])(asm|assy|stack)([_.-]|$)/i.test(basename(s.f)));
-      const best = (assemblies.length ? assemblies : steps).sort((a, b) => b.at - a.at)[0];
-      return best ? join(root, best.f) : null;
-    };
+    const hit = this.cadModelMemo.get(goal.id);
+    if (hit && Date.now() - hit.at < 10_000) return hit.value;
+    const value = this.findCadModel(goal);
+    this.cadModelMemo.set(goal.id, { at: Date.now(), value });
+    return value;
+  }
+  private cadModelMemo = new Map<string, { at: number; value: string | null }>();
+  private findCadModel(goal: Goal): string | null {
     const ws = goalWorkspacePath(this.config.dataDir, goal);
-    const live = pick(join(ws, ARTIFACTS_DIR), listArtifacts(ws));
-    if (live) return live;
+    const live = cadModelIn(join(ws, ARTIFACTS_DIR), listArtifacts(ws));
+    if (live) return join(ws, ARTIFACTS_DIR, live);
     const run = goal.completion.artifactsRun;
-    return run?.status === 'ok' && run.dest ? pick(run.dest, run.files) : null;
+    if (run?.status !== 'ok' || !run.dest) return null;
+    // recorded at delivery, so the output folder (a network share, perhaps) is not searched; older deliveries did not record it
+    const model = run.model === undefined ? cadModelIn(run.dest, run.files) : run.model;
+    return model ? join(run.dest, model) : null;
   }
 
   /** text-to-cad installed: the bundle's `cad` entry satisfied for a coding agent */

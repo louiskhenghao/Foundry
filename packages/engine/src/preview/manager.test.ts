@@ -333,6 +333,9 @@ describe('installSteps', () => {
 });
 
 describe('the CAD viewer', () => {
+  // a landing is what tells the engine a goal's exports changed (the viewer's model is kept between status polls)
+  const landed = (goalId: string, files: string[]) => engine.store.append({ type: 'task.artifacts_landed', goalId, payload: { taskId: 't_cad', files } });
+
   test("a cad goal lists text-to-cad's viewer with the plugin's pinned command, for the person; a milestone or integration start neither counts nor starts it", async () => {
     fakeCadPlugin(join(dataDir, 'claude-home'));
     const repo = await makeRepo();
@@ -346,9 +349,13 @@ describe('the CAD viewer', () => {
     // once the goal exported models, the viewer opens on one of them: the assembly when there is one, else the newest STEP
     mkdirSync(join(ws, 'artifacts', 'parts'), { recursive: true });
     writeFileSync(join(ws, 'artifacts', 'parts', 'side bracket.step'), 'x');
+    landed(g.id, ['parts/side bracket.step']);
     expect(engine.cadViewerApp(g)!.url).toBe(`http://localhost:{port}/?file=${ws}/artifacts/parts/side%20bracket.step`);
     writeFileSync(join(ws, 'artifacts', 'frame_stack.step'), 'x');
     writeFileSync(join(ws, 'artifacts', 'parts', 'hinge.step'), 'x');
+    // the model is kept between status polls: the folder is not searched again until a landing says it changed
+    expect(engine.cadViewerApp(g)!.url).toBe(`http://localhost:{port}/?file=${ws}/artifacts/parts/side%20bracket.step`);
+    landed(g.id, ['frame_stack.step', 'parts/hinge.step']);
     expect(engine.cadViewerApp(g)!.url).toBe(`http://localhost:{port}/?file=${ws}/artifacts/frame_stack.step`);
     // a goal of another nature has no viewer
     expect(engine.cadViewerApp(goal({ id: 'g_cadview02', nature: 'code', repoPath: repo, branch: 'goal/g_cadview02' }))).toBeNull();
@@ -369,12 +376,19 @@ describe('the CAD viewer', () => {
     at('samples/reference.step', 3);
     expect(engine.cadViewerApp(g)!.url).toBe(`http://localhost:{port}/?file=${ws}/artifacts/clip.step`);
     at('stacking_pin.step', 0);
+    landed(g.id, ['stacking_pin.step']);
     expect(engine.cadViewerApp(g)!.url).toBe(`http://localhost:{port}/?file=${ws}/artifacts/clip.step`);
     rmSync(join(ws, 'artifacts'), { recursive: true, force: true });
     const out = mkdtempSync(join(tmpdir(), 'foundry-cad-out-'));
     writeFileSync(join(out, 'bracket.step'), 'x');
+    // a delivery from before the model was recorded: the delivered files are looked at
     engine.store.append({ type: 'goal.artifacts_delivered', goalId: g.id, payload: { status: 'ok', files: ['bracket.step'], dest: out, detail: '1 artifact(s) copied' } });
     expect(engine.cadViewerApp(getGoal(engine.store.db, g.id)!)!.url).toBe(`http://localhost:{port}/?file=${out}/bracket.step`);
+    // the model the delivery recorded is opened as it is: the output folder (a network share, perhaps) is not searched
+    engine.store.append({ type: 'goal.artifacts_delivered', goalId: g.id, payload: { status: 'ok', files: ['bracket.step', 'frame_assembly.step'], dest: out, detail: '2 artifact(s) copied', model: 'frame_assembly.step' } });
+    expect(engine.cadViewerApp(getGoal(engine.store.db, g.id)!)!.url).toBe(`http://localhost:{port}/?file=${out}/frame_assembly.step`);
+    engine.store.append({ type: 'goal.artifacts_delivered', goalId: g.id, payload: { status: 'ok', files: ['bracket.step'], dest: out, detail: '1 artifact(s) copied', model: null } });
+    expect(engine.cadViewerApp(getGoal(engine.store.db, g.id)!)!.url).toBe('http://localhost:{port}');
     rmSync(out, { recursive: true, force: true });
   });
 
@@ -399,6 +413,7 @@ describe('the CAD viewer', () => {
     const port = viewer().port!;
     expect(viewer().url).toBe(`http://localhost:${port}/?file=${ws}/artifacts/parts/hinge.step`);
     writeFileSync(join(ws, 'artifacts', 'frame_assembly.step'), 'x');
+    landed(g.id, ['frame_assembly.step']);
     expect(viewer().url).toBe(`http://localhost:${port}/?file=${ws}/artifacts/frame_assembly.step`);
     expect(viewer().tailnetUrl).toBeNull();
     expect(exposed).toEqual([]);

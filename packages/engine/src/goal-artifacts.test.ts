@@ -125,3 +125,14 @@ test('what a landing could not copy goes again before the delivery, and the land
   expect(unlandedFiles(engine, goal, task)).toEqual([]);
   for (const d of [out, taskWs]) rmSync(d, { recursive: true, force: true });
 });
+
+test("a cad goal's delivery records the model the CAD Viewer opens, chosen by the exports' own times", async () => {
+  const out = mkdtempSync(join(tmpdir(), 'foundry-land-out-'));
+  const goal = seed(ws, { outputDir: out });
+  art('parts/hinge.step', 300);
+  art('frame_assembly.step', 100);
+  art('samples/reference.step', 400);
+  await deliverArtifacts(engine, goal);
+  expect(getGoal(engine.store.db, goal.id)!.completion.artifactsRun).toMatchObject({ status: 'ok', model: 'frame_assembly.step' });
+  rmSync(out, { recursive: true, force: true });
+});
