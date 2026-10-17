@@ -71,18 +71,30 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
   only by a person from the milestone or preview card, with the plugin's pinned command on a preview port; walkthroughs,
   self-checks and integrations never start it, do not count it (a cad goal with no app of its own still has "nothing to
   run"), and an integration's restart of the running apps leaves it alone. It opens on the goal's model, not on its
-  home: `?file=` with the absolute path of the assembly when one was exported (a STEP named for an assembly or a stack),
-  else of the newest STEP, from the workspace while the goal runs and from the output folder once delivered.
-- **A milestone of files shows the files.** A milestone of a cad, image or video task records what the task left under
-  `artifacts/` (images as screenshots, a video as a clip, the model files named), copied to the goal's screenshots
-  folder like a walkthrough's, so the milestone card and the notification channels show the snapshots; there is no
-  walkthrough of a preview such a goal does not have.
+  home: `?file=` with the absolute path of the assembly when one was exported (a STEP whose name says assembly, or has
+  asm, assy or stack as a word of its own), else of the newest STEP, from the workspace while the goal runs and from the
+  output folder once delivered. The link is built when the card reads it, so a running viewer follows a newer assembly,
+  and its tailnet address carries the same path and query.
+- **A milestone of files shows the task's own files.** A milestone of a cad, image or video task shows what that task
+  produced: the files its landing copied into the goal workspace, recorded as `task.artifacts_landed` (a goal from
+  before that falls back to the files changed since the task's first attempt). Its images and up to four clips, the
+  ones the milestone and the task's manifest name first, are copied to the goal's screenshots folder under names drawn
+  from what they copy (path, size, time): two files never share a copy, a rerun over unchanged files copies nothing, and
+  a clip over 200 MB is named instead. Models and drawings are named, and the card links them (the delivered copy once
+  the goal folder is gone); a task that landed nothing has nothing to look at. The card shows the pictures whole, the
+  screenshots route serves every format collected, and there is no walkthrough of a preview such a goal does not have.
 - **Exports travel with the tasks.** A cad task's worktree starts with the goal workspace's `artifacts/` (what earlier
   tasks exported), the way it gets project skills and style samples: a drawing or an assembly needs the parts' STEP,
   and artifacts never come through git. What a task inherited and left untouched is not copied back at integration, so
-  a task that finishes later never puts an older copy over a newer export. The throw-away worktrees that run the
-  goal's checks (the merge baseline, a manual merge resolution, the stacked delivery) get the goal's artifacts too:
-  without them every check that measures an export read as "already failing" and merges were judged blind to it.
+  a task that finishes later never puts an older copy over a newer export. A manual merge resolution lands the task's
+  artifacts the same way before its worktree goes. The throw-away worktrees that run the goal's checks (the merge
+  baseline, a manual merge resolution, the stacked delivery) get artifacts too: without them every check that measures
+  an export read as "already failing" and merges were judged blind to it. Those copies happen only for goals that keep
+  artifacts, never over a file git tracks (a repository's own `artifacts/` folder comes through git), and never at the
+  cost of the checks: a failed copy is noted. A merge attempt's baseline takes its artifacts from the worktree the merge
+  happens in (a task's own on a catch-up), so both sides of the comparison measure the same exports, and a resolution's
+  worktree gets the goal's artifacts and then the task's changes, after its squash merge. The artifacts listing follows
+  no symbolic link.
 
 ## Consequences
 
@@ -100,4 +112,8 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
 - Not done: the viewer's bind
   address in Docker (unverified), a `cad` file preview in the task drawer (STEP/STL show as binaries), per-tool allow
   lists for the plugin's server (its remaining tools are read-only by its own annotation), and a marketplace added
-  earlier without the `latest` ref (the add says "already exists" and the install follows that other ref).
+  earlier without the `latest` ref (the add says "already exists" and the install follows that other ref). A squash
+  that conflicts at integration (another task landed between a task's last catch-up and its squash) runs its merge
+  attempt in the goal workspace before the task's exports land there, so a task that changes an existing export and
+  the check that measures it together can still read as a regression in that window. Milestone copies of images and
+  clips stay in the screenshots folder, which a Transfer carries.

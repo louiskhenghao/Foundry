@@ -189,7 +189,7 @@ export function imageSubject(f: string): string {
 }
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-/** whether a text names a file or a part as a whole name, not as part of a longer one (`fin.png` is not `grid_fin.png`, `ship` is not `starship`) */
+/** whether a text names a file or a part as a whole name, not as part of a longer one (`fin.png` is not `side_fin.png`, `arm` is not `forearm`) */
 const mentions = (text: string, name: string) => !!name && new RegExp(`(^|[^\\p{L}\\p{N}_.-])${escapeRe(name)}(?![\\p{L}\\p{N}_-])`, 'iu').test(text);
 
 /**
