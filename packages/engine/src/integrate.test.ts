@@ -201,6 +201,38 @@ describe('manual merge resolution: finishing safely', () => {
     expect(await sh('git log -1 --format=%B', ws)).toContain('Resolved manually by the human');
   }, 60_000);
 
+  test("a resolution whose squash record is gone keeps the person's edits: a reload neither drops nor restarts it", async () => {
+    const { startResolution, describeResolution, resolveFile, finishResolution } = await import('./merge-resolve.ts');
+    const { engine, goal, taskId } = await conflicting('test -f shared.txt');
+    await startResolution(engine, goal.id, taskId);
+    await resolveFile(engine, goal.id, taskId, 'shared.txt', 'resolved by hand\n');
+    // an unstage (or a stash and pop, or an editor's commit) removes git's SQUASH_MSG while the edits stay
+    const path = resolveWorkspacePath(dataDir, goal, taskId);
+    await sh('git reset -q', path);
+    expect(await sh('test -e "$(git rev-parse --git-path SQUASH_MSG)" && echo yes || echo no', path)).toBe('no');
+    expect((await describeResolution(engine, goal.id, taskId)).path).toBe(path);
+    await startResolution(engine, goal.id, taskId);
+    expect(await sh('cat shared.txt', path)).toBe('resolved by hand');
+    const fin = await finishResolution(engine, goal.id, taskId);
+    expect(fin.ok).toBe(true);
+    expect(await sh('cat shared.txt', goalWorkspacePath(dataDir, goal))).toBe('resolved by hand');
+  }, 60_000);
+
+  test('a Finish cut short after its commit is completed by the next one, which lands the resolution', async () => {
+    const { startResolution, resolveFile, finishResolution } = await import('./merge-resolve.ts');
+    const { engine, goal, taskId } = await conflicting('test -f shared.txt');
+    await startResolution(engine, goal.id, taskId);
+    await resolveFile(engine, goal.id, taskId, 'shared.txt', 'resolved before the restart\n');
+    // the state a restart leaves between Finish's commit and the landing
+    const path = resolveWorkspacePath(dataDir, goal, taskId);
+    await sh('git -c user.email=t@t -c user.name=t commit -qm "resolution"', path);
+    const fin = await finishResolution(engine, goal.id, taskId);
+    expect(fin.ok).toBe(true);
+    const ws = goalWorkspacePath(dataDir, goal);
+    expect(await sh('cat shared.txt', ws)).toBe('resolved before the restart');
+    expect(await sh('git log -1 --format=%B', ws)).toContain('Resolved manually by the human');
+  }, 60_000);
+
   test('a resolution worktree left without its merge is started over, never finished as a resolution without changes', async () => {
     const { startResolution, finishResolution } = await import('./merge-resolve.ts');
     const { engine, goal, taskId } = await conflicting('test -f shared.txt');

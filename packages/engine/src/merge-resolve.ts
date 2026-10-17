@@ -1,4 +1,4 @@
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { Check, CheckResult, Goal, Task } from '@foundry/core';
 import { getEscalation, getGoal, getTask, listChecks, listEscalations } from '@foundry/core';
@@ -60,17 +60,35 @@ function mergeEscalation(engine: Engine, goalId: string, taskId: string) {
   return listEscalations(engine.store.db, { goalId, openOnly: true }).find((e) => e.taskId === taskId && e.trigger === 'retries_exhausted' && (e.payload as { kind?: string }).kind === 'merge') ?? null;
 }
 
-/** git's own record of a squash merge not yet committed (SQUASH_MSG), the state a resolution works in */
-async function squashInProgress(path: string): Promise<boolean> {
-  const r = await git(['rev-parse', '--git-path', 'SQUASH_MSG'], path);
-  return r.code === 0 && existsSync(resolve(path, r.stdout.trim()));
+/** the goal-branch commit a task's resolution started from, as its start recorded it (null for one started before that was) */
+function resolutionBase(engine: Engine, goalId: string, taskId: string): string | null {
+  const started = engine.store.listByGoal(goalId, 5000).filter((e) => e.type === 'merge.manual_started' && (e.payload as { taskId: string }).taskId === taskId).at(-1);
+  return (started?.payload as { base?: string } | undefined)?.base ?? null;
 }
 
-/** take back the commit Finish made, keeping the resolved files staged and the squash merge in progress */
-async function undoFinish(path: string, message: string): Promise<void> {
-  await gitOk(['reset', '--soft', 'HEAD~1'], path);
-  const r = await git(['rev-parse', '--git-path', 'SQUASH_MSG'], path);
-  if (r.code === 0) writeFileSync(resolve(path, r.stdout.trim()), `${message}\n`);
+/**
+ * Whether a resolve worktree holds anything of the resolution: git's squash merge in it (SQUASH_MSG), a change (staged,
+ * unstaged or new), or a commit made on top of where it started (a Finish cut short). SQUASH_MSG alone is not enough:
+ * an unstage, a stash or an editor's commit removes it while the person's work stays. A worktree with none of these
+ * was left before its merge (a crash between creating it and merging) and is safe to start over.
+ */
+async function holdsWork(path: string, base: string | null): Promise<boolean> {
+  const squash = await git(['rev-parse', '--git-path', 'SQUASH_MSG'], path);
+  if (squash.code === 0 && existsSync(resolve(path, squash.stdout.trim()))) return true;
+  if ((await git(['status', '--porcelain'], path)).stdout.trim()) return true;
+  return !!base && (await headRef(path)) !== base;
+}
+
+/** one change at a time per task's resolution: a Finish running its checks never meets a start, an edit or an abort */
+const resolving = new Map<string, Promise<unknown>>();
+function serial<T>(goalId: string, taskId: string, fn: () => Promise<T>): Promise<T> {
+  const key = `${goalId}:${taskId}`;
+  const next = (resolving.get(key) ?? Promise.resolve()).catch(() => {}).then(fn);
+  resolving.set(key, next);
+  void next.finally(() => {
+    if (resolving.get(key) === next) resolving.delete(key);
+  }).catch(() => {});
+  return next;
 }
 
 function mustTask(engine: Engine, goalId: string, taskId: string): { goal: Goal; task: Task } {
@@ -90,15 +108,18 @@ export function canResolve(engine: Engine, goalId: string, taskId: string): { ok
   return { ok: true, reason: null };
 }
 
-/** (Re)create the conflict in the `_resolve` worktree and describe it. Idempotent: an existing session is kept. */
-export async function startResolution(engine: Engine, goalId: string, taskId: string, opts: { fresh?: boolean } = {}): Promise<ResolveState> {
+/** (Re)create the conflict in the `_resolve` worktree and describe it. Idempotent: a session that holds work is kept. */
+export function startResolution(engine: Engine, goalId: string, taskId: string, opts: { fresh?: boolean } = {}): Promise<ResolveState> {
+  return serial(goalId, taskId, () => startUnlocked(engine, goalId, taskId, opts));
+}
+
+async function startUnlocked(engine: Engine, goalId: string, taskId: string, opts: { fresh?: boolean }): Promise<ResolveState> {
   const { goal, task } = mustTask(engine, goalId, taskId);
   const can = canResolve(engine, goalId, taskId);
   if (!can.ok) throw new Error(can.reason!);
   const path = resolveWorkspacePath(engine.config.dataDir, refOf(engine, goalId), taskId);
   const goalWs = goalWorkspacePath(engine.config.dataDir, refOf(engine, goalId));
-  // a resolution is in progress while its squash merge is: a worktree left without one (a crash before the merge) starts over
-  const inProgress = existsSync(path) && (await squashInProgress(path));
+  const inProgress = existsSync(path) && (await git(['rev-parse', '--git-dir'], path)).code === 0 && (await holdsWork(path, resolutionBase(engine, goalId, taskId)));
   if (!inProgress || opts.fresh) {
     const head = await headRef(goalWs);
     await ensureDetachedWorktree(goal.repoPath, path, head);
@@ -114,7 +135,7 @@ export async function startResolution(engine: Engine, goalId: string, taskId: st
     // did not bring them): the goal's, then what the task changed
     await artifactsForChecks(engine, goal, goalWs, path, `resolution of "${task.title}"`);
     if (task.worktreePath) await artifactsForChecks(engine, goal, task.worktreePath, path, `resolution of "${task.title}"`, { onlyChanged: true });
-    engine.store.append({ type: 'merge.manual_started', goalId, payload: { taskId, files, path } });
+    engine.store.append({ type: 'merge.manual_started', goalId, payload: { taskId, files, path, base: head } });
   }
   return describeResolution(engine, goalId, taskId);
 }
@@ -122,7 +143,8 @@ export async function startResolution(engine: Engine, goalId: string, taskId: st
 export async function describeResolution(engine: Engine, goalId: string, taskId: string): Promise<ResolveState> {
   const { goal, task } = mustTask(engine, goalId, taskId);
   const path = resolveWorkspacePath(engine.config.dataDir, refOf(engine, goalId), taskId);
-  if (!existsSync(path) || !(await squashInProgress(path))) throw new Error('no manual resolution in progress for this task');
+  // a worktree that holds nothing of the resolution is reported as none, so the page starts it again (nothing is lost)
+  if (!existsSync(path) || !(await holdsWork(path, resolutionBase(engine, goalId, taskId)))) throw new Error('no manual resolution in progress for this task');
   const started = engine.store.listByGoal(goalId, 5000).filter((e) => e.type === 'merge.manual_started' && (e.payload as { taskId: string }).taskId === taskId).at(-1);
   const all = new Set<string>((started?.payload as { files?: string[] } | undefined)?.files ?? []);
   const conflicted = new Set(await conflictedFiles(path));
@@ -145,7 +167,8 @@ export async function describeResolution(engine: Engine, goalId: string, taskId:
 }
 
 /** Write the human's version of one file and stage it (no markers allowed). */
-export async function resolveFile(engine: Engine, goalId: string, taskId: string, file: string, content: string): Promise<ResolveState> {
+export function resolveFile(engine: Engine, goalId: string, taskId: string, file: string, content: string): Promise<ResolveState> {
+  return serial(goalId, taskId, async () => {
   const path = resolveWorkspacePath(engine.config.dataDir, refOf(engine, goalId), taskId);
   if (!existsSync(path)) throw new Error('no manual resolution in progress');
   if (file.includes('..') || file.startsWith('/')) throw new Error('bad path');
@@ -153,10 +176,12 @@ export async function resolveFile(engine: Engine, goalId: string, taskId: string
   await Bun.write(join(path, file), content);
   await gitOk(['add', '--', file], path);
   return describeResolution(engine, goalId, taskId);
+  });
 }
 
 /** Take one side of a conflicted file wholesale. `both` = ours followed by theirs (for append-style conflicts). */
-export async function takeSide(engine: Engine, goalId: string, taskId: string, file: string, side: 'ours' | 'theirs' | 'both'): Promise<ResolveState> {
+export function takeSide(engine: Engine, goalId: string, taskId: string, file: string, side: 'ours' | 'theirs' | 'both'): Promise<ResolveState> {
+  return serial(goalId, taskId, async () => {
   const path = resolveWorkspacePath(engine.config.dataDir, refOf(engine, goalId), taskId);
   if (!existsSync(path)) throw new Error('no manual resolution in progress');
   if (file.includes('..') || file.startsWith('/')) throw new Error('bad path');
@@ -174,28 +199,39 @@ export async function takeSide(engine: Engine, goalId: string, taskId: string, f
   }
   await gitOk(['add', '--', file], path);
   return describeResolution(engine, goalId, taskId);
+  });
 }
 
 /** Re-create the conflict for one file (undo the human's resolution of it). */
-export async function unresolveFile(engine: Engine, goalId: string, taskId: string, file: string): Promise<ResolveState> {
+export function unresolveFile(engine: Engine, goalId: string, taskId: string, file: string): Promise<ResolveState> {
+  return serial(goalId, taskId, async () => {
   const path = resolveWorkspacePath(engine.config.dataDir, refOf(engine, goalId), taskId);
   if (!existsSync(path)) throw new Error('no manual resolution in progress');
   if (file.includes('..') || file.startsWith('/')) throw new Error('bad path');
   await gitOk(['checkout', '-m', '--', file], path);
   return describeResolution(engine, goalId, taskId);
+  });
 }
 
 /**
  * Commit the resolution as the task's Conventional Commit, run the goal's must command checks, and land it on the
  * goal branch. With `force`, failing checks do not stop the landing (the goal review will judge the result).
  */
-export async function finishResolution(engine: Engine, goalId: string, taskId: string, opts: { force?: boolean } = {}): Promise<FinishResult> {
+export function finishResolution(engine: Engine, goalId: string, taskId: string, opts: { force?: boolean } = {}): Promise<FinishResult> {
+  return serial(goalId, taskId, () => finishUnlocked(engine, goalId, taskId, opts));
+}
+
+async function finishUnlocked(engine: Engine, goalId: string, taskId: string, opts: { force?: boolean }): Promise<FinishResult> {
   const { store, config } = engine;
   const { goal, task } = mustTask(engine, goalId, taskId);
   const path = resolveWorkspacePath(config.dataDir, refOf(engine, goalId), taskId);
   if (!existsSync(path)) throw new Error('no manual resolution in progress');
-  // without its squash merge the worktree holds nothing of the task: finishing would land nothing and drop the task's work
-  if (!(await squashInProgress(path))) return { ok: false, ref: null, checks: [], reason: 'this resolution has no merge in progress — start the resolution again' };
+  const startedAt = resolutionBase(engine, goalId, taskId);
+  // a worktree that holds nothing of the resolution: finishing would land nothing and drop the task's work
+  if (!(await holdsWork(path, startedAt))) return { ok: false, ref: null, checks: [], reason: 'this resolution has no merge in progress — start the resolution again' };
+  // a Finish cut short after its commit (a restart) left that commit: it goes back into the index, so one commit carries
+  // the whole resolution and it is landed, not read as "nothing staged"
+  if (startedAt && (await headRef(path)) !== startedAt) await gitOk(['reset', '--soft', startedAt], path);
   const remaining = await conflictedFiles(path);
   if (remaining.length) return { ok: false, ref: null, checks: [], reason: `${remaining.length} file(s) still conflicted: ${remaining.slice(0, 5).join(', ')}` };
   // markers left in a file that was staged anyway
@@ -220,9 +256,10 @@ export async function finishResolution(engine: Engine, goalId: string, taskId: s
 
   const must = listChecks(store.db, goalId).filter((c) => c.spec.type === 'command' && c.tier === 'must');
   const checks: FinishResult['checks'] = [];
-  // the resolve worktree started at `base`; checks already red there are not this resolution's fault
-  const base = (await git(['rev-parse', 'HEAD~0'], path)).stdout.trim();
-  const baseline = await engine.baseline.failing(goal, existing.code === 0 ? base : (await git(['rev-parse', 'HEAD~1'], path)).stdout.trim());
+  // the resolve worktree started at `base`; checks already red there are not this resolution's fault, measured with the
+  // exports this worktree has (the goal's when the resolution started, and the task's changes)
+  const base = startedAt ?? (existing.code === 0 ? ref : (await git(['rev-parse', 'HEAD~1'], path)).stdout.trim());
+  const baseline = await engine.baseline.failing(goal, base, path);
   let passed = true;
   for (const c of must) {
     const r = await runCommandCheck(c as Check, { cwd: path, outputDir: join(config.dataDir, 'check-output'), attemptId: `manual-${taskId}` });
@@ -232,9 +269,9 @@ export async function finishResolution(engine: Engine, goalId: string, taskId: s
     if (r.status !== 'pass' && !preexisting) passed = false;
   }
   if (!passed && !opts.force) {
-    // the resolution stays as it was before Finish (the commit undone, the merge in progress), so finishing again or
-    // anyway commits and lands it, instead of finding nothing staged and landing nothing
-    if (existing.code !== 0) await undoFinish(path, message);
+    // the resolution stays as it was before Finish (the commit taken back into the index), so finishing again or anyway
+    // commits and lands it, instead of finding nothing staged and landing nothing
+    if (existing.code !== 0) await gitOk(['reset', '--soft', base], path);
     return { ok: false, ref, checks, reason: 'must checks regressed in the resolved workspace — fix and finish again, or finish anyway' };
   }
 
@@ -275,13 +312,15 @@ export async function finishResolution(engine: Engine, goalId: string, taskId: s
 }
 
 /** Drop the `_resolve` worktree; the task stays blocked on its escalation. */
-export async function abortResolution(engine: Engine, goalId: string, taskId: string, reason = 'aborted by the human'): Promise<void> {
-  const { goal } = mustTask(engine, goalId, taskId);
-  const path = resolveWorkspacePath(engine.config.dataDir, refOf(engine, goalId), taskId);
-  if (!existsSync(path)) return;
-  await abortInProgress(path).catch(() => {});
-  await removeWorktree(goal.repoPath, path).catch(() => {});
-  engine.store.append({ type: 'merge.manual_aborted', goalId, payload: { taskId, reason } });
+export function abortResolution(engine: Engine, goalId: string, taskId: string, reason = 'aborted by the human'): Promise<void> {
+  return serial(goalId, taskId, async () => {
+    const { goal } = mustTask(engine, goalId, taskId);
+    const path = resolveWorkspacePath(engine.config.dataDir, refOf(engine, goalId), taskId);
+    if (!existsSync(path)) return;
+    await abortInProgress(path).catch(() => {});
+    await removeWorktree(goal.repoPath, path).catch(() => {});
+    engine.store.append({ type: 'merge.manual_aborted', goalId, payload: { taskId, reason } });
+  });
 }
 
 export { getEscalation };
