@@ -6,7 +6,7 @@ import { runCommandCheck } from './checks/command.ts';
 import type { Engine } from './engine.ts';
 import { taskCommitMessage } from './git/conventional.ts';
 import { abortInProgress, conflictedFiles, ensureDetachedWorktree, git, gitIdent, gitOk, headRef, removeWorktree, withCoauthor } from './git/git.ts';
-import { artifactsForChecks, landTaskArtifacts } from './goal-artifacts.ts';
+import { artifactsForChecks, landTaskArtifacts, type Landing } from './goal-artifacts.ts';
 import { dropTaskWorkspace, goalWorkspacePath, resolveWorkspacePath } from './workspace.ts';
 
 /**
@@ -229,9 +229,18 @@ async function finishUnlocked(engine: Engine, goalId: string, taskId: string, op
   const startedAt = resolutionBase(engine, goalId, taskId);
   // a worktree that holds nothing of the resolution: finishing would land nothing and drop the task's work
   if (!(await holdsWork(path, startedAt))) return { ok: false, ref: null, checks: [], reason: 'this resolution has no merge in progress — start the resolution again' };
-  // a Finish cut short after its commit (a restart) left that commit: it goes back into the index, so one commit carries
-  // the whole resolution and it is landed, not read as "nothing staged"
-  if (startedAt && (await headRef(path)) !== startedAt) await gitOk(['reset', '--soft', startedAt], path);
+  const message = `${taskCommitMessage(goal, task)}\n\nResolved manually by the human`;
+  if (startedAt && (await headRef(path)) !== startedAt) {
+    // a Finish cut short after its commit (a restart). Landed already (the goal branch carries it): what was left is the
+    // bookkeeping and the exports. Not landed: the commit goes back into the index, so one commit carries the whole
+    // resolution and it is landed, not read as "nothing staged"
+    const landedBefore = await alreadyLanded(goalWorkspacePath(config.dataDir, refOf(engine, goalId)), startedAt, taskId);
+    if (landedBefore) {
+      store.append({ type: 'engine.note', goalId, payload: { level: 'info', message: `"${task.title}": its resolution had landed (${landedBefore.slice(0, 7)}) before the engine stopped; finishing what was left` } });
+      return complete(engine, goal, task, path, { ref: landedBefore, resolved: await headRef(path), base: startedAt, message, landsCode: true, passed: true, checks: [] });
+    }
+    await gitOk(['reset', '--soft', startedAt], path);
+  }
   const remaining = await conflictedFiles(path);
   if (remaining.length) return { ok: false, ref: null, checks: [], reason: `${remaining.length} file(s) still conflicted: ${remaining.slice(0, 5).join(', ')}` };
   // markers left in a file that was staged anyway
@@ -242,7 +251,6 @@ async function finishUnlocked(engine: Engine, goalId: string, taskId: string, op
     if (MARKER.test(txt)) return { ok: false, ref: null, checks: [], reason: `${f} still contains conflict markers` };
   }
   await gitOk(['add', '-A'], path);
-  const message = `${taskCommitMessage(goal, task)}\n\nResolved manually by the human`;
   const existing = await git(['diff', '--cached', '--quiet'], path);
   let ref: string;
   if (existing.code === 0) {
@@ -287,17 +295,46 @@ async function finishUnlocked(engine: Engine, goalId: string, taskId: string, op
     return { ok: false, ref: null, error: `the goal branch moved and the resolution no longer applies cleanly: ${cp.stderr.slice(0, 300)}` };
   });
   if (!landed.ok) return { ok: false, ref, checks, reason: `${landed.error} — start the resolution again from the current goal branch` };
-  // the task's exports are git-excluded, so the commit did not carry them: they reach the goal workspace here, as when a
-  // task lands by itself, before its worktree goes (kept when some could not be copied, so nothing is lost)
-  const artifacts = await landTaskArtifacts(engine, getGoal(store.db, goalId) ?? goal, task).catch((err) => ({ files: [] as string[], failed: [String((err as Error)?.message ?? err)] }));
+  return complete(engine, goal, task, path, { ref: landed.ref!, resolved: ref, base, message, landsCode: existing.code !== 0, passed, checks });
+}
 
-  store.append({ type: 'merge.completed', goalId, payload: { taskId, ref: landed.ref! } });
-  store.append({ type: 'task.committed', goalId, payload: { taskId, ref: existing.code === 0 ? null : landed.ref!, message } });
-  store.append({ type: 'merge.manual_finished', goalId, payload: { taskId, ref: landed.ref!, checksPassed: passed, forced: !passed } });
+/** the commit on the goal branch since `since` that already carries this task's manual resolution, or null */
+async function alreadyLanded(goalWs: string, since: string, taskId: string): Promise<string | null> {
+  const r = await git(['log', '--format=%H', '--fixed-strings', '--all-match', `--grep=Task: ${taskId}`, '--grep=Resolved manually by the human', `${since}..HEAD`], goalWs);
+  return r.code === 0 ? (r.stdout.split('\n').find(Boolean) ?? null) : null;
+}
+
+/** the files the task changed that the resolution left as the goal branch had them: it kept the goal's side there */
+async function keptGoalSide(path: string, base: string, branch: string, resolved: string): Promise<string[]> {
+  const names = async (args: string[]) => (await git(['diff', '--name-only', ...args], path)).stdout.split('\n').filter(Boolean);
+  const resolvedChanged = new Set(await names([base, resolved]));
+  return (await names([`${base}...${branch}`])).filter((f) => !resolvedChanged.has(f));
+}
+
+/**
+ * Everything after the resolution landed: the task's exports, the events that close the merge and the task, and its
+ * worktrees. The exports (git-excluded) follow the code that landed: none when the resolution kept the goal's side
+ * throughout; when it kept the goal's side for some files the task changed, only the exports the goal does not have yet,
+ * so the goal's stay consistent with the source it kept, said in a note. The task's worktree is kept when an export
+ * could not be copied, so nothing is lost.
+ */
+async function complete(engine: Engine, goal: Goal, task: Task, path: string, r: { ref: string; resolved: string; base: string; message: string; landsCode: boolean; passed: boolean; checks: FinishResult['checks'] }): Promise<FinishResult> {
+  const { store } = engine;
+  const goalId = goal.id;
+  const taskId = task.id;
+  let artifacts: Landing = { files: [], failed: [] };
+  if (r.landsCode) {
+    const kept = await keptGoalSide(path, r.base, task.branch!, r.resolved).catch(() => [] as string[]);
+    artifacts = await landTaskArtifacts(engine, getGoal(store.db, goalId) ?? goal, task, { keepExisting: kept.length > 0 }).catch((err) => ({ files: [] as string[], failed: [String((err as Error)?.message ?? err)] }));
+    if (kept.length) store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `"${task.title}": the resolution kept the goal's version of ${kept.length} file(s) the task changed (${kept.slice(0, 3).join(', ')}): only the task's new exports were landed and the goal's existing ones kept; re-export where they depend on those files` } });
+  }
+  store.append({ type: 'merge.completed', goalId, payload: { taskId, ref: r.ref } });
+  store.append({ type: 'task.committed', goalId, payload: { taskId, ref: r.landsCode ? r.ref : null, message: r.message } });
+  store.append({ type: 'merge.manual_finished', goalId, payload: { taskId, ref: r.ref, checksPassed: r.passed, forced: !r.passed } });
   const esc = mergeEscalation(engine, goalId, taskId);
   if (esc) store.append({ type: 'escalation.answered', goalId, payload: { escalationId: esc.id, answer: { action: 'resolve_manually' } } });
   const fresh = getTask(store.db, taskId)!;
-  store.append({ type: 'task.state_changed', goalId, payload: { taskId, from: fresh.state, to: 'done', reason: `resolved manually, committed ${landed.ref!.slice(0, 7)}` } });
+  store.append({ type: 'task.state_changed', goalId, payload: { taskId, from: fresh.state, to: 'done', reason: `resolved manually, committed ${r.ref.slice(0, 7)}` } });
   await removeWorktree(goal.repoPath, path).catch(() => {});
   if (artifacts.failed.length) {
     store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `"${task.title}": ${artifacts.failed.length} artifact(s) could not be copied to the goal workspace (${artifacts.failed.slice(0, 3).join(', ')}); its worktree is kept so they are not lost` } });
@@ -308,7 +345,7 @@ async function finishUnlocked(engine: Engine, goalId: string, taskId: string, op
   const g = getGoal(store.db, goalId)!;
   if (g.state === 'blocked' && !listEscalations(store.db, { goalId, openOnly: true }).length) store.append({ type: 'goal.state_changed', goalId, payload: { from: 'blocked', to: 'running', reason: 'merge resolved manually' } });
   engine.tick(goalId);
-  return { ok: true, ref: landed.ref!, checks, reason: null };
+  return { ok: true, ref: r.ref, checks: r.checks, reason: null };
 }
 
 /** Drop the `_resolve` worktree; the task stays blocked on its escalation. */

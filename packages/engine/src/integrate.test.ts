@@ -233,6 +233,23 @@ describe('manual merge resolution: finishing safely', () => {
     expect(await sh('git log -1 --format=%B', ws)).toContain('Resolved manually by the human');
   }, 60_000);
 
+  test('a Finish retried after its resolution already landed finishes what was left, without a second commit', async () => {
+    const { startResolution, resolveFile, finishResolution } = await import('./merge-resolve.ts');
+    const { engine, goal, taskId } = await conflicting('test -f shared.txt');
+    await startResolution(engine, goal.id, taskId);
+    await resolveFile(engine, goal.id, taskId, 'shared.txt', 'resolved and landed\n');
+    // what a Finish stopped by a restart had done: its commit, landed on the goal branch, and nothing recorded after
+    const path = resolveWorkspacePath(dataDir, goal, taskId);
+    await sh(`git -c user.email=t@t -c user.name=t commit -qm "feat: resolved" -m "Task: ${taskId}" -m "Resolved manually by the human"`, path);
+    const ws = goalWorkspacePath(dataDir, goal);
+    await sh(`git merge -q --ff-only ${await sh('git rev-parse HEAD', path)}`, ws);
+    const before = await sh('git rev-parse HEAD', ws);
+    const fin = await finishResolution(engine, goal.id, taskId);
+    expect(fin).toMatchObject({ ok: true, ref: before });
+    expect(await sh('git rev-parse HEAD', ws)).toBe(before);
+    expect(listTasks(engine.store.db, goal.id).find((x) => x.id === taskId)!.state).toBe('done');
+  }, 60_000);
+
   test('a resolution worktree left without its merge is started over, never finished as a resolution without changes', async () => {
     const { startResolution, finishResolution } = await import('./merge-resolve.ts');
     const { engine, goal, taskId } = await conflicting('test -f shared.txt');
@@ -291,6 +308,55 @@ describe('manual merge resolution of tasks that export files', () => {
     expect(existsSync(join(goalWorkspacePath(dataDir, goal), 'artifacts', file))).toBe(true);
     const landed = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'task.artifacts_landed').map((e) => e.payload);
     expect(landed).toContainEqual({ taskId, files: [file] });
+  }, 60_000);
+});
+
+describe('manual merge resolution: which exports land', () => {
+  // cad tasks rewrite shared.txt (the conflict) and export frame.step and a part of their own; with `own`, each also
+  // writes a tracked file of its own, so a resolution that keeps the goal's shared.txt still lands a change
+  const resolveKeepingGoalSide = async (own: boolean) => {
+    const { startResolution, takeSide, finishResolution } = await import('./merge-resolve.ts');
+    const runner = new FakeRunner((spec) => {
+      if (!spec.label?.startsWith('attempt')) return;
+      const slug = spec.label.replace(/^attempt /, '').replace(/ #\d+$/, '').replace(/ /g, '_');
+      writeFileSync(join(spec.cwd, 'shared.txt'), `${spec.label}\n`);
+      if (own) writeFileSync(join(spec.cwd, `${slug}.txt`), slug);
+      mkdirSync(join(spec.cwd, 'artifacts'), { recursive: true });
+      writeFileSync(join(spec.cwd, 'artifacts', 'frame.step'), `${slug} frame`);
+      writeFileSync(join(spec.cwd, 'artifacts', `${slug}_only.step`), slug);
+    });
+    const engine = new Engine(cfg(), runner);
+    const cad = (key: string, title: string) => ({ ...t(key, title, [], true), scenario: 'cad' as const });
+    const goal = await engine.createGoal({
+      prompt: 'two parts',
+      repoPath: repo,
+      brief: { title: 'feat: two parts', understanding: 'u', areas: [], assumptions: [], questions: [], styleOptions: [], costEstimateUsd: 0, timeEstimateMin: 0, tasks: [cad('T1', 'add alpha'), cad('T2', 'add beta')], checks: [c('C1', 'T1', 'test -f shared.txt'), c('C2', 'T2', 'test -f shared.txt')] },
+    });
+    const mergeEsc = () => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).find((e) => (e.payload as { kind?: string }).kind === 'merge');
+    await waitFor(() => !!mergeEsc(), 30_000);
+    const taskId = mergeEsc()!.taskId!;
+    const slug = listTasks(engine.store.db, goal.id).find((x) => x.id === taskId)!.title.replace(/ /g, '_');
+    const art = join(goalWorkspacePath(dataDir, goal), 'artifacts');
+    const landedFrame = await Bun.file(join(art, 'frame.step')).text();
+    await startResolution(engine, goal.id, taskId);
+    await takeSide(engine, goal.id, taskId, 'shared.txt', 'ours');
+    expect((await finishResolution(engine, goal.id, taskId)).ok).toBe(true);
+    const notes = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'engine.note').map((e) => (e.payload as { message: string }).message);
+    return { art, slug, landedFrame, notes };
+  };
+
+  test("a resolution that kept the goal's side for a file the task changed lands only the exports the goal lacks", async () => {
+    const { art, slug, landedFrame, notes } = await resolveKeepingGoalSide(true);
+    // the goal's frame stays as it was (consistent with the shared file it kept); the task's own part arrives
+    expect(await Bun.file(join(art, 'frame.step')).text()).toBe(landedFrame);
+    expect(existsSync(join(art, `${slug}_only.step`))).toBe(true);
+    expect(notes.some((m) => m.includes("the resolution kept the goal's version of 1 file(s) the task changed (shared.txt)"))).toBe(true);
+  }, 60_000);
+
+  test("a resolution that kept the goal's side throughout lands none of the task's exports", async () => {
+    const { art, slug, landedFrame } = await resolveKeepingGoalSide(false);
+    expect(await Bun.file(join(art, 'frame.step')).text()).toBe(landedFrame);
+    expect(existsSync(join(art, `${slug}_only.step`))).toBe(false);
   }, 60_000);
 });
 

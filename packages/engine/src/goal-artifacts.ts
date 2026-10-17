@@ -20,14 +20,16 @@ export interface Landing {
  * tells the task's own files from the goal's others; a task whose deliverables are files records an empty landing too,
  * so "it made nothing" is not mistaken for "not recorded".
  */
-export async function landTaskArtifacts(engine: Engine, goal: Goal, task: Task): Promise<Landing> {
+export async function landTaskArtifacts(engine: Engine, goal: Goal, task: Task, opts: { keepExisting?: boolean } = {}): Promise<Landing> {
   const goalWs = goalWorkspacePath(engine.config.dataDir, goal);
   const failed: string[] = [];
   let files: string[];
   if (task.worktreePath && task.worktreePath !== goalWs) {
     if (!existsSync(task.worktreePath)) return { files: [], failed };
     const [mine, theirs] = await Promise.all([trackedArtifacts(task.worktreePath), trackedArtifacts(goalWs)]);
-    files = copyArtifactFiles(task.worktreePath, goalWs, { skip: new Set([...mine, ...theirs]), onError: (f) => failed.push(f) });
+    // `keepExisting`: only what the goal does not have yet (a resolution that kept the goal's source keeps its exports)
+    const skip = new Set([...mine, ...theirs, ...(opts.keepExisting ? listArtifacts(goalWs) : [])]);
+    files = copyArtifactFiles(task.worktreePath, goalWs, { skip, onError: (f) => failed.push(f) });
     if (files.length) engine.config.log(`[artifacts] ${task.id}: ${files.length} file(s) copied to the goal workspace`);
   } else if (ARTIFACT_SCENARIOS.includes(task.scenario)) {
     files = changedInGoalWorkspace(engine, goal, task, goalWs);
