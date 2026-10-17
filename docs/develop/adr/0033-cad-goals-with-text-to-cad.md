@@ -94,13 +94,15 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
   cost of the checks: a failed copy is noted. A merge attempt's baseline takes its artifacts from the worktree the merge
   happens in (a task's own on a catch-up), so both sides of the comparison measure the same exports, and a resolution's
   worktree gets the goal's artifacts and then the task's changes, after its squash merge. The artifacts listing follows
-  no symbolic link, and no copy writes through one. A landing leaves files git tracks to the commit, still copies the
-  other files when one fails, and then keeps the task's worktree; a task that worked in the goal workspace records the
-  files it changed there. Baselines of a goal run one at a time, are keyed by the state of the exports they measure,
+  no symbolic link, and no copy writes through one: each file is copied beside its destination and renamed over it, so
+  a copy cut short leaves the old file. A landing leaves files git tracks to the commit, still copies the other files
+  when one fails (a folder it cannot read counts as failed), records the failures for the milestone, and then keeps the
+  task's worktree; a task that worked in the goal workspace records the files it changed there. Baselines of a goal run one at a time, are keyed by the state of the exports they measure,
   and count nothing as already failing when those exports cannot be copied. A manual resolution holds work while its
-  squash merge, a change, or a commit past its recorded start is there, so a page load never starts it over under the
-  person's edits, and a Finish cut short after its commit is completed by the next one (finished up, when the commit had
-  already landed). The exports a resolution lands follow the code it kept: none when it kept the goal's side throughout,
+  squash merge, a change to a tracked file, or a commit past its recorded start is there (untracked leftovers do not
+  count), so a page load never starts it over under the person's edits, and a Finish cut short after its commit is
+  completed by the next one (finished up, when the commit had already landed). A session merged from an older tip of the
+  task branch (before a retry) is replaced, and Finish runs only while the task still waits on its merge. The exports a resolution lands follow the code it kept: none when it kept the goal's side throughout,
   only the ones the goal lacks when it kept the goal's side for some of the task's files.
 
 ## Consequences
@@ -123,4 +125,5 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
   that conflicts at integration (another task landed between a task's last catch-up and its squash) runs its merge
   attempt in the goal workspace before the task's exports land there, so a task that changes an existing export and
   the check that measures it together can still read as a regression in that window. Milestone copies of images and
-  clips stay in the screenshots folder, which a Transfer carries.
+  clips stay in the screenshots folder, which a Transfer carries. A landing whose copy failed keeps the task's worktree
+  and says so, but a later restart of the goal or its after-merge cleanup can still remove it.
