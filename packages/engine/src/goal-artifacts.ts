@@ -29,7 +29,7 @@ export async function landTaskArtifacts(engine: Engine, goal: Goal, task: Task, 
     const [mine, theirs] = await Promise.all([trackedArtifacts(task.worktreePath), trackedArtifacts(goalWs)]);
     // `keepExisting`: only what the goal does not have yet (a resolution that kept the goal's source keeps its exports)
     const skip = new Set([...mine, ...theirs, ...(opts.keepExisting ? listArtifacts(goalWs) : [])]);
-    files = copyArtifactFiles(task.worktreePath, goalWs, { skip, onError: (f) => failed.push(f) });
+    files = await copyArtifactFiles(task.worktreePath, goalWs, { skip, onError: (f) => failed.push(f) });
     if (files.length) engine.config.log(`[artifacts] ${task.id}: ${files.length} file(s) copied to the goal workspace`);
   } else if (ARTIFACT_SCENARIOS.includes(task.scenario)) {
     files = changedInGoalWorkspace(engine, goal, task, goalWs);
@@ -97,7 +97,7 @@ export async function retryUnlanded(engine: Engine, goal: Goal): Promise<void> {
     const [mine, theirs] = await Promise.all([trackedArtifacts(from), trackedArtifacts(goalWs)]);
     const skip = new Set([...mine, ...theirs, ...listArtifacts(from).filter((f) => !wanted(f))]);
     const failed: string[] = [];
-    const files = copyArtifactFiles(from, goalWs, { skip, onError: (f) => failed.push(f) });
+    const files = await copyArtifactFiles(from, goalWs, { skip, onError: (f) => failed.push(f) });
     engine.store.append({ type: 'task.artifacts_landed', goalId: goal.id, payload: { taskId: task.id, files, ...(failed.length ? { failed } : {}) } });
     engine.config.log(`[artifacts] ${task.id}: ${files.length} file(s) copied again${failed.length ? `, ${failed.length} still not` : ''}`);
   }

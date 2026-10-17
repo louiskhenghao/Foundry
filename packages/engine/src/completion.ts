@@ -5,8 +5,8 @@
  *   leave the machine, at `done` for local ones — so the knowledge graph reflects the code that actually landed.
  * Failures never block the goal: every outcome is recorded on `goal.completion_ran` and the goal stays done.
  */
-import { cpSync, existsSync, mkdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Brief, DocType, Goal } from '@foundry/core';
 import { ARTIFACT_NATURES, pendingDecisions } from '@foundry/core';
 import type { Engine } from './engine.ts';
@@ -15,7 +15,7 @@ import { restoreGuidance, snapshotGuidance } from './git/agent-guidance.ts';
 import { exec } from './git/git.ts';
 import { pullFastForward } from './git/sync.ts';
 import { cadModelIn, retryUnlanded } from './goal-artifacts.ts';
-import { ARTIFACTS_DIR, goalWorkspacePath, listArtifacts } from './workspace.ts';
+import { ARTIFACTS_DIR, copyInto, goalWorkspacePath, listArtifacts } from './workspace.ts';
 import { codeWork } from './skills/workflow.ts';
 
 /** Task scenarios that mean the goal changes code (research/video/docs-only goals have none of these). */
@@ -57,11 +57,8 @@ export async function deliverArtifacts(engine: Engine, goal: Goal): Promise<void
     return;
   }
   try {
-    for (const f of files) {
-      const dest = join(goal.outputDir, f);
-      mkdirSync(dirname(dest), { recursive: true });
-      cpSync(join(ws, ARTIFACTS_DIR, f), dest);
-    }
+    // off the event loop, and renamed into place: a delivery cut short leaves the output folder's earlier copy whole
+    for (const f of files) await copyInto(join(ws, ARTIFACTS_DIR, f), join(goal.outputDir, f));
     // the model the CAD Viewer opens once the workspace is gone, chosen here by the files' own times (a copy's are new)
     const model = goal.nature === 'cad' ? cadModelIn(join(ws, ARTIFACTS_DIR), files) : undefined;
     record({ status: 'ok', files, dest: goal.outputDir, detail: `${files.length} artifact(s) copied`, ...(model !== undefined ? { model } : {}) });
