@@ -84,19 +84,35 @@ test('goals can be picked one by one; Keys & secrets refuse to travel without a 
   await expect(exportTransfer(host, { categories: { goals: true }, goalIds: ['g_nope'], out: file })).rejects.toThrow('not found');
 });
 
-test("a finished goal leaves behind the clips its milestones of files copied, with its artifacts; an unfinished one carries them", async () => {
+test("a finished goal leaves behind the clips its milestones copied from files its output folder received; others travel", async () => {
   const { engine, done, draft } = await twoGoals();
   for (const g of [done, draft]) {
     const shots = screenshotsDir(dataDir, g);
     mkdirSync(shots, { recursive: true });
-    for (const f of ['walk.webm', 't_render-1a-front.png', 't_render-2b-turntable.mp4']) writeFileSync(join(shots, f), f);
-    engine.store.append({ type: 'milestone.evidence', goalId: g.id, payload: { taskId: 't_render', video: null, shots: [{ file: 't_render-1a-front.png', caption: 'front.png' }], clips: [{ file: 't_render-2b-turntable.mp4', caption: 'turntable.mp4' }], summary: '', error: null, kind: 'files', files: [] } });
+    for (const f of ['walk.webm', 't_render-1a-front.png', 't_render-2b-turntable.mp4', 't_render-3c-orbit.mp4']) writeFileSync(join(shots, f), f);
+    engine.store.append({ type: 'milestone.evidence', goalId: g.id, payload: { taskId: 't_render', video: null, shots: [{ file: 't_render-1a-front.png', caption: 'front.png' }], clips: [{ file: 't_render-2b-turntable.mp4', caption: 'turntable.mp4' }, { file: 't_render-3c-orbit.mp4', caption: 'orbit.mp4' }], summary: '', error: null, kind: 'files', files: [] } });
+    // a scripted milestone's own recording is the goal's history, whatever its name
+    engine.store.append({ type: 'milestone.evidence', goalId: g.id, payload: { taskId: 't_ui', video: null, shots: [], clips: [{ file: 'walk.webm', caption: 'walk' }], summary: '', error: null, script: 'walk.ts' } });
   }
+  // the finished goal's output folder received turntable.mp4, not orbit.mp4
+  engine.store.append({ type: 'goal.artifacts_delivered', goalId: done.id, payload: { status: 'ok', files: ['front.png', 'turntable.mp4'], dest: '/out', detail: '2 artifact(s) copied' } });
   const file = join(out, 'f.tgz');
   await exportTransfer(engineTransferHost(engine), { categories: { goals: true }, goalIds: 'all', out: file });
   const x = join(out, 'x');
   await unpackTransfer(file, x);
-  // the walkthrough recording and the pictures travel: they are the goal's history
-  expect(readdirSync(join(x, 'goals', done.id, 'screenshots')).sort()).toEqual(['t_render-1a-front.png', 'walk.webm']);
-  expect(readdirSync(join(x, 'goals', draft.id, 'screenshots')).sort()).toEqual(['t_render-1a-front.png', 't_render-2b-turntable.mp4', 'walk.webm']);
+  expect(readdirSync(join(x, 'goals', done.id, 'screenshots')).sort()).toEqual(['t_render-1a-front.png', 't_render-3c-orbit.mp4', 'walk.webm']);
+  expect(readdirSync(join(x, 'goals', draft.id, 'screenshots')).sort()).toEqual(['t_render-1a-front.png', 't_render-2b-turntable.mp4', 't_render-3c-orbit.mp4', 'walk.webm']);
+});
+
+test('a finished goal whose delivery copied nothing (no output folder) carries every clip copy: they are the only ones', async () => {
+  const { engine, done } = await twoGoals();
+  const shots = screenshotsDir(dataDir, done);
+  mkdirSync(shots, { recursive: true });
+  writeFileSync(join(shots, 't_render-2b-turntable.mp4'), 'clip');
+  engine.store.append({ type: 'milestone.evidence', goalId: done.id, payload: { taskId: 't_render', video: null, shots: [], clips: [{ file: 't_render-2b-turntable.mp4', caption: 'turntable.mp4' }], summary: '', error: null, kind: 'files', files: [] } });
+  engine.store.append({ type: 'goal.artifacts_delivered', goalId: done.id, payload: { status: 'skipped', files: ['turntable.mp4'], dest: '', detail: 'no output folder set' } });
+  const file = join(out, 'f.tgz');
+  await exportTransfer(engineTransferHost(engine), { categories: { goals: true }, goalIds: 'all', out: file });
+  await unpackTransfer(file, join(out, 'x'));
+  expect(readdirSync(join(out, 'x', 'goals', done.id, 'screenshots'))).toContain('t_render-2b-turntable.mp4');
 });
