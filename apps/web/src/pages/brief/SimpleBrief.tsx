@@ -67,7 +67,7 @@ export function SimpleBrief(p: {
                         type="button"
                         disabled={!editable}
                         title={oi === 0 ? 'Recommended' : undefined}
-                        className={cn('text-[11px] rounded-full border px-2 py-0.5', (q.answer ?? '') === opt ? 'border-emerald-500 text-emerald-300 bg-emerald-500/10' : 'border-zinc-700 text-zinc-300 hover:border-zinc-500')}
+                        className={cn('text-[11px] text-left rounded-xl border px-2 py-0.5', (q.answer ?? '') === opt ? 'border-emerald-500 text-emerald-300 bg-emerald-500/10' : 'border-zinc-700 text-zinc-300 hover:border-zinc-500')}
                         onClick={() => update({ questions: brief.questions.map((x, j) => (j === i ? { ...x, answer: opt, applied: false } : x)) })}
                       >
                         {opt}
