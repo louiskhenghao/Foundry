@@ -118,7 +118,7 @@ What each of these means for someone running goals, and what to do about it, is 
 
 A stacked delivery (one pull request per task) does not send a message per pull request. When it builds a stack of two or more, the channels get *Opening N pull requests* with their titles, then one *N pull requests opened* message listing each with its link once all are open (or after 15 minutes, or when the delivery ends, with the ones open by then). Merges are gathered the same way and sent once none has come for two minutes: *3 pull requests merged* with their numbers. A delivery with one pull request keeps its usual messages.
 
-A milestone sends two messages: *Have a look* (or *Milestone* when the goal does not pause for it) at once, then *What the milestone looks like* with the screenshots and the video of the walkthrough Foundry recorded in the preview. Telegram gets them as an album (photos up to 10 MB, a video up to 50 MB); Discord as attachments of the webhook message (10 MB together). A file over the limit is left out and the message says it is on the goal page. Without a recording, the self-check's latest screenshot is attached when there is one. When screenshots of error pages were left out of the walkthrough, or no walkthrough could be planned, a ⚠️ line says so. The *Needs you* switch covers both.
+A milestone sends two messages: *Have a look* (or *Milestone* when the goal does not pause for it) at once, then *What the milestone looks like* with the screenshots and the video of the walkthrough Foundry recorded in the preview. Telegram gets them as an album (photos up to 10 MB, a video up to 50 MB); Discord as attachments of the webhook message (10 MB together). A file over the limit is left out and the message says it is on the goal page. A picture Telegram will not take as a photo (too many pixels, an odd shape) is sent again as a file, which has no such limits; only when Telegram refuses that too does the text go alone, saying the files could not be attached. Without a recording, the self-check's latest screenshot is attached when there is one. When screenshots of error pages were left out of the walkthrough, or no walkthrough could be planned, a ⚠️ line says so. The *Needs you* switch covers both.
 
 ---
 
@@ -149,6 +149,8 @@ The six switches have no environment variables. Set them in the UI. The full lis
 - **Immediate.** Settings are read at send time. A new token or switch applies to the very next message, without a
   restart.
 - **Plain text**, cut to 1,900 characters to stay under Telegram's and Discord's limits.
+- **No pings.** A Discord message mentions no one: an `@everyone`, `@here` or user mention in a goal's title, a file
+  name or a model's words is shown as text and notifies nobody.
 - **Send test message** uses the values currently in the fields, saved or not.
 - The doctor (**Setup** page) shows *Notifications (optional)* in amber until at least one channel is configured.
 
