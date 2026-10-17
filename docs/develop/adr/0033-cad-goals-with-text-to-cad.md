@@ -99,7 +99,9 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
   files it changed there. Baselines of a goal run one at a time, are keyed by the state of the exports they measure,
   and count nothing as already failing when those exports cannot be copied. A manual resolution holds work while its
   squash merge, a change, or a commit past its recorded start is there, so a page load never starts it over under the
-  person's edits, and a Finish cut short after its commit is completed by the next one.
+  person's edits, and a Finish cut short after its commit is completed by the next one (finished up, when the commit had
+  already landed). The exports a resolution lands follow the code it kept: none when it kept the goal's side throughout,
+  only the ones the goal lacks when it kept the goal's side for some of the task's files.
 
 ## Consequences
 
