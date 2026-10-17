@@ -191,7 +191,27 @@ describe('delivery pipeline', () => {
     expect(gh.calls.filter((c) => c[0] === 'prMerge').map((c) => c[3])).toEqual(['now']);
   });
 
-  test('a refusal that settles as a conflict fails the merge as a conflict, without asking for auto-merge', async () => {
+  const deliverySteps = (engine: Engine, goalId: string) =>
+    engine.store
+      .listByGoal(goalId, 5000)
+      .filter((e) => e.type === 'delivery.step' && (e.payload as { status: string }).status !== 'started')
+      .map((e) => (e.payload as { step: string }).step);
+
+  test('a refusal that settles as a conflict syncs the branch with its base, pushes it and merges once the conflict is gone', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'settling';
+    gh.settlesAs = 'CONFLICTING';
+    gh.conflictViews = 1;
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await engine.createGoal({ prompt: 'settle into a conflict', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 30_000);
+    expect(deliveredStatus(engine, goal.id)).toMatchObject({ status: 'delivered', outcome: 'merged' });
+    expect(gh.calls.filter((c) => c[0] === 'prMerge').map((c) => c[3])).toEqual(['now', 'now']);
+    const steps = deliverySteps(engine, goal.id);
+    expect(steps.slice(steps.indexOf('merge'))).toEqual(['merge', 'sync-base', 'push', 'wait-checks', 'merge', 'cleanup']);
+  });
+
+  test('a conflict GitHub keeps reporting fails after a few re-syncs, without asking for auto-merge', async () => {
     const gh = new FakeGh(bare);
     gh.mergeBehavior = 'settling';
     gh.settlesAs = 'CONFLICTING';
@@ -199,8 +219,9 @@ describe('delivery pipeline', () => {
     const goal = await engine.createGoal({ prompt: 'settle into a conflict', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr-automerge' } });
     await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 30_000);
     expect(deliveredStatus(engine, goal.id)).toMatchObject({ status: 'failed' });
-    expect(deliveredStatus(engine, goal.id).error).toContain('conflicts with its base');
+    expect(deliveredStatus(engine, goal.id).error).toContain('still conflicts with its base after 5 re-syncs');
     expect(gh.calls.filter((c) => c[0] === 'prMerge').map((c) => c[3])).toEqual(['now']);
+    expect(deliverySteps(engine, goal.id).filter((s) => s === 'sync-base').length).toBeGreaterThanOrEqual(6);
   });
 
   test("gh's own refusal under branch protection (\"is not mergeable: the base branch policy prohibits the merge\") still arms auto-merge", async () => {
