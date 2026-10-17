@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { getGoal, listEscalations, listTasks } from '@foundry/core';
@@ -488,6 +488,43 @@ describe('after a merge (ADR-0015)', () => {
     await engine.finishAfterMerge(goal.id, { force: true });
     d = deliveredStatus(engine, goal.id);
     expect(d.cleanup?.done).toBe(true);
+    expect(existsSync(ws)).toBe(false);
+    await engine.stop();
+  });
+
+  test('artifacts no output folder received, and files a landing could not copy, keep the progress folder until "clean up anyway"', async () => {
+    const gh = new FakeGh(bare);
+    gh.mergeBehavior = 'protected';
+    const engine = new Engine(cfgWith(true), worker(), gh);
+    const goal = await mergedGoal(engine);
+    const ws = goalWorkspacePath(dataDir, goal);
+    // an export the goal kept (git-excluded, as for every goal that keeps artifacts) and the Brief's style sample
+    await sh('echo /artifacts/ >> "$(git rev-parse --git-common-dir)/info/exclude"', ws);
+    mkdirSync(join(ws, 'artifacts', 'samples'), { recursive: true });
+    writeFileSync(join(ws, 'artifacts', 'bracket.step'), 'step');
+    writeFileSync(join(ws, 'artifacts', 'samples', 'style-1.png'), 'png');
+    await gh.mergeOnGitHub(1);
+    await engine.refreshDelivery(goal.id);
+    let d = deliveredStatus(engine, goal.id);
+    expect(d.outcome).toBe('merged');
+    expect(d.cleanup).toMatchObject({ done: false });
+    expect(d.cleanup!.detail).toContain('1 artifact no output folder received (bracket.step)');
+    expect(existsSync(ws)).toBe(true);
+    // the export delivered, a task worktree still holding a file its landing could not copy keeps everything too
+    engine.store.append({ type: 'goal.artifacts_delivered', goalId: goal.id, payload: { status: 'ok', files: ['bracket.step'], dest: '/out', detail: '1 artifact(s) copied' } });
+    const task = listTasks(engine.store.db, goal.id)[0]!;
+    const taskWs = mkdtempSync(join(tmpdir(), 'foundry-kept-task-'));
+    mkdirSync(join(taskWs, 'artifacts'), { recursive: true });
+    writeFileSync(join(taskWs, 'artifacts', 'hinge.step'), 'step');
+    engine.store.append({ type: 'task.workspace_assigned', goalId: goal.id, payload: { taskId: task.id, branch: null, worktreePath: taskWs } });
+    engine.store.append({ type: 'task.artifacts_landed', goalId: goal.id, payload: { taskId: task.id, files: [], failed: ['hinge.step'] } });
+    await engine.finishAfterMerge(goal.id, {});
+    d = deliveredStatus(engine, goal.id);
+    expect(d.cleanup).toMatchObject({ done: false });
+    expect(d.cleanup!.detail).toContain(`could not be copied into the progress folder and is only in its worktree (${task.title}: hinge.step)`);
+    expect(existsSync(taskWs)).toBe(true);
+    await engine.finishAfterMerge(goal.id, { force: true });
+    expect(deliveredStatus(engine, goal.id).cleanup?.done).toBe(true);
     expect(existsSync(ws)).toBe(false);
     await engine.stop();
   });
