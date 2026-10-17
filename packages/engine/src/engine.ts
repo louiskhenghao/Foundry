@@ -91,7 +91,7 @@ import { EffortRunner } from './effort-runner.ts';
 import { ModelRegistry, SEED_MODELS, isPinnedId, type ModelRecord } from './models/registry.ts';
 import { copyProjectSkills, hasStackManifest, runAutoskills, type AutoskillsDeps } from './skills/autoskills.ts';
 import { deliverArtifacts, inferCompletion, runGraphRefresh, shouldRunGraphRefresh, type GraphRefreshDeps } from './completion.ts';
-import { cadModelIn } from './goal-artifacts.ts';
+import { cadModelIn, recoverOverlays } from './goal-artifacts.ts';
 import type { SettingsPatch, SettingsView } from '@foundry/core';
 import { ACTION_INFO, BUILTIN_PRESETS, DEFAULT_NATURE_PRESETS, MODEL_ACTIONS, MODEL_NATURES, NATURE_LABEL, effectivePresets } from '@foundry/core';
 import { spawnStreaming } from './skills/updaters.ts';
@@ -871,7 +871,12 @@ export class Engine {
       const swept = sweepStaging(this.config.dataDir);
       if (swept) this.config.log(`[attachments] removed ${swept} expired staged upload(s)`);
     } catch {}
-    await this.reconcile();
+    this.reconciling = true;
+    try {
+      await this.reconcile();
+    } finally {
+      this.reconciling = false;
+    }
     await relocateLegacyWorkspaces(this);
     this.migrateModelTiersToPresets();
     void this.syncModelsIfCliChanged();
@@ -886,6 +891,8 @@ export class Engine {
   }
 
   private prWatchTimer: ReturnType<typeof setInterval> | null = null;
+  /** start() is putting right what the last run left (orphaned attempts, overlays): no goal runs meanwhile */
+  private reconciling = false;
   private deliveryRefreshAt = new Map<string, number>();
 
   /**
@@ -1013,8 +1020,16 @@ export class Engine {
     const t0 = Date.now();
     while (this.busy().total > 0 && Date.now() - t0 < 3000) await new Promise((r) => setTimeout(r, 25));
     await Promise.allSettled([...this.chains.values()]);
-    // milestone recordings write their evidence when they finish: wait for them too (a script is killed by its timeout)
-    await Promise.race([Promise.allSettled(milestoneQueues()), new Promise((r) => setTimeout(r, 5000))]);
+    // milestone recordings write their evidence when they finish: wait for them too (a script is killed by its timeout),
+    // and an artifact delivery records where its files went; both bounded, and no timer outlives the wait
+    const settle = async (work: Promise<unknown>[], ms: number) => {
+      if (!work.length) return;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([Promise.allSettled(work), new Promise((r) => (timer = setTimeout(r, ms)))]);
+      clearTimeout(timer);
+    };
+    await settle(milestoneQueues(), 5000);
+    await settle([...this.deliveringArtifacts.values(), ...this.tidying.values()], 10_000);
   }
 
   private async reconcile(): Promise<void> {
@@ -1047,6 +1062,8 @@ export class Engine {
         this.store.append({ type: 'delivery.failed', goalId: g.id, payload: { step: g.delivery.step ?? 'preflight', reason: 'engine restarted during delivery — run Deliver again (every step is idempotent)' } });
       }
       if (['done', 'over_delivered', 'failed', 'cancelled'].includes(g.state)) continue;
+      // exports a merge attempt laid over the goal's when the engine stopped never landed: the goal's go back first
+      await recoverOverlays(this, g);
       await git(['worktree', 'prune'], g.repoPath).catch(() => {});
       for (const t of listTasks(this.store.db, g.id)) {
         if (t.state === 'merging') this.store.append({ type: 'task.state_changed', goalId: g.id, payload: { taskId: t.id, from: 'merging', to: 'observing', reason: 'engine restart' } });
@@ -1579,6 +1596,8 @@ export class Engine {
 
   private async runTick(goalId: string): Promise<void> {
     if (this.stopped) return;
+    // reconcile's own events wake goals while it still undoes overlays a stop cut short: start() ticks every goal after it
+    if (this.reconciling) return;
     const goal = getGoal(this.store.db, goalId);
     if (!goal) return;
     if (isHistory(goal)) return; // an Imported Goal waits to be Reattached (ADR-0030)
