@@ -8,7 +8,7 @@
  */
 import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { getGoal } from '@foundry/core';
+import { buildTimeline, getGoal, type EngineEvent } from '@foundry/core';
 import { seedImportedGoal, startDemo } from './demo.ts';
 
 const ROOT = resolve(import.meta.dir, '..');
@@ -33,6 +33,71 @@ const mask = async () => {
     }
   });
 };
+/**
+ * The timeline of an afternoon's goal for the guide: a Brief that waited, tasks side by side, a review that sent one
+ * back, a delegated goal doing the research, the goal review and the delivery.
+ */
+function demoTimeline(goalId: string, title: string) {
+  const at = (min: number) => new Date(Date.UTC(2026, 9, 18, 13, 0, 0) + min * 60_000).toISOString();
+  let n = 0;
+  const ev = (g: string, min: number, type: string, payload: object) => ({ id: `e${++n}`, ts: at(min), goalId: g, type, payload }) as EngineEvent;
+  const state = (g: string, min: number, from: string, to: string) => ev(g, min, 'goal.state_changed', { from, to, reason: '' });
+  const usage = (g: string, min: number, kind: string, minutes: number, costUsd: number) => ev(g, min, 'session.usage', { sessionId: null, kind, model: null, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, costUsd, durationMs: minutes * 60_000, subtype: 'success', rateLimit: null, skillsUsed: [] });
+  /** a task's attempts: [work from, work to, review to, passed] each; then its landing */
+  const task = (g: string, taskId: string, attempts: [number, number, number][], cost = 0.9) => {
+    const out: EngineEvent[] = [];
+    attempts.forEach(([from, to, reviewed], i) => {
+      const id = `${taskId}-a${i + 1}`;
+      out.push(ev(g, from, 'attempt.started', { attempt: { id, goalId: g, taskId, index: i + 1, kind: 'work', sessionId: null, state: 'running', startedAt: at(from), endedAt: null } }));
+      out.push(ev(g, to, 'attempt.session_finished', { attemptId: id, session: { role: 'worker', segment: 0, sessionId: null, model: 'opus', costUsd: cost, numTurns: 30, durationMs: (to - from) * 60_000, subtype: 'success', startedAt: at(from), endedAt: at(to) } }));
+      out.push(ev(g, reviewed, 'attempt.session_finished', { attemptId: id, session: { role: 'reviewer', segment: 0, sessionId: null, model: 'sonnet', costUsd: 0.2, numTurns: 8, durationMs: (reviewed - to) * 60_000, subtype: 'success', startedAt: at(to), endedAt: at(reviewed) } }));
+      out.push(ev(g, reviewed, 'attempt.concluded', { attemptId: id, state: 'passed', reason: '' }));
+    });
+    const landed = attempts.at(-1)![2];
+    out.push(ev(g, landed, 'merge.started', { taskId, into: 'goal' }), ev(g, landed + 1, 'merge.completed', { taskId, ref: 'x' }), ev(g, landed + 1, 'task.state_changed', { taskId, from: 'merging', to: 'done', reason: '' }));
+    return out;
+  };
+  const child = 'g_demo_research';
+  const main = {
+    goal: { id: goalId, title, createdAt: at(0), state: 'over_delivered' as const },
+    tasks: [
+      { id: 'T1', title: 'add the subscribe endpoint', delegatedGoalId: null },
+      { id: 'T2', title: "research what the studio's players want", delegatedGoalId: child },
+      { id: 'T3', title: 'build the sign-up form in the footer', delegatedGoalId: null },
+      { id: 'T4', title: 'validate emails and show friendly errors', delegatedGoalId: null },
+      { id: 'T5', title: 'cover the sign-up flow with tests', delegatedGoalId: null },
+    ],
+    events: [
+      state(goalId, 0, 'draft', 'clarifying'),
+      usage(goalId, 5, 'clarify', 5, 1.8),
+      usage(goalId, 7, 'planner', 2, 0.6),
+      state(goalId, 7, 'clarifying', 'awaiting_brief_approval'),
+      state(goalId, 15, 'awaiting_brief_approval', 'running'),
+      ...task(goalId, 'T1', [[16, 28, 30]]),
+      ev(goalId, 31, 'task.delegated', { taskId: 'T2', goalId: child, title: "research what the studio's players want" }),
+      ...task(goalId, 'T3', [[31, 48, 50], [50, 60, 61]], 1.2),
+      ...task(goalId, 'T4', [[31, 40, 41]], 0.5),
+      usage(goalId, 63, 'walkthrough', 1, 0.1),
+      ev(goalId, 70, 'task.state_changed', { taskId: 'T2', from: 'running', to: 'done', reason: '' }),
+      ...task(goalId, 'T5', [[70, 82, 83]], 0.8),
+      state(goalId, 85, 'running', 'goal_review'),
+      usage(goalId, 96, 'review-goal', 11, 2.1),
+      state(goalId, 96, 'goal_review', 'over_delivered'),
+      ev(goalId, 97, 'delivery.started', { policy: {}, plan: [] }),
+      ev(goalId, 103, 'delivery.completed', { outcome: {} }),
+    ],
+  };
+  const research = {
+    goal: { id: child, title: "research what the studio's players want", createdAt: at(31), state: 'done' as const },
+    tasks: [
+      { id: 'R1', title: 'survey three studio newsletters', delegatedGoalId: null },
+      { id: 'R2', title: 'write the findings', delegatedGoalId: null },
+    ],
+    events: [state(child, 31, 'draft', 'clarifying'), usage(child, 36, 'clarify', 5, 1.1), state(child, 36, 'clarifying', 'running'), ...task(child, 'R1', [[37, 55, 57]], 1.4), ...task(child, 'R2', [[58, 66, 67]], 0.7), state(child, 69, 'running', 'done')],
+  };
+  return buildTimeline(main, [research], at(103));
+}
+
 const shot = async (name: string, path: string, prepare?: () => Promise<void>, height?: number) => {
   // a fresh load each time: a dialog left open by the shot before would otherwise cover this one (same page, new hash)
   await page.goto('about:blank');
@@ -79,6 +144,12 @@ try {
   });
   await shot('goal-diff', `/goals/${g.done}#diff`);
   await shot('goal-delivery', `/goals/${g.done}#delivery`);
+  // the demo's sessions end in milliseconds: the Timeline shows a goal of an afternoon instead, a delegated goal in it
+  await page.route('**/api/goals/*/timeline', (r) => r.fulfill({ json: demoTimeline(g.done!, getGoal(demo.engine.store.db, g.done!)!.title) }));
+  await page.setViewportSize({ width: 1280, height: 1180 });
+  await shot('goal-timeline', `/goals/${g.done}#timeline`);
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.unroute('**/api/goals/*/timeline');
   // last on this goal: the view choice is remembered per goal
   await shot('goal-simple', `/goals/${g.running}`, async () => {
     await page.getByRole('radio', { name: 'Simple' }).click();

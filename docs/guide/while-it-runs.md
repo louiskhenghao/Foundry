@@ -50,6 +50,7 @@ In Simple view the goal page shows:
 |---|---|
 | **Overview** | Where the goal stands, what needs you, the progress folder, the preview, acceptance checks. A number on the tab means something waits for you. |
 | **Tasks** | The task graph with each task's state. Shows **done/total · N running**. |
+| **Timeline** | When each step ran and how long it took, the goal and its delegated goals on one time axis. |
 | **Activity** | Everything that happened, newest first. |
 | **Diff** | Every change compared with where the goal started. |
 | **Delivery** | What happens to the result, and its progress. See [Getting the result](./getting-the-result.md#the-delivery-tab). |
@@ -259,6 +260,16 @@ The card shows:
 Then either press **Continue**, or write what you saw and press **Turn into a plan**. How that works, step by step, is in [When Foundry needs you](./when-foundry-needs-you.md#a-milestone-is-ready-to-look-at).
 
 The same screenshots and videos are sent to your notification channels in a second message, **📸 What the milestone looks like** (**⚠️ A milestone did not show** when a script failed), whether or not the goal pauses; the final walkthrough sends one message for every feature, and stay in the Overview's **Milestones** card to watch again later. A video too large for the channel (50 MB on Telegram, 10 MB on Discord) stays on the goal page, and the message says so.
+
+## Timeline
+
+When each step ran and how long it took, on one time axis, so the step that took longest shows at a glance.
+
+**Where the time went** starts with how long the goal took from start to end (or until now), how much of that it waited for you, and how long its delivery took. Below that is the time spent in sessions by kind (**Work**, **Reviews**, **Clarify**, **Landing**, **Other sessions**). Sessions run side by side, so together they can take longer than the goal did. **The longest steps** names the longest waits, sessions and delegated goals.
+
+The chart below has one row for the goal, with its phases: Clarify, waits for you, running, goal review and delivery. Then come a row with Foundry's own sessions (Clarify, the planner, reviews, docs), and one row per task: each attempt, its review and its landing. A delegated goal sits under the task it does, with rows of its own. Waits for you are striped, and a step still going has a green outline. Hold the pointer over a bar for its duration and cost.
+
+![The Timeline tab: where the time went, the longest steps, and every step of the goal and its delegated goal on one time axis](images/goal-timeline.png)
 
 ## Activity
 

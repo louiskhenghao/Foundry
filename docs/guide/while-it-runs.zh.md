@@ -50,6 +50,7 @@ goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它
 |---|---|
 | **Overview** | goal 进行到哪了、什么需要你、进度文件夹、预览、验收检查。标签上有数字表示有事等你。 |
 | **Tasks** | 任务图和每个任务的状态。显示 **done/total · N running**。 |
+| **Timeline** | 每一步什么时候进行、花了多久，goal 和它的 delegated goal 画在同一条时间轴上。 |
 | **Activity** | 发生过的所有事，最新的在前。 |
 | **Diff** | 相对 goal 起点的全部改动。 |
 | **Delivery** | 结果会怎样处理，以及进度。见 [拿到结果](./getting-the-result.zh.md#the-delivery-tab)。 |
@@ -259,6 +260,16 @@ goal 暂停时，它的状态标记显示 **have a look**，Inbox 显示 **Have 
 然后要么按 **Continue**，要么写下你看到的，按 **Turn into a plan**。具体怎么运作，一步步写在 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md#里程碑可以看了)。
 
 同样的截图和视频会在第二条消息 **📸 What the milestone looks like**（脚本失败时是 **⚠️ A milestone did not show**）里发到你的通知渠道，不管 goal 有没有暂停；最终走查只为所有功能发一条消息；之后也可以在 Overview 的 **Milestones** 卡片里重看。视频太大、超过渠道上限（Telegram 50 MB，Discord 10 MB）时，留在 goal 页面上，消息里会说明。
+
+## Timeline
+
+每一步什么时候进行、花了多久，都画在同一条时间轴上，一眼就能看出哪一步最耗时。
+
+**Where the time went** 先写 goal 从开始到结束（或到现在）一共多久、其中有多少时间在等你，以及交付花了多久。下面是按类别统计的会话时间（**Work**、**Reviews**、**Clarify**、**Landing**、**Other sessions**）。会话会同时进行，所以加起来可能比 goal 本身还长。**The longest steps** 列出最长的等待、会话和 delegated goal。
+
+下面的图里，第一行是 goal 本身，显示它的各个阶段：Clarify、等你、运行、goal 审查和交付。接着一行是 Foundry 自己的会话（Clarify、规划器、各种审查、文档），然后每个任务一行：每次尝试、它的审查和落地。delegated goal 排在它负责的那个任务下面，有自己的几行。等你的时间用斜纹表示，还在进行的步骤有绿色描边。把鼠标停在一段上，可以看到它的时长和费用。
+
+![Timeline 标签：时间花在哪里、最长的几步，以及 goal 和它的 delegated goal 的每一步画在同一条时间轴上](images/goal-timeline.png)
 
 ## Activity
 
