@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { connect } from 'node:net';
 import { exec as defaultExec } from '../git/git.ts';
 
 /** the Mac app's command-line entry point, for installs that never put `tailscale` on PATH */
@@ -20,6 +21,30 @@ function localPort(target: string | null): number | null {
   return m ? Number(m[1]) : null;
 }
 
+/** the two loopback addresses a local server may listen on: IPv4, or only IPv6 (Node ≥ 17 binds `localhost` to ::1 alone) */
+export type Loopback = '127.0.0.1' | '[::1]';
+const LOOPBACKS: readonly Loopback[] = ['127.0.0.1', '[::1]'];
+
+/** does something accept a TCP connection at this loopback address and port? (one second, no data sent) */
+export function tcpListens(host: Loopback, port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = connect({ host: host.replace(/^\[|\]$/g, ''), port });
+    const done = (ok: boolean) => {
+      socket.destroy();
+      resolve(ok);
+    };
+    socket.once('connect', () => done(true));
+    socket.once('error', () => done(false));
+    socket.setTimeout(1000, () => done(false));
+  });
+}
+
+/** the loopback address a serve target names, when it names one: `http://127.0.0.1:3000` → 127.0.0.1, `http://[::1]:3000` → [::1], `localhost:3000` → null (either) */
+function loopbackOf(target: string): Loopback | null {
+  const m = /^(?:https?:\/\/)?(127\.0\.0\.1|\[::1\]|localhost)(?::\d+)?\/?$/.exec(target.trim());
+  return m ? (m[1] === 'localhost' ? null : (m[1] as Loopback)) : null;
+}
+
 export function cliArgv(bin: string, args: string[]): string[] {
   return /\.app\/Contents\/MacOS\//.test(bin) ? ['/bin/sh', '-c', 'exec "$0" "$@"', bin, ...args] : [bin, ...args];
 }
@@ -37,7 +62,7 @@ export class Tailnet {
   private served = new Set<number>();
 
   constructor(
-    private opts: { mode: () => 'auto' | 'off'; host: () => string | null; log: (line: string) => void; exec?: Exec; bin?: string | null; stateFile?: string },
+    private opts: { mode: () => 'auto' | 'off'; host: () => string | null; log: (line: string) => void; exec?: Exec; bin?: string | null; stateFile?: string; /** test seam: which loopback addresses a port answers on */ listens?: (host: Loopback, port: number) => Promise<boolean> },
   ) {
     this.bin = opts.bin !== undefined ? opts.bin : (Bun.which('tailscale') ?? (existsSync(MAC_APP) ? MAC_APP : null));
   }
@@ -93,17 +118,33 @@ export class Tailnet {
   }
 
   /**
+   * The loopback address a local server listens on: 127.0.0.1 when it answers there, else [::1] when it answers there
+   * (Node ≥ 17 binds `localhost` to ::1 alone, so Vite and Next often listen on IPv6 only, and a proxy to 127.0.0.1
+   * answers 502); 127.0.0.1 while nothing listens yet.
+   */
+  async loopback(port: number): Promise<Loopback> {
+    const listens = this.opts.listens ?? tcpListens;
+    for (const host of LOOPBACKS) if (await listens(host, port).catch(() => false)) return host;
+    return '127.0.0.1';
+  }
+
+  /**
    * An address on the tailnet for a local port: the HTTPS address the person already serves it at, else one Foundry
-   * serves (`tailscale serve --bg --https=<port>`). With a name from Settings and no Tailscale command, plain
-   * http://<name>:<port>, which works when the server listens on every interface. null = not reachable that way.
+   * serves (`tailscale serve --bg --https=<port>`), pointed at the loopback address the server really listens on. A
+   * serve that points at the loopback address nothing listens on while the other answers (the server moved to IPv6,
+   * or an earlier Foundry served it blindly) is pointed right and becomes Foundry's. With a name from Settings and no
+   * Tailscale command, plain http://<name>:<port>, which works when the server listens on every interface. null = not
+   * reachable that way.
    */
   async expose(port: number): Promise<string | null> {
     const host = await this.host();
     if (!host) return null;
     if (!this.bin) return `http://${host}:${port}`;
+    const target = await this.loopback(port);
     const existing = await this.servedAt(port);
-    if (existing) return existing;
-    const r = await this.run(['serve', '--bg', `--https=${port}`, `http://127.0.0.1:${port}`]).catch((err) => ({ code: 1, stdout: '', stderr: String(err) }));
+    if (existing && (existing.loopback === null || existing.loopback === target || !(await (this.opts.listens ?? tcpListens)(target, port).catch(() => false)))) return existing.url;
+    if (existing) this.opts.log(`[tailnet] port ${port} is served to ${existing.loopback}, where nothing listens; pointing it at ${target}`);
+    const r = await this.run(['serve', '--bg', `--https=${port}`, `http://${target}:${port}`]).catch((err) => ({ code: 1, stdout: '', stderr: String(err) }));
     if (r.code !== 0) {
       this.opts.log(`[tailnet] could not serve port ${port}: ${(r.stderr || r.stdout).trim().slice(0, 200)}`);
       return null;
@@ -165,14 +206,14 @@ export class Tailnet {
     if (this.served.delete(port)) this.save();
   }
 
-  /** the HTTPS address `tailscale serve` already proxies to this local port, or null */
-  private async servedAt(port: number): Promise<string | null> {
+  /** the HTTPS address `tailscale serve` already proxies to this local port, with the loopback address it names (null = `localhost`, either), or null */
+  private async servedAt(port: number): Promise<{ url: string; loopback: Loopback | null } | null> {
     try {
       const r = await this.run(['serve', 'status', '--json']);
       const web = (JSON.parse(r.stdout || '{}') as { Web?: Record<string, { Handlers?: Record<string, { Proxy?: string }> }> }).Web ?? {};
       for (const [hostPort, cfg] of Object.entries(web)) {
         const proxy = cfg.Handlers?.['/']?.Proxy ?? '';
-        if (new RegExp(`^(https?://)?(127\\.0\\.0\\.1|localhost):${port}/?$`).test(proxy)) return `https://${hostPort.replace(/:443$/, '')}`;
+        if (localPort(proxy) === port && /^(https?:\/\/)?(127\.0\.0\.1|\[::1\]|localhost):/.test(proxy.trim())) return { url: `https://${hostPort.replace(/:443$/, '')}`, loopback: loopbackOf(proxy) };
       }
     } catch {
       /* no serve config yet */

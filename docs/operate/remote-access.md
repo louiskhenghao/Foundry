@@ -152,8 +152,13 @@ when a goal finishes or delivers, when a backend usage limit pauses that backend
 (Settings → Notifications, one switch per kind; step-by-step in [notifications.md](./notifications.md)). With
 Tailscale running on the machine, every message already links to the right page twice: on the machine itself and on
 your tailnet (**Tailscale links** = auto finds the `ts.net` name and reuses the `tailscale serve` above, or adds one).
-A milestone's preview gets a tailnet link too: Foundry serves the preview's port while it runs. Leave **Link base
-URL** empty unless you reach Foundry at another address. Press *Send test message* to confirm the channel.
+A milestone's preview gets a tailnet link too: Foundry serves the preview's port while it runs. The proxy is pointed
+at the loopback address the dev server really listens on (recent Node binds `localhost` to IPv6 only, which a proxy
+to `127.0.0.1` cannot reach), and the preview's process gets the tailnet name in
+`__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS`, so a Vite dev server answers to it; a server with an allow-list of its own
+(Next's `allowedDevOrigins`, webpack's `allowedHosts`) needs the name in its config, or in the variable it reads, set
+in the goal's Preview environment. Leave **Link base URL** empty unless you reach Foundry at another address. Press
+*Send test message* to confirm the channel.
 
 That is the loop: the machine works, you get a ping, you tap it, you answer the question or approve the Brief,
 the machine carries on.
@@ -202,3 +207,5 @@ delivery pushes with that machine's `gh` login — set it up once while you are 
 | After a one-click update the service log shows a port-in-use crash loop | the engine restarted itself instead of letting launchd/systemd do it | add `FOUNDRY_SUPERVISED=1` to the plist/unit (§3), then `launchctl kickstart -k …` / `systemctl --user restart foundry` |
 | Goals start but sessions fail immediately after a reboot | the service `PATH` lacks `claude` / `codex` / `bun`, or the Keychain login is not available (macOS, user not logged in) | fix `PATH` in the plist/unit; enable automatic login |
 | `tailscale serve` says the feature is not available | older client or plan without serve | update Tailscale, or use the bind-to-`100.x.y.z` alternative in §2 |
+| A preview's tailnet link answers *502* while it works on the machine | the dev server listens on IPv6 loopback only and the proxy was made for `127.0.0.1` (an earlier Foundry, or a serve you added by hand) | start the preview again: Foundry points the proxy at the address that answers; by hand, `tailscale serve --bg --https=<port> http://[::1]:<port>` |
+| A preview's tailnet link shows *Blocked request. This host ("…ts.net") is not allowed* | the dev server checks the Host header against an allow-list (Vite, Next) | Vite: start the preview again, Foundry passes the name in `__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS`; another server: add the name to its allow-list, or set the variable it reads in the goal's Preview environment |

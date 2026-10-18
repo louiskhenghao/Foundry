@@ -68,6 +68,12 @@ export function describe(e: EngineEvent, costAvailable = true): { text: string; 
       return { text: `Reattached here — progress folder ${p.workspaceDir}`, tone: 'ok' };
     case 'session.usage':
       return { text: `${p.kind} session · ${p.model ?? '?'} · ${cost(p.costUsd)}`, tone: 'muted' };
+    case 'task.delegated':
+      return { text: `Delegated to the goal "${p.title}" (${p.goalId})`, tone: 'info' };
+    case 'task.delegation_restarted':
+      return { text: `The delegated goal failed: ${p.restarted.length} task(s) restarted there (restart ${p.n})`, tone: 'warn' };
+    case 'task.summary_set':
+      return { text: 'Recorded what the step delivered, for the tasks after it', tone: 'muted', ...cut(p.summary) };
     default:
       return { text: e.type, tone: 'muted' };
   }

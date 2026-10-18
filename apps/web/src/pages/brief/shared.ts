@@ -1,7 +1,8 @@
 import type { Brief, BriefArea, BriefCheck, BriefTask } from '@foundry/core/browser';
 import { areaSlug } from '@foundry/core/browser';
 
-export const TASK_KINDS = ['feature', 'bug', 'refactor', 'research', 'chore'] as const;
+/** every kind a task may have; `goal` = a Delegated goal of its own does the step (the planner offers it only where the goal allows delegation) */
+export const TASK_KINDS = ['feature', 'bug', 'refactor', 'research', 'chore', 'goal'] as const;
 
 /** Stable colour per Area (by position), for chips and DAG dots. Literal classes so Tailwind keeps them. */
 const PALETTE = [

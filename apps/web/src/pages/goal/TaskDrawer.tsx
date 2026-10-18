@@ -1,5 +1,5 @@
 import type { Attempt, CheckResult, Task } from '@foundry/core/browser';
-import { GitMerge, Play, RotateCcw, Square } from 'lucide-react';
+import { CornerDownRight, GitMerge, Play, RotateCcw, Square } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { type ReactNode, useEffect, useState } from 'react';
 import { api, fileKey, fileUrl, type FileRef, type GoalDetail, type TaskFile, type WaitingKind } from '../../api.ts';
@@ -9,6 +9,7 @@ import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { OpenMenu } from '../../components/OpenMenu.tsx';
 import { TaskTags } from '../../components/TaskTags.tsx';
 import { Badge, Button, Card, ConfirmDialog, ago, cn, fmtUsd } from '../../ui.tsx';
+import { delegatedProgress } from './DagCanvas.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { EscalationCard } from '../InboxPage.tsx';
 
@@ -29,6 +30,9 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
   const openEsc = d.escalations.filter((e) => e.state === 'open' && e.taskId === task.id);
   const concluded = (id: string) => (d.events.find((e) => e.type === 'attempt.concluded' && (e.payload as any).attemptId === id)?.payload as { state?: string; reason?: string } | undefined) ?? null;
   const lastState = [...d.events].reverse().find((e) => e.type === 'task.state_changed' && (e.payload as any).taskId === task.id)?.payload as { to?: string; reason?: string } | undefined;
+  // a goal task: a Delegated goal does the work, so there is no session here to unstick and its attempts are its own
+  const goalTask = task.kind === 'goal';
+  const delegated = row?.delegated ?? null;
 
   useEffect(() => {
     setPrompt(null);
@@ -71,7 +75,14 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
               </Button>
             </Link>
           )}
-          <UnstickButton d={d} task={task} live={row?.live} waiting={row?.waiting} waitingKind={row?.waitingKind} />
+          {delegated?.exists && (
+            <Link to={`/goals/${delegated.goalId}`}>
+              <Button size="sm" variant="primary" title="The goal doing this task">
+                <CornerDownRight size={13} /> Open delegated goal
+              </Button>
+            </Link>
+          )}
+          {!goalTask && <UnstickButton d={d} task={task} live={row?.live} waiting={row?.waiting} waitingKind={row?.waitingKind} />}
           {onRestart && !['running', 'observing', 'merging'].includes(task.state) && (
             <Button size="sm" onClick={onRestart} title="Reset this task and everything downstream of it, then run again">
               <RotateCcw size={13} /> Restart from here
@@ -95,6 +106,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
       <div className="grid grid-cols-1 lg:grid-cols-3 lg:grid-rows-1 lg:flex-1 lg:min-h-0 gap-4">
         <div className="lg:col-span-1 lg:overflow-y-auto lg:pr-1 space-y-3">
           <MarkdownPanel title="spec" source={task.spec} maxHeight={260} actions={openFull(`Spec · ${task.title}`, task.spec)} />
+          {task.summary && <MarkdownPanel title="what it delivered" source={task.summary} maxHeight={260} actions={openFull(`What it delivered · ${task.title}`, task.summary)} />}
           {task.hint && <MarkdownPanel title="human hint" source={task.hint} local maxHeight={160} actions={openFull(`Human hint · ${task.title}`, task.hint)} />}
           <div>
             <div className="text-xs text-zinc-500 mb-1">Checks</div>
@@ -152,6 +164,27 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
           {openEsc.length === 0 && task.state === 'blocked' && lastState?.reason && <div className="mb-3 text-xs text-orange-300">blocked: {lastState.reason}</div>}
           {!openEsc.length && task.state !== 'done' && lastState?.reason && task.state !== 'blocked' && <div className="mb-2 text-[11px] text-zinc-500">last transition: {lastState.to} — {lastState.reason}</div>}
           {task.state === 'ready' && row?.waiting && <div className="mb-2 text-[11px] text-zinc-500">not started yet: {row.waiting}</div>}
+          {goalTask && (
+            <div className="mb-3 rounded-md border border-fuchsia-500/30 bg-fuchsia-500/5 px-3 py-2 text-xs text-zinc-300 space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-fuchsia-200">Done by a delegated goal</span>
+                {delegated?.exists && <Badge state={delegated.state ?? 'pending'} />}
+                {delegated?.exists && <span className="text-zinc-400">{delegatedProgress(delegated.taskCounts)}</span>}
+              </div>
+              {delegated ? (
+                delegated.exists ? (
+                  <div className="text-zinc-400">
+                    {delegated.needsYou ? <span className="text-orange-300">It {delegated.needsYou}. </span> : task.state === 'done' ? "Its result landed on this goal's branch as this task's commit. " : 'This task finishes when that goal does: its branch then lands here as one commit, its files under artifacts/ with it. '}
+                    <Link to={`/goals/${delegated.goalId}`} className="text-sky-300 hover:underline">Open it</Link>.
+                  </div>
+                ) : (
+                  <div className="text-zinc-500">That goal was deleted. Retry starts a new one; skip moves on without this step.</div>
+                )
+              ) : (
+                <div className="text-zinc-500">Its goal starts when this task does — one delegated goal at a time.</div>
+              )}
+            </div>
+          )}
           <div className="flex items-center gap-1 mb-2 flex-wrap">
             {attempts.map((x, i) => (
               <button key={x.id} onClick={() => setAi(i)} className={cn('text-xs rounded px-2 py-1 border flex items-center gap-1', i === Math.min(Math.max(ai, 0), attempts.length - 1) ? 'border-emerald-500 text-emerald-300' : 'border-zinc-700 text-zinc-400')}>
@@ -160,7 +193,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
                 <span className="text-zinc-500 mono">{cost(x.costUsd)}</span>
               </button>
             ))}
-            {attempts.length === 0 && <span className="text-xs text-zinc-500">no attempts yet</span>}
+            {attempts.length === 0 && <span className="text-xs text-zinc-500">{goalTask ? 'no attempts here: the delegated goal has its own' : 'no attempts yet'}</span>}
           </div>
           {a && (
             <>

@@ -140,6 +140,7 @@ function mustTask(engine: Engine, goalId: string, taskId: string): { goal: Goal;
 export function canResolve(engine: Engine, goalId: string, taskId: string): { ok: boolean; reason: string | null } {
   const task = getTask(engine.store.db, taskId);
   if (!task) return { ok: false, reason: 'task not found' };
+  if (task.kind === 'goal') return { ok: false, reason: "this task is done by a delegated goal: merge the goal branch into that goal's folder by hand, then retry the task" };
   if (!task.branch) return { ok: false, reason: 'this task worked directly on the goal branch; there is nothing to merge' };
   if (task.state !== 'blocked') return { ok: false, reason: `task is ${task.state}; manual resolution is offered once the automatic merge attempts gave up` };
   if (!mergeEscalation(engine, goalId, taskId)) return { ok: false, reason: 'the task is blocked for another reason than a merge conflict' };

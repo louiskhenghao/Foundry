@@ -361,6 +361,17 @@ export interface PortsView {
 
 export type WaitingKind = 'capacity' | 'serial' | 'overlap' | 'hard';
 
+/** where a goal task's Delegated goal stands (the server's view; the goal may have been deleted since) */
+export interface DelegatedView {
+  goalId: string;
+  exists: boolean;
+  title: string | null;
+  state: GoalState | null;
+  taskCounts: Record<string, number>;
+  /** why it waits for the person, or null while it works or is finished */
+  needsYou: string | null;
+}
+
 export interface GoalDetail {
   goal: Goal;
   /** directories the Open menu can launch: the user's checkout and the goal branch worktree (when it exists) */
@@ -368,7 +379,7 @@ export interface GoalDetail {
   budget: BudgetStatus;
   /** live: a slot held / a session process alive; waiting: why a ready task is not running (null: nothing holds it back);
    * waitingKind: the scheduler's caution (slots, running alone, shared files), which Start now may override, or 'hard' */
-  tasks: (Task & { depth: number; usage: TaskUsage | null; live?: { inFlight: boolean; session: boolean; since: string | null }; waiting?: string | null; waitingKind?: WaitingKind | null })[];
+  tasks: (Task & { depth: number; usage: TaskUsage | null; live?: { inFlight: boolean; session: boolean; since: string | null }; waiting?: string | null; waitingKind?: WaitingKind | null; delegated?: DelegatedView })[];
   attempts: Attempt[];
   checks: Check[];
   checkResults: CheckResult[];
@@ -385,6 +396,8 @@ export interface GoalDetail {
   investigating?: boolean;
   /** Follows / Followed by (goal.follows holds the earlier goal; it may have been deleted since) */
   followUps: { followsExists: boolean; followedBy: { id: string; title: string; state: GoalState }[] };
+  /** Delegated from / Delegated goals (goal.delegatedFrom holds the main goal; it may have been deleted since) */
+  delegations?: { fromExists: boolean; goals: { id: string; title: string; state: GoalState; taskId: string }[] };
 }
 
 /** Mirrors the engine's FollowUpDraft (follow-up.ts): prefill and start point for a Follow-up of a goal. */

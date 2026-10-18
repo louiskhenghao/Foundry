@@ -4,6 +4,7 @@ import { RestartDialog } from '../../components/RestartDialog.tsx';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { FollowLinks, MarkFollowUpDialog } from './FollowUps.tsx';
+import { DelegationLinks } from './Delegations.tsx';
 import { ClarifyProgress } from './ClarifyProgress.tsx';
 import { InterviewPanel } from './InterviewPanel.tsx';
 import { MilestoneCard } from './MilestoneCard.tsx';
@@ -128,6 +129,7 @@ export function GoalPage() {
             </span>
           </div>
           <FollowLinks d={d} />
+          <DelegationLinks d={d} />
         </div>
         <div className="space-y-2.5">
           <div className="grid grid-cols-2 gap-3">

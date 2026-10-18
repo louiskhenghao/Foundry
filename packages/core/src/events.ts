@@ -196,6 +196,12 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('task.restarted', { taskId: z.string(), extraAttempts: z.number().int(), reason: z.string() }),
   /** goal-branch HEAD when the task first started; the squash target */
   ev('task.base_ref', { taskId: z.string(), ref: z.string() }),
+  /** a `goal` task is done by a Delegated goal: created now, or started again (the main goal waits for it) */
+  ev('task.delegated', { taskId: z.string(), goalId: z.string(), title: z.string() }),
+  /** the Delegated goal of a `goal` task failed and the engine restarted its failed tasks (n = how many times so far) */
+  ev('task.delegation_restarted', { taskId: z.string(), goalId: z.string(), restarted: z.array(z.string()), n: z.number().int() }),
+  /** what a landed task delivered, for the tasks that depend on it (written when a Delegated goal's result lands) */
+  ev('task.summary_set', { taskId: z.string(), summary: z.string() }),
   /** the task's attempts were squashed into one Conventional Commit on the goal branch (ref null = no changes) */
   ev('task.committed', { taskId: z.string(), ref: z.string().nullable(), message: z.string() }),
   ev('check.created', { check: Check }),

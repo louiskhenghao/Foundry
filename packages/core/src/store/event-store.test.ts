@@ -28,7 +28,7 @@ function goal(id: string): Goal {
     delivery: IDLE_DELIVERY,
     attachments: [],
     baseSync: null,
-    autoskills: null, follows: null,
+    autoskills: null, follows: null, delegation: { allow: false, autoApprove: false }, delegatedFrom: null,
     completion: { graphRefresh: false, docs: [], audit: false, auditRun: null, docsRun: null, graphRun: null, artifactsRun: null },
     nature: 'auto',
     outputDir: null,
@@ -64,6 +64,8 @@ function task(id: string, goalId: string): Task {
     worktreePath: null,
     hint: null,
     extraAttempts: 0,
+    delegatedGoalId: null,
+    summary: null,
     createdAt: now,
     updatedAt: now,
   };

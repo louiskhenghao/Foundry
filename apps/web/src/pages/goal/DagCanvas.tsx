@@ -1,5 +1,7 @@
 import type { Task } from '@foundry/core/browser';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import type { DelegatedView } from '../../api.ts';
 import { TaskTags } from '../../components/TaskTags.tsx';
 import { useElementWidth } from '../../hooks/useElementWidth.ts';
 import { Badge, cn, fmtUsd } from '../../ui.tsx';
@@ -25,6 +27,14 @@ export interface DagTask extends Task {
   model?: string | null;
   /** Brief mode: no run state yet — show this chip (the Area) instead of the state badge and attempt count */
   plain?: { label: string | null; color: string };
+  /** a goal task: where its Delegated goal stands, once it exists */
+  delegated?: DelegatedView;
+}
+
+/** "3/5 tasks done" of a Delegated goal, from its task counts */
+export function delegatedProgress(counts: Record<string, number>): string {
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  return total ? `${counts.done ?? 0}/${total} tasks done` : 'no tasks yet';
 }
 
 interface Edge {
@@ -164,11 +174,17 @@ export function DagCanvas({ tasks, selected, onSelect }: { tasks: DagTask[]; sel
 }
 
 function TaskNode({ t, selected, linked, dim, onSelect, className, style, after }: { t: DagTask; selected: boolean; linked?: boolean; dim?: boolean; onSelect: (id: string | null) => void; className?: string; style?: React.CSSProperties; after?: string[] }) {
+  const nav = useNavigate();
+  const goalTask = t.kind === 'goal' && !t.plain;
+  const open = (e: React.SyntheticEvent) => {
+    e.stopPropagation();
+    if (t.delegated?.exists) nav(`/goals/${t.delegated.goalId}`);
+  };
   return (
     <button
       onClick={() => onSelect(selected ? null : t.id)}
       style={style}
-      className={cn('dag-node text-left rounded-lg border p-2.5 bg-zinc-950 hover:border-zinc-500 transition', selected ? 'border-emerald-500 ring-1 ring-emerald-500/40' : linked ? 'border-zinc-400 ring-1 ring-zinc-400/30' : 'border-zinc-800', t.state === 'running' && 'ring-1 ring-blue-500/40', dim && 'opacity-40', className)}
+      className={cn('dag-node text-left rounded-lg border p-2.5 bg-zinc-950 hover:border-zinc-500 transition', selected ? 'border-emerald-500 ring-1 ring-emerald-500/40' : linked ? 'border-zinc-400 ring-1 ring-zinc-400/30' : 'border-zinc-800', t.state === 'running' && 'ring-1 ring-blue-500/40', t.kind === 'goal' && 'border-dashed', dim && 'opacity-40', className)}
     >
       <div className="flex items-center justify-between gap-2">
         {t.plain ? (
@@ -196,6 +212,27 @@ function TaskNode({ t, selected, linked, dim, onSelect, className, style, after 
           </span>
         )}
       </div>
+      {goalTask && (
+        // the card of a step done by a Delegated goal: where that goal stands, and the way to it
+        <div className="mt-1.5 text-[11px] flex items-center gap-x-2 gap-y-0.5 flex-wrap">
+          {t.delegated ? (
+            t.delegated.exists ? (
+              <>
+                <Badge state={t.delegated.state ?? 'pending'} />
+                <span className="text-zinc-400">{delegatedProgress(t.delegated.taskCounts)}</span>
+                {t.delegated.needsYou && <span className="text-orange-300" title={t.delegated.needsYou}>needs you</span>}
+                <span role="link" tabIndex={0} className="text-sky-300 hover:underline cursor-pointer" onClick={open} onKeyDown={(e) => e.key === 'Enter' && open(e)}>
+                  Open goal →
+                </span>
+              </>
+            ) : (
+              <span className="text-zinc-500">its goal was deleted</span>
+            )
+          ) : (
+            <span className="text-zinc-500">{t.state === 'pending' || t.state === 'ready' ? 'starts as a goal of its own' : 'its goal is being created'}</span>
+          )}
+        </div>
+      )}
       {after && after.length > 0 && <div className="text-[10px] text-zinc-500 mt-1 truncate">after: {after.join(', ')}</div>}
     </button>
   );

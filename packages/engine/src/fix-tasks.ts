@@ -56,6 +56,8 @@ export function createFixTasks(engine: Engine, goal: Goal, specs: FixSpec[], hin
       commitMessage: null,
       hint,
       extraAttempts: 0,
+      delegatedGoalId: null,
+      summary: null,
       createdAt: now,
       updatedAt: now,
     };

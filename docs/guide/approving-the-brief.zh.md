@@ -131,6 +131,7 @@ Foundry 用自己的话说它理解了什么。先读这个：如果这里错了
 | **refactor** | 调整结构，不改变行为。 |
 | **research** | 查清楚某件事。 |
 | **chore** | 环境搭建、依赖、日常维护。 |
+| **goal** | 由一个独立的委派 goal 来做的步骤，它有自己的 Clarify 和计划。只有 goal 允许委派时 planner 才会用它；见 [Delegated goals](./your-first-goal.zh.md#delegated-goals)。 |
 
 类型决定执行者遵循哪种工作方法（比如做功能时先写测试）。
 

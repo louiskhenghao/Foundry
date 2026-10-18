@@ -110,6 +110,12 @@ Foundry 写 Brief 之前问你问得多深：**Skip**，然后是 **1** 到 **5*
 
 问得越深，花你的时间越多，费用也略高。这个默认值可以在 Settings 里改（见 [设置说明](./settings.zh.md#new-goal-defaults)）。更多内容见 [回答访谈](./answering-the-interview.zh.md)。
 
+### Delegated goals
+
+两个开关，默认都关。勾上 **Delegated goals**，planner 就可以把一个本身就是一个项目的步骤——必须先做的调研、代码旁边的 3D 模型或视频、大到一份计划装不下的部分——交给一个独立的 goal：一个*委派 goal*，有自己的 Clarify、Brief 和计划。它从这个 goal 的分支出发，完成后把结果作为那一步的提交落回这个分支，再让需要它的任务开始；之后的任务会被告知它交付了什么。这样的步骤在 Brief 上显示为 kind 是 **goal** 的任务，你可以像改其它任务一样改它们。委派 goal 一次只跑一个，自己不会再委派，花费记在这个 goal 上。
+
+勾上 **Approve delegated goals' Briefs for me**，它们的 Brief 写好就自动批准，除非留下了只有你能回答的问题。不勾，这个 goal 会停下来，等你亲自批准每个委派 goal 的 Brief。无论哪种，委派 goal 需要你的时候——一个问题、一个 milestone、一条 Inbox 事项——这个 goal 以 **blocked** 状态等待，之后自己继续。运行时你会看到什么，见 [Delegated goals](./while-it-runs.zh.md#delegated-goals)。
+
 ### Effort
 
 这个 goal 的会话思考得有多用力。明确选择一个值会覆盖所有角色。Codex 的 **Default** 使用预设中各角色的强度；当模型支持时，也可选择 **none**、**minimal** 或 **ultra**。表单初始填入 Settings 中配置的强度；主动选 **Default** 会恢复 Codex 角色设置。已知不兼容的模型与强度组合必须修正后才能创建任务。

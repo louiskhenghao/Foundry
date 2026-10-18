@@ -1,12 +1,12 @@
 import { type ReactNode, useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, Folder } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CornerDownRight, Folder } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, type GoalRow } from '../api.ts';
 import { SetupBanner } from '../components/SetupBanner.tsx';
 import { UsagePausedBanner } from '../components/UsageBanner.tsx';
 import { ProviderBadge, shortCwd } from './agents/rows.tsx';
 import { useLive } from '../store.ts';
-import { Badge, Button, Empty, ago, fmtLimitMin, fmtLimitUsd, fmtUsd } from '../ui.tsx';
+import { Badge, Button, Empty, ago, cn, fmtLimitMin, fmtLimitUsd, fmtUsd } from '../ui.tsx';
 
 /** Trait chip (nature, pace, view mode): same height and type size as the state badge, pill-shaped to read as secondary. */
 function Chip({ className, children }: { className?: string; children: ReactNode }) {
@@ -18,6 +18,8 @@ export function GoalsPage() {
   const version = useLive((s) => s.globalVersion);
   const [params, setParams] = useSearchParams();
   const [size, setSize] = useState(savedSize);
+  // main goals whose Delegated goals are shown under them (folded by default)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   useEffect(() => {
     const t = setTimeout(() => api.goals().then(setGoals).catch(() => {}), 150);
     return () => clearTimeout(t);
@@ -48,9 +50,45 @@ export function GoalsPage() {
   const cost = (g: GoalRow) =>
     g.provider === 'codex' ? <span className="font-sans text-zinc-400">cost unavailable</span> : <>{fmtUsd(g.costUsd)} <span className="text-zinc-500">/ {fmtLimitUsd(g.budgets.maxCostUsd)}</span></>;
 
-  const pages = Math.max(1, Math.ceil((goals?.length ?? 0) / size));
+  // Delegated goals fold under their main goal; one whose main goal is gone stays in the list on its own, saying so
+  const ids = new Set((goals ?? []).map((g) => g.id));
+  const children = new Map<string, GoalRow[]>();
+  for (const g of goals ?? []) {
+    if (g.delegatedFrom && ids.has(g.delegatedFrom.goalId)) children.set(g.delegatedFrom.goalId, [...(children.get(g.delegatedFrom.goalId) ?? []), g]);
+  }
+  const top = (goals ?? []).filter((g) => !(g.delegatedFrom && ids.has(g.delegatedFrom.goalId)));
+  const toggle = (id: string) =>
+    setExpanded((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  /** under a main goal: how many Delegated goals it has (click to fold them out); under an orphaned one: whose it was */
+  const delegationTag = (g: GoalRow) => {
+    const kids = children.get(g.id);
+    if (kids?.length) {
+      const open = expanded.has(g.id);
+      return (
+        // above the row's title link (which covers the row), so it toggles instead of opening the goal
+        <button type="button" className="relative z-10 text-[11px] text-fuchsia-300 hover:underline" onClick={() => toggle(g.id)} aria-expanded={open}>
+          {open ? '▾' : '▸'} {kids.length} delegated goal{kids.length === 1 ? '' : 's'}
+        </button>
+      );
+    }
+    if (g.delegatedFrom) {
+      return (
+        <div className="text-[11px] text-zinc-500 truncate max-w-[70vw] sm:max-w-[40vw]" title={`delegated from ${g.delegatedFrom.title}`}>
+          ↳ delegated from a deleted goal · {g.delegatedFrom.title}
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const pages = Math.max(1, Math.ceil(top.length / size));
   const page = Math.min(pages, Math.max(1, Number(params.get('page')) || 1));
-  const shown = goals?.slice((page - 1) * size, page * size) ?? [];
+  const shown = top.slice((page - 1) * size, page * size);
   const go = (n: number) => setParams(n > 1 ? { page: String(n) } : {});
   const resize = (n: number) => {
     setSize(n);
@@ -59,6 +97,44 @@ export function GoalsPage() {
     } catch {}
     go(1);
   };
+
+  /** one row per goal, related facts stacked: what and where · state and progress · spend · when; a Delegated goal's row sits indented under its main goal's */
+  const row = (g: GoalRow, nested: boolean) => (
+    <li key={g.id} className={cn('relative grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,15rem)] md:grid-cols-[minmax(0,1fr)_minmax(0,15rem)_9rem_6.5rem] gap-x-4 gap-y-2 px-3 sm:px-4 py-3 hover:bg-zinc-900/60', nested && 'pl-8 sm:pl-10 bg-zinc-950/40')}>
+      <div className="min-w-0">
+        {/* the title link covers the whole row */}
+        <Link to={href(g)} className="text-sm text-zinc-100 leading-snug hover:underline after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-emerald-500">
+          {nested && <CornerDownRight size={12} className="inline mr-1 text-fuchsia-300" aria-label="delegated goal" />}
+          {g.title}
+        </Link>
+        <div className="mt-1 flex items-center gap-2 min-w-0 text-[11px] text-zinc-500">
+          <ProviderBadge provider={g.provider} />
+          <Folder size={11} className="shrink-0" aria-hidden="true" />
+          <span className="mono truncate" title={g.repoPath}>{shortCwd(g.repoPath)}</span>
+        </div>
+        {followsTag(g)}
+        {!nested && delegationTag(g)}
+      </div>
+      <div className="min-w-0 space-y-1.5">
+        {stateCell(g)}
+        <div className="text-[11px] text-zinc-400 truncate" title={taskSummary(g)}>{taskSummary(g)}</div>
+      </div>
+      <div className="hidden md:block text-xs space-y-1.5">
+        <div className="mono whitespace-nowrap">{cost(g)}</div>
+        <div className="text-[11px] text-zinc-500 whitespace-nowrap">{g.budget.elapsedMin.toFixed(0)} / {fmtLimitMin(g.budgets.maxDurationMin)}</div>
+      </div>
+      <div className="hidden md:block text-xs text-zinc-500 text-right space-y-1.5">
+        <div className="whitespace-nowrap" title={new Date(g.updatedAt).toLocaleString()}>{ago(g.updatedAt)}</div>
+        <div className="text-[11px] whitespace-nowrap" title={new Date(g.createdAt).toLocaleString()}>created {new Date(g.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div>
+      </div>
+      {/* below md the spend and time fold into one line */}
+      <div className="md:hidden sm:col-span-2 flex items-center gap-3 flex-wrap text-[11px] text-zinc-500">
+        <span className="mono">{cost(g)}</span>
+        <span>{g.budget.elapsedMin.toFixed(0)} / {fmtLimitMin(g.budgets.maxDurationMin)}</span>
+        <span>{ago(g.updatedAt)}</span>
+      </div>
+    </li>
+  );
 
   return (
     <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6">
@@ -78,46 +154,15 @@ export function GoalsPage() {
         <Empty>No goals yet. Create one to start.</Empty>
       ) : (
         <>
-          {/* one row per goal, related facts stacked: what and where · state and progress · spend · when */}
           <ul className="surface-card rounded-lg border border-zinc-800 divide-y divide-zinc-800">
-            {shown.map((g) => (
-              <li key={g.id} className="relative grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,15rem)] md:grid-cols-[minmax(0,1fr)_minmax(0,15rem)_9rem_6.5rem] gap-x-4 gap-y-2 px-3 sm:px-4 py-3 hover:bg-zinc-900/60">
-                <div className="min-w-0">
-                  {/* the title link covers the whole row */}
-                  <Link to={href(g)} className="text-sm text-zinc-100 leading-snug hover:underline after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-emerald-500">{g.title}</Link>
-                  <div className="mt-1 flex items-center gap-2 min-w-0 text-[11px] text-zinc-500">
-                    <ProviderBadge provider={g.provider} />
-                    <Folder size={11} className="shrink-0" aria-hidden="true" />
-                    <span className="mono truncate" title={g.repoPath}>{shortCwd(g.repoPath)}</span>
-                  </div>
-                  {followsTag(g)}
-                </div>
-                <div className="min-w-0 space-y-1.5">
-                  {stateCell(g)}
-                  <div className="text-[11px] text-zinc-400 truncate" title={taskSummary(g)}>{taskSummary(g)}</div>
-                </div>
-                <div className="hidden md:block text-xs space-y-1.5">
-                  <div className="mono whitespace-nowrap">{cost(g)}</div>
-                  <div className="text-[11px] text-zinc-500 whitespace-nowrap">{g.budget.elapsedMin.toFixed(0)} / {fmtLimitMin(g.budgets.maxDurationMin)}</div>
-                </div>
-                <div className="hidden md:block text-xs text-zinc-500 text-right space-y-1.5">
-                  <div className="whitespace-nowrap" title={new Date(g.updatedAt).toLocaleString()}>{ago(g.updatedAt)}</div>
-                  <div className="text-[11px] whitespace-nowrap" title={new Date(g.createdAt).toLocaleString()}>created {new Date(g.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div>
-                </div>
-                {/* below md the spend and time fold into one line */}
-                <div className="md:hidden sm:col-span-2 flex items-center gap-3 flex-wrap text-[11px] text-zinc-500">
-                  <span className="mono">{cost(g)}</span>
-                  <span>{g.budget.elapsedMin.toFixed(0)} / {fmtLimitMin(g.budgets.maxDurationMin)}</span>
-                  <span>{ago(g.updatedAt)}</span>
-                </div>
-              </li>
-            ))}
+            {shown.flatMap((g) => [row(g, false), ...(expanded.has(g.id) ? (children.get(g.id) ?? []).map((c) => row(c, true)) : [])])}
           </ul>
           {/* always shown: how many there are, how many per page, and where you are */}
           <nav className="mt-3 flex items-center justify-between gap-x-3 gap-y-2 flex-wrap text-xs text-zinc-500" aria-label="Goal pages">
             <span className="flex items-center gap-2">
               <span className="tabular-nums">
-                {(page - 1) * size + 1}–{Math.min(page * size, goals.length)} of {goals.length} goals
+                {(page - 1) * size + 1}–{Math.min(page * size, top.length)} of {top.length} goals
+                {top.length < goals.length && <span className="text-zinc-600"> · {goals.length - top.length} delegated</span>}
               </span>
               <label className="flex items-center gap-1">
                 <span className="sr-only">Goals per page</span>

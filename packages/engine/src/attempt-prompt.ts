@@ -40,6 +40,8 @@ export interface AttemptPromptInput {
   areaDescription?: string;
   /** rendered `# Decisions from the human` section (see renderDecisions), or '' */
   decisions?: string;
+  /** rendered `# What the steps before this one delivered` section (delegation.ts renderUpstream), or '' */
+  upstream?: string;
   /** the chosen Style Proposal (media/UI tasks), or null */
   style?: BriefStyleOption | null;
   /** the goal branch moved since this task's worktree was created (see catchup.ts), or null */
@@ -66,6 +68,7 @@ export function buildAttemptPrompt(i: AttemptPromptInput): string {
   const area = i.task.area ? `Area: ${i.task.area}${i.areaDescription ? ` — ${i.areaDescription}` : ''}\n` : '';
   lines.push(`# Your task (${i.task.title})\n${area}Attempt ${i.attemptIndex} of ${i.maxAttempts}.\n\n${i.task.spec.trim()}`);
   if (i.decisions) lines.push(i.decisions);
+  if (i.upstream) lines.push(i.upstream);
   const styleSection = renderStyle(i.style);
   if (styleSection) lines.push(styleSection);
   if (i.task.relevantFiles.length) lines.push(`# Start here\n${i.task.relevantFiles.map((f) => `- ${f}`).join('\n')}`);

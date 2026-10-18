@@ -12,7 +12,8 @@ import { catchUp, catchUpAndLand, filesOverlap } from './catchup.ts';
 import { stuckIn } from './take-back.ts';
 import { existsSync } from 'node:fs';
 import { excludeFromGit } from './skills/autoskills.ts';
-import { dropTaskWorkspace, ensureGoalWorkspace, ensureTaskWorkspace, goalWorkspacePath } from './workspace.ts';
+import { dropTaskWorkspace, ensureGoalWorkspace, ensureTaskWorkspace, goalWorkspacePath, listArtifacts } from './workspace.ts';
+import { delegating, isDelegationTask, settleDelegations, startDelegations } from './delegation.ts';
 
 /**
  * One scheduling pass for a running goal. Idempotent; called after every event.
@@ -37,6 +38,14 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
     }
   }
   tasks = listTasks(store.db, goal.id);
+
+  // 2c. goal tasks: a Delegated goal that finished lands, one that failed runs again, and the goal waits (blocked) while
+  // one needs the person
+  if (tasks.some((t) => isDelegationTask(t))) {
+    await settleDelegations(engine, goal);
+    if (getGoal(store.db, goal.id)?.state !== 'running') return;
+    tasks = listTasks(store.db, goal.id);
+  }
 
   // 2a. a milestone script failed again after its repair: launch nothing more, then pause there once nothing is in flight
   const failing = engine.pauseDue.get(goal.id);
@@ -119,10 +128,17 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
 
   // 5. start ready tasks within capacity — none while the final walkthrough or the audit runs: they read the branch as it is
   if (engine.finalWalking.has(goal.id) || engine.auditing.has(goal.id)) return;
+  // 5a. the next goal task starts as a Delegated goal (one at a time; it takes no slot: that goal has slots of its own)
+  if (tasks.some((t) => isDelegationTask(t) && t.state === 'ready')) {
+    await startDelegations(engine, goal, tasks);
+    if (getGoal(store.db, goal.id)?.state !== 'running') return;
+    tasks = listTasks(store.db, goal.id);
+  }
   const inFlight = engine.inFlightForGoal(goal.id);
   let capacity = Math.max(0, goal.budgets.maxConcurrent - inFlight.length);
-  const ready = tasks.filter((t) => t.state === 'ready' && !engine.isInFlight(t.id));
-  const goalWsBusy = tasks.some((t) => engine.isInFlight(t.id) && !t.worktreePath);
+  const ready = tasks.filter((t) => t.state === 'ready' && !engine.isInFlight(t.id) && !isDelegationTask(t));
+  // while a Delegated goal is under way its landing needs the goal workspace: every task gets a worktree of its own meanwhile
+  const goalWsBusy = tasks.some((t) => engine.isInFlight(t.id) && !t.worktreePath) || !!delegating(tasks);
   const started: Task[] = [];
   for (const t of ready) {
     // Start now: the person chose to start this one past the scheduler's caution (a full set of slots, running alone,
@@ -182,12 +198,12 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
       if (!task.worktreePath) {
         // a new worktree branches from the goal branch as it stands between landings: under the goal workspace's lock, so
         // never from a merge attempt's commit before its checks are done, and not while it ends at a commit an attempt
-        // could not take back (the escalation that names it blocks the goal). A cad task inherits the goal's exports
+        // could not take back (the escalation that names it blocks the goal). The task inherits the goal's artifacts
         // after any leftover overlay is undone, so never a merge attempt's laid over them for its checks
         const made = await engine.withGoalWsLock(goal.id, async () => {
           const held = await stuckIn(engine, goal, [goalWorkspacePath(config.dataDir, goal)]);
           if (held) return { held, ws: null };
-          if (task.scenario === 'cad') await recoverOverlays(engine, goal);
+          await recoverOverlays(engine, goal);
           return { held: null, ws: await ensureTaskWorkspace(config.dataDir, goal, task) };
         });
         if (!made.ws) {
@@ -201,8 +217,9 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
       } else cwd = task.worktreePath;
     }
     // media and CAD tasks generate into artifacts/, which must never reach a commit (info/exclude is shared by all
-    // worktrees); the leading slash anchors to the workspace root so docs/artifacts/ manifests stay tracked
-    if (ARTIFACT_SCENARIOS.includes(task.scenario)) await excludeFromGit(cwd, ['/artifacts/'], (m) => config.log(m));
+    // worktrees), and neither may what a task inherited there; the leading slash anchors to the workspace root so
+    // docs/artifacts/ manifests stay tracked
+    if (ARTIFACT_SCENARIOS.includes(task.scenario) || listArtifacts(cwd).length) await excludeFromGit(cwd, ['/artifacts/'], (m) => config.log(m));
     task = getTask(store.db, task.id)!;
     // an attempt cut by an engine restart is resumed (its session keeps its context) instead of being redone
     const last = listAttempts(store.db, task.id).filter((a) => a.kind === 'work').at(-1);

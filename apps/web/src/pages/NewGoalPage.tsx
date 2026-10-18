@@ -103,6 +103,9 @@ export function NewGoalPage() {
   const [tdd, setTddState] = useState<'required' | 'preferred' | 'off'>('required');
   const [ponytail, setPonytailState] = useState<'on' | 'off'>('on');
   const [pace, setPace] = useState<'thorough' | 'fast'>('thorough');
+  // delegated goals: off by default; the second switch only matters with the first
+  const [delegate, setDelegate] = useState(false);
+  const [delegateAuto, setDelegateAuto] = useState(false);
   const [defaultRemote, setDefaultRemote] = useState('origin');
   /** fields the human changed on this page: the Settings defaults arriving later never overwrite them */
   const changed = useRef(new Set<string>(initialProvider ? ['provider'] : []));
@@ -280,6 +283,7 @@ export function NewGoalPage() {
         effort: effort || (provider === 'codex' ? null : undefined),
         modelPreset: (provider === 'codex' ? codexPreset : modelPreset) || undefined,
         follows: follow ? { goalId: follow.draft.previous.id, startFrom: follow.startFrom, attachments: follow.attachments, style: follow.style } : undefined,
+        delegation: { allow: delegate, autoApprove: delegate && delegateAuto },
       });
       try {
         localStorage.setItem(DELIVERY_KEY, JSON.stringify({ remote: delivery.remote, mergeMethod: delivery.mergeMethod, requireChecks: delivery.requireChecks, autoResolveConflicts: delivery.autoResolveConflicts, fixCiCycles: delivery.fixCiCycles, deleteRemoteBranch: delivery.deleteRemoteBranch }));
@@ -407,6 +411,22 @@ export function NewGoalPage() {
           </div>
           <span className="text-[11px] text-zinc-400 block leading-snug">{INTERVIEW_DEPTHS.find((d) => d.id === interviewDepth)?.label}. How deep the Clarifier questions you before writing the Brief (options with its recommendation first); it sets how thoroughly it probes, not a number of rounds.</span>
         </div>
+        <label className="mt-3 flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-1" checked={delegate} onChange={(e) => { setDelegate(e.target.checked); if (!e.target.checked) setDelegateAuto(false); }} />
+          <span>
+            <span className="text-zinc-100">Delegated goals</span><HelpLink to="your-first-goal#delegated-goals" className="ml-1.5" />
+            <span className="text-[11px] text-zinc-400 block leading-snug">The planner may hand a step that is a project of its own (research that comes first, a 3D model or a video next to the code, a part too large for one plan) to a goal of its own, with its own Clarify and plan. Its result lands on this goal's branch before the tasks that need it. They run one at a time. Off: every step is one task.</span>
+          </span>
+        </label>
+        {delegate && (
+          <label className="mt-2 ml-6 flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-1" checked={delegateAuto} onChange={(e) => setDelegateAuto(e.target.checked)} />
+            <span>
+              <span className="text-zinc-100">Approve delegated goals' Briefs for me</span>
+              <span className="text-[11px] text-zinc-400 block leading-snug">Their Briefs are approved as soon as they are written, unless a question only you can answer is left. Off: this goal pauses until you approve each one.</span>
+            </span>
+          </label>
+        )}
         <div className="mt-4 flex flex-wrap items-center gap-x-8 gap-y-3">
           <div className="flex items-center gap-2.5 flex-wrap">
             <span className="text-xs text-zinc-300">Effort<HelpLink to="your-first-goal#effort" className="ml-1.5" /></span>

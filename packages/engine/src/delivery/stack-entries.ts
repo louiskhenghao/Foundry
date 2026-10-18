@@ -44,7 +44,7 @@ function referenceTasks(goal: Goal, events: { type: string; payload: unknown; ts
       id: `${goal.id}:reference:${p.docRef.slice(0, 7)}`, goalId: goal.id, title, kind: 'chore', scope: 'docs', scenario: 'docs', area: null, tdd: 'inherit',
       spec: `The report of the investigation of this goal's references, written before Clarify: ${p.docPath}.`,
       dependsOn: [], relevantFiles: [p.docPath], parallelizable: false, retryBudget: 0, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'simple',
-      state: 'done', branch: null, worktreePath: null, baseRef: null, commitRef: p.docRef, commitMessage: title, hint: null, extraAttempts: 0, createdAt: e.ts, updatedAt: e.ts,
+      state: 'done', branch: null, worktreePath: null, baseRef: null, commitRef: p.docRef, commitMessage: title, hint: null, extraAttempts: 0, delegatedGoalId: null, summary: null, createdAt: e.ts, updatedAt: e.ts,
     } satisfies Task);
   }
   return out;
@@ -66,7 +66,7 @@ function docsTask(goal: Goal, events: { type: string; payload: unknown; ts: stri
     id: `${goal.id}:docs`, goalId: goal.id, title, kind: 'chore', scope: 'docs', scenario: 'docs', area: null, tdd: 'inherit',
     spec: `Documentation written when the goal finished: ${p.files.join(', ') || 'the goal\u2019s docs'}.`,
     dependsOn: [], relevantFiles: p.files, parallelizable: false, retryBudget: 0, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'simple',
-    state: 'done', branch: null, worktreePath: null, baseRef: null, commitRef: ref, commitMessage: title, hint: null, extraAttempts: 0, createdAt: e.ts, updatedAt: e.ts,
+    state: 'done', branch: null, worktreePath: null, baseRef: null, commitRef: ref, commitMessage: title, hint: null, extraAttempts: 0, delegatedGoalId: null, summary: null, createdAt: e.ts, updatedAt: e.ts,
   } satisfies Task;
 }
 

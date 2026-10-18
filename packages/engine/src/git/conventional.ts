@@ -9,7 +9,7 @@ const TYPES: CcType[] = ['feat', 'fix', 'refactor', 'chore', 'docs', 'test', 'ci
 
 export const HEADER_MAX = 72;
 
-export const typeForKind = (kind: TaskKind): CcType => ({ feature: 'feat', bug: 'fix', refactor: 'refactor', research: 'docs', chore: 'chore' })[kind] as CcType;
+export const typeForKind = (kind: TaskKind): CcType => ({ feature: 'feat', bug: 'fix', refactor: 'refactor', research: 'docs', chore: 'chore', goal: 'feat' })[kind] as CcType;
 
 const HEADER_RE = /^([a-z]+)(?:\(([^)]*)\))?(!)?:\s+(.+)$/;
 

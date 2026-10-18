@@ -221,7 +221,7 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
           </label>
           <label className="block">
             <span className="text-zinc-500">Kind</span>
-            <Select disabled={!editable} className="text-xs py-1 mt-0.5" value={task.kind} onChange={(e) => change({ kind: e.target.value as BriefTask['kind'] })} title="feature / bug (reproduce first) / refactor / research / chore — selects the worker's workflow skills">
+            <Select disabled={!editable} className="text-xs py-1 mt-0.5" value={task.kind} onChange={(e) => change({ kind: e.target.value as BriefTask['kind'] })} title="feature / bug (reproduce first) / refactor / research / chore — selects the worker's workflow skills; goal = a delegated goal of its own does this step (its own Clarify and plan), one at a time">
               {TASK_KINDS.map((k) => (
                 <option key={k} value={k}>
                   {k}

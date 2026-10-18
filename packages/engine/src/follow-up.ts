@@ -147,7 +147,7 @@ export function renderPreviousGoal(engine: Engine, a: Goal, style: BriefStyleOpt
 }
 
 /** Copy A's attachments (files with their markdown renditions, links with their snapshots) into B's directory, under new ids. */
-function copyAttachments(dataDir: string, from: Goal, toGoalId: string, max: number): Attachment[] {
+export function copyAttachments(dataDir: string, from: Goal, toGoalId: string, max: number): Attachment[] {
   const out: Attachment[] = [];
   for (const a of from.attachments) {
     if (out.length >= max) break;
