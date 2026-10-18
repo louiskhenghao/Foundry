@@ -87,6 +87,8 @@ export const BriefTask = z.object({
   dependsOnKeys: z.array(z.string()).default([]),
   parallelizable: z.boolean().default(true),
   relevantFiles: z.array(z.string()).default([]),
+  /** Deliverables: files the task leaves for the tasks after it (repo-relative, or under artifacts/); checked when it lands, listed to its dependents */
+  delivers: z.array(z.string()).optional(),
   /** simple / standard / complex: picks the worker model (Settings → Models); absent = standard */
   difficulty: TaskDifficulty.optional(),
   /** what to look at or try when this task lands; set = milestone, the goal pauses there for a human look */
@@ -176,6 +178,10 @@ const outputTaskSchema = (delegation: boolean) => z.object({
   dependsOnKeys: z.array(z.string()),
   parallelizable: z.boolean(),
   relevantFiles: z.array(z.string()).describe('Repo-relative paths the worker should start from.'),
+  delivers: z
+    .array(z.string())
+    .optional()
+    .describe('Deliverables: the files this task leaves for the tasks after it, repo-relative (under artifacts/ for media and CAD): what they will read or build on. Each must exist when the task lands (it is checked), and the next tasks are told where they are. Leave out when nothing after it reads its files directly.'),
   difficulty: z
     .enum(['simple', 'standard', 'complex'])
     .describe('How hard this task is for one engineer-session. simple = mechanical, well-trodden (config, copy edits, scaffolding from a template, one small component); standard = typical feature work; complex = cross-cutting, subtle or high-risk (architecture, concurrency, data migration, tricky algorithms, a large refactor). It picks the model the worker runs on: be honest, most tasks are standard.'),
@@ -349,6 +355,7 @@ export const TaskDraftOutput = z.object({
   areaKey: z.string().nullable(),
   dependsOnKeys: z.array(z.string()).describe('Keys of existing tasks this one must run after.'),
   relevantFiles: z.array(z.string()),
+  delivers: z.array(z.string()).optional().describe('Deliverables: files this task leaves for the tasks after it (repo-relative, or under artifacts/).'),
   checks: z.array(OutputCheck.omit({ key: true, taskKey: true, areaKey: true })).describe('Acceptance checks for this task only.'),
   rationale: z.string().describe('One or two sentences for the human: why these choices.'),
 });

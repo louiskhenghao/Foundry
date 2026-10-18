@@ -146,6 +146,26 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
               </div>
             </div>
           )}
+          {(task.delivers ?? []).length > 0 && (
+            <div>
+              <div className="text-xs text-zinc-500 mb-1" title="The files this task promised to the tasks after it; each is a must check when it lands">Deliverables</div>
+              <div className="mono text-[11px] text-zinc-400 space-y-0.5">
+                {(task.delivers ?? []).map((f, _, all) => {
+                  const open = made?.delivers?.find((r) => r.rel === f)?.open;
+                  const openable = all.flatMap((x) => made?.delivers?.find((r) => r.rel === x)?.open ?? []);
+                  return open ? (
+                    <button key={f} type="button" onClick={() => openFile(open, openable)} className="block w-full truncate text-left text-sky-300 hover:underline" title={`Open ${f}`}>
+                      {f}
+                    </button>
+                  ) : (
+                    <div key={f} className="truncate" title={made ? 'Not there yet' : undefined}>
+                      {f}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {made && <TaskFiles task={task} files={made.files} />}
         </div>
         <div className="lg:col-span-2 min-w-0 lg:overflow-y-auto lg:pr-1">
@@ -295,7 +315,7 @@ function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; conclude
 
 /** What the task made and which of its relevant files open, reloaded as the task moves on. */
 function useTaskFiles(goalId: string, task: Task) {
-  const [made, setMade] = useState<{ files: TaskFile[]; relevant: { rel: string; open: FileRef | null }[] } | null>(null);
+  const [made, setMade] = useState<{ files: TaskFile[]; relevant: { rel: string; open: FileRef | null }[]; delivers?: { rel: string; open: FileRef | null }[] } | null>(null);
   useEffect(() => {
     let alive = true;
     api

@@ -286,6 +286,7 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
         </div>
 
         <Input className="mono text-xs" disabled={!editable} placeholder="start files, comma-separated (repo-relative)" value={task.relevantFiles.join(', ')} onChange={(e) => change({ relevantFiles: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} />
+        <Input className="mono text-xs" disabled={!editable} placeholder="delivers: files the tasks after this one read, comma-separated (repo-relative)" value={(task.delivers ?? []).join(', ')} onChange={(e) => change({ delivers: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} title="Deliverables — the files this task leaves for the tasks after it: each is checked when the task lands, and the next tasks are told where they are" />
 
         <div>
           <div className="flex items-center gap-2 mb-1.5">
