@@ -115,7 +115,23 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
   undoes its own first, so what it leaves alone is the goal's, and forgets the entries for the files it then writes.
   Landings take the goal workspace's lock, so none interleaves with an overlay or its undo, and a task's commit and its
   exports land in one locked step, after a merge attempt and a manual resolution alike (whose checks also copy the
-  goal's exports under that lock, and whose Finish lands only while the task still waits on its merge). The artifacts listing follows
+  goal's exports under that lock, and whose Finish lands only while the task still waits on its merge). A manual
+  resolution's checks and its baseline read one copy of the goal's exports, taken without the lock unless an overlay
+  is in place or the exports changed while it was taken, so it neither waits for another task's merge nor measures
+  exports one laid over. A merge attempt's commit that git would not take back is named on its escalation, which keeps
+  the goal blocked while it is open. Nothing builds on it meanwhile: integrations, catch-ups, new task worktrees and
+  manual resolutions settle it first (a task whose checks passed waits to land), and an answer, a manual resolution's
+  start or a restart (an aborted goal's too) takes it back before going on, or is refused, saying to reset by hand or to
+  revert it under commits that landed on top. Whether it is settled is read from its branch (a take-back moves only the
+  branch checked out there), and a revert is recognised by its exact changes, not its message. Catch-ups and new task worktrees read the goal branch under the goal
+  workspace's lock, so never a merge attempt's commit before its checks finish (the catch-up before a task starts is
+  skipped while another task's merge holds the lock). A merge attempt records the commit it makes (`attempt.committed`) and
+  takes it back before it concludes (one git refuses concludes once its escalation names the commit): one the engine
+  stopped during, its take-back included, has that commit, and only that one, taken back at the next start, the
+  worktree's other changes kept; one git refuses then, or one with commits on top of it, is named on an escalation the
+  same way. A task still merging at the next start (landing, or waiting to land, its merge attempt cut off included)
+  runs again, its attempt given back. A second answer to an escalation while
+  the first is being applied is refused. The artifacts listing follows
   no symbolic link and leaves out what Finder and Windows leave in a folder (`.DS_Store`, `._` sidecars, `Thumbs.db`,
   `desktop.ini`), so none of those is landed, delivered or opened as the model, and no copy writes through one: each file is copied beside its destination and renamed over it, so
   a copy cut short leaves the old file, and the copies run off the event loop (a disk that cannot clone copies hundreds
@@ -127,15 +143,26 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
   files from under it, or a retry read it through (`settled`); a folder's retry never copies a file a landing brought
   after the folder failed, and a failure it narrows to a subfolder keeps the folder's age. The delivery first copies
   again what is still outstanding, as a landing of its own, which it records only when something came over or changed;
-  a goal that keeps artifacts records its delivery even when there is nothing to copy, so no tick delivers it again. The after-merge
+  a goal that keeps artifacts records its delivery even when there is nothing to copy, so no tick delivers it again, and
+  one that ran again after its delivery began (a restart, told by the order of the events, not their times) is
+  delivered again when it finishes, while its progress folder still holds artifacts. It replaces only the copies it made
+  there: a file changed in the output folder since, before its copy or while it ran, is left as it is, now and on later
+  deliveries, a delivery that did not have the file included (the new version stays in the progress folder). The
+  identity of each copy as it was made (inode, size, time) and the goal's last state change when the delivery began
+  (its event id, which a Transfer keeps) are recorded with it. The after-merge
   tidy-up (ADR-0015) of a goal that keeps artifacts also waits while files exist nowhere else: an artifact no output
   folder received, one written after its delivery began (`goal.artifacts_delivered` `startedAt`), or one whose copy in
-  the output folder is gone or of another size (another goal delivering into the same folder replaced it; a same-size
-  replacement is not noticed) (style samples and files git tracks aside), or a file a kept task worktree still holds that
+  the output folder is gone, of another size, or neither the copy the delivery made nor a file of the same content
+  (another goal delivering into the same folder replaced it, or it was changed there; a network share that changes inode
+  numbers falls back to the content) (style samples and files git tracks aside), or a file a kept task worktree still holds that
   its landing could not copy; it waits for a delivery still copying, which runs it once its files are there (the hold
   is recorded as waiting, so a delivery that ended while the engine was stopped still does; a hold of any other kind
-  waits for a refresh or a button). **Clean up anyway** removes them too, after any copy in flight. A goal running again
-  after its merge is never tidied up, not even anyway. A restart from the task reruns it, which makes them
+  waits for a refresh or a button). **Clean up anyway** removes them too, once any copy in flight has ended: it waits
+  half a minute at most, for that copy and for the goal workspace's lock, then holds and asks to be pressed again (a
+  copy into a share that stopped answering never ends until Foundry restarts), and removes nothing of a goal restarted
+  while it waited; a restart is refused while it removes the folders. A goal running again
+  after its merge is never tidied up, not even anyway, and one that finished again after its merge is not tidied up on
+  its own (what it made since is in no merge). A restart from the task reruns it, which makes them
   again. Baselines of a goal run one at a time, are keyed by the contents of the exports they measure (one digest per
   file, read as a stream that lets the server answer, not their sizes and times, which a re-export can keep), are not
   measured at all for a goal with no must command checks, and count nothing as already failing when those exports
@@ -162,11 +189,10 @@ that builds geometry, checks that measure it) whose deliverables are files outsi
 - Not done: the viewer's bind
   address in Docker (unverified), a `cad` file preview in the task drawer (STEP/STL show as binaries), per-tool allow
   lists for the plugin's server (its remaining tools are read-only by its own annotation), and a marketplace added
-  earlier without the `latest` ref (the add says "already exists" and the install follows that other ref). A merge
-  attempt stopped with the engine during its checks leaves its commit on the branch it merged into (the take-back
-  happens within one run). A finished goal that is restarted and finishes again does not deliver its artifacts again
-  (its first delivery stays recorded); the tidy-up then holds the remade files, and they are copied out by hand or
-  removed with Clean up anyway. An export a check rewrites while an overlay is in place stays as the check left it.
-  A resolution's baseline reads the goal's exports outside the goal workspace's lock. A task working in the goal
-  workspace while another task's conflicted integration is checked there loses what it had not committed when that
-  attempt fails (its abort did so already before the take-back).
+  earlier without the `latest` ref (the add says "already exists" and the install follows that other ref). An export a
+  check rewrites while an overlay is in place stays as the check left it. A task working in the goal workspace while
+  another task's conflicted integration is checked there loses what it had not committed when that attempt fails (its
+  abort did so already before the take-back). A goal restarted after its merge is not delivered again: what it makes
+  then stays on the goal branch. A re-delivery checks the output folder's file right before it renames its copy over
+  it: an edit saved in that instant can still be replaced. A task branch that merged an unverified commit before this release is not checked for
+  it when it lands.

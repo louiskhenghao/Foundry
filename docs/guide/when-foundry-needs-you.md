@@ -36,6 +36,8 @@ The same card with the line "The engine itself hit an error (not the model)" mea
 
 Two tasks edited the same code and Foundry could not combine them automatically. Press **Resolve manually →** to see both sides of each file, take one side, edit the result or open it in your editor, then **Finish merge**. You can also *Retry with hint* ("keep both, the new field goes after the old one"), *Skip task (dependents continue)* or *Abort goal*.
 
+Rarely, a merge attempt's commit cannot be taken back after its checks failed (or after Foundry stopped while they ran), because another program held git's lock in the progress folder (an editor refreshing its git status, say). The goal then pauses, and the item names the branch that still holds that commit. Until you answer, nothing lands on it and no task merges it into its own branch: a task that finishes meanwhile waits to land. Answering takes the commit back first; if git still refuses, the answer is refused and says what to do: reset that branch by hand, or `git revert` the commit when other commits landed on top of it. **Resolve manually** and restarting the goal do the same before they start.
+
 ### The final review failed
 
 **Inbox:** *Retries exhausted*, with no task named — lists the failing checks and the reviewer's notes.
