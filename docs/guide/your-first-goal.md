@@ -108,6 +108,12 @@ How deep Foundry questions you before it writes the Brief: **Skip**, then **1** 
 
 Deeper interviews take more of your time and cost a little more. Settings can change this default (see [Settings explained](./settings.md#new-goal-defaults)). More in [Answering the interview](./answering-the-interview.md).
 
+### Delegated goals
+
+Two switches, both off by default. Tick **Delegated goals** and the planner may hand a step that is a project of its own — research that must come first, a 3D model or a video next to the code, a part too large for one plan — to a goal of its own: a *delegated goal* with its own Clarify, Brief and plan. It starts from this goal's branch and lands its result back on it, as that step's commit, before the tasks that need it start; the tasks after it are told what it delivered. Such steps appear on the Brief as tasks of kind **goal**, and you can change them like any other task. Delegated goals run one at a time, never delegate again, and what they cost counts on this goal.
+
+Tick **Approve delegated goals' Briefs for me** and their Briefs are approved as soon as they are written, unless a question is left that only you can answer. Off, this goal pauses until you approve each delegated goal's Brief yourself. Either way, while a delegated goal needs you — a question, a milestone, an Inbox item — this goal waits as **blocked** and goes on by itself afterwards. What you see while they run is in [Delegated goals](./while-it-runs.md#delegated-goals).
+
 ### Effort
 
 How hard sessions of this goal think. An explicit value overrides every role. For Codex, **Default** uses the selected preset's role efforts; **none**, **minimal** and **ultra** are also available when supported by the chosen models. The form starts with the effort configured in Settings; selecting **Default** explicitly restores the Codex role settings. A known incompatible model/effort combination must be corrected before creating the goal.

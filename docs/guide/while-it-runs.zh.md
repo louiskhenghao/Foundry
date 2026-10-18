@@ -88,6 +88,14 @@ goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它
 
 每个状态和消息是什么意思，以及哪些不需要你做什么，见 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md#任务状态)。
 
+### Delegated goals
+
+kind 是 **goal** 的任务不由 worker 来做：由它自己的一个*委派 goal*来做（见 New goal 表单上的 [Delegated goals](./your-first-goal.zh.md#delegated-goals)）。它的卡片是虚线边框，带一个 **delegated goal** 标签；那个 goal 存在之后，卡片上显示它的状态、它的任务完成了几个、它在等你时显示 **needs you**，以及通往它页面的 **Open goal →**。打开这个任务，会看到 **Done by a delegated goal** 和同样的链接；那个 goal 落地之后还会看到 **what it delivered**：它要做什么、它的任务、在那里做的决定、它的审查、它留下的未决事项，以及它放在 `artifacts/` 下的文件。依赖它的任务也会读到这些。
+
+委派 goal 需要你的时候——访谈问题、要批准的 Brief、milestone、Inbox 事项——这个 goal 显示 **blocked**，原因写着 *waiting for the delegated goal …*；在委派 goal 里（它的页面或 Inbox）回应之后，这个 goal 自己继续。委派 goal 失败时，它失败的任务会重新运行，次数以该任务允许的尝试次数为限，并附上原因说明；之后这个 goal 的任务上会出现一条 Inbox 事项，提供 **Retry**（它失败的任务带着你的提示再跑一次）或 **Skip**。对一个 goal 任务点 **Restart from here** 会新开一个委派 goal；旧的那个作为独立的 goal 留着。
+
+goals 列表把委派 goal 折叠在它的主 goal 下面：主 goal 下的一行 **▸ 2 delegated goals** 可以展开它们，缩进显示。委派 goal 自己的页面在标题下写着 **Delegated from: …**（链接到主 goal 的那个任务），主 goal 的页面列出它的 **Delegated goals**。如果主 goal 被删除，委派 goal 会独立留在列表里，并写明它曾属于谁。
+
 ### 任务内部
 
 ![全屏打开的任务：它的 spec、通过的那次尝试及其花费和轮数，以及会话的实时日志——读代码、写文件、跑测试](images/task-drawer.png)

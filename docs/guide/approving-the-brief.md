@@ -131,6 +131,7 @@ Inside a task you can change:
 | **refactor** | Restructuring without changing behaviour. |
 | **research** | Finding something out. |
 | **chore** | Setup, dependencies, housekeeping. |
+| **goal** | A step done by a delegated goal of its own, with its own Clarify and plan. The planner uses it only when the goal allows delegation; see [Delegated goals](./your-first-goal.md#delegated-goals). |
 
 The kind decides which working method the worker follows (for example tests first for features).
 

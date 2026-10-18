@@ -88,6 +88,14 @@ A task moves from **pending** (waiting for other tasks) to **ready**, **running*
 
 What each state and message means, and which ones need nothing from you, is in [When Foundry needs you](./when-foundry-needs-you.md#task-states).
 
+### Delegated goals
+
+A task of kind **goal** is not done by a worker: a *delegated goal* of its own does it (see [Delegated goals](./your-first-goal.md#delegated-goals) on the New goal form). Its card has a dashed border and a **delegated goal** chip, and once that goal exists it shows the goal's state, how many of its tasks are done, **needs you** when it waits for you, and **Open goal →** to its page. Opened, the task says **Done by a delegated goal**, with the same link, and once the goal has landed, **what it delivered**: what it set out to do, its tasks, the decisions made there, its review, what it left open and the files it put under `artifacts/`. The tasks that depend on it read that too.
+
+While the delegated goal needs you — an interview question, a Brief to approve, a milestone, an Inbox item — this goal shows **blocked** with the reason *waiting for the delegated goal …*; answer in the delegated goal (its page, or the Inbox) and this goal goes on by itself. When the delegated goal fails, its failed tasks are run again, as often as the task's attempts allow, with a note on why; then an Inbox item on this goal's task offers **Retry** (its failed tasks run again, with your hint) or **Skip**. **Restart from here** on a goal task starts a fresh delegated goal; the old one stays as a goal of its own.
+
+The goals list folds delegated goals under their main goal: a line **▸ 2 delegated goals** under the main goal opens them, indented. A delegated goal's own page says **Delegated from: …** under its title (a link to the main goal's task), and the main goal's page lists its **Delegated goals**. If the main goal is deleted, the delegated goal stays in the list on its own and says whose it was.
+
 ### Inside a task
 
 ![A task opened full screen: its spec, the attempt that passed with its cost and turns, and the live log of the session — reading the code, writing the files, running the tests](images/task-drawer.png)
