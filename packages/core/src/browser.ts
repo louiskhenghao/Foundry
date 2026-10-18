@@ -7,4 +7,5 @@ export * from './machine/dag.ts';
 export * from './machine/brief-coverage.ts';
 export * from './machine/brief-decisions.ts';
 export * from './machine/task-usage.ts';
+export * from './machine/timeline.ts';
 export * from './guide-anchor.ts';
