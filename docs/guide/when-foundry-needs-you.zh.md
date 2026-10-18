@@ -36,6 +36,8 @@ Foundry 把一个任务试了好几次，验收检查仍然没过。你可以：
 
 两个任务改了同一段代码，Foundry 没能自动合在一起。按 **Resolve manually →** 查看每个文件的两边：选一边、编辑结果或用你的编辑器打开，然后按 **Finish merge**。也可以 *Retry with hint*（"两边都保留，新字段放在旧字段后面"）、*Skip task (dependents continue)* 或 *Abort goal*。
 
+极少数情况下，合并尝试的检查失败后（或者检查还在跑时 Foundry 停了），它的 commit 撤不回来，因为有别的程序占着进度文件夹里 git 的锁（比如编辑器在刷新 git 状态）。这时 goal 会暂停，这一项会写明哪个分支还带着那个 commit。在你回答之前，没有东西会落在它上面，也没有任务会把它合进自己的分支：这期间完成的任务会等着落地。回答时 Foundry 会先把这个 commit 撤回；如果 git 仍然拒绝，回答会被拒绝，并告诉你该怎么做：手动 reset 那个分支，或者在后面已经有其它 commit 时用 `git revert` 撤销它。**Resolve manually** 和重启 goal 开始之前也会先这样处理。
+
 ### 最终审查没通过
 
 **Inbox：** *Retries exhausted*，不带任务名 —— 列出没通过的检查和审查意见。

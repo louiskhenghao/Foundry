@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, expect, test } from 'bun:test';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { IDLE_DELIVERY, getGoal, getTask, type Goal, type Task } from '@foundry/core';
@@ -548,6 +548,239 @@ test('a delivery records when its copy began', async () => {
   expect(run.status).toBe('ok');
   expect(Date.parse(run.startedAt!)).toBeGreaterThanOrEqual(before - 1);
   expect(Date.parse(run.startedAt!)).toBeLessThanOrEqual(Date.parse(run.at));
+  // and which copy it made: what the tidy-up compares the output folder's file with
+  expect((run as { copies?: Record<string, string> }).copies?.['part.step']).toBeTruthy();
+});
+
+test('a finished goal that ran again delivers its artifacts again; one tidied up since keeps the delivery it had', async () => {
+  const out = mkdtempSync(join(tmpdir(), 'foundry-land-out-'));
+  made.push(out);
+  const goal = seed(ws, { outputDir: out, state: 'done' });
+  art('part.step', 1);
+  const deliveries = () => engine.store.listByGoalOfTypes(goal.id, ['goal.artifacts_delivered']).length;
+  await deliverArtifacts(engine, getGoal(engine.store.db, goal.id)!);
+  await deliverArtifacts(engine, getGoal(engine.store.db, goal.id)!);
+  expect(deliveries()).toBe(1);
+  const runAgain = async () => {
+    await Bun.sleep(5);
+    engine.store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'done', to: 'running', reason: 'restarted' } });
+    engine.store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'running', to: 'done', reason: 'all tasks done' } });
+  };
+  await runAgain();
+  writeFileSync(join(ws, 'artifacts', 'part.step'), 'rev2');
+  await deliverArtifacts(engine, getGoal(engine.store.db, goal.id)!);
+  expect(deliveries()).toBe(2);
+  expect(readFileSync(join(out, 'part.step'), 'utf8')).toBe('rev2');
+  // run again, but its progress folder holds nothing any more (tidied up after its merge): the last delivery stays
+  await runAgain();
+  rmSync(join(ws, 'artifacts'), { recursive: true });
+  await deliverArtifacts(engine, getGoal(engine.store.db, goal.id)!);
+  expect(deliveries()).toBe(2);
+  expect(getGoal(engine.store.db, goal.id)!.completion.artifactsRun).toMatchObject({ status: 'ok', files: ['part.step'] });
+});
+
+test("a delivery records each copy as it made it: another goal's copy renamed over it before the delivery ends is not taken for its own", async () => {
+  const workspace = await import('./workspace.ts');
+  const out = mkdtempSync(join(tmpdir(), 'foundry-land-out-'));
+  made.push(out);
+  const goal = seed(ws, { outputDir: out });
+  art('a.step', 1);
+  art('b.step', 1);
+  const copyInto = workspace.copyInto;
+  // another goal delivering into the same folder renames its own a.step, of the same size, over this one's meanwhile
+  const spy = spyOn(workspace, 'copyInto').mockImplementation(async (src: string, dest: string) => {
+    if (basename(dest) === 'b.step') {
+      writeFileSync(join(out, '.other'), 'y');
+      renameSync(join(out, '.other'), join(out, 'a.step'));
+    }
+    return copyInto(src, dest);
+  });
+  try {
+    await deliverArtifacts(engine, goal);
+  } finally {
+    spy.mockRestore();
+  }
+  const run = getGoal(engine.store.db, goal.id)!.completion.artifactsRun!;
+  expect(run.status).toBe('ok');
+  expect(run.copies?.['a.step']).toBeTruthy();
+  expect(run.copies?.['a.step']).not.toBe(workspace.copyIdentity(statSync(join(out, 'a.step'))));
+});
+
+test('a goal run again while its delivery was still copying delivers again when it finishes again', async () => {
+  const out = mkdtempSync(join(tmpdir(), 'foundry-land-out-'));
+  made.push(out);
+  const goal = seed(ws, { outputDir: out });
+  art('part.step', 1);
+  // the goal finished and its delivery began; the goal ran again, and only then did the delivery record that it was done
+  const began = new Date(Date.now() - 60_000).toISOString();
+  engine.store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'running', to: 'done', reason: 'all tasks done' } });
+  engine.store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'done', to: 'running', reason: 'restarted' } });
+  engine.store.append({ type: 'goal.artifacts_delivered', goalId: goal.id, payload: { status: 'ok', files: ['part.step'], dest: out, detail: '1 artifact(s) copied', startedAt: began } });
+  engine.store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'running', to: 'done', reason: 'all tasks done' } });
+  writeFileSync(join(ws, 'artifacts', 'part.step'), 'rev2');
+  await deliverArtifacts(engine, getGoal(engine.store.db, goal.id)!);
+  expect(readFileSync(join(out, 'part.step'), 'utf8')).toBe('rev2');
+});
+
+test('a goal delivering again leaves a file changed in the output folder since its last copy there, and says so', async () => {
+  const out = mkdtempSync(join(tmpdir(), 'foundry-land-out-'));
+  made.push(out);
+  const goal = seed(ws, { outputDir: out, state: 'done' });
+  art('a.step', 1);
+  art('b.step', 1);
+  await deliverArtifacts(engine, getGoal(engine.store.db, goal.id)!);
+  // the person edits a.step in the output folder; the goal runs again and remakes both
+  writeFileSync(join(out, 'a.step'), 'edited there');
+  engine.store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'done', to: 'running', reason: 'restarted' } });
+  engine.store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'running', to: 'done', reason: 'all tasks done' } });
+  writeFileSync(join(ws, 'artifacts', 'a.step'), 'rev2');
+  writeFileSync(join(ws, 'artifacts', 'b.step'), 'rev2');
+  await deliverArtifacts(engine, getGoal(engine.store.db, goal.id)!);
+  expect(readFileSync(join(out, 'a.step'), 'utf8')).toBe('edited there');
+  expect(readFileSync(join(out, 'b.step'), 'utf8')).toBe('rev2');
+  const run = getGoal(engine.store.db, goal.id)!.completion.artifactsRun!;
+  expect(run.files).toEqual(['b.step']);
+  expect(run.detail).toContain('changed there since the last delivery (a.step)');
+});
+
+test('a file a delivery left as it was in the output folder stays protected when the goal delivers again after that', async () => {
+  const out = mkdtempSync(join(tmpdir(), 'foundry-land-out-'));
+  made.push(out);
+  const goal = seed(ws, { outputDir: out, state: 'done' });
+  art('a.step', 1);
+  art('b.step', 1);
+  await deliverArtifacts(engine, getGoal(engine.store.db, goal.id)!);
+  writeFileSync(join(out, 'a.step'), 'edited there');
+  const again = async (rev: string) => {
+    engine.store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'done', to: 'running', reason: 'restarted' } });
+    engine.store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'running', to: 'done', reason: 'all tasks done' } });
+    writeFileSync(join(ws, 'artifacts', 'a.step'), rev);
+    writeFileSync(join(ws, 'artifacts', 'b.step'), rev);
+    await deliverArtifacts(engine, getGoal(engine.store.db, goal.id)!);
+  };
+  await again('rev2');
+  await again('rev3');
+  expect(readFileSync(join(out, 'a.step'), 'utf8')).toBe('edited there');
+  expect(readFileSync(join(out, 'b.step'), 'utf8')).toBe('rev3');
+});
+
+test('a file left as it was in the output folder stays protected across a delivery that did not have it', async () => {
+  const out = mkdtempSync(join(tmpdir(), 'foundry-land-out-'));
+  made.push(out);
+  const goal = seed(ws, { outputDir: out, state: 'done' });
+  art('a.step', 1);
+  art('b.step', 1);
+  await deliverArtifacts(engine, getGoal(engine.store.db, goal.id)!);
+  writeFileSync(join(out, 'a.step'), 'edited there');
+  const again = async (files: Record<string, string | null>) => {
+    engine.store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'done', to: 'running', reason: 'restarted' } });
+    engine.store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'running', to: 'done', reason: 'all tasks done' } });
+    for (const [f, body] of Object.entries(files)) body === null ? rmSync(join(ws, 'artifacts', f), { force: true }) : writeFileSync(join(ws, 'artifacts', f), body);
+    await deliverArtifacts(engine, getGoal(engine.store.db, goal.id)!);
+  };
+  // a run that does not make a.step, then one that makes it again
+  await again({ 'a.step': null, 'b.step': 'rev2' });
+  await again({ 'a.step': 'rev3', 'b.step': 'rev3' });
+  expect(readFileSync(join(out, 'a.step'), 'utf8')).toBe('edited there');
+  expect(readFileSync(join(out, 'b.step'), 'utf8')).toBe('rev3');
+});
+
+test('where a delivery began is recorded by the event, so it holds after the events are numbered anew (a Transfer)', async () => {
+  const out = mkdtempSync(join(tmpdir(), 'foundry-land-out-'));
+  made.push(out);
+  const goal = seed(ws, { outputDir: out });
+  art('part.step', 1);
+  engine.store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'running', to: 'done', reason: 'all tasks done' } });
+  const finished = engine.store.listByGoalOfTypes(goal.id, ['goal.state_changed']).at(-1)!;
+  engine.store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'done', to: 'running', reason: 'restarted' } });
+  engine.store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'running', to: 'done', reason: 'all tasks done' } });
+  // the delivery that began after the first finish recorded only then (its copy ran long); its numbers were another computer's
+  engine.store.append({ type: 'goal.artifacts_delivered', goalId: goal.id, payload: { status: 'ok', files: ['part.step'], dest: out, detail: '1 artifact(s) copied', startedAfter: finished.id, startedSeq: 1_000_000 } as never });
+  writeFileSync(join(ws, 'artifacts', 'part.step'), 'rev2');
+  await deliverArtifacts(engine, getGoal(engine.store.db, goal.id)!);
+  expect(readFileSync(join(out, 'part.step'), 'utf8')).toBe('rev2');
+});
+
+test('a file saved in the output folder while the delivery copies over it is left as it is', async () => {
+  const fsp = await import('node:fs/promises');
+  const out = mkdtempSync(join(tmpdir(), 'foundry-land-out-'));
+  made.push(out);
+  const goal = seed(ws, { outputDir: out, state: 'done' });
+  art('a.step', 1);
+  art('b.step', 1);
+  await deliverArtifacts(engine, getGoal(engine.store.db, goal.id)!);
+  engine.store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'done', to: 'running', reason: 'restarted' } });
+  engine.store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'running', to: 'done', reason: 'all tasks done' } });
+  writeFileSync(join(ws, 'artifacts', 'a.step'), 'rev2');
+  writeFileSync(join(ws, 'artifacts', 'b.step'), 'rev2');
+  const copyFile = fsp.copyFile;
+  // the person saves a.step in the output folder while the new one is being copied beside it
+  const spy = spyOn(fsp, 'copyFile').mockImplementation(async (src: Parameters<typeof copyFile>[0], dest: Parameters<typeof copyFile>[1], mode?: number) => {
+    await copyFile(src, dest, mode);
+    if (String(dest).endsWith('a.step')) writeFileSync(join(out, 'a.step'), 'saved meanwhile');
+  });
+  try {
+    await deliverArtifacts(engine, getGoal(engine.store.db, goal.id)!);
+  } finally {
+    spy.mockRestore();
+  }
+  expect(readFileSync(join(out, 'a.step'), 'utf8')).toBe('saved meanwhile');
+  expect(readFileSync(join(out, 'b.step'), 'utf8')).toBe('rev2');
+});
+
+test('a goal restarted and finished again while its delivery was still copying delivers again', async () => {
+  const workspace = await import('./workspace.ts');
+  const out = mkdtempSync(join(tmpdir(), 'foundry-land-out-'));
+  made.push(out);
+  const goal = seed(ws, { outputDir: out });
+  engine.store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'running', to: 'done', reason: 'all tasks done' } });
+  art('a.step', 1);
+  art('b.step', 1);
+  const copyInto = workspace.copyInto;
+  // while the delivery copies b.step, the goal is restarted, remakes a.step and finishes again
+  let restarted = false;
+  const spy = spyOn(workspace, 'copyInto').mockImplementation(async (...args: Parameters<typeof copyInto>) => {
+    if (!restarted && basename(args[1]) === 'b.step') {
+      restarted = true;
+      engine.store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'done', to: 'running', reason: 'restarted' } });
+      writeFileSync(join(ws, 'artifacts', 'a.step'), 'rev2');
+      engine.store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'running', to: 'done', reason: 'all tasks done' } });
+    }
+    return copyInto(...args);
+  });
+  try {
+    await deliverArtifacts(engine, getGoal(engine.store.db, goal.id)!);
+  } finally {
+    spy.mockRestore();
+  }
+  await deliverArtifacts(engine, getGoal(engine.store.db, goal.id)!);
+  expect(readFileSync(join(out, 'a.step'), 'utf8')).toBe('rev2');
+});
+
+test("a copy of the goal's exports that fails without the lock is made again under it", async () => {
+  const { snapshotGoalExports } = await import('./goal-artifacts.ts');
+  const workspace = await import('./workspace.ts');
+  const goal = seed();
+  art('part.step', 1);
+  const dest = mkdtempSync(join(tmpdir(), 'foundry-snap-'));
+  made.push(dest);
+  const copyArtifactFiles = workspace.copyArtifactFiles;
+  let calls = 0;
+  // a landing renames part.step away just as the copy reads it, the first time
+  const spy = spyOn(workspace, 'copyArtifactFiles').mockImplementation(async (from, to, opts) => {
+    if (++calls === 1) {
+      opts?.onError?.('part.step', new Error('ENOENT'));
+      return [];
+    }
+    return copyArtifactFiles(from, to, opts);
+  });
+  try {
+    await snapshotGoalExports(engine, goal, dest);
+  } finally {
+    spy.mockRestore();
+  }
+  expect(calls).toBe(2);
+  expect(readFileSync(join(dest, 'artifacts', 'part.step'), 'utf8')).toBe('x');
 });
 
 test('a goal that keeps artifacts records its delivery even with nothing to deliver: no tick delivers it again', async () => {

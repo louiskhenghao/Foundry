@@ -173,6 +173,8 @@ export const GoalCompletion = z.object({
       model: z.string().nullable().optional(),
       /** when the copy began; not recorded by deliveries before it was */
       startedAt: z.string().optional(),
+      /** each copy's identity in the output folder as it was made; not recorded by deliveries before it was */
+      copies: z.record(z.string(), z.string()).optional(),
     })
     .nullable()
     .default(null),

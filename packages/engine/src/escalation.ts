@@ -5,6 +5,7 @@ import { exec } from './git/git.ts';
 import { applyFeedback, closeCheckpoint } from './checkpoint.ts';
 import { type FixSpec, createFixTasks, genericFixSpec } from './fix-tasks.ts';
 import { goalWorkspacePath } from './workspace.ts';
+import { takeBackStuck, type StuckCommit } from './take-back.ts';
 
 export interface RaiseInput {
   goal: Goal;
@@ -57,7 +58,21 @@ export function raiseEscalation(engine: Engine, i: RaiseInput): Escalation {
   return esc;
 }
 
+/** escalations whose answer is being applied: an answer waits for the goal workspace to take a commit back first */
+const answering = new Set<string>();
+
 export async function answerEscalation(engine: Engine, id: string, answer: EscalationAnswer): Promise<void> {
+  // a second answer meanwhile (a retried request) would be applied as well
+  if (answering.has(id)) throw new Error(`escalation ${id} is being answered already`);
+  answering.add(id);
+  try {
+    await applyAnswer(engine, id, answer);
+  } finally {
+    answering.delete(id);
+  }
+}
+
+async function applyAnswer(engine: Engine, id: string, answer: EscalationAnswer): Promise<void> {
   const { store } = engine;
   const esc = getEscalation(store.db, id);
   if (!esc) throw new Error(`escalation ${id} not found`);
@@ -65,6 +80,13 @@ export async function answerEscalation(engine: Engine, id: string, answer: Escal
   if (!ACTIONS_BY_TRIGGER[esc.trigger].includes(answer.action)) throw new Error(`action ${answer.action} is not valid for ${esc.trigger}`);
   // the engine records this answer itself when a manual merge resolution is finished (merge-resolve.ts)
   if (answer.action === 'resolve_manually') throw new Error('resolve the merge on the Resolve page; the escalation is answered when you finish');
+  // a merge attempt's commit git would not take back goes before the task goes on or is skipped: taken back now, or the
+  // person is told what is left to do (and the escalation stays open)
+  const stuck = (esc.payload as { stuck?: StuckCommit }).stuck;
+  if (stuck && answer.action !== 'abort_goal') {
+    const left = await takeBackStuck(engine, getGoal(store.db, esc.goalId)!, stuck);
+    if (left) throw new Error(left);
+  }
   store.append({ type: 'escalation.answered', goalId: esc.goalId, payload: { escalationId: id, answer } });
 
   const goal = getGoal(store.db, esc.goalId)!;
@@ -160,9 +182,9 @@ export async function answerEscalation(engine: Engine, id: string, answer: Escal
     }
   }
 
-  // unblock the goal if nothing else keeps it blocked
+  // unblock the goal if nothing else keeps it blocked: a commit a merge attempt left that git would not take back does
   const fresh = getGoal(store.db, goal.id)!;
-  const stillOpen = listEscalations(store.db, { goalId: goal.id, openOnly: true }).filter((e) => e.trigger === 'budget_exceeded' || (e.taskId === null && e.trigger === 'retries_exhausted'));
+  const stillOpen = listEscalations(store.db, { goalId: goal.id, openOnly: true }).filter((e) => e.trigger === 'budget_exceeded' || (e.taskId === null && e.trigger === 'retries_exhausted') || !!(e.payload as { stuck?: unknown }).stuck);
   if (fresh.state === 'blocked' && stillOpen.length === 0) {
     const to = resumeTo ?? (fresh.stateBeforeBlock && fresh.stateBeforeBlock !== 'blocked' ? fresh.stateBeforeBlock : 'running');
     store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'blocked', to, reason: 'escalation answered' } });

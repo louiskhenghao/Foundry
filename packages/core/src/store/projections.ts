@@ -387,7 +387,7 @@ function project(db: Database, e: EngineEvent): void {
     }
     case 'goal.artifacts_delivered': {
       const g = getGoal(db, e.goalId!);
-      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, artifactsRun: { status: e.payload.status, files: e.payload.files, dest: e.payload.dest, detail: e.payload.detail, at: e.ts, ...(e.payload.model !== undefined ? { model: e.payload.model } : {}), ...(e.payload.startedAt ? { startedAt: e.payload.startedAt } : {}) } }, updatedAt: e.ts });
+      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, artifactsRun: { status: e.payload.status, files: e.payload.files, dest: e.payload.dest, detail: e.payload.detail, at: e.ts, ...(e.payload.model !== undefined ? { model: e.payload.model } : {}), ...(e.payload.startedAt ? { startedAt: e.payload.startedAt } : {}), ...(e.payload.copies ? { copies: e.payload.copies } : {}) } }, updatedAt: e.ts });
       break;
     }
     case 'goal.completion_set': {
@@ -475,6 +475,11 @@ function project(db: Database, e: EngineEvent): void {
           pid: null,
           skillsUsed: e.payload.skillsUsed ?? [],
         });
+      break;
+    }
+    case 'attempt.committed': {
+      const a = getAttempt(db, e.payload.attemptId);
+      if (a) upsertAttempt(db, { ...a, endRef: e.payload.ref });
       break;
     }
     case 'attempt.concluded': {

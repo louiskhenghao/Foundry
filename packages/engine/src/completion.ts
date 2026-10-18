@@ -5,7 +5,7 @@
  *   leave the machine, at `done` for local ones — so the knowledge graph reflects the code that actually landed.
  * Failures never block the goal: every outcome is recorded on `goal.completion_ran` and the goal stays done.
  */
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Brief, DocType, Goal } from '@foundry/core';
 import { ARTIFACT_NATURES, pendingDecisions } from '@foundry/core';
@@ -15,7 +15,7 @@ import { restoreGuidance, snapshotGuidance } from './git/agent-guidance.ts';
 import { exec } from './git/git.ts';
 import { pullFastForward } from './git/sync.ts';
 import { cadModelIn, goalUsesArtifacts, recoverOverlays, retryUnlanded } from './goal-artifacts.ts';
-import { ARTIFACTS_DIR, copyInto, goalWorkspacePath, listArtifacts } from './workspace.ts';
+import { ARTIFACTS_DIR, copyIdentity, copyInto, goalWorkspacePath, listArtifacts } from './workspace.ts';
 import { codeWork } from './skills/workflow.ts';
 
 /** Task scenarios that mean the goal changes code (research/video/docs-only goals have none of these). */
@@ -35,14 +35,35 @@ export function inferCompletion(brief: Brief, ws: string, pace: 'thorough' | 'fa
 }
 
 /**
- * Copy the goal workspace's artifacts/ to the goal's output folder when the goal finishes.
+ * Whether a finished goal's artifacts are due for delivery: never delivered, or run again since its last delivery began
+ * (a restart, even one while it copied), while its progress folder still holds artifacts (a goal tidied up since keeps
+ * the delivery it had). Told by the order of the events, not their times: a clock that stepped back, or events another
+ * computer recorded, would deliver again and again. A delivery begins once the goal has finished.
+ */
+export function artifactsDue(engine: Engine, goal: Goal): boolean {
+  if (!goal.completion.artifactsRun) return true;
+  const events = engine.store.listByGoalOfTypes(goal.id, ['goal.state_changed', 'goal.artifacts_delivered']);
+  const last = events.filter((e) => e.type === 'goal.artifacts_delivered').at(-1);
+  if (!last) return true;
+  const to = (e: (typeof events)[number]) => (e.type === 'goal.state_changed' ? (e.payload as { to: string }).to : null);
+  // where it began, as it recorded it: after a state change, named by its id (numbers change in a Transfer); earlier
+  // deliveries: after the goal last finished before the record
+  const after = (last.payload as { startedAfter?: string }).startedAfter;
+  const began = (after ? events.find((e) => e.id === after)?.seq : undefined) ?? events.filter((e) => ['done', 'over_delivered'].includes(to(e) ?? '') && e.seq < last.seq).at(-1)?.seq ?? last.seq;
+  const ranAgain = events.some((e) => to(e) === 'running' && e.seq > began);
+  return ranAgain && listArtifacts(goalWorkspacePath(engine.config.dataDir, goal)).length > 0;
+}
+
+/**
+ * Copy the goal workspace's artifacts/ to the goal's output folder when the goal finishes, and again when it finishes
+ * after it ran again (artifactsDue).
  * Never throws and never blocks the goal; the outcome lands on `goal.artifacts_delivered`.
  * Media goals without an output folder get a `skipped` record (the artifacts stay in the workspace), and so does a goal
  * that keeps artifacts but has none (no tick delivers it again); a goal that keeps no artifacts gets no record at all.
  */
 export async function deliverArtifacts(engine: Engine, goal: Goal): Promise<void> {
   const { store, config } = engine;
-  if (goal.completion.artifactsRun) return;
+  if (!artifactsDue(engine, goal)) return;
   const ws = goalWorkspacePath(config.dataDir, goal);
   // under the goal workspace's lock, like any landing: what an unfinished undo left laid over goes first (the goal's own
   // exports are delivered, not a task's that never landed), then what a landing could not copy comes again from the task
@@ -54,7 +75,7 @@ export async function deliverArtifacts(engine: Engine, goal: Goal): Promise<void
     })
     .catch((err) => store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `copying the files a landing missed failed: ${String((err as Error)?.message ?? err).slice(0, 200)}` } }));
   const files = listArtifacts(ws);
-  const record = (payload: { status: 'ok' | 'skipped' | 'failed'; files: string[]; dest: string; detail: string; model?: string | null; startedAt?: string }) => store.append({ type: 'goal.artifacts_delivered', goalId: goal.id, payload });
+  const record = (payload: { status: 'ok' | 'skipped' | 'failed'; files: string[]; dest: string; detail: string; model?: string | null; startedAt?: string; startedAfter?: string; copies?: Record<string, string> }) => store.append({ type: 'goal.artifacts_delivered', goalId: goal.id, payload });
   if (!files.length) {
     if (ARTIFACT_NATURES.includes(goal.nature) || goalUsesArtifacts(engine, goal)) record({ status: 'skipped', files: [], dest: goal.outputDir ?? '', detail: 'no artifacts were produced' });
     return;
@@ -63,16 +84,43 @@ export async function deliverArtifacts(engine: Engine, goal: Goal): Promise<void
     record({ status: 'skipped', files, dest: '', detail: `no output folder set — ${files.length} artifact(s) stay in the goal workspace (Open ▾)` });
     return;
   }
-  // a file written after this moment may not be what the output folder gets: the tidy-up after a merge keeps it
+  // a file written after this moment may not be what the output folder gets: the tidy-up after a merge keeps it; and a
+  // run again that begins after this event is delivered again (artifactsDue)
   const startedAt = new Date().toISOString();
+  const startedAfter = store.listByGoalOfTypes(goal.id, ['goal.state_changed']).at(-1)?.id;
+  // delivering again (the goal ran again): only the copies this goal made there are replaced. One changed in the output
+  // folder since (edited, or another goal's delivery renamed over it), before the copy or while it ran, is left as it
+  // is, and stays recorded as this goal's last copy so a later delivery leaves it too (and so does one this delivery
+  // did not have); the new version stays in the progress folder, which the tidy-up after a merge then keeps
+  const before = goal.completion.artifactsRun?.status === 'ok' && goal.completion.artifactsRun.dest === goal.outputDir ? goal.completion.artifactsRun.copies : undefined;
+  const changedThere = (f: string) => {
+    try {
+      return copyIdentity(statSync(join(goal.outputDir!, f))) !== before![f];
+    } catch {
+      return false;
+    }
+  };
   try {
-    // off the event loop, and renamed into place: a delivery cut short leaves the output folder's earlier copy whole
-    for (const f of files) await copyInto(join(ws, ARTIFACTS_DIR, f), join(goal.outputDir, f));
+    // off the event loop, and renamed into place: a delivery cut short leaves the output folder's earlier copy whole.
+    // Each copy as it was made: the tidy-up after a merge tells it from one another goal's delivery renames over it
+    const copies: Record<string, string> = { ...before };
+    const left: string[] = [];
+    for (const f of files) {
+      const mine = before?.[f];
+      const made = mine && changedThere(f) ? null : await copyInto(join(ws, ARTIFACTS_DIR, f), join(goal.outputDir, f), mine ? { over: mine } : {});
+      if (made) copies[f] = copyIdentity(made);
+      else {
+        left.push(f);
+        copies[f] = mine!;
+      }
+    }
+    const sent = files.filter((f) => !left.includes(f));
     // the model the CAD Viewer opens once the workspace is gone, chosen here by the files' own times (a copy's are new)
     const model = goal.nature === 'cad' ? cadModelIn(join(ws, ARTIFACTS_DIR), files) : undefined;
-    record({ status: 'ok', files, dest: goal.outputDir, detail: `${files.length} artifact(s) copied`, startedAt, ...(model !== undefined ? { model } : {}) });
-    store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `${files.length} artifact(s) delivered to ${goal.outputDir}` } });
-    config.log(`[completion] ${goal.id}: ${files.length} artifact(s) → ${goal.outputDir}`);
+    const leftNote = left.length ? `; ${left.length} left as they are in the output folder, changed there since the last delivery (${left.slice(0, 3).join(', ')}${left.length > 3 ? ', …' : ''}): the new version${left.length === 1 ? ' stays' : 's stay'} in the progress folder` : '';
+    record({ status: 'ok', files: sent, dest: goal.outputDir, detail: `${sent.length} artifact(s) copied${leftNote}`, startedAt, ...(startedAfter ? { startedAfter } : {}), copies, ...(model !== undefined ? { model } : {}) });
+    store.append({ type: 'engine.note', goalId: goal.id, payload: { level: left.length ? 'warn' : 'info', message: `${sent.length} artifact(s) delivered to ${goal.outputDir}${leftNote}` } });
+    config.log(`[completion] ${goal.id}: ${sent.length} artifact(s) → ${goal.outputDir}`);
   } catch (err) {
     record({ status: 'failed', files, dest: goal.outputDir, detail: String((err as Error).message ?? err).slice(0, 300) });
     store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `artifact delivery to ${goal.outputDir} failed: ${String((err as Error).message ?? err).slice(0, 200)}` } });
