@@ -320,6 +320,7 @@ The history endpoint returns the last 400 events, slimmed the same way, includin
 | Workspaces, progress folders, legacy migration | `engine/src/workspace.ts`, `engine/src/workspace-migrate.ts` |
 | Settings | `engine/src/settings.ts`, `core/src/schema/settings.ts`, `apps/web/src/pages/SettingsPage.tsx` |
 | Notifications (Telegram, Discord) | `engine/src/notify/{dispatcher,channels}.ts` |
+| Chat Answers (Telegram buttons and replies, long polling) | `engine/src/notify/{actions,telegram-bot,host}.ts` |
 | Self-update, Update Check, Drain | `engine/src/update/updater.ts`, `Engine.beginUpdateDrain` |
 | Agents monitor | `engine/src/agents/*`, `apps/web/src/pages/agents/AgentsPage.tsx` |
 | Native sign-in, ChatGPT quota | `engine/src/auth/{claude-auth,codex-account}.ts`, `engine/src/usage/codex-quota.ts` |
