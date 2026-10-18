@@ -208,6 +208,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('task.delegation_restarted', { taskId: z.string(), goalId: z.string(), restarted: z.array(z.string()), n: z.number().int() }),
   /** what a landed task delivered, for the tasks that depend on it (written when a Delegated goal's result lands) */
   ev('task.summary_set', { taskId: z.string(), summary: z.string() }),
+  /** Replan: the planner touched up a task that has not started, after a Delegated goal landed (`afterTaskId`); null fields keep what the task has */
+  ev('task.revised', { taskId: z.string(), spec: z.string(), relevantFiles: z.array(z.string()).nullable(), delivers: z.array(z.string()).nullable(), reason: z.string(), afterTaskId: z.string().nullable() }),
   /** the task's attempts were squashed into one Conventional Commit on the goal branch (ref null = no changes) */
   ev('task.committed', { taskId: z.string(), ref: z.string().nullable(), message: z.string() }),
   ev('check.created', { check: Check }),
@@ -277,6 +279,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
     cacheReadTokens: z.number(),
     cacheCreateTokens: z.number(),
     costUsd: z.number(),
+    /** `unavailable`: the coding agent reported no dollar cost (Codex never does; a cut Claude Code session did not), so `costUsd` 0 is unknown, not free */
+    costStatus: z.enum(['reported', 'unavailable']).optional(),
     durationMs: z.number(),
     subtype: z.string(),
     rateLimit: z.object({ status: z.string(), resetsAt: z.number().nullable(), rateLimitType: z.string().nullable(), isUsingOverage: z.boolean() }).nullable(),

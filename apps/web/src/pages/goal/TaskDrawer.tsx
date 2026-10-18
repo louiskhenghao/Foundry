@@ -33,6 +33,8 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
   // a goal task: a Delegated goal does the work, so there is no session here to unstick and its attempts are its own
   const goalTask = task.kind === 'goal';
   const delegated = row?.delegated ?? null;
+  // the planner touched this task up after a delegated goal landed (Replan): the person sees why
+  const revised = [...d.events].reverse().find((e) => e.type === 'task.revised' && (e.payload as any).taskId === task.id)?.payload as { reason?: string } | undefined;
 
   useEffect(() => {
     setPrompt(null);
@@ -98,6 +100,11 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
           <span className="text-zinc-500">Task total</span>
           <span><b className="text-zinc-200">{usage.attempts}</b> attempt{usage.attempts === 1 ? '' : 's'}</span>
           <span><b className="text-zinc-200">{cost(usage.costUsd)}</b> <span className="text-zinc-500">(worker {cost(usage.byRole.worker.costUsd)} · reviewer {cost(usage.byRole.reviewer.costUsd)}{usage.byRole.merger.sessions ? ` · merger ${cost(usage.byRole.merger.costUsd)}` : ''})</span></span>
+          {usage.unmeasured > 0 && (
+            <span className="text-amber-300/90" title={`${usage.unmeasured} session${usage.unmeasured === 1 ? '' : 's'} ended before the coding agent reported a cost: unknown, not $0, and missing from this total`}>
+              +{usage.unmeasured} unmeasured
+            </span>
+          )}
           <span><b className="text-zinc-200">{d.goal.provider === 'codex' ? '—' : usage.turns}</b> turns</span>
           <span><b className="text-zinc-200">{usage.wallMin.toFixed(0)}</b> min wall</span>
           {usage.models.length > 0 && <span className="mono">{usage.models.join(' · ')}</span>}
@@ -106,6 +113,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
       <div className="grid grid-cols-1 lg:grid-cols-3 lg:grid-rows-1 lg:flex-1 lg:min-h-0 gap-4">
         <div className="lg:col-span-1 lg:overflow-y-auto lg:pr-1 space-y-3">
           <MarkdownPanel title="spec" source={task.spec} maxHeight={260} actions={openFull(`Spec · ${task.title}`, task.spec)} />
+          {revised && <div className="text-[11px] text-sky-300/90" title="A delegated goal landed before this task started; the planner read what it delivered and touched the spec up">Touched up after a step landed: {revised.reason}</div>}
           {task.summary && <MarkdownPanel title="what it delivered" source={task.summary} maxHeight={260} actions={openFull(`What it delivered · ${task.title}`, task.summary)} />}
           {task.hint && <MarkdownPanel title="human hint" source={task.hint} local maxHeight={160} actions={openFull(`Human hint · ${task.title}`, task.hint)} />}
           <div>
@@ -139,6 +147,26 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
                     </button>
                   ) : (
                     <div key={f} className="truncate" title={made ? "Not in this task's commit or in any folder of the goal" : undefined}>
+                      {f}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {(task.delivers ?? []).length > 0 && (
+            <div>
+              <div className="text-xs text-zinc-500 mb-1" title="The files this task promised to the tasks after it; each is a must check when it lands">Deliverables</div>
+              <div className="mono text-[11px] text-zinc-400 space-y-0.5">
+                {(task.delivers ?? []).map((f, _, all) => {
+                  const open = made?.delivers?.find((r) => r.rel === f)?.open;
+                  const openable = all.flatMap((x) => made?.delivers?.find((r) => r.rel === x)?.open ?? []);
+                  return open ? (
+                    <button key={f} type="button" onClick={() => openFile(open, openable)} className="block w-full truncate text-left text-sky-300 hover:underline" title={`Open ${f}`}>
+                      {f}
+                    </button>
+                  ) : (
+                    <div key={f} className="truncate" title={made ? 'Not there yet' : undefined}>
                       {f}
                     </div>
                   );
@@ -181,7 +209,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
                   <div className="text-zinc-500">That goal was deleted. Retry starts a new one; skip moves on without this step.</div>
                 )
               ) : (
-                <div className="text-zinc-500">Its goal starts when this task does — one delegated goal at a time.</div>
+                <div className="text-zinc-500">Its goal starts when this task does; delegated goals run side by side, as many as the goal's parallel limit allows.</div>
               )}
             </div>
           )}
@@ -236,6 +264,9 @@ const fmtDur = (ms: number) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${M
 function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; concluded: { state?: string; reason?: string } | null }) {
   const cost = (value: number) => d.goal.provider === 'codex' ? 'unavailable' : fmtUsd(value);
   const reviewerCost = a.sessions.filter((s) => s.role === 'reviewer').reduce((n, s) => n + s.costUsd, 0);
+  // sessions cut before the coding agent reported a cost: their dollars are unknown, so the sums above leave them out
+  const unmeasured = a.sessions.filter((s) => s.costAvailable === false).length;
+  const unmeasuredNote = `${unmeasured} session${unmeasured === 1 ? '' : 's'} ended before the coding agent reported a cost: unknown, not $0`;
   const workerModels = [...new Set(a.sessions.filter((s) => s.role === 'worker').map((s) => s.model).filter(Boolean))] as string[];
   const fallbacks = d.events.filter((e) => e.type === 'goal.models_changed').map((e) => e.payload as { from: string; to: string });
   const running = !a.endedAt;
@@ -251,7 +282,7 @@ function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; conclude
         {cell('Result', <span className="flex items-center gap-1.5"><Badge state={running ? 'running' : a.state} />{a.resultSubtype && !running ? <span className="mono text-zinc-500">{a.resultSubtype}</span> : null}</span>)}
         {cell('Worker model', <span className="mono">{(workerModels.length ? workerModels : [a.model ?? '?']).join(' → ')}</span>, fallbacks.length ? `model fallback(s) on this goal: ${fallbacks.map((f) => `${f.from} → ${f.to}`).join(', ')}` : undefined)}
         {cell('Turns', d.goal.provider === 'codex' ? 'unavailable' : `${a.numTurns}${a.continuations > 0 ? ` over ${a.continuations + 1} segments` : ''}`)}
-        {cell('Cost', <>{cost(a.costUsd)} <span className="text-zinc-500">worker</span>{reviewerCost > 0 ? <> + {cost(reviewerCost)} <span className="text-zinc-500">reviewer</span></> : null}</>)}
+        {cell('Cost', <>{cost(a.costUsd)} <span className="text-zinc-500">worker</span>{reviewerCost > 0 ? <> + {cost(reviewerCost)} <span className="text-zinc-500">reviewer</span></> : null}{unmeasured > 0 ? <> + <span className="text-amber-300/90">unknown</span></> : null}</>, unmeasured > 0 ? unmeasuredNote : undefined)}
         {cell('Started', ago(a.startedAt))}
         {cell('Duration', a.endedAt ? fmtDur(Date.parse(a.endedAt) - Date.parse(a.startedAt)) : 'running…')}
         {cell('Session', a.sessionId ? <span className="mono">{a.sessionId.slice(0, 8)}</span> : '—', a.sessionId ?? undefined)}
@@ -280,7 +311,7 @@ function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; conclude
                   </td>
                   <td className="pr-3 mono">{s.model ?? '—'}</td>
                   <td className="pr-3 text-right">{d.goal.provider === 'codex' ? '—' : s.numTurns}</td>
-                  <td className="pr-3 text-right mono">{cost(s.costUsd)}</td>
+                  <td className="pr-3 text-right mono">{s.costAvailable === false ? <span className="text-amber-300/90 font-sans" title="ended before the coding agent reported a cost: unknown, not $0">unknown</span> : cost(s.costUsd)}</td>
                   <td className="pr-3 text-right">{fmtDur(s.durationMs)}</td>
                   <td className="mono text-zinc-500">{s.subtype === 'success' ? 'ok' : (s.subtype ?? '—')}{s.subtype === 'error_max_turns' || s.subtype === 'error_max_budget_usd' ? ' → continued' : ''}</td>
                 </tr>
@@ -295,7 +326,7 @@ function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; conclude
 
 /** What the task made and which of its relevant files open, reloaded as the task moves on. */
 function useTaskFiles(goalId: string, task: Task) {
-  const [made, setMade] = useState<{ files: TaskFile[]; relevant: { rel: string; open: FileRef | null }[] } | null>(null);
+  const [made, setMade] = useState<{ files: TaskFile[]; relevant: { rel: string; open: FileRef | null }[]; delivers?: { rel: string; open: FileRef | null }[] } | null>(null);
   useEffect(() => {
     let alive = true;
     api

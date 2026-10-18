@@ -53,9 +53,10 @@ export interface UsageSummary {
   sevenDay: WindowSummary;
   /** cost per hour across the 5-hour window and per day across the 7-day window (empty buckets included) */
   series: { hourly: UsageBucket[]; daily: UsageBucket[] };
-  byModel: ({ model: string; sessions: number; costUsd: number; outputTokens: number } & Partial<GroupMeasures>)[];
-  byGoal: ({ goalId: string | null; title: string | null; state: string | null; sessions: number; costUsd: number } & Partial<GroupMeasures>)[];
-  byKind: ({ kind: string; sessions: number; costUsd: number; avgDurationMs: number } & Partial<GroupMeasures>)[];
+  /** rows also say how many of their Claude Code sessions are unmeasured (`unmeasured`): cut before a cost was reported, so the row's cost leaves them out */
+  byModel: ({ model: string; sessions: number; costUsd: number; outputTokens: number; unmeasured?: number } & Partial<GroupMeasures>)[];
+  byGoal: ({ goalId: string | null; title: string | null; state: string | null; sessions: number; costUsd: number; unmeasured?: number } & Partial<GroupMeasures>)[];
+  byKind: ({ kind: string; sessions: number; costUsd: number; avgDurationMs: number; unmeasured?: number } & Partial<GroupMeasures>)[];
   totals: {
     /** cacheRead / (input + cacheRead) over the 7-day window; null when no input */
     cacheHitRate: number | null;
@@ -63,6 +64,8 @@ export interface UsageSummary {
     avgDurationMs: number | null;
     /** sessions whose subtype was not `success` */
     errorSessions: number;
+    /** Claude Code sessions in the 7-day window that ended before a cost was reported: their dollars are unknown and missing from every cost here (absent on summaries recorded before this was tracked) */
+    unmeasuredSessions?: number;
   };
   limited: { rateLimitType: string; until: string } | null;
   note: string;

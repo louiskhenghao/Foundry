@@ -519,7 +519,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     for (const abs of made.artifacts) files.push({ name: abs.split('/').pop()!, rel: abs.slice(ws.length + 1), kind: fileKind(abs), size: statSync(abs).size, open: { path: abs } });
     const relevant = [];
     for (const rel of task.relevantFiles) relevant.push({ rel, open: (await taskFileSource(dataDir, goal, task, rel, exec, tree)) ? open(rel) : null });
-    return c.json({ files, relevant });
+    const delivers = [];
+    for (const rel of task.delivers ?? []) delivers.push({ rel, open: (await taskFileSource(dataDir, goal, task, rel, exec, tree)) ? open(rel) : null });
+    return c.json({ files, relevant, delivers });
   });
   app.get('/api/goals/:id/screenshots/:file', (c) => {
     const goal = goalOr404(c);
@@ -1375,6 +1377,12 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const { token } = z.object({ token: z.string().min(1).nullable().optional() }).parse(await c.req.json().catch(() => ({})));
     const t = token ?? engine.settings.values().notifications.telegramBotToken;
     if (!t) return c.json({ error: 'no bot token — paste the token from @BotFather first' }, 400);
+    // while Foundry reads this bot (Telegram buttons), Telegram hands it every message: the reader knows who wrote last
+    if (engine.telegram.reads(t)) {
+      const seen = engine.telegram.seenChat(t);
+      if (!seen) return c.json({ error: 'no messages yet — open your bot in Telegram, send it any message, then detect again' }, 400);
+      return c.json(seen);
+    }
     return c.json(await detectTelegramChatId(t));
   });
   // ---------- version & self-update (ADR-0010): cached report like /api/skills/updates; apply streams to `self-update` ----------

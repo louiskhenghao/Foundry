@@ -276,12 +276,17 @@ Foundry can message you on Telegram or Discord when something happens, so you do
 
 **Link base URL**: the address where you open Foundry from elsewhere (a LAN address, a domain). Messages link to it; without it they link to this computer (`http://localhost`). **Tailscale links** (auto) adds links on your tailnet when Tailscale runs here, for Foundry and for previews (not the CAD Viewer, which stays on this computer), so they open on your phone; **Tailscale name** overrides the machine's name. See [notifications.md](../operate/notifications.md#links).
 
-The six switches, all on by default:
+**Answer from Telegram** (on by default): Telegram messages about something that waits for you carry buttons (Retry, Skip, Continue, Approve…), and a reply answers in words. Foundry reads your bot's messages while it is on, so give each Foundry its own bot. Commands outside the workspace are approved in the Inbox only. See [Answering from Telegram](../operate/notifications.md#answering-from-telegram).
+
+**Discord bot token (buttons)**: optional, beside the webhook. Your bot then posts the messages that wait for you in the webhook's channel, with the same buttons; words are typed in a form the button opens. See [Answering from Discord](../operate/notifications.md#answering-from-discord).
+
+The seven switches, all on by default:
 
 | Switch | You get a message when | What to do |
 |---|---|---|
 | **Needs you** | A goal or task is waiting for you: a failed task, a blocked command, a budget reached, a milestone to look at. | Open the Inbox or the goal and answer. Until you do, that part waits. See [When Foundry needs you](./when-foundry-needs-you.md). |
 | **Interview round** | Foundry asks a round of questions before writing the Brief. | Answer them; the goal waits for you. |
+| **Brief ready** | A Brief waits for your approval. Never one Foundry approves itself. | Read it, then approve it on the Brief page or with the message's button. |
 | **Goal finished** | A goal ended done, over-delivered or failed. Never when you cancelled it yourself. | Look at the result, or at what failed. |
 | **Delivery** | A pull request was opened or merged, or the delivery failed. | Review the pull request, or look at the Delivery tab. |
 | **Usage pause** | A coding agent’s usage limit paused its new sessions, and again when retrying resumes. Other coding agents can continue. | Foundry retries automatically; check Accounts and Usage if failures persist. |

@@ -213,7 +213,10 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   const result = await handle.result;
   store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source: `attempt:${attempt.id}` } });
   engine.recordSessionUsage(result, { goalId: goal.id, kind: 'attempt', model: attempt.model });
-  store.append({ type: 'attempt.session_finished', goalId: goal.id, payload: { attemptId: attempt.id, session: { role: 'worker', segment: attempt.continuations, sessionId: initSession ?? attempt.sessionId, model: initModel ?? attempt.model, costUsd: result.costUsd, numTurns: result.numTurns, durationMs: result.durationMs, subtype: result.subtype, startedAt: segmentStart, endedAt: new Date().toISOString() } } });
+  store.append({ type: 'attempt.session_finished', goalId: goal.id, payload: { attemptId: attempt.id, session: { role: 'worker', segment: attempt.continuations, sessionId: initSession ?? attempt.sessionId, model: initModel ?? attempt.model, costUsd: result.costUsd, numTurns: result.numTurns, durationMs: result.durationMs, subtype: result.subtype, startedAt: segmentStart, endedAt: new Date().toISOString(), costAvailable: result.costStatus !== 'unavailable' } } });
+  if (result.costStatus === 'unavailable' && goal.provider !== 'codex') {
+    store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `attempt ${attempt.id}: the session ended (${result.subtype}) before Claude Code reported its cost — ${result.numTurns} turn${result.numTurns === 1 ? '' : 's'} and its tokens are counted, the dollars are unknown and missing from the goal's total` } });
+  }
 
   const commit = await commitAll(cwd, taskCommitMessage(goal, task, { attempt: index }));
   if (commit.committed) store.append({ type: 'workspace.committed', goalId: goal.id, payload: { taskId: task.id, attemptId: attempt.id, ref: commit.ref } });

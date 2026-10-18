@@ -6,7 +6,7 @@
 
 Before Foundry writes the Brief, it reads your project and your attachments. Most questions it can answer itself. What it cannot answer, only you can decide: which of two designs, who the users are, whether an old feature should stay. Those it asks you, in short rounds.
 
-You answer in the browser. It takes a minute or two per round.
+You answer in the browser, or in Telegram (see [From Telegram](#from-telegram)). It takes a minute or two per round.
 
 ## When you get one
 
@@ -87,6 +87,17 @@ Every answer becomes a **Decision**. Decisions belong to the whole goal:
 - If you later run Clarify again, it starts from your decisions instead of asking again.
 
 You can still change your mind on the Brief page: see [Approving the Brief](./approving-the-brief.md#decisions).
+
+## From Telegram
+
+With Telegram notifications and **Answer from Telegram** on, a round arrives as several messages: a line on what to do, one message per question with its options as buttons (⭐ marks the recommended one), and a last message with **Accept all recommended**, **Send answers** and **Enough — write the Brief**.
+
+- Tap an option to pick it. Tap another to change your mind. Nothing is sent until you press a button of the last message.
+- **✍️ My own answer…**, or a reply to a question's message, gives an answer of your own.
+- **Send answers** says which blocking questions are still open.
+- Once the round is sent, here or on the goal's page, each question shows the answer it got.
+
+See [Answering from Telegram](../operate/notifications.md#answering-from-telegram). Discord works the same way when a bot is set up, except that **✍️ My own answer…** opens a form instead of waiting for a reply: see [Answering from Discord](../operate/notifications.md#answering-from-discord).
 
 ## Tips
 
