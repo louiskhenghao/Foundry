@@ -1,7 +1,8 @@
+import { join } from 'node:path';
 import { getBrief, getEscalation, getGoal } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { classifyFeedback } from '../feedback.ts';
-import type { ActionHost, Drafts } from './actions.ts';
+import { type ActionHost, type Drafts, JsonDrafts } from './actions.ts';
 
 /** The engine calls a chat may make (notify/actions.ts): the ones behind the web UI's buttons, nothing more. */
 export function engineHost(engine: Engine, drafts: Drafts): ActionHost {
@@ -22,4 +23,12 @@ export function engineHost(engine: Engine, drafts: Drafts): ActionHost {
     note: (goalId, message) => void engine.store.append({ type: 'engine.note', goalId, payload: { level: 'info', message } }),
     drafts,
   };
+}
+
+const hosts = new WeakMap<Engine, ActionHost>();
+/** one host per engine, its drafts shared by every chat: a round can be answered partly in one channel and sent from another */
+export function chatHost(engine: Engine): ActionHost {
+  let h = hosts.get(engine);
+  if (!h) hosts.set(engine, (h = engineHost(engine, new JsonDrafts(join(engine.config.dataDir, 'notify', 'drafts.json')))));
+  return h;
 }
