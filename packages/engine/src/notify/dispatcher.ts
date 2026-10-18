@@ -9,7 +9,7 @@ import type { Brief, EngineEvent, Escalation, EscalationTrigger, Goal, Notificat
 import { getBrief, getGoal, isHistory } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { screenshotsDir } from '../workspace.ts';
-import { budgetOnApproval } from './actions.ts';
+import { budgetOnApproval, type Target } from './actions.ts';
 import { DiscordNotifier, TelegramNotifier, type Link, type MediaFile, type Notifier } from './channels.ts';
 import { DeliveryDigest } from './digest.ts';
 
@@ -168,7 +168,7 @@ export class NotificationDispatcher {
     if (e.type === 'goal.state_changed' && e.payload.to === 'awaiting_brief_approval' && goal) {
       const s = this.settings();
       const c = s.onBriefReady ? composeBriefReady(goal, getBrief(this.engine.store.db, goal.id)?.brief ?? null, e.payload.reason) : null;
-      if (c) this.deliver(s, c.text, c.path, goal.id);
+      if (c) this.deliver(s, c.text, c.path, goal.id, [], null, { kind: 'brief', goalId: goal.id });
       return;
     }
     const c = compose(e, this.goalTitle, this.engine.config.provider);
@@ -176,7 +176,10 @@ export class NotificationDispatcher {
     const s = this.settings();
     // a milestone is the same note whether the goal pauses for it (an escalation) or goes on
     const on = { goalFinished: s.onGoalFinished, delivery: s.onDelivery, rateLimit: s.onRateLimit, updateAvailable: s.onUpdateAvailable, interview: s.onInterview, milestone: s.onEscalation, briefReady: s.onBriefReady }[c.family];
-    if (on) this.deliver(s, c.text, c.path, e.goalId, e.type === 'milestone.evidence' && e.goalId ? this.evidenceFiles(e.goalId, e.payload) : []);
+    // what a chat can answer: an interview round, a usage pause (Resume now)
+    const target: Target | null =
+      e.type === 'interview.round_asked' && e.goalId ? { kind: 'round', goalId: e.goalId, round: e.payload.round } : e.type === 'rate_limit.paused' ? { kind: 'usage', provider: e.payload.provider ?? this.engine.config.provider } : null;
+    if (on) this.deliver(s, c.text, c.path, e.goalId, e.type === 'milestone.evidence' && e.goalId ? this.evidenceFiles(e.goalId, e.payload) : [], null, target);
   }
 
   private onEscalation(esc: Escalation): void {
@@ -185,7 +188,7 @@ export class NotificationDispatcher {
     const c = composeEscalation(esc, this.goalTitle);
     // a milestone's screenshots and recording follow in their own message (milestone.evidence)
     const preview = esc.trigger === 'milestone' ? ((esc.payload as { previewUrl?: string | null }).previewUrl ?? null) : null;
-    this.deliver(s, c.text, c.path, esc.goalId, [], preview);
+    this.deliver(s, c.text, c.path, esc.goalId, [], preview, { kind: 'esc', id: esc.id });
   }
 
   /**
@@ -234,11 +237,16 @@ export class NotificationDispatcher {
     return existsSync(p) ? p : null;
   }
 
-  private deliver(s: NotificationSettings, text: string, path: string | null, goalId: string | null, media: MediaFile[] = [], preview: string | null = null): void {
+  /** `target`: what the message is about when a chat can answer it — Telegram then sends it with its buttons (ADR-0038) */
+  private deliver(s: NotificationSettings, text: string, path: string | null, goalId: string | null, media: MediaFile[] = [], preview: string | null = null, target: Target | null = null): void {
     const channels = this.channels(s);
     if (!channels.length) return;
+    const telegram = this.engine.telegram;
     void this.links(s, path, preview).then((links) => {
-      for (const ch of channels) void this.sendWithRetry(ch, media.length && ch.sendMedia ? () => ch.sendMedia!(text, media, links) : () => ch.send(text, links), goalId);
+      for (const ch of channels) {
+        if (target && !media.length && ch instanceof TelegramNotifier && telegram.answers(s)) void this.sendWithRetry(ch, () => telegram.sendAbout(target, text, links), goalId);
+        else void this.sendWithRetry(ch, media.length && ch.sendMedia ? () => ch.sendMedia!(text, media, links) : () => ch.send(text, links), goalId);
+      }
     });
   }
 

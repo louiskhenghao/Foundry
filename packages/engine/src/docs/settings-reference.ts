@@ -91,6 +91,7 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'notifications.baseUrl': { section: 'Notifications', help: 'Address of this UI as reachable from elsewhere; empty = links point at this computer (http://localhost:<port>).' },
   'notifications.tailscale': { section: 'Notifications', help: 'auto: when Tailscale runs here, messages and the UI also carry tailnet links, and Foundry serves its own and the previews\' ports with `tailscale serve`; off: never.' },
   'notifications.tailscaleHost': { section: 'Notifications', help: "This computer's tailnet name, when it should not be read from `tailscale status`." },
+  'notifications.telegramActions': { section: 'Notifications', help: 'Telegram messages about something that waits for you carry buttons (Retry, Skip, Continue, Approve…) and take a reply in words; Foundry reads the bot\'s updates while it is on. One bot per Foundry instance.' },
   'notifications.onEscalation': { section: 'Notifications', help: 'Notify when something needs you (Inbox).' },
   'notifications.onInterview': { section: 'Notifications', help: 'Notify when Clarify asks an interview round.' },
   'notifications.onBriefReady': { section: 'Notifications', help: 'Notify when a Brief waits for your approval (one the engine approves itself never notifies).' },

@@ -85,6 +85,7 @@ import { attachmentDir, claimStaged, conversionTmpPath, markdownFileName, sweepS
 import { Markitdown } from './convert/markitdown.ts';
 import { SettingsError, SettingsStore, applySettingsToConfig } from './settings.ts';
 import { NotificationDispatcher } from './notify/dispatcher.ts';
+import { TelegramBot } from './notify/telegram-bot.ts';
 import { ModelFallbackRunner } from './models/fallback-runner.ts';
 import { modelsInBinary } from './models/discover.ts';
 import { EffortRunner } from './effort-runner.ts';
@@ -297,6 +298,8 @@ export class Engine {
   readonly settings: SettingsStore;
   /** pushes escalations / goal endings / delivery results / usage pauses to Telegram & Discord (Settings → Notifications) */
   readonly notifications: NotificationDispatcher;
+  /** Telegram's buttons and replies: reads the bot's updates while the engine serves (ADR-0038) */
+  readonly telegram: TelegramBot;
   /** version self-knowledge, the daily update check, and the self-update pipeline (ADR-0010) */
   readonly updater: UpdateManager;
   /** dev servers started in progress folders (Goal page, milestones, integrations) */
@@ -462,6 +465,7 @@ export class Engine {
     });
     this.notifications = new NotificationDispatcher(this);
     this.notifications.attach();
+    this.telegram = new TelegramBot(this);
     this.updater = new UpdateManager(this);
     this.tailnet = new Tailnet({ mode: () => this.settings.values().notifications.tailscale, host: () => this.settings.values().notifications.tailscaleHost, log: config.log, bin: config.tailscaleBin, stateFile: join(config.dataDir, 'tailnet-served.json') });
     void this.tailnet.cleanUp();
@@ -915,6 +919,7 @@ export class Engine {
     }, this.config.delivery.prWatchMs);
     this.prWatchTimer.unref?.();
     void checkOpenPrs(this);
+    this.telegram.start();
     for (const g of listGoals(this.store.db)) this.tick(g.id);
   }
 
@@ -1025,6 +1030,8 @@ export class Engine {
   async stop(): Promise<void> {
     this.stopped = true;
     this.modelDiscoveryAbort.abort();
+    // no press from a chat starts work on an engine going down
+    await this.telegram.stop();
     this.updater.stopSchedule();
     if (this.prWatchTimer) clearInterval(this.prWatchTimer);
     for (const timer of this.resumeTimers.values()) clearTimeout(timer);
