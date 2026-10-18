@@ -61,6 +61,8 @@ export const Task = z.object({
   relevantFiles: z.array(z.string()),
   /** Deliverables: the files it leaves for the tasks after it (repo-relative, or under artifacts/), each a must check when it lands; absent on tasks from before */
   delivers: z.array(z.string()).optional(),
+  /** a `goal` task: the share of the goal's cost budget (USD) its Delegated goal may spend; null = an even share of what is left */
+  budgetUsd: z.number().positive().nullable().optional(),
   parallelizable: z.boolean(),
   retryBudget: z.number().int().positive(),
   origin: TaskOrigin,

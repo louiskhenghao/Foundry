@@ -26,8 +26,25 @@ const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n).trimEnd(
 export const isDelegationTask = (t: Pick<Task, 'kind'>): boolean => t.kind === 'goal';
 /** a goal task between its start and its landing: its Delegated goal is at work, waits for the person, or lands */
 const DELEGATING_STATES: readonly Task['state'][] = ['running', 'observing', 'merging'];
-/** the goal task whose Delegated goal is under way, if any (one at a time) */
-export const delegating = (tasks: Task[]): Task | undefined => tasks.find((t) => isDelegationTask(t) && DELEGATING_STATES.includes(t.state));
+/** the goal tasks whose Delegated goals are under way: as many at a time as the main goal's parallel limit allows */
+export const delegatingTasks = (tasks: Task[]): Task[] => tasks.filter((t) => isDelegationTask(t) && DELEGATING_STATES.includes(t.state));
+/** a goal task whose Delegated goal is under way, if any */
+export const delegating = (tasks: Task[]): Task | undefined => delegatingTasks(tasks)[0];
+
+/**
+ * The budget a Delegated goal gets: the planner's share for its task (`budgetUsd`), kept within what the main goal has
+ * left, else an even share of what is left among the goal tasks still to land; the time left is not divided (they run
+ * side by side). No cost limit on the main goal (Codex, unlimited) means none here either.
+ */
+export function budgetShare(main: Goal, tasks: Task[], task: Pick<Task, 'id' | 'budgetUsd'>): { maxCostUsd: number | null; maxDurationMin: number | null } {
+  const b = budgetStatus(main);
+  const maxDurationMin = b.maxDurationMin == null ? null : Math.max(10, Math.ceil(b.maxDurationMin - b.elapsedMin));
+  if (b.remainingUsd == null) return { maxCostUsd: null, maxDurationMin };
+  const left = Math.max(1, b.remainingUsd);
+  const open = tasks.filter((t) => isDelegationTask(t) && !['done', 'skipped', 'failed'].includes(t.state)).length || 1;
+  const share = task.budgetUsd != null ? Math.min(task.budgetUsd, left) : left / open;
+  return { maxCostUsd: Number(Math.max(1, share).toFixed(2)), maxDurationMin };
+}
 /** the reason a main goal is blocked while its Delegated goal needs the person (settleDelegations unblocks it by this prefix) */
 const WAIT_REASON = 'waiting for the delegated goal';
 
@@ -80,10 +97,8 @@ export function delegationNeedsHuman(engine: Engine, g: Goal): string | null {
  * are in its Clarify prompt (delegationContext).
  */
 export async function createDelegatedGoal(engine: Engine, main: Goal, task: Task): Promise<Goal> {
-  const b = budgetStatus(main);
   const budgets: Partial<Budgets> = {
-    maxCostUsd: b.remainingUsd == null ? null : Math.max(1, Number(b.remainingUsd.toFixed(2))),
-    maxDurationMin: b.maxDurationMin == null ? null : Math.max(10, Math.ceil(b.maxDurationMin - b.elapsedMin)),
+    ...budgetShare(main, listTasks(engine.store.db, main.id), task),
     maxConcurrent: main.budgets.maxConcurrent,
     attemptsPerTask: main.budgets.attemptsPerTask,
   };
@@ -116,25 +131,30 @@ export async function createDelegatedGoal(engine: Engine, main: Goal, task: Task
 }
 
 /**
- * The next ready `goal` task of a running main goal starts as a Delegated goal — one at a time. A task that came back to
- * ready after an answer (retry) carries on with the Delegated goal it already has.
+ * The ready `goal` tasks of a running main goal start as Delegated goals, as many at a time as the goal's parallel limit
+ * allows (their dependencies keep their order). A task that came back to ready after an answer (retry) carries on with
+ * the Delegated goal it already has.
  */
 export async function startDelegations(engine: Engine, goal: Goal, tasks: Task[]): Promise<void> {
   const { store } = engine;
-  if (delegating(tasks)) return;
-  const next = tasks.find((t) => isDelegationTask(t) && t.state === 'ready');
-  if (!next) return;
-  const existing = next.delegatedGoalId ? getGoal(store.db, next.delegatedGoalId) : null;
-  if (existing) {
-    await resumeDelegated(engine, goal, next, existing);
-    return;
-  }
-  try {
-    const made = await createDelegatedGoal(engine, goal, next);
-    store.append({ type: 'task.delegated', goalId: goal.id, payload: { taskId: next.id, goalId: made.id, title: made.title } });
-    store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: next.id, from: 'ready', to: 'running', reason: `delegated to the goal "${made.title}" (${made.id})` } });
-  } catch (err) {
-    raiseEscalation(engine, { goal, task: next, trigger: 'retries_exhausted', message: `The delegated goal for "${next.title}" could not be created: ${String((err as Error)?.message ?? err)}\n\nRetry tries again; skip moves on without this step.`, payload: { kind: 'delegation' }, blockGoal: true });
+  let room = goal.budgets.maxConcurrent - delegatingTasks(tasks).length;
+  for (const next of tasks.filter((t) => isDelegationTask(t) && t.state === 'ready')) {
+    if (room <= 0) return;
+    const existing = next.delegatedGoalId ? getGoal(store.db, next.delegatedGoalId) : null;
+    if (existing) {
+      await resumeDelegated(engine, goal, next, existing);
+      room--;
+      continue;
+    }
+    try {
+      const made = await createDelegatedGoal(engine, goal, next);
+      store.append({ type: 'task.delegated', goalId: goal.id, payload: { taskId: next.id, goalId: made.id, title: made.title } });
+      store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: next.id, from: 'ready', to: 'running', reason: `delegated to the goal "${made.title}" (${made.id})` } });
+      room--;
+    } catch (err) {
+      raiseEscalation(engine, { goal, task: next, trigger: 'retries_exhausted', message: `The delegated goal for "${next.title}" could not be created: ${String((err as Error)?.message ?? err)}\n\nRetry tries again; skip moves on without this step.`, payload: { kind: 'delegation' }, blockGoal: true });
+      return;
+    }
   }
 }
 
