@@ -14,3 +14,4 @@ export * from './settings.ts';
 export * from './codex-presets.ts';
 export * from './transfer.ts';
 export * from './learnings.ts';
+export * from './deploy.ts';

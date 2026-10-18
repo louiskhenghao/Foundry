@@ -304,6 +304,7 @@ The history endpoint returns the last 400 events, slimmed the same way, includin
 | Goal review, fix tasks | `engine/src/goal-review.ts`, `engine/src/fix-tasks.ts` |
 | Completion Actions (docs, graph refresh, artifacts; Re-run via `Engine.rerunCompletion`) | `engine/src/docs-generate.ts`, `engine/src/completion.ts` |
 | Delivery, PR Stack, CI fixing | `engine/src/delivery/{pipeline,policy,gh}.ts`, `core/src/schema/delivery.ts` |
+| Deploy: what is a web app, the hosts' commands, the run | `engine/src/deploy/{detect,providers,deploy}.ts`, `core/src/schema/deploy.ts`, `apps/web/src/pages/goal/DeployCard.tsx` |
 | Escalations, Suggestions | `engine/src/escalation.ts`, `engine/src/escalation-suggest.ts`, `core/src/schema/escalation.ts` |
 | Budgets | `engine/src/budget.ts`, `core/src/schema/goal.ts` (`BUDGET_PRESETS`) |
 | Usage Pause, usage ledger | `Engine.observeRateLimit` / `pauseUntil`, `engine/src/usage/ledger.ts` |

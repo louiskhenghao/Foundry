@@ -523,6 +523,32 @@ export function SettingsPage() {
           )}
           {bool('sync.refreshBetweenTasks', 'Refresh between tasks', 'When nothing is running, fetch again and merge a moved base branch into the goal branch (conflicts go to a Merge Attempt). Useful for long goals on busy repositories; off by default because mid-goal merges can surprise workers.')}
           {bool('delivery.updateLocalBase', 'Update my local base branch after a merge', 'When a pull request merges, Foundry fetches and fast-forwards your local base branch (only when that is safe: no uncommitted changes, no commits of your own on it), then removes the goal\'s progress folder, worktrees and local branches. Screenshots and the goal itself stay.')}
+          <div className="pt-1 space-y-2">
+            <div className="text-xs text-zinc-300">Deploy — a finished web app to a host</div>
+            <p className="text-[11px] text-zinc-500">For a goal's web page or all-in-one web app (never a worker or a separate backend): its Delivery tab deploys it on your click, a preview unless you ask for production. The tokens are kept by the engine only and never handed to a coding session.</p>
+            {grid(
+              <>
+                <Field label="Vercel token" aside={aside('delivery.vercelToken')} help="vercel.com → Account Settings → Tokens. Scope it to the team you deploy to.">
+                  {secret('delivery.vercelToken', 'vcp_…')}
+                </Field>
+                <Field label="Vercel team" aside={aside('delivery.vercelScope')} help="The team's slug. Empty = the token's own account.">
+                  {text('delivery.vercelScope', 'my-team', true)}
+                </Field>
+                <Field label="Netlify token" aside={aside('delivery.netlifyToken')} help="app.netlify.com → User settings → Applications → Personal access tokens.">
+                  {secret('delivery.netlifyToken', 'nfp_…')}
+                </Field>
+                <Field label="Netlify team" aside={aside('delivery.netlifyTeam')} help="The team's slug a new site is made in. Empty = your default team.">
+                  {text('delivery.netlifyTeam', 'my-team', true)}
+                </Field>
+                <Field label="Cloudflare API token" aside={aside('delivery.cloudflareToken')} help="dash.cloudflare.com → My Profile → API Tokens, with the permission Cloudflare Pages: Edit. Static sites only.">
+                  {secret('delivery.cloudflareToken', 'API token')}
+                </Field>
+                <Field label="Cloudflare account id" aside={aside('delivery.cloudflareAccountId')} help="On the account's overview page, under API.">
+                  {text('delivery.cloudflareAccountId', '0123abcd…', true)}
+                </Field>
+              </>,
+            )}
+          </div>
           <details className="pt-1">
             <summary className="text-xs text-zinc-400 cursor-pointer">Delivery timings (advanced)</summary>
             <div className="mt-3">

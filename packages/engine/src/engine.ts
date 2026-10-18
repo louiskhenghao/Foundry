@@ -89,6 +89,8 @@ import { NotificationDispatcher } from './notify/dispatcher.ts';
 import { TelegramBot } from './notify/telegram-bot.ts';
 import { DiscordBot } from './notify/discord-bot.ts';
 import { endedForLearning, learnFromGoal, learnOnEnd, learningWork, learningsOf, setLearnings } from './learnings.ts';
+import { DEPLOYABLE_STATES, deployCredentials, deployName, deployWork, deploying, goalDeployability, npxCli, startDeploy, unsupported } from './deploy/deploy.ts';
+import { DEPLOY_PROVIDERS, PROVIDER_LABEL, configured, deploySteps, redact } from './deploy/providers.ts';
 import { ModelFallbackRunner } from './models/fallback-runner.ts';
 import { modelsInBinary } from './models/discover.ts';
 import { EffortRunner } from './effort-runner.ts';
@@ -97,7 +99,7 @@ import { copyProjectSkills, hasStackManifest, runAutoskills, type AutoskillsDeps
 import { artifactsDue, deliverArtifacts, inferCompletion, runGraphRefresh, shouldRunGraphRefresh, type GraphRefreshDeps } from './completion.ts';
 import { stuckCommits, takeBackOrphaned, takeBackStuck } from './take-back.ts';
 import { cadModelIn, recoverOverlays } from './goal-artifacts.ts';
-import type { Learning, SettingsPatch, SettingsView } from '@foundry/core';
+import type { Learning, SettingsPatch, SettingsView, DeployProvider } from '@foundry/core';
 import { ACTION_INFO, BUILTIN_PRESETS, DEFAULT_NATURE_PRESETS, MODEL_ACTIONS, MODEL_NATURES, NATURE_LABEL, effectivePresets } from '@foundry/core';
 import { spawnStreaming } from './skills/updaters.ts';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
@@ -328,6 +330,8 @@ export class Engine {
   autoskillsDeps: AutoskillsDeps = {};
   /** test seam: deps handed to runGraphRefresh (fake which/exec) */
   graphRefreshDeps: GraphRefreshDeps = {};
+  /** how a host's CLI is run for Deploy (ADR-0041); tests point it at stand-ins */
+  deployCli: (p: DeployProvider) => string[] = npxCli;
 
   constructor(
     public readonly config: EngineConfig,
@@ -1078,6 +1082,8 @@ export class Engine {
     await settle([...this.landingDelegations.values(), ...this.approvingDelegated.values()], 10_000);
     // a learning session writes the folder's notebook when it ends (its session was killed above)
     await settle(learningWork(), 5_000);
+    // a deploy records how it ended (its commands were killed with the rest)
+    await settle(deployWork(), 5_000);
   }
 
   /** the escalation for a commit a merge attempt made before the engine stopped and git would not take back at the next start */
@@ -2424,6 +2430,26 @@ export class Engine {
     const goal = this.mustGoal(goalId);
     if (!endedForLearning(goal.state)) throw new Error(`the goal is ${goal.state.replace(/_/g, ' ')}: it teaches its folder once it ended done, over-delivered or failed`);
     return learnFromGoal(this, goalId, { force: true });
+  }
+
+  /** Deploy the finished goal's web app (ADR-0041): what is wrong is thrown at once, the deploy runs in the background */
+  deploy(goalId: string, req: { provider: DeployProvider; production: boolean }): void {
+    startDeploy(this, goalId, req);
+  }
+  /** what Deploy can do for a goal now: whether its code is a web app, which hosts are set up and take it, the commands, the deploys so far */
+  deployInfo(goalId: string, provider?: DeployProvider, production = false) {
+    const goal = this.mustGoal(goalId);
+    const app = goalDeployability(this, goal);
+    const c = deployCredentials(this);
+    return {
+      app,
+      finished: DEPLOYABLE_STATES.has(goal.state),
+      running: deploying(goalId),
+      providers: DEPLOY_PROVIDERS.map((id) => ({ id, label: PROVIDER_LABEL[id], configured: configured(id, c), refused: unsupported(id, app) })),
+      // the exact commands a deploy runs, tokens left out: nothing else runs
+      plan: provider && app.ok ? deploySteps({ provider, cwd: `<deploy folder>/${app.app.dir}`.replace(/\/$/, ''), kind: app.app.kind, name: deployName(goal), production, branch: goal.branch.replace(/[^A-Za-z0-9-]+/g, '-').slice(0, 28), productionBranch: goal.baseBranch, install: app.app.install, build: app.app.build, outputDir: app.app.outputDir, message: `${goal.title} (Foundry)`, credentials: c, cli: this.deployCli }).map((s) => ({ label: s.label, command: redact(s.argv.join(' '), c) })) : [],
+      deployments: goal.deployments ?? [],
+    };
   }
 
   /** Prefill and start point for a Follow-up of this goal (the New goal form, `goal new --follows`). */

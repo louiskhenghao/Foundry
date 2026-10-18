@@ -151,6 +151,21 @@ While the goal runs, milestone cards show the files produced so far.
 
 A CAD goal's preview card also shows **CAD Viewer**, text-to-cad's own viewer: **Start** runs it, then **Open** (**Open the model** when it is the only app) shows the model in the browser, where you can turn it, measure it and cut sections. It opens on the goal's assembly when one was exported, else on the newest STEP, and follows a newer assembly while it runs; its home lists the other models. The walkthroughs never start it by themselves. It opens only on the computer Foundry runs on: it can read any file there, so Foundry never puts it on your tailnet. When the page is opened at an address other than localhost, the card says **only on Foundry's computer** instead of offering **Open**, with the viewer's localhost address as a link. That link works on Foundry's computer reached by its network name, not on a phone, where localhost is the phone itself.
 
+## Deploy
+
+A finished goal whose result is a web page or an all-in-one web app can be put online from the end of its **Delivery** tab: on Vercel, Netlify or Cloudflare Pages, as a preview address unless you ask for production.
+
+![The Deploy card: the app found, the hosts, the exact command, and a live preview](images/deploy.png)
+
+- **What is deployed**: a folder of pages, a site or single-page app built with a known tool (Vite, Astro, Gatsby, Docusaurus, Eleventy, Create React App, Angular), or a full-stack web framework the hosts run (Next.js, Nuxt, SvelteKit, Astro with an adapter, Remix, React Router, SolidStart). The card says which it found, and in which folder of a monorepo.
+- **What is not**: workers in Docker or a Procfile, a backend deployed apart from its pages (an API in its own folder, a Go or Python service), an app with a custom server of its own, or a repository with several web apps. The card says which it found instead. Half a system online is a broken one, so nothing is deployed.
+- **The hosts**: Vercel builds the source itself. Netlify's tool builds here with Netlify's own build. Cloudflare Pages gets the files built here, so it takes static sites only: a server-rendered app goes to Vercel or Netlify.
+- **Before anything runs**, the card lists the exact commands. They run in a checkout of the goal's commit in Foundry's data folder, never in your folder, and nothing is pushed to your repository. Each host gets one project per repository, named after its folder, so later deploys go to the same place.
+- **Preview or production**: a preview gets an address of its own. **Production** asks you to confirm first, because it replaces what the project's address serves. A host's very first deploy of a new project is its production deploy.
+- **Afterwards** the card lists every deploy with its address, the commands' output folds open below, and a **Delivery** notification says where it went or why it failed.
+
+Each host needs its token in **Settings → Git & delivery → Deploy**: see [Git & delivery](./settings.md#git--delivery). The engine keeps the tokens to itself; no coding session ever gets them. A coding session cannot deploy on its own either: the boundary guard blocks the hosts' deploy commands, however they are spelled.
+
 ## Completion extras
 
 On the Brief you chose what runs by itself at the end (see [Approving the Brief](./approving-the-brief.md#completion)):

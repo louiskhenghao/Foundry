@@ -550,6 +550,24 @@ function project(db: Database, e: EngineEvent): void {
       else db.run('DELETE FROM repo_learnings WHERE repo_path = ?', [p.repoPath]);
       break;
     }
+    case 'deploy.started': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, deployments: [...(g.deployments ?? []), { provider: e.payload.provider, production: e.payload.production, status: 'running', url: null, reason: null, ref: e.payload.ref, framework: e.payload.framework, at: e.ts, endedAt: null }], updatedAt: e.ts });
+      break;
+    }
+    case 'deploy.finished':
+    case 'deploy.failed': {
+      const g = getGoal(db, e.goalId!);
+      if (!g) break;
+      const list = [...(g.deployments ?? [])];
+      const i = list.findLastIndex((d) => d.provider === e.payload.provider && d.status === 'running');
+      const ended = e.type === 'deploy.finished' ? { status: 'live' as const, url: e.payload.url, reason: null } : { status: 'failed' as const, url: null, reason: e.payload.reason };
+      // a deploy refused before it started (no web app, a host not set up) is a failed entry of its own
+      if (i >= 0) list[i] = { ...list[i]!, ...ended, endedAt: e.ts };
+      else list.push({ provider: e.payload.provider, production: e.payload.production, ref: null, framework: null, at: e.ts, ...ended, endedAt: e.ts });
+      upsertGoal(db, { ...g, deployments: list, updatedAt: e.ts });
+      break;
+    }
     case 'escalation.raised':
       upsertEscalation(db, e.payload.escalation);
       break;

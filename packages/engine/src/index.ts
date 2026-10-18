@@ -59,3 +59,5 @@ export { engineTransferHost, exportTransfer, type ExportOptions, type ExportResu
 export { ImportChoices, applyIncoming, discardIncoming, inspectIncoming, receiveTransfer, sweepIncoming, unlockIncomingSecrets, type ImportReport, type IncomingReport, type SecretsPreview } from './transfer/import.ts';
 export { mapRepo, reattachGoal, type MapResult } from './transfer/reattach.ts';
 export { learnFromGoal, learningsContext, learningsForWorker, mergeLearnings } from './learnings.ts';
+export { deployability } from './deploy/detect.ts';
+export { DEPLOY_PROVIDERS, PROVIDER_LABEL } from './deploy/providers.ts';

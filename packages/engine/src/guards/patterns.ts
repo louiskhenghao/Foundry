@@ -4,10 +4,15 @@
  * when evaluating Escalation trigger 5.
  */
 export const BOUNDARY_RE =
-  /git\s+push|gh\s+pr\s+create|gh\s+pr\s+merge|gh\s+release|npm\s+publish|bun\s+publish|yarn\s+publish|pnpm\s+publish|cargo\s+publish|vercel\s+deploy|vercel\s+--prod|netlify\s+deploy|flyctl\s+deploy|fly\s+deploy|wrangler\s+deploy|terraform\s+apply|pulumi\s+up|kubectl\s+apply|kubectl\s+delete|docker\s+push|aws\s+s3\s+(cp|sync|rm)|gcloud\s+.*deploy|git\s+remote\s+(add|set-url)/;
+  /git\s+push|gh\s+pr\s+create|gh\s+pr\s+merge|gh\s+release|npm\s+publish|bun\s+publish|yarn\s+publish|pnpm\s+publish|cargo\s+publish|vercel(@[^\s"]*)?\s+(deploy|--prod|promote|redeploy|rollback|alias|remove|rm)|netlify(-cli)?(@[^\s"]*)?\s+(deploy|sites:create|sites:delete|env:set|api)|flyctl\s+deploy|fly\s+deploy|wrangler(@[^\s"]*)?\s+(deploy|publish|delete|pages\s+(deploy|publish|project\s+(create|delete))|versions\s+deploy|secret\s+put)|terraform\s+apply|pulumi\s+up|kubectl\s+apply|kubectl\s+delete|docker\s+push|aws\s+s3\s+(cp|sync|rm)|gcloud\s+.*deploy|git\s+remote\s+(add|set-url)/;
+
+/** a bare `vercel` deploys: the program with nothing after it but flags, directly or through a package runner (one command of a line) */
+export const BARE_VERCEL_RE =
+  /^\s*(([A-Za-z_][A-Za-z0-9_]*=\S*|env|sudo|exec|command|npx|bunx|pnpx|(pnpm|yarn)\s+dlx)\s+(-\S+\s+)*)*(\S*\/)?vercel(@\S*)?(\s+(--?(token|scope|team|cwd|local-config|global-config|env|build-env|meta|regions|archive|target|[tSAebm])[\s=]+\S+|-\S+))*\s*$/;
 
 export function isBoundaryCommand(cmd: unknown): boolean {
-  return typeof cmd === 'string' && BOUNDARY_RE.test(cmd);
+  if (typeof cmd !== 'string') return false;
+  return BOUNDARY_RE.test(cmd) || cmd.split(/&&|\|\||[;|\n]/).some((part) => BARE_VERCEL_RE.test(part));
 }
 
 /**

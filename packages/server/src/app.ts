@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { CodexEffort, Effort, Brief, EscalationAnswer, isHistory, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
 import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId } from '@foundry/engine';
 import type { Task } from '@foundry/core';
-import { LearningKind, listDelegatedGoals, listRepoLearnings } from '@foundry/core';
+import { LearningKind, listDelegatedGoals, listRepoLearnings, DeployProvider } from '@foundry/core';
 import { delegationNeedsHuman } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, PreviewPlace, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
@@ -1365,6 +1365,22 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       throw new HttpError(409, { error: String((e as Error).message ?? e) });
     }
     return c.json({ repoPath: goal.repoPath, learnings: engine.learnings(goal.repoPath) });
+  });
+  // ---------- Deploy (ADR-0041): a finished goal's web app to Vercel, Netlify or Cloudflare Pages, on the person's click ----------
+  app.get('/api/goals/:id/deploy', (c) => {
+    const goal = goalOr404(c);
+    const provider = DeployProvider.safeParse(c.req.query('provider'));
+    return c.json(engine.deployInfo(goal.id, provider.success ? provider.data : undefined, c.req.query('production') === '1'));
+  });
+  app.post('/api/goals/:id/deploy', async (c) => {
+    const goal = goalOr404(c);
+    const body = z.object({ provider: DeployProvider, production: z.boolean().default(false) }).parse(await c.req.json());
+    try {
+      engine.deploy(goal.id, body);
+    } catch (e) {
+      throw new HttpError(409, { error: String((e as Error).message ?? e) });
+    }
+    return c.json({ started: true }, 202);
   });
   // ---------- notifications (test / telegram chat-id detection use the draft credentials, saved ones as fallback) ----------
   app.post('/api/notifications/test', async (c) => {

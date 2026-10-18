@@ -7,7 +7,7 @@ record is never rewritten when a later decision changes it; its status says what
 |---|---|---|
 | [0001](0001-drive-host-claude-cli-not-agent-sdk.md) | Drive the host `claude` CLI rather than the Agent SDK | accepted · 2026-08-21 · amended by ADR-0017 and ADR-0037 |
 | [0002](0002-event-log-as-source-of-truth.md) | Append-only event log as the source of truth | accepted · 2026-08-21 |
-| [0003](0003-engine-only-remote-actions-under-human-policy.md) | Remote actions are performed only by the engine, only under a policy the human chose | accepted · 2026-08-21 · amended by ADR-0012 (a sixth escalation trigger, `milestone`) and ADR-0038 (answers from a chat; boundary commands approved in the Inbox only) |
+| [0003](0003-engine-only-remote-actions-under-human-policy.md) | Remote actions are performed only by the engine, only under a policy the human chose | accepted · 2026-08-21 · amended by ADR-0012 (a sixth escalation trigger, `milestone`) and ADR-0038 (answers from a chat; boundary commands approved in the Inbox only) and ADR-0041 (host tokens kept for Deploy; every deploy command blocked for sessions) |
 | [0004](0004-workflow-skills-mandated-and-observed.md) | Workflow skills are mandated per role and task kind, and their use is observed | accepted · 2026-08-21 · amended by ADR-0017 and ADR-0019 |
 | [0005](0005-scenario-skills-and-settings.md) | Scenario-selected skills, exclusive design packs, per-goal autoskills, and a settings file | accepted · 2026-08-22 · amended by ADR-0019 |
 | [0006](0006-model-registry-and-fallback.md) | No hard-coded model knowledge: a learned registry and a fallback chain | accepted · 2026-08-22 · partly superseded by ADR-0014 (goal model snapshot per tier; doctor checks tiers) · amended by ADR-0018 |
@@ -45,3 +45,4 @@ record is never rewritten when a later decision changes it; its status says what
 | [0038](0038-chat-answers-from-telegram.md) | Telegram takes answers: buttons and replies go through the app's own calls, and boundary commands stay in the Inbox | accepted · 2026-10-18 · amends ADR-0003 · amended by ADR-0039 |
 | [0039](0039-chat-answers-from-discord.md) | Discord takes answers through a bot of the user's, read over the gateway | accepted · 2026-10-18 · amends ADR-0038 |
 | [0040](0040-learnings-per-repository.md) | Learnings: what a folder's goals taught, written when a goal ends and given to the next goals there | accepted · 2026-10-18 |
+| [0041](0041-deploy-web-apps.md) | Deploy: a finished goal's web app to Vercel, Netlify or Cloudflare Pages, on the person's click | accepted · 2026-10-18 · amends ADR-0003 |
