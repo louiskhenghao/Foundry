@@ -44,6 +44,8 @@ export interface AttemptPromptInput {
   upstream?: string;
   /** the chosen Style Proposal (media/UI tasks), or null */
   style?: BriefStyleOption | null;
+  /** rendered `# Subjects` section (see subjects.ts renderSubjects): the real things the result depicts, with their pictures; or '' */
+  subjects?: string;
   /** the goal branch moved since this task's worktree was created (see catchup.ts), or null */
   baseMoved?: { merged: boolean; commits: string[]; conflictFiles: string[] } | null;
 }
@@ -71,6 +73,7 @@ export function buildAttemptPrompt(i: AttemptPromptInput): string {
   if (i.upstream) lines.push(i.upstream);
   const styleSection = renderStyle(i.style);
   if (styleSection) lines.push(styleSection);
+  if (i.subjects) lines.push(i.subjects);
   if (i.task.relevantFiles.length) lines.push(`# Start here\n${i.task.relevantFiles.map((f) => `- ${f}`).join('\n')}`);
   if (i.attachments) lines.push(i.attachments);
   // the shipped software the goal learns from: the report is among the attachments, the rules travel with it

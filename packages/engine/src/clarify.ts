@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import type { Brief, Goal, GoalNature, Interview, InterviewQuestion, InterviewRound, TaskScenario } from '@foundry/core';
-import { BriefOutput, BriefSkeleton, INTERVIEW_MAX_QUESTIONS, PlanOutput, INTERVIEW_MAX_ROUNDS, IdPrefix, InterviewOutput, getGoal, interviewAnswers, interviewDepth, newId, planOutputSchema, uncoveredAreas } from '@foundry/core';
+import { BriefOutput, BriefSkeleton, INTERVIEW_MAX_QUESTIONS, PlanOutput, INTERVIEW_MAX_ROUNDS, IdPrefix, InterviewOutput, getBrief, getGoal, interviewAnswers, interviewDepth, mergeSubjects, newId, planOutputSchema, uncoveredAreas } from '@foundry/core';
 import { delegationContext } from './delegation.ts';
 import type { RunHandle, RunResult } from '@foundry/runner';
 import { z } from 'zod';
@@ -16,6 +16,7 @@ import { startSentence } from './follow-up.ts';
 import { readdirSync } from 'node:fs';
 import { resolveDiscipline } from './skills/workflow.ts';
 import { renderReferences } from './references.ts';
+import { subjectsFromClarifier } from './subjects.ts';
 
 /** Files that do not make a repository "have code": a freshly initialised repo may carry any of these. */
 const EMPTY_REPO_IGNORE = new Set(['.git', '.claude', '.agents', '.DS_Store', 'graphify-out', 'CLAUDE.md', 'AGENTS.md', 'README.md', '.gitignore', '.gitattributes', 'LICENSE', 'docs']);
@@ -487,12 +488,28 @@ async function settle(engine: Engine, goal: Goal, ctx: ClarifyContext, first: Ru
       ],
     };
   }
+  // Subjects: the ones it starts with (a main goal's, an earlier goal's) and those on the Brief before a Re-run Clarify keep
+  // their pictures; the Clarifier's new ones follow, with the attached images it named as the person's pictures
+  brief.subjects = mergeSubjects(goal.delegatedFrom?.subjects ?? goal.follows?.subjects ?? [], getBrief(store.db, goal.id)?.brief.subjects ?? [], parsed ? subjectsFromClarifier(engine, goal, parsed.subjects) : []);
   if (iv) store.append({ type: 'interview.finished', goalId: goal.id, payload: { rounds: iv.rounds.length, reason: iv.rounds.at(-1)?.finish ? 'human' : iv.rounds.length === 0 ? 'nothing_to_ask' : iv.rounds.length >= INTERVIEW_MAX_ROUNDS ? 'cap' : 'brief' } });
   store.append({ type: 'brief.proposed', goalId: goal.id, payload: { brief } });
   store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'clarifying', to: 'awaiting_brief_approval', reason: 'brief proposed' } });
 }
 
 const TECH_STACK_SECTION = `This repository has no code yet, so there is nothing to discover — the tech stack is the human's decision, not yours to assume. Unless the goal (or a Decision above) already names the stack, include exactly ONE blocking question choosing it: propose 2–4 concrete, complete stack options suited to this goal (e.g. "Next.js + Prisma + Postgres", "NestJS API + React SPA", "Laravel + MySQL", a Bun/Node monorepo …) in the question's \`options\`, with YOUR recommended option FIRST. Plan the tasks assuming that recommended option, and make the first task scaffold the project (initialise the chosen stack, package manifest, build/test commands) — every other task depends on it. Must checks may only use commands that will exist once that scaffold task is done.`;
+
+/** what the Clarifier names when the result depicts real things: Foundry finds their pictures before the plan runs (ADR-0042) */
+const SUBJECTS_ASK = `# Subjects: real things the result must look like
+When the result depicts something that exists (a specific vehicle, building, landmark, product or artwork; never a person), name it in \`subjects\` (at most 3), precisely enough to search for pictures of exactly that one (make, model, generation or year), with \`lookFor\`: what must match (the proportions, the distinctive features, colours and materials). Foundry finds pictures of each before the plan runs, and every worker and reviewer compares against them. When the user attached pictures of it, list their file names in \`pictures\`. Leave \`subjects\` empty for invented designs, generic styles and anything that is not a physical thing.`;
+
+/** the Subjects a goal starts with (a main goal's or an earlier goal's, with their pictures): named once, never again */
+function keptSubjectsNote(goal: Goal): string {
+  const kept = goal.delegatedFrom?.subjects ?? goal.follows?.subjects ?? [];
+  if (!kept.length) return '';
+  return `These Subjects are settled already, with their pictures (from ${goal.delegatedFrom ? 'the main goal' : 'the previous goal'}): ${kept.map((s) => `"${s.name}"`).join(', ')}. Do not name them again in \`subjects\`.`;
+}
+
+const subjectsSection = (goal: Goal) => [SUBJECTS_ASK, keptSubjectsNote(goal)].filter(Boolean).join('\n');
 
 /** what every media task's spec and checks must say: where files go, parallel generation, the manifest, how they are judged */
 function mediaConventions(kind: 'image' | 'video', ffprobe: boolean): string {
@@ -538,13 +555,13 @@ function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true, cadAvail
     case 'research':
       return research;
     case 'image':
-      return media('image');
+      return [media('image'), subjectsSection(goal)].join('\n\n');
     case 'video':
-      return media('video');
+      return [media('video'), subjectsSection(goal)].join('\n\n');
     case 'cad':
-      return cad;
+      return [cad, subjectsSection(goal)].join('\n\n');
     case 'code':
-      return [emptyRepo ? `# Empty repository\n${TECH_STACK_SECTION}` : '', `# Style directions for UI goals\nWhen this goal's main deliverable is a user interface (a landing page, a product UI), also output 2–4 \`styleOptions\` (real hex palette, typefaces, keywords, a one-line feel; recommendation first) so the human can SEE the direction before work starts; one the interview already settled goes first with \`chosen: true\`. Skip them for backend/tooling goals.`]
+      return [emptyRepo ? `# Empty repository\n${TECH_STACK_SECTION}` : '', `# Style directions for UI goals\nWhen this goal's main deliverable is a user interface (a landing page, a product UI), also output 2–4 \`styleOptions\` (real hex palette, typefaces, keywords, a one-line feel; recommendation first) so the human can SEE the direction before work starts; one the interview already settled goes first with \`chosen: true\`. Skip them for backend/tooling goals.`, subjectsSection(goal)]
         .filter(Boolean)
         .join('\n\n');
     case 'auto':
@@ -555,6 +572,7 @@ function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true, cadAvail
         media('image'),
         media('video'),
         ...(cadAvailable ? [cad] : []),
+        `${subjectsSection(goal)}\nThis applies to code (a user interface), image, video${cadAvailable ? ' and cad' : ''} goals; docs and research goals name no Subjects.`,
       ].join('\n\n');
   }
 }

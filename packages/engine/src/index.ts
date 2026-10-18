@@ -40,6 +40,7 @@ export { UpdateManager, compareVersions, parseChangelog, type UpdateReport, type
 export { NotificationDispatcher, compose as composeNotification, composeEscalation as composeEscalationNotification } from './notify/dispatcher.ts';
 export { DraftRequest, type DraftProposal, DRAFT_MAX_BUDGET_USD } from './brief-draft.ts';
 export { startStyleSample, StyleSampleError, STYLE_SAMPLE_MAX, STYLE_SAMPLE_BUDGET_USD } from './style-sample.ts';
+export { SubjectError, addSubject, addSubjectPicture, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, subjectsDir, updateSubject, SUBJECT_SEARCH_BUDGET_USD } from './subjects.ts';
 export { CLARIFY_MAX_BUDGET_USD, CLARIFY_MAX_TURNS, coverageRepairMessage } from './clarify.ts';
 export * from './skills/packs.ts';
 export { MCP_PREFIX, McpManager, SERVER_NAME, type CustomServer } from './mcp/manager.ts';

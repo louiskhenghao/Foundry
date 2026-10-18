@@ -25,6 +25,7 @@ import {
 import type { Engine } from '../engine.ts';
 import { git } from '../git/git.ts';
 import { attachmentsDir } from '../attachments.ts';
+import { subjectsDir } from '../subjects.ts';
 import { ARTIFACTS_DIR, goalWorkspacePath, screenshotsDir } from '../workspace.ts';
 import { packTransfer } from './archive.ts';
 import { TransferError } from './errors.ts';
@@ -179,6 +180,8 @@ async function stageGoal(host: TransferHost, g: Goal, stage: string, transcripts
     else for (const name of readdirSync(shots)) if (!left.has(name)) link(stage, join(dir, 'screenshots', name), join(shots, name));
   }
   if (hasFiles(attachmentsDir(dataDir, g.id))) link(stage, join('attachments', g.id), attachmentsDir(dataDir, g.id));
+  // the pictures of its Subjects, which live beside the attachments
+  if (hasFiles(subjectsDir(dataDir, g.id))) link(stage, join('subjects', g.id), subjectsDir(dataDir, g.id));
   if (transcripts) stageLogs(host, g, stage);
 
   return {

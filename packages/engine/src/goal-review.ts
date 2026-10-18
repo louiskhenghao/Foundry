@@ -19,6 +19,7 @@ import { createFixTasks, genericFixSpec } from './fix-tasks.ts';
 import { diff } from './git/git.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
 import { goalWorkspacePath, reviewDiffDir } from './workspace.ts';
+import { renderSubjects, sessionDirs, subjectsAddDirs } from './subjects.ts';
 
 const GoalReviewOutput = z.object({
   mustVerdicts: z.array(z.object({ checkName: z.string(), pass: z.boolean(), reason: z.string() })),
@@ -152,6 +153,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
     brief ? `# Approved understanding\n${brief.understanding}` : '',
     brief ? renderDecisions(brief) : '',
     brief && styleApplies(scenario) ? renderStyle(chosenStyle(brief), { forReviewer: true }) : '',
+    renderSubjects(engine.config.dataDir, goal.id, brief, 'goal-reviewer', scenario),
     reviewerHint ?? '',
     `# Fixed point\nThe base of this review is \`${goal.baseBranch}\`; everything in the diff below was added by this goal.`,
     `# Acceptance checks\nObjective command checks were already executed by the engine; their status is shown. You judge the reviewer-type checks and the overall result.\n${checks.map(fmt).join('\n')}`,
@@ -180,7 +182,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
     jsonSchema: zodToJsonSchema(GoalReviewOutput, { $refStrategy: 'none' }),
     settings: boundarySettings(engine.config.hooksDir),
     settingSources: engine.config.settingSources,
-    addDirs: goal.attachments.length ? [attachmentsDir(engine.config.dataDir, goal.id)] : undefined,
+    addDirs: sessionDirs([...(goal.attachments.length ? [attachmentsDir(engine.config.dataDir, goal.id)] : []), ...subjectsAddDirs(engine.config.dataDir, goal.id, brief)]),
     transcriptPath,
   };
   const handle = await engine.runner.run({ ...base, prompt, maxTurns: 80, maxBudgetUsd: cap, appendSystemPromptFile: engine.roles.path('reviewer-goal'), timeoutMs: 30 * 60_000, label: `goal review ${goal.title}` });

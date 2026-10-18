@@ -103,6 +103,7 @@ import { relative, resolve } from 'node:path';
 import { adoptLocalBin, AGENT_CLI_IDS, agentCliInstall, type AgentCliId } from './agent-cli.ts';
 import { type FollowUpDraft, type FollowUpInput, copyAttachments, followUpDraft, linkFollowUp, prepareFollowUp } from './follow-up.ts';
 import { autoApproveDelegated, isDelegationTask, settleDelegations } from './delegation.ts';
+import { startDueSearches, subjectSearchesFor, trashSubjects } from './subjects.ts';
 import { ATTACHMENT_LIMITS, type GoalDelegatedFrom, type GoalDelegation } from '@foundry/core';
 import { Tailnet } from './notify/tailnet.ts';
 import { SessionCosts } from './session-costs.ts';
@@ -1713,6 +1714,8 @@ export class Engine {
       case 'awaiting_brief_approval':
         // "Investigate again" cleared the report; a restart in between lost the session: study the references once more
         if (needsInvestigation(goal)) this.startInvestigation(goal);
+        // pictures of the Subjects are searched once while the Brief waits (a restart searches again); approval waits for them
+        else if (startDueSearches(this, goal)) return;
         // a Delegated goal whose main goal approves for it: approved once its Brief leaves no question to the person
         else if (goal.delegatedFrom) autoApproveDelegated(this, goal);
         return;
@@ -2199,7 +2202,8 @@ export class Engine {
   editBrief(goalId: string, brief: Brief): Brief {
     const goal = this.mustGoal(goalId);
     if (goal.state !== 'awaiting_brief_approval') throw new Error(`goal is ${goal.state}, brief cannot be edited`);
-    const parsed = BriefSchema.parse({ ...brief, goalId });
+    // Subjects change only through their own events: a page's copy may predate pictures that arrived since
+    const parsed = BriefSchema.parse({ ...brief, goalId, subjects: getBrief(this.store.db, goalId)?.brief.subjects });
     this.store.append({ type: 'brief.edited', goalId, payload: { brief: parsed } });
     return parsed;
   }
@@ -2214,7 +2218,10 @@ export class Engine {
     if (goal.state !== 'awaiting_brief_approval') throw new Error(`goal is ${goal.state}, cannot approve`);
     // the report lands as an attachment and a commit on the goal branch: not under running tasks
     if (this.investigating.has(goalId)) throw new Error('the references are being investigated now; approve the Brief when the report is in');
-    const brief = BriefSchema.parse({ ...(edited ?? getBrief(this.store.db, goalId)?.brief), goalId });
+    const searching = subjectSearchesFor(goalId);
+    if (searching.length) throw new Error(`pictures of the Subjects (${searching.join(', ')}) are being found now; approve the Brief when they are in`);
+    const stored = getBrief(this.store.db, goalId)?.brief;
+    const brief = BriefSchema.parse({ ...(edited ?? stored), goalId, subjects: stored?.subjects });
     const unanswered = brief.questions.filter((q) => q.blocking && !q.answer?.trim());
     if (unanswered.length) throw new Error(`blocking questions unanswered: ${unanswered.map((q) => q.text).join(' | ')}`);
     topoSort(brief.tasks.map((t) => ({ id: t.key, dependsOn: t.dependsOnKeys })));
@@ -2488,6 +2495,7 @@ export class Engine {
     rmSync(join(this.config.dataDir, 'worktrees', goalId), { recursive: true, force: true });
     if (goal.workspaceDir) for (const d of [goal.workspaceDir, internalWorkspaceDir(goal)!]) rmSync(d, { recursive: true, force: true });
     for (const a of goal.attachments) trashAttachment(this.config.dataDir, goalId, a);
+    trashSubjects(this.config.dataDir, goalId);
     rmSync(transferGoalDir(this.config.dataDir, goalId), { recursive: true, force: true });
     this.store.append({ type: 'goal.deleted', goalId, payload: { title: goal.title, deletedBranch, reason: 'deleted by user' } });
     // a Delegated goal deleted while its main goal waits for it: the main goal's task is told at its next pass

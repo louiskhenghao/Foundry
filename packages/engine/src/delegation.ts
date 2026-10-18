@@ -15,6 +15,7 @@ import { raiseEscalation } from './escalation.ts';
 import { headerOf, taskCommitMessage } from './git/conventional.ts';
 import { commitStaged, conflictedFiles, git, headRef } from './git/git.ts';
 import { resolveConflicts } from './merge.ts';
+import { inheritSubjects, subjectSearchesFor } from './subjects.ts';
 import { stuckIn } from './take-back.ts';
 import { copyArtifactFiles, ensureGoalWorkspace, goalWorkspacePath, trackedArtifacts } from './workspace.ts';
 
@@ -89,7 +90,7 @@ export async function createDelegatedGoal(engine: Engine, main: Goal, task: Task
   const area = task.area ? brief?.areas.find((a) => a.name === task.area) : null;
   const prompt = `${task.spec.trim()}${area?.description ? `\n\n(Area of the main goal: ${task.area} — ${area.description})` : ''}`;
   const depth = main.interview ? interviewDepth(main.interview) : 0;
-  return engine.createGoal({
+  const made = await engine.createGoal({
     provider: main.provider,
     codexModel: main.codexModelOverride,
     title: task.title,
@@ -109,8 +110,11 @@ export async function createDelegatedGoal(engine: Engine, main: Goal, task: Task
     outputDir: null,
     delivery: { mode: 'local' },
     delegation: { allow: false, autoApprove: main.delegation.autoApprove },
-    delegatedFrom: { goalId: main.id, taskId: task.id, title: main.title, style: brief ? chosenStyle(brief) : null },
+    delegatedFrom: { goalId: main.id, taskId: task.id, title: main.title, style: brief ? chosenStyle(brief) : null, subjects: brief?.subjects ?? [] },
   });
+  // its Subjects' pictures come with them: its workers and reviewers read them from its own folder
+  inheritSubjects(engine.config.dataDir, main.id, made.id, brief?.subjects ?? []);
+  return made;
 }
 
 /**
@@ -441,7 +445,7 @@ export function delegationContext(engine: Engine, goal: Goal): string {
 export function autoApproveDelegated(engine: Engine, goal: Goal): void {
   const { store } = engine;
   if (!goal.delegatedFrom || !goal.delegation.autoApprove || goal.state !== 'awaiting_brief_approval') return;
-  if (engine.investigating.has(goal.id) || engine.approvingDelegated.has(goal.id)) return;
+  if (engine.investigating.has(goal.id) || engine.approvingDelegated.has(goal.id) || subjectSearchesFor(goal.id).length) return;
   const brief = getBrief(store.db, goal.id)?.brief;
   if (!brief || brief.questions.some((q) => q.blocking && !q.answer?.trim())) return;
   const main = goal.delegatedFrom.title;
