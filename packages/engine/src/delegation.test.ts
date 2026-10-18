@@ -62,7 +62,11 @@ class HybridRunner implements ClaudeRunner {
     let structuredOutput: unknown = null;
     if (label.startsWith('classify nature')) structuredOutput = { nature: 'code' };
     else if (label.startsWith('clarify')) structuredOutput = this.clarifyAnswer;
-    else if (label.startsWith('attempt')) {
+    else if (label.startsWith('replan')) {
+      // the planner touches up the task that uses the model, now that the model is there
+      const id = /"taskId": "([^"]+)",\s*"title": "use the model"/.exec(spec.prompt)?.[1];
+      structuredOutput = { revisions: id ? [{ taskId: id, spec: 'create main.txt next to the model (revised: the model landed as sub.txt)', relevantFiles: ['sub.txt'], delivers: null, why: 'the model file is sub.txt' }] : [], note: 'the model is there' };
+    } else if (label.startsWith('attempt')) {
       const file = /create (\S+)/.exec(spec.prompt)?.[1];
       if (file && !this.refuse.has(file)) writeFileSync(join(spec.cwd, file), `made by ${label}\n`);
     }
@@ -138,7 +142,15 @@ describe('delegated goals', () => {
     expect(existsSync(join(goalWorkspacePath(engine.config.dataDir, done), 'sub.txt'))).toBe(true);
     expect(existsSync(join(goalWorkspacePath(engine.config.dataDir, done), 'main.txt'))).toBe(true);
     // the task after it was told what it delivered
+    // the planner's touch-up after the landing reached the next task before it started
+    const useModel = tasks.find((t) => t.title === 'use the model')!;
+    expect(useModel.spec).toContain('(revised: the model landed as sub.txt)');
+    expect(useModel.relevantFiles).toEqual(['sub.txt']);
+    const revised = engine.store.listByGoalOfTypes(main.id, ['task.revised']);
+    expect(revised).toHaveLength(1);
+    expect((revised[0]!.payload as { afterTaskId: string; reason: string })).toMatchObject({ afterTaskId: goalTask.id, reason: 'the model file is sub.txt' });
     const t2 = runner.calls.find((c) => c.label?.startsWith('attempt use the model'))!;
+    expect(t2.prompt).toContain('(revised: the model landed as sub.txt)');
     expect(t2.prompt).toContain('# What the steps before this one delivered');
     expect(t2.prompt).toContain('Done by the delegated goal');
     expect(t2.prompt).toContain('Files it leaves for you:\n- sub.txt');

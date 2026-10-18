@@ -94,6 +94,8 @@ A task of kind **goal** is not done by a worker: a *delegated goal* of its own d
 
 While the delegated goal needs you — an interview question, a Brief to approve, a milestone, an Inbox item — this goal shows **blocked** with the reason *waiting for the delegated goal …*; answer in the delegated goal (its page, or the Inbox) and this goal goes on by itself. When the delegated goal fails, its failed tasks are run again, as often as the task's attempts allow, with a note on why; then an Inbox item on this goal's task offers **Retry** (its failed tasks run again, with your hint) or **Skip**. **Restart from here** on a goal task starts a fresh delegated goal; the old one stays as a goal of its own.
 
+Once a delegated goal has landed, the planner reads what it delivered and may touch up the tasks after it that have not started yet: their spec, start files and deliverables, never the plan's shape or its checks. A task touched up says **Touched up after a step landed** under its spec, with the reason; the Activity tab has the line too.
+
 The goals list folds delegated goals under their main goal: a line **▸ 2 delegated goals** under the main goal opens them, indented. A delegated goal's own page says **Delegated from: …** under its title (a link to the main goal's task), and the main goal's page lists its **Delegated goals**. If the main goal is deleted, the delegated goal stays in the list on its own and says whose it was.
 
 ### Inside a task

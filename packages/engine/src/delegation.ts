@@ -16,6 +16,7 @@ import { raiseEscalation } from './escalation.ts';
 import { headerOf, taskCommitMessage } from './git/conventional.ts';
 import { commitStaged, conflictedFiles, git, headRef } from './git/git.ts';
 import { resolveConflicts } from './merge.ts';
+import { replanAfterLanding } from './replan.ts';
 import { stuckIn } from './take-back.ts';
 import { copyArtifactFiles, ensureGoalWorkspace, goalWorkspacePath, trackedArtifacts } from './workspace.ts';
 
@@ -336,6 +337,9 @@ function landDelegation(engine: Engine, goal: Goal, task: Task, d: Goal): void {
     const missing = (task.delivers ?? []).filter((f) => !existsSync(join(goalWs, f)));
     if (missing.length) store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `"${task.title}" landed, but ${missing.length === 1 ? 'a file it promised is' : 'files it promised are'} not on the goal branch: ${missing.join(', ')} — the tasks after it were told to expect ${missing.length === 1 ? 'it' : 'them'}` } });
     store.append({ type: 'task.summary_set', goalId: goal.id, payload: { taskId: task.id, summary: summarizeDelegatedGoal(engine, d, result.files, result.ref) } });
+    // the planner's touch-up of the tasks after it, while they still cannot start (this task reads merging until it is done)
+    await replanAfterLanding(engine, getGoal(store.db, goal.id) ?? goal, getTask(store.db, task.id)!).catch((err) => store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `the replan after "${task.title}" landed crashed: ${String((err as Error)?.message ?? err).slice(0, 300)}` } }));
+    if (lost()) return;
     store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'merging', to: 'done', reason: result.ref ? `the delegated goal landed as ${result.ref.slice(0, 7)} on the goal branch` : 'the delegated goal landed (no changes to commit)' } });
     engine.retryAutoskillsAfterTask(goal.id);
     const now = getGoal(store.db, goal.id);

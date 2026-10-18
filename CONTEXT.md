@@ -33,6 +33,10 @@ _Avoid_: sub-goal, child goal, nested goal (a Delegated goal is not nested: it i
 **Deliverables**
 The files a Task promises to leave for the Tasks after it, named in the Brief (`delivers`: repo-relative paths, under `artifacts/` for media and CAD). Each is a must Check of the Task when it lands; for a `goal` Task they are goal-level must Checks of its Delegated goal, so its review holds it to them. The Tasks that depend on it are told where the files are, next to the summary of what it delivered, so nothing downstream guesses where a file went. The planner names them; the person edits them on the Brief like any field.
 
+**Replan**
+The planner's touch-up after a Delegated goal lands: one bounded session reads what was delivered and may rewrite the spec, start files and Deliverables of the Tasks after it that have not started — a path that moved, the format the data really has, a detail the summary settled. Never the DAG, the Checks or the titles, never a Task under way, and nothing when nothing downstream is left. It runs before the landed Task is done, so the Tasks it touches cannot start meanwhile; each touch-up is recorded on the Task with the reason, where the person sees it.
+_Avoid_: re-plan (a new plan), Revise (the Clarifier re-reading the Brief for the human's Decisions, before approval)
+
 **Check**
 A decidable acceptance item. Every Check belongs to a *tier*:
 - **Must** — something the user explicitly asked for. All Must Checks passing means the Goal (or Task) is *done*.

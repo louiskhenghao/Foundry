@@ -33,6 +33,8 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
   // a goal task: a Delegated goal does the work, so there is no session here to unstick and its attempts are its own
   const goalTask = task.kind === 'goal';
   const delegated = row?.delegated ?? null;
+  // the planner touched this task up after a delegated goal landed (Replan): the person sees why
+  const revised = [...d.events].reverse().find((e) => e.type === 'task.revised' && (e.payload as any).taskId === task.id)?.payload as { reason?: string } | undefined;
 
   useEffect(() => {
     setPrompt(null);
@@ -106,6 +108,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
       <div className="grid grid-cols-1 lg:grid-cols-3 lg:grid-rows-1 lg:flex-1 lg:min-h-0 gap-4">
         <div className="lg:col-span-1 lg:overflow-y-auto lg:pr-1 space-y-3">
           <MarkdownPanel title="spec" source={task.spec} maxHeight={260} actions={openFull(`Spec · ${task.title}`, task.spec)} />
+          {revised && <div className="text-[11px] text-sky-300/90" title="A delegated goal landed before this task started; the planner read what it delivered and touched the spec up">Touched up after a step landed: {revised.reason}</div>}
           {task.summary && <MarkdownPanel title="what it delivered" source={task.summary} maxHeight={260} actions={openFull(`What it delivered · ${task.title}`, task.summary)} />}
           {task.hint && <MarkdownPanel title="human hint" source={task.hint} local maxHeight={160} actions={openFull(`Human hint · ${task.title}`, task.hint)} />}
           <div>

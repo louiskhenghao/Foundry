@@ -94,6 +94,8 @@ kind 是 **goal** 的任务不由 worker 来做：由它自己的一个*委派 g
 
 委派 goal 需要你的时候——访谈问题、要批准的 Brief、milestone、Inbox 事项——这个 goal 显示 **blocked**，原因写着 *waiting for the delegated goal …*；在委派 goal 里（它的页面或 Inbox）回应之后，这个 goal 自己继续。委派 goal 失败时，它失败的任务会重新运行，次数以该任务允许的尝试次数为限，并附上原因说明；之后这个 goal 的任务上会出现一条 Inbox 事项，提供 **Retry**（它失败的任务带着你的提示再跑一次）或 **Skip**。对一个 goal 任务点 **Restart from here** 会新开一个委派 goal；旧的那个作为独立的 goal 留着。
 
+委派 goal 落地之后，planner 会读它交付了什么，并可能微调之后尚未开始的任务：它们的 spec、起始文件和交付物，绝不改计划的结构或检查。被微调过的任务会在 spec 下面写 **Touched up after a step landed** 和原因；Activity 标签里也有这一行。
+
 goals 列表把委派 goal 折叠在它的主 goal 下面：主 goal 下的一行 **▸ 2 delegated goals** 可以展开它们，缩进显示。委派 goal 自己的页面在标题下写着 **Delegated from: …**（链接到主 goal 的那个任务），主 goal 的页面列出它的 **Delegated goals**。如果主 goal 被删除，委派 goal 会独立留在列表里，并写明它曾属于谁。
 
 ### 任务内部
