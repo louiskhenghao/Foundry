@@ -110,7 +110,7 @@ Deeper interviews take more of your time and cost a little more. Settings can ch
 
 ### Delegated goals
 
-Two switches, both off by default. Tick **Delegated goals** and the planner may hand a step that is a project of its own — research that must come first, a 3D model or a video next to the code, a part too large for one plan — to a goal of its own: a *delegated goal* with its own Clarify, Brief and plan. It starts from this goal's branch and lands its result back on it, as that step's commit, before the tasks that need it start; the tasks after it are told what it delivered. Such steps appear on the Brief as tasks of kind **goal**, and you can change them like any other task. Delegated goals run one at a time, never delegate again, and what they cost counts on this goal.
+Two switches, both off by default. Tick **Delegated goals** and the planner may hand a step that is a project of its own — research that must come first, a 3D model or a video next to the code, a part too large for one plan — to a goal of its own: a *delegated goal* with its own Clarify, Brief and plan. It starts from this goal's branch and lands its result back on it, as that step's commit, before the tasks that need it start; the tasks after it are told what it delivered. Such steps appear on the Brief as tasks of kind **goal**, and you can change them like any other task. Delegated goals run side by side when nothing orders them, as many at a time as the goal's parallel limit allows (Budget → *parallel*), each with a share of the budget; they never delegate again, and what they cost counts on this goal.
 
 Tick **Approve delegated goals' Briefs for me** and their Briefs are approved as soon as they are written, unless a question is left that only you can answer. Off, this goal pauses until you approve each delegated goal's Brief yourself. Either way, while a delegated goal needs you — a question, a milestone, an Inbox item — this goal waits as **blocked** and goes on by itself afterwards. What you see while they run is in [Delegated goals](./while-it-runs.md#delegated-goals).
 
@@ -178,6 +178,8 @@ Optional. Without it, the first line of your description becomes the title. The 
 Foundry then shows what it found: the branch, whether there are uncommitted changes, the last saved version, the online copy (remote) if any, and who commits are made as. If the online copy has newer work than your folder, the card says where the goal will start from (normally the newer work), and **pull into my checkout** brings your own folder up to date too.
 
 If the folder is not a repository, press **Initialize git here**. If you picked a folder inside a repository, Foundry offers the repository's top folder instead.
+
+When earlier goals ran in this folder, a line under the card says how many [Learnings](./learnings.md) Foundry has for it: what those goals taught about the project. The plan is written with them.
 
 ### Follows
 

@@ -38,6 +38,8 @@ export * from './settings.ts';
 export * from './notify/channels.ts';
 export { UpdateManager, compareVersions, parseChangelog, type UpdateReport, type UpdateCapability, type DeploymentMode } from './update/updater.ts';
 export { NotificationDispatcher, compose as composeNotification, composeEscalation as composeEscalationNotification } from './notify/dispatcher.ts';
+export { TELEGRAM_HELP, TelegramBot } from './notify/telegram-bot.ts';
+export { DiscordBot } from './notify/discord-bot.ts';
 export { DraftRequest, type DraftProposal, DRAFT_MAX_BUDGET_USD } from './brief-draft.ts';
 export { startStyleSample, StyleSampleError, STYLE_SAMPLE_MAX, STYLE_SAMPLE_BUDGET_USD } from './style-sample.ts';
 export { SubjectError, addSubject, addSubjectPicture, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, subjectsDir, updateSubject, SUBJECT_SEARCH_BUDGET_USD } from './subjects.ts';
@@ -58,3 +60,6 @@ export { listPorts, releasePort, PortError, type PortRow, type PortsView } from 
 export { engineTransferHost, exportTransfer, type ExportOptions, type ExportResult, type TransferHost } from './transfer/export.ts';
 export { ImportChoices, applyIncoming, discardIncoming, inspectIncoming, receiveTransfer, sweepIncoming, unlockIncomingSecrets, type ImportReport, type IncomingReport, type SecretsPreview } from './transfer/import.ts';
 export { mapRepo, reattachGoal, type MapResult } from './transfer/reattach.ts';
+export { learnFromGoal, learningsContext, learningsForWorker, mergeLearnings } from './learnings.ts';
+export { deployability } from './deploy/detect.ts';
+export { DEPLOY_PROVIDERS, PROVIDER_LABEL } from './deploy/providers.ts';

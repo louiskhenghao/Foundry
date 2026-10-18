@@ -273,7 +273,7 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
   const result = await handle.result;
   store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source: `merge:${attempt.id}` } });
   engine.recordSessionUsage(result, { goalId: goal.id, kind: 'merge', model: modelFor(engine.config, goal, 'merger').model });
-  store.append({ type: 'attempt.session_finished', goalId: goal.id, payload: { attemptId: attempt.id, session: { role: 'merger', segment: attempt.continuations, sessionId: result.sessionId ?? attempt.sessionId, model: initModel ?? modelFor(engine.config, goal, 'merger').model, costUsd: result.costUsd, numTurns: result.numTurns, durationMs: result.durationMs, subtype: result.subtype, startedAt: segmentStart, endedAt: new Date().toISOString() } } });
+  store.append({ type: 'attempt.session_finished', goalId: goal.id, payload: { attemptId: attempt.id, session: { role: 'merger', segment: attempt.continuations, sessionId: result.sessionId ?? attempt.sessionId, model: initModel ?? modelFor(engine.config, goal, 'merger').model, costUsd: result.costUsd, numTurns: result.numTurns, durationMs: result.durationMs, subtype: result.subtype, startedAt: segmentStart, endedAt: new Date().toISOString(), costAvailable: result.costStatus !== 'unavailable' } } });
 
   const remaining = await conflictedFiles(cwd);
   let ok = remaining.length === 0;

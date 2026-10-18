@@ -131,6 +131,56 @@ try {
   await shot('agents', '/agents');
   await page.unroute('**/api/agents');
   await shot('transfer', '/transfer', undefined, 760);
+  // a folder's Learnings, seeded here so the goal pages above show none (ADR-0040)
+  const repoPath = getGoal(demo.engine.store.db, g.done!)!.repoPath;
+  const learned = (kind: 'build' | 'test' | 'structure' | 'pitfall' | 'preference', text: string, by: 'foundry' | 'human' = 'foundry') => ({ id: `lrn_${kind}${by}`, kind, text, by, goalId: by === 'foundry' ? g.done! : null, goalTitle: by === 'foundry' ? title(g.done!) : null, at: ago(90) });
+  demo.engine.store.append({
+    type: 'learnings.set',
+    goalId: null,
+    payload: {
+      repoPath,
+      learnings: [
+        learned('preference', 'Copy is in British English: "colour", "organise". Keep it that way in new text.', 'human'),
+        learned('test', 'Run `bun test` from the repository root; the e2e tests need `bun run dev` on port 5173 first.'),
+        learned('structure', 'Pages live in src/pages, shared parts in src/components; the footer is src/components/Footer.tsx.'),
+        learned('pitfall', 'Email checks must accept addresses with a plus sign in the name: the first attempt rejected them.'),
+        learned('build', 'Install with `bun install`; npm fails on the workspace protocol in package.json.'),
+      ],
+      source: 'distill',
+      goalId: g.done!,
+      note: null,
+    },
+  });
+  await shot('learnings', '/learnings', undefined, 520);
+  // Deploy (ADR-0041): the demo's site is not a web app the hosts take, so the card's facts are given here and one
+  // live preview is recorded on the finished goal, after the shots above
+  demo.engine.store.append({ type: 'deploy.started', goalId: g.done!, payload: { provider: 'vercel', production: false, ref: 'a1b2c3d', framework: 'Vite', dir: '' } });
+  demo.engine.store.append({ type: 'deploy.finished', goalId: g.done!, payload: { provider: 'vercel', production: false, url: 'https://studio-site-3f9a2c-preview.vercel.app' } });
+  await page.route('**/api/goals/*/deploy*', (r) =>
+    r.fulfill({
+      json: {
+        app: { ok: true, app: { dir: '', framework: 'Vite', kind: 'built' }, notes: [] },
+        finished: true,
+        running: false,
+        providers: [
+          { id: 'vercel', label: 'Vercel', configured: true, refused: null },
+          { id: 'netlify', label: 'Netlify', configured: true, refused: null },
+          { id: 'cloudflare', label: 'Cloudflare Pages', configured: false, refused: null },
+        ],
+        plan: [{ label: 'deploy to Vercel', command: 'npx --yes vercel@64 deploy --yes' }],
+        deployments: [],
+      },
+    }),
+  );
+  // the card alone: it is the last thing on the tab, and the delivery card above it names this machine's GitHub account
+  await page.goto('about:blank');
+  await page.goto(`${demo.url}/goals/${g.done}#delivery`, { waitUntil: 'networkidle' });
+  await page.locator('#deploy').waitFor();
+  await page.waitForTimeout(600);
+  await mask();
+  await page.locator('#deploy').screenshot({ path: join(OUT, 'deploy.png') });
+  console.log('  deploy.png');
+  await page.unroute('**/api/goals/*/deploy*');
   // seeded last: the shots above count the demo's goals
   const imported = await seedImportedGoal(demo.engine, g.done!);
   await shot('goal-imported', `/goals/${imported}`, undefined, 620);

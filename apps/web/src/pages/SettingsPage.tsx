@@ -148,7 +148,7 @@ export function SettingsPage() {
       setNotifMsg(`✘ ${e.message}`);
     }
   };
-  const sendTestNotification = async (o: { telegramBotToken: string | null; telegramChatId: string | null; discordWebhookUrl: string | null }) => {
+  const sendTestNotification = async (o: { telegramBotToken: string | null; telegramChatId: string | null; discordWebhookUrl: string | null; discordBotToken: string | null }) => {
     setNotifMsg('sending…');
     try {
       const { results } = await api.notifyTest(o);
@@ -361,6 +361,7 @@ export function SettingsPage() {
                 </Select>
               </Field>
               {bool('workflow.audit', 'Audit at the end of new goals', 'Once every task is done, ponytail-audit maps the finished branch and ranks what to fix; must-fix findings in the code the goal touched become fix tasks before the final review, the rest is listed for a follow-up. Chosen per goal at Brief approval.')}
+              {bool('workflow.learnings', 'Learn from finished goals', "When a goal ends, a short session on the housekeeping model adds what it taught about the project to that folder's Learnings, which later goals there are given. Off: nothing is learned automatically; the Learnings you keep are still used.")}
               <Field label="Goal-level fix cycles" aside={aside('reviews.maxFixCycles')} help="How many review → fix-task rounds before the goal escalates to you (thorough pace only).">
                 {num('reviews.maxFixCycles', { min: 0, max: 5 })}
               </Field>
@@ -522,6 +523,32 @@ export function SettingsPage() {
           )}
           {bool('sync.refreshBetweenTasks', 'Refresh between tasks', 'When nothing is running, fetch again and merge a moved base branch into the goal branch (conflicts go to a Merge Attempt). Useful for long goals on busy repositories; off by default because mid-goal merges can surprise workers.')}
           {bool('delivery.updateLocalBase', 'Update my local base branch after a merge', 'When a pull request merges, Foundry fetches and fast-forwards your local base branch (only when that is safe: no uncommitted changes, no commits of your own on it), then removes the goal\'s progress folder, worktrees and local branches. Screenshots and the goal itself stay.')}
+          <div className="pt-1 space-y-2">
+            <div className="text-xs text-zinc-300">Deploy — a finished web app to a host</div>
+            <p className="text-[11px] text-zinc-500">For a goal's web page or all-in-one web app (never a worker or a separate backend): its Delivery tab deploys it on your click, a preview unless you ask for production. The tokens are kept by the engine only and never handed to a coding session.</p>
+            {grid(
+              <>
+                <Field label="Vercel token" aside={aside('delivery.vercelToken')} help="vercel.com → Account Settings → Tokens. Scope it to the team you deploy to.">
+                  {secret('delivery.vercelToken', 'vcp_…')}
+                </Field>
+                <Field label="Vercel team" aside={aside('delivery.vercelScope')} help="The team's slug. Empty = the token's own account.">
+                  {text('delivery.vercelScope', 'my-team', true)}
+                </Field>
+                <Field label="Netlify token" aside={aside('delivery.netlifyToken')} help="app.netlify.com → User settings → Applications → Personal access tokens.">
+                  {secret('delivery.netlifyToken', 'nfp_…')}
+                </Field>
+                <Field label="Netlify team" aside={aside('delivery.netlifyTeam')} help="The team's slug a new site is made in. Empty = your default team.">
+                  {text('delivery.netlifyTeam', 'my-team', true)}
+                </Field>
+                <Field label="Cloudflare API token" aside={aside('delivery.cloudflareToken')} help="dash.cloudflare.com → My Profile → API Tokens, with the permission Cloudflare Pages: Edit. Static sites only.">
+                  {secret('delivery.cloudflareToken', 'API token')}
+                </Field>
+                <Field label="Cloudflare account id" aside={aside('delivery.cloudflareAccountId')} help="On the account's overview page, under API.">
+                  {text('delivery.cloudflareAccountId', '0123abcd…', true)}
+                </Field>
+              </>,
+            )}
+          </div>
           <details className="pt-1">
             <summary className="text-xs text-zinc-400 cursor-pointer">Delivery timings (advanced)</summary>
             <div className="mt-3">
@@ -621,6 +648,9 @@ export function SettingsPage() {
               <Field label="Discord webhook URL" aside={aside('notifications.discordWebhookUrl')} help="In your Discord channel: Settings → Integrations → Webhooks → New Webhook, then copy its URL.">
                 {secret('notifications.discordWebhookUrl', 'https://discord.com/api/webhooks/…')}
               </Field>
+              <Field label="Discord bot token (buttons)" aside={aside('notifications.discordBotToken')} help="Optional, beside the webhook: a bot of yours posts the messages that wait for you in the webhook's channel, with buttons that answer. Empty = Discord messages without buttons.">
+                {secret('notifications.discordBotToken', 'MTIz…')}
+              </Field>
               <Field label="Link base URL" aside={aside('notifications.baseUrl')} help="Where this UI is reachable from elsewhere (a LAN address, a domain). Empty = links point at this computer (http://localhost); tailnet links are added below.">
                 {text('notifications.baseUrl', 'http://192.168.1.20:4111', true)}
               </Field>
@@ -636,15 +666,17 @@ export function SettingsPage() {
             </>,
           )}
           <div className="space-y-2">
+            {bool('notifications.telegramActions', 'Answer from Telegram', "Messages about something that waits for you carry buttons (Retry, Skip, Continue, Approve…), and a reply answers in words. Foundry reads the bot's messages while this is on, so give each Foundry its own bot. Commands outside the workspace are approved in the Inbox only.")}
             {bool('notifications.onEscalation', 'Needs you', 'An escalation was raised — a task or goal is blocked until you answer it on the Inbox page.')}
             {bool('notifications.onInterview', 'Interview round', 'The Clarifier asked a round of questions before writing the Brief; the goal waits for your answers.')}
+            {bool('notifications.onBriefReady', 'Brief ready', 'A Brief waits for your approval. A Brief the engine approves itself (an automatic one, a delegated goal its main goal approves) never notifies.')}
             {bool('notifications.onGoalFinished', 'Goal finished', 'A goal ended done, over-delivered, or failed. Cancelling a goal yourself never notifies.')}
             {bool('notifications.onDelivery', 'Delivery', 'A pull request was opened or merged, or the delivery failed.')}
             {bool('notifications.onRateLimit', 'Usage pause', 'A provider usage limit paused its goals, and when the retry pause lifts.')}
             {bool('notifications.onUpdateAvailable', 'New version', 'A Foundry release newer than this instance exists — once per version. Update from the header pill or Settings → About & updates.')}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => sendTestNotification({ telegramBotToken: draft.notifications.telegramBotToken, telegramChatId: draft.notifications.telegramChatId, discordWebhookUrl: draft.notifications.discordWebhookUrl })} title="Sends a test message with the values above (saved or not)">
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => sendTestNotification({ telegramBotToken: draft.notifications.telegramBotToken, telegramChatId: draft.notifications.telegramChatId, discordWebhookUrl: draft.notifications.discordWebhookUrl, discordBotToken: draft.notifications.discordBotToken })} title="Sends a test message with the values above (saved or not)">
               Send test message
             </Button>
             {notifMsg && <span className={cn('text-[11px]', notifMsg.includes('✘') ? 'text-amber-300' : 'text-zinc-400')}>{notifMsg}</span>}

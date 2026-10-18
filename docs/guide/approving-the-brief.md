@@ -11,6 +11,8 @@ The Brief is the plan. Foundry writes it after reading your project and hearing 
 
 You can edit almost everything on the Brief. Take five minutes: this is the cheapest moment to change your mind.
 
+When a Brief is ready you get a **Brief ready** message, if notifications are set up. On Telegram, and on Discord with a bot, it carries **Approve and run…**, which first says the budget it sets and then approves the Brief as it stands, as **Approve & run** does here. A Brief with a blocking question left gets no such button: answer it on this page. See [Answering from Telegram](../operate/notifications.md#answering-from-telegram).
+
 ![The Brief page in Expert view: Understanding, Decisions, Areas and the plan](images/brief.png)
 
 ## Simple view and Expert view
@@ -136,6 +138,8 @@ Inside a task you can change:
 | **Commit scope** | The word in brackets of its commit message, `feat(scope): …`. Blank uses the Area's short name. |
 | **Spec** | What to change, where, and how to know it is done. |
 | start files | Files the worker should look at first, separated by commas. Optional. |
+| delivers | The files this task leaves for the tasks after it, separated by commas: a data file the page reads, a model it loads, a report the next step builds on. Each is checked when the task lands, and the next tasks are told where they are. Optional. |
+| Budget share | Only on a **goal** task: what the delegated goal doing this step may spend, in USD, within this goal's budget. Blank gives it an even share of what is left among the goal tasks still to run. |
 
 ### Kind
 

@@ -212,7 +212,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
   const r = await handle.result;
   engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: r.costUsd, source: `review-task:${attempt.id}` } });
   engine.recordSessionUsage(r, { goalId: goal.id, kind: 'review-task', model: modelFor(engine.config, goal, 'taskReviewer').model });
-  engine.store.append({ type: 'attempt.session_finished', goalId: goal.id, payload: { attemptId: attempt.id, session: { role: 'reviewer', segment: attempt.continuations, sessionId: r.sessionId, model: initModel ?? modelFor(engine.config, goal, 'taskReviewer').model, costUsd: r.costUsd, numTurns: r.numTurns, durationMs: r.durationMs, subtype: r.subtype, startedAt: started, endedAt: new Date().toISOString() } } });
+  engine.store.append({ type: 'attempt.session_finished', goalId: goal.id, payload: { attemptId: attempt.id, session: { role: 'reviewer', segment: attempt.continuations, sessionId: r.sessionId, model: initModel ?? modelFor(engine.config, goal, 'taskReviewer').model, costUsd: r.costUsd, numTurns: r.numTurns, durationMs: r.durationMs, subtype: r.subtype, startedAt: started, endedAt: new Date().toISOString(), costAvailable: r.costStatus !== 'unavailable' } } });
   let parsed = ReviewerVerdictSchema.safeParse(r.structuredOutput ?? tryJson(r.finalText));
   if (!parsed.success && r.sessionId) {
     // one nudge in the same session: "stop reading, answer now"
@@ -240,7 +240,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
     const r2 = await again.result;
     engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: r2.costUsd, source: `review-task:${attempt.id}` } });
     engine.recordSessionUsage(r2, { goalId: goal.id, kind: 'review-task', model: modelFor(engine.config, goal, 'taskReviewer').model });
-    engine.store.append({ type: 'attempt.session_finished', goalId: goal.id, payload: { attemptId: attempt.id, session: { role: 'reviewer', segment: attempt.continuations, sessionId: r2.sessionId, model: initModel ?? modelFor(engine.config, goal, 'taskReviewer').model, costUsd: r2.costUsd, numTurns: r2.numTurns, durationMs: r2.durationMs, subtype: r2.subtype, startedAt: started2, endedAt: new Date().toISOString() } } });
+    engine.store.append({ type: 'attempt.session_finished', goalId: goal.id, payload: { attemptId: attempt.id, session: { role: 'reviewer', segment: attempt.continuations, sessionId: r2.sessionId, model: initModel ?? modelFor(engine.config, goal, 'taskReviewer').model, costUsd: r2.costUsd, numTurns: r2.numTurns, durationMs: r2.durationMs, subtype: r2.subtype, startedAt: started2, endedAt: new Date().toISOString(), costAvailable: r2.costStatus !== 'unavailable' } } });
     parsed = ReviewerVerdictSchema.safeParse(r2.structuredOutput ?? tryJson(r2.finalText));
   }
   if (!parsed.success) {

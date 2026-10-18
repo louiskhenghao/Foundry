@@ -11,6 +11,8 @@ Brief 就是计划。Foundry 读完你的项目、听完你的回答后写出它
 
 Brief 上几乎所有东西你都能改。花五分钟看看：这是改主意成本最低的时候。
 
+设置了通知时，Brief 写好后你会收到一条 **Brief ready** 消息。在 Telegram 上（以及设置了机器人的 Discord 上）它带着 **Approve and run…**：先说明它会设定的预算，再按现在的样子批准 Brief，和这里的 **Approve & run** 一样。还有 blocking 问题没答的 Brief 没有这个按钮：请在这个页面上回答。见 [Answering from Telegram](../operate/notifications.md#answering-from-telegram)。
+
 ![Expert 视图下的 Brief 页面：Understanding、Decisions、Areas 和计划](images/brief.png)
 
 ## Simple view and Expert view
@@ -136,6 +138,8 @@ Delegated goal 和 follow-up 会带着来源 goal 的 Subject 和图片开始，
 | **Commit scope** | 提交信息括号里的那个词，`feat(scope): …`。留空就用 Area 的简称。 |
 | **Spec** | 改什么、在哪里改，以及怎么判断做完了。 |
 | start files | 执行者应该先看的文件，用逗号分隔。可选。 |
+| delivers | 这个任务留给后续任务的文件，用逗号分隔：页面要读的数据文件、要加载的模型、下一步要用的报告。任务落地时逐个检查，后续任务会被告知它们在哪。可选。 |
+| Budget share | 只有 **goal** 类型的任务有：做这一步的委派 goal 可以花多少（美元），在这个 goal 的预算之内。留空则按还没跑的 goal 任务平分剩余预算。 |
 
 ### Kind
 

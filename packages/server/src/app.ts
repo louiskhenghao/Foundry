@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { CodexEffort, Effort, Brief, EscalationAnswer, isHistory, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
 import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId } from '@foundry/engine';
 import type { Task } from '@foundry/core';
-import { listDelegatedGoals } from '@foundry/core';
+import { LearningKind, listDelegatedGoals, listRepoLearnings, DeployProvider } from '@foundry/core';
 import { delegationNeedsHuman } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, PreviewPlace, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
@@ -519,7 +519,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     for (const abs of made.artifacts) files.push({ name: abs.split('/').pop()!, rel: abs.slice(ws.length + 1), kind: fileKind(abs), size: statSync(abs).size, open: { path: abs } });
     const relevant = [];
     for (const rel of task.relevantFiles) relevant.push({ rel, open: (await taskFileSource(dataDir, goal, task, rel, exec, tree)) ? open(rel) : null });
-    return c.json({ files, relevant });
+    const delivers = [];
+    for (const rel of task.delivers ?? []) delivers.push({ rel, open: (await taskFileSource(dataDir, goal, task, rel, exec, tree)) ? open(rel) : null });
+    return c.json({ files, relevant, delivers });
   });
   app.get('/api/goals/:id/screenshots/:file', (c) => {
     const goal = goalOr404(c);
@@ -736,6 +738,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       checks: listChecks(db, id),
       checkResults: listCheckResultsByGoal(db, id),
       brief: getBrief(db, id),
+      // what earlier goals in this folder learned (ADR-0040): how many, for the link to them
+      learningsCount: engine.learnings(goal.repoPath).length,
       escalations: listEscalations(db, { goalId: id }).map(e => ({ ...e, provider: goal.provider ?? engine.config.provider })),
       events: engine.store.listByGoal(id, 300),
       // every milestone visit and walkthrough, which a long goal pushes out of the latest events
@@ -1412,6 +1416,47 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     }
   });
   app.post('/api/settings/reset', (c) => c.json(engine.resetSettings()));
+  // ---------- Learnings (ADR-0040): what Foundry knows about each project folder ----------
+  app.get('/api/learnings', (c) => {
+    const repo = c.req.query('repo');
+    if (repo) return c.json({ repoPath: repo, learnings: engine.learnings(repo) });
+    return c.json({ repos: listRepoLearnings(engine.store.db) });
+  });
+  app.put('/api/learnings', async (c) => {
+    const body = z.object({ repoPath: z.string().min(1), learnings: z.array(z.object({ id: z.string().nullable().optional(), kind: LearningKind, text: z.string() })) }).parse(await c.req.json());
+    if (!body.repoPath.startsWith('/')) throw new HttpError(400, { error: 'repoPath must be an absolute folder path' });
+    try {
+      return c.json({ repoPath: body.repoPath, learnings: engine.setLearnings(body.repoPath, body.learnings) });
+    } catch (e) {
+      throw new HttpError(422, { error: String((e as Error).message ?? e) });
+    }
+  });
+  // learn from this goal again: its folder's notebook is rewritten with what it taught
+  app.post('/api/goals/:id/learn', async (c) => {
+    const goal = goalOr404(c);
+    try {
+      await engine.learnFrom(goal.id);
+    } catch (e) {
+      throw new HttpError(409, { error: String((e as Error).message ?? e) });
+    }
+    return c.json({ repoPath: goal.repoPath, learnings: engine.learnings(goal.repoPath) });
+  });
+  // ---------- Deploy (ADR-0041): a finished goal's web app to Vercel, Netlify or Cloudflare Pages, on the person's click ----------
+  app.get('/api/goals/:id/deploy', (c) => {
+    const goal = goalOr404(c);
+    const provider = DeployProvider.safeParse(c.req.query('provider'));
+    return c.json(engine.deployInfo(goal.id, provider.success ? provider.data : undefined, c.req.query('production') === '1'));
+  });
+  app.post('/api/goals/:id/deploy', async (c) => {
+    const goal = goalOr404(c);
+    const body = z.object({ provider: DeployProvider, production: z.boolean().default(false) }).parse(await c.req.json());
+    try {
+      engine.deploy(goal.id, body);
+    } catch (e) {
+      throw new HttpError(409, { error: String((e as Error).message ?? e) });
+    }
+    return c.json({ started: true }, 202);
+  });
   // ---------- notifications (test / telegram chat-id detection use the draft credentials, saved ones as fallback) ----------
   app.post('/api/notifications/test', async (c) => {
     // the page never holds saved credentials: an empty draft field means "the saved one", not "none"
@@ -1423,6 +1468,12 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const { token } = z.object({ token: z.string().min(1).nullable().optional() }).parse(await c.req.json().catch(() => ({})));
     const t = token ?? engine.settings.values().notifications.telegramBotToken;
     if (!t) return c.json({ error: 'no bot token — paste the token from @BotFather first' }, 400);
+    // while Foundry reads this bot (Telegram buttons), Telegram hands it every message: the reader knows who wrote last
+    if (engine.telegram.reads(t)) {
+      const seen = engine.telegram.seenChat(t);
+      if (!seen) return c.json({ error: 'no messages yet — open your bot in Telegram, send it any message, then detect again' }, 400);
+      return c.json(seen);
+    }
     return c.json(await detectTelegramChatId(t));
   });
   // ---------- version & self-update (ADR-0010): cached report like /api/skills/updates; apply streams to `self-update` ----------

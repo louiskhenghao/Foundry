@@ -4,6 +4,7 @@ import { Attachment } from './attachment.ts';
 import { BriefStyleOption } from './brief.ts';
 import { BriefSubject } from './subject.ts';
 import { DeliveryState, IDLE_DELIVERY } from './delivery.ts';
+import { Deployment } from './deploy.ts';
 import { Interview } from './interview.ts';
 
 /** Claude Code effort level handed to every session of a goal; null = the CLI default */
@@ -341,6 +342,8 @@ export const Goal = z.object({
   fixCycles: z.number().int().nonnegative(),
   /** default keeps pre-delivery `goal.created` events replayable */
   delivery: DeliveryState.default(() => IDLE_DELIVERY),
+  /** every deploy of the goal's web app (ADR-0041), oldest first; absent on goals never deployed */
+  deployments: z.array(Deployment).optional(),
   /** files / links the user attached; default keeps older events replayable */
   attachments: z.array(Attachment).default([]),
   /** how the goal branch was started relative to the remote base branch (fetched when the goal began) */

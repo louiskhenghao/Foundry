@@ -74,4 +74,14 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    // whether a row's dollar cost was reported at all: a session cut before its result line has tokens but an unknown cost
+    id: '0005-usage-cost-status',
+    sql: `ALTER TABLE usage_ledger ADD COLUMN cost_status TEXT;`,
+  },
+  {
+    // a repository's Learnings (ADR-0040): one row per folder, the whole notebook as JSON
+    id: '0006-repo-learnings',
+    sql: `CREATE TABLE IF NOT EXISTS repo_learnings (repo_path TEXT PRIMARY KEY, data TEXT NOT NULL);`,
+  },
 ];
