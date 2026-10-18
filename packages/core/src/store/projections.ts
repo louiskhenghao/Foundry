@@ -1,6 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import type { EngineEvent } from '../events.ts';
-import { FINAL_WALK, IDLE_COMPLETION, NO_DELEGATION, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type Task } from '../schema/index.ts';
+import { FINAL_WALK, IDLE_COMPLETION, NO_DELEGATION, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type RepoLearnings, type Task } from '../schema/index.ts';
 import type { ObservationReport } from '../schema/observation.ts';
 
 /**
@@ -544,6 +544,12 @@ function project(db: Database, e: EngineEvent): void {
       }
       break;
     }
+    case 'learnings.set': {
+      const p = e.payload;
+      if (p.learnings.length) db.run('INSERT OR REPLACE INTO repo_learnings (repo_path, data) VALUES (?, ?)', [p.repoPath, JSON.stringify({ repoPath: p.repoPath, learnings: p.learnings, updatedAt: e.ts })]);
+      else db.run('DELETE FROM repo_learnings WHERE repo_path = ?', [p.repoPath]);
+      break;
+    }
     case 'escalation.raised':
       upsertEscalation(db, e.payload.escalation);
       break;
@@ -749,7 +755,17 @@ export function listRateLimitState(db: Database): RateLimitRow[] {
   return db.query('SELECT rate_limit_type, status, resets_at, is_using_overage, seen_at FROM rate_limit_state ORDER BY rate_limit_type').all() as RateLimitRow[];
 }
 
-const READ_MODEL_TABLES = ['goals', 'tasks', 'attempts', 'checks', 'check_results', 'briefs', 'observations', 'escalations', 'usage_ledger', 'rate_limit_state'];
+/** a repository's Learnings (null when it has none) */
+export function getRepoLearnings(db: Database, repoPath: string): RepoLearnings | null {
+  const r = db.query('SELECT data FROM repo_learnings WHERE repo_path = ?').get(repoPath) as { data: string } | null;
+  return r ? (JSON.parse(r.data) as RepoLearnings) : null;
+}
+/** every repository with Learnings, the most recently changed first */
+export function listRepoLearnings(db: Database): RepoLearnings[] {
+  return (db.query('SELECT data FROM repo_learnings').all() as { data: string }[]).map((r) => JSON.parse(r.data) as RepoLearnings).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+const READ_MODEL_TABLES = ['goals', 'tasks', 'attempts', 'checks', 'check_results', 'briefs', 'observations', 'escalations', 'usage_ledger', 'rate_limit_state', 'repo_learnings'];
 
 export function clearReadModels(db: Database): void {
   for (const t of READ_MODEL_TABLES) db.exec(`DELETE FROM ${t}`);

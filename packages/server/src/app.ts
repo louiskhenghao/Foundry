@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { CodexEffort, Effort, Brief, EscalationAnswer, isHistory, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
 import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId } from '@foundry/engine';
 import type { Task } from '@foundry/core';
-import { listDelegatedGoals } from '@foundry/core';
+import { LearningKind, listDelegatedGoals, listRepoLearnings } from '@foundry/core';
 import { delegationNeedsHuman } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, PreviewPlace, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
@@ -738,6 +738,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       checks: listChecks(db, id),
       checkResults: listCheckResultsByGoal(db, id),
       brief: getBrief(db, id),
+      // what earlier goals in this folder learned (ADR-0040): how many, for the link to them
+      learningsCount: engine.learnings(goal.repoPath).length,
       escalations: listEscalations(db, { goalId: id }).map(e => ({ ...e, provider: goal.provider ?? engine.config.provider })),
       events: engine.store.listByGoal(id, 300),
       // every milestone visit and walkthrough, which a long goal pushes out of the latest events
@@ -1339,6 +1341,31 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     }
   });
   app.post('/api/settings/reset', (c) => c.json(engine.resetSettings()));
+  // ---------- Learnings (ADR-0040): what Foundry knows about each project folder ----------
+  app.get('/api/learnings', (c) => {
+    const repo = c.req.query('repo');
+    if (repo) return c.json({ repoPath: repo, learnings: engine.learnings(repo) });
+    return c.json({ repos: listRepoLearnings(engine.store.db) });
+  });
+  app.put('/api/learnings', async (c) => {
+    const body = z.object({ repoPath: z.string().min(1), learnings: z.array(z.object({ id: z.string().nullable().optional(), kind: LearningKind, text: z.string() })) }).parse(await c.req.json());
+    if (!body.repoPath.startsWith('/')) throw new HttpError(400, { error: 'repoPath must be an absolute folder path' });
+    try {
+      return c.json({ repoPath: body.repoPath, learnings: engine.setLearnings(body.repoPath, body.learnings) });
+    } catch (e) {
+      throw new HttpError(422, { error: String((e as Error).message ?? e) });
+    }
+  });
+  // learn from this goal again: its folder's notebook is rewritten with what it taught
+  app.post('/api/goals/:id/learn', async (c) => {
+    const goal = goalOr404(c);
+    try {
+      await engine.learnFrom(goal.id);
+    } catch (e) {
+      throw new HttpError(409, { error: String((e as Error).message ?? e) });
+    }
+    return c.json({ repoPath: goal.repoPath, learnings: engine.learnings(goal.repoPath) });
+  });
   // ---------- notifications (test / telegram chat-id detection use the draft credentials, saved ones as fallback) ----------
   app.post('/api/notifications/test', async (c) => {
     // the page never holds saved credentials: an empty draft field means "the saved one", not "none"

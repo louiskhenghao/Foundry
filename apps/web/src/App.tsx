@@ -1,5 +1,5 @@
 import { AccountsPage } from './pages/AccountsPage.tsx';
-import { ArrowLeftRight, ArrowUpCircle, Bot, Inbox, ListTodo, Menu, Moon, Network, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X, HelpCircle } from 'lucide-react';
+import { ArrowLeftRight, ArrowUpCircle, Bot, Inbox, ListTodo, Menu, Moon, Network, NotebookPen, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X, HelpCircle } from 'lucide-react';
 import { HelpPage } from './pages/HelpPage.tsx';
 import { TransferPage } from './pages/TransferPage.tsx';
 import { PortsPage } from './pages/PortsPage.tsx';
@@ -17,6 +17,7 @@ import { MergeResolvePage } from './pages/MergeResolvePage.tsx';
 import { GoalPage } from './pages/GoalPage.tsx';
 import { GoalsPage } from './pages/GoalsPage.tsx';
 import { InboxPage } from './pages/InboxPage.tsx';
+import { LearningsPage } from './pages/LearningsPage.tsx';
 import { NewGoalPage } from './pages/NewGoalPage.tsx';
 import { SetupPage } from './pages/SetupPage.tsx';
 import { SkillsTabs } from './pages/skills/SkillsTabs.tsx';
@@ -121,6 +122,7 @@ export function App() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/transfer" element={<TransferPage />} />
           <Route path="/ports" element={<PortsPage />} />
+          <Route path="/learnings" element={<LearningsPage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/help/:slug" element={<HelpPage />} />
         </Routes>
@@ -154,7 +156,7 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
       localStorage.setItem('foundry.theme', next ? 'light' : 'dark');
     } catch {}
   };
-  const here = ['/settings', '/setup', '/transfer', '/ports', '/help'].some((p) => loc.pathname.startsWith(p));
+  const here = ['/settings', '/setup', '/transfer', '/ports', '/learnings', '/help'].some((p) => loc.pathname.startsWith(p));
   const go = (close: () => void, to: string) => {
     close();
     nav(to);
@@ -184,6 +186,9 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
           </MenuItem>
           <MenuItem icon={<Network size={13} />} onClick={() => go(close, '/ports')}>
             Ports — what holds which port
+          </MenuItem>
+          <MenuItem icon={<NotebookPen size={13} />} onClick={() => go(close, '/learnings')}>
+            Learnings — what Foundry knows about your projects
           </MenuItem>
           <MenuItem icon={<HelpCircle size={13} />} onClick={() => go(close, '/help')}>
             Help — how to use Foundry

@@ -35,6 +35,7 @@ Foundry 读你的项目，问你只有你能决定的事，然后写一份叫 **
 | **Task**（任务） | 计划里的一项工作。一个 goal 通常有几个。 |
 | **Milestone**（里程碑） | 一个看得见、可以试的功能，设在完成它的那个任务上。功能完成时 Foundry 会录下它的样子，最终走查时再录一次。 |
 | **Inbox** | 等你处理的事项列表，顶栏上会显示数字。 |
+| **Learnings** | Foundry 从一个项目文件夹里结束了的 goal 学到的东西，加上你自己添加的。这个文件夹之后的每个 goal 都会拿到。见 [Learnings](./learnings.zh.md)。 |
 | **Progress folder**（进度文件夹） | 实际干活的文件夹，就在你的项目旁边：`<project>-foundry/<goal>/`，或者在 Settings 里设的文件夹下面。它以 goal 的标题（到第一个标点为止，最多 40 个字符）加上 goal id 的最后 6 个字符命名。你随时都能打开。 |
 | **Model preset**（模型预设） | 哪个模型负责规划、任务和审查。两种编码智能体各有独立的 Max、Production、Balanced 和 Economy 预设；Codex 还保存各角色的推理强度。 |
 

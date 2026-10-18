@@ -58,3 +58,4 @@ export { listPorts, releasePort, PortError, type PortRow, type PortsView } from 
 export { engineTransferHost, exportTransfer, type ExportOptions, type ExportResult, type TransferHost } from './transfer/export.ts';
 export { ImportChoices, applyIncoming, discardIncoming, inspectIncoming, receiveTransfer, sweepIncoming, unlockIncomingSecrets, type ImportReport, type IncomingReport, type SecretsPreview } from './transfer/import.ts';
 export { mapRepo, reattachGoal, type MapResult } from './transfer/reattach.ts';
+export { learnFromGoal, learningsContext, learningsForWorker, mergeLearnings } from './learnings.ts';

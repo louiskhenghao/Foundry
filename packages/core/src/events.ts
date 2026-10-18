@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { Attachment, AttachmentMarkdown } from './schema/attachment.ts';
 import { FeedbackPlan } from './schema/feedback.ts';
 import { InterviewQuestion } from './schema/interview.ts';
+import { Learning } from './schema/learnings.ts';
 import {
   Attempt,
   AuditFinding,
@@ -170,6 +171,11 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.completion_ran', { tools: z.array(z.object({ name: z.string(), status: z.enum(['ok', 'skipped', 'failed']), detail: z.string() })) }),
   /** settings changed from the Settings page / API (goalId null); values are not recorded, only which keys */
   ev('settings.changed', { keys: z.array(z.string()), restartNeeded: z.array(z.string()) }),
+  /**
+   * a repository's Learnings, whole (ADR-0040): written by Foundry from a finished goal (`goalId`) or edited by the person.
+   * A global event (no goal on the envelope), so a Transfer of the goal does not carry one machine's notebook to another.
+   */
+  ev('learnings.set', { repoPath: z.string(), learnings: z.array(Learning), source: z.enum(['distill', 'human']), goalId: z.string().nullable(), note: z.string().nullable() }),
 
   ev('clarify.started', { attemptId: z.string().nullable() }),
   /** where Clarify is: the Clarifier reading the repository and writing its answer (a round or the Brief), or the planner splitting the goal into tasks */

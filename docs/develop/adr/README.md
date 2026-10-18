@@ -44,3 +44,4 @@ record is never rewritten when a later decision changes it; its status says what
 | [0037](0037-unmeasured-sessions.md) | A session cut before its result line is unmeasured — its cost is unknown, not zero | accepted · 2026-10-18 · amends ADR-0001 |
 | [0038](0038-chat-answers-from-telegram.md) | Telegram takes answers: buttons and replies go through the app's own calls, and boundary commands stay in the Inbox | accepted · 2026-10-18 · amends ADR-0003 · amended by ADR-0039 |
 | [0039](0039-chat-answers-from-discord.md) | Discord takes answers through a bot of the user's, read over the gateway | accepted · 2026-10-18 · amends ADR-0038 |
+| [0040](0040-learnings-per-repository.md) | Learnings: what a folder's goals taught, written when a goal ends and given to the next goals there | accepted · 2026-10-18 |

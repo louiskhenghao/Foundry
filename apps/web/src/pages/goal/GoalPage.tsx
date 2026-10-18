@@ -1,5 +1,5 @@
 import { isHistory, taskUsage, unmeasuredSessions } from '@foundry/core/browser';
-import { Ban, CornerDownRight, Folder, GitBranch, Link2, RotateCcw, Trash2 } from 'lucide-react';
+import { Ban, CornerDownRight, Folder, GitBranch, Link2, NotebookPen, RotateCcw, Trash2 } from 'lucide-react';
 import { RestartDialog } from '../../components/RestartDialog.tsx';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -101,6 +101,7 @@ export function GoalPage() {
     ...(awaiting ? [{ label: 'Re-run Clarify', icon: <RotateCcw size={13} />, onClick: () => api.reclarify(id, 'fetch the latest base branch and explore again').catch((e) => setErr(e.message)), title: 'Fetch the base branch again and rebuild the Brief from the fresh tip' }] : []),
     ...(!terminal && awaiting ? [{ label: 'Cancel goal', icon: <Ban size={13} />, onClick: () => api.cancelGoal(id) }] : []),
     ...(!g.follows ? [{ label: 'Mark as follow-up of…', icon: <Link2 size={13} />, onClick: () => setMarkFollow(true), title: 'Record that this goal continues an earlier goal of the same repository' }] : []),
+    ...(terminal && g.state !== 'cancelled' ? [{ label: 'Learn from this goal again', icon: <NotebookPen size={13} />, onClick: () => api.learnFrom(id).catch((e) => setErr(e.message)), title: "A short session reads how this goal went and updates this folder's Learnings" }] : []),
     { label: 'Delete goal…', icon: <Trash2 size={13} />, onClick: () => setDel(true), danger: true },
   ];
 
@@ -133,6 +134,13 @@ export function GoalPage() {
           </div>
           <FollowLinks d={d} />
           <DelegationLinks d={d} />
+          {(d.learningsCount ?? 0) > 0 && (
+            <div className="text-xs text-zinc-500 mt-1.5">
+              <Link to={`/learnings?repo=${encodeURIComponent(g.repoPath)}`} className="inline-flex items-center gap-1 hover:text-zinc-300" title="What earlier goals in this folder learned; every new goal here is given it">
+                <NotebookPen size={12} /> Learnings for this folder: {d.learningsCount}
+              </Link>
+            </div>
+          )}
         </div>
         <div className="space-y-2.5">
           <div className="grid grid-cols-2 gap-3">
