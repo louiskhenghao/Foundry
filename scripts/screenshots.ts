@@ -6,9 +6,10 @@
  *
  * Uses the system Chrome through Playwright (channel "chrome"); falls back to Playwright's own Chromium when installed.
  */
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { getGoal } from '@foundry/core';
+import { addSubject, addSubjectPicture, subjectsDir } from '../packages/engine/src/subjects.ts';
 import { seedImportedGoal, startDemo } from './demo.ts';
 
 const ROOT = resolve(import.meta.dir, '..');
@@ -33,6 +34,14 @@ const mask = async () => {
     }
   });
 };
+/** a simple drawing of the demo's mascot from one view: the guide's Subject pictures are drawn, never someone's photos */
+const mascot = (view: 'front' | 'side' | 'three-quarter') => {
+  const eye = view === 'side' ? '<circle cx="300" cy="150" r="26" fill="#0b0f1a"/>' : `<circle cx="${view === 'front' ? 240 : 262}" cy="150" r="42" fill="#f5f5f5"/><circle cx="${view === 'front' ? 240 : 270}" cy="150" r="20" fill="#0b0f1a"/>`;
+  const body = view === 'side' ? '<rect x="205" y="215" width="70" height="95" rx="18" fill="#f97316"/>' : '<rect x="180" y="215" width="120" height="95" rx="22" fill="#f97316"/>';
+  const arms = view === 'side' ? '<rect x="232" y="240" width="30" height="22" rx="10" fill="#fb923c"/>' : '<rect x="150" y="235" width="36" height="22" rx="10" fill="#fb923c"/><rect x="294" y="235" width="36" height="22" rx="10" fill="#fb923c"/>';
+  return `<body style="margin:0;background:#1f2937"><svg width="480" height="360" xmlns="http://www.w3.org/2000/svg"><rect width="480" height="360" fill="#1f2937"/><ellipse cx="240" cy="330" rx="120" ry="14" fill="#111827"/><line x1="240" y1="60" x2="240" y2="95" stroke="#e5e7eb" stroke-width="6"/><circle cx="240" cy="55" r="10" fill="#facc15"/>${view === 'side' ? '<ellipse cx="240" cy="150" rx="62" ry="58" fill="#e5e7eb"/>' : '<circle cx="240" cy="150" r="62" fill="#e5e7eb"/>'}${eye}${body}${arms}<text x="16" y="28" fill="#9ca3af" font-family="sans-serif" font-size="16">${view}</text></svg></body>`;
+};
+
 const shot = async (name: string, path: string, prepare?: () => Promise<void>, height?: number) => {
   // a fresh load each time: a dialog left open by the shot before would otherwise cover this one (same page, new hash)
   await page.goto('about:blank');
@@ -43,6 +52,18 @@ const shot = async (name: string, path: string, prepare?: () => Promise<void>, h
   // again: dialogs and logs opened by `prepare` show paths too
   await mask();
   await page.screenshot({ path: join(OUT, `${name}.png`), clip: height ? { x: 0, y: 0, width: 1280, height } : undefined });
+  console.log(`  ${name}.png`);
+};
+
+/** one part of a page (a card), loaded and masked like a whole shot */
+const partShot = async (name: string, path: string, part: () => ReturnType<typeof page.locator>) => {
+  await page.goto('about:blank');
+  await page.goto(demo.url + path, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(600);
+  await mask();
+  await part().scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  await part().screenshot({ path: join(OUT, `${name}.png`) });
   console.log(`  ${name}.png`);
 };
 
@@ -113,6 +134,40 @@ try {
   // seeded last: the shots above count the demo's goals
   const imported = await seedImportedGoal(demo.engine, g.done!);
   await shot('goal-imported', `/goals/${imported}`, undefined, 620);
+
+  // Subjects: the studio's own mascot figure, from pictures of the person's (drawn here: the demo shows nobody's photos)
+  const pictures: Uint8Array[] = [];
+  for (const view of ['front', 'side', 'three-quarter'] as const) {
+    await page.setViewportSize({ width: 480, height: 360 });
+    await page.setContent(mascot(view));
+    pictures.push(new Uint8Array(await page.screenshot({ type: 'png' })));
+  }
+  await page.setViewportSize({ width: 1280, height: 860 });
+  const pip = { name: 'Pip, our robot mascot (the vinyl figure)', lookFor: 'the round head with one big eye, the antenna, the orange body and the short arms' };
+  addSubject(demo.engine, g.brief!, { ...pip, search: false });
+  for (const [i, caption] of ['front', 'side', 'three-quarter'].entries()) addSubjectPicture(demo.engine, g.brief!, 'P1', pictures[i]!, caption);
+  await partShot('subjects', `/goals/${g.brief}/brief`, () => page.locator('#brief-subjects'));
+  // the first look at the landing page, compared with the same pictures
+  const store = demo.engine.store;
+  mkdirSync(subjectsDir(demo.engine.config.dataDir, g.milestone!), { recursive: true });
+  for (const [i, bytes] of pictures.entries()) writeFileSync(join(subjectsDir(demo.engine.config.dataDir, g.milestone!), `P1-${i + 1}.png`), bytes);
+  store.append({ type: 'brief.subject_set', goalId: g.milestone!, payload: { subject: { key: 'P1', ...pip } } });
+  store.append({ type: 'brief.subject_pictures', goalId: g.milestone!, payload: { subjectKey: 'P1', added: ['front', 'side', 'three-quarter'].map((caption, i) => ({ file: `P1-${i + 1}.png`, source: 'person' as const, url: null, caption })), removed: [] } });
+  const recording = store.listByGoalOfTypes(g.milestone!, ['milestone.evidence']).at(-1)!;
+  store.append({
+    type: 'milestone.likeness',
+    goalId: g.milestone!,
+    payload: {
+      taskId: (recording.payload as { taskId: string }).taskId,
+      evidenceAt: recording.ts,
+      status: 'ok',
+      verdict: { subjects: [{ key: 'P1', shown: true, score: 6, matches: ['the orange body', 'the antenna'], differences: [{ what: 'the eye is small and set low; in the pictures one big eye fills half the face', major: true }, { what: 'the arms are long; in the pictures they are short stubs', major: false }], shots: [] }], summary: 'Recognisably Pip, but the face reads as another robot.' },
+      detail: '',
+      costUsd: 0.31,
+      fixTaskId: null,
+    },
+  });
+  await partShot('likeness', `/goals/${g.milestone}`, () => page.locator('div.rounded-md', { hasText: 'Likeness to the pictures' }).first());
 } finally {
   await browser.close();
   await demo.stop();

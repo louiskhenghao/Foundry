@@ -63,6 +63,21 @@ Click a sample to see it large, then press **Use as the reference image**. Every
 
 Whatever direction you pick binds every task that produces something visible. Tasks with no look (server code, data, documentation) ignore it.
 
+## Looks like
+
+When the result depicts something real (a particular car, a building, a product), **Looks like** lists those real things, the Subjects, with pictures of them. Workers open the pictures before they build and compare what they made with them, and every review compares against them too. The pictures stay on this computer: they are never committed, delivered or put into the result.
+
+- **Foundry finds the pictures.** While the Brief waits, it searches the web for a few pictures of each Subject that has none (about $1 a Subject). The card says **Finding pictures… (a minute or two)**, and **Approve** waits until they are in.
+- **Remove a wrong picture** with the **×** on it, and a wrong Subject with the **×** beside its name.
+- **Add your own** uploads a photo or render of yours (PNG, JPEG, WebP or GIF, up to 5 MB). Images you attached to the goal that show a Subject are added for you.
+- **Find more** searches again for other views. A Subject has at most 8 pictures.
+- Click the line under a Subject's name to say what must match (the proportions, the distinctive features, the colours).
+- To add a Subject Foundry missed, type its name precisely (make, model, year) and what must match, then press **Add and find pictures**. A Brief has at most 4 Subjects.
+
+![The Looks like card: the studio's mascot figure as a Subject, with three of the person's pictures, Find more, Add your own, and the form to add another Subject](images/subjects.png)
+
+A delegated goal and a follow-up start with the Subjects of the goal they come from, pictures included, and **Re-run Clarify** keeps them. How each milestone is compared with the pictures is in [Likeness to the pictures](./while-it-runs.md#likeness-to-the-pictures).
+
 ## Assumptions
 
 **Assumptions (accepted unless you uncheck)**: things Foundry will take as true unless you say otherwise, for example "the existing login stays as it is". Leaving one ticked means you agree. Untick one that is wrong; it is crossed out and becomes a Decision ("assumption rejected").

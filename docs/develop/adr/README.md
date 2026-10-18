@@ -35,7 +35,8 @@ record is never rewritten when a later decision changes it; its status says what
 | [0028](0028-planner-writes-the-plan-once.md) | The planner writes the task plan once, in a session of its own | accepted · 2026-10-08 · amends ADR-0013 and ADR-0018 |
 | [0029](0029-vs-code-in-the-browser.md) | VS Code in the browser, behind a generated password, on loopback and the tailnet | accepted · 2026-10-08 |
 | [0030](0030-transfer-merges-goals-as-history.md) | Transfer merges goals into another Foundry as history, and unfinished ones can be reattached | accepted · 2026-10-09 |
-| [0031](0031-feature-milestones-with-scripts.md) | A milestone per feature, shown by a Playwright script its task writes | accepted · 2026-10-14 · amends ADR-0012 |
+| [0031](0031-feature-milestones-with-scripts.md) | A milestone per feature, shown by a Playwright script its task writes | accepted · 2026-10-14 · amends ADR-0012 · amended by ADR-0042 (a Likeness review of each recording) |
 | [0032](0032-ponytail-discipline-and-reverse-engineering.md) | Ponytail as a per-goal discipline, an audit at the end, and reverse engineering with REA | accepted · 2026-10-16 · amends ADR-0004 and ADR-0016 |
 | [0033](0033-cad-goals-with-text-to-cad.md) | CAD goals with text-to-cad, behind a Desktop apps & printers switch | accepted · 2026-10-16 · amends ADR-0008 and ADR-0016 |
 | [0034](0034-delegated-goals.md) | A step that is a project of its own is a Delegated goal, one level deep, landing as one commit | accepted · 2026-10-18 · amends ADR-0028 |
+| [0042](0042-subjects-and-the-likeness-review.md) | Subjects with pictures on the Brief, and a Likeness review of each milestone | accepted · 2026-10-18 · amends ADR-0031 |

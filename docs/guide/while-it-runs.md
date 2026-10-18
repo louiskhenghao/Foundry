@@ -260,6 +260,14 @@ Then either press **Continue**, or write what you saw and press **Turn into a pl
 
 The same screenshots and videos are sent to your notification channels in a second message, **📸 What the milestone looks like** (**⚠️ A milestone did not show** when a script failed), whether or not the goal pauses; the final walkthrough sends one message for every feature, and stay in the Overview's **Milestones** card to watch again later. A video too large for the channel (50 MB on Telegram, 10 MB on Discord) stays on the goal page, and the message says so.
 
+### Likeness to the pictures
+
+When the Brief has [Subjects with pictures](./approving-the-brief.md#looks-like), every milestone recording except the final walkthrough's is put next to them: a short review opens the recording's screenshots (a milestone of files' images, frames of its clips) and the pictures, and says for each Subject how close it is out of 10, what already matches and what differs. It shows under the recording as **Likeness to the pictures**, with the differences someone who knows the subject would notice at a glance first, in red. The milestone's row shows **likeness N/10**, the lowest Subject's score.
+
+![Likeness to the pictures under a milestone's recording: the mascot at 6/10 beside its pictures, one major difference in red, one minor, and what already matches](images/likeness.png)
+
+When the review finds such major differences while the goal still runs, Foundry adds one task, **match … to its pictures**, with the differences and both sets of pictures. Once it lands, the milestone is recorded and compared again, and that second review only reports. Your notification channels hear **🔍 Not like the pictures yet** when the task is added. A review costs about as much as a task review.
+
 ## Activity
 
 Everything that happened to the goal, newest first, one line each: stages, tasks starting and finishing, checks, decisions, delivery steps. **important only** hides routine lines; **show bookkeeping events** shows even more. A line ending in **…** shows only the start of a longer text, such as a worker message, a check result or a note; click it to read all of it.

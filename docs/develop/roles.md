@@ -89,7 +89,7 @@ A Continuation sends only `continuationMessage(reason)` into the resumed session
 
 **Drives** a blockers-only review of one Task's cumulative diff (task base ref → HEAD). Up to 20k characters are pasted (`fitDiff`): whole files in git's order while they fit, then the first part of the next one, cut at a line boundary and marked. A longer diff is also saved whole to `<internal>/review/task-diff-<attemptId>.patch`, and the prompt lists every changed file with how much of it is pasted, so a file past the cut is read rather than reported as incomplete or missing. It runs only after every Must command Check passed, and only when the task has reviewer-type Checks or `alwaysReviewTasks` is on and the goal's pace is not `fast`.
 
-**Input:** the task and its spec, the reviewer-check rubric, the chosen Style (UI and media scenarios), a media review section for `image` / `video` and a CAD review section for `cad`, the reviewer skill hint, the **Workflow** observation (which mandated skills the worker did or did not invoke, from `formatWorkflowObservation`), and the diff.
+**Input:** the task and its spec, the reviewer-check rubric, the chosen Style (UI and media scenarios), the Brief's Subjects with their pictures by absolute path when the scenario has a look (their folder is added to the session; `subjects.ts` `renderSubjects`), a media review section for `image` / `video` and a CAD review section for `cad`, the reviewer skill hint, the **Workflow** observation (which mandated skills the worker did or did not invoke, from `formatWorkflowObservation`), and the diff.
 
 **Output:** `ReviewerVerdict` (`core/src/schema/observation.ts`). A missing verdict after the nudge turn marks the reviewer checks `skipped`, and the objective Checks decide. It runs with 20 turns and $0.80, and the nudge gets 2 turns and $0.20.
 
@@ -132,6 +132,8 @@ A Continuation sends only `continuationMessage(reason)` into the resumed session
 | Nature classification (goals created as `auto`) | `clarify.ts` `classifyNature` | Claude: `goal.models.cheap`; Codex: captured `housekeeping` choice | `{ nature }` |
 | Suggestion for a blocked task | `escalation-suggest.ts` `runSuggest` | preset `suggest` | `SuggestOutput` `{ diagnosis, action, hint, confidence }` |
 | Style Sample | `style-sample.ts` | preset `styleSample` | one image file at `artifacts/samples/<key>-<n>.png`; the prompt carries the *worker* skill hint for scenario `image` |
+| Subject pictures search | `subjects.ts` `startSubjectSearch` | preset `styleSample` (worker tools, $1.50, 6 minutes) | `{ pictures[{ file, url, caption }], note }`; the files it downloaded into `<dataDir>/subjects/<goal>/.incoming/<key>/`, of which the engine keeps the real pictures as `<key>-<n>.<type>` ([ADR-0042](adr/0042-subjects-and-the-likeness-review.md)) |
+| Likeness review | `likeness.ts` `reviewLikeness` | preset `taskReviewer` (read-only, $0.80) | `LikenessVerdict` `{ subjects[{ key, shown, score, matches[], differences[{ what, major }], shots[] }], summary }`, recorded as `milestone.likeness`; major differences make one `likeness-fix` task per milestone |
 | Check-output distillation | `distill/summarize.ts` via `Engine.summarizer` | Claude: `goal.models.cheap`; Codex: captured `housekeeping` choice | `{ summary, keyErrors[] }` |
 | Model probe, usage probe | `Engine.probeModel`, `Engine.probeUsage` | the probed model/effort; Claude quota probe uses `config.models.cheap`, Codex quota uses account metadata | none (reads `init` / the rate-limit signal) |
 
