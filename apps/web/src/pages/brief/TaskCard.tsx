@@ -286,6 +286,13 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
         </div>
 
         <Input className="mono text-xs" disabled={!editable} placeholder="start files, comma-separated (repo-relative)" value={task.relevantFiles.join(', ')} onChange={(e) => change({ relevantFiles: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} />
+        <Input className="mono text-xs" disabled={!editable} placeholder="delivers: files the tasks after this one read, comma-separated (repo-relative)" value={(task.delivers ?? []).join(', ')} onChange={(e) => change({ delivers: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} title="Deliverables — the files this task leaves for the tasks after it: each is checked when the task lands, and the next tasks are told where they are" />
+        {task.kind === 'goal' && (
+          <label className="block text-xs">
+            <span className="text-zinc-500">Budget share (USD)</span>
+            <Input type="number" min={1} step={1} className="mono text-xs py-1 mt-0.5 w-40" disabled={!editable} placeholder="even share of what is left" value={task.budgetUsd ?? ''} onChange={(e) => change({ budgetUsd: e.target.value ? Number(e.target.value) : null })} title="What the delegated goal doing this step may spend, within this goal's budget; blank = an even share of what is left among the goal tasks still to run" />
+          </label>
+        )}
 
         <div>
           <div className="flex items-center gap-2 mb-1.5">

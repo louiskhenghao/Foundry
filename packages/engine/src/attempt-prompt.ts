@@ -72,6 +72,7 @@ export function buildAttemptPrompt(i: AttemptPromptInput): string {
   const styleSection = renderStyle(i.style);
   if (styleSection) lines.push(styleSection);
   if (i.task.relevantFiles.length) lines.push(`# Start here\n${i.task.relevantFiles.map((f) => `- ${f}`).join('\n')}`);
+  if (i.task.delivers?.length) lines.push(`# Deliverables\nThe tasks after this one read these files; each must exist when you stop (the engine checks):\n${i.task.delivers.map((f) => `- ${f}`).join('\n')}`);
   if (i.attachments) lines.push(i.attachments);
   // the shipped software the goal learns from: the report is among the attachments, the rules travel with it
   if (i.goal.references?.length) lines.push(renderReferences(i.goal));

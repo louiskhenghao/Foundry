@@ -1,9 +1,11 @@
 import { EventQueue } from './event-queue.ts';
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
-import { basename, dirname } from 'node:path';
+import { homedir } from 'node:os';
+import { basename, dirname, join } from 'node:path';
 import { Semaphore } from './semaphore.ts';
-import { LineSplitter, decodeLine, skillNameFromToolUse } from './stream-codec.ts';
+import { LineSplitter, decodeLine, decodeMessage, parseJson, skillNameFromToolUse } from './stream-codec.ts';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from './types.ts';
+import { UsageTally, assistantUsage, readSessionRecord } from './usage-tally.ts';
 
 export interface ClaudeCliRunnerOptions {
   claudeBin?: string;
@@ -12,16 +14,20 @@ export interface ClaudeCliRunnerOptions {
   defaultIdleTimeoutMs?: number;
   /** Extra env for every run (e.g. FOUNDRY_CALLBACK); a function is re-evaluated per run, so settings-sourced values apply without a restart. */
   env?: Record<string, string> | (() => Record<string, string>);
+  /** Claude Code's config dir (`~/.claude` unless CLAUDE_CONFIG_DIR): where a cut session's own record is read for its token counts */
+  claudeHome?: string;
   log?: (msg: string) => void;
 }
 
 export class ClaudeCliRunner implements ClaudeRunner {
   private sem: Semaphore;
   private bin: string;
+  private home: string;
   private running = 0;
   constructor(private opts: ClaudeCliRunnerOptions = {}) {
     this.sem = new Semaphore(opts.maxConcurrent ?? 3);
     this.bin = opts.claudeBin ?? Bun.which('claude') ?? 'claude';
+    this.home = opts.claudeHome ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude');
   }
 
   active(): number {
@@ -87,9 +93,10 @@ export class ClaudeCliRunner implements ClaudeRunner {
     let sessionId: string | null = null;
     let rateLimit: RunResult['rateLimit'] = null;
     let stderrBuf = '';
-    // observed from the stream: which skills / tools the session used
+    // observed from the stream: which skills / tools the session used, and what each API message used
     const skillsUsed: string[] = [];
     const toolsUsed: Record<string, number> = {};
+    const tally = new UsageTally();
 
     const base = (subtype: string, errorMessage: string | null): RunResult => ({
       sessionId,
@@ -157,7 +164,11 @@ export class ClaudeCliRunner implements ClaudeRunner {
       const handle = (line: string) => {
         transcript(line);
         const at = lineNo++;
-        for (const [block, decoded] of decodeLine(line).entries()) {
+        const trimmed = line.trim();
+        const msg = trimmed ? parseJson(trimmed) : undefined;
+        const usage = msg === undefined ? null : assistantUsage(msg);
+        if (usage) tally.add(usage);
+        for (const [block, decoded] of (msg === undefined ? decodeLine(line) : decodeMessage(msg)).entries()) {
           const ev: RunnerEvent = refFile ? { ...decoded, ref: { file: refFile, line: at, block } } : decoded;
           if (ev.kind === 'init') sessionId = ev.sessionId;
           if (ev.kind === 'rate_limit') rateLimit = ev.info;
@@ -207,10 +218,22 @@ export class ClaudeCliRunner implements ClaudeRunner {
       const durationMs = Date.now() - started;
       if (lastResult) {
         const r = lastResult as RunResult;
-        return { ...r, sessionId: r.sessionId ?? sessionId, durationMs, exitCode, pid: proc!.pid, rateLimit, subtype: killReason ?? r.subtype, skillsUsed: [...skillsUsed], toolsUsed: { ...toolsUsed } };
+        return { ...r, costStatus: r.costStatus ?? 'reported', sessionId: r.sessionId ?? sessionId, durationMs, exitCode, pid: proc!.pid, rateLimit, subtype: killReason ?? r.subtype, skillsUsed: [...skillsUsed], toolsUsed: { ...toolsUsed } };
       }
       const subtype = killReason ?? (exitCode === 0 ? 'no_result' : 'error_during_execution');
-      return { ...base(subtype, stderrBuf.trim() || null), exitCode, durationMs };
+      // No result line, so the CLI never said what the session cost. Count what the stream and the session's own
+      // record say (turns, tokens, models) and leave the dollars unknown: never book a cut session as free.
+      if (sessionId) tally.addAll(readSessionRecord(this.home, sessionId));
+      const measured = tally.messages > 0;
+      return {
+        ...base(subtype, stderrBuf.trim() || null),
+        exitCode,
+        durationMs,
+        costStatus: sessionId ? 'unavailable' : 'reported',
+        numTurns: tally.turns(),
+        usage: measured ? tally.totals() : null,
+        modelUsage: measured ? tally.byModel() : null,
+      };
     })();
 
     return { pid: proc.pid, events: queue, kill, result };

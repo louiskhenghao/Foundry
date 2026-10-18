@@ -519,7 +519,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     for (const abs of made.artifacts) files.push({ name: abs.split('/').pop()!, rel: abs.slice(ws.length + 1), kind: fileKind(abs), size: statSync(abs).size, open: { path: abs } });
     const relevant = [];
     for (const rel of task.relevantFiles) relevant.push({ rel, open: (await taskFileSource(dataDir, goal, task, rel, exec, tree)) ? open(rel) : null });
-    return c.json({ files, relevant });
+    const delivers = [];
+    for (const rel of task.delivers ?? []) delivers.push({ rel, open: (await taskFileSource(dataDir, goal, task, rel, exec, tree)) ? open(rel) : null });
+    return c.json({ files, relevant, delivers });
   });
   app.get('/api/goals/:id/screenshots/:file', (c) => {
     const goal = goalOr404(c);

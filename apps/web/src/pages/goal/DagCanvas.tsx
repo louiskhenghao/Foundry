@@ -23,6 +23,8 @@ export interface DagTask extends Task {
   maxAttempts: number;
   /** every attempt and review of the task so far, as in the task drawer */
   totalCost: number | null;
+  /** sessions that ended before a cost was reported: `totalCost` leaves them out */
+  unmeasured?: number;
   /** the model the latest worker session ran on (short name), once one ran */
   model?: string | null;
   /** Brief mode: no run state yet — show this chip (the Area) instead of the state badge and attempt count */
@@ -197,7 +199,12 @@ function TaskNode({ t, selected, linked, dim, onSelect, className, style, after 
         )}
         <span className="text-[10px] text-zinc-500 mono whitespace-nowrap">
           {t.plain ? t.id : `${t.attempts}/${t.maxAttempts}`}
-          {!t.plain && t.totalCost != null && <span className="ml-1" title="cost of this task so far, all attempts">{fmtUsd(t.totalCost)}</span>}
+          {!t.plain && t.totalCost != null && (
+            <span className="ml-1" title={t.unmeasured ? `cost of this task so far, all attempts — ${t.unmeasured} session${t.unmeasured === 1 ? '' : 's'} ended before a cost was reported: unknown, not $0, and missing here` : 'cost of this task so far, all attempts'}>
+              {fmtUsd(t.totalCost)}
+              {t.unmeasured ? <span className="text-amber-300/90">+?</span> : null}
+            </span>
+          )}
           {t.origin !== 'brief' && <span className="ml-1 text-zinc-600">{t.origin}</span>}
         </span>
       </div>
