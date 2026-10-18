@@ -11,6 +11,7 @@ import type { Engine } from '../engine.ts';
 import { screenshotsDir } from '../workspace.ts';
 import { DiscordNotifier, TelegramNotifier, type Link, type MediaFile, type Notifier } from './channels.ts';
 import { DeliveryDigest } from './digest.ts';
+import { PROVIDER_LABEL } from '../deploy/providers.ts';
 
 export interface Composed {
   family: 'goalFinished' | 'delivery' | 'rateLimit' | 'updateAvailable' | 'interview' | 'milestone';
@@ -76,6 +77,10 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
       return { family: 'delivery', text: `🎉 PR ${e.payload.prNumber != null ? `#${e.payload.prNumber} ` : ''}merged — ${goalTitle(e.goalId)}`, path: e.goalId ? `/goals/${e.goalId}` : null };
     case 'delivery.failed':
       return { family: 'delivery', text: `⚠️ Delivery failed at ${e.payload.step} — ${goalTitle(e.goalId)}\n${e.payload.reason.slice(0, 300)}`, path: e.goalId ? `/goals/${e.goalId}` : null };
+    case 'deploy.finished':
+      return { family: 'delivery', text: `🚀 Deployed to ${PROVIDER_LABEL[e.payload.provider]}${e.payload.production ? '' : ' (preview)'} — ${goalTitle(e.goalId)}\n${e.payload.url}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
+    case 'deploy.failed':
+      return { family: 'delivery', text: `⚠️ Deploy to ${PROVIDER_LABEL[e.payload.provider]} failed — ${goalTitle(e.goalId)}\n${e.payload.reason.slice(0, 300)}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
     case 'rate_limit.paused': {
       const provider = e.payload.provider ?? defaultProvider;
       return { family: 'rateLimit', text: `⏸️ ${provider === 'codex' ? 'Codex' : 'Claude Code'} usage limit — new sessions paused; retry at ${localTime(e.payload.until)}`, path: `/usage?provider=${provider}` };

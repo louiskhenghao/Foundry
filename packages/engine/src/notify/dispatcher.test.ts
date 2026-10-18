@@ -57,6 +57,16 @@ describe('compose', () => {
   });
 });
 
+describe('deploys', () => {
+  test('a finished deploy names its host and address, a failed one why; both under the Delivery switch', () => {
+    const live = compose(ev('deploy.finished', { provider: 'vercel', production: false, url: 'https://site-abc.vercel.app' }), title)!;
+    expect(live).toEqual({ family: 'delivery', text: '🚀 Deployed to Vercel (preview) — Add dark mode\nhttps://site-abc.vercel.app', path: '/goals/g1#delivery' });
+    expect(compose(ev('deploy.finished', { provider: 'netlify', production: true, url: 'https://site.netlify.app' }), title)!.text).toStartWith('🚀 Deployed to Netlify — ');
+    const failed = compose(ev('deploy.failed', { provider: 'cloudflare', production: false, reason: 'the build failed' }), title)!;
+    expect(failed.text).toBe('⚠️ Deploy to Cloudflare Pages failed — Add dark mode\nthe build failed');
+  });
+});
+
 describe('composeEscalation', () => {
   test('says which goal needs the human and why, and points at the inbox', () => {
     const esc = { id: 'esc1', goalId: 'g1', taskId: 't1', attemptId: null, trigger: 'retries_exhausted', message: 'Task "x" used 3/3 attempts', payload: {}, state: 'open', answer: null, createdAt: '', answeredAt: null, suggestion: null } as Escalation;

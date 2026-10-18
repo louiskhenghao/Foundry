@@ -108,6 +108,17 @@ export const ReviewSettings = z.object({
   smallGoalLines: z.number().int().min(0).max(5000).default(400),
 });
 export const DeliverySettings = z.object({
+  /** a Vercel token for Deploy (ADR-0041); null = Vercel not set up */
+  vercelToken: z.string().min(1).nullable().default(null),
+  /** the Vercel team to deploy under; null = the token's own account */
+  vercelScope: z.string().min(1).nullable().default(null),
+  /** a Netlify personal access token for Deploy; null = Netlify not set up */
+  netlifyToken: z.string().min(1).nullable().default(null),
+  /** the Netlify team a new site is made in; null = the token's default team */
+  netlifyTeam: z.string().min(1).nullable().default(null),
+  /** a Cloudflare API token (Pages: Edit) and its account id for Deploy; null = Cloudflare Pages not set up */
+  cloudflareToken: z.string().min(1).nullable().default(null),
+  cloudflareAccountId: z.string().min(1).nullable().default(null),
   defaultMode: DeliveryMode.default('local'),
   /** one PR per goal by default; per-task stacked PRs are opt-in (each PR is a full push / wait / merge cycle) */
   defaultUnit: DeliveryUnit.default('goal'),
@@ -236,7 +247,7 @@ export const RESTART_SETTINGS = ['engine.provider', 'engine.codexBin', 'engine.c
  * leaves that hold a credential: the settings view sent to the browser carries them as null, with only whether each is
  * set and a masked hint, so a key never travels back to a page (or a phone over Tailscale) after it was saved
  */
-export const SECRET_SETTINGS = ['tools.openaiApiKey', 'tools.kimiApiKey', 'tools.geminiApiKey', 'tools.minimaxApiKey', 'tools.elevenlabsApiKey', 'tools.groqApiKey', 'notifications.telegramBotToken', 'notifications.discordWebhookUrl'] as const;
+export const SECRET_SETTINGS = ['tools.openaiApiKey', 'tools.kimiApiKey', 'tools.geminiApiKey', 'tools.minimaxApiKey', 'tools.elevenlabsApiKey', 'tools.groqApiKey', 'notifications.telegramBotToken', 'notifications.discordWebhookUrl', 'delivery.vercelToken', 'delivery.netlifyToken', 'delivery.cloudflareToken'] as const;
 export interface SecretState {
   set: boolean;
   /** e.g. "sk-c…a3f9"; null = not set */

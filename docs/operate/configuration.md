@@ -67,6 +67,12 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
+| `delivery.vercelToken` | — | `FOUNDRY_VERCEL_TOKEN` | A Vercel token for Deploy (a finished web app to Vercel). Kept by the engine only: never handed to a coding session. |
+| `delivery.vercelScope` | — | `FOUNDRY_VERCEL_SCOPE` | The Vercel team to deploy under; empty = the token’s own account. |
+| `delivery.netlifyToken` | — | `FOUNDRY_NETLIFY_TOKEN` | A Netlify personal access token for Deploy. Kept by the engine only. |
+| `delivery.netlifyTeam` | — | `FOUNDRY_NETLIFY_TEAM` | The Netlify team a new site is made in; empty = the token’s default team. |
+| `delivery.cloudflareToken` | — | `FOUNDRY_CLOUDFLARE_TOKEN` | A Cloudflare API token (Cloudflare Pages: Edit) for Deploy. Kept by the engine only. |
+| `delivery.cloudflareAccountId` | — | `FOUNDRY_CLOUDFLARE_ACCOUNT_ID` | The Cloudflare account the Pages projects are in (with the token above). |
 | `delivery.pollSec` | `30` | — | How often CI status is polled after the first two minutes (during the first two minutes it polls every 10 s). |
 | `delivery.noChecksGraceSec` | `90` | — | How long to wait for CI checks to appear on a PR in a repository that runs CI. |
 | `delivery.checksTimeoutMin` | `30` | — | Give up waiting for pending checks after this long; the PR stays open. |
