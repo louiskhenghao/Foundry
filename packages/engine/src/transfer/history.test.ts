@@ -31,7 +31,7 @@ function goal(id: string, state: Goal['state'], delivery = IDLE_DELIVERY): Goal 
   return {
     provider: 'claude', id, title: 'imported', prompt: 'p', workspaceDir: null, checkpoint: null, selfCheck: false, previewRef: null, previewPlace: 'auto', milestonePause: true, clarifyStage: null, references: [], investigation: null, interview: null, effort: null, modelPreset: null, modelSubstitutions: {}, repoPath: repo, baseBranch: 'main', branch: `goal/${id}`,
     budgets: { maxCostUsd: 5, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3 }, budgetPreset: 'custom', mode: 'expert', workflow: { tdd: 'off', pace: 'thorough', ponytail: 'on' },
-    models: { strong: 'opus', cheap: 'haiku', worker: 'opus' }, state, stateBeforeBlock: null, costUsd: 0, fixCycles: 0, delivery, attachments: [], baseSync: null, autoskills: null, follows: null,
+    models: { strong: 'opus', cheap: 'haiku', worker: 'opus' }, state, stateBeforeBlock: null, costUsd: 0, fixCycles: 0, delivery, attachments: [], baseSync: null, autoskills: null, follows: null, delegation: { allow: false, autoApprove: false }, delegatedFrom: null,
     completion: { graphRefresh: false, docs: [], audit: false, auditRun: null, docsRun: null, graphRun: null, artifactsRun: null }, nature: 'code', outputDir: null, runningSince: t0(0), createdAt: t0(0), updatedAt: t0(0),
   };
 }
@@ -54,7 +54,7 @@ describe('history goals (ADR-0030)', () => {
     // waiting for delivery (would deliver) and one with an open pull request (would be polled on GitHub)
     importHistory(engine, goal('g_draft', 'draft'));
     importHistory(engine, goal('g_run', 'running'), [
-      { type: 'task.created', payload: { task: { id: 't_run', goalId: 'g_run', title: 't', spec: 's', dependsOn: [], relevantFiles: [], parallelizable: false, retryBudget: 3, origin: 'brief', state: 'running', branch: null, worktreePath: null, hint: null, extraAttempts: 0, createdAt: t0(1), updatedAt: t0(1) } } },
+      { type: 'task.created', payload: { task: { id: 't_run', goalId: 'g_run', title: 't', spec: 's', dependsOn: [], relevantFiles: [], parallelizable: false, retryBudget: 3, origin: 'brief', state: 'running', branch: null, worktreePath: null, hint: null, extraAttempts: 0, delegatedGoalId: null, summary: null, createdAt: t0(1), updatedAt: t0(1) } } },
       { type: 'attempt.started', payload: { attempt: { id: 'a_run', goalId: 'g_run', taskId: 't_run', index: 1, kind: 'work', sessionId: 's', model: null, state: 'running', costUsd: 0, numTurns: 0, resultSubtype: null, baseRef: null, endRef: null, pid: 2 ** 22 + 17, cwd: null, transcriptPath: null, startedAt: t0(2), endedAt: null } } },
     ]);
     importHistory(engine, goal('g_done', 'done', { ...IDLE_DELIVERY, policy: pr }));

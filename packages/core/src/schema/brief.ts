@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { CheckSpec, CheckTier } from './check.ts';
-import { TaskKind, TaskScenario, TaskDifficulty } from './task.ts';
+import { TaskKind, TaskScenario, TaskDifficulty, WORKER_TASK_KINDS } from './task.ts';
 
 export const BriefAssumption = z.object({
   id: z.string(),
@@ -157,11 +157,17 @@ export type Brief = z.infer<typeof Brief>;
  * What the Clarifier session must emit (no goalId, ids are assigned by the engine).
  * Kept separate so the JSON schema handed to Claude is minimal.
  */
-const OutputTask = z.object({
+const KIND_DESCRIPTION = 'feature = new behaviour; bug = something is broken and must be reproduced first; refactor = behaviour-preserving restructure; research = a spike whose output is knowledge, not production code; chore = config/tooling.';
+/** the `goal` kind as the planner is told about it — only when the goal allows delegation */
+export const GOAL_KIND_DESCRIPTION = "goal = a step too big for one session (its own research first, several parts to make, a craft of its own such as a 3D model or a video): a Delegated goal with its own Clarify, plan and tasks does it, and its result lands on this branch as this task's commit. Its spec is that goal's prompt, so it says everything that goal needs to know.";
+/** the kinds a plan may use: every worker kind, plus `goal` when the goal allows delegation */
+const taskKindField = (delegation: boolean) => z.enum((delegation ? [...WORKER_TASK_KINDS, 'goal'] : [...WORKER_TASK_KINDS]) as [TaskKind, ...TaskKind[]]).describe(delegation ? `${KIND_DESCRIPTION} ${GOAL_KIND_DESCRIPTION}` : KIND_DESCRIPTION);
+
+const outputTaskSchema = (delegation: boolean) => z.object({
   key: z.string().describe('Short unique key, e.g. T1'),
   title: z.string().describe('Imperative commit subject, ≤ 60 chars, no trailing period, NO type prefix (e.g. "add quote engine with PDF tests", not "feat: …"). It becomes the commit message and PR title.'),
   spec: z.string().describe('Markdown spec: what to change, where, and how to know it is done.'),
-  kind: z.enum(['feature', 'bug', 'refactor', 'research', 'chore']).describe('feature = new behaviour; bug = something is broken and must be reproduced first; refactor = behaviour-preserving restructure; research = a spike whose output is knowledge, not production code; chore = config/tooling.'),
+  kind: taskKindField(delegation),
   scope: z.string().nullish().describe('Conventional Commits scope (e.g. "quotes", "api", "ui"); null = use the Area slug.'),
   scenario: z
     .enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'cad', 'general'])
@@ -182,6 +188,8 @@ const OutputTask = z.object({
     .nullish()
     .describe('With a milestone on a feature that has a web UI or an HTTP API: the Playwright script that shows it, repo-relative, e2e/milestones/<feature-slug>.spec.ts. The task writes it and it must pass; Foundry runs it to record the milestone. null for other milestones (documents, media, CAD, CLIs) and for every task without a milestone.'),
 });
+/** a task as a model writes it; parsing accepts every kind, the schema handed to a planner offers `goal` only where allowed */
+const OutputTask = outputTaskSchema(true);
 
 const OutputCheck = z.object({
   key: z.string(),
@@ -283,13 +291,20 @@ export const BriefSkeleton = BriefOutput.omit({ tasks: true, checks: true, costE
 });
 export type BriefSkeleton = z.infer<typeof BriefSkeleton>;
 
-/** What the planner session returns: the task plan for every Area of a Brief skeleton, with task-level checks and the estimate. */
-export const PlanOutput = z.object({
-  tasks: z.array(OutputTask).min(1),
-  checks: z.array(OutputCheck.extend({ taskKey: z.string().describe('Key of the task this check belongs to.') })).describe('Task-level checks: the test, typecheck or lint command a task must make pass, or a reviewer rubric for a task whose result is judged rather than run.'),
-  costEstimateUsd: z.number(),
-  timeEstimateMin: z.number(),
-});
+/**
+ * What the planner session returns: the task plan for every Area of a Brief skeleton, with task-level checks and the
+ * estimate. `delegation` = the goal allows `goal` tasks: the JSON schema handed to the planner offers that kind only then.
+ */
+export function planOutputSchema(delegation: boolean) {
+  return z.object({
+    tasks: z.array(outputTaskSchema(delegation)).min(1),
+    checks: z.array(OutputCheck.extend({ taskKey: z.string().describe('Key of the task this check belongs to.') })).describe('Task-level checks: the test, typecheck or lint command a task must make pass, or a reviewer rubric for a task whose result is judged rather than run.'),
+    costEstimateUsd: z.number(),
+    timeEstimateMin: z.number(),
+  });
+}
+/** every kind accepted: what a plan is parsed with */
+export const PlanOutput = planOutputSchema(true);
 export type PlanOutput = z.infer<typeof PlanOutput>;
 
 /**

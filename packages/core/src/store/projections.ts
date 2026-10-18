@@ -1,6 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import type { EngineEvent } from '../events.ts';
-import { FINAL_WALK, IDLE_COMPLETION, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type Task } from '../schema/index.ts';
+import { FINAL_WALK, IDLE_COMPLETION, NO_DELEGATION, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type Task } from '../schema/index.ts';
 import type { ObservationReport } from '../schema/observation.ts';
 
 /**
@@ -237,8 +237,9 @@ function project(db: Database, e: EngineEvent): void {
     }
     case 'task.restarted': {
       const t = getTask(db, e.payload.taskId);
-      // a restarted task starts over: its previous worktree/branch (dropped when it finished) must not be reused
-      if (t) upsertTask(db, { ...t, state: 'pending', extraAttempts: t.extraAttempts + e.payload.extraAttempts, baseRef: null, commitRef: null, commitMessage: null, branch: null, worktreePath: null, updatedAt: e.ts });
+      // a restarted task starts over: its previous worktree/branch (dropped when it finished) must not be reused, nor
+      // the Delegated goal that did it (a new one starts; the old one stays as a goal of its own)
+      if (t) upsertTask(db, { ...t, state: 'pending', extraAttempts: t.extraAttempts + e.payload.extraAttempts, baseRef: null, commitRef: null, commitMessage: null, branch: null, worktreePath: null, delegatedGoalId: null, summary: null, updatedAt: e.ts });
       break;
     }
     case 'goal.workspace_set': {
@@ -450,6 +451,16 @@ function project(db: Database, e: EngineEvent): void {
       if (t) upsertTask(db, { ...t, hint: e.payload.hint, extraAttempts: t.extraAttempts + e.payload.extraAttempts, updatedAt: e.ts });
       break;
     }
+    case 'task.delegated': {
+      const t = getTask(db, e.payload.taskId);
+      if (t) upsertTask(db, { ...t, delegatedGoalId: e.payload.goalId, updatedAt: e.ts });
+      break;
+    }
+    case 'task.summary_set': {
+      const t = getTask(db, e.payload.taskId);
+      if (t) upsertTask(db, { ...t, summary: e.payload.summary, updatedAt: e.ts });
+      break;
+    }
     case 'check.created':
       upsertCheck(db, e.payload.check);
       break;
@@ -556,6 +567,8 @@ function row<T>(r: unknown): T | null {
 function normalizeGoal(g: Goal): Goal {
   g.references ??= [];
   g.investigation ??= null;
+  g.delegation ??= { ...NO_DELEGATION };
+  g.delegatedFrom ??= null;
   if (g.workflow && g.workflow.ponytail == null) g.workflow.ponytail = 'on';
   g.completion = { ...IDLE_COMPLETION, ...(g.completion ?? {}) };
   return g;
@@ -578,11 +591,22 @@ export function upsertGoal(db: Database, g: Goal): void {
   );
 }
 
+/** rows written before a field existed read with its default */
+function normalizeTask(t: Task): Task {
+  t.delegatedGoalId ??= null;
+  t.summary ??= null;
+  return t;
+}
 export function getTask(db: Database, id: string): Task | null {
-  return row<Task>(db.query('SELECT data FROM tasks WHERE id = ?').get(id));
+  const t = row<Task>(db.query('SELECT data FROM tasks WHERE id = ?').get(id));
+  return t ? normalizeTask(t) : null;
 }
 export function listTasks(db: Database, goalId: string): Task[] {
-  return (db.query('SELECT data FROM tasks WHERE goal_id = ? ORDER BY rowid').all(goalId) as { data: string }[]).map((r) => JSON.parse(r.data));
+  return (db.query('SELECT data FROM tasks WHERE goal_id = ? ORDER BY rowid').all(goalId) as { data: string }[]).map((r) => normalizeTask(JSON.parse(r.data)));
+}
+/** the Delegated goals of a main goal (oldest first): goals whose `delegatedFrom` names it */
+export function listDelegatedGoals(db: Database, goalId: string): Goal[] {
+  return (db.query("SELECT data FROM goals WHERE json_extract(data, '$.delegatedFrom.goalId') = ? ORDER BY created_at").all(goalId) as { data: string }[]).map((r) => normalizeGoal(JSON.parse(r.data)));
 }
 export function upsertTask(db: Database, t: Task): void {
   db.run(

@@ -17,9 +17,15 @@ export const FINAL_WALK = 'final';
 
 export const TaskOrigin = z.enum(['brief', 'goal-review-fix', 'merge', 'delivery-fix', 'feedback-fix', 'audit-fix']);
 
-/** What kind of work a task is; selects the workflow discipline the worker is asked to follow (tdd vs diagnosing-bugs …). */
-export const TaskKind = z.enum(['feature', 'bug', 'refactor', 'research', 'chore']);
+/**
+ * What kind of work a task is; selects the workflow discipline the worker is asked to follow (tdd vs diagnosing-bugs …).
+ * `goal` = a step too big for one session: a Delegated goal (its own Clarify, plan and tasks) does it, and its result
+ * lands on this goal's branch as this task's commit. Only a goal whose Brief allowed delegation plans such tasks.
+ */
+export const TaskKind = z.enum(['feature', 'bug', 'refactor', 'research', 'chore', 'goal']);
 export type TaskKind = z.infer<typeof TaskKind>;
+/** the kinds a worker session runs: every kind but `goal` */
+export const WORKER_TASK_KINDS = ['feature', 'bug', 'refactor', 'research', 'chore'] as const satisfies readonly TaskKind[];
 
 /** The area a task works in; selects scenario-specific skills (design packs for UI work, image/video packs for media, …). */
 export const TaskScenario = z.enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'cad', 'general']);
@@ -71,6 +77,10 @@ export const Task = z.object({
   /** human hint injected into the next attempt (from an escalation answer) */
   hint: z.string().nullable(),
   extraAttempts: z.number().int().nonnegative(),
+  /** a `goal` task: the Delegated goal doing it (set once it is created; a restart of this task starts a new one) */
+  delegatedGoalId: z.string().nullable().default(null),
+  /** what this task delivered, written when it landed, for the tasks that depend on it (a Delegated goal's summary; null = none yet) */
+  summary: z.string().nullable().default(null),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

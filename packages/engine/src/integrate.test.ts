@@ -676,7 +676,7 @@ describe('a squash that conflicts at integration (the goal branch moved after th
     const check = (name: string, cmd: string): Check => ({ id: newId(IdPrefix.check), goalId: goal.id, taskId: null, name, tier: 'must', spec: { type: 'command', cmd, timeoutMs: 60_000, expectExitCode: 0 } });
     if (!opts.noChecks) for (const ch of [check('export matches its source', 'cmp -s artifacts/part.step params.txt'), ...(extraCheck ? [check('extra', extraCheck)] : [])]) engine.store.append({ type: 'check.created', goalId: goal.id, payload: { check: ch } });
     const now = new Date().toISOString();
-    const task = { id: 't_rev2', goalId: goal.id, title: 'part rev2', spec: 'remake the part', kind: 'feature', scope: null, scenario: 'cad', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now } as Task;
+    const task = { id: 't_rev2', goalId: goal.id, title: 'part rev2', spec: 'remake the part', kind: 'feature', scope: null, scenario: 'cad', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, delegatedGoalId: null, summary: null, createdAt: now, updatedAt: now } as Task;
     engine.store.append({ type: 'task.created', goalId: goal.id, payload: { task } });
     engine.store.append({ type: 'task.workspace_assigned', goalId: goal.id, payload: { taskId: task.id, branch: 'task/t_rev2', worktreePath: taskWs } });
     const squash = () => git(['merge', '--squash', '--no-commit', 'task/t_rev2'], ws);
@@ -954,7 +954,7 @@ describe('a squash that conflicts at integration (the goal branch moved after th
     writeFileSync(join(otherWs, 'other.txt'), 'other\n');
     await sh('git add -A && git commit -qm "feat: other"', otherWs);
     const now = new Date().toISOString();
-    const task = { id: 't_other', goalId, title: 'other', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now } as Task;
+    const task = { id: 't_other', goalId, title: 'other', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, delegatedGoalId: null, summary: null, createdAt: now, updatedAt: now } as Task;
     engine.store.append({ type: 'task.created', goalId, payload: { task } });
     engine.store.append({ type: 'task.workspace_assigned', goalId, payload: { taskId: 't_other', branch: 'task/t_other', worktreePath: otherWs } });
   };
@@ -1069,7 +1069,7 @@ describe('a merge attempt the engine stopped during', () => {
     await sh('git add -A && git commit -qm "feat: the goal side"', ws);
     const tip = await sh('git rev-parse HEAD', ws);
     const now = new Date().toISOString();
-    const task = { id: 't_cut', goalId: goal.id, title: 'cut', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: 'task/t_cut', worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now } as Task;
+    const task = { id: 't_cut', goalId: goal.id, title: 'cut', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: 'task/t_cut', worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, delegatedGoalId: null, summary: null, createdAt: now, updatedAt: now } as Task;
     engine.store.append({ type: 'task.created', goalId: goal.id, payload: { task } });
     const attemptId = newId(IdPrefix.attempt);
     engine.store.append({ type: 'attempt.started', goalId: goal.id, payload: { attempt: { id: attemptId, goalId: goal.id, taskId: 't_cut', index: 1, kind: 'merge', sessionId: null, model: null, state: 'running', costUsd: 0, numTurns: 0, resultSubtype: null, baseRef: tip, endRef: null, pid: null, cwd: ws, transcriptPath: null, startedAt: now, endedAt: null, skillsUsed: [], continuations: 0, sessions: [] } } });
@@ -1115,7 +1115,7 @@ describe('a merge attempt the engine stopped during', () => {
     const ws = await ensureGoalWorkspace(dataDir, goal);
     const tip = await sh('git rev-parse HEAD', ws);
     const now = new Date().toISOString();
-    const task = { id: 't_cut', goalId: goal.id, title: 'cut', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: 'task/t_cut', worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now } as Task;
+    const task = { id: 't_cut', goalId: goal.id, title: 'cut', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: 'task/t_cut', worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, delegatedGoalId: null, summary: null, createdAt: now, updatedAt: now } as Task;
     engine.store.append({ type: 'task.created', goalId: goal.id, payload: { task } });
     const attemptId = newId(IdPrefix.attempt);
     // an attempt left running (it threw before it could conclude) had committed a resolution, since taken back
@@ -1164,7 +1164,7 @@ describe('a merge attempt the engine stopped during', () => {
     const draft = await engine.createGoal({ prompt: 'a part', repoPath: repo });
     await ensureGoalWorkspace(dataDir, getGoal(engine.store.db, draft.id)!);
     const now = new Date().toISOString();
-    const task = { id: 't_wait', goalId: draft.id, title: 'wait', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now } as Task;
+    const task = { id: 't_wait', goalId: draft.id, title: 'wait', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, delegatedGoalId: null, summary: null, createdAt: now, updatedAt: now } as Task;
     engine.store.append({ type: 'task.created', goalId: draft.id, payload: { task } });
     await engine.stop();
     const next = new Engine(cfg(), new FakeRunner(() => {}));
@@ -1180,7 +1180,7 @@ describe('a merge attempt the engine stopped during', () => {
     const draft = await engine.createGoal({ prompt: 'a part', repoPath: repo });
     const ws = await ensureGoalWorkspace(dataDir, getGoal(engine.store.db, draft.id)!);
     const now = new Date().toISOString();
-    const task = { id: 't_land', goalId: draft.id, title: 'land', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now } as Task;
+    const task = { id: 't_land', goalId: draft.id, title: 'land', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, delegatedGoalId: null, summary: null, createdAt: now, updatedAt: now } as Task;
     engine.store.append({ type: 'task.created', goalId: draft.id, payload: { task } });
     // its merge attempt was still resolving the conflict: nothing committed yet
     engine.store.append({ type: 'attempt.started', goalId: draft.id, payload: { attempt: { id: newId(IdPrefix.attempt), goalId: draft.id, taskId: 't_land', index: 1, kind: 'merge', sessionId: null, model: null, state: 'running', costUsd: 0, numTurns: 0, resultSubtype: null, baseRef: await sh('git rev-parse HEAD', ws), endRef: null, pid: null, cwd: ws, transcriptPath: null, startedAt: now, endedAt: null, skillsUsed: [], continuations: 0, sessions: [] } } });
@@ -1267,7 +1267,7 @@ describe('a catch-up meets only verified commits on the goal branch', () => {
     writeFileSync(join(taskWs, 'late.txt'), 'late\n');
     await sh('git add -A && git commit -qm "feat: late"', taskWs);
     const now = new Date().toISOString();
-    const task = { id: 't_late', goalId: goal.id, title: 'late', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now } as Task;
+    const task = { id: 't_late', goalId: goal.id, title: 'late', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, delegatedGoalId: null, summary: null, createdAt: now, updatedAt: now } as Task;
     engine.store.append({ type: 'task.created', goalId: goal.id, payload: { task } });
     engine.store.append({ type: 'task.workspace_assigned', goalId: goal.id, payload: { taskId: 't_late', branch: 'task/t_late', worktreePath: taskWs } });
     return { engine, goal, ws, tip, taskWs, task: () => getTask(engine.store.db, 't_late')! };
@@ -1344,7 +1344,7 @@ describe('integration and landing in one step', () => {
     mkdirSync(join(taskWs, 'artifacts'), { recursive: true });
     writeFileSync(join(taskWs, 'artifacts', 'part.step'), 'step\n');
     const now = new Date().toISOString();
-    const task = { id: 't_part', goalId: goal.id, title: 'part', spec: 'model the part', kind: 'feature', scope: null, scenario: 'cad', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now } as Task;
+    const task = { id: 't_part', goalId: goal.id, title: 'part', spec: 'model the part', kind: 'feature', scope: null, scenario: 'cad', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, delegatedGoalId: null, summary: null, createdAt: now, updatedAt: now } as Task;
     engine.store.append({ type: 'task.created', goalId: goal.id, payload: { task } });
     engine.store.append({ type: 'task.workspace_assigned', goalId: goal.id, payload: { taskId: task.id, branch: 'task/t_part', worktreePath: taskWs } });
     const integrating = integrateTask(engine, getGoal(engine.store.db, goal.id)!, getTask(engine.store.db, task.id)!);

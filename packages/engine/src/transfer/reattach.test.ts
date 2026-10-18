@@ -49,7 +49,7 @@ async function exportHalfDone(): Promise<{ file: string; goal: Goal }> {
   a.beginUpdateDrain();
   const now = new Date().toISOString();
   a.store.append({ type: 'goal.state_changed', goalId: g.id, payload: { from: getGoal(a.store.db, g.id)!.state, to: 'running', reason: 'test: more work' } });
-  a.store.append({ type: 'task.created', goalId: g.id, payload: { task: { id: 't_second', goalId: g.id, title: 'create second.txt', spec: 'create second.txt', dependsOn: [], relevantFiles: [], parallelizable: false, retryBudget: 2, origin: 'brief', state: 'running', branch: null, worktreePath: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now } as never } });
+  a.store.append({ type: 'task.created', goalId: g.id, payload: { task: { id: 't_second', goalId: g.id, title: 'create second.txt', spec: 'create second.txt', dependsOn: [], relevantFiles: [], parallelizable: false, retryBudget: 2, origin: 'brief', state: 'running', branch: null, worktreePath: null, hint: null, extraAttempts: 0, delegatedGoalId: null, summary: null, createdAt: now, updatedAt: now } as never } });
   a.store.append({ type: 'attempt.started', goalId: g.id, payload: { attempt: { id: 'a_second', goalId: g.id, taskId: 't_second', index: 1, kind: 'work', sessionId: 'sess-old', model: null, state: 'running', costUsd: 0, numTurns: 0, resultSubtype: null, baseRef: null, endRef: null, pid: null, cwd: null, transcriptPath: null, startedAt: now, endedAt: null, skillsUsed: [], continuations: 0, sessions: [] } } });
   const ws = getGoal(a.store.db, g.id)!.workspaceDir!;
   await sh('mkdir -p artifacts/samples && echo png > artifacts/samples/pick.png', ws);

@@ -182,6 +182,32 @@ export const GoalCompletion = z.object({
 export type GoalCompletion = z.infer<typeof GoalCompletion>;
 export const IDLE_COMPLETION: GoalCompletion = { graphRefresh: false, docs: [], audit: false, auditRun: null, docsRun: null, graphRun: null, artifactsRun: null };
 
+/**
+ * Delegation: whether the planner may plan `goal` tasks (steps done by a Delegated goal of their own), and whether such a
+ * goal's Brief is approved without the human. Both off by default; a Delegated goal never delegates again (one level).
+ */
+export const GoalDelegation = z.object({
+  allow: z.boolean().default(false),
+  autoApprove: z.boolean().default(false),
+});
+export type GoalDelegation = z.infer<typeof GoalDelegation>;
+export const NO_DELEGATION: GoalDelegation = { allow: false, autoApprove: false };
+
+/**
+ * A Delegated goal: this goal does one `goal` task of a main goal. Kept on the Delegated goal (the main goal's task
+ * points back with `delegatedGoalId`); the title is kept so the link still reads once the main goal is deleted.
+ */
+export const GoalDelegatedFrom = z.object({
+  goalId: z.string(),
+  taskId: z.string(),
+  /** the main goal's title when the Delegated goal was created */
+  title: z.string(),
+  /** the main goal's chosen Style Proposal, kept: the Delegated goal's Brief starts with it picked; null = none */
+  style: BriefStyleOption.nullable().default(null),
+  at: z.string(),
+});
+export type GoalDelegatedFrom = z.infer<typeof GoalDelegatedFrom>;
+
 /** Goal states a Follow-up can be created from: the earlier goal is finished, whatever the outcome. */
 export const FOLLOWABLE_STATES: GoalState[] = ['done', 'over_delivered', 'failed', 'cancelled'];
 
@@ -335,6 +361,10 @@ export const Goal = z.object({
   completion: GoalCompletion.default(() => ({ ...IDLE_COMPLETION })),
   /** the earlier goal this one follows; default keeps pre-follow-up `goal.created` events replayable */
   follows: GoalFollows.nullable().default(null),
+  /** may the planner delegate steps to goals of their own, and are their Briefs approved without the human; default keeps older events replayable */
+  delegation: GoalDelegation.default(() => ({ ...NO_DELEGATION })),
+  /** set on a Delegated goal: the main goal and the task it does */
+  delegatedFrom: GoalDelegatedFrom.nullable().default(null),
   /** set when the goal arrived through a Transfer (ADR-0030) */
   transfer: GoalTransfer.optional(),
   runningSince: z.string().nullable(),

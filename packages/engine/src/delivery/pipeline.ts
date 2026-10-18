@@ -884,6 +884,8 @@ function syntheticMergeTask(ctx: Ctx, ref: string, into: string): Task {
     commitMessage: null,
     hint: null,
     extraAttempts: 0,
+    delegatedGoalId: null,
+    summary: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -963,6 +965,8 @@ async function fixCi(ctx: Ctx, repo: string, prNumber: number, unit: PrUnit, log
     commitMessage: null,
     hint: null,
     extraAttempts: 0,
+    delegatedGoalId: null,
+    summary: null,
     createdAt: now,
     updatedAt: now,
   };
