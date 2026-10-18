@@ -50,6 +50,7 @@ In Simple view the goal page shows:
 |---|---|
 | **Overview** | Where the goal stands, what needs you, the progress folder, the preview, acceptance checks. A number on the tab means something waits for you. |
 | **Tasks** | The task graph with each task's state. Shows **done/total · N running**. |
+| **Timeline** | When each step ran and how long it took, the goal and its delegated goals on one time axis. |
 | **Activity** | Everything that happened, newest first. |
 | **Diff** | Every change compared with where the goal started. |
 | **Delivery** | What happens to the result, and its progress. See [Getting the result](./getting-the-result.md#the-delivery-tab). |
@@ -270,6 +271,16 @@ When the Brief has [Subjects with pictures](./approving-the-brief.md#looks-like)
 ![Likeness to the pictures under a milestone's recording: the mascot at 6/10 beside its pictures, one major difference in red, one minor, and what already matches](images/likeness.png)
 
 When the review finds such major differences while the goal still runs, Foundry adds one task, **match … to its pictures**, with the differences and both sets of pictures. Once it lands, the milestone is recorded and compared again, and that second review only reports. Your notification channels hear **🔍 Not like the pictures yet** when the task is added. A review costs about as much as a task review.
+
+## Timeline
+
+When each step ran and how long it took, on one time axis, so the step that took longest shows at a glance.
+
+**Where the time went** starts with how long the goal took from start to end (or until now), how much of that it waited for you, and how long its delivery took. Below that is the time spent in sessions by kind (**Work**, **Reviews**, **Clarify**, **Landing**, **Other sessions**). Sessions run side by side, so together they can take longer than the goal did. **The longest steps** names the longest waits, sessions and delegated goals.
+
+The chart below has one row for the goal, with its phases: Clarify, waits for you, running, goal review and delivery. Then come a row with Foundry's own sessions (Clarify, the planner, reviews, docs), and one row per task: each attempt, its review and its landing. A delegated goal sits under the task it does, with rows of its own. Waits for you are striped, and a step still going has a green outline. Hold the pointer over a bar for its duration and cost.
+
+![The Timeline tab: where the time went, the longest steps, and every step of the goal and its delegated goal on one time axis](images/goal-timeline.png)
 
 ## Activity
 

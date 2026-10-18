@@ -20,13 +20,14 @@ import { DagCanvas, type DagTask } from './DagCanvas.tsx';
 import { DeliveryTab } from './DeliveryTab.tsx';
 import { DiffTab } from './DiffTab.tsx';
 import { OverviewTab } from './OverviewTab.tsx';
+import { TimelineTab } from './TimelineTab.tsx';
 import { TaskDrawer } from './TaskDrawer.tsx';
 import { SimpleOverview } from './SimpleOverview.tsx';
 import { UsagePausedBanner } from '../../components/UsageBanner.tsx';
 import { ProviderBadge } from '../agents/rows.tsx';
 
-type Tab = 'overview' | 'tasks' | 'activity' | 'diff' | 'delivery';
-const TABS: Tab[] = ['overview', 'tasks', 'activity', 'diff', 'delivery'];
+type Tab = 'overview' | 'tasks' | 'timeline' | 'activity' | 'diff' | 'delivery';
+const TABS: Tab[] = ['overview', 'tasks', 'timeline', 'activity', 'diff', 'delivery'];
 
 export function GoalPage() {
   const { id = '' } = useParams();
@@ -254,6 +255,7 @@ export function GoalPage() {
         tabs={[
           { id: 'overview', label: 'Overview', badge: open > 0 ? <span className="rounded-full bg-orange-500 text-zinc-950 text-[10px] px-1.5 font-bold">{open}</span> : null },
           { id: 'tasks', label: `Tasks`, badge: <span className="text-[10px] text-zinc-500">{d.tasks.filter((t) => t.state === 'done').length}/{d.tasks.length}{running ? ` · ${running} running` : ''}</span> },
+          { id: 'timeline', label: 'Timeline' },
           { id: 'activity', label: 'Activity' },
           { id: 'diff', label: 'Diff' },
           { id: 'delivery', label: 'Delivery' },
@@ -273,6 +275,7 @@ export function GoalPage() {
           )}
         </div>
       )}
+      {tab === 'timeline' && <TimelineTab goalId={id} />}
       {tab === 'activity' && <ActivityTab d={d} />}
       {tab === 'diff' && <DiffTab goalId={id} baseBranch={g.baseBranch} branch={g.branch} workspace={d.paths.workspace} />}
       {tab === 'delivery' && <DeliveryTab d={d} />}

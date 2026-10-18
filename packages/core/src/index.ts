@@ -7,6 +7,7 @@ export * from './machine/brief-coverage.ts';
 export * from './machine/brief-decisions.ts';
 export * from './machine/subjects.ts';
 export * from './machine/task-usage.ts';
+export * from './machine/timeline.ts';
 export * from './store/db.ts';
 export * from './store/event-store.ts';
 export * from './store/projections.ts';
