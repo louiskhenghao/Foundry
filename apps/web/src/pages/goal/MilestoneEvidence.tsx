@@ -1,4 +1,4 @@
-import { ARTIFACT_SCENARIOS } from '@foundry/core/browser';
+import { ARTIFACT_SCENARIOS, type BriefSubject, type LikenessVerdict } from '@foundry/core/browser';
 import { CheckCircle2, ChevronLeft, ChevronRight, ExternalLink, Eye, FastForward, FileCode2, FileDown, Loader2, MessageSquare, Play, RotateCcw, ScrollText } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { type GoalDetail, api, fileUrl } from '../../api.ts';
@@ -243,6 +243,75 @@ export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evi
   );
 }
 
+/** the Likeness review of one recording (its milestone.evidence event at `evidenceAt`) */
+export type Likeness = { taskId: string; evidenceAt: string; status: 'ok' | 'failed'; verdict: LikenessVerdict | null; detail: string; costUsd: number; fixTaskId: string | null };
+
+/** the review of the recording a milestone made at `at`, or null */
+export function likenessOf(d: Pick<GoalDetail, 'milestoneEvents'>, taskId: string, at: string): Likeness | null {
+  const e = d.milestoneEvents.filter((x) => x.type === 'milestone.likeness' && (x.payload as Likeness).taskId === taskId && (x.payload as Likeness).evidenceAt === at).at(-1);
+  return e ? (e.payload as Likeness) : null;
+}
+
+const scoreClass = (n: number) => (n >= 8 ? 'bg-emerald-500/15 text-emerald-300' : n >= 6 ? 'bg-amber-500/15 text-amber-300' : 'bg-rose-500/15 text-rose-300');
+
+/** the lowest score a review gave a Subject it saw, for the milestone's row */
+export function LikenessChip({ look }: { look: Likeness | null }) {
+  const scores = (look?.verdict?.subjects ?? []).filter((v) => v.shown && v.score != null).map((v) => v.score!);
+  if (!scores.length) return null;
+  const low = Math.min(...scores);
+  return <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] tabular-nums', scoreClass(low))} title="How much it looks like the Subjects' pictures (the lowest Subject)">likeness {low}/10</span>;
+}
+
+/**
+ * How close a recording is to the Subjects' pictures: per Subject its score, its pictures beside the shots above, what
+ * differs (major ones first in red) and what already matches; and the fix task Foundry added for the major differences.
+ */
+export function LikenessView({ goalId, look, subjects, running, fixTitle }: { goalId: string; look: Likeness | null; subjects: BriefSubject[]; running: boolean; fixTitle: string | null }) {
+  if (!look) return running ? <div className="text-[11px] text-zinc-500 flex items-center gap-1.5"><Loader2 size={11} className="animate-spin" /> Comparing with the pictures…</div> : null;
+  if (look.status === 'failed' || !look.verdict) return <div className="text-[11px] text-amber-300/90">The likeness review gave no verdict{look.detail ? `: ${look.detail}` : ''}.</div>;
+  return (
+    <div className="rounded-md border border-zinc-800 bg-zinc-900/40 p-2.5 space-y-2.5">
+      <div className="text-[11px] text-zinc-400">
+        <span className="font-medium text-zinc-200">Likeness to the pictures</span>
+        {look.verdict.summary ? ` · ${look.verdict.summary}` : ''}
+      </div>
+      {look.verdict.subjects.map((v) => {
+        const s = subjects.find((x) => x.key === v.key);
+        const diffs = [...v.differences].sort((a, b) => Number(b.major) - Number(a.major));
+        return (
+          <div key={v.key} className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="font-medium text-zinc-200">{s?.name ?? v.key}</span>
+              {v.shown && v.score != null ? <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] tabular-nums', scoreClass(v.score))}>{v.score}/10</span> : <span className="text-[10px] text-zinc-500">not in these shots</span>}
+            </div>
+            {v.shown && (s?.pictures.length ?? 0) > 0 && (
+              <div className="flex gap-1.5 overflow-x-auto">
+                {s!.pictures.slice(0, 6).map((p) => (
+                  <a key={p.file} href={api.subjectPictureUrl(goalId, p.file)} target="_blank" rel="noreferrer" title={p.caption || 'a picture of it'} className="shrink-0">
+                    <img src={api.subjectPictureUrl(goalId, p.file)} alt={p.caption || s!.name} loading="lazy" className="h-12 w-16 object-cover rounded border border-zinc-800 hover:border-zinc-500" />
+                  </a>
+                ))}
+              </div>
+            )}
+            {diffs.length > 0 && (
+              <ul className="text-[11px] space-y-0.5">
+                {diffs.map((d, i) => (
+                  <li key={i} className={cn('flex gap-1.5', d.major ? 'text-rose-300/90' : 'text-zinc-400')}>
+                    <span className="shrink-0">{d.major ? '●' : '○'}</span>
+                    <span>{d.what}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {v.matches.length > 0 && <div className="text-[11px] text-emerald-300/80">Matches: {v.matches.join('; ')}</div>}
+          </div>
+        );
+      })}
+      {fixTitle && <div className="text-[11px] text-sky-300/90">Foundry added “{fixTitle}” for the major differences; the milestone is recorded and compared again once it lands.</div>}
+    </div>
+  );
+}
+
 /** what happened at one milestone visit */
 interface Visit {
   at: string;
@@ -349,6 +418,7 @@ export function MilestonesCard({ d }: { d: GoalDetail }) {
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="text-zinc-200 font-medium">{task.title}</span>
                       <StatusChip status={status} files={files} />
+                      {rec && <LikenessChip look={likenessOf(d, task.id, rec.at)} />}
                     </span>
                     <span className="block text-zinc-500 truncate">{task.milestone}</span>
                     <span className="block text-[11px] text-zinc-500">
@@ -367,8 +437,9 @@ export function MilestonesCard({ d }: { d: GoalDetail }) {
                 )}
               </div>
               {expanded && rec && (
-                <div className="mt-2 ml-5">
+                <div className="mt-2 ml-5 space-y-2">
                   <EvidenceView key={rec.at} goalId={g.id} evidence={rec.evidence} taskId={task.id} />
+                  <LikenessView goalId={g.id} look={likenessOf(d, task.id, rec.at)} subjects={d.brief?.brief.subjects ?? []} running={(d.likenessRuns ?? []).includes(task.id)} fixTitle={d.tasks.find((t) => t.id === likenessOf(d, task.id, rec.at)?.fixTaskId)?.title ?? null} />
                 </div>
               )}
             </li>

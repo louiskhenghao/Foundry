@@ -1,5 +1,6 @@
 import type { Brief, Goal } from '@foundry/core/browser';
 import { Check, Settings2 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { OpenFull } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
@@ -29,6 +30,8 @@ export function SimpleBrief(p: {
   onSave: () => void;
   onCancel: () => void;
   onExpert: () => void;
+  /** the Subjects card (what the result must look like), or null when the goal has no look */
+  subjects?: ReactNode;
 }) {
   const { brief, goal: g, editable, update } = p;
   const blockingUnanswered = brief.questions.filter((q) => q.blocking && !q.answer?.trim());
@@ -83,6 +86,8 @@ export function SimpleBrief(p: {
           {p.pendingDecisions > 0 && <p className="text-[11px] text-amber-300 mt-2">Your answers reach every worker. If they change what should be built, use Expert view → Revise with answers so the plan below follows them.</p>}
         </Card>
       )}
+
+      {p.subjects}
 
       {brief.assumptions.length > 0 && (
         <Card title="I will assume… (untick anything that is wrong)">
