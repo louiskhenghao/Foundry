@@ -112,6 +112,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `notifications.tailscaleHost` | — | `FOUNDRY_TAILSCALE_HOST` | This computer's tailnet name, when it should not be read from `tailscale status`. |
 | `notifications.onEscalation` | `true` | — | Notify when something needs you (Inbox). |
 | `notifications.onInterview` | `true` | — | Notify when Clarify asks an interview round. |
+| `notifications.onBriefReady` | `true` | — | Notify when a Brief waits for your approval (one the engine approves itself never notifies). |
 | `notifications.onGoalFinished` | `true` | — | Notify when a goal ends done, over-delivered or failed. |
 | `notifications.onDelivery` | `true` | — | Notify when a PR opens, merges, or delivery fails. |
 | `notifications.onRateLimit` | `true` | — | Notify when a usage limit pauses the engine and when it resumes. |

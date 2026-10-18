@@ -93,6 +93,7 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'notifications.tailscaleHost': { section: 'Notifications', help: "This computer's tailnet name, when it should not be read from `tailscale status`." },
   'notifications.onEscalation': { section: 'Notifications', help: 'Notify when something needs you (Inbox).' },
   'notifications.onInterview': { section: 'Notifications', help: 'Notify when Clarify asks an interview round.' },
+  'notifications.onBriefReady': { section: 'Notifications', help: 'Notify when a Brief waits for your approval (one the engine approves itself never notifies).' },
   'notifications.onGoalFinished': { section: 'Notifications', help: 'Notify when a goal ends done, over-delivered or failed.' },
   'notifications.onDelivery': { section: 'Notifications', help: 'Notify when a PR opens, merges, or delivery fails.' },
   'notifications.onRateLimit': { section: 'Notifications', help: 'Notify when a usage limit pauses the engine and when it resumes.' },
