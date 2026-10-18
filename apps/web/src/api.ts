@@ -1,5 +1,5 @@
 import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment } from '@foundry/core/browser';
-import type { Attachment, Attempt, Brief, BriefApp, BriefCheck, BriefDiff, BriefRun, BriefStyleOption, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, SettingsPatch, SettingsView, Task, TaskUsage } from '@foundry/core/browser';
+import type { Attachment, Attempt, Brief, BriefApp, BriefCheck, BriefDiff, BriefRun, BriefStyleOption, BriefSubject, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, SettingsPatch, SettingsView, SubjectPicture, Task, TaskUsage } from '@foundry/core/browser';
 
 /** Mirrors the engine's PreviewAppStatus (preview/manager.ts): one app of the goal's preview. */
 export interface PreviewAppStatus {
@@ -396,6 +396,10 @@ export interface GoalDetail {
   auditRunning?: boolean;
   /** REA is studying the goal's references */
   investigating?: boolean;
+  /** the Subjects (keys) whose pictures Foundry is searching for now: the Brief waits for them */
+  subjectSearches?: string[];
+  /** the milestones (task ids) whose recording is being compared with the Subjects' pictures now */
+  likenessRuns?: string[];
   /** Follows / Followed by (goal.follows holds the earlier goal; it may have been deleted since) */
   followUps: { followsExists: boolean; followedBy: { id: string; title: string; state: GoalState }[] };
   /** Delegated from / Delegated goals (goal.delegatedFrom holds the main goal; it may have been deleted since) */
@@ -580,6 +584,22 @@ export function apiForProvider(provider?: AgentProvider) {
   cancelGoal: (id: string) => req<{ ok: true }>(`/api/goals/${id}/cancel`, { method: 'POST' }),
   styleSample: (id: string, styleKey: string) => req<{ started: true; channel: string; file: string }>(`/api/goals/${id}/brief/style-sample`, { method: 'POST', body: JSON.stringify({ styleKey }) }),
   styleSampleUrl: (id: string, file: string) => `/api/goals/${id}/brief/style-sample/${encodeURIComponent(file.split('/').pop()!)}`,
+  addSubject: (id: string, body: { name: string; lookFor?: string; search?: boolean }) => req<BriefSubject>(`/api/goals/${id}/brief/subjects`, { method: 'POST', body: JSON.stringify(body) }),
+  updateSubject: (id: string, key: string, body: { name?: string; lookFor?: string }) => req<{ ok: true }>(`/api/goals/${id}/brief/subjects/${encodeURIComponent(key)}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  removeSubject: (id: string, key: string) => req<{ ok: true }>(`/api/goals/${id}/brief/subjects/${encodeURIComponent(key)}`, { method: 'DELETE' }),
+  /** search the web for (more) pictures of a Subject; the result arrives as a brief.subject_searched event */
+  searchSubject: (id: string, key: string) => req<{ started: true }>(`/api/goals/${id}/brief/subjects/${encodeURIComponent(key)}/search`, { method: 'POST' }),
+  /** the person's own pictures of a Subject (a multipart form: the browser sets its boundary) */
+  addSubjectPictures: async (id: string, key: string, files: File[]): Promise<SubjectPicture[]> => {
+    const fd = new FormData();
+    for (const f of files) fd.append('file', f, f.name);
+    const res = await fetch(`/api/goals/${id}/brief/subjects/${encodeURIComponent(key)}/pictures`, { method: 'POST', body: fd });
+    const body = safeJson(await res.text()) as { pictures?: SubjectPicture[]; error?: string } | string;
+    if (!res.ok) throw new ApiError((typeof body === 'object' && body?.error) || `upload failed (${res.status})`, res.status, body);
+    return (body as { pictures: SubjectPicture[] }).pictures;
+  },
+  removeSubjectPicture: (id: string, key: string, file: string) => req<{ ok: true }>(`/api/goals/${id}/brief/subjects/${encodeURIComponent(key)}/pictures/${encodeURIComponent(file)}`, { method: 'DELETE' }),
+  subjectPictureUrl: (id: string, file: string) => `/api/goals/${id}/subjects/${encodeURIComponent(file)}`,
   guide: () => req<{ pages: { slug: string; title: string; zh: string | null }[] }>('/api/guide'),
   guidePage: (slug: string, lang: 'en' | 'zh') => req<{ slug: string; markdown: string; lang: 'en' | 'zh' }>(`/api/guide/page/${encodeURIComponent(slug)}?lang=${lang}`),
   interviewAnswer: (id: string, answers: Record<string, string>, finish = false) => req<{ ok: true }>(`/api/goals/${id}/interview/answer`, { method: 'POST', body: JSON.stringify({ answers, finish }) }),

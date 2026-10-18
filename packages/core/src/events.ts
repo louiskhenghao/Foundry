@@ -31,6 +31,8 @@ import {
   TaskState,
   AttemptState,
   AttemptSession,
+  LikenessVerdict,
+  SubjectPicture,
 } from './schema/index.ts';
 
 const base = { id: z.string(), ts: z.string(), goalId: z.string().nullable() };
@@ -148,6 +150,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   }),
   /** the final walkthrough ran every milestone script once all tasks were done; failed = the milestone tasks whose script failed */
   ev('milestone.final_walk', { passed: z.boolean(), failed: z.array(z.string()) }),
+  /** the Likeness review compared a milestone's recording (its milestone.evidence event at `evidenceAt`) with the Subjects' pictures; `fixTaskId`: the fix task it added for the major differences */
+  ev('milestone.likeness', { taskId: z.string(), evidenceAt: z.string(), status: z.enum(['ok', 'failed']), verdict: LikenessVerdict.nullable(), detail: z.string(), costUsd: z.number(), fixTaskId: z.string().nullable() }),
   ev('selfcheck.finished', { taskId: z.string().nullable(), status: z.enum(['pass', 'fail', 'error']), url: z.string().nullable(), screenshot: z.string().nullable(), errors: z.array(z.string()), summary: z.string() }),
   /** per-goal autoskills run: project skills matched to the repository's stack, installed in the goal workspace */
   ev('goal.autoskills', { status: z.enum(['installed', 'skipped', 'failed']), skills: z.array(z.string()), detail: z.string() }),
@@ -189,6 +193,13 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.investigation_finished', { status: z.enum(['ok', 'failed', 'skipped']), summary: z.string(), attachmentId: z.string().nullable(), docPath: z.string().nullable(), docRef: z.string().nullable().optional(), costUsd: z.number(), detail: z.string() }),
   /** one style sample was generated for a Style Proposal (file appended to its samples, never replacing) */
   ev('brief.style_sampled', { styleKey: z.string(), file: z.string(), costUsd: z.number(), status: z.enum(['ok', 'failed']), detail: z.string() }),
+  /** a Subject was named on the Brief, or its name or what must match changed (its pictures and search stay) */
+  ev('brief.subject_set', { subject: z.object({ key: z.string(), name: z.string(), lookFor: z.string() }) }),
+  ev('brief.subject_removed', { subjectKey: z.string() }),
+  /** pictures of a Subject the person added (an upload, an attached image) or removed (file names in the goal's subjects folder) */
+  ev('brief.subject_pictures', { subjectKey: z.string(), added: z.array(SubjectPicture), removed: z.array(z.string()) }),
+  /** Foundry's search for pictures of a Subject ended; the pictures it kept are appended */
+  ev('brief.subject_searched', { subjectKey: z.string(), status: z.enum(['ok', 'failed']), pictures: z.array(SubjectPicture), costUsd: z.number(), detail: z.string() }),
   ev('brief.proposed', { brief: Brief }),
   ev('brief.edited', { brief: Brief }),
   ev('brief.approved', { brief: Brief }),

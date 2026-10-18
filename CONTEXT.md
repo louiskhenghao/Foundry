@@ -304,6 +304,15 @@ One visual direction for a media or UI Goal — palette, typefaces, keywords, a 
 **Style Sample**
 A single cheap real image generated on demand to taste a Style Proposal before approving the Brief. Samples are a history: regenerating appends a new one and every earlier sample stays — the human can change their mind and pin any of them as the reference image Workers must match. Samples live in the goal workspace's `artifacts/samples/` (git-excluded) and are copied into every Task worktree so the Worker can open the pinned one.
 
+**Subject**
+A real thing a Goal's result depicts: a particular vehicle, building, landmark, product or artwork, never a person. Named on the Brief precisely enough to find pictures of exactly that one, with what must match (the proportions, the distinctive features, colours and materials). The Clarifier names them for goals with a look; the human adds, changes and removes them while the Brief waits. At most four per Brief. A Delegated Goal and a Follow-up start with the Subjects of the Goal they come from.
+
+**Subject picture**
+A photo or official render of a Subject: found on the web by Foundry (once by itself, for a Subject that has none, while the Brief waits; approval waits for it) or added by the human (an upload, or an attached image the Clarifier mapped to it). Kept with the Goal outside the repository and the workspace: never committed, delivered or embedded in the result — it is there to compare with. Workers on work with a look build from them and render what they made from the same views; Reviewers compare the two. Unlike a Style Sample, which pins a feel, a Subject picture pins a likeness.
+
+**Likeness review**
+The comparison of a Milestone's recording with the Subject pictures: per Subject, whether the recording shows it, how close it is out of ten, what matches and what differs (a major difference is one someone who knows the Subject would notice at a glance). Major differences make one fix Task per Milestone, which re-opens it like a feedback fix; the recording after it lands is reviewed again and only reported. The Final walkthrough's recordings are not reviewed.
+
 **Pace**
 How much the engine adds on top of what the human approved. *Thorough* (default) adds its own task reviews, the goal-diff review and generated docs; *fast* runs only what the Brief asks for — every approved Check, including Reviewer Checks, still executes. Chosen per Goal at creation.
 

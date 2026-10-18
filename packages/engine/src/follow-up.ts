@@ -14,6 +14,7 @@ import { attachmentsDir } from './attachments.ts';
 import type { Engine } from './engine.ts';
 import { branchExists, git } from './git/git.ts';
 import { fetchBase } from './git/sync.ts';
+import { inheritSubjects } from './subjects.ts';
 import { goalWorkspacePath } from './workspace.ts';
 
 export class FollowUpError extends Error {
@@ -201,6 +202,8 @@ export async function prepareFollowUp(engine: Engine, input: FollowUpInput, repo
     branch: w.branchExists ? a.branch : null,
     context: renderPreviousGoal(engine, a, style),
     style: style ? { ...style, samples: [], chosenSample: null } : null,
+    // A's Subjects, their pictures copied into B's folder: B's Brief starts with them
+    subjects: inheritSubjects(engine.config.dataDir, a.id, toGoalId, getBrief(engine.store.db, a.id)?.brief.subjects ?? []),
     at: new Date().toISOString(),
   };
   return { follows, attachments, baseBranch: a.baseBranch };

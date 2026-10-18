@@ -65,6 +65,21 @@ Foundry 用自己的话说它理解了什么。先读这个：如果这里错了
 
 你选的方向对每个产出可见内容的任务都有约束力。没有外观的任务（服务端代码、数据、文档）会忽略它。
 
+## Looks like
+
+如果结果描绘的是真实存在的东西（某一款车、一座建筑、一件产品），**Looks like** 会列出这些真实的东西，也就是 Subject，并附上它们的图片。执行者动手前会先看这些图片，做完后拿成品和图片对比；每一次审查也都拿它们来对比。图片只留在这台电脑上：不会被提交、交付，也不会放进成品里。
+
+- **Foundry 会找图片。** Brief 等待批准期间，它会在网上为每个还没有图片的 Subject 找几张（每个 Subject 约 $1）。卡片上会显示 **Finding pictures… (a minute or two)**，图片到齐之前 **Approve** 会等着。
+- 用图片上的 **×** **删除不对的图片**，用名称旁边的 **×** 删除不对的 Subject。
+- **Add your own** 上传你自己的照片或渲染图（PNG、JPEG、WebP 或 GIF，最大 5 MB）。你附加给 goal 的图片如果拍的是某个 Subject，会自动加进来。
+- **Find more** 再搜一次，找其他角度。一个 Subject 最多 8 张图片。
+- 点 Subject 名称下面那一行，写下哪些地方必须一致（比例、标志性特征、颜色）。
+- 要添加 Foundry 漏掉的 Subject，准确输入它的名称（品牌、型号、年份）和必须一致的地方，然后按 **Add and find pictures**。一份 Brief 最多 4 个 Subject。
+
+![Looks like 卡片：工作室的吉祥物手办作为一个 Subject，附上使用者的三张图片，还有 Find more、Add your own，以及添加另一个 Subject 的表单](images/subjects.png)
+
+Delegated goal 和 follow-up 会带着来源 goal 的 Subject 和图片开始，**Re-run Clarify** 也会保留它们。每个里程碑怎样和图片对比，见 [Likeness to the pictures](./while-it-runs.zh.md#likeness-to-the-pictures)。
+
 ## Assumptions
 
 **Assumptions (accepted unless you uncheck)**：除非你另有说法，否则 Foundry 会当作事实的事情，比如"现有的登录保持不变"。保持勾选就表示你同意。把不对的那条取消勾选；它会被划掉，并变成一个决定（"assumption rejected"）。

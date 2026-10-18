@@ -263,6 +263,14 @@ goal 暂停时，它的状态标记显示 **have a look**，Inbox 显示 **Have 
 
 同样的截图和视频会在第二条消息 **📸 What the milestone looks like**（脚本失败时是 **⚠️ A milestone did not show**）里发到你的通知渠道，不管 goal 有没有暂停；最终走查只为所有功能发一条消息；之后也可以在 Overview 的 **Milestones** 卡片里重看。视频太大、超过渠道上限（Telegram 50 MB，Discord 10 MB）时，留在 goal 页面上，消息里会说明。
 
+### Likeness to the pictures
+
+如果 Brief 里有[带图片的 Subject](./approving-the-brief.zh.md#looks-like)，除最终走查之外的每一次里程碑录制，都会拿去和这些图片对比：一次简短的审查打开录制的截图（文件型里程碑的图片、视频片段的帧）和这些图片，按每个 Subject 给出 10 分制的相似度、已经一致的地方和不同的地方。结果显示在录制下方的 **Likeness to the pictures**，熟悉这个东西的人一眼就能看出的差异排在前面，用红色标出。里程碑那一行显示 **likeness N/10**，取最低的那个 Subject 的分数。
+
+![里程碑录制下方的 Likeness to the pictures：吉祥物得 6/10，旁边是它的图片，一条明显差异标红，一条次要差异，以及已经一致的地方](images/likeness.png)
+
+goal 还在运行时，如果审查发现这类明显差异，Foundry 会添加一个任务 **match … to its pictures**，附上差异和两组图片。它落地后，这个里程碑会重新录制、再对比一次，第二次审查只报告结果。添加这个任务时，你的通知渠道会收到 **🔍 Not like the pictures yet**。一次审查的费用和一次任务审查差不多。
+
 ## Activity
 
 goal 发生过的所有事，最新的在前，每件一行：阶段、任务开始和结束、检查、决定、交付步骤。**important only** 隐藏常规的行；**show bookkeeping events** 显示更多。以 **…** 结尾的行只显示了一段较长文字的开头，比如 worker 的消息、检查结果或一条说明；点它可以看全文。

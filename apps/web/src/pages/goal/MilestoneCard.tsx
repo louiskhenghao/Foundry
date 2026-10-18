@@ -3,7 +3,7 @@ import { Eye, Loader2, MessageSquare, Play } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { type GoalDetail, api } from '../../api.ts';
 import { Button, Card, Select, Textarea, cn } from '../../ui.tsx';
-import { type Evidence, EvidenceView, FINAL_WALK, evidenceStatus, showsFiles } from './MilestoneEvidence.tsx';
+import { type Evidence, EvidenceView, FINAL_WALK, LikenessView, evidenceStatus, likenessOf, showsFiles } from './MilestoneEvidence.tsx';
 import { PreviewCard } from './PreviewCard.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 
@@ -200,5 +200,11 @@ function Walkthrough({ d, taskId, since }: { d: GoalDetail; taskId: string; sinc
   // an older recording shows while no new one is on its way (a milestone that paused after its script failed again)
   if (!ev || (ev.ts < since && (d.milestoneRuns ?? []).includes(taskId)))
     return <div className="text-[11px] text-zinc-500 flex items-center gap-1.5">{files ? <><Loader2 size={11} className="animate-spin" /> Collecting what the task produced…</> : <><Play size={11} /> Recording a walkthrough of the preview…</>}</div>;
-  return <EvidenceView key={ev.ts} goalId={d.goal.id} evidence={ev.payload as Evidence} taskId={taskId} />;
+  const look = likenessOf(d, taskId, ev.ts);
+  return (
+    <div className="space-y-2">
+      <EvidenceView key={ev.ts} goalId={d.goal.id} evidence={ev.payload as Evidence} taskId={taskId} />
+      <LikenessView goalId={d.goal.id} look={look} subjects={d.brief?.brief.subjects ?? []} running={(d.likenessRuns ?? []).includes(taskId)} fixTitle={d.tasks.find((t) => t.id === look?.fixTaskId)?.title ?? null} />
+    </div>
+  );
 }

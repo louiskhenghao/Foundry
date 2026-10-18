@@ -10,6 +10,7 @@ import { diff } from '../git/git.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from '../guards/boundary.ts';
 import { reviewDiffDir } from '../workspace.ts';
 import { resolveDiscipline } from '../skills/workflow.ts';
+import { renderSubjects, sessionDirs, subjectsAddDirs } from '../subjects.ts';
 
 /**
  * Task-level lightweight review: cheap model, diff + spec only, blockers only.
@@ -166,10 +167,12 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
         : '';
   const brief = getBrief(engine.store.db, goal.id)?.brief;
   const style = brief && ['image', 'video', 'frontend', 'fullstack'].includes(task.scenario) ? renderStyle(chosenStyle(brief), { forReviewer: true }) : '';
+  const subjects = renderSubjects(engine.config.dataDir, goal.id, brief, 'task-reviewer', task.scenario);
   const prompt = [
     `# Task (${task.kind}${task.scenario !== 'general' ? `, ${task.scenario}` : ''})\n${task.title}\n\n${task.spec}`,
     rubric ? `# Rubric (verify each)\n${rubric}` : '',
     style,
+    subjects,
     media,
     reviewerHint ?? '',
     formatWorkflowObservation(workflow),
@@ -194,6 +197,8 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
     jsonSchema: zodToJsonSchema(ReviewerVerdictSchema, { $refStrategy: 'none' }),
     settings: boundarySettings(engine.config.hooksDir),
     settingSources: engine.config.settingSources,
+    // the Subjects' pictures live outside the worktree
+    addDirs: subjects ? sessionDirs(subjectsAddDirs(engine.config.dataDir, goal.id, brief)) : undefined,
     timeoutMs: 5 * 60_000,
     transcriptPath: join(engine.config.dataDir, 'transcripts', `${attempt.id}.review.jsonl`),
     label: `review ${task.title}`,
@@ -224,6 +229,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
       jsonSchema: zodToJsonSchema(ReviewerVerdictSchema, { $refStrategy: 'none' }),
       settings: boundarySettings(engine.config.hooksDir),
       settingSources: engine.config.settingSources,
+      addDirs: subjects ? sessionDirs(subjectsAddDirs(engine.config.dataDir, goal.id, brief)) : undefined,
       resumeSessionId: r.sessionId,
       timeoutMs: 3 * 60_000,
       transcriptPath: join(engine.config.dataDir, 'transcripts', `${attempt.id}.review.jsonl`),

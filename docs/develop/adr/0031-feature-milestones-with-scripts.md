@@ -1,6 +1,6 @@
 # ADR-0031: A milestone per feature, shown by a Playwright script its task writes
 
-**Status:** accepted · 2026-10-14 · amends [ADR-0012](0012-milestones-previews-and-the-self-check.md) (milestones)
+**Status:** accepted · 2026-10-14 · amends [ADR-0012](0012-milestones-previews-and-the-self-check.md) (milestones) · amended by [ADR-0042](0042-subjects-and-the-likeness-review.md) (a Likeness review of each recording when the Brief has Subject pictures)
 
 ## Context
 

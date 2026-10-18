@@ -89,6 +89,14 @@ describe('milestones', () => {
     expect(partly!.text).toBe('📸 What the milestone looks like — Demo\nopens /dev\n⚠️ 3 screenshot(s) showed HTTP 404 at /dev and were left out');
   });
 
+  test('a Likeness review is news only when it added a fix task', () => {
+    const verdict = { subjects: [{ key: 'P1', shown: true, score: 4, matches: [], differences: [{ what: 'the nose', major: true }], shots: [] }], summary: 'a sports car, not this one' };
+    const fixing = compose(ev('milestone.likeness', { taskId: 't1', evidenceAt: 'x', status: 'ok', verdict, detail: '', costUsd: 0.3, fixTaskId: 't_fix' }), () => 'Demo');
+    expect(fixing).toEqual({ family: 'milestone', text: '🔍 Not like the pictures yet — Demo (4/10)\na sports car, not this one\nFoundry added a task that fixes the differences.', path: '/goals/g1' });
+    expect(compose(ev('milestone.likeness', { taskId: 't1', evidenceAt: 'x', status: 'ok', verdict, detail: '', costUsd: 0.3, fixTaskId: null }), () => 'Demo')).toBeNull();
+    expect(compose(ev('milestone.likeness', { taskId: 't1', evidenceAt: 'x', status: 'failed', verdict: null, detail: 'no verdict', costUsd: 0.3, fixTaskId: null }), () => 'Demo')).toBeNull();
+  });
+
   test("a milestone of files speaks of what the task produced, never of a walkthrough", () => {
     const shown = compose(ev('milestone.evidence', { taskId: 't1', video: null, shots: [{ file: 's.png', caption: 'bracket_iso.png' }], summary: '', error: null, status: 'pass', kind: 'files', files: ['bracket.step', 'bracket.stl'] }), () => 'Demo');
     expect(shown!.text).toBe('📸 What the task produced — Demo\nFiles: bracket.step, bracket.stl');

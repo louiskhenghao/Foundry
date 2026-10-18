@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } fr
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CodexEffort, Effort, Brief, EscalationAnswer, isHistory, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId } from '@foundry/engine';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId } from '@foundry/engine';
 import type { Task } from '@foundry/core';
 import { LearningKind, listDelegatedGoals, listRepoLearnings, DeployProvider } from '@foundry/core';
 import { delegationNeedsHuman } from '@foundry/engine';
@@ -743,8 +743,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       escalations: listEscalations(db, { goalId: id }).map(e => ({ ...e, provider: goal.provider ?? engine.config.provider })),
       events: engine.store.listByGoal(id, 300),
       // every milestone visit and walkthrough, which a long goal pushes out of the latest events
-      milestoneEvents: engine.store.listByGoalOfTypes(id, ['goal.checkpoint_opened', 'goal.checkpoint_closed', 'goal.milestone_passed', 'milestone.evidence', 'milestone.final_walk']),
+      milestoneEvents: engine.store.listByGoalOfTypes(id, ['goal.checkpoint_opened', 'goal.checkpoint_closed', 'goal.milestone_passed', 'milestone.evidence', 'milestone.final_walk', 'milestone.likeness']),
       milestoneRuns: engine.milestoneRuns(id),
+      // the milestones whose recording is being compared with the Subjects' pictures, and the Subjects whose pictures are being found
+      likenessRuns: likenessRunsFor(id),
+      subjectSearches: subjectSearchesFor(id),
       auditRunning: engine.auditing.has(id),
       investigating: engine.investigating.has(id),
       // Follows / Followed by: the earlier goal may have been deleted since (then only its title remains)
@@ -842,6 +845,78 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const p = join(goalWorkspacePath(engine.config.dataDir, goal), 'artifacts', 'samples', file);
     if (!existsSync(p)) throw new HttpError(404, { error: 'sample not generated yet' });
     return new Response(Bun.file(p), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'no-cache' } });
+  });
+
+  // Subjects (ADR-0042): the real things the result depicts and their pictures, changed while the Brief awaits approval
+  const subjectError = (e: unknown): never => {
+    if (e instanceof SubjectError) throw new HttpError(e.status, { error: e.message });
+    throw e;
+  };
+  app.post('/api/goals/:id/brief/subjects', async (c) => {
+    const body = z.object({ name: z.string().trim().min(1).max(200), lookFor: z.string().max(1000).optional(), search: z.boolean().optional() }).parse(await c.req.json());
+    try {
+      return c.json(addSubject(engine, c.req.param('id'), body), 201);
+    } catch (e) {
+      return subjectError(e);
+    }
+  });
+  app.patch('/api/goals/:id/brief/subjects/:key', async (c) => {
+    const body = z.object({ name: z.string().trim().min(1).max(200).optional(), lookFor: z.string().max(1000).optional() }).parse(await c.req.json());
+    try {
+      updateSubject(engine, c.req.param('id'), c.req.param('key'), body);
+      return c.json({ ok: true });
+    } catch (e) {
+      return subjectError(e);
+    }
+  });
+  app.delete('/api/goals/:id/brief/subjects/:key', (c) => {
+    try {
+      removeSubject(engine, c.req.param('id'), c.req.param('key'));
+      return c.json({ ok: true });
+    } catch (e) {
+      return subjectError(e);
+    }
+  });
+  // search the web for (more) pictures: the result arrives as brief.subject_searched
+  app.post('/api/goals/:id/brief/subjects/:key/search', (c) => {
+    try {
+      startSubjectSearch(engine, c.req.param('id'), c.req.param('key'));
+      return c.json({ started: true }, 202);
+    } catch (e) {
+      return subjectError(e);
+    }
+  });
+  // the person's own pictures: a multipart form with `file` (one or more) and an optional `caption`
+  app.post('/api/goals/:id/brief/subjects/:key/pictures', async (c) => {
+    const body = await c.req.parseBody({ all: true });
+    const raw = body.file ?? body.files;
+    const list = (Array.isArray(raw) ? raw : raw ? [raw] : []).filter((f: unknown): f is File => f instanceof File);
+    if (!list.length) throw new HttpError(400, { error: 'no file field in the form' });
+    const caption = typeof body.caption === 'string' ? body.caption : '';
+    try {
+      const pictures = [];
+      for (const f of list) pictures.push(addSubjectPicture(engine, c.req.param('id'), c.req.param('key'), new Uint8Array(await f.arrayBuffer()), caption));
+      return c.json({ pictures }, 201);
+    } catch (e) {
+      return subjectError(e);
+    }
+  });
+  app.delete('/api/goals/:id/brief/subjects/:key/pictures/:file', (c) => {
+    try {
+      removeSubjectPicture(engine, c.req.param('id'), c.req.param('key'), c.req.param('file'));
+      return c.json({ ok: true });
+    } catch (e) {
+      return subjectError(e);
+    }
+  });
+  const PICTURE_TYPES: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' };
+  app.get('/api/goals/:id/subjects/:file', (c) => {
+    const file = c.req.param('file');
+    const type = PICTURE_TYPES[file.split('.').pop() ?? ''];
+    const p = type ? subjectPicturePath(engine.config.dataDir, c.req.param('id'), file) : null;
+    if (!p) throw new HttpError(400, { error: 'bad picture name' });
+    if (!existsSync(p)) throw new HttpError(404, { error: 'no such picture' });
+    return new Response(Bun.file(p), { headers: { 'Content-Type': type!, 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff' } });
   });
 
   app.post('/api/goals/:id/reclarify', async (c) => {

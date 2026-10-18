@@ -14,6 +14,7 @@ import { ReferenceCard } from './ReferenceCard.tsx';
 import { AreasCard } from './AreasCard.tsx';
 import { CompletionCard, type CompletionChoice } from './CompletionCard.tsx';
 import { StyleCards } from './StyleCards.tsx';
+import { SubjectsCard } from './SubjectsCard.tsx';
 import { DecisionsBar } from './DecisionsBar.tsx';
 import { GoalAcceptanceCard } from './GoalAcceptanceCard.tsx';
 import { RunCard } from './RunCard.tsx';
@@ -113,7 +114,13 @@ export function BriefPage() {
     badTasks.length ? `${badTasks.length} task${badTasks.length > 1 ? 's' : ''} without a title` : '',
     badChecks.length ? `${badChecks.length} incomplete check${badChecks.length > 1 ? 's' : ''}` : '',
     detail?.investigating ? 'REA is still studying the references' : '',
+    detail?.subjectSearches?.length ? 'pictures of the Subjects are still being found' : '',
   ].filter(Boolean);
+  // the Subjects are the server's copy: pictures arrive while the page holds an edited Brief
+  const subjects = detail.brief?.brief.subjects ?? [];
+  const searching = detail.subjectSearches ?? [];
+  const visual = subjects.length > 0 || brief.styleOptions.length > 0 || ['image', 'video', 'cad'].includes(g.nature) || brief.tasks.some((t) => ['frontend', 'fullstack', 'mobile', 'image', 'video', 'cad'].includes(t.scenario));
+  const subjectsCard = visual ? <SubjectsCard goalId={id} subjects={subjects} searching={searching} editable={editable} /> : null;
 
   const save = async () => {
     setBusy(true);
@@ -169,6 +176,7 @@ export function BriefPage() {
         onSave={save}
         onCancel={() => api.cancelGoal(id).then(() => nav('/'))}
         onExpert={() => setView(true)}
+        subjects={subjectsCard}
       />
     );
   }
@@ -179,6 +187,7 @@ export function BriefPage() {
   const navItems: BriefNavItem[] = [
     { id: 'brief-understanding', label: 'Understanding' },
     ...(brief.questions.length ? [{ id: 'brief-questions', label: 'Questions', status: blockingUnanswered.length ? `${blockingUnanswered.length} blocking` : `${answered}/${brief.questions.length}`, warn: blockingUnanswered.length > 0 }] : []),
+    ...(subjectsCard ? [{ id: 'brief-subjects', label: 'Looks like', status: searching.length ? 'searching' : subjects.length ? String(subjects.length) : null }] : []),
     { id: 'brief-assumptions', label: 'Assumptions', status: brief.assumptions.length ? `${brief.assumptions.filter((a) => a.accepted).length}/${brief.assumptions.length}` : null },
     ...(decisions.length ? [{ id: 'brief-decisions', label: 'Decisions', status: pending.length ? `${pending.length} to apply` : String(decisions.length), warn: pending.length > 0 }] : []),
     { id: 'brief-areas', label: 'Areas', status: gaps.length ? `${gaps.length} empty` : String(brief.areas.length), warn: gaps.length > 0 },
@@ -257,6 +266,12 @@ export function BriefPage() {
                   })}
                 </div>
               </Card>
+            </section>
+          )}
+
+          {subjectsCard && (
+            <section id="brief-subjects" className={sec}>
+              {subjectsCard}
             </section>
           )}
 

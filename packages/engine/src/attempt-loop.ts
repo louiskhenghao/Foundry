@@ -18,6 +18,7 @@ import { taskCommitMessage } from './git/conventional.ts';
 import { commitAll, headRef, numstat, resetHard } from './git/git.ts';
 import { boundarySettings } from './guards/boundary.ts';
 import { isBoundaryCommand } from './guards/patterns.ts';
+import { renderSubjects, sessionDirs, subjectsAddDirs } from './subjects.ts';
 
 export interface AttemptOutcome {
   attempt: Attempt;
@@ -160,7 +161,9 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   const learnings = learningsForWorker(engine, goal);
   // the chosen Style Proposal binds everything with a look (UI, mobile, media, general); backend-only scenarios never see it
   const style = brief && styleApplies(task.scenario) ? chosenStyle(brief) : null;
-  const prompt = resume ? resume.message : buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription, decisions, upstream, learnings, style, baseMoved: opts.baseMoved ?? null });
+  // the real things the result depicts, with their pictures (outside the worktree: their folder is added to the session)
+  const subjects = renderSubjects(config.dataDir, goal.id, brief, 'worker', task.scenario);
+  const prompt = resume ? resume.message : buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription, decisions, upstream, learnings, style, subjects, baseMoved: opts.baseMoved ?? null });
   // the -p prompt is not echoed in stream-json; keep it next to the transcript for inspection (continuations append)
   mkdirSync(dirname(attempt.transcriptPath!), { recursive: true });
   if (resume) appendFileSync(attempt.transcriptPath!.replace(/\.jsonl$/, '.prompt.md'), `\n\n---\n# Continuation (${resume.reason})\n${prompt}\n`);
@@ -180,7 +183,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
     appendSystemPromptFile: engine.roles.path('worker'),
     settings: boundarySettings(config.hooksDir),
     settingSources: config.settingSources,
-    addDirs: goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined,
+    addDirs: sessionDirs([...(goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : []), ...(subjects ? subjectsAddDirs(config.dataDir, goal.id, brief) : [])]),
     timeoutMs: config.attemptTimeoutMs,
     transcriptPath: attempt.transcriptPath!,
     resumeSessionId: resume ? (attempt.sessionId ?? undefined) : undefined,
