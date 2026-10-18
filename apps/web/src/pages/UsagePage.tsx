@@ -129,15 +129,16 @@ function FoundryActivity() {
         <h2 id="foundry-activity" className="text-sm font-medium text-zinc-200">Foundry activity · last 7 days</h2>
         <span className="text-xs text-zinc-500">Claude Code and Codex together, as recorded by Foundry.</span>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Kpi label="cache hit rate" value={m.cacheHitRate == null ? '—' : `${(m.cacheHitRate * 100).toFixed(0)}%`} hint="cache-read tokens ÷ all input tokens" good={m.cacheHitRate != null && m.cacheHitRate > 0.6} />
         <Kpi label="avg cost / Claude session" value={m.avgCostPerSession == null ? '—' : fmtUsd(m.avgCostPerSession)} hint="Claude Code only: Codex reports no dollar cost" />
         <Kpi label="avg session length" value={fmtDur(m.avgDurationMs)} />
         <Kpi label="sessions not successful" value={String(m.errorSessions)} hint="ended with an error, timeout or kill" good={m.errorSessions === 0} bad={m.errorSessions > 0} />
+        <Kpi label="sessions with unknown cost" value={String(m.unmeasuredSessions)} hint="Claude Code sessions cut before a cost was reported: unknown, not $0, and missing from every cost here" good={m.unmeasuredSessions === 0} bad={m.unmeasuredSessions > 0} />
       </div>
       <Breakdowns m={m} />
       <p className="text-xs text-zinc-500">
-        Rows are listed by time, which both coding agents report. Cost is estimated for Claude Code only; Codex reports no dollar cost, so its rows show —, and <span className="mono">*</span> marks a row whose cost leaves out its Codex sessions. Counts only sessions started by Foundry on this machine. Account limits are below, per coding agent; for exact Claude percentages run /usage inside Claude Code.
+        Rows are listed by time, which both coding agents report. Cost is estimated for Claude Code only; Codex reports no dollar cost, so its rows show —, and <span className="mono">*</span> marks a row whose cost leaves sessions out: its Codex sessions, or Claude Code sessions cut before a cost was reported (unknown, not $0). Counts only sessions started by Foundry on this machine. Account limits are below, per coding agent; for exact Claude percentages run /usage inside Claude Code.
       </p>
     </section>
   );
@@ -165,7 +166,8 @@ const SHOWN = 8;
 
 /**
  * One breakdown as grouped rows, like the Goals list: what it is and what it cost on the first line, how much time,
- * how many sessions and tokens on the second. Cost is Claude Code's alone: — for a Codex-only row, * for a mixed one.
+ * how many sessions and tokens on the second. Cost is Claude Code's alone: — for a Codex-only row, * when it leaves
+ * sessions out (Codex ones, or Claude Code ones cut before a cost was reported).
  */
 function Breakdown({ title, rows }: { title: string; rows: ActivityRow[] }) {
   const [all, setAll] = useState(false);
@@ -196,7 +198,7 @@ function Breakdown({ title, rows }: { title: string; rows: ActivityRow[] }) {
                     {r.costUsd == null ? (
                       <span className="text-zinc-600" title="Codex reports no dollar cost">—</span>
                     ) : (
-                      <span title={r.partial ? 'Claude Code sessions only: this row’s Codex sessions report no dollar cost' : 'estimated cost'}>
+                      <span title={r.partial ? partialNote(r) : 'estimated cost'}>
                         {fmtUsd(r.costUsd)}
                         {r.partial && <span className="text-zinc-500">*</span>}
                       </span>
@@ -237,17 +239,27 @@ export interface ActivityRow {
   tokens: { input: number; cacheRead: number; cacheCreate: number; output: number };
   /** Claude Code's part; null when the row has no Claude Code sessions */
   costUsd: number | null;
-  /** the row also has Codex sessions, which the cost leaves out */
+  /** the cost leaves sessions out: Codex ones (no dollar cost) or Claude Code ones cut before a cost was reported */
   partial: boolean;
+  /** Claude Code sessions cut before a cost was reported: unknown, not $0 */
+  unmeasured: number;
 }
 
-type Part = { sessions: number; costUsd: number; durationMs?: number; avgDurationMs?: number; inputTokens?: number; cacheReadTokens?: number; cacheCreateTokens?: number; outputTokens?: number };
+/** why a row's cost is marked *: which of its sessions it leaves out */
+function partialNote(r: ActivityRow): string {
+  const parts: string[] = [];
+  if (r.agents.length > 1) parts.push('its Codex sessions report no dollar cost');
+  if (r.unmeasured > 0) parts.push(`${r.unmeasured} Claude Code session${r.unmeasured === 1 ? '' : 's'} ended before a cost was reported (unknown, not $0)`);
+  return `This row's cost leaves sessions out: ${parts.join('; ')}`;
+}
+
+type Part = { sessions: number; costUsd: number; unmeasured?: number; durationMs?: number; avgDurationMs?: number; inputTokens?: number; cacheReadTokens?: number; cacheCreateTokens?: number; outputTokens?: number };
 
 /** Both agents' 7-day breakdowns as one; Codex contributes sessions, time and tokens but no cost. */
 export function mergeActivity(both: Partial<Record<AgentProvider, Pick<Usage, 'sevenDay' | 'byGoal' | 'byKind' | 'byModel' | 'totals'>>>) {
   const parts = (['claude', 'codex'] as const).flatMap((p) => (both[p] ? [{ p, u: both[p]! }] : []));
   const merge = (map: Map<string, ActivityRow>, id: string, base: Pick<ActivityRow, 'label' | 'goalId' | 'state' | 'muted'>, p: AgentProvider, x: Part) => {
-    const row = map.get(id) ?? { id, ...base, agents: [], sessions: 0, durationMs: 0, tokens: { input: 0, cacheRead: 0, cacheCreate: 0, output: 0 }, costUsd: null, partial: false };
+    const row = map.get(id) ?? { id, ...base, agents: [], sessions: 0, durationMs: 0, tokens: { input: 0, cacheRead: 0, cacheCreate: 0, output: 0 }, costUsd: null, partial: false, unmeasured: 0 };
     if (!row.agents.includes(p)) row.agents.push(p);
     row.sessions += x.sessions;
     // summaries from before time totals existed carry an average instead
@@ -256,8 +268,11 @@ export function mergeActivity(both: Partial<Record<AgentProvider, Pick<Usage, 's
     row.tokens.cacheRead += x.cacheReadTokens ?? 0;
     row.tokens.cacheCreate += x.cacheCreateTokens ?? 0;
     row.tokens.output += x.outputTokens ?? 0;
-    if (p === 'claude') row.costUsd = (row.costUsd ?? 0) + x.costUsd;
-    row.partial = row.agents.length > 1 && row.costUsd != null;
+    if (p === 'claude') {
+      row.costUsd = (row.costUsd ?? 0) + x.costUsd;
+      row.unmeasured += x.unmeasured ?? 0;
+    }
+    row.partial = row.costUsd != null && (row.agents.length > 1 || row.unmeasured > 0);
     map.set(id, row);
   };
   const goals = new Map<string, ActivityRow>();
@@ -281,6 +296,7 @@ export function mergeActivity(both: Partial<Record<AgentProvider, Pick<Usage, 's
     avgCostPerSession: both.claude?.totals.avgCostPerSession ?? null,
     avgDurationMs: sessions ? Math.round(durTotal / sessions) : null,
     errorSessions: parts.reduce((n, { u }) => n + u.totals.errorSessions, 0),
+    unmeasuredSessions: both.claude?.totals.unmeasuredSessions ?? 0,
   };
 }
 

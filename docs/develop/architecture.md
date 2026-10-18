@@ -307,6 +307,7 @@ The history endpoint returns the last 400 events, slimmed the same way, includin
 | Escalations, Suggestions | `engine/src/escalation.ts`, `engine/src/escalation-suggest.ts`, `core/src/schema/escalation.ts` |
 | Budgets | `engine/src/budget.ts`, `core/src/schema/goal.ts` (`BUDGET_PRESETS`) |
 | Usage Pause, usage ledger | `Engine.observeRateLimit` / `pauseUntil`, `engine/src/usage/ledger.ts` |
+| Unmeasured sessions (a cut session's turns and tokens counted, its cost unknown — not zero) | `runner/src/usage-tally.ts`, `ClaudeCliRunner.run` (no result line), `core/src/machine/task-usage.ts` |
 | Model Presets, worker routing | `core/src/schema/model-presets.ts`, `engine/src/models/roles.ts` |
 | Model Registry, Fallback, model sync | `engine/src/models/{registry,fallback-runner,discover}.ts` |
 | Effort | `engine/src/effort-runner.ts` |

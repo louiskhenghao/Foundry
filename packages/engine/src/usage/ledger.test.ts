@@ -30,6 +30,25 @@ describe('usage ledger', () => {
     expect(s.snapshotReadModels()).toEqual(before);
   });
 
+  test('a session cut before its cost was reported is counted as unmeasured, never as free', () => {
+    const s = store();
+    usage(s, 'g1', 'attempt', 'opus', 0.5);
+    s.append({ type: 'session.usage', goalId: 'g1', payload: { sessionId: 's2', kind: 'attempt', model: 'opus', inputTokens: 100, outputTokens: 70_000, cacheReadTokens: 9_000_000, cacheCreateTokens: 200_000, costUsd: 0, costStatus: 'unavailable', durationMs: 1_200_000, subtype: 'killed_timeout', rateLimit: null, skillsUsed: [] } });
+    const u = usageSummary(s.db);
+    expect(u.totals.unmeasuredSessions).toBe(1);
+    expect(u.totals.errorSessions).toBe(1);
+    expect(u.byGoal[0]).toMatchObject({ goalId: 'g1', sessions: 2, costUsd: 0.5, unmeasured: 1, outputTokens: 70_100 });
+    expect(u.byKind[0]).toMatchObject({ kind: 'attempt', unmeasured: 1 });
+    expect(u.byModel[0]).toMatchObject({ model: 'opus', unmeasured: 1 });
+    // the status survives a replay of the log (the ledger column is part of the read model)
+    const before = s.snapshotReadModels();
+    s.replay();
+    expect(s.snapshotReadModels()).toEqual(before);
+    expect(before.usage_ledger!.map((row) => JSON.parse(row).cost_status)).toEqual([null, 'unavailable']);
+    // Codex reports no cost at all; that is its own story, not an unmeasured Claude session
+    expect(usageSummary(s.db, Date.now(), 'codex').totals.unmeasuredSessions).toBe(0);
+  });
+
   test('breakdowns carry time and tokens for every coding agent; a cost tie falls back to time', () => {
     const s = store();
     const add = (goalId: string, durationMs: number) => s.append({ type: 'session.usage', goalId, payload: { sessionId: 's', kind: 'attempt', model: 'gpt-5.5', inputTokens: 10, outputTokens: 100, cacheReadTokens: 1000, cacheCreateTokens: 5, costUsd: 0, durationMs, subtype: 'success', rateLimit: null, skillsUsed: [] } });

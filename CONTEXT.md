@@ -118,6 +118,9 @@ The limits a Goal runs within: working time (Clarify, the run and the review, wi
 **Budget Preset**
 How a Goal's Budget was chosen: *Auto* (no cap while clarifying; the Brief's estimate proposes the budget and the user confirms or edits it when approving), *Quick*, *Thorough*, *Unlimited*, or *Custom*. Auto proposes limits at approval. Claude can estimate USD cost; Codex proposes non-dollar limits because its inference cost is unreported.
 
+**Unmeasured session**
+A session that ended before its Coding agent reported what it cost — killed at the time or idle limit or by hand, or crashed; Claude Code reports cost, turns and usage on its final result line only. Its turns and tokens are counted from the stream and from the session's own record (Claude Code's transcript); its dollar cost is *unknown*: shown as unknown, left out of every total, never written down as $0. The Goal's cost meter, the task total and the Usage page say how many sessions they leave out (**+N unmeasured**). Unknown is not zero, and Foundry keeps no price table to estimate with.
+
 **Attachment**
 Something the user hands to a Goal that cannot be said in the prompt: a file (screenshot, PDF, document) kept by the system, or a link. Every session of the Goal receives the Attachments as read-only references; they are never part of the repository.
 
