@@ -1,5 +1,5 @@
-import { constants, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, type Dirent } from 'node:fs';
-import { copyFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { constants, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, type Dirent, type Stats } from 'node:fs';
+import { copyFile, lstat, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import type { Goal, Task } from '@foundry/core';
 import { ensureWorktree, git, headRef, removeWorktree } from './git/git.ts';
@@ -100,14 +100,26 @@ export async function copyArtifactFiles(fromWs: string, toWs: string, opts: { sk
 
 /**
  * Copy a file beside its destination, then rename it over: a copy cut short (a full disk) leaves the old file, and no
- * link (symbolic or hard) at the destination is written through.
+ * link (symbolic or hard) at the destination is written through. Returns the copy as it was made (a rename keeps its
+ * inode, size and time), whatever is renamed over it later. `over`: replace only the copy of that identity (one made
+ * earlier), checked again right before the rename; a destination changed since is left, and null returned.
  */
-export async function copyInto(src: string, dest: string): Promise<void> {
+export async function copyInto(src: string, dest: string, opts: { over?: string } = {}): Promise<Stats | null> {
   await mkdir(dirname(dest), { recursive: true });
   const part = join(dirname(dest), `${PART}${process.pid}-${(partSeq++).toString(36)}-${basename(dest)}`);
   try {
     await copyFile(src, part, constants.COPYFILE_EXCL | constants.COPYFILE_FICLONE);
+    const made = await stat(part);
+    if (opts.over) {
+      // the file itself: a link put there is no copy this goal made
+      const there = await lstat(dest).catch(() => null);
+      if (there && copyIdentity(there) !== opts.over) {
+        await rm(part, { force: true });
+        return null;
+      }
+    }
     await rename(part, dest);
+    return made;
   } catch (err) {
     await rm(part, { force: true });
     throw err;
@@ -174,6 +186,9 @@ export async function inheritArtifacts(goalWs: string, taskWs: string): Promise<
   }
   return n;
 }
+
+/** a copy's identity as made (inode, size, time): a file replaced or rewritten there since has another */
+export const copyIdentity = (st: Stats) => `${st.ino}:${st.size}:${Math.round(st.mtimeMs)}`;
 
 /**
  * A file's content digest, read as a stream that lets the event loop run every few chunks: an export can be hundreds

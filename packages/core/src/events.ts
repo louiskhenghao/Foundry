@@ -152,8 +152,11 @@ export const EngineEvent = z.discriminatedUnion('type', [
   /** the goal's nature was settled (user chose it at creation, or the Clarifier decided for an `auto` goal) */
   ev('goal.nature_set', { nature: GoalNature, reason: z.string() }),
   /** media artifacts were copied from the goal workspace to the goal's output folder at done; `startedAt`: when the copy
-   * began (a file written after it may not be what the folder received; absent on deliveries before it was recorded) */
-  ev('goal.artifacts_delivered', { status: z.enum(['ok', 'skipped', 'failed']), files: z.array(z.string()), dest: z.string(), detail: z.string(), model: z.string().nullable().optional(), startedAt: z.string().optional() }),
+   * began (a file written after it may not be what the folder received), and `startedAfter` the id of the goal's last
+   * state change then (a run again after it is delivered again); `copies`: each copy's identity in the output folder as
+   * it was made (inode, size, time), so a copy replaced or changed there since is told apart (a file left as it was
+   * there, or not delivered this time, keeps its earlier one); all absent on deliveries before they were recorded */
+  ev('goal.artifacts_delivered', { status: z.enum(['ok', 'skipped', 'failed']), files: z.array(z.string()), dest: z.string(), detail: z.string(), model: z.string().nullable().optional(), startedAt: z.string().optional(), startedAfter: z.string().optional(), copies: z.record(z.string(), z.string()).optional() }),
   /** completion actions chosen at Brief approval (defaults inferred from the tasks' scenarios when the UI sends nothing) */
   ev('goal.completion_set', { graphRefresh: z.boolean(), docs: z.array(DocType), audit: z.boolean().optional(), reason: z.string() }),
   /** ponytail-audit ran on the finished branch (once per goal): what it found, and the fix tasks its in-scope must-fix findings became */

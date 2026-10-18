@@ -90,7 +90,7 @@ import { modelsInBinary } from './models/discover.ts';
 import { EffortRunner } from './effort-runner.ts';
 import { ModelRegistry, SEED_MODELS, isPinnedId, type ModelRecord } from './models/registry.ts';
 import { copyProjectSkills, hasStackManifest, runAutoskills, type AutoskillsDeps } from './skills/autoskills.ts';
-import { deliverArtifacts, inferCompletion, runGraphRefresh, shouldRunGraphRefresh, type GraphRefreshDeps } from './completion.ts';
+import { artifactsDue, deliverArtifacts, inferCompletion, runGraphRefresh, shouldRunGraphRefresh, type GraphRefreshDeps } from './completion.ts';
 import { stuckCommits, takeBackOrphaned, takeBackStuck } from './take-back.ts';
 import { cadModelIn, recoverOverlays } from './goal-artifacts.ts';
 import type { SettingsPatch, SettingsView } from '@foundry/core';
@@ -1686,7 +1686,8 @@ export class Engine {
       case 'done':
       case 'over_delivered': {
         // media artifacts leave the workspace first (independent of delivery mode — they never ride a PR)
-        if (!goal.completion.artifactsRun && !this.deliveringArtifacts.has(goalId)) {
+        // never delivered, or run again since its delivery (a restart): the output folder gets the files as they are now
+        if (!this.deliveringArtifacts.has(goalId) && artifactsDue(this, goal)) {
           const copy = deliverArtifacts(this, goal)
             .catch((err) => void this.store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `artifact delivery crashed: ${String(err)}` } }))
             .finally(() => this.deliveringArtifacts.delete(goalId));
