@@ -107,6 +107,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `notifications.telegramBotToken` | — | `FOUNDRY_TELEGRAM_BOT_TOKEN` | Telegram bot token. |
 | `notifications.telegramChatId` | — | `FOUNDRY_TELEGRAM_CHAT_ID` | Telegram chat id (the Detect button finds it). |
 | `notifications.discordWebhookUrl` | — | `FOUNDRY_DISCORD_WEBHOOK` | Discord webhook URL. |
+| `notifications.discordBotToken` | — | `FOUNDRY_DISCORD_BOT_TOKEN` | A Discord bot's token, beside the webhook: the messages that wait for you are posted by the bot in the webhook's channel, with buttons that answer. Empty = Discord messages without buttons. |
 | `notifications.baseUrl` | — | `FOUNDRY_NOTIFY_BASE_URL` | Address of this UI as reachable from elsewhere; empty = links point at this computer (http://localhost:<port>). |
 | `notifications.tailscale` | `auto` | `FOUNDRY_TAILSCALE` | auto: when Tailscale runs here, messages and the UI also carry tailnet links, and Foundry serves its own and the previews' ports with `tailscale serve`; off: never. |
 | `notifications.tailscaleHost` | — | `FOUNDRY_TAILSCALE_HOST` | This computer's tailnet name, when it should not be read from `tailscale status`. |

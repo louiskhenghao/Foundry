@@ -241,10 +241,11 @@ export class NotificationDispatcher {
   private deliver(s: NotificationSettings, text: string, path: string | null, goalId: string | null, media: MediaFile[] = [], preview: string | null = null, target: Target | null = null): void {
     const channels = this.channels(s);
     if (!channels.length) return;
-    const telegram = this.engine.telegram;
+    const { telegram, discord } = this.engine;
     void this.links(s, path, preview).then((links) => {
       for (const ch of channels) {
         if (target && !media.length && ch instanceof TelegramNotifier && telegram.answers(s)) void this.sendWithRetry(ch, () => telegram.sendAbout(target, text, links), goalId);
+        else if (target && !media.length && ch instanceof DiscordNotifier && discord.answers(s)) void this.sendWithRetry(ch, () => discord.sendAbout(target, text, links), goalId);
         else void this.sendWithRetry(ch, media.length && ch.sendMedia ? () => ch.sendMedia!(text, media, links) : () => ch.send(text, links), goalId);
       }
     });
@@ -268,8 +269,9 @@ export class NotificationDispatcher {
 
   /** Settings page "send test": tries the draft (unsaved) credentials layered over the saved ones. */
   async test(override: Partial<NotificationSettings> = {}): Promise<{ channel: string; ok: boolean; error: string | null }[]> {
-    const channels = this.channels({ ...this.settings(), ...override });
-    return Promise.all(
+    const s = { ...this.settings(), ...override };
+    const channels = this.channels(s);
+    const results = await Promise.all(
       channels.map(async (ch) => {
         try {
           await ch.send('👋 Foundry test notification — this channel works.');
@@ -279,5 +281,8 @@ export class NotificationDispatcher {
         }
       }),
     );
+    // the Discord bot posts in the webhook's channel too: its token and its access to that channel are tried
+    if (s.discordBotToken && s.discordWebhookUrl) results.push(await this.engine.discord.test(s.discordBotToken, s.discordWebhookUrl));
+    return results;
   }
 }
