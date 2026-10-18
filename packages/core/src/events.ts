@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { Attachment, AttachmentMarkdown } from './schema/attachment.ts';
 import { FeedbackPlan } from './schema/feedback.ts';
 import { InterviewQuestion } from './schema/interview.ts';
+import { DeployProvider } from './schema/deploy.ts';
 import {
   Attempt,
   AuditFinding,
@@ -284,6 +285,12 @@ export const EngineEvent = z.discriminatedUnion('type', [
   /** `branch`: the stacked (or goal) branch the step works on, when it is about one PR */
   ev('delivery.step', { step: DeliveryStep, status: z.enum(['started', 'ok', 'skipped', 'failed']), detail: z.string(), branch: z.string().nullable().optional() }),
   ev('delivery.command', { step: DeliveryStep, command: z.string(), cwd: z.string(), exitCode: z.number().nullable(), durationMs: z.number(), outputTail: z.string() }),
+  /** the person deployed the goal's web app (ADR-0041): to which host, preview or production, which commit, what the app is */
+  ev('deploy.started', { provider: DeployProvider, production: z.boolean(), ref: z.string().nullable(), framework: z.string().nullable(), dir: z.string() }),
+  /** one command of a deploy, its tokens never in it */
+  ev('deploy.command', { provider: DeployProvider, label: z.string(), command: z.string(), exitCode: z.number().nullable(), durationMs: z.number(), outputTail: z.string() }),
+  ev('deploy.finished', { provider: DeployProvider, production: z.boolean(), url: z.string() }),
+  ev('deploy.failed', { provider: DeployProvider, production: z.boolean(), reason: z.string() }),
   ev('delivery.repo_created', { owner: z.string(), name: z.string(), url: z.string(), visibility: z.string() }),
   ev('delivery.pushed', { remote: z.string(), branch: z.string(), ref: z.string(), taskId: z.string().nullable().default(null) }),
   /** the stacked branches built from the tasks' commits (unit = task), bottom first */
