@@ -6,6 +6,7 @@
  * attempt budget allows, before the main goal asks.
  */
 import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Budgets, Goal, GoalNature, Task } from '@foundry/core';
 import { chosenStyle, getBrief, getGoal, getTask, interviewDepth, listCheckResultsByGoal, listChecks, listEscalations, listTasks, renderDecisions } from '@foundry/core';
 import { maxAttemptsFor } from './attempt-loop.ts';
@@ -15,6 +16,7 @@ import { raiseEscalation } from './escalation.ts';
 import { headerOf, taskCommitMessage } from './git/conventional.ts';
 import { commitStaged, conflictedFiles, git, headRef } from './git/git.ts';
 import { resolveConflicts } from './merge.ts';
+import { replanAfterLanding } from './replan.ts';
 import { stuckIn } from './take-back.ts';
 import { copyArtifactFiles, ensureGoalWorkspace, goalWorkspacePath, trackedArtifacts } from './workspace.ts';
 
@@ -24,8 +26,25 @@ const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n).trimEnd(
 export const isDelegationTask = (t: Pick<Task, 'kind'>): boolean => t.kind === 'goal';
 /** a goal task between its start and its landing: its Delegated goal is at work, waits for the person, or lands */
 const DELEGATING_STATES: readonly Task['state'][] = ['running', 'observing', 'merging'];
-/** the goal task whose Delegated goal is under way, if any (one at a time) */
-export const delegating = (tasks: Task[]): Task | undefined => tasks.find((t) => isDelegationTask(t) && DELEGATING_STATES.includes(t.state));
+/** the goal tasks whose Delegated goals are under way: as many at a time as the main goal's parallel limit allows */
+export const delegatingTasks = (tasks: Task[]): Task[] => tasks.filter((t) => isDelegationTask(t) && DELEGATING_STATES.includes(t.state));
+/** a goal task whose Delegated goal is under way, if any */
+export const delegating = (tasks: Task[]): Task | undefined => delegatingTasks(tasks)[0];
+
+/**
+ * The budget a Delegated goal gets: the planner's share for its task (`budgetUsd`), kept within what the main goal has
+ * left, else an even share of what is left among the goal tasks still to land; the time left is not divided (they run
+ * side by side). No cost limit on the main goal (Codex, unlimited) means none here either.
+ */
+export function budgetShare(main: Goal, tasks: Task[], task: Pick<Task, 'id' | 'budgetUsd'>): { maxCostUsd: number | null; maxDurationMin: number | null } {
+  const b = budgetStatus(main);
+  const maxDurationMin = b.maxDurationMin == null ? null : Math.max(10, Math.ceil(b.maxDurationMin - b.elapsedMin));
+  if (b.remainingUsd == null) return { maxCostUsd: null, maxDurationMin };
+  const left = Math.max(1, b.remainingUsd);
+  const open = tasks.filter((t) => isDelegationTask(t) && !['done', 'skipped', 'failed'].includes(t.state)).length || 1;
+  const share = task.budgetUsd != null ? Math.min(task.budgetUsd, left) : left / open;
+  return { maxCostUsd: Number(Math.max(1, share).toFixed(2)), maxDurationMin };
+}
 /** the reason a main goal is blocked while its Delegated goal needs the person (settleDelegations unblocks it by this prefix) */
 const WAIT_REASON = 'waiting for the delegated goal';
 
@@ -78,10 +97,8 @@ export function delegationNeedsHuman(engine: Engine, g: Goal): string | null {
  * are in its Clarify prompt (delegationContext).
  */
 export async function createDelegatedGoal(engine: Engine, main: Goal, task: Task): Promise<Goal> {
-  const b = budgetStatus(main);
   const budgets: Partial<Budgets> = {
-    maxCostUsd: b.remainingUsd == null ? null : Math.max(1, Number(b.remainingUsd.toFixed(2))),
-    maxDurationMin: b.maxDurationMin == null ? null : Math.max(10, Math.ceil(b.maxDurationMin - b.elapsedMin)),
+    ...budgetShare(main, listTasks(engine.store.db, main.id), task),
     maxConcurrent: main.budgets.maxConcurrent,
     attemptsPerTask: main.budgets.attemptsPerTask,
   };
@@ -114,25 +131,30 @@ export async function createDelegatedGoal(engine: Engine, main: Goal, task: Task
 }
 
 /**
- * The next ready `goal` task of a running main goal starts as a Delegated goal — one at a time. A task that came back to
- * ready after an answer (retry) carries on with the Delegated goal it already has.
+ * The ready `goal` tasks of a running main goal start as Delegated goals, as many at a time as the goal's parallel limit
+ * allows (their dependencies keep their order). A task that came back to ready after an answer (retry) carries on with
+ * the Delegated goal it already has.
  */
 export async function startDelegations(engine: Engine, goal: Goal, tasks: Task[]): Promise<void> {
   const { store } = engine;
-  if (delegating(tasks)) return;
-  const next = tasks.find((t) => isDelegationTask(t) && t.state === 'ready');
-  if (!next) return;
-  const existing = next.delegatedGoalId ? getGoal(store.db, next.delegatedGoalId) : null;
-  if (existing) {
-    await resumeDelegated(engine, goal, next, existing);
-    return;
-  }
-  try {
-    const made = await createDelegatedGoal(engine, goal, next);
-    store.append({ type: 'task.delegated', goalId: goal.id, payload: { taskId: next.id, goalId: made.id, title: made.title } });
-    store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: next.id, from: 'ready', to: 'running', reason: `delegated to the goal "${made.title}" (${made.id})` } });
-  } catch (err) {
-    raiseEscalation(engine, { goal, task: next, trigger: 'retries_exhausted', message: `The delegated goal for "${next.title}" could not be created: ${String((err as Error)?.message ?? err)}\n\nRetry tries again; skip moves on without this step.`, payload: { kind: 'delegation' }, blockGoal: true });
+  let room = goal.budgets.maxConcurrent - delegatingTasks(tasks).length;
+  for (const next of tasks.filter((t) => isDelegationTask(t) && t.state === 'ready')) {
+    if (room <= 0) return;
+    const existing = next.delegatedGoalId ? getGoal(store.db, next.delegatedGoalId) : null;
+    if (existing) {
+      await resumeDelegated(engine, goal, next, existing);
+      room--;
+      continue;
+    }
+    try {
+      const made = await createDelegatedGoal(engine, goal, next);
+      store.append({ type: 'task.delegated', goalId: goal.id, payload: { taskId: next.id, goalId: made.id, title: made.title } });
+      store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: next.id, from: 'ready', to: 'running', reason: `delegated to the goal "${made.title}" (${made.id})` } });
+      room--;
+    } catch (err) {
+      raiseEscalation(engine, { goal, task: next, trigger: 'retries_exhausted', message: `The delegated goal for "${next.title}" could not be created: ${String((err as Error)?.message ?? err)}\n\nRetry tries again; skip moves on without this step.`, payload: { kind: 'delegation' }, blockGoal: true });
+      return;
+    }
   }
 }
 
@@ -331,7 +353,13 @@ function landDelegation(engine: Engine, goal: Goal, task: Task, d: Goal): void {
       return;
     }
     if (lost()) return;
+    // the files the task promised: its Delegated goal was held to them, so a missing one is news (a path named otherwise), not a failure
+    const missing = (task.delivers ?? []).filter((f) => !existsSync(join(goalWs, f)));
+    if (missing.length) store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `"${task.title}" landed, but ${missing.length === 1 ? 'a file it promised is' : 'files it promised are'} not on the goal branch: ${missing.join(', ')} — the tasks after it were told to expect ${missing.length === 1 ? 'it' : 'them'}` } });
     store.append({ type: 'task.summary_set', goalId: goal.id, payload: { taskId: task.id, summary: summarizeDelegatedGoal(engine, d, result.files, result.ref) } });
+    // the planner's touch-up of the tasks after it, while they still cannot start (this task reads merging until it is done)
+    await replanAfterLanding(engine, getGoal(store.db, goal.id) ?? goal, getTask(store.db, task.id)!).catch((err) => store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `the replan after "${task.title}" landed crashed: ${String((err as Error)?.message ?? err).slice(0, 300)}` } }));
+    if (lost()) return;
     store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'merging', to: 'done', reason: result.ref ? `the delegated goal landed as ${result.ref.slice(0, 7)} on the goal branch` : 'the delegated goal landed (no changes to commit)' } });
     engine.retryAutoskillsAfterTask(goal.id);
     const now = getGoal(store.db, goal.id);
@@ -396,8 +424,9 @@ export function renderUpstream(engine: Engine, task: Pick<Task, 'dependsOn'>): s
   for (const id of task.dependsOn) {
     const d = getTask(db, id);
     if (!d) continue;
-    if (d.summary) lines.push(d.summary);
-    else if (d.state === 'done') lines.push(`## ${d.title}\n${d.commitRef ? `Landed as commit ${d.commitRef.slice(0, 7)}${d.commitMessage ? `: ${headerOf(d.commitMessage)}` : ''}` : 'Landed with no changes to commit'}.`);
+    const files = d.delivers?.length ? `\nFiles it leaves for you:\n${d.delivers.map((f) => `- ${f}`).join('\n')}` : '';
+    if (d.summary) lines.push(`${d.summary}${files}`);
+    else if (d.state === 'done') lines.push(`## ${d.title}\n${d.commitRef ? `Landed as commit ${d.commitRef.slice(0, 7)}${d.commitMessage ? `: ${headerOf(d.commitMessage)}` : ''}` : 'Landed with no changes to commit'}.${files}`);
     else if (d.state === 'skipped') lines.push(`## ${d.title}\nSkipped by the human: its work was not done.`);
   }
   if (!lines.length) return '';
@@ -428,6 +457,7 @@ export function delegationContext(engine: Engine, goal: Goal): string {
   if (task) {
     const upstream = renderUpstream(engine, task);
     if (upstream) parts.push(upstream.replace(/^# /, '## '));
+    if (task.delivers?.length) parts.push(`## What this goal must deliver\nThe main goal's next steps read these files; each must exist on the branch when this goal is done (they are its must checks):\n${task.delivers.map((f) => `- ${f}`).join('\n')}`);
   }
   parts.push('## Asking the human\nThe main goal was interviewed and its Brief approved already. Prefer assumptions; ask only what a wrong guess would waste this goal over and nothing above answers.');
   return clip(parts.join('\n\n'), 12000);

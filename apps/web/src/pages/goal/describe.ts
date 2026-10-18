@@ -74,6 +74,8 @@ export function describe(e: EngineEvent, costAvailable = true): { text: string; 
       return { text: `The delegated goal failed: ${p.restarted.length} task(s) restarted there (restart ${p.n})`, tone: 'warn' };
     case 'task.summary_set':
       return { text: 'Recorded what the step delivered, for the tasks after it', tone: 'muted', ...cut(p.summary) };
+    case 'task.revised':
+      return { text: `Task touched up after a step landed: ${p.reason}`, tone: 'info', ...cut(p.spec) };
     default:
       return { text: e.type, tone: 'muted' };
   }

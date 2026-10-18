@@ -415,7 +415,7 @@ export function NewGoalPage() {
           <input type="checkbox" className="mt-1" checked={delegate} onChange={(e) => { setDelegate(e.target.checked); if (!e.target.checked) setDelegateAuto(false); }} />
           <span>
             <span className="text-zinc-100">Delegated goals</span><HelpLink to="your-first-goal#delegated-goals" className="ml-1.5" />
-            <span className="text-[11px] text-zinc-400 block leading-snug">The planner may hand a step that is a project of its own (research that comes first, a 3D model or a video next to the code, a part too large for one plan) to a goal of its own, with its own Clarify and plan. Its result lands on this goal's branch before the tasks that need it. They run one at a time. Off: every step is one task.</span>
+            <span className="text-[11px] text-zinc-400 block leading-snug">The planner may hand a step that is a project of its own (research that comes first, a 3D model or a video next to the code, a part too large for one plan) to a goal of its own, with its own Clarify and plan. Its result lands on this goal's branch before the tasks that need it. They run side by side, as many as the goal's parallel limit allows, each with a share of the budget. Off: every step is one task.</span>
           </span>
         </label>
         {delegate && (

@@ -33,6 +33,8 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
   // a goal task: a Delegated goal does the work, so there is no session here to unstick and its attempts are its own
   const goalTask = task.kind === 'goal';
   const delegated = row?.delegated ?? null;
+  // the planner touched this task up after a delegated goal landed (Replan): the person sees why
+  const revised = [...d.events].reverse().find((e) => e.type === 'task.revised' && (e.payload as any).taskId === task.id)?.payload as { reason?: string } | undefined;
 
   useEffect(() => {
     setPrompt(null);
@@ -111,6 +113,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
       <div className="grid grid-cols-1 lg:grid-cols-3 lg:grid-rows-1 lg:flex-1 lg:min-h-0 gap-4">
         <div className="lg:col-span-1 lg:overflow-y-auto lg:pr-1 space-y-3">
           <MarkdownPanel title="spec" source={task.spec} maxHeight={260} actions={openFull(`Spec · ${task.title}`, task.spec)} />
+          {revised && <div className="text-[11px] text-sky-300/90" title="A delegated goal landed before this task started; the planner read what it delivered and touched the spec up">Touched up after a step landed: {revised.reason}</div>}
           {task.summary && <MarkdownPanel title="what it delivered" source={task.summary} maxHeight={260} actions={openFull(`What it delivered · ${task.title}`, task.summary)} />}
           {task.hint && <MarkdownPanel title="human hint" source={task.hint} local maxHeight={160} actions={openFull(`Human hint · ${task.title}`, task.hint)} />}
           <div>
@@ -144,6 +147,26 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
                     </button>
                   ) : (
                     <div key={f} className="truncate" title={made ? "Not in this task's commit or in any folder of the goal" : undefined}>
+                      {f}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {(task.delivers ?? []).length > 0 && (
+            <div>
+              <div className="text-xs text-zinc-500 mb-1" title="The files this task promised to the tasks after it; each is a must check when it lands">Deliverables</div>
+              <div className="mono text-[11px] text-zinc-400 space-y-0.5">
+                {(task.delivers ?? []).map((f, _, all) => {
+                  const open = made?.delivers?.find((r) => r.rel === f)?.open;
+                  const openable = all.flatMap((x) => made?.delivers?.find((r) => r.rel === x)?.open ?? []);
+                  return open ? (
+                    <button key={f} type="button" onClick={() => openFile(open, openable)} className="block w-full truncate text-left text-sky-300 hover:underline" title={`Open ${f}`}>
+                      {f}
+                    </button>
+                  ) : (
+                    <div key={f} className="truncate" title={made ? 'Not there yet' : undefined}>
                       {f}
                     </div>
                   );
@@ -186,7 +209,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
                   <div className="text-zinc-500">That goal was deleted. Retry starts a new one; skip moves on without this step.</div>
                 )
               ) : (
-                <div className="text-zinc-500">Its goal starts when this task does — one delegated goal at a time.</div>
+                <div className="text-zinc-500">Its goal starts when this task does; delegated goals run side by side, as many as the goal's parallel limit allows.</div>
               )}
             </div>
           )}
@@ -303,7 +326,7 @@ function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; conclude
 
 /** What the task made and which of its relevant files open, reloaded as the task moves on. */
 function useTaskFiles(goalId: string, task: Task) {
-  const [made, setMade] = useState<{ files: TaskFile[]; relevant: { rel: string; open: FileRef | null }[] } | null>(null);
+  const [made, setMade] = useState<{ files: TaskFile[]; relevant: { rel: string; open: FileRef | null }[]; delivers?: { rel: string; open: FileRef | null }[] } | null>(null);
   useEffect(() => {
     let alive = true;
     api

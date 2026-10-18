@@ -39,7 +39,7 @@ export interface DraftProposal {
   mode: DraftRequest['mode'];
   taskKey: string | null;
   /** mode task: the fields to fill (spec only when empty on the page) */
-  task: Partial<Pick<BriefTask, 'spec' | 'kind' | 'scope' | 'scenario' | 'areaKey' | 'dependsOnKeys' | 'relevantFiles'>> | null;
+  task: Partial<Pick<BriefTask, 'spec' | 'kind' | 'scope' | 'scenario' | 'areaKey' | 'dependsOnKeys' | 'relevantFiles' | 'delivers'>> | null;
   /** mode area: whole new tasks (keys already renumbered to be unique in the Brief) */
   tasks: BriefTask[];
   /** checks for the task / the new tasks / the Area (taskKey set accordingly) */
@@ -132,7 +132,7 @@ export async function runDraft(engine: Engine, goal: Goal, req: DraftRequest): P
     const tasks: BriefTask[] = out.tasks.map((t) => {
       const key = nextKey('T');
       rename.set(t.key, key);
-      return { key, title: t.title, spec: t.spec, kind: t.kind, scope: t.scope ?? null, scenario: t.scenario, areaKey: area!.key, tdd: 'inherit', dependsOnKeys: [], parallelizable: t.parallelizable, relevantFiles: t.relevantFiles, milestone: null, difficulty: t.difficulty ?? 'standard' };
+      return { key, title: t.title, spec: t.spec, kind: t.kind, scope: t.scope ?? null, scenario: t.scenario, areaKey: area!.key, tdd: 'inherit', dependsOnKeys: [], parallelizable: t.parallelizable, relevantFiles: t.relevantFiles, delivers: t.delivers ?? [], milestone: null, difficulty: t.difficulty ?? 'standard' };
     });
     const known = new Set([...brief.tasks.map((t) => t.key), ...tasks.map((t) => t.key)]);
     out.tasks.forEach((t, i) => {
@@ -157,6 +157,7 @@ export async function runDraft(engine: Engine, goal: Goal, req: DraftRequest): P
   if (out.areaKey && brief.areas.some((a) => a.key === out.areaKey)) fields.areaKey = out.areaKey;
   fields.dependsOnKeys = out.dependsOnKeys.filter((k) => taskKeys.has(k) && k !== task!.key);
   fields.relevantFiles = out.relevantFiles;
+  if (out.delivers?.length) fields.delivers = out.delivers;
   return { mode: req.mode, taskKey: task!.key, task: fields, tasks: [], checks, rationale: out.rationale, costUsd: cost, costAvailable: goal.provider !== 'codex' };
 }
 
@@ -184,7 +185,7 @@ function toRevisedBrief(current: Brief, out: RevisionOutput): Omit<Brief, 'goalI
     checks: out.checks
       .filter((c) => !c.taskKey || taskKeys.has(c.taskKey))
       .map((c) => ({ key: c.key, name: c.name, tier: c.tier, taskKey: c.taskKey ?? null, areaKey: c.taskKey ? null : area(c.areaKey), spec: materializeCheck(c, c.taskKey ?? null) })),
-    tasks: out.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind ?? 'feature', scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys.filter((k) => taskKeys.has(k) && k !== t.key), parallelizable: t.parallelizable, relevantFiles: t.relevantFiles, milestone: t.milestone === undefined ? (current.tasks.find((c) => c.key === t.key)?.milestone ?? null) : t.milestone, milestoneScript: t.milestoneScript === undefined ? (current.tasks.find((c) => c.key === t.key)?.milestoneScript ?? null) : t.milestoneScript, difficulty: t.difficulty ?? 'standard' })),
+    tasks: out.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind ?? 'feature', scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys.filter((k) => taskKeys.has(k) && k !== t.key), parallelizable: t.parallelizable, relevantFiles: t.relevantFiles, delivers: t.delivers ?? [], milestone: t.milestone === undefined ? (current.tasks.find((c) => c.key === t.key)?.milestone ?? null) : t.milestone, milestoneScript: t.milestoneScript === undefined ? (current.tasks.find((c) => c.key === t.key)?.milestoneScript ?? null) : t.milestoneScript, difficulty: t.difficulty ?? 'standard' })),
     costEstimateUsd: out.costEstimateUsd,
     run: out.run ?? current.run,
     apps: out.apps ?? current.apps,

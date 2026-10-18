@@ -461,6 +461,11 @@ function project(db: Database, e: EngineEvent): void {
       if (t) upsertTask(db, { ...t, summary: e.payload.summary, updatedAt: e.ts });
       break;
     }
+    case 'task.revised': {
+      const t = getTask(db, e.payload.taskId);
+      if (t) upsertTask(db, { ...t, spec: e.payload.spec, relevantFiles: e.payload.relevantFiles ?? t.relevantFiles, delivers: e.payload.delivers ?? t.delivers, updatedAt: e.ts });
+      break;
+    }
     case 'check.created':
       upsertCheck(db, e.payload.check);
       break;
