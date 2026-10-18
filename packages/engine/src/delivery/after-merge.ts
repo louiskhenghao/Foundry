@@ -1,10 +1,11 @@
 /**
  * What happens on the user's machine once a goal's pull request has merged (ADR-0015): the local base branch is
  * fast-forwarded when that is safe, and once it contains the work, the goal's progress folder, worktrees and local
- * branches are removed. Nothing that could lose work is ever deleted: uncommitted files in the progress folder and
- * content that is not in the base branch yet keep everything in place until the human says "clean up anyway", and so,
- * for a goal that keeps artifacts (ADR-0033), do artifacts the output folder does not have as they are now, files a
- * landing could not copy out of a kept task worktree, and a delivery still copying (it runs the tidy-up once it ends).
+ * branches are removed. Nothing that could lose work is ever deleted: uncommitted files in the progress folder,
+ * content that is not in the base branch yet and a goal run again after its merge keep everything in place until the
+ * human says "clean up anyway", and so, for a goal that keeps artifacts (ADR-0033), do artifacts the output folder does
+ * not have as they are now, files a landing could not copy out of a kept task worktree, and a delivery still copying
+ * (it runs the tidy-up once it ends; clean up anyway waits for it a while, then holds).
  */
 import { existsSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -12,7 +13,7 @@ import { getGoal, listTasks, type Goal } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { git, removeWorktree } from '../git/git.ts';
 import { fetchBase, pullFastForward } from '../git/sync.ts';
-import { ARTIFACTS_DIR, deliveryWorkspacePath, goalWorkspacePath, internalWorkspaceDir, isStyleSample, listArtifacts, listStackBranches, trackedArtifacts } from '../workspace.ts';
+import { ARTIFACTS_DIR, contentHash, copyIdentity, deliveryWorkspacePath, goalWorkspacePath, internalWorkspaceDir, isStyleSample, listArtifacts, listStackBranches, trackedArtifacts } from '../workspace.ts';
 import { goalUsesArtifacts, unlandedFiles } from '../goal-artifacts.ts';
 import { pendingStackEntries } from './stack-entries.ts';
 
@@ -47,6 +48,16 @@ export async function mergedInBase(repo: string, base: string, ref: string | nul
   return (await git(['merge-base', '--is-ancestor', ref, `refs/heads/${base}`], repo)).code === 0;
 }
 
+/**
+ * Whether the goal went back to running after its delivery began: what it made since is in no pull request, even when
+ * the merge was only noticed later. A delivery begins once the goal has finished.
+ */
+function ranAgainSinceDelivery(engine: Engine, goalId: string): boolean {
+  const events = engine.store.listByGoalOfTypes(goalId, ['delivery.started', 'goal.state_changed']);
+  const began = events.filter((e) => e.type === 'delivery.started').at(-1);
+  return !!began && events.some((e) => e.type === 'goal.state_changed' && (e.payload as { to: string }).to === 'running' && e.seq > began.seq);
+}
+
 export interface AfterMergeOptions {
   /** the human pressed "Pull into my checkout": update the local base even when the setting is off */
   pull?: boolean;
@@ -61,6 +72,8 @@ export async function afterMerge(engine: Engine, goalId: string, opts: AfterMerg
   const goal = getGoal(engine.store.db, goalId);
   if (!goal || goal.delivery.outcome !== 'merged') return;
   const { config, store } = engine;
+  // the goal's last event as this began: a run again after it (while this waited) keeps everything
+  const since = store.listByGoal(goalId, 1)[0]?.seq ?? 0;
   const base = baseBranchOf(goal);
   const auto = config.delivery.updateLocalBase;
 
@@ -87,6 +100,8 @@ export async function afterMerge(engine: Engine, goalId: string, opts: AfterMerg
   if (getGoal(store.db, goalId)!.delivery.cleanup?.done) return;
   // a goal restarted after its merge works in those folders again: nothing of them goes, not even when asked to
   if (!['done', 'over_delivered'].includes(getGoal(store.db, goalId)!.state)) return cleaned(false, 'the goal is running again, so its folders stay');
+  // and once it finished again, what it made since is in no merge: its folders stay unless asked to go
+  if (!opts.force && ranAgainSinceDelivery(engine, goalId)) return cleaned(false, 'the goal ran again after its merge, so its progress folder holds work the merge did not carry; clean up anyway to remove it');
   if (!auto && !opts.force) return cleaned(false, 'Settings: Foundry does not tidy up after a merge — delete the goal to remove its folders');
   if (!upToDate && !opts.force) return cleaned(false, `your local ${base} does not contain this work yet, so the progress folder stays`);
   const ws = goalWorkspacePath(config.dataDir, goal);
@@ -107,30 +122,50 @@ export async function afterMerge(engine: Engine, goalId: string, opts: AfterMerg
     const run = fresh.completion.artifactsRun;
     const delivered = new Set(run?.status === 'ok' ? run.files : []);
     // delivered means as the file was when the copy began (one written since, during the copy or by a task run again,
-    // may be newer than what the folder got), and still there: a copy removed from the output folder, or replaced by
-    // another goal delivering into the same folder (its size differs), is no copy
+    // may be newer than what the folder got), and still there as that copy: the very copy it made, else a file of the
+    // same content (a network share may change a file's inode number or time). One removed from the output folder,
+    // replaced there by another goal's delivery or changed is no copy
     const at = run?.status === 'ok' ? Date.parse(run.startedAt ?? run.at) : 0;
-    const sent = (f: string) => {
+    const sent = async (f: string) => {
       try {
         if (!delivered.has(f)) return false;
         const mine = statSync(join(ws, ARTIFACTS_DIR, f));
-        return mine.mtimeMs <= at && statSync(join(run!.dest, f)).size === mine.size;
+        if (mine.mtimeMs > at) return false;
+        const theirs = statSync(join(run!.dest, f));
+        if (theirs.size !== mine.size) return false;
+        const made = run!.copies?.[f];
+        return (!!made && copyIdentity(theirs) === made) || (await contentHash(join(run!.dest, f))) === (await contentHash(join(ws, ARTIFACTS_DIR, f)));
       } catch {
         return false;
       }
     };
     // what git tracks is in the base already; the Brief's style samples were only there to choose a look by
     const tracked = await trackedArtifacts(ws);
-    const kept = listArtifacts(ws).filter((f) => !sent(f) && !tracked.has(f) && !isStyleSample(f));
+    const kept: string[] = [];
+    for (const f of listArtifacts(ws)) if (!tracked.has(f) && !isStyleSample(f) && !(await sent(f))) kept.push(f);
     const copied = kept.filter((f) => delivered.has(f)).length;
     const what = !copied ? 'no output folder received' : copied === kept.length ? 'whose copy in the output folder is missing or older' : 'no output folder received, or whose copy there is missing or older';
     if (kept.length) return cleaned(false, `the progress folder holds ${kept.length} artifact${kept.length === 1 ? '' : 's'} ${what} (${kept.slice(0, 3).join(', ')}${kept.length > 3 ? ', …' : ''}); copy them out, or clean up anyway`);
   }
-  // clean up anyway never pulls the folder out from under a copy still running
-  await engine.artifactDelivery(goalId)?.catch(() => {});
-  await engine.withGoalWsLock(goal.id, async () => {
-    // the delivery that ended meanwhile may have tidied up already (or another press of the button did)
-    if (getGoal(store.db, goalId)!.delivery.cleanup?.done) return;
+  // clean up anyway waits for a copy still running, not for ever (one into a share that stopped answering never ends),
+  // and does not remove the files it has not copied yet from under it: it holds, and the person presses again once it
+  // ended. Nor for ever for the progress folder's lock, which such a delivery holds while it copies what a landing missed
+  const waitMs = config.delivery.copyWaitMs ?? 30_000;
+  const deadline = Date.now() + waitMs;
+  const within = async <T>(work: Promise<T>): Promise<{ done: true; value: T } | { done: false }> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<{ done: false }>((r) => (timer = setTimeout(() => r({ done: false }), Math.max(0, deadline - Date.now()))));
+    try {
+      return await Promise.race([work.then((value) => ({ done: true as const, value })), late]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  const copying = engine.artifactDelivery(goalId);
+  if (copying && !(await within(copying.catch(() => {}))).done) return cleaned(false, `the copy to the output folder is still running after ${Math.round(waitMs / 1000)}s; press Clean up anyway again once it ends (restart Foundry if the output folder stopped answering)`);
+  let started = false;
+  let gaveUp = false;
+  const remove = async () => {
     let worktrees = 0;
     for (const t of listTasks(store.db, goal.id)) {
       if (!t.worktreePath || t.worktreePath === ws) continue;
@@ -150,5 +185,25 @@ export async function afterMerge(engine: Engine, goalId: string, opts: AfterMerg
     if (internal) for (const d of TIDIED) rmSync(join(internal, d), { recursive: true, force: true });
     else rmSync(join(config.dataDir, 'worktrees', goal.id), { recursive: true, force: true });
     cleaned(true, `removed the progress folder, ${worktrees} worktree${worktrees === 1 ? '' : 's'} and ${branches} local branch${branches === 1 ? '' : 'es'}${opts.force ? ' (cleaned up anyway)' : ''}; screenshots and the goal's history are kept`);
+  };
+  const tidied = engine.withGoalWsLock(goal.id, async () => {
+    // given up on before its turn came: nothing goes behind the person's back once the copy ends
+    if (gaveUp) return;
+    started = true;
+    // the delivery that ended meanwhile may have tidied up already (or another press of the button did)
+    if (getGoal(store.db, goalId)!.delivery.cleanup?.done) return;
+    // and the goal may have been restarted while this waited for a copy or for the lock, or be restarting now: nothing
+    // of it goes then. No restart begins while the folders go (Engine.restartGoal)
+    if (engine.restarting.has(goalId) || store.listByGoalOfTypes(goalId, ['goal.state_changed']).some((e) => (e.payload as { to: string }).to === 'running' && e.seq > since)) return cleaned(false, 'the goal ran again, so its folders stay');
+    engine.removingFolders.add(goalId);
+    try {
+      await remove();
+    } finally {
+      engine.removingFolders.delete(goalId);
+    }
   });
+  // removing has begun: it runs to its end (git and the folders, not a copy into a share)
+  if ((await within(tidied)).done || started) return void (await tidied);
+  gaveUp = true;
+  cleaned(false, `the progress folder is still busy after ${Math.round(waitMs / 1000)}s; press Clean up anyway again in a while`);
 }

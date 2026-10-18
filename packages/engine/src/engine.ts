@@ -220,6 +220,9 @@ export class Engine {
   }
   /** the tidy-ups after a merge that a delivery put off, running now, per goal */
   private tidying = new Map<string, Promise<void>>();
+  /** goals whose folders the tidy-up after a merge is removing now, and goals being restarted: never both at once */
+  readonly removingFolders = new Set<string>();
+  readonly restarting = new Set<string>();
   /**
    * Run the tidy-up after a merge that was put off for the goal's artifact delivery (its hold is recorded as waiting),
    * once no copy is in flight: only that hold (one of another kind waits for a refresh or a button, or every tick of a
@@ -2348,6 +2351,17 @@ export class Engine {
    * goal goes back to `running`; the goal branch keeps the work done so far, so restarted tasks build on it.
    */
   async restartGoal(goalId: string, opts: { fromTaskId?: string } = {}): Promise<{ restarted: string[] }> {
+    // not while the tidy-up after its merge removes its folders, and none starts removing them while this runs
+    if (this.removingFolders.has(goalId)) throw new Error("the goal's folders are being removed (Clean up anyway); restart it once that has finished");
+    this.restarting.add(goalId);
+    try {
+      return await this.restartNow(goalId, opts);
+    } finally {
+      this.restarting.delete(goalId);
+    }
+  }
+
+  private async restartNow(goalId: string, opts: { fromTaskId?: string }): Promise<{ restarted: string[] }> {
     const goal = this.mustGoal(goalId);
     if (!['failed', 'cancelled', 'done', 'over_delivered', 'blocked', 'running'].includes(goal.state)) throw new Error(`goal is ${goal.state}; restart applies to running or finished goals`);
     const tasks = listTasks(this.store.db, goalId);

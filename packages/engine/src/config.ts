@@ -96,6 +96,8 @@ export interface EngineConfig {
     updateLocalBase: boolean;
     /** how often goals with an open pull request are checked for a merge or close done on GitHub later */
     prWatchMs: number;
+    /** how long "Clean up anyway" waits for an artifact copy still running, and for the goal workspace's lock, before it holds (a share that stopped answering never ends a copy) */
+    copyWaitMs?: number;
   };
   /** Roots the folder browser may enter (default: home, /Volumes). */
   allowedRoots?: string[];
@@ -198,7 +200,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     videoPack: process.env.FOUNDRY_VIDEO_PACK ?? 'web-video-presentation',
     autoskills: process.env.FOUNDRY_AUTOSKILLS ? !/^(0|false|off|no)$/i.test(process.env.FOUNDRY_AUTOSKILLS) : true,
     sync: { fetchBeforeGoal: process.env.FOUNDRY_SYNC_FETCH ? !/^(0|false|off|no)$/i.test(process.env.FOUNDRY_SYNC_FETCH) : true, startFrom: process.env.FOUNDRY_SYNC_START === 'local' ? 'local' : 'auto', refreshBetweenTasks: /^(1|true|on|yes)$/i.test(process.env.FOUNDRY_SYNC_REFRESH ?? '') },
-    delivery: { pollMs: 30_000, noChecksGraceMs: 90_000, checksTimeoutMs: 30 * 60_000, automergeWaitMs: 10 * 60_000, updateLocalBase: true, prWatchMs: 5 * 60_000 },
+    delivery: { pollMs: 30_000, noChecksGraceMs: 90_000, checksTimeoutMs: 30 * 60_000, automergeWaitMs: 10 * 60_000, updateLocalBase: true, prWatchMs: 5 * 60_000, copyWaitMs: 30_000 },
     workflowProfile: process.env.FOUNDRY_WORKFLOW === 'plain' ? 'plain' : 'mattpocock',
     workflowTdd: (['required', 'preferred', 'off'].includes(process.env.FOUNDRY_TDD ?? '') ? process.env.FOUNDRY_TDD : 'required') as 'required' | 'preferred' | 'off',
     workflowPonytail: process.env.FOUNDRY_PONYTAIL === 'off' ? 'off' : 'on',
