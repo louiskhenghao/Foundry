@@ -6,7 +6,7 @@
 
 Foundry 写 Brief 之前，会先读你的项目和附件。大部分问题它能自己回答。它回答不了的，就只有你能决定：两种设计选哪个、用户是谁、某个旧功能要不要保留。这些它会分几轮简短地问你。
 
-你在浏览器里回答。每轮只要一两分钟。
+你在浏览器里回答，也可以在 Telegram 里回答（见 [在 Telegram 里回答](#在-telegram-里回答)）。每轮只要一两分钟。
 
 ## 什么时候会有访谈
 
@@ -87,6 +87,17 @@ Foundry 写 Brief 之前，会先读你的项目和附件。大部分问题它�
 - 如果你之后再跑一次 Clarify，它会从你的决定出发，而不是重新问一遍。
 
 你仍然可以在 Brief 页面上改主意：见 [批准 Brief](./approving-the-brief.zh.md#decisions)。
+
+## 在 Telegram 里回答
+
+设置了 Telegram 通知、并开着 **Answer from Telegram** 时，一轮访谈会分几条消息发来：先是一句该怎么做，然后每个问题一条消息、选项是按钮（⭐ 是推荐的那个），最后一条消息上有 **Accept all recommended**、**Send answers** 和 **Enough — write the Brief**。
+
+- 点一个选项就选中它；点另一个就改主意。按最后那条消息的按钮之前，什么都不会发出去。
+- **✍️ My own answer…**，或者回复某个问题的那条消息，就是你自己的答案。
+- **Send answers** 会告诉你还有哪些 blocking 问题没答。
+- 这一轮发出后（在这里或在 goal 页面上），每个问题都会显示它得到的答案。
+
+见 [Answering from Telegram](../operate/notifications.md#answering-from-telegram)。
 
 ## 小贴士
 

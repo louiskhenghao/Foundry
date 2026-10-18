@@ -160,10 +160,17 @@ export const NotificationSettings = z.object({
   tailscale: z.enum(['auto', 'off']).default('auto'),
   /** this computer's tailnet name when it should not be read from `tailscale status` (mac.tailnet-123.ts.net) */
   tailscaleHost: z.string().nullable().default(null),
+  /**
+   * Telegram messages about something that waits for you carry buttons, and a reply answers in words (ADR-0038):
+   * Foundry reads the bot's updates by long polling while a token and chat are set. One bot per Foundry instance.
+   */
+  telegramActions: z.boolean().default(true),
   /** an Escalation was raised — a task or goal is blocked and needs the human */
   onEscalation: z.boolean().default(true),
   /** the Clarify interview asked a round of questions */
   onInterview: z.boolean().default(true),
+  /** a Brief is ready and waits for approval (one the engine approves itself never notifies) */
+  onBriefReady: z.boolean().default(true),
   /** a goal ended done / over-delivered / failed (cancelling is the human's own act and never notifies) */
   onGoalFinished: z.boolean().default(true),
   /** a PR opened, merged, or the delivery failed */

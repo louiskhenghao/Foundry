@@ -636,8 +636,10 @@ export function SettingsPage() {
             </>,
           )}
           <div className="space-y-2">
+            {bool('notifications.telegramActions', 'Answer from Telegram', "Messages about something that waits for you carry buttons (Retry, Skip, Continue, Approve…), and a reply answers in words. Foundry reads the bot's messages while this is on, so give each Foundry its own bot. Commands outside the workspace are approved in the Inbox only.")}
             {bool('notifications.onEscalation', 'Needs you', 'An escalation was raised — a task or goal is blocked until you answer it on the Inbox page.')}
             {bool('notifications.onInterview', 'Interview round', 'The Clarifier asked a round of questions before writing the Brief; the goal waits for your answers.')}
+            {bool('notifications.onBriefReady', 'Brief ready', 'A Brief waits for your approval. A Brief the engine approves itself (an automatic one, a delegated goal its main goal approves) never notifies.')}
             {bool('notifications.onGoalFinished', 'Goal finished', 'A goal ended done, over-delivered, or failed. Cancelling a goal yourself never notifies.')}
             {bool('notifications.onDelivery', 'Delivery', 'A pull request was opened or merged, or the delivery failed.')}
             {bool('notifications.onRateLimit', 'Usage pause', 'A provider usage limit paused its goals, and when the retry pause lifts.')}

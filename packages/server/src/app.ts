@@ -1350,6 +1350,12 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const { token } = z.object({ token: z.string().min(1).nullable().optional() }).parse(await c.req.json().catch(() => ({})));
     const t = token ?? engine.settings.values().notifications.telegramBotToken;
     if (!t) return c.json({ error: 'no bot token — paste the token from @BotFather first' }, 400);
+    // while Foundry reads this bot (Telegram buttons), Telegram hands it every message: the reader knows who wrote last
+    if (engine.telegram.reads(t)) {
+      const seen = engine.telegram.seenChat(t);
+      if (!seen) return c.json({ error: 'no messages yet — open your bot in Telegram, send it any message, then detect again' }, 400);
+      return c.json(seen);
+    }
     return c.json(await detectTelegramChatId(t));
   });
   // ---------- version & self-update (ADR-0010): cached report like /api/skills/updates; apply streams to `self-update` ----------

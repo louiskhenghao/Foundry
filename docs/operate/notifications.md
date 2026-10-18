@@ -8,6 +8,8 @@ kind of message means for the person running goals is in [docs/guide/settings.md
 - Leave a channel's fields empty to keep that channel off.
 - The credentials are stored in `settings.json` under your instance’s data directory (`data/`, `data-codex/` or `FOUNDRY_DATA_DIR`).
 - The engine sends the messages, never the model.
+- Telegram also takes answers: a message about something that waits for you carries buttons, and a reply answers it
+  in words. See [Answering from Telegram](#answering-from-telegram).
 
 ---
 
@@ -101,13 +103,14 @@ URL** or use Tailscale.
 
 ## The switches
 
-Below the channels are six switches, one per kind of message. All are on by default. Turn off the ones you do not
-want.
+Below the channels are **Answer from Telegram** (see [Answering from Telegram](#answering-from-telegram)) and seven
+switches, one per kind of message. All are on by default. Turn off the ones you do not want.
 
 | Switch | Settings key | Sends a message when |
 |---|---|---|
 | **Needs you** | `notifications.onEscalation` | a goal is blocked until you answer (also a milestone's *Have a look*) |
 | **Interview round** | `notifications.onInterview` | the Clarifier asks a round of questions before writing the Brief |
+| **Brief ready** | `notifications.onBriefReady` | a Brief waits for your approval (never one the engine approves itself: an automatic Brief, or a delegated goal's Brief its main goal approves) |
 | **Goal finished** | `notifications.onGoalFinished` | a goal ends done, over-delivered or failed (never when you cancel it) |
 | **Delivery** | `notifications.onDelivery` | a pull request is opened or merged, or a delivery fails (a stack of pull requests is told together, see below) |
 | **Usage pause** | `notifications.onRateLimit` | a backend’s usage limit pauses its new sessions, and when retrying resumes; other backends can continue |
@@ -119,6 +122,46 @@ What each of these means for someone running goals, and what to do about it, is 
 A stacked delivery (one pull request per task) does not send a message per pull request. When it builds a stack of two or more, the channels get *Opening N pull requests* with their titles, then one *N pull requests opened* message listing each with its link once all are open (or after 15 minutes, or when the delivery ends, with the ones open by then). Merges are gathered the same way and sent once none has come for two minutes: *3 pull requests merged* with their numbers. A delivery with one pull request keeps its usual messages.
 
 A milestone sends two messages: *Have a look* (or *Milestone* when the goal does not pause for it) at once, then *What the milestone looks like* with the screenshots and the video of the walkthrough Foundry recorded in the preview. Telegram gets them as an album (photos up to 10 MB, a video up to 50 MB); Discord as attachments of the webhook message (10 MB together). A file over the limit is left out and the message says it is on the goal page. A picture Telegram will not take as a photo (too many pixels, an odd shape) is sent again as a file, which has no such limits; only when Telegram refuses that too does the text go alone, saying the files could not be attached. Without a recording, the self-check's latest screenshot is attached when there is one. When screenshots of error pages were left out of the walkthrough, or no walkthrough could be planned, a ⚠️ line says so. The *Needs you* switch covers both.
+
+---
+
+## Answering from Telegram
+
+With **Answer from Telegram** on (the default) and a Telegram bot set up, a message about something that waits for you
+is answered where you read it. Foundry reads your bot's messages for this with Telegram's long polling, so nothing has
+to reach your computer from the internet.
+
+| Message | Buttons | A reply in words |
+|---|---|---|
+| **Needs you**: a task ran out of attempts, or a tool was refused | **Retry**, **Retry with hint…**, **Skip task**, **Abort goal…** | retries the task with your words as its hint |
+| **Needs you**: the final review failed | **Fix and review again**, **Retry with hint…**, **Accept as-is**, **Abort goal…** | the fix tasks carry your words |
+| **Needs you**: the budget ran out | **Raise budget ×2**, **Abort goal…** | — |
+| **Needs you**: a command outside the workspace | **Deny** | — |
+| **Have a look** (a milestone) | **Continue**, **Give feedback…** | Foundry says what it makes of it, then you **Apply** or **Drop** that |
+| **Needs you**: the delivery stopped | **Retry delivery**, **Mark as delivered…** | — |
+| **Interview round** | one message per question with its options, then **Accept all recommended**, **Send answers**, **Enough — write the Brief** | a reply to a question is your own answer |
+| **Brief ready** | **Approve and run…** | — |
+| **Usage pause** | **Resume now** | — |
+
+- The buttons give the Inbox's, the interview's and the Brief page's own answers. The same checks apply, and what
+  Foundry refuses is shown as an alert under the button.
+- A button ending in … asks before it acts. **Abort goal…** and **Mark as delivered…** ask you to confirm. **Approve
+  and run…** says the budget it sets: for an Auto goal, the estimate ×2, as on the Brief page. **Retry with hint…**
+  and **Give feedback…** ask you to reply with your words.
+- A command outside the workspace is approved in the Inbox only. From a chat it can be denied, never run.
+- Once something is answered, here or in Foundry, its buttons turn into one line saying what happened, for example
+  **✓ Skipped · 14:02**.
+- The goal's activity records each answer and who gave it, for example *Skipped from Telegram by @ann*.
+- Send **/inbox** to get everything that waits for you again, with its buttons. Any other message gets a short help.
+- Only the chat in **Telegram chat id** is answered. In a group, anyone in it can press the buttons: use a private
+  chat with your bot when others are in the group.
+- Give each Foundry its own bot. Telegram hands a bot's messages to one reader at a time, so two instances on one bot
+  take turns and lose each other's presses. Make a second bot with @BotFather for a second instance, or turn **Answer
+  from Telegram** off on one of them.
+- While Foundry reads the bot, **Detect** asks Foundry, not Telegram, which chat wrote last: send the bot a message,
+  then press **Detect**.
+
+Discord messages carry the same text and links, without buttons: a Discord webhook can post but not listen.
 
 ---
 
@@ -136,7 +179,7 @@ wins over the variable.
 | `FOUNDRY_TAILSCALE` | Tailscale links (`auto` or `off`) |
 | `FOUNDRY_TAILSCALE_HOST` | Tailscale name |
 
-The six switches have no environment variables. Set them in the UI. The full list of variables is in
+**Answer from Telegram** and the seven switches have no environment variables. Set them in the UI. The full list of variables is in
 [configuration.md](./configuration.md).
 
 ---
@@ -146,6 +189,9 @@ The six switches have no environment variables. Set them in the UI. The full lis
 - **Best effort.** A failed send is retried twice (after 2 and 10 seconds). Then it is dropped and noted as
   `notification via <channel> failed after 3 tries: …`. Nothing is queued or re-sent after a restart. A dead channel
   never blocks a goal.
+- **Answers are fetched, not pushed.** With **Answer from Telegram** on, Foundry keeps one request to Telegram open
+  (about a minute each, then the next) to receive presses and replies. Nothing listens on your computer, and nothing
+  runs while Foundry is stopped: a press made then is acted on when it starts, if Telegram still holds it (a day).
 - **Immediate.** Settings are read at send time. A new token or switch applies to the very next message, without a
   restart.
 - **Plain text**, cut to 1,900 characters to stay under Telegram's and Discord's limits.
@@ -168,3 +214,7 @@ The six switches have no environment variables. Set them in the UI. The full lis
 | Test works but later messages never arrive | the switch for that kind is off, or the channel was never saved | check the six switches; check the fields show a green *saved* badge |
 | The links open nothing on your phone | no tailnet link (Tailscale not running here, or Tailscale links off) and the Link base URL is empty | start Tailscale here, or set Link base URL to an address your phone can reach ([remote-access.md](./remote-access.md)) |
 | An engine note says *notification via telegram failed after 3 tries: …* | the channel was unreachable or rejected the message | check the error text; run **Send test message** |
+| The buttons spin, then nothing happens | Foundry is not reading the bot: **Answer from Telegram** is off, Foundry is stopped, or another reader holds the bot | turn the switch on, start Foundry, and check the notes below |
+| An engine note says *Telegram buttons wait: something else reads this bot's updates* | another Foundry, or another program, uses the same bot | give each Foundry its own bot, or turn **Answer from Telegram** off on the other one |
+| An engine note says *this bot sends its updates to a webhook* | the bot was set up with a webhook elsewhere | remove it (open `https://api.telegram.org/bot<token>/deleteWebhook`), or give Foundry a bot of its own |
+| A press says *Foundry answers only the chat set in its Settings* | the button was pressed in another chat than **Telegram chat id** | press it in that chat, or **Detect** the other chat and **Save** |
