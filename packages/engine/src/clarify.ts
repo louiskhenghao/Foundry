@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import type { Brief, Goal, GoalNature, Interview, InterviewQuestion, InterviewRound, TaskScenario } from '@foundry/core';
-import { BriefOutput, BriefSkeleton, INTERVIEW_MAX_QUESTIONS, PlanOutput, INTERVIEW_MAX_ROUNDS, IdPrefix, InterviewOutput, getGoal, interviewAnswers, interviewDepth, newId, uncoveredAreas } from '@foundry/core';
+import { BriefOutput, BriefSkeleton, INTERVIEW_MAX_QUESTIONS, PlanOutput, INTERVIEW_MAX_ROUNDS, IdPrefix, InterviewOutput, getGoal, interviewAnswers, interviewDepth, newId, planOutputSchema, uncoveredAreas } from '@foundry/core';
+import { delegationContext } from './delegation.ts';
 import type { RunHandle, RunResult } from '@foundry/runner';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
@@ -92,7 +93,8 @@ interface ClarifyContext {
 async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContext> {
   const { store, config } = engine;
   const extraQuestions: Brief['questions'] = [];
-  if (await isDirty(goal.repoPath).catch(() => false)) {
+  // a Delegated goal starts from the main goal's branch, not from the checkout: its dirt was the main goal's question
+  if (!goal.delegatedFrom && (await isDirty(goal.repoPath).catch(() => false))) {
     extraQuestions.push({
       id: newId('q'),
       text: `The repository at ${goal.repoPath} has uncommitted changes. The goal branch is created from the last commit of '${goal.baseBranch}' (or its remote tip when that is newer), so those changes will NOT be visible to the workers. Continue anyway? (answer "yes" to continue, or commit/stash first and recreate the goal)`,
@@ -133,7 +135,9 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
   const decisions = reclarified ? ((reclarified.payload as { decisions?: string }).decisions ?? '') : '';
   // a Follow-up: the earlier goal's snapshot, plus where this checkout actually started (recorded by the Base Sync)
   const synced = getGoal(store.db, goal.id) ?? goal;
-  const previous = goal.follows?.context ? [goal.follows.context, startSentence(synced)].filter(Boolean).join('\n') : '';
+  const followUp = goal.follows?.context ? [goal.follows.context, startSentence(synced)].filter(Boolean).join('\n') : '';
+  // a Delegated goal: the main goal, what was decided there, and what the steps before it delivered
+  const previous = [followUp, delegationContext(engine, goal)].filter(Boolean).join('\n\n');
   const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview ? interviewDepth(goal.interview) : null, previous, cadAvailable);
   const addDirs = goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined;
   const schema = zodToJsonSchema(goal.interview ? InterviewOutput : BriefSkeleton, { $refStrategy: 'none' });
@@ -171,7 +175,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
     model: plannerModel.model,
     run: (skeleton: BriefSkeleton, resume?: { sessionId: string; message: string }) =>
       engine.runner.run({
-        prompt: resume ? resume.message : buildPlannerPrompt({ ...goal, nature }, skeleton, { overview, attachments: renderAttachments(goal, config.dataDir), decisions, interview: goal.interview, emptyRepo: isEmptyRepo(ws), imageGen: engine.imageGenAvailable(), previous, plannerHint }),
+        prompt: resume ? resume.message : buildPlannerPrompt({ ...goal, nature }, skeleton, { overview, attachments: renderAttachments(goal, config.dataDir), decisions, interview: goal.interview, emptyRepo: isEmptyRepo(ws), imageGen: engine.imageGenAvailable(), previous, plannerHint, delegation: goal.delegation.allow }),
         cwd: ws,
         model: plannerModel.model,
         meta: metaFor(goal.id, plannerModel),
@@ -181,7 +185,8 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
         allowedTools: READONLY_TOOLS,
         disallowedTools: READONLY_DISALLOWED,
         appendSystemPromptFile: engine.roles.path('planner'),
-        jsonSchema: zodToJsonSchema(PlanOutput, { $refStrategy: 'none' }),
+        // the `goal` kind is offered only where the goal allows delegation
+        jsonSchema: zodToJsonSchema(planOutputSchema(goal.delegation.allow), { $refStrategy: 'none' }),
         settings: boundarySettings(config.hooksDir),
         settingSources: config.settingSources,
         strictMcp: true,
@@ -576,7 +581,11 @@ function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: str
 const PLAN_LEAN = `# Plan lean (Ponytail is on for this goal)
 Before you carve tasks, check what already exists: a helper, component, service or pattern in this repository, the standard library, a platform feature, an installed dependency. Plan on top of it, never a task to rebuild it. Plan only what the goal asks for: no task for options, abstractions or flexibility nobody asked for, and the fewest tasks that cover every Area. A task that exists only to prepare for a possible later need is cut. Never cut validation, error handling, security, accessibility or the tests the work needs.`;
 
-export function buildPlannerPrompt(goal: Goal, skeleton: BriefSkeleton, c: { overview: string | null; attachments: string; decisions: string; interview: Interview | null; emptyRepo: boolean; imageGen: boolean; previous: string; plannerHint: string | null }): string {
+/** when the goal allows it: a step that is a project of its own becomes a `goal` task, done by a Delegated goal */
+const DELEGATE_SECTION = `# Delegated goals (allowed on this goal)
+A task of kind \`goal\` is not done by one worker session: Foundry makes a goal of its own for it — its own Clarify, plan and tasks, on this goal's branch — and its result lands here as that task's commit, its files under artifacts/ with it, before the tasks that depend on it start. Use it for a step that is itself a project: research that must come first and shape the rest, a craft of its own next to the code (a 3D model, a video, a set of images), or a part so large that one plan for everything would stay shallow. Do not use it for ordinary tasks: a goal task costs a whole Clarify. Its \`spec\` is the prompt that goal gets, so write it the way the human wrote this goal — what to make, for whom, what must and must not happen, and what the other steps expect back from it; its \`scenario\` says what it produces (image, video, cad, research, docs, or a code scenario). Give it \`dependsOnKeys\` on what it needs first, and make the tasks that use its result depend on it. Delegated goals run one at a time.`;
+
+export function buildPlannerPrompt(goal: Goal, skeleton: BriefSkeleton, c: { overview: string | null; attachments: string; decisions: string; interview: Interview | null; emptyRepo: boolean; imageGen: boolean; previous: string; plannerHint: string | null; delegation?: boolean }): string {
   const { planningNotes, ...brief } = skeleton;
   const answers = c.interview ? interviewAnswers(c.interview) : [];
   return [
@@ -586,6 +595,7 @@ export function buildPlannerPrompt(goal: Goal, skeleton: BriefSkeleton, c: { ove
     c.previous,
     renderReferences(goal),
     plannerNatureSection({ ...goal, nature: skeleton.nature ?? goal.nature }, c.emptyRepo),
+    c.delegation ? DELEGATE_SECTION : '',
     c.attachments,
     c.overview ? `# Repository overview\n${c.overview}` : '',
     `# The Brief from the Clarifier\nAreas, assumptions and goal-level checks are settled; plan within them.\n\`\`\`json\n${JSON.stringify(brief, null, 1)}\n\`\`\``,
@@ -636,7 +646,7 @@ export function toBrief(goal: Goal, o: BriefOutput, extraQuestions: Brief['quest
   const area = (k: string | null | undefined) => (k && areaKeys.has(k) ? k : null);
   const styleOptions = (o.styleOptions ?? []).map((s) => ({ key: s.key, name: s.name, palette: s.palette ?? [], fonts: s.fonts ?? [], keywords: s.keywords ?? [], description: s.description ?? '', samples: [] as string[], chosenSample: null as string | null }));
   // a Follow-up that kept its predecessor's style: when this goal has a look at all, that direction comes first and is already picked
-  const kept = goal.follows?.style ?? null;
+  const kept = goal.follows?.style ?? goal.delegatedFrom?.style ?? null;
   if (kept && styleOptions.length && !styleOptions.some((s) => s.name === kept.name)) styleOptions.unshift({ ...kept, key: styleOptions.some((s) => s.key === kept.key) ? `${kept.key}-kept` : kept.key, samples: [], chosenSample: null });
   // a direction the human already picked in the interview is not asked again: the question starts answered, still changeable
   const picked = kept ? null : (o.styleOptions ?? []).find((s) => s.chosen)?.name ?? null;
@@ -648,7 +658,8 @@ export function toBrief(goal: Goal, o: BriefOutput, extraQuestions: Brief['quest
     areas: o.areas.map((a) => ({ key: a.key, name: a.name, slug: a.slug, description: a.description ?? '' })),
     assumptions: o.assumptions.map((text) => ({ id: newId('as'), text, accepted: true, applied: false })),
     checks: o.checks.map((c) => ({ key: c.key, name: c.name, tier: c.tier, taskKey: c.taskKey ?? null, areaKey: c.taskKey ? null : area(c.areaKey), spec: materializeCheck(c, c.taskKey ?? null) })),
-    tasks: o.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind ?? 'feature', scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys, parallelizable: t.parallelizable, relevantFiles: t.relevantFiles, milestone: t.milestone ?? null, milestoneScript: t.milestone ? (t.milestoneScript ?? null) : null, difficulty: t.difficulty ?? 'standard' })),
+    // a `goal` task where the goal allows no delegation (a model that ignored the schema) is an ordinary task
+    tasks: o.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind === 'goal' && !goal.delegation.allow ? 'feature' : (t.kind ?? 'feature'), scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys, parallelizable: t.parallelizable, relevantFiles: t.relevantFiles, milestone: t.milestone ?? null, milestoneScript: t.milestone ? (t.milestoneScript ?? null) : null, difficulty: t.difficulty ?? 'standard' })),
     costEstimateUsd: o.costEstimateUsd,
     run: o.run ?? null,
     apps: o.apps ?? null,

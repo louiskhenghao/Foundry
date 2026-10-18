@@ -353,8 +353,9 @@ export async function ensureTaskWorkspace(dataDir: string, goal: Goal, task: Tas
   // project skills and the Brief's style samples are git-excluded, so a fresh checkout lacks them: copy them over from the goal workspace
   copyProjectSkills(goalPath, path, goal.provider);
   copyStyleSamples(goalPath, path);
-  // a cad task builds on what earlier tasks exported (a drawing or an assembly needs their STEP): artifacts are git-excluded too
-  if (task.scenario === 'cad') await inheritArtifacts(goalPath, path);
+  // every task builds on what earlier tasks and Delegated goals put under artifacts/ (a drawing needs the parts' STEP, a
+  // page the images made for it): artifacts are git-excluded, so a fresh checkout lacks them too
+  await inheritArtifacts(goalPath, path);
   return { path, branch };
 }
 

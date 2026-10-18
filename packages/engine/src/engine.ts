@@ -101,7 +101,9 @@ import { removeWorktree } from './git/git.ts';
 import { BaselineChecks } from './checks/baseline.ts';
 import { relative, resolve } from 'node:path';
 import { adoptLocalBin, AGENT_CLI_IDS, agentCliInstall, type AgentCliId } from './agent-cli.ts';
-import { type FollowUpDraft, type FollowUpInput, followUpDraft, linkFollowUp, prepareFollowUp } from './follow-up.ts';
+import { type FollowUpDraft, type FollowUpInput, copyAttachments, followUpDraft, linkFollowUp, prepareFollowUp } from './follow-up.ts';
+import { autoApproveDelegated, isDelegationTask, settleDelegations } from './delegation.ts';
+import { ATTACHMENT_LIMITS, type GoalDelegatedFrom, type GoalDelegation } from '@foundry/core';
 import { Tailnet } from './notify/tailnet.ts';
 import { SessionCosts } from './session-costs.ts';
 import { CODE_SERVER_INSTALL, CodeServer } from './editor/code-server.ts';
@@ -153,7 +155,14 @@ export interface CreateGoalInput {
   outputDir?: string | null;
   /** create the goal as a Follow-up of an earlier finished goal of the same repository (see follow-up.ts) */
   follows?: FollowUpInput;
+  /** may the planner delegate steps to goals of their own, and are their Briefs approved without the human (both off by default) */
+  delegation?: Partial<GoalDelegation>;
+  /** engine-internal (delegation.ts): this goal does one `goal` task of a main goal; the API never sets it */
+  delegatedFrom?: Omit<GoalDelegatedFrom, 'at'>;
 }
+
+/** events of a Delegated goal its main goal must hear of: the ones that change what the main goal waits for, or cost it */
+const PARENT_TICK_EVENTS = new Set<string>(['goal.state_changed', 'goal.cost_added', 'goal.deleted', 'interview.round_asked', 'interview.round_answered', 'brief.proposed', 'brief.approved', 'brief.edited', 'escalation.raised', 'escalation.answered']);
 
 export interface InFlight {
   goalId: string;
@@ -255,6 +264,10 @@ export class Engine {
   readonly auditing = new Set<string>();
   /** goals whose references REA is investigating */
   readonly investigating = new Set<string>();
+  /** goal tasks whose Delegated goal is landing on the goal branch now, with the landing (delegation.ts); stop() waits for them */
+  readonly landingDelegations = new Map<string, Promise<void>>();
+  /** Delegated goals whose Brief the engine is approving now, with the approval; stop() waits for them */
+  readonly approvingDelegated = new Map<string, Promise<void>>();
   /** sessions run for a goal outside a task (the audit, an investigation): killed with the goal's in-flight sessions */
   readonly background = new Map<string, Set<RunHandle>>();
   /** remember a background session until it ends, so cancelling the goal or stopping Foundry kills it too */
@@ -437,6 +450,15 @@ export class Engine {
       if (e.type === 'session.usage' && e.payload.sessionId) this.ownedSessionIds.add(e.payload.sessionId);
       if ((e.type === 'task.artifacts_landed' || e.type === 'goal.artifacts_delivered') && e.goalId) this.cadModelMemo.delete(e.goalId);
       if (e.goalId) this.tick(e.goalId);
+      // a Delegated goal's progress is its main goal's business: what it costs counts there, and its state moves the main goal on
+      if (e.goalId && PARENT_TICK_EVENTS.has(e.type)) {
+        const g = getGoal(this.store.db, e.goalId);
+        const main = g?.delegatedFrom ? getGoal(this.store.db, g.delegatedFrom.goalId) : null;
+        if (g && main) {
+          if (e.type === 'goal.cost_added') this.store.append({ type: 'goal.cost_added', goalId: main.id, payload: { costUsd: e.payload.costUsd, source: `delegated:${g.id}` } });
+          this.tick(main.id);
+        }
+      }
     });
     this.notifications = new NotificationDispatcher(this);
     this.notifications.attach();
@@ -753,7 +775,8 @@ export class Engine {
   async ensureSyncedWorkspace(goal: Goal): Promise<string> {
     const path = goalWorkspacePath(this.config.dataDir, goal);
     if (goal.baseSync || existsSync(path) || (await branchExists(goal.branch, goal.repoPath).catch(() => false))) return ensureGoalWorkspace(this.config.dataDir, goal);
-    const s = await fetchBase(goal.repoPath, goal.baseBranch, { fetch: this.config.sync.fetchBeforeGoal });
+    // a Delegated goal starts from its main goal's branch, which lives here: nothing to fetch
+    const s = await fetchBase(goal.repoPath, goal.baseBranch, { fetch: this.config.sync.fetchBeforeGoal && !goal.delegatedFrom, ...(goal.delegatedFrom ? { remote: null } : {}) });
     let start: { ref: string; from: 'local' | 'remote' | 'previous'; reason: string } = startRef(s, this.config.sync.startFrom);
     // a Follow-up whose previous goal's work is not on the base yet starts from that goal's branch
     const f = goal.follows;
@@ -798,14 +821,15 @@ export class Engine {
 
   /** Between tasks (nothing running): fetch again and merge a moved base into the goal branch. Off unless `sync.refreshBetweenTasks`. */
   async refreshBase(goal: Goal): Promise<void> {
-    if (!this.config.sync.refreshBetweenTasks) return;
+    // a Delegated goal's base is the main goal's branch, here: nothing upstream to bring in
+    if (!this.config.sync.refreshBetweenTasks || goal.delegatedFrom) return;
     const s = await fetchBase(goal.repoPath, goal.baseBranch);
     if (!s.remote || !s.remoteRef) return;
     const ws = goalWorkspacePath(this.config.dataDir, goal);
     const ref = `${s.remote}/${s.base}`;
     if ((await git(['merge-base', '--is-ancestor', ref, 'HEAD'], ws)).code === 0) return;
     const now = new Date().toISOString();
-    const task: Task = { id: newId(IdPrefix.task), goalId: goal.id, title: `sync ${goal.branch} with ${ref}`, spec: `${ref} moved while this goal was running. Merge it into ${goal.branch} so the remaining tasks build on the current base.`, kind: 'chore', scope: 'sync', scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: false, retryBudget: 2, origin: 'merge', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard' as const, state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now };
+    const task: Task = { id: newId(IdPrefix.task), goalId: goal.id, title: `sync ${goal.branch} with ${ref}`, spec: `${ref} moved while this goal was running. Merge it into ${goal.branch} so the remaining tasks build on the current base.`, kind: 'chore', scope: 'sync', scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: false, retryBudget: 2, origin: 'merge', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard' as const, state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, delegatedGoalId: null, summary: null, createdAt: now, updatedAt: now };
     this.store.append({ type: 'task.created', goalId: goal.id, payload: { task } });
     const ok = await mergeBranchInto(this, goal, task, { ref, label: ref, intent: `The base branch ${ref} received new commits while this goal was running. Keep their changes AND this goal's changes.` });
     const fresh = getTask(this.store.db, task.id)!;
@@ -1034,6 +1058,8 @@ export class Engine {
     };
     await settle(milestoneQueues(), 5000);
     await settle([...this.deliveringArtifacts.values(), ...this.tidying.values()], 10_000);
+    // a Delegated goal landing on its main goal's branch, or its Brief being approved by the engine, write to the database too
+    await settle([...this.landingDelegations.values(), ...this.approvingDelegated.values()], 10_000);
   }
 
   /** the escalation for a commit a merge attempt made before the engine stopped and git would not take back at the next start */
@@ -1541,6 +1567,10 @@ export class Engine {
     if (b.exceeded) return hard('the goal reached its budget');
     const tasks = listTasks(this.store.db, goal.id);
     if (dueCheckpoint(tasks)) return hard('a milestone landed; Foundry waits for the work in flight, then for you');
+    if (isDelegationTask(task)) {
+      const other = tasks.find((t) => t.id !== task.id && isDelegationTask(t) && ['running', 'observing', 'merging'].includes(t.state));
+      return hard(other ? `one delegated goal runs at a time: it starts once "${other.title}" has landed` : 'it starts as a delegated goal at the next scheduling pass');
+    }
     if (this.forceStart.has(task.id)) return hard('it is starting (you asked for it)');
     const inFlight = this.inFlightForGoal(goal.id);
     const running = tasks.filter((t) => inFlight.includes(t.id));
@@ -1588,6 +1618,7 @@ export class Engine {
     const goal = this.mustGoal(goalId);
     const task = getTask(this.store.db, taskId);
     if (!task || task.goalId !== goalId) throw new Error(`task ${taskId} not found`);
+    if (isDelegationTask(task) && task.state !== 'ready') throw new Error(`"${task.title}" is done by a delegated goal: open that goal to see where it is`);
     if (task.state === 'ready') {
       const hold = this.readyHold(goal, task);
       // the scheduler's caution (slots, running alone, shared files) gives way when the person says so; nothing else does
@@ -1682,6 +1713,12 @@ export class Engine {
       case 'awaiting_brief_approval':
         // "Investigate again" cleared the report; a restart in between lost the session: study the references once more
         if (needsInvestigation(goal)) this.startInvestigation(goal);
+        // a Delegated goal whose main goal approves for it: approved once its Brief leaves no question to the person
+        else if (goal.delegatedFrom) autoApproveDelegated(this, goal);
+        return;
+      case 'blocked':
+        // a main goal blocked while its Delegated goal needs the person goes on once it no longer does; a finished one lands meanwhile
+        if (listTasks(this.store.db, goalId).some((t) => isDelegationTask(t))) await settleDelegations(this, goal);
         return;
       case 'running':
         await schedule(this, goal);
@@ -1825,6 +1862,8 @@ export class Engine {
     const id = newId(IdPrefix.goal);
     // a Follow-up snapshots what it needs from the earlier goal now, and delivers to the same base branch
     const followUp = input.follows ? await prepareFollowUp(this, input.follows, input.repoPath, id, input.attachments?.length ?? 0) : null;
+    // a Delegated goal reads the main goal's attachments too (copies, as a Follow-up does)
+    const delegatedAttachments = input.delegatedFrom ? copyAttachments(this.config.dataDir, this.mustGoal(input.delegatedFrom.goalId), id, ATTACHMENT_LIMITS.maxPerGoal) : [];
     const baseBranch = input.baseBranch ?? followUp?.baseBranch ?? (await currentBranch(input.repoPath));
     if (baseBranch === 'HEAD') throw new Error('repository is in detached HEAD state; pass --base <branch>');
     const now = new Date().toISOString();
@@ -1897,11 +1936,14 @@ export class Engine {
       costUsd: 0,
       fixCycles: 0,
       delivery: { ...IDLE_DELIVERY, policy: DeliveryPolicy.parse({ ...(this.config.defaultDelivery ?? {}), ...(input.delivery ?? {}) }) },
-      attachments: [...(input.attachments?.length ? claimStaged(this.config.dataDir, id, input.attachments.map((a) => this.latestStaged(a))) : []), ...(followUp?.attachments ?? [])],
+      attachments: [...(input.attachments?.length ? claimStaged(this.config.dataDir, id, input.attachments.map((a) => this.latestStaged(a))) : []), ...(followUp?.attachments ?? []), ...delegatedAttachments],
       baseSync: null,
       autoskills: null,
       completion: { ...IDLE_COMPLETION },
       follows: followUp?.follows ?? null,
+      // one level: a Delegated goal never delegates, whatever the caller says
+      delegation: { allow: input.delegatedFrom ? false : !!input.delegation?.allow, autoApprove: !!input.delegation?.autoApprove },
+      delegatedFrom: input.delegatedFrom ? { ...input.delegatedFrom, at: now } : null,
       runningSince: null,
       activeMs: 0,
       activeSince: null,
@@ -2182,10 +2224,12 @@ export class Engine {
     this.startAutoskills(goal, ws);
     // completion actions: what the UI sent, holes filled from the Brief (Simple mode and API callers send nothing)
     const inferred = inferCompletion(brief, ws, goal.workflow.pace, this.config.workflowAudit);
+    // a Delegated goal has no completion actions of its own: the main goal documents, audits and refreshes the graph once everything landed
+    const chosen = goal.delegatedFrom ? { graphRefresh: false, docs: [] as DocType[], audit: false } : completion;
     this.store.append({
       type: 'goal.completion_set',
       goalId,
-      payload: { graphRefresh: completion?.graphRefresh ?? inferred.graphRefresh, docs: completion?.docs ?? inferred.docs, audit: completion?.audit ?? inferred.audit, reason: completion ? 'set at brief approval' : inferred.reason },
+      payload: { graphRefresh: chosen?.graphRefresh ?? inferred.graphRefresh, docs: chosen?.docs ?? inferred.docs, audit: chosen?.audit ?? inferred.audit, reason: goal.delegatedFrom ? 'delegated goal: the main goal completes' : completion ? 'set at brief approval' : inferred.reason },
     });
     if (budgets && Object.keys(budgets).length) {
       const next = Budgets.parse({ ...goal.budgets, ...budgets, ...(goal.provider === 'codex' ? { maxCostUsd: null } : {}) });
@@ -2202,7 +2246,8 @@ export class Engine {
         goalId,
         title: t.title,
         spec: t.spec,
-        kind: t.kind,
+        // one level: a Delegated goal never delegates again
+        kind: t.kind === 'goal' && goal.delegatedFrom ? 'feature' : t.kind,
         // the commit scope defaults to the Area's slug (Conventional Commits: feat(student-portal): …)
         scope: t.scope?.trim() || area?.slug || null,
         scenario: t.scenario ?? 'general',
@@ -2227,6 +2272,8 @@ export class Engine {
         commitMessage: null,
         hint: null,
         extraAttempts: 0,
+        delegatedGoalId: null,
+        summary: null,
         createdAt: now,
         updatedAt: now,
       };
@@ -2350,7 +2397,7 @@ export class Engine {
    * budget; tasks upstream keep their results. Without `fromTaskId` every task restarts. A failed / cancelled / finished
    * goal goes back to `running`; the goal branch keeps the work done so far, so restarted tasks build on it.
    */
-  async restartGoal(goalId: string, opts: { fromTaskId?: string } = {}): Promise<{ restarted: string[] }> {
+  async restartGoal(goalId: string, opts: { fromTaskId?: string; fromTaskIds?: string[] } = {}): Promise<{ restarted: string[] }> {
     // not while the tidy-up after its merge removes its folders, and none starts removing them while this runs
     if (this.removingFolders.has(goalId)) throw new Error("the goal's folders are being removed (Clean up anyway); restart it once that has finished");
     this.restarting.add(goalId);
@@ -2361,15 +2408,19 @@ export class Engine {
     }
   }
 
-  private async restartNow(goalId: string, opts: { fromTaskId?: string }): Promise<{ restarted: string[] }> {
+  private async restartNow(goalId: string, opts: { fromTaskId?: string; fromTaskIds?: string[] }): Promise<{ restarted: string[] }> {
     const goal = this.mustGoal(goalId);
     if (!['failed', 'cancelled', 'done', 'over_delivered', 'blocked', 'running'].includes(goal.state)) throw new Error(`goal is ${goal.state}; restart applies to running or finished goals`);
     const tasks = listTasks(this.store.db, goalId);
     let targets: Task[];
-    if (opts.fromTaskId) {
-      const from = tasks.find((t) => t.id === opts.fromTaskId);
-      if (!from) throw new Error(`task ${opts.fromTaskId} not found`);
-      const set = new Set<string>([from.id]);
+    // the tasks to start from: one the person chose, or the failed ones a Delegated goal's main goal restarts together
+    const roots = opts.fromTaskIds?.length ? opts.fromTaskIds : opts.fromTaskId ? [opts.fromTaskId] : [];
+    if (roots.length) {
+      const set = new Set<string>();
+      for (const id of roots) {
+        if (!tasks.some((t) => t.id === id)) throw new Error(`task ${id} not found`);
+        set.add(id);
+      }
       let grew = true;
       while (grew) {
         grew = false;
@@ -2402,9 +2453,10 @@ export class Engine {
     for (const t of targets) {
       const used = this.attemptCount(t.id);
       const over = Math.max(0, used - t.retryBudget - t.extraAttempts + t.retryBudget); // refresh: used attempts no longer count
-      this.store.append({ type: 'task.restarted', goalId, payload: { taskId: t.id, extraAttempts: over, reason: opts.fromTaskId ? `restarted by user from ${opts.fromTaskId === t.id ? 'this task' : 'an upstream task'}` : 'restarted by user' } });
+      const by = opts.fromTaskIds?.length ? 'the main goal' : 'user';
+      this.store.append({ type: 'task.restarted', goalId, payload: { taskId: t.id, extraAttempts: over, reason: roots.length ? `restarted by ${by} from ${roots.includes(t.id) ? 'this task' : 'an upstream task'}` : 'restarted by user' } });
     }
-    if (goal.state !== 'running') this.store.append({ type: 'goal.state_changed', goalId, payload: { from: goal.state, to: 'running', reason: opts.fromTaskId ? `restarted from task ${opts.fromTaskId}` : 'restarted' } });
+    if (goal.state !== 'running') this.store.append({ type: 'goal.state_changed', goalId, payload: { from: goal.state, to: 'running', reason: roots.length ? `restarted from task${roots.length > 1 ? 's' : ''} ${roots.join(', ')}` : 'restarted' } });
     this.tick(goalId);
     return { restarted: targets.map((t) => t.id) };
   }
@@ -2438,6 +2490,8 @@ export class Engine {
     for (const a of goal.attachments) trashAttachment(this.config.dataDir, goalId, a);
     rmSync(transferGoalDir(this.config.dataDir, goalId), { recursive: true, force: true });
     this.store.append({ type: 'goal.deleted', goalId, payload: { title: goal.title, deletedBranch, reason: 'deleted by user' } });
+    // a Delegated goal deleted while its main goal waits for it: the main goal's task is told at its next pass
+    if (goal.delegatedFrom) this.tick(goal.delegatedFrom.goalId);
     return { deletedBranch };
   }
 
