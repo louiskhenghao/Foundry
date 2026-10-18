@@ -94,6 +94,8 @@ kind 是 **goal** 的任务不由 worker 来做：由它自己的一个*委派 g
 
 委派 goal 需要你的时候——访谈问题、要批准的 Brief、milestone、Inbox 事项——这个 goal 显示 **blocked**，原因写着 *waiting for the delegated goal …*；在委派 goal 里（它的页面或 Inbox）回应之后，这个 goal 自己继续。委派 goal 失败时，它失败的任务会重新运行，次数以该任务允许的尝试次数为限，并附上原因说明；之后这个 goal 的任务上会出现一条 Inbox 事项，提供 **Retry**（它失败的任务带着你的提示再跑一次）或 **Skip**。对一个 goal 任务点 **Restart from here** 会新开一个委派 goal；旧的那个作为独立的 goal 留着。
 
+委派 goal 落地之后，planner 会读它交付了什么，并可能微调之后尚未开始的任务：它们的 spec、起始文件和交付物，绝不改计划的结构或检查。被微调过的任务会在 spec 下面写 **Touched up after a step landed** 和原因；Activity 标签里也有这一行。
+
 goals 列表把委派 goal 折叠在它的主 goal 下面：主 goal 下的一行 **▸ 2 delegated goals** 可以展开它们，缩进显示。委派 goal 自己的页面在标题下写着 **Delegated from: …**（链接到主 goal 的那个任务），主 goal 的页面列出它的 **Delegated goals**。如果主 goal 被删除，委派 goal 会独立留在列表里，并写明它曾属于谁。
 
 ### 任务内部
@@ -105,6 +107,7 @@ goals 列表把委派 goal 折叠在它的主 goal 下面：主 goal 下的一�
 - 标题、状态、标签，完成后还有它的提交。点提交那一行，可以看完整的提交信息。
 - **Task total**：到目前为止的尝试次数、费用（分成 worker 和 reviewer）、轮数和分钟数。
 - **spec**，以及你给过的 **human hint**（紧跟在 spec 下面；两者都可以用 **Open full** 图标在更大的窗口里阅读）、它的 **Checks** 及最新结果，以及 **Relevant files**（点一个就能打开；灰色的表示哪里都还没有这个文件，通常是计划里要这个任务新建的文件）。
+- **Deliverables**：这个任务承诺留给后续任务的文件。任务落地时每个都是一项 must 检查；文件存在后点一下就能打开。
 - **Files**：这个任务新增或改动的文件（运行中显示为 **Files so far**）。图片以缩略图显示。点任何一个文件，就在页面里查看（窗口顶部的箭头，或 ← 和 →，可以切换到同一列表里的上一个或下一个文件，**Relevant files** 也一样）：图片、PDF、视频和音频直接播放，代码（按语言上色、带行号）、Markdown 和 JSON 排好版显示。不需要在运行 Foundry 的电脑上打开编辑器，所以用手机或通过[远程访问](../operate/remote-access.md)也能看。已完成任务的文件从它在你仓库里的提交读取，所以交付清理掉任务的文件夹之后也还能看；图片、视频类 goal 生成的图片和视频从不提交，会列在生成它们的那个任务下。
 - **This task is waiting for you**（任务 blocked 时出现），并附有用来回应的按钮。
 - 每次尝试一个标签：**#1**、**#2** …… 带结果和费用。**↻1** 表示会话被续接了一次，而不是从头开始，保留已有上下文。

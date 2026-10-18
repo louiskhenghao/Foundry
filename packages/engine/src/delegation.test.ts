@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { Brief, BriefOutput, Goal } from '@foundry/core';
-import { getGoal, listDelegatedGoals, listEscalations, listTasks, planOutputSchema } from '@foundry/core';
+import { getGoal, listChecks, listDelegatedGoals, listEscalations, listTasks, planOutputSchema } from '@foundry/core';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { toBrief } from './clarify.ts';
@@ -62,7 +62,11 @@ class HybridRunner implements ClaudeRunner {
     let structuredOutput: unknown = null;
     if (label.startsWith('classify nature')) structuredOutput = { nature: 'code' };
     else if (label.startsWith('clarify')) structuredOutput = this.clarifyAnswer;
-    else if (label.startsWith('attempt')) {
+    else if (label.startsWith('replan')) {
+      // the planner touches up the task that uses the model, now that the model is there
+      const id = /"taskId": "([^"]+)",\s*"title": "use the model"/.exec(spec.prompt)?.[1];
+      structuredOutput = { revisions: id ? [{ taskId: id, spec: 'create main.txt next to the model (revised: the model landed as sub.txt)', relevantFiles: ['sub.txt'], delivers: null, why: 'the model file is sub.txt' }] : [], note: 'the model is there' };
+    } else if (label.startsWith('attempt')) {
       const file = /create (\S+)/.exec(spec.prompt)?.[1];
       if (file && !this.refuse.has(file)) writeFileSync(join(spec.cwd, file), `made by ${label}\n`);
     }
@@ -80,8 +84,8 @@ const mainBrief = (): Omit<Brief, 'goalId'> => ({
   assumptions: [],
   checks: [{ key: 'G1', name: 'sub landed', tier: 'must', taskKey: null, areaKey: null, spec: { type: 'command', cmd: 'test -f sub.txt', timeoutMs: 60_000, expectExitCode: 0 } }],
   tasks: [
-    { key: 'T1', title: 'make the model', spec: 'create sub.txt for the site: the model everything else uses', kind: 'goal', scope: null, scenario: 'general', areaKey: 'A1', tdd: 'inherit', dependsOnKeys: [], parallelizable: false, relevantFiles: [], milestone: null, difficulty: 'standard' },
-    { key: 'T2', title: 'use the model', spec: 'create main.txt next to the model', kind: 'feature', scope: null, scenario: 'general', areaKey: 'A1', tdd: 'inherit', dependsOnKeys: ['T1'], parallelizable: false, relevantFiles: [], milestone: null, difficulty: 'standard' },
+    { key: 'T1', title: 'make the model', spec: 'create sub.txt for the site: the model everything else uses', kind: 'goal', scope: null, scenario: 'general', areaKey: 'A1', tdd: 'inherit', dependsOnKeys: [], parallelizable: false, relevantFiles: [], delivers: ['sub.txt'], milestone: null, difficulty: 'standard' },
+    { key: 'T2', title: 'use the model', spec: 'create main.txt next to the model', kind: 'feature', scope: null, scenario: 'general', areaKey: 'A1', tdd: 'inherit', dependsOnKeys: ['T1'], parallelizable: false, relevantFiles: [], delivers: ['main.txt'], milestone: null, difficulty: 'standard' },
   ],
   costEstimateUsd: 2,
   timeEstimateMin: 20,
@@ -117,10 +121,16 @@ describe('delegated goals', () => {
     expect(done.state).toBe('done');
     const d = getGoal(engine.store.db, d0.id)!;
     expect(d.state).toBe('done');
-    // its Clarify knew whose step it was, and its Brief was approved by the engine
+    // its Clarify knew whose step it was and what it must deliver, and its Brief was approved by the engine
     const clarify = runner.calls.find((c) => c.label === `clarify ${d.title}`)!;
     expect(clarify.prompt).toContain('# Part of a larger goal');
     expect(clarify.prompt).toContain('a site with a model');
+    expect(clarify.prompt).toContain('## What this goal must deliver');
+    expect(clarify.prompt).toContain('- sub.txt');
+    // the promise is a goal-level must check of the Delegated goal, and the task's own promise a must check of the task
+    expect(listChecks(engine.store.db, d.id).some((c) => c.taskId === null && c.tier === 'must' && c.name === 'Delivers sub.txt')).toBe(true);
+    const useTask = listTasks(engine.store.db, main.id).find((t) => t.title === 'use the model')!;
+    expect(listChecks(engine.store.db, main.id).some((c) => c.taskId === useTask.id && c.tier === 'must' && c.name === 'Delivers main.txt')).toBe(true);
     expect(engine.store.listByGoalOfTypes(d.id, ['engine.note']).some((e) => String((e.payload as { message: string }).message).includes('approved by the engine'))).toBe(true);
     // the landing: the goal task has its commit and its summary, the file is on the main goal's branch
     const tasks = listTasks(engine.store.db, main.id);
@@ -132,9 +142,20 @@ describe('delegated goals', () => {
     expect(existsSync(join(goalWorkspacePath(engine.config.dataDir, done), 'sub.txt'))).toBe(true);
     expect(existsSync(join(goalWorkspacePath(engine.config.dataDir, done), 'main.txt'))).toBe(true);
     // the task after it was told what it delivered
+    // the planner's touch-up after the landing reached the next task before it started
+    const useModel = tasks.find((t) => t.title === 'use the model')!;
+    expect(useModel.spec).toContain('(revised: the model landed as sub.txt)');
+    expect(useModel.relevantFiles).toEqual(['sub.txt']);
+    const revised = engine.store.listByGoalOfTypes(main.id, ['task.revised']);
+    expect(revised).toHaveLength(1);
+    expect((revised[0]!.payload as { afterTaskId: string; reason: string })).toMatchObject({ afterTaskId: goalTask.id, reason: 'the model file is sub.txt' });
     const t2 = runner.calls.find((c) => c.label?.startsWith('attempt use the model'))!;
+    expect(t2.prompt).toContain('(revised: the model landed as sub.txt)');
     expect(t2.prompt).toContain('# What the steps before this one delivered');
     expect(t2.prompt).toContain('Done by the delegated goal');
+    expect(t2.prompt).toContain('Files it leaves for you:\n- sub.txt');
+    expect(t2.prompt).toContain('# Deliverables\nThe tasks after this one read these files');
+    expect(t2.prompt).toContain('- main.txt');
     // what the Delegated goal cost counts on the main goal
     expect(done.costUsd).toBeGreaterThan(d.costUsd);
     expect(engine.store.listByGoalOfTypes(main.id, ['goal.cost_added']).some((e) => String((e.payload as { source: string }).source).startsWith('delegated:'))).toBe(true);
@@ -144,7 +165,10 @@ describe('delegated goals', () => {
     const runner = new HybridRunner();
     runner.refuse.add('sub.txt');
     const engine = track(new Engine(cfg(), runner));
-    const main = await engine.createGoal({ prompt: 'a site with a model', repoPath: repo, brief: mainBrief(), workflow: { pace: 'fast' }, delegation: { allow: true, autoApprove: true }, budgets: { attemptsPerTask: 1, maxCostUsd: 20 } });
+    // no Deliverables on the goal task here: with one, the Delegated goal would be held to sub.txt at its review and never finish
+    const brief = mainBrief();
+    brief.tasks[0]!.delivers = [];
+    const main = await engine.createGoal({ prompt: 'a site with a model', repoPath: repo, brief, workflow: { pace: 'fast' }, delegation: { allow: true, autoApprove: true }, budgets: { attemptsPerTask: 1, maxCostUsd: 20 } });
     await waitFor(() => !!delegatedOf(engine, main), 30_000);
     const d = delegatedOf(engine, main)!;
     // its only task cannot pass: the Delegated goal asks (blocked), so the main goal waits

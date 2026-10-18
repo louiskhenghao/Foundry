@@ -6,6 +6,7 @@
  * attempt budget allows, before the main goal asks.
  */
 import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Budgets, Goal, GoalNature, Task } from '@foundry/core';
 import { chosenStyle, getBrief, getGoal, getTask, interviewDepth, listCheckResultsByGoal, listChecks, listEscalations, listTasks, renderDecisions } from '@foundry/core';
 import { maxAttemptsFor } from './attempt-loop.ts';
@@ -15,6 +16,7 @@ import { raiseEscalation } from './escalation.ts';
 import { headerOf, taskCommitMessage } from './git/conventional.ts';
 import { commitStaged, conflictedFiles, git, headRef } from './git/git.ts';
 import { resolveConflicts } from './merge.ts';
+import { replanAfterLanding } from './replan.ts';
 import { stuckIn } from './take-back.ts';
 import { copyArtifactFiles, ensureGoalWorkspace, goalWorkspacePath, trackedArtifacts } from './workspace.ts';
 
@@ -331,7 +333,13 @@ function landDelegation(engine: Engine, goal: Goal, task: Task, d: Goal): void {
       return;
     }
     if (lost()) return;
+    // the files the task promised: its Delegated goal was held to them, so a missing one is news (a path named otherwise), not a failure
+    const missing = (task.delivers ?? []).filter((f) => !existsSync(join(goalWs, f)));
+    if (missing.length) store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `"${task.title}" landed, but ${missing.length === 1 ? 'a file it promised is' : 'files it promised are'} not on the goal branch: ${missing.join(', ')} — the tasks after it were told to expect ${missing.length === 1 ? 'it' : 'them'}` } });
     store.append({ type: 'task.summary_set', goalId: goal.id, payload: { taskId: task.id, summary: summarizeDelegatedGoal(engine, d, result.files, result.ref) } });
+    // the planner's touch-up of the tasks after it, while they still cannot start (this task reads merging until it is done)
+    await replanAfterLanding(engine, getGoal(store.db, goal.id) ?? goal, getTask(store.db, task.id)!).catch((err) => store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `the replan after "${task.title}" landed crashed: ${String((err as Error)?.message ?? err).slice(0, 300)}` } }));
+    if (lost()) return;
     store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'merging', to: 'done', reason: result.ref ? `the delegated goal landed as ${result.ref.slice(0, 7)} on the goal branch` : 'the delegated goal landed (no changes to commit)' } });
     engine.retryAutoskillsAfterTask(goal.id);
     const now = getGoal(store.db, goal.id);
@@ -396,8 +404,9 @@ export function renderUpstream(engine: Engine, task: Pick<Task, 'dependsOn'>): s
   for (const id of task.dependsOn) {
     const d = getTask(db, id);
     if (!d) continue;
-    if (d.summary) lines.push(d.summary);
-    else if (d.state === 'done') lines.push(`## ${d.title}\n${d.commitRef ? `Landed as commit ${d.commitRef.slice(0, 7)}${d.commitMessage ? `: ${headerOf(d.commitMessage)}` : ''}` : 'Landed with no changes to commit'}.`);
+    const files = d.delivers?.length ? `\nFiles it leaves for you:\n${d.delivers.map((f) => `- ${f}`).join('\n')}` : '';
+    if (d.summary) lines.push(`${d.summary}${files}`);
+    else if (d.state === 'done') lines.push(`## ${d.title}\n${d.commitRef ? `Landed as commit ${d.commitRef.slice(0, 7)}${d.commitMessage ? `: ${headerOf(d.commitMessage)}` : ''}` : 'Landed with no changes to commit'}.${files}`);
     else if (d.state === 'skipped') lines.push(`## ${d.title}\nSkipped by the human: its work was not done.`);
   }
   if (!lines.length) return '';
@@ -428,6 +437,7 @@ export function delegationContext(engine: Engine, goal: Goal): string {
   if (task) {
     const upstream = renderUpstream(engine, task);
     if (upstream) parts.push(upstream.replace(/^# /, '## '));
+    if (task.delivers?.length) parts.push(`## What this goal must deliver\nThe main goal's next steps read these files; each must exist on the branch when this goal is done (they are its must checks):\n${task.delivers.map((f) => `- ${f}`).join('\n')}`);
   }
   parts.push('## Asking the human\nThe main goal was interviewed and its Brief approved already. Prefer assumptions; ask only what a wrong guess would waste this goal over and nothing above answers.');
   return clip(parts.join('\n\n'), 12000);

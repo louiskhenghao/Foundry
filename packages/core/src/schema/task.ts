@@ -59,6 +59,8 @@ export const Task = z.object({
   commitMessage: z.string().nullable().default(null),
   dependsOn: z.array(z.string()),
   relevantFiles: z.array(z.string()),
+  /** Deliverables: the files it leaves for the tasks after it (repo-relative, or under artifacts/), each a must check when it lands; absent on tasks from before */
+  delivers: z.array(z.string()).optional(),
   parallelizable: z.boolean(),
   retryBudget: z.number().int().positive(),
   origin: TaskOrigin,

@@ -121,6 +121,7 @@ Inside a task you can change:
 | **Commit scope** | The word in brackets of its commit message, `feat(scope): …`. Blank uses the Area's short name. |
 | **Spec** | What to change, where, and how to know it is done. |
 | start files | Files the worker should look at first, separated by commas. Optional. |
+| delivers | The files this task leaves for the tasks after it, separated by commas: a data file the page reads, a model it loads, a report the next step builds on. Each is checked when the task lands, and the next tasks are told where they are. Optional. |
 
 ### Kind
 

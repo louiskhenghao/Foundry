@@ -60,6 +60,7 @@ import { milestoneQueues, milestoneRunsFor } from './checks/walkthrough.ts';
 import { runInvestigation } from './investigation.ts';
 import { needsInvestigation } from './references.ts';
 import { MILESTONE_CHECK_PREFIX, milestoneCheckSpec } from './checks/milestone-script.ts';
+import { cleanDeliverables, deliversCheckName, deliversCheckSpec } from './checks/delivers.ts';
 import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
 import { SATISFIED } from './skills/catalog.ts';
@@ -2256,6 +2257,7 @@ export class Engine {
         tdd: t.tdd === 'off' || ['docs', 'infra', 'research', 'image', 'video'].includes(t.scenario ?? 'general') ? 'off' : 'inherit',
         dependsOn: t.dependsOnKeys.map((k) => idByKey.get(k)!),
         relevantFiles: t.relevantFiles,
+        delivers: cleanDeliverables(t.delivers),
         milestone: t.milestone ?? null,
         milestoneScript: t.milestone ? (t.milestoneScript ?? null) : null,
         milestoneVisits: 0,
@@ -2282,6 +2284,22 @@ export class Engine {
       const script = task.milestoneScript;
       if (script && !brief.checks.some((c) => c.taskKey === t.key && c.spec.type === 'command' && c.spec.cmd.includes(script) && /playwright/.test(c.spec.cmd))) {
         const check: Check = { id: newId(IdPrefix.check), goalId, taskId: task.id, name: `${MILESTONE_CHECK_PREFIX}${script}`, tier: 'must', spec: milestoneCheckSpec(script) };
+        this.store.append({ type: 'check.created', goalId, payload: { check } });
+      }
+      // the files the task promises to the tasks after it are its must checks (a goal task's are its Delegated goal's, below)
+      if (task.kind !== 'goal') {
+        for (const path of task.delivers ?? []) {
+          if (brief.checks.some((c) => c.taskKey === t.key && c.spec.type === 'command' && c.spec.cmd === deliversCheckSpec(path).cmd)) continue;
+          const check: Check = { id: newId(IdPrefix.check), goalId, taskId: task.id, name: deliversCheckName(path), tier: 'must', spec: deliversCheckSpec(path) };
+          this.store.append({ type: 'check.created', goalId, payload: { check } });
+        }
+      }
+    }
+    // a Delegated goal is held to what its main goal's task promised: those files are its goal-level must checks, so its review sees them
+    if (goal.delegatedFrom) {
+      for (const path of getTask(this.store.db, goal.delegatedFrom.taskId)?.delivers ?? []) {
+        if (brief.checks.some((c) => !c.taskKey && c.spec.type === 'command' && c.spec.cmd === deliversCheckSpec(path).cmd)) continue;
+        const check: Check = { id: newId(IdPrefix.check), goalId, taskId: null, name: deliversCheckName(path), tier: 'must', spec: deliversCheckSpec(path) };
         this.store.append({ type: 'check.created', goalId, payload: { check } });
       }
     }
