@@ -32,6 +32,7 @@ What a new goal starts with. Most of them can be changed for one goal on the New
 | **Effort for new goals** | Role preset / CLI default | A goal-wide override, **low** to **max**. Default uses Codex role presets or Claude's CLI default. |
 | **TDD for new Expert goals** | required | Test-first: **required**, **preferred** or **off**. |
 | **Ponytail for new goals** | on | The lazy senior dev: workers write the smallest change that fully solves the task and reuse what exists, the planner plans lean, and `ponytail-review` reviews. TDD still decides how tests are written. Each goal has its own switch. See [Ponytail: less code](./your-first-goal.md#ponytail-less-code). |
+| **Learn from finished goals** | on | When a goal ends, a short session adds what it taught about the project to that folder's [Learnings](./learnings.md), which later goals there are given. Off: nothing is learned automatically; the Learnings you keep are still used. |
 | **Audit at the end of new goals** | off | New goals run `ponytail-audit` on the finished branch before the final review; must-fix findings in the code the goal touched become fix tasks. Chosen per goal at Brief approval. |
 | **Goal-level fix cycles** | 1 | How many times the final review may send fix tasks before asking you. Thorough pace only. |
 | **Small goal (diff lines)** | 400 | A goal that changed this many lines or fewer gets a lighter, cheaper final review. 0 = never. |

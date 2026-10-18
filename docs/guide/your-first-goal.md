@@ -179,6 +179,8 @@ Foundry then shows what it found: the branch, whether there are uncommitted chan
 
 If the folder is not a repository, press **Initialize git here**. If you picked a folder inside a repository, Foundry offers the repository's top folder instead.
 
+When earlier goals ran in this folder, a line under the card says how many [Learnings](./learnings.md) Foundry has for it: what those goals taught about the project. The plan is written with them.
+
 ### Follows
 
 Under the repository, when it already has finished goals: **Follows** picks the earlier goal this one continues (or **Nothing — a new line of work**). The Clarifier then gets what that goal asked for, what was decided and how it ended, so you do not have to explain it again.
