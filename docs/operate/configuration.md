@@ -17,6 +17,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `workflow.interviewDepth` | — | `FOUNDRY_INTERVIEW_DEPTH` | How deep Clarify interviews you before writing the Brief: 0 = not at all (one-shot Brief), 1 = only what a wrong guess would waste … 5 = every detail, until nothing is left to decide. Empty = what Interview stands for (auto 3, always 4, never 0). Switchable per goal. |
 | `workflow.milestonePause` | `true` | `FOUNDRY_MILESTONE_PAUSE` | New goals pause at their milestones so you can have a look; off = they go on, and what the milestone shows is sent to your notification channels. Switchable per goal. |
 | `workflow.effort` | — | `FOUNDRY_EFFORT` | Default goal-wide effort override (low … max). Empty uses each Codex role preset or the Claude CLI default. New goals can override it. |
+| `workflow.learnings` | `true` | — | When a goal ends, a short session on the goal's housekeeping model adds what it taught about the repository to the folder's Learnings. Off = nothing is learned automatically; the Learnings you keep are still given to later goals. |
 | `reviews.alwaysReviewTasks` | `true` | — | Run the task reviewer on every task, not only tasks that ask for a reviewer check (thorough pace). |
 | `reviews.maxFixCycles` | `1` | — | Goal review → fix-task rounds before the goal asks you. |
 | `reviews.smallGoalLines` | `400` | `FOUNDRY_SMALL_GOAL_LINES` | A goal whose whole diff is at most this many lines is reviewed by the Task reviewer model without review skills; 0 = never. |

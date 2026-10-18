@@ -10,6 +10,7 @@ import { resolveDiscipline } from './skills/workflow.ts';
 import { metaFor, workerModelFor } from './models/roles.ts';
 import { budgetStatus } from './budget.ts';
 import { renderUpstream } from './delegation.ts';
+import { learningsForWorker } from './learnings.ts';
 import { runCommandCheck } from './checks/command.ts';
 import { reviewTaskDiff } from './checks/reviewer.ts';
 import type { Engine } from './engine.ts';
@@ -156,9 +157,10 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   const decisions = brief ? renderDecisions(brief) : '';
   // what the tasks this one depends on delivered (a Delegated goal's summary; a plain task's commit)
   const upstream = renderUpstream(engine, task);
+  const learnings = learningsForWorker(engine, goal);
   // the chosen Style Proposal binds everything with a look (UI, mobile, media, general); backend-only scenarios never see it
   const style = brief && styleApplies(task.scenario) ? chosenStyle(brief) : null;
-  const prompt = resume ? resume.message : buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription, decisions, upstream, style, baseMoved: opts.baseMoved ?? null });
+  const prompt = resume ? resume.message : buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription, decisions, upstream, learnings, style, baseMoved: opts.baseMoved ?? null });
   // the -p prompt is not echoed in stream-json; keep it next to the transcript for inspection (continuations append)
   mkdirSync(dirname(attempt.transcriptPath!), { recursive: true });
   if (resume) appendFileSync(attempt.transcriptPath!.replace(/\.jsonl$/, '.prompt.md'), `\n\n---\n# Continuation (${resume.reason})\n${prompt}\n`);

@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import type { Brief, Goal, GoalNature, Interview, InterviewQuestion, InterviewRound, TaskScenario } from '@foundry/core';
 import { BriefOutput, BriefSkeleton, INTERVIEW_MAX_QUESTIONS, PlanOutput, INTERVIEW_MAX_ROUNDS, IdPrefix, InterviewOutput, getGoal, interviewAnswers, interviewDepth, newId, planOutputSchema, uncoveredAreas } from '@foundry/core';
 import { delegationContext } from './delegation.ts';
+import { learningsContext } from './learnings.ts';
 import type { RunHandle, RunResult } from '@foundry/runner';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
@@ -137,7 +138,8 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
   const synced = getGoal(store.db, goal.id) ?? goal;
   const followUp = goal.follows?.context ? [goal.follows.context, startSentence(synced)].filter(Boolean).join('\n') : '';
   // a Delegated goal: the main goal, what was decided there, and what the steps before it delivered
-  const previous = [followUp, delegationContext(engine, goal)].filter(Boolean).join('\n\n');
+  // what the goal follows, what it is part of, and what earlier goals in this folder learned (ADR-0040)
+  const previous = [followUp, delegationContext(engine, goal), learningsContext(engine, goal)].filter(Boolean).join('\n\n');
   const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview ? interviewDepth(goal.interview) : null, previous, cadAvailable);
   const addDirs = goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined;
   const schema = zodToJsonSchema(goal.interview ? InterviewOutput : BriefSkeleton, { $refStrategy: 'none' });
