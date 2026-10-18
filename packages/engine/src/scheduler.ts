@@ -128,7 +128,7 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
 
   // 5. start ready tasks within capacity — none while the final walkthrough or the audit runs: they read the branch as it is
   if (engine.finalWalking.has(goal.id) || engine.auditing.has(goal.id)) return;
-  // 5a. the next goal task starts as a Delegated goal (one at a time; it takes no slot: that goal has slots of its own)
+  // 5a. the ready goal tasks start as Delegated goals, as many at a time as the goal's parallel limit allows (they take no session slot: each goal has slots of its own)
   if (tasks.some((t) => isDelegationTask(t) && t.state === 'ready')) {
     await startDelegations(engine, goal, tasks);
     if (getGoal(store.db, goal.id)?.state !== 'running') return;

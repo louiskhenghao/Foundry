@@ -60,6 +60,7 @@ import { milestoneQueues, milestoneRunsFor } from './checks/walkthrough.ts';
 import { runInvestigation } from './investigation.ts';
 import { needsInvestigation } from './references.ts';
 import { MILESTONE_CHECK_PREFIX, milestoneCheckSpec } from './checks/milestone-script.ts';
+import { cleanDeliverables, deliversCheckName, deliversCheckSpec } from './checks/delivers.ts';
 import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
 import { SATISFIED } from './skills/catalog.ts';
@@ -103,7 +104,7 @@ import { BaselineChecks } from './checks/baseline.ts';
 import { relative, resolve } from 'node:path';
 import { adoptLocalBin, AGENT_CLI_IDS, agentCliInstall, type AgentCliId } from './agent-cli.ts';
 import { type FollowUpDraft, type FollowUpInput, copyAttachments, followUpDraft, linkFollowUp, prepareFollowUp } from './follow-up.ts';
-import { autoApproveDelegated, isDelegationTask, settleDelegations } from './delegation.ts';
+import { autoApproveDelegated, delegatingTasks, isDelegationTask, settleDelegations } from './delegation.ts';
 import { ATTACHMENT_LIMITS, type GoalDelegatedFrom, type GoalDelegation } from '@foundry/core';
 import { Tailnet } from './notify/tailnet.ts';
 import { SessionCosts } from './session-costs.ts';
@@ -377,7 +378,7 @@ export class Engine {
       return new EffortRunner(fallback, () => this.store.db, () => provider === 'codex' ? null : this.config.effort);
     };
     this.runner = new ProviderRunner({
-      claude: wrap(supplied('claude') ?? new ClaudeCliRunner({ claudeBin: config.claudeBin, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'claude'),
+      claude: wrap(supplied('claude') ?? new ClaudeCliRunner({ claudeBin: config.claudeBin, claudeHome: config.claudeHome, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'claude'),
       codex: wrap(supplied('codex') ?? new CodexCliRunner({ codexBin: config.codexBin, codexHome: config.codexHome, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'codex'),
     }, (spec) => {
       if (spec.meta?.goalId) return this.mustGoal(spec.meta.goalId).provider ?? config.provider;
@@ -1208,6 +1209,7 @@ export class Engine {
         cacheReadTokens: n(u.cache_read_input_tokens),
         cacheCreateTokens: n(u.cache_creation_input_tokens),
         costUsd: result.costUsd,
+        costStatus: result.costStatus ?? 'reported',
         durationMs: result.durationMs,
         subtype: result.subtype,
         rateLimit: result.rateLimit ? { status: result.rateLimit.status, resetsAt: result.rateLimit.resetsAt, rateLimitType: result.rateLimit.rateLimitType, isUsingOverage: result.rateLimit.isUsingOverage } : null,
@@ -1575,8 +1577,8 @@ export class Engine {
     const tasks = listTasks(this.store.db, goal.id);
     if (dueCheckpoint(tasks)) return hard('a milestone landed; Foundry waits for the work in flight, then for you');
     if (isDelegationTask(task)) {
-      const other = tasks.find((t) => t.id !== task.id && isDelegationTask(t) && ['running', 'observing', 'merging'].includes(t.state));
-      return hard(other ? `one delegated goal runs at a time: it starts once "${other.title}" has landed` : 'it starts as a delegated goal at the next scheduling pass');
+      const under = delegatingTasks(tasks).filter((t) => t.id !== task.id);
+      return hard(under.length >= goal.budgets.maxConcurrent ? `every parallel slot is taken by delegated goals (${under.length} of ${goal.budgets.maxConcurrent} under way): it starts once one has landed` : 'it starts as a delegated goal at the next scheduling pass');
     }
     if (this.forceStart.has(task.id)) return hard('it is starting (you asked for it)');
     const inFlight = this.inFlightForGoal(goal.id);
@@ -2263,6 +2265,8 @@ export class Engine {
         tdd: t.tdd === 'off' || ['docs', 'infra', 'research', 'image', 'video'].includes(t.scenario ?? 'general') ? 'off' : 'inherit',
         dependsOn: t.dependsOnKeys.map((k) => idByKey.get(k)!),
         relevantFiles: t.relevantFiles,
+        delivers: cleanDeliverables(t.delivers),
+        budgetUsd: t.kind === 'goal' && t.budgetUsd ? t.budgetUsd : null,
         milestone: t.milestone ?? null,
         milestoneScript: t.milestone ? (t.milestoneScript ?? null) : null,
         milestoneVisits: 0,
@@ -2289,6 +2293,22 @@ export class Engine {
       const script = task.milestoneScript;
       if (script && !brief.checks.some((c) => c.taskKey === t.key && c.spec.type === 'command' && c.spec.cmd.includes(script) && /playwright/.test(c.spec.cmd))) {
         const check: Check = { id: newId(IdPrefix.check), goalId, taskId: task.id, name: `${MILESTONE_CHECK_PREFIX}${script}`, tier: 'must', spec: milestoneCheckSpec(script) };
+        this.store.append({ type: 'check.created', goalId, payload: { check } });
+      }
+      // the files the task promises to the tasks after it are its must checks (a goal task's are its Delegated goal's, below)
+      if (task.kind !== 'goal') {
+        for (const path of task.delivers ?? []) {
+          if (brief.checks.some((c) => c.taskKey === t.key && c.spec.type === 'command' && c.spec.cmd === deliversCheckSpec(path).cmd)) continue;
+          const check: Check = { id: newId(IdPrefix.check), goalId, taskId: task.id, name: deliversCheckName(path), tier: 'must', spec: deliversCheckSpec(path) };
+          this.store.append({ type: 'check.created', goalId, payload: { check } });
+        }
+      }
+    }
+    // a Delegated goal is held to what its main goal's task promised: those files are its goal-level must checks, so its review sees them
+    if (goal.delegatedFrom) {
+      for (const path of getTask(this.store.db, goal.delegatedFrom.taskId)?.delivers ?? []) {
+        if (brief.checks.some((c) => !c.taskKey && c.spec.type === 'command' && c.spec.cmd === deliversCheckSpec(path).cmd)) continue;
+        const check: Check = { id: newId(IdPrefix.check), goalId, taskId: null, name: deliversCheckName(path), tier: 'must', spec: deliversCheckSpec(path) };
         this.store.append({ type: 'check.created', goalId, payload: { check } });
       }
     }
