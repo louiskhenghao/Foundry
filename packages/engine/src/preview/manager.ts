@@ -469,7 +469,9 @@ export class PreviewManager {
     // in Docker, servers that read HOST (or HOSTNAME, Next's standalone server) listen on every interface too
     const host = previewBindHost();
     const bind = host ? { HOST: host, HOSTNAME: host } : {};
-    entry.proc = Bun.spawn(['sh', '-lc', command], { cwd: app.dir ? join(ws, app.dir) : ws, stdout: 'pipe', stderr: 'pipe', env: { ...env, ...wiring.vars, ...urls, PORT: String(port), ...bind, BROWSER: 'none', FORCE_COLOR: '0', NO_COLOR: '1' }, detached: true });
+    // Vite answers "Blocked request" to a Host it does not know: the tailnet name the preview may be opened at is allowed
+    const tailnetHost = app.key === CAD_VIEWER_KEY ? null : await this.engine.tailnet.host().catch(() => null);
+    entry.proc = Bun.spawn(['sh', '-lc', command], { cwd: app.dir ? join(ws, app.dir) : ws, stdout: 'pipe', stderr: 'pipe', env: { ...env, ...wiring.vars, ...urls, PORT: String(port), ...bind, ...allowedHostsEnv(env, tailnetHost), BROWSER: 'none', FORCE_COLOR: '0', NO_COLOR: '1' }, detached: true });
     this.live.set(key, entry);
     this.lastError.delete(key);
     this.lastStop.delete(key);
@@ -865,6 +867,21 @@ function currentBranch(repo: string): string | null {
   } catch {
     return null;
   }
+}
+
+/** the variable Vite reads extra allowed hosts from (comma-separated), beside `server.allowedHosts` in its config */
+export const VITE_ALLOWED_HOSTS = '__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS';
+
+/**
+ * The tailnet name added to the hosts a Vite dev server (and the servers built on it) answers to, kept beside what the
+ * person's Preview environment already names; nothing when there is no tailnet name. Servers with an allow-list of
+ * their own (Next's `allowedDevOrigins`, webpack's `allowedHosts`) take the name in their config or the environment.
+ */
+export function allowedHostsEnv(env: Record<string, string | undefined>, tailnetHost: string | null): Record<string, string> {
+  if (!tailnetHost) return {};
+  const names = (env[VITE_ALLOWED_HOSTS] ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (!names.includes(tailnetHost)) names.push(tailnetHost);
+  return { [VITE_ALLOWED_HOSTS]: names.join(',') };
 }
 
 /** can a server listen on this port at this address: true, false when it is taken, null when the address family is not there */
