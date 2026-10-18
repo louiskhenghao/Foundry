@@ -2,11 +2,12 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import type { Brief, BriefOutput, Goal } from '@foundry/core';
+import type { Brief, BriefOutput, Goal, Task } from '@foundry/core';
 import { getGoal, listChecks, listDelegatedGoals, listEscalations, listTasks, planOutputSchema } from '@foundry/core';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { toBrief } from './clarify.ts';
+import { budgetShare } from './delegation.ts';
 import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
 import { makeRepo, terminal, waitFor } from './test-helpers.ts';
@@ -47,11 +48,10 @@ const subBrief = (file: string): BriefOutput => ({
 
 /**
  * Workers create the file their task spec names (`create <file>`) unless `refuse` lists it; Clarify sessions answer
- * with `clarifyAnswer`.
+ * with a Brief whose one task creates the file the goal's prompt names (`create <file>`, sub.txt by default).
  */
 class HybridRunner implements ClaudeRunner {
   calls: RunSpec[] = [];
-  clarifyAnswer: BriefOutput = subBrief('sub.txt');
   refuse = new Set<string>();
   active() {
     return 0;
@@ -61,13 +61,13 @@ class HybridRunner implements ClaudeRunner {
     const label = spec.label ?? '';
     let structuredOutput: unknown = null;
     if (label.startsWith('classify nature')) structuredOutput = { nature: 'code' };
-    else if (label.startsWith('clarify')) structuredOutput = this.clarifyAnswer;
+    else if (label.startsWith('clarify')) structuredOutput = subBrief(/# Goal from the user\n[^\n]*?create ([\w.-]+)/.exec(spec.prompt)?.[1] ?? 'sub.txt');
     else if (label.startsWith('replan')) {
       // the planner touches up the task that uses the model, now that the model is there
       const id = /"taskId": "([^"]+)",\s*"title": "use the model"/.exec(spec.prompt)?.[1];
       structuredOutput = { revisions: id ? [{ taskId: id, spec: 'create main.txt next to the model (revised: the model landed as sub.txt)', relevantFiles: ['sub.txt'], delivers: null, why: 'the model file is sub.txt' }] : [], note: 'the model is there' };
     } else if (label.startsWith('attempt')) {
-      const file = /create (\S+)/.exec(spec.prompt)?.[1];
+      const file = /create ([\w.-]+)/.exec(spec.prompt)?.[1];
       if (file && !this.refuse.has(file)) writeFileSync(join(spec.cwd, file), `made by ${label}\n`);
     }
     const result: RunResult = { sessionId: `s${this.calls.length}`, subtype: 'success', isError: false, costUsd: 0.01, numTurns: 1, durationMs: 1, usage: null, modelUsage: null, permissionDenials: [], finalText: JSON.stringify(structuredOutput ?? 'done'), structuredOutput, exitCode: 0, pid: null, rateLimit: null, errorMessage: null, failureClass: null, skillsUsed: [], toolsUsed: {} };
@@ -188,6 +188,40 @@ describe('delegated goals', () => {
     // the main goal's own tasks and review then run to an end, or to an Inbox item of its own (sub.txt never came): nothing is left in flight when the test ends
     await waitFor(() => terminal(getGoal(engine.store.db, main.id)!.state) || getGoal(engine.store.db, main.id)!.state === 'blocked' || listEscalations(engine.store.db, { goalId: main.id, openOnly: true }).length > 0, 60_000);
   }, 120_000);
+
+  test('independent goal tasks run as Delegated goals side by side, each with a share of the budget', async () => {
+    const runner = new HybridRunner();
+    const engine = track(new Engine(cfg(), runner));
+    const brief = mainBrief();
+    const goalTask = brief.tasks[0]!;
+    brief.tasks = [
+      { ...goalTask, key: 'T1', title: 'make the model', spec: 'create a.txt for the site: the model', delivers: ['a.txt'], budgetUsd: 4 },
+      { ...goalTask, key: 'T1b', title: 'write the copy', spec: 'create b.txt for the site: the copy', delivers: ['b.txt'] },
+      { ...brief.tasks[1]!, dependsOnKeys: ['T1', 'T1b'] },
+    ];
+    brief.checks = [{ key: 'G1', name: 'both landed', tier: 'must', taskKey: null, areaKey: null, spec: { type: 'command', cmd: 'test -f a.txt && test -f b.txt', timeoutMs: 60_000, expectExitCode: 0 } }];
+    const main = await engine.createGoal({ prompt: 'a site with a model and copy', repoPath: repo, brief, workflow: { pace: 'fast' }, delegation: { allow: true, autoApprove: true }, budgets: { maxCostUsd: 20, maxConcurrent: 3 } });
+    await waitFor(() => listDelegatedGoals(engine.store.db, main.id).length === 2, 30_000);
+    // both under way at once, each with its share: the planner's 4 for the model, an even half of the 20 left for the copy
+    expect(listTasks(engine.store.db, main.id).filter((t) => t.kind === 'goal').map((t) => t.state)).toEqual(['running', 'running']);
+    const shares = Object.fromEntries(listDelegatedGoals(engine.store.db, main.id).map((d) => [d.title, d.budgets.maxCostUsd]));
+    expect(shares).toEqual({ 'make the model': 4, 'write the copy': 10 });
+    await waitFor(() => terminal(getGoal(engine.store.db, main.id)!.state), 120_000);
+    expect(getGoal(engine.store.db, main.id)!.state).toBe('done');
+    const ws = goalWorkspacePath(engine.config.dataDir, getGoal(engine.store.db, main.id)!);
+    for (const f of ['a.txt', 'b.txt', 'main.txt']) expect(existsSync(join(ws, f))).toBe(true);
+    expect(listDelegatedGoals(engine.store.db, main.id).map((d) => d.state)).toEqual(['done', 'done']);
+  }, 180_000);
+
+  test('a Delegated goal gets the planner’s share within what is left, else an even share among the goal tasks still to run', () => {
+    const main = { budgets: { maxCostUsd: 20, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3 }, costUsd: 4, state: 'running', activeMs: 0, activeSince: null, runningSince: null, updatedAt: '2026-01-01T00:00:00.000Z' } as unknown as Goal;
+    const t = (id: string, state: string, budgetUsd: number | null = null) => ({ id, kind: 'goal', state, budgetUsd }) as unknown as Task;
+    const tasks = [t('a', 'done'), t('b', 'ready'), t('c', 'pending', 5), t('d', 'running')];
+    expect(budgetShare(main, tasks, { id: 'b', budgetUsd: null })).toEqual({ maxCostUsd: 5.33, maxDurationMin: 120 });
+    expect(budgetShare(main, tasks, { id: 'c', budgetUsd: 5 })).toEqual({ maxCostUsd: 5, maxDurationMin: 120 });
+    expect(budgetShare(main, tasks, { id: 'c', budgetUsd: 50 })).toEqual({ maxCostUsd: 16, maxDurationMin: 120 });
+    expect(budgetShare({ ...main, budgets: { ...main.budgets, maxCostUsd: null, maxDurationMin: null } } as Goal, tasks, { id: 'b', budgetUsd: null })).toEqual({ maxCostUsd: null, maxDurationMin: null });
+  });
 
   test('the goal kind is offered to the planner only where the goal allows it, and demoted where it does not', () => {
     const kinds = (allow: boolean) => (zodToJsonSchema(planOutputSchema(allow), { $refStrategy: 'none' }) as { properties: { tasks: { items: { properties: { kind: { enum: string[] } } } } } }).properties.tasks.items.properties.kind.enum;

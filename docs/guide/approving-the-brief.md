@@ -122,6 +122,7 @@ Inside a task you can change:
 | **Spec** | What to change, where, and how to know it is done. |
 | start files | Files the worker should look at first, separated by commas. Optional. |
 | delivers | The files this task leaves for the tasks after it, separated by commas: a data file the page reads, a model it loads, a report the next step builds on. Each is checked when the task lands, and the next tasks are told where they are. Optional. |
+| Budget share | Only on a **goal** task: what the delegated goal doing this step may spend, in USD, within this goal's budget. Blank gives it an even share of what is left among the goal tasks still to run. |
 
 ### Kind
 

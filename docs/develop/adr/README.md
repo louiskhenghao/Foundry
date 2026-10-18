@@ -40,3 +40,4 @@ record is never rewritten when a later decision changes it; its status says what
 | [0033](0033-cad-goals-with-text-to-cad.md) | CAD goals with text-to-cad, behind a Desktop apps & printers switch | accepted · 2026-10-16 · amends ADR-0008 and ADR-0016 |
 | [0034](0034-delegated-goals.md) | A step that is a project of its own is a Delegated goal, one level deep, landing as one commit | accepted · 2026-10-18 · amends ADR-0028 |
 | [0035](0035-deliverables-and-replan.md) | A task's Deliverables are a contract, and the planner touches up what follows after a Delegated goal lands | accepted · 2026-10-18 · amends ADR-0028 and ADR-0034 |
+| [0036](0036-parallel-delegated-goals.md) | Delegated goals run side by side within the goal's parallel limit, each with a share of the budget | accepted · 2026-10-18 · amends ADR-0034 |

@@ -103,7 +103,7 @@ import { BaselineChecks } from './checks/baseline.ts';
 import { relative, resolve } from 'node:path';
 import { adoptLocalBin, AGENT_CLI_IDS, agentCliInstall, type AgentCliId } from './agent-cli.ts';
 import { type FollowUpDraft, type FollowUpInput, copyAttachments, followUpDraft, linkFollowUp, prepareFollowUp } from './follow-up.ts';
-import { autoApproveDelegated, isDelegationTask, settleDelegations } from './delegation.ts';
+import { autoApproveDelegated, delegatingTasks, isDelegationTask, settleDelegations } from './delegation.ts';
 import { ATTACHMENT_LIMITS, type GoalDelegatedFrom, type GoalDelegation } from '@foundry/core';
 import { Tailnet } from './notify/tailnet.ts';
 import { SessionCosts } from './session-costs.ts';
@@ -1569,8 +1569,8 @@ export class Engine {
     const tasks = listTasks(this.store.db, goal.id);
     if (dueCheckpoint(tasks)) return hard('a milestone landed; Foundry waits for the work in flight, then for you');
     if (isDelegationTask(task)) {
-      const other = tasks.find((t) => t.id !== task.id && isDelegationTask(t) && ['running', 'observing', 'merging'].includes(t.state));
-      return hard(other ? `one delegated goal runs at a time: it starts once "${other.title}" has landed` : 'it starts as a delegated goal at the next scheduling pass');
+      const under = delegatingTasks(tasks).filter((t) => t.id !== task.id);
+      return hard(under.length >= goal.budgets.maxConcurrent ? `every parallel slot is taken by delegated goals (${under.length} of ${goal.budgets.maxConcurrent} under way): it starts once one has landed` : 'it starts as a delegated goal at the next scheduling pass');
     }
     if (this.forceStart.has(task.id)) return hard('it is starting (you asked for it)');
     const inFlight = this.inFlightForGoal(goal.id);
@@ -2258,6 +2258,7 @@ export class Engine {
         dependsOn: t.dependsOnKeys.map((k) => idByKey.get(k)!),
         relevantFiles: t.relevantFiles,
         delivers: cleanDeliverables(t.delivers),
+        budgetUsd: t.kind === 'goal' && t.budgetUsd ? t.budgetUsd : null,
         milestone: t.milestone ?? null,
         milestoneScript: t.milestone ? (t.milestoneScript ?? null) : null,
         milestoneVisits: 0,

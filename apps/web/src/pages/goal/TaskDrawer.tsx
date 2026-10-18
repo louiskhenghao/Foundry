@@ -204,7 +204,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
                   <div className="text-zinc-500">That goal was deleted. Retry starts a new one; skip moves on without this step.</div>
                 )
               ) : (
-                <div className="text-zinc-500">Its goal starts when this task does — one delegated goal at a time.</div>
+                <div className="text-zinc-500">Its goal starts when this task does; delegated goals run side by side, as many as the goal's parallel limit allows.</div>
               )}
             </div>
           )}
