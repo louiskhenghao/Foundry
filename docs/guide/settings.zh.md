@@ -277,6 +277,8 @@ key 对下一个会话生效，不用重启。保存过的 key 不会再显示�
 
 **Answer from Telegram**（默认开）：Telegram 里关于等你处理的事的消息带按钮（Retry、Skip、Continue、Approve……），回复这条消息就是用文字回答。开着时 Foundry 会读你的机器人收到的消息，所以每个 Foundry 要用自己的机器人。工作区之外的命令只在 Inbox 里批准。见 [Answering from Telegram](../operate/notifications.md#answering-from-telegram)。
 
+**Discord bot token (buttons)**：可选，和 webhook 一起用。设了之后，等你处理的消息由你的机器人发到 webhook 所在的频道，带同样的按钮；要输入文字时，按钮会打开一个表单。见 [Answering from Discord](../operate/notifications.md#answering-from-discord)。
+
 七个开关，默认全开：
 
 | 开关 | 什么时候收到消息 | 该做什么 |

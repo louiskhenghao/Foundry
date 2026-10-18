@@ -9,7 +9,8 @@ kind of message means for the person running goals is in [docs/guide/settings.md
 - The credentials are stored in `settings.json` under your instance’s data directory (`data/`, `data-codex/` or `FOUNDRY_DATA_DIR`).
 - The engine sends the messages, never the model.
 - Telegram also takes answers: a message about something that waits for you carries buttons, and a reply answers it
-  in words. See [Answering from Telegram](#answering-from-telegram).
+  in words. See [Answering from Telegram](#answering-from-telegram). Discord does too with a bot of yours beside the
+  webhook: see [Answering from Discord](#answering-from-discord).
 
 ---
 
@@ -54,7 +55,8 @@ works."* within a second. The result is shown per channel. If it failed, you see
 
 ## Discord
 
-Discord uses a **webhook**: a URL that posts messages into one channel. There is no bot to create.
+Discord uses a **webhook**: a URL that posts messages into one channel. That is all one-way messages need. For buttons
+that answer, add a bot as well (step 3).
 
 ### 1. Create a webhook in your channel
 
@@ -72,6 +74,24 @@ line appears in that Discord channel.
 
 Treat the webhook URL like a password: anyone who has it can post to that channel. To revoke it, delete the webhook in
 the same Discord dialog.
+
+### 3. Optional: a bot for buttons
+
+A webhook can post but not listen, so buttons that answer need a bot. It posts the messages that wait for you in the
+webhook's channel, and Foundry reads the presses over Discord's gateway (a connection Foundry opens; nothing on your
+computer is reachable from the internet).
+
+1. Open the [Discord Developer Portal](https://discord.com/developers/applications) and press **New Application**.
+   Name it, for example *Foundry*.
+2. Open **Bot**, press **Reset Token** and copy the token. No privileged intents are needed: leave *Message Content
+   Intent* off.
+3. Open **OAuth2 → URL Generator**. Tick the scopes **bot** and **applications.commands**, and the bot permissions
+   **View Channels**, **Send Messages** and **Read Message History**. Open the generated URL and add the bot to the
+   server that holds the webhook's channel.
+4. Paste the token into **Settings → Notifications → Discord bot token (buttons)**, press **Save**, then **Send test
+   message**. The result shows *discord bot: ✓ sent* when the bot can post in that channel.
+
+Treat the bot token like a password. To revoke it, press **Reset Token** again.
 
 ---
 
@@ -161,7 +181,19 @@ to reach your computer from the internet.
 - While Foundry reads the bot, **Detect** asks Foundry, not Telegram, which chat wrote last: send the bot a message,
   then press **Detect**.
 
-Discord messages carry the same text and links, without buttons: a Discord webhook can post but not listen.
+## Answering from Discord
+
+With a **Discord bot token** beside the webhook, the messages in the table above are posted by your bot in the
+webhook's channel, with the same buttons. The other messages still come from the webhook.
+
+- A button that asks for words (**Retry with hint…**, **Give feedback…**, **✍️ My own answer…**) opens a form over the
+  chat: type, then **Submit**. There is no reply in words in Discord: Foundry reads no message text.
+- What a press did is shown only to the person who pressed, under the message; the buttons turn into one grey line
+  saying what happened, for everyone.
+- **/inbox** is a command of the bot: it sends again everything that waits for you.
+- Only presses in the webhook's channel are answered. Anyone who can see that channel can press the buttons.
+- A command outside the workspace is approved in the Inbox only, as on Telegram.
+- Without the bot token, Discord messages carry the same text and links, without buttons.
 
 ---
 
@@ -175,6 +207,7 @@ wins over the variable.
 | `FOUNDRY_TELEGRAM_BOT_TOKEN` | Telegram bot token |
 | `FOUNDRY_TELEGRAM_CHAT_ID` | Telegram chat id |
 | `FOUNDRY_DISCORD_WEBHOOK` | Discord webhook URL |
+| `FOUNDRY_DISCORD_BOT_TOKEN` | Discord bot token (buttons) |
 | `FOUNDRY_NOTIFY_BASE_URL` | Link base URL |
 | `FOUNDRY_TAILSCALE` | Tailscale links (`auto` or `off`) |
 | `FOUNDRY_TAILSCALE_HOST` | Tailscale name |
@@ -218,3 +251,6 @@ wins over the variable.
 | An engine note says *Telegram buttons wait: something else reads this bot's updates* | another Foundry, or another program, uses the same bot | give each Foundry its own bot, or turn **Answer from Telegram** off on the other one |
 | An engine note says *this bot sends its updates to a webhook* | the bot was set up with a webhook elsewhere | remove it (open `https://api.telegram.org/bot<token>/deleteWebhook`), or give Foundry a bot of its own |
 | A press says *Foundry answers only the chat set in its Settings* | the button was pressed in another chat than **Telegram chat id** | press it in that chat, or **Detect** the other chat and **Save** |
+| Test says `discord bot: … discord 403` | the bot is not on the server, or cannot see or post in the webhook's channel | add it with the URL from step 3, and give it View Channels and Send Messages there |
+| An engine note says *Discord buttons are off: Discord refused the bot token* | the token is wrong or was reset | copy a new one (**Bot → Reset Token**), paste it, **Save** |
+| A Discord button says *This interaction failed* | Foundry is stopped, or was not connected when you pressed | start Foundry; press again once it runs |
