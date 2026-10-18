@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CheckSpec, CheckTier } from './check.ts';
+import { BriefSubject, OutputSubject } from './subject.ts';
 import { TaskKind, TaskScenario, TaskDifficulty, WORKER_TASK_KINDS } from './task.ts';
 
 export const BriefAssumption = z.object({
@@ -146,6 +147,8 @@ export const Brief = z.object({
   questions: z.array(BriefQuestion),
   /** visual directions for media/UI goals; non-empty ⇒ the engine adds a blocking style question */
   styleOptions: z.array(BriefStyleOption).default([]),
+  /** real things the result depicts, with their pictures; changed only through their own events (a saved Brief keeps the stored ones) */
+  subjects: z.array(BriefSubject).optional(),
   /** how to start the result for a look (preview, self-check); null = detected from package.json, or not startable */
   run: BriefRun.nullable().optional(),
   /** several apps to preview side by side; overrides `run`. null/absent = `run`, else detected */
@@ -251,6 +254,10 @@ export const BriefOutput = z.object({
     )
     .default([])
     .describe('Visual directions for the human to SEE and pick from before generation starts. REQUIRED for image/video goals and UI-heavy code goals: 2-4 distinct directions, YOUR recommendation first. Empty for prose/research/backend/cad goals.'),
+  subjects: z
+    .array(OutputSubject)
+    .nullish()
+    .describe('Real things the result must look like: a specific vehicle, building, landmark, product or artwork that exists (never a person), at most 3. Foundry finds pictures of each before the plan runs, and workers and reviewers compare against them. Empty for invented designs, generic styles and anything that is not a physical thing.'),
   run: z
     .object({
       install: z.string().nullable().describe('Install command from the repo root, e.g. "npm install"; null if none.'),

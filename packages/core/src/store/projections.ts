@@ -2,6 +2,7 @@ import type { Database } from 'bun:sqlite';
 import type { EngineEvent } from '../events.ts';
 import { FINAL_WALK, IDLE_COMPLETION, NO_DELEGATION, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type Task } from '../schema/index.ts';
 import type { ObservationReport } from '../schema/observation.ts';
+import { applySubjectEvent } from '../machine/subjects.ts';
 
 /**
  * Pure-ish reducers: apply one event to the read-model tables.
@@ -95,6 +96,15 @@ function project(db: Database, e: EngineEvent): void {
     case 'brief.approved':
       upsertBrief(db, e.payload.brief, true);
       break;
+    case 'brief.subject_set':
+    case 'brief.subject_removed':
+    case 'brief.subject_pictures':
+    case 'brief.subject_searched': {
+      const b = getBrief(db, e.goalId!);
+      if (!b) break;
+      upsertBrief(db, { ...b.brief, subjects: applySubjectEvent(b.brief.subjects ?? [], e, e.ts) }, b.approved);
+      break;
+    }
     case 'task.created': {
       upsertTask(db, e.payload.task);
       // new work: the final walkthrough is due again once it lands
