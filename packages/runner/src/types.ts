@@ -112,7 +112,11 @@ export function classifyFailure(errorMessage: string | null | undefined, subtype
 }
 
 export interface RunResult {
-  /** CLI-reported cost is unavailable for Codex subscription sessions. */
+  /**
+   * `unavailable`: the CLI reported no dollar cost. Codex never does; Claude Code does so on its final `result` line
+   * only, which a session cut short (killed at a limit or by hand, crashed) never writes. `usage`, `modelUsage` and
+   * `numTurns` are then counted from the stream and the session's own record, and `costUsd` 0 means unknown, not free.
+   */
   costStatus?: 'reported' | 'unavailable';
   sessionId: string | null;
   subtype: RunSubtype;

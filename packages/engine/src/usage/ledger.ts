@@ -55,6 +55,8 @@ export function usageSummary(db: Database, now = Date.now(), provider?: 'claude'
   const weekStart = weekEnd - SEVEN_DAYS_MS;
 
   const rows = listUsageSince(db, new Date(Math.min(fiveStart, weekStart)).toISOString()).filter((r) => !provider || (r.provider ?? legacyProvider) === provider);
+  // a Claude Code session cut before its result line: tokens counted, dollars unknown — the costs below leave it out, and say so
+  const unmeasured = (rs: UsageRow[]) => rs.filter((r) => (r.provider ?? legacyProvider) === 'claude' && r.cost_status === 'unavailable').length;
   const inWin = (start: number, end: number) => rows.filter((r) => Date.parse(r.ts) >= start && Date.parse(r.ts) <= end);
   const fiveRows = inWin(fiveStart, fiveEnd);
   const weekRows = inWin(weekStart, weekEnd);
@@ -93,16 +95,17 @@ export function usageSummary(db: Database, now = Date.now(), provider?: 'claude'
       hourly: bucketize(fiveRows, fiveStart, fiveEnd, HOUR, hourLabel),
       daily: bucketize(weekRows, weekStart, weekEnd, DAY, dayLabel),
     },
-    byModel: group((r) => r.model ?? 'unknown').map((g) => ({ model: g.key as string, sessions: g.sessions, costUsd: g.costUsd, ...measures(g) })),
+    byModel: group((r) => r.model ?? 'unknown').map((g) => ({ model: g.key as string, sessions: g.sessions, costUsd: g.costUsd, unmeasured: unmeasured(g.rows), ...measures(g) })),
     byGoal: group((r) => r.goal_id)
       .slice(0, 10)
-      .map((g) => ({ goalId: g.key, title: g.key ? (goals.get(g.key)?.title ?? null) : null, state: g.key ? (goals.get(g.key)?.state ?? null) : null, sessions: g.sessions, costUsd: g.costUsd, ...measures(g) })),
-    byKind: group((r) => r.kind).map((g) => ({ kind: g.key as string, sessions: g.sessions, costUsd: g.costUsd, avgDurationMs: avgDuration(g.rows), ...measures(g) })),
+      .map((g) => ({ goalId: g.key, title: g.key ? (goals.get(g.key)?.title ?? null) : null, state: g.key ? (goals.get(g.key)?.state ?? null) : null, sessions: g.sessions, costUsd: g.costUsd, unmeasured: unmeasured(g.rows), ...measures(g) })),
+    byKind: group((r) => r.kind).map((g) => ({ kind: g.key as string, sessions: g.sessions, costUsd: g.costUsd, avgDurationMs: avgDuration(g.rows), unmeasured: unmeasured(g.rows), ...measures(g) })),
     totals: {
       cacheHitRate: input > 0 ? weekTotals.cacheReadTokens / input : null,
       avgCostPerSession: weekRows.length ? weekTotals.costUsd / weekRows.length : null,
       avgDurationMs: weekRows.length ? avgDuration(weekRows) : null,
       errorSessions: weekRows.filter((r) => r.subtype !== 'success').length,
+      unmeasuredSessions: unmeasured(weekRows),
     },
     limited: limitedState ? { rateLimitType: limitedState.rate_limit_type, until: new Date(limitedState.resets_at! * 1000).toISOString() } : null,
     note: 'Counts only sessions started by Foundry on this machine. Subscription plans expose no usage API; for exact percentages run /usage inside Claude Code.',

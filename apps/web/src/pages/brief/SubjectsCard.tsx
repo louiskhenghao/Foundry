@@ -1,0 +1,173 @@
+import { SUBJECT_LIMITS, type BriefSubject, type SubjectPicture } from '@foundry/core/browser';
+import { ExternalLink, ImagePlus, Loader2, Plus, Search, X } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { api } from '../../api.ts';
+import { Button, Card, Input, Modal } from '../../ui.tsx';
+import { HelpLink } from '../HelpPage.tsx';
+
+const host = (url: string | null) => {
+  try {
+    return url ? new URL(url).hostname.replace(/^www\./, '') : '';
+  } catch {
+    return '';
+  }
+};
+
+/**
+ * The Brief's Subjects: the real things the result depicts, with the pictures workers build from and every review
+ * compares against. Foundry looks for pictures by itself while the Brief waits; the person adds their own, removes wrong
+ * ones and names what the Clarifier missed. It shows the server's copy: Subjects never ride on a Brief save.
+ */
+export function SubjectsCard({ goalId, subjects, searching, editable }: { goalId: string; subjects: BriefSubject[]; searching: string[]; editable: boolean }) {
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<{ subject: BriefSubject; picture: SubjectPicture } | null>(null);
+  const [adding, setAdding] = useState({ name: '', lookFor: '' });
+  const act = async (key: string, fn: () => Promise<unknown>) => {
+    setErr(null);
+    setBusy(key);
+    try {
+      await fn();
+    } catch (e: any) {
+      setErr(e.body?.error ?? e.message);
+    } finally {
+      setBusy(null);
+    }
+  };
+  const add = () => act('add', async () => {
+    await api.addSubject(goalId, { name: adding.name.trim(), lookFor: adding.lookFor.trim() });
+    setAdding({ name: '', lookFor: '' });
+  });
+  return (
+    <Card title={<>Looks like<HelpLink to="approving-the-brief#looks-like" className="ml-1.5" /></>}>
+      <p className="text-xs text-zinc-500 mb-3">
+        Real things the result must look like. Workers build from these pictures and every review compares against them; the pictures stay on this computer and are never part of the result.
+      </p>
+      {subjects.length === 0 && <div className="text-sm text-zinc-500 mb-2">Nothing real to match.</div>}
+      <div className="space-y-4">
+        {subjects.map((s) => (
+          <SubjectRow key={s.key} goalId={goalId} subject={s} searching={searching.includes(s.key)} editable={editable} busy={busy} act={act} onView={(picture) => setViewing({ subject: s, picture })} />
+        ))}
+      </div>
+      {editable && subjects.length < SUBJECT_LIMITS.subjects && (
+        <form
+          className="mt-4 pt-3 border-t border-zinc-800 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto]"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (adding.name.trim()) void add();
+          }}
+        >
+          <Input value={adding.name} onChange={(e) => setAdding((a) => ({ ...a, name: e.target.value }))} placeholder="A real thing, e.g. Porsche 911 GT3 (992)" aria-label="Subject name" />
+          <Input value={adding.lookFor} onChange={(e) => setAdding((a) => ({ ...a, lookFor: e.target.value }))} placeholder="What must match (proportions, features, colours)" aria-label="What must match" />
+          <Button type="submit" size="sm" disabled={!adding.name.trim() || busy === 'add'}>
+            <Plus size={12} /> Add and find pictures
+          </Button>
+        </form>
+      )}
+      {err && <div className="text-xs text-rose-400 mt-2">{err}</div>}
+      {viewing && (
+        <Modal open title={`${viewing.subject.name}${viewing.picture.caption ? ` — ${viewing.picture.caption}` : ''}`} onClose={() => setViewing(null)} wide>
+          <div className="space-y-2">
+            <img src={api.subjectPictureUrl(goalId, viewing.picture.file)} alt={viewing.picture.caption || viewing.subject.name} className="max-h-[70vh] w-auto mx-auto rounded border border-zinc-800" />
+            <div className="text-center text-[11px] text-zinc-500">
+              {viewing.picture.source === 'person' ? 'Your picture' : viewing.picture.url ? (
+                <a href={viewing.picture.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sky-300 hover:underline">
+                  <ExternalLink size={10} /> found on {host(viewing.picture.url)}
+                </a>
+              ) : 'Found by Foundry'}
+            </div>
+          </div>
+        </Modal>
+      )}
+    </Card>
+  );
+}
+
+function SubjectRow({ goalId, subject: s, searching, editable, busy, act, onView }: { goalId: string; subject: BriefSubject; searching: boolean; editable: boolean; busy: string | null; act: (key: string, fn: () => Promise<unknown>) => Promise<void>; onView: (p: SubjectPicture) => void }) {
+  const file = useRef<HTMLInputElement>(null);
+  const [lookFor, setLookFor] = useState<string | null>(null);
+  const full = s.pictures.length >= SUBJECT_LIMITS.pictures;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium text-zinc-100">{s.name}</div>
+          {lookFor === null ? (
+            <button type="button" disabled={!editable} onClick={() => setLookFor(s.lookFor)} className="block text-left text-[11px] text-zinc-400 enabled:hover:text-zinc-200" title={editable ? 'Change what must match' : undefined}>
+              {s.lookFor || (editable ? 'Say what must match…' : '')}
+            </button>
+          ) : (
+            <form
+              className="flex gap-1.5 mt-0.5"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void act(`look-${s.key}`, () => api.updateSubject(goalId, s.key, { lookFor: lookFor })).then(() => setLookFor(null));
+              }}
+            >
+              <Input autoFocus value={lookFor} onChange={(e) => setLookFor(e.target.value)} className="text-xs py-1" aria-label="What must match" />
+              <Button type="submit" size="sm">Save</Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => setLookFor(null)}>Cancel</Button>
+            </form>
+          )}
+        </div>
+        {editable && (
+          <button type="button" className="shrink-0 rounded p-1 text-zinc-500 hover:text-rose-300 hover:bg-zinc-800" title="Remove this Subject" aria-label={`Remove ${s.name}`} onClick={() => void act(`rm-${s.key}`, () => api.removeSubject(goalId, s.key))}>
+            <X size={13} />
+          </button>
+        )}
+      </div>
+      {s.pictures.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {s.pictures.map((p) => (
+            <div key={p.file} className="relative shrink-0 w-36 group">
+              <button type="button" onClick={() => onView(p)} className="block w-full" title={p.caption || 'View full size'}>
+                <img src={api.subjectPictureUrl(goalId, p.file)} alt={p.caption || s.name} loading="lazy" className="h-24 w-36 object-cover rounded border border-zinc-700 group-hover:border-zinc-500" />
+              </button>
+              <div className="text-[10px] text-zinc-500 truncate mt-0.5">{[p.caption, p.source === 'person' ? 'yours' : host(p.url)].filter(Boolean).join(' · ')}</div>
+              {editable && (
+                <button type="button" className="absolute top-1 right-1 rounded bg-black/70 p-0.5 text-zinc-300 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-rose-300" title="Remove this picture" aria-label={`Remove ${p.caption || p.file}`} onClick={() => void act(`pic-${p.file}`, () => api.removeSubjectPicture(goalId, s.key, p.file))}>
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+        {searching ? (
+          <span className="inline-flex items-center gap-1.5 text-zinc-400">
+            <Loader2 size={11} className="animate-spin" /> Finding pictures… (a minute or two)
+          </span>
+        ) : s.search?.status === 'failed' ? (
+          <span className="text-rose-300/90">The search failed: {s.search.detail}</span>
+        ) : s.search && s.pictures.length === 0 ? (
+          <span className="text-amber-300/90">No picture found{s.search.detail ? ` (${s.search.detail})` : ''}: search again, or add your own.</span>
+        ) : s.pictures.length === 0 && !editable ? (
+          <span className="text-zinc-500">No picture: workers go by the name.</span>
+        ) : null}
+        {editable && (
+          <>
+            <Button size="sm" variant="ghost" disabled={searching || full || busy === `search-${s.key}`} onClick={() => void act(`search-${s.key}`, () => api.searchSubject(goalId, s.key))} title={full ? `A Subject has at most ${SUBJECT_LIMITS.pictures} pictures` : 'Search the web for pictures of exactly this one (about $1)'}>
+              <Search size={12} /> {s.pictures.length ? 'Find more' : 'Find pictures'}
+            </Button>
+            <Button size="sm" variant="ghost" disabled={full || busy === `up-${s.key}`} onClick={() => file.current?.click()} title="A photo or render of your own (PNG, JPEG, WebP or GIF, up to 5 MB)">
+              <ImagePlus size={12} /> Add your own
+            </Button>
+            <input
+              ref={file}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const files = [...(e.target.files ?? [])];
+                e.target.value = '';
+                if (files.length) void act(`up-${s.key}`, () => api.addSubjectPictures(goalId, s.key, files));
+              }}
+            />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

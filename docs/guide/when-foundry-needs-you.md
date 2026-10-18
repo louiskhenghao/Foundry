@@ -2,7 +2,7 @@
 
 > English · [中文](./when-foundry-needs-you.zh.md)
 
-Once you approve the Brief, Foundry works on its own. It stops and asks you only in the situations on this page. Each one shows up in the **Inbox** (the number in the top bar) and on the goal's page. If you set up notifications, you also get a Telegram or Discord message: the **Needs you** switch covers everything in the Inbox, and **Interview round**, **Goal finished**, **Delivery**, **Usage pause** and **New version** have their own switches. See [Settings → Notifications](./settings.md#notifications).
+Once you approve the Brief, Foundry works on its own. It stops and asks you only in the situations on this page. Each one shows up in the **Inbox** (the number in the top bar) and on the goal's page. If you set up notifications, you also get a Telegram or Discord message: the **Needs you** switch covers everything in the Inbox, and **Interview round**, **Brief ready**, **Goal finished**, **Delivery**, **Usage pause** and **New version** have their own switches. See [Settings → Notifications](./settings.md#notifications). On Telegram the message also carries the answers as buttons, and a reply to it answers in words: see [Answering from Telegram](../operate/notifications.md#answering-from-telegram). Discord carries the same buttons when a bot is set up: see [Answering from Discord](../operate/notifications.md#answering-from-discord).
 
 Each Inbox card carries the full report under **details**. The box scrolls; for a long report, **Open full** (the icon with two diagonal arrows) shows it in a larger window with **Copy**.
 

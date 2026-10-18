@@ -151,6 +151,21 @@ goal 运行时，里程碑卡片会显示目前产出的文件。
 
 CAD goal 的预览卡片上还会显示 **CAD Viewer**，也就是 text-to-cad 自带的查看器：按 **Start** 启动它，再按 **Open**（只有它一个应用时是 **Open the model**）就在浏览器里打开模型，可以旋转、测量、剖切。它会打开这个 goal 导出的装配体，没有装配体时打开最新的 STEP，运行中导出了新的装配体也会跟着换；它的首页列着其它模型。走查从不会自己启动它。它只在运行 Foundry 的那台电脑上打开：它能读取那台电脑上的任何文件，所以 Foundry 从不把它放到你的 tailnet 上。用 localhost 以外的地址打开页面时，卡片显示 **only on Foundry's computer**，不提供 **Open**，而是把查看器的 localhost 地址作为链接。用网络名称访问 Foundry 那台电脑时这个链接能用；在手机上打不开，因为那里的 localhost 是手机自己。
 
+## Deploy
+
+结果是网页或一体式网页应用的 goal，完成后可以在 **Delivery** 标签的最下面把它放上线：放到 Vercel、Netlify 或 Cloudflare Pages，默认是预览地址，你要求时才是正式（production）地址。
+
+![Deploy 卡片：找到的应用、几个托管平台、要执行的确切命令，以及一个已上线的预览](images/deploy.png)
+
+- **会部署的**：一个装着网页的文件夹、用常见工具构建的网站或单页应用（Vite、Astro、Gatsby、Docusaurus、Eleventy、Create React App、Angular），或者托管平台能运行的全栈网页框架（Next.js、Nuxt、SvelteKit、带适配器的 Astro、Remix、React Router、SolidStart）。卡片会写明它找到的是哪一种、在 monorepo 的哪个文件夹里。
+- **不会部署的**：Docker 或 Procfile 里的 worker、和页面分开部署的后端（独立文件夹里的 API、Go 或 Python 服务）、自带服务器的应用，或者有好几个网页应用的仓库。卡片会写明它找到了什么。只上线半个系统等于上线一个坏掉的系统，所以这时什么都不部署。
+- **托管平台**：Vercel 自己构建源码。Netlify 的工具在这台电脑上用 Netlify 自己的构建流程构建。Cloudflare Pages 拿到的是在这里构建好的文件，所以只接受静态网站：服务端渲染的应用请部署到 Vercel 或 Netlify。
+- **执行之前**，卡片会列出确切的命令。它们在 Foundry 数据文件夹里这个 goal 提交的一份检出中执行，从不在你的文件夹里执行，也不会往你的仓库推送任何东西。每个托管平台为每个仓库建一个项目，以文件夹名命名，所以之后的部署都去同一个地方。
+- **预览还是正式**：预览会有一个自己的地址。**Production** 会先请你确认，因为它会替换这个项目正式地址上现在的内容。托管平台对一个新项目的第一次部署就是正式部署。
+- **之后**卡片会列出每次部署和它的地址，下面可以展开看命令的输出，**Delivery** 通知会告诉你部署到了哪里，或者为什么失败。
+
+每个托管平台都需要在 **Settings → Git & delivery → Deploy** 里填上它的 token：见 [Git & delivery](./settings.zh.md#git--delivery)。这些 token 只由引擎保管，任何编码会话都拿不到。编码会话也不能自己去部署：边界守卫会拦下托管平台的部署命令，不管它怎么写。
+
 ## 完成后的附加项
 
 你在 Brief 上选了最后自动运行哪些（见 [批准 Brief](./approving-the-brief.zh.md#completion)）：

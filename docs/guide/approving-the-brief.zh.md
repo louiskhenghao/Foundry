@@ -11,6 +11,8 @@ Brief 就是计划。Foundry 读完你的项目、听完你的回答后写出它
 
 Brief 上几乎所有东西你都能改。花五分钟看看：这是改主意成本最低的时候。
 
+设置了通知时，Brief 写好后你会收到一条 **Brief ready** 消息。在 Telegram 上（以及设置了机器人的 Discord 上）它带着 **Approve and run…**：先说明它会设定的预算，再按现在的样子批准 Brief，和这里的 **Approve & run** 一样。还有 blocking 问题没答的 Brief 没有这个按钮：请在这个页面上回答。见 [Answering from Telegram](../operate/notifications.md#answering-from-telegram)。
+
 ![Expert 视图下的 Brief 页面：Understanding、Decisions、Areas 和计划](images/brief.png)
 
 ## Simple view and Expert view
@@ -62,6 +64,21 @@ Foundry 用自己的话说它理解了什么。先读这个：如果这里错了
 点一张样图放大查看，然后按 **Use as the reference image**。之后每个执行者都必须和这张图保持一致。**Unpick reference image** 撤销这一步。卡片上会显示 **reference image set — workers will match it**。
 
 你选的方向对每个产出可见内容的任务都有约束力。没有外观的任务（服务端代码、数据、文档）会忽略它。
+
+## Looks like
+
+如果结果描绘的是真实存在的东西（某一款车、一座建筑、一件产品），**Looks like** 会列出这些真实的东西，也就是 Subject，并附上它们的图片。执行者动手前会先看这些图片，做完后拿成品和图片对比；每一次审查也都拿它们来对比。图片只留在这台电脑上：不会被提交、交付，也不会放进成品里。
+
+- **Foundry 会找图片。** Brief 等待批准期间，它会在网上为每个还没有图片的 Subject 找几张（每个 Subject 约 $1）。卡片上会显示 **Finding pictures… (a minute or two)**，图片到齐之前 **Approve** 会等着。
+- 用图片上的 **×** **删除不对的图片**，用名称旁边的 **×** 删除不对的 Subject。
+- **Add your own** 上传你自己的照片或渲染图（PNG、JPEG、WebP 或 GIF，最大 5 MB）。你附加给 goal 的图片如果拍的是某个 Subject，会自动加进来。
+- **Find more** 再搜一次，找其他角度。一个 Subject 最多 8 张图片。
+- 点 Subject 名称下面那一行，写下哪些地方必须一致（比例、标志性特征、颜色）。
+- 要添加 Foundry 漏掉的 Subject，准确输入它的名称（品牌、型号、年份）和必须一致的地方，然后按 **Add and find pictures**。一份 Brief 最多 4 个 Subject。
+
+![Looks like 卡片：工作室的吉祥物手办作为一个 Subject，附上使用者的三张图片，还有 Find more、Add your own，以及添加另一个 Subject 的表单](images/subjects.png)
+
+Delegated goal 和 follow-up 会带着来源 goal 的 Subject 和图片开始，**Re-run Clarify** 也会保留它们。每个里程碑怎样和图片对比，见 [Likeness to the pictures](./while-it-runs.zh.md#likeness-to-the-pictures)。
 
 ## Assumptions
 
@@ -121,6 +138,8 @@ Foundry 用自己的话说它理解了什么。先读这个：如果这里错了
 | **Commit scope** | 提交信息括号里的那个词，`feat(scope): …`。留空就用 Area 的简称。 |
 | **Spec** | 改什么、在哪里改，以及怎么判断做完了。 |
 | start files | 执行者应该先看的文件，用逗号分隔。可选。 |
+| delivers | 这个任务留给后续任务的文件，用逗号分隔：页面要读的数据文件、要加载的模型、下一步要用的报告。任务落地时逐个检查，后续任务会被告知它们在哪。可选。 |
+| Budget share | 只有 **goal** 类型的任务有：做这一步的委派 goal 可以花多少（美元），在这个 goal 的预算之内。留空则按还没跑的 goal 任务平分剩余预算。 |
 
 ### Kind
 

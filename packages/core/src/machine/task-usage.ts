@@ -7,6 +7,8 @@ export interface TaskUsage {
   turns: number;
   /** wall-clock minutes from the first attempt's start to the last session's end (or now while running) */
   wallMin: number;
+  /** sessions that ended before their cost was reported: their dollars are unknown and missing from `costUsd`, never zero */
+  unmeasured: number;
   byRole: Record<AttemptSession['role'], { sessions: number; costUsd: number; turns: number }>;
   /** resolved model ids seen, most used first */
   models: string[];
@@ -18,6 +20,7 @@ export function taskUsage(attempts: Attempt[], now = new Date()): TaskUsage {
   const models = new Map<string, number>();
   let cost = 0;
   let turns = 0;
+  let unmeasured = 0;
   for (const a of attempts) {
     if (a.sessions.length) {
       for (const s of a.sessions) {
@@ -26,6 +29,7 @@ export function taskUsage(attempts: Attempt[], now = new Date()): TaskUsage {
         byRole[s.role].turns += s.numTurns;
         cost += s.costUsd;
         turns += s.numTurns;
+        if (s.costAvailable === false) unmeasured++;
         if (s.model) models.set(s.model, (models.get(s.model) ?? 0) + 1);
       }
     } else {
@@ -46,7 +50,15 @@ export function taskUsage(attempts: Attempt[], now = new Date()): TaskUsage {
     costUsd: cost,
     turns,
     wallMin: first != null && last != null ? Math.max(0, (last - first) / 60_000) : 0,
+    unmeasured,
     byRole,
     models: [...models.entries()].sort((a, b) => b[1] - a[1]).map(([m]) => m),
   };
+}
+
+/** How many sessions of these attempts ended before their cost was reported — the goal's cost meter says so next to its total. */
+export function unmeasuredSessions(attempts: Attempt[]): number {
+  let n = 0;
+  for (const a of attempts) for (const s of a.sessions) if (s.costAvailable === false) n++;
+  return n;
 }

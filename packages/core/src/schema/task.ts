@@ -15,7 +15,7 @@ export type TaskDifficulty = 'simple' | 'standard' | 'complex';
 /** the task id a goal's final walkthrough uses where a milestone's task id goes (its checkpoint, its feedback fixes) */
 export const FINAL_WALK = 'final';
 
-export const TaskOrigin = z.enum(['brief', 'goal-review-fix', 'merge', 'delivery-fix', 'feedback-fix', 'audit-fix']);
+export const TaskOrigin = z.enum(['brief', 'goal-review-fix', 'merge', 'delivery-fix', 'feedback-fix', 'audit-fix', 'likeness-fix']);
 
 /**
  * What kind of work a task is; selects the workflow discipline the worker is asked to follow (tdd vs diagnosing-bugs …).
@@ -59,6 +59,10 @@ export const Task = z.object({
   commitMessage: z.string().nullable().default(null),
   dependsOn: z.array(z.string()),
   relevantFiles: z.array(z.string()),
+  /** Deliverables: the files it leaves for the tasks after it (repo-relative, or under artifacts/), each a must check when it lands; absent on tasks from before */
+  delivers: z.array(z.string()).optional(),
+  /** a `goal` task: the share of the goal's cost budget (USD) its Delegated goal may spend; null = an even share of what is left */
+  budgetUsd: z.number().positive().nullable().optional(),
   parallelizable: z.boolean(),
   retryBudget: z.number().int().positive(),
   origin: TaskOrigin,

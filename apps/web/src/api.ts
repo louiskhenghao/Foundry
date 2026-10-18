@@ -1,5 +1,5 @@
-import type { FeedbackPlan } from '@foundry/core/browser';
-import type { Attachment, Attempt, Brief, BriefApp, BriefCheck, BriefDiff, BriefRun, BriefStyleOption, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, GoalTimeline, SettingsPatch, SettingsView, Task, TaskUsage } from '@foundry/core/browser';
+import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment } from '@foundry/core/browser';
+import type { Attachment, Attempt, Brief, BriefApp, BriefCheck, BriefDiff, BriefRun, BriefStyleOption, BriefSubject, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, GoalTimeline, SettingsPatch, SettingsView, SubjectPicture, Task, TaskUsage } from '@foundry/core/browser';
 
 /** Mirrors the engine's PreviewAppStatus (preview/manager.ts): one app of the goal's preview. */
 export interface PreviewAppStatus {
@@ -150,7 +150,7 @@ export interface DraftProposal {
   costAvailable?: boolean;
   mode: DraftRequest['mode'];
   taskKey: string | null;
-  task: Partial<Pick<BriefTask, 'spec' | 'kind' | 'scope' | 'scenario' | 'areaKey' | 'dependsOnKeys' | 'relevantFiles'>> | null;
+  task: Partial<Pick<BriefTask, 'spec' | 'kind' | 'scope' | 'scenario' | 'areaKey' | 'dependsOnKeys' | 'relevantFiles' | 'delivers'>> | null;
   tasks: BriefTask[];
   checks: BriefCheck[];
   rationale: string;
@@ -374,6 +374,8 @@ export interface DelegatedView {
 
 export interface GoalDetail {
   goal: Goal;
+  /** how many Learnings the goal's folder has (ADR-0040) */
+  learningsCount?: number;
   /** directories the Open menu can launch: the user's checkout and the goal branch worktree (when it exists) */
   paths: { repo: string; workspace: string | null };
   budget: BudgetStatus;
@@ -394,6 +396,10 @@ export interface GoalDetail {
   auditRunning?: boolean;
   /** REA is studying the goal's references */
   investigating?: boolean;
+  /** the Subjects (keys) whose pictures Foundry is searching for now: the Brief waits for them */
+  subjectSearches?: string[];
+  /** the milestones (task ids) whose recording is being compared with the Subjects' pictures now */
+  likenessRuns?: string[];
   /** Follows / Followed by (goal.follows holds the earlier goal; it may have been deleted since) */
   followUps: { followsExists: boolean; followedBy: { id: string; title: string; state: GoalState }[] };
   /** Delegated from / Delegated goals (goal.delegatedFrom holds the main goal; it may have been deleted since) */
@@ -504,6 +510,14 @@ export function apiForProvider(provider?: AgentProvider) {
   goal: (id: string) => req<GoalDetail>(`/api/goals/${id}`),
   createGoal: (body: unknown) => req<Goal>('/api/goals', { method: 'POST', body: JSON.stringify(body) }),
   followUpDraft: (id: string) => req<FollowUpDraft>(`/api/goals/${id}/follow-up-draft`),
+  /** every folder with Learnings, or one folder's (ADR-0040) */
+  learnings: () => req<{ repos: RepoLearnings[] }>('/api/learnings'),
+  repoLearnings: (repoPath: string) => req<{ repoPath: string; learnings: Learning[] }>(`/api/learnings?repo=${encodeURIComponent(repoPath)}`),
+  saveLearnings: (repoPath: string, learnings: { id?: string | null; kind: LearningKind; text: string }[]) => req<{ repoPath: string; learnings: Learning[] }>('/api/learnings', { method: 'PUT', body: JSON.stringify({ repoPath, learnings }) }),
+  learnFrom: (goalId: string) => req<{ repoPath: string; learnings: Learning[] }>(`/api/goals/${goalId}/learn`, { method: 'POST' }),
+  /** Deploy (ADR-0041): what a finished goal's web app is, the hosts, the exact commands, the deploys so far */
+  deployInfo: (goalId: string, provider?: DeployHost | null, production = false) => req<DeployInfo>(`/api/goals/${goalId}/deploy?${provider ? `provider=${provider}&` : ''}production=${production ? 1 : 0}`),
+  deploy: (goalId: string, provider: DeployHost, production: boolean) => req<{ started: boolean }>(`/api/goals/${goalId}/deploy`, { method: 'POST', body: JSON.stringify({ provider, production }) }),
   markFollowUp: (id: string, goalId: string) => req<Goal>(`/api/goals/${id}/follows`, { method: 'POST', body: JSON.stringify({ goalId }) }),
   validateRepo: (repoPath: string) => req<RepoInfo>('/api/validate-repo', { method: 'POST', body: JSON.stringify({ repoPath }) }),
   /** Upload one file with progress; resolves to the staged Attachment. goalId → attach directly to that goal. */
@@ -570,6 +584,22 @@ export function apiForProvider(provider?: AgentProvider) {
   cancelGoal: (id: string) => req<{ ok: true }>(`/api/goals/${id}/cancel`, { method: 'POST' }),
   styleSample: (id: string, styleKey: string) => req<{ started: true; channel: string; file: string }>(`/api/goals/${id}/brief/style-sample`, { method: 'POST', body: JSON.stringify({ styleKey }) }),
   styleSampleUrl: (id: string, file: string) => `/api/goals/${id}/brief/style-sample/${encodeURIComponent(file.split('/').pop()!)}`,
+  addSubject: (id: string, body: { name: string; lookFor?: string; search?: boolean }) => req<BriefSubject>(`/api/goals/${id}/brief/subjects`, { method: 'POST', body: JSON.stringify(body) }),
+  updateSubject: (id: string, key: string, body: { name?: string; lookFor?: string }) => req<{ ok: true }>(`/api/goals/${id}/brief/subjects/${encodeURIComponent(key)}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  removeSubject: (id: string, key: string) => req<{ ok: true }>(`/api/goals/${id}/brief/subjects/${encodeURIComponent(key)}`, { method: 'DELETE' }),
+  /** search the web for (more) pictures of a Subject; the result arrives as a brief.subject_searched event */
+  searchSubject: (id: string, key: string) => req<{ started: true }>(`/api/goals/${id}/brief/subjects/${encodeURIComponent(key)}/search`, { method: 'POST' }),
+  /** the person's own pictures of a Subject (a multipart form: the browser sets its boundary) */
+  addSubjectPictures: async (id: string, key: string, files: File[]): Promise<SubjectPicture[]> => {
+    const fd = new FormData();
+    for (const f of files) fd.append('file', f, f.name);
+    const res = await fetch(`/api/goals/${id}/brief/subjects/${encodeURIComponent(key)}/pictures`, { method: 'POST', body: fd });
+    const body = safeJson(await res.text()) as { pictures?: SubjectPicture[]; error?: string } | string;
+    if (!res.ok) throw new ApiError((typeof body === 'object' && body?.error) || `upload failed (${res.status})`, res.status, body);
+    return (body as { pictures: SubjectPicture[] }).pictures;
+  },
+  removeSubjectPicture: (id: string, key: string, file: string) => req<{ ok: true }>(`/api/goals/${id}/brief/subjects/${encodeURIComponent(key)}/pictures/${encodeURIComponent(file)}`, { method: 'DELETE' }),
+  subjectPictureUrl: (id: string, file: string) => `/api/goals/${id}/subjects/${encodeURIComponent(file)}`,
   /** the goal's timeline with its Delegated goals: when each step ran and how long it took */
   timeline: (id: string) => req<GoalTimeline>(`/api/goals/${id}/timeline`),
   guide: () => req<{ pages: { slug: string; title: string; zh: string | null }[] }>('/api/guide'),
@@ -607,7 +637,7 @@ export function apiForProvider(provider?: AgentProvider) {
   streamHistory: (id: string) => req<{ events: any[] }>(`/api/stream/${encodeURIComponent(id)}/history`),
   /** one live-log event in full, read back from the transcript line its `ref` names */
   fileStat: (ref: FileRef) => req<FileInfo>(`/api/files/stat?${fileQuery(ref)}`),
-  taskFiles: (goalId: string, taskId: string) => req<{ files: TaskFile[]; relevant: { rel: string; open: FileRef | null }[] }>(`/api/goals/${goalId}/tasks/${taskId}/files`),
+  taskFiles: (goalId: string, taskId: string) => req<{ files: TaskFile[]; relevant: { rel: string; open: FileRef | null }[]; delivers?: { rel: string; open: FileRef | null }[] }>(`/api/goals/${goalId}/tasks/${taskId}/files`),
   streamEvent: (ref: { file: string; line: number; block: number }) => req<{ event: any }>(`/api/transcripts/${encodeURIComponent(ref.file)}/event?line=${ref.line}&block=${ref.block}`),
   workspace: (id: string) => req<{ path: string; exists: boolean; branch: string; head: string | null; packageManager: string | null; install: string | null; scripts: { name: string; command: string }[]; baseSync: Goal['baseSync']; upstream: BaseSync | null; tasks: { id: string; title: string; path: string; branch: string | null }[] }>(`/api/goals/${id}/workspace`),
   restartGoal: (id: string, fromTaskId?: string) => req<{ restarted: string[] }>(`/api/goals/${id}/restart`, { method: 'POST', body: JSON.stringify({ fromTaskId }) }),
@@ -676,7 +706,7 @@ export function apiForProvider(provider?: AgentProvider) {
   updateSettings: (patch: SettingsPatch) => req<SettingsView>('/api/settings', { method: 'PUT', body: JSON.stringify(patch) }),
   resetSetting: (path: string) => req<SettingsView>(`/api/settings/${encodeURIComponent(path)}`, { method: 'DELETE' }),
   resetSettings: () => req<SettingsView>('/api/settings/reset', { method: 'POST' }),
-  notifyTest: (override: { telegramBotToken?: string | null; telegramChatId?: string | null; discordWebhookUrl?: string | null }) => req<{ results: { channel: string; ok: boolean; error: string | null }[] }>('/api/notifications/test', { method: 'POST', body: JSON.stringify(override) }),
+  notifyTest: (override: { telegramBotToken?: string | null; telegramChatId?: string | null; discordWebhookUrl?: string | null; discordBotToken?: string | null }) => req<{ results: { channel: string; ok: boolean; error: string | null }[] }>('/api/notifications/test', { method: 'POST', body: JSON.stringify(override) }),
   telegramChatId: (token: string | null) => req<{ chatId: string; who: string }>('/api/notifications/telegram/chat-id', { method: 'POST', body: JSON.stringify({ token }) }),
   health: () => req<{ ok: boolean; active: number; events: number; pausedUntil: string | null; pausedUntilByProvider: Record<AgentProvider, string | null>; restartNeeded: string[]; version: string; updateAvailable: boolean; updating: boolean }>('/api/health'),
   updateStatus: () => req<UpdateStatusView>('/api/update'),
@@ -770,3 +800,15 @@ export interface MapResult {
 }
 
 export const api = apiForProvider();
+
+export type DeployHost = 'vercel' | 'netlify' | 'cloudflare';
+/** what Deploy can do for a goal now (GET /api/goals/:id/deploy) */
+export interface DeployInfo {
+  app: { ok: true; app: { dir: string; framework: string; kind: 'static' | 'built' | 'ssr' }; notes: string[] } | { ok: false; reason: string };
+  finished: boolean;
+  running: boolean;
+  providers: { id: DeployHost; label: string; configured: boolean; refused: string | null }[];
+  /** the exact commands, tokens left out */
+  plan: { label: string; command: string }[];
+  deployments: Deployment[];
+}

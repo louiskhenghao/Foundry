@@ -19,7 +19,7 @@ Open a goal from **Goals** (the list in the top bar). At the top of its page:
 
 - The title, a state badge (for example **running**, **have a look**, **reviewing**, **done**), and a **fast** chip if the goal runs in fast mode.
 - The project folder (with **copy** for its path), the goal's coding agent (**Claude Code** or **Codex**) and the branches: the one the goal started from → the goal's own branch. The **Goals** list shows the same coding agent next to each project path. Each of its rows stacks related facts: title, coding agent and folder; state and task counts; cost and time against their limits; last update and creation date. It shows 10 goals per page by default, newest first, with the count and the page at the bottom; choose 20 or 50 per page there (remembered in this browser). The page number is kept in the address.
-- **Time** in minutes against the limit; Claude also shows **cost** against its USD budget. Codex dollar cost is unavailable.
+- **Time** in minutes against the limit; Claude also shows **cost** against its USD budget. **+N unmeasured** after it counts the sessions that ended before Claude Code reported a cost (a timeout, a kill, a crash): their turns and tokens are counted, their dollars are unknown and missing from the total, never written as $0. Codex dollar cost is unavailable.
 - **Open ▾**: open the project or the progress folder on your computer (see [The progress folder](#the-progress-folder)), or in **VS Code (web)**: VS Code in a browser tab, which also opens on your phone over Tailscale. It starts on first use (install it once under [Settings → Tools & keys](./settings.md#tools--keys)), runs on this computer only, and stops after two idle hours. Its sign-in page asks for a password, which the menu shows with a copy button; a browser remembers it. A folder the coding agents wrote opens in restricted mode until you choose to trust it. Edits there are real edits: while the goal runs, the menu warns that changes in its folders can clash with the coding agents' and go into their next commit.
 - One main button that changes with the state: **Review brief →** while the Brief waits, **Cancel** while it runs, **Deliver…**, **Delivering…** or **Delivery** when it is done.
 - **⋯** (More actions): **Restart…**, **Re-run Clarify**, **Cancel goal**, **Delete goal…**, whichever apply.
@@ -95,6 +95,8 @@ A task of kind **goal** is not done by a worker: a *delegated goal* of its own d
 
 While the delegated goal needs you — an interview question, a Brief to approve, a milestone, an Inbox item — this goal shows **blocked** with the reason *waiting for the delegated goal …*; answer in the delegated goal (its page, or the Inbox) and this goal goes on by itself. When the delegated goal fails, its failed tasks are run again, as often as the task's attempts allow, with a note on why; then an Inbox item on this goal's task offers **Retry** (its failed tasks run again, with your hint) or **Skip**. **Restart from here** on a goal task starts a fresh delegated goal; the old one stays as a goal of its own.
 
+Once a delegated goal has landed, the planner reads what it delivered and may touch up the tasks after it that have not started yet: their spec, start files and deliverables, never the plan's shape or its checks. A task touched up says **Touched up after a step landed** under its spec, with the reason; the Activity tab has the line too.
+
 The goals list folds delegated goals under their main goal: a line **▸ 2 delegated goals** under the main goal opens them, indented. A delegated goal's own page says **Delegated from: …** under its title (a link to the main goal's task), and the main goal's page lists its **Delegated goals**. If the main goal is deleted, the delegated goal stays in the list on its own and says whose it was.
 
 ### Inside a task
@@ -104,8 +106,9 @@ The goals list folds delegated goals under their main goal: a line **▸ 2 deleg
 Click a task to open it over the goal page (Escape, × or a click beside it closes it). The panel always fills the window's height; on a wide screen the left column and the attempt beside it scroll separately, so a long list of files never scrolls the live log away. You see:
 
 - Its title, state, tags and, once done, its commit. Click the commit line to read the whole commit message.
-- **Task total**: attempts, cost (split into worker and reviewer), turns and minutes so far.
+- **Task total**: attempts, cost (split into worker and reviewer), turns and minutes so far. A session that ended before its cost was reported shows **unknown** in the attempt's session list, and the total says how many such sessions it leaves out (**+N unmeasured**).
 - **spec** and, if you gave one, the **human hint** right under it (the **Open full** icon reads either in a larger window), its **Checks** with their latest result, and **Relevant files** (click one to open it; a grey one exists nowhere yet, usually a file the plan meant the task to create).
+- **Deliverables**: the files the task promised to the tasks after it. Each is a must check when the task lands; click one to open it once it exists.
 - **Files**: what the task added or changed (**Files so far** while it runs). Images show as thumbnails. Click any file to see it in the page (the arrows at the top of the window, or ← and →, go to the previous or next file of the same list, **Relevant files** too): pictures, PDFs, video and audio play right there, and code (coloured by language, with line numbers), Markdown and JSON are shown formatted. You need no editor on the computer Foundry runs on, so this works from a phone or over [remote access](../operate/remote-access.md) too. A finished task's files are read from its commit in your repository, so they stay after delivery removes the task's folders; images and video of an image or video goal, which are never committed, are listed with the task that made them.
 - **This task is waiting for you**, if it is blocked, with the buttons to answer.
 - One chip per attempt: **#1**, **#2** … with its result and cost. **↻1** means the session was resumed once instead of starting over, preserving its context.
@@ -260,6 +263,14 @@ The card shows:
 Then either press **Continue**, or write what you saw and press **Turn into a plan**. How that works, step by step, is in [When Foundry needs you](./when-foundry-needs-you.md#a-milestone-is-ready-to-look-at).
 
 The same screenshots and videos are sent to your notification channels in a second message, **📸 What the milestone looks like** (**⚠️ A milestone did not show** when a script failed), whether or not the goal pauses; the final walkthrough sends one message for every feature, and stay in the Overview's **Milestones** card to watch again later. A video too large for the channel (50 MB on Telegram, 10 MB on Discord) stays on the goal page, and the message says so.
+
+### Likeness to the pictures
+
+When the Brief has [Subjects with pictures](./approving-the-brief.md#looks-like), every milestone recording except the final walkthrough's is put next to them: a short review opens the recording's screenshots (a milestone of files' images, frames of its clips) and the pictures, and says for each Subject how close it is out of 10, what already matches and what differs. It shows under the recording as **Likeness to the pictures**, with the differences someone who knows the subject would notice at a glance first, in red. The milestone's row shows **likeness N/10**, the lowest Subject's score.
+
+![Likeness to the pictures under a milestone's recording: the mascot at 6/10 beside its pictures, one major difference in red, one minor, and what already matches](images/likeness.png)
+
+When the review finds such major differences while the goal still runs, Foundry adds one task, **match … to its pictures**, with the differences and both sets of pictures. Once it lands, the milestone is recorded and compared again, and that second review only reports. Your notification channels hear **🔍 Not like the pictures yet** when the task is added. A review costs about as much as a task review.
 
 ## Timeline
 

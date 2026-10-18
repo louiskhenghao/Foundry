@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CheckSpec, CheckTier } from './check.ts';
+import { BriefSubject, OutputSubject } from './subject.ts';
 import { TaskKind, TaskScenario, TaskDifficulty, WORKER_TASK_KINDS } from './task.ts';
 
 export const BriefAssumption = z.object({
@@ -87,6 +88,10 @@ export const BriefTask = z.object({
   dependsOnKeys: z.array(z.string()).default([]),
   parallelizable: z.boolean().default(true),
   relevantFiles: z.array(z.string()).default([]),
+  /** Deliverables: files the task leaves for the tasks after it (repo-relative, or under artifacts/); checked when it lands, listed to its dependents */
+  delivers: z.array(z.string()).optional(),
+  /** a `goal` task: the share of the goal's cost budget (USD) its Delegated goal may spend; null = an even share of what is left */
+  budgetUsd: z.number().positive().nullable().optional(),
   /** simple / standard / complex: picks the worker model (Settings → Models); absent = standard */
   difficulty: TaskDifficulty.optional(),
   /** what to look at or try when this task lands; set = milestone, the goal pauses there for a human look */
@@ -146,6 +151,8 @@ export const Brief = z.object({
   questions: z.array(BriefQuestion),
   /** visual directions for media/UI goals; non-empty ⇒ the engine adds a blocking style question */
   styleOptions: z.array(BriefStyleOption).default([]),
+  /** real things the result depicts, with their pictures; changed only through their own events (a saved Brief keeps the stored ones) */
+  subjects: z.array(BriefSubject).optional(),
   /** how to start the result for a look (preview, self-check); null = detected from package.json, or not startable */
   run: BriefRun.nullable().optional(),
   /** several apps to preview side by side; overrides `run`. null/absent = `run`, else detected */
@@ -176,6 +183,15 @@ const outputTaskSchema = (delegation: boolean) => z.object({
   dependsOnKeys: z.array(z.string()),
   parallelizable: z.boolean(),
   relevantFiles: z.array(z.string()).describe('Repo-relative paths the worker should start from.'),
+  delivers: z
+    .array(z.string())
+    .optional()
+    .describe('Deliverables: the files this task leaves for the tasks after it, repo-relative (under artifacts/ for media and CAD): what they will read or build on. Each must exist when the task lands (it is checked), and the next tasks are told where they are. Leave out when nothing after it reads its files directly.'),
+  budgetUsd: z
+    .number()
+    .positive()
+    .nullish()
+    .describe("For a goal task only: the share of this goal's cost budget (USD, rough) its delegated goal may spend, within the whole estimate. Leave out otherwise, or when you cannot say; the engine then gives it an even share of what is left."),
   difficulty: z
     .enum(['simple', 'standard', 'complex'])
     .describe('How hard this task is for one engineer-session. simple = mechanical, well-trodden (config, copy edits, scaffolding from a template, one small component); standard = typical feature work; complex = cross-cutting, subtle or high-risk (architecture, concurrency, data migration, tricky algorithms, a large refactor). It picks the model the worker runs on: be honest, most tasks are standard.'),
@@ -251,6 +267,10 @@ export const BriefOutput = z.object({
     )
     .default([])
     .describe('Visual directions for the human to SEE and pick from before generation starts. REQUIRED for image/video goals and UI-heavy code goals: 2-4 distinct directions, YOUR recommendation first. Empty for prose/research/backend/cad goals.'),
+  subjects: z
+    .array(OutputSubject)
+    .nullish()
+    .describe('Real things the result must look like: a specific vehicle, building, landmark, product or artwork that exists (never a person), at most 3. Foundry finds pictures of each before the plan runs, and workers and reviewers compare against them. Empty for invented designs, generic styles and anything that is not a physical thing.'),
   run: z
     .object({
       install: z.string().nullable().describe('Install command from the repo root, e.g. "npm install"; null if none.'),
@@ -349,6 +369,7 @@ export const TaskDraftOutput = z.object({
   areaKey: z.string().nullable(),
   dependsOnKeys: z.array(z.string()).describe('Keys of existing tasks this one must run after.'),
   relevantFiles: z.array(z.string()),
+  delivers: z.array(z.string()).optional().describe('Deliverables: files this task leaves for the tasks after it (repo-relative, or under artifacts/).'),
   checks: z.array(OutputCheck.omit({ key: true, taskKey: true, areaKey: true })).describe('Acceptance checks for this task only.'),
   rationale: z.string().describe('One or two sentences for the human: why these choices.'),
 });

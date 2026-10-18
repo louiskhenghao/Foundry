@@ -6,9 +6,10 @@
  *
  * Uses the system Chrome through Playwright (channel "chrome"); falls back to Playwright's own Chromium when installed.
  */
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { buildTimeline, getGoal, type EngineEvent } from '@foundry/core';
+import { addSubject, addSubjectPicture, subjectsDir } from '../packages/engine/src/subjects.ts';
 import { seedImportedGoal, startDemo } from './demo.ts';
 
 const ROOT = resolve(import.meta.dir, '..');
@@ -32,6 +33,13 @@ const mask = async () => {
       n.textContent = (n.textContent ?? '').replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, 'you@example.com').replace(/\/(?:private\/)?var\/folders\/[^\s·]*?\/foundry-demo-[^/\s]+\//g, '~/Projects/');
     }
   });
+};
+/** a simple drawing of the demo's mascot from one view: the guide's Subject pictures are drawn, never someone's photos */
+const mascot = (view: 'front' | 'side' | 'three-quarter') => {
+  const eye = view === 'side' ? '<circle cx="300" cy="150" r="26" fill="#0b0f1a"/>' : `<circle cx="${view === 'front' ? 240 : 262}" cy="150" r="42" fill="#f5f5f5"/><circle cx="${view === 'front' ? 240 : 270}" cy="150" r="20" fill="#0b0f1a"/>`;
+  const body = view === 'side' ? '<rect x="205" y="215" width="70" height="95" rx="18" fill="#f97316"/>' : '<rect x="180" y="215" width="120" height="95" rx="22" fill="#f97316"/>';
+  const arms = view === 'side' ? '<rect x="232" y="240" width="30" height="22" rx="10" fill="#fb923c"/>' : '<rect x="150" y="235" width="36" height="22" rx="10" fill="#fb923c"/><rect x="294" y="235" width="36" height="22" rx="10" fill="#fb923c"/>';
+  return `<body style="margin:0;background:#1f2937"><svg width="480" height="360" xmlns="http://www.w3.org/2000/svg"><rect width="480" height="360" fill="#1f2937"/><ellipse cx="240" cy="330" rx="120" ry="14" fill="#111827"/><line x1="240" y1="60" x2="240" y2="95" stroke="#e5e7eb" stroke-width="6"/><circle cx="240" cy="55" r="10" fill="#facc15"/>${view === 'side' ? '<ellipse cx="240" cy="150" rx="62" ry="58" fill="#e5e7eb"/>' : '<circle cx="240" cy="150" r="62" fill="#e5e7eb"/>'}${eye}${body}${arms}<text x="16" y="28" fill="#9ca3af" font-family="sans-serif" font-size="16">${view}</text></svg></body>`;
 };
 /**
  * The timeline of an afternoon's goal for the guide: a Brief that waited, tasks side by side, a review that sent one
@@ -111,6 +119,18 @@ const shot = async (name: string, path: string, prepare?: () => Promise<void>, h
   console.log(`  ${name}.png`);
 };
 
+/** one part of a page (a card), loaded and masked like a whole shot */
+const partShot = async (name: string, path: string, part: () => ReturnType<typeof page.locator>) => {
+  await page.goto('about:blank');
+  await page.goto(demo.url + path, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(600);
+  await mask();
+  await part().scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  await part().screenshot({ path: join(OUT, `${name}.png`) });
+  console.log(`  ${name}.png`);
+};
+
 try {
   const g = demo.goals;
   // the README's first picture: every goal of the demo, one in each state. The Setup banner reports this machine's
@@ -181,9 +201,93 @@ try {
   await shot('agents', '/agents');
   await page.unroute('**/api/agents');
   await shot('transfer', '/transfer', undefined, 760);
+  // a folder's Learnings, seeded here so the goal pages above show none (ADR-0040)
+  const repoPath = getGoal(demo.engine.store.db, g.done!)!.repoPath;
+  const learned = (kind: 'build' | 'test' | 'structure' | 'pitfall' | 'preference', text: string, by: 'foundry' | 'human' = 'foundry') => ({ id: `lrn_${kind}${by}`, kind, text, by, goalId: by === 'foundry' ? g.done! : null, goalTitle: by === 'foundry' ? title(g.done!) : null, at: ago(90) });
+  demo.engine.store.append({
+    type: 'learnings.set',
+    goalId: null,
+    payload: {
+      repoPath,
+      learnings: [
+        learned('preference', 'Copy is in British English: "colour", "organise". Keep it that way in new text.', 'human'),
+        learned('test', 'Run `bun test` from the repository root; the e2e tests need `bun run dev` on port 5173 first.'),
+        learned('structure', 'Pages live in src/pages, shared parts in src/components; the footer is src/components/Footer.tsx.'),
+        learned('pitfall', 'Email checks must accept addresses with a plus sign in the name: the first attempt rejected them.'),
+        learned('build', 'Install with `bun install`; npm fails on the workspace protocol in package.json.'),
+      ],
+      source: 'distill',
+      goalId: g.done!,
+      note: null,
+    },
+  });
+  await shot('learnings', '/learnings', undefined, 520);
+  // Deploy (ADR-0041): the demo's site is not a web app the hosts take, so the card's facts are given here and one
+  // live preview is recorded on the finished goal, after the shots above
+  demo.engine.store.append({ type: 'deploy.started', goalId: g.done!, payload: { provider: 'vercel', production: false, ref: 'a1b2c3d', framework: 'Vite', dir: '' } });
+  demo.engine.store.append({ type: 'deploy.finished', goalId: g.done!, payload: { provider: 'vercel', production: false, url: 'https://studio-site-3f9a2c-preview.vercel.app' } });
+  await page.route('**/api/goals/*/deploy*', (r) =>
+    r.fulfill({
+      json: {
+        app: { ok: true, app: { dir: '', framework: 'Vite', kind: 'built' }, notes: [] },
+        finished: true,
+        running: false,
+        providers: [
+          { id: 'vercel', label: 'Vercel', configured: true, refused: null },
+          { id: 'netlify', label: 'Netlify', configured: true, refused: null },
+          { id: 'cloudflare', label: 'Cloudflare Pages', configured: false, refused: null },
+        ],
+        plan: [{ label: 'deploy to Vercel', command: 'npx --yes vercel@64 deploy --yes' }],
+        deployments: [],
+      },
+    }),
+  );
+  // the card alone: it is the last thing on the tab, and the delivery card above it names this machine's GitHub account
+  await page.goto('about:blank');
+  await page.goto(`${demo.url}/goals/${g.done}#delivery`, { waitUntil: 'networkidle' });
+  await page.locator('#deploy').waitFor();
+  await page.waitForTimeout(600);
+  await mask();
+  await page.locator('#deploy').screenshot({ path: join(OUT, 'deploy.png') });
+  console.log('  deploy.png');
+  await page.unroute('**/api/goals/*/deploy*');
   // seeded last: the shots above count the demo's goals
   const imported = await seedImportedGoal(demo.engine, g.done!);
   await shot('goal-imported', `/goals/${imported}`, undefined, 620);
+
+  // Subjects: the studio's own mascot figure, from pictures of the person's (drawn here: the demo shows nobody's photos)
+  const pictures: Uint8Array[] = [];
+  for (const view of ['front', 'side', 'three-quarter'] as const) {
+    await page.setViewportSize({ width: 480, height: 360 });
+    await page.setContent(mascot(view));
+    pictures.push(new Uint8Array(await page.screenshot({ type: 'png' })));
+  }
+  await page.setViewportSize({ width: 1280, height: 860 });
+  const pip = { name: 'Pip, our robot mascot (the vinyl figure)', lookFor: 'the round head with one big eye, the antenna, the orange body and the short arms' };
+  addSubject(demo.engine, g.brief!, { ...pip, search: false });
+  for (const [i, caption] of ['front', 'side', 'three-quarter'].entries()) addSubjectPicture(demo.engine, g.brief!, 'P1', pictures[i]!, caption);
+  await partShot('subjects', `/goals/${g.brief}/brief`, () => page.locator('#brief-subjects'));
+  // the first look at the landing page, compared with the same pictures
+  const store = demo.engine.store;
+  mkdirSync(subjectsDir(demo.engine.config.dataDir, g.milestone!), { recursive: true });
+  for (const [i, bytes] of pictures.entries()) writeFileSync(join(subjectsDir(demo.engine.config.dataDir, g.milestone!), `P1-${i + 1}.png`), bytes);
+  store.append({ type: 'brief.subject_set', goalId: g.milestone!, payload: { subject: { key: 'P1', ...pip } } });
+  store.append({ type: 'brief.subject_pictures', goalId: g.milestone!, payload: { subjectKey: 'P1', added: ['front', 'side', 'three-quarter'].map((caption, i) => ({ file: `P1-${i + 1}.png`, source: 'person' as const, url: null, caption })), removed: [] } });
+  const recording = store.listByGoalOfTypes(g.milestone!, ['milestone.evidence']).at(-1)!;
+  store.append({
+    type: 'milestone.likeness',
+    goalId: g.milestone!,
+    payload: {
+      taskId: (recording.payload as { taskId: string }).taskId,
+      evidenceAt: recording.ts,
+      status: 'ok',
+      verdict: { subjects: [{ key: 'P1', shown: true, score: 6, matches: ['the orange body', 'the antenna'], differences: [{ what: 'the eye is small and set low; in the pictures one big eye fills half the face', major: true }, { what: 'the arms are long; in the pictures they are short stubs', major: false }], shots: [] }], summary: 'Recognisably Pip, but the face reads as another robot.' },
+      detail: '',
+      costUsd: 0.31,
+      fixTaskId: null,
+    },
+  });
+  await partShot('likeness', `/goals/${g.milestone}`, () => page.locator('div.rounded-md', { hasText: 'Likeness to the pictures' }).first());
 } finally {
   await browser.close();
   await demo.stop();

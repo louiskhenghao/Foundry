@@ -17,6 +17,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `workflow.interviewDepth` | — | `FOUNDRY_INTERVIEW_DEPTH` | How deep Clarify interviews you before writing the Brief: 0 = not at all (one-shot Brief), 1 = only what a wrong guess would waste … 5 = every detail, until nothing is left to decide. Empty = what Interview stands for (auto 3, always 4, never 0). Switchable per goal. |
 | `workflow.milestonePause` | `true` | `FOUNDRY_MILESTONE_PAUSE` | New goals pause at their milestones so you can have a look; off = they go on, and what the milestone shows is sent to your notification channels. Switchable per goal. |
 | `workflow.effort` | — | `FOUNDRY_EFFORT` | Default goal-wide effort override (low … max). Empty uses each Codex role preset or the Claude CLI default. New goals can override it. |
+| `workflow.learnings` | `true` | — | When a goal ends, a short session on the goal's housekeeping model adds what it taught about the repository to the folder's Learnings. Off = nothing is learned automatically; the Learnings you keep are still given to later goals. |
 | `reviews.alwaysReviewTasks` | `true` | — | Run the task reviewer on every task, not only tasks that ask for a reviewer check (thorough pace). |
 | `reviews.maxFixCycles` | `1` | — | Goal review → fix-task rounds before the goal asks you. |
 | `reviews.smallGoalLines` | `400` | `FOUNDRY_SMALL_GOAL_LINES` | A goal whose whole diff is at most this many lines is reviewed by the Task reviewer model without review skills; 0 = never. |
@@ -67,6 +68,12 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
+| `delivery.vercelToken` | — | `FOUNDRY_VERCEL_TOKEN` | A Vercel token for Deploy (a finished web app to Vercel). Kept by the engine only: never handed to a coding session. |
+| `delivery.vercelScope` | — | `FOUNDRY_VERCEL_SCOPE` | The Vercel team to deploy under; empty = the token’s own account. |
+| `delivery.netlifyToken` | — | `FOUNDRY_NETLIFY_TOKEN` | A Netlify personal access token for Deploy. Kept by the engine only. |
+| `delivery.netlifyTeam` | — | `FOUNDRY_NETLIFY_TEAM` | The Netlify team a new site is made in; empty = the token’s default team. |
+| `delivery.cloudflareToken` | — | `FOUNDRY_CLOUDFLARE_TOKEN` | A Cloudflare API token (Cloudflare Pages: Edit) for Deploy. Kept by the engine only. |
+| `delivery.cloudflareAccountId` | — | `FOUNDRY_CLOUDFLARE_ACCOUNT_ID` | The Cloudflare account the Pages projects are in (with the token above). |
 | `delivery.pollSec` | `30` | — | How often CI status is polled after the first two minutes (during the first two minutes it polls every 10 s). |
 | `delivery.noChecksGraceSec` | `90` | — | How long to wait for CI checks to appear on a PR in a repository that runs CI. |
 | `delivery.checksTimeoutMin` | `30` | — | Give up waiting for pending checks after this long; the PR stays open. |
@@ -107,11 +114,14 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `notifications.telegramBotToken` | — | `FOUNDRY_TELEGRAM_BOT_TOKEN` | Telegram bot token. |
 | `notifications.telegramChatId` | — | `FOUNDRY_TELEGRAM_CHAT_ID` | Telegram chat id (the Detect button finds it). |
 | `notifications.discordWebhookUrl` | — | `FOUNDRY_DISCORD_WEBHOOK` | Discord webhook URL. |
+| `notifications.discordBotToken` | — | `FOUNDRY_DISCORD_BOT_TOKEN` | A Discord bot's token, beside the webhook: the messages that wait for you are posted by the bot in the webhook's channel, with buttons that answer. Empty = Discord messages without buttons. |
 | `notifications.baseUrl` | — | `FOUNDRY_NOTIFY_BASE_URL` | Address of this UI as reachable from elsewhere; empty = links point at this computer (http://localhost:<port>). |
 | `notifications.tailscale` | `auto` | `FOUNDRY_TAILSCALE` | auto: when Tailscale runs here, messages and the UI also carry tailnet links, and Foundry serves its own and the previews' ports with `tailscale serve`; off: never. |
 | `notifications.tailscaleHost` | — | `FOUNDRY_TAILSCALE_HOST` | This computer's tailnet name, when it should not be read from `tailscale status`. |
+| `notifications.telegramActions` | `true` | — | Telegram messages about something that waits for you carry buttons (Retry, Skip, Continue, Approve…) and take a reply in words; Foundry reads the bot's updates while it is on. One bot per Foundry instance. |
 | `notifications.onEscalation` | `true` | — | Notify when something needs you (Inbox). |
 | `notifications.onInterview` | `true` | — | Notify when Clarify asks an interview round. |
+| `notifications.onBriefReady` | `true` | — | Notify when a Brief waits for your approval (one the engine approves itself never notifies). |
 | `notifications.onGoalFinished` | `true` | — | Notify when a goal ends done, over-delivered or failed. |
 | `notifications.onDelivery` | `true` | — | Notify when a PR opens, merges, or delivery fails. |
 | `notifications.onRateLimit` | `true` | — | Notify when a usage limit pauses the engine and when it resumes. |

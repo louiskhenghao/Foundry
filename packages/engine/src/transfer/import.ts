@@ -297,6 +297,7 @@ function importGoal(engine: Engine, dir: string, m: TransferManifest, entry: Tra
   const src = join(dir, 'goals', entry.id);
   const keep = (from: string, to: string) => existsSync(from) && cpSync(from, to, { recursive: true, force: false, errorOnExist: false });
   keep(join(dir, 'attachments', entry.id), join(dataDir, 'attachments', entry.id));
+  keep(join(dir, 'subjects', entry.id), join(dataDir, 'subjects', entry.id));
   keep(join(src, 'screenshots'), join(dataDir, 'screenshots', entry.id));
   const own = transferGoalDir(dataDir, entry.id);
   const rel = (p: string) => p.slice(dataDir.length + 1);

@@ -32,6 +32,7 @@ What a new goal starts with. Most of them can be changed for one goal on the New
 | **Effort for new goals** | Role preset / CLI default | A goal-wide override, **low** to **max**. Default uses Codex role presets or Claude's CLI default. |
 | **TDD for new Expert goals** | required | Test-first: **required**, **preferred** or **off**. |
 | **Ponytail for new goals** | on | The lazy senior dev: workers write the smallest change that fully solves the task and reuse what exists, the planner plans lean, and `ponytail-review` reviews. TDD still decides how tests are written. Each goal has its own switch. See [Ponytail: less code](./your-first-goal.md#ponytail-less-code). |
+| **Learn from finished goals** | on | When a goal ends, a short session adds what it taught about the project to that folder's [Learnings](./learnings.md), which later goals there are given. Off: nothing is learned automatically; the Learnings you keep are still used. |
 | **Audit at the end of new goals** | off | New goals run `ponytail-audit` on the finished branch before the final review; must-fix findings in the code the goal touched become fix tasks. Chosen per goal at Brief approval. |
 | **Goal-level fix cycles** | 1 | How many times the final review may send fix tasks before asking you. Thorough pace only. |
 | **Small goal (diff lines)** | 400 | A goal that changed this many lines or fewer gets a lighter, cheaper final review. 0 = never. |
@@ -240,6 +241,7 @@ How Foundry keeps up with the online copy of your project, and how long delivery
 - **Refresh between tasks** (off): on long goals in busy projects, brings in newer work from the base branch between tasks. Off by default because mid-goal changes can surprise the workers.
 - **Commit author**: who Foundry's commits are written by. **you, with Foundry as co-author** (default) uses your git identity — the project's, else your global one, else your GitHub account — and adds a `Co-authored-by: Foundry` line; **you only** leaves that line out; **Foundry only** writes them as `foundry`. Deploy integrations such as Vercel teams refuse commits by an author who is not a member, so keep one of the "you" options if you use one. It applies to commits made from now on.
 - **Update my local base branch after a merge** (on): when a pull request merges, Foundry fast-forwards your own base branch when that is safe, then removes the goal's progress folder, worktrees and local branches. Off: you pull yourself, and the folders stay until you delete the goal. See [Getting the result](./getting-the-result.md#after-a-pull-request-merged).
+- **Deploy — a finished web app to a host**: the tokens [Deploy](./getting-the-result.md#deploy) uses. **Vercel token** (vercel.com → Account Settings → Tokens) and, for a team, **Vercel team**; **Netlify token** (User settings → Applications → Personal access tokens) and **Netlify team** for new sites; **Cloudflare API token** with the permission *Cloudflare Pages: Edit* and the **Cloudflare account id**. Leave a host's fields empty to leave it off. The engine keeps them to itself: unlike the keys under Tools & keys, no coding session gets them.
 - **Delivery timings (advanced)**: how often Foundry checks a pull request (**Poll interval (s)**, 30), how long it waits for CI to appear (**Grace before "no checks" (s)**, 90) and to finish (**Checks timeout (min)**, 30), and how long it waits for auto-merge when the branch is protected (**Auto-merge wait under branch protection (min)**, 10). Raise **Checks timeout** if your CI takes longer than half an hour.
 
 ## Tools & keys
@@ -275,12 +277,17 @@ Foundry can message you on Telegram or Discord when something happens, so you do
 
 **Link base URL**: the address where you open Foundry from elsewhere (a LAN address, a domain). Messages link to it; without it they link to this computer (`http://localhost`). **Tailscale links** (auto) adds links on your tailnet when Tailscale runs here, for Foundry and for previews (not the CAD Viewer, which stays on this computer), so they open on your phone; **Tailscale name** overrides the machine's name. See [notifications.md](../operate/notifications.md#links).
 
-The six switches, all on by default:
+**Answer from Telegram** (on by default): Telegram messages about something that waits for you carry buttons (Retry, Skip, Continue, Approve…), and a reply answers in words. Foundry reads your bot's messages while it is on, so give each Foundry its own bot. Commands outside the workspace are approved in the Inbox only. See [Answering from Telegram](../operate/notifications.md#answering-from-telegram).
+
+**Discord bot token (buttons)**: optional, beside the webhook. Your bot then posts the messages that wait for you in the webhook's channel, with the same buttons; words are typed in a form the button opens. See [Answering from Discord](../operate/notifications.md#answering-from-discord).
+
+The seven switches, all on by default:
 
 | Switch | You get a message when | What to do |
 |---|---|---|
 | **Needs you** | A goal or task is waiting for you: a failed task, a blocked command, a budget reached, a milestone to look at. | Open the Inbox or the goal and answer. Until you do, that part waits. See [When Foundry needs you](./when-foundry-needs-you.md). |
 | **Interview round** | Foundry asks a round of questions before writing the Brief. | Answer them; the goal waits for you. |
+| **Brief ready** | A Brief waits for your approval. Never one Foundry approves itself. | Read it, then approve it on the Brief page or with the message's button. |
 | **Goal finished** | A goal ended done, over-delivered or failed. Never when you cancelled it yourself. | Look at the result, or at what failed. |
 | **Delivery** | A pull request was opened or merged, or the delivery failed. | Review the pull request, or look at the Delivery tab. |
 | **Usage pause** | A coding agent’s usage limit paused its new sessions, and again when retrying resumes. Other coding agents can continue. | Foundry retries automatically; check Accounts and Usage if failures persist. |

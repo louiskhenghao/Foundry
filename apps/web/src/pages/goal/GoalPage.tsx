@@ -1,5 +1,5 @@
-import { isHistory, taskUsage } from '@foundry/core/browser';
-import { Ban, CornerDownRight, Folder, GitBranch, Link2, RotateCcw, Trash2 } from 'lucide-react';
+import { isHistory, taskUsage, unmeasuredSessions } from '@foundry/core/browser';
+import { Ban, CornerDownRight, Folder, GitBranch, Link2, NotebookPen, RotateCcw, Trash2 } from 'lucide-react';
 import { RestartDialog } from '../../components/RestartDialog.tsx';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -76,7 +76,8 @@ export function GoalPage() {
       (d?.tasks ?? []).map((t) => {
         const attempts = d!.attempts.filter((a) => a.taskId === t.id);
         const model = attempts.flatMap((a) => a.sessions).filter((s) => s.role === 'worker' && s.model).at(-1)?.model ?? null;
-        return { ...t, attempts: attempts.length, maxAttempts: t.retryBudget + t.extraAttempts, totalCost: d!.goal.provider !== 'codex' && attempts.length ? taskUsage(attempts).costUsd : null, model: model?.replace(/^claude-/, '').replace(/\[1m\]$/, '') ?? null };
+        const u = attempts.length ? taskUsage(attempts) : null;
+        return { ...t, attempts: attempts.length, maxAttempts: t.retryBudget + t.extraAttempts, totalCost: d!.goal.provider !== 'codex' && u ? u.costUsd : null, unmeasured: u?.unmeasured ?? 0, model: model?.replace(/^claude-/, '').replace(/\[1m\]$/, '') ?? null };
       }),
     [d],
   );
@@ -84,6 +85,8 @@ export function GoalPage() {
   if (err) return <Empty>{err}</Empty>;
   if (!d) return <Empty>Loading…</Empty>;
   const g = d.goal;
+  // sessions that ended before Claude Code reported a cost: the meter's total leaves them out and says so
+  const unmeasured = unmeasuredSessions(d.attempts);
   const terminal = ['done', 'over_delivered', 'failed', 'cancelled'].includes(g.state);
   const open = d.escalations.filter((e) => e.state === 'open').length;
   const running = d.tasks.filter((t) => t.state === 'running').length;
@@ -99,6 +102,7 @@ export function GoalPage() {
     ...(awaiting ? [{ label: 'Re-run Clarify', icon: <RotateCcw size={13} />, onClick: () => api.reclarify(id, 'fetch the latest base branch and explore again').catch((e) => setErr(e.message)), title: 'Fetch the base branch again and rebuild the Brief from the fresh tip' }] : []),
     ...(!terminal && awaiting ? [{ label: 'Cancel goal', icon: <Ban size={13} />, onClick: () => api.cancelGoal(id) }] : []),
     ...(!g.follows ? [{ label: 'Mark as follow-up of…', icon: <Link2 size={13} />, onClick: () => setMarkFollow(true), title: 'Record that this goal continues an earlier goal of the same repository' }] : []),
+    ...(terminal && g.state !== 'cancelled' ? [{ label: 'Learn from this goal again', icon: <NotebookPen size={13} />, onClick: () => api.learnFrom(id).catch((e) => setErr(e.message)), title: "A short session reads how this goal went and updates this folder's Learnings" }] : []),
     { label: 'Delete goal…', icon: <Trash2 size={13} />, onClick: () => setDel(true), danger: true },
   ];
 
@@ -131,10 +135,23 @@ export function GoalPage() {
           </div>
           <FollowLinks d={d} />
           <DelegationLinks d={d} />
+          {(d.learningsCount ?? 0) > 0 && (
+            <div className="text-xs text-zinc-500 mt-1.5">
+              <Link to={`/learnings?repo=${encodeURIComponent(g.repoPath)}`} className="inline-flex items-center gap-1 hover:text-zinc-300" title="What earlier goals in this folder learned; every new goal here is given it">
+                <NotebookPen size={12} /> Learnings for this folder: {d.learningsCount}
+              </Link>
+            </div>
+          )}
         </div>
         <div className="space-y-2.5">
           <div className="grid grid-cols-2 gap-3">
-            {g.provider === 'codex' ? <span className="text-xs text-zinc-400">Codex · dollar cost unavailable</span> : <Meter label={`cost ${fmtUsd(g.costUsd)} / ${fmtLimitUsd(g.budgets.maxCostUsd)}`} value={g.costUsd} max={g.budgets.maxCostUsd} />}
+            {g.provider === 'codex' ? (
+              <span className="text-xs text-zinc-400">Codex · dollar cost unavailable</span>
+            ) : (
+              <div title={unmeasured > 0 ? `${unmeasured} session${unmeasured === 1 ? '' : 's'} ended before Claude Code reported a cost: unknown, not $0, and missing from this total` : undefined}>
+                <Meter label={`cost ${fmtUsd(g.costUsd)} / ${fmtLimitUsd(g.budgets.maxCostUsd)}${unmeasured > 0 ? ` · +${unmeasured} unmeasured` : ''}`} value={g.costUsd} max={g.budgets.maxCostUsd} />
+              </div>
+            )}
             <div title="Time Foundry has worked on this goal, Clarify included. Waiting for you (interview answers, Brief approval, Inbox, a milestone pause) does not count.">
               <Meter label={`time ${d.budget.elapsedMin.toFixed(0)} / ${fmtLimitMin(g.budgets.maxDurationMin)}`} value={d.budget.elapsedMin} max={g.budgets.maxDurationMin} />
             </div>

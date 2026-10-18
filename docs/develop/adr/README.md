@@ -5,9 +5,9 @@ record is never rewritten when a later decision changes it; its status says what
 
 | # | Decision | Status |
 |---|---|---|
-| [0001](0001-drive-host-claude-cli-not-agent-sdk.md) | Drive the host `claude` CLI rather than the Agent SDK | accepted · 2026-08-21 · amended by ADR-0017 |
+| [0001](0001-drive-host-claude-cli-not-agent-sdk.md) | Drive the host `claude` CLI rather than the Agent SDK | accepted · 2026-08-21 · amended by ADR-0017 and ADR-0037 |
 | [0002](0002-event-log-as-source-of-truth.md) | Append-only event log as the source of truth | accepted · 2026-08-21 |
-| [0003](0003-engine-only-remote-actions-under-human-policy.md) | Remote actions are performed only by the engine, only under a policy the human chose | accepted · 2026-08-21 · amended by ADR-0012 (a sixth escalation trigger, `milestone`) |
+| [0003](0003-engine-only-remote-actions-under-human-policy.md) | Remote actions are performed only by the engine, only under a policy the human chose | accepted · 2026-08-21 · amended by ADR-0012 (a sixth escalation trigger, `milestone`) and ADR-0038 (answers from a chat; boundary commands approved in the Inbox only) and ADR-0041 (host tokens kept for Deploy; every deploy command blocked for sessions) |
 | [0004](0004-workflow-skills-mandated-and-observed.md) | Workflow skills are mandated per role and task kind, and their use is observed | accepted · 2026-08-21 · amended by ADR-0017 and ADR-0019 |
 | [0005](0005-scenario-skills-and-settings.md) | Scenario-selected skills, exclusive design packs, per-goal autoskills, and a settings file | accepted · 2026-08-22 · amended by ADR-0019 |
 | [0006](0006-model-registry-and-fallback.md) | No hard-coded model knowledge: a learned registry and a fallback chain | accepted · 2026-08-22 · partly superseded by ADR-0014 (goal model snapshot per tier; doctor checks tiers) · amended by ADR-0018 |
@@ -35,7 +35,15 @@ record is never rewritten when a later decision changes it; its status says what
 | [0028](0028-planner-writes-the-plan-once.md) | The planner writes the task plan once, in a session of its own | accepted · 2026-10-08 · amends ADR-0013 and ADR-0018 |
 | [0029](0029-vs-code-in-the-browser.md) | VS Code in the browser, behind a generated password, on loopback and the tailnet | accepted · 2026-10-08 |
 | [0030](0030-transfer-merges-goals-as-history.md) | Transfer merges goals into another Foundry as history, and unfinished ones can be reattached | accepted · 2026-10-09 |
-| [0031](0031-feature-milestones-with-scripts.md) | A milestone per feature, shown by a Playwright script its task writes | accepted · 2026-10-14 · amends ADR-0012 |
+| [0031](0031-feature-milestones-with-scripts.md) | A milestone per feature, shown by a Playwright script its task writes | accepted · 2026-10-14 · amends ADR-0012 · amended by ADR-0042 (a Likeness review of each recording) |
 | [0032](0032-ponytail-discipline-and-reverse-engineering.md) | Ponytail as a per-goal discipline, an audit at the end, and reverse engineering with REA | accepted · 2026-10-16 · amends ADR-0004 and ADR-0016 |
 | [0033](0033-cad-goals-with-text-to-cad.md) | CAD goals with text-to-cad, behind a Desktop apps & printers switch | accepted · 2026-10-16 · amends ADR-0008 and ADR-0016 |
 | [0034](0034-delegated-goals.md) | A step that is a project of its own is a Delegated goal, one level deep, landing as one commit | accepted · 2026-10-18 · amends ADR-0028 |
+| [0035](0035-deliverables-and-replan.md) | A task's Deliverables are a contract, and the planner touches up what follows after a Delegated goal lands | accepted · 2026-10-18 · amends ADR-0028 and ADR-0034 |
+| [0036](0036-parallel-delegated-goals.md) | Delegated goals run side by side within the goal's parallel limit, each with a share of the budget | accepted · 2026-10-18 · amends ADR-0034 |
+| [0037](0037-unmeasured-sessions.md) | A session cut before its result line is unmeasured — its cost is unknown, not zero | accepted · 2026-10-18 · amends ADR-0001 |
+| [0038](0038-chat-answers-from-telegram.md) | Telegram takes answers: buttons and replies go through the app's own calls, and boundary commands stay in the Inbox | accepted · 2026-10-18 · amends ADR-0003 · amended by ADR-0039 |
+| [0039](0039-chat-answers-from-discord.md) | Discord takes answers through a bot of the user's, read over the gateway | accepted · 2026-10-18 · amends ADR-0038 |
+| [0040](0040-learnings-per-repository.md) | Learnings: what a folder's goals taught, written when a goal ends and given to the next goals there | accepted · 2026-10-18 |
+| [0041](0041-deploy-web-apps.md) | Deploy: a finished goal's web app to Vercel, Netlify or Cloudflare Pages, on the person's click | accepted · 2026-10-18 · amends ADR-0003 |
+| [0042](0042-subjects-and-the-likeness-review.md) | Subjects with pictures on the Brief, and a Likeness review of each milestone | accepted · 2026-10-18 · amends ADR-0031 |

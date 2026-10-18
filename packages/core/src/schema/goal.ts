@@ -2,7 +2,9 @@ import { CodexEffort, CodexModelPreset } from './codex-presets.ts';
 import { z } from 'zod';
 import { Attachment } from './attachment.ts';
 import { BriefStyleOption } from './brief.ts';
+import { BriefSubject } from './subject.ts';
 import { DeliveryState, IDLE_DELIVERY } from './delivery.ts';
+import { Deployment } from './deploy.ts';
 import { Interview } from './interview.ts';
 
 /** Claude Code effort level handed to every session of a goal; null = the CLI default */
@@ -204,6 +206,8 @@ export const GoalDelegatedFrom = z.object({
   title: z.string(),
   /** the main goal's chosen Style Proposal, kept: the Delegated goal's Brief starts with it picked; null = none */
   style: BriefStyleOption.nullable().default(null),
+  /** the main goal's Subjects with their pictures (copied into this goal's subjects folder): its Brief starts with them */
+  subjects: z.array(BriefSubject).optional(),
   at: z.string(),
 });
 export type GoalDelegatedFrom = z.infer<typeof GoalDelegatedFrom>;
@@ -230,6 +234,8 @@ export const GoalFollows = z.object({
   context: z.string(),
   /** A's chosen Style Proposal, kept for B; null = none, or the human opted out */
   style: BriefStyleOption.nullable(),
+  /** A's Subjects with their pictures (copied into B's subjects folder): B's Brief starts with them */
+  subjects: z.array(BriefSubject).optional(),
   at: z.string(),
 });
 export type GoalFollows = z.infer<typeof GoalFollows>;
@@ -336,6 +342,8 @@ export const Goal = z.object({
   fixCycles: z.number().int().nonnegative(),
   /** default keeps pre-delivery `goal.created` events replayable */
   delivery: DeliveryState.default(() => IDLE_DELIVERY),
+  /** every deploy of the goal's web app (ADR-0041), oldest first; absent on goals never deployed */
+  deployments: z.array(Deployment).optional(),
   /** files / links the user attached; default keeps older events replayable */
   attachments: z.array(Attachment).default([]),
   /** how the goal branch was started relative to the remote base branch (fetched when the goal began) */

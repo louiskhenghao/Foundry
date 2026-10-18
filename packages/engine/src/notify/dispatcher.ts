@@ -5,15 +5,17 @@ import { join } from 'node:path';
  * Fire-and-forget: a notification is a hint, not a ledger — sends are retried a couple of times,
  * then noted as an engine.note and dropped; nothing is queued or replayed after a restart.
  */
-import type { EngineEvent, Escalation, EscalationTrigger, NotificationSettings } from '@foundry/core';
-import { getGoal, isHistory } from '@foundry/core';
+import type { Brief, EngineEvent, Escalation, EscalationTrigger, Goal, NotificationSettings } from '@foundry/core';
+import { getBrief, getGoal, isHistory } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { screenshotsDir } from '../workspace.ts';
+import { budgetOnApproval, type Target } from './actions.ts';
 import { DiscordNotifier, TelegramNotifier, type Link, type MediaFile, type Notifier } from './channels.ts';
 import { DeliveryDigest } from './digest.ts';
+import { PROVIDER_LABEL } from '../deploy/providers.ts';
 
 export interface Composed {
-  family: 'goalFinished' | 'delivery' | 'rateLimit' | 'updateAvailable' | 'interview' | 'milestone';
+  family: 'goalFinished' | 'delivery' | 'rateLimit' | 'updateAvailable' | 'interview' | 'milestone' | 'briefReady';
   text: string;
   /** web-UI path the message links to, on this computer and on the tailnet */
   path: string | null;
@@ -59,6 +61,13 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
       const also = e.payload.summary && e.payload.error ? `⚠️ ${e.payload.error.slice(0, 300)}` : '';
       return { family: 'milestone', text: [head, body.slice(0, 600), also].filter(Boolean).join('\n'), path: `/goals/${e.goalId}` };
     }
+    case 'milestone.likeness': {
+      // news only when the result is clearly unlike the pictures: Foundry is fixing it, and the person may want a look
+      const v = e.payload.verdict;
+      if (e.payload.status !== 'ok' || !v || !e.payload.fixTaskId) return null;
+      const scores = v.subjects.filter((s) => s.shown && s.score != null).map((s) => `${s.score}/10`);
+      return { family: 'milestone', text: `🔍 Not like the pictures yet — ${goalTitle(e.goalId)}${scores.length ? ` (${scores.join(', ')})` : ''}\n${v.summary.slice(0, 400)}\nFoundry added a task that fixes the differences.`, path: `/goals/${e.goalId}` };
+    }
     case 'milestone.final_walk':
       return { family: 'milestone', text: e.payload.passed ? `🎬 Final walkthrough — ${goalTitle(e.goalId)}\nEvery feature's script passed on the finished branch.` : `⚠️ Final walkthrough — ${goalTitle(e.goalId)}\n${e.payload.failed.length} feature script(s) failed on the finished branch; Foundry repairs each once.`, path: `/goals/${e.goalId}` };
     case 'goal.milestone_passed':
@@ -76,6 +85,10 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
       return { family: 'delivery', text: `🎉 PR ${e.payload.prNumber != null ? `#${e.payload.prNumber} ` : ''}merged — ${goalTitle(e.goalId)}`, path: e.goalId ? `/goals/${e.goalId}` : null };
     case 'delivery.failed':
       return { family: 'delivery', text: `⚠️ Delivery failed at ${e.payload.step} — ${goalTitle(e.goalId)}\n${e.payload.reason.slice(0, 300)}`, path: e.goalId ? `/goals/${e.goalId}` : null };
+    case 'deploy.finished':
+      return { family: 'delivery', text: `🚀 Deployed to ${PROVIDER_LABEL[e.payload.provider]}${e.payload.production ? '' : ' (preview)'} — ${goalTitle(e.goalId)}\n${e.payload.url}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
+    case 'deploy.failed':
+      return { family: 'delivery', text: `⚠️ Deploy to ${PROVIDER_LABEL[e.payload.provider]} failed — ${goalTitle(e.goalId)}\n${e.payload.reason.slice(0, 300)}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
     case 'rate_limit.paused': {
       const provider = e.payload.provider ?? defaultProvider;
       return { family: 'rateLimit', text: `⏸️ ${provider === 'codex' ? 'Codex' : 'Claude Code'} usage limit — new sessions paused; retry at ${localTime(e.payload.until)}`, path: `/usage?provider=${provider}` };
@@ -96,6 +109,26 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
 function localTime(iso: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+/**
+ * A Brief that waits for the person's approval → message; null when nobody needs to look: an automatic Brief the
+ * engine approves in the same breath, or a Delegated goal's Brief its main goal approves (unless a blocking question is
+ * left for the person).
+ */
+export function composeBriefReady(goal: Goal, brief: Brief | null, reason: string): Composed | null {
+  if (!brief || reason === 'auto brief') return null;
+  const blocking = brief.questions.filter((q) => q.blocking && !q.answer?.trim()).length;
+  if (goal.delegatedFrom && goal.delegation.autoApprove && !blocking) return null;
+  const n = brief.tasks.length;
+  const estimate = goal.provider === 'codex' ? `~${brief.timeEstimateMin} min` : `$${brief.costEstimateUsd.toFixed(2)} · ~${brief.timeEstimateMin} min`;
+  const next = blocking ? `${blocking} blocking question${blocking === 1 ? '' : 's'} to answer on the Brief first.` : `Budget on approval: ${budgetOnApproval(goal, brief).text}.`;
+  const understanding = brief.understanding.trim();
+  return {
+    family: 'briefReady',
+    text: [`📋 Brief ready — ${goal.title}`, `${n} task${n === 1 ? '' : 's'} · estimate ${estimate}`, next, understanding.length > 400 ? `${understanding.slice(0, 399)}…` : understanding].filter(Boolean).join('\n'),
+    path: `/goals/${goal.id}/brief`,
+  };
 }
 
 /** Escalation → message ("needs you" — the one family that maps to the domain's blocked). */
@@ -144,12 +177,21 @@ export class NotificationDispatcher {
     const goal = e.goalId ? getGoal(this.engine.store.db, e.goalId) : null;
     if (goal && isHistory(goal)) return;
     if (this.settings().onDelivery && this.digest.take(e, this.goalTitle(e.goalId))) return;
+    if (e.type === 'goal.state_changed' && e.payload.to === 'awaiting_brief_approval' && goal) {
+      const s = this.settings();
+      const c = s.onBriefReady ? composeBriefReady(goal, getBrief(this.engine.store.db, goal.id)?.brief ?? null, e.payload.reason) : null;
+      if (c) this.deliver(s, c.text, c.path, goal.id, [], null, { kind: 'brief', goalId: goal.id });
+      return;
+    }
     const c = compose(e, this.goalTitle, this.engine.config.provider);
     if (!c) return;
     const s = this.settings();
     // a milestone is the same note whether the goal pauses for it (an escalation) or goes on
-    const on = { goalFinished: s.onGoalFinished, delivery: s.onDelivery, rateLimit: s.onRateLimit, updateAvailable: s.onUpdateAvailable, interview: s.onInterview, milestone: s.onEscalation }[c.family];
-    if (on) this.deliver(s, c.text, c.path, e.goalId, e.type === 'milestone.evidence' && e.goalId ? this.evidenceFiles(e.goalId, e.payload) : []);
+    const on = { goalFinished: s.onGoalFinished, delivery: s.onDelivery, rateLimit: s.onRateLimit, updateAvailable: s.onUpdateAvailable, interview: s.onInterview, milestone: s.onEscalation, briefReady: s.onBriefReady }[c.family];
+    // what a chat can answer: an interview round, a usage pause (Resume now)
+    const target: Target | null =
+      e.type === 'interview.round_asked' && e.goalId ? { kind: 'round', goalId: e.goalId, round: e.payload.round } : e.type === 'rate_limit.paused' ? { kind: 'usage', provider: e.payload.provider ?? this.engine.config.provider } : null;
+    if (on) this.deliver(s, c.text, c.path, e.goalId, e.type === 'milestone.evidence' && e.goalId ? this.evidenceFiles(e.goalId, e.payload) : [], null, target);
   }
 
   private onEscalation(esc: Escalation): void {
@@ -158,7 +200,7 @@ export class NotificationDispatcher {
     const c = composeEscalation(esc, this.goalTitle);
     // a milestone's screenshots and recording follow in their own message (milestone.evidence)
     const preview = esc.trigger === 'milestone' ? ((esc.payload as { previewUrl?: string | null }).previewUrl ?? null) : null;
-    this.deliver(s, c.text, c.path, esc.goalId, [], preview);
+    this.deliver(s, c.text, c.path, esc.goalId, [], preview, { kind: 'esc', id: esc.id });
   }
 
   /**
@@ -207,11 +249,17 @@ export class NotificationDispatcher {
     return existsSync(p) ? p : null;
   }
 
-  private deliver(s: NotificationSettings, text: string, path: string | null, goalId: string | null, media: MediaFile[] = [], preview: string | null = null): void {
+  /** `target`: what the message is about when a chat can answer it — Telegram then sends it with its buttons (ADR-0038) */
+  private deliver(s: NotificationSettings, text: string, path: string | null, goalId: string | null, media: MediaFile[] = [], preview: string | null = null, target: Target | null = null): void {
     const channels = this.channels(s);
     if (!channels.length) return;
+    const { telegram, discord } = this.engine;
     void this.links(s, path, preview).then((links) => {
-      for (const ch of channels) void this.sendWithRetry(ch, media.length && ch.sendMedia ? () => ch.sendMedia!(text, media, links) : () => ch.send(text, links), goalId);
+      for (const ch of channels) {
+        if (target && !media.length && ch instanceof TelegramNotifier && telegram.answers(s)) void this.sendWithRetry(ch, () => telegram.sendAbout(target, text, links), goalId);
+        else if (target && !media.length && ch instanceof DiscordNotifier && discord.answers(s)) void this.sendWithRetry(ch, () => discord.sendAbout(target, text, links), goalId);
+        else void this.sendWithRetry(ch, media.length && ch.sendMedia ? () => ch.sendMedia!(text, media, links) : () => ch.send(text, links), goalId);
+      }
     });
   }
 
@@ -233,8 +281,9 @@ export class NotificationDispatcher {
 
   /** Settings page "send test": tries the draft (unsaved) credentials layered over the saved ones. */
   async test(override: Partial<NotificationSettings> = {}): Promise<{ channel: string; ok: boolean; error: string | null }[]> {
-    const channels = this.channels({ ...this.settings(), ...override });
-    return Promise.all(
+    const s = { ...this.settings(), ...override };
+    const channels = this.channels(s);
+    const results = await Promise.all(
       channels.map(async (ch) => {
         try {
           await ch.send('👋 Foundry test notification — this channel works.');
@@ -244,5 +293,8 @@ export class NotificationDispatcher {
         }
       }),
     );
+    // the Discord bot posts in the webhook's channel too: its token and its access to that channel are tried
+    if (s.discordBotToken && s.discordWebhookUrl) results.push(await this.engine.discord.test(s.discordBotToken, s.discordWebhookUrl));
+    return results;
   }
 }

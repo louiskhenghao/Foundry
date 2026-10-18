@@ -1,7 +1,8 @@
 import { join } from 'node:path';
 import type { Brief, Goal, GoalNature, Interview, InterviewQuestion, InterviewRound, TaskScenario } from '@foundry/core';
-import { BriefOutput, BriefSkeleton, INTERVIEW_MAX_QUESTIONS, PlanOutput, INTERVIEW_MAX_ROUNDS, IdPrefix, InterviewOutput, getGoal, interviewAnswers, interviewDepth, newId, planOutputSchema, uncoveredAreas } from '@foundry/core';
+import { BriefOutput, BriefSkeleton, INTERVIEW_MAX_QUESTIONS, PlanOutput, INTERVIEW_MAX_ROUNDS, IdPrefix, InterviewOutput, getBrief, getGoal, interviewAnswers, interviewDepth, mergeSubjects, newId, planOutputSchema, uncoveredAreas } from '@foundry/core';
 import { delegationContext } from './delegation.ts';
+import { learningsContext } from './learnings.ts';
 import type { RunHandle, RunResult } from '@foundry/runner';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
@@ -16,6 +17,7 @@ import { startSentence } from './follow-up.ts';
 import { readdirSync } from 'node:fs';
 import { resolveDiscipline } from './skills/workflow.ts';
 import { renderReferences } from './references.ts';
+import { subjectsFromClarifier } from './subjects.ts';
 
 /** Files that do not make a repository "have code": a freshly initialised repo may carry any of these. */
 const EMPTY_REPO_IGNORE = new Set(['.git', '.claude', '.agents', '.DS_Store', 'graphify-out', 'CLAUDE.md', 'AGENTS.md', 'README.md', '.gitignore', '.gitattributes', 'LICENSE', 'docs']);
@@ -137,7 +139,8 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
   const synced = getGoal(store.db, goal.id) ?? goal;
   const followUp = goal.follows?.context ? [goal.follows.context, startSentence(synced)].filter(Boolean).join('\n') : '';
   // a Delegated goal: the main goal, what was decided there, and what the steps before it delivered
-  const previous = [followUp, delegationContext(engine, goal)].filter(Boolean).join('\n\n');
+  // what the goal follows, what it is part of, and what earlier goals in this folder learned (ADR-0040)
+  const previous = [followUp, delegationContext(engine, goal), learningsContext(engine, goal)].filter(Boolean).join('\n\n');
   const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview ? interviewDepth(goal.interview) : null, previous, cadAvailable);
   const addDirs = goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined;
   const schema = zodToJsonSchema(goal.interview ? InterviewOutput : BriefSkeleton, { $refStrategy: 'none' });
@@ -487,12 +490,28 @@ async function settle(engine: Engine, goal: Goal, ctx: ClarifyContext, first: Ru
       ],
     };
   }
+  // Subjects: the ones it starts with (a main goal's, an earlier goal's) and those on the Brief before a Re-run Clarify keep
+  // their pictures; the Clarifier's new ones follow, with the attached images it named as the person's pictures
+  brief.subjects = mergeSubjects(goal.delegatedFrom?.subjects ?? goal.follows?.subjects ?? [], getBrief(store.db, goal.id)?.brief.subjects ?? [], parsed ? subjectsFromClarifier(engine, goal, parsed.subjects) : []);
   if (iv) store.append({ type: 'interview.finished', goalId: goal.id, payload: { rounds: iv.rounds.length, reason: iv.rounds.at(-1)?.finish ? 'human' : iv.rounds.length === 0 ? 'nothing_to_ask' : iv.rounds.length >= INTERVIEW_MAX_ROUNDS ? 'cap' : 'brief' } });
   store.append({ type: 'brief.proposed', goalId: goal.id, payload: { brief } });
   store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'clarifying', to: 'awaiting_brief_approval', reason: 'brief proposed' } });
 }
 
 const TECH_STACK_SECTION = `This repository has no code yet, so there is nothing to discover — the tech stack is the human's decision, not yours to assume. Unless the goal (or a Decision above) already names the stack, include exactly ONE blocking question choosing it: propose 2–4 concrete, complete stack options suited to this goal (e.g. "Next.js + Prisma + Postgres", "NestJS API + React SPA", "Laravel + MySQL", a Bun/Node monorepo …) in the question's \`options\`, with YOUR recommended option FIRST. Plan the tasks assuming that recommended option, and make the first task scaffold the project (initialise the chosen stack, package manifest, build/test commands) — every other task depends on it. Must checks may only use commands that will exist once that scaffold task is done.`;
+
+/** what the Clarifier names when the result depicts real things: Foundry finds their pictures before the plan runs (ADR-0042) */
+const SUBJECTS_ASK = `# Subjects: real things the result must look like
+When the result depicts something that exists (a specific vehicle, building, landmark, product or artwork; never a person), name it in \`subjects\` (at most 3), precisely enough to search for pictures of exactly that one (make, model, generation or year), with \`lookFor\`: what must match (the proportions, the distinctive features, colours and materials). Foundry finds pictures of each before the plan runs, and every worker and reviewer compares against them. When the user attached pictures of it, list their file names in \`pictures\`. Leave \`subjects\` empty for invented designs, generic styles and anything that is not a physical thing.`;
+
+/** the Subjects a goal starts with (a main goal's or an earlier goal's, with their pictures): named once, never again */
+function keptSubjectsNote(goal: Goal): string {
+  const kept = goal.delegatedFrom?.subjects ?? goal.follows?.subjects ?? [];
+  if (!kept.length) return '';
+  return `These Subjects are settled already, with their pictures (from ${goal.delegatedFrom ? 'the main goal' : 'the previous goal'}): ${kept.map((s) => `"${s.name}"`).join(', ')}. Do not name them again in \`subjects\`.`;
+}
+
+const subjectsSection = (goal: Goal) => [SUBJECTS_ASK, keptSubjectsNote(goal)].filter(Boolean).join('\n');
 
 /** what every media task's spec and checks must say: where files go, parallel generation, the manifest, how they are judged */
 function mediaConventions(kind: 'image' | 'video', ffprobe: boolean): string {
@@ -538,13 +557,13 @@ function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true, cadAvail
     case 'research':
       return research;
     case 'image':
-      return media('image');
+      return [media('image'), subjectsSection(goal)].join('\n\n');
     case 'video':
-      return media('video');
+      return [media('video'), subjectsSection(goal)].join('\n\n');
     case 'cad':
-      return cad;
+      return [cad, subjectsSection(goal)].join('\n\n');
     case 'code':
-      return [emptyRepo ? `# Empty repository\n${TECH_STACK_SECTION}` : '', `# Style directions for UI goals\nWhen this goal's main deliverable is a user interface (a landing page, a product UI), also output 2–4 \`styleOptions\` (real hex palette, typefaces, keywords, a one-line feel; recommendation first) so the human can SEE the direction before work starts; one the interview already settled goes first with \`chosen: true\`. Skip them for backend/tooling goals.`]
+      return [emptyRepo ? `# Empty repository\n${TECH_STACK_SECTION}` : '', `# Style directions for UI goals\nWhen this goal's main deliverable is a user interface (a landing page, a product UI), also output 2–4 \`styleOptions\` (real hex palette, typefaces, keywords, a one-line feel; recommendation first) so the human can SEE the direction before work starts; one the interview already settled goes first with \`chosen: true\`. Skip them for backend/tooling goals.`, subjectsSection(goal)]
         .filter(Boolean)
         .join('\n\n');
     case 'auto':
@@ -555,6 +574,7 @@ function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true, cadAvail
         media('image'),
         media('video'),
         ...(cadAvailable ? [cad] : []),
+        `${subjectsSection(goal)}\nThis applies to code (a user interface), image, video${cadAvailable ? ' and cad' : ''} goals; docs and research goals name no Subjects.`,
       ].join('\n\n');
   }
 }
@@ -583,7 +603,7 @@ Before you carve tasks, check what already exists: a helper, component, service 
 
 /** when the goal allows it: a step that is a project of its own becomes a `goal` task, done by a Delegated goal */
 const DELEGATE_SECTION = `# Delegated goals (allowed on this goal)
-A task of kind \`goal\` is not done by one worker session: Foundry makes a goal of its own for it — its own Clarify, plan and tasks, on this goal's branch — and its result lands here as that task's commit, its files under artifacts/ with it, before the tasks that depend on it start. Use it for a step that is itself a project: research that must come first and shape the rest, a craft of its own next to the code (a 3D model, a video, a set of images), or a part so large that one plan for everything would stay shallow. Do not use it for ordinary tasks: a goal task costs a whole Clarify. Its \`spec\` is the prompt that goal gets, so write it the way the human wrote this goal — what to make, for whom, what must and must not happen, and what the other steps expect back from it; its \`scenario\` says what it produces (image, video, cad, research, docs, or a code scenario). Give it \`dependsOnKeys\` on what it needs first, and make the tasks that use its result depend on it. Delegated goals run one at a time.`;
+A task of kind \`goal\` is not done by one worker session: Foundry makes a goal of its own for it — its own Clarify, plan and tasks, on this goal's branch — and its result lands here as that task's commit, its files under artifacts/ with it, before the tasks that depend on it start. Use it for a step that is itself a project: research that must come first and shape the rest, a craft of its own next to the code (a 3D model, a video, a set of images), or a part so large that one plan for everything would stay shallow. Do not use it for ordinary tasks: a goal task costs a whole Clarify. Its \`spec\` is the prompt that goal gets, so write it the way the human wrote this goal — what to make, for whom, what must and must not happen, and what the other steps expect back from it; its \`scenario\` says what it produces (image, video, cad, research, docs, or a code scenario). Give it \`dependsOnKeys\` on what it needs first, and make the tasks that use its result depend on it. Goal tasks with no dependency between them run in parallel, as many as the goal's parallel limit allows; give each a \`budgetUsd\` share of the whole estimate when you can say, else they share what is left evenly.`;
 
 export function buildPlannerPrompt(goal: Goal, skeleton: BriefSkeleton, c: { overview: string | null; attachments: string; decisions: string; interview: Interview | null; emptyRepo: boolean; imageGen: boolean; previous: string; plannerHint: string | null; delegation?: boolean }): string {
   const { planningNotes, ...brief } = skeleton;
@@ -602,7 +622,8 @@ export function buildPlannerPrompt(goal: Goal, skeleton: BriefSkeleton, c: { ove
     `# Planning notes from the Clarifier\n${planningNotes}`,
     c.plannerHint ?? '',
     resolveDiscipline(goal, { tdd: 'inherit', scenario: natureScenario(skeleton.nature ?? goal.nature) }).ponytail === 'on' ? PLAN_LEAN : '',
-    `# Your job\nSplit the goal into tasks for EVERY Area of the Brief and return the plan as JSON matching the schema: \`tasks\`, their task-level \`checks\`, and the estimate (\`costEstimateUsd\`, \`timeEstimateMin\`). The notes above are the Clarifier's findings: read the repository (read-only) only where they leave a file, command or convention open. Do not interview anyone and do not change files.\n- Put the test/typecheck/lint commands on the task that must make them pass (the goal-level checks above already verify the merged result); a task whose result is judged rather than run gets a reviewer check with a precise rubric.\n- Give every user-visible feature a \`milestone\` on its closing task (the one after which the feature can be tried end to end), and a \`milestoneScript\` when the feature has a web UI or an HTTP API; null on every other task.\n- Each task's \`title\` is its Conventional Commits subject: imperative, ≤ 60 chars, no trailing period, no type prefix, in the language of the repository's recent commits; \`scope\` defaults to the Area's slug.\nOutput the JSON only.`,
+    `# Your job\nSplit the goal into tasks for EVERY Area of the Brief and return the plan as JSON matching the schema: \`tasks\`, their task-level \`checks\`, and the estimate (\`costEstimateUsd\`, \`timeEstimateMin\`). The notes above are the Clarifier's findings: read the repository (read-only) only where they leave a file, command or convention open. Do not interview anyone and do not change files.\n- Put the test/typecheck/lint commands on the task that must make them pass (the goal-level checks above already verify the merged result); a task whose result is judged rather than run gets a reviewer check with a precise rubric.\n- Give every user-visible feature a \`milestone\` on its closing task (the one after which the feature can be tried end to end), and a \`milestoneScript\` when the feature has a web UI or an HTTP API; null on every other task.
+- Name in \`delivers\` the files a task leaves for the tasks after it (repo-relative; under artifacts/ for media and CAD): each is checked when the task lands, and the next tasks are told where they are. A \`goal\` task's \`delivers\` is what its delegated goal must leave behind.\n- Each task's \`title\` is its Conventional Commits subject: imperative, ≤ 60 chars, no trailing period, no type prefix, in the language of the repository's recent commits; \`scope\` defaults to the Area's slug.\nOutput the JSON only.`,
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -659,7 +680,7 @@ export function toBrief(goal: Goal, o: BriefOutput, extraQuestions: Brief['quest
     assumptions: o.assumptions.map((text) => ({ id: newId('as'), text, accepted: true, applied: false })),
     checks: o.checks.map((c) => ({ key: c.key, name: c.name, tier: c.tier, taskKey: c.taskKey ?? null, areaKey: c.taskKey ? null : area(c.areaKey), spec: materializeCheck(c, c.taskKey ?? null) })),
     // a `goal` task where the goal allows no delegation (a model that ignored the schema) is an ordinary task
-    tasks: o.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind === 'goal' && !goal.delegation.allow ? 'feature' : (t.kind ?? 'feature'), scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys, parallelizable: t.parallelizable, relevantFiles: t.relevantFiles, milestone: t.milestone ?? null, milestoneScript: t.milestone ? (t.milestoneScript ?? null) : null, difficulty: t.difficulty ?? 'standard' })),
+    tasks: o.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind === 'goal' && !goal.delegation.allow ? 'feature' : (t.kind ?? 'feature'), scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys, parallelizable: t.parallelizable, relevantFiles: t.relevantFiles, delivers: t.delivers ?? [], budgetUsd: t.kind === 'goal' ? (t.budgetUsd ?? null) : null, milestone: t.milestone ?? null, milestoneScript: t.milestone ? (t.milestoneScript ?? null) : null, difficulty: t.difficulty ?? 'standard' })),
     costEstimateUsd: o.costEstimateUsd,
     run: o.run ?? null,
     apps: o.apps ?? null,

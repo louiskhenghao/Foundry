@@ -1,7 +1,8 @@
 import type { Database } from 'bun:sqlite';
 import type { EngineEvent } from '../events.ts';
-import { FINAL_WALK, IDLE_COMPLETION, NO_DELEGATION, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type Task } from '../schema/index.ts';
+import { FINAL_WALK, IDLE_COMPLETION, NO_DELEGATION, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type RepoLearnings, type Task } from '../schema/index.ts';
 import type { ObservationReport } from '../schema/observation.ts';
+import { applySubjectEvent } from '../machine/subjects.ts';
 
 /**
  * Pure-ish reducers: apply one event to the read-model tables.
@@ -95,6 +96,15 @@ function project(db: Database, e: EngineEvent): void {
     case 'brief.approved':
       upsertBrief(db, e.payload.brief, true);
       break;
+    case 'brief.subject_set':
+    case 'brief.subject_removed':
+    case 'brief.subject_pictures':
+    case 'brief.subject_searched': {
+      const b = getBrief(db, e.goalId!);
+      if (!b) break;
+      upsertBrief(db, { ...b.brief, subjects: applySubjectEvent(b.brief.subjects ?? [], e, e.ts) }, b.approved);
+      break;
+    }
     case 'task.created': {
       upsertTask(db, e.payload.task);
       // new work: the final walkthrough is due again once it lands
@@ -461,6 +471,11 @@ function project(db: Database, e: EngineEvent): void {
       if (t) upsertTask(db, { ...t, summary: e.payload.summary, updatedAt: e.ts });
       break;
     }
+    case 'task.revised': {
+      const t = getTask(db, e.payload.taskId);
+      if (t) upsertTask(db, { ...t, spec: e.payload.spec, relevantFiles: e.payload.relevantFiles ?? t.relevantFiles, delivers: e.payload.delivers ?? t.delivers, updatedAt: e.ts });
+      break;
+    }
     case 'check.created':
       upsertCheck(db, e.payload.check);
       break;
@@ -527,8 +542,8 @@ function project(db: Database, e: EngineEvent): void {
     case 'session.usage': {
       const p = e.payload;
       db.run(
-        'INSERT OR REPLACE INTO usage_ledger (event_id, ts, goal_id, kind, model, input_tokens, output_tokens, cache_read_tokens, cache_create_tokens, cost_usd, duration_ms, subtype) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [e.id, e.ts, e.goalId, p.kind, p.model, p.inputTokens, p.outputTokens, p.cacheReadTokens, p.cacheCreateTokens, p.costUsd, p.durationMs, p.subtype],
+        'INSERT OR REPLACE INTO usage_ledger (event_id, ts, goal_id, kind, model, input_tokens, output_tokens, cache_read_tokens, cache_create_tokens, cost_usd, duration_ms, subtype, cost_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [e.id, e.ts, e.goalId, p.kind, p.model, p.inputTokens, p.outputTokens, p.cacheReadTokens, p.cacheCreateTokens, p.costUsd, p.durationMs, p.subtype, p.costStatus ?? null],
       );
       if (p.rateLimit) {
         // the newest sighting wins: usage that came through a Transfer is older than this computer's limits
@@ -537,6 +552,30 @@ function project(db: Database, e: EngineEvent): void {
           [p.rateLimit.rateLimitType ?? 'unknown', p.rateLimit.status, p.rateLimit.resetsAt, p.rateLimit.isUsingOverage ? 1 : 0, e.ts],
         );
       }
+      break;
+    }
+    case 'learnings.set': {
+      const p = e.payload;
+      if (p.learnings.length) db.run('INSERT OR REPLACE INTO repo_learnings (repo_path, data) VALUES (?, ?)', [p.repoPath, JSON.stringify({ repoPath: p.repoPath, learnings: p.learnings, updatedAt: e.ts })]);
+      else db.run('DELETE FROM repo_learnings WHERE repo_path = ?', [p.repoPath]);
+      break;
+    }
+    case 'deploy.started': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, deployments: [...(g.deployments ?? []), { provider: e.payload.provider, production: e.payload.production, status: 'running', url: null, reason: null, ref: e.payload.ref, framework: e.payload.framework, at: e.ts, endedAt: null }], updatedAt: e.ts });
+      break;
+    }
+    case 'deploy.finished':
+    case 'deploy.failed': {
+      const g = getGoal(db, e.goalId!);
+      if (!g) break;
+      const list = [...(g.deployments ?? [])];
+      const i = list.findLastIndex((d) => d.provider === e.payload.provider && d.status === 'running');
+      const ended = e.type === 'deploy.finished' ? { status: 'live' as const, url: e.payload.url, reason: null } : { status: 'failed' as const, url: null, reason: e.payload.reason };
+      // a deploy refused before it started (no web app, a host not set up) is a failed entry of its own
+      if (i >= 0) list[i] = { ...list[i]!, ...ended, endedAt: e.ts };
+      else list.push({ provider: e.payload.provider, production: e.payload.production, ref: null, framework: null, at: e.ts, ...ended, endedAt: e.ts });
+      upsertGoal(db, { ...g, deployments: list, updatedAt: e.ts });
       break;
     }
     case 'escalation.raised':
@@ -727,6 +766,8 @@ export interface UsageRow {
   cost_usd: number;
   duration_ms: number;
   subtype: string;
+  /** `unavailable`: no dollar cost was reported, so `cost_usd` 0 is unknown; null on rows from before this was recorded */
+  cost_status?: 'reported' | 'unavailable' | null;
 }
 export function listUsageSince(db: Database, sinceIso: string): UsageRow[] {
   return db.query(`SELECT u.*, COALESCE(json_extract(e.payload, '$.provider'), json_extract(g.data, '$.provider')) AS provider FROM usage_ledger u LEFT JOIN events e ON e.id = u.event_id LEFT JOIN goals g ON g.id = u.goal_id WHERE u.ts >= ? ORDER BY u.ts`).all(sinceIso) as UsageRow[];
@@ -742,7 +783,17 @@ export function listRateLimitState(db: Database): RateLimitRow[] {
   return db.query('SELECT rate_limit_type, status, resets_at, is_using_overage, seen_at FROM rate_limit_state ORDER BY rate_limit_type').all() as RateLimitRow[];
 }
 
-const READ_MODEL_TABLES = ['goals', 'tasks', 'attempts', 'checks', 'check_results', 'briefs', 'observations', 'escalations', 'usage_ledger', 'rate_limit_state'];
+/** a repository's Learnings (null when it has none) */
+export function getRepoLearnings(db: Database, repoPath: string): RepoLearnings | null {
+  const r = db.query('SELECT data FROM repo_learnings WHERE repo_path = ?').get(repoPath) as { data: string } | null;
+  return r ? (JSON.parse(r.data) as RepoLearnings) : null;
+}
+/** every repository with Learnings, the most recently changed first */
+export function listRepoLearnings(db: Database): RepoLearnings[] {
+  return (db.query('SELECT data FROM repo_learnings').all() as { data: string }[]).map((r) => JSON.parse(r.data) as RepoLearnings).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+const READ_MODEL_TABLES = ['goals', 'tasks', 'attempts', 'checks', 'check_results', 'briefs', 'observations', 'escalations', 'usage_ledger', 'rate_limit_state', 'repo_learnings'];
 
 export function clearReadModels(db: Database): void {
   for (const t of READ_MODEL_TABLES) db.exec(`DELETE FROM ${t}`);

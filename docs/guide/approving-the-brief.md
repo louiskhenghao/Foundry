@@ -11,6 +11,8 @@ The Brief is the plan. Foundry writes it after reading your project and hearing 
 
 You can edit almost everything on the Brief. Take five minutes: this is the cheapest moment to change your mind.
 
+When a Brief is ready you get a **Brief ready** message, if notifications are set up. On Telegram, and on Discord with a bot, it carries **Approve and run…**, which first says the budget it sets and then approves the Brief as it stands, as **Approve & run** does here. A Brief with a blocking question left gets no such button: answer it on this page. See [Answering from Telegram](../operate/notifications.md#answering-from-telegram).
+
 ![The Brief page in Expert view: Understanding, Decisions, Areas and the plan](images/brief.png)
 
 ## Simple view and Expert view
@@ -62,6 +64,21 @@ Once a card is picked, **Generate a sample (~$1)** makes one real image in that 
 Click a sample to see it large, then press **Use as the reference image**. Every worker must then match that image. **Unpick reference image** undoes it. The card says **reference image set — workers will match it**.
 
 Whatever direction you pick binds every task that produces something visible. Tasks with no look (server code, data, documentation) ignore it.
+
+## Looks like
+
+When the result depicts something real (a particular car, a building, a product), **Looks like** lists those real things, the Subjects, with pictures of them. Workers open the pictures before they build and compare what they made with them, and every review compares against them too. The pictures stay on this computer: they are never committed, delivered or put into the result.
+
+- **Foundry finds the pictures.** While the Brief waits, it searches the web for a few pictures of each Subject that has none (about $1 a Subject). The card says **Finding pictures… (a minute or two)**, and **Approve** waits until they are in.
+- **Remove a wrong picture** with the **×** on it, and a wrong Subject with the **×** beside its name.
+- **Add your own** uploads a photo or render of yours (PNG, JPEG, WebP or GIF, up to 5 MB). Images you attached to the goal that show a Subject are added for you.
+- **Find more** searches again for other views. A Subject has at most 8 pictures.
+- Click the line under a Subject's name to say what must match (the proportions, the distinctive features, the colours).
+- To add a Subject Foundry missed, type its name precisely (make, model, year) and what must match, then press **Add and find pictures**. A Brief has at most 4 Subjects.
+
+![The Looks like card: the studio's mascot figure as a Subject, with three of the person's pictures, Find more, Add your own, and the form to add another Subject](images/subjects.png)
+
+A delegated goal and a follow-up start with the Subjects of the goal they come from, pictures included, and **Re-run Clarify** keeps them. How each milestone is compared with the pictures is in [Likeness to the pictures](./while-it-runs.md#likeness-to-the-pictures).
 
 ## Assumptions
 
@@ -121,6 +138,8 @@ Inside a task you can change:
 | **Commit scope** | The word in brackets of its commit message, `feat(scope): …`. Blank uses the Area's short name. |
 | **Spec** | What to change, where, and how to know it is done. |
 | start files | Files the worker should look at first, separated by commas. Optional. |
+| delivers | The files this task leaves for the tasks after it, separated by commas: a data file the page reads, a model it loads, a report the next step builds on. Each is checked when the task lands, and the next tasks are told where they are. Optional. |
+| Budget share | Only on a **goal** task: what the delegated goal doing this step may spend, in USD, within this goal's budget. Blank gives it an even share of what is left among the goal tasks still to run. |
 
 ### Kind
 

@@ -82,7 +82,7 @@ export const mediaType = (f: MediaFile) => TYPES[(/\.([^./]+)$/.exec(f.path)?.[1
 const blob = async (f: MediaFile) => new Blob([await Bun.file(f.path).arrayBuffer()], { type: mediaType(f) });
 const fileName = (f: MediaFile) => f.path.split('/').pop() ?? (f.kind === 'video' ? 'recording.webm' : 'screenshot.png');
 
-const TELEGRAM_API = 'https://api.telegram.org';
+export const TELEGRAM_API = 'https://api.telegram.org';
 /** Discord caps content at 2000 chars, Telegram at 4096; stay under both */
 const MAX_LEN = 1900;
 
@@ -95,13 +95,24 @@ export class TelegramNotifier implements Notifier {
   constructor(
     private token: string,
     private chatId: string,
+    private api = TELEGRAM_API,
   ) {}
   async send(text: string, links: Link[] = []): Promise<void> {
-    const html = { chat_id: this.chatId, text: telegramHtml(text.slice(0, MAX_LEN - 400), links), parse_mode: 'HTML', disable_web_page_preview: true };
-    let res = await post(`${TELEGRAM_API}/bot${this.token}/sendMessage`, html);
+    await this.sendMessage(text, links);
+  }
+  /**
+   * One message, its id back: `markup` puts buttons under it or asks for a reply (ForceReply), `replyTo` answers a
+   * message of the person's. The buttons stay when the text has to go plain.
+   */
+  async sendMessage(text: string, links: Link[] = [], markup?: object, replyTo?: number): Promise<number | null> {
+    const extra = { ...(markup ? { reply_markup: markup } : {}), ...(replyTo != null ? { reply_parameters: { message_id: replyTo, allow_sending_without_reply: true } } : {}) };
+    const html = { chat_id: this.chatId, text: telegramHtml(text.slice(0, MAX_LEN - 400), links), parse_mode: 'HTML', disable_web_page_preview: true, ...extra };
+    let res = await post(`${this.api}/bot${this.token}/sendMessage`, html);
     // markup or a link Telegram will not take (it is strict about some hosts): plain text, the addresses written out
-    if (!res.ok && res.status === 400) res = await post(`${TELEGRAM_API}/bot${this.token}/sendMessage`, { chat_id: this.chatId, text: plainLinks(text, links).slice(0, MAX_LEN), disable_web_page_preview: true });
+    if (!res.ok && res.status === 400) res = await post(`${this.api}/bot${this.token}/sendMessage`, { chat_id: this.chatId, text: plainLinks(text, links).slice(0, MAX_LEN), disable_web_page_preview: true, ...extra });
     if (!res.ok) throw new Error(`telegram ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
+    const j = (await res.json().catch(() => null)) as { result?: { message_id?: number } } | null;
+    return typeof j?.result?.message_id === 'number' ? j.result.message_id : null;
   }
   /** sendPhoto: multipart with the PNG bytes; captions are capped at 1024 by Telegram */
   async sendPhoto(caption: string, file: string, links: Link[] = []): Promise<void> {
@@ -161,7 +172,7 @@ export class TelegramNotifier implements Notifier {
       const form = new FormData();
       form.set('chat_id', this.chatId);
       await fill(form, html ? telegramHtml(caption.slice(0, room), links) : plainLinks(caption.slice(0, room), links), html);
-      res = await fetch(`${TELEGRAM_API}/bot${this.token}/${method}`, { method: 'POST', body: form, signal: AbortSignal.timeout(120_000) });
+      res = await fetch(`${this.api}/bot${this.token}/${method}`, { method: 'POST', body: form, signal: AbortSignal.timeout(120_000) });
       if (res.ok || res.status !== 400) break;
     }
     if (!res!.ok) throw new Error(`telegram ${res!.status}: ${(await res!.text().catch(() => '')).slice(0, 200)}`);

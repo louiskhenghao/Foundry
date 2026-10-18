@@ -32,6 +32,7 @@
 | **Effort for new goals** | Role preset / CLI default | 从 **low** 到 **max** 的全任务覆盖。默认使用 Codex 各角色预设，或 Claude CLI 默认值。 |
 | **TDD for new Expert goals** | required | 测试先行：**required**、**preferred** 或 **off**。 |
 | **Ponytail for new goals** | on | 懒惰的资深工程师：worker 写能完整解决任务的最小改动并复用已有的东西，planner 精简地规划，`ponytail-review` 负责审查。测试怎么写仍由 TDD 决定。每个 goal 有自己的开关。见 [Ponytail: less code](./your-first-goal.zh.md#ponytail-less-code)。 |
+| **Learn from finished goals** | 开 | goal 结束时，一个短会话把它教会的项目知识加进这个文件夹的 [Learnings](./learnings.zh.md)，这个文件夹之后的 goal 都会拿到。关掉：不再自动学习；你保留的 Learnings 仍然会用。 |
 | **Audit at the end of new goals** | off | 新 goal 在最终审查前对完成的分支运行 `ponytail-audit`；goal 改过的代码里的 must fix 发现会变成修复任务。批准 Brief 时按 goal 选择。 |
 | **Goal-level fix cycles** | 1 | 最终审查在问你之前，最多可以派几轮修复任务。只用于 thorough 节奏。 |
 | **Small goal (diff lines)** | 400 | 改动行数不超过这个数的 goal，最终审查更轻、更便宜。0 = 从不。 |
@@ -240,6 +241,7 @@ Foundry 怎样跟上你项目的线上副本，以及交付要等多久。
 - **Refresh between tasks**（关）：在繁忙项目里的长 goal 上，在任务之间把基础分支上的新工作并进来。默认关闭，因为 goal 中途的变化可能让 worker 措手不及。
 - **Commit author**：Foundry 的提交写谁的名字。**you, with Foundry as co-author**（默认）用你的 git 身份 —— 项目的，没有就用全局的，再没有就用你的 GitHub 账号 —— 并加一行 `Co-authored-by: Foundry`；**you only** 不加这一行；**Foundry only** 用 `foundry` 作为作者。Vercel 团队这类部署集成会拒绝不是成员的作者的提交，所以如果你用了这类集成，就选带"you"的选项。只影响之后的新提交。
 - **Update my local base branch after a merge**（开）：pull request 合并后，Foundry 在安全的时候把你自己的基础分支 fast-forward，然后删掉 goal 的进度文件夹、worktree 和本地分支。关掉：你自己 pull，文件夹一直留到你删除这个 goal。见 [拿到结果](./getting-the-result.zh.md#pull-request-合并之后)。
+- **Deploy — a finished web app to a host**：[Deploy](./getting-the-result.zh.md#deploy) 用的 token。**Vercel token**（vercel.com → Account Settings → Tokens），团队用的话再填 **Vercel team**；**Netlify token**（User settings → Applications → Personal access tokens），新网站放在哪个团队就填 **Netlify team**；**Cloudflare API token** 要有 *Cloudflare Pages: Edit* 权限，再加上 **Cloudflare account id**。某个平台的字段留空，就是不用这个平台。这些 token 只由引擎保管：和 Tools & keys 里的 key 不同，任何编码会话都拿不到它们。
 - **Delivery timings (advanced)**：Foundry 多久查看一次 pull request（**Poll interval (s)**，30），等 CI 出现要等多久（**Grace before "no checks" (s)**，90）、等它跑完要等多久（**Checks timeout (min)**，30），以及分支受保护时等 auto-merge 要等多久（**Auto-merge wait under branch protection (min)**，10）。如果你的 CI 要跑半小时以上，调高 **Checks timeout**。
 
 ## Tools & keys
@@ -275,12 +277,17 @@ key 对下一个会话生效，不用重启。保存过的 key 不会再显示�
 
 **Link base URL**：你从别处打开 Foundry 用的地址（局域网地址、域名）。消息里的链接指向它；不设就指向这台电脑（`http://localhost`）。**Tailscale links**（auto）在这台电脑运行 Tailscale 时，额外附上 Foundry 和预览在你 tailnet 上的链接（CAD Viewer 除外，它只留在这台电脑上），手机上也能打开；**Tailscale name** 可以手动指定这台机器的名字。见 [notifications.md](../operate/notifications.md#links)。
 
-六个开关，默认全开：
+**Answer from Telegram**（默认开）：Telegram 里关于等你处理的事的消息带按钮（Retry、Skip、Continue、Approve……），回复这条消息就是用文字回答。开着时 Foundry 会读你的机器人收到的消息，所以每个 Foundry 要用自己的机器人。工作区之外的命令只在 Inbox 里批准。见 [Answering from Telegram](../operate/notifications.md#answering-from-telegram)。
+
+**Discord bot token (buttons)**：可选，和 webhook 一起用。设了之后，等你处理的消息由你的机器人发到 webhook 所在的频道，带同样的按钮；要输入文字时，按钮会打开一个表单。见 [Answering from Discord](../operate/notifications.md#answering-from-discord)。
+
+七个开关，默认全开：
 
 | 开关 | 什么时候收到消息 | 该做什么 |
 |---|---|---|
 | **Needs you** | 某个 goal 或任务在等你：一个失败的任务、一条被拦下的命令、预算用完、一个里程碑要看。 | 打开 Inbox 或 goal 回应。你回应之前，那一部分会一直等着。见 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md)。 |
 | **Interview round** | Foundry 写 Brief 前问一轮问题。 | 回答它们；goal 在等你。 |
+| **Brief ready** | 有 Brief 等你批准。Foundry 自己批准的 Brief 不会发。 | 读一遍，然后在 Brief 页面或用消息上的按钮批准。 |
 | **Goal finished** | 某个 goal 以 done、over-delivered 或 failed 结束。你自己取消的不会发。 | 看结果，或看哪里失败了。 |
 | **Delivery** | 有 pull request 开出或合并了，或者交付失败了。 | 审查 pull request，或看 Delivery 标签。 |
 | **Usage pause** | 某个编码智能体达到用量上限而暂停新会话，重新尝试时再通知；另一个编码智能体仍可继续。 | Foundry 自动重试；持续失败时检查 Accounts 和 Usage。 |

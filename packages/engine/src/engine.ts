@@ -60,6 +60,7 @@ import { milestoneQueues, milestoneRunsFor } from './checks/walkthrough.ts';
 import { runInvestigation } from './investigation.ts';
 import { needsInvestigation } from './references.ts';
 import { MILESTONE_CHECK_PREFIX, milestoneCheckSpec } from './checks/milestone-script.ts';
+import { cleanDeliverables, deliversCheckName, deliversCheckSpec } from './checks/delivers.ts';
 import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
 import { SATISFIED } from './skills/catalog.ts';
@@ -85,6 +86,11 @@ import { attachmentDir, claimStaged, conversionTmpPath, markdownFileName, sweepS
 import { Markitdown } from './convert/markitdown.ts';
 import { SettingsError, SettingsStore, applySettingsToConfig } from './settings.ts';
 import { NotificationDispatcher } from './notify/dispatcher.ts';
+import { TelegramBot } from './notify/telegram-bot.ts';
+import { DiscordBot } from './notify/discord-bot.ts';
+import { endedForLearning, learnFromGoal, learnOnEnd, learningWork, learningsOf, setLearnings } from './learnings.ts';
+import { DEPLOYABLE_STATES, deployCredentials, deployName, deployWork, deploying, goalDeployability, npxCli, startDeploy, unsupported } from './deploy/deploy.ts';
+import { DEPLOY_PROVIDERS, PROVIDER_LABEL, configured, deploySteps, redact } from './deploy/providers.ts';
 import { ModelFallbackRunner } from './models/fallback-runner.ts';
 import { modelsInBinary } from './models/discover.ts';
 import { EffortRunner } from './effort-runner.ts';
@@ -93,7 +99,7 @@ import { copyProjectSkills, hasStackManifest, runAutoskills, type AutoskillsDeps
 import { artifactsDue, deliverArtifacts, inferCompletion, runGraphRefresh, shouldRunGraphRefresh, type GraphRefreshDeps } from './completion.ts';
 import { stuckCommits, takeBackOrphaned, takeBackStuck } from './take-back.ts';
 import { cadModelIn, recoverOverlays } from './goal-artifacts.ts';
-import type { SettingsPatch, SettingsView } from '@foundry/core';
+import type { Learning, SettingsPatch, SettingsView, DeployProvider } from '@foundry/core';
 import { ACTION_INFO, BUILTIN_PRESETS, DEFAULT_NATURE_PRESETS, MODEL_ACTIONS, MODEL_NATURES, NATURE_LABEL, effectivePresets } from '@foundry/core';
 import { spawnStreaming } from './skills/updaters.ts';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
@@ -102,7 +108,9 @@ import { BaselineChecks } from './checks/baseline.ts';
 import { relative, resolve } from 'node:path';
 import { adoptLocalBin, AGENT_CLI_IDS, agentCliInstall, type AgentCliId } from './agent-cli.ts';
 import { type FollowUpDraft, type FollowUpInput, copyAttachments, followUpDraft, linkFollowUp, prepareFollowUp } from './follow-up.ts';
-import { autoApproveDelegated, isDelegationTask, settleDelegations } from './delegation.ts';
+import { autoApproveDelegated, delegatingTasks, isDelegationTask, settleDelegations } from './delegation.ts';
+import { startDueSearches, subjectSearchesFor, trashSubjects } from './subjects.ts';
+import { onMilestoneEvidence } from './likeness.ts';
 import { ATTACHMENT_LIMITS, type GoalDelegatedFrom, type GoalDelegation } from '@foundry/core';
 import { Tailnet } from './notify/tailnet.ts';
 import { SessionCosts } from './session-costs.ts';
@@ -297,6 +305,10 @@ export class Engine {
   readonly settings: SettingsStore;
   /** pushes escalations / goal endings / delivery results / usage pauses to Telegram & Discord (Settings → Notifications) */
   readonly notifications: NotificationDispatcher;
+  /** Telegram's buttons and replies: reads the bot's updates while the engine serves (ADR-0038) */
+  readonly telegram: TelegramBot;
+  /** Discord's buttons and forms: a bot beside the webhook, read over the gateway while the engine serves (ADR-0039) */
+  readonly discord: DiscordBot;
   /** version self-knowledge, the daily update check, and the self-update pipeline (ADR-0010) */
   readonly updater: UpdateManager;
   /** dev servers started in progress folders (Goal page, milestones, integrations) */
@@ -320,6 +332,8 @@ export class Engine {
   autoskillsDeps: AutoskillsDeps = {};
   /** test seam: deps handed to runGraphRefresh (fake which/exec) */
   graphRefreshDeps: GraphRefreshDeps = {};
+  /** how a host's CLI is run for Deploy (ADR-0041); tests point it at stand-ins */
+  deployCli: (p: DeployProvider) => string[] = npxCli;
 
   constructor(
     public readonly config: EngineConfig,
@@ -374,7 +388,7 @@ export class Engine {
       return new EffortRunner(fallback, () => this.store.db, () => provider === 'codex' ? null : this.config.effort);
     };
     this.runner = new ProviderRunner({
-      claude: wrap(supplied('claude') ?? new ClaudeCliRunner({ claudeBin: config.claudeBin, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'claude'),
+      claude: wrap(supplied('claude') ?? new ClaudeCliRunner({ claudeBin: config.claudeBin, claudeHome: config.claudeHome, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'claude'),
       codex: wrap(supplied('codex') ?? new CodexCliRunner({ codexBin: config.codexBin, codexHome: config.codexHome, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'codex'),
     }, (spec) => {
       if (spec.meta?.goalId) return this.mustGoal(spec.meta.goalId).provider ?? config.provider;
@@ -448,7 +462,11 @@ export class Engine {
     config.log(`[engine] context provider: ${this.context.name}`);
     this.store.subscribe((e) => {
       if (e.type === 'session.usage' && e.payload.sessionId) this.ownedSessionIds.add(e.payload.sessionId);
+      // a goal that ended teaches its folder something (ADR-0040)
+      if (e.type === 'goal.state_changed') learnOnEnd(this, e.goalId, e.payload.to);
       if ((e.type === 'task.artifacts_landed' || e.type === 'goal.artifacts_delivered') && e.goalId) this.cadModelMemo.delete(e.goalId);
+      // a milestone recorded in a goal with Subject pictures: the Likeness review compares the two (in the background)
+      if (e.type === 'milestone.evidence') onMilestoneEvidence(this, e);
       if (e.goalId) this.tick(e.goalId);
       // a Delegated goal's progress is its main goal's business: what it costs counts there, and its state moves the main goal on
       if (e.goalId && PARENT_TICK_EVENTS.has(e.type)) {
@@ -462,6 +480,8 @@ export class Engine {
     });
     this.notifications = new NotificationDispatcher(this);
     this.notifications.attach();
+    this.telegram = new TelegramBot(this);
+    this.discord = new DiscordBot(this);
     this.updater = new UpdateManager(this);
     this.tailnet = new Tailnet({ mode: () => this.settings.values().notifications.tailscale, host: () => this.settings.values().notifications.tailscaleHost, log: config.log, bin: config.tailscaleBin, stateFile: join(config.dataDir, 'tailnet-served.json') });
     void this.tailnet.cleanUp();
@@ -915,6 +935,8 @@ export class Engine {
     }, this.config.delivery.prWatchMs);
     this.prWatchTimer.unref?.();
     void checkOpenPrs(this);
+    this.telegram.start();
+    this.discord.start();
     for (const g of listGoals(this.store.db)) this.tick(g.id);
   }
 
@@ -1025,6 +1047,8 @@ export class Engine {
   async stop(): Promise<void> {
     this.stopped = true;
     this.modelDiscoveryAbort.abort();
+    // no press from a chat starts work on an engine going down
+    await Promise.all([this.telegram.stop(), this.discord.stop()]);
     this.updater.stopSchedule();
     if (this.prWatchTimer) clearInterval(this.prWatchTimer);
     for (const timer of this.resumeTimers.values()) clearTimeout(timer);
@@ -1060,6 +1084,10 @@ export class Engine {
     await settle([...this.deliveringArtifacts.values(), ...this.tidying.values()], 10_000);
     // a Delegated goal landing on its main goal's branch, or its Brief being approved by the engine, write to the database too
     await settle([...this.landingDelegations.values(), ...this.approvingDelegated.values()], 10_000);
+    // a learning session writes the folder's notebook when it ends (its session was killed above)
+    await settle(learningWork(), 5_000);
+    // a deploy records how it ended (its commands were killed with the rest)
+    await settle(deployWork(), 5_000);
   }
 
   /** the escalation for a commit a merge attempt made before the engine stopped and git would not take back at the next start */
@@ -1201,6 +1229,7 @@ export class Engine {
         cacheReadTokens: n(u.cache_read_input_tokens),
         cacheCreateTokens: n(u.cache_creation_input_tokens),
         costUsd: result.costUsd,
+        costStatus: result.costStatus ?? 'reported',
         durationMs: result.durationMs,
         subtype: result.subtype,
         rateLimit: result.rateLimit ? { status: result.rateLimit.status, resetsAt: result.rateLimit.resetsAt, rateLimitType: result.rateLimit.rateLimitType, isUsingOverage: result.rateLimit.isUsingOverage } : null,
@@ -1568,8 +1597,8 @@ export class Engine {
     const tasks = listTasks(this.store.db, goal.id);
     if (dueCheckpoint(tasks)) return hard('a milestone landed; Foundry waits for the work in flight, then for you');
     if (isDelegationTask(task)) {
-      const other = tasks.find((t) => t.id !== task.id && isDelegationTask(t) && ['running', 'observing', 'merging'].includes(t.state));
-      return hard(other ? `one delegated goal runs at a time: it starts once "${other.title}" has landed` : 'it starts as a delegated goal at the next scheduling pass');
+      const under = delegatingTasks(tasks).filter((t) => t.id !== task.id);
+      return hard(under.length >= goal.budgets.maxConcurrent ? `every parallel slot is taken by delegated goals (${under.length} of ${goal.budgets.maxConcurrent} under way): it starts once one has landed` : 'it starts as a delegated goal at the next scheduling pass');
     }
     if (this.forceStart.has(task.id)) return hard('it is starting (you asked for it)');
     const inFlight = this.inFlightForGoal(goal.id);
@@ -1713,6 +1742,8 @@ export class Engine {
       case 'awaiting_brief_approval':
         // "Investigate again" cleared the report; a restart in between lost the session: study the references once more
         if (needsInvestigation(goal)) this.startInvestigation(goal);
+        // pictures of the Subjects are searched once while the Brief waits (a restart searches again); approval waits for them
+        else if (startDueSearches(this, goal)) return;
         // a Delegated goal whose main goal approves for it: approved once its Brief leaves no question to the person
         else if (goal.delegatedFrom) autoApproveDelegated(this, goal);
         return;
@@ -2199,7 +2230,8 @@ export class Engine {
   editBrief(goalId: string, brief: Brief): Brief {
     const goal = this.mustGoal(goalId);
     if (goal.state !== 'awaiting_brief_approval') throw new Error(`goal is ${goal.state}, brief cannot be edited`);
-    const parsed = BriefSchema.parse({ ...brief, goalId });
+    // Subjects change only through their own events: a page's copy may predate pictures that arrived since
+    const parsed = BriefSchema.parse({ ...brief, goalId, subjects: getBrief(this.store.db, goalId)?.brief.subjects });
     this.store.append({ type: 'brief.edited', goalId, payload: { brief: parsed } });
     return parsed;
   }
@@ -2214,7 +2246,10 @@ export class Engine {
     if (goal.state !== 'awaiting_brief_approval') throw new Error(`goal is ${goal.state}, cannot approve`);
     // the report lands as an attachment and a commit on the goal branch: not under running tasks
     if (this.investigating.has(goalId)) throw new Error('the references are being investigated now; approve the Brief when the report is in');
-    const brief = BriefSchema.parse({ ...(edited ?? getBrief(this.store.db, goalId)?.brief), goalId });
+    const searching = subjectSearchesFor(goalId);
+    if (searching.length) throw new Error(`pictures of the Subjects (${searching.join(', ')}) are being found now; approve the Brief when they are in`);
+    const stored = getBrief(this.store.db, goalId)?.brief;
+    const brief = BriefSchema.parse({ ...(edited ?? stored), goalId, subjects: stored?.subjects });
     const unanswered = brief.questions.filter((q) => q.blocking && !q.answer?.trim());
     if (unanswered.length) throw new Error(`blocking questions unanswered: ${unanswered.map((q) => q.text).join(' | ')}`);
     topoSort(brief.tasks.map((t) => ({ id: t.key, dependsOn: t.dependsOnKeys })));
@@ -2256,6 +2291,8 @@ export class Engine {
         tdd: t.tdd === 'off' || ['docs', 'infra', 'research', 'image', 'video'].includes(t.scenario ?? 'general') ? 'off' : 'inherit',
         dependsOn: t.dependsOnKeys.map((k) => idByKey.get(k)!),
         relevantFiles: t.relevantFiles,
+        delivers: cleanDeliverables(t.delivers),
+        budgetUsd: t.kind === 'goal' && t.budgetUsd ? t.budgetUsd : null,
         milestone: t.milestone ?? null,
         milestoneScript: t.milestone ? (t.milestoneScript ?? null) : null,
         milestoneVisits: 0,
@@ -2282,6 +2319,22 @@ export class Engine {
       const script = task.milestoneScript;
       if (script && !brief.checks.some((c) => c.taskKey === t.key && c.spec.type === 'command' && c.spec.cmd.includes(script) && /playwright/.test(c.spec.cmd))) {
         const check: Check = { id: newId(IdPrefix.check), goalId, taskId: task.id, name: `${MILESTONE_CHECK_PREFIX}${script}`, tier: 'must', spec: milestoneCheckSpec(script) };
+        this.store.append({ type: 'check.created', goalId, payload: { check } });
+      }
+      // the files the task promises to the tasks after it are its must checks (a goal task's are its Delegated goal's, below)
+      if (task.kind !== 'goal') {
+        for (const path of task.delivers ?? []) {
+          if (brief.checks.some((c) => c.taskKey === t.key && c.spec.type === 'command' && c.spec.cmd === deliversCheckSpec(path).cmd)) continue;
+          const check: Check = { id: newId(IdPrefix.check), goalId, taskId: task.id, name: deliversCheckName(path), tier: 'must', spec: deliversCheckSpec(path) };
+          this.store.append({ type: 'check.created', goalId, payload: { check } });
+        }
+      }
+    }
+    // a Delegated goal is held to what its main goal's task promised: those files are its goal-level must checks, so its review sees them
+    if (goal.delegatedFrom) {
+      for (const path of getTask(this.store.db, goal.delegatedFrom.taskId)?.delivers ?? []) {
+        if (brief.checks.some((c) => !c.taskKey && c.spec.type === 'command' && c.spec.cmd === deliversCheckSpec(path).cmd)) continue;
+        const check: Check = { id: newId(IdPrefix.check), goalId, taskId: null, name: deliversCheckName(path), tier: 'must', spec: deliversCheckSpec(path) };
         this.store.append({ type: 'check.created', goalId, payload: { check } });
       }
     }
@@ -2372,6 +2425,41 @@ export class Engine {
     if (!ac) return false;
     ac.abort();
     return true;
+  }
+
+  /** a folder's Learnings (ADR-0040) */
+  learnings(repoPath: string): Learning[] {
+    return learningsOf(this, repoPath);
+  }
+  /** the person's edit of a folder's Learnings: the whole list, as they want it */
+  setLearnings(repoPath: string, entries: { id?: string | null; kind: Learning['kind']; text: string }[]): Learning[] {
+    return setLearnings(this, repoPath, entries);
+  }
+  /** learn from this goal now (it ended, or the person asks again); resolves when the folder's notebook is written */
+  learnFrom(goalId: string): Promise<void> {
+    const goal = this.mustGoal(goalId);
+    if (!endedForLearning(goal.state)) throw new Error(`the goal is ${goal.state.replace(/_/g, ' ')}: it teaches its folder once it ended done, over-delivered or failed`);
+    return learnFromGoal(this, goalId, { force: true });
+  }
+
+  /** Deploy the finished goal's web app (ADR-0041): what is wrong is thrown at once, the deploy runs in the background */
+  deploy(goalId: string, req: { provider: DeployProvider; production: boolean }): void {
+    startDeploy(this, goalId, req);
+  }
+  /** what Deploy can do for a goal now: whether its code is a web app, which hosts are set up and take it, the commands, the deploys so far */
+  deployInfo(goalId: string, provider?: DeployProvider, production = false) {
+    const goal = this.mustGoal(goalId);
+    const app = goalDeployability(this, goal);
+    const c = deployCredentials(this);
+    return {
+      app,
+      finished: DEPLOYABLE_STATES.has(goal.state),
+      running: deploying(goalId),
+      providers: DEPLOY_PROVIDERS.map((id) => ({ id, label: PROVIDER_LABEL[id], configured: configured(id, c), refused: unsupported(id, app) })),
+      // the exact commands a deploy runs, tokens left out: nothing else runs
+      plan: provider && app.ok ? deploySteps({ provider, cwd: `<deploy folder>/${app.app.dir}`.replace(/\/$/, ''), kind: app.app.kind, name: deployName(goal), production, branch: goal.branch.replace(/[^A-Za-z0-9-]+/g, '-').slice(0, 28), productionBranch: goal.baseBranch, install: app.app.install, build: app.app.build, outputDir: app.app.outputDir, message: `${goal.title} (Foundry)`, credentials: c, cli: this.deployCli }).map((s) => ({ label: s.label, command: redact(s.argv.join(' '), c) })) : [],
+      deployments: goal.deployments ?? [],
+    };
   }
 
   /** Prefill and start point for a Follow-up of this goal (the New goal form, `goal new --follows`). */
@@ -2488,6 +2576,7 @@ export class Engine {
     rmSync(join(this.config.dataDir, 'worktrees', goalId), { recursive: true, force: true });
     if (goal.workspaceDir) for (const d of [goal.workspaceDir, internalWorkspaceDir(goal)!]) rmSync(d, { recursive: true, force: true });
     for (const a of goal.attachments) trashAttachment(this.config.dataDir, goalId, a);
+    trashSubjects(this.config.dataDir, goalId);
     rmSync(transferGoalDir(this.config.dataDir, goalId), { recursive: true, force: true });
     this.store.append({ type: 'goal.deleted', goalId, payload: { title: goal.title, deletedBranch, reason: 'deleted by user' } });
     // a Delegated goal deleted while its main goal waits for it: the main goal's task is told at its next pass

@@ -74,9 +74,18 @@ fi
 
 # Extract tool_input.command without jq: crude but dependency-free. We match on the whole
 # JSON payload, which is safe because the patterns are specific multi-word commands.
-patterns='git[[:space:]]+push|gh[[:space:]]+pr[[:space:]]+create|gh[[:space:]]+pr[[:space:]]+merge|gh[[:space:]]+release|npm[[:space:]]+publish|bun[[:space:]]+publish|yarn[[:space:]]+publish|pnpm[[:space:]]+publish|cargo[[:space:]]+publish|vercel[[:space:]]+deploy|vercel[[:space:]]+--prod|netlify[[:space:]]+deploy|flyctl[[:space:]]+deploy|fly[[:space:]]+deploy|wrangler[[:space:]]+deploy|terraform[[:space:]]+apply|pulumi[[:space:]]+up|kubectl[[:space:]]+apply|kubectl[[:space:]]+delete|docker[[:space:]]+push|aws[[:space:]]+s3[[:space:]]+(cp|sync|rm)|gcloud[[:space:]]+.*deploy|git[[:space:]]+remote[[:space:]]+(add|set-url)'
+patterns='git[[:space:]]+push|gh[[:space:]]+pr[[:space:]]+create|gh[[:space:]]+pr[[:space:]]+merge|gh[[:space:]]+release|npm[[:space:]]+publish|bun[[:space:]]+publish|yarn[[:space:]]+publish|pnpm[[:space:]]+publish|cargo[[:space:]]+publish|vercel(@[^[:space:]"]*)?[[:space:]]+(deploy|--prod|promote|redeploy|rollback|alias|remove|rm)|netlify(-cli)?(@[^[:space:]"]*)?[[:space:]]+(deploy|sites:create|sites:delete|env:set|api)|flyctl[[:space:]]+deploy|fly[[:space:]]+deploy|wrangler(@[^[:space:]"]*)?[[:space:]]+(deploy|publish|delete|pages[[:space:]]+(deploy|publish|project[[:space:]]+(create|delete))|versions[[:space:]]+deploy|secret[[:space:]]+put)|terraform[[:space:]]+apply|pulumi[[:space:]]+up|kubectl[[:space:]]+apply|kubectl[[:space:]]+delete|docker[[:space:]]+push|aws[[:space:]]+s3[[:space:]]+(cp|sync|rm)|gcloud[[:space:]]+.*deploy|git[[:space:]]+remote[[:space:]]+(add|set-url)'
 if [ -n "$FOUNDRY_EXTRA_PATTERNS" ]; then
   patterns="$patterns|$FOUNDRY_EXTRA_PATTERNS"
+fi
+
+# a bare `vercel` deploys: the program with nothing after it but flags (and their values), directly or through a package
+# runner. Read over the command alone, one command at a time, so a file or a sentence that names it blocks nothing.
+bare='^[[:space:]]*(([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*|env|sudo|exec|command|npx|bunx|pnpx|(pnpm|yarn)[[:space:]]+dlx)[[:space:]]+(-[^[:space:]]+[[:space:]]+)*)*([^[:space:]]*/)?vercel(@[^[:space:]]*)?([[:space:]]+(--?(token|scope|team|cwd|local-config|global-config|env|build-env|meta|regions|archive|target|[tSAebm])[[:space:]=]+[^[:space:]]+|-[^[:space:]]+))*[[:space:]]*$'
+if printf '%s\n' "$command" | awk '{ gsub(/&&|\|\||[;|]|\\n/, "\n"); print }' | grep -Eq -e "$bare"; then
+  notify boundary
+  echo "BLOCKED by foundry: this command leaves the local worktree (push/PR/deploy/publish). It requires human approval — do NOT retry or work around it. Finish your task without it and mention that it was blocked." >&2
+  exit 2
 fi
 
 if printf '%s' "$input" | grep -Eq "$patterns"; then
