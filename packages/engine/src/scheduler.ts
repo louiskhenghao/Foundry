@@ -7,9 +7,9 @@ import { runAudit } from './audit.ts';
 import { dueCheckpoint, finalLookDue, openCheckpoint, openFinalCheckpoint, passMilestone, runFinalWalk, scriptedMilestones } from './checkpoint.ts';
 import { raiseEscalation } from './escalation.ts';
 import { headRef } from './git/git.ts';
-import { integrateTask } from './merge.ts';
 import { recoverOverlays } from './goal-artifacts.ts';
-import { catchUp, filesOverlap } from './catchup.ts';
+import { catchUp, catchUpAndLand, filesOverlap } from './catchup.ts';
+import { stuckIn } from './take-back.ts';
 import { existsSync } from 'node:fs';
 import { excludeFromGit } from './skills/autoskills.ts';
 import { dropTaskWorkspace, ensureGoalWorkspace, ensureTaskWorkspace, goalWorkspacePath } from './workspace.ts';
@@ -180,12 +180,24 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
         task = { ...task, worktreePath: null, branch: null };
       }
       if (!task.worktreePath) {
-        // a cad task inherits the goal's exports: under the goal workspace's lock, after any leftover overlay is undone,
-        // so never a merge attempt's laid over them for its checks
-        const make = () => ensureTaskWorkspace(config.dataDir, goal, task);
-        const ws = task.scenario === 'cad' ? await engine.withGoalWsLock(goal.id, async () => (await recoverOverlays(engine, goal), make())) : await make();
-        store.append({ type: 'task.workspace_assigned', goalId: goal.id, payload: { taskId: task.id, branch: ws.branch, worktreePath: ws.path } });
-        cwd = ws.path;
+        // a new worktree branches from the goal branch as it stands between landings: under the goal workspace's lock, so
+        // never from a merge attempt's commit before its checks are done, and not while it ends at a commit an attempt
+        // could not take back (the escalation that names it blocks the goal). A cad task inherits the goal's exports
+        // after any leftover overlay is undone, so never a merge attempt's laid over them for its checks
+        const made = await engine.withGoalWsLock(goal.id, async () => {
+          const held = await stuckIn(engine, goal, [goalWorkspacePath(config.dataDir, goal)]);
+          if (held) return { held, ws: null };
+          if (task.scenario === 'cad') await recoverOverlays(engine, goal);
+          return { held: null, ws: await ensureTaskWorkspace(config.dataDir, goal, task) };
+        });
+        if (!made.ws) {
+          store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `"${task.title}" did not start: ${made.held}` } });
+          // the slot goes back when this returns: not straight into another try while the goal waits for the person
+          await Bun.sleep(5_000);
+          return;
+        }
+        store.append({ type: 'task.workspace_assigned', goalId: goal.id, payload: { taskId: task.id, branch: made.ws.branch, worktreePath: made.ws.path } });
+        cwd = made.ws.path;
       } else cwd = task.worktreePath;
     }
     // media and CAD tasks generate into artifacts/, which must never reach a commit (info/exclude is shared by all
@@ -202,8 +214,9 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
     }
     store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'ready', to: 'running', reason: resume ? `resuming attempt ${resume.attempt.index} after the engine restart` : `attempt ${attemptsSoFar + 1}` } });
 
-    // a task in its own worktree first catches up with what other tasks landed on the goal branch
-    const caught = await catchUp(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!, { escalate: false });
+    // a task in its own worktree first catches up with what other tasks landed on the goal branch (not while another
+    // task's merge holds the goal workspace: the catch-up before its landing brings that)
+    const caught = await catchUp(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!, { escalate: false, ifIdle: true });
     let outcome = await runAttempt(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!, cwd, { baseMoved: caught.moved ? caught : null, resume });
     engine.engineCrashes.delete(task.id);
     let fresh = getTask(store.db, task.id)!;
@@ -228,11 +241,12 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
       // every finished task becomes one Conventional Commit on the goal branch (squash merge / squashed snapshots)
       store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'observing', to: 'merging', reason: 'checks passed' } });
       // catch up once more right before landing: the conflict (if any) is met in the task worktree, with Merge Attempts
-      // and, failing those, the human's manual resolution — the squash onto the goal branch is then conflict-free
-      const late = await catchUp(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!, { escalate: true });
-      if ((late.moved && !late.merged) || lost()) return;
+      // and, failing those, the human's manual resolution — the squash onto the goal branch is then conflict-free. While
+      // the goal branch ends at a commit a merge attempt could not take back, the task waits to do either
       // artifacts are git-excluded, so the squash merge cannot carry them: the integration lands them before the worktree goes
-      const { merged, landing } = await integrateTask(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!);
+      const landed = await catchUpAndLand(engine, goal.id, task.id, lost);
+      if (!landed) return;
+      const { merged, landing } = landed;
       if (merged && landing) {
         if (fresh.worktreePath && landing.failed.length) {
           // some could not be copied (a full disk, a file it cannot read): the worktree stays, so they are not lost

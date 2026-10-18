@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -26,6 +26,9 @@ const worker = () =>
     const title = spec.label?.replace(/^attempt /, '').replace(/ #\d+$/, '') ?? 'x';
     writeFileSync(join(spec.cwd, `${title}.txt`), 'ok');
   });
+/** an open escalation of another merge that names a commit git would not take back, as resolveConflicts raises one */
+const stuckEscalation = (engine: Engine, goalId: string, taskId: string | null, stuck: { cwd: string; base: string; ref: string }) =>
+  engine.store.append({ type: 'escalation.raised', goalId, payload: { escalation: { id: newId(IdPrefix.escalation), goalId, taskId, attemptId: null, trigger: 'retries_exhausted', message: 'another merge', payload: { kind: 'merge', files: [], reasons: [], stuck }, state: 'open', answer: null, createdAt: new Date().toISOString(), answeredAt: null, suggestion: null } } });
 
 describe('task integration: one Conventional Commit per task', () => {
   test('sequential tasks in the goal workspace are squashed onto the goal branch', async () => {
@@ -445,6 +448,62 @@ describe('manual merge resolution: which exports land', () => {
     await engine.stop();
   }, 60_000);
 
+  test("a resolution does not start while another merge attempt's checks run, nor on another task's commit git would not take back", async () => {
+    const { startResolution, abortResolution } = await import('./merge-resolve.ts');
+    const { engine, goal, taskId } = await conflicted(true);
+    const ws = goalWorkspacePath(dataDir, goal);
+    const tip = await sh('git rev-parse HEAD', ws);
+    // another task's merge attempt holds the goal workspace: its resolution committed, its checks running, then taken back
+    let release: (() => void) | null = null;
+    const held = engine.withGoalWsLock(goal.id, async () => {
+      writeFileSync(join(ws, 'unverified.txt'), 'x\n');
+      await sh('git add -A && git commit -qm "feat: other" -m "Resolved by merge attempt 1"', ws);
+      await new Promise<void>((r) => (release = r));
+      await sh(`git reset -q --keep ${tip}`, ws);
+    });
+    await waitFor(() => release !== null);
+    const starting = startResolution(engine, goal.id, taskId);
+    await Bun.sleep(300);
+    release!();
+    await held;
+    await starting;
+    expect((engine.store.listByGoalOfTypes(goal.id, ['merge.manual_started']).at(-1)!.payload as { base: string }).base).toBe(tip);
+    await abortResolution(engine, goal.id, taskId);
+    // another task's commit git would not take back is on the goal branch
+    writeFileSync(join(ws, 'unverified.txt'), 'x\n');
+    await sh('git add -A && git commit -qm "feat: other" -m "Resolved by merge attempt 1"', ws);
+    stuckEscalation(engine, goal.id, null, { cwd: ws, base: tip, ref: await sh('git rev-parse HEAD', ws) });
+    const lock = join(await sh('git rev-parse --absolute-git-dir', ws), 'index.lock');
+    writeFileSync(lock, '');
+    try {
+      await expect(startResolution(engine, goal.id, taskId)).rejects.toThrow('still refuses');
+    } finally {
+      rmSync(lock, { force: true });
+    }
+    await engine.stop();
+  }, 60_000);
+
+  test('a Finish does not land on a commit another merge attempt could not take back', async () => {
+    const { startResolution, takeSide, finishResolution, abortResolution } = await import('./merge-resolve.ts');
+    const { engine, goal, taskId } = await conflicted(true);
+    await startResolution(engine, goal.id, taskId);
+    await takeSide(engine, goal.id, taskId, 'shared.txt', 'ours');
+    // meanwhile another task's merge attempt left its commit on the goal branch, and a commit landed on top of it
+    const ws = goalWorkspacePath(dataDir, goal);
+    const base = await sh('git rev-parse HEAD', ws);
+    writeFileSync(join(ws, 'third.txt'), 'unverified\n');
+    await sh('git add -A && git commit -qm "feat: third" -m "Resolved by merge attempt 1"', ws);
+    stuckEscalation(engine, goal.id, null, { cwd: ws, base, ref: await sh('git rev-parse HEAD', ws) });
+    await sh('git commit -q --allow-empty -m "feat: on top"', ws);
+    const top = await sh('git rev-parse HEAD', ws);
+    const r = await finishResolution(engine, goal.id, taskId);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain('revert');
+    expect(await sh('git rev-parse HEAD', ws)).toBe(top);
+    await abortResolution(engine, goal.id, taskId);
+    await engine.stop();
+  }, 60_000);
+
   test("a resolution that kept the goal's side throughout lands none of the task's exports", async () => {
     const { art, slug, landedFrame } = await resolveKeepingGoalSide(false);
     expect(await Bun.file(join(art, 'frame.step')).text()).toBe(landedFrame);
@@ -539,7 +598,7 @@ describe('a squash that conflicts at integration (the goal branch moved after th
     const squash = () => git(['merge', '--squash', '--no-commit', 'task/t_rev2'], ws);
     expect((await squash()).code).not.toBe(0);
     await opts.beforeResolve?.({ goal, ws });
-    const ok = await resolveConflicts(engine, getGoal(engine.store.db, goal.id)!, getTask(engine.store.db, task.id)!, ['shared.txt'], { ref: 'task/t_rev2', label: 'task/t_rev2', intent: 'remake the part' }, { cwd: ws, redo: async () => void (await squash()), commitMessage: 'feat: part rev2' });
+    const ok = await resolveConflicts(engine, getGoal(engine.store.db, goal.id)!, getTask(engine.store.db, task.id)!, ['shared.txt'], { ref: 'task/t_rev2', label: 'task/t_rev2', intent: 'remake the part' }, { cwd: ws, redo: async () => void (await squash()), commitMessage: 'feat: part rev2' }).catch((err: Error) => err);
     return { engine, ws, ok, tip, goalId: goal.id, backup: overlayBackupPath(dataDir, goal, task.id) };
   };
 
@@ -594,12 +653,293 @@ describe('a squash that conflicts at integration (the goal branch moved after th
       expect(esc?.message).toContain('could not be taken back');
       expect(esc?.message).toContain('1 merge attempt could not resolve it');
       expect(esc?.message).toContain(`\`${getGoal(engine.store.db, goalId)!.branch}\` still holds`);
+      // the answer takes it back: a reset by hand could drop what the person committed on top since
+      expect(esc?.message).toContain('your answer takes it back');
+      expect(esc?.message).not.toContain('before answering');
       expect(engine.store.listByGoal(goalId, 5000).filter((e) => e.type === 'attempt.concluded')).toHaveLength(1);
       // nothing more lands on the unverified commit until the person has dealt with it
       expect(getGoal(engine.store.db, goalId)!.state).toBe('blocked');
     } finally {
       rmSync(join(await sh('git rev-parse --absolute-git-dir', ws), 'index.lock'), { force: true });
     }
+    await engine.stop();
+  }, 60_000);
+
+  /** a merge attempt whose commit git would not take back (a lock in the goal worktree's git folder), and that lock */
+  const stuckWindow = async () => {
+    const w = await integrationWindow('case "$PWD" in */baseline*) exit 0;; esac; touch "$(git rev-parse --git-dir)/index.lock"; exit 1');
+    expect(w.ok).toBe(false);
+    const esc = listEscalations(w.engine.store.db, { goalId: w.goalId, openOnly: true }).find((e) => (e.payload as { kind?: string }).kind === 'merge')!;
+    const stuck = await sh('git rev-parse HEAD', w.ws);
+    expect(stuck).not.toBe(w.tip);
+    return { ...w, esc, stuck, lock: join(await sh('git rev-parse --absolute-git-dir', w.ws), 'index.lock') };
+  };
+
+  test('a commit git would not take back is taken back when the person answers, once git lets go', async () => {
+    const { engine, ws, tip, esc, lock, goalId } = await stuckWindow();
+    rmSync(lock, { force: true });
+    await engine.answerEscalation(esc.id, { action: 'retry_with_hint', hint: 'again' });
+    expect(await sh('git rev-parse HEAD', ws)).toBe(tip);
+    expect(await sh('cat params.txt', ws)).toBe('rev1');
+    const notes = engine.store.listByGoal(goalId, 5000).filter((e) => e.type === 'engine.note').map((e) => (e.payload as { message: string }).message);
+    expect(notes.some((m) => m.startsWith('took back the unverified resolution'))).toBe(true);
+    await engine.stop();
+  }, 60_000);
+
+  test('a goal workspace moved off its branch does not settle the commit the branch still holds', async () => {
+    const { engine, ws, tip, esc, lock, goalId } = await stuckWindow();
+    rmSync(lock, { force: true });
+    await sh(`git checkout -q --detach ${tip}`, ws);
+    await expect(engine.answerEscalation(esc.id, { action: 'skip_task' })).rejects.toThrow('still ends at the unverified resolution');
+    await sh(`git checkout -q ${getGoal(engine.store.db, goalId)!.branch}`, ws);
+    await engine.answerEscalation(esc.id, { action: 'skip_task' });
+    expect(await sh('git rev-parse HEAD', ws)).toBe(tip);
+    await engine.stop();
+  }, 60_000);
+
+  test('a goal workspace detached at the commit git would not take back does not settle the branch that holds it', async () => {
+    const { engine, ws, tip, esc, stuck, lock, goalId } = await stuckWindow();
+    rmSync(lock, { force: true });
+    const branch = getGoal(engine.store.db, goalId)!.branch;
+    await sh(`git checkout -q --detach ${stuck}`, ws);
+    await expect(engine.answerEscalation(esc.id, { action: 'skip_task' })).rejects.toThrow('still ends at the unverified resolution');
+    expect(await sh(`git rev-parse refs/heads/${branch}`, ws)).toBe(stuck);
+    await sh(`git checkout -q ${branch}`, ws);
+    await engine.answerEscalation(esc.id, { action: 'skip_task' });
+    expect(await sh(`git rev-parse refs/heads/${branch}`, ws)).toBe(tip);
+    await engine.stop();
+  }, 60_000);
+
+  test('a stop while a regressed attempt takes its commit back leaves the attempt to the next start, which takes the commit back', async () => {
+    const takeBackModule = await import('./take-back.ts');
+    // the engine stops while the take-back runs: nothing after it happens
+    const spy = spyOn(takeBackModule, 'takeBack').mockImplementation(async () => {
+      throw new Error('the engine stopped');
+    });
+    let w: Awaited<ReturnType<typeof integrationWindow>>;
+    try {
+      w = await integrationWindow('grep -q "goal side" shared.txt');
+    } finally {
+      spy.mockRestore();
+    }
+    expect(w.ok).toBeInstanceOf(Error);
+    expect(await sh('git rev-parse HEAD', w.ws)).not.toBe(w.tip);
+    await w.engine.stop();
+    const next = new Engine(cfg(), new FakeRunner(() => {}));
+    next.beginUpdateDrain();
+    await next.start();
+    expect(await sh('git rev-parse HEAD', w.ws)).toBe(w.tip);
+    await next.stop();
+  }, 60_000);
+
+  test('a stop after git refused the take-back, before the escalation was raised, leaves the attempt to the next start, which names the commit', async () => {
+    const escalationModule = await import('./escalation.ts');
+    // the engine stops just as the escalation would be raised
+    const spy = spyOn(escalationModule, 'raiseEscalation').mockImplementation(() => {
+      throw new Error('the engine stopped');
+    });
+    let w: Awaited<ReturnType<typeof integrationWindow>>;
+    try {
+      w = await integrationWindow('case "$PWD" in */baseline*) exit 0;; esac; touch "$(git rev-parse --git-dir)/index.lock"; exit 1');
+    } finally {
+      spy.mockRestore();
+    }
+    const lock = join(await sh('git rev-parse --absolute-git-dir', w.ws), 'index.lock');
+    try {
+      expect(w.ok).toBeInstanceOf(Error);
+      await w.engine.stop();
+      const next = new Engine(cfg(), new FakeRunner(() => {}));
+      next.beginUpdateDrain();
+      await next.start();
+      const esc = listEscalations(next.store.db, { goalId: w.goalId, openOnly: true }).find((e) => (e.payload as { stuck?: unknown }).stuck);
+      expect((esc?.payload as { stuck?: { ref: string } } | undefined)?.stuck?.ref).toBe(await sh('git rev-parse HEAD', w.ws));
+      await next.stop();
+    } finally {
+      rmSync(lock, { force: true });
+    }
+  }, 60_000);
+
+  test('a second answer while the first one is still being applied is refused', async () => {
+    const { engine, esc, lock, goalId } = await stuckWindow();
+    // the first answer waits for the goal workspace, which another task's merge holds
+    let release: (() => void) | null = null;
+    const held = engine.withGoalWsLock(goalId, () => new Promise<void>((r) => (release = r)));
+    await waitFor(() => release !== null);
+    rmSync(lock, { force: true });
+    const first = engine.answerEscalation(esc.id, { action: 'skip_task' });
+    await Bun.sleep(100);
+    await expect(engine.answerEscalation(esc.id, { action: 'retry_with_hint', hint: 'again' })).rejects.toThrow('being answered already');
+    release!();
+    await held;
+    await first;
+    expect(getTask(engine.store.db, 't_rev2')!.state).toBe('skipped');
+    await engine.stop();
+  }, 60_000);
+
+  test('an answer whose commit is gone already does not wait for another merge holding the goal workspace', async () => {
+    const { engine, ws, tip, esc, lock, goalId } = await stuckWindow();
+    rmSync(lock, { force: true });
+    await sh(`git reset -q --keep ${tip}`, ws);
+    let release: (() => void) | null = null;
+    const held = engine.withGoalWsLock(goalId, () => new Promise<void>((r) => (release = r)));
+    await waitFor(() => release !== null);
+    const answered = engine.answerEscalation(esc.id, { action: 'skip_task' });
+    expect(await Promise.race([answered.then(() => 'answered'), Bun.sleep(3_000).then(() => 'waiting')])).toBe('answered');
+    release!();
+    await held;
+    await answered;
+    await engine.stop();
+  }, 60_000);
+
+  test('a goal aborted while git refused to take the commit back gets it taken back when restarted, or the restart says what is left', async () => {
+    const { engine, ws, tip, esc, stuck, lock, goalId } = await stuckWindow();
+    await engine.answerEscalation(esc.id, { action: 'abort_goal' });
+    expect(getGoal(engine.store.db, goalId)!.state).toBe('failed');
+    try {
+      await expect(engine.restartGoal(goalId)).rejects.toThrow('still refuses');
+      expect(await sh('git rev-parse HEAD', ws)).toBe(stuck);
+    } finally {
+      rmSync(lock, { force: true });
+    }
+    await engine.restartGoal(goalId);
+    expect(await sh('git rev-parse HEAD', ws)).toBe(tip);
+    await engine.stop();
+  }, 60_000);
+
+  test('an answer while git still refuses is refused, saying what is left to do, and the escalation stays open', async () => {
+    const { engine, ws, esc, stuck, lock, goalId } = await stuckWindow();
+    try {
+      await expect(engine.answerEscalation(esc.id, { action: 'skip_task' })).rejects.toThrow('still refuses');
+      expect(await sh('git rev-parse HEAD', ws)).toBe(stuck);
+      expect(listEscalations(engine.store.db, { goalId, openOnly: true }).map((e) => e.id)).toContain(esc.id);
+    } finally {
+      rmSync(lock, { force: true });
+    }
+    // once it lets go, skipping the task leaves the goal branch without that commit
+    await engine.answerEscalation(esc.id, { action: 'skip_task' });
+    expect(await sh('git rev-parse HEAD^{tree}', ws)).toBe(await sh(`git rev-parse ${stuck}^^{tree}`, ws));
+    await engine.stop();
+  }, 60_000);
+
+  test('a commit with others landed on top waits for its revert before the person can answer', async () => {
+    const { engine, ws, esc, stuck, lock } = await stuckWindow();
+    rmSync(lock, { force: true });
+    await sh('git commit -q --allow-empty -m "feat: another task"', ws);
+    await expect(engine.answerEscalation(esc.id, { action: 'retry_with_hint', hint: 'again' })).rejects.toThrow('revert');
+    await sh(`git revert --no-edit ${stuck}`, ws);
+    await engine.answerEscalation(esc.id, { action: 'retry_with_hint', hint: 'again' });
+    expect(await sh('cat params.txt', ws)).toBe('rev1');
+    await engine.stop();
+  }, 60_000);
+
+  test('a resolution by hand after a refused take-back starts from the goal branch as it was', async () => {
+    const { startResolution, abortResolution } = await import('./merge-resolve.ts');
+    const { engine, ws, tip, lock, goalId } = await stuckWindow();
+    try {
+      await expect(startResolution(engine, goalId, 't_rev2')).rejects.toThrow('still refuses');
+    } finally {
+      rmSync(lock, { force: true });
+    }
+    await startResolution(engine, goalId, 't_rev2');
+    const started = engine.store.listByGoalOfTypes(goalId, ['merge.manual_started']).at(-1)!.payload as { base: string };
+    expect(started.base).toBe(tip);
+    expect(await sh('git rev-parse HEAD', ws)).toBe(tip);
+    await abortResolution(engine, goalId, 't_rev2');
+    await engine.stop();
+  }, 60_000);
+
+  test('a commit that only says it reverts the stuck one, or a revert undone again, is no revert of it', async () => {
+    const { engine, ws, esc, stuck, lock } = await stuckWindow();
+    rmSync(lock, { force: true });
+    await sh(`git commit -q --allow-empty -m "Revert it" -m "This reverts commit ${stuck}."`, ws);
+    await expect(engine.answerEscalation(esc.id, { action: 'retry_with_hint', hint: 'again' })).rejects.toThrow('revert');
+    await sh(`git revert --no-edit ${stuck}`, ws);
+    await sh('git revert --no-edit HEAD', ws);
+    await expect(engine.answerEscalation(esc.id, { action: 'retry_with_hint', hint: 'again' })).rejects.toThrow('revert');
+    await sh('git revert --no-edit HEAD', ws);
+    await engine.answerEscalation(esc.id, { action: 'retry_with_hint', hint: 'again' });
+    expect(await sh('cat params.txt', ws)).toBe('rev1');
+    await engine.stop();
+  }, 60_000);
+
+  /** another task of the goal whose checks passed in its own worktree, started from `base` */
+  const otherTask = async (engine: Engine, goalId: string, base: string) => {
+    const goal = getGoal(engine.store.db, goalId)!;
+    const otherWs = taskWorkspacePath(dataDir, goal, 't_other');
+    await sh(`git worktree add -q -b task/t_other "${otherWs}" ${base}`, repo);
+    writeFileSync(join(otherWs, 'other.txt'), 'other\n');
+    await sh('git add -A && git commit -qm "feat: other"', otherWs);
+    const now = new Date().toISOString();
+    const task = { id: 't_other', goalId, title: 'other', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now } as Task;
+    engine.store.append({ type: 'task.created', goalId, payload: { task } });
+    engine.store.append({ type: 'task.workspace_assigned', goalId, payload: { taskId: 't_other', branch: 'task/t_other', worktreePath: otherWs } });
+  };
+
+  test('another task does not land on a commit git would not take back, nor on one others landed on top of without its revert', async () => {
+    const { engine, ws, tip, stuck, lock, goalId } = await stuckWindow();
+    await otherTask(engine, goalId, tip);
+    const integrate = () => integrateTask(engine, getGoal(engine.store.db, goalId)!, getTask(engine.store.db, 't_other')!);
+    try {
+      const r = await integrate();
+      expect(r.merged).toBe(false);
+      expect((r as { held?: string }).held).toContain('still refuses');
+      expect(await sh('git rev-parse HEAD', ws)).toBe(stuck);
+    } finally {
+      rmSync(lock, { force: true });
+    }
+    // git lets go, but a commit landed on top of it and nothing undid it
+    await sh('git commit -q --allow-empty -m "feat: another task"', ws);
+    const top = await sh('git rev-parse HEAD', ws);
+    expect((await integrate()).merged).toBe(false);
+    expect(await sh('git rev-parse HEAD', ws)).toBe(top);
+    // reverted: the task lands, and nothing of the unverified resolution with it
+    await sh(`git revert --no-edit ${stuck}`, ws);
+    expect((await integrate()).merged).toBe(true);
+    expect(await sh('cat other.txt', ws)).toBe('other');
+    expect(await sh('cat params.txt', ws)).toBe('rev1');
+    await engine.stop();
+  }, 60_000);
+
+  test('a task whose checks passed while the goal branch ends at an unverified commit waits, and lands once the person has dealt with it', async () => {
+    const { catchUpAndLand } = (await import('./catchup.ts')) as unknown as { catchUpAndLand: (engine: Engine, goalId: string, taskId: string, lost: () => boolean, pollMs?: number) => Promise<{ merged: boolean } | null> };
+    const { engine, ws, tip, esc, lock, goalId } = await stuckWindow();
+    await otherTask(engine, goalId, tip);
+    let landed: { merged: boolean } | null | 'waiting' = 'waiting';
+    const landing = catchUpAndLand(engine, goalId, 't_other', () => false, 20).then((r) => (landed = r));
+    await Bun.sleep(1_500);
+    expect(landed).toBe('waiting');
+    const notes = engine.store.listByGoal(goalId, 5000).filter((e) => e.type === 'engine.note').map((e) => (e.payload as { message: string }).message);
+    expect(notes.some((m) => m.includes('"other" passed its checks and waits to land'))).toBe(true);
+    rmSync(lock, { force: true });
+    await engine.answerEscalation(esc.id, { action: 'skip_task' });
+    await landing;
+    expect(landed).toMatchObject({ merged: true });
+    expect(await sh('cat other.txt', ws)).toBe('other');
+    expect(await sh('cat params.txt', ws)).toBe('rev1');
+    await engine.stop();
+  }, 60_000);
+
+  test('the goal stays blocked while another commit git would not take back is still open', async () => {
+    const { engine, ws, tip, esc, lock, goalId } = await stuckWindow();
+    rmSync(lock, { force: true });
+    await otherTask(engine, goalId, tip);
+    stuckEscalation(engine, goalId, 't_other', { cwd: ws, base: tip, ref: tip });
+    await engine.answerEscalation(esc.id, { action: 'skip_task' });
+    expect(getGoal(engine.store.db, goalId)!.state).toBe('blocked');
+    await engine.stop();
+  }, 60_000);
+
+  test('a restart does not close the escalation of a commit git still refuses to take back; once git lets go, the restart takes it back', async () => {
+    const { engine, ws, tip, esc, stuck, lock, goalId } = await stuckWindow();
+    try {
+      await expect(engine.restartGoal(goalId, { fromTaskId: 't_rev2' })).rejects.toThrow('still refuses');
+      expect(listEscalations(engine.store.db, { goalId, openOnly: true }).map((e) => e.id)).toContain(esc.id);
+      expect(await sh('git rev-parse HEAD', ws)).toBe(stuck);
+    } finally {
+      rmSync(lock, { force: true });
+    }
+    await engine.restartGoal(goalId, { fromTaskId: 't_rev2' });
+    expect(await sh('git rev-parse HEAD', ws)).toBe(tip);
     await engine.stop();
   }, 60_000);
 
@@ -629,6 +969,278 @@ describe('a squash that conflicts at integration (the goal branch moved after th
     expect(ok).toBe(false);
     const reasons = engine.store.listByGoal(goalId, 5000).filter((e) => e.type === 'attempt.concluded').map((e) => (e.payload as { reason: string }).reason);
     expect(reasons.some((r) => r.includes('could not all be put back'))).toBe(true);
+    await engine.stop();
+  }, 60_000);
+});
+
+describe('a merge attempt the engine stopped during', () => {
+  /** a merge attempt that committed its resolution, then the engine stopped while its checks ran; `recorded`: it recorded the commit (attempts from before that was recorded did not) */
+  const cutShort = async (opts: { recorded?: boolean } = {}) => {
+    const engine = new Engine(cfg(), new FakeRunner(() => {}));
+    engine.beginUpdateDrain();
+    const draft = await engine.createGoal({ prompt: 'a part', repoPath: repo });
+    const goal = getGoal(engine.store.db, draft.id)!;
+    const ws = await ensureGoalWorkspace(dataDir, goal);
+    writeFileSync(join(ws, 'kept.txt'), 'goal side\n');
+    await sh('git add -A && git commit -qm "feat: the goal side"', ws);
+    const tip = await sh('git rev-parse HEAD', ws);
+    const now = new Date().toISOString();
+    const task = { id: 't_cut', goalId: goal.id, title: 'cut', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: 'task/t_cut', worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now } as Task;
+    engine.store.append({ type: 'task.created', goalId: goal.id, payload: { task } });
+    const attemptId = newId(IdPrefix.attempt);
+    engine.store.append({ type: 'attempt.started', goalId: goal.id, payload: { attempt: { id: attemptId, goalId: goal.id, taskId: 't_cut', index: 1, kind: 'merge', sessionId: null, model: null, state: 'running', costUsd: 0, numTurns: 0, resultSubtype: null, baseRef: tip, endRef: null, pid: null, cwd: ws, transcriptPath: null, startedAt: now, endedAt: null, skillsUsed: [], continuations: 0, sessions: [] } } });
+    writeFileSync(join(ws, 'resolved.txt'), 'by the merger\n');
+    await sh('git add -A && git commit -qm "feat: cut" -m "Resolved by merge attempt 1"', ws);
+    if (opts.recorded !== false) engine.store.append({ type: 'attempt.committed', goalId: goal.id, payload: { attemptId, ref: await sh('git rev-parse HEAD', ws) } });
+    // a file of a task working in the goal workspace, not part of that commit
+    writeFileSync(join(ws, 'kept.txt'), 'being edited\n');
+    await engine.stop();
+    return { goal, ws, tip, resolved: await sh('git rev-parse HEAD', ws) };
+  };
+
+  test('a commit git would not take back at the next start is named on an escalation that blocks the goal until it is dealt with', async () => {
+    const { goal, ws, tip, resolved } = await cutShort();
+    const lock = join(await sh('git rev-parse --absolute-git-dir', ws), 'index.lock');
+    writeFileSync(lock, '');
+    const next = new Engine(cfg(), new FakeRunner(() => {}));
+    next.beginUpdateDrain();
+    let id = '';
+    try {
+      await next.start();
+      const esc = listEscalations(next.store.db, { goalId: goal.id, openOnly: true }).find((e) => (e.payload as { stuck?: unknown }).stuck);
+      expect(esc?.taskId).toBe('t_cut');
+      expect((esc!.payload as { stuck: unknown }).stuck).toEqual({ cwd: ws, base: tip, ref: resolved, branch: goal.branch });
+      expect(getGoal(next.store.db, goal.id)!.state).toBe('blocked');
+      expect(getTask(next.store.db, 't_cut')!.state).toBe('blocked');
+      expect(await sh('git rev-parse HEAD', ws)).toBe(resolved);
+      id = esc!.id;
+    } finally {
+      rmSync(lock, { force: true });
+    }
+    await next.answerEscalation(id, { action: 'skip_task' });
+    expect(await sh('git rev-parse HEAD', ws)).toBe(tip);
+    expect(readFileSync(join(ws, 'kept.txt'), 'utf8')).toBe('being edited\n');
+    await next.stop();
+  }, 60_000);
+
+  test("only the stopped attempt's own commit is taken back: a later verified commit on the same base, in the same words, stays", async () => {
+    const engine = new Engine(cfg(), new FakeRunner(() => {}));
+    engine.beginUpdateDrain();
+    const draft = await engine.createGoal({ prompt: 'a part', repoPath: repo });
+    const goal = getGoal(engine.store.db, draft.id)!;
+    const ws = await ensureGoalWorkspace(dataDir, goal);
+    const tip = await sh('git rev-parse HEAD', ws);
+    const now = new Date().toISOString();
+    const task = { id: 't_cut', goalId: goal.id, title: 'cut', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: 'task/t_cut', worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now } as Task;
+    engine.store.append({ type: 'task.created', goalId: goal.id, payload: { task } });
+    const attemptId = newId(IdPrefix.attempt);
+    // an attempt left running (it threw before it could conclude) had committed a resolution, since taken back
+    engine.store.append({ type: 'attempt.started', goalId: goal.id, payload: { attempt: { id: attemptId, goalId: goal.id, taskId: 't_cut', index: 1, kind: 'merge', sessionId: null, model: null, state: 'running', costUsd: 0, numTurns: 0, resultSubtype: null, baseRef: tip, endRef: null, pid: null, cwd: ws, transcriptPath: null, startedAt: now, endedAt: null, skillsUsed: [], continuations: 0, sessions: [] } } });
+    writeFileSync(join(ws, 'first.txt'), 'first\n');
+    await sh('git add -A && git commit -qm "feat: cut" -m "Resolved by merge attempt 1"', ws);
+    engine.store.append({ type: 'attempt.committed', goalId: goal.id, payload: { attemptId, ref: await sh('git rev-parse HEAD', ws) } });
+    await sh(`git reset -q --hard ${tip}`, ws);
+    // a later merge of the task, verified, landed on the same base
+    writeFileSync(join(ws, 'second.txt'), 'second\n');
+    await sh('git add -A && git commit -qm "feat: cut" -m "Resolved by merge attempt 1"', ws);
+    const verified = await sh('git rev-parse HEAD', ws);
+    await engine.stop();
+    const next = new Engine(cfg(), new FakeRunner(() => {}));
+    next.beginUpdateDrain();
+    await next.start();
+    expect(await sh('git rev-parse HEAD', ws)).toBe(verified);
+    await next.stop();
+  }, 60_000);
+
+  test("a commit made on top of the stopped attempt's commit while the engine was down leaves that commit named on an escalation", async () => {
+    const { goal, ws, tip, resolved } = await cutShort();
+    await sh('git commit -q --allow-empty -m "wip: by hand"', ws);
+    const next = new Engine(cfg(), new FakeRunner(() => {}));
+    next.beginUpdateDrain();
+    await next.start();
+    const esc = listEscalations(next.store.db, { goalId: goal.id, openOnly: true }).find((e) => (e.payload as { stuck?: unknown }).stuck);
+    expect((esc?.payload as { stuck?: unknown } | undefined)?.stuck).toMatchObject({ base: tip, ref: resolved });
+    expect(esc!.message).toContain('revert');
+    expect(await sh('git rev-parse HEAD^', ws)).toBe(resolved);
+    await next.stop();
+  }, 60_000);
+
+  test('an attempt from before commits were recorded has its resolution on top of where it started taken back', async () => {
+    const { ws, tip } = await cutShort({ recorded: false });
+    const next = new Engine(cfg(), new FakeRunner(() => {}));
+    next.beginUpdateDrain();
+    await next.start();
+    expect(await sh('git rev-parse HEAD', ws)).toBe(tip);
+    await next.stop();
+  }, 60_000);
+
+  test('a task that was waiting to land when the engine stopped runs again at the next start, its attempt given back', async () => {
+    const engine = new Engine(cfg(), new FakeRunner(() => {}));
+    engine.beginUpdateDrain();
+    const draft = await engine.createGoal({ prompt: 'a part', repoPath: repo });
+    await ensureGoalWorkspace(dataDir, getGoal(engine.store.db, draft.id)!);
+    const now = new Date().toISOString();
+    const task = { id: 't_wait', goalId: draft.id, title: 'wait', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now } as Task;
+    engine.store.append({ type: 'task.created', goalId: draft.id, payload: { task } });
+    await engine.stop();
+    const next = new Engine(cfg(), new FakeRunner(() => {}));
+    next.beginUpdateDrain();
+    await next.start();
+    expect(getTask(next.store.db, 't_wait')).toMatchObject({ state: 'ready', extraAttempts: 1 });
+    await next.stop();
+  }, 60_000);
+
+  test("a task whose merge attempt the engine stopped during gets that attempt back: its work had passed", async () => {
+    const engine = new Engine(cfg(), new FakeRunner(() => {}));
+    engine.beginUpdateDrain();
+    const draft = await engine.createGoal({ prompt: 'a part', repoPath: repo });
+    const ws = await ensureGoalWorkspace(dataDir, getGoal(engine.store.db, draft.id)!);
+    const now = new Date().toISOString();
+    const task = { id: 't_land', goalId: draft.id, title: 'land', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now } as Task;
+    engine.store.append({ type: 'task.created', goalId: draft.id, payload: { task } });
+    // its merge attempt was still resolving the conflict: nothing committed yet
+    engine.store.append({ type: 'attempt.started', goalId: draft.id, payload: { attempt: { id: newId(IdPrefix.attempt), goalId: draft.id, taskId: 't_land', index: 1, kind: 'merge', sessionId: null, model: null, state: 'running', costUsd: 0, numTurns: 0, resultSubtype: null, baseRef: await sh('git rev-parse HEAD', ws), endRef: null, pid: null, cwd: ws, transcriptPath: null, startedAt: now, endedAt: null, skillsUsed: [], continuations: 0, sessions: [] } } });
+    await engine.stop();
+    const next = new Engine(cfg(), new FakeRunner(() => {}));
+    next.beginUpdateDrain();
+    await next.start();
+    expect(getTask(next.store.db, 't_land')).toMatchObject({ state: 'ready', extraAttempts: 1 });
+    await next.stop();
+  }, 60_000);
+
+  test("its commit is taken back at the next start: the merge did not land, so the branch is as it was", async () => {
+    const { ws, tip } = await cutShort();
+    const next = new Engine(cfg(), new FakeRunner(() => {}));
+    next.beginUpdateDrain();
+    await next.start();
+    expect(await sh('git rev-parse HEAD', ws)).toBe(tip);
+    expect(existsSync(join(ws, 'resolved.txt'))).toBe(false);
+    expect(readFileSync(join(ws, 'kept.txt'), 'utf8')).toBe('being edited\n');
+    await next.stop();
+  }, 60_000);
+});
+
+describe('a revert of a commit git would not take back', () => {
+  test('is told by its exact changes: one that differs only in whitespace is no revert, the exact inverse is', async () => {
+    const { takeBackStuck } = await import('./take-back.ts');
+    const engine = new Engine(cfg(), new FakeRunner(() => {}));
+    engine.beginUpdateDrain();
+    const draft = await engine.createGoal({ prompt: 'p', repoPath: repo });
+    const goal = getGoal(engine.store.db, draft.id)!;
+    const ws = await ensureGoalWorkspace(dataDir, goal);
+    writeFileSync(join(ws, 'token.txt'), 'token = "AB"\n');
+    await sh('git add -A && git commit -qm "feat: token"', ws);
+    const base = await sh('git rev-parse HEAD', ws);
+    writeFileSync(join(ws, 'token.txt'), 'token = "A B"\n');
+    await sh('git commit -qam "feat: token" -m "Resolved by merge attempt 1"', ws);
+    const ref = await sh('git rev-parse HEAD', ws);
+    const stuck = { cwd: ws, base, ref, branch: goal.branch };
+    // ignoring whitespace, this change reads as the inverse of the one above
+    writeFileSync(join(ws, 'token.txt'), 'token = "A  B"\n');
+    await sh('git commit -qam "fix: token"', ws);
+    expect(await takeBackStuck(engine, goal, stuck)).toContain('revert');
+    // a revert under another commit on top of it
+    await sh(`git reset -q --hard ${ref}`, ws);
+    writeFileSync(join(ws, 'other.txt'), 'other\n');
+    await sh('git add -A && git commit -qm "feat: other"', ws);
+    await sh(`git revert --no-edit ${ref}`, ws);
+    expect(await takeBackStuck(engine, goal, stuck)).toBeNull();
+    await engine.stop();
+  }, 60_000);
+
+  test("a change that differs from the inverse only in a line's trailing whitespace is no revert", async () => {
+    const { takeBackStuck } = await import('./take-back.ts');
+    const engine = new Engine(cfg(), new FakeRunner(() => {}));
+    engine.beginUpdateDrain();
+    const draft = await engine.createGoal({ prompt: 'p', repoPath: repo });
+    const goal = getGoal(engine.store.db, draft.id)!;
+    const ws = await ensureGoalWorkspace(dataDir, goal);
+    // in Markdown, two trailing spaces are a line break
+    writeFileSync(join(ws, 'notes.md'), 'go  \n');
+    await sh('git add -A && git commit -qm "docs: notes"', ws);
+    const base = await sh('git rev-parse HEAD', ws);
+    writeFileSync(join(ws, 'notes.md'), 'go\n');
+    await sh('git commit -qam "docs: notes" -m "Resolved by merge attempt 1"', ws);
+    const ref = await sh('git rev-parse HEAD', ws);
+    writeFileSync(join(ws, 'notes.md'), 'go\t\n');
+    await sh('git commit -qam "docs: notes again"', ws);
+    expect(await takeBackStuck(engine, goal, { cwd: ws, base, ref, branch: goal.branch })).toContain('revert');
+    await engine.stop();
+  }, 60_000);
+});
+
+describe('a catch-up meets only verified commits on the goal branch', () => {
+  /** a goal whose task t_late, in its own worktree, made a commit; nothing runs on its own */
+  const lateTask = async () => {
+    const engine = new Engine(cfg(), new FakeRunner(() => {}));
+    engine.beginUpdateDrain();
+    const draft = await engine.createGoal({ prompt: 'p', repoPath: repo });
+    const goal = getGoal(engine.store.db, draft.id)!;
+    const ws = await ensureGoalWorkspace(dataDir, goal);
+    const tip = await sh('git rev-parse HEAD', ws);
+    const taskWs = taskWorkspacePath(dataDir, goal, 't_late');
+    await sh(`git worktree add -q -b task/t_late "${taskWs}" ${tip}`, repo);
+    writeFileSync(join(taskWs, 'late.txt'), 'late\n');
+    await sh('git add -A && git commit -qm "feat: late"', taskWs);
+    const now = new Date().toISOString();
+    const task = { id: 't_late', goalId: goal.id, title: 'late', spec: 's', kind: 'feature', scope: null, scenario: 'general', area: null, tdd: 'inherit', dependsOn: [], relevantFiles: [], parallelizable: true, retryBudget: 3, origin: 'brief', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard', state: 'merging', branch: null, worktreePath: null, baseRef: null, commitRef: null, commitMessage: null, hint: null, extraAttempts: 0, createdAt: now, updatedAt: now } as Task;
+    engine.store.append({ type: 'task.created', goalId: goal.id, payload: { task } });
+    engine.store.append({ type: 'task.workspace_assigned', goalId: goal.id, payload: { taskId: 't_late', branch: 'task/t_late', worktreePath: taskWs } });
+    return { engine, goal, ws, tip, taskWs, task: () => getTask(engine.store.db, 't_late')! };
+  };
+  /** another task's merge attempt in the goal workspace: its resolution committed, its checks running until `release`, then taken back */
+  const attemptRunning = async (engine: Engine, goal: Goal, ws: string, tip: string) => {
+    let release: (() => void) | null = null;
+    const held = engine.withGoalWsLock(goal.id, async () => {
+      writeFileSync(join(ws, 'unverified.txt'), 'x\n');
+      await sh('git add -A && git commit -qm "feat: other" -m "Resolved by merge attempt 1"', ws);
+      await new Promise<void>((r) => (release = r));
+      await sh(`git reset -q --hard ${tip}`, ws);
+    });
+    await waitFor(() => release !== null);
+    return { release: () => release!(), held };
+  };
+
+  test("the catch-up before a landing waits for another merge attempt's checks, so it never merges a commit taken back after them", async () => {
+    const { catchUp } = await import('./catchup.ts');
+    const { engine, goal, ws, tip, taskWs, task } = await lateTask();
+    const attempt = await attemptRunning(engine, goal, ws, tip);
+    const catching = catchUp(engine, goal, task(), { escalate: true });
+    await Bun.sleep(300);
+    attempt.release();
+    await attempt.held;
+    await catching;
+    expect(existsSync(join(taskWs, 'unverified.txt'))).toBe(false);
+    await engine.stop();
+  }, 60_000);
+
+  test("the catch-up before a task starts does not wait for another task's merge: it is left to the one before the landing", async () => {
+    const { catchUp } = await import('./catchup.ts');
+    const { engine, goal, ws, tip, taskWs, task } = await lateTask();
+    const attempt = await attemptRunning(engine, goal, ws, tip);
+    const r = await catchUp(engine, goal, task(), { escalate: false, ifIdle: true } as { escalate: boolean });
+    expect(r.moved).toBe(false);
+    expect(existsSync(join(taskWs, 'unverified.txt'))).toBe(false);
+    attempt.release();
+    await attempt.held;
+    await engine.stop();
+  }, 60_000);
+
+  test('a catch-up does not merge a commit git would not take back', async () => {
+    const { catchUp } = await import('./catchup.ts');
+    const { engine, goal, ws, tip, taskWs, task } = await lateTask();
+    writeFileSync(join(ws, 'unverified.txt'), 'x\n');
+    await sh('git add -A && git commit -qm "feat: other" -m "Resolved by merge attempt 1"', ws);
+    stuckEscalation(engine, goal.id, null, { cwd: ws, base: tip, ref: await sh('git rev-parse HEAD', ws) });
+    const lock = join(await sh('git rev-parse --absolute-git-dir', ws), 'index.lock');
+    writeFileSync(lock, '');
+    try {
+      const r = await catchUp(engine, goal, task(), { escalate: true });
+      expect((r as { held?: string }).held).toContain('still refuses');
+      expect(existsSync(join(taskWs, 'unverified.txt'))).toBe(false);
+    } finally {
+      rmSync(lock, { force: true });
+    }
     await engine.stop();
   }, 60_000);
 });

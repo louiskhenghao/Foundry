@@ -477,6 +477,11 @@ function project(db: Database, e: EngineEvent): void {
         });
       break;
     }
+    case 'attempt.committed': {
+      const a = getAttempt(db, e.payload.attemptId);
+      if (a) upsertAttempt(db, { ...a, endRef: e.payload.ref });
+      break;
+    }
     case 'attempt.concluded': {
       const a = getAttempt(db, e.payload.attemptId);
       if (a) upsertAttempt(db, { ...a, state: e.payload.state, endedAt: a.endedAt ?? e.ts });

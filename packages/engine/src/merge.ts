@@ -5,11 +5,12 @@ import { runCommandCheck } from './checks/command.ts';
 import { metaFor, modelFor } from './models/roles.ts';
 import type { Engine } from './engine.ts';
 import { raiseEscalation } from './escalation.ts';
-import { abortInProgress, commitAll, commitStaged, conflictedFiles, git, gitIdent, gitOk, headRef, refExists, resetHard, withCoauthor } from './git/git.ts';
+import { abortInProgress, commitAll, commitStaged, conflictedFiles, git, gitIdent, gitOk, headRef, refExists, withCoauthor } from './git/git.ts';
 import { ccHeader, taskCommitMessage } from './git/conventional.ts';
 import { READONLY_DISALLOWED, boundarySettings } from './guards/boundary.ts';
 import { landTaskArtifacts, overlayTaskExports, recoverOverlays, type Landing } from './goal-artifacts.ts';
 import { goalWorkspacePath } from './workspace.ts';
+import { stuckIn, takeBack, type StuckCommit } from './take-back.ts';
 
 const MERGE_ATTEMPT_BUDGET = 2;
 
@@ -45,9 +46,13 @@ export interface ConflictOp {
  * Emits `task.committed` (ref null when the task changed nothing). A merged task's git-excluded artifacts land in the
  * same step (landTaskArtifacts), under the same lock: another task's integration never comes between its commit and its
  * exports, and never waits for its exports behind its own merge attempts.
+ * Nothing lands on a commit an earlier merge attempt could not take back: `held` says what the person still has to do.
  */
-export function integrateTask(engine: Engine, goal: Goal, task: Task): Promise<{ merged: boolean; landing: Landing | null }> {
+export function integrateTask(engine: Engine, goal: Goal, task: Task): Promise<{ merged: boolean; landing: Landing | null; held?: string }> {
   return engine.withGoalWsLock(goal.id, async () => {
+    // a commit an earlier attempt could not take back goes now if git lets it, before anything lands on top of it
+    const held = await stuckIn(engine, goal, [goalWorkspacePath(engine.config.dataDir, goal), task.worktreePath]);
+    if (held) return { merged: false, landing: null, held };
     const merged = await integrateTaskUnlocked(engine, goal, task);
     return { merged, landing: merged ? await landTaskArtifacts(engine, getGoal(engine.store.db, goal.id) ?? goal, task) : null };
   });
@@ -137,7 +142,9 @@ export async function resolveConflicts(engine: Engine, goal: Goal, task: Task, f
   const reasons: string[] = [];
   let previous: { attempt: Attempt; reason: string } | null = null;
   let tried = 0;
-  let stuck = false;
+  let stuck: StuckCommit | null = null;
+  // the attempt whose commit git would not take back is concluded once the escalation that names the commit exists
+  let conclude: (() => void) | undefined;
   for (let i = 1; i <= MERGE_ATTEMPT_BUDGET; i++) {
     tried = i;
     // the second try resumes the first session (it knows the files) unless continuations are off
@@ -146,13 +153,14 @@ export async function resolveConflicts(engine: Engine, goal: Goal, task: Task, f
     if (r.ok) return true;
     reasons.push(`attempt ${i}: ${r.reason}`);
     previous = { attempt: r.attempt, reason: r.reason };
-    await abortInProgress(op.cwd);
     // a commit that stays would count as landed on a retry: no further attempt, and the person is told
-    const refused = await takeBack(op.cwd, r.attempt);
+    const refused = r.refused;
+    conclude = r.conclude;
     if (refused) {
-      stuck = true;
+      // named on the escalation: nothing lands on it meanwhile, and an answer takes it back first, or says what is left to do
       const branch = (await git(['branch', '--show-current'], op.cwd)).stdout.trim();
-      reasons.push(`its commit could not be taken back (${refused}), so ${branch ? `\`${branch}\`` : `the worktree at ${op.cwd}`} still holds that unverified resolution: reset it to ${r.attempt.baseRef!.slice(0, 7)} before answering`);
+      stuck = { cwd: op.cwd, base: r.attempt.baseRef!, ref: await headRef(op.cwd), ...(branch ? { branch } : {}) };
+      reasons.push(`its commit could not be taken back (${refused}), so ${branch ? `\`${branch}\`` : `the worktree at ${op.cwd}`} still holds that unverified resolution: nothing lands on it meanwhile, and your answer takes it back once git lets go of it`);
       store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'error', message: `merge attempt ${i} for ${src.label}: its commit could not be taken back (${refused})` } });
       break;
     }
@@ -160,43 +168,23 @@ export async function resolveConflicts(engine: Engine, goal: Goal, task: Task, f
     await op.redo();
   }
   await abortInProgress(op.cwd);
-  if (op.escalate === false) return false;
+  if (op.escalate === false) {
+    conclude?.();
+    return false;
+  }
   raiseEscalation(engine, {
     goal,
     task,
     trigger: 'retries_exhausted',
     message: `Merging \`${src.label}\` into \`${goal.branch}\` conflicts in:\n${files.map((f) => `- \`${f}\``).join('\n')}\n\n${tried} merge attempt${tried === 1 ? '' : 's'} could not resolve it:\n${reasons.map((r) => `- ${r}`).join('\n')}\n\nYou can resolve it by hand (**Resolve manually**), let the engine try again with a hint, or skip the task.`,
-    payload: { kind: 'merge', files, reasons },
-    blockGoal: stuck,
+    payload: { kind: 'merge', files, reasons, ...(stuck ? { stuck } : {}) },
+    blockGoal: !!stuck,
   });
+  conclude?.();
   return false;
 }
 
-/**
- * An attempt that committed its resolution before its checks regressed, or could not run, takes the commit back to where
- * the attempt started: a merge that does not land leaves the branch as it was, and the next attempt meets the conflict
- * again. A lock another program holds (an editor refreshing its git status) is let go in a moment, so it tries a few
- * times. Says why when git still refused, null once the branch is back (a clean of untracked files that failed after
- * the reset went through does not count).
- */
-async function takeBack(cwd: string, attempt: Attempt): Promise<string | null> {
-  const base = attempt.baseRef;
-  if (!base || (await headRef(cwd)) === base) return null;
-  let why = '';
-  for (let i = 0; i < 3; i++) {
-    if (i) await Bun.sleep(500);
-    try {
-      await resetHard(cwd, base);
-      return null;
-    } catch (err) {
-      why = String((err as Error)?.message ?? err).split('\n')[0]!.slice(0, 200);
-      if ((await headRef(cwd)) === base) return null;
-    }
-  }
-  return why;
-}
-
-async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: string[], n: number, src: MergeSource, op: ConflictOp, resume: { attempt: Attempt; reason: string } | null = null): Promise<{ ok: boolean; reason: string; attempt: Attempt; fatal?: boolean }> {
+async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: string[], n: number, src: MergeSource, op: ConflictOp, resume: { attempt: Attempt; reason: string } | null = null): Promise<{ ok: boolean; reason: string; attempt: Attempt; fatal?: boolean; refused?: string | null; conclude?: () => void }> {
   const { store, config } = engine;
   const cwd = op.cwd;
   const index = resume ? resume.attempt.index : listAttempts(store.db, task.id).length + 1;
@@ -298,6 +286,8 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
     const c = await git([...(await gitIdent(cwd)), 'commit', '-q', '-m', withCoauthor(`${op.commitMessage}\n\nResolved by merge attempt ${n}`)], cwd);
     ok = c.code === 0;
     if (!ok) reason = `commit failed: ${c.stderr.slice(0, 200)}`;
+    // the commit a restart takes back if the checks never finish, and only that one
+    else store.append({ type: 'attempt.committed', goalId: goal.id, payload: { attemptId: attempt.id, ref: await headRef(cwd) } });
   }
   if (ok && op.runChecks !== false) {
     const checks = listChecks(store.db, goal.id).filter((c) => c.spec.type === 'command' && c.tier === 'must');
@@ -335,13 +325,26 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
       await overlay?.done(ok).catch((err) => note(ok ? `merge attempt ${n} for ${src.label}: the backup of the goal's exports could not be removed after the merge landed (${String((err as Error)?.message ?? err).slice(0, 200)})` : `merge attempt ${n} for ${src.label}: the goal's exports could not all be put back after a merge that did not land (${String((err as Error)?.message ?? err).slice(0, 200)}); they are tried again before the next merge`));
     }
   }
-  store.append({
-    type: 'attempt.finished',
-    goalId: goal.id,
-    payload: { attemptId: attempt.id, state: 'observing', resultSubtype: result.subtype, costUsd: (resume ? resume.attempt.costUsd : 0) + result.costUsd, numTurns: (resume ? resume.attempt.numTurns : 0) + result.numTurns, endRef: ok ? await headRef(cwd) : null, permissionDenials: [], skillsUsed: result.skillsUsed ?? [], toolsUsed: result.toolsUsed ?? {} },
-  });
-  store.append({ type: 'attempt.concluded', goalId: goal.id, payload: { attemptId: attempt.id, state: ok ? 'passed' : 'failed', reason: ok ? 'merged and checks pass' : reason } });
-  return { ok, reason, attempt: getAttempt(store.db, attempt.id) ?? attempt, fatal };
+  // a resolution that does not land is taken back before the attempt is concluded: a stop in between leaves the attempt
+  // running, and the next start takes its commit back (takeBackOrphaned); `refused` says why git would not, and then the
+  // caller concludes the attempt (`conclude`) once its escalation names the commit, so a stop before that is covered too
+  let refused: string | null = null;
+  if (!ok) {
+    await abortInProgress(cwd);
+    refused = await takeBack(cwd, attempt.baseRef);
+  }
+  const endRef = ok ? await headRef(cwd) : null;
+  const conclude = () => {
+    store.append({
+      type: 'attempt.finished',
+      goalId: goal.id,
+      payload: { attemptId: attempt.id, state: 'observing', resultSubtype: result.subtype, costUsd: (resume ? resume.attempt.costUsd : 0) + result.costUsd, numTurns: (resume ? resume.attempt.numTurns : 0) + result.numTurns, endRef, permissionDenials: [], skillsUsed: result.skillsUsed ?? [], toolsUsed: result.toolsUsed ?? {} },
+    });
+    store.append({ type: 'attempt.concluded', goalId: goal.id, payload: { attemptId: attempt.id, state: ok ? 'passed' : 'failed', reason: ok ? 'merged and checks pass' : reason } });
+  };
+  if (refused) return { ok, reason, attempt: getAttempt(store.db, attempt.id) ?? attempt, fatal, refused, conclude };
+  conclude();
+  return { ok, reason, attempt: getAttempt(store.db, attempt.id) ?? attempt, fatal, refused };
 }
 
 export { READONLY_DISALLOWED, commitStaged };

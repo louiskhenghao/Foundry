@@ -8,6 +8,7 @@ import { taskCommitMessage } from './git/conventional.ts';
 import { abortInProgress, conflictedFiles, ensureDetachedWorktree, git, gitIdent, gitOk, headRef, removeWorktree, withCoauthor } from './git/git.ts';
 import { artifactsForChecks, landTaskArtifacts, recoverOverlays, type Landing } from './goal-artifacts.ts';
 import { dropTaskWorkspace, goalWorkspacePath, resolveWorkspacePath } from './workspace.ts';
+import { stuckIn } from './take-back.ts';
 
 /**
  * Manual resolution of a conflicted task integration.
@@ -156,7 +157,15 @@ async function startUnlocked(engine: Engine, goalId: string, taskId: string, opt
   const path = resolveWorkspacePath(engine.config.dataDir, refOf(engine, goalId), taskId);
   const goalWs = goalWorkspacePath(engine.config.dataDir, refOf(engine, goalId));
   if (!(await liveSession(engine, goal, task, path)) || opts.fresh) {
-    const head = await headRef(goalWs);
+    // the goal branch as it stands between landings (read under the goal workspace's lock, never a merge attempt's commit
+    // before its checks are done), and never a commit an attempt could not take back, this task's or another's: neither
+    // the resolution nor its baseline starts on one
+    const read = await engine.withGoalWsLock(goalId, async () => {
+      const held = await stuckIn(engine, goal, [goalWs, task.worktreePath]);
+      return held ? { held, head: '' } : { held: null, head: await headRef(goalWs) };
+    });
+    if (read.held) throw new Error(read.held);
+    const head = read.head;
     const tip = (await git(['rev-parse', '-q', '--verify', `refs/heads/${task.branch}`], goal.repoPath)).stdout.trim() || undefined;
     await ensureDetachedWorktree(goal.repoPath, path, head);
     const r = await git(['merge', '--squash', '--no-commit', task.branch!], path);
@@ -355,6 +364,9 @@ async function finishUnlocked(engine: Engine, goalId: string, taskId: string, op
     const still = canResolve(engine, goalId, taskId);
     if (!still.ok) return { ok: false, ref: null, artifacts: null, reason: still.reason ?? 'the task no longer waits on its merge' };
     if (await staleTip(goal, task, start?.tip ?? null)) return { ok: false, ref: null, artifacts: null, reason: 'the task changed since this resolution started (a retry ran it again) — start the resolution again' };
+    // nothing lands on a commit another merge attempt could not take back
+    const held = await stuckIn(engine, goal, [goalWs]);
+    if (held) return { ok: false, ref: null, artifacts: null, reason: `the goal branch ends at an unverified resolution: ${held}` };
     if (existing.code === 0) return { ok: true, ref: await headRef(goalWs), artifacts: null };
     const withExports = async () => ({ ok: true, ref: await headRef(goalWs), artifacts: await landExports(engine, goal, task, kept) });
     const ff = await git(['merge', '--ff-only', ref], goalWs);

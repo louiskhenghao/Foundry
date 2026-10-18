@@ -4,7 +4,7 @@ import { CodexPlugins } from './plugins/codex-plugins.ts';
 import { CodexQuotaReader } from './usage/codex-quota.ts';
 import { discoverCodexModels } from './models/codex-discover.ts';
 import { basename, dirname, join } from 'node:path';
-import type { Attachment, Brief, BriefApp, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalWorkflow, ModelConfig, Task, Check } from '@foundry/core';
+import type { Attachment, Attempt, Brief, BriefApp, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalWorkflow, ModelConfig, Task, Check } from '@foundry/core';
 import {
   BUDGET_PRESETS,
   Budgets,
@@ -91,6 +91,7 @@ import { EffortRunner } from './effort-runner.ts';
 import { ModelRegistry, SEED_MODELS, isPinnedId, type ModelRecord } from './models/registry.ts';
 import { copyProjectSkills, hasStackManifest, runAutoskills, type AutoskillsDeps } from './skills/autoskills.ts';
 import { deliverArtifacts, inferCompletion, runGraphRefresh, shouldRunGraphRefresh, type GraphRefreshDeps } from './completion.ts';
+import { stuckCommits, takeBackOrphaned, takeBackStuck } from './take-back.ts';
 import { cadModelIn, recoverOverlays } from './goal-artifacts.ts';
 import type { SettingsPatch, SettingsView } from '@foundry/core';
 import { ACTION_INFO, BUILTIN_PRESETS, DEFAULT_NATURE_PRESETS, MODEL_ACTIONS, MODEL_NATURES, NATURE_LABEL, effectivePresets } from '@foundry/core';
@@ -1032,11 +1033,42 @@ export class Engine {
     await settle([...this.deliveringArtifacts.values(), ...this.tidying.values()], 10_000);
   }
 
+  /** the escalation for a commit a merge attempt made before the engine stopped and git would not take back at the next start */
+  private async raiseStuckOrphan(a: Attempt, ref: string, why: string): Promise<void> {
+    const goal = getGoal(this.store.db, a.goalId);
+    if (!goal) return;
+    const task = getTask(this.store.db, a.taskId);
+    const branch = (await git(['branch', '--show-current'], a.cwd!)).stdout.trim();
+    const where = branch ? `\`${branch}\`` : `the worktree at ${a.cwd}`;
+    // commits on top of it: the answer cannot take it back without them, so the person reverts it
+    const onTop = (await git(['rev-parse', 'HEAD'], a.cwd!)).stdout.trim() !== ref;
+    const then = onTop ? `revert it there (git revert ${ref.slice(0, 7)}), then answer` : 'your answer takes it back once git lets go of it';
+    const reason = `merge attempt ${a.index} committed its resolution, then the engine stopped before its checks finished; the commit could not be taken back (${why}), so ${where} still holds that unverified resolution: nothing lands on it meanwhile, and ${then}`;
+    raiseEscalation(this, {
+      goal,
+      task,
+      attemptId: a.id,
+      trigger: 'retries_exhausted',
+      message: `${task ? `The merge for "${task.title}"` : 'A merge'} did not finish: ${reason}.\n\nYou can let the engine try again, resolve it by hand (**Resolve manually**), or skip the task.`,
+      payload: { kind: 'merge', files: [], reasons: [reason], stuck: { cwd: a.cwd!, base: a.baseRef!, ref, ...(branch ? { branch } : {}) } },
+      blockGoal: true,
+    });
+  }
+
   private async reconcile(): Promise<void> {
     this.restoreRateLimitPause();
     for (const a of listRunningAttempts(this.store.db)) {
       // an Imported Goal's sessions ran on another computer: the Transfer concluded them, this pid is not theirs
       if (isHistory(getGoal(this.store.db, a.goalId) ?? {})) continue;
+      // a merge attempt stopped during its checks committed its resolution already: the merge did not land, so the
+      // commit goes and its next integration meets the conflict again. One git would not take back is named on an
+      // escalation that blocks the goal, as when an attempt's own take-back is refused: nothing lands on it meanwhile
+      if (a.kind === 'merge' && a.cwd && a.baseRef) {
+        const back = await takeBackOrphaned(a.cwd, a.baseRef, { index: a.index, made: a.endRef }).catch((err) => ({ taken: false, why: String((err as Error)?.message ?? err).slice(0, 200), ref: null }));
+        if (back.taken && !back.why) this.store.append({ type: 'engine.note', goalId: a.goalId, payload: { level: 'info', message: `took back the commit merge attempt ${a.id} made before the engine stopped: its checks never finished` } });
+        else if (back.taken && back.ref) await this.raiseStuckOrphan(a, back.ref, back.why!);
+        else if (back.why) this.store.append({ type: 'engine.note', goalId: a.goalId, payload: { level: 'warn', message: `could not tell whether merge attempt ${a.id} left its commit in ${a.cwd} when the engine stopped (${back.why}): if its last commit says "Resolved by merge attempt ${a.index}", that resolution was never checked` } });
+      }
       if (a.pid && isAlive(a.pid)) {
         try {
           process.kill(a.pid, 'SIGTERM');
@@ -1051,8 +1083,9 @@ export class Engine {
         if (t.state === 'merging') this.store.append({ type: 'task.state_changed', goalId: a.goalId, payload: { taskId: t.id, from: 'merging', to: 'observing', reason: 'orphaned merge' } });
         const from = t.state === 'merging' ? 'observing' : t.state;
         this.store.append({ type: 'task.state_changed', goalId: a.goalId, payload: { taskId: t.id, from, to: 'ready', reason: resumable ? 'engine restarted; attempt will resume' : 'engine restarted; attempt orphaned' } });
-        // an orphaned attempt that cannot be resumed is not a failed one either: give the budget back
-        if (a.kind === 'work' && !resumable) this.store.append({ type: 'task.hint_set', goalId: a.goalId, payload: { taskId: t.id, hint: t.hint, extraAttempts: 1 } });
+        // an orphaned attempt that cannot be resumed is not a failed one either: give the budget back, and so for the merge
+        // attempt of a task whose work had passed (it runs again)
+        if ((a.kind === 'work' && !resumable) || (a.kind === 'merge' && t.state === 'merging')) this.store.append({ type: 'task.hint_set', goalId: a.goalId, payload: { taskId: t.id, hint: t.hint, extraAttempts: 1 } });
       }
       this.store.append({ type: 'engine.note', goalId: a.goalId, payload: { level: resumable ? 'info' : 'warn', message: resumable ? `attempt ${a.id} was interrupted by an engine restart; its session will be resumed` : `attempt ${a.id} was orphaned by an engine restart` } });
     }
@@ -1065,8 +1098,13 @@ export class Engine {
       // exports a merge attempt laid over the goal's when the engine stopped never landed: the goal's go back first
       await recoverOverlays(this, g);
       await git(['worktree', 'prune'], g.repoPath).catch(() => {});
+      // a task still merging passed its checks and was landing, or waiting to land, when the engine stopped: nothing picks
+      // it up where it was, so it runs again (its attempt given back) and lands once its checks pass
       for (const t of listTasks(this.store.db, g.id)) {
-        if (t.state === 'merging') this.store.append({ type: 'task.state_changed', goalId: g.id, payload: { taskId: t.id, from: 'merging', to: 'observing', reason: 'engine restart' } });
+        if (t.state !== 'merging') continue;
+        this.store.append({ type: 'task.state_changed', goalId: g.id, payload: { taskId: t.id, from: 'merging', to: 'observing', reason: 'engine restart' } });
+        this.store.append({ type: 'task.state_changed', goalId: g.id, payload: { taskId: t.id, from: 'observing', to: 'ready', reason: 'engine restarted before it landed; it runs again' } });
+        this.store.append({ type: 'task.hint_set', goalId: g.id, payload: { taskId: t.id, hint: t.hint, extraAttempts: 1 } });
       }
     }
   }
@@ -1384,6 +1422,11 @@ export class Engine {
 
   private goalWsLocks = new Map<string, Promise<unknown>>();
   /** Serialise git operations on a goal's workspace (parallel tasks finishing together would otherwise race on its index). */
+  /** whether anything holds the goal workspace's lock now, or waits for it */
+  goalWsBusy(goalId: string): boolean {
+    return this.goalWsLocks.has(goalId);
+  }
+
   async withGoalWsLock<T>(goalId: string, fn: () => Promise<T>): Promise<T> {
     const prev = this.goalWsLocks.get(goalId) ?? Promise.resolve();
     const next = prev.then(fn, fn);
@@ -2322,6 +2365,12 @@ export class Engine {
     // never restart something that is mid-flight
     targets = targets.filter((t) => !this.isInFlight(t.id) && t.state !== 'running' && t.state !== 'observing' && t.state !== 'merging');
     if (!targets.length) throw new Error('nothing to restart (tasks are running or none selected)');
+    // a commit a merge attempt left that git would not take back goes before the escalation that names it closes (an
+    // aborted goal's too): taken back now, or the restart is refused with what is left to do
+    for (const stuck of stuckCommits(this, goalId, { all: true })) {
+      const left = await takeBackStuck(this, goal, stuck);
+      if (left) throw new Error(left);
+    }
     // open escalations on these tasks are moot now
     for (const esc of listEscalations(this.store.db, { goalId, openOnly: true })) {
       if (esc.taskId && targets.some((t) => t.id === esc.taskId)) this.store.append({ type: 'escalation.answered', goalId, payload: { escalationId: esc.id, answer: { action: 'retry_with_hint' } } });

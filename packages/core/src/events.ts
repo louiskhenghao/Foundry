@@ -213,6 +213,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
     toolsUsed: z.record(z.number()).default({}),
   }),
 
+  /** a merge attempt committed its resolution, before its checks: the one commit a restart takes back when they never finished */
+  ev('attempt.committed', { attemptId: z.string(), ref: z.string() }),
   ev('attempt.concluded', { attemptId: z.string(), state: AttemptState, reason: z.string() }),
   /** one session (worker segment / reviewer / merger) of an attempt ended: model, cost, turns, duration */
   ev('attempt.session_finished', { attemptId: z.string(), session: AttemptSession }),
