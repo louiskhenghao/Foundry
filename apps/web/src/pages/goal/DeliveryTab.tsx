@@ -5,6 +5,7 @@ import { api, type GoalDetail, type RepoInfo } from '../../api.ts';
 import { DeliveryPolicyForm, type PolicyDraft, type PolicyLock } from '../../components/DeliveryPolicyForm.tsx';
 import { MergeStatus } from '../../components/MergeStatus.tsx';
 import { Badge, Button, Card, ConfirmDialog, cn } from '../../ui.tsx';
+import { DeployCard } from './DeployCard.tsx';
 
 const STEP_LABEL: Record<string, string> = { preflight: 'Preflight', 'ensure-remote': 'Remote', 'sync-base': 'Sync with base', 'build-stack': 'Build stack', push: 'Push', 'open-pr': 'Open PR', 'wait-checks': 'CI checks', 'fix-ci': 'Fix CI', merge: 'Merge', cleanup: 'Cleanup' };
 const STEPS = ['preflight', 'ensure-remote', 'sync-base', 'build-stack', 'push', 'open-pr', 'wait-checks', 'fix-ci', 'merge', 'cleanup'];
@@ -305,6 +306,7 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
           <p className="text-xs text-zinc-500">Pull requests that already merged stay merged; their work is not delivered twice. The goal branch is kept. Resume is usually what you want — it keeps the open pull requests.</p>
         </div>
       </ConfirmDialog>
+      <DeployCard d={d} />
     </div>
   );
 }

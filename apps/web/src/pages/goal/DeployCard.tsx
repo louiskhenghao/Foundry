@@ -1,0 +1,168 @@
+import type { Deployment } from '@foundry/core/browser';
+import { ExternalLink, Loader2, Rocket } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { api, type DeployHost, type DeployInfo, type GoalDetail } from '../../api.ts';
+import { Button, Card, ConfirmDialog, ago, cn } from '../../ui.tsx';
+import { HelpLink } from '../HelpPage.tsx';
+
+const KIND: Record<'static' | 'built' | 'ssr', string> = { static: 'a folder of pages, uploaded as it is', built: 'built into files', ssr: 'rendered on the host’s servers' };
+const STATUS: Record<Deployment['status'], string> = { running: 'text-sky-300 border-sky-800', live: 'text-emerald-300 border-emerald-800', failed: 'text-rose-300 border-rose-800' };
+
+/**
+ * Deploy (ADR-0041): a finished goal's web app to Vercel, Netlify or Cloudflare Pages on the person's click — what is
+ * deployed (or why nothing is), the hosts set up, the exact commands before anything runs, and the deploys so far.
+ */
+export function DeployCard({ d }: { d: GoalDetail }) {
+  const g = d.goal;
+  const finished = g.state === 'done' || g.state === 'over_delivered';
+  const [info, setInfo] = useState<DeployInfo | null>(null);
+  const [provider, setProvider] = useState<DeployHost | null>(null);
+  const [production, setProduction] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const deployments = g.deployments ?? [];
+  useEffect(() => {
+    if (!finished) return;
+    let alive = true;
+    api
+      .deployInfo(g.id, provider, production)
+      .then((i) => {
+        if (!alive) return;
+        setInfo(i);
+        // the first host that is set up and takes this app
+        if (!provider) {
+          const first = i.providers.find((p) => p.configured && !p.refused);
+          if (first) setProvider(first.id);
+        }
+      })
+      .catch((e) => alive && setErr(e.message));
+    return () => {
+      alive = false;
+    };
+  }, [g.id, provider, production, finished, JSON.stringify(deployments)]);
+  if (!finished) return null;
+
+  const run = async () => {
+    if (!provider) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await api.deploy(g.id, provider, production);
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+      setConfirm(false);
+    }
+  };
+  const chosen = info?.providers.find((p) => p.id === provider);
+  const running = info?.running || deployments.some((x) => x.status === 'running');
+  const commands = d.events.filter((e) => e.type === 'deploy.command').slice(-12);
+  return (
+    <Card id="deploy" className="scroll-mt-16" title={<span className="flex items-center gap-1.5"><Rocket size={13} /> Deploy<HelpLink to="getting-the-result#deploy" className="ml-0.5" /></span>}>
+      {!info ? (
+        <div className="text-xs text-zinc-500">{err ?? 'Reading the project…'}</div>
+      ) : !info.app.ok ? (
+        <div className="text-xs text-zinc-400">Not deployed: {info.app.reason}</div>
+      ) : (
+        <div className="space-y-3 text-xs">
+          <div className="text-zinc-300">
+            {info.app.app.framework}
+            {info.app.app.dir && <span className="mono text-zinc-500"> · {info.app.app.dir}</span>} <span className="text-zinc-500">— {KIND[info.app.app.kind]}</span>
+          </div>
+          {info.app.notes.map((n) => (
+            <div key={n} className="text-[11px] text-amber-300/90">{n}</div>
+          ))}
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Host">
+            {info.providers.map((p) => {
+              const usable = p.configured && !p.refused;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={provider === p.id}
+                  disabled={!usable}
+                  onClick={() => setProvider(p.id)}
+                  title={p.refused ?? (p.configured ? undefined : 'Add its token in Settings → Git & delivery')}
+                  className={cn('rounded border px-2.5 py-1', provider === p.id ? 'border-emerald-600 text-emerald-200 bg-emerald-950/40' : 'border-zinc-700 text-zinc-300', !usable && 'opacity-40 cursor-not-allowed')}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+          {!info.providers.some((p) => p.configured) && (
+            <div className="text-[11px] text-zinc-500">
+              No host is set up yet: add a token in <Link to="/settings#git" className="text-zinc-300 hover:underline">Settings → Git &amp; delivery</Link>.
+            </div>
+          )}
+          <label className="flex items-center gap-2 text-zinc-300">
+            <input type="checkbox" className="accent-emerald-500" checked={production} onChange={(e) => setProduction(e.target.checked)} />
+            Production <span className="text-zinc-500">(otherwise a preview address)</span>
+          </label>
+          {chosen && !chosen.refused && info.plan.length > 0 && (
+            <div>
+              <div className="text-[11px] text-zinc-500 mb-1">The exact commands, in a checkout of this goal's commit — nothing else runs:</div>
+              <ol className="space-y-0.5">
+                {info.plan.map((s, i) => (
+                  <li key={i} className="mono text-[11px] text-zinc-400 break-all">
+                    <span className="text-zinc-600">{i + 1}.</span> {s.command}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="primary" disabled={!chosen || !!chosen.refused || !chosen.configured || busy || running} onClick={() => (production ? setConfirm(true) : void run())}>
+              {running ? <Loader2 size={12} className="animate-spin" /> : <Rocket size={12} />} {running ? 'Deploying…' : production ? `Deploy to ${chosen?.label ?? 'a host'} production` : `Deploy a preview to ${chosen?.label ?? 'a host'}`}
+            </Button>
+            {err && <span className="text-rose-300">{err}</span>}
+          </div>
+        </div>
+      )}
+      {deployments.length > 0 && (
+        <ul className="mt-3 space-y-1.5 border-t border-zinc-800 pt-2">
+          {[...deployments].reverse().map((x, i) => (
+            <li key={i} className="flex items-center gap-2 text-xs min-w-0">
+              <span className={cn('shrink-0 rounded border px-1.5 py-px text-[10px]', STATUS[x.status])}>{x.status}</span>
+              <span className="shrink-0 text-zinc-300">{info?.providers.find((p) => p.id === x.provider)?.label ?? x.provider}</span>
+              <span className="shrink-0 text-zinc-500">{x.production ? 'production' : 'preview'}</span>
+              {x.url ? (
+                <a href={x.url} target="_blank" rel="noreferrer" className="mono truncate text-sky-300 hover:underline inline-flex items-center gap-1">
+                  {x.url} <ExternalLink size={11} />
+                </a>
+              ) : x.reason ? (
+                <span className="truncate text-rose-300/90" title={x.reason}>{x.reason}</span>
+              ) : null}
+              <span className="ml-auto shrink-0 text-zinc-500">{ago(x.endedAt ?? x.at)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {commands.length > 0 && (
+        <details className="mt-2">
+          <summary className="text-[11px] text-zinc-500 cursor-pointer">{commands.length} deploy command{commands.length === 1 ? '' : 's'} — their output</summary>
+          <ul className="mt-1 space-y-1">
+            {commands.map((e) => {
+              const p = e.payload as { label: string; command: string; exitCode: number | null; outputTail: string };
+              return (
+                <li key={e.id}>
+                  <div className="mono text-[11px] text-zinc-400 break-all">
+                    <span className={p.exitCode === 0 ? 'text-emerald-400' : 'text-rose-400'}>{p.exitCode === 0 ? '✓' : `✗ ${p.exitCode}`}</span> {p.command}
+                  </div>
+                  {p.outputTail && <pre className="text-[10px] whitespace-pre-wrap text-zinc-500 bg-zinc-950 rounded p-1.5 max-h-40 overflow-auto">{p.outputTail}</pre>}
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      )}
+      <ConfirmDialog open={confirm} title={`Deploy to ${chosen?.label ?? 'the host'} production?`} confirmLabel="Deploy to production" busy={busy} onConfirm={() => void run()} onClose={() => setConfirm(false)}>
+        This replaces what the production address of this project serves now with this goal's web app.
+      </ConfirmDialog>
+    </Card>
+  );
+}
