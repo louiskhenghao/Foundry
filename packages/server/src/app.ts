@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } fr
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CodexEffort, Effort, Brief, EscalationAnswer, isHistory, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId } from '@foundry/engine';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, goalTimeline, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId } from '@foundry/engine';
 import type { Task } from '@foundry/core';
 import { listDelegatedGoals } from '@foundry/core';
 import { delegationNeedsHuman } from '@foundry/engine';
@@ -754,6 +754,13 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
         goals: listDelegatedGoals(db, id).map((g) => ({ id: g.id, title: g.title, state: g.state, taskId: g.delegatedFrom!.taskId })),
       },
     });
+  });
+
+  // the goal's timeline with its Delegated goals: when each step ran and how long it took
+  app.get('/api/goals/:id/timeline', (c) => {
+    const t = goalTimeline(engine, c.req.param('id'));
+    if (!t) throw new HttpError(404, { error: 'goal not found' });
+    return c.json(t);
   });
 
   // Follow-ups: the prefill and start point for "Continue with a follow-up…", and "Mark as follow-up of…"
