@@ -271,6 +271,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
     cacheReadTokens: z.number(),
     cacheCreateTokens: z.number(),
     costUsd: z.number(),
+    /** `unavailable`: the coding agent reported no dollar cost (Codex never does; a cut Claude Code session did not), so `costUsd` 0 is unknown, not free */
+    costStatus: z.enum(['reported', 'unavailable']).optional(),
     durationMs: z.number(),
     subtype: z.string(),
     rateLimit: z.object({ status: z.string(), resetsAt: z.number().nullable(), rateLimitType: z.string().nullable(), isUsingOverage: z.boolean() }).nullable(),

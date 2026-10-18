@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { Attempt } from '../schema/attempt.ts';
-import { taskUsage } from './task-usage.ts';
+import { taskUsage, unmeasuredSessions } from './task-usage.ts';
 
 const base = (over: Partial<Attempt>): Attempt => ({ id: 'a', goalId: 'g', taskId: 't', index: 1, kind: 'work', sessionId: 's', model: 'opus', state: 'passed', costUsd: 1, numTurns: 10, resultSubtype: 'success', baseRef: null, endRef: null, pid: null, cwd: null, transcriptPath: null, startedAt: '2026-01-01T00:00:00Z', endedAt: '2026-01-01T00:10:00Z', skillsUsed: [], continuations: 0, sessions: [], ...over });
 const sess = (role: 'worker' | 'reviewer' | 'merger', model: string, costUsd: number, numTurns: number) => ({ role, segment: 0, sessionId: 's', model, costUsd, numTurns, durationMs: 1000, subtype: 'success', startedAt: '2026-01-01T00:00:00Z', endedAt: '2026-01-01T00:01:00Z' });
@@ -18,6 +18,19 @@ describe('taskUsage', () => {
     expect(u.byRole.reviewer.sessions).toBe(2);
     expect(u.models).toEqual(['claude-opus-5', 'claude-haiku-4-5', 'claude-sonnet-5']);
     expect(u.wallMin).toBe(30);
+    expect(u.unmeasured).toBe(0);
+  });
+  test('a session cut before its cost was reported counts as unmeasured, its turns counted, its dollars not pretended', () => {
+    const attempts = [
+      base({ id: 'a1', sessions: [{ ...sess('worker', 'claude-opus-5', 0, 55), costAvailable: false }, sess('reviewer', 'claude-haiku-4-5', 0.03, 2)] }),
+      base({ id: 'a2', index: 2, sessions: [{ ...sess('worker', 'claude-opus-5', 2, 12), costAvailable: true }] }),
+    ];
+    const u = taskUsage(attempts);
+    expect(u.unmeasured).toBe(1);
+    expect(u.costUsd).toBeCloseTo(2.03, 5);
+    expect(u.turns).toBe(69);
+    expect(unmeasuredSessions(attempts)).toBe(1);
+    expect(unmeasuredSessions([base({ costUsd: 3, numTurns: 7 })])).toBe(0);
   });
   test('attempts without session records fall back to their cumulative cost', () => {
     const u = taskUsage([base({ costUsd: 3, numTurns: 7 }), base({ id: 'm', kind: 'merge', costUsd: 1, numTurns: 4 })]);

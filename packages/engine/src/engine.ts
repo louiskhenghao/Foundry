@@ -374,7 +374,7 @@ export class Engine {
       return new EffortRunner(fallback, () => this.store.db, () => provider === 'codex' ? null : this.config.effort);
     };
     this.runner = new ProviderRunner({
-      claude: wrap(supplied('claude') ?? new ClaudeCliRunner({ claudeBin: config.claudeBin, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'claude'),
+      claude: wrap(supplied('claude') ?? new ClaudeCliRunner({ claudeBin: config.claudeBin, claudeHome: config.claudeHome, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'claude'),
       codex: wrap(supplied('codex') ?? new CodexCliRunner({ codexBin: config.codexBin, codexHome: config.codexHome, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'codex'),
     }, (spec) => {
       if (spec.meta?.goalId) return this.mustGoal(spec.meta.goalId).provider ?? config.provider;
@@ -1201,6 +1201,7 @@ export class Engine {
         cacheReadTokens: n(u.cache_read_input_tokens),
         cacheCreateTokens: n(u.cache_creation_input_tokens),
         costUsd: result.costUsd,
+        costStatus: result.costStatus ?? 'reported',
         durationMs: result.durationMs,
         subtype: result.subtype,
         rateLimit: result.rateLimit ? { status: result.rateLimit.status, resetsAt: result.rateLimit.resetsAt, rateLimitType: result.rateLimit.rateLimitType, isUsingOverage: result.rateLimit.isUsingOverage } : null,

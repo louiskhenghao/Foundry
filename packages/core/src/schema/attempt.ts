@@ -21,6 +21,12 @@ export const AttemptSession = z.object({
   subtype: z.string().nullable(),
   startedAt: z.string(),
   endedAt: z.string(),
+  /**
+   * false: the session ended before its coding agent reported a cost (killed at a limit or by hand, crashed) — its
+   * turns and tokens were counted from the stream and the session's own record, its dollars are unknown, not zero, and
+   * `costUsd` 0 is not in any total that claims to be complete. Absent on records from before this was tracked.
+   */
+  costAvailable: z.boolean().optional(),
 });
 export type AttemptSession = z.infer<typeof AttemptSession>;
 
