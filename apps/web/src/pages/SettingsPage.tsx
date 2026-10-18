@@ -361,6 +361,7 @@ export function SettingsPage() {
                 </Select>
               </Field>
               {bool('workflow.audit', 'Audit at the end of new goals', 'Once every task is done, ponytail-audit maps the finished branch and ranks what to fix; must-fix findings in the code the goal touched become fix tasks before the final review, the rest is listed for a follow-up. Chosen per goal at Brief approval.')}
+              {bool('workflow.learnings', 'Learn from finished goals', "When a goal ends, a short session on the housekeeping model adds what it taught about the project to that folder's Learnings, which later goals there are given. Off: nothing is learned automatically; the Learnings you keep are still used.")}
               <Field label="Goal-level fix cycles" aside={aside('reviews.maxFixCycles')} help="How many review → fix-task rounds before the goal escalates to you (thorough pace only).">
                 {num('reviews.maxFixCycles', { min: 0, max: 5 })}
               </Field>

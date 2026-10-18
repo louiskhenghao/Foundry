@@ -110,6 +110,27 @@ try {
   await shot('agents', '/agents');
   await page.unroute('**/api/agents');
   await shot('transfer', '/transfer', undefined, 760);
+  // a folder's Learnings, seeded here so the goal pages above show none (ADR-0040)
+  const repoPath = getGoal(demo.engine.store.db, g.done!)!.repoPath;
+  const learned = (kind: 'build' | 'test' | 'structure' | 'pitfall' | 'preference', text: string, by: 'foundry' | 'human' = 'foundry') => ({ id: `lrn_${kind}${by}`, kind, text, by, goalId: by === 'foundry' ? g.done! : null, goalTitle: by === 'foundry' ? title(g.done!) : null, at: ago(90) });
+  demo.engine.store.append({
+    type: 'learnings.set',
+    goalId: null,
+    payload: {
+      repoPath,
+      learnings: [
+        learned('preference', 'Copy is in British English: "colour", "organise". Keep it that way in new text.', 'human'),
+        learned('test', 'Run `bun test` from the repository root; the e2e tests need `bun run dev` on port 5173 first.'),
+        learned('structure', 'Pages live in src/pages, shared parts in src/components; the footer is src/components/Footer.tsx.'),
+        learned('pitfall', 'Email checks must accept addresses with a plus sign in the name: the first attempt rejected them.'),
+        learned('build', 'Install with `bun install`; npm fails on the workspace protocol in package.json.'),
+      ],
+      source: 'distill',
+      goalId: g.done!,
+      note: null,
+    },
+  });
+  await shot('learnings', '/learnings', undefined, 520);
   // seeded last: the shots above count the demo's goals
   const imported = await seedImportedGoal(demo.engine, g.done!);
   await shot('goal-imported', `/goals/${imported}`, undefined, 620);

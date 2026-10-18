@@ -1,4 +1,4 @@
-import type { FeedbackPlan } from '@foundry/core/browser';
+import type { FeedbackPlan, Learning, LearningKind, RepoLearnings } from '@foundry/core/browser';
 import type { Attachment, Attempt, Brief, BriefApp, BriefCheck, BriefDiff, BriefRun, BriefStyleOption, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, SettingsPatch, SettingsView, Task, TaskUsage } from '@foundry/core/browser';
 
 /** Mirrors the engine's PreviewAppStatus (preview/manager.ts): one app of the goal's preview. */
@@ -374,6 +374,8 @@ export interface DelegatedView {
 
 export interface GoalDetail {
   goal: Goal;
+  /** how many Learnings the goal's folder has (ADR-0040) */
+  learningsCount?: number;
   /** directories the Open menu can launch: the user's checkout and the goal branch worktree (when it exists) */
   paths: { repo: string; workspace: string | null };
   budget: BudgetStatus;
@@ -504,6 +506,11 @@ export function apiForProvider(provider?: AgentProvider) {
   goal: (id: string) => req<GoalDetail>(`/api/goals/${id}`),
   createGoal: (body: unknown) => req<Goal>('/api/goals', { method: 'POST', body: JSON.stringify(body) }),
   followUpDraft: (id: string) => req<FollowUpDraft>(`/api/goals/${id}/follow-up-draft`),
+  /** every folder with Learnings, or one folder's (ADR-0040) */
+  learnings: () => req<{ repos: RepoLearnings[] }>('/api/learnings'),
+  repoLearnings: (repoPath: string) => req<{ repoPath: string; learnings: Learning[] }>(`/api/learnings?repo=${encodeURIComponent(repoPath)}`),
+  saveLearnings: (repoPath: string, learnings: { id?: string | null; kind: LearningKind; text: string }[]) => req<{ repoPath: string; learnings: Learning[] }>('/api/learnings', { method: 'PUT', body: JSON.stringify({ repoPath, learnings }) }),
+  learnFrom: (goalId: string) => req<{ repoPath: string; learnings: Learning[] }>(`/api/goals/${goalId}/learn`, { method: 'POST' }),
   markFollowUp: (id: string, goalId: string) => req<Goal>(`/api/goals/${id}/follows`, { method: 'POST', body: JSON.stringify({ goalId }) }),
   validateRepo: (repoPath: string) => req<RepoInfo>('/api/validate-repo', { method: 'POST', body: JSON.stringify({ repoPath }) }),
   /** Upload one file with progress; resolves to the staged Attachment. goalId → attach directly to that goal. */

@@ -494,6 +494,8 @@ export async function startDemo(): Promise<{ url: string; goals: Record<string, 
   await Bun.$`mkdir -p ${repo}`.quiet();
   await makeRepo(repo);
   const engine = new Engine(defaultConfig(ROOT, { provider: 'claude', dataDir: join(tmp, 'data'), claudeHome: join(tmp, 'claude-home'), codexHome: join(tmp, 'codex-home'), port: DEMO_PORT, alwaysReviewTasks: false, autoskills: false, log: () => {} }), new DemoRunner());
+  // the guide's goal pages are shown without Learnings: none are written when the demo's goals end (the Learnings shot seeds its own)
+  engine.updateSettings({ workflow: { learnings: false } });
   // Keep shared Codex skills isolated as well as its native home.
   const skills = engine.skillsForProvider('codex');
   skills.paths.agentsSkillsDir = join(tmp, '.agents', 'skills');
