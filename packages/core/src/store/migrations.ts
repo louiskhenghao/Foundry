@@ -74,4 +74,9 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    // a repository's Learnings (ADR-0040): one row per folder, the whole notebook as JSON
+    id: '0006-repo-learnings',
+    sql: `CREATE TABLE IF NOT EXISTS repo_learnings (repo_path TEXT PRIMARY KEY, data TEXT NOT NULL);`,
+  },
 ];
