@@ -104,6 +104,7 @@ import { adoptLocalBin, AGENT_CLI_IDS, agentCliInstall, type AgentCliId } from '
 import { type FollowUpDraft, type FollowUpInput, copyAttachments, followUpDraft, linkFollowUp, prepareFollowUp } from './follow-up.ts';
 import { autoApproveDelegated, isDelegationTask, settleDelegations } from './delegation.ts';
 import { startDueSearches, subjectSearchesFor, trashSubjects } from './subjects.ts';
+import { onMilestoneEvidence } from './likeness.ts';
 import { ATTACHMENT_LIMITS, type GoalDelegatedFrom, type GoalDelegation } from '@foundry/core';
 import { Tailnet } from './notify/tailnet.ts';
 import { SessionCosts } from './session-costs.ts';
@@ -450,6 +451,8 @@ export class Engine {
     this.store.subscribe((e) => {
       if (e.type === 'session.usage' && e.payload.sessionId) this.ownedSessionIds.add(e.payload.sessionId);
       if ((e.type === 'task.artifacts_landed' || e.type === 'goal.artifacts_delivered') && e.goalId) this.cadModelMemo.delete(e.goalId);
+      // a milestone recorded in a goal with Subject pictures: the Likeness review compares the two (in the background)
+      if (e.type === 'milestone.evidence') onMilestoneEvidence(this, e);
       if (e.goalId) this.tick(e.goalId);
       // a Delegated goal's progress is its main goal's business: what it costs counts there, and its state moves the main goal on
       if (e.goalId && PARENT_TICK_EVENTS.has(e.type)) {

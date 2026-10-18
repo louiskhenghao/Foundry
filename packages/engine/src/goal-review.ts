@@ -19,7 +19,8 @@ import { createFixTasks, genericFixSpec } from './fix-tasks.ts';
 import { diff } from './git/git.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
 import { goalWorkspacePath, reviewDiffDir } from './workspace.ts';
-import { renderSubjects, sessionDirs, subjectsAddDirs } from './subjects.ts';
+import { latestLikeness } from './likeness.ts';
+import { likenessLines, renderSubjects, sessionDirs, subjectsAddDirs } from './subjects.ts';
 
 const GoalReviewOutput = z.object({
   mustVerdicts: z.array(z.object({ checkName: z.string(), pass: z.boolean(), reason: z.string() })),
@@ -153,7 +154,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
     brief ? `# Approved understanding\n${brief.understanding}` : '',
     brief ? renderDecisions(brief) : '',
     brief && styleApplies(scenario) ? renderStyle(chosenStyle(brief), { forReviewer: true }) : '',
-    renderSubjects(engine.config.dataDir, goal.id, brief, 'goal-reviewer', scenario),
+    renderSubjects(engine.config.dataDir, goal.id, brief, 'goal-reviewer', scenario, likenessLines(latestLikeness(engine, goal.id), brief?.subjects ?? [])),
     reviewerHint ?? '',
     `# Fixed point\nThe base of this review is \`${goal.baseBranch}\`; everything in the diff below was added by this goal.`,
     `# Acceptance checks\nObjective command checks were already executed by the engine; their status is shown. You judge the reviewer-type checks and the overall result.\n${checks.map(fmt).join('\n')}`,

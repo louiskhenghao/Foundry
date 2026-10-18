@@ -59,6 +59,13 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
       const also = e.payload.summary && e.payload.error ? `⚠️ ${e.payload.error.slice(0, 300)}` : '';
       return { family: 'milestone', text: [head, body.slice(0, 600), also].filter(Boolean).join('\n'), path: `/goals/${e.goalId}` };
     }
+    case 'milestone.likeness': {
+      // news only when the result is clearly unlike the pictures: Foundry is fixing it, and the person may want a look
+      const v = e.payload.verdict;
+      if (e.payload.status !== 'ok' || !v || !e.payload.fixTaskId) return null;
+      const scores = v.subjects.filter((s) => s.shown && s.score != null).map((s) => `${s.score}/10`);
+      return { family: 'milestone', text: `🔍 Not like the pictures yet — ${goalTitle(e.goalId)}${scores.length ? ` (${scores.join(', ')})` : ''}\n${v.summary.slice(0, 400)}\nFoundry added a task that fixes the differences.`, path: `/goals/${e.goalId}` };
+    }
     case 'milestone.final_walk':
       return { family: 'milestone', text: e.payload.passed ? `🎬 Final walkthrough — ${goalTitle(e.goalId)}\nEvery feature's script passed on the finished branch.` : `⚠️ Final walkthrough — ${goalTitle(e.goalId)}\n${e.payload.failed.length} feature script(s) failed on the finished branch; Foundry repairs each once.`, path: `/goals/${e.goalId}` };
     case 'goal.milestone_passed':
