@@ -448,6 +448,90 @@ describe('manual merge resolution: which exports land', () => {
     await engine.stop();
   }, 60_000);
 
+  test("a Finish copies the goal's exports as they are: an overlay another merge left is undone first", async () => {
+    const { startResolution, takeSide, finishResolution } = await import('./merge-resolve.ts');
+    const { contentHash, overlayBackupPath } = await import('./workspace.ts');
+    const { engine, goal, taskId, art } = await conflicted(true);
+    await startResolution(engine, goal.id, taskId);
+    await takeSide(engine, goal.id, taskId, 'shared.txt', 'ours');
+    const own = readFileSync(join(art, 'frame.step'), 'utf8');
+    // another task's merge attempt holds the goal workspace, its export laid over the goal's frame.step
+    let release: (() => void) | null = null;
+    const held = engine.withGoalWsLock(goal.id, () => new Promise<void>((r) => (release = r)));
+    await waitFor(() => release !== null);
+    const backup = overlayBackupPath(dataDir, goal, 't_other');
+    mkdirSync(join(backup, 'files'), { recursive: true });
+    writeFileSync(join(backup, 'files', 'frame.step'), own);
+    writeFileSync(join(art, 'frame.step'), 'laid over by another merge');
+    writeFileSync(join(backup, 'list'), `${JSON.stringify({ f: 'frame.step', saved: true, hash: await contentHash(join(art, 'frame.step')) })}\n`);
+    const seen: string[] = [];
+    const failing = engine.baseline.failing.bind(engine.baseline);
+    engine.baseline.failing = (async (g: Goal, ref: string, from?: string) => (seen.push(readFileSync(join(from ?? goalWorkspacePath(dataDir, g), 'artifacts', 'frame.step'), 'utf8')), failing(g, ref, from))) as typeof engine.baseline.failing;
+    const finishing = finishResolution(engine, goal.id, taskId);
+    await Bun.sleep(300);
+    expect(seen).toEqual([]);
+    release!();
+    await held;
+    expect((await finishing).ok).toBe(true);
+    expect(seen).toEqual([own]);
+    await engine.stop();
+  }, 60_000);
+
+  test("a Finish's baseline reads the exports copied for its checks, whatever another merge lays over the goal's meanwhile", async () => {
+    const { startResolution, takeSide, finishResolution } = await import('./merge-resolve.ts');
+    const { engine, goal, taskId, art } = await conflicted(true);
+    await startResolution(engine, goal.id, taskId);
+    await takeSide(engine, goal.id, taskId, 'shared.txt', 'ours');
+    const own = readFileSync(join(art, 'frame.step'), 'utf8');
+    const seen: string[] = [];
+    engine.baseline.failing = (async (g: Goal, _ref: string, from?: string) => {
+      // another task's merge attempt lays its export over the goal's just as the baseline is measured
+      writeFileSync(join(art, 'frame.step'), 'laid over by another merge');
+      seen.push(readFileSync(join(from ?? goalWorkspacePath(dataDir, g), 'artifacts', 'frame.step'), 'utf8'));
+      writeFileSync(join(art, 'frame.step'), own);
+      return new Set<string>();
+    }) as typeof engine.baseline.failing;
+    expect((await finishResolution(engine, goal.id, taskId)).ok).toBe(true);
+    expect(seen).toEqual([own]);
+    await engine.stop();
+  }, 60_000);
+
+  test("a Finish does not wait for another task's merge to copy the goal's exports when nothing is laid over them", async () => {
+    const { startResolution, takeSide, finishResolution } = await import('./merge-resolve.ts');
+    const { engine, goal, taskId } = await conflicted(true);
+    await startResolution(engine, goal.id, taskId);
+    await takeSide(engine, goal.id, taskId, 'shared.txt', 'ours');
+    let release: (() => void) | null = null;
+    const held = engine.withGoalWsLock(goal.id, () => new Promise<void>((r) => (release = r)));
+    await waitFor(() => release !== null);
+    let measured = false;
+    const failing = engine.baseline.failing.bind(engine.baseline);
+    engine.baseline.failing = (async (g: Goal, ref: string, from?: string) => ((measured = true), failing(g, ref, from))) as typeof engine.baseline.failing;
+    const finishing = finishResolution(engine, goal.id, taskId);
+    // its checks and baseline run while the other merge still holds the goal workspace; only the landing waits for it
+    await waitFor(() => measured, 10_000);
+    release!();
+    await held;
+    expect((await finishing).ok).toBe(true);
+    await engine.stop();
+  }, 60_000);
+
+  test("a Finish whose copy of the goal's exports would hold one an undo could not put back is refused, saying why", async () => {
+    const { startResolution, takeSide, finishResolution } = await import('./merge-resolve.ts');
+    const { contentHash, overlayBackupPath } = await import('./workspace.ts');
+    const { engine, goal, taskId, art } = await conflicted(true);
+    await startResolution(engine, goal.id, taskId);
+    await takeSide(engine, goal.id, taskId, 'shared.txt', 'ours');
+    // another task's overlay whose undo cannot finish: the goal's saved copy of frame.step is gone
+    const backup = overlayBackupPath(dataDir, goal, 't_other');
+    mkdirSync(backup, { recursive: true });
+    writeFileSync(join(art, 'frame.step'), 'laid over by another merge');
+    writeFileSync(join(backup, 'list'), `${JSON.stringify({ f: 'frame.step', saved: true, hash: await contentHash(join(art, 'frame.step')) })}\n`);
+    await expect(finishResolution(engine, goal.id, taskId)).rejects.toThrow('could not all be put back');
+    expect(getTask(engine.store.db, taskId)!.state).not.toBe('done');
+    await engine.stop();
+  }, 60_000);
+
   test("a resolution does not start while another merge attempt's checks run, nor on another task's commit git would not take back", async () => {
     const { startResolution, abortResolution } = await import('./merge-resolve.ts');
     const { engine, goal, taskId } = await conflicted(true);

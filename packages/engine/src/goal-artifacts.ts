@@ -189,6 +189,59 @@ function overlayDir(engine: Engine, goal: Goal): string {
   return dir;
 }
 
+/** whether an overlay is laid over the goal's exports, or one an undo could not finish was left: its backup folder is there */
+export function overlaysPending(engine: Engine, goal: Goal): boolean {
+  const dir = overlayRoot(engine.config.dataDir, goal);
+  const st = lstatSync(dir, { throwIfNoEntry: false });
+  if (!st) return false;
+  if (!st.isDirectory()) return true;
+  return readdirSync(dir, { withFileTypes: true }).some((d) => d.isDirectory());
+}
+
+/**
+ * The goal's exports as they are now, copied into `dest` (a folder that gets artifacts/): what a manual resolution's
+ * checks and its baseline read. Copied without the goal workspace's lock when no overlay is laid over them or left by an
+ * undo that could not finish and nothing changed them meanwhile (a landing, an overlay come and gone): a resolution need
+ * not wait for another task's merge. Otherwise (a copy that failed there included) under the lock, after any leftover
+ * overlay is undone, so it never holds
+ * exports that never landed: an overlay that cannot be undone fails it, and so does a file that cannot be copied (checks
+ * or a baseline without it would be blind to it).
+ */
+export async function snapshotGoalExports(engine: Engine, goal: Goal, dest: string): Promise<void> {
+  const goalWs = goalWorkspacePath(engine.config.dataDir, goal);
+  const take = async () => {
+    await rm(dest, { recursive: true, force: true });
+    const failed: string[] = [];
+    await copyArtifactFiles(goalWs, dest, { inherited: true, onError: (f) => failed.push(f) });
+    if (failed.length) throw new Error(`the goal's exports could not be copied for the checks (${failed.slice(0, 3).join(', ')}${failed.length > 3 ? ', …' : ''})`);
+  };
+  // names, files and times: a landing or an overlay's undo renames a new file into place, so the print changes
+  const print = () =>
+    listArtifacts(goalWs)
+      .map((f) => {
+        try {
+          const s = statSync(join(goalWs, ARTIFACTS_DIR, f));
+          return `${f}\0${s.ino}\0${s.size}\0${s.mtimeMs}`;
+        } catch {
+          return `${f}\0-`;
+        }
+      })
+      .join('\n');
+  if (!overlaysPending(engine, goal)) {
+    const before = print();
+    // a file a landing renamed away meanwhile fails the copy: the copy under the lock is the one that counts
+    const took = await take().then(
+      () => true,
+      () => false,
+    );
+    if (took && !overlaysPending(engine, goal) && print() === before && listArtifacts(dest).join('\n') === listArtifacts(goalWs).join('\n')) return;
+  }
+  await engine.withGoalWsLock(goal.id, async () => {
+    if (!(await recoverOverlays(engine, goal))) throw new Error("exports another merge laid over the goal's could not all be put back (see the note)");
+    await take();
+  });
+}
+
 /** a task's overlay backup folder, refused when it (or the folder of all backups) is not a real folder: an undo reads, writes and removes what is under it */
 function overlayTaskDir(engine: Engine, goal: Goal, taskId: string): string {
   overlayDir(engine, goal);

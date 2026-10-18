@@ -244,6 +244,8 @@ export function resolveWorkspacePath(dataDir: string, goal: WorkspaceRef, taskId
   const internal = internalWorkspaceDir(goal);
   return internal ? join(internal, 'resolve', taskId) : join(legacyWorkspaceRoot(dataDir, goal.id), '_resolve', taskId);
 }
+/** the goal's exports as a manual resolution of one task copied them for its checks and its baseline (artifacts/ inside) */
+export const resolveExportsPath = (dataDir: string, goal: WorkspaceRef, taskId: string) => `${resolveWorkspacePath(dataDir, goal, taskId)}.goal-exports`;
 /** detached worktree where a finished goal's preview runs another branch (its own folder may be gone after the merge) */
 export function previewWorkspacePath(dataDir: string, goal: WorkspaceRef): string {
   const internal = internalWorkspaceDir(goal);

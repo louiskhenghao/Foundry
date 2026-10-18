@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test } from 'bun:test';
+import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -548,6 +548,32 @@ test('a delivery records when its copy began', async () => {
   expect(run.status).toBe('ok');
   expect(Date.parse(run.startedAt!)).toBeGreaterThanOrEqual(before - 1);
   expect(Date.parse(run.startedAt!)).toBeLessThanOrEqual(Date.parse(run.at));
+});
+
+test("a copy of the goal's exports that fails without the lock is made again under it", async () => {
+  const { snapshotGoalExports } = await import('./goal-artifacts.ts');
+  const workspace = await import('./workspace.ts');
+  const goal = seed();
+  art('part.step', 1);
+  const dest = mkdtempSync(join(tmpdir(), 'foundry-snap-'));
+  made.push(dest);
+  const copyArtifactFiles = workspace.copyArtifactFiles;
+  let calls = 0;
+  // a landing renames part.step away just as the copy reads it, the first time
+  const spy = spyOn(workspace, 'copyArtifactFiles').mockImplementation(async (from, to, opts) => {
+    if (++calls === 1) {
+      opts?.onError?.('part.step', new Error('ENOENT'));
+      return [];
+    }
+    return copyArtifactFiles(from, to, opts);
+  });
+  try {
+    await snapshotGoalExports(engine, goal, dest);
+  } finally {
+    spy.mockRestore();
+  }
+  expect(calls).toBe(2);
+  expect(readFileSync(join(dest, 'artifacts', 'part.step'), 'utf8')).toBe('x');
 });
 
 test('a goal that keeps artifacts records its delivery even with nothing to deliver: no tick delivers it again', async () => {

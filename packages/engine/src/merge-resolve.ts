@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { Check, CheckResult, Goal, Task } from '@foundry/core';
 import { getEscalation, getGoal, getTask, listChecks, listEscalations } from '@foundry/core';
@@ -6,8 +7,8 @@ import { runCommandCheck } from './checks/command.ts';
 import type { Engine } from './engine.ts';
 import { taskCommitMessage } from './git/conventional.ts';
 import { abortInProgress, conflictedFiles, ensureDetachedWorktree, git, gitIdent, gitOk, headRef, removeWorktree, withCoauthor } from './git/git.ts';
-import { artifactsForChecks, landTaskArtifacts, recoverOverlays, type Landing } from './goal-artifacts.ts';
-import { dropTaskWorkspace, goalWorkspacePath, resolveWorkspacePath } from './workspace.ts';
+import { artifactsForChecks, goalUsesArtifacts, landTaskArtifacts, snapshotGoalExports, type Landing } from './goal-artifacts.ts';
+import { dropTaskWorkspace, goalWorkspacePath, resolveExportsPath, resolveWorkspacePath } from './workspace.ts';
 import { stuckIn } from './take-back.ts';
 
 /**
@@ -179,12 +180,13 @@ async function startUnlocked(engine: Engine, goalId: string, taskId: string, opt
     // recorded first: a restart while the exports below are copied still knows where this resolution started
     engine.store.append({ type: 'merge.manual_started', goalId, payload: { taskId, files, path, base: head, ...(tip ? { tip } : {}) } });
     // the checks that judge the resolution see the exports as the merged goal will have them (git-excluded, so the merge
-    // did not bring them): the goal's (its own, never a merge attempt's laid over them: under the lock, after any
-    // leftover is undone), then what the task changed
-    await engine.withGoalWsLock(goalId, async () => {
-      await recoverOverlays(engine, goal);
-      await artifactsForChecks(engine, goal, goalWs, path, `resolution of "${task.title}"`);
-    });
+    // did not bring them): the goal's own (never a merge attempt's laid over them), then what the task changed
+    if (goalUsesArtifacts(engine, goal)) {
+      const snap = resolveExportsPath(engine.config.dataDir, refOf(engine, goalId), taskId);
+      await snapshotGoalExports(engine, goal, snap)
+        .then(() => artifactsForChecks(engine, goal, snap, path, `resolution of "${task.title}"`))
+        .catch((err) => engine.store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `resolution of "${task.title}": ${String((err as Error)?.message ?? err).slice(0, 200)}; Finish copies them again` } }));
+    }
     if (task.worktreePath) await artifactsForChecks(engine, goal, task.worktreePath, path, `resolution of "${task.title}"`, { onlyChanged: true });
   }
   return describeResolution(engine, goalId, taskId);
@@ -329,17 +331,17 @@ async function finishUnlocked(engine: Engine, goalId: string, taskId: string, op
   const checks: FinishResult['checks'] = [];
   // the checks see the exports as the goal has them now (other tasks may have landed since the start), with the task's
   // changes over them; the baseline measures the goal's own, so a regression the task's exports cause is not excused
-  const goalWs = goalWorkspacePath(config.dataDir, refOf(engine, goalId));
-  // under the goal workspace's lock: never the exports a merge attempt laid over the goal's for its own checks, and none
-  // an unfinished undo left
-  await engine.withGoalWsLock(goalId, async () => {
-    await recoverOverlays(engine, goal);
-    await artifactsForChecks(engine, goal, goalWs, path, `resolution of "${task.title}"`);
-  });
+  // a copy of the goal's exports as they are now (never a merge attempt's laid over them, nor one an unfinished undo left):
+  // the resolution's checks get it, and its baseline measures it, so another task's merge meanwhile changes neither
+  const snap = goalUsesArtifacts(engine, goal) ? resolveExportsPath(config.dataDir, refOf(engine, goalId), taskId) : null;
+  if (snap) {
+    await snapshotGoalExports(engine, goal, snap);
+    await artifactsForChecks(engine, goal, snap, path, `resolution of "${task.title}"`);
+  }
   if (task.worktreePath) await artifactsForChecks(engine, goal, task.worktreePath, path, `resolution of "${task.title}"`, { onlyChanged: true });
   // the resolve worktree started at `base`; checks already red there are not this resolution's fault
   const base = startedAt ?? (existing.code === 0 ? ref : (await git(['rev-parse', 'HEAD~1'], path)).stdout.trim());
-  const baseline = await engine.baseline.failing(goal, base);
+  const baseline = await engine.baseline.failing(goal, base, snap ?? undefined);
   let passed = true;
   for (const c of must) {
     const r = await runCommandCheck(c as Check, { cwd: path, outputDir: join(config.dataDir, 'check-output'), attemptId: `manual-${taskId}` });
@@ -424,6 +426,7 @@ async function complete(engine: Engine, goal: Goal, task: Task, path: string, r:
   const fresh = getTask(store.db, taskId)!;
   store.append({ type: 'task.state_changed', goalId, payload: { taskId, from: fresh.state, to: 'done', reason: `resolved manually, committed ${r.ref.slice(0, 7)}` } });
   await removeWorktree(goal.repoPath, path).catch(() => {});
+  await rm(resolveExportsPath(engine.config.dataDir, refOf(engine, goalId), taskId), { recursive: true, force: true }).catch(() => {});
   if (artifacts.failed.length) {
     store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `"${task.title}": ${artifacts.failed.length} artifact(s) could not be copied to the goal workspace (${artifacts.failed.slice(0, 3).join(', ')}); its worktree is kept so they are not lost` } });
   } else {
@@ -444,6 +447,7 @@ export function abortResolution(engine: Engine, goalId: string, taskId: string, 
     if (!existsSync(path)) return;
     await abortInProgress(path).catch(() => {});
     await removeWorktree(goal.repoPath, path).catch(() => {});
+    await rm(resolveExportsPath(engine.config.dataDir, refOf(engine, goalId), taskId), { recursive: true, force: true }).catch(() => {});
     engine.store.append({ type: 'merge.manual_aborted', goalId, payload: { taskId, reason } });
   });
 }
