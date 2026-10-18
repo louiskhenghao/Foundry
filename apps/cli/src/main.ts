@@ -169,6 +169,8 @@ switch (cmd) {
       interview: opt('--interview'),
       effort: effort === 'default' ? null : effort,
       ...(has('--self-check') ? { selfCheck: true } : {}),
+      // delegated goals: the planner may hand big steps to goals of their own; their Briefs approved by the engine on request
+      ...(has('--delegate') || has('--delegate-auto-approve') ? { delegation: { allow: true, autoApprove: has('--delegate-auto-approve') } } : {}),
     };
     if (has('--auto-approve')) body.autoBrief = { mustChecks: opts('--check'), stretchChecks: opts('--stretch') };
     if (opt('--deliver')) body.delivery = { mode: opt('--deliver'), remote: opt('--remote') ?? 'origin', remoteUrl: opt('--remote-url') ?? null };

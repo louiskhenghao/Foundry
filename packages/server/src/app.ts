@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { CodexEffort, Effort, Brief, EscalationAnswer, isHistory, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
 import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId } from '@foundry/engine';
 import type { Task } from '@foundry/core';
+import { listDelegatedGoals } from '@foundry/core';
+import { delegationNeedsHuman } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, PreviewPlace, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
@@ -67,6 +69,8 @@ const CreateGoalBody = z.object({
   modelPreset: z.string().min(1).nullable().optional(),
   /** create the goal as a Follow-up of an earlier finished goal of the same repository */
   follows: z.object({ goalId: z.string().min(1), startFrom: z.enum(['base', 'previous']).optional(), attachments: z.boolean().optional(), style: z.boolean().optional() }).optional(),
+  /** may the planner delegate steps to goals of their own, and are their Briefs approved without the human (both off by default) */
+  delegation: z.object({ allow: z.boolean().optional(), autoApprove: z.boolean().optional() }).optional(),
 });
 
 /**
@@ -716,12 +720,18 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const tasks = listTasks(db, id);
     const depth = safeDepths(tasks);
     const ws = goalWorkspacePath(engine.config.dataDir, goal);
+    // a goal task: where its Delegated goal stands, for its card and the drawer (the goal may have been deleted since)
+    const delegatedView = (t: Task) => {
+      if (t.kind !== 'goal' || !t.delegatedGoalId) return {};
+      const d = getGoal(db, t.delegatedGoalId);
+      return { delegated: d ? { goalId: d.id, exists: true, title: d.title, state: d.state, taskCounts: count(listTasks(db, d.id).map((x) => x.state)), needsYou: delegationNeedsHuman(engine, d) } : { goalId: t.delegatedGoalId, exists: false, title: null, state: null, taskCounts: {}, needsYou: null } };
+    };
     return c.json({
       goal,
       paths: { repo: goal.repoPath, workspace: existsSync(ws) ? ws : null },
       budget: budgetStatus(goal),
       // live: a slot held / a session alive, so the drawer can tell stuck from busy; waiting: why a ready task is not running
-      tasks: tasks.map((t) => ({ ...t, depth: depth.get(t.id) ?? 0, usage: taskUsage(listAttempts(db, t.id)), live: engine.taskLiveness(t.id), ...readyView(t) })),
+      tasks: tasks.map((t) => ({ ...t, depth: depth.get(t.id) ?? 0, usage: taskUsage(listAttempts(db, t.id)), live: engine.taskLiveness(t.id), ...readyView(t), ...delegatedView(t) })),
       attempts: listAttemptsByGoal(db, id),
       checks: listChecks(db, id),
       checkResults: listCheckResultsByGoal(db, id),
@@ -737,6 +747,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       followUps: {
         followsExists: goal.follows ? !!getGoal(db, goal.follows.goalId) : false,
         followedBy: listFollowUps(db, id).map((g) => ({ id: g.id, title: g.title, state: g.state })),
+      },
+      // Delegated from / Delegated goals: the main goal may have been deleted since (then only its title remains)
+      delegations: {
+        fromExists: goal.delegatedFrom ? !!getGoal(db, goal.delegatedFrom.goalId) : false,
+        goals: listDelegatedGoals(db, id).map((g) => ({ id: g.id, title: g.title, state: g.state, taskId: g.delegatedFrom!.taskId })),
       },
     });
   });

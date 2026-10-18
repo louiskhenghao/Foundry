@@ -9,6 +9,8 @@ export const help = `foundry — drive the host Claude Code or Codex CLI to deli
        [--models max|production|balanced|economy|<your preset>]   Selected agent model preset (default: Settings' preset for the goal type)
        [--nature auto|code|docs|research|image|video|cad] [--pace thorough|fast] [--interview auto|always|never]
        [--effort default|none|minimal|low|medium|high|xhigh|max|ultra] [--self-check]
+       [--delegate [--delegate-auto-approve]]   let the planner hand a step that is a project of its own to a Delegated goal
+                                          (its own Clarify and plan, one at a time); --delegate-auto-approve approves their Briefs for you
        [--follows <goalId> [--start-from base|previous] [--no-attachments] [--no-style]]
          Follow-ups inherit the agent and preset; --effort default explicitly clears inherited effort.
          none, minimal and ultra are Codex-only; available efforts depend on the native model.
