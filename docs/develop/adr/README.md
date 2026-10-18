@@ -42,4 +42,5 @@ record is never rewritten when a later decision changes it; its status says what
 | [0035](0035-deliverables-and-replan.md) | A task's Deliverables are a contract, and the planner touches up what follows after a Delegated goal lands | accepted · 2026-10-18 · amends ADR-0028 and ADR-0034 |
 | [0036](0036-parallel-delegated-goals.md) | Delegated goals run side by side within the goal's parallel limit, each with a share of the budget | accepted · 2026-10-18 · amends ADR-0034 |
 | [0037](0037-unmeasured-sessions.md) | A session cut before its result line is unmeasured — its cost is unknown, not zero | accepted · 2026-10-18 · amends ADR-0001 |
-| [0038](0038-chat-answers-from-telegram.md) | Telegram takes answers: buttons and replies go through the app's own calls, and boundary commands stay in the Inbox | accepted · 2026-10-18 · amends ADR-0003 |
+| [0038](0038-chat-answers-from-telegram.md) | Telegram takes answers: buttons and replies go through the app's own calls, and boundary commands stay in the Inbox | accepted · 2026-10-18 · amends ADR-0003 · amended by ADR-0039 |
+| [0039](0039-chat-answers-from-discord.md) | Discord takes answers through a bot of the user's, read over the gateway | accepted · 2026-10-18 · amends ADR-0038 |

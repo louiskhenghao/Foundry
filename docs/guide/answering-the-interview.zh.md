@@ -97,7 +97,7 @@ Foundry 写 Brief 之前，会先读你的项目和附件。大部分问题它�
 - **Send answers** 会告诉你还有哪些 blocking 问题没答。
 - 这一轮发出后（在这里或在 goal 页面上），每个问题都会显示它得到的答案。
 
-见 [Answering from Telegram](../operate/notifications.md#answering-from-telegram)。
+见 [Answering from Telegram](../operate/notifications.md#answering-from-telegram)。设置了机器人的 Discord 也一样，只是 **✍️ My own answer…** 会打开一个表单，而不是等你回复：见 [Answering from Discord](../operate/notifications.md#answering-from-discord)。
 
 ## 小贴士
 

@@ -277,6 +277,8 @@ Foundry can message you on Telegram or Discord when something happens, so you do
 
 **Answer from Telegram** (on by default): Telegram messages about something that waits for you carry buttons (Retry, Skip, Continue, Approve…), and a reply answers in words. Foundry reads your bot's messages while it is on, so give each Foundry its own bot. Commands outside the workspace are approved in the Inbox only. See [Answering from Telegram](../operate/notifications.md#answering-from-telegram).
 
+**Discord bot token (buttons)**: optional, beside the webhook. Your bot then posts the messages that wait for you in the webhook's channel, with the same buttons; words are typed in a form the button opens. See [Answering from Discord](../operate/notifications.md#answering-from-discord).
+
 The seven switches, all on by default:
 
 | Switch | You get a message when | What to do |

@@ -1,6 +1,6 @@
 # ADR-0038: Telegram takes answers — buttons and replies go through the app's own calls, and boundary commands stay in the Inbox
 
-**Status:** accepted · 2026-10-18 · amends ADR-0003
+**Status:** accepted · 2026-10-18 · amends ADR-0003 · amended by [ADR-0039](0039-chat-answers-from-discord.md) (Discord through a bot)
 
 ## Context
 

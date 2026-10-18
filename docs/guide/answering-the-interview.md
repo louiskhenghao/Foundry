@@ -97,7 +97,7 @@ With Telegram notifications and **Answer from Telegram** on, a round arrives as 
 - **Send answers** says which blocking questions are still open.
 - Once the round is sent, here or on the goal's page, each question shows the answer it got.
 
-See [Answering from Telegram](../operate/notifications.md#answering-from-telegram).
+See [Answering from Telegram](../operate/notifications.md#answering-from-telegram). Discord works the same way when a bot is set up, except that **✍️ My own answer…** opens a form instead of waiting for a reply: see [Answering from Discord](../operate/notifications.md#answering-from-discord).
 
 ## Tips
 

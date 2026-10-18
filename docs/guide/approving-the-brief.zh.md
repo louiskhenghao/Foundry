@@ -11,7 +11,7 @@ Brief 就是计划。Foundry 读完你的项目、听完你的回答后写出它
 
 Brief 上几乎所有东西你都能改。花五分钟看看：这是改主意成本最低的时候。
 
-设置了通知时，Brief 写好后你会收到一条 **Brief ready** 消息。在 Telegram 上它带着 **Approve and run…**：先说明它会设定的预算，再按现在的样子批准 Brief，和这里的 **Approve & run** 一样。还有 blocking 问题没答的 Brief 没有这个按钮：请在这个页面上回答。见 [Answering from Telegram](../operate/notifications.md#answering-from-telegram)。
+设置了通知时，Brief 写好后你会收到一条 **Brief ready** 消息。在 Telegram 上（以及设置了机器人的 Discord 上）它带着 **Approve and run…**：先说明它会设定的预算，再按现在的样子批准 Brief，和这里的 **Approve & run** 一样。还有 blocking 问题没答的 Brief 没有这个按钮：请在这个页面上回答。见 [Answering from Telegram](../operate/notifications.md#answering-from-telegram)。
 
 ![Expert 视图下的 Brief 页面：Understanding、Decisions、Areas 和计划](images/brief.png)
 

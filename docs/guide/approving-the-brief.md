@@ -11,7 +11,7 @@ The Brief is the plan. Foundry writes it after reading your project and hearing 
 
 You can edit almost everything on the Brief. Take five minutes: this is the cheapest moment to change your mind.
 
-When a Brief is ready you get a **Brief ready** message, if notifications are set up. On Telegram it carries **Approve and run…**, which first says the budget it sets and then approves the Brief as it stands, as **Approve & run** does here. A Brief with a blocking question left gets no such button: answer it on this page. See [Answering from Telegram](../operate/notifications.md#answering-from-telegram).
+When a Brief is ready you get a **Brief ready** message, if notifications are set up. On Telegram, and on Discord with a bot, it carries **Approve and run…**, which first says the budget it sets and then approves the Brief as it stands, as **Approve & run** does here. A Brief with a blocking question left gets no such button: answer it on this page. See [Answering from Telegram](../operate/notifications.md#answering-from-telegram).
 
 ![The Brief page in Expert view: Understanding, Decisions, Areas and the plan](images/brief.png)
 

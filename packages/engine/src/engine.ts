@@ -87,6 +87,7 @@ import { Markitdown } from './convert/markitdown.ts';
 import { SettingsError, SettingsStore, applySettingsToConfig } from './settings.ts';
 import { NotificationDispatcher } from './notify/dispatcher.ts';
 import { TelegramBot } from './notify/telegram-bot.ts';
+import { DiscordBot } from './notify/discord-bot.ts';
 import { ModelFallbackRunner } from './models/fallback-runner.ts';
 import { modelsInBinary } from './models/discover.ts';
 import { EffortRunner } from './effort-runner.ts';
@@ -301,6 +302,8 @@ export class Engine {
   readonly notifications: NotificationDispatcher;
   /** Telegram's buttons and replies: reads the bot's updates while the engine serves (ADR-0038) */
   readonly telegram: TelegramBot;
+  /** Discord's buttons and forms: a bot beside the webhook, read over the gateway while the engine serves (ADR-0039) */
+  readonly discord: DiscordBot;
   /** version self-knowledge, the daily update check, and the self-update pipeline (ADR-0010) */
   readonly updater: UpdateManager;
   /** dev servers started in progress folders (Goal page, milestones, integrations) */
@@ -467,6 +470,7 @@ export class Engine {
     this.notifications = new NotificationDispatcher(this);
     this.notifications.attach();
     this.telegram = new TelegramBot(this);
+    this.discord = new DiscordBot(this);
     this.updater = new UpdateManager(this);
     this.tailnet = new Tailnet({ mode: () => this.settings.values().notifications.tailscale, host: () => this.settings.values().notifications.tailscaleHost, log: config.log, bin: config.tailscaleBin, stateFile: join(config.dataDir, 'tailnet-served.json') });
     void this.tailnet.cleanUp();
@@ -921,6 +925,7 @@ export class Engine {
     this.prWatchTimer.unref?.();
     void checkOpenPrs(this);
     this.telegram.start();
+    this.discord.start();
     for (const g of listGoals(this.store.db)) this.tick(g.id);
   }
 
@@ -1032,7 +1037,7 @@ export class Engine {
     this.stopped = true;
     this.modelDiscoveryAbort.abort();
     // no press from a chat starts work on an engine going down
-    await this.telegram.stop();
+    await Promise.all([this.telegram.stop(), this.discord.stop()]);
     this.updater.stopSchedule();
     if (this.prWatchTimer) clearInterval(this.prWatchTimer);
     for (const timer of this.resumeTimers.values()) clearTimeout(timer);

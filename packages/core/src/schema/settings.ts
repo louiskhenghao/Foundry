@@ -154,6 +154,11 @@ export const NotificationSettings = z.object({
   telegramChatId: z.string().min(1).nullable().default(null),
   /** Discord webhook URL; null = Discord channel off */
   discordWebhookUrl: z.string().url().nullable().default(null),
+  /**
+   * a Discord bot's token, beside the webhook: the messages that wait for you are posted by the bot in the webhook's
+   * channel, with buttons that answer (ADR-0039). Foundry connects to Discord's gateway while it is set; null = off
+   */
+  discordBotToken: z.string().min(1).nullable().default(null),
   /** where this UI is reachable from outside (a LAN address, a domain); null = links point at this computer (http://localhost:<port>) */
   baseUrl: z.string().url().nullable().default(null),
   /** add tailnet links (Tailscale) next to the others, serving Foundry's and the previews' ports with `tailscale serve`; off = never */
@@ -243,7 +248,7 @@ export const RESTART_SETTINGS = ['engine.provider', 'engine.codexBin', 'engine.c
  * leaves that hold a credential: the settings view sent to the browser carries them as null, with only whether each is
  * set and a masked hint, so a key never travels back to a page (or a phone over Tailscale) after it was saved
  */
-export const SECRET_SETTINGS = ['tools.openaiApiKey', 'tools.kimiApiKey', 'tools.geminiApiKey', 'tools.minimaxApiKey', 'tools.elevenlabsApiKey', 'tools.groqApiKey', 'notifications.telegramBotToken', 'notifications.discordWebhookUrl'] as const;
+export const SECRET_SETTINGS = ['tools.openaiApiKey', 'tools.kimiApiKey', 'tools.geminiApiKey', 'tools.minimaxApiKey', 'tools.elevenlabsApiKey', 'tools.groqApiKey', 'notifications.telegramBotToken', 'notifications.discordWebhookUrl', 'notifications.discordBotToken'] as const;
 export interface SecretState {
   set: boolean;
   /** e.g. "sk-c…a3f9"; null = not set */
