@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import type { EngineEvent, Escalation } from '@foundry/core';
-import { compose, composeEscalation } from './dispatcher.ts';
+import type { Brief, EngineEvent, Escalation, Goal } from '@foundry/core';
+import { compose, composeBriefReady, composeEscalation } from './dispatcher.ts';
 
 const title = (goalId: string | null) => (goalId === 'g1' ? 'Add dark mode' : (goalId ?? ''));
 const ev = (type: string, payload: object, goalId: string | null = 'g1') => ({ id: 'ev1', ts: '2026-08-28T00:00:00Z', goalId, type, payload }) as EngineEvent;
@@ -96,5 +96,31 @@ describe('milestones', () => {
     expect(many!.text).toBe('📸 What the task produced — Demo\nNothing to preview.\nFiles: a.step, b.step, c.step, d.step, e.step, f.step and 1 more');
     const nothing = compose(ev('milestone.evidence', { taskId: 't1', video: null, shots: [], summary: '', error: 'the task left no snapshots or exports under artifacts/: there is nothing to look at', status: 'fail', kind: 'files' }), () => 'Demo');
     expect(nothing!.text).toBe('⚠️ Nothing to look at yet — Demo\nThe task left no snapshots or exports under artifacts/: there is nothing to look at');
+  });
+});
+
+describe('composeBriefReady', () => {
+  const goal = (over: Partial<Goal> = {}) => ({ id: 'g1', title: 'Add dark mode', provider: 'claude', budgetPreset: 'auto', budgets: { maxCostUsd: null, maxDurationMin: null, maxConcurrent: 3, attemptsPerTask: 3 }, delegatedFrom: null, delegation: { allow: false, autoApprove: false }, ...over }) as unknown as Goal;
+  const brief = (over: Partial<Brief> = {}) => ({ understanding: 'A dark theme for every screen.', questions: [], tasks: [{}, {}], costEstimateUsd: 2.5, timeEstimateMin: 45, ...over }) as unknown as Brief;
+
+  test('says what the plan is, what it should cost and the budget approval sets, and links to the Brief', () => {
+    const c = composeBriefReady(goal(), brief(), 'clarify done')!;
+    expect(c.family).toBe('briefReady');
+    expect(c.text.split('\n')).toEqual(['📋 Brief ready — Add dark mode', '2 tasks · estimate $2.50 · ~45 min', 'Budget on approval: $5 / 90 min (the estimate ×2).', 'A dark theme for every screen.']);
+    expect(c.path).toBe('/goals/g1/brief');
+    expect(composeBriefReady(goal({ provider: 'codex' }), brief(), 'x')!.text).toContain('2 tasks · estimate ~45 min');
+  });
+
+  test('a blocking question is named instead of a budget', () => {
+    expect(composeBriefReady(goal(), brief({ questions: [{ text: 'Which?', blocking: true, answer: null }] } as Partial<Brief>), 'x')!.text).toContain('1 blocking question to answer on the Brief first.');
+  });
+
+  test('nobody is told about a Brief the engine approves itself', () => {
+    expect(composeBriefReady(goal(), brief(), 'auto brief')).toBeNull();
+    expect(composeBriefReady(goal(), null, 'x')).toBeNull();
+    const delegated = goal({ delegatedFrom: { goalId: 'g0', taskId: 't0', title: 'the site', style: null, at: '' }, delegation: { allow: false, autoApprove: true } } as Partial<Goal>);
+    expect(composeBriefReady(delegated, brief(), 'clarify done')).toBeNull();
+    // unless a blocking question is left for the person: then the main goal waits for them
+    expect(composeBriefReady(delegated, brief({ questions: [{ text: 'Which?', blocking: true, answer: '' }] } as Partial<Brief>), 'clarify done')).not.toBeNull();
   });
 });

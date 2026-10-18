@@ -194,6 +194,20 @@ export function NewGoalPage() {
   }, []);
   // the Follows picker lists finished goals of the chosen repository; another repository drops the link
   const followCandidates = finishedGoals.filter((g) => g.repoPath === repoPath.trim());
+  // what earlier goals in this folder learned (ADR-0040): Clarify is given it
+  const [learned, setLearned] = useState(0);
+  useEffect(() => {
+    const path = repoPath.trim();
+    if (!repoInfo?.ok || !path) return setLearned(0);
+    let alive = true;
+    api
+      .repoLearnings(path)
+      .then((r) => alive && setLearned(r.learnings.length))
+      .catch(() => alive && setLearned(0));
+    return () => {
+      alive = false;
+    };
+  }, [repoPath, repoInfo?.ok]);
   useEffect(() => {
     if (follow && follow.draft.previous.repoPath !== repoPath.trim()) setFollow(null);
   }, [repoPath]);
@@ -415,7 +429,7 @@ export function NewGoalPage() {
           <input type="checkbox" className="mt-1" checked={delegate} onChange={(e) => { setDelegate(e.target.checked); if (!e.target.checked) setDelegateAuto(false); }} />
           <span>
             <span className="text-zinc-100">Delegated goals</span><HelpLink to="your-first-goal#delegated-goals" className="ml-1.5" />
-            <span className="text-[11px] text-zinc-400 block leading-snug">The planner may hand a step that is a project of its own (research that comes first, a 3D model or a video next to the code, a part too large for one plan) to a goal of its own, with its own Clarify and plan. Its result lands on this goal's branch before the tasks that need it. They run one at a time. Off: every step is one task.</span>
+            <span className="text-[11px] text-zinc-400 block leading-snug">The planner may hand a step that is a project of its own (research that comes first, a 3D model or a video next to the code, a part too large for one plan) to a goal of its own, with its own Clarify and plan. Its result lands on this goal's branch before the tasks that need it. They run side by side, as many as the goal's parallel limit allows, each with a share of the budget. Off: every step is one task.</span>
           </span>
         </label>
         {delegate && (
@@ -536,6 +550,14 @@ export function NewGoalPage() {
 
       <Card title={<>2 · Repository<HelpLink to="your-first-goal#repository" className="ml-1.5" /></>}>
         <RepoCard key={repoKey} path={repoPath} info={repoInfo} onPath={setRepoPath} onInfo={setRepoInfo} />
+        {repoInfo?.ok && learned > 0 && (
+          <div className="mt-2 text-[11px] text-zinc-500">
+            Foundry knows {learned} thing{learned === 1 ? '' : 's'} about this folder from earlier goals; the plan is written with them.{' '}
+            <Link to={`/learnings?repo=${encodeURIComponent(repoPath.trim())}`} className="text-zinc-300 hover:underline">
+              See the Learnings
+            </Link>
+          </div>
+        )}
         {repoInfo?.ok && (followCandidates.length > 0 || follow) && <FollowsPicker follow={follow} candidates={followCandidates} onPick={(id) => void chooseFollow(id, false)} onChange={setFollow} />}
       </Card>
 

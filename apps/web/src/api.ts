@@ -1,4 +1,4 @@
-import type { FeedbackPlan, Deployment } from '@foundry/core/browser';
+import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment } from '@foundry/core/browser';
 import type { Attachment, Attempt, Brief, BriefApp, BriefCheck, BriefDiff, BriefRun, BriefStyleOption, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, SettingsPatch, SettingsView, Task, TaskUsage } from '@foundry/core/browser';
 
 /** Mirrors the engine's PreviewAppStatus (preview/manager.ts): one app of the goal's preview. */
@@ -150,7 +150,7 @@ export interface DraftProposal {
   costAvailable?: boolean;
   mode: DraftRequest['mode'];
   taskKey: string | null;
-  task: Partial<Pick<BriefTask, 'spec' | 'kind' | 'scope' | 'scenario' | 'areaKey' | 'dependsOnKeys' | 'relevantFiles'>> | null;
+  task: Partial<Pick<BriefTask, 'spec' | 'kind' | 'scope' | 'scenario' | 'areaKey' | 'dependsOnKeys' | 'relevantFiles' | 'delivers'>> | null;
   tasks: BriefTask[];
   checks: BriefCheck[];
   rationale: string;
@@ -374,6 +374,8 @@ export interface DelegatedView {
 
 export interface GoalDetail {
   goal: Goal;
+  /** how many Learnings the goal's folder has (ADR-0040) */
+  learningsCount?: number;
   /** directories the Open menu can launch: the user's checkout and the goal branch worktree (when it exists) */
   paths: { repo: string; workspace: string | null };
   budget: BudgetStatus;
@@ -504,6 +506,11 @@ export function apiForProvider(provider?: AgentProvider) {
   goal: (id: string) => req<GoalDetail>(`/api/goals/${id}`),
   createGoal: (body: unknown) => req<Goal>('/api/goals', { method: 'POST', body: JSON.stringify(body) }),
   followUpDraft: (id: string) => req<FollowUpDraft>(`/api/goals/${id}/follow-up-draft`),
+  /** every folder with Learnings, or one folder's (ADR-0040) */
+  learnings: () => req<{ repos: RepoLearnings[] }>('/api/learnings'),
+  repoLearnings: (repoPath: string) => req<{ repoPath: string; learnings: Learning[] }>(`/api/learnings?repo=${encodeURIComponent(repoPath)}`),
+  saveLearnings: (repoPath: string, learnings: { id?: string | null; kind: LearningKind; text: string }[]) => req<{ repoPath: string; learnings: Learning[] }>('/api/learnings', { method: 'PUT', body: JSON.stringify({ repoPath, learnings }) }),
+  learnFrom: (goalId: string) => req<{ repoPath: string; learnings: Learning[] }>(`/api/goals/${goalId}/learn`, { method: 'POST' }),
   /** Deploy (ADR-0041): what a finished goal's web app is, the hosts, the exact commands, the deploys so far */
   deployInfo: (goalId: string, provider?: DeployHost | null, production = false) => req<DeployInfo>(`/api/goals/${goalId}/deploy?${provider ? `provider=${provider}&` : ''}production=${production ? 1 : 0}`),
   deploy: (goalId: string, provider: DeployHost, production: boolean) => req<{ started: boolean }>(`/api/goals/${goalId}/deploy`, { method: 'POST', body: JSON.stringify({ provider, production }) }),
@@ -608,7 +615,7 @@ export function apiForProvider(provider?: AgentProvider) {
   streamHistory: (id: string) => req<{ events: any[] }>(`/api/stream/${encodeURIComponent(id)}/history`),
   /** one live-log event in full, read back from the transcript line its `ref` names */
   fileStat: (ref: FileRef) => req<FileInfo>(`/api/files/stat?${fileQuery(ref)}`),
-  taskFiles: (goalId: string, taskId: string) => req<{ files: TaskFile[]; relevant: { rel: string; open: FileRef | null }[] }>(`/api/goals/${goalId}/tasks/${taskId}/files`),
+  taskFiles: (goalId: string, taskId: string) => req<{ files: TaskFile[]; relevant: { rel: string; open: FileRef | null }[]; delivers?: { rel: string; open: FileRef | null }[] }>(`/api/goals/${goalId}/tasks/${taskId}/files`),
   streamEvent: (ref: { file: string; line: number; block: number }) => req<{ event: any }>(`/api/transcripts/${encodeURIComponent(ref.file)}/event?line=${ref.line}&block=${ref.block}`),
   workspace: (id: string) => req<{ path: string; exists: boolean; branch: string; head: string | null; packageManager: string | null; install: string | null; scripts: { name: string; command: string }[]; baseSync: Goal['baseSync']; upstream: BaseSync | null; tasks: { id: string; title: string; path: string; branch: string | null }[] }>(`/api/goals/${id}/workspace`),
   restartGoal: (id: string, fromTaskId?: string) => req<{ restarted: string[] }>(`/api/goals/${id}/restart`, { method: 'POST', body: JSON.stringify({ fromTaskId }) }),
@@ -677,7 +684,7 @@ export function apiForProvider(provider?: AgentProvider) {
   updateSettings: (patch: SettingsPatch) => req<SettingsView>('/api/settings', { method: 'PUT', body: JSON.stringify(patch) }),
   resetSetting: (path: string) => req<SettingsView>(`/api/settings/${encodeURIComponent(path)}`, { method: 'DELETE' }),
   resetSettings: () => req<SettingsView>('/api/settings/reset', { method: 'POST' }),
-  notifyTest: (override: { telegramBotToken?: string | null; telegramChatId?: string | null; discordWebhookUrl?: string | null }) => req<{ results: { channel: string; ok: boolean; error: string | null }[] }>('/api/notifications/test', { method: 'POST', body: JSON.stringify(override) }),
+  notifyTest: (override: { telegramBotToken?: string | null; telegramChatId?: string | null; discordWebhookUrl?: string | null; discordBotToken?: string | null }) => req<{ results: { channel: string; ok: boolean; error: string | null }[] }>('/api/notifications/test', { method: 'POST', body: JSON.stringify(override) }),
   telegramChatId: (token: string | null) => req<{ chatId: string; who: string }>('/api/notifications/telegram/chat-id', { method: 'POST', body: JSON.stringify({ token }) }),
   health: () => req<{ ok: boolean; active: number; events: number; pausedUntil: string | null; pausedUntilByProvider: Record<AgentProvider, string | null>; restartNeeded: string[]; version: string; updateAvailable: boolean; updating: boolean }>('/api/health'),
   updateStatus: () => req<UpdateStatusView>('/api/update'),

@@ -88,6 +88,8 @@ export const WorkflowSettings = z.object({
   videoPack: VideoPack.default('web-video-presentation'),
   /** run `npx autoskills` in each goal's workspace to install skills matching the repository's stack */
   autoskills: z.boolean().default(true),
+  /** when a goal ends, a cheap session adds what it taught about the repository to the folder's Learnings (ADR-0040); the notebook is given to later goals either way */
+  learnings: z.boolean().default(true),
   /** `--setting-sources` for sessions; null = inherit everything */
   settingSources: z.array(z.string()).nullable().default(null),
   /** MCP tool prefixes worker sessions may use (ADR-0016): mcp__<server>, mcp__plugin_<plugin>_<server>, mcp__claude_ai_<name> */
@@ -165,16 +167,28 @@ export const NotificationSettings = z.object({
   telegramChatId: z.string().min(1).nullable().default(null),
   /** Discord webhook URL; null = Discord channel off */
   discordWebhookUrl: z.string().url().nullable().default(null),
+  /**
+   * a Discord bot's token, beside the webhook: the messages that wait for you are posted by the bot in the webhook's
+   * channel, with buttons that answer (ADR-0039). Foundry connects to Discord's gateway while it is set; null = off
+   */
+  discordBotToken: z.string().min(1).nullable().default(null),
   /** where this UI is reachable from outside (a LAN address, a domain); null = links point at this computer (http://localhost:<port>) */
   baseUrl: z.string().url().nullable().default(null),
   /** add tailnet links (Tailscale) next to the others, serving Foundry's and the previews' ports with `tailscale serve`; off = never */
   tailscale: z.enum(['auto', 'off']).default('auto'),
   /** this computer's tailnet name when it should not be read from `tailscale status` (mac.tailnet-123.ts.net) */
   tailscaleHost: z.string().nullable().default(null),
+  /**
+   * Telegram messages about something that waits for you carry buttons, and a reply answers in words (ADR-0038):
+   * Foundry reads the bot's updates by long polling while a token and chat are set. One bot per Foundry instance.
+   */
+  telegramActions: z.boolean().default(true),
   /** an Escalation was raised — a task or goal is blocked and needs the human */
   onEscalation: z.boolean().default(true),
   /** the Clarify interview asked a round of questions */
   onInterview: z.boolean().default(true),
+  /** a Brief is ready and waits for approval (one the engine approves itself never notifies) */
+  onBriefReady: z.boolean().default(true),
   /** a goal ended done / over-delivered / failed (cancelling is the human's own act and never notifies) */
   onGoalFinished: z.boolean().default(true),
   /** a PR opened, merged, or the delivery failed */
@@ -247,7 +261,7 @@ export const RESTART_SETTINGS = ['engine.provider', 'engine.codexBin', 'engine.c
  * leaves that hold a credential: the settings view sent to the browser carries them as null, with only whether each is
  * set and a masked hint, so a key never travels back to a page (or a phone over Tailscale) after it was saved
  */
-export const SECRET_SETTINGS = ['tools.openaiApiKey', 'tools.kimiApiKey', 'tools.geminiApiKey', 'tools.minimaxApiKey', 'tools.elevenlabsApiKey', 'tools.groqApiKey', 'notifications.telegramBotToken', 'notifications.discordWebhookUrl', 'delivery.vercelToken', 'delivery.netlifyToken', 'delivery.cloudflareToken'] as const;
+export const SECRET_SETTINGS = ['tools.openaiApiKey', 'tools.kimiApiKey', 'tools.geminiApiKey', 'tools.minimaxApiKey', 'tools.elevenlabsApiKey', 'tools.groqApiKey', 'notifications.telegramBotToken', 'notifications.discordWebhookUrl', 'notifications.discordBotToken', 'delivery.vercelToken', 'delivery.netlifyToken', 'delivery.cloudflareToken'] as const;
 export interface SecretState {
   set: boolean;
   /** e.g. "sk-c…a3f9"; null = not set */

@@ -13,13 +13,17 @@ import { classifyFailure, type RateLimitInfo, type RunnerEvent } from './types.t
 export function decodeLine(line: string): RunnerEvent[] {
   const trimmed = line.trim();
   if (!trimmed) return [];
-  let msg: any;
+  const msg = parseJson(trimmed);
+  return msg === undefined ? [{ kind: 'stderr', text: trimmed }] : decodeMessage(msg);
+}
+
+/** the JSON of one stream line, or undefined when it is not JSON (text the CLI wrote to stdout) */
+export function parseJson(text: string): unknown | undefined {
   try {
-    msg = JSON.parse(trimmed);
+    return JSON.parse(text);
   } catch {
-    return [{ kind: 'stderr', text: trimmed }];
+    return undefined;
   }
-  return decodeMessage(msg);
 }
 
 export function decodeMessage(msg: any): RunnerEvent[] {

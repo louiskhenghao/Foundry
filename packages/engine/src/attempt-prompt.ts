@@ -42,6 +42,8 @@ export interface AttemptPromptInput {
   decisions?: string;
   /** rendered `# What the steps before this one delivered` section (delegation.ts renderUpstream), or '' */
   upstream?: string;
+  /** what earlier goals in this folder learned (ADR-0040), in short */
+  learnings?: string;
   /** the chosen Style Proposal (media/UI tasks), or null */
   style?: BriefStyleOption | null;
   /** the goal branch moved since this task's worktree was created (see catchup.ts), or null */
@@ -72,10 +74,12 @@ export function buildAttemptPrompt(i: AttemptPromptInput): string {
   const styleSection = renderStyle(i.style);
   if (styleSection) lines.push(styleSection);
   if (i.task.relevantFiles.length) lines.push(`# Start here\n${i.task.relevantFiles.map((f) => `- ${f}`).join('\n')}`);
+  if (i.task.delivers?.length) lines.push(`# Deliverables\nThe tasks after this one read these files; each must exist when you stop (the engine checks):\n${i.task.delivers.map((f) => `- ${f}`).join('\n')}`);
   if (i.attachments) lines.push(i.attachments);
   // the shipped software the goal learns from: the report is among the attachments, the rules travel with it
   if (i.goal.references?.length) lines.push(renderReferences(i.goal));
   if (i.relevantContext) lines.push(`# Repository context\n${i.relevantContext}`);
+  if (i.learnings) lines.push(i.learnings);
 
   const must = i.checks.filter((c) => c.tier === 'must');
   const stretch = i.checks.filter((c) => c.tier === 'stretch');

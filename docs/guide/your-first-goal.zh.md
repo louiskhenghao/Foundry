@@ -112,7 +112,7 @@ Foundry 写 Brief 之前问你问得多深：**Skip**，然后是 **1** 到 **5*
 
 ### Delegated goals
 
-两个开关，默认都关。勾上 **Delegated goals**，planner 就可以把一个本身就是一个项目的步骤——必须先做的调研、代码旁边的 3D 模型或视频、大到一份计划装不下的部分——交给一个独立的 goal：一个*委派 goal*，有自己的 Clarify、Brief 和计划。它从这个 goal 的分支出发，完成后把结果作为那一步的提交落回这个分支，再让需要它的任务开始；之后的任务会被告知它交付了什么。这样的步骤在 Brief 上显示为 kind 是 **goal** 的任务，你可以像改其它任务一样改它们。委派 goal 一次只跑一个，自己不会再委派，花费记在这个 goal 上。
+两个开关，默认都关。勾上 **Delegated goals**，planner 就可以把一个本身就是一个项目的步骤——必须先做的调研、代码旁边的 3D 模型或视频、大到一份计划装不下的部分——交给一个独立的 goal：一个*委派 goal*，有自己的 Clarify、Brief 和计划。它从这个 goal 的分支出发，完成后把结果作为那一步的提交落回这个分支，再让需要它的任务开始；之后的任务会被告知它交付了什么。这样的步骤在 Brief 上显示为 kind 是 **goal** 的任务，你可以像改其它任务一样改它们。彼此没有先后关系的委派 goal 会并行跑，数量以这个 goal 的并行上限为准（Budget 里的 *parallel*），各自分得一份预算；它们自己不会再委派，花费记在这个 goal 上。
 
 勾上 **Approve delegated goals' Briefs for me**，它们的 Brief 写好就自动批准，除非留下了只有你能回答的问题。不勾，这个 goal 会停下来，等你亲自批准每个委派 goal 的 Brief。无论哪种，委派 goal 需要你的时候——一个问题、一个 milestone、一条 Inbox 事项——这个 goal 以 **blocked** 状态等待，之后自己继续。运行时你会看到什么，见 [Delegated goals](./while-it-runs.zh.md#delegated-goals)。
 
@@ -180,6 +180,8 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 然后 Foundry 会显示它发现的情况：分支、有没有 uncommitted changes、最后保存的版本、线上副本（remote，如果有的话），以及提交会以谁的名义做出。如果线上副本比你的文件夹有更新的工作，卡片会说明 goal 从哪里开始（通常是更新的那份），而 **pull into my checkout** 会把你自己的文件夹也更新到最新。
 
 如果文件夹还不是仓库，按 **Initialize git here**。如果你选的是某个仓库里面的子文件夹，Foundry 会改为提供这个仓库的顶层文件夹。
+
+这个文件夹里以前跑过 goal 时，卡片下面会有一行，说 Foundry 对它有几条 [Learnings](./learnings.zh.md)：那些 goal 教会的项目知识。计划会带着它们来写。
 
 ### Follows
 

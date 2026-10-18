@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { Attachment, AttachmentMarkdown } from './schema/attachment.ts';
 import { FeedbackPlan } from './schema/feedback.ts';
 import { InterviewQuestion } from './schema/interview.ts';
+import { Learning } from './schema/learnings.ts';
 import { DeployProvider } from './schema/deploy.ts';
 import {
   Attempt,
@@ -171,6 +172,11 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.completion_ran', { tools: z.array(z.object({ name: z.string(), status: z.enum(['ok', 'skipped', 'failed']), detail: z.string() })) }),
   /** settings changed from the Settings page / API (goalId null); values are not recorded, only which keys */
   ev('settings.changed', { keys: z.array(z.string()), restartNeeded: z.array(z.string()) }),
+  /**
+   * a repository's Learnings, whole (ADR-0040): written by Foundry from a finished goal (`goalId`) or edited by the person.
+   * A global event (no goal on the envelope), so a Transfer of the goal does not carry one machine's notebook to another.
+   */
+  ev('learnings.set', { repoPath: z.string(), learnings: z.array(Learning), source: z.enum(['distill', 'human']), goalId: z.string().nullable(), note: z.string().nullable() }),
 
   ev('clarify.started', { attemptId: z.string().nullable() }),
   /** where Clarify is: the Clarifier reading the repository and writing its answer (a round or the Brief), or the planner splitting the goal into tasks */
@@ -203,6 +209,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('task.delegation_restarted', { taskId: z.string(), goalId: z.string(), restarted: z.array(z.string()), n: z.number().int() }),
   /** what a landed task delivered, for the tasks that depend on it (written when a Delegated goal's result lands) */
   ev('task.summary_set', { taskId: z.string(), summary: z.string() }),
+  /** Replan: the planner touched up a task that has not started, after a Delegated goal landed (`afterTaskId`); null fields keep what the task has */
+  ev('task.revised', { taskId: z.string(), spec: z.string(), relevantFiles: z.array(z.string()).nullable(), delivers: z.array(z.string()).nullable(), reason: z.string(), afterTaskId: z.string().nullable() }),
   /** the task's attempts were squashed into one Conventional Commit on the goal branch (ref null = no changes) */
   ev('task.committed', { taskId: z.string(), ref: z.string().nullable(), message: z.string() }),
   ev('check.created', { check: Check }),
@@ -272,6 +280,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
     cacheReadTokens: z.number(),
     cacheCreateTokens: z.number(),
     costUsd: z.number(),
+    /** `unavailable`: the coding agent reported no dollar cost (Codex never does; a cut Claude Code session did not), so `costUsd` 0 is unknown, not free */
+    costStatus: z.enum(['reported', 'unavailable']).optional(),
     durationMs: z.number(),
     subtype: z.string(),
     rateLimit: z.object({ status: z.string(), resetsAt: z.number().nullable(), rateLimitType: z.string().nullable(), isUsingOverage: z.boolean() }).nullable(),
