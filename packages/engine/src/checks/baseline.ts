@@ -1,4 +1,3 @@
-import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Check, Goal } from '@foundry/core';
 import { listChecks } from '@foundry/core';
@@ -6,7 +5,7 @@ import type { Engine } from '../engine.ts';
 import { ensureDetachedWorktree, removeWorktree } from '../git/git.ts';
 import { runCommandCheck } from './command.ts';
 import { artifactsForChecks, goalUsesArtifacts } from '../goal-artifacts.ts';
-import { ARTIFACTS_DIR, baselineWorkspacePath, goalWorkspacePath, listArtifacts } from '../workspace.ts';
+import { ARTIFACTS_DIR, baselineWorkspacePath, contentHash, goalWorkspacePath, listArtifacts } from '../workspace.ts';
 
 /**
  * Which must command checks already fail on a given goal-branch commit, *before* a merge.
@@ -28,10 +27,12 @@ export class BaselineChecks {
    * ids of the must command checks failing at `ref` (an empty set when everything passes), with the artifacts of
    * `artifactsFrom`: the worktree the merge happens in (a task's on a catch-up), the goal workspace by default
    */
-  failing(goal: Goal, ref: string, artifactsFrom?: string): Promise<Set<string>> {
+  async failing(goal: Goal, ref: string, artifactsFrom?: string): Promise<Set<string>> {
+    // nothing to measure: no export is read for it
+    if (!this.mustChecks(goal).length) return new Set();
     const from = artifactsFrom ?? goalWorkspacePath(this.engine.config.dataDir, goal);
     // a re-export at the same commit is another baseline: the exports' state is part of the key
-    const key = `${goal.id}@${ref}@${from}@${this.exportsPrint(goal, from)}`;
+    const key = `${goal.id}@${ref}@${from}@${await this.exportsPrint(goal, from)}`;
     let p = this.cache.get(key);
     if (!p) {
       const before = this.running.get(goal.id) ?? Promise.resolve();
@@ -53,23 +54,26 @@ export class BaselineChecks {
     return p;
   }
 
-  /** names, sizes and times of the exports a baseline measures, for a goal that keeps artifacts ('' otherwise) */
-  private exportsPrint(goal: Goal, ws: string): string {
+  /**
+   * Names and contents of the exports a baseline measures, for a goal that keeps artifacts ('' otherwise). Sizes and
+   * times are not enough: a re-export of the same size within one tick of the file system's clock, or a copy that kept
+   * the old times, would reuse the baseline of what it replaced. Each file is digested on its own (contentHash, which
+   * lets the server answer meanwhile), so no file's bytes can pass for another file's name.
+   */
+  private async exportsPrint(goal: Goal, ws: string): Promise<string> {
     if (!goalUsesArtifacts(this.engine, goal)) return '';
-    const parts = listArtifacts(ws).map((f) => {
-      try {
-        const s = statSync(join(ws, ARTIFACTS_DIR, f));
-        return `${f}:${s.size}:${s.mtimeMs}`;
-      } catch {
-        return f;
-      }
-    });
-    return Bun.hash(parts.join('\n')).toString(36);
+    const h = new Bun.CryptoHasher('blake2b256');
+    for (const f of listArtifacts(ws)) h.update(`${f}\0${await contentHash(join(ws, ARTIFACTS_DIR, f)).catch(() => 'unreadable')}\n`);
+    return h.digest('hex').slice(0, 24);
+  }
+
+  private mustChecks(goal: Goal): Check[] {
+    return listChecks(this.engine.store.db, goal.id).filter((c) => c.spec.type === 'command' && c.tier === 'must') as Check[];
   }
 
   private async compute(goal: Goal, ref: string, from: string): Promise<Set<string>> {
     const { config, store } = this.engine;
-    const must = listChecks(store.db, goal.id).filter((c) => c.spec.type === 'command' && c.tier === 'must');
+    const must = this.mustChecks(goal);
     if (!must.length) return new Set();
     const path = baselineWorkspacePath(config.dataDir, goal);
     await ensureDetachedWorktree(goal.repoPath, path, ref);

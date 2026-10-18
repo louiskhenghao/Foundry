@@ -90,6 +90,8 @@ interface PrUnit {
   taskId: string | null;
   /** bring the remote base branch into `branch` (after it moved) */
   resync: () => Promise<boolean>;
+  /** re-syncs done for a conflict so far */
+  resyncs?: number;
 }
 
 type StepFn = <T>(s: DeliveryStep, fn: () => Promise<{ status: 'ok' | 'skipped'; detail: string; value?: T }>, branch?: string | null) => Promise<T | undefined>;
@@ -232,8 +234,7 @@ export async function runDelivery(engine: Engine, goalIn: Goal, signal: AbortSig
         return syncWithBase(ctx, `${ctx.remote}/${ctx.base}`);
       },
     };
-    const view = await settlePr(ctx, step, repo, pr.number, unit);
-    const merged = await mergePr(ctx, step, repo, pr.number, view, unit);
+    const merged = await settleAndMerge(ctx, step, repo, pr.number, unit);
     if (!merged) return done('automerge_armed');
 
     // ---- cleanup
@@ -461,8 +462,7 @@ async function runStacked(ctx: Ctx, stack: StackBranch[], step: StepFn, done: (o
       p.b.branch,
     );
     await step('push', async () => ({ status: 'ok', detail: `${p.b.branch} @ ${(await pushRef(ctx, p.b.branch, p.b.task.id)).slice(0, 7)}` }), p.b.branch);
-    const view = await settlePr(ctx, step, repo, p.number, unit);
-    const merged = await mergePr(ctx, step, repo, p.number, view, unit);
+    const merged = await settleAndMerge(ctx, step, repo, p.number, unit);
     if (!merged) {
       await removeWorktree(ctx.repoPath, ctx.deliveryWs).catch(() => {});
       return done('automerge_armed');
@@ -633,19 +633,12 @@ async function settlePr(ctx: Ctx, step: StepFn, repo: string, number: number, un
       },
       unit.branch,
     ))!;
+    // merged or closed on GitHub meanwhile: nothing is left to settle, whatever its checks say (mergePr records which)
+    if (view.state === 'MERGED' || view.state === 'CLOSED') return view;
     const policy = live(ctx);
     const state = policy.requireChecks ? reduceChecks(view.checks) : 'passing';
     if (view.mergeable === 'CONFLICTING') {
-      await step(
-        'sync-base',
-        async () => {
-          const ok = await unit.resync();
-          if (!ok) throw new DeliveryFailed('sync-base', 'base branch moved and the conflict could not be resolved');
-          return { status: 'ok', detail: 're-synced with base after it moved' };
-        },
-        unit.branch,
-      );
-      await step('push', async () => ({ status: 'ok', detail: `re-pushed @ ${(await pushRef(ctx, unit.branch, unit.taskId)).slice(0, 7)}` }), unit.branch);
+      await resyncPr(ctx, step, number, unit);
       continue;
     }
     if (state === 'failing') {
@@ -679,7 +672,37 @@ async function settlePr(ctx: Ctx, step: StepFn, repo: string, number: number, un
   }
 }
 
-/** a PR's view once GitHub has computed whether it can merge (not UNKNOWN), polled for up to a minute; the last view seen otherwise */
+/** how many times one PR is re-synced with its base for a conflict before delivery gives up: a conflict GitHub keeps
+ * reporting after a sync that brought nothing new would otherwise go round forever */
+const MAX_RESYNCS = 5;
+
+/** bring the moved base into the PR's branch and push it again */
+async function resyncPr(ctx: Ctx, step: StepFn, number: number, unit: PrUnit): Promise<void> {
+  unit.resyncs = (unit.resyncs ?? 0) + 1;
+  await step(
+    'sync-base',
+    async () => {
+      if (unit.resyncs! > MAX_RESYNCS) throw new DeliveryFailed('sync-base', `PR #${number} still conflicts with its base after ${MAX_RESYNCS} re-syncs`);
+      const ok = await unit.resync();
+      if (!ok) throw new DeliveryFailed('sync-base', 'base branch moved and the conflict could not be resolved');
+      return { status: 'ok', detail: 're-synced with base after it moved' };
+    },
+    unit.branch,
+  );
+  await step('push', async () => ({ status: 'ok', detail: `re-pushed @ ${(await pushRef(ctx, unit.branch, unit.taskId)).slice(0, 7)}` }), unit.branch);
+}
+
+/** settle a PR and merge it; true = merged, false = auto-merge armed */
+async function settleAndMerge(ctx: Ctx, step: StepFn, repo: string, number: number, unit: PrUnit): Promise<boolean> {
+  for (;;) {
+    const view = await settlePr(ctx, step, repo, number, unit);
+    const outcome = await mergePr(ctx, step, repo, number, view, unit);
+    if (outcome !== 'conflict') return outcome === 'merged';
+    // the conflict showed only once GitHub settled after the refused merge: sync and push as for any conflict, then settle again
+    await resyncPr(ctx, step, number, unit);
+  }
+}
+
 /** after a "not mergeable" refusal, GitHub gets at most a minute to settle the PR's mergeability, asked every 2 s */
 const SETTLE_MAX_MS = 60_000;
 const SETTLE_POLL_MS = 2_000;
@@ -698,15 +721,20 @@ async function settleMergeable(ctx: Ctx, repo: string, number: number): Promise<
   return v;
 }
 
-/** merge one PR; true = merged, false = auto-merge armed under branch protection (GitHub merges later) */
-async function mergePr(ctx: Ctx, step: StepFn, repo: string, number: number, view: PrView, unit: PrUnit): Promise<boolean> {
+/** merge one PR: merged, auto-merge armed under branch protection (GitHub merges later), or found conflicting with its base once GitHub settled */
+async function mergePr(ctx: Ctx, step: StepFn, repo: string, number: number, view: PrView, unit: PrUnit): Promise<'merged' | 'armed' | 'conflict'> {
   const { engine, goal, policy, signal } = ctx;
   const { store, config } = engine;
   const ev = <T extends Parameters<typeof store.append>[0]>(e: T) => store.append(e);
-  const merged = await step<boolean>(
+  const merged = await step<'merged' | 'armed' | 'conflict'>(
     'merge',
     async () => {
-    if (view.state !== 'OPEN') return { status: 'skipped', detail: `PR #${number} is ${view.state}`, value: view.state === 'MERGED' };
+    // settled on GitHub while its checks were waited for: closed is a failure the person hears of, merged is recorded as merged
+    if (view.state === 'CLOSED') throw new DeliveryFailed('merge', `PR #${number} was closed`);
+    if (view.state === 'MERGED') {
+      ev({ type: 'delivery.merged', goalId: goal.id, payload: { prNumber: number, method: policy.mergeMethod, ref: view.mergeCommit ?? null, taskId: unit.taskId } });
+      return { status: 'ok', detail: `PR #${number} was merged`, value: 'merged' };
+    }
     if (view.mergeable !== 'MERGEABLE' && view.mergeable !== 'UNKNOWN') throw new DeliveryFailed('merge', `PR #${number} is ${view.mergeable}`);
     let r = await ctx.gh.prMerge(config.dataDir, { repo, number, method: policy.mergeMethod, auto: false });
     logCmd(ctx, 'merge', ['gh', 'pr', 'merge', String(number), `--${policy.mergeMethod}`], config.dataDir, r, 0);
@@ -717,17 +745,17 @@ async function mergePr(ctx: Ctx, step: StepFn, repo: string, number: number, vie
       // merged meanwhile (by the person, or an auto-merge armed earlier): nothing left to do
       if (settled?.state === 'MERGED') {
         ev({ type: 'delivery.merged', goalId: goal.id, payload: { prNumber: number, method: policy.mergeMethod, ref: settled.mergeCommit ?? null, taskId: unit.taskId } });
-        return { status: 'ok', detail: `PR #${number} was merged`, value: true };
+        return { status: 'ok', detail: `PR #${number} was merged`, value: 'merged' };
       }
       if (settled?.state === 'CLOSED') throw new DeliveryFailed('merge', `PR #${number} was closed`);
-      if (settled?.mergeable === 'CONFLICTING') throw new DeliveryFailed('merge', `PR #${number} conflicts with its base`);
+      if (settled?.mergeable === 'CONFLICTING') return { status: 'skipped', detail: `PR #${number} conflicts with its base: syncing again`, value: 'conflict' };
       r = await ctx.gh.prMerge(config.dataDir, { repo, number, method: policy.mergeMethod, auto: false });
       logCmd(ctx, 'merge', ['gh', 'pr', 'merge', String(number), `--${policy.mergeMethod}`], config.dataDir, r, 0);
     }
     if (r.code === 0) {
       const v = await ctx.gh.prView(ctx.goalWs, { repo, number }).catch(() => null);
       ev({ type: 'delivery.merged', goalId: goal.id, payload: { prNumber: number, method: policy.mergeMethod, ref: v?.mergeCommit ?? null, taskId: unit.taskId } });
-      return { status: 'ok', detail: `PR #${number} merged with ${policy.mergeMethod}`, value: true };
+      return { status: 'ok', detail: `PR #${number} merged with ${policy.mergeMethod}`, value: 'merged' };
     }
     const protectedBranch = /protect|review|required status|not mergeable|auto-merge/i.test(r.stderr + r.stdout);
     if (!protectedBranch) throw new DeliveryFailed('merge', `gh pr merge failed: ${(r.stderr || r.stdout).trim().slice(0, 300)}`);
@@ -740,14 +768,14 @@ async function mergePr(ctx: Ctx, step: StepFn, repo: string, number: number, vie
       const v = await ctx.gh.prView(ctx.goalWs, { repo, number }).catch(() => null);
       if (v?.mergedAt) {
         ev({ type: 'delivery.merged', goalId: goal.id, payload: { prNumber: number, method: policy.mergeMethod, ref: v.mergeCommit, taskId: unit.taskId } });
-        return { status: 'ok', detail: 'auto-merged once protections were satisfied', value: true };
+        return { status: 'ok', detail: 'auto-merged once protections were satisfied', value: 'merged' };
       }
     }
-    return { status: 'skipped', detail: `auto-merge armed on PR #${number}; GitHub will merge when branch protections are satisfied`, value: false };
+    return { status: 'skipped', detail: `auto-merge armed on PR #${number}; GitHub will merge when branch protections are satisfied`, value: 'armed' };
     },
     unit.branch,
   );
-  return merged ?? false;
+  return merged ?? 'armed';
 }
 
 async function deleteRemoteBranch(ctx: Ctx, branch: string): Promise<{ status: 'ok' | 'skipped'; detail: string }> {
@@ -898,7 +926,7 @@ async function waitForChecks(ctx: Ctx, repo: string, number: number): Promise<Pr
       ctx.engine.store.append({ type: 'delivery.checks', goalId: ctx.goal.id, payload: { state, summary: v.checks.map((c) => `${c.name}: ${c.conclusion ?? c.status}`).join(', ') || 'no checks reported', prNumber: number, failing } });
       last = state;
     }
-    if (state !== 'pending' || v.mergedAt) return v;
+    if (state !== 'pending' || v.mergedAt || v.state === 'CLOSED') return v;
     if (Date.now() - start > ctx.opts.checksTimeoutMs) throw new DeliveryFailed('wait-checks', `checks still pending after ${Math.round(ctx.opts.checksTimeoutMs / 60_000)} min; PR #${number} stays open`);
     // checks usually appear within a minute: poll fast at first, then settle to the configured interval
     await sleep(Date.now() - start < 120_000 ? Math.min(ctx.opts.pollMs, 10_000) : ctx.opts.pollMs, ctx.signal);

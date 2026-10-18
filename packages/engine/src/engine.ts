@@ -1,5 +1,5 @@
 import type { CodexQuota } from './usage/types.ts';
-import { CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, Effort, effectiveCodexPresets, isHistory, natureKey, repoHere, type CodexModelPreset } from '@foundry/core';
+import { CAD_VIEWER_KEY, CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, Effort, effectiveCodexPresets, isHistory, natureKey, repoHere, type CodexModelPreset } from '@foundry/core';
 import { CodexPlugins } from './plugins/codex-plugins.ts';
 import { CodexQuotaReader } from './usage/codex-quota.ts';
 import { discoverCodexModels } from './models/codex-discover.ts';
@@ -75,7 +75,7 @@ import type { StreamEvent, StreamListener } from './types.ts';
 import { ARTIFACTS_DIR, defaultWorkspaceDir, deliveryWorkspacePath, dropTaskWorkspace, ensureGoalWorkspace, goalWorkspacePath, internalWorkspaceDir, listArtifacts, listStackBranches, previewWorkspacePath } from './workspace.ts';
 import { transferGoalDir } from './transfer/paths.ts';
 import { relocateLegacyWorkspaces } from './workspace-migrate.ts';
-import { CAD_VIEWER_KEY, PreviewManager } from './preview/manager.ts';
+import { PreviewManager } from './preview/manager.ts';
 import { ensureSelfCheck, playwrightInstallCommand, playwrightStatus, runSelfCheck } from './checks/selfcheck.ts';
 import { afterMerge, type AfterMergeOptions } from './delivery/after-merge.ts';
 import { startOver, structuralChanges } from './delivery/start-over.ts';
@@ -91,10 +91,11 @@ import { EffortRunner } from './effort-runner.ts';
 import { ModelRegistry, SEED_MODELS, isPinnedId, type ModelRecord } from './models/registry.ts';
 import { copyProjectSkills, hasStackManifest, runAutoskills, type AutoskillsDeps } from './skills/autoskills.ts';
 import { deliverArtifacts, inferCompletion, runGraphRefresh, shouldRunGraphRefresh, type GraphRefreshDeps } from './completion.ts';
+import { cadModelIn, recoverOverlays } from './goal-artifacts.ts';
 import type { SettingsPatch, SettingsView } from '@foundry/core';
 import { ACTION_INFO, BUILTIN_PRESETS, DEFAULT_NATURE_PRESETS, MODEL_ACTIONS, MODEL_NATURES, NATURE_LABEL, effectivePresets } from '@foundry/core';
 import { spawnStreaming } from './skills/updaters.ts';
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { removeWorktree } from './git/git.ts';
 import { BaselineChecks } from './checks/baseline.ts';
 import { relative, resolve } from 'node:path';
@@ -210,8 +211,29 @@ export class Engine {
   private suggesting = new Map<string, Promise<EscalationSuggestion>>();
   /** post-completion graph refreshes in progress, per goal */
   private completing = new Set<string>();
-  /** artifact deliveries in progress, per goal */
-  private deliveringArtifacts = new Set<string>();
+  /** the artifact delivery of each goal in flight: a tidy-up after its merge waits for it, and so does stop() */
+  private deliveringArtifacts = new Map<string, Promise<void>>();
+  /** the goal's artifact delivery while it is copying, else undefined */
+  artifactDelivery(goalId: string): Promise<void> | undefined {
+    return this.deliveringArtifacts.get(goalId);
+  }
+  /** the tidy-ups after a merge that a delivery put off, running now, per goal */
+  private tidying = new Map<string, Promise<void>>();
+  /**
+   * Run the tidy-up after a merge that was put off for the goal's artifact delivery (its hold is recorded as waiting),
+   * once no copy is in flight: only that hold (one of another kind waits for a refresh or a button, or every tick of a
+   * held goal would run it again), only for a goal still finished, and one at a time. A delivery that ended while the
+   * engine was stopped is covered too: the first tick after the start finds the waiting hold.
+   */
+  private tidyAfterDelivery(goalId: string): void {
+    const g = getGoal(this.store.db, goalId);
+    const c = g?.delivery.cleanup;
+    if (this.stopped || this.tidying.has(goalId) || this.deliveringArtifacts.has(goalId) || !c?.waiting || c.done || g!.delivery.outcome !== 'merged' || !['done', 'over_delivered'].includes(g!.state)) return;
+    const run = afterMerge(this, goalId, { afterDelivery: true })
+      .catch(() => {})
+      .finally(() => this.tidying.delete(goalId));
+    this.tidying.set(goalId, run);
+  }
 
   private streamListeners = new Set<StreamListener>();
   private escalationListeners = new Set<(e: Escalation) => void>();
@@ -409,6 +431,7 @@ export class Engine {
     config.log(`[engine] context provider: ${this.context.name}`);
     this.store.subscribe((e) => {
       if (e.type === 'session.usage' && e.payload.sessionId) this.ownedSessionIds.add(e.payload.sessionId);
+      if ((e.type === 'task.artifacts_landed' || e.type === 'goal.artifacts_delivered') && e.goalId) this.cadModelMemo.delete(e.goalId);
       if (e.goalId) this.tick(e.goalId);
     });
     this.notifications = new NotificationDispatcher(this);
@@ -488,30 +511,27 @@ export class Engine {
   }
 
   /**
-   * The model the CAD Viewer opens on: the goal's assembly when it exported one (a STEP whose name says assembly, or
-   * has asm, assy or stack as a word of its own), else the newest STEP it exported — from its workspace while it runs,
-   * from the output folder once delivered. Null = the viewer's home.
+   * The model the CAD Viewer opens on (cadModelIn): from the goal's workspace while it runs, from the output folder
+   * once delivered. Null = the viewer's home. Every status poll of the preview asks, so the answer is kept for 10 s and
+   * dropped when a landing or a delivery changes the goal's files.
    */
   cadModel(goal: Goal): string | null {
-    const pick = (root: string, files: string[]): string | null => {
-      const steps = files
-        .filter((f) => /\.(step|stp)$/i.test(f) && !f.startsWith('samples/'))
-        .flatMap((f) => {
-          try {
-            return [{ f, at: statSync(join(root, f)).mtimeMs }];
-          } catch {
-            return [];
-          }
-        });
-      const assemblies = steps.filter((s) => /assembl|(^|[_-])(asm|assy|stack)([_.-]|$)/i.test(basename(s.f)));
-      const best = (assemblies.length ? assemblies : steps).sort((a, b) => b.at - a.at)[0];
-      return best ? join(root, best.f) : null;
-    };
+    const hit = this.cadModelMemo.get(goal.id);
+    if (hit && Date.now() - hit.at < 10_000) return hit.value;
+    const value = this.findCadModel(goal);
+    this.cadModelMemo.set(goal.id, { at: Date.now(), value });
+    return value;
+  }
+  private cadModelMemo = new Map<string, { at: number; value: string | null }>();
+  private findCadModel(goal: Goal): string | null {
     const ws = goalWorkspacePath(this.config.dataDir, goal);
-    const live = pick(join(ws, ARTIFACTS_DIR), listArtifacts(ws));
-    if (live) return live;
+    const live = cadModelIn(join(ws, ARTIFACTS_DIR), listArtifacts(ws));
+    if (live) return join(ws, ARTIFACTS_DIR, live);
     const run = goal.completion.artifactsRun;
-    return run?.status === 'ok' && run.dest ? pick(run.dest, run.files) : null;
+    if (run?.status !== 'ok' || !run.dest) return null;
+    // recorded at delivery, so the output folder (a network share, perhaps) is not searched; older deliveries did not record it
+    const model = run.model === undefined ? cadModelIn(run.dest, run.files) : run.model;
+    return model ? join(run.dest, model) : null;
   }
 
   /** text-to-cad installed: the bundle's `cad` entry satisfied for a coding agent */
@@ -851,7 +871,12 @@ export class Engine {
       const swept = sweepStaging(this.config.dataDir);
       if (swept) this.config.log(`[attachments] removed ${swept} expired staged upload(s)`);
     } catch {}
-    await this.reconcile();
+    this.reconciling = true;
+    try {
+      await this.reconcile();
+    } finally {
+      this.reconciling = false;
+    }
     await relocateLegacyWorkspaces(this);
     this.migrateModelTiersToPresets();
     void this.syncModelsIfCliChanged();
@@ -866,6 +891,8 @@ export class Engine {
   }
 
   private prWatchTimer: ReturnType<typeof setInterval> | null = null;
+  /** start() is putting right what the last run left (orphaned attempts, overlays): no goal runs meanwhile */
+  private reconciling = false;
   private deliveryRefreshAt = new Map<string, number>();
 
   /**
@@ -993,8 +1020,16 @@ export class Engine {
     const t0 = Date.now();
     while (this.busy().total > 0 && Date.now() - t0 < 3000) await new Promise((r) => setTimeout(r, 25));
     await Promise.allSettled([...this.chains.values()]);
-    // milestone recordings write their evidence when they finish: wait for them too (a script is killed by its timeout)
-    await Promise.race([Promise.allSettled(milestoneQueues()), new Promise((r) => setTimeout(r, 5000))]);
+    // milestone recordings write their evidence when they finish: wait for them too (a script is killed by its timeout),
+    // and an artifact delivery records where its files went; both bounded, and no timer outlives the wait
+    const settle = async (work: Promise<unknown>[], ms: number) => {
+      if (!work.length) return;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([Promise.allSettled(work), new Promise((r) => (timer = setTimeout(r, ms)))]);
+      clearTimeout(timer);
+    };
+    await settle(milestoneQueues(), 5000);
+    await settle([...this.deliveringArtifacts.values(), ...this.tidying.values()], 10_000);
   }
 
   private async reconcile(): Promise<void> {
@@ -1027,6 +1062,8 @@ export class Engine {
         this.store.append({ type: 'delivery.failed', goalId: g.id, payload: { step: g.delivery.step ?? 'preflight', reason: 'engine restarted during delivery — run Deliver again (every step is idempotent)' } });
       }
       if (['done', 'over_delivered', 'failed', 'cancelled'].includes(g.state)) continue;
+      // exports a merge attempt laid over the goal's when the engine stopped never landed: the goal's go back first
+      await recoverOverlays(this, g);
       await git(['worktree', 'prune'], g.repoPath).catch(() => {});
       for (const t of listTasks(this.store.db, g.id)) {
         if (t.state === 'merging') this.store.append({ type: 'task.state_changed', goalId: g.id, payload: { taskId: t.id, from: 'merging', to: 'observing', reason: 'engine restart' } });
@@ -1559,6 +1596,8 @@ export class Engine {
 
   private async runTick(goalId: string): Promise<void> {
     if (this.stopped) return;
+    // reconcile's own events wake goals while it still undoes overlays a stop cut short: start() ticks every goal after it
+    if (this.reconciling) return;
     const goal = getGoal(this.store.db, goalId);
     if (!goal) return;
     if (isHistory(goal)) return; // an Imported Goal waits to be Reattached (ADR-0030)
@@ -1605,11 +1644,13 @@ export class Engine {
       case 'over_delivered': {
         // media artifacts leave the workspace first (independent of delivery mode — they never ride a PR)
         if (!goal.completion.artifactsRun && !this.deliveringArtifacts.has(goalId)) {
-          this.deliveringArtifacts.add(goalId);
-          void deliverArtifacts(this, goal)
-            .catch((err) => this.store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `artifact delivery crashed: ${String(err)}` } }))
+          const copy = deliverArtifacts(this, goal)
+            .catch((err) => void this.store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `artifact delivery crashed: ${String(err)}` } }))
             .finally(() => this.deliveringArtifacts.delete(goalId));
-        }
+          this.deliveringArtifacts.set(goalId, copy);
+          // a tidy-up put off for these files runs once they are there (ADR-0033)
+          void copy.then(() => this.tidyAfterDelivery(goalId));
+        } else if (!this.deliveringArtifacts.has(goalId)) this.tidyAfterDelivery(goalId);
         // docs still being written (the goal finished without its goal review): they ship with the code, so wait
         if (this.documenting.has(goalId)) return;
         // graph refresh: after delivery for goals that leave the machine, right away for local ones

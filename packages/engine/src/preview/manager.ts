@@ -4,7 +4,7 @@ import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
 import { spawnStreaming } from '../skills/updaters.ts';
 import type { BriefApp, BriefRun, Goal, PreviewPlace } from '@foundry/core';
-import { getBrief, getGoal, repoHere } from '@foundry/core';
+import { CAD_VIEWER_KEY, getBrief, getGoal, repoHere } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { ensureDetachedWorktree, git, gitOk } from '../git/git.ts';
 import { goalWorkspacePath, previewWorkspacePath } from '../workspace.ts';
@@ -17,10 +17,8 @@ import { ServicesManager } from './services.ts';
 
 export type PreviewStarter = 'human' | 'milestone' | 'integration';
 
-/** the preview app key of text-to-cad's viewer on a cad goal: started by the person, never by a walkthrough */
-export const CAD_VIEWER_KEY = 'cad-viewer';
 
-/** an address on the person's tailnet for a local url: the tailnet origin with the url's path and query (the CAD Viewer's ?file=) */
+/** an address on the person's tailnet for a local url: the tailnet origin with the url's path and query */
 export function tailnetAddress(base: string, url: string): string {
   const u = URL.parse(url);
   const rest = u && (u.pathname !== '/' || u.search) ? `${u.pathname}${u.search}` : '';
@@ -268,9 +266,6 @@ export class PreviewManager {
     // the CAD Viewer opens the model chosen now (an assembly exported after it started), not the one it started on
     const current = l && key === CAD_VIEWER_KEY && run?.url ? run.url.replaceAll('{port}', String(l.port)) : null;
     const url = current ?? l?.url ?? null;
-    // a tailnet name the settings allow but a URL does not (a space) leaves the address as it was started, never a failed status
-    const origin = l?.tailnetUrl && current ? URL.parse(l.tailnetUrl)?.origin : null;
-    const tailnetUrl = origin && current ? tailnetAddress(origin, current) : (l?.tailnetUrl ?? null);
     return {
       mock: this.mocked.has(id(goalId, key)),
       key,
@@ -294,7 +289,7 @@ export class PreviewManager {
       stopped: l ? null : (this.lastStop.get(id(goalId, key)) ?? null),
       nativePort: l?.nativePort ?? null,
       rewrites: l?.rewrites ?? [],
-      tailnetUrl,
+      tailnetUrl: l?.tailnetUrl ?? null,
     };
   }
 
@@ -499,8 +494,9 @@ export class PreviewManager {
       entry.discovery = setInterval(() => void this.discover(entry, ws), DISCOVERY_MS);
     }, 3_000);
     entry.ready = await waitForHttp(url, READY_TIMEOUT_MS, () => this.current(entry));
-    // reachable from the person's phone over their tailnet, when they use Tailscale
-    if (this.current(entry)) {
+    // reachable from the person's phone over their tailnet, when they use Tailscale; never the CAD Viewer, which serves
+    // any file on this computer it is given the path of
+    if (this.current(entry) && entry.key !== CAD_VIEWER_KEY) {
       const base = await this.engine.tailnet.expose(port).catch(() => null);
       entry.tailnetUrl = base ? tailnetAddress(base, url) : null;
     }

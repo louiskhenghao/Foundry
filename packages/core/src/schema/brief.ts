@@ -69,6 +69,8 @@ export const BriefApp = BriefRun.extend({
   dir: z.string().default(''),
 });
 export type BriefApp = z.infer<typeof BriefApp>;
+/** the preview app key of text-to-cad's viewer on a cad goal: started by the person, never by a walkthrough, and never put on the tailnet */
+export const CAD_VIEWER_KEY = 'cad-viewer';
 
 export const BriefTask = z.object({
   key: z.string(),

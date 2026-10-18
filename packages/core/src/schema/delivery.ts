@@ -90,8 +90,9 @@ export const DeliveryState = z.object({
   finishedAt: z.string().nullable().default(null),
   /** after a merge: does the user's local base branch contain the work (fast-forwarded by the engine, or pulled by hand)? */
   local: z.object({ upToDate: z.boolean(), detail: z.string(), at: z.string() }).nullable().default(null),
-  /** after a merge: were the progress folder, worktrees and local goal branches removed? */
-  cleanup: z.object({ done: z.boolean(), detail: z.string(), at: z.string() }).nullable().default(null),
+  /** after a merge: were the progress folder, worktrees and local goal branches removed? `waiting`: kept until the
+   * artifact delivery in flight ends, which runs the tidy-up again */
+  cleanup: z.object({ done: z.boolean(), detail: z.string(), at: z.string(), waiting: z.boolean().optional() }).nullable().default(null),
 });
 export type DeliveryState = z.infer<typeof DeliveryState>;
 export const IDLE_DELIVERY: DeliveryState = DeliveryState.parse({});

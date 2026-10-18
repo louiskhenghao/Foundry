@@ -43,7 +43,7 @@ describe('media in notifications', () => {
     calls = capture();
     await new DiscordNotifier('https://discord.test/hook').sendMedia('look', files);
     const d = calls[0]!.body as FormData;
-    expect(JSON.parse(String(d.get('payload_json')))).toEqual({ content: '**look**' });
+    expect(JSON.parse(String(d.get('payload_json')))).toEqual({ content: '**look**', allowed_mentions: { parse: [] } });
     expect([...d.keys()].filter((k) => k.startsWith('files['))).toEqual(['files[0]', 'files[1]', 'files[2]']);
   });
 
@@ -62,19 +62,58 @@ test('files are uploaded with the content type of their format', () => {
 });
 
 describe('a picture Telegram refuses', () => {
-  test('does not drop the message: the text goes alone, saying the files could not be attached', async () => {
+  const telegram = (refuse: (method: string, body: FormData | string) => boolean) => {
     const methods: string[] = [];
-    let text = '';
+    const sent: { method: string; body: FormData | string }[] = [];
     globalThis.fetch = (async (url: string, init: RequestInit) => {
-      methods.push(String(url).split('/').pop()!);
-      if (String(url).endsWith('/sendPhoto')) return new Response('{"ok":false,"description":"Bad Request: PHOTO_INVALID_DIMENSIONS"}', { status: 400 });
-      text = JSON.parse(String(init.body)).text;
+      const method = String(url).split('/').pop()!;
+      methods.push(method);
+      if (refuse(method, init.body as FormData | string)) return new Response('{"ok":false,"description":"Bad Request: PHOTO_INVALID_DIMENSIONS"}', { status: 400 });
+      sent.push({ method, body: init.body as FormData | string });
       return new Response('{}', { status: 200 });
     }) as typeof fetch;
+    return { methods, sent };
+  };
+
+  test('goes as a file instead of a photo, so the picture still arrives', async () => {
+    const { methods, sent } = telegram((m) => m === 'sendPhoto');
     await new TelegramNotifier('tok', '42').sendMedia('look', [file('wide.png', 10, 'photo')]);
-    expect(methods).toEqual(['sendPhoto', 'sendPhoto', 'sendMessage']);
+    expect(methods).toEqual(['sendPhoto', 'sendPhoto', 'sendDocument']);
+    expect((sent[0]!.body as FormData).get('document')).toBeTruthy();
+    // several refused pictures go as one album of files
+    const media = (body: FormData | string) => JSON.parse(String((body as FormData).get('media'))) as { type: string }[];
+    const album = telegram((m, body) => m === 'sendMediaGroup' && media(body).some((x) => x.type === 'photo'));
+    await new TelegramNotifier('tok', '42').sendMedia('look', [file('a.png', 10, 'photo'), file('b.png', 10, 'photo')]);
+    expect(album.methods).toEqual(['sendMediaGroup', 'sendMediaGroup', 'sendMediaGroup']);
+    expect(media(album.sent[0]!.body).map((x) => x.type)).toEqual(['document', 'document']);
+  });
+
+  test('refused even as a file, the text goes alone, saying the files could not be attached', async () => {
+    const { methods, sent } = telegram((m) => m === 'sendPhoto' || m === 'sendDocument');
+    await new TelegramNotifier('tok', '42').sendMedia('look', [file('wide.png', 10, 'photo')]);
+    expect(methods).toEqual(['sendPhoto', 'sendPhoto', 'sendDocument', 'sendDocument', 'sendMessage']);
+    const text = JSON.parse(String(sent[0]!.body)).text;
     expect(text).toContain('look');
     expect(text).toContain('could not be attached');
+  });
+});
+
+describe('Discord', () => {
+  test('acts on no mention in a message: a file name with @everyone pings nobody', async () => {
+    const calls = capture();
+    await new DiscordNotifier('https://discord.test/hook').send('look at @everyone.png');
+    expect(JSON.parse(String(calls[0]!.body)).allowed_mentions).toEqual({ parse: [] });
+  });
+
+  test('the plain-links retry after Discord refuses the links pings nobody either', async () => {
+    const bodies: { allowed_mentions?: unknown }[] = [];
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)));
+      return bodies.length === 1 ? new Response('bad link', { status: 400 }) : new Response('{}');
+    }) as typeof fetch;
+    await new DiscordNotifier('https://discord.test/hook').send('@everyone look', [{ label: 'Open', url: 'https://mac.ts.net/g' }]);
+    expect(bodies).toHaveLength(2);
+    for (const b of bodies) expect(b.allowed_mentions).toEqual({ parse: [] });
   });
 });
 

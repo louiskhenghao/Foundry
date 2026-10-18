@@ -1,6 +1,6 @@
 # ADR-0015: Bring merged work to the local checkout, then tidy up
 
-**Status:** accepted · 2026-09-25 · amends the "only the user moves the local base branch" rule of the base-sync design (`git/sync.ts`)
+**Status:** accepted · 2026-09-25 · amends the "only the user moves the local base branch" rule of the base-sync design (`git/sync.ts`) · amended by ADR-0033 (files that exist nowhere else keep the progress folder)
 
 ## Context
 

@@ -162,7 +162,20 @@ export const GoalCompletion = z.object({
   /** result of the graph refresh (null = not run yet) */
   graphRun: z.object({ tools: z.array(z.object({ name: z.string(), status: z.enum(['ok', 'skipped', 'failed']), detail: z.string() })), at: z.string() }).nullable().default(null),
   /** result of copying the media artifacts to the goal's output folder at done (null = not run yet) */
-  artifactsRun: z.object({ status: z.enum(['ok', 'skipped', 'failed']), files: z.array(z.string()), dest: z.string(), detail: z.string(), at: z.string() }).nullable().default(null),
+  artifactsRun: z
+    .object({
+      status: z.enum(['ok', 'skipped', 'failed']),
+      files: z.array(z.string()),
+      dest: z.string(),
+      detail: z.string(),
+      at: z.string(),
+      /** a cad goal's model for the CAD Viewer among `files` (null = none); not recorded by deliveries before it was */
+      model: z.string().nullable().optional(),
+      /** when the copy began; not recorded by deliveries before it was */
+      startedAt: z.string().optional(),
+    })
+    .nullable()
+    .default(null),
 });
 export type GoalCompletion = z.infer<typeof GoalCompletion>;
 export const IDLE_COMPLETION: GoalCompletion = { graphRefresh: false, docs: [], audit: false, auditRun: null, docsRun: null, graphRun: null, artifactsRun: null };

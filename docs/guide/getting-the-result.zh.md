@@ -145,7 +145,11 @@ CI 是你的线上仓库对每个 pull request 运行的一组自动检查。交
 - 如果你在 New goal 表单里选了 **Output folder**，goal 完成时成品文件会复制到那里。Result 卡片会显示 "N file(s) are in … — open the folder and have a look."
 - 没选输出文件夹时，它们留在进度文件夹里的 `artifacts` 文件夹中。用 **Open ▾** 过去。
 
-goal 运行时，里程碑卡片会显示目前产出的文件。CAD goal 的预览卡片上还会显示 **CAD Viewer**，也就是 text-to-cad 自带的查看器：按 **Start** 启动它，再按 **Open**（只有它一个应用时是 **Open the model**）就在浏览器里打开模型，可以旋转、测量、剖切。它会打开这个 goal 导出的装配体，没有装配体时打开最新的 STEP，运行中导出了新的装配体也会跟着换；它的首页列着其它模型。走查从不会自己启动它。
+goal 运行时，里程碑卡片会显示目前产出的文件。
+
+### CAD Viewer
+
+CAD goal 的预览卡片上还会显示 **CAD Viewer**，也就是 text-to-cad 自带的查看器：按 **Start** 启动它，再按 **Open**（只有它一个应用时是 **Open the model**）就在浏览器里打开模型，可以旋转、测量、剖切。它会打开这个 goal 导出的装配体，没有装配体时打开最新的 STEP，运行中导出了新的装配体也会跟着换；它的首页列着其它模型。走查从不会自己启动它。它只在运行 Foundry 的那台电脑上打开：它能读取那台电脑上的任何文件，所以 Foundry 从不把它放到你的 tailnet 上。用 localhost 以外的地址打开页面时，卡片显示 **only on Foundry's computer**，不提供 **Open**，而是把查看器的 localhost 地址作为链接。用网络名称访问 Foundry 那台电脑时这个链接能用；在手机上打不开，因为那里的 localhost 是手机自己。
 
 ## 完成后的附加项
 
@@ -180,7 +184,7 @@ goal 页面会显示现在的情况，在 Delivery 标签和 Simple view 的 Res
 |---|---|
 | **Merged into main on GitHub** | pull request 已经合并。合并之前显示 **Waiting for the pull request to merge**；如果它被关闭了，显示 **closed without merging**（什么都不改、不删）。 |
 | **Your local main is up to date** | 你自己的文件夹已经有这些工作。如果 Foundry 没能更新它，这一行会说明原因，并有一个 **Pull into my checkout** 按钮可以再试（比如你提交或暂存了自己的改动之后）。你也可以自己运行 `git pull`。 |
-| **Workspace cleaned up** | 进度文件夹和本地分支已经删掉。如果它们还在，这一行会说明原因（你的文件夹还没有这些工作，或者进度文件夹里有未保存的改动），并有一个 **Clean up anyway** 按钮。 |
+| **Workspace cleaned up** | 进度文件夹和本地分支已经删掉。如果它们还在，这一行会说明原因（你的文件夹还没有这些工作，进度文件夹里有未保存的改动，或者里面有输出文件夹里没有当前版本的文件，比如没设输出文件夹的 CAD goal 导出的模型、交付之后又改过的文件，或输出文件夹里被另一个 goal 的同名文件替换掉的文件），并有一个 **Clean up anyway** 按钮。文件还在复制到输出文件夹时，清理会等复制完成，然后自动进行。 |
 
 之后才合并的 pull request —— auto-merge 超过了 Foundry 等待的时间，或者你自己在 GitHub 上合并的 —— 会在几分钟内、或者你一打开 goal 页面就被发现，然后跑同样的步骤。这一切都可以在 [Settings → Git & delivery](./settings.zh.md#git--delivery) 里关掉；关掉后，只有你按 **Pull into my checkout** 时你的文件夹才会改变，文件夹也会一直留到你删除这个 goal。
 

@@ -22,15 +22,21 @@ export class FakeGh implements GhClient {
   mergeBehavior: 'ok' | 'protected' | 'fail' | 'settling' = 'ok';
   unknownViews = 1;
   settlesAs: 'MERGEABLE' | 'CONFLICTING' = 'MERGEABLE';
+  /** how many views say CONFLICTING once the PR settled as a conflict, before a re-sync and push cleared it (never, by default) */
+  conflictViews = Infinity;
   /** someone merges (or closes) the PR on GitHub right after the refusal (its views may still say UNKNOWN) */
   mergedWhileSettling = false;
   closedWhileSettling = false;
+  /** runs before each look at a PR: a test closes or merges it on GitHub while its checks are waited for */
+  beforeView: ((pr: PrView & { head: string; base: string; repo: string }) => void | Promise<void>) | null = null;
   /** how many times a PR was looked at after its first merge was refused */
   viewsAfterRefusal = 0;
   /** what gh prints when branch protection refuses a plain merge ('protected') */
   protectedStderr = 'GraphQL: Base branch requires review (protected branch)';
   private settled = new Set<number>();
   private unknownLeft = new Map<number, number>();
+  private conflictLeft = new Map<number, number>();
+  private conflicting = (n: number) => this.settlesAs === 'CONFLICTING' && (this.conflictLeft.get(n) ?? this.conflictViews) > 0;
   /** 'squash' writes one new commit on the base with the head's content, as GitHub's squash merge does */
   mergeStyle: 'fast-forward' | 'squash' = 'fast-forward';
   failedLogText: string | null = null;
@@ -76,13 +82,17 @@ export class FakeGh implements GhClient {
   async prView(_cwd: string, i: { repo: string; number: number }): Promise<PrView> {
     const pr = this.prs.get(i.number);
     if (!pr) throw new Error('no such PR');
+    await this.beforeView?.(pr);
     if (this.settled.has(i.number)) this.viewsAfterRefusal++;
     const unknown = this.unknownLeft.get(i.number) ?? 0;
     if (unknown > 0) {
       this.unknownLeft.set(i.number, unknown - 1);
       return { ...pr, mergeable: 'UNKNOWN', mergeStateStatus: 'UNKNOWN', checks: [] };
     }
-    if (this.mergeBehavior === 'settling' && this.settled.has(i.number) && this.settlesAs === 'CONFLICTING' && pr.state === 'OPEN') return { ...pr, mergeable: 'CONFLICTING', mergeStateStatus: 'DIRTY', checks: [] };
+    if (this.mergeBehavior === 'settling' && this.settled.has(i.number) && this.conflicting(i.number) && pr.state === 'OPEN') {
+      this.conflictLeft.set(i.number, (this.conflictLeft.get(i.number) ?? this.conflictViews) - 1);
+      return { ...pr, mergeable: 'CONFLICTING', mergeStateStatus: 'DIRTY', checks: [] };
+    }
     const state = this.checksSequence[Math.min(this.viewCount, this.checksSequence.length - 1)]!;
     this.viewCount++;
     const checks =
@@ -108,7 +118,7 @@ export class FakeGh implements GhClient {
         return refused;
       }
       // still computing, or settled as a conflict: refused as GitHub refuses
-      if ((this.unknownLeft.get(i.number) ?? 0) > 0 || this.settlesAs === 'CONFLICTING') return refused;
+      if ((this.unknownLeft.get(i.number) ?? 0) > 0 || this.conflicting(i.number)) return refused;
     }
     if (this.mergeBehavior === 'settling' && i.auto) return { code: 1, stdout: '', stderr: 'GraphQL: Auto merge is not allowed for this repository (enablePullRequestAutoMerge)' };
     if (this.mergeBehavior === 'protected' && !i.auto) return { code: 1, stdout: '', stderr: this.protectedStderr };

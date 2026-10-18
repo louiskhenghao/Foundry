@@ -209,7 +209,7 @@ function project(db: Database, e: EngineEvent): void {
           d.local = { upToDate: e.payload.upToDate, detail: e.payload.detail, at: e.ts };
           break;
         case 'delivery.cleaned':
-          d.cleanup = { done: e.payload.done, detail: e.payload.detail, at: e.ts };
+          d.cleanup = { done: e.payload.done, detail: e.payload.detail, at: e.ts, ...(e.payload.waiting ? { waiting: true } : {}) };
           break;
         case 'delivery.pr_closed':
           prAt((p) => p.number === e.payload.prNumber, { state: 'closed' });
@@ -387,7 +387,7 @@ function project(db: Database, e: EngineEvent): void {
     }
     case 'goal.artifacts_delivered': {
       const g = getGoal(db, e.goalId!);
-      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, artifactsRun: { status: e.payload.status, files: e.payload.files, dest: e.payload.dest, detail: e.payload.detail, at: e.ts } }, updatedAt: e.ts });
+      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, artifactsRun: { status: e.payload.status, files: e.payload.files, dest: e.payload.dest, detail: e.payload.detail, at: e.ts, ...(e.payload.model !== undefined ? { model: e.payload.model } : {}), ...(e.payload.startedAt ? { startedAt: e.payload.startedAt } : {}) } }, updatedAt: e.ts });
       break;
     }
     case 'goal.completion_set': {

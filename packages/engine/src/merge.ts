@@ -1,13 +1,14 @@
 import { join } from 'node:path';
 import type { Attempt, Goal, Task } from '@foundry/core';
-import { IdPrefix, getAttempt, listAttempts, listChecks, newId } from '@foundry/core';
+import { IdPrefix, getAttempt, getGoal, listAttempts, listChecks, newId } from '@foundry/core';
 import { runCommandCheck } from './checks/command.ts';
 import { metaFor, modelFor } from './models/roles.ts';
 import type { Engine } from './engine.ts';
 import { raiseEscalation } from './escalation.ts';
-import { abortInProgress, commitAll, commitStaged, conflictedFiles, git, gitIdent, gitOk, headRef, refExists, withCoauthor } from './git/git.ts';
+import { abortInProgress, commitAll, commitStaged, conflictedFiles, git, gitIdent, gitOk, headRef, refExists, resetHard, withCoauthor } from './git/git.ts';
 import { ccHeader, taskCommitMessage } from './git/conventional.ts';
 import { READONLY_DISALLOWED, boundarySettings } from './guards/boundary.ts';
+import { landTaskArtifacts, overlayTaskExports, recoverOverlays, type Landing } from './goal-artifacts.ts';
 import { goalWorkspacePath } from './workspace.ts';
 
 const MERGE_ATTEMPT_BUDGET = 2;
@@ -32,7 +33,7 @@ export interface ConflictOp {
   hint?: string;
   /** run the goal's must command checks in `cwd` after a resolution (default true) */
   runChecks?: boolean;
-  /** raise an escalation when the budget is spent (default true; delivery's stack builder prefers to fall back) */
+  /** raise an escalation when the budget is spent or an attempt's commit could not be taken back (default true; delivery's stack builder prefers to fall back) */
   escalate?: boolean;
 }
 
@@ -40,11 +41,16 @@ export interface ConflictOp {
  * A finished task becomes exactly one Conventional Commit on the goal branch:
  * - a task that worked in its own worktree is squash-merged (`git merge --squash task/<id>`);
  * - a task that worked in the goal workspace has its attempt snapshots squashed (`reset --soft <baseRef>`).
- * Conflicts go through Merge Attempts; an unresolved conflict escalates and returns false.
- * Emits `task.committed` (ref null when the task changed nothing).
+ * Conflicts go through Merge Attempts; an unresolved conflict escalates and returns merged: false.
+ * Emits `task.committed` (ref null when the task changed nothing). A merged task's git-excluded artifacts land in the
+ * same step (landTaskArtifacts), under the same lock: another task's integration never comes between its commit and its
+ * exports, and never waits for its exports behind its own merge attempts.
  */
-export function integrateTask(engine: Engine, goal: Goal, task: Task): Promise<boolean> {
-  return engine.withGoalWsLock(goal.id, () => integrateTaskUnlocked(engine, goal, task));
+export function integrateTask(engine: Engine, goal: Goal, task: Task): Promise<{ merged: boolean; landing: Landing | null }> {
+  return engine.withGoalWsLock(goal.id, async () => {
+    const merged = await integrateTaskUnlocked(engine, goal, task);
+    return { merged, landing: merged ? await landTaskArtifacts(engine, getGoal(engine.store.db, goal.id) ?? goal, task) : null };
+  });
 }
 
 async function integrateTaskUnlocked(engine: Engine, goal: Goal, task: Task): Promise<boolean> {
@@ -116,7 +122,9 @@ export async function mergeBranchInto(engine: Engine, goal: Goal, task: Task, sr
 
 /**
  * Shared conflict path: no conflicted files → abort + escalate; otherwise up to MERGE_ATTEMPT_BUDGET
- * Merge Attempts, each starting from a freshly re-created conflict. Escalates when the budget is spent.
+ * Merge Attempts, each starting from a freshly re-created conflict. Escalates when the budget is spent, when the checks
+ * could not run at all (another session cannot change that), and when an attempt's commit could not be taken back (the
+ * goal is blocked then, so nothing lands on that unverified commit before the person has dealt with it).
  */
 export async function resolveConflicts(engine: Engine, goal: Goal, task: Task, files: string[], src: MergeSource, op: ConflictOp, stderr = ''): Promise<boolean> {
   const { store } = engine;
@@ -128,7 +136,10 @@ export async function resolveConflicts(engine: Engine, goal: Goal, task: Task, f
   }
   const reasons: string[] = [];
   let previous: { attempt: Attempt; reason: string } | null = null;
+  let tried = 0;
+  let stuck = false;
   for (let i = 1; i <= MERGE_ATTEMPT_BUDGET; i++) {
+    tried = i;
     // the second try resumes the first session (it knows the files) unless continuations are off
     const resume = previous && previous.attempt.sessionId && engine.config.maxContinuations > 0 ? previous : null;
     const r = await runMergeAttempt(engine, goal, task, files, i, src, op, resume);
@@ -136,6 +147,16 @@ export async function resolveConflicts(engine: Engine, goal: Goal, task: Task, f
     reasons.push(`attempt ${i}: ${r.reason}`);
     previous = { attempt: r.attempt, reason: r.reason };
     await abortInProgress(op.cwd);
+    // a commit that stays would count as landed on a retry: no further attempt, and the person is told
+    const refused = await takeBack(op.cwd, r.attempt);
+    if (refused) {
+      stuck = true;
+      const branch = (await git(['branch', '--show-current'], op.cwd)).stdout.trim();
+      reasons.push(`its commit could not be taken back (${refused}), so ${branch ? `\`${branch}\`` : `the worktree at ${op.cwd}`} still holds that unverified resolution: reset it to ${r.attempt.baseRef!.slice(0, 7)} before answering`);
+      store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'error', message: `merge attempt ${i} for ${src.label}: its commit could not be taken back (${refused})` } });
+      break;
+    }
+    if (r.fatal) break;
     await op.redo();
   }
   await abortInProgress(op.cwd);
@@ -144,13 +165,38 @@ export async function resolveConflicts(engine: Engine, goal: Goal, task: Task, f
     goal,
     task,
     trigger: 'retries_exhausted',
-    message: `Merging \`${src.label}\` into \`${goal.branch}\` conflicts in:\n${files.map((f) => `- \`${f}\``).join('\n')}\n\n${MERGE_ATTEMPT_BUDGET} merge attempts could not resolve it:\n${reasons.map((r) => `- ${r}`).join('\n')}\n\nYou can resolve it by hand (**Resolve manually**), let the engine try again with a hint, or skip the task.`,
+    message: `Merging \`${src.label}\` into \`${goal.branch}\` conflicts in:\n${files.map((f) => `- \`${f}\``).join('\n')}\n\n${tried} merge attempt${tried === 1 ? '' : 's'} could not resolve it:\n${reasons.map((r) => `- ${r}`).join('\n')}\n\nYou can resolve it by hand (**Resolve manually**), let the engine try again with a hint, or skip the task.`,
     payload: { kind: 'merge', files, reasons },
+    blockGoal: stuck,
   });
   return false;
 }
 
-async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: string[], n: number, src: MergeSource, op: ConflictOp, resume: { attempt: Attempt; reason: string } | null = null): Promise<{ ok: boolean; reason: string; attempt: Attempt }> {
+/**
+ * An attempt that committed its resolution before its checks regressed, or could not run, takes the commit back to where
+ * the attempt started: a merge that does not land leaves the branch as it was, and the next attempt meets the conflict
+ * again. A lock another program holds (an editor refreshing its git status) is let go in a moment, so it tries a few
+ * times. Says why when git still refused, null once the branch is back (a clean of untracked files that failed after
+ * the reset went through does not count).
+ */
+async function takeBack(cwd: string, attempt: Attempt): Promise<string | null> {
+  const base = attempt.baseRef;
+  if (!base || (await headRef(cwd)) === base) return null;
+  let why = '';
+  for (let i = 0; i < 3; i++) {
+    if (i) await Bun.sleep(500);
+    try {
+      await resetHard(cwd, base);
+      return null;
+    } catch (err) {
+      why = String((err as Error)?.message ?? err).split('\n')[0]!.slice(0, 200);
+      if ((await headRef(cwd)) === base) return null;
+    }
+  }
+  return why;
+}
+
+async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: string[], n: number, src: MergeSource, op: ConflictOp, resume: { attempt: Attempt; reason: string } | null = null): Promise<{ ok: boolean; reason: string; attempt: Attempt; fatal?: boolean }> {
   const { store, config } = engine;
   const cwd = op.cwd;
   const index = resume ? resume.attempt.index : listAttempts(store.db, task.id).length + 1;
@@ -243,6 +289,8 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
 
   const remaining = await conflictedFiles(cwd);
   let ok = remaining.length === 0;
+  // the checks could not run at all: another session cannot change that
+  let fatal = false;
   let reason = ok ? '' : `${remaining.length} file(s) still conflicted (${remaining.slice(0, 4).join(', ')})${result.subtype !== 'success' ? `; session ended with ${result.subtype}` : ''}`;
   if (ok) {
     await gitOk(['add', '-A'], cwd);
@@ -253,21 +301,38 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
   }
   if (ok && op.runChecks !== false) {
     const checks = listChecks(store.db, goal.id).filter((c) => c.spec.type === 'command' && c.tier === 'must');
-    // only regressions count: a check already red on the goal branch before this merge is not the merge's fault
-    // judged with the exports of the worktree the merge happens in: a task's own on a catch-up, the goal's on integration
-    const baseline = await engine.baseline.failing(goal, attempt.baseRef!, cwd);
-    const failed: string[] = [];
-    const preexisting: string[] = [];
-    for (const c of checks) {
-      const r = await runCommandCheck(c, { cwd, outputDir: join(config.dataDir, 'check-output'), attemptId: attempt.id });
-      store.append({ type: 'check.finished', goalId: goal.id, payload: { result: r } });
-      if (r.status !== 'pass') (baseline.has(c.id) ? preexisting : failed).push(`${c.name} (${r.status}: ${r.summary.slice(0, 160).replace(/\s+/g, ' ')})`);
-    }
-    if (failed.length) {
+    const note = (message: string) => store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message } });
+    // a task integrated in the goal workspace: its exports land only after this merge, so its checks get them laid over
+    // the goal's (after the baseline, which measures the goal as it was), taken back if the merge does not land
+    const integrating = cwd === goalWorkspacePath(config.dataDir, goal) && !!task.branch && src.ref === task.branch && checks.length > 0;
+    let overlay: { done: (keep: boolean) => Promise<void> } | null = null;
+    try {
+      // what a run cut short laid over goes first, or the baseline would measure exports that never landed
+      if (integrating && !(await recoverOverlays(engine, goal))) throw new Error("exports another merge laid over the goal's could not all be put back (see the note)");
+      // only regressions count: a check already red on the goal branch before this merge is not the merge's fault
+      // judged with the exports of the worktree the merge happens in: a task's own on a catch-up, the goal's on integration
+      const baseline = await engine.baseline.failing(goal, attempt.baseRef!, cwd);
+      overlay = integrating ? await overlayTaskExports(engine, goal, task).catch((err) => (note(`merge attempt ${n} for ${src.label}: the task's exports could not be laid over the goal's for its checks (${String((err as Error)?.message ?? err).slice(0, 200)})`), null)) : null;
+      const failed: string[] = [];
+      const preexisting: string[] = [];
+      for (const c of checks) {
+        const r = await runCommandCheck(c, { cwd, outputDir: join(config.dataDir, 'check-output'), attemptId: attempt.id });
+        store.append({ type: 'check.finished', goalId: goal.id, payload: { result: r } });
+        if (r.status !== 'pass') (baseline.has(c.id) ? preexisting : failed).push(`${c.name} (${r.status}: ${r.summary.slice(0, 160).replace(/\s+/g, ' ')})`);
+      }
+      if (failed.length) {
+        ok = false;
+        reason = `conflicts resolved but must checks regressed — ${failed.join('; ')}${preexisting.length ? ` (ignored, already failing before the merge: ${preexisting.map((x) => x.split(' (')[0]).join(', ')})` : ''}`;
+      } else if (preexisting.length) {
+        store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `merge attempt ${n} for ${src.label}: ${preexisting.length} must check(s) fail but already failed on the goal branch before the merge — accepted` } });
+      }
+    } catch (err) {
+      // a check that could not run proves nothing: the attempt does not land (and its commit is taken back)
       ok = false;
-      reason = `conflicts resolved but must checks regressed — ${failed.join('; ')}${preexisting.length ? ` (ignored, already failing before the merge: ${preexisting.map((x) => x.split(' (')[0]).join(', ')})` : ''}`;
-    } else if (preexisting.length) {
-      store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `merge attempt ${n} for ${src.label}: ${preexisting.length} must check(s) fail but already failed on the goal branch before the merge — accepted` } });
+      fatal = true;
+      reason = `the must checks could not run: ${String((err as Error)?.message ?? err).slice(0, 200)}`;
+    } finally {
+      await overlay?.done(ok).catch((err) => note(ok ? `merge attempt ${n} for ${src.label}: the backup of the goal's exports could not be removed after the merge landed (${String((err as Error)?.message ?? err).slice(0, 200)})` : `merge attempt ${n} for ${src.label}: the goal's exports could not all be put back after a merge that did not land (${String((err as Error)?.message ?? err).slice(0, 200)}); they are tried again before the next merge`));
     }
   }
   store.append({
@@ -276,7 +341,7 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
     payload: { attemptId: attempt.id, state: 'observing', resultSubtype: result.subtype, costUsd: (resume ? resume.attempt.costUsd : 0) + result.costUsd, numTurns: (resume ? resume.attempt.numTurns : 0) + result.numTurns, endRef: ok ? await headRef(cwd) : null, permissionDenials: [], skillsUsed: result.skillsUsed ?? [], toolsUsed: result.toolsUsed ?? {} },
   });
   store.append({ type: 'attempt.concluded', goalId: goal.id, payload: { attemptId: attempt.id, state: ok ? 'passed' : 'failed', reason: ok ? 'merged and checks pass' : reason } });
-  return { ok, reason, attempt: getAttempt(store.db, attempt.id) ?? attempt };
+  return { ok, reason, attempt: getAttempt(store.db, attempt.id) ?? attempt, fatal };
 }
 
 export { READONLY_DISALLOWED, commitStaged };
