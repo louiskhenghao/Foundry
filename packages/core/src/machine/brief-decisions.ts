@@ -2,19 +2,27 @@ import type { Brief, BriefArea, BriefCheck, BriefStyleOption, BriefTask } from '
 
 /**
  * A Decision is a choice the human made on the Brief that every session must honour:
- * the answer to a Question, or an Assumption the human rejected.
+ * the answer to a Question, a Note they wrote unasked, or an Assumption the human rejected.
  */
 export interface Decision {
   id: string;
-  kind: 'answer' | 'rejected-assumption';
+  kind: 'answer' | 'note' | 'rejected-assumption';
+  /** the question, the note's words, or the rejected assumption */
   text: string;
+  /** the answer; null for a note and a rejected assumption */
   answer: string | null;
   applied: boolean;
 }
 
+/** a Note as it is kept among the Brief's questions: the words in `text`, repeated in `answer` so it counts as answered */
+export function noteQuestion(id: string, text: string, applied = false): Brief['questions'][number] {
+  const words = text.trim();
+  return { id, text: words, answer: words, blocking: false, areaKey: null, options: [], kind: 'note', applied };
+}
+
 export function decisionsOf(brief: Pick<Brief, 'questions' | 'assumptions'>): Decision[] {
   return [
-    ...brief.questions.filter((q) => q.answer?.trim()).map((q) => ({ id: q.id, kind: 'answer' as const, text: q.text, answer: q.answer!.trim(), applied: q.applied })),
+    ...brief.questions.filter((q) => q.answer?.trim()).map((q) => (q.kind === 'note' ? { id: q.id, kind: 'note' as const, text: q.text.trim(), answer: null, applied: q.applied } : { id: q.id, kind: 'answer' as const, text: q.text, answer: q.answer!.trim(), applied: q.applied })),
     ...brief.assumptions.filter((a) => !a.accepted).map((a) => ({ id: a.id, kind: 'rejected-assumption' as const, text: a.text, answer: null, applied: a.applied })),
   ];
 }
@@ -36,7 +44,7 @@ export function chosenStyle(brief: Pick<Brief, 'questions' | 'styleOptions'>): B
 export function renderDecisions(brief: Pick<Brief, 'questions' | 'assumptions'>, heading = '# Decisions from the human'): string {
   const ds = decisionsOf(brief);
   if (!ds.length) return '';
-  const lines = ds.map((d) => (d.kind === 'answer' ? `- Q: ${d.text}\n  A: ${d.answer}` : `- Rejected assumption (do NOT proceed on it): ${d.text}`));
+  const lines = ds.map((d) => (d.kind === 'answer' ? `- Q: ${d.text}\n  A: ${d.answer}` : d.kind === 'note' ? `- Note from the human (unasked): ${d.text}` : `- Rejected assumption (do NOT proceed on it): ${d.text}`));
   return `${heading}\nThese override anything else in the Brief or the task specs.\n${lines.join('\n')}`;
 }
 

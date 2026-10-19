@@ -301,14 +301,14 @@ function project(db: Database, e: EngineEvent): void {
     case 'interview.round_asked': {
       const g = getGoal(db, e.goalId!);
       if (!g?.interview) break;
-      const rounds = [...g.interview.rounds.filter((r) => r.round !== e.payload.round), { round: e.payload.round, questions: e.payload.questions, answers: null, askedAt: e.ts, answeredAt: null, finish: false }];
+      const rounds = [...g.interview.rounds.filter((r) => r.round !== e.payload.round), { round: e.payload.round, questions: e.payload.questions, answers: null, askedAt: e.ts, answeredAt: null, finish: false, note: null }];
       upsertGoal(db, { ...g, interview: { ...g.interview, status: 'awaiting_answers', sessionId: e.payload.sessionId ?? g.interview.sessionId, rounds }, updatedAt: e.ts });
       break;
     }
     case 'interview.round_answered': {
       const g = getGoal(db, e.goalId!);
       if (!g?.interview) break;
-      const rounds = g.interview.rounds.map((r) => (r.round === e.payload.round ? { ...r, answers: e.payload.answers, answeredAt: e.ts, finish: e.payload.finish } : r));
+      const rounds = g.interview.rounds.map((r) => (r.round === e.payload.round ? { ...r, answers: e.payload.answers, answeredAt: e.ts, finish: e.payload.finish, note: e.payload.note ?? null } : r));
       // the step shown starts again with the session that reads the answers, not from the turn before them
       upsertGoal(db, { ...g, interview: { ...g.interview, status: 'thinking', rounds }, clarifyStage: null, updatedAt: e.ts });
       break;
