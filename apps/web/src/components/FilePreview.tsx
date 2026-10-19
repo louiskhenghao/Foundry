@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight, Download, ExternalLink, FileWarning } from 'lucide-react';
+import { StepBar, useSwipe } from './MediaLightbox.tsx';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { create } from 'zustand';
@@ -134,6 +135,9 @@ export function FilePreviewHost() {
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, [key, close, at, list]);
+  // a picture or a clip steps from under it (and with a swipe on a phone); code and documents keep the arrows on top
+  const media = info?.kind === 'image' || info?.kind === 'video';
+  const swipe = useSwipe((d) => step(d), info?.kind === 'video');
   if (!file) return null;
   // what the header names: the path asked for, or the file's path in the repository
   const shown = typeof file === 'string' ? file : 'path' in file ? file.path : file.rel;
@@ -149,7 +153,7 @@ export function FilePreviewHost() {
               {info ? ` · ${fmtSize(info.size)}` : ''}
             </div>
           </div>
-          {list.length > 1 && at >= 0 && (
+          {list.length > 1 && at >= 0 && !media && (
             <span className="flex items-center gap-0.5 text-[11px] text-zinc-500 shrink-0">
               <button type="button" className="rounded p-1 hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-30" disabled={at === 0} onClick={() => step(-1)} aria-label="previous file" title="Previous file (←)">
                 <ChevronLeft size={14} />
@@ -182,7 +186,16 @@ export function FilePreviewHost() {
             <>
               {info.commit && <div className="mb-2 text-xs text-amber-300/90">From the task's commit <span className="mono">{info.commit.slice(0, 7)}</span> — the version the task made. Its folders were removed after the work was delivered.</div>}
               {info.landed && <div className="mb-2 text-xs text-amber-300/90">The task's own folder was removed when it merged; this is the file as it is now in the progress folder.</div>}
-              <Body info={info} file={file} />
+              {media ? (
+                <div className="space-y-2">
+                  <div className="touch-pan-y select-none" {...swipe}>
+                    <Body info={info} file={file} />
+                  </div>
+                  {list.length > 1 && at >= 0 && <StepBar index={at} count={list.length} onStep={step} />}
+                </div>
+              ) : (
+                <Body info={info} file={file} />
+              )}
             </>
           ) : (
             <div className="text-xs text-zinc-500">loading…</div>
