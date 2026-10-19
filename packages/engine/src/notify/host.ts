@@ -12,7 +12,7 @@ export function engineHost(engine: Engine, drafts: Drafts): ActionHost {
     brief: (goalId) => getBrief(db, goalId)?.brief ?? null,
     escalation: (id) => getEscalation(db, id),
     answerEscalation: (id, answer) => engine.answerEscalation(id, answer),
-    answerInterview: (goalId, answers, finish) => engine.answerInterview(goalId, answers, finish),
+    answerInterview: (goalId, answers, finish, note) => engine.answerInterview(goalId, answers, finish, note),
     approveBrief: (goalId, budgets) => engine.approveBrief(goalId, undefined, budgets),
     classifyFeedback: (goalId, text) => {
       const goal = getGoal(db, goalId);

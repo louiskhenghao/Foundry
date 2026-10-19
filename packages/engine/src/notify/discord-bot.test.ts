@@ -255,6 +255,7 @@ describe('Discord shapes', () => {
     expect(parseModalId('h:esc_1')).toEqual({ kind: 'hint', escId: 'esc_1' });
     expect(parseModalId('f:esc_1')).toEqual({ kind: 'feedback', escId: 'esc_1' });
     expect(parseModalId('a:g_1:2:3')).toEqual({ kind: 'answer', goalId: 'g_1', round: 2, index: 3 });
-    for (const junk of ['', 'h:', 'a:g_1:x:1', 'z:esc_1']) expect(parseModalId(junk)).toBeNull();
+    expect(parseModalId('n:g_1:2')).toEqual({ kind: 'note', goalId: 'g_1', round: 2 });
+    for (const junk of ['', 'h:', 'a:g_1:x:1', 'z:esc_1', 'n:g_1', 'n:g_1:x']) expect(parseModalId(junk)).toBeNull();
   });
 });

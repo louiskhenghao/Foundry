@@ -54,7 +54,7 @@ const goal = (over: Partial<Goal> = {}): Goal =>
       mode: 'auto',
       status: 'awaiting_answers',
       sessionId: 's1',
-      rounds: [{ round: 1, questions: [q('R1Q1', 'Which database?', ['Postgres', 'SQLite']), q('R1Q2', 'Accounts?', ['none', 'email'], false)], answers: null, askedAt: '', answeredAt: null, finish: false }],
+      rounds: [{ round: 1, questions: [q('R1Q1', 'Which database?', ['Postgres', 'SQLite']), q('R1Q2', 'Accounts?', ['none', 'email'], false)], answers: null, askedAt: '', answeredAt: null, finish: false, note: null }],
     },
     ...over,
   }) as unknown as Goal;
@@ -63,11 +63,17 @@ const plan: FeedbackPlan = { kind: 'fix', rationale: 'The header is unreadable i
 
 function memDrafts(): Drafts {
   const answers = new Map<string, Record<string, string>>();
+  const notes = new Map<string, string>();
   const plans = new Map<string, { feedback: string; plan: FeedbackPlan }>();
   return {
     answers: (g, r) => ({ ...(answers.get(`${g}:${r}`) ?? {}) }),
     setAnswer: (g, r, k, v) => void answers.set(`${g}:${r}`, { ...(answers.get(`${g}:${r}`) ?? {}), [k]: v }),
-    clearAnswers: (g, r) => void answers.delete(`${g}:${r}`),
+    note: (g, r) => notes.get(`${g}:${r}`) ?? null,
+    setNote: (g, r, v) => void (v ? notes.set(`${g}:${r}`, v) : notes.delete(`${g}:${r}`)),
+    clearAnswers: (g, r) => {
+      answers.delete(`${g}:${r}`);
+      notes.delete(`${g}:${r}`);
+    },
     plan: (id) => plans.get(id) ?? null,
     setPlan: (id, v) => void (v ? plans.set(id, v) : plans.delete(id)),
   };
@@ -86,8 +92,8 @@ function host(state: { esc?: Escalation; goal?: Goal; brief?: Brief; fail?: stri
       if (state.fail) throw new Error(state.fail);
       if (state.esc) state.esc = { ...state.esc, state: 'answered', answer };
     },
-    answerInterview: (goalId, answers, finish) => {
-      calls.push({ fn: 'answerInterview', args: [goalId, answers, finish] });
+    answerInterview: (goalId, answers, finish, note) => {
+      calls.push({ fn: 'answerInterview', args: [goalId, answers, finish, note] });
       if (state.fail) throw new Error(state.fail);
     },
     approveBrief: async (goalId, budgets) => {
@@ -116,6 +122,7 @@ describe('buttons', () => {
       ...(['retries_exhausted', 'permission_denial', 'budget_exceeded', 'boundary_action', 'milestone', 'delivery_failed'] as const).map((trigger) => escalationKeyboard(esc({ trigger }))),
       questionKeyboard(GOAL, 10, 7, { options: ['a'.repeat(200), 'b'] }, 'my own answer'),
       roundKeyboard(GOAL, 10),
+      roundKeyboard(GOAL, 10, 'n'.repeat(300)),
       briefKeyboard(GOAL, brief()),
     ];
     for (const b of kbs.flat(2)) {
@@ -233,7 +240,7 @@ describe('answering an interview round', () => {
     expect(h.drafts.answers(GOAL, 1)).toEqual({ R1Q1: 'SQLite' });
     expect(calls).toEqual([]);
     const sent = await press(h, `r:${GOAL}:1:s`, via);
-    expect(calls).toEqual([{ fn: 'answerInterview', args: [GOAL, { R1Q1: 'SQLite' }, false] }]);
+    expect(calls).toEqual([{ fn: 'answerInterview', args: [GOAL, { R1Q1: 'SQLite' }, false, null] }]);
     expect(sent.update?.map((u) => labels(u.buttons))).toEqual([['✓ SQLite'], []]);
     expect(h.drafts.answers(GOAL, 1)).toEqual({});
   });
@@ -244,10 +251,34 @@ describe('answering an interview round', () => {
     expect(refused).toMatchObject({ alert: true, toast: expect.stringContaining('Q1') });
     await press(h, `q:${GOAL}:1:1:1`, via);
     await press(h, `r:${GOAL}:1:a`, via);
-    expect(calls).toEqual([{ fn: 'answerInterview', args: [GOAL, { R1Q1: 'Postgres', R1Q2: 'email' }, false] }]);
+    expect(calls).toEqual([{ fn: 'answerInterview', args: [GOAL, { R1Q1: 'Postgres', R1Q2: 'email' }, false, null] }]);
     const other = host({ goal: goal() });
     await press(other.h, `r:${GOAL}:1:e`, via);
-    expect(other.calls).toEqual([{ fn: 'answerInterview', args: [GOAL, {}, true] }]);
+    expect(other.calls).toEqual([{ fn: 'answerInterview', args: [GOAL, {}, true, null] }]);
+  });
+
+  test('Add a note asks for words; the note waits with the answers, shows on the round, and goes with Send, Accept all or Enough', async () => {
+    const { h, calls } = host({ goal: goal() });
+    expect(labels(roundKeyboard(GOAL, 1))).toContain('✍️ Add a note…');
+    const ask = await press(h, `r:${GOAL}:1:n`, via);
+    expect(ask.ask?.target).toEqual({ kind: 'note', goalId: GOAL, round: 1 });
+    // a reply to the round's own message means the same
+    expect(textTargetOf(h, { kind: 'round', goalId: GOAL, round: 1 })).toEqual({ kind: 'note', goalId: GOAL, round: 1 });
+    const kept = await reply(h, ask.ask!.target, '  Keep the old login page too  ', via);
+    expect(h.drafts.note(GOAL, 1)).toBe('Keep the old login page too');
+    expect(kept.update?.[0]).toMatchObject({ target: { kind: 'round', goalId: GOAL, round: 1 } });
+    expect(labels(kept.update?.[0]?.buttons)).toContain('✓ ✍️ Keep the old login page too');
+    expect(calls).toEqual([]);
+    await press(h, `q:${GOAL}:1:0:0`, via);
+    await press(h, `r:${GOAL}:1:s`, via);
+    expect(calls).toEqual([{ fn: 'answerInterview', args: [GOAL, { R1Q1: 'Postgres' }, false, 'Keep the old login page too'] }]);
+    expect(h.drafts.note(GOAL, 1)).toBeNull(); // sent with the answers, so no longer a draft
+    const enough = host({ goal: goal() });
+    await reply(enough.h, { kind: 'note', goalId: GOAL, round: 1 }, 'SQLite is fine', via);
+    await press(enough.h, `r:${GOAL}:1:e`, via);
+    expect(enough.calls).toEqual([{ fn: 'answerInterview', args: [GOAL, {}, true, 'SQLite is fine'] }]);
+    // a closed round takes no note
+    expect((await reply(host({ goal: goal({ state: 'awaiting_brief_approval' }) }).h, { kind: 'note', goalId: GOAL, round: 1 }, 'late', via)).alert).toBe(true);
   });
 
   test('a blocking question without options has no recommendation: Accept all says to answer it', async () => {
@@ -260,7 +291,7 @@ describe('answering an interview round', () => {
     const noted = await reply(h, own.ask!.target, 'Lumen', via);
     expect(labels(noted.update?.[0]?.buttons)).toEqual(['✓ ✍️ Lumen']);
     await press(h, `r:${GOAL}:1:s`, via);
-    expect(calls).toEqual([{ fn: 'answerInterview', args: [GOAL, { R1Q1: 'Lumen' }, false] }]);
+    expect(calls).toEqual([{ fn: 'answerInterview', args: [GOAL, { R1Q1: 'Lumen' }, false, null] }]);
   });
 
   test('a round that closed (answered on the page, a later round) takes no presses', async () => {
@@ -321,9 +352,13 @@ describe('drafts on disk', () => {
     const a = new JsonDrafts(path);
     a.setAnswer(GOAL, 1, 'R1Q1', 'SQLite');
     a.setPlan(ESC, { feedback: 'too dark', plan });
+    a.setNote(GOAL, 1, 'keep the old login page');
     const b = new JsonDrafts(path);
     expect(b.answers(GOAL, 1)).toEqual({ R1Q1: 'SQLite' });
+    expect(b.note(GOAL, 1)).toBe('keep the old login page');
     expect(b.plan(ESC)).toEqual({ feedback: 'too dark', plan });
+    b.clearAnswers(GOAL, 1);
+    expect(new JsonDrafts(path).note(GOAL, 1)).toBeNull(); // the note goes with the answers it was written for
     for (let i = 0; i < 60; i++) b.setAnswer(`g_${i}`, 1, 'k', 'v');
     expect(new JsonDrafts(path).answers(GOAL, 1)).toEqual({});
   });

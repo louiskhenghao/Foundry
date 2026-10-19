@@ -22,7 +22,7 @@ export type Target =
   | { kind: 'usage'; provider: 'claude' | 'codex' };
 
 /** what words sent in reply mean */
-export type TextTarget = { kind: 'hint'; escId: string } | { kind: 'feedback'; escId: string } | { kind: 'answer'; goalId: string; round: number; index: number };
+export type TextTarget = { kind: 'hint'; escId: string } | { kind: 'feedback'; escId: string } | { kind: 'answer'; goalId: string; round: number; index: number } | { kind: 'note'; goalId: string; round: number };
 
 export function targetKey(t: Target): string {
   switch (t.kind) {
@@ -62,7 +62,7 @@ export type Press =
   | { kind: 'done' }
   | { kind: 'esc'; id: string; code: string }
   | { kind: 'question'; goalId: string; round: number; index: number; option: number | 'own' }
-  | { kind: 'round'; goalId: string; round: number; code: 'a' | 's' | 'e' }
+  | { kind: 'round'; goalId: string; round: number; code: 'a' | 's' | 'e' | 'n' }
   | { kind: 'brief'; goalId: string; code: 'a' | 'A' | 'n' }
   | { kind: 'plan'; escId: string; code: 'a' | 'n' }
   | { kind: 'usage'; provider: 'claude' | 'codex' };
@@ -87,7 +87,7 @@ export function parsePress(data: string): Press | null {
     }
     case 'r': {
       const round = num(p[2]);
-      return p.length === 4 && id && round != null && (p[3] === 'a' || p[3] === 's' || p[3] === 'e') ? { kind: 'round', goalId: id, round, code: p[3] } : null;
+      return p.length === 4 && id && round != null && (p[3] === 'a' || p[3] === 's' || p[3] === 'e' || p[3] === 'n') ? { kind: 'round', goalId: id, round, code: p[3] } : null;
     }
     case 'b':
       return p.length === 3 && id && (p[2] === 'a' || p[2] === 'A' || p[2] === 'n') ? { kind: 'brief', goalId: id, code: p[2] } : null;
@@ -159,8 +159,13 @@ export function questionKeyboard(goalId: string, round: number, index: number, q
   return rows;
 }
 
-export function roundKeyboard(goalId: string, round: number): Keyboard {
-  return [[btn('✅ Accept all recommended', `r:${goalId}:${round}:a`)], [btn('📨 Send answers', `r:${goalId}:${round}:s`), btn('✋ Enough — write the Brief', `r:${goalId}:${round}:e`)]];
+/** the round's own buttons; `note` = the note drafted for it so far, shown on its button */
+export function roundKeyboard(goalId: string, round: number, note: string | null = null): Keyboard {
+  return [
+    [btn('✅ Accept all recommended', `r:${goalId}:${round}:a`)],
+    [btn(note ? `✓ ✍️ ${clip(note, 40)}` : '✍️ Add a note…', `r:${goalId}:${round}:n`)],
+    [btn('📨 Send answers', `r:${goalId}:${round}:s`), btn('✋ Enough — write the Brief', `r:${goalId}:${round}:e`)],
+  ];
 }
 
 const blockingLeft = (brief: Brief) => brief.questions.filter((q) => q.blocking && !q.answer?.trim());
@@ -190,10 +195,14 @@ export function budgetOnApproval(goal: Pick<Goal, 'provider' | 'budgetPreset' | 
 
 // ---------- what the engine does for a chat ----------
 
-/** a draft the person builds up in the chat before sending it: interview answers per round, a feedback plan per milestone */
+/** a draft the person builds up in the chat before sending it: interview answers and a note per round, a feedback plan per milestone */
 export interface Drafts {
   answers(goalId: string, round: number): Record<string, string>;
   setAnswer(goalId: string, round: number, key: string, answer: string): void;
+  /** what the person wrote unasked for the round, sent with its answers */
+  note(goalId: string, round: number): string | null;
+  setNote(goalId: string, round: number, note: string | null): void;
+  /** the round was sent: its answers and its note are no longer drafts */
   clearAnswers(goalId: string, round: number): void;
   plan(escId: string): { feedback: string; plan: FeedbackPlan } | null;
   setPlan(escId: string, value: { feedback: string; plan: FeedbackPlan } | null): void;
@@ -205,7 +214,7 @@ export interface ActionHost {
   brief(goalId: string): Brief | null;
   escalation(id: string): Escalation | null;
   answerEscalation(id: string, answer: EscalationAnswer): Promise<void>;
-  answerInterview(goalId: string, answers: Record<string, string>, finish: boolean): void;
+  answerInterview(goalId: string, answers: Record<string, string>, finish: boolean, note: string | null): void;
   approveBrief(goalId: string, budgets?: Partial<Budgets>): Promise<void>;
   classifyFeedback(goalId: string, text: string): Promise<FeedbackPlan>;
   resumeNow(provider: 'claude' | 'codex'): boolean;
@@ -338,7 +347,9 @@ function closedQuestions(goalId: string, round: number, questions: InterviewQues
 function pressRound(host: ActionHost, p: Extract<Press, { kind: 'round' }>, via: Via): Outcome {
   const open = openRound(host, p.goalId, p.round);
   if (typeof open === 'string') return { toast: open, buttons: [] };
+  if (p.code === 'n') return { toast: 'Reply with your note.', ask: { text: `✍️ Your note for round ${p.round}\nReply to this message with what the questions missed or got wrong. It is sent with your answers and becomes a Decision.`, placeholder: 'What should Foundry know?', target: { kind: 'note', goalId: p.goalId, round: p.round } } };
   const draft = host.drafts.answers(p.goalId, p.round);
+  const note = host.drafts.note(p.goalId, p.round);
   // "Accept all recommended": what was picked stays, every other question takes its first option
   const answers = p.code === 'a' ? Object.fromEntries(open.questions.map((q) => [q.key, draft[q.key]?.trim() || q.options[0] || '']).filter(([, v]) => v)) : draft;
   if (p.code !== 'e') {
@@ -350,7 +361,7 @@ function pressRound(host: ActionHost, p: Extract<Press, { kind: 'round' }>, via:
       };
   }
   try {
-    host.answerInterview(p.goalId, answers, p.code === 'e');
+    host.answerInterview(p.goalId, answers, p.code === 'e', note);
   } catch (err) {
     return { toast: clip(`Not sent: ${errText(err)}`, 200), alert: true };
   }
@@ -412,6 +423,9 @@ export function textTargetOf(host: ActionHost, t: Target): TextTarget | null {
   switch (t.kind) {
     case 'question':
       return { kind: 'answer', goalId: t.goalId, round: t.round, index: t.index };
+    case 'round':
+      // words under the round's own message: something the questions did not ask
+      return { kind: 'note', goalId: t.goalId, round: t.round };
     case 'plan':
       // new words for a plan not yet applied: Foundry reads the feedback again
       return { kind: 'feedback', escId: t.escId };
@@ -472,13 +486,22 @@ export async function reply(host: ActionHost, target: TextTarget, text: string, 
         update: [{ target: { kind: 'question', goalId: target.goalId, round: target.round, index: target.index }, buttons: questionKeyboard(target.goalId, target.round, target.index, q, words) }],
       };
     }
+    case 'note': {
+      const open = openRound(host, target.goalId, target.round);
+      if (typeof open === 'string') return { toast: open, alert: true };
+      host.drafts.setNote(target.goalId, target.round, words);
+      return {
+        toast: 'Note kept. It goes with your answers: press Send answers, Accept all recommended or Enough when the round is done.',
+        update: [{ target: { kind: 'round', goalId: target.goalId, round: target.round }, buttons: roundKeyboard(target.goalId, target.round, words) }],
+      };
+    }
   }
 }
 
 // ---------- drafts on disk ----------
 
 interface DraftFile {
-  answers: Record<string, { at: string; answers: Record<string, string> }>;
+  answers: Record<string, { at: string; answers: Record<string, string>; note?: string }>;
   plans: Record<string, { at: string; feedback: string; plan: FeedbackPlan }>;
 }
 const KEEP = 50;
@@ -499,7 +522,16 @@ export class JsonDrafts implements Drafts {
   }
   setAnswer(goalId: string, round: number, key: string, answer: string): void {
     const k = `${goalId}:${round}`;
-    this.data.answers[k] = { at: new Date().toISOString(), answers: { ...(this.data.answers[k]?.answers ?? {}), [key]: answer } };
+    this.data.answers[k] = { ...this.data.answers[k], at: new Date().toISOString(), answers: { ...(this.data.answers[k]?.answers ?? {}), [key]: answer } };
+    this.save();
+  }
+  note(goalId: string, round: number): string | null {
+    return this.data.answers[`${goalId}:${round}`]?.note ?? null;
+  }
+  setNote(goalId: string, round: number, note: string | null): void {
+    const k = `${goalId}:${round}`;
+    const { note: _old, ...rest } = this.data.answers[k] ?? { answers: {} };
+    this.data.answers[k] = { ...rest, at: new Date().toISOString(), ...(note ? { note } : {}) };
     this.save();
   }
   clearAnswers(goalId: string, round: number): void {
