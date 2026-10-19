@@ -18,6 +18,8 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
   const attempts = d.attempts.filter((a) => a.taskId === task.id);
   const row = d.tasks.find((t) => t.id === task.id);
   const usage = row?.usage ?? null;
+  // what the task's cut sessions probably cost (each at its model's measured rate); 0 when none could be estimated
+  const cutEstimate = attempts.flatMap((a) => a.sessions).filter((s) => s.costAvailable === false).reduce((n, s) => n + (d.costEstimate?.bySession[s.sessionId ?? ''] ?? 0), 0);
   const [ai, setAi] = useState(attempts.length - 1);
   const [view, setView] = useState<'log' | 'report' | 'prompt'>('log');
   const [prompt, setPrompt] = useState<string | null>(null);
@@ -102,8 +104,8 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
           <span><b className="text-zinc-200">{usage.attempts}</b> attempt{usage.attempts === 1 ? '' : 's'}</span>
           <span><b className="text-zinc-200">{cost(usage.costUsd)}</b> <span className="text-zinc-500">(worker {cost(usage.byRole.worker.costUsd)} · reviewer {cost(usage.byRole.reviewer.costUsd)}{usage.byRole.merger.sessions ? ` · merger ${cost(usage.byRole.merger.costUsd)}` : ''})</span></span>
           {usage.unmeasured > 0 && (
-            <span className="text-amber-300/90" title={`${usage.unmeasured} session${usage.unmeasured === 1 ? '' : 's'} ended before the coding agent reported a cost: unknown, not $0, and missing from this total`}>
-              +{usage.unmeasured} unmeasured
+            <span className="text-amber-300/90" title={`${usage.unmeasured} session${usage.unmeasured === 1 ? '' : 's'} ended before the coding agent reported a cost: not in this total${cutEstimate ? `; about ${fmtUsd(cutEstimate)} estimated from their tokens at the model's measured rate` : ''}`}>
+              {cutEstimate ? `+ ≈${fmtUsd(cutEstimate)} est.` : `+${usage.unmeasured} unmeasured`}
             </span>
           )}
           <span><b className="text-zinc-200">{d.goal.provider === 'codex' ? '—' : usage.turns}</b> turns</span>
@@ -273,7 +275,9 @@ function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; conclude
   const reviewerCost = a.sessions.filter((s) => s.role === 'reviewer').reduce((n, s) => n + s.costUsd, 0);
   // sessions cut before the coding agent reported a cost: their dollars are unknown, so the sums above leave them out
   const unmeasured = a.sessions.filter((s) => s.costAvailable === false).length;
-  const unmeasuredNote = `${unmeasured} session${unmeasured === 1 ? '' : 's'} ended before the coding agent reported a cost: unknown, not $0`;
+  const estimateOf = (sessionId: string | null) => d.costEstimate?.bySession[sessionId ?? ''] ?? null;
+  const cutEstimate = a.sessions.filter((s) => s.costAvailable === false).reduce((n, s) => n + (estimateOf(s.sessionId) ?? 0), 0);
+  const unmeasuredNote = `${unmeasured} session${unmeasured === 1 ? '' : 's'} ended before the coding agent reported a cost${cutEstimate ? `: about ${fmtUsd(cutEstimate)}, estimated from the tokens at the model's measured rate` : ': unknown, not $0'}`;
   const workerModels = [...new Set(a.sessions.filter((s) => s.role === 'worker').map((s) => s.model).filter(Boolean))] as string[];
   const fallbacks = d.events.filter((e) => e.type === 'goal.models_changed').map((e) => e.payload as { from: string; to: string });
   const running = !a.endedAt;
@@ -289,7 +293,7 @@ function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; conclude
         {cell('Result', <span className="flex items-center gap-1.5"><Badge state={running ? 'running' : a.state} />{a.resultSubtype && !running ? <span className="mono text-zinc-500">{a.resultSubtype}</span> : null}</span>)}
         {cell('Worker model', <span className="mono">{(workerModels.length ? workerModels : [a.model ?? '?']).join(' → ')}</span>, fallbacks.length ? `model fallback(s) on this goal: ${fallbacks.map((f) => `${f.from} → ${f.to}`).join(', ')}` : undefined)}
         {cell('Turns', d.goal.provider === 'codex' ? 'unavailable' : `${a.numTurns}${a.continuations > 0 ? ` over ${a.continuations + 1} segments` : ''}`)}
-        {cell('Cost', <>{cost(a.costUsd)} <span className="text-zinc-500">worker</span>{reviewerCost > 0 ? <> + {cost(reviewerCost)} <span className="text-zinc-500">reviewer</span></> : null}{unmeasured > 0 ? <> + <span className="text-amber-300/90">unknown</span></> : null}</>, unmeasured > 0 ? unmeasuredNote : undefined)}
+        {cell('Cost', <>{cost(a.costUsd)} <span className="text-zinc-500">worker</span>{reviewerCost > 0 ? <> + {cost(reviewerCost)} <span className="text-zinc-500">reviewer</span></> : null}{unmeasured > 0 ? <> + <span className="text-amber-300/90">{cutEstimate ? `≈${fmtUsd(cutEstimate)} est.` : 'unknown'}</span></> : null}</>, unmeasured > 0 ? unmeasuredNote : undefined)}
         {cell('Started', ago(a.startedAt))}
         {cell('Duration', a.endedAt ? fmtDur(Date.parse(a.endedAt) - Date.parse(a.startedAt)) : 'running…')}
         {cell('Session', a.sessionId ? <span className="mono">{a.sessionId.slice(0, 8)}</span> : '—', a.sessionId ?? undefined)}
@@ -318,7 +322,7 @@ function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; conclude
                   </td>
                   <td className="pr-3 mono">{s.model ?? '—'}</td>
                   <td className="pr-3 text-right">{d.goal.provider === 'codex' ? '—' : s.numTurns}</td>
-                  <td className="pr-3 text-right mono">{s.costAvailable === false ? <span className="text-amber-300/90 font-sans" title="ended before the coding agent reported a cost: unknown, not $0">unknown</span> : cost(s.costUsd)}</td>
+                  <td className="pr-3 text-right mono">{s.costAvailable === false ? (estimateOf(s.sessionId) != null ? <span className="text-amber-300/90" title="ended before the coding agent reported a cost: estimated from its tokens at the rate the same model cost in sessions that reported it">≈{fmtUsd(estimateOf(s.sessionId)!)}</span> : <span className="text-amber-300/90 font-sans" title="ended before the coding agent reported a cost: unknown, not $0 (its model has no session with a reported cost yet)">unknown</span>) : cost(s.costUsd)}</td>
                   <td className="pr-3 text-right">{fmtDur(s.durationMs)}</td>
                   <td className="mono text-zinc-500">{s.subtype === 'success' ? 'ok' : (s.subtype ?? '—')}{s.subtype === 'error_max_turns' || s.subtype === 'error_max_budget_usd' ? ' → continued' : ''}</td>
                 </tr>

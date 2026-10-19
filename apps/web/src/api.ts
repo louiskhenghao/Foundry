@@ -400,6 +400,8 @@ export interface GoalDetail {
   subjectSearches?: string[];
   /** the milestones (task ids) whose recording is being compared with the Subjects' pictures now */
   likenessRuns?: string[];
+  /** the sessions cut before they reported a cost, each priced at its model's measured rate: shown as ≈, never in the budget */
+  costEstimate?: { usd: number; sessions: number; estimated: number; bySession: Record<string, number> };
   /** Follows / Followed by (goal.follows holds the earlier goal; it may have been deleted since) */
   followUps: { followsExists: boolean; followedBy: { id: string; title: string; state: GoalState }[] };
   /** Delegated from / Delegated goals (goal.delegatedFrom holds the main goal; it may have been deleted since) */
