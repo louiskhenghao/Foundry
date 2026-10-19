@@ -257,10 +257,11 @@ try {
 
   // Subjects: the studio's own mascot figure, from pictures of the person's (drawn here: the demo shows nobody's photos)
   const pictures: Uint8Array[] = [];
+  // each drawing is cut from the top left of the page as it is: shrinking the window to it first sometimes caught a frame
+  // not yet drawn again at the new size
   for (const view of ['front', 'side', 'three-quarter'] as const) {
-    await page.setViewportSize({ width: 480, height: 360 });
     await page.setContent(mascot(view));
-    pictures.push(new Uint8Array(await page.screenshot({ type: 'png' })));
+    pictures.push(new Uint8Array(await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width: 480, height: 360 } })));
   }
   await page.setViewportSize({ width: 1280, height: 860 });
   const pip = { name: 'Pip, our robot mascot (the vinyl figure)', lookFor: 'the round head with one big eye, the antenna, the orange body and the short arms' };
