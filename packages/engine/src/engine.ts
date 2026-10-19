@@ -729,8 +729,8 @@ export class Engine {
   }
 
   /** the human answered the open interview round (finish = write the Brief with what there is); the session continues in the background */
-  answerInterview(goalId: string, answers: Record<string, string>, finish = false): void {
-    answerInterview(this, this.mustGoal(goalId), answers, finish);
+  answerInterview(goalId: string, answers: Record<string, string>, finish = false, note: string | null = null): void {
+    answerInterview(this, this.mustGoal(goalId), answers, finish, note);
   }
 
   /** switch a goal's headless self-check; turning it on creates its goal-level must check right away */

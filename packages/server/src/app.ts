@@ -423,9 +423,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   // ---- Clarify interview: the human answers a round; the session continues in the background ----
   app.post('/api/goals/:id/interview/answer', async (c) => {
     const goal = goalOr404(c);
-    const body = z.object({ answers: z.record(z.string()).default({}), finish: z.boolean().default(false) }).parse(await c.req.json().catch(() => ({})));
+    const body = z.object({ answers: z.record(z.string()).default({}), finish: z.boolean().default(false), note: z.string().nullable().default(null) }).parse(await c.req.json().catch(() => ({})));
     try {
-      engine.answerInterview(goal.id, body.answers, body.finish);
+      engine.answerInterview(goal.id, body.answers, body.finish, body.note);
     } catch (e) {
       throw new HttpError(409, { error: String((e as Error).message ?? e) });
     }

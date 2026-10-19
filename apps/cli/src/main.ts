@@ -239,12 +239,16 @@ switch (cmd) {
       if (b.assumptions.length) console.log('Assumptions:\n' + b.assumptions.map((a: any) => `  [${a.accepted ? 'x' : ' '}] ${a.text}`).join('\n'));
       console.log('\nTasks:\n' + b.tasks.map((t: any) => `  ${t.key} ${t.title}${t.dependsOnKeys.length ? ` (after ${t.dependsOnKeys.join(',')})` : ''}${t.parallelizable ? ' ∥' : ''}`).join('\n'));
       console.log('\nChecks:\n' + b.checks.map((c: any) => `  [${c.tier}] ${c.taskKey ?? 'goal'}: ${c.name}${c.spec.type === 'command' ? `  \`${c.spec.cmd}\`` : ''}`).join('\n'));
-      if (b.questions.length) console.log('\nQuestions:\n' + b.questions.map((q: any) => `  ${q.blocking ? '(blocking) ' : ''}${q.text} → ${q.answer ?? '(unanswered)'}`).join('\n'));
+      const asked = b.questions.filter((q: any) => q.kind !== 'note');
+      const notes = b.questions.filter((q: any) => q.kind === 'note');
+      if (asked.length) console.log('\nQuestions:\n' + asked.map((q: any) => `  ${q.blocking ? '(blocking) ' : ''}${q.text} → ${q.answer ?? '(unanswered)'}`).join('\n'));
+      if (notes.length) console.log('\nNotes from you:\n' + notes.map((q: any) => `  ${q.text}`).join('\n'));
       console.log(`\nEstimate: ${d.goal.provider === 'codex' ? 'cost unavailable' : `$${b.costEstimateUsd}`} / ${b.timeEstimateMin} min`);
     }
     if (has('--approve')) {
       const answers = opts('--answer');
-      if (answers.length) b.questions.forEach((q: any, i: number) => (q.answer = answers[i] ?? q.answer));
+      // --answer fills the questions in the order shown; a note is not a question
+      if (answers.length) b.questions.filter((q: any) => q.kind !== 'note').forEach((q: any, i: number) => (q.answer = answers[i] ?? q.answer));
       await api(`/api/goals/${id}/brief/approve`, { method: 'POST', body: JSON.stringify(b) });
       console.log('approved ✔');
     }
