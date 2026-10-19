@@ -1,35 +1,83 @@
-import type { Brief } from '@foundry/core/browser';
+import type { Brief, Goal, InterviewQuestion } from '@foundry/core/browser';
 import { decisionsOf, diffIsEmpty, markDecisionsApplied } from '@foundry/core/browser';
-import { Check, Sparkles, X } from 'lucide-react';
-import { useState } from 'react';
+import { Check, MessageCircleQuestion, Sparkles, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { api, type DraftProposal } from '../../api.ts';
 import { Button, Card, cn } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
+import { RoundForm, type RoundSubmitKind } from '../goal/RoundForm.tsx';
 import { DraftPanel } from './DraftPanel.tsx';
 import { NotesComposer } from './NotesComposer.tsx';
+
+type Round = { round: number; questions: InterviewQuestion[] };
 
 /**
  * The human's Decisions (answers, notes, rejected assumptions) and whether the plan honours them yet.
  * "Revise with answers" asks the Clarifier for a revision; accepting any of it marks the Decisions applied.
- * A note written here is a Decision too: saved with the Brief, it reaches every session and a Re-run Clarify.
+ * A Revise may ask a round or two first: the round waits here (and on the goal, across reloads) until answered,
+ * let go, or the Brief is approved. A note written here is a Decision too: saved with the Brief, it reaches every
+ * session and a Re-run Clarify.
  */
-export function DecisionsBar({ brief, goalId, editable, edit }: { brief: Brief; goalId: string; editable: boolean; edit: (fn: (b: Brief) => Brief) => void }) {
+export function DecisionsBar({ brief, goal, goalId, editable, edit, beforeRevise }: { brief: Brief; goal: Goal; goalId: string; editable: boolean; edit: (fn: (b: Brief) => Brief) => void; /** saves the page's edits first, so a note typed here survives a reload while a round waits */ beforeRevise?: () => Promise<void> }) {
   const [proposal, setProposal] = useState<DraftProposal | null>(null);
   const [busy, setBusy] = useState(false);
+  const [answering, setAnswering] = useState<RoundSubmitKind | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  /** the round a Revise asked and still waits on: from the goal (survives a reload) or the latest reply */
+  const persisted = goal.revise?.status === 'awaiting_answers' ? (goal.revise.rounds.at(-1) ?? null) : null;
+  const [round, setRound] = useState<Round | null>(persisted);
+  useEffect(() => {
+    setRound(persisted ? { round: persisted.round, questions: persisted.questions } : null);
+  }, [persisted?.round, goal.revise?.status, goalId]);
   const decisions = decisionsOf(brief);
   if (!decisions.length && !editable) return null;
   const pending = decisions.filter((d) => !d.applied);
+  const took = (p: DraftProposal) => {
+    if (p.round) {
+      setRound(p.round);
+      setProposal(null);
+      return;
+    }
+    setRound(null);
+    setProposal(p);
+    // what the human answered in the rounds is theirs, not a proposal: it is recorded as Decisions at once
+    const decided = p.revision?.revised.questions.filter((q) => q.applied && q.answer?.trim()) ?? [];
+    if (decided.length) edit((b) => ({ ...b, questions: [...b.questions, ...decided.filter((q) => !b.questions.some((x) => x.id === q.id || (x.text === q.text && x.answer === q.answer)))] }));
+  };
   const revise = async () => {
     setBusy(true);
     setErr(null);
     try {
+      await beforeRevise?.();
       const { proposal } = await api.draftBrief(goalId, { mode: 'revise', brief, notes: '' });
-      setProposal(proposal);
+      took(proposal);
     } catch (e: any) {
       setErr(e.message);
     } finally {
       setBusy(false);
+    }
+  };
+  const answer = async (kind: RoundSubmitKind, answers: Record<string, string>, finish: boolean, note: string | null) => {
+    setAnswering(kind);
+    setBusy(true);
+    setErr(null);
+    try {
+      const { proposal } = await api.reviseAnswer(goalId, { brief, answers, finish, note });
+      took(proposal);
+    } catch (e: any) {
+      setErr(e.body?.error ?? e.message);
+    } finally {
+      setAnswering(null);
+      setBusy(false);
+    }
+  };
+  const letGo = async () => {
+    setErr(null);
+    try {
+      await api.reviseCancel(goalId);
+      setRound(null);
+    } catch (e: any) {
+      setErr(e.message);
     }
   };
   const markApplied = () => edit((b) => markDecisionsApplied(b));
@@ -93,6 +141,25 @@ export function DecisionsBar({ brief, goalId, editable, edit }: { brief: Brief; 
         <NotesComposer brief={brief} editable={editable} edit={edit} />
       </div>
       {err && <div className="text-xs text-rose-300 mt-2">{err}</div>}
+      {round && !busy && (
+        <div className="mt-3 rounded-md border border-sky-500/30 bg-sky-500/5 p-3 space-y-3 text-xs text-zinc-400">
+          <div className="flex items-center gap-2 text-sm text-zinc-100">
+            <MessageCircleQuestion size={14} className="text-sky-300" /> Before it revises, the Clarifier asks (round {round.round} of 2)
+          </div>
+          <RoundForm
+            key={`${goalId}-revise-${round.round}`}
+            round={round.round}
+            questions={round.questions}
+            rounds={goal.revise?.rounds ?? []}
+            busy={answering}
+            intro={<p>Your decisions left these open. Answer, or press Enough and it proposes with its recommendations. You can still approve the Brief as it is meanwhile; that lets this revision go.</p>}
+            finishLabel="Enough — propose now"
+            finishTitle="Stop asking: the Clarifier proposes with its recommended answers for what is still open"
+            onSubmit={answer}
+            onCancel={letGo}
+          />
+        </div>
+      )}
       {busy && (
         <div className="mt-3">
           <p className="text-xs text-zinc-500 mb-1">The Clarifier is re-reading the Brief and the repository — its live output below. A revision usually takes a few minutes.</p>

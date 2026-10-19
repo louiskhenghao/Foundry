@@ -297,7 +297,7 @@ export function BriefPage() {
 
           {(decisions.length > 0 || editable) && (
             <section id="brief-decisions" className={sec}>
-              <DecisionsBar brief={brief} goalId={id} editable={editable} edit={edit} />
+              <DecisionsBar brief={brief} goal={g} goalId={id} editable={editable} edit={edit} beforeRevise={dirty ? save : undefined} />
             </section>
           )}
           <section id="brief-areas" className={sec}>

@@ -1,4 +1,4 @@
-import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment } from '@foundry/core/browser';
+import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment, InterviewQuestion } from '@foundry/core/browser';
 import type { Attachment, Attempt, Brief, BriefApp, BriefCheck, BriefDiff, BriefRun, BriefStyleOption, BriefSubject, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, GoalTimeline, SettingsPatch, SettingsView, SubjectPicture, Task, TaskUsage } from '@foundry/core/browser';
 
 /** Mirrors the engine's PreviewAppStatus (preview/manager.ts): one app of the goal's preview. */
@@ -156,6 +156,8 @@ export interface DraftProposal {
   rationale: string;
   costUsd: number;
   revision?: { diff: BriefDiff; revised: Omit<Brief, 'goalId'>; changeSummary: string };
+  /** mode revise: no proposal yet — the Clarifier asks these first; answer them with reviseAnswer */
+  round?: { round: number; questions: InterviewQuestion[] };
 }
 
 export interface BaseSync {
@@ -582,6 +584,9 @@ export function apiForProvider(provider?: AgentProvider) {
   cancelDelivery: (id: string) => req<{ ok: boolean }>(`/api/goals/${id}/delivery/cancel`, { method: 'POST' }),
   editBrief: (id: string, brief: Brief) => req<Brief>(`/api/goals/${id}/brief`, { method: 'PATCH', body: JSON.stringify(brief) }),
   draftBrief: (id: string, body: DraftRequest) => req<{ proposal: DraftProposal }>(`/api/goals/${id}/brief/draft`, { method: 'POST', body: JSON.stringify(body) }),
+  /** the answers to the round a Revise asked: the proposal, or one more round */
+  reviseAnswer: (id: string, body: { brief: Omit<Brief, 'goalId'>; answers: Record<string, string>; finish: boolean; note: string | null }) => req<{ proposal: DraftProposal }>(`/api/goals/${id}/brief/revise/answer`, { method: 'POST', body: JSON.stringify(body) }),
+  reviseCancel: (id: string) => req<{ ok: true }>(`/api/goals/${id}/brief/revise/cancel`, { method: 'POST' }),
   approveBrief: (id: string, brief?: Brief, budgets?: Partial<Budgets>, completion?: { graphRefresh: boolean; docs: DocType[]; audit?: boolean }) => req<{ ok: true }>(`/api/goals/${id}/brief/approve`, { method: 'POST', body: brief || budgets || completion ? JSON.stringify({ ...(brief ?? {}), ...(budgets ? { budgets } : {}), ...(completion ? { completion } : {}) }) : '' }),
   cancelGoal: (id: string) => req<{ ok: true }>(`/api/goals/${id}/cancel`, { method: 'POST' }),
   styleSample: (id: string, styleKey: string) => req<{ started: true; channel: string; file: string }>(`/api/goals/${id}/brief/style-sample`, { method: 'POST', body: JSON.stringify({ styleKey }) }),
