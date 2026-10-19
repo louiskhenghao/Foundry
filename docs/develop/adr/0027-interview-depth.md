@@ -1,6 +1,6 @@
 # ADR-0027: The interview has a depth, not a round count
 
-**Status:** accepted · 2026-10-07 · amends ADR-0013
+**Status:** accepted · 2026-10-07 · amends ADR-0013 · amended by ADR-0044 (a round takes a Note with its answers)
 
 ## Context
 

@@ -1,29 +1,30 @@
 import type { Brief } from '@foundry/core/browser';
 import { decisionsOf, diffIsEmpty, markDecisionsApplied } from '@foundry/core/browser';
-import { Check, Sparkles } from 'lucide-react';
+import { Check, Sparkles, X } from 'lucide-react';
 import { useState } from 'react';
 import { api, type DraftProposal } from '../../api.ts';
-import { Button, Card, Input, cn } from '../../ui.tsx';
+import { Button, Card, cn } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { DraftPanel } from './DraftPanel.tsx';
+import { NotesComposer } from './NotesComposer.tsx';
 
 /**
- * The human's Decisions (answers, rejected assumptions) and whether the plan honours them yet.
+ * The human's Decisions (answers, notes, rejected assumptions) and whether the plan honours them yet.
  * "Revise with answers" asks the Clarifier for a revision; accepting any of it marks the Decisions applied.
+ * A note written here is a Decision too: saved with the Brief, it reaches every session and a Re-run Clarify.
  */
 export function DecisionsBar({ brief, goalId, editable, edit }: { brief: Brief; goalId: string; editable: boolean; edit: (fn: (b: Brief) => Brief) => void }) {
   const [proposal, setProposal] = useState<DraftProposal | null>(null);
-  const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const decisions = decisionsOf(brief);
-  if (!decisions.length) return null;
+  if (!decisions.length && !editable) return null;
   const pending = decisions.filter((d) => !d.applied);
   const revise = async () => {
     setBusy(true);
     setErr(null);
     try {
-      const { proposal } = await api.draftBrief(goalId, { mode: 'revise', brief, notes });
+      const { proposal } = await api.draftBrief(goalId, { mode: 'revise', brief, notes: '' });
       setProposal(proposal);
     } catch (e: any) {
       setErr(e.message);
@@ -37,9 +38,8 @@ export function DecisionsBar({ brief, goalId, editable, edit }: { brief: Brief; 
     <Card
       title={`Decisions (${decisions.length})`}
       actions={
-        editable && (
+        editable && decisions.length > 0 && (
           <span className="flex items-center gap-1.5">
-            <Input className="text-xs py-1 w-48 hidden md:block" placeholder="notes for the AI (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
             <Button size="sm" className="whitespace-nowrap" variant={pending.length ? 'primary' : 'default'} disabled={busy} onClick={revise} title="The Clarifier re-reads the Brief and the repository and proposes the changes your decisions imply; you accept them item by item (≤ $3)">
               <Sparkles size={12} /> {busy ? 'Revising…' : 'Revise with answers'}
             </Button>
@@ -53,7 +53,13 @@ export function DecisionsBar({ brief, goalId, editable, edit }: { brief: Brief; 
       }
     >
       <p className="text-xs text-zinc-500 mb-2">
-        Every worker, reviewer and pull request receives these verbatim. {pending.length > 0 ? <span className="text-amber-300">{pending.length} not yet applied to the plan — the tasks and checks below still reflect the Brief as it was before you decided.</span> : <span className="text-emerald-300">All applied to the plan.</span>}
+        {decisions.length ? (
+          <>
+            Every worker, reviewer and pull request receives these verbatim. {pending.length > 0 ? <span className="text-amber-300">{pending.length} not yet applied to the plan — the tasks and checks below still reflect the Brief as it was before you decided.</span> : <span className="text-emerald-300">All applied to the plan.</span>}
+          </>
+        ) : (
+          <>No decisions yet: answer a question, reject an assumption, or write a note below. Every worker, reviewer and pull request receives them verbatim.</>
+        )}
       </p>
       <ul className="space-y-1 text-sm">
         {decisions.map((d) => (
@@ -63,6 +69,18 @@ export function DecisionsBar({ brief, goalId, editable, edit }: { brief: Brief; 
               <span>
                 <span className="text-zinc-400">{d.text}</span> → <span className="font-medium">{d.answer}</span>
               </span>
+            ) : d.kind === 'note' ? (
+              <span className="flex-1 flex items-start gap-2">
+                <span className="flex-1 whitespace-pre-wrap">
+                  <span className="text-[11px] text-zinc-500 mr-1">note</span>
+                  {d.text}
+                </span>
+                {editable && (
+                  <button type="button" className="text-zinc-500 hover:text-rose-300 shrink-0 mt-0.5" title="Remove this note" onClick={() => edit((b) => ({ ...b, questions: b.questions.filter((q) => q.id !== d.id) }))}>
+                    <X size={12} />
+                  </button>
+                )}
+              </span>
             ) : (
               <span>
                 <span className="line-through text-zinc-500">{d.text}</span> <span className="text-[11px] text-zinc-500">(assumption rejected)</span>
@@ -71,6 +89,9 @@ export function DecisionsBar({ brief, goalId, editable, edit }: { brief: Brief; 
           </li>
         ))}
       </ul>
+      <div className={cn(decisions.length > 0 && 'mt-3 border-t border-zinc-800 pt-3')}>
+        <NotesComposer brief={brief} editable={editable} edit={edit} />
+      </div>
       {err && <div className="text-xs text-rose-300 mt-2">{err}</div>}
       {busy && (
         <div className="mt-3">

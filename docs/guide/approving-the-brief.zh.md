@@ -28,7 +28,7 @@ Brief 会以你在 New goal 表单上选的视图打开。用顶部的 **Expert 
 - Brief 等你处理时，标题旁边的徽标显示 **approve brief**。
 - 标题下面：项目文件夹、goal 从哪个分支开始，以及 goal 自己的分支。
 - 有一行小字说明 Foundry 读的是你项目的哪个版本，比如 "Explored origin/main (your local main was 3 behind)"。如果它提示没有拉取远端（remote），而你知道之后别人改过项目，就按 **Re-run Clarify**。
-- **Re-run Clarify** 会丢掉这份 Brief，拉取你项目的最新版本，然后重新规划。附件、预算和交付设置都会保留。你的决定会以文字形式交给新的 Clarify：它会按这些决定来规划，不会再问一遍，但它们不会作为条目回到 **Decisions** 卡片里。它工作期间，你会回到 goal 页面。
+- **Re-run Clarify** 会丢掉这份 Brief，拉取你项目的最新版本，然后重新规划。附件、预算和交付设置都会保留。你在这个页面上输入的答案和备注会先保存；然后你的决定会以文字形式交给新的 Clarify：它会按这些决定来规划，不会再问一遍，但它们不会作为条目回到 **Decisions** 卡片里。它工作期间，你会回到 goal 页面。
 - **goal** 面板显示你最初的描述。面板角上的 **Open full**（两个斜向箭头的图标）会在更大的窗口里显示它，带 **Preview**、**Raw** 和 **Copy**。
 
 ## Understanding
@@ -86,13 +86,17 @@ Delegated goal 和 follow-up 会带着来源 goal 的 Subject 和图片开始，
 
 ## Decisions
 
-**Decisions (N)** 列出你给出的每一个答案和否决的每一个假设，包括你在访谈中的回答。每个执行者、审查员和 pull request 都会一字不差地收到它们。
+**Decisions (N)** 列出你给出的每一个答案、写下的每一条备注和否决的每一个假设，包括你在访谈中的回答和备注。每个执行者、审查员和 pull request 都会一字不差地收到它们。
 
 绿点表示计划已经考虑了这个决定。琥珀色点表示你是在计划写好之后才做的决定，所以下面的任务和检查可能还没反映它。卡片会写明有多少个 **not yet applied to the plan**。
 
+### Add note
+
+卡片底部的框，写的是没有哪个问题问到的事：一个约束、一处纠正、Foundry 弄错的地方。写好后按 **Add note**。备注和答案一样是一个决定：它随 Brief 保存（按 **Save**），每个执行者都会一字不差地收到它，**Revise with answers** 会按它重写计划，**Re-run Clarify** 会从它出发。备注旁边的 ✕ 可以删掉它。
+
 ### Revise with answers
 
-按 **Revise with answers**，让 Foundry 根据你的决定重新读一遍 Brief 和你的项目。它会提出修改：新增、修改或删除的任务，检查，Area，新的理解。这要几分钟；Claude 会话上限是 $3，Codex 使用 ChatGPT 额度，不提供美元上限。你可以先填 **notes for the AI (optional)**。
+按 **Revise with answers**，让 Foundry 根据你的决定（包括备注）重新读一遍 Brief 和你的项目。它会提出修改：新增、修改或删除的任务，检查，Area，新的理解。这要几分钟；Claude 会话上限是 $3，Codex 使用 ChatGPT 额度，不提供美元上限。
 
 提议会以列表形式出现。用 ✓ 接受单项，用 ✗ 放弃，或者按 **Accept all**。你接受之前什么都不会变。如果 Foundry 找不到要改的地方，按 **OK, mark applied**。
 
@@ -281,6 +285,7 @@ Simple view 用大白话显示同一份 Brief：
 |---|---|
 | **What I understood** | 读一读；**Open full** 图标会在更大的窗口里显示它。如果不对，就在回答问题时相应地纠正，或者切到 Expert view 去编辑。 |
 | **Please answer (N)** 或 **Questions** | 选一个答案（★ 是推荐）或者输入你自己的。标着 **needed** 的问题必须回答。风格卡片的用法和上面一样。 |
+| **Anything to add?** | 没有哪个问题问到的事：写下来，按 **Add note**。备注和你的答案一样会到达每个执行者。 |
 | **I will assume… (untick anything that is wrong)** | 把不对的取消勾选。 |
 | **What you will get (N pieces of work)** | 各项任务，按 Area 分组。要改它们，就打开 **Expert view**。 |
 | **Price & time** / **Time & limits** | Claude 提供费用与时间估算及上限；Codex 提供时间及执行限制，没有美元字段。对应字段留空表示不设上限。 |

@@ -28,6 +28,8 @@ export const InterviewRound = z.object({
   answeredAt: z.string().nullable().default(null),
   /** the human asked for the Brief with these answers, whatever is still open */
   finish: z.boolean().default(false),
+  /** what the human wrote unasked with this round's answers (a correction, something the questions missed); a Decision once the Brief exists */
+  note: z.string().nullable().default(null),
 });
 export type InterviewRound = z.infer<typeof InterviewRound>;
 
@@ -60,4 +62,9 @@ export function interviewAnswers(iv: Pick<Interview, 'rounds'>): { question: Int
   const out: { question: InterviewQuestion; answer: string }[] = [];
   for (const r of iv.rounds) for (const q of r.questions) if (r.answers?.[q.key]?.trim()) out.push({ question: q, answer: r.answers[q.key]!.trim() });
   return out;
+}
+
+/** the notes the human wrote unasked, round by round, for prompts and the Brief's Decisions */
+export function interviewNotes(iv: Pick<Interview, 'rounds'>): { round: number; note: string }[] {
+  return iv.rounds.flatMap((r) => (r.note?.trim() ? [{ round: r.round, note: r.note.trim() }] : []));
 }

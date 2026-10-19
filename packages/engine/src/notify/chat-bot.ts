@@ -31,7 +31,7 @@ export const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 
 /** messages whose state goes with another's: a plan with its milestone, a question with its round */
 const related = (t: Target): string[] => (t.kind === 'plan' ? [`esc:${t.escId}`] : t.kind === 'esc' ? [`plan:${t.id}`] : t.kind === 'question' ? [`round:${t.goalId}:${t.round}`] : []);
 /** the message words in reply are about */
-export const aboutText = (t: TextTarget): Target => (t.kind === 'answer' ? { kind: 'question', goalId: t.goalId, round: t.round, index: t.index } : { kind: 'esc', id: t.escId });
+export const aboutText = (t: TextTarget): Target => (t.kind === 'answer' ? { kind: 'question', goalId: t.goalId, round: t.round, index: t.index } : t.kind === 'note' ? { kind: 'round', goalId: t.goalId, round: t.round } : { kind: 'esc', id: t.escId });
 
 export abstract class ChatBot<S extends ChatState> {
   readonly host: ActionHost;
@@ -149,7 +149,7 @@ export abstract class ChatBot<S extends ChatState> {
       const id = await this.post(questionText(i, q), [], questionKeyboard(goalId, round, i, q, draft[q.key] ?? null), { kind: 'question', goalId, round, index: i });
       if (id != null) sent.questions[i] = id;
     }
-    if (sent.controls == null) sent.controls = (await this.post(`Round ${round}: when you are done`, [], roundKeyboard(goalId, round), { kind: 'round', goalId, round })) ?? undefined;
+    if (sent.controls == null) sent.controls = (await this.post(`Round ${round}: when you are done`, [], roundKeyboard(goalId, round, this.host.drafts.note(goalId, round)), { kind: 'round', goalId, round })) ?? undefined;
     this.save();
   }
 

@@ -257,13 +257,16 @@ test('an interview round is answered from Telegram, then the Brief approved', as
   const controls = tg.sent(/^<b>Round 1: when you are done<\/b>/)!;
   expect(intro.body.text).toContain('2 questions before the plan is written');
   expect(tg.buttons(q1)).toEqual([`q:${goal.id}:1:0:0`, `q:${goal.id}:1:0:1`, `q:${goal.id}:1:0:w`]);
-  expect(tg.buttons(controls)).toEqual([`r:${goal.id}:1:a`, `r:${goal.id}:1:s`, `r:${goal.id}:1:e`]);
+  expect(tg.buttons(controls)).toEqual([`r:${goal.id}:1:a`, `r:${goal.id}:1:n`, `r:${goal.id}:1:s`, `r:${goal.id}:1:e`]);
 
   tg.press(q1.id!, `q:${goal.id}:1:0:1`);
   await waitFor(() => tg.edits(q1.id!).some((l) => l.includes('✓ SQLite')));
+  // words in reply to the round's own message are a note: kept with the answers, shown on the round's buttons
+  tg.write('keep the old login page too', controls.id!);
+  await waitFor(() => tg.edits(controls.id!).some((l) => l.includes('✓ ✍️ keep the old login page too')));
   tg.press(controls.id!, `r:${goal.id}:1:s`);
   await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
-  expect(getGoal(engine.store.db, goal.id)!.interview!.rounds[0]!.answers).toEqual({ R1Q1: 'SQLite' });
+  expect(getGoal(engine.store.db, goal.id)!.interview!.rounds[0]).toMatchObject({ answers: { R1Q1: 'SQLite' }, note: 'keep the old login page too' });
   await waitFor(() => tg.edits(q1.id!).some((l) => /^✓ SQLite$/.test(l)));
 
   await waitFor(() => !!tg.sent(/Brief ready/));

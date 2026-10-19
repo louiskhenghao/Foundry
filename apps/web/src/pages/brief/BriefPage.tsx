@@ -104,6 +104,8 @@ export function BriefPage() {
 
   const editable = g.state === 'awaiting_brief_approval';
   const update = (patch: Partial<Brief>) => edit((b) => ({ ...b, ...patch }));
+  /** what the Questions card shows: a note is a Decision, listed with the others */
+  const asked = brief.questions.filter((q) => q.kind !== 'note');
   const blockingUnanswered = brief.questions.filter((q) => q.blocking && !q.answer?.trim());
   const badChecks = brief.checks.filter((c) => checkProblem(c));
   const badTasks = brief.tasks.filter((t) => taskProblem(t));
@@ -178,6 +180,7 @@ export function BriefPage() {
         onSave={save}
         onCancel={() => api.cancelGoal(id).then(() => nav('/'))}
         onExpert={() => setView(true)}
+        edit={edit}
         subjects={subjectsCard}
       />
     );
@@ -185,13 +188,13 @@ export function BriefPage() {
 
   const decisions = decisionsOf(brief);
   const goalChecks = brief.checks.filter((c) => c.taskKey === null).length;
-  const answered = brief.questions.filter((q) => q.answer?.trim()).length;
+  const answered = asked.filter((q) => q.answer?.trim()).length;
   const navItems: BriefNavItem[] = [
     { id: 'brief-understanding', label: 'Understanding' },
-    ...(brief.questions.length ? [{ id: 'brief-questions', label: 'Questions', status: blockingUnanswered.length ? `${blockingUnanswered.length} blocking` : `${answered}/${brief.questions.length}`, warn: blockingUnanswered.length > 0 }] : []),
+    ...(asked.length ? [{ id: 'brief-questions', label: 'Questions', status: blockingUnanswered.length ? `${blockingUnanswered.length} blocking` : `${answered}/${asked.length}`, warn: blockingUnanswered.length > 0 }] : []),
     ...(subjectsCard ? [{ id: 'brief-subjects', label: 'Looks like', status: searching.length ? 'searching' : subjects.length ? String(subjects.length) : null }] : []),
     { id: 'brief-assumptions', label: 'Assumptions', status: brief.assumptions.length ? `${brief.assumptions.filter((a) => a.accepted).length}/${brief.assumptions.length}` : null },
-    ...(decisions.length ? [{ id: 'brief-decisions', label: 'Decisions', status: pending.length ? `${pending.length} to apply` : String(decisions.length), warn: pending.length > 0 }] : []),
+    ...(decisions.length || editable ? [{ id: 'brief-decisions', label: 'Decisions', status: pending.length ? `${pending.length} to apply` : decisions.length ? String(decisions.length) : null, warn: pending.length > 0 }] : []),
     { id: 'brief-areas', label: 'Areas', status: gaps.length ? `${gaps.length} empty` : String(brief.areas.length), warn: gaps.length > 0 },
     { id: 'brief-plan', label: 'Plan', status: `${brief.tasks.length} task${brief.tasks.length === 1 ? '' : 's'}`, warn: !graph.ok || badTasks.length > 0 },
     { id: 'brief-acceptance', label: 'Goal acceptance', status: String(goalChecks), warn: badChecks.length > 0 },
@@ -203,7 +206,7 @@ export function BriefPage() {
 
   return (
     <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
-      <Header detail={detail} onSimple={() => setView(false)} />
+      <Header detail={detail} onSimple={() => setView(false)} beforeReclarify={dirty ? save : undefined} />
       <div className="grid lg:grid-cols-[11rem_minmax(0,1fr)] gap-x-6">
         <BriefSideNav items={navItems} />
         <div className="min-w-0 space-y-4">
@@ -231,11 +234,12 @@ export function BriefPage() {
             </Card>
           </section>
 
-          {brief.questions.length > 0 && (
+          {asked.length > 0 && (
             <section id="brief-questions" className={sec}>
               <Card title={<>{`Questions (${blockingUnanswered.length} blocking unanswered)`}<HelpLink to="approving-the-brief#questions" className="ml-1.5" /></>}>
                 <div className="space-y-3">
                   {brief.questions.map((q, i) => {
+                    if (q.kind === 'note') return null;
                     const area = areaOf(brief, q.areaKey);
                     if (q.kind === 'style' && brief.styleOptions.length) return <StyleCards key={q.id} goalId={id} brief={brief} question={q} editable={editable} update={update} />;
                     return (
@@ -291,7 +295,7 @@ export function BriefPage() {
             </Card>
           </section>
 
-          {decisions.length > 0 && (
+          {(decisions.length > 0 || editable) && (
             <section id="brief-decisions" className={sec}>
               <DecisionsBar brief={brief} goalId={id} editable={editable} edit={edit} />
             </section>
@@ -399,7 +403,7 @@ export function BriefPage() {
   );
 }
 
-function Header({ detail, onSimple }: { detail: GoalDetail; onSimple?: () => void }) {
+function Header({ detail, onSimple, beforeReclarify }: { detail: GoalDetail; onSimple?: () => void; /** saves the page's edits first, so answers and notes typed here reach the new Clarify as Decisions */ beforeReclarify?: () => Promise<void> }) {
   const g = detail.goal;
   const nav = useNavigate();
   const [busy, setBusy] = useState(false);
@@ -408,6 +412,7 @@ function Header({ detail, onSimple }: { detail: GoalDetail; onSimple?: () => voi
     setBusy(true);
     setErr(null);
     try {
+      await beforeReclarify?.();
       await api.reclarify(g.id, 'fetch the latest base branch and explore again');
       nav(`/goals/${g.id}`);
     } catch (e: any) {

@@ -6,6 +6,7 @@ import { OpenFull } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { Badge, Button, Card, Input, cn, fmtLimitMin, fmtLimitUsd } from '../../ui.tsx';
 import { areaStyle } from './shared.ts';
+import { NotesComposer } from './NotesComposer.tsx';
 import { StyleCards } from './StyleCards.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 
@@ -30,10 +31,13 @@ export function SimpleBrief(p: {
   onSave: () => void;
   onCancel: () => void;
   onExpert: () => void;
+  /** functional edit, for the notes (a note is a Decision kept among the Brief's questions) */
+  edit: (fn: (b: Brief) => Brief) => void;
   /** the Subjects card (what the result must look like), or null when the goal has no look */
   subjects?: ReactNode;
 }) {
   const { brief, goal: g, editable, update } = p;
+  const asked = brief.questions.filter((q) => q.kind !== 'note');
   const blockingUnanswered = brief.questions.filter((q) => q.blocking && !q.answer?.trim());
   const byArea = brief.areas.length ? brief.areas.map((a) => ({ area: a, tasks: brief.tasks.filter((t) => t.areaKey === a.key) })) : [{ area: null, tasks: brief.tasks }];
   const unassigned = brief.areas.length ? brief.tasks.filter((t) => !brief.areas.some((a) => a.key === t.areaKey)) : [];
@@ -54,10 +58,10 @@ export function SimpleBrief(p: {
         <MarkdownPanel title="" source={brief.understanding} maxHeight={400} actions={<OpenFull value={{ title: 'What I understood', text: brief.understanding }} />} />
       </Card>
 
-      {brief.questions.length > 0 && (
+      {asked.length > 0 && (
         <Card title={blockingUnanswered.length ? `Please answer (${blockingUnanswered.length})` : 'Questions'}>
           <div className="space-y-3">
-            {brief.questions.map((q, i) => (q.kind === 'style' && brief.styleOptions.length ? <StyleCards key={q.id} goalId={g.id} brief={brief} question={q} editable={editable} update={update} /> : (
+            {brief.questions.map((q, i) => (q.kind === 'note' ? null : q.kind === 'style' && brief.styleOptions.length ? <StyleCards key={q.id} goalId={g.id} brief={brief} question={q} editable={editable} update={update} /> : (
               <div key={q.id}>
                 <div className="text-sm text-zinc-200 mb-1">
                   {q.blocking && <Badge state="must">needed</Badge>} {q.text}
@@ -88,6 +92,13 @@ export function SimpleBrief(p: {
       )}
 
       {p.subjects}
+
+      {(editable || brief.questions.some((q) => q.kind === 'note')) && (
+        <Card title="Anything to add?">
+          <p className="text-xs text-zinc-500 mb-2">Something Foundry did not ask, or got wrong. Your notes reach every worker, like your answers.</p>
+          <NotesComposer brief={brief} editable={editable} edit={p.edit} compact />
+        </Card>
+      )}
 
       {brief.assumptions.length > 0 && (
         <Card title="I will assume… (untick anything that is wrong)">

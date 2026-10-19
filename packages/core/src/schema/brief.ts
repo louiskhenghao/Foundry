@@ -110,8 +110,12 @@ export const BriefQuestion = z.object({
   areaKey: z.string().nullable().default(null),
   /** suggested answers rendered as choices (free text always allowed); the first one is the Clarifier's recommendation */
   options: z.array(z.string()).default([]),
-  /** style = the engine-generated style-direction question; its options are Style Proposal names rendered as visual cards */
-  kind: z.enum(['text', 'style']).default('text'),
+  /**
+   * style = the engine-generated style-direction question; its options are Style Proposal names rendered as visual cards.
+   * note = a Decision the human wrote unasked (in an interview round, or on the Brief page): `text` holds the words and
+   * `answer` repeats them, so a note counts as answered wherever Decisions are derived from answered questions.
+   */
+  kind: z.enum(['text', 'style', 'note']).default('text'),
   /** an answered question is a Decision; true once a Revise honoured it (or the human said no change was needed) */
   applied: z.boolean().default(false),
 });

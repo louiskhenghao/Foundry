@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { BriefOutput } from '@foundry/core';
-import { INTERVIEW_MAX_ROUNDS, getBrief, getGoal, listTasks } from '@foundry/core';
+import { INTERVIEW_MAX_ROUNDS, getBrief, getGoal, listTasks, noteQuestion, renderDecisions } from '@foundry/core';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
 import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
@@ -349,13 +349,14 @@ describe('decisions', () => {
     expect(prompt).toContain('Rejected assumption');
     expect(engine.store.listByGoal(goal.id, 5000).some((e) => e.type === 'goal.cost_added' && (e.payload as { source: string }).source === 'revise')).toBe(true);
 
-    // re-run Clarify keeps the decisions
-    engine.editBrief(goal.id, { ...answered, goalId: goal.id });
+    // re-run Clarify keeps the decisions, a note written on the Brief page among them
+    engine.editBrief(goal.id, { ...answered, goalId: goal.id, questions: [...answered.questions, noteQuestion('n1', 'Use the existing design tokens, no new colours')] });
     await engine.reclarify(goal.id, 'test');
     await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
     const clarifyPrompt = runner.calls.filter((c) => c.label?.startsWith('clarify')).at(-1)!.prompt;
     expect(clarifyPrompt).toContain('# Decisions already made by the human');
     expect(clarifyPrompt).toContain('A: No, students only');
+    expect(clarifyPrompt).toContain('Note from the human (unasked): Use the existing design tokens, no new colours');
 
     // workers receive the decisions
     const again = getBrief(engine.store.db, goal.id)!.brief;
@@ -391,23 +392,30 @@ describe('clarify interview', () => {
     expect(getGoal(engine.store.db, goal.id)!.state).toBe('clarifying');
     // blocking questions must be answered unless the human says enough
     expect(() => engine.answerInterview(goal.id, { R1Q2: 'none' })).toThrow(/blocking/);
-    engine.answerInterview(goal.id, { R1Q1: 'Postgres' });
+    // a note: what the questions missed, sent with the answers
+    engine.answerInterview(goal.id, { R1Q1: 'Postgres' }, false, '  Keep the old login page too; the admin role is out of scope.  ');
     await waitFor(() => iv(engine, goal.id).rounds.length === 2 && iv(engine, goal.id).status === 'awaiting_answers');
+    expect(iv(engine, goal.id).rounds[0]!.note).toBe('Keep the old login page too; the admin role is out of scope.');
     const second = main(runner)[1]!;
     expect(second.resumeSessionId).toBe('s2'); // the clarify session (s1 was the nature classification)
     expect(second.prompt).toContain('# Round 1 answers');
     expect(second.prompt).toContain('A: Postgres');
     expect(second.prompt).toContain('(no answer');
+    expect(second.prompt).toContain('# Also from the human (unasked)\nKeep the old login page too; the admin role is out of scope.');
     expect(iv(engine, goal.id).rounds[1]!.questions[0]).toMatchObject({ key: 'R2Q1', dependsOn: 'R1Q1' });
-    engine.answerInterview(goal.id, { R2Q1: 'Prisma' });
+    engine.answerInterview(goal.id, { R2Q1: 'Prisma' }, false, '   ');
     await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
     expect(iv(engine, goal.id).status).toBe('done');
+    expect(iv(engine, goal.id).rounds[1]!.note).toBeNull(); // blank notes are not kept
     const brief = getBrief(engine.store.db, goal.id)!.brief;
     const decided = brief.questions.filter((x) => x.applied && x.answer);
-    expect(decided.map((x) => [x.text, x.answer])).toEqual([
-      ['Which database?', 'Postgres'],
-      ['Which ORM?', 'Prisma'],
+    expect(decided.map((x) => [x.kind, x.text, x.answer])).toEqual([
+      ['text', 'Which database?', 'Postgres'],
+      ['text', 'Which ORM?', 'Prisma'],
+      ['note', 'Keep the old login page too; the admin role is out of scope.', 'Keep the old login page too; the admin role is out of scope.'],
     ]);
+    // the note reaches every session as a Decision, like an answer
+    expect(renderDecisions(brief)).toContain('Note from the human (unasked): Keep the old login page too');
     expect(engine.store.listByGoal(goal.id).find((e) => e.type === 'interview.finished')?.payload).toMatchObject({ rounds: 2, reason: 'brief' });
     // a revision resumes the interview session instead of starting cold
     await engine.draftBrief(goal.id, { mode: 'revise', brief, taskKey: null, areaKey: null, notes: '' }).catch(() => null); // the scripted answer is not a revision; only the resume matters here
@@ -422,7 +430,7 @@ describe('clarify interview', () => {
     const engine = track(new Engine(cfg(), runner));
     const goal = await engine.createGoal({ prompt: 'student and teacher portals', repoPath: repo });
     await waitFor(() => iv(engine, goal.id).status === 'awaiting_answers');
-    engine.answerInterview(goal.id, {}, true); // blocking left open, but the human asked for the Brief
+    engine.answerInterview(goal.id, {}, true, 'SQLite is fine; just keep it simple'); // blocking left open, but the human asked for the Brief
     await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
     const calls = main(runner);
     expect(calls).toHaveLength(3);
@@ -430,9 +438,10 @@ describe('clarify interview', () => {
     expect(calls[1]!.prompt).toContain('stop asking and write the Brief now');
     expect(calls[2]!.resumeSessionId).toBeUndefined(); // fresh session after the lost resume
     expect(calls[2]!.prompt).toContain('# Interview so far');
+    expect(calls[2]!.prompt).toContain('Note from the human: SQLite is fine; just keep it simple'); // the note survives the lost session with the answers
     expect(calls[2]!.prompt).toContain('# Interview before the Brief');
     expect(engine.store.listByGoal(goal.id).find((e) => e.type === 'interview.finished')?.payload).toMatchObject({ rounds: 1, reason: 'human' });
-    expect(getBrief(engine.store.db, goal.id)!.brief.questions.filter((x) => x.applied)).toHaveLength(0); // nothing was answered
+    expect(getBrief(engine.store.db, goal.id)!.brief.questions.filter((x) => x.applied).map((x) => x.kind)).toEqual(['note']); // nothing was answered; the note is a Decision
     engine.cancelGoal(goal.id);
     await Bun.sleep(150);
   }, 20_000);

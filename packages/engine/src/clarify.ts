@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import type { Brief, Goal, GoalNature, Interview, InterviewQuestion, InterviewRound, TaskScenario } from '@foundry/core';
-import { BriefOutput, BriefSkeleton, INTERVIEW_MAX_QUESTIONS, PlanOutput, INTERVIEW_MAX_ROUNDS, IdPrefix, InterviewOutput, getBrief, getGoal, interviewAnswers, interviewDepth, mergeSubjects, newId, planOutputSchema, uncoveredAreas } from '@foundry/core';
+import { BriefOutput, BriefSkeleton, INTERVIEW_MAX_QUESTIONS, PlanOutput, INTERVIEW_MAX_ROUNDS, IdPrefix, InterviewOutput, getBrief, getGoal, interviewAnswers, interviewDepth, interviewNotes, mergeSubjects, newId, noteQuestion, planOutputSchema, uncoveredAreas } from '@foundry/core';
 import { delegationContext } from './delegation.ts';
 import { learningsContext } from './learnings.ts';
 import type { RunHandle, RunResult } from '@foundry/runner';
@@ -309,11 +309,15 @@ export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
   }
 }
 
+/** a note is the human's words, kept whole; a novel is not */
+export const INTERVIEW_NOTE_MAX = 4000;
+
 /**
  * The human answered the open round: record it and continue the Clarify session in the background. Validation is
- * synchronous so the API can report it; the session's outcome arrives as the next round or the Brief.
+ * synchronous so the API can report it; the session's outcome arrives as the next round or the Brief. `note` is what
+ * they wrote unasked (a correction, something the questions missed): it travels with the answers and becomes a Decision.
  */
-export function answerInterview(engine: Engine, goal: Goal, answers: Record<string, string>, finish: boolean): void {
+export function answerInterview(engine: Engine, goal: Goal, answers: Record<string, string>, finish: boolean, note: string | null = null): void {
   const iv = goal.interview;
   if (goal.state !== 'clarifying' || !iv || iv.status !== 'awaiting_answers') throw new Error('no interview round is waiting for answers');
   const round = iv.rounds.at(-1)!;
@@ -324,9 +328,10 @@ export function answerInterview(engine: Engine, goal: Goal, answers: Record<stri
     const missing = round.questions.filter((q) => q.blocking && !clean[q.key]);
     if (missing.length) throw new Error(`answer the blocking question(s) first, or press "enough": ${missing.map((q) => q.key).join(', ')}`);
   }
+  const words = note?.trim().slice(0, INTERVIEW_NOTE_MAX) || null;
   // reserve before the event: the tick the event triggers must not start a second session
   engine.clarifying.add(goal.id);
-  engine.store.append({ type: 'interview.round_answered', goalId: goal.id, payload: { round: round.round, answers: clean, finish } });
+  engine.store.append({ type: 'interview.round_answered', goalId: goal.id, payload: { round: round.round, answers: clean, finish, note: words } });
   void continueInterview(engine, getGoal(engine.store.db, goal.id)!, { reserved: true });
 }
 
@@ -366,21 +371,27 @@ function closingInstruction(iv: Interview, round: InterviewRound): string {
   return `If these answers make a decision askable that you could not ask before, ask the next round (at most ${INTERVIEW_MAX_QUESTIONS} questions, \`brief\` null). Otherwise write the Brief now (\`questions\` empty). Output the JSON only.`;
 }
 
+/** what the human wrote unasked with a round, as the Clarifier reads it: a Decision, whatever the questions were */
+const noteSection = (note: string | null) => (note?.trim() ? `# Also from the human (unasked)\n${note.trim()}\nThis is a Decision like an answer: let it correct your understanding and shape the next round or the Brief.` : '');
+
 function answersMessage(iv: Interview, round: InterviewRound): string {
   const lines = round.questions.map((q) => `- ${q.key}: ${q.text}\n  A: ${round.answers?.[q.key] ?? '(no answer — proceed on your recommendation and record it as an assumption)'}`);
-  return `# Round ${round.round} answers\n${lines.join('\n')}\n\n${closingInstruction(iv, round)}`;
+  return [`# Round ${round.round} answers\n${lines.join('\n')}`, noteSection(round.note), closingInstruction(iv, round)].filter(Boolean).join('\n\n');
 }
 
 /** the whole interview rendered for a fresh session */
 function interviewSoFar(iv: Interview): string {
-  const parts = iv.rounds.map((r) => `## Round ${r.round}\n${r.questions.map((q) => `- ${q.key}: ${q.text}\n  A: ${r.answers?.[q.key] ?? '(no answer — proceed on your recommendation)'}`).join('\n')}`);
+  const parts = iv.rounds.map((r) => [`## Round ${r.round}\n${r.questions.map((q) => `- ${q.key}: ${q.text}\n  A: ${r.answers?.[q.key] ?? '(no answer — proceed on your recommendation)'}`).join('\n')}`, r.note?.trim() ? `- Note from the human: ${r.note.trim()}` : ''].filter(Boolean).join('\n'));
   return `# Interview so far\nYou already asked these rounds in an earlier session and the human answered; do not ask them again.\n\n${parts.join('\n\n')}`;
 }
 
-/** interview answers become Decisions in the Brief: every later session receives them, and Revise honours them */
+/** interview answers and notes become Decisions in the Brief: every later session receives them, and Revise honours them */
 function interviewDecisions(iv: Interview | null): Brief['questions'] {
   if (!iv) return [];
-  return interviewAnswers(iv).map(({ question, answer }) => ({ id: newId('q'), text: question.text, answer, blocking: false, areaKey: null, options: question.options, kind: 'text' as const, applied: true }));
+  return [
+    ...interviewAnswers(iv).map(({ question, answer }) => ({ id: newId('q'), text: question.text, answer, blocking: false, areaKey: null, options: question.options, kind: 'text' as const, applied: true })),
+    ...interviewNotes(iv).map(({ note }) => noteQuestion(newId('q'), note, true)),
+  ];
 }
 
 function normalizeQuestions(iv: Interview, qs: InterviewOutput['questions']): InterviewQuestion[] {
@@ -648,6 +659,7 @@ You may ask the human questions in rounds before writing the Brief — the way a
 - Explore first. Never ask what the repository, the attachments or the goal already answer; every question cites what you found or could not find (\`reason\`).
 - A round = every decision you can ask about NOW, whose prerequisites are settled — at most ${INTERVIEW_MAX_QUESTIONS}, the most consequential first. A question that depends on an answer you have not heard yet waits for the next round; when a question follows from an earlier answer, name it in \`dependsOn\`.
 - Every question offers 2–4 concrete options with YOUR recommendation first (free text stays possible). \`blocking\` = a wrong guess would waste the goal; everything else is an assumption the human may correct.
+- The human may add a note to a round: something you did not ask, or got wrong. A note is a Decision like an answer — let it correct your understanding and shape the next round or the Brief.
 - How deep to go: ${DEPTH_RULES[Math.min(5, Math.max(1, depth))]}
 - When nothing is left to ask at this depth — or the human says enough — write the Brief: the answers become Decisions, the rest assumptions. (A hard stop at ${INTERVIEW_MAX_ROUNDS} rounds exists only as a safety net.)
 - Output per turn: either \`{"questions": [...], "brief": null}\` to ask a round, or \`{"questions": [], "brief": {...}}\` with the Brief. Write questions in the language of the goal.`;

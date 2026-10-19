@@ -11,6 +11,7 @@ describe('decisions', () => {
     questions: [
       { id: 'q1', text: 'Which DB?', answer: 'sqlite', blocking: true, areaKey: null, options: [], kind: 'text' as const, applied: false },
       { id: 'q2', text: 'unanswered', answer: '  ', blocking: false, areaKey: null, options: [], kind: 'text' as const, applied: false },
+      { id: 'n1', text: 'Keep the old login page too', answer: 'Keep the old login page too', blocking: false, areaKey: null, options: [], kind: 'note' as const, applied: false },
     ],
     assumptions: [
       { id: 'a1', text: 'teachers too', accepted: false, applied: false },
@@ -20,12 +21,16 @@ describe('decisions', () => {
   test('decisionsOf / pending / render / markApplied', () => {
     expect(decisionsOf(b).map((d) => [d.kind, d.id])).toEqual([
       ['answer', 'q1'],
+      ['note', 'n1'],
       ['rejected-assumption', 'a1'],
     ]);
-    expect(pendingDecisions(b)).toHaveLength(2);
+    // a note is the human's own words: no question to show them against
+    expect(decisionsOf(b).find((d) => d.kind === 'note')).toMatchObject({ text: 'Keep the old login page too', answer: null });
+    expect(pendingDecisions(b)).toHaveLength(3);
     const text = renderDecisions(b);
     expect(text).toContain('# Decisions from the human');
     expect(text).toContain('Q: Which DB?\n  A: sqlite');
+    expect(text).toContain('Note from the human (unasked): Keep the old login page too');
     expect(text).toContain('Rejected assumption (do NOT proceed on it): teachers too');
     expect(renderDecisions(brief())).toBe('');
     const applied = markDecisionsApplied(b);
