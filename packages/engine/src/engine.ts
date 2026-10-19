@@ -40,7 +40,7 @@ import { mmxConfigDir, mmxSignedIn, writeMmxConfig } from './mmx.ts';
 import { fetchMinimaxQuota } from './usage/minimax.ts';
 import type { MinimaxQuota } from './usage/types.ts';
 import { answerInterview, continueInterview, runClarify } from './clarify.ts';
-import { type DraftProposal, type DraftRequest, runDraft } from './brief-draft.ts';
+import { type DraftProposal, type DraftRequest, type ReviseAnswer, answerRevise, cancelRevise, runDraft } from './brief-draft.ts';
 import { runSuggest } from './escalation-suggest.ts';
 import { claudeConfigEnv, type EngineConfig } from './config.ts';
 import { GrepContextProvider } from './context/grep-provider.ts';
@@ -1942,6 +1942,7 @@ export class Engine {
       modelPreset: presetId,
       ...(codexPreset ? { codexPreset, codexFallbacks: [...this.config.codexFallbacks], ...(input.codexModel?.trim() ? { codexModelOverride: input.codexModel.trim() } : {}) } : {}),
       modelSubstitutions: {},
+      revise: null,
       interview: (() => {
         const depth = input.interviewDepth ?? (input.interview ? depthOfMode(input.interview) : (this.config.interviewDepth ?? depthOfMode(this.config.interview)));
         // from 4 on the Clarifier asks at least one round
@@ -2227,6 +2228,16 @@ export class Engine {
     return runDraft(this, this.mustGoal(goalId), req);
   }
 
+  /** the human answered the round a Revise asked: the proposal, or one more round */
+  async answerRevise(goalId: string, ans: ReviseAnswer): Promise<DraftProposal> {
+    return answerRevise(this, this.mustGoal(goalId), ans);
+  }
+
+  /** the human let an asking Revise go */
+  cancelRevise(goalId: string): void {
+    cancelRevise(this, this.mustGoal(goalId));
+  }
+
   editBrief(goalId: string, brief: Brief): Brief {
     const goal = this.mustGoal(goalId);
     if (goal.state !== 'awaiting_brief_approval') throw new Error(`goal is ${goal.state}, brief cannot be edited`);
@@ -2244,6 +2255,8 @@ export class Engine {
   async approveBrief(goalId: string, edited?: Brief, budgets?: Partial<Budgets>, completion?: { graphRefresh?: boolean; docs?: DocType[]; audit?: boolean }): Promise<void> {
     const goal = this.mustGoal(goalId);
     if (goal.state !== 'awaiting_brief_approval') throw new Error(`goal is ${goal.state}, cannot approve`);
+    // a Revise still waiting for answers is let go: the Brief as it stands is what runs
+    cancelRevise(this, goal);
     // the report lands as an attachment and a commit on the goal branch: not under running tasks
     if (this.investigating.has(goalId)) throw new Error('the references are being investigated now; approve the Brief when the report is in');
     const searching = subjectSearchesFor(goalId);

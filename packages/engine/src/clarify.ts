@@ -374,9 +374,14 @@ function closingInstruction(iv: Interview, round: InterviewRound): string {
 /** what the human wrote unasked with a round, as the Clarifier reads it: a Decision, whatever the questions were */
 const noteSection = (note: string | null) => (note?.trim() ? `# Also from the human (unasked)\n${note.trim()}\nThis is a Decision like an answer: let it correct your understanding and shape the next round or the Brief.` : '');
 
-function answersMessage(iv: Interview, round: InterviewRound): string {
+/** a round's answers as the model reads them, the human's note after them (the interview's rounds and a Revise's alike) */
+export function roundAnswers(round: InterviewRound): string {
   const lines = round.questions.map((q) => `- ${q.key}: ${q.text}\n  A: ${round.answers?.[q.key] ?? '(no answer — proceed on your recommendation and record it as an assumption)'}`);
-  return [`# Round ${round.round} answers\n${lines.join('\n')}`, noteSection(round.note), closingInstruction(iv, round)].filter(Boolean).join('\n\n');
+  return [`# Round ${round.round} answers\n${lines.join('\n')}`, noteSection(round.note)].filter(Boolean).join('\n\n');
+}
+
+function answersMessage(iv: Interview, round: InterviewRound): string {
+  return `${roundAnswers(round)}\n\n${closingInstruction(iv, round)}`;
 }
 
 /** the whole interview rendered for a fresh session */
@@ -394,7 +399,8 @@ function interviewDecisions(iv: Interview | null): Brief['questions'] {
   ];
 }
 
-function normalizeQuestions(iv: Interview, qs: InterviewOutput['questions']): InterviewQuestion[] {
+/** a model's round as the goal keeps it: at most 8 questions, keys unique across the rounds so far, 4 options at most */
+export function normalizeQuestions(iv: Pick<Interview, 'rounds'>, qs: InterviewOutput['questions']): InterviewQuestion[] {
   const round = iv.rounds.length + 1;
   const seen = new Set(iv.rounds.flatMap((r) => r.questions.map((q) => q.key)));
   return qs.slice(0, INTERVIEW_MAX_QUESTIONS).map((q, i) => {

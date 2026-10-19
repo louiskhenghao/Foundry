@@ -369,6 +369,103 @@ describe('decisions', () => {
   }, 30_000);
 });
 
+describe('revise rounds', () => {
+  const q = (key: string, text: string, options: string[], blocking = false) => ({ key, text, options, reason: `the decision leaves ${text} open`, dependsOn: null, blocking });
+  const full = () => briefWith([task('T1', 'A1', 'add student home'), task('T2', 'A2', 'add teacher home', ['T1'])], [check('C1', 'T1'), check('C2', 'T2')]);
+  const revision = (understanding: string) => {
+    const { openQuestions: _q, ...rest } = full();
+    return { ...rest, understanding, changeSummary: 'Followed the decisions.', newQuestions: [] };
+  };
+  const ready = async (engine: Engine, goalId: string) => waitFor(() => getGoal(engine.store.db, goalId)!.state === 'awaiting_brief_approval');
+
+  test('a Revise may ask back: the round waits on the goal, the answers and note resume the session, the proposal carries them as Decisions', async () => {
+    let reviseTurns = 0;
+    const runner = new StructuredRunner((spec) => {
+      if (spec.label?.startsWith('clarify')) return full();
+      if (spec.label?.startsWith('draft revise')) return ++reviseTurns === 1 ? { questions: [q('R1Q1', 'Drop the teacher portal entirely, or keep a read-only one?', ['Drop it', 'Keep read-only'])], revision: null } : { questions: [], revision: revision('Students only, teachers read-only.') };
+      return null;
+    });
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'portals', repoPath: repo });
+    await ready(engine, goal.id);
+    const { goalId: _g, ...brief } = getBrief(engine.store.db, goal.id)!.brief;
+    const answered = { ...brief, questions: [...brief.questions, noteQuestion('n1', 'Students first; teachers can wait')] };
+
+    const first = await engine.draftBrief(goal.id, { mode: 'revise', brief: answered, taskKey: null, areaKey: null, notes: '' });
+    expect(first.revision).toBeUndefined();
+    expect(first.round).toMatchObject({ round: 1, questions: [{ key: 'R1Q1', options: ['Drop it', 'Keep read-only'] }] });
+    const g1 = getGoal(engine.store.db, goal.id)!;
+    expect(g1.revise).toMatchObject({ status: 'awaiting_answers', rounds: [{ round: 1, answers: null }] });
+    expect(g1.state).toBe('awaiting_brief_approval'); // the Brief can still be approved meanwhile
+    expect(runner.calls.at(-1)!.prompt).toContain('You may ask the human'); // the Revise prompt allows the question round
+
+    // the answers resume the session that asked
+    const asked = runner.calls.length;
+    const second = await engine.answerRevise(goal.id, { brief: answered, answers: { R1Q1: 'Keep read-only' }, finish: false, note: 'and no grading for teachers' });
+    const resumed = runner.calls.at(-1)!;
+    expect(resumed.resumeSessionId).toBe(`s${asked}`); // the round's turn was call number `asked`, and its session id is s<that>
+    expect(resumed.prompt).toContain('# Round 1 answers');
+    expect(resumed.prompt).toContain('A: Keep read-only');
+    expect(resumed.prompt).toContain('and no grading for teachers');
+    expect(second.round).toBeUndefined();
+    expect(second.revision?.revised.understanding).toBe('Students only, teachers read-only.');
+    // the round's answer and note come back on the revised Brief as applied Decisions; the page's own note stays pending until accepted
+    const decided = second.revision!.revised.questions.filter((x) => x.applied);
+    expect(decided.map((x) => [x.kind, x.text, x.answer])).toEqual([
+      ['text', 'Drop the teacher portal entirely, or keep a read-only one?', 'Keep read-only'],
+      ['note', 'and no grading for teachers', 'and no grading for teachers'],
+    ]);
+    expect(second.revision!.revised.questions.find((x) => x.id === 'n1')).toMatchObject({ kind: 'note', applied: false });
+    expect(getGoal(engine.store.db, goal.id)!.revise?.status).toBe('done');
+    expect(engine.store.listByGoal(goal.id).filter((e) => e.type.startsWith('revise.')).map((e) => e.type)).toEqual(['revise.round_asked', 'revise.round_answered', 'revise.finished']);
+    engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
+  }, 30_000);
+
+  test('after two rounds the Revise is told to propose; "enough" does the same; cancelling or approving abandons an open round', async () => {
+    let n = 0;
+    const runner = new StructuredRunner((spec) => {
+      if (spec.label?.startsWith('clarify')) return full();
+      if (spec.label?.startsWith('draft revise')) return ++n <= 3 ? { questions: [q(`R${n}Q1`, `question ${n}`, ['a', 'b'])], revision: null } : { questions: [], revision: revision(`after ${n} turns`) };
+      return null;
+    });
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'portals', repoPath: repo });
+    await ready(engine, goal.id);
+    const { goalId: _g, ...brief } = getBrief(engine.store.db, goal.id)!.brief;
+    expect((await engine.draftBrief(goal.id, { mode: 'revise', brief, taskKey: null, areaKey: null, notes: '' })).round?.round).toBe(1);
+    expect((await engine.answerRevise(goal.id, { brief, answers: { R1Q1: 'a' }, finish: false, note: null })).round?.round).toBe(2);
+    const third = await engine.answerRevise(goal.id, { brief, answers: { R2Q1: 'b' }, finish: false, note: null });
+    expect(runner.calls.at(-2)!.prompt).toContain('the last one you may ask'); // the answers to round 2 say so
+    expect(runner.calls.at(-1)!.prompt).toContain('No more questions'); // it asked anyway: one forcing turn, no third round
+    expect(third.round).toBeUndefined();
+    expect(third.revision?.revised.understanding).toBe('after 4 turns');
+    expect(engine.store.listByGoal(goal.id).filter((e) => e.type === 'revise.finished').at(-1)?.payload).toMatchObject({ rounds: 2, reason: 'proposal' });
+
+    // "enough" with a round open: the Revise proposes with its recommendations
+    n = 0;
+    expect((await engine.draftBrief(goal.id, { mode: 'revise', brief, taskKey: null, areaKey: null, notes: '' })).round?.round).toBe(1);
+    n = 5; // the next turn proposes
+    const enough = await engine.answerRevise(goal.id, { brief, answers: {}, finish: true, note: null });
+    expect(runner.calls.at(-1)!.prompt).toContain('stop asking');
+    expect(enough.revision).toBeDefined();
+
+    // cancelling an open round, and approving the Brief over one, end it as abandoned
+    n = 0;
+    await engine.draftBrief(goal.id, { mode: 'revise', brief, taskKey: null, areaKey: null, notes: '' });
+    engine.cancelRevise(goal.id);
+    expect(getGoal(engine.store.db, goal.id)!.revise?.status).toBe('done');
+    expect(engine.store.listByGoal(goal.id).filter((e) => e.type === 'revise.finished').at(-1)?.payload).toMatchObject({ reason: 'abandoned' });
+    await expect(engine.answerRevise(goal.id, { brief, answers: { R1Q1: 'a' }, finish: false, note: null })).rejects.toThrow(/no Revise round/);
+    n = 0;
+    await engine.draftBrief(goal.id, { mode: 'revise', brief, taskKey: null, areaKey: null, notes: '' });
+    await engine.approveBrief(goal.id, { ...brief, goalId: goal.id, questions: brief.questions.map((x) => ({ ...x, answer: x.answer ?? 'ok' })) });
+    expect(engine.store.listByGoal(goal.id).filter((e) => e.type === 'revise.finished').at(-1)?.payload).toMatchObject({ reason: 'abandoned' });
+    engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
+  }, 40_000);
+});
+
 describe('clarify interview', () => {
   const q = (key: string, text: string, options: string[], blocking = true, dependsOn: string | null = null) => ({ key, text, options, reason: `found nothing about ${text}`, dependsOn, blocking });
   const fullBrief = () => briefWith([task('T1', 'A1', 'add student home'), task('T2', 'A2', 'add teacher home', ['T1'])], [check('C1', 'T1'), check('C2', 'T2')]);
