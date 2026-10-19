@@ -45,6 +45,10 @@ Some questions say **follows from …**, followed by the earlier question: "ques
 
 A question marked **blocking** must be answered before **Send answers** works. Hover over the greyed-out button to see which are still open: it lists their numbers. **Accept all recommended** and **Enough — write the Brief** work even with blocking questions open.
 
+### Anything else?
+
+Under the questions, the box **Anything else?** is for what the questions missed or got wrong: "the admin role is out of scope", "keep the old login page too", "you misread the goal: it is one portal, not two". It is optional. Whatever you write there goes with your answers, whichever of the three buttons you press, and becomes a [Decision](#what-happens-to-your-answers) like an answer: the next round and the Brief take it into account, and every worker receives it word for word.
+
 ## The three buttons
 
 ### Send answers
@@ -80,7 +84,7 @@ Before the first round the card says **Reading the repository…** instead, for 
 
 ## What happens to your answers
 
-Every answer becomes a **Decision**. Decisions belong to the whole goal:
+Every answer becomes a **Decision**, and so does a note from **Anything else?**. Decisions belong to the whole goal:
 
 - They appear on the Brief page in the **Decisions** card, already applied to the plan.
 - Every worker, every reviewer and the pull request receive them word for word, and must follow them.
@@ -90,17 +94,18 @@ You can still change your mind on the Brief page: see [Approving the Brief](./ap
 
 ## From Telegram
 
-With Telegram notifications and **Answer from Telegram** on, a round arrives as several messages: a line on what to do, one message per question with its options as buttons (⭐ marks the recommended one), and a last message with **Accept all recommended**, **Send answers** and **Enough — write the Brief**.
+With Telegram notifications and **Answer from Telegram** on, a round arrives as several messages: a line on what to do, one message per question with its options as buttons (⭐ marks the recommended one), and a last message with **Accept all recommended**, **✍️ Add a note…**, **Send answers** and **Enough — write the Brief**.
 
 - Tap an option to pick it. Tap another to change your mind. Nothing is sent until you press a button of the last message.
 - **✍️ My own answer…**, or a reply to a question's message, gives an answer of your own.
+- **✍️ Add a note…**, or a reply to the last message, is your note for the round (what the questions missed or got wrong). The button then shows it; it goes with your answers.
 - **Send answers** says which blocking questions are still open.
 - Once the round is sent, here or on the goal's page, each question shows the answer it got.
 
-See [Answering from Telegram](../operate/notifications.md#answering-from-telegram). Discord works the same way when a bot is set up, except that **✍️ My own answer…** opens a form instead of waiting for a reply: see [Answering from Discord](../operate/notifications.md#answering-from-discord).
+See [Answering from Telegram](../operate/notifications.md#answering-from-telegram). Discord works the same way when a bot is set up, except that **✍️ My own answer…** and **✍️ Add a note…** open a form instead of waiting for a reply: see [Answering from Discord](../operate/notifications.md#answering-from-discord).
 
 ## Tips
 
 - Short answers are fine. "Yes, keep it" is a complete answer.
-- If a question shows Foundry misunderstood the goal, say so in **something else…**. It will correct its understanding.
+- If a question shows Foundry misunderstood the goal, say so in **something else…**, or in **Anything else?** when no question is about it. It will correct its understanding.
 - If you do not know, take the recommended option. You can reject assumptions and change answers on the Brief before anything is built.

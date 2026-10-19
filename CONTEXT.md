@@ -83,7 +83,11 @@ A statement in the Brief the system is proceeding on unless the user overrides i
 Something the system could not safely assume. A *blocking* Question must be answered before the Brief can be approved. An answer is a Decision.
 
 **Decision**
-A choice the user made on the Brief that the system must honour: the answer to a Question, or a rejected Assumption. Decisions belong to the Goal, not to a Task — every Worker, Reviewer and the pull request receive them verbatim, and a re-run Clarify starts from them instead of asking again. A Decision is *applied* once a Revise honoured it (or the user said no change was needed); changing the answer makes it pending again.
+A choice the user made on the Brief that the system must honour: the answer to a Question, a Note, or a rejected Assumption. Decisions belong to the Goal, not to a Task — every Worker, Reviewer and the pull request receive them verbatim, and a re-run Clarify starts from them instead of asking again. A Decision is *applied* once a Revise honoured it (or the user said no change was needed); changing the answer makes it pending again.
+
+**Note**
+What the user tells the system unasked: a correction, a constraint, something the Questions missed. Written with an Interview round's answers or on the Brief page, in the user's own words. A Note is a Decision in every way; it differs only in that no Question prompted it.
+_Avoid_: comment, hint (a hint goes to one Task's next Attempt; a Note belongs to the Goal)
 
 **Revise**
 The user asking the system to re-read the Brief in the light of the current Decisions: the Clarifier looks at the repository again (read-only) and proposes what the Decisions imply — changed, added or dropped Tasks, Checks and Areas, an updated understanding. The result is a Proposal accepted item by item; the Brief can still be approved with pending Decisions, it merely says so.
@@ -210,7 +214,7 @@ A named choice of model for every action — Clarify, Planner, Simple / Standard
 _Avoid_: strong / worker / cheap model, tier (the model tiers Presets replaced)
 
 **Interview**
-How Clarify talks to the human before the Brief exists: rounds of questions, each holding every decision that is askable now (its prerequisites settled), at most eight, each with the Clarifier's recommended answer first and the evidence that leaves it open. The answers reshape the next round; the Brief is written when nothing is left to ask, when the human says enough, or after a safety cap of ten rounds. Answers become Decisions. How deep the Clarifier probes is the Goal's Interview depth: 1 asks only what a wrong guess would waste, 5 every detail until nothing is left; 0 is no interview. The depth is not a number of rounds: at the default (3) a small goal gets zero rounds, from 4 on at least one. One Clarify session is resumed across rounds and by Revise; a lost session starts over with the interview so far.
+How Clarify talks to the human before the Brief exists: rounds of questions, each holding every decision that is askable now (its prerequisites settled), at most eight, each with the Clarifier's recommended answer first and the evidence that leaves it open. The answers, and a Note the human may add to a round, reshape the next round; the Brief is written when nothing is left to ask, when the human says enough, or after a safety cap of ten rounds. Answers and Notes become Decisions. How deep the Clarifier probes is the Goal's Interview depth: 1 asks only what a wrong guess would waste, 5 every detail until nothing is left; 0 is no interview. The depth is not a number of rounds: at the default (3) a small goal gets zero rounds, from 4 on at least one. One Clarify session is resumed across rounds and by Revise; a lost session starts over with the interview so far.
 
 **Self-check**
 Off by default. After each integration the engine opens the Preview in headless Chromium, screenshots it and collects console, page and network errors; the result is a goal-level Must Check (re-run at Goal Review) and the screenshot reaches the timeline and the Milestone notification. No model involved.

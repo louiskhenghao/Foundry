@@ -17,7 +17,7 @@ record is never rewritten when a later decision changes it; its status says what
 | [0010](0010-self-update-via-docker-hub-and-watchtower.md) | Self-update: Docker Hub as version source, watchtower as the docker updater | accepted · 2026-08-28 |
 | [0011](0011-progress-folders-next-to-the-repo.md) | Progress folders next to the repository | accepted · 2026-09-14 |
 | [0012](0012-milestones-previews-and-the-self-check.md) | Milestones, previews and the headless self-check | accepted · 2026-09-14 · preview amended by ADR-0021 |
-| [0013](0013-clarify-interview-in-rounds.md) | Clarify interviews the human in rounds | accepted · 2026-09-14 · amended by ADR-0027 and ADR-0028 |
+| [0013](0013-clarify-interview-in-rounds.md) | Clarify interviews the human in rounds | accepted · 2026-09-14 · amended by ADR-0027, ADR-0028 and ADR-0044 |
 | [0014](0014-model-presets-per-goal-nature.md) | Model presets per goal nature | accepted · 2026-09-24 · supersedes the tier parts of ADR-0006; amended by ADR-0018 |
 | [0015](0015-bring-merged-work-to-the-local-checkout.md) | Bring merged work to the local checkout, then tidy up | accepted · 2026-09-25 · amends the user-only base-branch rule |
 | [0016](0016-mcp-servers-allowed-per-server.md) | MCP servers: listed from Claude Code's config, installed at user scope, allowed in goals per server | accepted · 2026-09-28 · amended by ADR-0019 |
@@ -31,7 +31,7 @@ record is never rewritten when a later decision changes it; its status says what
 | [0024](0024-guided-install-and-shared-host-docker.md) | One installer for both ways to run Foundry, and the host's Docker shared on request | accepted · 2026-10-06 |
 | [0025](0025-finished-previews-may-run-in-the-checkout.md) | A finished goal's preview may run in the person's checkout | accepted · 2026-10-07 |
 | [0026](0026-tailnet-links-and-served-previews.md) | Messages link on the tailnet, and Foundry serves preview ports there | accepted · 2026-10-07 |
-| [0027](0027-interview-depth.md) | The interview has a depth, not a round count | accepted · 2026-10-07 · amends ADR-0013 |
+| [0027](0027-interview-depth.md) | The interview has a depth, not a round count | accepted · 2026-10-07 · amends ADR-0013 · amended by ADR-0044 |
 | [0028](0028-planner-writes-the-plan-once.md) | The planner writes the task plan once, in a session of its own | accepted · 2026-10-08 · amends ADR-0013 and ADR-0018 |
 | [0029](0029-vs-code-in-the-browser.md) | VS Code in the browser, behind a generated password, on loopback and the tailnet | accepted · 2026-10-08 |
 | [0030](0030-transfer-merges-goals-as-history.md) | Transfer merges goals into another Foundry as history, and unfinished ones can be reattached | accepted · 2026-10-09 |
@@ -48,3 +48,4 @@ record is never rewritten when a later decision changes it; its status says what
 | [0041](0041-deploy-web-apps.md) | Deploy: a finished goal's web app to Vercel, Netlify or Cloudflare Pages, on the person's click | accepted · 2026-10-18 · amends ADR-0003 |
 | [0042](0042-subjects-and-the-likeness-review.md) | Subjects with pictures on the Brief, and a Likeness review of each milestone | accepted · 2026-10-18 · amends ADR-0031 |
 | [0043](0043-estimate-cut-sessions-at-measured-rates.md) | A cut session's cost is estimated from its tokens at the rate its model was measured at | accepted · 2026-10-19 · amends ADR-0037 |
+| [0044](0044-notes-are-decisions.md) | A note from the human is a Decision, asked for or not: an interview round and the Brief page take one | accepted · 2026-10-19 · amends ADR-0013 and ADR-0027 |

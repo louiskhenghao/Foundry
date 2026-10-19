@@ -159,7 +159,7 @@ to reach your computer from the internet.
 | **Needs you**: a command outside the workspace | **Deny** | — |
 | **Have a look** (a milestone) | **Continue**, **Give feedback…** | Foundry says what it makes of it, then you **Apply** or **Drop** that |
 | **Needs you**: the delivery stopped | **Retry delivery**, **Mark as delivered…** | — |
-| **Interview round** | one message per question with its options, then **Accept all recommended**, **Send answers**, **Enough — write the Brief** | a reply to a question is your own answer |
+| **Interview round** | one message per question with its options, then **Accept all recommended**, **✍️ Add a note…**, **Send answers**, **Enough — write the Brief** | a reply to a question is your own answer; a reply to the round's last message is a note (what the questions missed), sent with the answers |
 | **Brief ready** | **Approve and run…** | — |
 | **Usage pause** | **Resume now** | — |
 

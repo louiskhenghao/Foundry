@@ -45,6 +45,10 @@ Foundry 写 Brief 之前，会先读你的项目和附件。大部分问题它�
 
 标着 **blocking** 的问题必须先回答，**Send answers** 才能用。鼠标悬停在变灰的按钮上，可以看到还有哪些没答：它会列出这些问题的序号。即使还有 blocking 问题没答，**Accept all recommended** 和 **Enough — write the Brief** 也能用。
 
+### 还有别的吗？
+
+问题下面的 **Anything else?** 框，写的是问题没问到或者问错了的事："管理员角色不在范围内"、"旧的登录页也要保留"、"你把 goal 看错了：是一个门户，不是两个"。它是可选的。不管你按三个按钮中的哪一个，写在这里的内容都会和答案一起发出去，并且像答案一样变成一个[决定](#你的答案会怎样)：下一轮和 Brief 都会考虑它，每个执行者都会一字不差地收到它。
+
 ## 三个按钮
 
 ### Send answers
@@ -80,7 +84,7 @@ Foundry 写 Brief 之前，会先读你的项目和附件。大部分问题它�
 
 ## 你的答案会怎样
 
-每个答案都会变成一个 **Decision**（决定）。决定属于整个 goal：
+每个答案都会变成一个 **Decision**（决定），**Anything else?** 里的备注也一样。决定属于整个 goal：
 
 - 它们出现在 Brief 页面的 **Decisions** 卡片里，已经体现在计划中。
 - 每个执行者、每个审查员以及 pull request 都会一字不差地收到它们，并且必须遵守。
@@ -90,17 +94,18 @@ Foundry 写 Brief 之前，会先读你的项目和附件。大部分问题它�
 
 ## 在 Telegram 里回答
 
-设置了 Telegram 通知、并开着 **Answer from Telegram** 时，一轮访谈会分几条消息发来：先是一句该怎么做，然后每个问题一条消息、选项是按钮（⭐ 是推荐的那个），最后一条消息上有 **Accept all recommended**、**Send answers** 和 **Enough — write the Brief**。
+设置了 Telegram 通知、并开着 **Answer from Telegram** 时，一轮访谈会分几条消息发来：先是一句该怎么做，然后每个问题一条消息、选项是按钮（⭐ 是推荐的那个），最后一条消息上有 **Accept all recommended**、**✍️ Add a note…**、**Send answers** 和 **Enough — write the Brief**。
 
 - 点一个选项就选中它；点另一个就改主意。按最后那条消息的按钮之前，什么都不会发出去。
 - **✍️ My own answer…**，或者回复某个问题的那条消息，就是你自己的答案。
+- **✍️ Add a note…**，或者回复最后那条消息，就是你给这一轮的备注（问题没问到或问错了的事）。按钮上随后会显示它；它和答案一起发出去。
 - **Send answers** 会告诉你还有哪些 blocking 问题没答。
 - 这一轮发出后（在这里或在 goal 页面上），每个问题都会显示它得到的答案。
 
-见 [Answering from Telegram](../operate/notifications.md#answering-from-telegram)。设置了机器人的 Discord 也一样，只是 **✍️ My own answer…** 会打开一个表单，而不是等你回复：见 [Answering from Discord](../operate/notifications.md#answering-from-discord)。
+见 [Answering from Telegram](../operate/notifications.md#answering-from-telegram)。设置了机器人的 Discord 也一样，只是 **✍️ My own answer…** 和 **✍️ Add a note…** 会打开一个表单，而不是等你回复：见 [Answering from Discord](../operate/notifications.md#answering-from-discord)。
 
 ## 小贴士
 
 - 简短的回答就可以。"是的，保留"就是一个完整的回答。
-- 如果某个问题说明 Foundry 误解了 goal，就在 **something else…** 里指出来。它会纠正自己的理解。
+- 如果某个问题说明 Foundry 误解了 goal，就在 **something else…** 里指出来；没有哪个问题说到它时，写在 **Anything else?** 里。它会纠正自己的理解。
 - 不知道就选推荐选项。在开始做任何东西之前，你都可以在 Brief 上否决假设、修改答案。

@@ -28,7 +28,7 @@ The Brief opens in the view you chose on the New goal form. Switch with **Expert
 - The badge next to the title reads **approve brief** while the Brief waits for you.
 - Under the title: the project folder, the branch the goal starts from, and the goal's own branch.
 - A small line says which version of your project Foundry read, for example "Explored origin/main (your local main was 3 behind)". If it warns that the remote was not fetched and you know others changed the project since, press **Re-run Clarify**.
-- **Re-run Clarify** throws this Brief away, fetches the latest version of your project and plans again. Attachments, budget and delivery settings are kept. Your decisions are handed to the new Clarify as text: it plans with them and does not ask again, but they do not come back as items in the **Decisions** card. You land on the goal page while it works.
+- **Re-run Clarify** throws this Brief away, fetches the latest version of your project and plans again. Attachments, budget and delivery settings are kept. Answers and notes you typed on this page are saved first; then your decisions are handed to the new Clarify as text: it plans with them and does not ask again, but they do not come back as items in the **Decisions** card. You land on the goal page while it works.
 - The **goal** panel shows your original description. **Open full**, the icon with two diagonal arrows in its corner, reads it in a larger window with **Preview**, **Raw** and **Copy**.
 
 ## Understanding
@@ -86,13 +86,17 @@ A delegated goal and a follow-up start with the Subjects of the goal they come f
 
 ## Decisions
 
-**Decisions (N)** lists every answer you gave and every assumption you rejected, including your interview answers. Every worker, reviewer and pull request receives them word for word.
+**Decisions (N)** lists every answer you gave, every note you wrote and every assumption you rejected, including your interview answers and notes. Every worker, reviewer and pull request receives them word for word.
 
 A green dot means the plan already takes the decision into account. An amber dot means you decided it after the plan was written, so the tasks and checks below may not reflect it yet. The card says how many are **not yet applied to the plan**.
 
+### Add note
+
+The box at the bottom of the card is for what no question asked: a constraint, a correction, something Foundry got wrong. Write it and press **Add note**. A note is a Decision like an answer: it is saved with the Brief (press **Save**), every worker receives it word for word, **Revise with answers** rewrites the plan for it, and a **Re-run Clarify** starts from it. The ✕ next to a note removes it.
+
 ### Revise with answers
 
-Press **Revise with answers** to have Foundry re-read the Brief and your project in the light of your decisions. It proposes changes: tasks added, changed or dropped, checks, Areas, a new understanding. This takes a few minutes. The Claude session has a $3 cap; Codex uses ChatGPT quota without a USD cap. You can add **notes for the AI (optional)** first.
+Press **Revise with answers** to have Foundry re-read the Brief and your project in the light of your decisions, notes included. It proposes changes: tasks added, changed or dropped, checks, Areas, a new understanding. This takes a few minutes. The Claude session has a $3 cap; Codex uses ChatGPT quota without a USD cap.
 
 The proposal appears as a list. Accept each item with ✓, discard it with ✗, or press **Accept all**. Nothing changes until you accept. If Foundry finds nothing to change, press **OK, mark applied**.
 
@@ -281,6 +285,7 @@ The Simple view shows the same Brief in plain words:
 |---|---|
 | **What I understood** | Read it; the **Open full** icon shows it in a larger window. If it is wrong, answer the questions accordingly or switch to Expert view to edit it. |
 | **Please answer (N)** or **Questions** | Pick an answer (★ is recommended) or type your own. Questions marked **needed** must be answered. Style cards work as above. |
+| **Anything to add?** | What no question asked: write it and press **Add note**. Notes reach every worker, like your answers. |
 | **I will assume… (untick anything that is wrong)** | Untick what is wrong. |
 | **What you will get (N pieces of work)** | The tasks, grouped by Area. To change them, open **Expert view**. |
 | **Price & time** / **Time & limits** | Claude offers cost and time estimates and limits; Codex offers time and execution limits without a dollar field. Blank means no cap for that field. |
