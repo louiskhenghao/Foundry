@@ -50,6 +50,7 @@ const goal = (over: Partial<Goal> = {}): Goal =>
     budgets: { maxCostUsd: null, maxDurationMin: null, maxConcurrent: 3, attemptsPerTask: 3 },
     delegatedFrom: null,
     delegation: { allow: false, autoApprove: false },
+    revise: null,
     interview: {
       mode: 'auto',
       status: 'awaiting_answers',

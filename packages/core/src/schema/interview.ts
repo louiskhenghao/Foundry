@@ -3,6 +3,8 @@ import { z } from 'zod';
 /** a safety cap on rounds (the depth decides how far the Clarifier probes, not how many rounds it takes) and on questions per round */
 export const INTERVIEW_MAX_ROUNDS = 10;
 export const INTERVIEW_MAX_QUESTIONS = 8;
+/** a Revise may ask back before it proposes, but only this often: it is a touch-up, not a second interview */
+export const REVISE_MAX_ROUNDS = 2;
 
 export const InterviewQuestion = z.object({
   /** unique across the interview, e.g. R1Q2 */
@@ -49,6 +51,17 @@ export const Interview = z.object({
 });
 export type Interview = z.infer<typeof Interview>;
 export type InterviewMode = 'auto' | 'always' | 'never';
+
+/**
+ * A Revise that asked back: the rounds of questions it put to the human before proposing, with the session they resume.
+ * Lives on the goal while the Brief awaits approval; `done` once the proposal came (or the human let it go).
+ */
+export const ReviseState = z.object({
+  status: z.enum(['thinking', 'awaiting_answers', 'done']).default('thinking'),
+  sessionId: z.string().nullable().default(null),
+  rounds: z.array(InterviewRound).default([]),
+});
+export type ReviseState = z.infer<typeof ReviseState>;
 
 /** interview depth: 0 = no interview (the one-shot Brief), 1–5 = how deep the Clarifier probes */
 export const InterviewDepth = z.number().int().min(0).max(5);

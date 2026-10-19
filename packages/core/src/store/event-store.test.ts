@@ -13,6 +13,7 @@ function goal(id: string): Goal {
     workspaceDir: null,
     checkpoint: null,
     selfCheck: false, previewRef: null, previewPlace: 'auto', milestonePause: true, clarifyStage: null, references: [], investigation: null,
+    revise: null,
     interview: null,
     effort: null, modelPreset: null, modelSubstitutions: {},
     repoPath: '/tmp/x',
@@ -107,6 +108,24 @@ describe('EventStore', () => {
     expect(getGoal(store.db, g.id)?.clarifyStage).toBeNull();
     // a fresh Clarify keeps how deep the goal asked to be interviewed
     expect(getGoal(store.db, g.id)?.interview).toMatchObject({ depth: 5, rounds: [], sessionId: null });
+  });
+
+  test('a Revise that asks: its rounds live on the goal until the proposal, the answers and note with them', () => {
+    const store = new EventStore(openDatabase(':memory:'));
+    const g = goal('g_3');
+    store.append({ type: 'goal.created', goalId: g.id, payload: { goal: g } });
+    expect(getGoal(store.db, g.id)?.revise).toBeNull();
+    const q = { key: 'R1Q1', text: 'Drop the admin role too?', options: ['yes', 'no'], reason: '', dependsOn: null, blocking: false };
+    store.append({ type: 'revise.round_asked', goalId: g.id, payload: { round: 1, sessionId: 's9', questions: [q] } });
+    expect(getGoal(store.db, g.id)?.revise).toMatchObject({ status: 'awaiting_answers', sessionId: 's9', rounds: [{ round: 1, questions: [q], answers: null, note: null }] });
+    store.append({ type: 'revise.round_answered', goalId: g.id, payload: { round: 1, answers: { R1Q1: 'yes' }, finish: false, note: 'and rename it' } });
+    expect(getGoal(store.db, g.id)?.revise).toMatchObject({ status: 'thinking', rounds: [{ round: 1, answers: { R1Q1: 'yes' }, note: 'and rename it' }] });
+    store.append({ type: 'revise.finished', goalId: g.id, payload: { rounds: 1, reason: 'proposal' } });
+    expect(getGoal(store.db, g.id)?.revise?.status).toBe('done');
+    // the next Revise starts its own rounds
+    store.append({ type: 'revise.round_asked', goalId: g.id, payload: { round: 1, sessionId: 's10', questions: [q] } });
+    expect(getGoal(store.db, g.id)?.revise).toMatchObject({ status: 'awaiting_answers', sessionId: 's10' });
+    expect(getGoal(store.db, g.id)?.revise?.rounds).toHaveLength(1);
   });
 
   test('rejects invalid payloads', () => {

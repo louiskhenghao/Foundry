@@ -26,6 +26,7 @@ import { SimpleBrief } from './SimpleBrief.tsx';
 import { areaOf, areaStyle, checkProblem, taskProblem } from './shared.ts';
 import { ProviderBadge } from '../agents/rows.tsx';
 import { HelpLink } from '../HelpPage.tsx';
+import { SectionTitle } from './SectionTitle.tsx';
 
 export function BriefPage() {
   const { id = '' } = useParams();
@@ -212,7 +213,7 @@ export function BriefPage() {
         <div className="min-w-0 space-y-4">
           <BriefChipNav items={navItems} />
           <section id="brief-understanding" className={sec}>
-            <Card title={<>Understanding<HelpLink to="approving-the-brief#understanding" className="ml-1.5" /></>}>
+            <Card title={<><SectionTitle section="understanding">Understanding</SectionTitle><HelpLink to="approving-the-brief#understanding" className="ml-1.5" /></>}>
               <div className="mb-3">
                 <label className="text-[11px] text-zinc-500">
                   pull request title <span className="text-zinc-600">· Conventional Commits header for the whole goal (one-PR delivery); per-task PRs use each task's header</span>
@@ -236,7 +237,7 @@ export function BriefPage() {
 
           {asked.length > 0 && (
             <section id="brief-questions" className={sec}>
-              <Card title={<>{`Questions (${blockingUnanswered.length} blocking unanswered)`}<HelpLink to="approving-the-brief#questions" className="ml-1.5" /></>}>
+              <Card title={<><SectionTitle section="questions">{`Questions (${blockingUnanswered.length} blocking unanswered)`}</SectionTitle><HelpLink to="approving-the-brief#questions" className="ml-1.5" /></>}>
                 <div className="space-y-3">
                   {brief.questions.map((q, i) => {
                     if (q.kind === 'note') return null;
@@ -282,7 +283,7 @@ export function BriefPage() {
           )}
 
           <section id="brief-assumptions" className={sec}>
-            <Card title={<>Assumptions (accepted unless you uncheck)<HelpLink to="approving-the-brief#assumptions" className="ml-1.5" /></>}>
+            <Card title={<><SectionTitle section="assumptions">Assumptions (accepted unless you uncheck)</SectionTitle><HelpLink to="approving-the-brief#assumptions" className="ml-1.5" /></>}>
               {brief.assumptions.length === 0 && <div className="text-sm text-zinc-500">None.</div>}
               <div className="space-y-1.5">
                 {brief.assumptions.map((a, i) => (
@@ -297,7 +298,7 @@ export function BriefPage() {
 
           {(decisions.length > 0 || editable) && (
             <section id="brief-decisions" className={sec}>
-              <DecisionsBar brief={brief} goalId={id} editable={editable} edit={edit} />
+              <DecisionsBar brief={brief} goal={g} goalId={id} editable={editable} edit={edit} beforeRevise={dirty ? save : undefined} />
             </section>
           )}
           <section id="brief-areas" className={sec}>
@@ -322,7 +323,7 @@ export function BriefPage() {
           </section>
 
           <section id="brief-budget" className={sec}>
-            <Card title={isAuto && editable ? 'Estimate → proposed budget' : 'Estimate & budget'}>
+            <Card title={<SectionTitle section="budget">{isAuto && editable ? 'Estimate → proposed budget' : 'Estimate & budget'}</SectionTitle>}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 {costAvailable ? <div>
                   Estimated cost <span className="mono">${brief.costEstimateUsd}</span>

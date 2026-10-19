@@ -5,7 +5,7 @@ import { TransferPage } from './pages/TransferPage.tsx';
 import { PortsPage } from './pages/PortsPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
 import { AgentsPage } from './pages/AgentsPage.tsx';
-import { AgentsPill } from './pages/agents/AgentsPill.tsx';
+import { useAgentsSummary } from './pages/agents/AgentsPill.tsx';
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api, type UpdateStatusView } from './api.ts';
@@ -55,13 +55,20 @@ export function App() {
   const link = ({ isActive }: { isActive: boolean }) => cn('flex items-center gap-2 px-3 py-2 lg:py-1.5 rounded-md text-sm', isActive ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900');
   // between lg and xl the header only fits the icons; the dropdown (below lg) always shows labels
   const label = 'lg:hidden xl:inline';
+  // how many agent sessions are working: a count on the Agents icon, like the Inbox's
+  const agents = useAgentsSummary();
+  const busy = agents?.busy ?? 0;
   const links = (
     <>
       <NavLink to="/" end className={link} title="Goals">
         <ListTodo size={15} /> <span className={label}>Goals</span>
       </NavLink>
-      <NavLink to="/agents" className={link} title="Agents">
-        <Bot size={15} /> <span className={label}>Agents</span>
+      <NavLink to="/agents" className={link} title={busy ? `Agents: ${busy} session${busy === 1 ? '' : 's'} working · ${agents?.idle ?? 0} idle` : 'Agents'} aria-label={busy ? `Agents, ${busy} working` : 'Agents'}>
+        <span className="relative inline-flex">
+          <Bot size={15} aria-hidden="true" />
+          {busy > 0 && <span className="absolute -top-1.5 -right-2 min-w-3.5 h-3.5 rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-[0.875rem] text-center text-white ring-2 ring-zinc-950">{busy > 99 ? '99+' : busy}</span>}
+        </span>
+        <span className={label}>Agents</span>
       </NavLink>
       <NavLink to="/skills" className={link} title="Extensions: skills and MCP servers">
         <Puzzle size={15} /> <span className={label}>Extensions</span>
@@ -93,10 +100,6 @@ export function App() {
             {open > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 rounded-full bg-orange-500 px-1 text-[10px] font-bold leading-4 text-center text-zinc-950">{open > 99 ? '99+' : open}</span>}
           </NavLink>
           <UpdatePill />
-          {/* Agents is in the phone menu; the pill would push the header past the screen edge */}
-          <span className="hidden sm:contents">
-            <AgentsPill />
-          </span>
           <UsagePill />
           <AccountMenu />
           <AppMenu setupBad={setupBad} connected={connected} />

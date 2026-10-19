@@ -356,6 +356,13 @@ export type InterviewOutput = z.infer<typeof InterviewOutput>;
  * What a Revise session emits: the whole Brief again, honouring the human's Decisions. Questions stay the human's
  * (only new, non-blocking ones may be added); keys of unchanged tasks/checks/areas must be kept so the page can diff.
  */
+/** What a Revise session emits per turn: a round of questions for the human (revision null), or the revision (questions empty). */
+export const reviseTurnOutput = (revision: z.ZodTypeAny) =>
+  z.object({
+    questions: InterviewOutput.shape.questions.describe('Only when a Decision leaves something open that you cannot safely assume: at most 8 questions, most consequential first. Empty when you propose the revision.'),
+    revision: revision.nullable().describe('The revised Brief, once nothing is left to ask or the human said enough; null while asking.'),
+  });
+
 export const RevisionOutput = BriefOutput.omit({ openQuestions: true }).extend({
   changeSummary: z.string().describe('One to three sentences for the human: what changed because of which decision, and what was left alone.'),
   newQuestions: z
@@ -363,6 +370,8 @@ export const RevisionOutput = BriefOutput.omit({ openQuestions: true }).extend({
     .describe('Only genuinely new, non-blocking questions raised by the decisions. Usually empty.'),
 });
 export type RevisionOutput = z.infer<typeof RevisionOutput>;
+export const ReviseTurnOutput = reviseTurnOutput(RevisionOutput);
+export type ReviseTurnOutput = z.infer<typeof ReviseTurnOutput>;
 
 /** What a Draft session emits for one task (mode `task` fills everything, mode `acceptance` only proposes checks). */
 export const TaskDraftOutput = z.object({

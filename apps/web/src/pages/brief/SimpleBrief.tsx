@@ -9,6 +9,7 @@ import { areaStyle } from './shared.ts';
 import { NotesComposer } from './NotesComposer.tsx';
 import { StyleCards } from './StyleCards.tsx';
 import { HelpLink } from '../HelpPage.tsx';
+import { SectionTitle } from './SectionTitle.tsx';
 
 /**
  * The Brief as a non-technical reader needs it: what the system understood, what it will build, the questions
@@ -54,12 +55,12 @@ export function SimpleBrief(p: {
         </Button>
       </div>
 
-      <Card title={<>What I understood<HelpLink to="approving-the-brief" className="ml-1.5" /></>}>
+      <Card title={<><SectionTitle section="understanding">What I understood</SectionTitle><HelpLink to="approving-the-brief" className="ml-1.5" /></>}>
         <MarkdownPanel title="" source={brief.understanding} maxHeight={400} actions={<OpenFull value={{ title: 'What I understood', text: brief.understanding }} />} />
       </Card>
 
       {asked.length > 0 && (
-        <Card title={blockingUnanswered.length ? `Please answer (${blockingUnanswered.length})` : 'Questions'}>
+        <Card title={<SectionTitle section="questions">{blockingUnanswered.length ? `Please answer (${blockingUnanswered.length})` : 'Questions'}</SectionTitle>}>
           <div className="space-y-3">
             {brief.questions.map((q, i) => (q.kind === 'note' ? null : q.kind === 'style' && brief.styleOptions.length ? <StyleCards key={q.id} goalId={g.id} brief={brief} question={q} editable={editable} update={update} /> : (
               <div key={q.id}>
@@ -94,14 +95,14 @@ export function SimpleBrief(p: {
       {p.subjects}
 
       {(editable || brief.questions.some((q) => q.kind === 'note')) && (
-        <Card title="Anything to add?">
+        <Card title={<SectionTitle section="decisions">Anything to add?</SectionTitle>}>
           <p className="text-xs text-zinc-500 mb-2">Something Foundry did not ask, or got wrong. Your notes reach every worker, like your answers.</p>
           <NotesComposer brief={brief} editable={editable} edit={p.edit} compact />
         </Card>
       )}
 
       {brief.assumptions.length > 0 && (
-        <Card title="I will assume… (untick anything that is wrong)">
+        <Card title={<SectionTitle section="assumptions">I will assume… (untick anything that is wrong)</SectionTitle>}>
           <div className="space-y-1.5">
             {brief.assumptions.map((a, i) => (
               <label key={a.id} className="flex items-start gap-2 text-sm">
@@ -113,7 +114,7 @@ export function SimpleBrief(p: {
         </Card>
       )}
 
-      <Card title={`What you will get (${brief.tasks.length} piece${brief.tasks.length === 1 ? '' : 's'} of work)`}>
+      <Card title={<SectionTitle section="plan">{`What you will get (${brief.tasks.length} piece${brief.tasks.length === 1 ? '' : 's'} of work)`}</SectionTitle>}>
         <div className="space-y-3">
           {byArea.map(({ area, tasks }) => (
             <div key={area?.key ?? '_'}>
@@ -143,7 +144,7 @@ export function SimpleBrief(p: {
         <p className="text-[11px] text-zinc-500 mt-3">To change the plan itself (add, remove or reorder pieces, set acceptance checks), open Expert view.</p>
       </Card>
 
-      <Card title={g.provider === 'codex' ? 'Time & limits' : 'Price & time'}>
+      <Card title={<SectionTitle section="budget">{g.provider === 'codex' ? 'Time & limits' : 'Price & time'}</SectionTitle>}>
         <p className="text-sm text-zinc-300">{g.provider !== 'codex' && <>Estimated ${brief.costEstimateUsd} and </>}about {brief.timeEstimateMin} min.</p>
         {g.provider === 'codex' && <p className="text-xs text-zinc-400 mt-2">Dollar cost is unavailable. Time, attempts and concurrency still apply.</p>}
         {editable && <div className="flex flex-wrap gap-3 mt-3">

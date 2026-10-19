@@ -1,5 +1,24 @@
 import type { Brief, BriefArea, BriefCheck, BriefTask } from '@foundry/core/browser';
 import { areaSlug } from '@foundry/core/browser';
+import { BookOpenText, Flag, Gavel, Image, LayoutGrid, Lightbulb, ListChecks, type LucideIcon, MessageCircleQuestion, Play, ShieldCheck, Wallet } from 'lucide-react';
+
+/** the parts of the Brief page, each with a hue of its own so the page reads at a glance (literal classes so Tailwind keeps them) */
+export type BriefSection = 'understanding' | 'questions' | 'subjects' | 'assumptions' | 'decisions' | 'areas' | 'plan' | 'acceptance' | 'run' | 'completion' | 'budget';
+export const SECTION_STYLE: Record<BriefSection, { Icon: LucideIcon; text: string; dot: string; bar: string }> = {
+  understanding: { Icon: BookOpenText, text: 'text-sky-300', dot: 'bg-sky-400', bar: 'border-sky-400/70' },
+  questions: { Icon: MessageCircleQuestion, text: 'text-orange-300', dot: 'bg-orange-400', bar: 'border-orange-400/70' },
+  subjects: { Icon: Image, text: 'text-fuchsia-300', dot: 'bg-fuchsia-400', bar: 'border-fuchsia-400/70' },
+  assumptions: { Icon: Lightbulb, text: 'text-violet-300', dot: 'bg-violet-400', bar: 'border-violet-400/70' },
+  decisions: { Icon: Gavel, text: 'text-emerald-300', dot: 'bg-emerald-400', bar: 'border-emerald-400/70' },
+  areas: { Icon: LayoutGrid, text: 'text-amber-300', dot: 'bg-amber-400', bar: 'border-amber-400/70' },
+  plan: { Icon: ListChecks, text: 'text-blue-300', dot: 'bg-blue-400', bar: 'border-blue-400/70' },
+  acceptance: { Icon: ShieldCheck, text: 'text-rose-300', dot: 'bg-rose-400', bar: 'border-rose-400/70' },
+  run: { Icon: Play, text: 'text-sky-300', dot: 'bg-sky-400', bar: 'border-sky-400/70' },
+  completion: { Icon: Flag, text: 'text-violet-300', dot: 'bg-violet-400', bar: 'border-violet-400/70' },
+  budget: { Icon: Wallet, text: 'text-emerald-300', dot: 'bg-emerald-400', bar: 'border-emerald-400/70' },
+};
+/** the section a Brief page nav item (id "brief-<section>") belongs to */
+export const sectionOfNav = (id: string): BriefSection | null => (id.startsWith('brief-') && id.slice(6) in SECTION_STYLE ? (id.slice(6) as BriefSection) : null);
 
 /** every kind a task may have; `goal` = a Delegated goal of its own does the step (the planner offers it only where the goal allows delegation) */
 export const TASK_KINDS = ['feature', 'bug', 'refactor', 'research', 'chore', 'goal'] as const;

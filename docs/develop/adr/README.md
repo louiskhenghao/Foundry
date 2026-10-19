@@ -49,3 +49,4 @@ record is never rewritten when a later decision changes it; its status says what
 | [0042](0042-subjects-and-the-likeness-review.md) | Subjects with pictures on the Brief, and a Likeness review of each milestone | accepted · 2026-10-18 · amends ADR-0031 |
 | [0043](0043-estimate-cut-sessions-at-measured-rates.md) | A cut session's cost is estimated from its tokens at the rate its model was measured at | accepted · 2026-10-19 · amends ADR-0037 |
 | [0044](0044-notes-are-decisions.md) | A note from the human is a Decision, asked for or not: an interview round and the Brief page take one | accepted · 2026-10-19 · amends ADR-0013 and ADR-0027 |
+| [0045](0045-revise-may-ask-back.md) | A Revise may ask the human a round or two before it proposes; the answers are Decisions | accepted · 2026-10-19 · builds on ADR-0013 and ADR-0044 |
