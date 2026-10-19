@@ -26,6 +26,8 @@ export interface TimelineRow {
   kind: 'goal' | 'sessions' | 'task' | 'delegated';
   goalId: string;
   taskId: string | null;
+  /** a task done by a Delegated goal: that goal's id */
+  delegatedGoalId?: string | null;
   spans: TimelineSpan[];
 }
 
@@ -192,7 +194,7 @@ function rowsOf(input: TimelineInput, level: number, now: string, delegated: Map
       const landed = input.events.find((e) => e.type === 'task.state_changed' && e.payload.taskId === t.id && e.payload.to === 'done' && e.ts >= startedAt)?.ts;
       if (landed || isLive) spans.unshift({ kind: 'run', label: `Delegated goal: ${child.goal.title}`, start: startedAt, end: landed ?? now, ...(landed ? {} : { open: true }) });
     }
-    rows.push({ id: `task:${t.id}`, label: t.title, level: level + 1, kind: 'task', goalId: g.id, taskId: t.id, spans });
+    rows.push({ id: `task:${t.id}`, label: t.title, level: level + 1, kind: 'task', goalId: g.id, taskId: t.id, ...(child ? { delegatedGoalId: child.goal.id } : {}), spans });
     if (child && level === 0) rows.push(...rowsOf(child, level + 1, now, delegated, live));
   }
   return rows;

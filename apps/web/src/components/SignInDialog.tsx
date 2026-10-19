@@ -2,7 +2,7 @@ import { ExternalLink, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api, type LoginSession, type AgentProvider } from '../api.ts';
-import { Button, CopyButton, Input, cn } from '../ui.tsx';
+import { Button, CopyButton, Input, cn, focusFirst } from '../ui.tsx';
 
 /** Runs `claude auth login` through the engine; the browser opens on this machine, the URL is shown too. */
 export function SignInDialog({ onClose, provider: selectedProvider }: { onClose: () => void; provider?: AgentProvider }) {
@@ -72,7 +72,7 @@ export function SignInDialog({ onClose, provider: selectedProvider }: { onClose:
             {session.needsCode && !session.done && (
               <div className="space-y-1.5">
                 <Input
-                  autoFocus
+                  autoFocus={focusFirst}
                   placeholder="paste the code from the browser"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}

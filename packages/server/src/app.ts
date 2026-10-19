@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } fr
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CodexEffort, Effort, Brief, EscalationAnswer, isHistory, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, goalTimeline, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId } from '@foundry/engine';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, estimateCutSessions, measuredRates, goalTimeline, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId } from '@foundry/engine';
 import type { Task } from '@foundry/core';
 import { LearningKind, listDelegatedGoals, listRepoLearnings, DeployProvider } from '@foundry/core';
 import { delegationNeedsHuman } from '@foundry/engine';
@@ -200,6 +200,19 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
 
   // `active` = everything a restart would interrupt (sessions + attempts between sessions + clarify/review/delivery); `busy` breaks it down
+  // the web build served now: the hashed name of index.html's entry script, which a rebuild changes; open pages reload into it
+  let build: { mtime: number; id: string | null } | null = null;
+  const webBuild = (): string | null => {
+    if (!opts.webDist) return null;
+    try {
+      const file = join(opts.webDist, 'index.html');
+      const mtime = statSync(file).mtimeMs;
+      if (build?.mtime !== mtime) build = { mtime, id: readFileSync(file, 'utf8').match(/\/assets\/([\w.-]+\.js)/)?.[1] ?? null };
+      return build.id;
+    } catch {
+      return null;
+    }
+  };
   app.get('/api/health', (c) => {
     const busy = engine.busy();
     return c.json({
@@ -211,6 +224,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       pausedUntilByProvider: { claude: engine.rateLimitedUntilIso('claude'), codex: engine.rateLimitedUntilIso('codex') },
       restartNeeded: engine.settings.restartNeeded(),
       version: engine.updater.current(),
+      webBuild: webBuild(),
       updateAvailable: !!engine.updater.cachedReport()?.updateAvailable,
       updating: engine.updater.isApplying() || engine.isUpdateDraining(),
     });
@@ -747,6 +761,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       milestoneRuns: engine.milestoneRuns(id),
       // the milestones whose recording is being compared with the Subjects' pictures, and the Subjects whose pictures are being found
       likenessRuns: likenessRunsFor(id),
+      // the sessions cut before they reported a cost, each priced at its model's measured rate (≈, never in the budget)
+      costEstimate: estimateCutSessions(measuredRates(db), engine.store.listByGoalOfTypes(id, ['session.usage'])),
       subjectSearches: subjectSearchesFor(id),
       auditRunning: engine.auditing.has(id),
       investigating: engine.investigating.has(id),

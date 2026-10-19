@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronRight, FileSearch, Search } from 'lucide-react';
 import { type ReactNode, useMemo, useState } from 'react';
-import { cn } from '../ui.tsx';
+import { cn, focusFirst } from '../ui.tsx';
 import { openFile } from './FilePreview.tsx';
 
 type Json = null | boolean | number | string | Json[] | { [k: string]: Json };
@@ -165,7 +165,7 @@ export function JsonTree({ value }: { value: Json }) {
       <div className="flex flex-wrap items-center gap-2 px-3 py-1.5 border-b border-zinc-800/80">
         <label className="flex items-center gap-1.5 flex-1 min-w-[160px] rounded border border-zinc-700 bg-zinc-900 px-2 py-0.5">
           <Search size={11} className="text-zinc-500 shrink-0" />
-          <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search keys and values" className="w-full bg-transparent text-xs text-zinc-100 placeholder:text-zinc-500 focus:outline-none" />
+          <input autoFocus={focusFirst} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search keys and values" className="w-full bg-transparent text-xs text-zinc-100 placeholder:text-zinc-500 focus:outline-none" />
         </label>
         {matches && <span className={cn('text-[11px]', matches.count ? 'text-zinc-400' : 'text-rose-400')}>{matches.count ? `${matches.count} match${matches.count === 1 ? '' : 'es'}` : 'no match'}</span>}
         <button type="button" className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-300 hover:text-zinc-100 hover:border-zinc-500" onClick={() => setAll(false)}>

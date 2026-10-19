@@ -400,6 +400,8 @@ export interface GoalDetail {
   subjectSearches?: string[];
   /** the milestones (task ids) whose recording is being compared with the Subjects' pictures now */
   likenessRuns?: string[];
+  /** the sessions cut before they reported a cost, each priced at its model's measured rate: shown as ≈, never in the budget */
+  costEstimate?: { usd: number; sessions: number; estimated: number; bySession: Record<string, number> };
   /** Follows / Followed by (goal.follows holds the earlier goal; it may have been deleted since) */
   followUps: { followsExists: boolean; followedBy: { id: string; title: string; state: GoalState }[] };
   /** Delegated from / Delegated goals (goal.delegatedFrom holds the main goal; it may have been deleted since) */
@@ -708,7 +710,7 @@ export function apiForProvider(provider?: AgentProvider) {
   resetSettings: () => req<SettingsView>('/api/settings/reset', { method: 'POST' }),
   notifyTest: (override: { telegramBotToken?: string | null; telegramChatId?: string | null; discordWebhookUrl?: string | null; discordBotToken?: string | null }) => req<{ results: { channel: string; ok: boolean; error: string | null }[] }>('/api/notifications/test', { method: 'POST', body: JSON.stringify(override) }),
   telegramChatId: (token: string | null) => req<{ chatId: string; who: string }>('/api/notifications/telegram/chat-id', { method: 'POST', body: JSON.stringify({ token }) }),
-  health: () => req<{ ok: boolean; active: number; events: number; pausedUntil: string | null; pausedUntilByProvider: Record<AgentProvider, string | null>; restartNeeded: string[]; version: string; updateAvailable: boolean; updating: boolean }>('/api/health'),
+  health: () => req<{ ok: boolean; active: number; events: number; pausedUntil: string | null; pausedUntilByProvider: Record<AgentProvider, string | null>; restartNeeded: string[]; version: string; webBuild?: string | null; updateAvailable: boolean; updating: boolean }>('/api/health'),
   updateStatus: () => req<UpdateStatusView>('/api/update'),
   updateCheck: () => req<UpdateReportView>('/api/update/check', { method: 'POST' }),
   updateApply: (force = false) => req<{ started: true; channel: string }>('/api/update/apply', { method: 'POST', body: JSON.stringify({ force }) }),

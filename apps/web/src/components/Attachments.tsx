@@ -3,7 +3,7 @@ import { attachmentKindLabel } from '@foundry/core/browser';
 import { ExternalLink, File as FileIcon, FileText, Image as ImageIcon, Link2, Paperclip, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.ts';
-import { Button, Input, Modal, cn } from '../ui.tsx';
+import { Button, Input, Modal, cn, focusFirst } from '../ui.tsx';
 import { MarkdownPanel } from './Markdown.tsx';
 
 /**
@@ -277,7 +277,7 @@ export function AttachmentInput({ items, onChange, goalId, className }: { items:
               void addLink();
             }}
           >
-            <Input autoFocus className="text-xs" placeholder="https://… (docs, issue, design)" value={link} onChange={(e) => setLink(e.target.value)} />
+            <Input autoFocus={focusFirst} className="text-xs" placeholder="https://… (docs, issue, design)" value={link} onChange={(e) => setLink(e.target.value)} />
             <Button size="sm" type="submit" disabled={!link.trim()}>
               Add
             </Button>

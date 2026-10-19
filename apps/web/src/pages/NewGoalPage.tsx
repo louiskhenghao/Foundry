@@ -10,6 +10,7 @@ import { AttachmentInput } from '../components/Attachments.tsx';
 import { BudgetPicker, type BudgetDraft } from '../components/BudgetPicker.tsx';
 import { DeliveryPolicyForm, type PolicyDraft } from '../components/DeliveryPolicyForm.tsx';
 import { RepoCard } from '../components/RepoCard.tsx';
+import { useUnsaved } from '../unsaved.ts';
 import { CodexModelSelect } from '../components/CodexModelSelect.tsx';
 import { Button, ButtonGroup, Card, Input, Select, Textarea, cn } from '../ui.tsx';
 import { INTERVIEW_DEPTHS } from '../interview-depth.ts';
@@ -64,6 +65,7 @@ export function NewGoalPage() {
   const initialProvider = requestedProvider === 'claude' || requestedProvider === 'codex' ? requestedProvider : null;
   // a follow-up started from a goal page (the audit's remaining findings) arrives with its text
   const [prompt, setPrompt] = useState(() => params.get('prompt') ?? '');
+  useUnsaved('new-goal', !!prompt.trim());
   const [repoPath, setRepoPath] = useState('');
   const [title, setTitle] = useState('');
   const [repoInfo, setRepoInfo] = useState<RepoInfo | null>(null);

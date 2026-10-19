@@ -17,6 +17,7 @@ import { MergeResolvePage } from './pages/MergeResolvePage.tsx';
 import { GoalPage } from './pages/GoalPage.tsx';
 import { GoalsPage } from './pages/GoalsPage.tsx';
 import { InboxPage } from './pages/InboxPage.tsx';
+import { BuildWatch } from './buildWatch.tsx';
 import { LearningsPage } from './pages/LearningsPage.tsx';
 import { NewGoalPage } from './pages/NewGoalPage.tsx';
 import { SetupPage } from './pages/SetupPage.tsx';
@@ -59,10 +60,6 @@ export function App() {
       <NavLink to="/" end className={link} title="Goals">
         <ListTodo size={15} /> <span className={label}>Goals</span>
       </NavLink>
-      <NavLink to="/inbox" className={link} title="Inbox">
-        <Inbox size={15} /> <span className={label}>Inbox</span>
-        {open > 0 && <span className="ml-1 rounded-full bg-orange-500 text-zinc-950 text-[10px] px-1.5 font-bold">{open}</span>}
-      </NavLink>
       <NavLink to="/agents" className={link} title="Agents">
         <Bot size={15} /> <span className={label}>Agents</span>
       </NavLink>
@@ -80,7 +77,6 @@ export function App() {
         <NavLink to="/" className="font-semibold tracking-tight text-zinc-100 flex items-center gap-2">
           <img src="/favicon.svg" alt="" className="h-6 w-6" />
           Foundry
-          {open > 0 && <span className="lg:hidden h-2 w-2 rounded-full bg-orange-500" />}
         </NavLink>
         <nav className="hidden lg:flex items-center gap-1">{links}</nav>
         <div className="ml-auto flex items-center gap-2 md:gap-3 text-xs text-zinc-500 min-w-0">
@@ -91,6 +87,11 @@ export function App() {
               <Plus size={14} /> <span className="hidden sm:inline">New goal</span>
             </Button>
           </Link>
+          {/* the Inbox beside it: what waits for the person, on every screen width, its count on the icon */}
+          <NavLink to="/inbox" title={open > 0 ? `Inbox: ${open} waiting for you` : 'Inbox'} aria-label={open > 0 ? `Inbox, ${open} waiting for you` : 'Inbox'} className={({ isActive }) => cn('relative flex h-8 w-8 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded-md border', isActive ? 'border-emerald-500/60 text-emerald-300' : 'border-zinc-700 text-zinc-300 hover:bg-zinc-900')}>
+            <Inbox size={15} />
+            {open > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 rounded-full bg-orange-500 px-1 text-[10px] font-bold leading-4 text-center text-zinc-950">{open > 99 ? '99+' : open}</span>}
+          </NavLink>
           <UpdatePill />
           {/* Agents is in the phone menu; the pill would push the header past the screen edge */}
           <span className="hidden sm:contents">
@@ -106,6 +107,7 @@ export function App() {
           </nav>
         )}
       </header>
+      <BuildWatch connected={connected} />
       <main className="flex-1 overflow-auto">
         <Routes>
           <Route path="/" element={<GoalsPage />} />

@@ -1,8 +1,10 @@
 import { SUBJECT_LIMITS, type BriefSubject, type SubjectPicture } from '@foundry/core/browser';
-import { ExternalLink, ImagePlus, Loader2, Plus, Search, X } from 'lucide-react';
+import { ImagePlus, Loader2, Plus, Search, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { api } from '../../api.ts';
-import { Button, Card, Input, Modal } from '../../ui.tsx';
+import { Button, Card, Input, focusFirst } from '../../ui.tsx';
+import { MediaLightbox } from '../../components/MediaLightbox.tsx';
+import { subjectLightbox } from '../goal/MilestoneEvidence.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 
 const host = (url: string | null) => {
@@ -21,7 +23,7 @@ const host = (url: string | null) => {
 export function SubjectsCard({ goalId, subjects, searching, editable }: { goalId: string; subjects: BriefSubject[]; searching: string[]; editable: boolean }) {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [viewing, setViewing] = useState<{ subject: BriefSubject; picture: SubjectPicture } | null>(null);
+  const [viewing, setViewing] = useState<{ key: string; index: number } | null>(null);
   const [adding, setAdding] = useState({ name: '', lookFor: '' });
   const act = async (key: string, fn: () => Promise<unknown>) => {
     setErr(null);
@@ -46,7 +48,7 @@ export function SubjectsCard({ goalId, subjects, searching, editable }: { goalId
       {subjects.length === 0 && <div className="text-sm text-zinc-500 mb-2">Nothing real to match.</div>}
       <div className="space-y-4">
         {subjects.map((s) => (
-          <SubjectRow key={s.key} goalId={goalId} subject={s} searching={searching.includes(s.key)} editable={editable} busy={busy} act={act} onView={(picture) => setViewing({ subject: s, picture })} />
+          <SubjectRow key={s.key} goalId={goalId} subject={s} searching={searching.includes(s.key)} editable={editable} busy={busy} act={act} onView={(picture) => setViewing({ key: s.key, index: Math.max(0, s.pictures.findIndex((p) => p.file === picture.file)) })} />
         ))}
       </div>
       {editable && subjects.length < SUBJECT_LIMITS.subjects && (
@@ -65,20 +67,10 @@ export function SubjectsCard({ goalId, subjects, searching, editable }: { goalId
         </form>
       )}
       {err && <div className="text-xs text-rose-400 mt-2">{err}</div>}
-      {viewing && (
-        <Modal open title={`${viewing.subject.name}${viewing.picture.caption ? ` — ${viewing.picture.caption}` : ''}`} onClose={() => setViewing(null)} wide>
-          <div className="space-y-2">
-            <img src={api.subjectPictureUrl(goalId, viewing.picture.file)} alt={viewing.picture.caption || viewing.subject.name} className="max-h-[70vh] w-auto mx-auto rounded border border-zinc-800" />
-            <div className="text-center text-[11px] text-zinc-500">
-              {viewing.picture.source === 'person' ? 'Your picture' : viewing.picture.url ? (
-                <a href={viewing.picture.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sky-300 hover:underline">
-                  <ExternalLink size={10} /> found on {host(viewing.picture.url)}
-                </a>
-              ) : 'Found by Foundry'}
-            </div>
-          </div>
-        </Modal>
-      )}
+      {viewing && (() => {
+        const s = subjects.find((x) => x.key === viewing.key);
+        return s ? <MediaLightbox items={subjectLightbox(goalId, s)} index={Math.min(viewing.index, s.pictures.length - 1)} onIndex={(index) => setViewing({ ...viewing, index })} onClose={() => setViewing(null)} title={s.name} /> : null;
+      })()}
     </Card>
   );
 }
@@ -104,7 +96,7 @@ function SubjectRow({ goalId, subject: s, searching, editable, busy, act, onView
                 void act(`look-${s.key}`, () => api.updateSubject(goalId, s.key, { lookFor: lookFor })).then(() => setLookFor(null));
               }}
             >
-              <Input autoFocus value={lookFor} onChange={(e) => setLookFor(e.target.value)} className="text-xs py-1" aria-label="What must match" />
+              <Input autoFocus={focusFirst} value={lookFor} onChange={(e) => setLookFor(e.target.value)} className="text-xs py-1" aria-label="What must match" />
               <Button type="submit" size="sm">Save</Button>
               <Button type="button" size="sm" variant="ghost" onClick={() => setLookFor(null)}>Cancel</Button>
             </form>

@@ -18,6 +18,7 @@ export * from './skills/index.ts';
 export * from './agents/types.ts';
 export { AgentsMonitor, type FoundryLiveSession } from './agents/monitor.ts';
 export * from './usage/ledger.ts';
+export { estimateCutSessions, estimateSession, measuredRates, type CostEstimate } from './usage/estimate.ts';
 export * from './auth/claude-auth.ts';
 export * from './delivery/git-init.ts';
 export * from './fs/browse.ts';

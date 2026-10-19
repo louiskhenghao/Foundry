@@ -280,3 +280,13 @@ main {
 .hl .hljs-deletion { color: var(--color-rose-400); }
 .hl .hljs-emphasis { font-style: italic; }
 .hl .hljs-strong { font-weight: 600; }
+
+/* iOS Safari zooms into a field whose text is smaller than 16px when it gets the focus, and stays zoomed in: there,
+   fields are 16px. Only iOS has -webkit-touch-callout; every other browser keeps the sizes the classes give. */
+@supports (-webkit-touch-callout: none) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}

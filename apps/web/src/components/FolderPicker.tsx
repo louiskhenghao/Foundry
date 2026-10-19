@@ -1,7 +1,7 @@
 import { ChevronRight, Clock, Folder, FolderGit2, FolderOpen, FolderPlus, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { api, type DirListing, type FsRecent } from '../api.ts';
-import { Button, Input, cn } from '../ui.tsx';
+import { Button, Input, cn, focusFirst } from '../ui.tsx';
 
 /** opened from another device (over the tailnet): a Finder dialog would open on Foundry's computer, out of reach */
 const remote = typeof location !== 'undefined' && !['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
@@ -151,7 +151,7 @@ export function FolderPicker({ initial, onPick, onClose }: { initial?: string; o
                   }}
                 >
                   <FolderPlus size={14} className="text-emerald-400 shrink-0" />
-                  <Input autoFocus className="text-sm py-1 flex-1" placeholder="New folder name" value={newName} onChange={(e) => setNewName(e.target.value)} aria-label="New folder name" />
+                  <Input autoFocus={focusFirst} className="text-sm py-1 flex-1" placeholder="New folder name" value={newName} onChange={(e) => setNewName(e.target.value)} aria-label="New folder name" />
                   <Button size="sm" variant="primary" type="submit" disabled={creating || !newName.trim()}>
                     {creating ? 'Creating…' : 'Create'}
                   </Button>

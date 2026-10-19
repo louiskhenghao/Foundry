@@ -41,9 +41,10 @@ record is never rewritten when a later decision changes it; its status says what
 | [0034](0034-delegated-goals.md) | A step that is a project of its own is a Delegated goal, one level deep, landing as one commit | accepted · 2026-10-18 · amends ADR-0028 |
 | [0035](0035-deliverables-and-replan.md) | A task's Deliverables are a contract, and the planner touches up what follows after a Delegated goal lands | accepted · 2026-10-18 · amends ADR-0028 and ADR-0034 |
 | [0036](0036-parallel-delegated-goals.md) | Delegated goals run side by side within the goal's parallel limit, each with a share of the budget | accepted · 2026-10-18 · amends ADR-0034 |
-| [0037](0037-unmeasured-sessions.md) | A session cut before its result line is unmeasured — its cost is unknown, not zero | accepted · 2026-10-18 · amends ADR-0001 |
+| [0037](0037-unmeasured-sessions.md) | A session cut before its result line is unmeasured — its cost is unknown, not zero | accepted · 2026-10-18 · amends ADR-0001 · amended by ADR-0043 (an estimate at the model's measured rate, never counted) |
 | [0038](0038-chat-answers-from-telegram.md) | Telegram takes answers: buttons and replies go through the app's own calls, and boundary commands stay in the Inbox | accepted · 2026-10-18 · amends ADR-0003 · amended by ADR-0039 |
 | [0039](0039-chat-answers-from-discord.md) | Discord takes answers through a bot of the user's, read over the gateway | accepted · 2026-10-18 · amends ADR-0038 |
 | [0040](0040-learnings-per-repository.md) | Learnings: what a folder's goals taught, written when a goal ends and given to the next goals there | accepted · 2026-10-18 |
 | [0041](0041-deploy-web-apps.md) | Deploy: a finished goal's web app to Vercel, Netlify or Cloudflare Pages, on the person's click | accepted · 2026-10-18 · amends ADR-0003 |
 | [0042](0042-subjects-and-the-likeness-review.md) | Subjects with pictures on the Brief, and a Likeness review of each milestone | accepted · 2026-10-18 · amends ADR-0031 |
+| [0043](0043-estimate-cut-sessions-at-measured-rates.md) | A cut session's cost is estimated from its tokens at the rate its model was measured at | accepted · 2026-10-19 · amends ADR-0037 |

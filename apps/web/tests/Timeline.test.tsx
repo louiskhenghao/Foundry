@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { GoalTimeline } from '@foundry/core/browser';
-import { TimelineView, axisMarks, fmtDur } from '../src/pages/goal/TimelineTab.tsx';
+import { TimelineView, axisMarks, axisMinutes, axisScale, axisSegments, chartWidth, fmtDur, onTrackScroll, zoomIn, zoomOut } from '../src/pages/goal/TimelineTab.tsx';
 
 const at = (min: number) => new Date(Date.UTC(2026, 9, 18, 10, 0, 0) + min * 60_000).toISOString();
 const t: GoalTimeline = {
@@ -39,4 +39,74 @@ test('where the time went, the longest steps, and every step on one axis', () =>
   expect(html).toContain('left:60%;width:25%');
   expect(html).toContain('title="Attempt 1 · 25m · $1.25"');
   expect(html).toContain('>↳ Delegated goal: research the subject<');
+});
+
+test('a stretch in which nothing ran folds into a short gap; the steps around it keep their scale', () => {
+  // work for an hour, then nothing but the goal running for 5 hours, then an hour's work again
+  const quiet: GoalTimeline = {
+    ...t,
+    end: at(420),
+    rows: [
+      { ...t.rows[0]!, spans: [{ kind: 'run', label: 'Running', start: at(0), end: at(420) }] },
+      { ...t.rows[3]!, spans: [{ kind: 'work', label: 'Attempt 1', start: at(0), end: at(60) }, { kind: 'work', label: 'Attempt 2', start: at(360), end: at(420) }] },
+    ],
+  };
+  const segs = axisSegments(quiet);
+  expect(segs.map((s) => [(s.start - Date.parse(at(0))) / 60_000, (s.end - Date.parse(at(0))) / 60_000, s.folded])).toEqual([[0, 60, false], [60, 360, true], [360, 420, false]]);
+  const x = axisScale(segs);
+  // 120 minutes drawn to scale, the fold as wide as 6 of them: the second hour's work starts just past the middle
+  expect(x(Date.parse(at(60)))).toBeCloseTo((60 / 126) * 100, 6);
+  expect(x(Date.parse(at(360)))).toBeCloseTo((66 / 126) * 100, 6);
+  expect(x(Date.parse(at(420)))).toBeCloseTo(100, 6);
+  const html = renderToStaticMarkup(<TimelineView t={quiet} />);
+  expect(html).toContain('⋯ 5h 00m');
+  expect(html).toContain('nothing ran (folded)');
+  // a timeline with no quiet stretch is all to scale
+  expect(axisSegments(t).every((s) => !s.folded)).toBe(true);
+});
+
+test('the chart zooms, and every bar and row name is a button that opens what it was', () => {
+  const html = renderToStaticMarkup(<TimelineView t={t} />);
+  expect(html).toContain('aria-label="zoom in"');
+  expect(html).toContain('>fit<');
+  expect(html).toMatch(/<button type="button" class="absolute rounded-sm[^"]*" style="left:60%;width:25%[^"]*"/);
+  expect(html).toContain('title="build the model">build the model</button>');
+});
+
+test("the axis's first mark starts at the chart's left edge, not half outside it", () => {
+  const html = renderToStaticMarkup(<TimelineView t={t} />);
+  expect(html).toContain('<span class="absolute top-0 whitespace-nowrap text-[10px] tabular-nums text-zinc-500" style="left:0%">0</span>');
+  expect(html).toContain('text-zinc-500 -translate-x-1/2" style="left:15%">15m</span>');
+});
+
+test('like a Gantt chart: the whole goal fits when it reads well, else it slides at a readable scale', () => {
+  // an afternoon's goal on a desktop fits; on a phone it slides, 4 pixels a minute
+  expect(chartWidth(103, 1000, null)).toEqual({ ppm: 1000 / 103, px: 1000, fit: true });
+  expect(chartWidth(103, 230, null)).toEqual({ ppm: 4, px: 412, fit: false });
+  // fit on demand, or zoomed in
+  expect(chartWidth(103, 230, 'fit')).toEqual({ ppm: 230 / 103, px: 230, fit: true });
+  expect(chartWidth(103, 1000, 16).px).toBe(1648);
+  // zoom steps double; out of the smallest that is wider than the window, it fits
+  expect([zoomIn(4), zoomIn(5), zoomIn(128)]).toEqual([8, 8, null]);
+  expect([zoomOut(8, 2), zoomOut(4, 4), zoomOut(3, 2.5)]).toEqual([4, 'fit', 'fit']);
+  // the axis's length counts a fold at the width it is drawn
+  const segs = [{ start: 0, end: 60 * 60_000, folded: false }, { start: 60 * 60_000, end: 360 * 60_000, folded: true }, { start: 360 * 60_000, end: 420 * 60_000, folded: false }];
+  expect(axisMinutes(segs)).toBeCloseTo(126, 6);
+});
+
+test("a row's name and its chart row are one height at every width; the bars keep theirs on a phone", () => {
+  const html = renderToStaticMarkup(<TimelineView t={t} />);
+  // a phone gives buttons 32px at least: the rows there are 32px too, and a bar escapes the rule
+  expect(html).toContain('class="block h-8 sm:h-7 w-full');
+  expect(html).toContain('class="relative h-8 sm:h-7 border-b');
+  expect(html).toContain('style="left:60%;width:25%;min-height:0"');
+});
+
+test("sliding the track reads where it is while the event lasts: React empties the event's element once the handler returns", () => {
+  const updates: ((p: { room: number; left: number }) => { room: number; left: number })[] = [];
+  const e = { currentTarget: { scrollLeft: 120 } } as any;
+  onTrackScroll((u: any) => void updates.push(u))(e);
+  // React runs the state update later, after it has set currentTarget back to null: reading it then threw and took the page down
+  e.currentTarget = null;
+  expect(updates[0]!({ room: 300, left: 0 })).toEqual({ room: 300, left: 120 });
 });

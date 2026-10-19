@@ -2,7 +2,7 @@ import { ExternalLink, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { apiForProvider, type AgentProvider, type McpLoginSession } from '../../api.ts';
-import { Button, CopyButton, Input, cn } from '../../ui.tsx';
+import { Button, CopyButton, Input, cn, focusFirst } from '../../ui.tsx';
 
 /**
  * Connect a claude.ai connector (open its claude.ai link and authorize there) or sign in to an HTTP MCP server
@@ -89,7 +89,7 @@ export function McpConnectDialog({ provider = 'claude', name, onClose }: { provi
         </div>
         {s.needsCode && !s.done && (
           <div className="flex gap-2">
-            <Input autoFocus className="mono" placeholder="http://localhost:…/callback?code=…" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && url.trim() && void submit()} />
+            <Input autoFocus={focusFirst} className="mono" placeholder="http://localhost:…/callback?code=…" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && url.trim() && void submit()} />
             <Button size="sm" variant="primary" disabled={!url.trim() || sending} onClick={submit}>
               {sending ? 'Sending…' : 'Submit'}
             </Button>

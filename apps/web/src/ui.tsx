@@ -138,6 +138,12 @@ export function Button({ variant = 'default', size = 'md', className, ...props }
   return <button className={buttonClass(variant, size, className)} {...props} />;
 }
 
+/**
+ * Whether a field may focus itself when it appears (a dialog's first field): only with a mouse at hand. On a touch screen
+ * focusing pops the keyboard over what the person came to read, and on iOS zooms the page in.
+ */
+export const focusFirst: boolean = typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
+
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cn('w-full rounded-md bg-zinc-900 border border-zinc-700 px-3 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500 disabled:opacity-50', className)} {...props} />;
 }
@@ -289,19 +295,44 @@ export function Badge({ state, children, className }: { state: string; children?
 }
 
 /** Progress bar against a limit; `max` null = no limit (renders a neutral bar). */
-export function Meter({ value, max, label, warn }: { value: number; max: number | null; label: string; warn?: boolean }) {
+/** `note` sits right after the label (an InfoDot): the label stays one line, whatever the note says */
+export function Meter({ value, max, label, warn, note }: { value: number; max: number | null; label: string; warn?: boolean; note?: ReactNode }) {
   const unlimited = max == null;
   const pct = unlimited ? 0 : Math.min(100, max > 0 ? (value / max) * 100 : 0);
   return (
     <div className="text-xs">
-      <div className="flex justify-between text-zinc-400 mb-1">
-        <span>{label}</span>
-        <span className="mono">{unlimited ? 'no limit' : `${pct.toFixed(0)}%`}</span>
+      <div className="flex items-center justify-between gap-2 text-zinc-400 mb-1">
+        <span className="flex items-center gap-1 min-w-0">
+          <span className="truncate">{label}</span>
+          {note}
+        </span>
+        <span className="mono shrink-0 whitespace-nowrap">{unlimited ? 'no limit' : `${pct.toFixed(0)}%`}</span>
       </div>
       <div className="h-1.5 rounded bg-zinc-800 overflow-hidden">
         <div className={cn('h-full', unlimited ? 'bg-zinc-600' : warn || pct > 90 ? 'bg-rose-500' : pct > 70 ? 'bg-amber-500' : 'bg-emerald-500')} style={{ width: `${unlimited ? 100 : pct}%`, opacity: unlimited ? 0.35 : 1 }} />
       </div>
     </div>
+  );
+}
+
+/**
+ * A small dot that says there is more to know about the value beside it: its `label` shows on hover, and a tap or a click
+ * opens the panel with `children` (a phone has no hover).
+ */
+export function InfoDot({ label, children, tone = 'amber' }: { label: string; children: ReactNode; tone?: 'amber' | 'rose' }) {
+  return (
+    <Menu
+      width="w-72"
+      align="left"
+      trigger={({ open, toggle }) => (
+        // 16px in the line (a phone's 32px button height would push the meter's line apart); the ::before is the thumb's target
+        <button type="button" onClick={toggle} aria-expanded={open} aria-label={label} title={label} className="relative inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full hover:bg-zinc-800 before:absolute before:-inset-2 before:content-['']" style={{ minHeight: 0 }}>
+          <span className={cn('h-2 w-2 rounded-full', tone === 'rose' ? 'bg-rose-500' : 'bg-amber-400')} />
+        </button>
+      )}
+    >
+      <div className="p-2 text-[11px] leading-relaxed text-zinc-300 space-y-1.5">{children}</div>
+    </Menu>
   );
 }
 

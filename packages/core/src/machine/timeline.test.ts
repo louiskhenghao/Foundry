@@ -95,8 +95,10 @@ describe('a goal timeline', () => {
       ['review', 'Review of attempt 1', at(31), at(33)],
       ['merge', 'Landing', at(33), at(34)],
     ]);
-    // the delegated task's bar is its goal's whole run
+    // the delegated task's bar is its goal's whole run, and its row knows that goal
     expect(t.rows[3]!.spans).toEqual([{ kind: 'run', label: 'Delegated goal: research the subject', start: at(34), end: at(74) }]);
+    expect(t.rows[3]!.delegatedGoalId).toBe('g2');
+    expect(t.rows[2]!.delegatedGoalId).toBeUndefined();
   });
 
   test('where the time went, waits counted once, and the longest steps', () => {
