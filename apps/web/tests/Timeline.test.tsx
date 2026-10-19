@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { GoalTimeline } from '@foundry/core/browser';
-import { TimelineView, axisMarks, axisMinutes, axisScale, axisSegments, chartWidth, fmtDur, zoomIn, zoomOut } from '../src/pages/goal/TimelineTab.tsx';
+import { TimelineView, axisMarks, axisMinutes, axisScale, axisSegments, chartWidth, fmtDur, onTrackScroll, zoomIn, zoomOut } from '../src/pages/goal/TimelineTab.tsx';
 
 const at = (min: number) => new Date(Date.UTC(2026, 9, 18, 10, 0, 0) + min * 60_000).toISOString();
 const t: GoalTimeline = {
@@ -100,4 +100,13 @@ test("a row's name and its chart row are one height at every width; the bars kee
   expect(html).toContain('class="block h-8 sm:h-7 w-full');
   expect(html).toContain('class="relative h-8 sm:h-7 border-b');
   expect(html).toContain('style="left:60%;width:25%;min-height:0"');
+});
+
+test("sliding the track reads where it is while the event lasts: React empties the event's element once the handler returns", () => {
+  const updates: ((p: { room: number; left: number }) => { room: number; left: number })[] = [];
+  const e = { currentTarget: { scrollLeft: 120 } } as any;
+  onTrackScroll((u: any) => void updates.push(u))(e);
+  // React runs the state update later, after it has set currentTarget back to null: reading it then threw and took the page down
+  e.currentTarget = null;
+  expect(updates[0]!({ room: 300, left: 0 })).toEqual({ room: 300, left: 120 });
 });

@@ -1,6 +1,6 @@
 import type { GoalTimeline, SpanKind, TimelineRow, TimelineSpan } from '@foundry/core/browser';
 import { Minus, Plus } from 'lucide-react';
-import { type MouseEvent, type PointerEvent, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { type Dispatch, type MouseEvent, type PointerEvent, type ReactNode, type SetStateAction, type UIEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../api.ts';
 import { useLive } from '../../store.ts';
@@ -147,6 +147,17 @@ export function TimelineTab({ goalId, onOpenTask }: { goalId: string; onOpenTask
 }
 
 type Ctx = { row: TimelineRow; span: TimelineSpan | null; x: number; y: number };
+/** the chart's window: how wide it is and how far the track is slid */
+type Port = { room: number; left: number };
+
+/**
+ * The track's scroll handler. It reads the position while the event lasts: React runs a state update later, once it has
+ * set the event's currentTarget back to null, and reading it there threw and took the page down.
+ */
+export const onTrackScroll = (set: Dispatch<SetStateAction<Port>>) => (e: UIEvent<HTMLElement>) => {
+  const left = e.currentTarget.scrollLeft;
+  set((p) => ({ ...p, left }));
+};
 
 const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
@@ -162,7 +173,7 @@ export function TimelineView({ t, onOpenTask }: { t: GoalTimeline; onOpenTask?: 
   const [ctx, setCtx] = useState<Ctx | null>(null);
   const track = useRef<HTMLDivElement>(null);
   // the chart's window: how wide it is and how far the track is slid (0 until measured in the page)
-  const [port, setPort] = useState({ room: 0, left: 0 });
+  const [port, setPort] = useState<Port>({ room: 0, left: 0 });
   const segs = axisSegments(t);
   const x = axisScale(segs);
   const minutes = axisMinutes(segs);
@@ -295,7 +306,7 @@ export function TimelineView({ t, onOpenTask }: { t: GoalTimeline; onOpenTask?: 
             })}
           </div>
           {/* the track: it slides under a finger or a trackpad, and with the rail below; its own scrollbar is the rail */}
-          <div ref={track} onScroll={(e) => setPort((p) => ({ ...p, left: e.currentTarget.scrollLeft }))} className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div ref={track} onScroll={onTrackScroll(setPort)} className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div style={{ width: chart ? `${chart.px}px` : '100%' }}>
               <div className="relative h-5 border-b border-zinc-800">
                 {marks.map((m) => {
