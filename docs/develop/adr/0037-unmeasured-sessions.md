@@ -1,6 +1,6 @@
 # ADR-0037: A session cut before its result line is unmeasured — its cost is unknown, not zero
 
-**Status:** accepted · 2026-10-18 · amends ADR-0001
+**Status:** accepted · 2026-10-18 · amends ADR-0001 · amended by ADR-0043 (an estimate at the model's measured rate, never counted)
 
 ## Context
 
