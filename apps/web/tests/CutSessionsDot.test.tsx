@@ -17,3 +17,8 @@ test('without an estimate the dot says only how many', () => {
   const html = renderToStaticMarkup(<CutSessionsDot n={1} est={{ usd: 0, sessions: 1, estimated: 0, bySession: {} }} />);
   expect(html).toContain('title="1 session ended before Claude Code reported a cost"');
 });
+
+test("on a phone the dot keeps the meter's line height: it escapes the 32px button rule and keeps a thumb-sized target", () => {
+  const html = renderToStaticMarkup(<CutSessionsDot n={2} est={undefined} />);
+  expect(html).toMatch(/<button[^>]*class="relative [^"]*before:-inset-2[^"]*"[^>]*style="min-height:0"/);
+});

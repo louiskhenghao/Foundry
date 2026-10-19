@@ -325,7 +325,8 @@ export function InfoDot({ label, children, tone = 'amber' }: { label: string; ch
       width="w-72"
       align="left"
       trigger={({ open, toggle }) => (
-        <button type="button" onClick={toggle} aria-expanded={open} aria-label={label} title={label} className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full hover:bg-zinc-800">
+        // 16px in the line (a phone's 32px button height would push the meter's line apart); the ::before is the thumb's target
+        <button type="button" onClick={toggle} aria-expanded={open} aria-label={label} title={label} className="relative inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full hover:bg-zinc-800 before:absolute before:-inset-2 before:content-['']" style={{ minHeight: 0 }}>
           <span className={cn('h-2 w-2 rounded-full', tone === 'rose' ? 'bg-rose-500' : 'bg-amber-400')} />
         </button>
       )}
