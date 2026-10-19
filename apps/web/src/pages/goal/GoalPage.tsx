@@ -269,14 +269,15 @@ export function GoalPage() {
           <Card title={`Tasks (${d.tasks.length})`}>
             <DagCanvas tasks={dagTasks} selected={sel} onSelect={setSel} />
           </Card>
-          {selTask && (
-            <FullScreen onClose={() => setSel(null)}>
-              <TaskDrawer d={d} task={selTask} onClose={() => setSel(null)} onRestart={() => setRestart(selTask.id)} />
-            </FullScreen>
-          )}
         </div>
       )}
-      {tab === 'timeline' && <TimelineTab goalId={id} />}
+      {/* a task opens over whichever tab asked for it: the graph's, or a step on the timeline */}
+      {selTask && (tab === 'tasks' || tab === 'timeline') && (
+        <FullScreen onClose={() => setSel(null)}>
+          <TaskDrawer d={d} task={selTask} onClose={() => setSel(null)} onRestart={() => setRestart(selTask.id)} />
+        </FullScreen>
+      )}
+      {tab === 'timeline' && <TimelineTab goalId={id} onOpenTask={setSel} />}
       {tab === 'activity' && <ActivityTab d={d} />}
       {tab === 'diff' && <DiffTab goalId={id} baseBranch={g.baseBranch} branch={g.branch} workspace={d.paths.workspace} />}
       {tab === 'delivery' && <DeliveryTab d={d} />}

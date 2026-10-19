@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { GoalTimeline } from '@foundry/core/browser';
-import { TimelineView, axisMarks, fmtDur } from '../src/pages/goal/TimelineTab.tsx';
+import { TimelineView, axisMarks, axisScale, axisSegments, fmtDur } from '../src/pages/goal/TimelineTab.tsx';
 
 const at = (min: number) => new Date(Date.UTC(2026, 9, 18, 10, 0, 0) + min * 60_000).toISOString();
 const t: GoalTimeline = {
@@ -39,4 +39,36 @@ test('where the time went, the longest steps, and every step on one axis', () =>
   expect(html).toContain('left:60%;width:25%');
   expect(html).toContain('title="Attempt 1 · 25m · $1.25"');
   expect(html).toContain('>↳ Delegated goal: research the subject<');
+});
+
+test('a stretch in which nothing ran folds into a short gap; the steps around it keep their scale', () => {
+  // work for an hour, then nothing but the goal running for 5 hours, then an hour's work again
+  const quiet: GoalTimeline = {
+    ...t,
+    end: at(420),
+    rows: [
+      { ...t.rows[0]!, spans: [{ kind: 'run', label: 'Running', start: at(0), end: at(420) }] },
+      { ...t.rows[3]!, spans: [{ kind: 'work', label: 'Attempt 1', start: at(0), end: at(60) }, { kind: 'work', label: 'Attempt 2', start: at(360), end: at(420) }] },
+    ],
+  };
+  const segs = axisSegments(quiet);
+  expect(segs.map((s) => [(s.start - Date.parse(at(0))) / 60_000, (s.end - Date.parse(at(0))) / 60_000, s.folded])).toEqual([[0, 60, false], [60, 360, true], [360, 420, false]]);
+  const x = axisScale(segs);
+  // 120 minutes drawn to scale, the fold as wide as 6 of them: the second hour's work starts just past the middle
+  expect(x(Date.parse(at(60)))).toBeCloseTo((60 / 126) * 100, 6);
+  expect(x(Date.parse(at(360)))).toBeCloseTo((66 / 126) * 100, 6);
+  expect(x(Date.parse(at(420)))).toBeCloseTo(100, 6);
+  const html = renderToStaticMarkup(<TimelineView t={quiet} />);
+  expect(html).toContain('⋯ 5h 00m');
+  expect(html).toContain('nothing ran (folded)');
+  // a timeline with no quiet stretch is all to scale
+  expect(axisSegments(t).every((s) => !s.folded)).toBe(true);
+});
+
+test('the chart zooms, and every bar and row name is a button that opens what it was', () => {
+  const html = renderToStaticMarkup(<TimelineView t={t} />);
+  expect(html).toContain('aria-label="zoom in"');
+  expect(html).toContain('>fit<');
+  expect(html).toMatch(/<button type="button" class="absolute rounded-sm[^"]*" style="left:60%;width:25%"/);
+  expect(html).toContain('title="build the model">build the model</button>');
 });
