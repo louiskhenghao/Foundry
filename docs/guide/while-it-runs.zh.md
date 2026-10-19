@@ -314,6 +314,8 @@ goal 相对起点改过的每个文件，以及各自新增和删除了多少行
 
 ![Claude Code 和 Codex 会话（演示数据）](images/agents.png)
 
+顶栏 **Agents** 图标上的红色数字是此刻正在工作的会话数；没有在跑的时候就不显示。
+
 列表上方的按钮（**all**、**Claude Code**、**Codex**，各带近 24 小时的会话数）按编码智能体筛选，**live only** 只保留正在工作或等待输入的会话，搜索框匹配标题、目标名称、任务、模型、文件夹和会话 ID。**expand all** 和 **collapse all** 展开或收起所有卡片。右侧的 **Overview** 按状态、编码智能体（Foundry 的和你的）和模型统计会话；在手机上点 **overview** 查看。列表每五秒刷新一次，外部会话仍只读。
 
 顶栏上的 **Agents** 合并显示 Foundry 自己的会话和近期原生 Claude Code、Codex 历史，每行标明编码智能体。读取数量有限，不是全部历史会话的清单。

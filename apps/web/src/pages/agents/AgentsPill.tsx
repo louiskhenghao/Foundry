@@ -1,12 +1,10 @@
 import type { AgentsSummary } from '@foundry/engine/agents-types';
-import { Bot } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { api } from '../../api.ts';
 import { useLive } from '../../store.ts';
 
-/** Header pill: how many agent sessions are actively working right now. Hidden while nothing is busy. */
-export function AgentsPill() {
+/** how many agent sessions work right now (and idle), refreshed every 15 s and on every live change; null until known */
+export function useAgentsSummary(): AgentsSummary | null {
   const version = useLive((s) => s.globalVersion);
   const [s, setS] = useState<AgentsSummary | null>(null);
   useEffect(() => {
@@ -18,11 +16,5 @@ export function AgentsPill() {
       clearInterval(i);
     };
   }, [version]);
-  if (!s || s.busy === 0) return null;
-  return (
-    <Link to="/agents" className="flex h-8 sm:h-7 items-center gap-1.5 rounded-md border border-emerald-500/40 text-emerald-300 px-2 text-[11px] mono" title={`${s.busy} agent session${s.busy === 1 ? '' : 's'} working · ${s.idle} idle`}>
-      <Bot size={12} />
-      <span className="whitespace-nowrap">{s.busy} busy</span>
-    </Link>
-  );
+  return s;
 }
