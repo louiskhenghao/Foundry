@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { api } from '../../api.ts';
 import { Button, Card, Field, Input, Select } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
+import { SectionTitle } from './SectionTitle.tsx';
 
 const EMPTY: BriefRun = { install: null, command: null, url: null, platform: 'none' };
 const MOCK_PLACEHOLDER = 'npm run dev:mock — empty: a dev:mock, start:mock or mock script';
@@ -63,7 +64,7 @@ export function RunCard({ brief, editable, edit, goalId, selfCheck, milestonePau
   };
   return (
     <Card
-      title={<>How to run it<HelpLink to="approving-the-brief#how-to-run-it" className="ml-1.5" /></>}
+      title={<><SectionTitle section="run">How to run it</SectionTitle><HelpLink to="approving-the-brief#how-to-run-it" className="ml-1.5" /></>}
       actions={
         editable ? (
           <>

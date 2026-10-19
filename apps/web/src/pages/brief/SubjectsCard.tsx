@@ -6,6 +6,7 @@ import { Button, Card, Input, focusFirst } from '../../ui.tsx';
 import { MediaLightbox } from '../../components/MediaLightbox.tsx';
 import { subjectLightbox } from '../goal/MilestoneEvidence.tsx';
 import { HelpLink } from '../HelpPage.tsx';
+import { SectionTitle } from './SectionTitle.tsx';
 
 const host = (url: string | null) => {
   try {
@@ -41,7 +42,7 @@ export function SubjectsCard({ goalId, subjects, searching, editable }: { goalId
     setAdding({ name: '', lookFor: '' });
   });
   return (
-    <Card title={<>Looks like<HelpLink to="approving-the-brief#looks-like" className="ml-1.5" /></>}>
+    <Card title={<><SectionTitle section="subjects">Looks like</SectionTitle><HelpLink to="approving-the-brief#looks-like" className="ml-1.5" /></>}>
       <p className="text-xs text-zinc-500 mb-3">
         Real things the result must look like. Workers build from these pictures and every review compares against them; the pictures stay on this computer and are never part of the result.
       </p>
