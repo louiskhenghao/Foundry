@@ -106,6 +106,12 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('interview.round_answered', { round: z.number().int().positive(), answers: z.record(z.string()), finish: z.boolean(), note: z.string().nullable().default(null) }),
   /** the interview ended: the Brief was written (or the Clarifier had nothing to ask) */
   ev('interview.finished', { rounds: z.number().int().nonnegative(), reason: z.enum(['brief', 'nothing_to_ask', 'cap', 'human']) }),
+  /** a Revise asked the human a round of questions before proposing; the page waits for the answers (round 1 starts a new Revise) */
+  ev('revise.round_asked', { round: z.number().int().positive(), sessionId: z.string().nullable(), questions: z.array(InterviewQuestion) }),
+  /** the human answered a Revise round (finish = propose with what there is; note = what they wrote unasked) */
+  ev('revise.round_answered', { round: z.number().int().positive(), answers: z.record(z.string()), finish: z.boolean(), note: z.string().nullable().default(null) }),
+  /** the Revise that asked is over: it proposed, the human let it go (abandoned: cancelled, or the Brief approved meanwhile), or it hit the round cap */
+  ev('revise.finished', { rounds: z.number().int().nonnegative(), reason: z.enum(['proposal', 'abandoned', 'cap', 'failed']) }),
   /** the human switched the goal's headless self-check on or off */
   ev('goal.selfcheck_set', { on: z.boolean() }),
   /** the human switched whether the goal pauses at its milestones ("Have a look") */

@@ -318,6 +318,27 @@ function project(db: Database, e: EngineEvent): void {
       if (g?.interview) upsertGoal(db, { ...g, interview: { ...g.interview, status: 'done' }, updatedAt: e.ts });
       break;
     }
+    case 'revise.round_asked': {
+      const g = getGoal(db, e.goalId!);
+      if (!g) break;
+      // round 1 is a new Revise: the rounds of an earlier one are history
+      const kept = e.payload.round === 1 ? [] : (g.revise?.rounds ?? []).filter((r) => r.round !== e.payload.round);
+      const rounds = [...kept, { round: e.payload.round, questions: e.payload.questions, answers: null, askedAt: e.ts, answeredAt: null, finish: false, note: null }];
+      upsertGoal(db, { ...g, revise: { status: 'awaiting_answers', sessionId: e.payload.sessionId ?? g.revise?.sessionId ?? null, rounds }, updatedAt: e.ts });
+      break;
+    }
+    case 'revise.round_answered': {
+      const g = getGoal(db, e.goalId!);
+      if (!g?.revise) break;
+      const rounds = g.revise.rounds.map((r) => (r.round === e.payload.round ? { ...r, answers: e.payload.answers, answeredAt: e.ts, finish: e.payload.finish, note: e.payload.note ?? null } : r));
+      upsertGoal(db, { ...g, revise: { ...g.revise, status: 'thinking', rounds }, updatedAt: e.ts });
+      break;
+    }
+    case 'revise.finished': {
+      const g = getGoal(db, e.goalId!);
+      if (g?.revise) upsertGoal(db, { ...g, revise: { ...g.revise, status: 'done' }, updatedAt: e.ts });
+      break;
+    }
     case 'goal.selfcheck_set': {
       const g = getGoal(db, e.goalId!);
       if (g) upsertGoal(db, { ...g, selfCheck: e.payload.on, updatedAt: e.ts });

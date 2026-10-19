@@ -5,7 +5,7 @@ import { BriefStyleOption } from './brief.ts';
 import { BriefSubject } from './subject.ts';
 import { DeliveryState, IDLE_DELIVERY } from './delivery.ts';
 import { Deployment } from './deploy.ts';
-import { Interview } from './interview.ts';
+import { Interview, ReviseState } from './interview.ts';
 
 /** Claude Code effort level handed to every session of a goal; null = the CLI default */
 export const Effort = z.enum(['low', 'medium', 'high', 'xhigh', 'max']);
@@ -323,6 +323,8 @@ export const Goal = z.object({
   investigation: GoalInvestigation.nullable().default(null),
   /** the Clarify interview (rounds of questions before the Brief); null = the one-shot Clarify of before */
   interview: Interview.nullable().default(null),
+  /** a Revise that asked the human back before proposing; null until one does */
+  revise: ReviseState.nullable().default(null),
   /** effort level for every session of this goal; null = Settings default / CLI default */
   effort: CodexEffort.nullable().default(null),
   /** the model preset this goal uses; null = the preset Settings picks for its nature */
