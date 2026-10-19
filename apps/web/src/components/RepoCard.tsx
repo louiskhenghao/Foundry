@@ -1,7 +1,7 @@
 import { ArrowDownToLine, Check, FolderGit2, FolderOpen, GitBranch, GitCommitHorizontal, Globe, Pencil, TriangleAlert, User } from 'lucide-react';
 import { useState } from 'react';
 import { api, type RepoInfo } from '../api.ts';
-import { Button, Input, ago, cn } from '../ui.tsx';
+import { Button, Input, ago, cn, focusFirst } from '../ui.tsx';
 import { FolderPicker } from './FolderPicker.tsx';
 
 /**
@@ -89,7 +89,7 @@ export function RepoCard({ path, info, onPath, onInfo }: { path: string; info: R
               if (draft.trim()) choose(draft.trim());
             }}
           >
-            <Input className="mono text-xs" placeholder="or type a path: /Users/you/projects/my-app" value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => draft.trim() && draft.trim() !== path && choose(draft.trim())} autoFocus={editing} />
+            <Input className="mono text-xs" placeholder="or type a path: /Users/you/projects/my-app" value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => draft.trim() && draft.trim() !== path && choose(draft.trim())} autoFocus={editing && focusFirst} />
             {editing && (
               <Button size="sm" variant="ghost" type="button" onClick={() => setEditing(false)}>
                 cancel

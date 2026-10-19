@@ -2,7 +2,7 @@ import { SUBJECT_LIMITS, type BriefSubject, type SubjectPicture } from '@foundry
 import { ImagePlus, Loader2, Plus, Search, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { api } from '../../api.ts';
-import { Button, Card, Input } from '../../ui.tsx';
+import { Button, Card, Input, focusFirst } from '../../ui.tsx';
 import { MediaLightbox } from '../../components/MediaLightbox.tsx';
 import { subjectLightbox } from '../goal/MilestoneEvidence.tsx';
 import { HelpLink } from '../HelpPage.tsx';
@@ -96,7 +96,7 @@ function SubjectRow({ goalId, subject: s, searching, editable, busy, act, onView
                 void act(`look-${s.key}`, () => api.updateSubject(goalId, s.key, { lookFor: lookFor })).then(() => setLookFor(null));
               }}
             >
-              <Input autoFocus value={lookFor} onChange={(e) => setLookFor(e.target.value)} className="text-xs py-1" aria-label="What must match" />
+              <Input autoFocus={focusFirst} value={lookFor} onChange={(e) => setLookFor(e.target.value)} className="text-xs py-1" aria-label="What must match" />
               <Button type="submit" size="sm">Save</Button>
               <Button type="button" size="sm" variant="ghost" onClick={() => setLookFor(null)}>Cancel</Button>
             </form>

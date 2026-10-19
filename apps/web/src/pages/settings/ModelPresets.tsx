@@ -1,7 +1,7 @@
 import { ACTION_INFO, BUILTIN_PRESETS, MODEL_ACTIONS, MODEL_NATURES, RARELY_USED, builtinStatus, effectivePresets, presetFingerprint, type ModelAction, type ModelNature, type ModelPreset, type Settings } from '@foundry/core/browser';
 import { useEffect, useState } from 'react';
 import { api, type ModelRecordView } from '../../api.ts';
-import { ConfirmDialog, Input, Select, ago, cn } from '../../ui.tsx';
+import { ConfirmDialog, Input, Select, ago, cn, focusFirst } from '../../ui.tsx';
 import { GoalTypePresets, NatureTabs, PresetChips, PresetDetails, RoleRow, SyncRow } from './PresetParts.tsx';
 
 const ALIASES = [
@@ -24,7 +24,7 @@ export function ModelPicker({ value, onChange, known, showAll, disabled, classNa
   const newest = (known ?? []).filter((m) => m.discovered?.newest).map((m) => m.name);
   const others = showAll ? (known ?? []).filter((m) => !m.discovered?.newest && !ALIASES.some((a) => a.id === m.name)).map((m) => m.name).sort() : [];
   const listed = new Set([...ALIASES.map((a) => a.id), ...newest, ...others]);
-  if (custom) return <Input className={cn('mono text-xs', className)} autoFocus defaultValue={value} disabled={disabled} placeholder="claude-…" onBlur={(e) => { setCustom(false); if (e.target.value.trim()) onChange(e.target.value.trim()); }} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />;
+  if (custom) return <Input className={cn('mono text-xs', className)} autoFocus={focusFirst} defaultValue={value} disabled={disabled} placeholder="claude-…" onBlur={(e) => { setCustom(false); if (e.target.value.trim()) onChange(e.target.value.trim()); }} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />;
   return (
     <Select className={cn('text-xs py-1', className)} value={value} disabled={disabled} onChange={(e) => (e.target.value === '__custom' ? setCustom(true) : onChange(e.target.value))}>
       <optgroup label="Latest of each family">

@@ -138,6 +138,12 @@ export function Button({ variant = 'default', size = 'md', className, ...props }
   return <button className={buttonClass(variant, size, className)} {...props} />;
 }
 
+/**
+ * Whether a field may focus itself when it appears (a dialog's first field): only with a mouse at hand. On a touch screen
+ * focusing pops the keyboard over what the person came to read, and on iOS zooms the page in.
+ */
+export const focusFirst: boolean = typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
+
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cn('w-full rounded-md bg-zinc-900 border border-zinc-700 px-3 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500 disabled:opacity-50', className)} {...props} />;
 }
