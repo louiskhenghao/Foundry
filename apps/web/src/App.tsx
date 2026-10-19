@@ -17,6 +17,7 @@ import { MergeResolvePage } from './pages/MergeResolvePage.tsx';
 import { GoalPage } from './pages/GoalPage.tsx';
 import { GoalsPage } from './pages/GoalsPage.tsx';
 import { InboxPage } from './pages/InboxPage.tsx';
+import { BuildWatch } from './buildWatch.tsx';
 import { LearningsPage } from './pages/LearningsPage.tsx';
 import { NewGoalPage } from './pages/NewGoalPage.tsx';
 import { SetupPage } from './pages/SetupPage.tsx';
@@ -106,6 +107,7 @@ export function App() {
           </nav>
         )}
       </header>
+      <BuildWatch connected={connected} />
       <main className="flex-1 overflow-auto">
         <Routes>
           <Route path="/" element={<GoalsPage />} />

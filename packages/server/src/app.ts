@@ -200,6 +200,19 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
 
   // `active` = everything a restart would interrupt (sessions + attempts between sessions + clarify/review/delivery); `busy` breaks it down
+  // the web build served now: the hashed name of index.html's entry script, which a rebuild changes; open pages reload into it
+  let build: { mtime: number; id: string | null } | null = null;
+  const webBuild = (): string | null => {
+    if (!opts.webDist) return null;
+    try {
+      const file = join(opts.webDist, 'index.html');
+      const mtime = statSync(file).mtimeMs;
+      if (build?.mtime !== mtime) build = { mtime, id: readFileSync(file, 'utf8').match(/\/assets\/([\w.-]+\.js)/)?.[1] ?? null };
+      return build.id;
+    } catch {
+      return null;
+    }
+  };
   app.get('/api/health', (c) => {
     const busy = engine.busy();
     return c.json({
@@ -211,6 +224,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       pausedUntilByProvider: { claude: engine.rateLimitedUntilIso('claude'), codex: engine.rateLimitedUntilIso('codex') },
       restartNeeded: engine.settings.restartNeeded(),
       version: engine.updater.current(),
+      webBuild: webBuild(),
       updateAvailable: !!engine.updater.cachedReport()?.updateAvailable,
       updating: engine.updater.isApplying() || engine.isUpdateDraining(),
     });

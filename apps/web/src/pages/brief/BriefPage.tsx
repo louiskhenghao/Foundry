@@ -14,6 +14,7 @@ import { ReferenceCard } from './ReferenceCard.tsx';
 import { AreasCard } from './AreasCard.tsx';
 import { CompletionCard, type CompletionChoice } from './CompletionCard.tsx';
 import { StyleCards } from './StyleCards.tsx';
+import { useUnsaved } from '../../unsaved.ts';
 import { SubjectsCard } from './SubjectsCard.tsx';
 import { DecisionsBar } from './DecisionsBar.tsx';
 import { GoalAcceptanceCard } from './GoalAcceptanceCard.tsx';
@@ -33,6 +34,7 @@ export function BriefPage() {
   const [detail, setDetail] = useState<GoalDetail | null>(null);
   const [brief, setBrief] = useState<Brief | null>(null);
   const [dirty, setDirty] = useState(false);
+  useUnsaved(`brief:${id}`, dirty);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   /** budget the human will approve with the Brief (Auto preset proposes it from the estimate) */
