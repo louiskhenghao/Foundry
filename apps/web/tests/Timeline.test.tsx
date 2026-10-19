@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { GoalTimeline } from '@foundry/core/browser';
-import { TimelineView, axisMarks, axisScale, axisSegments, fmtDur } from '../src/pages/goal/TimelineTab.tsx';
+import { TimelineView, axisMarks, axisMinutes, axisScale, axisSegments, chartWidth, fmtDur, zoomIn, zoomOut } from '../src/pages/goal/TimelineTab.tsx';
 
 const at = (min: number) => new Date(Date.UTC(2026, 9, 18, 10, 0, 0) + min * 60_000).toISOString();
 const t: GoalTimeline = {
@@ -69,7 +69,7 @@ test('the chart zooms, and every bar and row name is a button that opens what it
   const html = renderToStaticMarkup(<TimelineView t={t} />);
   expect(html).toContain('aria-label="zoom in"');
   expect(html).toContain('>fit<');
-  expect(html).toMatch(/<button type="button" class="absolute rounded-sm[^"]*" style="left:60%;width:25%"/);
+  expect(html).toMatch(/<button type="button" class="absolute rounded-sm[^"]*" style="left:60%;width:25%[^"]*"/);
   expect(html).toContain('title="build the model">build the model</button>');
 });
 
@@ -77,4 +77,27 @@ test("the axis's first mark starts at the chart's left edge, not half outside it
   const html = renderToStaticMarkup(<TimelineView t={t} />);
   expect(html).toContain('<span class="absolute top-0 whitespace-nowrap text-[10px] tabular-nums text-zinc-500" style="left:0%">0</span>');
   expect(html).toContain('text-zinc-500 -translate-x-1/2" style="left:15%">15m</span>');
+});
+
+test('like a Gantt chart: the whole goal fits when it reads well, else it slides at a readable scale', () => {
+  // an afternoon's goal on a desktop fits; on a phone it slides, 4 pixels a minute
+  expect(chartWidth(103, 1000, null)).toEqual({ ppm: 1000 / 103, px: 1000, fit: true });
+  expect(chartWidth(103, 230, null)).toEqual({ ppm: 4, px: 412, fit: false });
+  // fit on demand, or zoomed in
+  expect(chartWidth(103, 230, 'fit')).toEqual({ ppm: 230 / 103, px: 230, fit: true });
+  expect(chartWidth(103, 1000, 16).px).toBe(1648);
+  // zoom steps double; out of the smallest that is wider than the window, it fits
+  expect([zoomIn(4), zoomIn(5), zoomIn(128)]).toEqual([8, 8, null]);
+  expect([zoomOut(8, 2), zoomOut(4, 4), zoomOut(3, 2.5)]).toEqual([4, 'fit', 'fit']);
+  // the axis's length counts a fold at the width it is drawn
+  const segs = [{ start: 0, end: 60 * 60_000, folded: false }, { start: 60 * 60_000, end: 360 * 60_000, folded: true }, { start: 360 * 60_000, end: 420 * 60_000, folded: false }];
+  expect(axisMinutes(segs)).toBeCloseTo(126, 6);
+});
+
+test("a row's name and its chart row are one height at every width; the bars keep theirs on a phone", () => {
+  const html = renderToStaticMarkup(<TimelineView t={t} />);
+  // a phone gives buttons 32px at least: the rows there are 32px too, and a bar escapes the rule
+  expect(html).toContain('class="block h-8 sm:h-7 w-full');
+  expect(html).toContain('class="relative h-8 sm:h-7 border-b');
+  expect(html).toContain('style="left:60%;width:25%;min-height:0"');
 });
