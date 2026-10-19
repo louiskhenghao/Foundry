@@ -12,6 +12,7 @@ import { ImportedCard } from './ImportedCard.tsx';
 import { api, type GoalDetail } from '../../api.ts';
 import { useLive } from '../../store.ts';
 import { Badge, Button, ButtonGroup, Card, ConfirmDialog, CopyButton, Empty, Meter, Tabs, fmtLimitMin, fmtLimitUsd, fmtUsd } from '../../ui.tsx';
+import { CutSessionsDot } from '../../components/CutSessionsDot.tsx';
 import { OpenMenu } from '../../components/OpenMenu.tsx';
 import { MoreMenu, type MoreItem } from '../../components/MoreMenu.tsx';
 import { LiveLog } from '../LiveLog.tsx';
@@ -148,8 +149,8 @@ export function GoalPage() {
             {g.provider === 'codex' ? (
               <span className="text-xs text-zinc-400">Codex · dollar cost unavailable</span>
             ) : (
-              <div title={unmeasured > 0 ? `${unmeasured} session${unmeasured === 1 ? '' : 's'} ended before Claude Code reported a cost: unknown, not $0, and missing from this total` : undefined}>
-                <Meter label={`cost ${fmtUsd(g.costUsd)} / ${fmtLimitUsd(g.budgets.maxCostUsd)}${unmeasured > 0 ? ` · +${unmeasured} unmeasured` : ''}`} value={g.costUsd} max={g.budgets.maxCostUsd} />
+              <div>
+                <Meter label={`cost ${fmtUsd(g.costUsd)} / ${fmtLimitUsd(g.budgets.maxCostUsd)}`} value={g.costUsd} max={g.budgets.maxCostUsd} note={unmeasured > 0 ? <CutSessionsDot n={unmeasured} est={d.costEstimate} /> : null} />
               </div>
             )}
             <div title="Time Foundry has worked on this goal, Clarify included. Waiting for you (interview answers, Brief approval, Inbox, a milestone pause) does not count.">

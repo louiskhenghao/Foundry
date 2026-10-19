@@ -1,4 +1,5 @@
 import { unmeasuredSessions } from '@foundry/core/browser';
+import { CutSessionsDot } from '../../components/CutSessionsDot.tsx';
 import { MergeStatus } from '../../components/MergeStatus.tsx';
 import { Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -96,7 +97,12 @@ export function SimpleOverview({ d, onDeliver }: { d: GoalDetail; onDeliver: () 
 
       <Card title="Cost">
         <div className="text-sm text-zinc-300">
-          {g.provider === 'codex' ? 'Codex · dollar cost unavailable' : <>Spent <span className="mono text-zinc-100">{fmtUsd(g.costUsd)}</span> of {fmtLimitUsd(g.budgets.maxCostUsd)}{unmeasured > 0 && <span className="text-amber-300/90" title={`${unmeasured} session${unmeasured === 1 ? '' : 's'} ended before Claude Code reported a cost: unknown, not $0, and missing from this total`}> · +{unmeasured} unmeasured</span>}</>} · worked {d.budget.elapsedMin.toFixed(0)} min (waiting for you not counted).
+          {g.provider === 'codex' ? 'Codex · dollar cost unavailable' : <>Spent <span className="mono text-zinc-100">{fmtUsd(g.costUsd)}</span> of {fmtLimitUsd(g.budgets.maxCostUsd)}{unmeasured > 0 && (
+                <span className="inline-flex items-center gap-1 align-middle">
+                  {' '}
+                  <CutSessionsDot n={unmeasured} est={d.costEstimate} />
+                </span>
+              )}</>} · worked {d.budget.elapsedMin.toFixed(0)} min (waiting for you not counted).
         </div>
       </Card>
 
