@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, Download, ExternalLink, FileWarning } from 'lucide-react';
-import { StepBar, useSwipe } from './MediaLightbox.tsx';
+import { MEDIA_STAGE, StepBar, useSwipe } from './MediaLightbox.tsx';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { create } from 'zustand';
@@ -23,9 +23,13 @@ export const useFilePreview = create<{ file: FileRef | null; list: FileRef[]; op
 }));
 export const openFile = (file: FileRef, list?: FileRef[]) => useFilePreview.getState().open(file, list);
 
+/** a picture or a clip by its name: while the next one loads, the preview keeps their layout (the stage, the arrows) */
+const MEDIA_NAME = /\.(png|jpe?g|gif|webp|avif|bmp|svg|mp4|webm|mov|m4v|ogv)$/i;
+
 const fmtSize = (n: number) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1048576).toFixed(1)} MB`);
 
-function Body({ info, file }: { info: FileInfo; file: FileRef }) {
+/** `stage`: stepping through several, a picture or a clip is fitted to a stage of one height, so the arrows under it stay put */
+function Body({ info, file, stage }: { info: FileInfo; file: FileRef; stage?: boolean }) {
   const url = fileUrl(file);
   const [text, setText] = useState<string | null>(null);
   const textual = info.kind === 'markdown' || info.kind === 'json' || info.kind === 'text';
@@ -40,12 +44,12 @@ function Body({ info, file }: { info: FileInfo; file: FileRef }) {
 
   if (info.kind === 'image')
     return (
-      <div className="flex justify-center rounded-md border border-zinc-800 bg-[repeating-conic-gradient(#8881_0_25%,transparent_0_50%)] bg-[length:16px_16px] p-2">
-        <img src={url} alt={info.name} className="max-h-[70vh] max-w-full object-contain" />
+      <div className={cn('flex items-center justify-center rounded-md border border-zinc-800 bg-[repeating-conic-gradient(#8881_0_25%,transparent_0_50%)] bg-[length:16px_16px] p-2', stage && MEDIA_STAGE)}>
+        <img src={url} alt={info.name} className={stage ? 'max-h-full max-w-full object-contain' : 'max-h-[70vh] max-w-full object-contain'} />
       </div>
     );
   if (info.kind === 'pdf') return <iframe src={url} title={info.name} className="w-full h-[72vh] rounded-md border border-zinc-800 bg-white" />;
-  if (info.kind === 'video') return <video src={url} controls className="w-full max-h-[72vh] rounded-md bg-black" />;
+  if (info.kind === 'video') return <video src={url} controls className={cn('w-full rounded-md bg-black', stage ? MEDIA_STAGE : 'max-h-[72vh]')} />;
   if (info.kind === 'audio') return <audio src={url} controls className="w-full" />;
   if (!textual || info.size > TEXT_LIMIT)
     return (
@@ -104,15 +108,16 @@ export function FilePreviewHost() {
     const next = at >= 0 ? list[at + d] : undefined;
     if (next) open(next, list);
   };
-  const [info, setInfo] = useState<FileInfo | null>(null);
+  // the last file's details stay until the next one's come: its task's notes do not blink while stepping
+  const [last, setInfo] = useState<(FileInfo & { key: string }) | null>(null);
+  const info = last && last.key === key ? last : null;
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
-    setInfo(null);
     setErr(null);
-    if (!file) return;
+    if (!file || !key) return setInfo(null);
     api
       .fileStat(file)
-      .then(setInfo)
+      .then((i) => setInfo({ ...i, key }))
       .catch((e) => setErr(e.message));
   }, [key]);
   useEffect(() => {
@@ -135,12 +140,13 @@ export function FilePreviewHost() {
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, [key, close, at, list]);
-  // a picture or a clip steps from under it (and with a swipe on a phone); code and documents keep the arrows on top
-  const media = info?.kind === 'image' || info?.kind === 'video';
+  // what the header names: the path asked for, or the file's path in the repository
+  const shown = !file ? '' : typeof file === 'string' ? file : 'path' in file ? file.path : file.rel;
+  // a picture or a clip steps from under it (and with a swipe on a phone); code and documents keep the arrows on top.
+  // Until the next one's details come, its name tells which it is
+  const media = info ? info.kind === 'image' || info.kind === 'video' : MEDIA_NAME.test(shown);
   const swipe = useSwipe((d) => step(d), info?.kind === 'video');
   if (!file) return null;
-  // what the header names: the path asked for, or the file's path in the repository
-  const shown = typeof file === 'string' ? file : 'path' in file ? file.path : file.rel;
   const name = shown.split('/').pop();
   return createPortal(
     <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && close()}>
@@ -182,19 +188,19 @@ export function FilePreviewHost() {
         <div className="p-4 overflow-auto">
           {err ? (
             <div className="text-sm text-rose-400">{err}</div>
-          ) : info ? (
+          ) : info || (media && last) ? (
             <>
-              {info.commit && <div className="mb-2 text-xs text-amber-300/90">From the task's commit <span className="mono">{info.commit.slice(0, 7)}</span> — the version the task made. Its folders were removed after the work was delivered.</div>}
-              {info.landed && <div className="mb-2 text-xs text-amber-300/90">The task's own folder was removed when it merged; this is the file as it is now in the progress folder.</div>}
+              {last?.commit && <div className="mb-2 text-xs text-amber-300/90">From the task's commit <span className="mono">{last.commit.slice(0, 7)}</span> — the version the task made. Its folders were removed after the work was delivered.</div>}
+              {last?.landed && <div className="mb-2 text-xs text-amber-300/90">The task's own folder was removed when it merged; this is the file as it is now in the progress folder.</div>}
               {media ? (
                 <div className="space-y-2">
                   <div className="touch-pan-y select-none" {...swipe}>
-                    <Body info={info} file={file} />
+                    {info ? <Body info={info} file={file} stage={list.length > 1} /> : <div className={cn('flex items-center justify-center rounded-md border border-zinc-800 text-xs text-zinc-500', list.length > 1 ? MEDIA_STAGE : 'h-48')}>loading…</div>}
                   </div>
                   {list.length > 1 && at >= 0 && <StepBar index={at} count={list.length} onStep={step} />}
                 </div>
               ) : (
-                <Body info={info} file={file} />
+                info && <Body info={info} file={file} />
               )}
             </>
           ) : (

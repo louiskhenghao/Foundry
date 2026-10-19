@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { type ReactNode, type TouchEvent, useEffect, useRef } from 'react';
-import { Modal } from '../ui.tsx';
+import { Modal, cn } from '../ui.tsx';
 
 export type LightboxItem = {
   kind: 'image' | 'video';
@@ -9,6 +9,9 @@ export type LightboxItem = {
   /** a link under the caption: the page a picture was found on, the file itself */
   link?: { href: string; label: string } | null;
 };
+
+/** the stage a picture or clip is shown on: one height for every one, so what is under it (the arrows) never moves */
+export const MEDIA_STAGE = 'h-[55vh] sm:h-[62vh]';
 
 /** a horizontal swipe longer than this, and clearly more sideways than up or down, steps to the next or the previous */
 const SWIPE_PX = 48;
@@ -23,7 +26,8 @@ export function useSwipe(go: (d: -1 | 1) => void, isVideo: boolean) {
   return {
     onTouchStart: (e: TouchEvent<HTMLElement>) => {
       const t = e.touches[0];
-      const r = e.currentTarget.getBoundingClientRect();
+      // a clip's controls are at the foot of the clip itself, which may sit higher than the foot of its stage
+      const r = ((isVideo && e.currentTarget.querySelector('video')) || e.currentTarget).getBoundingClientRect();
       touch.current = !t || e.touches.length > 1 || (isVideo && t.clientY > r.bottom - 64) ? null : { x: t.clientX, y: t.clientY };
     },
     onTouchEnd: (e: TouchEvent<HTMLElement>) => {
@@ -82,28 +86,34 @@ export function MediaLightbox({ items, index, onIndex, onClose, title, unavailab
   }, [index, items.length]);
   if (!m) return null;
   const why = unavailable?.(m) ?? null;
+  // when some items have a link, the line is kept on the ones without, so the bar under the stage keeps its height
+  const anyLink = items.some((i) => i.link);
   return (
     <Modal open wide onClose={onClose} title={title ?? (m.caption || (m.kind === 'video' ? 'Video' : 'Picture'))}>
       <div className="space-y-2">
-        <div className="touch-pan-y select-none" {...swipe}>
+        <div className={cn('touch-pan-y select-none flex items-center justify-center', MEDIA_STAGE)} {...swipe}>
           {/* keyed by source: switching items starts the next clip from its beginning */}
           {why ? (
-            <div className="flex h-48 items-center justify-center rounded border border-zinc-800 text-xs text-zinc-500">{why}</div>
+            <div className="flex h-full w-full items-center justify-center rounded border border-zinc-800 px-4 text-center text-xs text-zinc-500">{why}</div>
           ) : m.kind === 'video' ? (
-            <video key={m.src} src={m.src} controls autoPlay muted playsInline onError={() => onError?.(m)} className="w-full max-h-[65vh] rounded border border-zinc-800 bg-black" />
+            <video key={m.src} src={m.src} controls autoPlay muted playsInline onError={() => onError?.(m)} className="max-h-full max-w-full rounded border border-zinc-800 bg-black" />
           ) : (
-            <img key={m.src} src={m.src} alt={m.caption} draggable={false} onError={() => onError?.(m)} className="w-full max-h-[65vh] object-contain rounded border border-zinc-800 bg-zinc-950" />
+            <img key={m.src} src={m.src} alt={m.caption} draggable={false} onError={() => onError?.(m)} className="max-h-full max-w-full object-contain rounded border border-zinc-800 bg-zinc-950" />
           )}
         </div>
         <StepBar index={index} count={items.length} onStep={go}>
           <div className="truncate text-xs text-zinc-300" title={m.caption}>
-            {m.caption}
+            {m.caption || '\u00a0'}
           </div>
-          {m.link && (
-            <a href={m.link.href} target="_blank" rel="noreferrer" className="text-[11px] text-sky-300 hover:underline">
+          {m.link ? (
+            <a href={m.link.href} target="_blank" rel="noreferrer" className="block truncate text-[11px] text-sky-300 hover:underline">
               {m.link.label}
             </a>
-          )}
+          ) : anyLink ? (
+            <div className="text-[11px]" aria-hidden="true">
+              {'\u00a0'}
+            </div>
+          ) : null}
         </StepBar>
       </div>
     </Modal>
