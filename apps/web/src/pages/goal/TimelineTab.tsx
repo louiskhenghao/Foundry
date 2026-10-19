@@ -229,11 +229,15 @@ export function TimelineView({ t, onOpenTask }: { t: GoalTimeline; onOpenTask?: 
           <div className="min-w-0 flex-1 overflow-x-auto">
             <div className="min-w-[440px]" style={{ width: `${zoom * 100}%` }}>
               <div className="relative h-5 border-b border-zinc-800">
-                {marks.map((m) => (
-                  <span key={m} className="absolute top-0 -translate-x-1/2 whitespace-nowrap text-[10px] tabular-nums text-zinc-500" style={{ left: `${Math.min(99, x(t0 + m))}%` }}>
-                    {m === 0 ? '0' : fmtDur(m)}
-                  </span>
-                ))}
+                {marks.map((m) => {
+                  // centred on its time, but the first and last mark stay inside the chart, which clips what sticks out
+                  const at = x(t0 + m);
+                  return (
+                    <span key={m} className={cn('absolute top-0 whitespace-nowrap text-[10px] tabular-nums text-zinc-500', at < 3 ? '' : at > 97 ? '-translate-x-full' : '-translate-x-1/2')} style={{ left: `${at}%` }}>
+                      {m === 0 ? '0' : fmtDur(m)}
+                    </span>
+                  );
+                })}
                 {segs.filter((s) => s.folded).map((s) => (
                   <span key={s.start} className="absolute top-0 -translate-x-1/2 whitespace-nowrap text-[10px] text-zinc-500" style={{ left: `${(x(s.start) + x(s.end)) / 2}%` }} title={`nothing ran for ${fmtDur(s.end - s.start)}`}>
                     ⋯ {fmtDur(s.end - s.start)}

@@ -72,3 +72,9 @@ test('the chart zooms, and every bar and row name is a button that opens what it
   expect(html).toMatch(/<button type="button" class="absolute rounded-sm[^"]*" style="left:60%;width:25%"/);
   expect(html).toContain('title="build the model">build the model</button>');
 });
+
+test("the axis's first mark starts at the chart's left edge, not half outside it", () => {
+  const html = renderToStaticMarkup(<TimelineView t={t} />);
+  expect(html).toContain('<span class="absolute top-0 whitespace-nowrap text-[10px] tabular-nums text-zinc-500" style="left:0%">0</span>');
+  expect(html).toContain('text-zinc-500 -translate-x-1/2" style="left:15%">15m</span>');
+});
