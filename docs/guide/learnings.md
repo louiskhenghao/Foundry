@@ -23,9 +23,9 @@ A folder keeps at most 30 learnings, of at most 300 characters each.
 
 ## Seeing and editing them
 
-- **⚙ → Learnings** lists every folder that has some, each with the goal it came from.
+- **⚙ → Learnings** shows every folder that has some as a card you can fold, each learning with its kind and the goal it came from. The chips at the top (**all**, **build**, **test**, … **pitfall**) show one kind; the search box finds a word in the learnings, the folders or the goals; **expand all** and **collapse all** open or fold every card, and the page remembers the ones you folded. **Overview** counts them by kind.
 - A goal's page links to its folder's Learnings (**Learnings for this folder: N**). The **New goal** form says how many a folder has once you pick it.
-- **Edit** changes, removes or adds learnings for a folder; **Save** keeps them.
+- **Edit** on a folder's card changes, removes or adds its learnings; **Save** keeps them.
 - On a finished goal, **More ▾ → Learn from this goal again** runs the session for that goal once more.
 
 ## Turning it off

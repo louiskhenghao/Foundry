@@ -23,9 +23,9 @@ goal 的 **Activity** 会写明改了什么，例如 *Learnings for this folder:
 
 ## 查看和编辑
 
-- **⚙ → Learnings** 列出所有有 Learnings 的文件夹，每条都注明来自哪个 goal。
+- **⚙ → Learnings** 把每个有 Learnings 的文件夹显示成一张可以折叠的卡片，每条都注明类别和来自哪个 goal。上方的标签（**all**、**build**、**test** …… **pitfall**）只显示一种类别；搜索框在 Learnings、文件夹和 goal 里找字；**expand all** 和 **collapse all** 展开或折叠所有卡片，页面会记住你折叠了哪些。**Overview** 按类别统计数量。
 - goal 页面上有到它所在文件夹 Learnings 的链接（**Learnings for this folder: N**）。**New goal** 表单在你选好文件夹后，会告诉你这个文件夹有几条。
-- **Edit** 可以修改、删除或添加一个文件夹的 Learnings；按 **Save** 保存。
+- 文件夹卡片上的 **Edit** 可以修改、删除或添加它的 Learnings；按 **Save** 保存。
 - 在结束了的 goal 上，**More ▾ → Learn from this goal again** 会再为这个 goal 跑一次那个会话。
 
 ## 关掉它
