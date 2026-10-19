@@ -77,8 +77,9 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
               </Button>
             </Link>
           )}
+          {/* on a phone it sits in the delegated goal's box below, beside what it says, not alone at the end of the header */}
           {delegated?.exists && (
-            <Link to={`/goals/${delegated.goalId}`}>
+            <Link to={`/goals/${delegated.goalId}`} className="hidden sm:inline-flex">
               <Button size="sm" variant="primary" title="The goal doing this task">
                 <CornerDownRight size={13} /> Open delegated goal
               </Button>
@@ -203,7 +204,13 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
                 delegated.exists ? (
                   <div className="text-zinc-400">
                     {delegated.needsYou ? <span className="text-orange-300">It {delegated.needsYou}. </span> : task.state === 'done' ? "Its result landed on this goal's branch as this task's commit. " : 'This task finishes when that goal does: its branch then lands here as one commit, its files under artifacts/ with it. '}
-                    <Link to={`/goals/${delegated.goalId}`} className="text-sky-300 hover:underline">Open it</Link>.
+                    <Link to={`/goals/${delegated.goalId}`} className="hidden sm:inline text-sky-300 hover:underline">Open it</Link>
+                    <span className="hidden sm:inline">.</span>
+                    <Link to={`/goals/${delegated.goalId}`} className="sm:hidden mt-2 flex">
+                      <Button size="sm" variant="primary" className="w-full justify-center">
+                        <CornerDownRight size={13} /> Open delegated goal
+                      </Button>
+                    </Link>
                   </div>
                 ) : (
                   <div className="text-zinc-500">That goal was deleted. Retry starts a new one; skip moves on without this step.</div>
