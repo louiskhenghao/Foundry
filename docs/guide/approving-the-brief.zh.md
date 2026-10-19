@@ -96,9 +96,15 @@ Delegated goal 和 follow-up 会带着来源 goal 的 Subject 和图片开始，
 
 ### Revise with answers
 
-按 **Revise with answers**，让 Foundry 根据你的决定（包括备注）重新读一遍 Brief 和你的项目。它会提出修改：新增、修改或删除的任务，检查，Area，新的理解。这要几分钟；Claude 会话上限是 $3，Codex 使用 ChatGPT 额度，不提供美元上限。
+按 **Revise with answers**，让 Foundry 根据你的决定（包括备注）重新读一遍 Brief 和你的项目。你没保存的修改会先保存。它会提出修改：新增、修改或删除的任务，检查，Area，新的理解。这要几分钟；Claude 会话上限是 $3，Codex 使用 ChatGPT 额度，不提供美元上限。
 
 提议会以列表形式出现。用 ✓ 接受单项，用 ✗ 放弃，或者按 **Accept all**。你接受之前什么都不会变。如果 Foundry 找不到要改的地方，按 **OK, mark applied**。
+
+#### 它先反问的时候
+
+当某个决定留下了 Foundry 不能稳妥假设的事，它会在修改之前先问你：卡片里出现一个标题为 **Before it revises, the Clarifier asks (round 1 of 2)** 的框，问题的形式和[访谈](./answering-the-interview.zh.md#一轮访谈)一样：选项里推荐的排第一，有 **something else…**，有写备注的 **Anything else?**，还有 **Send answers**、**Accept all recommended** 和 **Enough — propose now**。它最多问两轮，然后给出提议。你的答案和备注会像访谈答案一样变成决定；提议已经照它们改好了。
+
+这一轮会等你：刷新页面它还在，goal 页面上也看得到。**Cancel the revision** 放弃它，在它还开着时批准 Brief 也一样；Brief 保持原样。
 
 ### No changes needed
 

@@ -96,9 +96,15 @@ The box at the bottom of the card is for what no question asked: a constraint, a
 
 ### Revise with answers
 
-Press **Revise with answers** to have Foundry re-read the Brief and your project in the light of your decisions, notes included. It proposes changes: tasks added, changed or dropped, checks, Areas, a new understanding. This takes a few minutes. The Claude session has a $3 cap; Codex uses ChatGPT quota without a USD cap.
+Press **Revise with answers** to have Foundry re-read the Brief and your project in the light of your decisions, notes included. Your unsaved edits are saved first. It proposes changes: tasks added, changed or dropped, checks, Areas, a new understanding. This takes a few minutes. The Claude session has a $3 cap; Codex uses ChatGPT quota without a USD cap.
 
 The proposal appears as a list. Accept each item with ✓, discard it with ✗, or press **Accept all**. Nothing changes until you accept. If Foundry finds nothing to change, press **OK, mark applied**.
+
+#### When it asks first
+
+When a decision leaves something open that Foundry cannot safely assume, it asks before revising: a box titled **Before it revises, the Clarifier asks (round 1 of 2)** appears in the card, with questions in the same form as the [interview](./answering-the-interview.md#a-round): options with the recommended one first, **something else…**, **Anything else?** for a note, and **Send answers**, **Accept all recommended** and **Enough — propose now**. It asks at most two rounds, then proposes. Your answers and note become Decisions like interview answers; the proposal already honours them.
+
+The round waits for you: it is still there after a reload, and a **Brief ready** goal page shows it too. **Cancel the revision** lets it go, and so does approving the Brief while it is open; the Brief stays as it is.
 
 ### No changes needed
 

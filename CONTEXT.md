@@ -90,7 +90,7 @@ What the user tells the system unasked: a correction, a constraint, something th
 _Avoid_: comment, hint (a hint goes to one Task's next Attempt; a Note belongs to the Goal)
 
 **Revise**
-The user asking the system to re-read the Brief in the light of the current Decisions: the Clarifier looks at the repository again (read-only) and proposes what the Decisions imply — changed, added or dropped Tasks, Checks and Areas, an updated understanding. The result is a Proposal accepted item by item; the Brief can still be approved with pending Decisions, it merely says so.
+The user asking the system to re-read the Brief in the light of the current Decisions: the Clarifier looks at the repository again (read-only) and proposes what the Decisions imply — changed, added or dropped Tasks, Checks and Areas, an updated understanding. When a Decision leaves something open it cannot safely assume, it may first ask the user a round of questions in the Interview's form, at most two rounds; the answers and any Note become Decisions. The result is a Proposal accepted item by item; the Brief can still be approved with pending Decisions, or over an open round (which lets the Revise go), it merely says so.
 
 ## Human involvement
 
