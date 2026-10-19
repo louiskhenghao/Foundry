@@ -98,7 +98,7 @@ Delegated goal 和 follow-up 会带着来源 goal 的 Subject 和图片开始，
 
 按 **Revise with answers**，让 Foundry 根据你的决定（包括备注）重新读一遍 Brief 和你的项目。你没保存的修改会先保存。它会提出修改：新增、修改或删除的任务，检查，Area，新的理解。这要几分钟；Claude 会话上限是 $3，Codex 使用 ChatGPT 额度，不提供美元上限。
 
-提议会以列表形式出现。用 ✓ 接受单项，用 ✗ 放弃，或者按 **Accept all**。你接受之前什么都不会变。如果 Foundry 找不到要改的地方，按 **OK, mark applied**。
+提议会以一张清单出现在卡片下方：每个改动一行，按这个页面的顺序分组（Understanding、Areas、Tasks、Checks、Assumptions、Questions），每行写明它做什么（**new**、**changed**、**dropped**、**filled in**）和它碰到了什么。把不要的取消勾选，然后按 **Apply N selected**；按下之前什么都不会变，之后每行会标明 **applied** 或 **skipped**。点一行会在窗口里打开这个改动：每个字段里，去掉的词划线、加上的词高亮，可以看成一段文字（**Inline**），也可以新旧并排（**Side by side**）；窗口里的 **Include when applying** 就是那一行的勾选。**Discard** 原样关掉提议。如果 Foundry 找不到要改的地方，按 **OK, mark applied**。
 
 #### 它先反问的时候
 

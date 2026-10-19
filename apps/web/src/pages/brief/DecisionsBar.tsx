@@ -8,6 +8,7 @@ import { LiveLog } from '../LiveLog.tsx';
 import { RoundForm, type RoundSubmitKind } from '../goal/RoundForm.tsx';
 import { DraftPanel } from './DraftPanel.tsx';
 import { NotesComposer } from './NotesComposer.tsx';
+import { SectionTitle } from './SectionTitle.tsx';
 
 type Round = { round: number; questions: InterviewQuestion[] };
 
@@ -20,6 +21,8 @@ type Round = { round: number; questions: InterviewQuestion[] };
  */
 export function DecisionsBar({ brief, goal, goalId, editable, edit, beforeRevise }: { brief: Brief; goal: Goal; goalId: string; editable: boolean; edit: (fn: (b: Brief) => Brief) => void; /** saves the page's edits first, so a note typed here survives a reload while a round waits */ beforeRevise?: () => Promise<void> }) {
   const [proposal, setProposal] = useState<DraftProposal | null>(null);
+  /** which proposal is on screen: a new one gets a fresh panel, never the previous one's ticks */
+  const [proposalNo, setProposalNo] = useState(0);
   const [busy, setBusy] = useState(false);
   const [answering, setAnswering] = useState<RoundSubmitKind | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -40,6 +43,7 @@ export function DecisionsBar({ brief, goal, goalId, editable, edit, beforeRevise
     }
     setRound(null);
     setProposal(p);
+    setProposalNo((n) => n + 1);
     // what the human answered in the rounds is theirs, not a proposal: it is recorded as Decisions at once
     const decided = p.revision?.revised.questions.filter((q) => q.applied && q.answer?.trim()) ?? [];
     if (decided.length) edit((b) => ({ ...b, questions: [...b.questions, ...decided.filter((q) => !b.questions.some((x) => x.id === q.id || (x.text === q.text && x.answer === q.answer)))] }));
@@ -84,7 +88,7 @@ export function DecisionsBar({ brief, goal, goalId, editable, edit, beforeRevise
   const noChanges = proposal?.revision && diffIsEmpty(proposal.revision.diff);
   return (
     <Card
-      title={`Decisions (${decisions.length})`}
+      title={<SectionTitle section="decisions">{`Decisions (${decisions.length})`}</SectionTitle>}
       actions={
         editable && decisions.length > 0 && (
           <span className="flex items-center gap-1.5">
@@ -177,6 +181,7 @@ export function DecisionsBar({ brief, goal, goalId, editable, edit, beforeRevise
             </div>
           ) : (
             <DraftPanel
+              key={proposalNo}
               proposal={proposal}
               onApply={(fn) => edit((b) => markDecisionsApplied(fn(b)))}
               onClose={() => setProposal(null)}
