@@ -606,7 +606,7 @@ export function apiForProvider(provider?: AgentProvider) {
   timeline: (id: string) => req<GoalTimeline>(`/api/goals/${id}/timeline`),
   guide: () => req<{ pages: { slug: string; title: string; zh: string | null }[] }>('/api/guide'),
   guidePage: (slug: string, lang: 'en' | 'zh') => req<{ slug: string; markdown: string; lang: 'en' | 'zh' }>(`/api/guide/page/${encodeURIComponent(slug)}?lang=${lang}`),
-  interviewAnswer: (id: string, answers: Record<string, string>, finish = false) => req<{ ok: true }>(`/api/goals/${id}/interview/answer`, { method: 'POST', body: JSON.stringify({ answers, finish }) }),
+  interviewAnswer: (id: string, answers: Record<string, string>, finish = false, note: string | null = null) => req<{ ok: true }>(`/api/goals/${id}/interview/answer`, { method: 'POST', body: JSON.stringify({ answers, finish, note }) }),
   preview: (id: string) => req<PreviewStatus>(`/api/goals/${id}/preview`),
   /** without `app`, starts every app that is not running (Docker services first) */
   previewSources: (id: string) => req<PreviewSources>(`/api/goals/${id}/preview/sources`),

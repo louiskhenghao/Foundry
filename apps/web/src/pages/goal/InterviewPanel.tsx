@@ -2,7 +2,7 @@ import type { Goal, InterviewQuestion } from '@foundry/core/browser';
 import { CheckCheck, MessageCircleQuestion, Send, SkipForward } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api } from '../../api.ts';
-import { Button, Card, Input, cn } from '../../ui.tsx';
+import { Button, Card, Input, Textarea, cn } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 import { ClarifyProgress } from './ClarifyProgress.tsx';
@@ -19,12 +19,15 @@ export function InterviewPanel({ goal }: { goal: Goal }) {
   const open = iv?.status === 'awaiting_answers' ? iv.rounds.at(-1) : null;
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [other, setOther] = useState<Record<string, string>>({});
+  /** what the questions missed or got wrong: sent with the answers, a Decision like them */
+  const [note, setNote] = useState('');
   const [busy, setBusy] = useState<null | 'send' | 'all' | 'finish'>(null);
   const [err, setErr] = useState<string | null>(null);
   const [history, setHistory] = useState(false);
   useEffect(() => {
     setAnswers({});
     setOther({});
+    setNote('');
     setErr(null);
   }, [open?.round, goal.id]);
   if (!iv) return null;
@@ -33,7 +36,7 @@ export function InterviewPanel({ goal }: { goal: Goal }) {
     setBusy(kind);
     setErr(null);
     try {
-      await api.interviewAnswer(goal.id, given, finish);
+      await api.interviewAnswer(goal.id, given, finish, note.trim() || null);
     } catch (e: any) {
       setErr(e.body?.error ?? e.message);
     } finally {
@@ -90,6 +93,12 @@ export function InterviewPanel({ goal }: { goal: Goal }) {
                 </li>
               ))}
             </ol>
+            <div className="rounded border border-zinc-800 bg-zinc-900/50 p-3 space-y-1">
+              <label className="text-sm text-zinc-100" htmlFor="interview-note">
+                Anything else? <span className="text-[11px] text-zinc-500">optional</span>
+              </label>
+              <Textarea id="interview-note" rows={2} className="text-xs" placeholder="Something the questions missed, or got wrong. It goes with your answers and becomes a Decision every worker receives." value={note} onChange={(e) => setNote(e.target.value)} />
+            </div>
             {err && <div className="text-rose-300">{err}</div>}
             <div className="flex items-center gap-2 flex-wrap">
               <Button size="sm" variant="primary" disabled={busy !== null || missing.length > 0} onClick={() => submit('send', false, collected())} title={missing.length ? `answer the blocking question${missing.length === 1 ? '' : 's'} first: ${missing.map((q) => open.questions.indexOf(q) + 1).join(', ')}` : 'Send these answers; the Clarifier asks the next round or writes the Brief'}>
@@ -125,6 +134,11 @@ export function InterviewPanel({ goal }: { goal: Goal }) {
                           <span className="text-zinc-400">{q.text}</span> <span className="text-zinc-200">— {r.answers?.[q.key] ?? <span className="text-zinc-600">not answered: the Clarifier went with its recommendation and listed it under Assumptions</span>}</span>
                         </li>
                       ))}
+                      {r.note && (
+                        <li className="text-[11px]">
+                          <span className="text-zinc-400">Your note</span> <span className="text-zinc-200 whitespace-pre-wrap">— {r.note}</span>
+                        </li>
+                      )}
                     </ul>
                   </div>
                 ))}
