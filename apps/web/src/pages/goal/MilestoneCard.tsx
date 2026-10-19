@@ -3,6 +3,7 @@ import { Eye, Loader2, MessageSquare, Play } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { type GoalDetail, api } from '../../api.ts';
 import { Button, Card, Select, Textarea, cn } from '../../ui.tsx';
+import { MediaLightbox } from '../../components/MediaLightbox.tsx';
 import { type Evidence, EvidenceView, FINAL_WALK, LikenessView, evidenceStatus, likenessOf, showsFiles } from './MilestoneEvidence.tsx';
 import { PreviewCard } from './PreviewCard.tsx';
 import { HelpLink } from '../HelpPage.tsx';
@@ -147,17 +148,20 @@ export const stripShown = (d: Pick<GoalDetail, 'milestoneEvents' | 'milestoneRun
 
 /** the goal's artifacts; `shown`: what a milestone of files' evidence above already shows, listed here only when not */
 export function ArtifactsStrip({ goalId, files, shown }: { goalId: string; files: string[]; shown: ReadonlySet<string> | null }) {
+  const [viewing, setViewing] = useState<number | null>(null);
   const rest = shown ? files.filter((f) => !shown.has(f)) : files;
   if (!rest.length) return null;
+  // the pictures open large, one after another; other files open (or download) in a tab of their own
+  const pictures = rest.slice(0, 12).filter((f) => IMAGE.test(f));
   return (
     <div>
       <div className="text-[11px] text-zinc-500 mb-1">{shown ? 'Other artifacts' : 'Artifacts'} ({rest.length})</div>
       <div className="flex gap-2 flex-wrap items-end">
         {rest.slice(0, 12).map((f) =>
           IMAGE.test(f) ? (
-            <a key={f} href={api.artifactUrl(goalId, f)} target="_blank" rel="noreferrer" title={f}>
-              <img src={api.artifactUrl(goalId, f)} alt={f} loading="lazy" decoding="async" className="h-24 w-24 object-cover rounded border border-zinc-700" />
-            </a>
+            <button key={f} type="button" onClick={() => setViewing(pictures.indexOf(f))} title={f}>
+              <img src={api.artifactUrl(goalId, f)} alt={f} loading="lazy" decoding="async" className="h-24 w-24 object-cover rounded border border-zinc-700 hover:border-zinc-500" />
+            </button>
           ) : (
             <a key={f} href={api.artifactUrl(goalId, f)} target="_blank" rel="noreferrer" className="mono text-[11px] text-zinc-300 hover:underline">
               {f}
@@ -165,6 +169,9 @@ export function ArtifactsStrip({ goalId, files, shown }: { goalId: string; files
           ),
         )}
       </div>
+      {viewing !== null && pictures[viewing] && (
+        <MediaLightbox items={pictures.map((f) => ({ kind: 'image' as const, src: api.artifactUrl(goalId, f), caption: f, link: { href: api.artifactUrl(goalId, f), label: 'open the file' } }))} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} title={shown ? 'Other artifacts' : 'Artifacts'} />
+      )}
     </div>
   );
 }

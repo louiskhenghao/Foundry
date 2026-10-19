@@ -1,7 +1,8 @@
 import { ARTIFACT_SCENARIOS, type BriefSubject, type LikenessVerdict } from '@foundry/core/browser';
-import { CheckCircle2, ChevronLeft, ChevronRight, ExternalLink, Eye, FastForward, FileCode2, FileDown, Loader2, MessageSquare, Play, RotateCcw, ScrollText } from 'lucide-react';
+import { CheckCircle2, ChevronRight, ExternalLink, Eye, FastForward, FileCode2, FileDown, Loader2, MessageSquare, Play, RotateCcw, ScrollText } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { type GoalDetail, api, fileUrl } from '../../api.ts';
+import { type LightboxItem, MediaLightbox } from '../../components/MediaLightbox.tsx';
 import { Button, Card, Modal, ago, cn } from '../../ui.tsx';
 
 type Item = { file: string; caption: string };
@@ -64,53 +65,6 @@ const mediaOf = (e: Evidence): Media[] => [
   ...(e.clips ?? []).map((c) => ({ kind: 'video' as const, ...c })),
   ...e.shots.map((s) => ({ kind: 'image' as const, ...s })),
 ];
-
-/** one item large in a window, the others a click or an arrow key away; one that cannot be shown says why */
-function MediaViewer({ goalId, items, index, broken, onBroken, onIndex, onClose }: { goalId: string; items: Media[]; index: number; broken: ReadonlyMap<string, Broken>; onBroken: (file: string) => void; onIndex: (i: number) => void; onClose: () => void }) {
-  const m = items[index]!;
-  const why = broken.get(m.file);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.defaultPrevented) return;
-      if (e.key === 'ArrowLeft' && index > 0) onIndex(index - 1);
-      if (e.key === 'ArrowRight' && index < items.length - 1) onIndex(index + 1);
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [index, items.length]);
-  const step = (d: -1 | 1, label: string, Icon: typeof ChevronLeft) => (
-    <button type="button" className="rounded p-1 hover:bg-zinc-800 disabled:opacity-30" disabled={!items[index + d]} onClick={() => onIndex(index + d)} aria-label={label} title={`${label} (${d < 0 ? '←' : '→'})`}>
-      <Icon size={14} />
-    </button>
-  );
-  return (
-    <Modal open wide onClose={onClose} title={m.caption || (m.kind === 'video' ? 'Walkthrough video' : 'Screenshot')}>
-      <div className="space-y-2">
-        <div className="flex items-center justify-end gap-1 text-xs text-zinc-500">
-          {step(-1, 'previous', ChevronLeft)}
-          {index + 1} / {items.length}
-          {step(1, 'next', ChevronRight)}
-        </div>
-        {/* keyed by file: switching items starts the next video from its beginning */}
-        {why ? (
-          <div className="flex h-48 items-center justify-center rounded border border-zinc-800 text-xs text-zinc-500">
-            {why === 'gone' ? (
-              'Not on this computer'
-            ) : (
-              <a href={api.screenshotUrl(goalId, m.file)} target="_blank" rel="noreferrer" className="text-sky-300 hover:underline">
-                This browser cannot show it: open the file
-              </a>
-            )}
-          </div>
-        ) : m.kind === 'video' ? (
-          <video key={m.file} src={api.screenshotUrl(goalId, m.file)} controls autoPlay muted onError={() => onBroken(m.file)} className="w-full max-h-[70vh] rounded border border-zinc-800 bg-black" />
-        ) : (
-          <img key={m.file} src={api.screenshotUrl(goalId, m.file)} alt={m.caption} onError={() => onBroken(m.file)} className="w-full max-h-[70vh] object-contain rounded border border-zinc-800 bg-zinc-950" />
-        )}
-      </div>
-    </Modal>
-  );
-}
 
 /** text a milestone script attached (an API's responses), shown as it came */
 function OutputBlock({ goalId, item }: { goalId: string; item: Item }) {
@@ -193,7 +147,7 @@ export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evi
         </div>
       )}
       {items.length > 0 && (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {items.map((m, i) => {
             const why = broken.get(m.file);
             // a file this browser cannot show opens in a tab of its own (a download, or a player that can)
@@ -238,7 +192,25 @@ export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evi
       )}
       {status === 'unverified' && <div className="text-[11px] text-amber-300/90">Shown with fake data only: it does not count as reached. Rerun it once the real app can start.</div>}
       {evidence.error && <div className={cn('text-[11px] whitespace-pre-wrap', status === 'fail' ? 'text-rose-300/90' : 'text-amber-300/90')}>{evidence.error}</div>}
-      {shown !== null && items[shown] && <MediaViewer goalId={goalId} items={items} index={shown} broken={broken} onBroken={failed} onIndex={setShown} onClose={() => setShown(null)} />}
+      {shown !== null && items[shown] && (
+        <MediaLightbox
+          items={items.map((m) => ({ kind: m.kind, src: api.screenshotUrl(goalId, m.file), caption: m.caption || (m.kind === 'video' ? 'Walkthrough video' : 'Screenshot') }))}
+          index={shown}
+          onIndex={setShown}
+          onClose={() => setShown(null)}
+          title={files ? 'What the task produced' : 'What Foundry saw'}
+          onError={(it) => failed(items.find((m) => api.screenshotUrl(goalId, m.file) === it.src)!.file)}
+          unavailable={(it) => {
+            const file = items.find((m) => api.screenshotUrl(goalId, m.file) === it.src)!.file;
+            const why = broken.get(file);
+            return why === 'gone' ? 'Not on this computer' : why ? (
+              <a href={it.src} target="_blank" rel="noreferrer" className="text-sky-300 hover:underline">
+                This browser cannot show it: open the file
+              </a>
+            ) : null;
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -267,6 +239,7 @@ export function LikenessChip({ look }: { look: Likeness | null }) {
  * differs (major ones first in red) and what already matches; and the fix task Foundry added for the major differences.
  */
 export function LikenessView({ goalId, look, subjects, running, fixTitle }: { goalId: string; look: Likeness | null; subjects: BriefSubject[]; running: boolean; fixTitle: string | null }) {
+  const [viewing, setViewing] = useState<{ key: string; index: number } | null>(null);
   if (!look) return running ? <div className="text-[11px] text-zinc-500 flex items-center gap-1.5"><Loader2 size={11} className="animate-spin" /> Comparing with the pictures…</div> : null;
   if (look.status === 'failed' || !look.verdict) return <div className="text-[11px] text-amber-300/90">The likeness review gave no verdict{look.detail ? `: ${look.detail}` : ''}.</div>;
   return (
@@ -286,10 +259,10 @@ export function LikenessView({ goalId, look, subjects, running, fixTitle }: { go
             </div>
             {v.shown && (s?.pictures.length ?? 0) > 0 && (
               <div className="flex gap-1.5 overflow-x-auto">
-                {s!.pictures.slice(0, 6).map((p) => (
-                  <a key={p.file} href={api.subjectPictureUrl(goalId, p.file)} target="_blank" rel="noreferrer" title={p.caption || 'a picture of it'} className="shrink-0">
+                {s!.pictures.slice(0, 6).map((p, i) => (
+                  <button key={p.file} type="button" onClick={() => setViewing({ key: v.key, index: i })} title={p.caption || 'a picture of it'} className="shrink-0">
                     <img src={api.subjectPictureUrl(goalId, p.file)} alt={p.caption || s!.name} loading="lazy" className="h-12 w-16 object-cover rounded border border-zinc-800 hover:border-zinc-500" />
-                  </a>
+                  </button>
                 ))}
               </div>
             )}
@@ -308,8 +281,25 @@ export function LikenessView({ goalId, look, subjects, running, fixTitle }: { go
         );
       })}
       {fixTitle && <div className="text-[11px] text-sky-300/90">Foundry added “{fixTitle}” for the major differences; the milestone is recorded and compared again once it lands.</div>}
+      {viewing && (() => {
+        const s = subjects.find((x) => x.key === viewing.key);
+        return s ? <MediaLightbox items={subjectLightbox(goalId, s)} index={viewing.index} onIndex={(index) => setViewing({ ...viewing, index })} onClose={() => setViewing(null)} title={s.name} /> : null;
+      })()}
     </div>
   );
+}
+
+/** a Subject's pictures as the lightbox shows them: what each shows, and where it was found */
+export function subjectLightbox(goalId: string, s: BriefSubject): LightboxItem[] {
+  return s.pictures.map((p) => {
+    let host = '';
+    try {
+      host = p.url ? new URL(p.url).hostname.replace(/^www\./, '') : '';
+    } catch {
+      /* not a URL: no link */
+    }
+    return { kind: 'image' as const, src: api.subjectPictureUrl(goalId, p.file), caption: p.caption || s.name, link: p.source === 'person' ? null : p.url && host ? { href: p.url, label: `found on ${host}` } : null };
+  });
 }
 
 /** what happened at one milestone visit */
