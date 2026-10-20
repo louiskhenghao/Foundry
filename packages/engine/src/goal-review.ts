@@ -156,7 +156,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
     brief && styleApplies(scenario) ? renderStyle(chosenStyle(brief), { forReviewer: true }) : '',
     renderSubjects(engine.config.dataDir, goal.id, brief, 'goal-reviewer', scenario, likenessLines(latestLikeness(engine, goal.id), brief?.subjects ?? [])),
     reviewerHint ?? '',
-    `# Fixed point\nThe base of this review is \`${goal.baseBranch}\`; everything in the diff below was added by this goal.`,
+    `# Fixed point and spec\nThe base of this review is \`${goal.baseBranch}\`; everything in the diff below was added by this goal. The spec is above: the approved understanding, the Decisions and the acceptance checks. There is no issue tracker and no \`docs/agents/issue-tracker.md\`; do not look for one or ask for it.`,
     `# Acceptance checks\nObjective command checks were already executed by the engine; their status is shown. You judge the reviewer-type checks and the overall result.\n${checks.map(fmt).join('\n')}`,
     previousVerdicts(engine, goal, checks),
     lines <= INLINE_DIFF_LINES ? `# Full diff against ${goal.baseBranch}\n\`\`\`diff\n${d}\n\`\`\`` : `# Full diff against ${goal.baseBranch}\nThe diff is ${lines} lines — too long to paste. It is saved at \`${diffFile(engine, goal, d)}\`; read it in parts (Grep for file names, Read with offsets)${(goal.provider ?? engine.config.provider) === 'codex' ? '' : ' and hand sub-agents the path, never the text'}.`,
