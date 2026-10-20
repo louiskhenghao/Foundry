@@ -10,7 +10,6 @@ import { join } from 'node:path';
 import type { Learning, LearningKind } from '@foundry/core';
 import { getRepoLearnings } from '@foundry/core';
 import type { Engine } from './engine.ts';
-import { isGitRepo } from './git/git.ts';
 import { learningsOf } from './learnings.ts';
 import { excludeFromGit } from './skills/autoskills.ts';
 
@@ -50,8 +49,8 @@ export function renderLearningsSkill(ls: Learning[], updatedAt: string): string 
  */
 export async function exportLearningsSkill(engine: Engine, repoPath: string): Promise<'written' | 'removed' | 'unchanged' | 'skipped'> {
   try {
-    // a folder that is not there cannot be asked (a spawn in a missing cwd fails loudly); one that is no repository gets no file
-    if (!existsSync(repoPath) || !(await isGitRepo(repoPath).catch(() => false))) return 'skipped';
+    // a repository has a .git entry (createGoal checked the folder is one); nothing is spawned to ask again
+    if (!existsSync(join(repoPath, '.git'))) return 'skipped';
     const on = engine.settings.values().workflow.learningsSkill;
     const ls = on ? learningsOf(engine, repoPath) : [];
     const dirs = DIRS.map((d) => join(repoPath, d, LEARNINGS_SKILL));
