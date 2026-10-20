@@ -69,6 +69,8 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 
 从 goal 页面打开的 **Follow-up** 则优先从所选的较早 goal 预填这三项，即使文件夹里已有更新的 goal。稍后返回的 Settings 或文件夹验证结果不会覆盖它们，也不会显示文件夹来源提示。创建前仍可手动修改。页面上的 **Follows** 选择器只建立关联。Simple 视图保留继承的套件和 Ponytail，但提交 **preferred** TDD；**Fast mode** 不提交 TDD，由引擎默认设为 **off**。
 
+如果 Follow-up 草稿返回前你已经改过 **TDD** 或 **Ponytail**，这些修改会保留。草稿返回时，它的 **Workflow suite** 会替换当前套件。
+
 ![New goal 表单，使用统一的 Coding agent 选择控件](images/new-goal.png)
 
 ### What kind of goal is this

@@ -67,6 +67,8 @@ Picking another folder immediately resets untouched fields to Settings defaults 
 
 A **Follow-up** opened from a goal page prefills all three fields from the chosen earlier goal instead, even if the folder has a newer goal. Later Settings or folder validation responses do not replace them, and the folder source note is hidden. You can still change them before creating the goal. The on-page **Follows** picker only links goals. Simple view keeps the inherited suite and Ponytail but submits **preferred** TDD; **Fast mode** omits TDD, so the engine defaults it to **off**.
 
+If the Follow-up draft arrives after you edit **TDD** or **Ponytail**, those edits stay. Its **Workflow suite** replaces the current suite when the draft arrives.
+
 ![The New goal form with the shared Coding agent selector](images/new-goal.png)
 
 ### What kind of goal is this
