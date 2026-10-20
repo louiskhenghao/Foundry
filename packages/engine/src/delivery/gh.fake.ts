@@ -1,6 +1,6 @@
 import type { ExecResult } from '../git/git.ts';
 import { git } from '../git/git.ts';
-import type { GhAvailability, GhClient, IssueView, PrRef, PrView } from './gh.ts';
+import type { GhAvailability, GhClient, IssueView, PrRef, PrReview, PrReviewComment, PrView } from './gh.ts';
 
 /**
  * Scripted GitHub for tests. PRs live in memory; "merge" fast-forwards the bare remote's base
@@ -44,6 +44,26 @@ export class FakeGh implements GhClient {
   failingCheck: { name: string; description: string; url: string; kind: 'run' | 'status' } | null = null;
   /** issues `issueView` can read, keyed `owner/name#number` */
   issues = new Map<string, IssueView>();
+  /** review comments and reviews on each PR, as a test scripts them (ADR-0053) */
+  reviewComments = new Map<number, PrReviewComment[]>();
+  reviews = new Map<number, PrReview[]>();
+  /** what Foundry wrote back: replies under inline comments, comments in the conversation */
+  replies: { number: number; commentId: number; body: string }[] = [];
+  comments: { number: number; body: string }[] = [];
+  /** when set, every reply and comment is refused with this (a token without write scope, say) */
+  writeError: string | null = null;
+  private nextCommentId = 1000;
+  /** a test's reviewer leaves an inline comment on the PR; the reply Foundry posts lands in `replies` */
+  addReviewComment(number: number, c: Partial<PrReviewComment> & { body: string }): PrReviewComment {
+    const full: PrReviewComment = { id: this.nextCommentId++, author: 'pat', bot: false, path: 'src/x.ts', line: 1, diffHunk: '@@ -1 +1 @@\n-old\n+new', url: `https://github.com/acme/app/pull/${number}#discussion_r${this.nextCommentId}`, createdAt: new Date().toISOString(), inReplyTo: null, ...c };
+    this.reviewComments.set(number, [...(this.reviewComments.get(number) ?? []), full]);
+    return full;
+  }
+  addReview(number: number, r: Partial<PrReview> & { state: string; body: string }): PrReview {
+    const full: PrReview = { id: this.nextCommentId++, author: 'pat', bot: false, url: `https://github.com/acme/app/pull/${number}#pullrequestreview-${this.nextCommentId}`, submittedAt: new Date().toISOString(), ...r };
+    this.reviews.set(number, [...(this.reviews.get(number) ?? []), full]);
+    return full;
+  }
   calls: string[][] = [];
   /** path of the bare remote so merges can update refs */
   constructor(private bareRemote: string | null = null) {}
@@ -200,5 +220,27 @@ export class FakeGh implements GhClient {
     const issue = this.issues.get(`${i.repo}#${i.number}`);
     if (!issue) throw new Error(`gh issue view failed: GraphQL: Could not resolve to an Issue with the number of ${i.number}. (repository.issue)`);
     return structuredClone(issue);
+  }
+  async prReviewComments(_cwd: string, i: { repo: string; number: number }): Promise<PrReviewComment[]> {
+    this.calls.push(['prReviewComments', String(i.number)]);
+    return structuredClone(this.reviewComments.get(i.number) ?? []);
+  }
+  async prReviews(_cwd: string, i: { repo: string; number: number }): Promise<PrReview[]> {
+    this.calls.push(['prReviews', String(i.number)]);
+    return structuredClone(this.reviews.get(i.number) ?? []);
+  }
+  async prReplyToComment(_cwd: string, i: { repo: string; number: number; commentId: number; body: string }): Promise<ExecResult> {
+    this.calls.push(['prReplyToComment', String(i.number), String(i.commentId)]);
+    if (this.writeError) return { code: 1, stdout: '', stderr: this.writeError };
+    this.replies.push({ number: i.number, commentId: i.commentId, body: i.body });
+    // the reply is a review comment too: a later look must know it is Foundry's
+    this.addReviewComment(i.number, { author: 'tester', body: i.body, inReplyTo: i.commentId });
+    return { code: 0, stdout: '{}', stderr: '' };
+  }
+  async prComment(_cwd: string, i: { repo: string; number: number; body: string }): Promise<ExecResult> {
+    this.calls.push(['prComment', String(i.number)]);
+    if (this.writeError) return { code: 1, stdout: '', stderr: this.writeError };
+    this.comments.push({ number: i.number, body: i.body });
+    return { code: 0, stdout: '{}', stderr: '' };
   }
 }
