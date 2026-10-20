@@ -69,7 +69,7 @@ No. With the default **Local only**, Foundry keeps the result on a local branch;
 
 - **Before approving**: **Cancel goal**. Nothing was built.
 - **While it runs or after**: your own folder was never changed, so there is nothing to undo there. Delete the goal (**⋯ → Delete goal…**) and tick **Also delete the branch** to throw the work away.
-- **After you merged it into your project** (yourself, or through a pull request): undo it like any other change, for example with **Revert** on the pull request in GitHub.
+- **After it merged through Foundry** (**Open a PR** or **PR + auto-merge**): press **Revert…** on the Delivery tab. Foundry opens a pull request that undoes the merge, and merges it when you ask; see [Reverting a merged goal](./getting-the-result.md#reverting-a-merged-goal). A goal you merged yourself: undo it like any other change, for example with **Revert** on the pull request in GitHub.
 - **One task went wrong**: open it and press **Restart from here**, or restart the goal from that task.
 
 ## Why is a task "standard"?

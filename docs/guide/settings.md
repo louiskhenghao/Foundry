@@ -302,7 +302,7 @@ The eight switches, all on by default:
 | **Brief ready** | A Brief waits for your approval. Never one Foundry approves itself. | Read it, then approve it on the Brief page or with the message's button. |
 | **Schedule fired** | A [Schedule](./schedules.md) fired: the goal it made, or why none was made (its previous run still going). | Nothing, unless a run was skipped you expected. |
 | **Goal finished** | A goal ended done, over-delivered or failed. Never when you cancelled it yourself. | Look at the result, or at what failed. |
-| **Delivery** | A pull request was opened or merged, the delivery failed, a deploy ended, or its smoke passed or failed. | Review the pull request, or look at the Delivery tab. |
+| **Delivery** | A pull request was opened or merged, the delivery failed, a deploy ended, its smoke passed or failed, or a revert of a merged goal was opened, merged, closed or failed. | Review the pull request, or look at the Delivery tab. |
 | **Usage pause** | A coding agent’s usage limit paused its new sessions, and again when retrying resumes. Other coding agents can continue. | Foundry retries automatically; check Accounts and Usage if failures persist. |
 | **New version** | A newer Foundry version is out (once per version). | Update when convenient, see [About & updates](#about--updates). |
 

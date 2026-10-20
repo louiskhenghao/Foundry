@@ -184,6 +184,10 @@ The engine carrying out a Delivery Policy after a Goal is finished: syncing the 
 The review comments one look at a Delivery's open pull request brought: inline comments on the diff, and the text of a review that requested changes (never an approval, a plain remark, a conversation comment, a bot's words, or the system's own replies). Within the Delivery Policy's budget the engine runs the Delivery again to address the round: a bounded fix task in the pull request's checkout, one commit pushed to its branch, and a reply under each comment saying what changed, or that nothing was. A round beyond the budget waits for the user, who can ask for it to be addressed. The pull request is otherwise left alone.
 _Avoid_: review (the Task reviewer and the goal review are sessions of the system; this is the human's)
 
+**Revert**
+A merged Delivery undone through a pull request, on the user's click: a branch from the base branch as it is online reverts the merge commit of each of the Delivery's pull requests (a stack's from the top down) with one commit each, is pushed, and a pull request is opened — merged right away with the policy's merge method when asked, GitHub's auto-merge armed when branch protections hold it. The Revert is kept on the Delivery with its reason, its pull request and how it went; a merge of its pull request later is noticed by the pull request watch, which tidies the remote branch and brings the user's base branch up as after a Delivery's merge. The Goal, its branch and its page stay as they are; a merge that no longer reverts cleanly is refused with the files in conflict, and so is what Foundry cannot know (a Local only Goal, a Delivery finished by hand). Only git and gh, never a model.
+_Avoid_: rollback (a Deploy is not undone by a Revert), undo (the FAQ's word for every way back, of which a Revert is one)
+
 ## Workspace
 
 **Base Sync**

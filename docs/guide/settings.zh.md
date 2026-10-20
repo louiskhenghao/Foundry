@@ -302,7 +302,7 @@ key 对下一个会话生效，不用重启。保存过的 key 不会再显示�
 | **Brief ready** | 有 Brief 等你批准。Foundry 自己批准的 Brief 不会发。 | 读一遍，然后在 Brief 页面或用消息上的按钮批准。 |
 | **Schedule fired** | 一个 [Schedule](./schedules.zh.md) 触发了：生成了哪个 goal，或者为什么没有生成（上一次运行还在进行）。 | 不用做什么，除非被跳过的那次是你在等的。 |
 | **Goal finished** | 某个 goal 以 done、over-delivered 或 failed 结束。你自己取消的不会发。 | 看结果，或看哪里失败了。 |
-| **Delivery** | 有 pull request 开出或合并了、交付失败了、一次部署结束了，或者它的冒烟测试通过或失败了。 | 审查 pull request，或看 Delivery 标签。 |
+| **Delivery** | 有 pull request 开出或合并了、交付失败了、一次部署结束了、它的冒烟测试通过或失败了，或者某个已合并 goal 的 revert 开出、合并、关闭或失败了。 | 审查 pull request，或看 Delivery 标签。 |
 | **Usage pause** | 某个编码智能体达到用量上限而暂停新会话，重新尝试时再通知；另一个编码智能体仍可继续。 | Foundry 自动重试；持续失败时检查 Accounts 和 Usage。 |
 | **New version** | Foundry 出了新版本（每个版本一次）。 | 方便时更新，见 [About & updates](#about--updates)。 |
 

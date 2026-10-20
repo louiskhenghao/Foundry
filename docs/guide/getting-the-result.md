@@ -231,6 +231,14 @@ with the branch name shown at the top of the goal page. Or change the delivery t
 
 When you no longer need the goal, **⋯ → Delete goal…** removes it and its progress folder; tick **Also delete the branch** only once the work is merged or pushed.
 
+## Reverting a merged goal
+
+A merged goal that turns out wrong is undone from its page: on the Delivery tab, under the three lines above, press **Revert…**. The dialog lists the merges it would undo — the goal's pull request, or every pull request of a stack, newest first — asks why (your words go into the pull request), and whether to **Merge it right away** with the delivery's merge method or leave the pull request for you.
+
+Foundry then starts a branch from your base branch as it is online, undoes each merge with one revert commit, pushes the branch and opens a pull request titled *Revert "…"*, whose description names the merges, your reason and what the revert touches. With **Merge it right away** it merges the pull request at once, or arms GitHub's auto-merge when branch protections hold it, as a delivery does. A revert that merges — right away, or later when you merge it yourself on GitHub — is noticed the way a delivery's merge is: the remote branch is deleted when the delivery settings say so, and your local base branch is fast-forwarded when that is safe (see [After a pull request merged](#after-a-pull-request-merged)). The goal page then shows a **reverted** tag, and the Delivery tab a line for the revert with its pull request; the goal's own lines, its branch and its history stay as they were.
+
+What it needs: a delivery that merged through Foundry (**Open a PR** or **PR + auto-merge** — a Local only goal, or one you marked as delivered yourself, has nothing Foundry knows to revert), GitHub CLI signed in, and the merges still on the base branch. A merge that no longer reverts cleanly, because a later change touched the same lines, is refused with the files in conflict: revert it by hand, or start a [follow-up](#continue-with-a-follow-up) that undoes it. No model writes anything here, and nothing of your own folder is changed. To bring the work back, revert the revert's pull request on GitHub, or start a follow-up goal.
+
 ## Continue with a follow-up
 
 For Codex, an explicitly selected all-role model override is prefilled in the follow-up, even after the default model changes in Settings. Without an explicit override, the selected preset keeps its separate role assignments. The follow-up is a new goal and captures the preset’s current tables at creation; it does not copy the earlier goal’s frozen table.

@@ -69,7 +69,7 @@ Brief 本身不能改：一经批准就固定了。但你可以调整方向：
 
 - **批准之前**：**Cancel goal**。什么都还没做。
 - **运行中或结束后**：你自己的文件夹从没被改过，所以那里没什么要撤销的。删除 goal（**⋯ → Delete goal…**）并勾选 **Also delete the branch**，就能丢掉这些工作。
-- **你已经把它合并进项目之后**（自己合并，或通过 pull request）：像撤销其它改动一样撤销它，比如在 GitHub 的 pull request 上按 **Revert**。
+- **通过 Foundry 合并之后**（**Open a PR** 或 **PR + auto-merge**）：在 Delivery 标签上按 **Revert…**。Foundry 会开一个撤销这次合并的 pull request，你要求的话还会把它合并；见 [撤销已合并的 goal](./getting-the-result.zh.md#撤销已合并的-goal)。你自己合并的 goal：像撤销其它改动一样撤销它，比如在 GitHub 的 pull request 上按 **Revert**。
 - **某个任务出了错**：打开它按 **Restart from here**，或者从那个任务重启 goal。
 
 ## 为什么任务是 "standard"？
