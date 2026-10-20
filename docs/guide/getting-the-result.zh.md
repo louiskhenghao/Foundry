@@ -59,7 +59,7 @@ pull request 类的方式需要 GitHub CLI 和一个已连接的账户：见 [�
 
 ### PR 开出之后
 
-只用于 **PR + auto-merge**。四个开关默认都打开。
+四个开关和 **Fix failing CI** 只用于 **PR + auto-merge**，默认都打开；**Fix review comments** 对 **Open a PR** 也有效。
 
 | 选项 | 含义 |
 |---|---|
@@ -68,6 +68,7 @@ pull request 类的方式需要 GitHub CLI 和一个已连接的账户：见 [�
 | **Auto-resolve conflicts with the base branch** | 如果 `main` 有了新进展并产生冲突，由 Foundry 解决。关闭：冲突会让交付停下。 |
 | **Delete the remote branch after merging** | 只删这个 goal 推送的分支，从不删基础分支。 |
 | **Fix failing CI** | **don't fix**、**up to once**（默认）或 **up to twice**。见 [CI 失败时](#ci-失败时)。 |
+| **Fix review comments** | **don't fix**、**up to once**（默认）、**up to twice** 或 **up to three times**：Foundry 自己处理的审查评论轮数。见 [有人审查 pull request 时](#有人审查-pull-request-时)。 |
 
 ## 连接 GitHub
 
@@ -131,6 +132,16 @@ CI 是你的线上仓库对每个 pull request 运行的一组自动检查。交
 如果你自己在 GitHub 上合并了 pull request，Foundry 会发现并完成交付；每个任务一个 pull request 时，剩下的会等你按 **Resume delivery**。
 
 每个任务一个 pull request 时，CI 的修复会提交到失败的那个 pull request 的分支上并推送，其它 pull request 不受影响。
+
+## 有人审查 pull request 时
+
+Foundry 开出的 pull request 可以像任何 pull request 一样被审查。Foundry 每隔几分钟、以及你每次打开 goal 页面时，都会读取它开着的 pull request 上的审查评论。两种评论算数：**diff 上的行内评论**，以及**要求修改（request changes）的审查**（它的正文）。批准、只是评论的审查、会话区里的普通评论，以及机器人写的任何东西都不会被处理——所以普通评论是你用来说话的，diff 上的评论或要求修改是你用来派活的。
+
+一次读取发现的评论组成一**轮**。在 **Fix review comments** 的额度内（默认一轮），Foundry 会再跑一次交付：一个小的修复任务读每条评论（带文件、行号和周围的 diff），用能回答它们的最小改动修改分支，并在结果上跑 goal 的 must 检查。修复会推送到 pull request 的分支，Foundry 在每条评论下回复提交号和改了哪些文件。任务看过之后发现没有要改的，回复会这么说，goal 页面上该任务的报告写了原因。用 **PR + auto-merge** 时，接着照常等检查、合并。每个任务一个 PR 时，修复落在被审查的那个 pull request 的分支上，其它分支不动。
+
+Delivery 标签会在每个 pull request 下列出每一轮：多少条评论、谁写的、结果如何。超出额度的一轮会等你，带一条备注和一条消息，按 **Fix review comments** 就会处理它。**Resume delivery** 和 **Retry delivery** 会重新给额度。任务做不到的修复会让交付停下，和 CI 修不好时一样：Inbox 里一项 *Delivery stopped*，pull request 保持原样；你可以在 GitHub 上回答评论，或按 **Resume delivery** 再试一次。
+
+Foundry 不会往 GitHub 写别的东西：开始时不留言，也不会自己写审查。它的回复末尾带一个隐藏标记，所以它永远不会把自己的回复当成你的。交付正在运行时留下的评论，会在它结束后被读到。
 
 ## 之后再改交付方式
 

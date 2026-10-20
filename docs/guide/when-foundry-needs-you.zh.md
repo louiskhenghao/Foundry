@@ -74,7 +74,7 @@ goal 达到了你设的费用或时间上限。按 **Raise budget**（留空就�
 
 **Inbox：** *Delivery stopped* —— 停在哪一步、为什么，并写出失败的检查，比如 "Deploy preview — Deployment was blocked"，每个都附链接。
 
-工作已经做完，但推送或合并 pull request 没有成功。先修好原因（链接里有说明），然后：
+工作已经做完，但推送或合并 pull request 没有成功。处理审查评论的修复任务让检查过不了时，也会停在这里（见[有人审查 pull request 时](./getting-the-result.zh.md#有人审查-pull-request-时)）。先修好原因（链接里有说明），然后：
 
 - **Resume delivery** 从第一个还没合并的 pull request 继续：已合并的跳过，开着的保留，修复 CI 的次数重新计算。要先改设置（比如不再等 CI），就在 **Delivery settings** 里改好再按 **Save**。
 - 如果你自己完成了交付，就按 **Mark as delivered**。Foundry 会先读 pull request：已经合并的，就按合并完成（更新你自己的文件夹并清理 goal）；否则只记为由你完成。
