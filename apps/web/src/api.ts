@@ -283,6 +283,19 @@ import type { MinimaxQuota, Report, UsageSummary } from '@foundry/engine/usage-t
 
 export type Usage = UsageSummary & { pausedUntil: string | null };
 
+/** Access (ADR-0061): a person who may use this Foundry, with a token of their own */
+export interface Person {
+  id: string;
+  name: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+/** whether Access is on, and who this browser is signed in as */
+export interface AccessMe {
+  enabled: boolean;
+  person: Person | null;
+}
+
 export interface ClaudeAuthStatus {
   loggedIn: boolean;
   authMethod: string | null;
@@ -513,6 +526,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) } });
   const text = await res.text();
   const body = text ? safeJson(text) : null;
+  // Access (ADR-0061): a request this Foundry wants a token for sends the person to the login page, back here afterwards
+  if (res.status === 401 && (body as any)?.code === 'auth' && location.pathname !== '/login') location.assign(`/login?next=${encodeURIComponent(location.pathname + location.search + location.hash)}`);
   if (!res.ok) throw new ApiError((body as any)?.error ?? text ?? res.statusText, res.status, body);
   return body as T;
 }
@@ -784,6 +799,13 @@ export function apiForProvider(provider?: AgentProvider) {
   usage: (provider?: AgentProvider) => req<Usage>(`/api/usage${provider ? '?provider=' + provider : ''}`),
   /** Reports (ADR-0060): the last `days`, or all time with null */
   report: (days: number | null) => req<Report>(`/api/reports?days=${days ?? 'all'}`),
+  /** Access (ADR-0061) */
+  accessMe: () => req<AccessMe>('/api/access/me'),
+  accessLogin: (token: string) => req<{ person: Person }>('/api/access/login', { method: 'POST', body: JSON.stringify({ token }) }),
+  accessLogout: () => req<{ ok: true }>('/api/access/logout', { method: 'POST' }),
+  accessPeople: () => req<{ enabled: boolean; people: Person[] }>('/api/access/people'),
+  accessAdd: (name: string) => req<{ person: Person; token: string }>('/api/access/people', { method: 'POST', body: JSON.stringify({ name }) }),
+  accessRevoke: (id: string) => req<{ person: Person }>(`/api/access/people/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   resumeUsage: (provider?: AgentProvider) => req<{ resumed: boolean }>(`/api/usage/resume${provider ? `?provider=${provider}` : ''}`, { method: 'POST' }),
   probeUsage: (provider?: AgentProvider) => req<Usage>(`/api/usage/probe${provider ? `?provider=${provider}` : ''}`, { method: 'POST' }),
   minimaxQuota: (refresh = false) => req<MinimaxQuota>(`/api/usage/minimax${refresh ? '?refresh=1' : ''}`),

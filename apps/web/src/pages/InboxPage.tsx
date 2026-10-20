@@ -297,6 +297,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
             <CheckCircle2 size={13} className="text-emerald-400 shrink-0" aria-hidden="true" />
             Answered: <b className="text-zinc-200">{ACTION_LABEL[e.answer?.action as EscalationAction] ?? e.answer?.action}</b>
             {e.answer?.hint ? <span className="truncate"> — “{e.answer.hint}”</span> : null}
+            {e.answeredBy ? <span className="text-zinc-500 shrink-0"> · by {e.answeredBy}</span> : null}
           </span>
         )}
       </footer>

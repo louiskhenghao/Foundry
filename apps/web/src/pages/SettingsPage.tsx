@@ -10,6 +10,7 @@ import { CodexModelPresetsSection } from './settings/CodexModelPresets.tsx';
 import { SectionTitle } from './settings/PresetParts.tsx';
 import { DesignPacks } from '../components/DesignPacks.tsx';
 import { UpdateDialog } from '../components/UpdateDialog.tsx';
+import { AccessCard } from './settings/AccessCard.tsx';
 import { Button, Card, CopyButton, Empty, Field, Input, Select, cn } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
 import { INTERVIEW_DEPTHS } from '../interview-depth.ts';
@@ -689,6 +690,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
+      <AccessCard />
       <Card id="safety" title={<>Safety<HelpLink to="settings#safety" className="ml-1.5" /></>} className="scroll-mt-16">
         {grid(
           <>
