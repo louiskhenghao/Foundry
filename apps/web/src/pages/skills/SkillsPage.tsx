@@ -1,5 +1,5 @@
 import type { EngineEvent } from '@foundry/core/browser';
-import type { SkillScope, SkillSourceRow, SkillTier, SkillsOverview, SkillsUpdateReport, TrashEntry } from '@foundry/engine/skills-types';
+import type { InstalledSkill, SkillScope, SkillSourceRow, SkillTier, SkillUsage, SkillsOverview, SkillsUpdateReport, TrashEntry } from '@foundry/engine/skills-types';
 import { RefreshCw, Search, Trash2 } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { apiForProvider, type AgentProvider } from '../../api.ts';
@@ -8,7 +8,7 @@ import { Button, ConfirmDialog, Empty, Input, Modal, ago, cn, useAffix } from '.
 import { OpsDock } from './OpsDock.tsx';
 import { startOp, useRunningOp, useSkillOps } from './ops.ts';
 import { SessionLine, SidePanelTabs } from './SidePanels.tsx';
-import { SourceGroup } from './SourceGroup.tsx';
+import { SourceGroup, lastGoals } from './SourceGroup.tsx';
 
 type Report = SkillsUpdateReport & { updating: string | null; refreshing: boolean };
 type View = { name: string; dir: string; invoke: string; skillMd: string | null; files: { path: string; size: number }[] };
@@ -22,6 +22,21 @@ const MANAGER_HEADING: Record<(typeof MANAGER_ORDER)[number], string> = {
   hand: 'Hand-installed',
   project: 'Project skills',
 };
+
+/** The rows the list shows: the scope buttons, the search, `needs attention` and `unused only` all apply. */
+export function rowFilter({ scope, q, onlyOutdated, onlyUnused, usage }: { scope: SkillScope | 'all'; q: string; onlyOutdated: boolean; onlyUnused: boolean; usage: Map<string, SkillUsage | null> }) {
+  const needle = q.trim().toLowerCase();
+  return (r: SkillSourceRow) => (scope === 'all' || r.scope === scope) && (!onlyOutdated || r.status === 'outdated' || r.status === 'modified' || !!r.shadowedBy) && (!onlyUnused || usage.get(r.dir)?.unused === true) && (!needle || r.name.includes(needle) || r.invoke.includes(needle) || r.description.toLowerCase().includes(needle));
+}
+
+/** How many of the measured skills (user and plugin; project rows carry no usage) no session of the window invoked. */
+export function usageNote(installed: Pick<InstalledSkill, 'usage'>[], window: SkillsOverview['usageWindow']): string | null {
+  if (!window) return null;
+  if (!window.goals) return 'No goals yet: skill usage is unknown';
+  const measured = installed.filter((r) => r.usage);
+  const unused = measured.filter((r) => r.usage?.unused).length;
+  return `${unused} of ${measured.length} installed skills ${unused === 1 ? 'was' : 'were'} never used in ${lastGoals(window.goals)}`;
+}
 
 /**
  * Skills, grouped by where they come from, with update status per source and per skill,
@@ -38,6 +53,7 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
   const [scope, setScope] = useState<SkillScope | 'all'>('all');
   const [q, setQ] = useState('');
   const [onlyOutdated, setOnlyOutdated] = useState(false);
+  const [onlyUnused, setOnlyUnused] = useState(false);
   /** quick actions that are not operations (check for updates, trash shadows, restore): what each one is working on */
   const [pending, setPending] = useState<Set<string>>(new Set());
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err' | 'info'; text: string } | null>(null);
@@ -171,8 +187,10 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
 
   if (!overview || !report) return <Empty>{msg?.text ?? 'Scanning skills…'}</Empty>;
 
-  const needle = q.trim().toLowerCase();
-  const filter = (r: SkillSourceRow) => (scope === 'all' || r.scope === scope) && (!onlyOutdated || r.status === 'outdated' || r.status === 'modified' || !!r.shadowedBy) && (!needle || r.name.includes(needle) || r.invoke.includes(needle) || r.description.toLowerCase().includes(needle));
+  // the rows render from the update report; its rows and the overview's share `dir`
+  const usageByDir = new Map<string, SkillUsage | null>(overview.installed.map((r) => [r.dir, r.usage ?? null]));
+  const filter = rowFilter({ scope, q, onlyOutdated, onlyUnused, usage: usageByDir });
+  const note = usageNote(overview.installed, overview.usageWindow);
   const total = overview.installed.length;
   const updates = report.sources.filter((s) => s.updateAvailable === true).length;
   const outdatedSkills = report.sources.flatMap((s) => s.skills).filter((r) => r.status === 'outdated').length;
@@ -211,7 +229,14 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
         {provider === 'codex' ? 'Codex skills are grouped by their native source. Foundry manages supported standalone installs and updates; manage native Codex plugins in the Plugins tab. Skills in the shared ~/.agents/skills folder can be uninstalled here (to the trash), except one Claude Code reaches through a link: remove that one on the Claude Code side.' : "Grouped by where each skill comes from. Updates run the source's own tool (npx skills, claude plugin) or Foundry's installer; every run is recorded in History. Uninstall never deletes — copies go to the Trash tab."}
       </p>
       <div className="-mt-1">
-        {provider === 'codex' ? <p className="text-[11px] text-zinc-500">Skill invocation telemetry is unavailable for Codex. Installed or listed skills do not prove a session used them; review the work and tests.</p> : <SessionLine view={overview.lastSession} />}
+        {provider === 'codex' ? (
+          <p className="text-[11px] text-zinc-500">Skill invocation telemetry is unavailable for Codex. Installed or listed skills do not prove a session used them; review the work and tests.</p>
+        ) : (
+          <>
+            <SessionLine view={overview.lastSession} />
+            {note && <p className="text-[11px] text-zinc-500">{note}</p>}
+          </>
+        )}
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
@@ -223,6 +248,11 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
         <label className="flex items-center gap-1 text-xs text-zinc-400">
           <input type="checkbox" checked={onlyOutdated} onChange={(e) => setOnlyOutdated(e.target.checked)} /> needs attention
         </label>
+        {provider === 'claude' && (
+          <label className="flex items-center gap-1 text-xs text-zinc-400">
+            <input type="checkbox" checked={onlyUnused} onChange={(e) => setOnlyUnused(e.target.checked)} /> unused only
+          </label>
+        )}
         <div className="relative flex-1 min-w-[160px] max-w-xs">
           <Search size={13} className="absolute left-2 top-2 text-zinc-500" />
           <Input className="pl-7 py-1 text-xs" placeholder="search" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -246,7 +276,7 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
               {report.sources
                 .filter((s) => s.manager === m)
                 .map((s) => (
-                  <SourceGroup key={s.id} s={s} busy={pending.has('shadows') || s.skills.some((r) => runningOp(r.name))} updating={report.updating === s.id || !!runningOp(s.id)} running={opLink(s.id) ?? s.skills.map((r) => opLink(r.name)).find(Boolean) ?? null} filter={filter} a={{ onUpdate: (names) => void updateSource(s.id, s.label, names), onAdopt: (names) => void adopt(names), onTrashShadows: trashShadows, onUninstallPlugin: provider === 'claude' ? (id) => void uninstallPlugin(id) : undefined, onUninstall: (names) => setConfirmNames(names), onView: openView, selected, onSelect: select }} />
+                  <SourceGroup key={s.id} s={s} busy={pending.has('shadows') || s.skills.some((r) => runningOp(r.name))} updating={report.updating === s.id || !!runningOp(s.id)} running={opLink(s.id) ?? s.skills.map((r) => opLink(r.name)).find(Boolean) ?? null} filter={filter} a={{ onUpdate: (names) => void updateSource(s.id, s.label, names), onAdopt: (names) => void adopt(names), onTrashShadows: trashShadows, onUninstallPlugin: provider === 'claude' ? (id) => void uninstallPlugin(id) : undefined, onUninstall: (names) => setConfirmNames(names), onView: openView, selected, onSelect: select }} usage={usageByDir} windowGoals={overview.usageWindow?.goals} />
                 ))}
             </div>
           ))}
