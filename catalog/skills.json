@@ -1,5 +1,16 @@
 {
   "version": 1,
+  "suites": [
+    {
+      "id": "pstack",
+      "label": "pstack",
+      "summary": "poteto's agent style ported to Claude Code and Codex: a bug fix that starts from the failing test, deslop before handing back, thermo-nuclear reviews, non-interactive conflict resolution, technical writing.",
+      "repo": "michael-denyer/pstack-claude",
+      "ref": "v0.9.93",
+      "path": "plugins/pstack",
+      "homepage": "https://github.com/michael-denyer/pstack-claude"
+    }
+  ],
   "entries": [
     {
       "id": "graphify",
@@ -131,7 +142,8 @@
             "mobile",
             "infra",
             "general"
-          ]
+          ],
+          "suite": "mattpocock"
         }
       ],
       "scenarios": [
@@ -179,7 +191,8 @@
             "mobile",
             "infra",
             "general"
-          ]
+          ],
+          "suite": "mattpocock"
         }
       ],
       "scenarios": [
@@ -1190,6 +1203,288 @@
       "scenarios": [
         "research",
         "general"
+      ]
+    },
+    {
+      "id": "pstack-sharpen",
+      "name": "sharpen",
+      "summary": "Aim a task at what the person really wants: the expert approach, the real goal, the right level of specification.",
+      "why": "A Clarifier that asks itself how a top expert would approach the goal, what the person is really after and how precise the Brief must be asks better rounds.",
+      "tier": "recommended",
+      "source": {
+        "type": "suite",
+        "suite": "pstack"
+      },
+      "roles": [
+        "clarifier"
+      ],
+      "tags": [
+        "workflow"
+      ],
+      "homepage": "https://github.com/michael-denyer/pstack-claude/tree/main/plugins/pstack/skills/sharpen",
+      "bundle": "pstack",
+      "workflow": [
+        {
+          "role": "clarifier",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [],
+          "suite": "pstack",
+          "instruction": "Before the first round, run its three checks on the goal — how a top expert would approach it, what the person is really after, the right level of specification — and let them shape what you ask."
+        }
+      ]
+    },
+    {
+      "id": "pstack-tdd",
+      "name": "tdd",
+      "summary": "Fix a bug by writing the failing test first; prefer no new test over a bad one.",
+      "why": "A bug fix that starts from a regression test that fails for the bug's reason, and passes after, is a fix the checks can verify; the skill also says when a test would be a bad one.",
+      "tier": "recommended",
+      "source": {
+        "type": "suite",
+        "suite": "pstack"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "workflow"
+      ],
+      "homepage": "https://github.com/michael-denyer/pstack-claude/tree/main/plugins/pstack/skills/tdd",
+      "bundle": "pstack",
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "bug",
+          "scenarios": [],
+          "suite": "pstack",
+          "instruction": "Make the bug executable before you touch production code: write the smallest regression test that fails for the bug's reason, run it and quote the failure, make the smallest fix, rerun it. If no cheap executable check exists, say so and use the closest one."
+        }
+      ]
+    },
+    {
+      "id": "pstack-deslop",
+      "name": "deslop",
+      "summary": "Remove AI-generated slop from the branch's diff before it is handed back.",
+      "why": "Workers leave comments the file's style does not use, defensive checks on trusted paths, any-casts and nesting an early return would flatten; a pass over the diff before the hand-back removes them.",
+      "tier": "recommended",
+      "source": {
+        "type": "suite",
+        "suite": "pstack"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "workflow"
+      ],
+      "homepage": "https://github.com/michael-denyer/pstack-claude/tree/main/plugins/pstack/skills/deslop",
+      "bundle": "pstack",
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "feature",
+          "scenarios": [],
+          "suite": "pstack",
+          "instruction": "Before you hand the task back, check your diff against the base branch and remove what reads as generated slop: comments the file does not use, defensive checks on trusted paths, casts to any, nesting an early return would flatten. Keep behaviour unchanged."
+        },
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "refactor",
+          "scenarios": [],
+          "suite": "pstack",
+          "instruction": "Before you hand the task back, check your diff against the base branch and remove what reads as generated slop: comments the file does not use, defensive checks on trusted paths, casts to any, nesting an early return would flatten. Keep behaviour unchanged."
+        }
+      ]
+    },
+    {
+      "id": "pstack-blast-radius",
+      "name": "blast-radius",
+      "summary": "Find what a change could break beyond the diff, and prove the one fact it is safe because of by running real code.",
+      "why": "A refactor's risk is rarely in the diff; a worker that finds the one fact the change is safe because of, and proves it with a script that runs the real code, hands back a change the reviewer can trust.",
+      "tier": "recommended",
+      "source": {
+        "type": "suite",
+        "suite": "pstack"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "workflow"
+      ],
+      "homepage": "https://github.com/michael-denyer/pstack-claude/tree/main/plugins/pstack/skills/blast-radius",
+      "bundle": "pstack",
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "refactor",
+          "scenarios": [],
+          "suite": "pstack",
+          "instruction": "Before you reshape, find what the change could break beyond the diff and the one fact it is safe because of; prove that fact by running real code — a script or test — not by writing it up. Skip its arena step: Foundry runs one session."
+        }
+      ]
+    },
+    {
+      "id": "pstack-typescript-best-practices",
+      "name": "typescript-best-practices",
+      "summary": "TypeScript discipline grounded in the type system's syntax.",
+      "why": "A worker editing TypeScript that keeps to the type system's discipline writes code the compiler checks instead of code that merely compiles.",
+      "tier": "optional",
+      "source": {
+        "type": "suite",
+        "suite": "pstack"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "workflow"
+      ],
+      "homepage": "https://github.com/michael-denyer/pstack-claude/tree/main/plugins/pstack/skills/typescript-best-practices",
+      "bundle": "pstack",
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [],
+          "suite": "pstack",
+          "instruction": "Read it before you edit TypeScript: keep the type-system discipline it sets out, and no casts to any to get past the compiler.",
+          "whenFiles": [
+            "*.ts",
+            "*.tsx"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pstack-thermo-nuclear-review",
+      "name": "thermo-nuclear-review",
+      "summary": "A correctness and security audit of a branch's changes: bugs, breakage elsewhere, devex, feature-flag leaks.",
+      "why": "The reviews that catch what breaks elsewhere trace each finding end to end and report priorities honestly; this rubric does both and scopes itself to the diff.",
+      "tier": "recommended",
+      "source": {
+        "type": "suite",
+        "suite": "pstack"
+      },
+      "roles": [
+        "reviewer-task",
+        "reviewer-goal"
+      ],
+      "tags": [
+        "workflow"
+      ],
+      "homepage": "https://github.com/michael-denyer/pstack-claude/tree/main/plugins/pstack/skills/thermo-nuclear-review",
+      "bundle": "pstack",
+      "workflow": [
+        {
+          "role": "reviewer-task",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [],
+          "suite": "pstack",
+          "instruction": "Audit the task's diff with its rubric: only added or modified code; bugs, breakage elsewhere, devex, feature leaks; never over-report. Skip its PR-discussion step: Foundry has no PR yet."
+        },
+        {
+          "role": "reviewer-goal",
+          "mandate": "must",
+          "when": "any",
+          "scenarios": [],
+          "suite": "pstack",
+          "instruction": "Audit the branch with its rubric before you write the review: scope to the diff, trace each finding end to end, report priorities honestly. Skip its PR-discussion step: Foundry has no PR yet."
+        }
+      ]
+    },
+    {
+      "id": "pstack-thermos",
+      "name": "thermos",
+      "summary": "Both thermo-nuclear reviews as parallel subagents, then one synthesis.",
+      "why": "A large branch deserves the correctness audit and the code-quality audit side by side; the synthesis weighs what both found.",
+      "tier": "recommended",
+      "source": {
+        "type": "suite",
+        "suite": "pstack"
+      },
+      "roles": [
+        "reviewer-goal"
+      ],
+      "tags": [
+        "workflow"
+      ],
+      "homepage": "https://github.com/michael-denyer/pstack-claude/tree/main/plugins/pstack/skills/thermos",
+      "bundle": "pstack",
+      "workflow": [
+        {
+          "role": "reviewer-goal",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [],
+          "suite": "pstack",
+          "instruction": "For a large branch, run both thermo reviews as background subagents and synthesize their findings, deduplicated, before you write the review."
+        }
+      ]
+    },
+    {
+      "id": "pstack-fix-merge-conflicts",
+      "name": "fix-merge-conflicts",
+      "summary": "Resolve merge conflicts non-interactively, validate the build and tests, stage the result.",
+      "why": "A merger that resolves each conflict with the smallest correctness-first edit, keeps both sides when safe, regenerates lockfiles with the package manager and runs the build before staging leaves nothing for a person to redo.",
+      "tier": "recommended",
+      "source": {
+        "type": "suite",
+        "suite": "pstack"
+      },
+      "roles": [
+        "merger"
+      ],
+      "tags": [
+        "workflow"
+      ],
+      "homepage": "https://github.com/michael-denyer/pstack-claude/tree/main/plugins/pstack/skills/fix-merge-conflicts",
+      "bundle": "pstack",
+      "workflow": [
+        {
+          "role": "merger",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [],
+          "suite": "pstack",
+          "instruction": "Resolve each conflict with minimal, correctness-first edits, keep both sides when safe, regenerate lockfiles with the package manager, run the build and tests, stage; never push or tag."
+        }
+      ]
+    },
+    {
+      "id": "pstack-technical-writing",
+      "name": "technical-writing",
+      "summary": "Diátaxis structure, Google developer-style sentences, STE instruction rules.",
+      "why": "The completion documents read better when their structure and sentences follow one standard; this one is layered and specific.",
+      "tier": "recommended",
+      "source": {
+        "type": "suite",
+        "suite": "pstack"
+      },
+      "roles": [
+        "documenter"
+      ],
+      "tags": [
+        "workflow"
+      ],
+      "homepage": "https://github.com/michael-denyer/pstack-claude/tree/main/plugins/pstack/skills/technical-writing",
+      "bundle": "pstack",
+      "workflow": [
+        {
+          "role": "documenter",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [],
+          "suite": "pstack",
+          "instruction": "Structure the documents by Diátaxis — tutorial, how-to, reference, explanation — and write Google developer-style sentences; keep instructions in STE form."
+        }
       ]
     },
     {
