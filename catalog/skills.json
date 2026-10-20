@@ -1107,27 +1107,6 @@
       ]
     },
     {
-      "id": "gstack",
-      "name": "gstack",
-      "summary": "Garry Tan's large skill suite (review, QA, ship, design…).",
-      "why": "Powerful but heavyweight: it is a git clone that flattens ~60 skills into ~/.claude/skills and installs its own hooks, so it must be installed and upgraded with its own tooling, not copied by Foundry. This catalog recipe is for Claude only. Upstream’s experimental Codex port uses separate setup and requires authenticated Claude CLI for outside reviews; it is not part of Foundry’s ChatGPT-only setup.",
-      "tier": "optional",
-      "source": {
-        "type": "manual",
-        "install": "git clone https://github.com/garrytan/gstack ~/.claude/skills/gstack && ~/.claude/skills/gstack/setup",
-        "docs": "https://github.com/garrytan/gstack",
-        "detectDir": "gstack"
-      },
-      "roles": [],
-      "tags": [
-        "suite"
-      ],
-      "homepage": "https://github.com/garrytan/gstack",
-      "providers": [
-        "claude"
-      ]
-    },
-    {
       "id": "prototype",
       "name": "prototype",
       "summary": "Throwaway code that answers one question: a terminal app for logic, or several radically different UI variants.",

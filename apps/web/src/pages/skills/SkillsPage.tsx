@@ -14,12 +14,11 @@ type Report = SkillsUpdateReport & { updating: string | null; refreshing: boolea
 type View = { name: string; dir: string; invoke: string; skillMd: string | null; files: { path: string; size: number }[] };
 
 /** Sources of the same kind sit together, engine-managed first, loose copies last. */
-const MANAGER_ORDER = ['foundry', 'plugin', 'agents-cli', 'gstack', 'hand', 'project'] as const;
+const MANAGER_ORDER = ['foundry', 'plugin', 'agents-cli', 'hand', 'project'] as const;
 const MANAGER_HEADING: Record<(typeof MANAGER_ORDER)[number], string> = {
   foundry: 'Managed by Foundry',
   plugin: 'Claude plugins',
   'agents-cli': 'npx skills',
-  gstack: 'gstack',
   hand: 'Hand-installed',
   project: 'Project skills',
 };

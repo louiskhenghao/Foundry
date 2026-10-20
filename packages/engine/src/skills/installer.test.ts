@@ -94,7 +94,6 @@ describe('installer', () => {
     expect(existsSync(join(trash.path, 'SKILL.md'))).toBe(true);
     const { path } = await manager.restore('bar');
     expect(existsSync(join(path, 'SKILL.md'))).toBe(true);
-    await expect(manager.uninstall('gstack')).rejects.toMatchObject({ reason: 'managed-by-gstack' });
     await expect(manager.uninstall('linked')).rejects.toMatchObject({ reason: 'managed-needs-force' });
     const { trash: t2 } = await manager.uninstall('linked', { force: true });
     expect(t2.wasSymlink).toBe(true);

@@ -31,7 +31,7 @@ export interface FakeHome {
 
 /**
  * Builds a ~/.claude that exhibits every provenance family we classify:
- * plain dir, agents-cli symlink, broken symlink, gstack clone + flattened copy, manifest.json,
+ * plain dir, agents-cli symlink, broken symlink, manifest.json,
  * foundry marker, a user `tdd` that duplicates a plugin skill, two plugins (array + dir form),
  * and a repo with project skills.
  */
@@ -53,15 +53,6 @@ export function makeFakeHome(): FakeHome {
   symlinkSync(join('..', '..', '.agents', 'skills', 'linked'), join(s, 'linked'));
   writeFileSync(paths.agentsLock, JSON.stringify({ version: 3, skills: { linked: { source: 'x/y', sourceType: 'github' } } }));
   symlinkSync(join('..', '..', '.agents', 'skills', 'gone'), join(s, 'broken'));
-
-  // gstack clone + flattened copy
-  mkdirSync(join(s, 'gstack', '.git'), { recursive: true });
-  mkdirSync(join(s, 'gstack', 'autoplan'));
-  writeFileSync(join(s, 'gstack', 'SKILL.md'), skillMd('gstack', 'router'));
-  const autoplan = skillMd('autoplan', 'gstack autoplan');
-  writeFileSync(join(s, 'gstack', 'autoplan', 'SKILL.md'), autoplan);
-  mkdirSync(join(s, 'autoplan'));
-  writeFileSync(join(s, 'autoplan', 'SKILL.md'), autoplan);
 
   // manifest.json family
   mkdirSync(join(s, 'withmanifest'));
@@ -100,7 +91,7 @@ export function makeFakeHome(): FakeHome {
   );
 
   // settings.json with one good and one missing hook path
-  writeFileSync(join(claudeHome, 'settings.json'), JSON.stringify({ hooks: { SessionStart: [{ hooks: [{ type: 'command', command: join(s, 'gstack', 'SKILL.md') }, { type: 'command', command: '/definitely/missing/hook.sh' }] }] } }));
+  writeFileSync(join(claudeHome, 'settings.json'), JSON.stringify({ hooks: { SessionStart: [{ hooks: [{ type: 'command', command: join(s, 'plain', 'SKILL.md') }, { type: 'command', command: '/definitely/missing/hook.sh' }] }] } }));
 
   // project repo with .claude/skills (one real dir, one symlink into <repo>/skills)
   const repo = join(home, 'repo');

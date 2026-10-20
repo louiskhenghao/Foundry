@@ -240,8 +240,6 @@ const STATE_COLORS: Record<string, string> = {
   process: 'bg-zinc-800 text-zinc-300 border-zinc-700',
   'holder-unknown': 'bg-amber-500/15 text-amber-300 border-amber-500/30',
   'agents-cli': 'bg-zinc-800 text-zinc-300 border-zinc-700',
-  gstack: 'bg-orange-500/15 text-orange-300 border-orange-500/30',
-  'gstack-copy': 'bg-orange-500/10 text-orange-300/80 border-orange-500/20',
   manifest: 'bg-zinc-800 text-zinc-300 border-zinc-700',
   symlink: 'bg-zinc-800 text-zinc-300 border-zinc-700',
   warn: 'bg-amber-500/20 text-amber-300',

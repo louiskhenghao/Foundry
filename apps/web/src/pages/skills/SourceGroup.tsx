@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, ExternalLink, Eye, RefreshCw } from 'lucide-
 import { type ReactNode, useState } from 'react';
 import { Badge, Button, CopyButton, ago, cn } from '../../ui.tsx';
 
-const MANAGER_LABEL: Record<SkillSource['manager'], string> = { 'foundry': 'Foundry', 'agents-cli': 'npx skills', plugin: 'Claude plugin', gstack: 'gstack', hand: 'hand-installed', project: 'project' };
+const MANAGER_LABEL: Record<SkillSource['manager'], string> = { 'foundry': 'Foundry', 'agents-cli': 'npx skills', plugin: 'Claude plugin', hand: 'hand-installed', project: 'project' };
 const STATUS_LABEL: Record<SkillSourceRow['status'], string> = { 'up-to-date': 'up to date', outdated: 'outdated', unreleased: 'unreleased', modified: 'modified', unknown: 'unknown', broken: 'broken' };
 const DOT: Record<string, string> = { 'up-to-date': 'bg-emerald-400', outdated: 'bg-amber-400', unreleased: 'bg-violet-400', modified: 'bg-sky-400', broken: 'bg-rose-400', unknown: 'bg-zinc-600' };
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: new Date(iso).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }) : null);

@@ -25,15 +25,9 @@ describe('scanner', () => {
     expect(by('plain').description).toBe('Quoted description');
     expect(by('linked')).toMatchObject({ managedBy: 'agents-cli', symlink: { broken: false }, description: 'folded block description' });
     expect(by('broken')).toMatchObject({ managedBy: 'agents-cli', symlink: { broken: true }, canUninstall: true });
-    expect(by('gstack')).toMatchObject({ managedBy: 'gstack', canUninstall: false });
-    expect(by('autoplan')).toMatchObject({ managedBy: 'gstack-copy', canUninstall: true });
     expect(by('withmanifest')).toMatchObject({ managedBy: 'manifest', version: '1.2.3', manifest: { homepage: 'https://example.com/x' } });
     expect(by('managed')).toMatchObject({ managedBy: 'foundry', marker: { catalogId: 'managed', commit: 'abc1234' } });
     expect(by('empty-dir')).toMatchObject({ unparsable: true, skillMd: null });
-  });
-
-  test('gstack subdirectories are not enumerated as skills', () => {
-    expect(scan.installed.filter((r) => r.dir.includes('/gstack/') && r.scope === 'user')).toHaveLength(0);
   });
 
   test('plugins: array form, dir form, and a broken install path', () => {
