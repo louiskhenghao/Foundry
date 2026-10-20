@@ -103,8 +103,8 @@ describe('Clarify writes the Brief, a planner session writes its plan', () => {
     expect(planner.prompt).toContain('"goalChecks"');
     const b = getBrief(e.store.db, goal.id)!.brief;
     expect(b.tasks.map((t) => t.title)).toEqual(['Planner task']);
-    // the goal check keeps its place beside the task check, under a key of its own
-    expect(b.checks.map((c) => [c.key, c.taskKey])).toEqual([['C1', 'T1'], ['C1-2', null]]);
+    // the goal check, on the Brief since the skeleton, keeps its key; the planner's task check takes one of its own
+    expect(b.checks.map((c) => [c.key, c.taskKey])).toEqual([['C1', null], ['C1-2', 'T1']]);
     expect(b.costEstimateUsd).toBe(1);
     expect(streamed).toContain(`planner ${goal.title}`);
     const events = e.store.listByGoal(goal.id);

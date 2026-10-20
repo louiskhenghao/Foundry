@@ -175,16 +175,24 @@ async function draftSession(engine: Engine, goal: Goal, brief: Brief, req: Draft
       timeoutMs: 5 * 60_000,
       transcriptPath: join(config.dataDir, 'transcripts', `${source}-${goal.id}-${n}.jsonl`),
       label: `draft ${req.mode} ${req.taskKey ?? req.areaKey ?? ''} (${goal.title})`,
+      // a person waits for it on the Brief page: one slot beyond the limit, before queued work
+      lane: 'interactive',
     });
   let cost = 0;
   const exec = async (p: string, resume?: string) => {
     const handle = await run(p, resume);
-    for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: channel, event: ev, ts: new Date().toISOString() });
-    const result = await handle.result;
-    cost += result.costUsd;
-    store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source } });
-    engine.recordSessionUsage(result, { goalId: goal.id, kind: 'clarify', model: modelFor(config, goal, 'clarifier').model });
-    return result;
+    // tracked with the goal's background sessions: cancelling the goal kills it
+    const untrack = engine.trackBackground(goal.id, handle);
+    try {
+      for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: channel, event: ev, ts: new Date().toISOString() });
+      const result = await handle.result;
+      cost += result.costUsd;
+      store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source } });
+      engine.recordSessionUsage(result, { goalId: goal.id, kind: 'clarify', model: modelFor(config, goal, 'clarifier').model });
+      return result;
+    } finally {
+      untrack();
+    }
   };
   return { exec, prompt, cost: () => cost, say, outputSchema };
 }

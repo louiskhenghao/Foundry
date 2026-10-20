@@ -37,7 +37,8 @@ const NatureVerdict = z.object({ nature: z.enum(['code', 'docs', 'research', 'im
 async function classifyNature(engine: Engine, goal: Goal, ws: string, cad: boolean): Promise<GoalNature | null> {
   try {
     // cad is offered only where text-to-cad is installed: a goal that needs it on another machine is code work
-    const handle = await engine.runner.run({
+    const { handle, untrack } = await startSession(engine, goal, 'clarifying', () =>
+      engine.runner.run({
       prompt: `Classify what this goal produces. code = software changes; docs = prose/documents; research = an investigation ending in a cited report; image = generated/edited images; video = generated/edited video or audio${cad ? '; cad = 3D parts or assemblies (STEP/STL/3MF), engineering drawings, DXF cut profiles or robot description files (URDF/SDF)' : ''}. Pick the dominant one for mixed goals.\n\n# Goal\n${goal.prompt.slice(0, 4000)}`,
       cwd: ws,
       model: goal.models.cheap,
@@ -49,14 +50,20 @@ async function classifyNature(engine: Engine, goal: Goal, ws: string, cad: boole
       jsonSchema: zodToJsonSchema(NatureVerdict, { $refStrategy: 'none' }),
       timeoutMs: 60_000,
       label: `classify nature ${goal.title}`,
-    });
-    for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: `clarify-${goal.id}`, event: ev, ts: new Date().toISOString() });
-    const r = await handle.result;
-    engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: r.costUsd, source: 'clarify' } });
-    engine.recordSessionUsage(r, { goalId: goal.id, kind: 'clarify', model: goal.models.cheap });
-    const parsed = NatureVerdict.safeParse(r.structuredOutput ?? tryJson(r.finalText));
-    if (!parsed.success) return null;
-    return parsed.data.nature === 'cad' && !cad ? 'code' : parsed.data.nature;
+      lane: 'interactive',
+      }),
+    );
+    try {
+      for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: `clarify-${goal.id}`, event: ev, ts: new Date().toISOString() });
+      const r = await handle.result;
+      engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: r.costUsd, source: 'clarify' } });
+      engine.recordSessionUsage(r, { goalId: goal.id, kind: 'clarify', model: goal.models.cheap });
+      const parsed = NatureVerdict.safeParse(r.structuredOutput ?? tryJson(r.finalText));
+      if (!parsed.success) return null;
+      return parsed.data.nature === 'cad' && !cad ? 'code' : parsed.data.nature;
+    } finally {
+      untrack();
+    }
   } catch {
     return null;
   }
@@ -112,22 +119,26 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
   const ws = await engine.ensureSyncedWorkspace(goal);
   // text-to-cad installed for this goal's coding agent: cad can be offered, judged and planned (asked once for the whole run)
   const cadAvailable = await engine.cadAvailable(goal);
-  // auto goals: settle the nature BEFORE building the prompt, so its sections and skill hints match the goal
+  // auto goals: settle the nature BEFORE building the prompt, so its sections and skill hints match the goal. The
+  // classification (a short model call) and the repository overview (graphify may build its graph first) run side by side.
   const wasAuto = goal.nature === 'auto';
   let nature = goal.nature;
-  if (wasAuto) {
-    const n = await classifyNature(engine, goal, ws, cadAvailable);
-    if (n) {
-      nature = n;
-      store.append({ type: 'goal.nature_set', goalId: goal.id, payload: { nature: n, reason: 'pre-clarify classification' } });
-    }
+  const [verdict, base, log] = await Promise.all([
+    wasAuto ? classifyNature(engine, goal, ws, cadAvailable) : Promise.resolve(null),
+    engine.context
+      .prepare(ws)
+      .catch((err) => config.log(`[clarify] context prepare failed: ${err}`))
+      .then(() => engine.context.overview(ws).catch(() => null)),
+    // recent commit subjects: the clarifier matches their language and style for task titles
+    git(['log', '--no-merges', '--format=%s', '-n', '8', '--', '.'], ws).catch(() => null),
+  ]);
+  if (wasAuto && verdict) {
+    nature = verdict;
+    store.append({ type: 'goal.nature_set', goalId: goal.id, payload: { nature: verdict, reason: 'pre-clarify classification' } });
   }
-  await engine.context.prepare(ws).catch((err) => config.log(`[clarify] context prepare failed: ${err}`));
-  let overview = await engine.context.overview(ws).catch(() => null);
+  let overview = base;
   const sync = getGoal(store.db, goal.id)?.baseSync;
   if (sync && sync.startedFrom === 'remote') overview = `${overview ?? ''}\n\n## Base branch\nThis checkout is ${sync.remote}/${sync.base} (${sync.behind} commit(s) newer than the local ${sync.base}).`.trim();
-  // recent commit subjects: the clarifier matches their language and style for task titles
-  const log = await git(['log', '--no-merges', '--format=%s', '-n', '8', '--', '.'], ws).catch(() => null);
   if (log && log.code === 0 && log.stdout.trim()) overview = `${overview ?? ''}\n\n## Recent commits\n${log.stdout.trim()}`.trim();
 
   const scenario = natureScenario(nature);
@@ -172,6 +183,8 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
       idleTimeoutMs: 10 * 60_000,
       transcriptPath,
       label: `clarify ${goal.title}`,
+      // a person waits for it: one slot beyond the limit, before queued work
+      lane: 'interactive',
     });
   const plannerModel = modelFor(config, classifiedGoal, 'planner');
   const planner = {
@@ -199,6 +212,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
         idleTimeoutMs: 10 * 60_000,
         transcriptPath: join(config.dataDir, 'transcripts', `planner-${goal.id}.jsonl`),
         label: `planner ${goal.title}`,
+        lane: 'interactive',
       }),
   };
   return { ws, prompt, wasAuto, nature, cadAvailable, extraQuestions, run, planner };
@@ -212,15 +226,18 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
 async function planTasks(engine: Engine, goal: Goal, ctx: ClarifyContext, skeleton: BriefSkeleton): Promise<PlanOutput | null> {
   const { store } = engine;
   const run = async (resume?: { sessionId: string; message: string }): Promise<{ plan: PlanOutput | null; result: RunResult }> => {
-    const handle = await ctx.planner.run(skeleton, resume);
-    for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: `clarify-${goal.id}`, event: ev, ts: new Date().toISOString() });
-    const result = await handle.result;
-    store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source: 'planner' } });
-    engine.recordSessionUsage(result, { goalId: goal.id, kind: 'planner', model: ctx.planner.model });
-    const parsed = PlanOutput.safeParse(result.structuredOutput ?? tryJson(result.finalText));
-    return { plan: parsed.success && !result.isError ? parsed.data : null, result };
+    const { handle, untrack } = await startSession(engine, goal, 'planning', () => ctx.planner.run(skeleton, resume));
+    try {
+      for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: `clarify-${goal.id}`, event: ev, ts: new Date().toISOString() });
+      const result = await handle.result;
+      store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source: 'planner' } });
+      engine.recordSessionUsage(result, { goalId: goal.id, kind: 'planner', model: ctx.planner.model });
+      const parsed = PlanOutput.safeParse(result.structuredOutput ?? tryJson(result.finalText));
+      return { plan: parsed.success && !result.isError ? parsed.data : null, result };
+    } finally {
+      untrack();
+    }
   };
-  store.append({ type: 'clarify.stage', goalId: goal.id, payload: { stage: 'planning' } });
   let { plan, result } = await run();
   if (!plan && result.sessionId && repairable(result)) ({ plan, result } = await run({ sessionId: result.sessionId, message: 'No usable plan came back (it ended early or did not match the required JSON schema). Output ONLY the plan JSON now: {"tasks": [...], "checks": [...], "costEstimateUsd": n, "timeEstimateMin": n}.' }));
   if (!plan) {
@@ -259,21 +276,106 @@ export function mergePlan(skeleton: BriefSkeleton, plan: PlanOutput): BriefOutpu
   return { ...rest, tasks, checks: [...taskChecks, ...goalLevel], costEstimateUsd: plan.costEstimateUsd, timeEstimateMin: plan.timeEstimateMin };
 }
 
-/** No plan came back: one task per Area from the Clarifier's notes, and a blocking question so the human sees why */
-function unplanned(skeleton: BriefSkeleton): BriefOutput {
-  const tasks = skeleton.areas.map((a, i) => ({ key: `T${i + 1}`, title: `build ${a.name}`.slice(0, 60), spec: `${a.description}\n\n${skeleton.planningNotes}`, kind: 'feature' as const, scenario: 'general' as const, areaKey: a.key, dependsOnKeys: [], parallelizable: false, relevantFiles: [], difficulty: 'standard' as const }));
-  return mergePlan({ ...skeleton, openQuestions: [...skeleton.openQuestions, { text: 'The planner could not split this goal into tasks, so each Area is one task for now. Draft tasks for an Area on this page, or edit them, then answer "ok" here.', blocking: true, areaKey: null, options: [] }] }, { tasks, checks: [], costEstimateUsd: 0, timeEstimateMin: 0 });
+/** the planner's part of a Brief, empty: what a skeleton is stored with until the plan arrives */
+const EMPTY_PLAN: PlanOutput = { tasks: [], checks: [], costEstimateUsd: 0, timeEstimateMin: 0 };
+
+/**
+ * The planner's tasks, task-level checks and estimate filled into the Brief as it stands (the skeleton, with whatever
+ * the person edited meanwhile): understanding, Areas, assumptions, questions and goal-level checks are kept as they
+ * are. A task of an Area the person deleted meanwhile is dropped with its checks; task check keys stay unique against
+ * the kept goal-level ones. No plan: one task per Area and a blocking question, so the person sees why.
+ */
+export function fillPlan(goal: Goal, current: Brief, skeleton: BriefSkeleton, plan: PlanOutput | null): Brief {
+  const areas = new Set(current.areas.map((a) => a.key));
+  const planned: PlanOutput = plan ?? {
+    tasks: current.areas.map((a, i) => ({ key: `T${i + 1}`, title: `build ${a.name}`.slice(0, 60), spec: `${a.description}\n\n${skeleton.planningNotes}`, kind: 'feature' as const, scenario: 'general' as const, areaKey: a.key, dependsOnKeys: [], parallelizable: false, relevantFiles: [], difficulty: 'standard' as const })),
+    checks: [],
+    costEstimateUsd: 0,
+    timeEstimateMin: 0,
+  };
+  const tasks = planned.tasks.filter((t) => !t.areaKey || areas.has(t.areaKey));
+  // the plan as a Brief holds it, against the Areas as they are now; goal-level checks, questions and style come from `current`
+  const merged = toBrief(goal, mergePlan({ ...skeleton, areas: current.areas, goalChecks: [], openQuestions: [], styleOptions: [], subjects: [] }, { ...planned, tasks }), []);
+  const used = new Set(current.checks.filter((c) => c.taskKey === null).map((c) => c.key));
+  const taskChecks = merged.checks.filter((c) => c.taskKey !== null).map((c) => ({ ...c, key: claim(used, c.key) }));
+  const brief: Brief = { ...current, tasks: merged.tasks, checks: [...current.checks.filter((c) => c.taskKey === null), ...taskChecks], costEstimateUsd: merged.costEstimateUsd, timeEstimateMin: merged.timeEstimateMin };
+  if (!plan) brief.questions = [...brief.questions, { id: newId('q'), text: 'The planner could not split this goal into tasks, so each Area is one task for now. Draft tasks for an Area on this page, or edit them, then answer "ok" here.', answer: null, blocking: true, areaKey: null, options: [], kind: 'text', applied: false }];
+  return brief;
+}
+
+/** the goal moved on while a session ran (cancelled, deleted): what the session returned is not written */
+const gone = (engine: Engine, goalId: string): boolean => getGoal(engine.store.db, goalId)?.state !== 'clarifying';
+
+/**
+ * Start a session of the Clarify phase. The wait is recorded as a step of its own when every slot is taken (the goal
+ * page shows it with a timer), the stage itself once the session has its slot — not again when it already shows, so a
+ * repair turn does not restart the timer. The handle is tracked with the goal's background sessions, so cancelling the
+ * goal kills it.
+ */
+async function startSession(engine: Engine, goal: Goal, stage: 'clarifying' | 'planning', start: () => Promise<RunHandle>): Promise<{ handle: RunHandle; untrack: () => void }> {
+  const at = (s: 'queued' | 'clarifying' | 'planning') => {
+    if (getGoal(engine.store.db, goal.id)?.clarifyStage?.stage !== s) engine.store.append({ type: 'clarify.stage', goalId: goal.id, payload: { stage: s } });
+  };
+  if (engine.runner.wouldQueue?.('interactive')) at('queued');
+  const handle = await start();
+  // cancelled while it waited for a slot (a waiting session cannot be killed, it has no process yet): killed as it starts
+  if (gone(engine, goal.id)) handle.kill('killed_manual');
+  else at(stage);
+  return { handle, untrack: engine.trackBackground(goal.id, handle) };
+}
+
+/** a cad verdict without text-to-cad on this computer is code work; the Clarifier's verdict wins over the pre-classification, never over a nature the user chose */
+function settleNature(engine: Engine, goal: Goal, ctx: ClarifyContext, o: Pick<BriefOutput, 'nature'>): void {
+  if (o.nature === 'cad' && !ctx.cadAvailable) o.nature = 'code';
+  if (ctx.wasAuto && o.nature !== ctx.nature) engine.store.append({ type: 'goal.nature_set', goalId: goal.id, payload: { nature: o.nature, reason: ctx.nature === 'auto' ? 'clarifier verdict' : `clarifier verdict (over pre-classification: ${ctx.nature})` } });
+}
+
+/**
+ * Subjects: the ones the goal starts with (a main goal's, an earlier goal's) and those on the Brief before a Re-run
+ * Clarify keep their pictures; the Clarifier's new ones follow, with the attached images it named as the person's pictures.
+ */
+function subjectsFor(engine: Engine, goal: Goal, parsed: Pick<BriefOutput, 'subjects'> | null): Brief['subjects'] {
+  return mergeSubjects(goal.delegatedFrom?.subjects ?? goal.follows?.subjects ?? [], getBrief(engine.store.db, goal.id)?.brief.subjects ?? [], parsed ? subjectsFromClarifier(engine, goal, parsed.subjects) : []);
+}
+
+/** the interview is over once the Brief (or its skeleton) is written: recorded once, with why it ended */
+function finishInterview(engine: Engine, goal: Goal): void {
+  const iv = goal.interview;
+  if (!iv || iv.status === 'done') return;
+  engine.store.append({ type: 'interview.finished', goalId: goal.id, payload: { rounds: iv.rounds.length, reason: iv.rounds.at(-1)?.finish ? 'human' : iv.rounds.length === 0 ? 'nothing_to_ask' : iv.rounds.length >= INTERVIEW_MAX_ROUNDS ? 'cap' : 'brief' } });
+}
+
+/**
+ * Skeleton first (ADR-0046): the Clarifier's Brief without its tasks is stored and shown at once, editable while the
+ * planner splits the goal into tasks; the plan is then filled into the Brief as it stands, the person's edits kept.
+ * null when the goal moved on meanwhile (cancelled): nothing is written then.
+ */
+async function planSkeleton(engine: Engine, goal: Goal, ctx: ClarifyContext, skeleton: BriefSkeleton, decisions: Brief['questions']): Promise<Brief | null> {
+  const { store } = engine;
+  settleNature(engine, goal, ctx, skeleton);
+  const provisional = toBrief(goal, mergePlan(skeleton, EMPTY_PLAN), decisions);
+  provisional.subjects = subjectsFor(engine, goal, skeleton);
+  // nothing more is asked once the skeleton is written: the interview is over before the plan
+  finishInterview(engine, goal);
+  store.append({ type: 'brief.skeleton_proposed', goalId: goal.id, payload: { brief: provisional } });
+  const plan = await planTasks(engine, goal, ctx, skeleton);
+  if (gone(engine, goal.id)) return null;
+  // the Brief as it stands now: the person may have edited it while the planner worked
+  return fillPlan(goal, getBrief(store.db, goal.id)?.brief ?? provisional, skeleton, plan);
 }
 
 /** run one Clarify turn (fresh or resumed), streaming it to the goal's clarify channel and booking its cost */
 async function turn(engine: Engine, goal: Goal, ctx: ClarifyContext, message: string, resume: string | undefined, source: string): Promise<RunResult> {
-  engine.store.append({ type: 'clarify.stage', goalId: goal.id, payload: { stage: 'clarifying' } });
-  const handle = await ctx.run(message, resume);
-  for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: `clarify-${goal.id}`, event: ev, ts: new Date().toISOString() });
-  const result = await handle.result;
-  engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source } });
-  engine.recordSessionUsage(result, { goalId: goal.id, kind: 'clarify', model: modelFor(engine.config, { ...goal, nature: ctx.nature }, 'clarifier').model });
-  return result;
+  const { handle, untrack } = await startSession(engine, goal, 'clarifying', () => ctx.run(message, resume));
+  try {
+    for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: `clarify-${goal.id}`, event: ev, ts: new Date().toISOString() });
+    const result = await handle.result;
+    engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source } });
+    engine.recordSessionUsage(result, { goalId: goal.id, kind: 'clarify', model: modelFor(engine.config, { ...goal, nature: ctx.nature }, 'clarifier').model });
+    return result;
+  } finally {
+    untrack();
+  }
 }
 
 /**
@@ -299,6 +401,7 @@ export async function runClarify(engine: Engine, goal: Goal): Promise<void> {
   try {
     store.append({ type: 'clarify.started', goalId: goal.id, payload: { attemptId: null } });
     const ctx = await prepareClarify(engine, goal);
+    if (gone(engine, goal.id)) return; // cancelled while the workspace and the classification were prepared
     const result = await turn(engine, goal, ctx, ctx.prompt, undefined, 'clarify');
     await settle(engine, getGoal(store.db, goal.id)!, ctx, result);
   } catch (err) {
@@ -440,6 +543,7 @@ async function settle(engine: Engine, goal: Goal, ctx: ClarifyContext, first: Ru
     out = parseTurn(result.structuredOutput ?? tryJson(result.finalText));
   }
 
+  if (gone(engine, goal.id)) return; // cancelled while the session ran: its answer is not written
   // a round of questions: the goal waits for the human
   if (iv && out && out.questions.length && !out.brief && !out.full && canAskMore(iv)) {
     const questions = normalizeQuestions(iv, out.questions);
@@ -452,39 +556,36 @@ async function settle(engine: Engine, goal: Goal, ctx: ClarifyContext, first: Ru
     out = parseTurn(result.structuredOutput ?? tryJson(result.finalText));
   }
 
-  // the Clarifier wrote everything but the plan: the planner adds it, once
-  let parsed: BriefOutput | null = out?.full ?? null;
-  if (out?.brief) {
-    const plan = await planTasks(engine, goal, ctx, out.brief);
-    parsed = plan ? mergePlan(out.brief, plan) : unplanned(out.brief);
-  } else if (parsed && result.sessionId) {
-    // a whole Brief (tasks included) from the Clarifier itself: it repairs an Area it left without tasks
-    const missing = uncoveredAreas({ areas: parsed.areas, tasks: parsed.tasks });
-    if (missing.length) {
-      const r2 = await turn(engine, goal, ctx, coverageRepairMessage(missing, 'Brief'), result.sessionId, 'clarify-coverage');
-      const repaired = parseTurn(r2.structuredOutput ?? tryJson(r2.finalText));
-      if (repaired?.full) parsed = repaired.full;
-      // the session's schema allows only the skeleton: a skeleton back is planned like any other
-      else if (repaired?.brief) {
-        const plan = await planTasks(engine, goal, ctx, repaired.brief);
-        parsed = plan ? mergePlan(repaired.brief, plan) : unplanned(repaired.brief);
-      } else store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `coverage repair did not return a valid Brief; keeping the first one (${missing.map((a) => a.name).join(', ')} uncovered)` } });
-    }
-  }
+  if (gone(engine, goal.id)) return;
 
-  // a cad verdict without text-to-cad on this computer is code work (the Clarifier was not offered cad, but may still say it)
-  if (parsed && parsed.nature === 'cad' && !ctx.cadAvailable) parsed.nature = 'code';
-  // the Clarifier's verdict wins over the pre-classification, but never over a nature the user chose
-  if (parsed && ctx.wasAuto && parsed.nature !== ctx.nature) {
-    store.append({ type: 'goal.nature_set', goalId: goal.id, payload: { nature: parsed.nature, reason: ctx.nature === 'auto' ? 'clarifier verdict' : `clarifier verdict (over pre-classification: ${ctx.nature})` } });
-  }
-  let brief: Brief;
-  const decisions = interviewDecisions(iv);
-  if (parsed) {
-    brief = toBrief(goal, parsed, [...decisions, ...ctx.extraQuestions]);
-    // still uncovered after the repair turn: leave the gap to the human (Draft on the Brief page, or delete the Area)
-    for (const a of uncoveredAreas(brief)) {
-      brief.questions.push({ id: newId('q'), text: `Area "${a.name}" has no tasks yet. Use "Draft tasks for this Area" on the Brief page, or delete the Area if this goal does not cover it.`, answer: null, blocking: false, areaKey: a.key, options: [], kind: 'text', applied: false });
+  // the interview's answers and notes, and the engine's own questions (a dirty checkout…), as the Brief's Decisions
+  const decisions = [...interviewDecisions(iv), ...ctx.extraQuestions];
+  let brief: Brief | null = null;
+  if (out?.brief) {
+    // the Clarifier wrote everything but the plan: the skeleton is shown at once, the planner adds the tasks
+    brief = await planSkeleton(engine, goal, ctx, out.brief, decisions);
+    if (!brief) return;
+  } else if (out?.full) {
+    let parsed = out.full;
+    if (result.sessionId) {
+      // a whole Brief (tasks included) from the Clarifier itself: it repairs an Area it left without tasks
+      const missing = uncoveredAreas({ areas: parsed.areas, tasks: parsed.tasks });
+      if (missing.length) {
+        const r2 = await turn(engine, goal, ctx, coverageRepairMessage(missing, 'Brief'), result.sessionId, 'clarify-coverage');
+        if (gone(engine, goal.id)) return;
+        const repaired = parseTurn(r2.structuredOutput ?? tryJson(r2.finalText));
+        if (repaired?.full) parsed = repaired.full;
+        // the session's schema allows only the skeleton: a skeleton back is planned like any other
+        else if (repaired?.brief) {
+          brief = await planSkeleton(engine, goal, ctx, repaired.brief, decisions);
+          if (!brief) return;
+        } else store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `coverage repair did not return a valid Brief; keeping the first one (${missing.map((a) => a.name).join(', ')} uncovered)` } });
+      }
+    }
+    if (!brief) {
+      settleNature(engine, goal, ctx, parsed);
+      brief = toBrief(goal, parsed, decisions);
+      brief.subjects = subjectsFor(engine, goal, parsed);
     }
   } else {
     brief = {
@@ -502,15 +603,16 @@ async function settle(engine: Engine, goal: Goal, ctx: ClarifyContext, first: Ru
       styleOptions: [],
       questions: [
         ...decisions,
-        ...ctx.extraQuestions,
         { id: newId('q'), text: 'The clarifier could not produce a structured Brief. Edit the tasks and checks manually, then answer "ok" here.', answer: null, blocking: true, areaKey: null, options: [], kind: 'text', applied: false },
       ],
     };
+    brief.subjects = subjectsFor(engine, goal, null);
   }
-  // Subjects: the ones it starts with (a main goal's, an earlier goal's) and those on the Brief before a Re-run Clarify keep
-  // their pictures; the Clarifier's new ones follow, with the attached images it named as the person's pictures
-  brief.subjects = mergeSubjects(goal.delegatedFrom?.subjects ?? goal.follows?.subjects ?? [], getBrief(store.db, goal.id)?.brief.subjects ?? [], parsed ? subjectsFromClarifier(engine, goal, parsed.subjects) : []);
-  if (iv) store.append({ type: 'interview.finished', goalId: goal.id, payload: { rounds: iv.rounds.length, reason: iv.rounds.at(-1)?.finish ? 'human' : iv.rounds.length === 0 ? 'nothing_to_ask' : iv.rounds.length >= INTERVIEW_MAX_ROUNDS ? 'cap' : 'brief' } });
+  // still uncovered after the repair turn (or an Area added while the planner worked): leave the gap to the human
+  for (const a of uncoveredAreas(brief)) {
+    brief.questions.push({ id: newId('q'), text: `Area "${a.name}" has no tasks yet. Use "Draft tasks for this Area" on the Brief page, or delete the Area if this goal does not cover it.`, answer: null, blocking: false, areaKey: a.key, options: [], kind: 'text', applied: false });
+  }
+  finishInterview(engine, getGoal(store.db, goal.id) ?? goal);
   store.append({ type: 'brief.proposed', goalId: goal.id, payload: { brief } });
   store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'clarifying', to: 'awaiting_brief_approval', reason: 'brief proposed' } });
 }

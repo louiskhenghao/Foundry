@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import type { BriefOutput } from '@foundry/core';
+import type { BriefOutput, BriefSkeleton, PlanOutput } from '@foundry/core';
 import { INTERVIEW_MAX_ROUNDS, getBrief, getGoal, listTasks, noteQuestion, renderDecisions } from '@foundry/core';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
 import { defaultConfig } from './config.ts';
@@ -576,6 +576,128 @@ describe('clarify interview', () => {
     engine2.cancelGoal(g2.id);
     await Bun.sleep(150);
   }, 60_000);
+});
+
+describe('skeleton first', () => {
+  const skeleton = (): BriefSkeleton => ({ title: 'feat(portal): build portals', understanding: 'Two portals.', nature: 'code', areas, assumptions: ['a'], openQuestions: [], styleOptions: [], run: null, apps: null, goalChecks: [{ key: 'G1', name: 'G1', tier: 'must', areaKey: null, type: 'command', cmd: 'true', rubric: null }], planningNotes: 'notes' });
+  const plan = (): PlanOutput => ({ tasks: [task('T1', 'A1', 'add student home'), task('T2', 'A2', 'add teacher home', ['T1'])], checks: [{ ...check('C1', 'T1'), taskKey: 'T1' }, { ...check('G1', 'T2'), taskKey: 'T2' }], costEstimateUsd: 4, timeEstimateMin: 30 });
+  const ok = (): RunResult => ({ sessionId: 'held', subtype: 'success', isError: false, costUsd: 0, numTurns: 1, durationMs: 1, usage: null, modelUsage: null, permissionDenials: [], finalText: null, structuredOutput: null, exitCode: 0, pid: null, rateLimit: null, errorMessage: null, failureClass: null, skillsUsed: [], toolsUsed: {} });
+  const idle = async function* (): AsyncGenerator<RunnerEvent> {};
+
+  /** answers like StructuredRunner, but a planner session waits until the test opens the gate */
+  class GatedRunner extends StructuredRunner {
+    open!: () => void;
+    private gate = new Promise<void>((r) => (this.open = r));
+    override async run(spec: RunSpec): Promise<RunHandle> {
+      if (spec.label?.startsWith('planner')) await this.gate;
+      return super.run(spec);
+    }
+  }
+
+  test('the skeleton is stored and shown while the planner works; the edits made meanwhile survive the plan', async () => {
+    const runner = new GatedRunner((spec) => (spec.label?.startsWith('planner') ? plan() : skeleton()));
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'student and teacher portals', repoPath: repo, interview: 'never' });
+    // no Brief yet: nothing to edit
+    expect(() => engine.editBrief(goal.id, { ...briefWith([], []), goalId: goal.id } as never)).toThrow(/cannot be edited/);
+    await waitFor(() => !!getBrief(engine.store.db, goal.id)?.skeleton);
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('clarifying');
+    const stored = getBrief(engine.store.db, goal.id)!;
+    expect(stored.brief.tasks).toEqual([]);
+    expect(stored.brief.areas.map((a) => a.key)).toEqual(['A1', 'A2']);
+    expect(stored.brief.checks.map((c) => [c.key, c.taskKey])).toEqual([['G1', null]]);
+    expect(stored.brief.assumptions.map((a) => a.text)).toEqual(['a']);
+    const types = engine.store.listByGoal(goal.id).map((e) => e.type);
+    expect(types).toContain('brief.skeleton_proposed');
+    expect(types).not.toContain('brief.proposed');
+    // edits while the planner runs: the understanding, a dropped Area, a new Area, an unaccepted assumption
+    const edited = { ...stored.brief, understanding: 'Two portals, students first.', areas: [stored.brief.areas[0]!, { key: 'A3', name: 'Admin', slug: 'admin', description: '' }], assumptions: stored.brief.assumptions.map((a) => ({ ...a, accepted: false })) };
+    engine.editBrief(goal.id, edited);
+    expect(getBrief(engine.store.db, goal.id)).toMatchObject({ skeleton: true, brief: { understanding: 'Two portals, students first.' } });
+    runner.open();
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    const planned = getBrief(engine.store.db, goal.id)!;
+    expect(planned.skeleton).toBe(false);
+    expect(planned.brief.understanding).toBe('Two portals, students first.');
+    expect(planned.brief.assumptions.map((a) => a.accepted)).toEqual([false]);
+    expect(planned.brief.areas.map((a) => a.key)).toEqual(['A1', 'A3']);
+    // the plan filled in: the task of the dropped Area went with its check; the kept goal-level check keeps its key
+    expect(planned.brief.tasks.map((t) => [t.key, t.areaKey])).toEqual([['T1', 'A1']]);
+    expect(planned.brief.checks.map((c) => [c.key, c.taskKey])).toEqual([['G1', null], ['C1', 'T1']]);
+    expect(planned.brief.costEstimateUsd).toBe(4);
+    expect(planned.brief.timeEstimateMin).toBe(30);
+    // the Area added meanwhile has no tasks: the question says so
+    expect(planned.brief.questions.some((q) => q.areaKey === 'A3' && /no tasks yet/.test(q.text))).toBe(true);
+    expect(getGoal(engine.store.db, goal.id)!.clarifyStage).toBeNull();
+    // a save made while the page still showed the skeleton, landing after the plan: the tasks stay
+    engine.editBrief(goal.id, { ...planned.brief, tasks: [], checks: planned.brief.checks.filter((c) => c.taskKey === null), understanding: 'again' }, { skeleton: true });
+    const after = getBrief(engine.store.db, goal.id)!.brief;
+    expect(after.understanding).toBe('again');
+    expect(after.tasks.map((t) => t.key)).toEqual(['T1']);
+    expect(after.checks.map((c) => c.key)).toEqual(['G1', 'C1']);
+    // the classifier, the Clarifier and the planner all ran in the lane a person waits for
+    expect(runner.calls.every((c) => c.lane === 'interactive')).toBe(true);
+  }, 20_000);
+
+  test('cancelling the goal kills the Clarify session; what the killed session returns is not written', async () => {
+    const killed: string[] = [];
+    class HangingRunner extends StructuredRunner {
+      override async run(spec: RunSpec): Promise<RunHandle> {
+        if (!spec.label?.startsWith('clarify')) return super.run(spec);
+        this.calls.push(spec);
+        let end!: (r: RunResult) => void;
+        const result = new Promise<RunResult>((r) => (end = r));
+        return {
+          pid: null,
+          events: idle(),
+          kill: (reason: string) => {
+            killed.push(reason);
+            end({ ...ok(), subtype: 'killed_manual', isError: true, numTurns: 0 });
+          },
+          result,
+        };
+      }
+    }
+    const runner = new HangingRunner(() => skeleton());
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'student and teacher portals', repoPath: repo, interview: 'never' });
+    await waitFor(() => runner.calls.some((c) => c.label?.startsWith('clarify')));
+    engine.cancelGoal(goal.id);
+    expect(killed).toEqual(['killed_manual']);
+    await waitFor(() => !engine.clarifying.has(goal.id));
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('cancelled');
+    expect(getBrief(engine.store.db, goal.id)).toBeNull();
+    expect(engine.store.listByGoal(goal.id).map((e) => e.type)).not.toContain('brief.proposed');
+  });
+
+  test('every slot taken, the one beyond the limit included: the goal says it waits, then Clarify runs in the interactive lane', async () => {
+    const ends: (() => void)[] = [];
+    class HoldingRunner extends StructuredRunner {
+      override async run(spec: RunSpec): Promise<RunHandle> {
+        if (spec.label !== 'hold') return super.run(spec);
+        const result = new Promise<RunResult>((r) => ends.push(() => r(ok())));
+        return { pid: null, events: idle(), kill() {}, result };
+      }
+    }
+    const runner = new HoldingRunner((spec) => (spec.label?.startsWith('planner') ? plan() : skeleton()));
+    const engine = track(new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, log: () => {}, maxConcurrent: 1 }), runner));
+    const held = [await engine.runner.run({ prompt: 'x', cwd: repo, label: 'hold', meta: { provider: 'claude' } }), await engine.runner.run({ prompt: 'x', cwd: repo, label: 'hold', lane: 'interactive', meta: { provider: 'claude' } })];
+    expect(engine.runner.wouldQueue?.('interactive')).toBe(true);
+    const goal = await engine.createGoal({ prompt: 'student and teacher portals', repoPath: repo, interview: 'never' });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.clarifyStage?.stage === 'queued');
+    expect(runner.calls.filter((c) => c.label !== 'hold')).toHaveLength(0);
+    // a work session ends: Clarify gets the slot beyond the limit
+    ends.shift()!();
+    await held[0]!.result;
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval', 20_000);
+    const stages = engine.store.listByGoal(goal.id).filter((e) => e.type === 'clarify.stage').map((e) => (e.payload as { stage: string }).stage);
+    expect(stages[0]).toBe('queued');
+    expect(stages).toContain('clarifying');
+    expect(stages.at(-1)).toBe('planning');
+    expect(runner.calls.filter((c) => c.label !== 'hold').every((c) => c.lane === 'interactive')).toBe(true);
+    ends.shift()!();
+    await held[1]!.result;
+  }, 30_000);
 });
 
 describe('mergePlan', () => {
