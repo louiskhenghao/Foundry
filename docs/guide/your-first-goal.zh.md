@@ -61,7 +61,7 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 
 按顶栏上的 **New goal**。右上角的四个编号步骤（**Goal**、**Repository**、**Budget**、**Delivery**）显示你填到哪了。描述了 goal，**Goal** 就变绿；选好一个可用的文件夹，**Repository** 就变绿。**Budget** 和 **Delivery** 一直是绿的：它们的默认值就能用。表单开头是两张选项卡片，后面是编号 **1** 到 **4** 的卡片。
 
-有几项选择从 [Settings → New goal defaults](./settings.zh.md#new-goal-defaults) 开始：视图、**Fast mode**、TDD、工作流套件，以及交付方式和粒度。你可以在这里为这个 goal 改其中任何一项。你在页面上改过的字段会保留你的选择。
+有几项选择从 [Settings → New goal defaults](./settings.zh.md#new-goal-defaults) 开始：视图、**Fast mode**、TDD、Ponytail、工作流套件，以及交付方式和粒度。你可以在这里为这个 goal 改其中任何一项。你在页面上改过的字段会保留你的选择。 选好可用的仓库文件夹后，未改过的 **Workflow suite**、**TDD** 和 **Ponytail** 会从这个完全相同路径下最新创建的 goal 继承（不包括导入的历史记录）。Expert 视图会在 **Powered by** 下方以淡色显示 `from the last goal in this folder: <title>`；只要还有一个字段继承它，这条提示就保留。验证进行中、验证失败或文件夹还没有 goal 时，未改过的字段使用 Settings 默认值。拉取或初始化后重新验证会刷新它们。从 goal 页面打开的 **Follow-up** 则优先继承那个 goal 的这三项选择；页面上的 **Follows** 选择器只建立关联。Simple 视图仍提交 preferred TDD；Fast mode 仍关闭 TDD。
 
 ![New goal 表单，使用统一的 Coding agent 选择控件](images/new-goal.png)
 
@@ -141,7 +141,7 @@ Codex 任务创建后保留这些设置；以后编辑或删除预设不会改�
 
 ### Workflow suite
 
-只在 Expert 视图里有；**pstack** 要先在 Setup 页装好才可选（**Workflow suite — pstack** 这张卡片会安装 Foundry 自己保存的一个固定版本副本，不带插件的 hooks；Claude 每个会话加载它，Codex 则把它的技能链接进 goal 的工作区）。装好之前这个选项是灰的。**Powered by** 选这个 goal 的各角色遵循谁的技能：**mattpocock**（默认：Matt Pocock 的套件——功能先写测试，bug 先诊断，最后做 code review）、**pstack**（pstack 的套件，它没有的由 Matt Pocock 的技能补上）或 **plain**（没有规则：会话只知道装了哪些技能）。goal 创建时就定下来了；follow-up 从前一个 goal 的选择开始，delegated goal 沿用主 goal 的。Simple 视图的 goal 用 Settings 的默认值。goal 页面和 Brief 上会显示一个 **Powered by** 标签。
+只在 Expert 视图里有；**pstack** 要先在 Setup 页装好才可选（**Workflow suite — pstack** 这张卡片会安装 Foundry 自己保存的一个固定版本副本，不带插件的 hooks；Claude 每个会话加载它，Codex 则把它的技能链接进 goal 的工作区）。装好之前这个选项是灰的；从文件夹继承的 pstack 选择会保留，并显示安装提示。**Powered by** 选这个 goal 的各角色遵循谁的技能：**mattpocock**（默认：Matt Pocock 的套件——功能先写测试，bug 先诊断，最后做 code review）、**pstack**（pstack 的套件，它没有的由 Matt Pocock 的技能补上）或 **plain**（没有规则：会话只知道装了哪些技能）。goal 创建时就定下来了；follow-up 从前一个 goal 的选择开始，delegated goal 沿用主 goal 的。Simple 视图保留继承的套件；文件夹没有更早的 goal 时使用 Settings 默认值。goal 页面和 Brief 上会显示一个 **Powered by** 标签。
 
 ### Engineering discipline (TDD)
 

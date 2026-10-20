@@ -15,6 +15,7 @@ import { CodexModelSelect } from '../components/CodexModelSelect.tsx';
 import { Button, ButtonGroup, Card, Input, Select, Textarea, cn } from '../ui.tsx';
 import { INTERVIEW_DEPTHS } from '../interview-depth.ts';
 import { HelpLink } from './HelpPage.tsx';
+import { initialWorkflow, updateWorkflow } from './new-goal-workflow.ts';
 
 const DELIVERY_KEY = 'foundry.delivery';
 const BUDGET_KEY = 'foundry.budget';
@@ -109,9 +110,9 @@ export function NewGoalPage() {
       .catch(() => setPstackReady(false));
   }, [provider]);
   const [mode, setModeState] = useState<'simple' | 'expert'>('expert');
-  const [tdd, setTddState] = useState<'required' | 'preferred' | 'off'>('required');
-  const [ponytail, setPonytailState] = useState<'on' | 'off'>('on');
-  const [profile, setProfileState] = useState<WorkflowProfile>('mattpocock');
+  const [workflow, setWorkflow] = useState(initialWorkflow);
+  const { profile, tdd, ponytail } = workflow.values;
+  const validationRequest = useRef(0);
   /** the pstack suite is a choice once its copy is installed (Setup page); null = not known yet */
   const [pstackReady, setPstackReady] = useState<boolean | null>(null);
   const [pace, setPace] = useState<'thorough' | 'fast'>('thorough');
@@ -121,17 +122,31 @@ export function NewGoalPage() {
   const [defaultRemote, setDefaultRemote] = useState('origin');
   /** fields the human changed on this page: the Settings defaults arriving later never overwrite them */
   const changed = useRef(new Set<string>(initialProvider ? ['provider'] : []));
+  const changeWorkflow = (event: Parameters<typeof updateWorkflow>[1]) => setWorkflow((s) => updateWorkflow(s, event, changed.current));
+  const beginRepoValidation = () => {
+    const request = ++validationRequest.current;
+    const current = () => request === validationRequest.current;
+    setRepoInfo(null);
+    changeWorkflow({ type: 'pending', request });
+    const finish = (info: RepoInfo | null) => {
+      if (!current()) return false;
+      setRepoInfo(info);
+      changeWorkflow({ type: 'validated', request, ok: info?.ok ?? false, lastGoal: info?.lastGoal ?? null });
+      return true;
+    };
+    return { current, finish };
+  };
   const setMode = (v: 'simple' | 'expert') => {
     changed.current.add('mode');
     setModeState(v);
   };
   const setTdd = (v: 'required' | 'preferred' | 'off') => {
     changed.current.add('tdd');
-    setTddState(v);
+    changeWorkflow({ type: 'edit', field: 'tdd', value: { tdd: v } });
   };
   const setProfile = (v: WorkflowProfile) => {
     changed.current.add('profile');
-    setProfileState(v);
+    changeWorkflow({ type: 'edit', field: 'profile', value: { profile: v } });
   };
   /** the Settings default; media natures auto-tick fast on top of it unless the human touches the checkbox */
   const basePace = useRef(pace);
@@ -156,9 +171,7 @@ export function NewGoalPage() {
         if (!changed.current.has('effort')) setEffort(d.workflow.effort ?? '');
         if (!changed.current.has('interviewDepth')) setInterviewDepth(String(d.workflow.interviewDepth ?? { never: 0, auto: 3, always: 4 }[d.workflow.interview]));
         if (!changed.current.has('mode')) setModeState(d.workflow.defaultMode);
-        if (!changed.current.has('tdd')) setTddState(d.workflow.tdd);
-        if (!changed.current.has('ponytail')) setPonytailState(d.workflow.ponytail ?? 'on');
-        if (!changed.current.has('profile')) setProfileState(d.workflow.profile ?? 'mattpocock');
+        changeWorkflow({ type: 'settings', values: { profile: d.workflow.profile ?? 'mattpocock', tdd: d.workflow.tdd, ponytail: d.workflow.ponytail ?? 'on' } });
         basePace.current = d.workflow.defaultPace;
         // media goals default to fast on top of the Settings pace, as when the goal type is picked by hand
         if (!paceTouched.current) setPace(nature === 'image' || nature === 'video' ? 'fast' : d.workflow.defaultPace);
@@ -186,13 +199,14 @@ export function NewGoalPage() {
       if (p.codexModel) setCodexModel(p.codexModel);
       setRepoPath(p.repoPath);
       setRepoKey((k) => k + 1);
-      api.validateRepo(p.repoPath).then(setRepoInfo).catch(() => {});
+      const validation = beginRepoValidation();
+      void api.validateRepo(p.repoPath).then(validation.finish).catch(() => validation.finish(null));
       setNature(p.nature);
       if (p.provider === 'codex') setCodexPreset(p.modelPreset ?? '');
       else setModelPreset(p.modelPreset ?? '');
       setEffort(p.effort ?? '');
       choosePace(p.pace);
-      setProfile(p.profile);
+      changeWorkflow({ type: 'follow-up', values: { profile: p.profile, tdd: p.tdd, ponytail: p.ponytail } });
       setMode(p.mode);
       changed.current.add('deliveryMode');
       changed.current.add('deliveryUnit');
@@ -521,6 +535,9 @@ export function NewGoalPage() {
             <span className="text-[11px] text-zinc-500">Whose skills the roles follow for this goal; fixed once the goal is created.{pstackReady === false && <> pstack is not installed: <Link to="/setup" className="underline">Setup page</Link>.</>}</span>
           </div>
         )}
+        {mode === 'expert' && workflow.inherited.length > 0 && workflow.lastGoal && (
+          <p className="mt-1 text-[11px] text-zinc-500">from the last goal in this folder: {workflow.lastGoal.title}</p>
+        )}
         {mode === 'expert' && (
           <div className="mt-3 flex items-center gap-2.5 flex-wrap">
             <span className="text-xs text-zinc-300">Engineering discipline — TDD<HelpLink to="your-first-goal#engineering-discipline-tdd" className="ml-1.5" /></span>
@@ -539,7 +556,7 @@ export function NewGoalPage() {
         )}
         {mode === 'expert' && (
           <label className="mt-3 flex items-start gap-2 text-xs text-zinc-300 cursor-pointer" title="Ponytail, the lazy senior dev: before writing, a worker checks whether the code needs to exist, whether the repository, the standard library or an installed dependency already has it, and only then writes the smallest complete change. The planner plans lean; ponytail-review reviews each task and the whole goal. TDD still decides how tests are written. Switchable later on the goal page.">
-            <input type="checkbox" className="mt-0.5 accent-emerald-500" checked={ponytail === 'on'} onChange={(e) => { changed.current.add('ponytail'); setPonytailState(e.target.checked ? 'on' : 'off'); }} />
+            <input type="checkbox" className="mt-0.5 accent-emerald-500" checked={ponytail === 'on'} onChange={(e) => { changed.current.add('ponytail'); changeWorkflow({ type: 'edit', field: 'ponytail', value: { ponytail: e.target.checked ? 'on' : 'off' } }); }} />
             <span>
               Ponytail — the smallest change that fully solves the task<HelpLink to="your-first-goal#ponytail-less-code" className="ml-1.5" />
               <span className="block text-[11px] text-zinc-500">Workers reuse what exists before writing new code; ponytail-review reviews. Needs the Ponytail skills (Setup page).</span>
@@ -583,7 +600,7 @@ export function NewGoalPage() {
       </Card>
 
       <Card title={<>2 · Repository<HelpLink to="your-first-goal#repository" className="ml-1.5" /></>}>
-        <RepoCard key={repoKey} path={repoPath} info={repoInfo} onPath={setRepoPath} onInfo={setRepoInfo} />
+        <RepoCard key={repoKey} path={repoPath} info={repoInfo} onPath={setRepoPath} onValidation={beginRepoValidation} />
         {repoInfo?.ok && learned > 0 && (
           <div className="mt-2 text-[11px] text-zinc-500">
             Foundry knows {learned} thing{learned === 1 ? '' : 's'} about this folder from earlier goals; the plan is written with them.{' '}

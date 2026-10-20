@@ -289,7 +289,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const { repoPath } = z.object({ repoPath: z.string() }).parse(await c.req.json());
     const info = await inspectRepo(repoPath);
     const error = !info.exists ? 'path does not exist' : !info.isDir ? 'not a directory' : info.insideRepoAt ? `inside the repository at ${info.insideRepoAt}` : !info.isGitRepo ? 'not a git repository (you can initialize it)' : !info.hasCommits ? 'repository has no commits yet' : null;
-    return c.json({ ...info, ok: info.isGitRepo && info.hasCommits, branch: info.branch ?? '', error });
+    return c.json({ ...info, ok: info.isGitRepo && info.hasCommits, branch: info.branch ?? '', error, lastGoal: engine.lastWorkflowIn(repoPath) });
   });
   // ---- attachments ----
   const parseUpload = async (c: any): Promise<{ files: { name: string; mime: string | null; bytes: Uint8Array }[]; link: { url: string; name?: string; note?: string } | null }> => {
