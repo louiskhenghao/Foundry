@@ -315,8 +315,8 @@ export const Goal = z.object({
    * preview folder; `checkout` = the person's checkout as it is, whatever its branch; `foundry` = always Foundry's folder
    */
   previewPlace: PreviewPlace.default('auto'),
-  /** which Clarify session runs and since when: the Clarifier (reading the repository, writing its answer) or the planner */
-  clarifyStage: z.object({ stage: z.enum(['investigating', 'clarifying', 'planning']), at: z.string() }).nullable().default(null),
+  /** which Clarify step runs and since when: REA, a wait for a free session slot, the Clarifier (reading the repository, writing its answer) or the planner */
+  clarifyStage: z.object({ stage: z.enum(['investigating', 'queued', 'clarifying', 'planning']), at: z.string() }).nullable().default(null),
   /** shipped software the goal learns from (a site, an app, a package): REA investigates each one before Clarify */
   references: z.array(GoalReference).default([]),
   /** the investigation of the references; its report is an attachment and a committed document (null = not run yet) */

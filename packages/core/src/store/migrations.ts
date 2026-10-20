@@ -84,4 +84,9 @@ export const MIGRATIONS: Migration[] = [
     id: '0006-repo-learnings',
     sql: `CREATE TABLE IF NOT EXISTS repo_learnings (repo_path TEXT PRIMARY KEY, data TEXT NOT NULL);`,
   },
+  {
+    // the Brief is the Clarifier's skeleton, the planner still splitting the goal into tasks (ADR-0046)
+    id: '0007-brief-skeleton',
+    sql: `ALTER TABLE briefs ADD COLUMN skeleton INTEGER NOT NULL DEFAULT 0;`,
+  },
 ];
