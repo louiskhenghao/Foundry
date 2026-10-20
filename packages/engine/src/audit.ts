@@ -74,7 +74,7 @@ export async function runAudit(engine: Engine, goal: Goal): Promise<void> {
     if (remaining != null && remaining <= 0) return skip('the goal has no budget left for the audit');
     const cap = Math.max(AUDIT_MIN_CAP_USD, remaining == null ? config.attemptMaxCostUsd : Math.min(config.attemptMaxCostUsd, remaining));
     const invoke = skill.entry.invoke ?? skill.installedInvoke ?? `/${skill.entry.name}`;
-    const codex = (goal.provider ?? config.provider) === 'codex';
+    const codex = (goal.provider ?? config.provider) !== 'claude'; // no Skill tool: the skill is read from its SKILL.md
     const touched = await touchedFiles(ws, goal.baseBranch);
     const reviewer = modelFor(config, goal, 'goalReviewer');
     const prompt = [

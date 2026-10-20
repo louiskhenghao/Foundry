@@ -1,11 +1,18 @@
+import { AgentProvider } from '@foundry/core';
 import { DEFAULT_MCP_ALLOWED, DEFAULT_NATURE_PRESETS, Effort, type CodexModelPreset, type ModelNature, type ModelPreset } from '@foundry/core';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 export interface EngineConfig {
-  provider: 'claude' | 'codex';
+  provider: AgentProvider;
   codexBin?: string;
   codexHome: string;
+  /** the Antigravity CLI binary; undefined = `agy` on PATH */
+  agyBin?: string;
+  /** the base Antigravity model; `agy-default` follows the CLI's own setting */
+  agyModel: string;
+  /** the Antigravity reasoning effort of every role */
+  agyEffort: 'low' | 'medium' | 'high';
   codexModel: string;
   codexPresets: Record<string, CodexModelPreset>;
   codexNaturePreset: Record<ModelNature, string>;
@@ -151,14 +158,17 @@ export function claudeConfigEnv(claudeHome: string | null | undefined): { CLAUDE
 }
 
 export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {}): EngineConfig {
-  const provider = overrides.provider ?? (process.env.FOUNDRY_PROVIDER === 'codex' ? 'codex' : 'claude');
+  const provider = overrides.provider ?? (AgentProvider.safeParse(process.env.FOUNDRY_PROVIDER).success ? (process.env.FOUNDRY_PROVIDER as AgentProvider) : 'claude');
   return {
     rootDir: resolve(root),
     provider,
     codexBin: process.env.FOUNDRY_CODEX_BIN,
     codexHome: process.env.FOUNDRY_CODEX_HOME ?? process.env.CODEX_HOME ?? join(homedir(), '.codex'),
     codexModel: process.env.FOUNDRY_CODEX_MODEL ?? 'codex-default',
-    dataDir: resolve(process.env.FOUNDRY_DATA_DIR ?? resolve(root, provider === 'codex' ? 'data-codex' : 'data')),
+    agyBin: process.env.FOUNDRY_AGY_BIN,
+    agyModel: process.env.FOUNDRY_AGY_MODEL ?? 'agy-default',
+    agyEffort: 'high',
+    dataDir: resolve(process.env.FOUNDRY_DATA_DIR ?? resolve(root, provider === 'claude' ? 'data' : `data-${provider}`)),
     claudeHome: process.env.FOUNDRY_CLAUDE_HOME ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'),
     catalogPath: resolve(root, 'catalog/skills.json'),
     rolesDir: resolve(root, 'roles'),

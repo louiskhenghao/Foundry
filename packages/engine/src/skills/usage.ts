@@ -11,7 +11,7 @@ export const skillMatches = (invoked: string, name: string): boolean => invoked 
  */
 export function skillUsage(input: { installed: InstalledSkill[]; goals: Pick<Goal, 'id' | 'createdAt' | 'provider'>[]; events: (goalId: string) => EngineEvent[]; limit?: number }): { installed: InstalledSkill[]; window: { goals: number; limit: number } } {
   const limit = input.limit ?? 30;
-  const goals = input.goals.filter((g) => g.provider !== 'codex').sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+  const goals = input.goals.filter((g) => (g.provider ?? 'claude') === 'claude').sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
   const calls: { goalId: string; session: string; ts: string; skills: string[] }[] = [];
   for (const g of goals) {
     const sessionOf = new Map<string, string>();

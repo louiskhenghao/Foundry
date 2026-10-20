@@ -20,6 +20,8 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'engine.codexBin': { name: 'FOUNDRY_CODEX_BIN', parse: str },
   'engine.codexHome': { name: 'FOUNDRY_CODEX_HOME', alt: 'CODEX_HOME', parse: str },
   'models.codexModel': { name: 'FOUNDRY_CODEX_MODEL', parse: str },
+  'engine.agyBin': { name: 'FOUNDRY_AGY_BIN', parse: str },
+  'models.agyModel': { name: 'FOUNDRY_AGY_MODEL', parse: str },
   'engine.port': { name: 'FOUNDRY_PORT', parse: num },
   'engine.host': { name: 'FOUNDRY_HOST', parse: str },
   'engine.maxConcurrent': { name: 'FOUNDRY_MAX_CONCURRENT', parse: num },
@@ -259,6 +261,7 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   const on = (p: string) => !only || only.has(p);
   if (on('engine.provider')) config.provider = s.engine.provider;
   if (on('engine.codexBin')) config.codexBin = s.engine.codexBin ?? undefined;
+  if (on('engine.agyBin')) config.agyBin = s.engine.agyBin ?? undefined;
   if (on('engine.codexHome') && s.engine.codexHome) config.codexHome = s.engine.codexHome;
   if (on('models.codexPresets')) config.codexPresets = s.models.codexPresets;
   if (on('models.codexPresetCode')) config.codexNaturePreset.code = s.models.codexPresetCode;
@@ -266,6 +269,8 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('models.codexPresetMedia')) config.codexNaturePreset.media = s.models.codexPresetMedia;
   if (on('models.codexFallbacks')) config.codexFallbacks = s.models.codexFallbacks;
   if (on('models.codexModel')) config.codexModel = s.models.codexModel;
+  if (on('models.agyModel')) config.agyModel = s.models.agyModel;
+  if (on('models.agyEffort')) config.agyEffort = s.models.agyEffort;
   if (on('engine.port')) config.port = s.engine.port;
   if (on('engine.host')) config.host = s.engine.host;
   if (on('engine.maxConcurrent')) config.maxConcurrent = s.engine.maxConcurrent;

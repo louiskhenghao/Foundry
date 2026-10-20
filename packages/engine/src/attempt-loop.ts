@@ -1,5 +1,6 @@
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { reportsDollars } from '@foundry/core';
 import type { Attempt, Check, CheckResult, Goal, ObservationReport, Task } from '@foundry/core';
 import { IdPrefix, bumpStat, chosenStyle, getAttempt, getBrief, getObservation, listAttempts, listChecks, newId, renderDecisions } from '@foundry/core';
 import type { RunResult } from '@foundry/runner';
@@ -218,7 +219,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source: `attempt:${attempt.id}` } });
   engine.recordSessionUsage(result, { goalId: goal.id, kind: 'attempt', model: attempt.model });
   store.append({ type: 'attempt.session_finished', goalId: goal.id, payload: { attemptId: attempt.id, session: { role: 'worker', segment: attempt.continuations, sessionId: initSession ?? attempt.sessionId, model: initModel ?? attempt.model, costUsd: result.costUsd, numTurns: result.numTurns, durationMs: result.durationMs, subtype: result.subtype, startedAt: segmentStart, endedAt: new Date().toISOString(), costAvailable: result.costStatus !== 'unavailable' } } });
-  if (result.costStatus === 'unavailable' && goal.provider !== 'codex') {
+  if (result.costStatus === 'unavailable' && reportsDollars(goal.provider)) {
     store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `attempt ${attempt.id}: the session ended (${result.subtype}) before Claude Code reported its cost — ${result.numTurns} turn${result.numTurns === 1 ? '' : 's'} and its tokens are counted, the dollars are unknown and missing from the goal's total` } });
   }
 
@@ -241,7 +242,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
       toolsUsed: result.toolsUsed ?? {},
     },
   });
-  const workflow = { observable: goal.provider !== 'codex', mandated: mandated.map((m) => ({ name: m.name, invoke: m.invoke })), used: result.skillsUsed ?? [] };
+  const workflow = { observable: (goal.provider ?? 'claude') === 'claude', mandated: mandated.map((m) => ({ name: m.name, invoke: m.invoke })), used: result.skillsUsed ?? [] };
 
   // --- Observe
   const results: CheckResult[] = [];

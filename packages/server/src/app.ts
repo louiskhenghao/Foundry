@@ -1,3 +1,4 @@
+import { AGENT_PROVIDERS, AgentProvider } from '@foundry/core';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -43,8 +44,9 @@ const CompletionBody = z.object({
 });
 
 const CreateGoalBody = z.object({
-  provider: z.enum(['claude', 'codex']).optional(),
+  provider: AgentProvider.optional(),
   codexModel: z.string().trim().min(1).optional(),
+  agyModel: z.string().trim().min(1).optional(),
   title: z.string().optional(),
   prompt: z.string().min(1),
   repoPath: z.string().min(1),
@@ -217,7 +219,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   // Skills page operations: one live channel + one pollable record each (skill-ops.ts)
   const ops = new SkillOps((s) => engine.broadcast(s));
-  const authProvider = (c: any): 'claude' | 'codex' => z.enum(['claude', 'codex']).parse(c.req.query('provider') ?? engine.config.provider ?? 'claude');
+  const authProvider = (c: any): AgentProvider => AgentProvider.parse(c.req.query('provider') ?? engine.config.provider ?? 'claude');
   const skillsFor = (c: any) => engine.skillsForProvider(authProvider(c));
   const mcpFor = (c: any) => engine.mcpFor(authProvider(c));
 
@@ -1507,13 +1509,13 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   // ---------- models ----------
   app.get('/api/models', (c) => {
     const provider = authProvider(c);
-    return c.json({ models: engine.listModels(provider), fallbacks: provider === 'claude' ? engine.config.modelFallbacks : engine.config.codexFallbacks, current: provider === 'claude' ? engine.config.models : { strong: engine.config.codexModel, cheap: engine.config.codexModel, worker: engine.config.codexModel }, sync: engine.providerModels[provider].syncState() });
+    return c.json({ models: engine.listModels(provider), fallbacks: provider === 'claude' ? engine.config.modelFallbacks : provider === 'codex' ? engine.config.codexFallbacks : [], current: provider === 'claude' ? engine.config.models : provider === 'agy' ? { strong: engine.config.agyModel, cheap: engine.config.agyModel, worker: engine.config.agyModel } : { strong: engine.config.codexModel, cheap: engine.config.codexModel, worker: engine.config.codexModel }, sync: engine.providerModels[provider].syncState() });
   });
   // model sync: ids from the Claude Code binary (free) + one tiny session per family alias (~$0.04)
   app.post('/api/models/sync', async (c) => c.json(await engine.syncModels({ provider: authProvider(c) })));
   app.post('/api/models/probe', async (c) => {
     const provider = authProvider(c);
-    const { name, effort } = z.object({ name: z.string().trim().min(1).max(200), effort: (provider === 'codex' ? CodexEffort : Effort).optional() }).parse(await c.req.json());
+    const { name, effort } = z.object({ name: z.string().trim().min(1).max(200), effort: (provider === 'codex' ? CodexEffort : provider === 'agy' ? z.enum(['low', 'medium', 'high']) : Effort).optional() }).parse(await c.req.json());
     return c.json(await engine.probeModel(name, provider, effort));
   });
 
@@ -1706,10 +1708,10 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   app.get('/api/doctor', async (c) => c.json(await engine.doctor(authProvider(c))));
   // Every account operation is explicitly scoped; omitted provider preserves CLI compatibility.
-  app.get('/api/accounts', async (c) => c.json({ defaultProvider: engine.config.provider, accounts: await Promise.all((['claude', 'codex'] as const).map(async (provider) => ({
+  app.get('/api/accounts', async (c) => c.json({ defaultProvider: engine.config.provider, accounts: await Promise.all(AGENT_PROVIDERS.map(async (provider) => ({
     provider, status: await engine.accounts[provider].status(c.req.query('force') === '1'),
-    installed: !!(provider === 'codex' ? engine.config.codexBin ?? Bun.which('codex') : engine.config.claudeBin ?? Bun.which('claude')),
-    capabilities: { dollarCosts: provider === 'claude', skillTelemetry: provider === 'claude', nativeSubagents: provider === 'claude', managedMcp: true, externalSessions: true },
+    installed: !!(provider === 'codex' ? engine.config.codexBin ?? Bun.which('codex') : provider === 'agy' ? engine.config.agyBin ?? Bun.which('agy') : engine.config.claudeBin ?? Bun.which('claude')),
+    capabilities: { dollarCosts: provider === 'claude', skillTelemetry: provider === 'claude', nativeSubagents: provider === 'claude', managedMcp: provider !== 'agy', externalSessions: provider !== 'agy' },
   }))) }));
   app.get('/api/auth', async (c) => { const provider = authProvider(c); const auth = engine.accounts[provider]; return c.json({ provider, status: await auth.status(c.req.query('force') === '1'), login: auth.loginSession() }); });
   app.post('/api/auth/login', async (c) => {

@@ -1,5 +1,7 @@
+import type { AgentProvider } from '@foundry/core';
 import { accessSync, constants, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { claudeAuthStatus, codexAuthStatus } from '../auth/claude-auth.ts';
+import { agyAuthStatus } from '../auth/agy-auth.ts';
 import { exec } from '../git/git.ts';
 import { SATISFIED, type WhichFn, defaultWhich, envLabel } from './catalog.ts';
 import { packAllows } from './packs.ts';
@@ -8,9 +10,10 @@ import { agentCliInstall } from '../agent-cli.ts';
 import type { Catalog, CatalogEntryStatus, DoctorCheck, DoctorReport, SkillsUpdateReport } from './types.ts';
 
 export interface DoctorContext {
-  provider?: 'claude' | 'codex';
+  provider?: AgentProvider;
   codexBin?: string;
   codexHome?: string;
+  agyBin?: string;
   paths: SkillsPaths;
   catalog: Catalog;
   statuses: CatalogEntryStatus[];
@@ -31,7 +34,16 @@ export async function runDoctor(ctx: DoctorContext): Promise<DoctorReport> {
   const checks: DoctorCheck[] = [];
   const claude = ctx.claudeBin ?? which('claude');
 
-  if (ctx.provider === 'codex') {
+  if (ctx.provider === 'agy') {
+    const bin = ctx.agyBin ?? which('agy');
+    const v = bin ? await run([bin, '--version'], process.cwd(), { timeoutMs: 15_000 }).catch(() => null) : null;
+    const install = agentCliInstall('agy', which);
+    const fix = { command: install?.command ?? 'curl -fsSL https://antigravity.google/cli/install.sh | bash', url: 'https://antigravity.google/docs/cli', ...(install ? { installId: install.id, action: 'install-tool' as const } : {}) };
+    checks.push(v?.code !== 0 ? err('agy-bin', 'Antigravity CLI', 'agy is unavailable; install the Antigravity CLI (1.1.15 or newer: stream-json input).', fix) : ok('agy-bin', 'Antigravity CLI', v.stdout.trim() || bin!));
+    const st = await agyAuthStatus(bin, run);
+    checks.push(st.loggedIn ? ok('agy-auth', 'Antigravity sign-in', st.email ? `signed in as ${st.email}` : 'signed in') : err('agy-auth', 'Antigravity sign-in', st.error ?? 'not signed in', { command: 'agy', url: 'https://antigravity.google/docs/cli' }));
+    checks.push(ok('agy-cost', 'Antigravity usage accounting', 'Token usage is recorded. Antigravity does not report USD costs; use time and attempt limits instead of dollar budgets.'));
+  } else if (ctx.provider === 'codex') {
     const bin = ctx.codexBin ?? which('codex');
     const v = bin ? await run([bin, '--version'], process.cwd(), { timeoutMs: 15_000 }).catch(() => null) : null;
     const install = agentCliInstall('codex', which);
@@ -112,7 +124,9 @@ export async function runDoctor(ctx: DoctorContext): Promise<DoctorReport> {
   }
 
   // settings.json parsable + hook paths exist
-  if (ctx.provider === 'codex') {
+  if (ctx.provider === 'agy') {
+    checks.push(ok('agy-config', 'Antigravity configuration', 'Antigravity reads its own settings; Foundry supplies the session canary and the tool guard as workspace hooks.'));
+  } else if (ctx.provider === 'codex') {
     checks.push(ok('codex-config', 'Codex configuration', 'Codex reads its own config.toml; Foundry supplies session sandbox and boundary hooks.'));
   } else if (existsSync(ctx.paths.settingsJson)) {
     try {

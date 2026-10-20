@@ -1,3 +1,4 @@
+import type { AgentProvider } from '../schema/provider.ts';
 import type { Database } from 'bun:sqlite';
 import type { EngineEvent } from '../events.ts';
 import { FINAL_WALK, IDLE_COMPLETION, NO_DELEGATION, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type RepoLearnings, type Task, Schedule } from '../schema/index.ts';
@@ -861,7 +862,7 @@ export function getStatAvg(db: Database, key: string): number | null {
 }
 
 export interface UsageRow {
-  provider?: 'claude' | 'codex';
+  provider?: AgentProvider;
   ts: string;
   goal_id: string | null;
   kind: string;

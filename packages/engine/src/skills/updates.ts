@@ -3,6 +3,7 @@
  * repository (engine-private cache clone, deepened so per-path history exists) and reports
  * up-to-date / outdated / modified per skill and per source. Facts are persisted so the page loads instantly.
  */
+import type { AgentProvider } from '@foundry/core';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { exec as defaultExec } from '../git/git.ts';
@@ -358,12 +359,13 @@ function pluginVersionIn(repoDir: string, pluginName: string | null): string | n
   return inMkt ?? read('.claude-plugin/plugin.json')?.version ?? null;
 }
 
-function updaterFor(key: SourceKey, rows: SkillSourceRow[], provider: 'claude' | 'codex' = 'claude'): SkillSource['updater'] {
+function updaterFor(key: SourceKey, rows: SkillSourceRow[], provider: AgentProvider = 'claude'): SkillSource['updater'] {
   const kind: UpdaterKind = key.kind === 'suite' ? 'suite' : key.manager === 'foundry' ? 'foundry' : key.manager === 'agents-cli' ? 'agents-cli' : key.manager === 'plugin' ? 'plugin' : key.manager === 'hand' ? (rows.some((r) => r.actions.includes('adopt')) ? 'adopt' : 'none') : 'none';
   const pluginId = key.id.startsWith('plugin:') ? key.id.slice('plugin:'.length) : null;
   const mkt = pluginId?.includes('@') ? pluginId.split('@').slice(1).join('@') : null;
   switch (kind) {
     case 'agents-cli':
+      if (provider === 'agy') return { kind: 'hint', command: null, hint: 'Antigravity skills are updated by hand: bring the folder under ~/.agents/skills up to date.' };
       return { kind, command: ['npx', '-y', 'skills@latest', 'update', '-g', '-y', '-a', provider === 'codex' ? 'codex' : 'claude-code'], hint: null };
     case 'plugin':
       // Codex refreshes a plugin from its marketplace snapshot; Foundry leaves that to Codex

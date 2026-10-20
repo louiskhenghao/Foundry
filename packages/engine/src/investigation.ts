@@ -93,7 +93,7 @@ export async function runInvestigation(engine: Engine, goal: Goal): Promise<void
       .status(goal.repoPath)
       .catch(() => []);
     const skill = statuses.find((s) => s.entry.name === 'reverse-engineer-anything' && SATISFIED.includes(s.status));
-    const codex = provider === 'codex';
+    const codex = provider !== 'claude';
     const method = skill ? `${codex ? 'Follow the `reverse-engineer-anything` skill (open its SKILL.md)' : `Invoke \`${skill.entry.invoke ?? skill.installedInvoke ?? '/reverse-engineer-anything'}\``} and use the rea tools` : 'Use the rea tools (mcp__rea)';
     const prompt = [
       `# Goal from the user\n${goal.prompt}`,

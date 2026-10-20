@@ -235,7 +235,7 @@ async function distill(engine: Engine, goalId: string, opts: { force?: boolean }
   // the entries; on the pstack suite the session reflects instead, with reflect's lenses as text (ADR-0050)
   const hints = engine.skillsFor(goal).hints;
   const profile = engine.workflowProfileOf(goal);
-  const retro = (goal.provider ?? config.provider) === 'codex' || profile === 'pstack' ? null : await hints.invokeFor('retro');
+  const retro = (goal.provider ?? config.provider) !== 'claude' || profile === 'pstack' ? null : await hints.invokeFor('retro');
   const prompt = buildPrompt(engine, goal, existing, { retro, section: await hints.sectionFor('learnings', { profile }), lens: profile === 'pstack' ? 'reflect' : 'retro' });
   const transcriptPath = join(config.dataDir, 'transcripts', `learnings-${goal.id}.jsonl`);
   mkdirSync(dirname(transcriptPath), { recursive: true });

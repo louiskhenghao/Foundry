@@ -1,3 +1,4 @@
+import type { AgentProvider } from '@foundry/core';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { hostname, platform } from 'node:os';
 import { basename, join } from 'node:path';
@@ -36,7 +37,7 @@ import { sealSecrets } from './secrets.ts';
 export interface TransferHost {
   store: EventStore;
   dataDir: string;
-  provider: 'claude' | 'codex';
+  provider: AgentProvider;
   /** the Release this Foundry runs */
   release: string;
   settingsFile(): SettingsPatch;

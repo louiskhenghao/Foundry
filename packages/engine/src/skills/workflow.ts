@@ -3,6 +3,7 @@
  * kind of work and scenario, with the invoke name that is actually loaded on this machine (plugin copy first).
  * Replaces the one-line hint when the workflow profile is `mattpocock`; falls back to it otherwise.
  */
+import type { AgentProvider } from '@foundry/core';
 import type { Goal, Task, TaskKind, TaskScenario, WorkflowProfile } from '@foundry/core';
 import { SATISFIED, cliOnly, envLabel, useLabel } from './catalog.ts';
 import { formatSkillsHint } from './hints.ts';
@@ -30,7 +31,7 @@ export interface WorkflowSectionInput {
    * the ponytail skills, on replaces code-review with ponytail-review when that is installed */
   discipline?: Discipline;
   /** Codex has no Skill tool: a skill is read from its SKILL.md, and project skills live in .agents/skills */
-  provider?: 'claude' | 'codex';
+  provider?: AgentProvider;
 }
 
 /** workflow suites' plugin prefixes: Codex finds a suite skill as `<suite>-<skill>` (ADR-0049) */
@@ -188,7 +189,7 @@ export function formatWorkflowSection(i: WorkflowSectionInput): string | null {
     .slice(0, 8);
   const project = i.projectSkills ?? [];
   if (!rules.length && !others.length && !project.length) return null;
-  const codex = i.provider === 'codex';
+  const codex = (i.provider ?? 'claude') !== 'claude'; // no Skill tool: skills are read from their SKILL.md
   const lines: string[] = ['# Workflow skills'];
   if (i.scenario && i.scenario !== 'general') lines.push(`Scenario: ${i.scenario}.`);
   if (rules.length) {

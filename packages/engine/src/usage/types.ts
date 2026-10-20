@@ -1,4 +1,5 @@
 /** Browser-safe usage types (no runtime imports). Exported as `@foundry/engine/usage-types`. */
+import type { AgentProvider } from '@foundry/core/browser';
 export interface WindowSummary {
   label: string;
   windowStart: string;
@@ -45,7 +46,7 @@ export interface GroupMeasures {
 }
 
 export interface UsageSummary {
-  provider?: 'claude' | 'codex';
+  provider?: AgentProvider;
   costAvailable?: boolean;
   codexQuota?: CodexQuota;
   now: string;

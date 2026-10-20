@@ -1,3 +1,4 @@
+import { agentsFolder } from '@foundry/core';
 import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, realpathSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { parseSkillMd } from './frontmatter.ts';
@@ -13,9 +14,9 @@ export interface ScanOptions {
 /** Pure filesystem scan of user, plugin and (optionally) project skills. */
 export function scanSkills(paths: SkillsPaths, opts: ScanOptions = {}): ScanResult {
   const own = scanUserDir(paths);
-  const shared = paths.provider === 'codex' ? sharedAgentSkills(paths, own) : [];
-  const rows: InstalledSkill[] = [...own, ...shared, ...(paths.provider === 'codex' ? scanCodexPlugins(paths) : scanPlugins(paths))];
-  if (opts.repoPath) rows.push(...scanProject(opts.repoPath, paths.provider === 'codex' ? '.agents' : '.claude'));
+  const shared = paths.provider !== 'claude' ? sharedAgentSkills(paths, own) : [];
+  const rows: InstalledSkill[] = [...own, ...shared, ...(paths.provider === 'codex' ? scanCodexPlugins(paths) : paths.provider === 'agy' ? [] : scanPlugins(paths))];
+  if (opts.repoPath) rows.push(...scanProject(opts.repoPath, agentsFolder(paths.provider)));
   // workflow suites' copies (ADR-0049): rows named <suite>:<skill>, so a bare-named copy of the same skill is no duplicate
   const suites = scanSuites(paths);
   for (const s of suites) rows.push(...suiteSkillRows(paths, s));

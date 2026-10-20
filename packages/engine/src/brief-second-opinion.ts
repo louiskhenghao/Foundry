@@ -8,6 +8,7 @@
  * person applies what they take.
  */
 import { join } from 'node:path';
+import { reportsDollars } from '@foundry/core';
 import type { Brief, Goal } from '@foundry/core';
 import { RevisionOutput, diffBrief, getBrief, getGoal, isHistory } from '@foundry/core';
 import type { RunResult, RunSpec } from '@foundry/runner';
@@ -170,7 +171,7 @@ export async function secondOpinion(engine: Engine, goalId: string, opts: { auto
     const diff = diffBrief(brief, revised);
     store.append({ type: 'brief.second_opinion', goalId: goal.id, payload: { auto: !!opts.auto, costUsd: cost, changeSummary: out.changeSummary, revised } });
     say(`— second opinion in: ${out.changeSummary}`);
-    return { mode: 'revise', taskKey: null, task: null, tasks: [], checks: [], rationale: out.changeSummary, costUsd: cost, costAvailable: goal.provider !== 'codex', revision: { diff, revised, changeSummary: out.changeSummary } };
+    return { mode: 'revise', taskKey: null, task: null, tasks: [], checks: [], rationale: out.changeSummary, costUsd: cost, costAvailable: reportsDollars(goal.provider), revision: { diff, revised, changeSummary: out.changeSummary } };
   } catch (err) {
     const reason = String((err as Error).message ?? err);
     // kept the way the opinion would be, so the page says why there is none until one comes in (the store may be gone when the engine stops)

@@ -1,3 +1,4 @@
+import type { AgentProvider } from '@foundry/core';
 import type { Attempt } from '@foundry/core';
 import { statSync } from 'node:fs';
 import { contextWindowFor } from './context-windows.ts';
@@ -8,7 +9,7 @@ import type { AgentLogChunk, AgentSessionRow, AgentStatus, AgentsList, AgentsSum
 
 /** One engine-spawned Claude session that is currently in flight. */
 export interface FoundryLiveSession {
-  provider?: 'claude' | 'codex';
+  provider?: AgentProvider;
   taskId: string;
   goalId: string;
   attemptId: string | null;
@@ -28,7 +29,7 @@ export interface AgentsMonitorDeps {
   foundryRecent: (sinceIso: string) => Attempt[];
   goalTitle: (goalId: string) => string | null;
   taskTitle?: (taskId: string) => string | null;
-  goalProvider?: (goalId: string) => 'claude' | 'codex';
+  goalProvider?: (goalId: string) => AgentProvider;
   /** All known Foundry sessions, including older attempts and auxiliary sessions. */
   foundrySessionIds?: () => Iterable<string>;
   now?: () => number;
@@ -212,7 +213,7 @@ export class AgentsMonitor {
     const capped = rows.slice(0, MAX_ROWS);
 
     // Tail-derive metadata only for rows that made the cut
-    if (this.opts.includeExternal !== false) for (const row of capped) if (row.provider !== 'codex') this.enrich(row, now);
+    if (this.opts.includeExternal !== false) for (const row of capped) if (row.provider !== 'codex' && row.provider !== 'agy') this.enrich(row, now);
 
     const summary: AgentsSummary = { busy: 0, idle: 0, finished: 0, total: capped.length };
     for (const r of capped) summary[r.status] = (summary[r.status] ?? 0) + 1;

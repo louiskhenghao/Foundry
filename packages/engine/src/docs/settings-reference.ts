@@ -11,8 +11,11 @@ type Section = 'New goal defaults' | 'Models & limits' | 'Skills' | 'Git & deliv
 export const SETTING_DOCS: Record<string, { section: Section; help: string }> = {
   'engine.provider': { section: 'Engine (install)', help: 'Installation default (claude or codex), fixed at launch. Each new goal can select either coding agent; existing goals keep theirs.' },
   'engine.codexBin': { section: 'Engine (install)', help: 'Codex CLI path; empty uses codex on PATH. Requires hooks support.' },
+  'engine.agyBin': { section: 'Engine (install)', help: 'Antigravity CLI path; empty uses agy on PATH. Needs 1.1.15 or newer (stream-json input).' },
   'engine.codexHome': { section: 'Engine (install)', help: 'Codex configuration and login directory; empty uses CODEX_HOME or ~/.codex.' },
   'models.codexModel': { section: 'Models & limits', help: 'Base model substituted for codex-default in new Codex goal presets. codex-default leaves model choice to the native CLI; an explicit model ID pins it.' },
+  'models.agyModel': { section: 'Models & limits', help: 'The model every role of a new Antigravity goal runs on. agy-default follows the model the CLI itself is set to.' },
+  'models.agyEffort': { section: 'Models & limits', help: 'The Antigravity reasoning effort of every role: low, medium or high.' },
   // New goal defaults
   'workflow.defaultMode': { section: 'New goal defaults', help: 'Which view a new goal opens in: simple (plain-language Brief and progress) or expert (every control).' },
   'workflow.defaultPace': { section: 'New goal defaults', help: 'thorough = the engine adds its own task and goal reviews and can spawn fix tasks; fast = only the checks you approved run. Image and video goals start fast.' },

@@ -1,3 +1,4 @@
+import { PROVIDER_NAME } from '@foundry/core';
 import type { Goal, Task } from '@foundry/core';
 import { ARTIFACT_SCENARIOS, listTasks, getTask, getGoal, listAttempts, getObservation } from '@foundry/core';
 import { type Continuation, continuationMessage, decideNext, maxAttemptsFor, runAttempt } from './attempt-loop.ts';
@@ -305,7 +306,7 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
         task: fresh,
         attemptId: outcome.attempt.id,
         trigger: 'permission_denial',
-        message: `Task "${task.title}" failed and ${goal.provider === 'codex' ? 'Codex' : 'Claude'} was denied: ${outcome.nonBoundaryDenials.map((d) => d.tool_name).join(', ')}.`,
+        message: `Task "${task.title}" failed and ${PROVIDER_NAME[goal.provider ?? 'claude']} was denied: ${outcome.nonBoundaryDenials.map((d) => d.tool_name).join(', ')}.`,
         payload: { denials: outcome.nonBoundaryDenials },
       });
       return;

@@ -1,3 +1,4 @@
+import type { AgentProvider } from '@foundry/core';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { SkillsPaths } from './paths.ts';
@@ -115,8 +116,9 @@ export type PluginSource = Extract<CatalogEntry['source'], { type: 'plugin' }>;
 export const pluginId = (src: PluginSource): string => `${src.plugin}@${src.marketplaceId}`;
 
 /** The two commands that install a marketplace plugin with the backend's own CLI (also what the human is told to run). */
-export function pluginInstallCommand(src: PluginSource, provider: 'claude' | 'codex' = 'claude'): string {
+export function pluginInstallCommand(src: PluginSource, provider: AgentProvider = 'claude'): string {
   // a marketplace ref (a release branch such as text-to-cad's `latest`) is spelled differently by each CLI
   const market = src.ref ? (provider === 'codex' ? `${src.marketplace} --ref ${src.ref}` : `${src.marketplace}#${src.ref}`) : src.marketplace;
+  if (provider === 'agy') return `agy plugin install ${pluginId(src)}`;
   return provider === 'codex' ? `codex plugin marketplace add ${market} && codex plugin add ${pluginId(src)}` : `claude plugin marketplace add ${market} && claude plugin install ${pluginId(src)}`;
 }

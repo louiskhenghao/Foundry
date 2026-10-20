@@ -1,3 +1,5 @@
+import { PROVIDER_LABEL as AGENT_LABEL, reportsDollars } from '@foundry/core';
+import type { AgentProvider } from '@foundry/core';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 /**
@@ -33,7 +35,7 @@ const TRIGGER_COPY: Record<EscalationTrigger, string> = {
 };
 
 /** Event → message for the non-escalation families; null = nothing to say about this event. */
-export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => string, defaultProvider: 'claude' | 'codex' = 'claude'): Composed | null {
+export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => string, defaultProvider: AgentProvider = 'claude'): Composed | null {
   switch (e.type) {
     case 'interview.round_asked': {
       const qs = e.payload.questions;
@@ -118,11 +120,11 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
     }
     case 'rate_limit.paused': {
       const provider = e.payload.provider ?? defaultProvider;
-      return { family: 'rateLimit', text: `⏸️ ${provider === 'codex' ? 'Codex' : 'Claude Code'} usage limit — new sessions paused; retry at ${localTime(e.payload.until)}`, path: `/usage?provider=${provider}` };
+      return { family: 'rateLimit', text: `⏸️ ${AGENT_LABEL[provider ?? 'claude']} usage limit — new sessions paused; retry at ${localTime(e.payload.until)}`, path: `/usage?provider=${provider}` };
     }
     case 'rate_limit.resumed': {
       const provider = e.payload.provider ?? defaultProvider;
-      return { family: 'rateLimit', text: `▶️ ${provider === 'codex' ? 'Codex' : 'Claude Code'} session retries resume`, path: `/usage?provider=${provider}` };
+      return { family: 'rateLimit', text: `▶️ ${AGENT_LABEL[provider ?? 'claude']} session retries resume`, path: `/usage?provider=${provider}` };
     }
     case 'schedule.fired':
       if (e.payload.skipped) return { family: 'schedule', text: `⏰ Schedule "${e.payload.name}" skipped${e.payload.late ? ' (late)' : ''}\n${e.payload.skipped.slice(0, 300)}`, path: '/schedules' };
@@ -151,7 +153,7 @@ export function composeBriefReady(goal: Goal, brief: Brief | null, reason: strin
   const blocking = brief.questions.filter((q) => q.blocking && !q.answer?.trim()).length;
   if (engineApproves(goal) && !blocking) return null;
   const n = brief.tasks.length;
-  const estimate = goal.provider === 'codex' ? `~${brief.timeEstimateMin} min` : `$${brief.costEstimateUsd.toFixed(2)} · ~${brief.timeEstimateMin} min`;
+  const estimate = !reportsDollars(goal.provider) ? `~${brief.timeEstimateMin} min` : `$${brief.costEstimateUsd.toFixed(2)} · ~${brief.timeEstimateMin} min`;
   const next = blocking ? `${blocking} blocking question${blocking === 1 ? '' : 's'} to answer on the Brief first.` : `Budget on approval: ${budgetOnApproval(goal, brief, calibration).text}.`;
   const understanding = brief.understanding.trim();
   return {

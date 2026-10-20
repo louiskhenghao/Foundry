@@ -3,6 +3,7 @@
  * the factors a new goal's estimate is corrected by. The samples come from the goal's own folder when it has enough
  * finished goals, else from every folder's goals of the same nature, else there is no calibration.
  */
+import { reportsDollars } from '@foundry/core';
 import type { Goal } from '@foundry/core';
 import { CALIBRATION_MIN_SAMPLES, calibrate, getBrief, isHistory, listGoals, natureKey, type Calibration, type EstimateSample } from '@foundry/core';
 import { budgetStatus } from './budget.ts';
@@ -26,7 +27,7 @@ export function estimateSamples(engine: Engine, except: string | null = null): (
       at: g.updatedAt,
       estimateUsd: b.brief.costEstimateUsd,
       // a Codex goal reports no cost; a Claude goal that spent nothing measured is left without one too
-      actualUsd: g.provider === 'codex' || !(g.costUsd > 0) ? null : g.costUsd,
+      actualUsd: !reportsDollars(g.provider) || !(g.costUsd > 0) ? null : g.costUsd,
       estimateMin: b.brief.timeEstimateMin,
       actualMin: elapsedMin > 0 ? elapsedMin : null,
       repoPath: g.repoPath,

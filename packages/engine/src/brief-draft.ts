@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { reportsDollars } from '@foundry/core';
 import type { Brief, BriefCheck, BriefTask, Goal, InterviewQuestion, InterviewRound } from '@foundry/core';
 import { AreaDraftOutput, Brief as BriefSchema, REVISE_MAX_ROUNDS, ReviseTurnOutput, RevisionOutput, TaskDraftOutput, type BriefDiff, diffBrief, getBrief, getGoal, noteQuestion, renderDecisions } from '@foundry/core';
 import { z } from 'zod';
@@ -110,13 +111,13 @@ export async function runDraft(engine: Engine, goal: Goal, req: DraftRequest): P
       const taskKey = c.taskKey ? (rename.get(c.taskKey) ?? (known.has(c.taskKey) ? c.taskKey : null)) : null;
       return { key: nextKey('C'), name: c.name, tier: c.tier, taskKey, areaKey: taskKey ? null : area!.key, spec: materializeCheck(c, taskKey) };
     });
-    return { mode: req.mode, taskKey: null, task: null, tasks, checks, rationale: out.rationale, costUsd: cost, costAvailable: goal.provider !== 'codex' };
+    return { mode: req.mode, taskKey: null, task: null, tasks, checks, rationale: out.rationale, costUsd: cost, costAvailable: reportsDollars(goal.provider) };
   }
 
   const out = parsed.data as TaskDraftOutput;
   const taskKeys = new Set(brief.tasks.map((t) => t.key));
   const checks: BriefCheck[] = out.checks.map((c) => ({ key: nextKey('C'), name: c.name, tier: c.tier, taskKey: task!.key, areaKey: null, spec: materializeCheck(c, task!.key) }));
-  if (req.mode === 'acceptance') return { mode: req.mode, taskKey: task!.key, task: null, tasks: [], checks, rationale: out.rationale, costUsd: cost, costAvailable: goal.provider !== 'codex' };
+  if (req.mode === 'acceptance') return { mode: req.mode, taskKey: task!.key, task: null, tasks: [], checks, rationale: out.rationale, costUsd: cost, costAvailable: reportsDollars(goal.provider) };
   const fields: NonNullable<DraftProposal['task']> = {};
   if (out.spec && !task!.spec.trim()) fields.spec = out.spec;
   if (out.kind) fields.kind = out.kind;
@@ -126,7 +127,7 @@ export async function runDraft(engine: Engine, goal: Goal, req: DraftRequest): P
   fields.dependsOnKeys = out.dependsOnKeys.filter((k) => taskKeys.has(k) && k !== task!.key);
   fields.relevantFiles = out.relevantFiles;
   if (out.delivers?.length) fields.delivers = out.delivers;
-  return { mode: req.mode, taskKey: task!.key, task: fields, tasks: [], checks, rationale: out.rationale, costUsd: cost, costAvailable: goal.provider !== 'codex' };
+  return { mode: req.mode, taskKey: task!.key, task: fields, tasks: [], checks, rationale: out.rationale, costUsd: cost, costAvailable: reportsDollars(goal.provider) };
 }
 
 /** a draft or Revise session's pieces: the read-only Clarifier run with its prompt, caps and bookkeeping */
@@ -248,7 +249,7 @@ async function settleRevise(engine: Engine, goal: Goal, brief: Brief, s: ReviseS
   if (parsed.success && parsed.data.questions.length && !parsed.data.revision && rounds.length < REVISE_MAX_ROUNDS) {
     const questions = normalizeQuestions({ rounds }, parsed.data.questions);
     store.append({ type: 'revise.round_asked', goalId: goal.id, payload: { round: rounds.length + 1, sessionId: result.sessionId ?? null, questions } });
-    return { mode: 'revise', taskKey: null, task: null, tasks: [], checks: [], rationale: '', costUsd: s.cost(), costAvailable: goal.provider !== 'codex', round: { round: rounds.length + 1, questions } };
+    return { mode: 'revise', taskKey: null, task: null, tasks: [], checks: [], rationale: '', costUsd: s.cost(), costAvailable: reportsDollars(goal.provider), round: { round: rounds.length + 1, questions } };
   }
   // questions past the cap: one more turn for the revision
   if (parsed.success && !parsed.data.revision && result.sessionId && repairable(result)) {
@@ -263,7 +264,7 @@ async function settleRevise(engine: Engine, goal: Goal, brief: Brief, s: ReviseS
   const revised = toRevisedBrief(brief, out, roundDecisions(rounds));
   const diff = diffBrief(brief, revised);
   finish('proposal');
-  return { mode: 'revise', taskKey: null, task: null, tasks: [], checks: [], rationale: out.changeSummary, costUsd: s.cost(), costAvailable: goal.provider !== 'codex', revision: { diff, revised, changeSummary: out.changeSummary } };
+  return { mode: 'revise', taskKey: null, task: null, tasks: [], checks: [], rationale: out.changeSummary, costUsd: s.cost(), costAvailable: reportsDollars(goal.provider), revision: { diff, revised, changeSummary: out.changeSummary } };
 }
 
 /**

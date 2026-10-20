@@ -1,3 +1,4 @@
+import type { AgentProvider } from '@foundry/core';
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join, relative, resolve, sep } from 'node:path';
 import { exec } from '../git/git.ts';
@@ -78,6 +79,7 @@ export async function installPlugin(entry: CatalogEntry, ctx: InstallContext): P
   const codex = ctx.paths.provider === 'codex';
   const name = codex ? 'codex' : 'claude';
   const manual = { command: pluginInstallCommand(src, ctx.paths.provider), docs: src.docs ?? null };
+  if (ctx.paths.provider === 'agy') return { ok: false, id: entry.id, name: entry.name, path: null, commit: null, manual, error: 'Antigravity plugins are installed in agy itself' };
   const bin = (codex ? ctx.codexBin : ctx.claudeBin) ?? Bun.which(name);
   if (!bin || !ctx.spawn) return { ok: false, id: entry.id, name: entry.name, path: null, commit: null, manual, error: bin ? 'no spawner configured' : `${name} CLI not found` };
   const onLine = ctx.onLine ?? (() => {});
@@ -107,7 +109,7 @@ export const serverBaseArgs = (args: string[]): string[] => {
 };
 
 /** an MCP server as the plugin's own config starts it (its manifest's `mcpServers` holds the map or names a file inside the plugin); null when it ships none by that name */
-export function readPluginMcpServer(installPath: string, provider: 'claude' | 'codex' | undefined, name: string): PluginMcpServer | null {
+export function readPluginMcpServer(installPath: string, provider: AgentProvider | undefined, name: string): PluginMcpServer | null {
   try {
     const manifest = JSON.parse(readFileSync(join(installPath, provider === 'codex' ? '.codex-plugin' : '.claude-plugin', 'plugin.json'), 'utf8')) as { mcpServers?: string | Record<string, unknown> };
     let servers: Record<string, unknown> | undefined;

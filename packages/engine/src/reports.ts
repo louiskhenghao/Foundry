@@ -6,7 +6,7 @@
  * account limits stay where they are.
  */
 import { basename } from 'node:path';
-import { calibrate, listAttemptsByGoal, listGoals, listTasks, listUsageSince, type EstimateSample, type Goal, type UsageRow } from '@foundry/core';
+import { calibrate, listAttemptsByGoal, listGoals, listTasks, listUsageSince, type EstimateSample, type Goal, type UsageRow, reportsDollars } from '@foundry/core';
 import { budgetStatus } from './budget.ts';
 import { estimateSamples } from './calibration.ts';
 import type { Engine } from './engine.ts';
@@ -141,7 +141,7 @@ export function buildReport(engine: Engine, opts: { days: number | null; now?: n
   const repos: ReportRepo[] = [...paths]
     .map((repoPath) => {
       const mine = goals.filter((g) => g.repoPath === repoPath);
-      const priced = mine.filter((g) => FINISHED.has(g.state) && g.provider !== 'codex' && g.costUsd > 0);
+      const priced = mine.filter((g) => FINISHED.has(g.state) && reportsDollars(g.provider) && g.costUsd > 0);
       return {
         repoPath,
         name: basename(repoPath) || repoPath,

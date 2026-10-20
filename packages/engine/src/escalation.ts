@@ -1,3 +1,4 @@
+import { reportsDollars } from '@foundry/core';
 import type { Escalation, EscalationAnswer, EscalationTrigger, Goal, Task } from '@foundry/core';
 import { ACTIONS_BY_TRIGGER, IdPrefix, getEscalation, getGoal, getTask, listEscalations, newId } from '@foundry/core';
 import type { Engine } from './engine.ts';
@@ -143,7 +144,7 @@ async function applyAnswer(engine: Engine, id: string, answer: EscalationAnswer,
       // null limits stay null (unlimited); otherwise double unless the human gave a number
       const budgets = {
         ...goal.budgets,
-        maxCostUsd: goal.provider === 'codex' ? null : answer.newMaxCostUsd ?? (goal.budgets.maxCostUsd == null ? null : goal.budgets.maxCostUsd * 2),
+        maxCostUsd: !reportsDollars(goal.provider) ? null : answer.newMaxCostUsd ?? (goal.budgets.maxCostUsd == null ? null : goal.budgets.maxCostUsd * 2),
         maxDurationMin: answer.newMaxDurationMin ?? (goal.budgets.maxDurationMin == null ? null : goal.budgets.maxDurationMin * 2),
       };
       store.append({ type: 'goal.budgets_changed', goalId: goal.id, payload: { budgets, reason: 'human: raise budget' } });
