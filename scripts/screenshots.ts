@@ -29,7 +29,7 @@ const mask = async () => {
     // the dot on the ⚙ menu reports this machine's missing tools, not the demo's
     document.querySelector('button[aria-label="Settings, setup, help and theme"] span.bg-rose-500')?.remove();
     // a ready repository can report the host's global git identity
-    for (const label of document.querySelectorAll('span')) {
+    for (const label of Array.from(document.querySelectorAll('span'))) {
       if (label.textContent === 'identity' && label.nextElementSibling) label.nextElementSibling.textContent = 'demo <you@example.com>';
     }
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
