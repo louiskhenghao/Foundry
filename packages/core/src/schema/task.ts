@@ -63,6 +63,8 @@ export const Task = z.object({
   delivers: z.array(z.string()).optional(),
   /** a `goal` task: the share of the goal's cost budget (USD) its Delegated goal may spend; null = an even share of what is left */
   budgetUsd: z.number().positive().nullable().optional(),
+  /** a `goal` task done in a companion repository (ADR-0063): that repository's path; null or absent = the goal's own */
+  repo: z.string().nullable().optional(),
   parallelizable: z.boolean(),
   retryBudget: z.number().int().positive(),
   origin: TaskOrigin,
