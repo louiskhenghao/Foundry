@@ -512,6 +512,25 @@
       "bundle": "mattpocock"
     },
     {
+      "id": "pr",
+      "name": "pr",
+      "summary": "A pull request body template: Summary, Evidence, Merge Danger.",
+      "why": "Foundry writes every pull request body after this template itself — the summary, the evidence from the checks and the merge danger — so sessions never need it; installing it only gives you the skill for pull requests you write by hand.",
+      "tier": "optional",
+      "source": {
+        "type": "git",
+        "repo": "mattpocock/skills",
+        "ref": "v1.3.1",
+        "path": "skills/engineering/pr"
+      },
+      "roles": [],
+      "tags": [
+        "delivery"
+      ],
+      "homepage": "https://github.com/mattpocock/skills",
+      "bundle": "mattpocock"
+    },
+    {
       "id": "domain-modeling",
       "name": "domain-modeling",
       "summary": "Name the concepts precisely before designing code.",
