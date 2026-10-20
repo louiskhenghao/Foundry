@@ -215,6 +215,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('brief.proposed', { brief: Brief }),
   ev('brief.edited', { brief: Brief }),
   ev('brief.approved', { brief: Brief }),
+  /** a second opinion on the Brief (ADR-0051): the revised Brief a reviewer that did not write it proposes; the page shows its diff against the Brief as it is now */
+  ev('brief.second_opinion', { auto: z.boolean(), costUsd: z.number(), changeSummary: z.string(), revised: Brief.omit({ goalId: true }) }),
 
   ev('task.created', { task: Task }),
   ev('task.state_changed', { taskId: z.string(), from: TaskState, to: TaskState, reason: z.string() }),

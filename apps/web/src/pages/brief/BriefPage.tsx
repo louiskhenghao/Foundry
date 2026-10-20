@@ -17,6 +17,7 @@ import { StyleCards } from './StyleCards.tsx';
 import { useUnsaved } from '../../unsaved.ts';
 import { SubjectsCard } from './SubjectsCard.tsx';
 import { DecisionsBar } from './DecisionsBar.tsx';
+import { SecondOpinionBar } from './SecondOpinionBar.tsx';
 import { GoalAcceptanceCard } from './GoalAcceptanceCard.tsx';
 import { RunCard } from './RunCard.tsx';
 import { InterviewPanel } from '../goal/InterviewPanel.tsx';
@@ -320,6 +321,11 @@ export function BriefPage() {
           {(decisions.length > 0 || editable) && (
             <section id="brief-decisions" className={sec}>
               <DecisionsBar brief={brief} goal={g} goalId={id} editable={editable} revisable={settled} edit={edit} beforeRevise={dirty ? save : undefined} />
+            </section>
+          )}
+          {(editable || detail.secondOpinion) && (
+            <section id="brief-second-opinion" className={sec}>
+              <SecondOpinionBar goalId={id} stored={detail.secondOpinion ?? null} running={!!detail.secondOpinionRunning} editable={editable} edit={edit} beforeRun={dirty ? save : undefined} />
             </section>
           )}
           <section id="brief-areas" className={sec}>

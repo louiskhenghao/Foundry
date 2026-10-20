@@ -122,6 +122,10 @@ Delegated goal 和 follow-up 会带着来源 goal 的 Subject 和图片开始，
 
 你也可以在决定还没应用时直接批准。执行者仍然会收到这些决定；只是计划没有为它们重写。
 
+### Second opinion
+
+在 decisions 下面，**Second opinion** 让一个没写过这份 Brief 的审阅者站在你的立场、对着你的项目读一遍：理解对不对，任务的大小和顺序合不合适，检查项能不能判定你要的东西，缺了什么、哪里有风险。它用 goal reviewer 的模型，只读，从不提问；不知道的就先假设并说明。它的建议和修订（revision）一样以清单形式出现：勾选你要的行，按 **Apply**，什么都不会自己改。你没保存的编辑会先保存。**Settings → New goal defaults → Second opinion on every Brief** 可以在 Brief 准备好等你批准时自动写一份；刷新页面后它还在，Brief 之后改过的话会注明。
+
 ## Areas
 
 **Areas (N)** 是这个 goal 涉及的产品部分：一个角色或应用（"学生端""教师端"），或者它们都需要的公共基础。每个任务都属于一个 Area。

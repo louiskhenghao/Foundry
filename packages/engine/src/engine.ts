@@ -66,6 +66,7 @@ import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
 import { linkSuiteSkills } from './skills/suites.ts';
 import { exportLearningsSkill } from './learnings-skill.ts';
+import { secondOpinion, secondOpinionOf, secondOpinionOnBrief, type SecondOpinionView } from './brief-second-opinion.ts';
 import { SATISFIED } from './skills/catalog.ts';
 import { UpdateManager } from './update/updater.ts';
 import { AgentsMonitor, type FoundryLiveSession } from './agents/monitor.ts';
@@ -275,6 +276,8 @@ export class Engine {
   readonly auditing = new Set<string>();
   /** goals whose references REA is investigating */
   readonly investigating = new Set<string>();
+  /** goals whose Brief a second opinion is being written for (ADR-0051) */
+  readonly secondOpinions = new Set<string>();
   /** goal tasks whose Delegated goal is landing on the goal branch now, with the landing (delegation.ts); stop() waits for them */
   readonly landingDelegations = new Map<string, Promise<void>>();
   /** Delegated goals whose Brief the engine is approving now, with the approval; stop() waits for them */
@@ -472,6 +475,8 @@ export class Engine {
       if (e.type === 'goal.state_changed') learnOnEnd(this, e.goalId, e.payload.to);
       // the notebook changed: the folder's exported skill follows (ADR-0050)
       if (e.type === 'learnings.set') void exportLearningsSkill(this, e.payload.repoPath);
+      // a Brief ready for a person's approval gets a second opinion when Settings say so (ADR-0051)
+      if (e.type === 'goal.state_changed' && e.payload.to === 'awaiting_brief_approval' && e.payload.reason !== 'auto brief' && e.goalId) secondOpinionOnBrief(this, e.goalId);
       if ((e.type === 'task.artifacts_landed' || e.type === 'goal.artifacts_delivered') && e.goalId) this.cadModelMemo.delete(e.goalId);
       // a milestone recorded in a goal with Subject pictures: the Likeness review compares the two (in the background)
       if (e.type === 'milestone.evidence') onMilestoneEvidence(this, e);
@@ -2267,6 +2272,16 @@ export class Engine {
   /** the human answered the round a Revise asked: the proposal, or one more round */
   async answerRevise(goalId: string, ans: ReviseAnswer): Promise<DraftProposal> {
     return answerRevise(this, this.mustGoal(goalId), ans);
+  }
+
+  /** a second opinion on the Brief awaiting approval (ADR-0051): the proposal, also kept as an event for the page */
+  secondOpinion(goalId: string): Promise<DraftProposal> {
+    return secondOpinion(this, goalId);
+  }
+
+  /** the goal's last second opinion, against the Brief as it is now */
+  secondOpinionOf(goalId: string): SecondOpinionView | null {
+    return secondOpinionOf(this, goalId);
   }
 
   /** the human let an asking Revise go */
