@@ -152,6 +152,21 @@ Stop the server (Ctrl-C), then `git worktree remove ../foundry-qa`, and delete t
 `scripts/e2e-conflict.ts` is an older scripted end-to-end run (two parallel tasks forced into a merge conflict) against a running server. It honours `FOUNDRY_PORT` / `FOUNDRY_URL`, so run it against the throwaway server too.
 
 
+## Role-prompt regression set
+
+The unit tests run every role against fakes. Whether a real session still finishes a small goal — after a workflow suite bump (mattpocock, pstack), a model alias that moved, or an edit to a role's prompt — is what the regression set answers ([ADR-0062](adr/0062-role-prompt-regression-set.md)). It is run by a person, never by CI, and spends real money on the signed-in coding agent of this machine: a few dollars for the whole set.
+
+```sh
+bun scripts/regress.ts --dry-run                       # the cases and what they may cost
+bun scripts/regress.ts --label before-bump --save-baseline mattpocock-opus
+# … bump the suite or the model …
+bun scripts/regress.ts --baseline regress/baselines/mattpocock-opus.json
+```
+
+Five cases (`packages/engine/src/regress/cases.ts`), each a fixture repository built from code, a prompt, the shell checks the finished checkout must pass, the files the goal may touch, and a budget: fix a planted bug touching nothing else; add two functions with tests and exports; a docs-only README section; a refactor that keeps the tests green; a feature on a static page. Every goal runs through Clarify with the interview off and its Brief approved by the harness, so the clarifier and the planner are under test too; `--no-clarify` runs the checks as a one-task Brief for a cheaper look at the worker and reviewer roles alone. `--only a,b` picks cases, `--provider`, `--profile` and `--model` set what the goals run on, `--work-dir` keeps the engine's data and the fixtures somewhere you can look at.
+
+A run writes `regress/results/<time>-<label>.json` and `.md` (not committed): per case the state, pass or fail with why, cost, minutes, tasks, attempts and retries; for the suite the pass rate, cost and time. `--baseline` compares with a saved run and names the regressions (passed before, failed now), the improvements, and the cases that cost half again as much; `--save-baseline <name>` keeps the run under `regress/baselines/`, which is committed, one per suite or model worth comparing against. The script exits 1 when a case failed or something got worse; a goal that stops for the person counts as failed. To add a case, append to `CASES` with checks that a human could run by hand and allowed globs that are honest about what the change needs. The harness has a self-test on the fake runner (`packages/engine/src/regress/run.test.ts`).
+
 ### Provider validation record
 
 [Codex validation](codex-validation.md) separates fixture coverage, browser checks and native smoke tests from integrations still requiring real-account validation. Provider-specific screenshots use an isolated server with fixture account/quota/model responses; do not include private account identities or present fixture quota values as measured account data. Review both launch defaults, weekly-only quotas, light/dark themes and narrow widths.

@@ -30,6 +30,8 @@ bun run release patch|minor|major|x.y.z [--notes "..."] [--dry-run]
 - `git push` to `origin` works.
 - **The guide's screenshots are current.** If a screen the user guide shows changed since the last release, run `bun scripts/screenshots.ts` and commit the new images first (see [testing.md](testing.md#the-seeded-demo-and-the-guides-screenshots)).
 
+After a workflow suite or model bump (mattpocock, pstack, a model alias that moved) or a change to a role's prompt, run the [role-prompt regression set](testing.md#role-prompt-regression-set) first and compare it with the last baseline: it spends a few dollars on the real coding agent and says whether the roles still finish small goals, at what cost.
+
 Run the full package, CLI and web regression suite, type checks and web build before publishing:
 
 ```sh
