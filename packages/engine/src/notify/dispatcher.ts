@@ -85,6 +85,14 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
       return { family: 'delivery', text: `🎉 PR ${e.payload.prNumber != null ? `#${e.payload.prNumber} ` : ''}merged — ${goalTitle(e.goalId)}`, path: e.goalId ? `/goals/${e.goalId}` : null };
     case 'delivery.failed':
       return { family: 'delivery', text: `⚠️ Delivery failed at ${e.payload.step} — ${goalTitle(e.goalId)}\n${e.payload.reason.slice(0, 300)}`, path: e.goalId ? `/goals/${e.goalId}` : null };
+    case 'delivery.review_received': {
+      const n = e.payload.round.comments.length;
+      const head = `💬 ${n} review comment${n === 1 ? '' : 's'} on PR #${e.payload.round.prNumber} — ${goalTitle(e.goalId)}`;
+      return { family: 'delivery', text: e.payload.action === 'fixing' ? `${head}\nFoundry addresses them in a fix task and replies under each.` : `${head}\nThey wait for you: the fix budget of the policy is used up. Fix review comments on the Delivery tab, or answer on GitHub.`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
+    }
+    case 'delivery.review_addressed':
+      if (e.payload.status === 'failed') return null; // delivery.failed says it, with the way out
+      return { family: 'delivery', text: e.payload.status === 'addressed' ? `✅ Review comments addressed — ${goalTitle(e.goalId)}\n${e.payload.detail.slice(0, 300)}` : `👀 Review comments looked at, nothing to change — ${goalTitle(e.goalId)}\n${e.payload.detail.slice(0, 300)}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
     case 'deploy.finished':
       return { family: 'delivery', text: `🚀 Deployed to ${PROVIDER_LABEL[e.payload.provider]}${e.payload.production ? '' : ' (preview)'} — ${goalTitle(e.goalId)}\n${e.payload.url}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
     case 'deploy.failed':
