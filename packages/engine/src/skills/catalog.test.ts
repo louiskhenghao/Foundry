@@ -56,6 +56,8 @@ describe('catalog', () => {
       { id: 'graphify', name: 'graphify', summary: '', why: '', tier: 'required', source: { type: 'cli', detect: 'graphify', install: 'uv tool install graphifyy', skill: true }, roles: ['clarifier'] },
       { id: 'ffmpeg', name: 'ffmpeg', summary: '', why: '', tier: 'optional', source: { type: 'cli', detect: 'ffprobe', install: 'brew install ffmpeg' }, roles: ['reviewer-task'] },
       { id: 'gstack', name: 'gstack', summary: '', why: '', tier: 'optional', source: { type: 'manual', install: 'git clone …', detectDir: 'gstack' } },
+      // a catalog skill whose name a gstack skill shares (mattpocock's retro, gstack's retro): gstack's copy is not it
+      { id: 'autoplan', name: 'autoplan', summary: '', why: '', tier: 'optional', source: { type: 'git', repo: 'o/r' } },
     ]);
     const catalog = loadCatalog(p);
     const scan = scanSkills(fake.paths);
@@ -67,6 +69,7 @@ describe('catalog', () => {
     expect(s('nothere').status).toBe('missing');
     expect(s('graphify')).toMatchObject({ status: 'partial', manual: { command: 'uv tool install graphifyy' } });
     expect(s('gstack').status).toBe('installed-unmanaged');
+    expect(s('autoplan')).toMatchObject({ status: 'missing', installedInvoke: null });
     // a binary with no skill folder of its own is installed once found, and sessions are told to run it, not invoke it
     expect(s('ffmpeg')).toMatchObject({ status: 'installed', installedInvoke: null });
     expect(formatSkillsHint('reviewer-task', st)).toContain('the `ffprobe` command-line tool');
