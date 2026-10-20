@@ -1,19 +1,36 @@
-import type { Goal } from '@foundry/core/browser';
+import type { EngineEvent, Goal } from '@foundry/core/browser';
 import { CheckCircle2, Circle, Loader2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, apiForProvider, awaitSkillOp } from '../../api.ts';
 import { Button, cn } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
+import { stageDurations } from './clarify-timing.ts';
 
 const fmt = (s: number) => (s >= 60 ? `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s` : `${s}s`);
 
+/** the live log of the Clarify step under way: REA's investigation while it studies the references, else the Clarifier's and the planner's sessions */
+export const clarifyChannel = (goal: Goal) => (goal.clarifyStage?.stage === 'investigating' ? `investigate-${goal.id}` : `clarify-${goal.id}`);
+
+/** the Brief skeleton is out: the Brief page shows it, editable, while the planner works */
+export function SkeletonNotice({ goalId }: { goalId: string }) {
+  return (
+    <p className="mt-2 text-xs text-sky-300">
+      The Brief is taking shape: its understanding, Areas and assumptions are ready to read and edit while the planner splits the goal into tasks.{' '}
+      <Link to={`/goals/${goalId}/brief`} className="underline">
+        Open the Brief
+      </Link>
+    </p>
+  );
+}
+
 /**
  * Where Clarify is, with how long the current step has run: the Clarifier reading the repository and writing its
- * answer, then the planner splitting the goal into tasks. A long answer is written in one go, so the log can stand still
- * for minutes; the timer says it is still working.
+ * answer, then the planner splitting the goal into tasks; a wait for a free session slot shows on the step it holds up.
+ * Finished steps show how long they took. A long answer is written in one go, so the log can stand still for minutes;
+ * the timer says it is still working.
  */
-export function ClarifyProgress({ goal, writingBrief }: { goal: Goal; writingBrief: boolean }) {
+export function ClarifyProgress({ goal, writingBrief, skeleton = false, events = [] }: { goal: Goal; writingBrief: boolean; /** the Brief skeleton is out: the Clarifier's step is done, the planner's under way */ skeleton?: boolean; /** the goal's events, for how long each finished step took */ events?: Pick<EngineEvent, 'type' | 'ts' | 'payload'>[] }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -46,13 +63,16 @@ export function ClarifyProgress({ goal, writingBrief }: { goal: Goal; writingBri
   };
   const stage = goal.clarifyStage;
   const since = stage ? Math.max(0, Math.round((now - Date.parse(stage.at)) / 1000)) : null;
+  const spent = useMemo(() => stageDurations(events, now), [events, now]);
+  const queued = stage?.stage === 'queued';
   const steps = [
     ...(goal.references.length ? [{ key: 'investigating', label: `REA: studying ${goal.references.length === 1 ? 'the reference' : 'the references'} and writing the report` }] : []),
-    { key: 'clarifying', label: writingBrief ? 'Clarifier: reading the repository, then writing the Brief' : 'Clarifier: reading the repository, then asking or writing the Brief' },
-    ...(writingBrief ? [{ key: 'planning', label: 'Planner: splitting the goal into tasks' }] : []),
+    { key: 'clarifying', label: writingBrief || skeleton ? 'Clarifier: reading the repository, then writing the Brief' : 'Clarifier: reading the repository, then asking or writing the Brief' },
+    ...(writingBrief || skeleton ? [{ key: 'planning', label: 'Planner: splitting the goal into tasks' }] : []),
   ];
-  // no step recorded yet (the session is being prepared): the first one
-  const current = Math.max(0, steps.findIndex((s) => s.key === stage?.stage));
+  // the step under way: a wait for a slot belongs to the step it holds up (the planner once the skeleton is out); none recorded yet = the first
+  const activeKey = queued ? (skeleton ? 'planning' : 'clarifying') : (stage?.stage ?? (skeleton ? 'planning' : steps[0]!.key));
+  const current = Math.max(0, steps.findIndex((s) => s.key === activeKey));
   return (
     <div className="space-y-1.5">
       {goal.nature === 'cad' && cad && !cad.installed && (
@@ -79,10 +99,13 @@ export function ClarifyProgress({ goal, writingBrief }: { goal: Goal; writingBri
         {steps.map((s, i) => {
           const done = current > i;
           const active = current === i;
+          const took = spent[s.key as keyof typeof spent];
           return (
-            <li key={s.key} className={cn('flex items-center gap-2', active ? 'text-zinc-200' : done ? 'text-zinc-400' : 'text-zinc-600')}>
-              {done ? <CheckCircle2 size={13} className="text-emerald-400" /> : active ? <Loader2 size={13} className="animate-spin text-sky-300" /> : <Circle size={13} />}
+            <li key={s.key} className={cn('flex items-center gap-2 flex-wrap', active ? 'text-zinc-200' : done ? 'text-zinc-400' : 'text-zinc-600')}>
+              {done ? <CheckCircle2 size={13} className="text-emerald-400" /> : active ? <Loader2 size={13} className={cn('animate-spin', queued ? 'text-amber-300' : 'text-sky-300')} /> : <Circle size={13} />}
               <span>{s.label}</span>
+              {done && !!took && <span className="mono text-[11px] text-zinc-500">{fmt(took)}</span>}
+              {active && queued && <span className="text-[11px] text-amber-300">waiting for a free session slot (every slot is taken)</span>}
               {active && since !== null && <span className="mono text-[11px] text-zinc-500">{fmt(since)}</span>}
             </li>
           );

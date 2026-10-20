@@ -131,12 +131,14 @@ export function buildAttemptPrompt(i: AttemptPromptInput): string {
   return lines.join('\n\n');
 }
 
-export function summarizeReport(r: { results: { status: string; summary: string }[]; reviewerVerdict: { pass: boolean; blockers: string[]; notes?: string } | null; changedFiles: { path: string }[] }, checks: Check[], workflow?: { mandated: { name: string; invoke: string }[]; used: string[] } | null): string {
+export function summarizeReport(r: { results: { status: string; summary: string }[]; reviewerVerdict: { pass: boolean; blockers: string[]; notes?: string } | null; changedFiles: { path: string }[] }, checks: Check[], workflow?: { mandated: { name: string; invoke: string }[]; used: string[]; observable?: boolean } | null): string {
   const byId = new Map(checks.map((c) => [c.id, c]));
   const lines: string[] = [];
   if (workflow?.mandated.length) {
     const hit = (n: string) => workflow.used.some((u) => u === n || u.endsWith(`:${n}`));
-    lines.push(`Workflow: ${workflow.mandated.map((m) => `${m.invoke} ${hit(m.name) ? '✓' : 'not invoked — invoke it first next time'}`).join('; ')}.`);
+    // a backend that reports no skill invocations (Codex): the workflow is restated, never called skipped
+    if (workflow.observable === false) lines.push(`Workflow: ${workflow.mandated.map((m) => m.invoke).join('; ')} — whether they were invoked is not recorded for this backend; follow them again.`);
+    else lines.push(`Workflow: ${workflow.mandated.map((m) => `${m.invoke} ${hit(m.name) ? '✓' : 'not invoked — invoke it first next time'}`).join('; ')}.`);
   }
   const failed = r.results.filter((x) => x.status !== 'pass');
   lines.push(`${r.results.length - failed.length}/${r.results.length} checks passed.`);

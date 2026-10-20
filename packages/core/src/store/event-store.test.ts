@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { openDatabase } from './db.ts';
 import { EventStore } from './event-store.ts';
-import { getGoal, getTask, listGoals, listTasks } from './projections.ts';
-import { IDLE_DELIVERY, type Goal, type Task } from '../schema/index.ts';
+import { getBrief, getGoal, getTask, listGoals, listTasks } from './projections.ts';
+import { type Brief, IDLE_DELIVERY, type Goal, type Task } from '../schema/index.ts';
 
 function goal(id: string): Goal {
   const now = new Date().toISOString();
@@ -108,6 +108,28 @@ describe('EventStore', () => {
     expect(getGoal(store.db, g.id)?.clarifyStage).toBeNull();
     // a fresh Clarify keeps how deep the goal asked to be interviewed
     expect(getGoal(store.db, g.id)?.interview).toMatchObject({ depth: 5, rounds: [], sessionId: null });
+  });
+
+  test('a Brief skeleton is stored unapproved and marked, the Clarify step stays, and the planned Brief replaces it', () => {
+    const store = new EventStore(openDatabase(':memory:'));
+    const g = goal('g_sk');
+    store.append({ type: 'goal.created', goalId: g.id, payload: { goal: g } });
+    // every slot taken: the wait is a step of its own
+    store.append({ type: 'clarify.stage', goalId: g.id, payload: { stage: 'queued' } });
+    expect(getGoal(store.db, g.id)?.clarifyStage?.stage).toBe('queued');
+    const brief = { goalId: g.id, title: '', understanding: 'u', areas: [{ key: 'A1', name: 'A', slug: 'a', description: '' }], assumptions: [], checks: [], tasks: [], costEstimateUsd: 0, timeEstimateMin: 0, run: null, apps: null, questions: [], styleOptions: [] } as unknown as Brief;
+    store.append({ type: 'brief.skeleton_proposed', goalId: g.id, payload: { brief } });
+    expect(getBrief(store.db, g.id)).toMatchObject({ approved: false, skeleton: true, brief: { understanding: 'u' } });
+    expect(getGoal(store.db, g.id)?.clarifyStage?.stage).toBe('queued');
+    // an edit while the planner works keeps it a skeleton
+    store.append({ type: 'brief.edited', goalId: g.id, payload: { brief: { ...brief, understanding: 'edited' } } });
+    expect(getBrief(store.db, g.id)).toMatchObject({ skeleton: true, brief: { understanding: 'edited' } });
+    store.append({ type: 'brief.proposed', goalId: g.id, payload: { brief: { ...brief, understanding: 'edited' } } });
+    expect(getBrief(store.db, g.id)).toMatchObject({ skeleton: false, approved: false });
+    expect(getGoal(store.db, g.id)?.clarifyStage).toBeNull();
+    const before = store.snapshotReadModels();
+    store.replay();
+    expect(store.snapshotReadModels()).toEqual(before);
   });
 
   test('a Revise that asks: its rounds live on the goal until the proposal, the answers and note with them', () => {

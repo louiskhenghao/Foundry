@@ -31,6 +31,16 @@ The Brief opens in the view you chose on the New goal form. Switch with **Expert
 - **Re-run Clarify** throws this Brief away, fetches the latest version of your project and plans again. Attachments, budget and delivery settings are kept. Answers and notes you typed on this page are saved first; then your decisions are handed to the new Clarify as text: it plans with them and does not ask again, but they do not come back as items in the **Decisions** card. You land on the goal page while it works.
 - The **goal** panel shows your original description. **Open full**, the icon with two diagonal arrows in its corner, reads it in a larger window with **Preview**, **Raw** and **Copy**.
 
+## While the planner works
+
+The Brief appears in two steps. The Clarifier writes everything but the tasks first: the understanding, the Areas, the assumptions, the goal acceptance checks, how to run it. That skeleton shows on this page at once, while the badge still reads **clarifying**, and a separate planner session splits the goal into tasks, usually for a few minutes.
+
+![The Brief page while the planner works: the understanding and Areas are editable, the Plan card shows the planner's progress](images/brief-planning.png)
+
+Meanwhile you can read and edit everything that is there, exactly as after the plan: fix the understanding, answer a question, untick an assumption, add a note, rename or delete an Area, change a check. The **Plan** card shows the planner's progress and its live log instead of tasks; the estimate card says the estimate arrives with the plan. **Save edits** stores your changes right away, so they are kept even if you close the page; unsaved changes are kept too, as long as the page stays open.
+
+When the plan lands, the tasks, their checks and the estimate fill in around what you changed; nothing you edited is overwritten. A task planned for an Area you deleted is dropped; an Area you added shows the usual "no tasks yet" question. **Approve & run**, **Re-run Clarify**, **Revise with answers** and the **Draft** buttons open only once the plan is in; until then the bar at the bottom says the planner is still at work.
+
 ## Understanding
 
 What Foundry understood, in its own words. Read this first: if it is wrong, everything after it is too.

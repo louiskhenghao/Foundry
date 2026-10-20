@@ -1,5 +1,5 @@
 import type { Brief, Goal } from '@foundry/core/browser';
-import { Check, Settings2 } from 'lucide-react';
+import { Check, Loader2, Settings2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { OpenFull } from '../../components/FullTextDialog.tsx';
@@ -19,6 +19,8 @@ export function SimpleBrief(p: {
   brief: Brief;
   goal: Goal;
   editable: boolean;
+  /** the planner is still splitting the goal into pieces of work: the Brief skeleton shows, approval waits */
+  planning?: boolean;
   update: (patch: Partial<Brief>) => void;
   budgetDraft: { maxCostUsd: number | null; maxDurationMin: number | null };
   setBudgetEdit: (b: { maxCostUsd: number | null; maxDurationMin: number | null }) => void;
@@ -114,7 +116,12 @@ export function SimpleBrief(p: {
         </Card>
       )}
 
-      <Card title={<SectionTitle section="plan">{`What you will get (${brief.tasks.length} piece${brief.tasks.length === 1 ? '' : 's'} of work)`}</SectionTitle>}>
+      <Card title={<SectionTitle section="plan">{p.planning ? 'What you will get' : `What you will get (${brief.tasks.length} piece${brief.tasks.length === 1 ? '' : 's'} of work)`}</SectionTitle>}>
+        {p.planning && (
+          <p className="text-sm text-sky-300 mb-3 inline-flex items-center gap-1.5">
+            <Loader2 size={14} className="animate-spin" /> Foundry is splitting the goal into pieces of work; they appear here by themselves. You can read and change the rest meanwhile.
+          </p>
+        )}
         <div className="space-y-3">
           {byArea.map(({ area, tasks }) => (
             <div key={area?.key ?? '_'}>
@@ -145,7 +152,7 @@ export function SimpleBrief(p: {
       </Card>
 
       <Card title={<SectionTitle section="budget">{g.provider === 'codex' ? 'Time & limits' : 'Price & time'}</SectionTitle>}>
-        <p className="text-sm text-zinc-300">{g.provider !== 'codex' && <>Estimated ${brief.costEstimateUsd} and </>}about {brief.timeEstimateMin} min.</p>
+        {p.planning ? <p className="text-sm text-sky-300">The estimate arrives with the plan.</p> : <p className="text-sm text-zinc-300">{g.provider !== 'codex' && <>Estimated ${brief.costEstimateUsd} and </>}about {brief.timeEstimateMin} min.</p>}
         {g.provider === 'codex' && <p className="text-xs text-zinc-400 mt-2">Dollar cost is unavailable. Time, attempts and concurrency still apply.</p>}
         {editable && <div className="flex flex-wrap gap-3 mt-3">
           {g.provider !== 'codex' && <label className="text-xs text-zinc-400">Max cost (USD)<Input type="number" min={0.5} step={0.5} value={p.budgetDraft.maxCostUsd ?? ''} placeholder="No limit" onChange={(e) => p.setBudgetEdit({ ...p.budgetDraft, maxCostUsd: e.target.value === '' ? null : Number(e.target.value) })} /></label>}

@@ -59,7 +59,7 @@ A session of the Goal's Coding agent that reads a diff and judges it. The *Task 
 ## Clarify
 
 **Clarify**
-The phase between a Goal being created and work starting. The system explores the repository on its own and produces a Brief; the user reviews it once. While the Brief awaits approval it can be *re-run*: the Workspace is rebuilt from a fresh fetch and a new Brief replaces the old one.
+The phase between a Goal being created and work starting. The system explores the repository on its own and produces a Brief; the user reviews it once. The Brief comes in two steps: the Clarifier's *skeleton* — everything but the Tasks — is shown and editable as soon as it is written, while the planner splits the Goal into Tasks; the plan then fills in around the user's edits, and approval opens. While the Brief awaits approval it can be *re-run*: the Workspace is rebuilt from a fresh fetch and a new Brief replaces the old one. Every session of this phase (and a Revise or a Draft on the Brief) is one a person waits for: it may run as one session beyond the concurrency limit, ahead of queued work, and the Goal page says when it waits for a slot.
 
 **Brief**
 The single document the user approves before automation begins. It holds the system's understanding, the Areas the Goal covers, its Assumptions, the proposed Must and Stretch Checks, the proposed Task DAG, a cost estimate, any Questions, and a one-line Conventional Commits title for the whole Goal that becomes the pull request title.

@@ -1,6 +1,6 @@
 # ADR-0028: The planner writes the task plan once, in a session of its own
 
-**Status:** accepted · 2026-10-08 · amends ADR-0013 and ADR-0018
+**Status:** accepted · 2026-10-08 · amends ADR-0013 and ADR-0018 · amended by ADR-0046 (the skeleton is shown and editable while the planner works)
 
 ## Context
 

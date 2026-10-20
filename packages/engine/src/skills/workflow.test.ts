@@ -160,6 +160,13 @@ describe('workflow observation', () => {
     expect(summarizeReport({ results: [], reviewerVerdict: null, changedFiles: [] }, [], { ...w, used: ['mattpocock-skills:tdd'] })).toContain('/mattpocock-skills:tdd ✓');
     expect(formatWorkflowObservation(null)).toBe('');
   });
+  test('a backend without invocation telemetry is reminded of the workflow, never told it skipped it', () => {
+    const w = { mandated: [{ name: 'tdd', invoke: '/mattpocock-skills:tdd' }], used: [] as string[], observable: false };
+    const line = summarizeReport({ results: [], reviewerVerdict: null, changedFiles: [] }, [], w);
+    expect(line).toContain('Workflow: /mattpocock-skills:tdd');
+    expect(line).not.toContain('not invoked');
+    expect(line).toContain('not recorded');
+  });
 });
 
 describe('agent-facing documents and the housekeeping roles', () => {

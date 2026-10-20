@@ -143,6 +143,8 @@ try {
   });
   await shot('interview', `/goals/${g.interview}`);
   await shot('brief', `/goals/${g.brief}/brief`);
+  // the Brief skeleton while the planner works: editable, the Plan card showing the planner's progress
+  await shot('brief-planning', `/goals/${g.planning}/brief`);
   await shot('goal-running', `/goals/${g.running}`);
   // one picture per tab of the goal page: the finished goal (delivered as four merged PRs) and the running one
   await shot('goal-overview', `/goals/${g.done}#overview`);

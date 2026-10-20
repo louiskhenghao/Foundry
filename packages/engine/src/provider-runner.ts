@@ -1,4 +1,4 @@
-import { Semaphore, type AgentRunner, type RunHandle, type RunSpec } from '@foundry/runner';
+import { Semaphore, type AgentRunner, type RunHandle, type RunLane, type RunSpec } from '@foundry/runner';
 
 export type AgentProvider = 'claude' | 'codex';
 
@@ -9,6 +9,8 @@ export class ProviderRunner implements AgentRunner {
     this.slots = new Semaphore(limit);
   }
   active(): number { return this.slots.activeCount; }
+  /** a run in this lane would wait for a slot now: the caller says so before starting it */
+  wouldQueue(lane: RunLane = 'work'): boolean { return !this.slots.available(lane); }
   setMaxConcurrent(n: number): void {
     this.slots.setLimit(n);
     for (const runner of new Set(Object.values(this.runners))) runner.setMaxConcurrent?.(n);
@@ -20,7 +22,7 @@ export class ProviderRunner implements AgentRunner {
   }
   async run(spec: RunSpec): Promise<RunHandle> {
     const provider = this.select(spec);
-    const release = await this.slots.acquire();
+    const release = await this.slots.acquire(spec.lane);
     try {
       const handle = await this.runners[provider].run(spec);
       const result = handle.result.finally(release);

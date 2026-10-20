@@ -31,6 +31,16 @@ Brief 会以你在 New goal 表单上选的视图打开。用顶部的 **Expert 
 - **Re-run Clarify** 会丢掉这份 Brief，拉取你项目的最新版本，然后重新规划。附件、预算和交付设置都会保留。你在这个页面上输入的答案和备注会先保存；然后你的决定会以文字形式交给新的 Clarify：它会按这些决定来规划，不会再问一遍，但它们不会作为条目回到 **Decisions** 卡片里。它工作期间，你会回到 goal 页面。
 - **goal** 面板显示你最初的描述。面板角上的 **Open full**（两个斜向箭头的图标）会在更大的窗口里显示它，带 **Preview**、**Raw** 和 **Copy**。
 
+## While the planner works
+
+Brief 分两步出现。Clarifier 先写好除任务之外的一切：理解、Areas、假设、goal 的验收检查、怎么运行。这个骨架会马上显示在这个页面上，此时徽标还是 **clarifying**，另一个 planner 会话正在把 goal 拆成任务，通常要几分钟。
+
+![planner 工作期间的 Brief 页面：理解和 Areas 可以编辑，Plan 卡片显示 planner 的进度](images/brief-planning.png)
+
+这期间你可以读和改已经有的一切，和计划出来之后完全一样：修正理解、回答问题、取消勾选某条假设、加备注、改名或删除某个 Area、改某条检查。**Plan** 卡片显示的是 planner 的进度和实时日志，而不是任务；估算卡片会说估算随计划一起到来。**Save edits** 会立刻保存你的改动，所以关掉页面也不会丢；没保存的改动只要页面还开着也会保留。
+
+计划到来时，任务、任务的检查和估算会围绕你改过的内容填进来；你改过的东西不会被覆盖。为你已删除的 Area 规划的任务会被丢掉；你新加的 Area 会显示常见的"no tasks yet"问题。**Approve & run**、**Re-run Clarify**、**Revise with answers** 和 **Draft** 按钮要等计划进来才能用；在那之前，底部的栏会说 planner 还在工作。
+
 ## Understanding
 
 Foundry 用自己的话说它理解了什么。先读这个：如果这里错了，后面的全都会错。

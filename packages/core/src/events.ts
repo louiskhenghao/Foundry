@@ -189,8 +189,12 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('learnings.set', { repoPath: z.string(), learnings: z.array(Learning), source: z.enum(['distill', 'human']), goalId: z.string().nullable(), note: z.string().nullable() }),
 
   ev('clarify.started', { attemptId: z.string().nullable() }),
-  /** where Clarify is: the Clarifier reading the repository and writing its answer (a round or the Brief), or the planner splitting the goal into tasks */
-  ev('clarify.stage', { stage: z.enum(['investigating', 'clarifying', 'planning']) }),
+  /**
+   * where Clarify is: REA studying the references, a wait for a free session slot (every slot taken, the one beyond the
+   * limit included), the Clarifier reading the repository and writing its answer (a round or the Brief), or the planner
+   * splitting the goal into tasks
+   */
+  ev('clarify.stage', { stage: z.enum(['investigating', 'queued', 'clarifying', 'planning']) }),
   /** the human changed the shipped software the goal learns from */
   ev('goal.references_set', { references: z.array(GoalReference) }),
   /** the investigation of the references is wanted again (a re-run of Clarify, a changed reference, the person's request) */
@@ -206,6 +210,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('brief.subject_pictures', { subjectKey: z.string(), added: z.array(SubjectPicture), removed: z.array(z.string()) }),
   /** Foundry's search for pictures of a Subject ended; the pictures it kept are appended */
   ev('brief.subject_searched', { subjectKey: z.string(), status: z.enum(['ok', 'failed']), pictures: z.array(SubjectPicture), costUsd: z.number(), detail: z.string() }),
+  /** the Clarifier's Brief without its tasks (ADR-0046): shown and editable while the planner works; `brief.proposed` follows with the plan filled in */
+  ev('brief.skeleton_proposed', { brief: Brief }),
   ev('brief.proposed', { brief: Brief }),
   ev('brief.edited', { brief: Brief }),
   ev('brief.approved', { brief: Brief }),

@@ -7,6 +7,12 @@ export interface AgentDef {
   tools?: string[];
 }
 
+/**
+ * `interactive`: a session a person is waiting for (Clarify and its planner, a Revise, a Draft). It may use one slot
+ * beyond the concurrency limit and goes before queued work. `work` (the default) runs within the limit.
+ */
+export type RunLane = 'interactive' | 'work';
+
 export interface RunSpec {
   /** First (and in v1 only) user message. */
   prompt: string;
@@ -43,6 +49,8 @@ export interface RunSpec {
   env?: Record<string, string>;
   /** Optional label for logs. */
   label?: string;
+  /** which lane the run takes a slot in; omitted = `work` */
+  lane?: RunLane;
 }
 
 /**
@@ -155,6 +163,8 @@ export interface AgentRunner {
   active(): number;
   /** Change the concurrency cap at runtime (Settings page); optional for fakes. */
   setMaxConcurrent?(n: number): void;
+  /** true when a run in this lane would wait for a slot now (the engine says so before starting one); optional for fakes */
+  wouldQueue?(lane?: RunLane): boolean;
 }
 
 /** Backwards-compatible name for integrations written before multiple backends. */
