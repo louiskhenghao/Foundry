@@ -8,7 +8,7 @@ import { FolderPicker } from './FolderPicker.tsx';
  * Repository chooser for the New Goal page: "Select folder" (picker modal), the chosen path,
  * a git summary panel, and one-click git init when the folder is not a repository yet.
  */
-export function RepoCard({ path, info, onPath, onInfo }: { path: string; info: RepoInfo | null; onPath: (p: string) => void; onInfo: (i: RepoInfo | null) => void }) {
+export function RepoCard({ path, info, onPath, onValidation }: { path: string; info: RepoInfo | null; onPath: (p: string) => void; onValidation: () => { current: () => boolean; finish: (i: RepoInfo | null) => boolean } }) {
   const [picker, setPicker] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(path);
@@ -17,30 +17,35 @@ export function RepoCard({ path, info, onPath, onInfo }: { path: string; info: R
   const [up, setUp] = useState<Awaited<ReturnType<typeof api.repoUpstream>> | null | 'loading'>(null);
   const [pullMsg, setPullMsg] = useState<string | null>(null);
 
-  const checkUpstream = async (p: string, branch: string) => {
+  const checkUpstream = async (p: string, branch: string, current: () => boolean) => {
     setUp('loading');
     setPullMsg(null);
-    setUp(await api.repoUpstream(p, branch).catch(() => null));
+    const upstream = await api.repoUpstream(p, branch).catch(() => null);
+    if (current()) setUp(upstream);
   };
-  const validate = async (p: string) => {
-    if (!p.trim()) return onInfo(null);
-    const i = await api.validateRepo(p.trim()).catch((e) => ({ ok: false, branch: '', dirty: false, error: String(e.message), path: p, exists: false, isDir: false, isGitRepo: false, insideRepoAt: null, hasCommits: false, remotes: [], identity: null, commitCount: 0, lastCommit: null, dirtyCount: 0 }));
-    onInfo(i);
-    if (i.ok && i.remotes.length) void checkUpstream(p.trim(), i.branch);
+  const validate = async (p: string, validation = onValidation()) => {
+    if (!validation.current()) return;
+    setUp(null);
+    if (!p.trim()) return validation.finish(null);
+    const i = await api.validateRepo(p.trim()).catch((e) => ({ ok: false, branch: '', dirty: false, error: String(e.message), path: p, exists: false, isDir: false, isGitRepo: false, insideRepoAt: null, hasCommits: false, remotes: [], identity: null, commitCount: 0, lastCommit: null, dirtyCount: 0, lastGoal: null }));
+    if (!validation.finish(i)) return;
+    if (i.ok && i.remotes.length) void checkUpstream(p.trim(), i.branch, validation.current);
     else setUp(null);
   };
   const pull = async () => {
     if (!info?.ok) return;
+    const validation = onValidation();
     setBusy(true);
     setPullMsg(null);
     try {
       const r = await api.repoPull(info.path, info.branch);
+      if (!validation.current()) return;
       setPullMsg(r.detail);
-      await validate(info.path);
+      await validate(info.path, validation);
     } catch (e: any) {
-      setPullMsg(e.body?.detail ?? e.message);
+      if (validation.finish(info)) setPullMsg(e.body?.detail ?? e.message);
     } finally {
-      setBusy(false);
+      if (validation.current()) setBusy(false);
     }
   };
   const choose = (p: string) => {
@@ -48,20 +53,24 @@ export function RepoCard({ path, info, onPath, onInfo }: { path: string; info: R
     setEditing(false);
     setDraft(p);
     setInitMsg(null);
+    setPullMsg(null);
+    setBusy(false);
     onPath(p);
     void validate(p);
   };
   const gitInit = async () => {
+    const validation = onValidation();
     setBusy(true);
     setInitMsg(null);
     try {
       const r = await api.initRepo(path.trim());
+      if (!validation.current()) return;
       setInitMsg(`Initialized ${r.branch} with ${r.filesCommitted} file(s)${r.identity === 'fallback' ? ' — commits are authored as foundry until you run: git config --global user.name / user.email' : ''}`);
-      await validate(path);
+      await validate(path, validation);
     } catch (e: any) {
-      setInitMsg(e.message);
+      if (validation.finish(info)) setInitMsg(e.message);
     } finally {
-      setBusy(false);
+      if (validation.current()) setBusy(false);
     }
   };
 

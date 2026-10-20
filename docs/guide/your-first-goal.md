@@ -59,7 +59,15 @@ Foundry works in a *repository*: a project folder that git keeps history for. Yo
 
 Press **New goal** in the top bar. The four numbered steps at the top right (**Goal**, **Repository**, **Budget**, **Delivery**) show how far you are. **Goal** turns green once you describe the goal, **Repository** once a ready folder is picked. **Budget** and **Delivery** are always green: their defaults work. The form starts with two cards of choices; the numbered cards **1** to **4** follow.
 
-Several choices start from [Settings → New goal defaults](./settings.md#new-goal-defaults): the view, **Fast mode**, TDD, the workflow suite, and the delivery mode and granularity. Change any of them here for this goal. A field you change on the page keeps your choice.
+Several choices start from [Settings → New goal defaults](./settings.md#new-goal-defaults): the view, **Fast mode**, TDD, Ponytail, the workflow suite, and the delivery mode and granularity. You can change them for this goal.
+
+Picking a ready repository folder fills untouched **Workflow suite**, **TDD** and **Ponytail** from the newest goal by creation time in that exact folder path. Goals that are still imported history are excluded. The values come from the goal's current saved choices, including any later Ponytail change. Each field you change on this page keeps your choice. In Expert view, a muted note under **Powered by** names the source: `from the last goal in this folder: <title>`. It stays while at least one of the three fields still inherits from that goal.
+
+Picking another folder immediately resets untouched fields to Settings defaults and hides the old note. They stay at Settings defaults while validation is pending, if the folder is invalid or has no commits, or if it has no earlier goal. Successful validation applies that folder's latest values; revalidating after a pull or initialization refreshes them too.
+
+A **Follow-up** opened from a goal page prefills all three fields from the chosen earlier goal instead, even if the folder has a newer goal. Later Settings or folder validation responses do not replace them, and the folder source note is hidden. You can still change them before creating the goal. The on-page **Follows** picker only links goals. Simple view keeps the inherited suite and Ponytail but submits **preferred** TDD; **Fast mode** omits TDD, so the engine defaults it to **off**.
+
+If the Follow-up draft arrives after you edit **TDD** or **Ponytail**, those edits stay. Its **Workflow suite** replaces the current suite when the draft arrives.
 
 ![The New goal form with the shared Coding agent selector](images/new-goal.png)
 
@@ -139,7 +147,7 @@ For **Auto** goals, **Default · By goal type** captures the configured defaults
 
 ### Workflow suite
 
-Only in Expert view, and **pstack** only once the Setup page has installed it (the card **Workflow suite — pstack** installs Foundry's own copy of one pinned release, without the plugin's hooks; Claude loads it per session, Codex gets its skills linked into the goal's workspace). Until then the option is greyed out. **Powered by** picks whose skills the roles follow for this goal: **mattpocock** (the default: Matt Pocock's suite — tests first for features, diagnose first for bugs, code review at the end), **pstack** (pstack's suite, with Matt Pocock's skills where pstack has none) or **plain** (no rules: sessions only hear which skills are installed). The choice is fixed when the goal is created; a follow-up starts from the earlier goal's choice, and a delegated goal takes its main goal's. Simple view goals use the Settings default. The goal page and the Brief show it as a **Powered by** chip.
+The selector appears only in Expert view. **pstack** is available once the Setup page has installed it (the card **Workflow suite — pstack** installs Foundry's own copy of one pinned release, without the plugin's hooks; Claude loads it per session, Codex gets its skills linked into the goal's workspace). Until then the option is greyed out; a pstack selection inherited from a folder or Follow-up is kept, with installation guidance and the engine's existing fallback rules. **Powered by** picks whose skills the roles follow for this goal: **mattpocock** (the initial Settings default: Matt Pocock's suite — tests first for features, diagnose first for bugs, code review at the end), **pstack** (pstack's suite, with Matt Pocock's skills where pstack has none) or **plain** (no rules: sessions only hear which skills are installed). The choice is fixed when the goal is created; a goal-page Follow-up starts from the chosen earlier goal's choice, and a delegated goal takes its main goal's. Simple view uses the same suite inheritance as Expert view, with Settings as the fallback. For an older goal with no saved suite, the inherited suite comes from current Settings. The goal page and the Brief show it as a **Powered by** chip.
 
 ### Engineering discipline (TDD)
 
@@ -147,15 +155,15 @@ Only in Expert view. TDD means writing a test first, then the code that makes it
 
 | Choice | Meaning |
 |---|---|
-| **required** | Workers must follow it. Claude supplies skill-invocation evidence; Codex is reviewed from the work and tests. The default, unless Settings says otherwise. |
-| **preferred** | Suggested only. Simple view goals always use this. |
+| **required** | Workers must follow it. Claude supplies skill-invocation evidence; Codex is reviewed from the work and tests. The initial Settings default; folder and Follow-up inheritance can replace it. |
+| **preferred** | Suggested only. Simple view submits this unless Fast mode is on. |
 | **off** | Never mentioned. |
 
 Docs, infra, research, image and video tasks never get a TDD rule, and a single task can switch it off in the Brief. With **Fast mode** ticked, TDD is off.
 
 ### Ponytail: less code
 
-Only in Expert view, and on by default. Ponytail is "the lazy senior dev": before writing, a worker checks whether the code needs to exist at all, whether the repository, the standard library, the platform or an installed dependency already has it, and only then writes the smallest change that fully solves the task, callers, tests and fixtures included. The planner plans the same way, and `ponytail-review` reviews each task and the whole goal: it reads the code a change touches, not only the diff, and only its *must fix* findings (a bug, a security hole, data loss, breaking under the expected load) block; the rest goes into the review notes and the pull request. TDD still decides how tests are written. Work that is not code (documents, research, media) never sees it, and the switch can be changed later on the goal page, from the goal's next session. It needs the Ponytail skills, installed from the Setup page.
+The switch appears only in Expert view. The initial Settings default is on; the form uses the inheritance rules above. Ponytail is "the lazy senior dev": before writing, a worker checks whether the code needs to exist at all, whether the repository, the standard library, the platform or an installed dependency already has it, and only then writes the smallest change that fully solves the task, callers, tests and fixtures included. The planner plans the same way, and `ponytail-review` reviews each task and the whole goal: it reads the code a change touches, not only the diff, and only its *must fix* findings (a bug, a security hole, data loss, breaking under the expected load) block; the rest goes into the review notes and the pull request. TDD still decides how tests are written. Work that is not code (documents, research, media) never sees it, and the switch can be changed later on the goal page, from the goal's next session. It needs the Ponytail skills, installed from the Setup page.
 
 ### What do you want done
 
@@ -189,11 +197,11 @@ When earlier goals ran in this folder, a line under the card says how many [Lear
 
 ### Follows
 
-Under the repository, when it already has finished goals: **Follows** picks the earlier goal this one continues (or **Nothing — a new line of work**). The Clarifier then gets what that goal asked for, what was decided and how it ended, so you do not have to explain it again.
+Under the repository, when it already has finished goals: **Follows** picks the earlier goal this one continues (or **Nothing — a new line of work**). The Clarifier then gets what that goal asked for, what was decided and how it ended, so you do not have to explain it again. Changing this picker leaves **Workflow suite**, **TDD** and **Ponytail** unchanged.
 
 The card below the picker says where the new goal starts. If the earlier goal's work is already on your base branch (its pull request was merged), it starts from there. If not (a Local only goal, an unmerged pull request, a failed goal), it starts from the earlier goal's branch, and those changes go along in this goal's pull request. **Start from** switches between the two. Tick or untick **Bring its attachments** and **Keep its style direction** to take them along or leave them.
 
-**Continue with a follow-up…** on a finished goal opens this form already filled in; see [Continue with a follow-up](./getting-the-result.md#continue-with-a-follow-up).
+**Continue with a follow-up…** on a finished goal opens this form already filled in, including that goal's **Workflow suite**, **TDD** and current saved **Ponytail**. These take precedence over the folder defaults; see [Continue with a follow-up](./getting-the-result.md#continue-with-a-follow-up).
 
 ### Budget
 
@@ -225,7 +233,7 @@ The self-check (Foundry opens the running result in a hidden browser and takes s
 
 The button says **Create & clarify** (or **Create & run** if you skipped Clarify). If it is greyed out, the text next to it names the first thing missing: **Describe the goal**, **Select a repository folder**, **Repository is not ready (see above)**, **Sign in to Claude Code first: see Accounts** (or Codex, whichever coding agent you chose), **Choose a model preset (see above)**, or a Codex model that does not support the chosen reasoning.
 
-This browser remembers the kind of goal, the budget and the finer delivery options (such as the merge method and the CI switches), so the next goal starts with them. The view, Fast mode, TDD, and the delivery mode and granularity start from Settings → New goal defaults every time.
+This browser remembers the kind of goal, the budget and the finer delivery options (such as the merge method and the CI switches), so the next goal starts with them. The view, **Fast mode**, and the delivery mode and granularity start from Settings → New goal defaults. **Workflow suite**, **TDD** and **Ponytail** follow the folder and Follow-up rules above; the browser does not remember them as defaults.
 
 Then you land on the goal's Brief page, and Foundry starts reading your project:
 

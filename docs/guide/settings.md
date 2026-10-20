@@ -43,7 +43,13 @@ What a new goal starts with. Most of them can be changed for one goal on the New
 
 Under **Delivery — what happens to the branch when a goal finishes**: **Mode for new goals** (local only), **Granularity** (one PR per goal) and **Remote** (origin). See [Getting the result](./getting-the-result.md).
 
-Good to know: the New goal form starts from these defaults. **Default goal view**, **Pace**, **TDD**, **Workflow suite**, **Effort**, and the delivery **Mode for new goals** and **Granularity** are filled in from here, and the form picks the **Remote** named here when the project has it. A field you change on the form keeps your choice for that goal. **Interview** and the model preset follow Settings whenever the form is left at its default. Selecting **Default** effort for Codex explicitly uses role preset efforts. The form itself remembers, in this browser, the kind of goal, the budget and the finer delivery options (such as the merge method).
+Good to know: the New goal form starts from these defaults. **Default goal view**, **Pace**, **TDD**, **Ponytail**, **Workflow suite**, **Effort**, and the delivery **Mode for new goals** and **Granularity** are filled in from here, and the form picks the **Remote** named here when the project has it.
+
+Picking a ready repository folder replaces untouched **Workflow suite**, **TDD** and **Ponytail** with the current saved choices of its newest goal by creation time. The folder path must match exactly; goals still held as imported history are excluded. During validation, or if the folder is invalid, has no commits or has no earlier goal, untouched fields use Settings defaults. Revalidation refreshes inherited values.
+
+A **Follow-up** opened from a goal page uses the chosen earlier goal instead. Later Settings and folder responses do not replace its workflow choices. Manual edits stay, except that an arriving Follow-up draft replaces **Workflow suite**. The on-page **Follows** picker only links goals. See [The New goal form](./your-first-goal.md#the-new-goal-form) for the source note and the Simple-view and Fast-mode TDD rules.
+
+**Interview** and the model preset follow Settings whenever the form is left at its default. Selecting **Default** effort for Codex explicitly uses role preset efforts. The form itself remembers, in this browser, the kind of goal, the budget and the finer delivery options (such as the merge method).
 
 When to change: raise **Interview depth** if you like to be asked about details; set **Effort** lower if most of your goals are small; lower **Goal-level fix cycles** to 0 if you would rather see failed reviews yourself.
 

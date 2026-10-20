@@ -43,7 +43,13 @@
 
 在 **Delivery — what happens to the branch when a goal finishes** 下：**Mode for new goals**（local only）、**Granularity**（one PR per goal）和 **Remote**（origin）。见 [拿到结果](./getting-the-result.zh.md)。
 
-值得知道：New goal 表单就从这些默认值开始。**Default goal view**、**Pace**、**TDD**、**Workflow suite**、**Effort**，以及交付的 **Mode for new goals** 和 **Granularity** 都从这里填入；项目里有这里写的 **Remote** 时，表单也会选它。你在表单上改过的字段，会为这个 goal 保留你的选择。**Interview** 和模型预设只要在表单上保持默认，就跟随 Settings。Codex 主动选择 **Default** effort 则明确使用各角色的预设强度。表单自己会在这个浏览器里记住 goal 类型、预算，以及更细的交付选项（比如合并方式）。
+值得知道：New goal 表单就从这些默认值开始。**Default goal view**、**Pace**、**TDD**、**Ponytail**、**Workflow suite**、**Effort**，以及交付的 **Mode for new goals** 和 **Granularity** 都从这里填入；项目里有这里写的 **Remote** 时，表单也会选它。
+
+选好可用的仓库文件夹后，未改过的 **Workflow suite**、**TDD** 和 **Ponytail** 会使用按创建时间最新的 goal 当前保存的选择。文件夹路径必须完全相同；仍属于导入历史记录的 goal 不参与选择。验证进行中、文件夹无效、没有提交或没有更早的 goal 时，未改过的字段使用 Settings 默认值。重新验证会刷新继承值。
+
+从 goal 页面打开的 **Follow-up** 则使用所选较早 goal 的选择。稍后返回的 Settings 和文件夹结果不会覆盖它的工作流选择。手动修改会保留，但 Follow-up 草稿返回时会替换 **Workflow suite**。页面上的 **Follows** 选择器只建立关联。来源提示以及 Simple 视图和 Fast mode 的 TDD 规则，见 [The New goal form](./your-first-goal.zh.md#the-new-goal-form)。
+
+**Interview** 和模型预设只要在表单上保持默认，就跟随 Settings。Codex 主动选择 **Default** effort 则明确使用各角色的预设强度。表单自己会在这个浏览器里记住 goal 类型、预算，以及更细的交付选项（比如合并方式）。
 
 什么时候改：喜欢被问到细节的话，调高 **Interview depth**；大多数 goal 都很小的话，调低 **Effort**；如果你宁愿自己看没通过的审查，把 **Goal-level fix cycles** 降到 0。
 

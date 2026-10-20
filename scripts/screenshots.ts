@@ -28,9 +28,13 @@ const mask = async () => {
   await page.evaluate(() => {
     // the dot on the ⚙ menu reports this machine's missing tools, not the demo's
     document.querySelector('button[aria-label="Settings, setup, help and theme"] span.bg-rose-500')?.remove();
+    // a ready repository can report the host's global git identity
+    for (const label of Array.from(document.querySelectorAll('span'))) {
+      if (label.textContent === 'identity' && label.nextElementSibling) label.nextElementSibling.textContent = 'demo <you@example.com>';
+    }
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
-      n.textContent = (n.textContent ?? '').replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, 'you@example.com').replace(/\/(?:private\/)?var\/folders\/[^\s·]*?\/foundry-demo-[^/\s]+\//g, '~/Projects/');
+      n.textContent = (n.textContent ?? '').replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, 'you@example.com').replace(/\/(?:private\/)?(?:var\/folders\/[^\s·]*?\/|tmp\/)foundry-demo-[^/\s]+\//g, '~/Projects/');
     }
   });
 };
@@ -139,7 +143,16 @@ try {
     await page.evaluate(() => Array.from(document.querySelectorAll('div')).find((d) => d.textContent?.startsWith('Setup incomplete') && d.parentElement?.textContent !== d.textContent)?.remove());
   }, 560);
   await shot('new-goal', '/goals/new', async () => {
+    await page.getByRole('button', { name: 'Expert', exact: false }).click();
     await page.locator('textarea').first().fill('Add CSV export to the orders page, with the date range the user is looking at.');
+    const source = getGoal(demo.engine.store.db, g.blocked!);
+    if (!source) throw new Error('New goal capture needs a seeded repository');
+    const folder = page.getByPlaceholder('or type a path: /Users/you/projects/my-app');
+    await folder.fill(source.repoPath);
+    await folder.press('Enter');
+    await page.getByText('Git repository', { exact: false }).waitFor();
+    await page.getByText(`from the last goal in this folder: ${source.title}`, { exact: true }).waitFor();
+    await page.getByText('Powered by', { exact: true }).evaluate((el) => el.parentElement?.scrollIntoView({ block: 'start' }));
   });
   await shot('interview', `/goals/${g.interview}`);
   await shot('brief', `/goals/${g.brief}/brief`);

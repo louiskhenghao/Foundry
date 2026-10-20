@@ -137,6 +137,10 @@ Any non-terminal state can also go to `cancelled` (`Engine.cancelGoal`) or `fail
 
 A **Follow-up** (`follows` input, `follow-up.ts`) is validated here (the earlier goal is finished and in the same repository) and snapshotted into `Goal.follows`: the rendered `# Previous goal` section Clarify receives, the kept style, and the start point. `previousWorkOnBase` compares content, so a squash-merged goal counts as on the base; otherwise `ensureSyncedWorkspace` starts the goal branch from the earlier goal branch (`baseSync.startedFrom: 'previous'`). Its attachments are copied under new ids. "Followed by" is derived (`listFollowUps`), and `goal.follow_up_linked` records a link made afterwards.
 
+Before creation, `POST /api/validate-repo` adds `lastGoal` to the repository inspection response. `Engine.lastWorkflowIn(repoPath)` selects the newest Goal by `createdAt` at the exact saved path, excluding `isHistory` Goals. It returns `{ goalId, title, createdAt, workflow: { profile, tdd, ponytail } }` or `null`. Values come from the current saved Goal; `workflowProfileOf` resolves a missing profile through Settings. The response can include a last Goal even when the repository is not ready.
+
+The web form applies folder values only after ready validation. `pages/new-goal-workflow.ts` protects manually changed fields, resets untouched values to Settings during validation, and ignores obsolete validation responses. The Expert-view source note remains while any field inherits from the folder. A goal-page Follow-up uses the draft's workflow values ahead of Settings and folder responses; a delayed draft preserves edited TDD and Ponytail but replaces the suite. The on-page Follows picker only links Goals. The shared Follow-up draft now includes TDD and Ponytail; CLI creation behavior is unchanged. Simple view still submits preferred TDD; Fast mode omits TDD for the engine's off default.
+
 ### 2. Clarify and the Interview: `clarifying`
 
 `runClarify` (`clarify.ts`):

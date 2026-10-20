@@ -5,6 +5,7 @@ const main = resolve(import.meta.dir, 'main.ts');
 const prefill = {
   provider: 'codex', repoPath: '/tmp/foundry-cli-fixture', modelPreset: 'saved-codex-preset', effort: null,
   nature: 'research', pace: 'fast', mode: 'normal', delivery: { mode: 'local', remote: 'origin' },
+  profile: 'plain', tdd: 'preferred', ponytail: 'off',
 };
 
 async function submittedGoal(flags: string[] = [], inherited: Record<string, unknown> | null = prefill) {
@@ -36,6 +37,15 @@ async function submittedGoal(flags: string[] = [], inherited: Record<string, unk
 }
 
 describe('CLI goal creation defaults', () => {
+  test('web-only Follow-up workflow fields do not change CLI creation or explicit workflow flags', async () => {
+    const body = await submittedGoal();
+    expect(body.workflow).toEqual({ pace: 'fast' });
+    expect(body.mode).toBe('normal');
+    expect(body.delivery).toEqual({ mode: 'local', remote: 'origin', createRepo: null, remoteUrl: null });
+    expect(body.follows).toEqual({ goalId: 'prior', attachments: true, style: true });
+    expect((await submittedGoal(['--pace', 'thorough', '--suite', 'pstack'])).workflow).toEqual({ pace: 'thorough', profile: 'pstack' });
+  });
+
   test('Codex follow-ups preserve their preset and explicit null effort without a model override', async () => {
     const body = await submittedGoal();
     expect(body.modelPreset).toBe('saved-codex-preset');

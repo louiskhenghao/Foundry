@@ -1898,6 +1898,12 @@ export class Engine {
     return goal.workflow.profile ?? this.config.workflowProfile;
   }
 
+  lastWorkflowIn(repoPath: string): { goalId: string; title: string; createdAt: string; workflow: { profile: NonNullable<GoalWorkflow['profile']>; tdd: GoalWorkflow['tdd']; ponytail: GoalWorkflow['ponytail'] } } | null {
+    const goal = listGoals(this.store.db).find((g) => g.repoPath === repoPath && !isHistory(g));
+    if (!goal) return null;
+    return { goalId: goal.id, title: goal.title, createdAt: goal.createdAt, workflow: { profile: this.workflowProfileOf(goal), tdd: goal.workflow.tdd, ponytail: goal.workflow.ponytail } };
+  }
+
   /**
    * What a session of a goal on the pstack suite gets (ADR-0049): Claude loads the suite's hook-less plugin copy with
    * --plugin-dir; Codex finds the suite's skills linked into the session's workspace. Nothing for another suite, or when

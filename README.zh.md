@@ -65,6 +65,8 @@ Foundry 做的就是这部分。
 **[1 · 说出来](docs/guide/your-first-goal.zh.md#the-new-goal-form)**<br>
 按 **New goal**，选择 **Claude Code** 或 **Codex** 及对应模型预设，描述想要的结果。准备开始时选好项目文件夹。
 
+工作流套件、TDD 和 Ponytail 从该文件夹最新的 goal 继承；没有时使用 Settings。你改过的字段会保留你的选择。
+
 <img src="docs/guide/images/new-goal.png" alt="New goal 表单：统一的编码智能体选择器选中 Codex，下方是目标类型和视图选项">
 
 </td>

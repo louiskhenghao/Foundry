@@ -51,6 +51,8 @@ One workflow for **Claude Code and Codex**. Connect the native accounts independ
 **[1 · Describe it](docs/guide/your-first-goal.md#the-new-goal-form)**<br>
 Press **New goal**, choose **Claude Code** or **Codex**, select its model preset, and describe the result. Pick a project folder when you are ready to start.
 
+The workflow suite, TDD and Ponytail start from that folder's newest goal, or Settings if there is none. Fields you edit keep your choices.
+
 <img src="docs/guide/images/new-goal.png" alt="New goal with the shared coding agent selector, Codex selected, goal types and view options">
 
 </td>
