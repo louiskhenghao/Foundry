@@ -4,7 +4,7 @@ import { FeedbackPlan } from './schema/feedback.ts';
 import { InterviewQuestion } from './schema/interview.ts';
 import { Learning } from './schema/learnings.ts';
 import { Schedule } from './schema/schedule.ts';
-import { DeployProvider } from './schema/deploy.ts';
+import { DeployProvider, SmokeScript } from './schema/deploy.ts';
 import {
   Attempt,
   AuditFinding,
@@ -339,6 +339,9 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('deploy.command', { provider: DeployProvider, label: z.string(), command: z.string(), exitCode: z.number().nullable(), durationMs: z.number(), outputTail: z.string() }),
   ev('deploy.finished', { provider: DeployProvider, production: z.boolean(), url: z.string() }),
   ev('deploy.failed', { provider: DeployProvider, production: z.boolean(), reason: z.string() }),
+  /** the smoke of a deploy (ADR-0058): the goal's milestone scripts against the deployed address; `deployedAt` names the deploy (its `at`) */
+  ev('deploy.smoke_started', { provider: DeployProvider, production: z.boolean(), url: z.string(), deployedAt: z.string(), scripts: z.array(z.string()) }),
+  ev('deploy.smoke_finished', { provider: DeployProvider, production: z.boolean(), url: z.string(), deployedAt: z.string(), status: z.enum(['pass', 'fail', 'skipped']), detail: z.string(), scripts: z.array(SmokeScript) }),
   ev('delivery.repo_created', { owner: z.string(), name: z.string(), url: z.string(), visibility: z.string() }),
   ev('delivery.pushed', { remote: z.string(), branch: z.string(), ref: z.string(), taskId: z.string().nullable().default(null) }),
   /** the stacked branches built from the tasks' commits (unit = task), bottom first */
