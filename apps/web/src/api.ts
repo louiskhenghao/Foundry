@@ -1,5 +1,6 @@
 import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment, InterviewQuestion } from '@foundry/core/browser';
 import type { Attachment, Attempt, Brief, BriefApp, BriefCheck, BriefDiff, BriefRun, BriefStyleOption, BriefSubject, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, GoalTimeline, SettingsPatch, SettingsView, SubjectPicture, Task, TaskUsage } from '@foundry/core/browser';
+import type { IssueRead } from './pages/new-goal-issue.ts';
 
 /** Mirrors the engine's PreviewAppStatus (preview/manager.ts): one app of the goal's preview. */
 export interface PreviewAppStatus {
@@ -552,6 +553,8 @@ export function apiForProvider(provider?: AgentProvider) {
   deploy: (goalId: string, provider: DeployHost, production: boolean) => req<{ started: boolean }>(`/api/goals/${goalId}/deploy`, { method: 'POST', body: JSON.stringify({ provider, production }) }),
   markFollowUp: (id: string, goalId: string) => req<Goal>(`/api/goals/${id}/follows`, { method: 'POST', body: JSON.stringify({ goalId }) }),
   validateRepo: (repoPath: string) => req<RepoInfo>('/api/validate-repo', { method: 'POST', body: JSON.stringify({ repoPath }) }),
+  /** a goal from a GitHub issue (ADR-0052): read it with gh; its thread comes back staged as an attachment */
+  readIssue: (ref: string, repoPath: string | null) => req<IssueRead>('/api/issues/read', { method: 'POST', body: JSON.stringify({ ref, repoPath }) }),
   /** Upload one file with progress; resolves to the staged Attachment. goalId → attach directly to that goal. */
   upload: (file: File, opts: { goalId?: string; onProgress?: (pct: number) => void } = {}) =>
     new Promise<Attachment>((resolve, reject) => {
