@@ -97,6 +97,8 @@ import { DiscordBot } from './notify/discord-bot.ts';
 import { endedForLearning, learnFromGoal, learnOnEnd, learningWork, learningsOf, setLearnings } from './learnings.ts';
 import { DEPLOYABLE_STATES, type DeployRequest, deployCredentials, deployName, deployWork, deploying, goalDeployability, npxCli, smokeAgain, smoking, startDeploy, unsupported } from './deploy/deploy.ts';
 import { type RevertInfo, type RevertRequest, revertInfo, revertWork, startRevert } from './delivery/revert.ts';
+import { buildReport } from './reports.ts';
+import type { Report } from './usage/types.ts';
 import { smokeScripts } from './deploy/smoke.ts';
 import { DEPLOY_PROVIDERS, PROVIDER_LABEL, configured, deploySteps, redact } from './deploy/providers.ts';
 import { ModelFallbackRunner } from './models/fallback-runner.ts';
@@ -1397,6 +1399,11 @@ export class Engine {
     return { ok, name, resolvedId: resolved ?? rec?.resolvedId ?? null, costUsd: r.costUsd, costAvailable: provider === 'claude' && r.costStatus !== 'unavailable', error: ok ? null : (r.errorMessage ?? r.subtype) };
   }
   /** Read native account metadata separately from local activity; never start inference. */
+  /** Reports (ADR-0060): what Foundry cost and did over the last `days` (null = all time), by project and session kind */
+  report(days: number | null = 30): Report {
+    return buildReport(this, { days });
+  }
+
   async readUsage(provider = this.config.provider, force = false): Promise<UsageSummary & { pausedUntil: string | null }> {
     if (provider === 'codex') await this.codexQuota.read(force);
     return this.usage(provider);

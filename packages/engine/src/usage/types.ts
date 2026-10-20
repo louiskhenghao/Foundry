@@ -88,3 +88,98 @@ export type MinimaxQuota =
   | { state: 'error'; message: string; checkedAt: string }
   | { state: 'plan'; models: MinimaxModelQuota[]; low: boolean; checkedAt: string }
   | { state: 'balance'; available: number; low: boolean; checkedAt: string };
+
+// ---- Reports (ADR-0060): what Foundry cost and did over a window, by project and by session kind ----
+/** actual ÷ estimate over a set of goals: the median, how many goals it rests on, whether they agree (a Calibration's factor) */
+export interface ReportFactor {
+  factor: number;
+  samples: number;
+  spread: 'tight' | 'loose';
+}
+export interface ReportSpend {
+  sessions: number;
+  /** Claude Code dollars; Codex sessions and unmeasured ones are left out */
+  costUsd: number;
+  /** Claude Code sessions cut before a cost was reported: unknown, not $0 */
+  unmeasured: number;
+  /** sessions that report no dollar cost at all */
+  codexSessions: number;
+  durationMs: number;
+}
+export interface ReportGoals {
+  total: number;
+  finished: number;
+  failed: number;
+  cancelled: number;
+  open: number;
+}
+export interface ReportRetries {
+  /** tasks attempted at least once */
+  tasks: number;
+  /** tasks that needed more than one attempt */
+  retried: number;
+  attempts: number;
+  /** tasks that mend something after the fact: a review's, an audit's, CI's, the browser QA's, a review comment's */
+  fixTasks: number;
+  /** retried ÷ tasks; null without tasks */
+  rate: number | null;
+}
+export interface ReportEstimate {
+  cost: ReportFactor | null;
+  time: ReportFactor | null;
+  /** finished goals with an approved, estimated Brief in the window */
+  samples: number;
+}
+export interface ReportRepo extends ReportSpend {
+  repoPath: string;
+  name: string;
+  goals: ReportGoals;
+  /** Foundry's working time on the goals, in minutes (waits for the person left out) */
+  activeMin: number;
+  /** the average cost of a finished Claude Code goal; null without one */
+  costPerFinishedGoal: number | null;
+  retries: ReportRetries;
+  estimate: ReportEstimate;
+}
+export interface ReportKind extends ReportSpend {
+  kind: string;
+  /** of the window's Claude Code dollars; null when there are none */
+  costShare: number | null;
+  /** of the window's session time */
+  timeShare: number;
+}
+export interface ReportBucket {
+  /** bucket start (ISO, UTC) */
+  t: string;
+  label: string;
+  sessions: number;
+  costUsd: number;
+  /** goals that finished in the bucket */
+  finished: number;
+}
+export interface ReportMiss {
+  goalId: string;
+  title: string;
+  repo: string;
+  at: string;
+  estimateUsd: number;
+  actualUsd: number | null;
+  estimateMin: number;
+  actualMin: number | null;
+  costFactor: number | null;
+  timeFactor: number | null;
+}
+export interface Report {
+  now: string;
+  /** `days` null = all time, from the earliest record */
+  window: { days: number | null; from: string; to: string };
+  step: 'day' | 'week' | 'month';
+  totals: ReportSpend & { goals: ReportGoals; activeMin: number; retries: ReportRetries; estimate: ReportEstimate; /** sessions of no goal (probes, setup) or of a goal since deleted */ noGoal: ReportSpend };
+  series: ReportBucket[];
+  /** by spend, then time */
+  repos: ReportRepo[];
+  kinds: ReportKind[];
+  /** the goals whose estimates missed most, furthest first */
+  misses: ReportMiss[];
+  note: string;
+}
