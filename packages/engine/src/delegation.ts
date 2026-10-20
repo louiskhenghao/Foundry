@@ -6,7 +6,7 @@
  * attempt budget allows, before the main goal asks.
  */
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import type { Budgets, Goal, GoalNature, Task } from '@foundry/core';
 import { chosenStyle, getBrief, getGoal, getTask, interviewDepth, listCheckResultsByGoal, listChecks, listEscalations, listTasks, renderDecisions } from '@foundry/core';
 import { maxAttemptsFor } from './attempt-loop.ts';
@@ -104,6 +104,8 @@ export async function createDelegatedGoal(engine: Engine, main: Goal, task: Task
     attemptsPerTask: main.budgets.attemptsPerTask,
   };
   const brief = getBrief(engine.store.db, main.id)?.brief;
+  // a companion's part (ADR-0063) is done in that repository, on its own base branch
+  const companion = task.repo ? ((main.companions ?? []).find((c) => c.repoPath === task.repo) ?? null) : null;
   const area = task.area ? brief?.areas.find((a) => a.name === task.area) : null;
   const prompt = `${task.spec.trim()}${area?.description ? `\n\n(Area of the main goal: ${task.area} — ${area.description})` : ''}`;
   const depth = main.interview ? interviewDepth(main.interview) : 0;
@@ -112,8 +114,8 @@ export async function createDelegatedGoal(engine: Engine, main: Goal, task: Task
     codexModel: main.codexModelOverride,
     title: task.title,
     prompt,
-    repoPath: main.repoPath,
-    baseBranch: main.branch,
+    repoPath: companion?.repoPath ?? main.repoPath,
+    baseBranch: companion ? companion.baseBranch : main.branch,
     budgets,
     budgetPreset: 'custom',
     selfCheck: main.selfCheck,
@@ -303,11 +305,21 @@ function landDelegation(engine: Engine, goal: Goal, task: Task, d: Goal): void {
   const { store, config } = engine;
   if (engine.landingDelegations.has(task.id)) return;
   if (task.state === 'running') store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'running', to: 'observing', reason: `the delegated goal "${d.title}" finished ${d.state.replace(/_/g, '-')}` } });
-  if (task.state !== 'merging') store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'observing', to: 'merging', reason: `landing ${d.branch} on ${goal.branch}` } });
+  if (task.state !== 'merging') store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'observing', to: 'merging', reason: d.repoPath !== goal.repoPath ? `settling ${d.branch} in ${basename(d.repoPath)}` : `landing ${d.branch} on ${goal.branch}` } });
   const lost = () => getTask(store.db, task.id)?.state !== 'merging' || engine.isStopped;
   const run = async () => {
     const goalWs = goalWorkspacePath(config.dataDir, goal);
     const delegatedWs = goalWorkspacePath(config.dataDir, d);
+    // a companion's goal (ADR-0063) lands nothing here: its work stays on its branch in its repository, delivered with this goal
+    if (d.repoPath !== goal.repoPath) {
+      const missing = (task.delivers ?? []).filter((f) => !existsSync(join(delegatedWs, f)));
+      if (missing.length) store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `"${task.title}" finished in ${basename(d.repoPath)}, but ${missing.length === 1 ? 'a file it promised is' : 'files it promised are'} not on its branch: ${missing.join(', ')} — the tasks after it were told to expect ${missing.length === 1 ? 'it' : 'them'}` } });
+      store.append({ type: 'task.summary_set', goalId: goal.id, payload: { taskId: task.id, summary: summarizeDelegatedGoal(engine, d, [], null, { repoPath: d.repoPath, branch: d.branch }) } });
+      await replanAfterLanding(engine, getGoal(store.db, goal.id) ?? goal, getTask(store.db, task.id)!).catch((err) => store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `the replan after "${task.title}" finished crashed: ${String((err as Error)?.message ?? err).slice(0, 300)}` } }));
+      if (lost()) return;
+      store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'merging', to: 'done', reason: `the delegated goal finished in ${basename(d.repoPath)}: its work is on ${d.branch} there and is delivered with this goal` } });
+      return;
+    }
     // another task works in the goal workspace: its squash would fold this landing into its own commit — wait for it
     let noted = false;
     while (goalWorkspaceTaken(engine, goal, task.id)) {
@@ -388,9 +400,9 @@ function landDelegation(engine: Engine, goal: Goal, task: Task, d: Goal): void {
  * the Decisions made there, its review, what it left open, and the files it put under artifacts/. Bounded: every
  * dependent task's prompt carries it. Written once, without a model.
  */
-export function summarizeDelegatedGoal(engine: Engine, d: Goal, files: string[], ref: string | null): string {
+export function summarizeDelegatedGoal(engine: Engine, d: Goal, files: string[], ref: string | null, companion: { repoPath: string; branch: string } | null = null): string {
   const db = engine.store.db;
-  const parts = [`## ${d.title}\nDone by the delegated goal ${d.id}, which ended ${d.state.replace(/_/g, '-')}${ref ? ` and landed as commit ${ref.slice(0, 7)}` : ', with no changes to commit'}.`];
+  const parts = [`## ${d.title}\nDone by the delegated goal ${d.id}, which ended ${d.state.replace(/_/g, '-')}${ref ? ` and landed as commit ${ref.slice(0, 7)}` : companion ? `; its work is on ${companion.branch} in the companion repository ${companion.repoPath} — nothing of it is on this goal's branch — and is delivered with this goal` : ', with no changes to commit'}.`];
   const b = getBrief(db, d.id);
   if (b?.brief.understanding.trim()) parts.push(`What it set out to do: ${clip(b.brief.understanding.trim(), 800)}`);
   const tasks = listTasks(db, d.id).filter((t) => t.origin !== 'merge');
@@ -448,8 +460,10 @@ export function delegationContext(engine: Engine, goal: Goal): string {
   const db = engine.store.db;
   const main = getGoal(db, from.goalId);
   const task = getTask(db, from.taskId);
+  // a companion's goal (ADR-0063) works in its own repository, not on the main goal's branch
+  const companion = main && main.repoPath !== goal.repoPath;
   const parts = [
-    `# Part of a larger goal\nThis goal is one step of the main goal "${from.title}"${main ? ` (${main.state.replace(/_/g, '-')})` : ' (since deleted)'}${task ? `: its task "${task.title}"` : ''}. Do that step in full and well, and nothing beyond it: the other steps are the main goal's other tasks. The branch you work on holds the main goal's work so far — build on it and do not undo it.`,
+    `# Part of a larger goal\nThis goal is one step of the main goal "${from.title}"${main ? ` (${main.state.replace(/_/g, '-')})` : ' (since deleted)'}${task ? `: its task "${task.title}"` : ''}. Do that step in full and well, and nothing beyond it: the other steps are the main goal's other tasks. ${companion ? `This repository (\`${goal.repoPath}\`) is a companion of the main goal's own (\`${main.repoPath}\`, branch ${main.branch}): change only this repository, start from its branch as it is, and read the main repository there when this step must fit an interface the other steps make or use.` : "The branch you work on holds the main goal's work so far — build on it and do not undo it."}`,
   ];
   if (main) parts.push(`## What the main goal asks for\n${clip(main.prompt.trim(), 2500)}`);
   const b = main ? getBrief(db, main.id) : null;

@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import type { Brief, Goal, GoalNature, Interview, InterviewQuestion, InterviewRound, TaskScenario } from '@foundry/core';
+import { renderCompanions } from './companions.ts';
 import { BriefOutput, BriefSkeleton, INTERVIEW_MAX_QUESTIONS, PlanOutput, INTERVIEW_MAX_ROUNDS, IdPrefix, InterviewOutput, getBrief, getGoal, interviewAnswers, interviewDepth, interviewNotes, mergeSubjects, newId, noteQuestion, planOutputSchema, uncoveredAreas } from '@foundry/core';
 import { delegationContext } from './delegation.ts';
 import { learningsContext } from './learnings.ts';
@@ -708,6 +709,7 @@ function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: str
     natureSection(goal, emptyRepo, imageGen, cadAvailable),
     attachments ? `${attachments}\nWhen an attachment matters for a specific task, name it (by file name) in that task's spec.` : '',
     overview ? `# Repository overview\n${overview}` : '',
+    renderCompanions(goal),
     skillsHint ?? '',
     `# Your job\nExplore this repository (read-only) enough to understand how the goal should be implemented here: build/test commands, conventions, the files involved. Then write the Brief as JSON matching the schema — everything except the task plan: a planner session splits the goal into tasks right after you, from your Brief and your \`planningNotes\`. Do not write tasks.\n\nRequirements for the Brief:\n- **Areas first.** Read the goal and every attachment and enumerate the parts of the product it covers: one Area per user-facing role or app it names (e.g. student portal, teacher portal, school admin, system admin), plus a \`shared\` Area for groundwork all of them need (data model, auth, layout). A small goal has exactly one Area. Every Area listed in your understanding MUST appear in \`areas\`; the planner gives each at least one task.\n- **\`goalChecks\`** verify the merged result. *Must* = ONLY what the user explicitly asked for plus the repo's existing quality gates (its test/typecheck/lint/build commands, if any); every command must be a real command that works in this repo from its root. *Stretch* = improvements you propose on top (docs, edge-case tests, performance, accessibility…); never fold them into must. Give a check that verifies one Area that Area's \`areaKey\`.\n- **\`planningNotes\`** carry what the planner needs and should not have to rediscover: per Area, the files and modules involved and where new code goes; the build, test and lint commands; conventions (naming, test layout, the language of commit messages); what must exist before what; risks; and how the rules above shape the tasks (scaffolding first in an empty repository, deliverable batches for media). Facts and constraints, not a task list; a few hundred words.\n- Prefer assumptions over questions. A question is blocking only if a wrong guess would waste the whole goal.\n- \`title\` is one Conventional Commits header for the whole goal (e.g. \`feat(site): add resort landing page\`) — it becomes the PR title. Write it in the language of the repository's recent commits (see the overview); default to English.`,
   ]
@@ -737,6 +739,7 @@ export function buildPlannerPrompt(goal: Goal, skeleton: BriefSkeleton, c: { ove
     c.delegation ? DELEGATE_SECTION : '',
     c.attachments,
     c.overview ? `# Repository overview\n${c.overview}` : '',
+    renderCompanions(goal),
     `# The Brief from the Clarifier\nAreas, assumptions and goal-level checks are settled; plan within them.\n\`\`\`json\n${JSON.stringify(brief, null, 1)}\n\`\`\``,
     `# Planning notes from the Clarifier\n${planningNotes}`,
     c.plannerHint ?? '',
@@ -800,7 +803,7 @@ export function toBrief(goal: Goal, o: BriefOutput, extraQuestions: Brief['quest
     assumptions: o.assumptions.map((text) => ({ id: newId('as'), text, accepted: true, applied: false })),
     checks: o.checks.map((c) => ({ key: c.key, name: c.name, tier: c.tier, taskKey: c.taskKey ?? null, areaKey: c.taskKey ? null : area(c.areaKey), spec: materializeCheck(c, c.taskKey ?? null) })),
     // a `goal` task where the goal allows no delegation (a model that ignored the schema) is an ordinary task
-    tasks: o.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind === 'goal' && !goal.delegation.allow ? 'feature' : (t.kind ?? 'feature'), scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys, parallelizable: t.parallelizable, relevantFiles: t.relevantFiles, delivers: t.delivers ?? [], budgetUsd: t.kind === 'goal' ? (t.budgetUsd ?? null) : null, milestone: t.milestone ?? null, milestoneScript: t.milestone ? (t.milestoneScript ?? null) : null, difficulty: t.difficulty ?? 'standard' })),
+    tasks: o.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind === 'goal' && !goal.delegation.allow ? 'feature' : (t.kind ?? 'feature'), scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys, parallelizable: t.parallelizable, relevantFiles: t.relevantFiles, delivers: t.delivers ?? [], budgetUsd: t.kind === 'goal' ? (t.budgetUsd ?? null) : null, repo: t.kind === 'goal' && goal.delegation.allow ? (t.repo ?? null) : null, milestone: t.milestone ?? null, milestoneScript: t.milestone ? (t.milestoneScript ?? null) : null, difficulty: t.difficulty ?? 'standard' })),
     costEstimateUsd: o.costEstimateUsd,
     run: o.run ?? null,
     apps: o.apps ?? null,
