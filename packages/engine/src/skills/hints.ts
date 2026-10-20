@@ -22,6 +22,8 @@ export interface SectionOpts {
   projectSkills?: string[];
   /** goal/task discipline (see resolveDiscipline) */
   discipline?: { tdd: 'required' | 'preferred' | 'off'; ponytail?: 'on' | 'off' };
+  /** the files the task touches: rules with `whenFiles` apply only when one matches */
+  files?: string[];
 }
 
 /** TTL-cached catalog statuses → prompt sections; the manager invalidates on install/uninstall. */
@@ -58,12 +60,18 @@ export class SkillsHints {
   async sectionFor(role: SkillRole, opts: SectionOpts = {}): Promise<string | null> {
     const s = await this.statuses();
     if (!s) return null;
-    return formatWorkflowSection({ role, taskKind: opts.taskKind, scenario: opts.scenario, projectSkills: opts.projectSkills, discipline: opts.discipline, profile: this.opts.profile?.() ?? 'mattpocock', statuses: s, packs: this.packs(), gates: this.opts.gates?.(), provider: this.opts.provider });
+    return formatWorkflowSection({ role, taskKind: opts.taskKind, scenario: opts.scenario, projectSkills: opts.projectSkills, discipline: opts.discipline, files: opts.files, profile: this.opts.profile?.() ?? 'mattpocock', statuses: s, packs: this.packs(), gates: this.opts.gates?.(), provider: this.opts.provider });
   }
   /** Skills this role MUST invoke for this task kind / scenario (for the reviewer's note). */
   async mandatedFor(role: SkillRole, opts: SectionOpts = {}): Promise<MandatedSkill[]> {
     const s = await this.statuses();
     if (!s || (this.opts.profile?.() ?? 'mattpocock') === 'plain') return [];
-    return mandatedSkillsFor({ role, taskKind: opts.taskKind, scenario: opts.scenario, discipline: opts.discipline, profile: 'mattpocock', statuses: s, packs: this.packs(), gates: this.opts.gates?.() });
+    return mandatedSkillsFor({ role, taskKind: opts.taskKind, scenario: opts.scenario, discipline: opts.discipline, files: opts.files, profile: 'mattpocock', statuses: s, packs: this.packs(), gates: this.opts.gates?.() });
+  }
+  /** how an installed catalog entry is invoked on this machine (the plugin copy first), or null when it is not installed */
+  async invokeFor(name: string): Promise<string | null> {
+    const s = await this.statuses();
+    const hit = s?.find((x) => x.entry.name === name && SATISFIED.includes(x.status));
+    return hit ? (hit.entry.invoke ?? hit.installedInvoke ?? `/${name}`) : null;
   }
 }

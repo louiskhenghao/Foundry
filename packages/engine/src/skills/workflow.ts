@@ -23,6 +23,8 @@ export interface WorkflowSectionInput {
   gates?: Record<string, boolean>;
   /** project skills installed by autoskills for this goal's repository */
   projectSkills?: string[];
+  /** the files the task touches (its relevantFiles): a rule with `whenFiles` applies only when one matches */
+  files?: string[];
   /** the goal's (and task's) discipline: tdd off drops the tdd rules, preferred downgrades MUST to Prefer; ponytail off drops
    * the ponytail skills, on replaces code-review with ponytail-review when that is installed */
   discipline?: Discipline;
@@ -80,7 +82,16 @@ export interface MandatedSkill {
   cli?: string | null;
 }
 
-const NEVER_RUN = ['/setup-matt-pocock-skills', '/to-spec', '/to-tickets', '/triage', '/implement', '/wayfinder'];
+/** the orchestration skills of the mattpocock suite: Foundry is the tracker, the spec and the implementation loop (ADR-0004, ADR-0047) */
+const NEVER_RUN = ['/setup-matt-pocock-skills', '/to-spec', '/to-tickets', '/triage', '/implement', '/implement-spec', '/wayfinder', '/grill-with-docs', '/grill-me', '/improve-codebase-architecture'];
+
+/** a task file matches a rule's pattern: a bare name anywhere, a path exactly (in any package), a folder (`dir/`) anything under it */
+export function matchesFile(file: string, pattern: string): boolean {
+  const f = file.replace(/^\.\//, '');
+  if (pattern.endsWith('/')) return f.startsWith(pattern) || f.includes(`/${pattern}`);
+  if (!pattern.includes('/')) return f === pattern || f.endsWith(`/${pattern}`);
+  return f === pattern || f.endsWith(`/${pattern}`);
+}
 
 /** Entries a session may see at all: installed, not a member of an unchosen pack, and not behind a closed gate. */
 export function visibleStatuses(i: Pick<WorkflowSectionInput, 'statuses' | 'packs' | 'gates'>): CatalogEntryStatus[] {
@@ -106,6 +117,8 @@ export function applicableRules(i: WorkflowSectionInput): MandatedSkill[] {
       if (r.when !== 'any' && i.taskKind && r.when !== i.taskKind) continue;
       if (r.when !== 'any' && !i.taskKind && i.role === 'worker') continue; // unknown kind: only `any` rules
       if (!scenarioOk(r.scenarios, i.scenario)) continue;
+      // a rule about certain files (writing for agents): only a task that touches one of them
+      if (r.whenFiles?.length && !(i.files ?? []).some((f) => r.whenFiles!.some((p) => matchesFile(f, p)))) continue;
       let mandate = r.mandate;
       if (s.entry.name === 'tdd' && i.discipline?.tdd === 'preferred') mandate = 'prefer';
       out.push({ name: s.entry.name, invoke, mandate, instruction: r.instruction, missingEnv: s.missingEnv, envFor: s.entry.envFor, cli: cliOnly(s.entry) });

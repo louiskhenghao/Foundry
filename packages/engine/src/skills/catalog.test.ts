@@ -18,6 +18,25 @@ describe('catalog', () => {
     for (const e of c.entries) expect(e.why.length).toBeGreaterThan(20);
   });
 
+  test('the shipped catalog pins the mattpocock skills to one release and carries the agent-writing and retro skills', () => {
+    const c = loadCatalog(resolve(import.meta.dir, '../../../../catalog/skills.json'));
+    const mp = c.entries.filter((e) => e.source.type === 'git' && e.source.repo === 'mattpocock/skills');
+    expect(mp.length).toBeGreaterThanOrEqual(10);
+    for (const e of mp) expect(e.source.type === 'git' ? e.source.ref : null, e.id).toBe('v1.3.1');
+    const wfa = c.entries.find((e) => e.id === 'writing-for-agents')!;
+    expect(wfa.roles).toEqual(['worker', 'documenter', 'learnings']);
+    expect(wfa.workflow.map((r) => [r.role, r.mandate])).toEqual([['worker', 'must'], ['documenter', 'prefer'], ['learnings', 'prefer']]);
+    expect(wfa.workflow[0]!.whenFiles).toEqual(['AGENTS.md', 'CLAUDE.md', '.claude/skills/', '.agents/skills/']);
+    // retro is started by its slash name at the head of the Learnings prompt, never invoked by the model
+    const retro = c.entries.find((e) => e.id === 'retro')!;
+    expect(retro.providers).toEqual(['claude']);
+    expect(retro.workflow).toEqual([]);
+    // the Clarifier is pointed at the grilling method, the worker at the seams the task spec gives, the reviewer at the spec in its prompt
+    expect(c.entries.find((e) => e.id === 'grilling')!.workflow.map((r) => r.role)).toEqual(['clarifier']);
+    expect(c.entries.find((e) => e.id === 'tdd')!.workflow.every((r) => /seams/.test(r.instruction))).toBe(true);
+    expect(c.entries.find((e) => e.id === 'code-review')!.workflow[0]!.instruction).toMatch(/no issue tracker/);
+  });
+
   test('rejects duplicate ids and bad shapes', () => {
     const p = writeCatalog(join(fake.home, 'cat-bad'), [
       { id: 'a', name: 'a', summary: '', why: '', tier: 'optional', source: { type: 'git', repo: 'o/r' } },

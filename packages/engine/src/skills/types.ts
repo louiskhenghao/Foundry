@@ -7,7 +7,8 @@ import { z } from 'zod';
 export const SkillTier = z.enum(['required', 'recommended', 'optional']);
 export type SkillTier = z.infer<typeof SkillTier>;
 
-export const SkillRole = z.enum(['clarifier', 'planner', 'worker', 'reviewer-task', 'reviewer-goal', 'merger']);
+/** the sessions a catalog entry can address; `documenter` writes the completion documents, `learnings` the folder's notebook (ADR-0047) */
+export const SkillRole = z.enum(['clarifier', 'planner', 'worker', 'reviewer-task', 'reviewer-goal', 'merger', 'documenter', 'learnings']);
 export type SkillRole = z.infer<typeof SkillRole>;
 
 export const CatalogSource = z.discriminatedUnion('type', [
@@ -72,6 +73,11 @@ export const WorkflowRule = z.object({
   when: TaskKindForSkill.default('any'),
   /** task scenarios this applies to; empty = any */
   scenarios: z.array(SkillScenario).default([]),
+  /**
+   * files the task must touch for the rule to apply (worker only): a file name matches anywhere, a path exactly, a
+   * folder (ending in `/`) anything under it, in any package; empty = any task
+   */
+  whenFiles: z.array(z.string().min(1)).optional(),
   /** one or two sentences shown to the session */
   instruction: z.string().min(1),
 });

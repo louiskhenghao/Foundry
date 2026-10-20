@@ -162,6 +162,46 @@ describe('workflow observation', () => {
   });
 });
 
+describe('agent-facing documents and the housekeeping roles', () => {
+  const wfa = st(
+    entry({
+      id: 'writing-for-agents',
+      roles: ['worker', 'documenter', 'learnings'],
+      workflow: [
+        { role: 'worker', mandate: 'must', when: 'any', scenarios: [], whenFiles: ['AGENTS.md', 'CLAUDE.md', '.claude/skills/', '.agents/skills/'], instruction: 'write for the agent' },
+        { role: 'documenter', mandate: 'prefer', when: 'any', scenarios: [], instruction: 'agent documents by it' },
+        { role: 'learnings', mandate: 'prefer', when: 'any', scenarios: [], instruction: 'entries by it' },
+      ],
+    }),
+    'installed-via-plugin',
+    '/mattpocock-skills:writing-for-agents',
+  );
+  const all = [...statuses, wfa];
+  test('a rule with whenFiles applies only to a task that touches such a file: by name anywhere, by path, or under the folder', () => {
+    const rules = (files?: string[]) => applicableRules({ role: 'worker', taskKind: 'feature', profile: 'mattpocock', statuses: all, files }).map((r) => `${r.mandate}:${r.name}`);
+    expect(rules(['src/app.ts'])).not.toContain('must:writing-for-agents');
+    expect(rules()).not.toContain('must:writing-for-agents');
+    expect(rules(['CLAUDE.md'])).toContain('must:writing-for-agents');
+    expect(rules(['packages/web/AGENTS.md'])).toContain('must:writing-for-agents');
+    expect(rules(['.claude/skills/deploy/SKILL.md'])).toContain('must:writing-for-agents');
+    expect(rules(['apps/api/.agents/skills/db/SKILL.md'])).toContain('must:writing-for-agents');
+    expect(rules(['docs/CLAUDE.md.bak'])).not.toContain('must:writing-for-agents');
+    // the section says so, and the mandate reaches the reviewer's list
+    expect(formatWorkflowSection({ role: 'worker', taskKind: 'feature', profile: 'mattpocock', statuses: all, files: ['CLAUDE.md'] })).toContain('- MUST: invoke `/mattpocock-skills:writing-for-agents` — write for the agent');
+    expect(mandatedSkillsFor({ role: 'worker', taskKind: 'feature', profile: 'mattpocock', statuses: all, files: ['CLAUDE.md'] }).map((m) => m.name)).toContain('writing-for-agents');
+    expect(mandatedSkillsFor({ role: 'worker', taskKind: 'feature', profile: 'mattpocock', statuses: all, files: ['src/app.ts'] }).map((m) => m.name)).not.toContain('writing-for-agents');
+  });
+  test('the documenter and the learnings session get sections of their own', () => {
+    expect(formatWorkflowSection({ role: 'documenter', profile: 'mattpocock', statuses: all })).toContain('- Prefer: invoke `/mattpocock-skills:writing-for-agents` — agent documents by it');
+    expect(formatWorkflowSection({ role: 'learnings', profile: 'mattpocock', statuses: all })).toContain('- Prefer: invoke `/mattpocock-skills:writing-for-agents` — entries by it');
+    expect(formatWorkflowSection({ role: 'documenter', profile: 'mattpocock', statuses })).toBeNull();
+  });
+  test('the never-run line names the orchestration skills of the latest release too', () => {
+    const s = formatWorkflowSection({ role: 'worker', taskKind: 'feature', profile: 'mattpocock', statuses })!;
+    for (const n of ['/implement-spec', '/grill-with-docs', '/grill-me', '/improve-codebase-architecture', '/to-tickets', '/setup-matt-pocock-skills']) expect(s).toContain(n);
+  });
+});
+
 describe('discipline', () => {
   const base = { role: 'worker' as const, taskKind: 'feature' as const, profile: 'mattpocock' as const, statuses };
   test('tdd off drops the tdd rule, preferred downgrades it, other rules untouched', () => {
