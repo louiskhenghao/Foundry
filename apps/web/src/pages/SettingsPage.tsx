@@ -354,6 +354,13 @@ export function SettingsPage() {
                   <option value="off">off</option>
                 </Select>
               </Field>
+              <Field label="Workflow suite for new goals" aside={aside('workflow.profile')} help="Whose skills the roles follow; each goal fixes its own on the New goal form. mattpocock: Matt Pocock's suite (tests first for features, diagnose first for bugs, code review at the end), and Claude sessions report which skills they used. pstack: pstack's suite, with Matt Pocock's skills where pstack has none. plain: sessions only hear which skills are installed.">
+                <Select value={draft.workflow.profile} onChange={(e) => set('workflow.profile', e.target.value)}>
+                  <option value="mattpocock">mattpocock (Matt Pocock's suite)</option>
+                  <option value="pstack">pstack</option>
+                  <option value="plain">plain (hint only)</option>
+                </Select>
+              </Field>
               <Field label="Ponytail for new goals" aside={aside('workflow.ponytail')} help="on: workers write the smallest change that fully solves the task and reuse what the repository already has, the planner plans lean, and ponytail-review reviews tasks and the goal (TDD still decides how tests are written) · off: the Ponytail skills are never mentioned. Each goal has its own switch.">
                 <Select value={draft.workflow.ponytail} onChange={(e) => set('workflow.ponytail', e.target.value)}>
                   <option value="on">on</option>
@@ -461,12 +468,6 @@ export function SettingsPage() {
           </div>
           {grid(
             <>
-              <Field label="Profile" aside={aside('workflow.profile')} help="mattpocock: roles are told which workflow skills to invoke (tdd, diagnosing-bugs, code-review…) and Claude sessions report which they used. Codex skill invocation telemetry is unavailable. plain: a one-line hint only.">
-                <Select value={draft.workflow.profile} onChange={(e) => set('workflow.profile', e.target.value)}>
-                  <option value="mattpocock">mattpocock (workflow skills)</option>
-                  <option value="plain">plain (hint only)</option>
-                </Select>
-              </Field>
               {modelProvider === 'claude' && <Field label="Setting sources" aside={aside('workflow.settingSources')} help="`--setting-sources` for sessions, comma-separated (user, project, local); empty = inherit everything. Without `user`, your own skills never load.">
                 {list('workflow.settingSources', 'user, project')}
               </Field>}
