@@ -33,7 +33,7 @@ export function planDelivery(goal: Goal, p: DeliveryPolicy, probes: PlanProbes):
   steps.push({ step: 'push', command: `git push -u ${p.remote} refs/heads/${goal.branch}:refs/heads/${goal.branch}`, note: 'never force, never the base branch' });
   if (p.mode === 'push') return steps;
   const repo = probes.remoteUrl ? repoSlug(probes.remoteUrl) : p.createRepo ? `${p.createRepo.owner}/${p.createRepo.name}` : '<owner/name>';
-  steps.push(probes.prExists ? { step: 'open-pr', command: null, note: `reuse open PR #${probes.prExists.number}` } : { step: 'open-pr', command: `gh pr create -R ${repo} --base ${base} --head ${goal.branch} --title "${title}" --body-file <brief+checks>`, note: p.unit === 'task' ? `PR body = Brief + check results (${n < 2 ? 'only one task commit, so one PR' : 'one PR'})` : 'PR body = Brief + check results' });
+  steps.push(probes.prExists ? { step: 'open-pr', command: null, note: `reuse open PR #${probes.prExists.number}` } : { step: 'open-pr', command: `gh pr create -R ${repo} --base ${base} --head ${goal.branch} --title "${title}" --body-file <summary+evidence+merge-danger>`, note: p.unit === 'task' ? `PR body = summary, decisions, evidence (the checks), merge danger (${n < 2 ? 'only one task commit, so one PR' : 'one PR'})` : 'PR body = summary, decisions, evidence (the checks), merge danger' });
   if (p.mode === 'pr') return steps;
   steps.push({ step: 'wait-checks', command: `gh pr view <n> -R ${repo} --json statusCheckRollup,mergeable`, note: p.requireChecks ? `wait for checks (${p.mergeIfNoChecks ? 'merge if none configured' : 'require at least one'})` : 'checks not required' });
   if (p.fixCiCycles > 0) steps.push({ step: 'fix-ci', command: null, note: `up to ${p.fixCiCycles} "fix CI" task(s) if checks fail` });
@@ -61,14 +61,39 @@ function planStacked(goal: Goal, p: DeliveryPolicy, probes: PlanProbes, base: st
   return steps;
 }
 
-/** Body of one PR of a stacked delivery. */
-export function buildTaskPrBody(goal: Goal, task: Task, i: { index: number; total: number; goalTitle: string; prevPr: number | null; prevBranch: string | null }, results: { name: string; status: string }[], reviewNote: string | null): string {
+/** what a pull request changes, in numbers: from `git diff --shortstat` and the commit count */
+export interface DiffStats {
+  commits?: number;
+  files: number;
+  insertions: number;
+  deletions: number;
+}
+
+/** the blast radius of a change in one word, by the lines it touches */
+export function blastRadius(stats: Pick<DiffStats, 'insertions' | 'deletions'> | null | undefined): 'unknown' | 'small' | 'medium' | 'large' {
+  if (!stats) return 'unknown';
+  const lines = stats.insertions + stats.deletions;
+  return lines < 200 ? 'small' : lines < 1000 ? 'medium' : 'large';
+}
+
+/**
+ * The `## Merge Danger` section of a PR body (the `pr` skill's template, ADR-0047): the door — a merge of a branch is
+ * reverted by reverting its merge commit, so two-way — and the blast radius from the diff's size.
+ */
+function mergeDanger(base: string, stats: DiffStats | null | undefined): string {
+  const commits = stats?.commits != null ? `${stats.commits} commit${stats.commits === 1 ? '' : 's'} on the branch; ` : '';
+  const size = stats ? `${stats.files} file${stats.files === 1 ? '' : 's'}, +${stats.insertions} −${stats.deletions}` : 'the diff was not measured';
+  return `## Merge Danger\n\n**Door:** two-way · ${commits}reverting the merge commit restores \`${base}\` as it was.\n\n**Blast Radius:** ${blastRadius(stats)} · ${size}.`;
+}
+
+/** Body of one PR of a stacked delivery: summary, evidence and merge danger for that task alone. */
+export function buildTaskPrBody(goal: Goal, task: Task, i: { index: number; total: number; goalTitle: string; prevPr: number | null; prevBranch: string | null }, results: { name: string; status: string }[], reviewNote: string | null, stats?: DiffStats | null): string {
   const lines: string[] = [];
   lines.push(`_Part ${i.index}/${i.total} of **${i.goalTitle}**${i.prevPr ? ` · stacked on #${i.prevPr}` : i.prevBranch ? ` · stacked on \`${i.prevBranch}\`` : ''}. Merge bottom-up; once the PR below merges, use **Update branch** (or let Foundry do it) before merging this one._`);
-  lines.push(`## ${headerOf(task.commitMessage ?? task.title)}\n\n${task.spec.trim()}`);
-  if (results.length) lines.push(`## Checks\n\n| check | result |\n|---|---|\n${results.map((r) => `| ${r.name} | ${r.status === 'pass' ? '✅ pass' : `❌ ${r.status}`} |`).join('\n')}`);
-  if (reviewNote) lines.push(`## Reviewer\n\n${reviewNote.trim()}`);
-  lines.push(`## Goal\n\n${goal.prompt.trim()}`);
+  lines.push(`## Summary\n\n**${headerOf(task.commitMessage ?? task.title)}**\n\n${task.spec.trim()}\n\nPart of the goal: ${goal.prompt.trim()}`);
+  const evidence = results.length ? `| check | result |\n|---|---|\n${results.map((r) => `| ${r.name} | ${r.status === 'pass' ? '✅ pass' : `❌ ${r.status}`} |`).join('\n')}` : 'No checks were run for this task.';
+  lines.push(`## Evidence\n\n${evidence}${reviewNote ? `\n\n**Reviewer:** ${reviewNote.trim()}` : ''}`);
+  lines.push(mergeDanger(i.prevBranch ?? goal.baseBranch, stats));
   lines.push(`---\n_Opened by Foundry · goal \`${goal.id}\` · task \`${task.id}\`_`);
   return lines.join('\n\n');
 }
@@ -79,21 +104,47 @@ export function repoSlug(url: string): string {
   return m ? `${m[1]}/${m[2]}` : url;
 }
 
-export function buildPrBody(goal: Goal, brief: Brief | null, review: { mustResults: CheckResult[]; stretchResults: CheckResult[]; notes: string; overDelivered: boolean } | null, checkNames: Map<string, string>): string {
+/** the goal's tasks as a tree under their Areas, by their commit headers: the smallest view of what changed and where */
+function taskTree(goal: Goal, brief: Brief | null, tasks: Pick<Task, 'title' | 'area' | 'commitMessage' | 'origin'>[]): string {
+  const title = (t: Pick<Task, 'title' | 'commitMessage'>) => headerOf(t.commitMessage ?? t.title);
+  const lines = [goal.title];
+  const areas = brief?.areas ?? [];
+  const placed = new Set<Pick<Task, 'title'>>();
+  for (const a of areas) {
+    const mine = tasks.filter((t) => t.area === a.key || t.area === a.name);
+    if (!mine.length) continue;
+    lines.push(`  ${a.name}`);
+    for (const t of mine) {
+      lines.push(`    ${title(t)}`);
+      placed.add(t);
+    }
+  }
+  for (const t of tasks) if (!placed.has(t)) lines.push(`  ${title(t)}`);
+  return lines.join('\n');
+}
+
+/**
+ * The PR body of a whole-goal delivery, after the `pr` skill's template (ADR-0047): a Summary (what was understood and
+ * the tasks as a tree under their Areas), the Decisions the person made, the Evidence (the acceptance checks and the
+ * reviewer's notes) and the Merge Danger (door and blast radius). No model writes it; the engine knows all of it.
+ */
+export function buildPrBody(goal: Goal, brief: Brief | null, review: { mustResults: CheckResult[]; stretchResults: CheckResult[]; notes: string; overDelivered: boolean } | null, checkNames: Map<string, string>, extra: { tasks?: Pick<Task, 'title' | 'area' | 'commitMessage' | 'origin'>[]; stats?: DiffStats | null } = {}): string {
   const lines: string[] = [];
-  lines.push(`## Goal\n\n${goal.prompt.trim()}`);
-  if (brief) lines.push(`## Understanding\n\n${brief.understanding.trim()}`);
+  const tasks = (extra.tasks ?? []).filter((t) => t.origin !== 'merge');
+  lines.push(`## Summary\n\n${brief ? brief.understanding.trim() : goal.prompt.trim()}${tasks.length ? `\n\n\`\`\`text\n${taskTree(goal, brief, tasks)}\n\`\`\`` : ''}${brief ? `\n\n**Asked for:** ${goal.prompt.trim()}` : ''}`);
   if (brief) {
     const ds = decisionsOf(brief);
-    if (ds.length) lines.push(`## Decisions\n\n${ds.map((d) => (d.kind === 'answer' ? `- **${d.text}** — ${d.answer}` : `- ~~${d.text}~~ (assumption rejected)`)).join('\n')}`);
+    if (ds.length) lines.push(`## Decisions\n\n${ds.map((d) => (d.kind === 'answer' ? `- **${d.text}** — ${d.answer}` : d.kind === 'note' ? `- ${d.text}` : `- ~~${d.text}~~ (assumption rejected)`)).join('\n')}`);
   }
   if (review) {
     const row = (r: CheckResult) => `| ${checkNames.get(r.checkId) ?? r.checkId} | ${r.status === 'pass' ? '✅ pass' : `❌ ${r.status}`} |`;
-    lines.push(`## Acceptance\n\n| Must | result |\n|---|---|\n${review.mustResults.map(row).join('\n') || '| — | |'}`);
-    if (review.stretchResults.length) lines.push(`| Stretch | result |\n|---|---|\n${review.stretchResults.map(row).join('\n')}`);
-    if (review.overDelivered) lines.push('**Over-delivered**: all stretch checks pass as well.');
-    if (review.notes) lines.push(`## Reviewer notes\n\n${review.notes.trim()}`);
-  }
+    const parts = [`| Must | result |\n|---|---|\n${review.mustResults.map(row).join('\n') || '| — | |'}`];
+    if (review.stretchResults.length) parts.push(`| Stretch | result |\n|---|---|\n${review.stretchResults.map(row).join('\n')}`);
+    if (review.overDelivered) parts.push('**Over-delivered**: all stretch checks pass as well.');
+    if (review.notes) parts.push(`**Reviewer:** ${review.notes.trim()}`);
+    lines.push(`## Evidence\n\n${parts.join('\n\n')}`);
+  } else lines.push('## Evidence\n\nNo checks were run.');
+  lines.push(mergeDanger(goal.baseBranch, extra.stats));
   lines.push(`---\n_Opened by Foundry · goal \`${goal.id}\` · est. cost $${goal.costUsd.toFixed(2)}_`);
   return lines.join('\n\n');
 }
