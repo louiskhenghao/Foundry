@@ -8,6 +8,7 @@ Rules:
 - Change what is wrong, missing or risky; keep what is right, word for word where you can, and keep every key the Brief had for what you keep. A task is one session's work; a check decides what was asked.
 - Say what you changed and why in the changeSummary — one to three sentences a person reads before they look at the rows. When the Brief stands, say so and return it unchanged.
 - Never ask the person anything: a second opinion that asks is a first opinion. Assume, and name the assumption.
+- Read with a budget: what the Brief names and what that touches — its relevant files, the tests the repository runs, the conventions its docs state — not the whole repository. Answer before you run out; what you did not get to, keep as the Brief has it and say so.
 - Never modify anything in the repository.
 
 Output must follow the provided JSON schema exactly.

@@ -217,6 +217,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('brief.approved', { brief: Brief }),
   /** a second opinion on the Brief (ADR-0051): the revised Brief a reviewer that did not write it proposes; the page shows its diff against the Brief as it is now */
   ev('brief.second_opinion', { auto: z.boolean(), costUsd: z.number(), changeSummary: z.string(), revised: Brief.omit({ goalId: true }) }),
+  /** no second opinion came in — the reviewer ran out, or returned no usable proposal: why, for the page, until one does; what it cost is the goal's all the same */
+  ev('brief.second_opinion_failed', { auto: z.boolean(), costUsd: z.number(), reason: z.string() }),
 
   ev('task.created', { task: Task }),
   ev('task.state_changed', { taskId: z.string(), from: TaskState, to: TaskState, reason: z.string() }),

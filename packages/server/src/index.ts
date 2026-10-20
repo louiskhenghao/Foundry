@@ -33,8 +33,9 @@ export function startServer(engine: Engine, opts: ServeOptions = {}) {
     port: engine.config.port,
     // a Transfer file can be gigabytes (it is streamed to disk); every other request is held to 30 MB in the app
     maxRequestBodySize: 64 * 1024 * 1024 * 1024,
-    // slow uploads / long-running handlers (Bun default is 10 s; max 255)
-    idleTimeout: 120,
+    // slow uploads / long-running handlers: Bun's maximum (its default is 10 s). A Draft or Revise is still awaited by its
+    // request (40 turns, $3, five minutes at most); a second opinion is not (ADR-0051)
+    idleTimeout: 255,
     fetch(req, server) {
       const url = new URL(req.url);
       if (url.pathname === '/ws') {

@@ -67,7 +67,7 @@ import { SkillsManager } from './skills/manager.ts';
 import { skillUsage } from './skills/usage.ts';
 import { linkSuiteSkills } from './skills/suites.ts';
 import { exportLearningsSkill } from './learnings-skill.ts';
-import { secondOpinion, secondOpinionOf, secondOpinionOnBrief, type SecondOpinionView } from './brief-second-opinion.ts';
+import { secondOpinion, secondOpinionFailureOf, secondOpinionOf, secondOpinionOnBrief, startSecondOpinion, type SecondOpinionFailure, type SecondOpinionView } from './brief-second-opinion.ts';
 import { SATISFIED } from './skills/catalog.ts';
 import { UpdateManager } from './update/updater.ts';
 import { AgentsMonitor, type FoundryLiveSession } from './agents/monitor.ts';
@@ -2295,6 +2295,16 @@ export class Engine {
   /** the goal's last second opinion, against the Brief as it is now */
   secondOpinionOf(goalId: string): SecondOpinionView | null {
     return secondOpinionOf(this, goalId);
+  }
+
+  /** asked for from the page: checked now (the reasons it cannot start are thrown), written in the background; the goal detail carries it from here */
+  startSecondOpinion(goalId: string): void {
+    startSecondOpinion(this, goalId);
+  }
+
+  /** why the goal's last second opinion did not come in, until one does */
+  secondOpinionFailureOf(goalId: string): SecondOpinionFailure | null {
+    return secondOpinionFailureOf(this, goalId);
   }
 
   /** the human let an asking Revise go */
