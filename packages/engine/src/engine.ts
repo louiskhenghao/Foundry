@@ -20,6 +20,7 @@ import {
   getAttempt,
   getBrief,
   getGoal,
+  listRepoLearnings,
   getTask,
   listAttempts,
   listAttemptsEndedSince,
@@ -64,6 +65,7 @@ import { cleanDeliverables, deliversCheckName, deliversCheckSpec } from './check
 import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
 import { linkSuiteSkills } from './skills/suites.ts';
+import { exportLearningsSkill } from './learnings-skill.ts';
 import { SATISFIED } from './skills/catalog.ts';
 import { UpdateManager } from './update/updater.ts';
 import { AgentsMonitor, type FoundryLiveSession } from './agents/monitor.ts';
@@ -468,6 +470,8 @@ export class Engine {
       if (e.type === 'session.usage' && e.payload.sessionId) this.ownedSessionIds.add(e.payload.sessionId);
       // a goal that ended teaches its folder something (ADR-0040)
       if (e.type === 'goal.state_changed') learnOnEnd(this, e.goalId, e.payload.to);
+      // the notebook changed: the folder's exported skill follows (ADR-0050)
+      if (e.type === 'learnings.set') void exportLearningsSkill(this, e.payload.repoPath);
       if ((e.type === 'task.artifacts_landed' || e.type === 'goal.artifacts_delivered') && e.goalId) this.cadModelMemo.delete(e.goalId);
       // a milestone recorded in a goal with Subject pictures: the Likeness review compares the two (in the background)
       if (e.type === 'milestone.evidence') onMilestoneEvidence(this, e);
@@ -703,6 +707,7 @@ export class Engine {
     }
     if (changed.includes('tools.markitdownBin')) this.markitdown = new Markitdown({ bin: this.config.markitdownBin, log: this.config.log });
     if (changed.some((k) => k.startsWith('workflow.'))) Object.values(this.providerSkills).forEach((skills) => skills.hints.invalidate());
+    if (changed.includes('workflow.learningsSkill')) for (const r of listRepoLearnings(this.store.db)) void exportLearningsSkill(this, r.repoPath);
     if (changed.includes('tools.minimaxApiKey')) {
       this.mmxReady = writeMmxConfig(this.config.dataDir, this.minimaxKey(), this.config.log);
       // the quota belongs to the old key
@@ -1895,7 +1900,8 @@ export class Engine {
     if (!suite) return {};
     if (provider === 'claude') return { pluginDirs: [...(spec.pluginDirs ?? []), suite.dir] };
     const wanted = skills.catalog().entries.filter((e) => e.source.type === 'suite' && e.source.suite === 'pstack').map((e) => e.name);
-    if (existsSync(spec.cwd)) await linkSuiteSkills(spec.cwd, suite, wanted, this.config.log).catch((e) => this.config.log(`[skills] suite links in ${spec.cwd}: ${String((e as Error).message ?? e)}`));
+    // only a workspace or worktree takes links (a housekeeping session's cwd is the data dir)
+    if (existsSync(join(spec.cwd, '.git'))) await linkSuiteSkills(spec.cwd, suite, wanted, this.config.log).catch((e) => this.config.log(`[skills] suite links in ${spec.cwd}: ${String((e as Error).message ?? e)}`));
     return {};
   }
 
@@ -2011,6 +2017,8 @@ export class Engine {
       updatedAt: now,
     };
     this.store.append({ type: 'goal.created', goalId: id, payload: { goal } });
+    // a goal starting in the folder refreshes its exported Learnings skill (ADR-0050)
+    void exportLearningsSkill(this, goal.repoPath);
     for (const a of goal.attachments) this.staged.delete(a.id);
     if (input.autoBrief || input.brief) {
       this.store.append({ type: 'goal.state_changed', goalId: id, payload: { from: 'draft', to: 'clarifying', reason: 'auto brief' } });
