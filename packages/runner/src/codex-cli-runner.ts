@@ -58,6 +58,7 @@ export class CodexCliRunner implements AgentRunner {
   constructor(private opts: CodexCliRunnerOptions = {}) { this.sem = new Semaphore(opts.maxConcurrent ?? 3); }
   active(): number { return this.procs.size; }
   setMaxConcurrent(n: number): void { this.sem.setLimit(n); }
+  wouldQueue(lane?: RunSpec['lane']): boolean { return !this.sem.available(lane); }
   killAll(signal: 'SIGTERM' | 'SIGKILL' = 'SIGTERM'): number {
     for (const kill of this.procs.values()) kill(signal);
     return this.procs.size;
@@ -98,7 +99,7 @@ export class CodexCliRunner implements AgentRunner {
   }
 
   async run(spec: RunSpec): Promise<RunHandle> {
-    const release = await this.sem.acquire();
+    const release = await this.sem.acquire(spec.lane);
     const queue = new EventQueue();
     const started = Date.now();
     let dir: string | null = null;

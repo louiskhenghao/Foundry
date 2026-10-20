@@ -794,8 +794,10 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
 
   app.patch('/api/goals/:id/brief', async (c) => {
-    const body = Brief.parse({ ...(await c.req.json()), goalId: c.req.param('id') });
-    return c.json(engine.editBrief(c.req.param('id'), body));
+    const json = await c.req.json();
+    const body = Brief.parse({ ...json, goalId: c.req.param('id') });
+    // `skeleton`: the page was editing the Brief skeleton (the planner still at work): only its skeleton fields are taken
+    return c.json(engine.editBrief(c.req.param('id'), body, { skeleton: json?.skeleton === true }));
   });
 
   // ---- a Revise that asked back: the human's answers resume it (the proposal, or one more round); or they let it go ----

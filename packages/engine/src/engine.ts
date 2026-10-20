@@ -2238,11 +2238,23 @@ export class Engine {
     cancelRevise(this, this.mustGoal(goalId));
   }
 
-  editBrief(goalId: string, brief: Brief): Brief {
+  /**
+   * The Brief page's edits. While the stored Brief is a skeleton (the planner still splitting the goal into tasks,
+   * ADR-0046), only its skeleton fields are taken — title, understanding, Areas, assumptions, questions, goal-level
+   * checks, how to run it, style directions — and the tasks, task-level checks and estimate stay as stored; `skeleton`
+   * says the page was editing one, which protects a save that crosses the plan's arrival. Otherwise the whole Brief is
+   * replaced.
+   */
+  editBrief(goalId: string, brief: Brief, opts: { skeleton?: boolean } = {}): Brief {
     const goal = this.mustGoal(goalId);
-    if (goal.state !== 'awaiting_brief_approval') throw new Error(`goal is ${goal.state}, brief cannot be edited`);
+    const stored = getBrief(this.store.db, goalId);
+    if (goal.state !== 'awaiting_brief_approval' && !(goal.state === 'clarifying' && stored?.skeleton)) throw new Error(`goal is ${goal.state}, brief cannot be edited`);
+    const merged =
+      stored && (opts.skeleton || stored.skeleton)
+        ? { ...stored.brief, title: brief.title, understanding: brief.understanding, areas: brief.areas, assumptions: brief.assumptions, questions: brief.questions, run: brief.run, apps: brief.apps, styleOptions: brief.styleOptions, checks: [...brief.checks.filter((c) => c.taskKey === null), ...stored.brief.checks.filter((c) => c.taskKey !== null)] }
+        : brief;
     // Subjects change only through their own events: a page's copy may predate pictures that arrived since
-    const parsed = BriefSchema.parse({ ...brief, goalId, subjects: getBrief(this.store.db, goalId)?.brief.subjects });
+    const parsed = BriefSchema.parse({ ...merged, goalId, subjects: stored?.brief.subjects });
     this.store.append({ type: 'brief.edited', goalId, payload: { brief: parsed } });
     return parsed;
   }

@@ -73,14 +73,18 @@ Foundry 写 Brief 之前，会先读你的项目和附件。大部分问题它�
 
 ## 规划期间
 
-你发送一轮答案后，卡片标题会变成 **Thinking about your answers…**，卡片上列出步骤，当前那一步带着往上走的计时：
+你发送一轮答案后，卡片标题会变成 **Thinking about your answers…**，卡片上列出步骤，当前那一步带着往上走的计时；做完的一步会显示它用了多久：
 
 - **Clarifier: reading the repository, then asking or writing the Brief**：下一轮问题通常不到一分钟就会出来。
 - **Planner: splitting the goal into tasks**：Clarifier 写好 Brief 之后，由单独的会话把它拆成任务、任务的检查和估算，通常要几分钟。
 
+Clarifier 一写好 Brief，卡片就会显示 **The Brief is taking shape** 和一个 **Open the Brief** 链接：它的理解、Areas、假设和验收检查已经可以边看边改，planner 还在工作，任务会自己填进来。见 [While the planner works](./approving-the-brief.zh.md#while-the-planner-works)。
+
+如果所有会话名额都被正在跑的工作占着，这一步会用琥珀色显示 **waiting for a free session slot** 和已经等了多久：Clarify、planner 以及其他你在等的会话可以多用 Settings 里上限之外的一个名额，所以这种等待是在等另一个这样的会话结束，绝不会是在等某个任务。
+
 回答是一次性写出来的，所以写的时候，步骤下面的实时日志可能好几分钟不动；计时说明它还在工作。你可以关掉页面；goal 会继续进行，你回来时页面会更新。
 
-第一轮之前，卡片上显示的是 **Reading the repository…**，原因一样。
+第一轮之前，卡片上显示的是 **Reading the repository…**，原因一样。goal 的 **Activity** 标签会列出每一轮的提问和回答，以及访谈什么时候、为什么结束。
 
 ## 你的答案会怎样
 

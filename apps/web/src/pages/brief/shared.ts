@@ -20,6 +20,21 @@ export const SECTION_STYLE: Record<BriefSection, { Icon: LucideIcon; text: strin
 /** the section a Brief page nav item (id "brief-<section>") belongs to */
 export const sectionOfNav = (id: string): BriefSection | null => (id.startsWith('brief-') && id.slice(6) in SECTION_STYLE ? (id.slice(6) as BriefSection) : null);
 
+/**
+ * The plan arrived while the page held edits of the Brief skeleton: the tasks, their checks and the estimate come in
+ * from the planned Brief, everything else stays as edited; questions the plan added (an Area without tasks) are appended.
+ */
+export function withPlan(local: Brief, planned: Brief): Brief {
+  return {
+    ...local,
+    tasks: planned.tasks,
+    checks: [...local.checks.filter((c) => c.taskKey === null), ...planned.checks.filter((c) => c.taskKey !== null)],
+    costEstimateUsd: planned.costEstimateUsd,
+    timeEstimateMin: planned.timeEstimateMin,
+    questions: [...local.questions, ...planned.questions.filter((q) => !local.questions.some((l) => l.id === q.id))],
+  };
+}
+
 /** every kind a task may have; `goal` = a Delegated goal of its own does the step (the planner offers it only where the goal allows delegation) */
 export const TASK_KINDS = ['feature', 'bug', 'refactor', 'research', 'chore', 'goal'] as const;
 

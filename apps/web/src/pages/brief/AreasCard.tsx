@@ -14,13 +14,13 @@ import { SectionTitle } from './SectionTitle.tsx';
  * The parts of the product this goal covers. Coverage = every Area has at least one task;
  * an empty one is the gap the Clarifier could not close — draft tasks for it or delete it.
  */
-export function AreasCard({ brief, goalId, editable, edit }: { brief: Brief; goalId: string; editable: boolean; edit: (fn: (b: Brief) => Brief) => void }) {
+export function AreasCard({ brief, goalId, editable, draftable = editable, planning = false, edit }: { brief: Brief; goalId: string; editable: boolean; /** the Draft button applies (false while the planner still fills the Brief skeleton) */ draftable?: boolean; /** the planner is still at work: every Area is empty for now, nothing to warn about */ planning?: boolean; edit: (fn: (b: Brief) => Brief) => void }) {
   const counts = (a: BriefArea) => ({
     tasks: brief.tasks.filter((t) => t.areaKey === a.key).length,
     checks: brief.checks.filter((c) => c.areaKey === a.key || (c.taskKey && brief.tasks.find((t) => t.key === c.taskKey)?.areaKey === a.key)).length,
   });
   const unassigned = brief.tasks.filter((t) => !brief.areas.some((a) => a.key === t.areaKey)).length;
-  const uncovered = brief.areas.filter((a) => counts(a).tasks === 0);
+  const uncovered = planning ? [] : brief.areas.filter((a) => counts(a).tasks === 0);
   return (
     <Card
       title={<><SectionTitle section="areas">{`Areas (${brief.areas.length})`}</SectionTitle><HelpLink to="approving-the-brief#areas" className="ml-1.5" /></>}
@@ -35,11 +35,12 @@ export function AreasCard({ brief, goalId, editable, edit }: { brief: Brief; goa
       <p className="text-xs text-zinc-500 mb-3">
         The parts of the product this goal covers (a user-facing role or app, or shared groundwork). Every task belongs to one; <b>every Area needs at least one task</b> or that part will not be built.
         {uncovered.length > 0 && <span className="text-rose-300"> {uncovered.length} Area{uncovered.length > 1 ? 's have' : ' has'} no tasks.</span>}
+        {planning && <span className="text-sky-300"> The tasks of each Area arrive with the plan.</span>}
       </p>
       {brief.areas.length === 0 && <div className="text-xs text-zinc-500">No Areas — this Brief predates Areas or the goal is a single piece of work. Add one to group tasks.</div>}
       <div className="space-y-2">
         {brief.areas.map((a) => (
-          <AreaRow key={a.key} area={a} brief={brief} goalId={goalId} editable={editable} edit={edit} counts={counts(a)} />
+          <AreaRow key={a.key} area={a} brief={brief} goalId={goalId} editable={editable} draftable={draftable} planning={planning} edit={edit} counts={counts(a)} />
         ))}
         {unassigned > 0 && brief.areas.length > 0 && (
           <div className="text-[11px] text-amber-300">
@@ -51,7 +52,7 @@ export function AreasCard({ brief, goalId, editable, edit }: { brief: Brief; goa
   );
 }
 
-function AreaRow({ area, brief, goalId, editable, edit, counts }: { area: BriefArea; brief: Brief; goalId: string; editable: boolean; edit: (fn: (b: Brief) => Brief) => void; counts: { tasks: number; checks: number } }) {
+function AreaRow({ area, brief, goalId, editable, draftable, planning, edit, counts }: { area: BriefArea; brief: Brief; goalId: string; editable: boolean; draftable: boolean; planning: boolean; edit: (fn: (b: Brief) => Brief) => void; counts: { tasks: number; checks: number } }) {
   const [proposal, setProposal] = useState<DraftProposal | null>(null);
   const [drafting, setDrafting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -95,10 +96,10 @@ function AreaRow({ area, brief, goalId, editable, edit, counts }: { area: BriefA
         ) : (
           <span className="text-xs text-zinc-400 flex-1">{area.description}</span>
         )}
-        <span className={cn('text-[11px] whitespace-nowrap', empty ? 'text-rose-300' : 'text-zinc-500')}>
+        <span className={cn('text-[11px] whitespace-nowrap', empty && !planning ? 'text-rose-300' : 'text-zinc-500')}>
           {counts.tasks} task{counts.tasks === 1 ? '' : 's'} · {counts.checks} check{counts.checks === 1 ? '' : 's'}
         </span>
-        {editable && empty && (
+        {editable && draftable && empty && (
           <Button size="sm" disabled={drafting || !area.name.trim()} onClick={draft} title="A read-only AI session proposes 1–6 tasks (with checks) for this Area">
             <Sparkles size={12} /> {drafting ? 'Drafting…' : 'Draft tasks for this Area'}
           </Button>

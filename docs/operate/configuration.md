@@ -29,7 +29,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
-| `engine.maxConcurrent` | `3` | `FOUNDRY_MAX_CONCURRENT` | Total concurrent agent sessions across Claude and Codex goals. |
+| `engine.maxConcurrent` | `3` | `FOUNDRY_MAX_CONCURRENT` | Total concurrent agent sessions across Claude and Codex goals. A session a person is waiting for (Clarify and its planner, a Revise, a Draft) may run as one more beyond it, so at most this number plus one run at once. |
 | `models.codexModel` | `codex-default` | `FOUNDRY_CODEX_MODEL` | Base model substituted for codex-default in new Codex goal presets. codex-default leaves model choice to the native CLI; an explicit model ID pins it. |
 | `models.codexPresets` | — | — | Independent Codex presets: model and reasoning effort per role and goal type, including housekeeping. Saved changes affect new Codex goals only. |
 | `models.codexPresetCode` | `production` | — | Codex preset for code and unclassified goals; its complete tables are captured when a goal is created. |

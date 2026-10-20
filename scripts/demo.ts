@@ -9,7 +9,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import type { BriefOutput } from '../packages/core/src/index.ts';
+import type { BriefOutput, BriefSkeleton } from '../packages/core/src/index.ts';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '../packages/runner/src/index.ts';
 import { defaultConfig } from '../packages/engine/src/config.ts';
 import { Engine } from '../packages/engine/src/engine.ts';
@@ -55,6 +55,26 @@ const interviewRound = {
     { key: 'R1Q3', text: 'Do charts on the dashboard need dark colours too?', options: ['Yes, recolour them', 'No, leave them light for now'], reason: 'The dashboard charts hard-code light colours (src/dashboard/palette.ts).', dependsOn: null, blocking: false },
   ],
   brief: null,
+};
+/** the Clarifier's Brief without its tasks: what the Brief page shows while the planner works (ADR-0046) */
+const pricingSkeleton: BriefSkeleton = {
+  title: 'feat(site): add the pricing page',
+  understanding: 'Add a pricing page to the studio site: three plans side by side (Free, Studio, Publisher) with a monthly/yearly switch, a short FAQ under them, and a link to it in the header and the footer. Prices and plan names are placeholders the studio fills in later; nothing is charged.',
+  nature: 'code',
+  areas: [
+    { key: 'A1', name: 'Pricing page', slug: 'pricing', description: 'The plans, the switch and the FAQ.' },
+    { key: 'A2', name: 'Navigation', slug: 'nav', description: 'The header link and the footer entry.' },
+  ],
+  assumptions: ['Prices are placeholders; no payment is wired up.', 'The FAQ has four questions, written by the studio later.'],
+  goalChecks: [
+    { key: 'C1', name: 'build passes', tier: 'must', areaKey: null, type: 'command', cmd: 'bun run build', rubric: null },
+    { key: 'C2', name: 'plans read at a glance', tier: 'must', areaKey: 'A1', type: 'reviewer', cmd: null, rubric: 'Three plans, their differences visible without scrolling, the switch obvious.' },
+  ],
+  openQuestions: [{ text: 'Should the yearly price show the saving against monthly ("2 months free")?', blocking: false, areaKey: 'A1', options: ['Yes, as a small badge', 'No, just the two prices'] }],
+  styleOptions: [],
+  run: { install: null, command: 'bun run start', url: 'http://localhost:{port}', platform: 'web' },
+  apps: null,
+  planningNotes: 'Pages live under src/pages, one file per page; the header is src/components/Header.tsx and the footer src/components/Footer.tsx. Build with bun run build; tests with bun test. The switch needs no state beyond the page.',
 };
 
 /** an approved-shape Brief (what the engine stores) from a Clarifier-shape one, command checks only so no review session runs */
@@ -345,12 +365,23 @@ class DemoRunner implements ClaudeRunner {
   }
   async run(spec: RunSpec): Promise<RunHandle> {
     const label = spec.label ?? '';
+    // the pricing goal is caught while its planner works: a session that never ends, so the Brief page shows the skeleton
+    if (label.startsWith('planner ') && spec.prompt.includes('pricing page')) {
+      const sessionId = `demo-${Math.random().toString(36).slice(2, 8)}`;
+      const events = (async function* (): AsyncGenerator<RunnerEvent> {
+        yield { kind: 'init', sessionId, model: spec.model ?? null, tools: [], raw: {} };
+        yield { kind: 'text', text: 'Reading the Areas and the planning notes, then the pages folder…' };
+        yield { kind: 'tool_use', id: 't1', name: 'Read', input: { file_path: 'src/pages/index.tsx' } };
+        await new Promise(() => {});
+      })();
+      return { pid: null, events, kill() {}, result: new Promise(() => {}) };
+    }
     let structuredOutput: unknown = null;
     if (label.startsWith('classify nature')) structuredOutput = { nature: 'code' };
     else if (label.startsWith('planner ')) structuredOutput = { tasks: landingBrief.tasks };
     else if (label.startsWith('milestone walkthrough')) structuredOutput = { steps: [{ action: 'shot', target: '', role: null, value: '', caption: 'The hero, as a visitor first sees it' }, { action: 'press', target: '', role: null, value: 'End', caption: '' }, { action: 'shot', target: '', role: null, value: '', caption: 'The value cards further down' }], summary: 'Opens the site and scrolls from the hero to the value cards.' };
-    // a goal with an interview answers in the interview shape; one without gets the bare Brief
-    else if (label.startsWith('clarify')) structuredOutput = spec.prompt.includes('dark mode') ? interviewRound : spec.prompt.includes('# Interview before the Brief') ? { questions: [], brief: landingBrief } : landingBrief;
+    // a goal with an interview answers in the interview shape; one without gets the bare Brief (the pricing goal its skeleton)
+    else if (label.startsWith('clarify')) structuredOutput = spec.prompt.includes('pricing page') ? pricingSkeleton : spec.prompt.includes('dark mode') ? interviewRound : spec.prompt.includes('# Interview before the Brief') ? { questions: [], brief: landingBrief } : landingBrief;
     const title = label.startsWith('attempt') ? label.slice('attempt '.length).replace(/ #\d+.*$/, '') : '';
     const sessionId = `demo-${Math.random().toString(36).slice(2, 8)}`;
     if (title) {
@@ -503,7 +534,7 @@ export async function startDemo(): Promise<{ url: string; goals: Record<string, 
   // the completion's graph refresh reports graphify and gitnexus as run, without touching this machine's tools
   engine.graphRefreshDeps = { which: (n) => `/usr/local/bin/${n}`, exec: async () => ({ code: 0, stdout: '', stderr: '' }) as never };
   const server = startServer(engine, { webDist: join(ROOT, 'apps/web/dist') });
-  const { getGoal, listEscalations } = await import('../packages/core/src/index.ts');
+  const { getBrief, getGoal, listEscalations } = await import('../packages/core/src/index.ts');
   const state = (id: string) => getGoal(engine.store.db, id)!.state;
 
   // a finished goal first: it can be followed (Continue with a follow-up…), and its delivery is shown merged
@@ -526,6 +557,8 @@ export async function startDemo(): Promise<{ url: string; goals: Record<string, 
   recordCompletionExtras(engine, done.id);
   const interview = await engine.createGoal({ prompt: 'Add a dark mode toggle to the settings page', repoPath: repo, interview: 'always', workflow: { pace: 'fast' } });
   const brief = await engine.createGoal({ prompt: 'A landing page for our game studio', title: 'Studio landing page', provider: 'codex', repoPath: repo, interview: 'never', workflow: { pace: 'fast' } });
+  // caught while its planner works: the Brief page shows the Clarifier's skeleton meanwhile
+  const planning = await engine.createGoal({ prompt: 'Add a pricing page to the studio site: three plans with a monthly/yearly switch and a short FAQ.', title: 'Studio site — pricing page', repoPath: repo, interview: 'never', workflow: { pace: 'fast' } });
   const milestone = await engine.createGoal({ prompt: 'Studio site: hero and value cards', title: 'Studio site — first look', repoPath: repo, brief: briefFrom(landingBrief, landingBrief.tasks.slice(0, 3)) as never, workflow: { pace: 'fast' } });
   const running = await engine.createGoal({
     prompt: 'Add CSV export to the orders page, with the date range the user is looking at.',
@@ -548,6 +581,7 @@ export async function startDemo(): Promise<{ url: string; goals: Record<string, 
 
   await waitFor(() => getGoal(engine.store.db, interview.id)!.interview?.status === 'awaiting_answers');
   await waitFor(() => state(brief.id) === 'awaiting_brief_approval');
+  await waitFor(() => !!getBrief(engine.store.db, planning.id)?.skeleton && state(planning.id) === 'clarifying');
   await waitFor(() => state(milestone.id) === 'awaiting_feedback');
   await waitFor(() => listEscalations(engine.store.db, { goalId: blocked.id, openOnly: true }).length > 0);
   await waitFor(() => state(running.id) === 'running');
@@ -556,7 +590,7 @@ export async function startDemo(): Promise<{ url: string; goals: Record<string, 
   await waitFor(() => listTasks(engine.store.db, running.id).find((t) => t.title.startsWith('stream'))?.state === 'done');
   return {
     url: `http://127.0.0.1:${DEMO_PORT}`,
-    goals: { done: done.id, interview: interview.id, brief: brief.id, milestone: milestone.id, running: running.id, blocked: blocked.id },
+    goals: { done: done.id, interview: interview.id, brief: brief.id, planning: planning.id, milestone: milestone.id, running: running.id, blocked: blocked.id },
     // for QA scripts that need to record an event the scripted sessions never produce (e.g. a merged delivery)
     engine,
     stop: async () => {

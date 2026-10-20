@@ -73,14 +73,18 @@ Earlier rounds fold up under the current one: **▸ N earlier rounds** shows wha
 
 ## While it plans
 
-After you send a round, the card title changes to **Thinking about your answers…** and the card shows the steps, the current one with a timer counting up:
+After you send a round, the card title changes to **Thinking about your answers…** and the card shows the steps, the current one with a timer counting up; a finished step shows how long it took:
 
 - **Clarifier: reading the repository, then asking or writing the Brief.** A next round usually comes in under a minute.
 - **Planner: splitting the goal into tasks**, once the Clarifier has written the Brief. A separate session turns it into tasks, their checks and the estimate; this usually takes a few minutes.
 
+As soon as the Clarifier has written the Brief, the card says **The Brief is taking shape** with an **Open the Brief** link: its understanding, Areas, assumptions and acceptance checks are ready to read and edit while the planner works, and the tasks fill in by themselves. See [While the planner works](./approving-the-brief.md#while-the-planner-works).
+
+If every session slot is taken by running work, the step says **waiting for a free session slot** in amber, with the time waited: Clarify, the planner and the other sessions you wait for may use one slot beyond the limit in Settings, so this wait is for another such session to end, never for a task.
+
 An answer is written in one go, so the live log under the steps can stand still for minutes while it is; the timer shows it is still working. You can close the page; the goal keeps going and the page updates when you come back.
 
-Before the first round the card says **Reading the repository…** instead, for the same reason.
+Before the first round the card says **Reading the repository…** instead, for the same reason. The **Activity** tab of the goal lists each round asked and answered, and when the interview ended and why.
 
 ## What happens to your answers
 

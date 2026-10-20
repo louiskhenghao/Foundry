@@ -50,3 +50,4 @@ record is never rewritten when a later decision changes it; its status says what
 | [0043](0043-estimate-cut-sessions-at-measured-rates.md) | A cut session's cost is estimated from its tokens at the rate its model was measured at | accepted · 2026-10-19 · amends ADR-0037 |
 | [0044](0044-notes-are-decisions.md) | A note from the human is a Decision, asked for or not: an interview round and the Brief page take one | accepted · 2026-10-19 · amends ADR-0013 and ADR-0027 |
 | [0045](0045-revise-may-ask-back.md) | A Revise may ask the human a round or two before it proposes; the answers are Decisions | accepted · 2026-10-19 · builds on ADR-0013 and ADR-0044 |
+| [0046](0046-skeleton-first-and-the-interactive-lane.md) | The Brief skeleton shows first, editable while the planner works; a session a person waits for may run one beyond the concurrency limit | accepted · 2026-10-20 · amends ADR-0028 |

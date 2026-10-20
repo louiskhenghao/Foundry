@@ -77,9 +77,14 @@ function project(db: Database, e: EngineEvent): void {
       if (g) upsertGoal(db, { ...g, attachments: g.attachments.filter((a) => a.id !== e.payload.attachmentId) });
       break;
     }
+    case 'brief.skeleton_proposed':
+      // the Brief without its tasks: shown and editable while the planner works, so the Clarify step stays
+      upsertBrief(db, e.payload.brief, false, true);
+      break;
     case 'brief.proposed':
     case 'brief.edited': {
-      upsertBrief(db, e.payload.brief, false);
+      // an edit keeps a skeleton a skeleton; the proposed Brief is the planned one
+      upsertBrief(db, e.payload.brief, false, e.type === 'brief.edited' ? (getBrief(db, e.goalId!)?.skeleton ?? false) : false);
       // Clarify is over once its Brief is out
       const g = e.type === 'brief.proposed' ? getGoal(db, e.goalId!) : null;
       if (g?.clarifyStage) upsertGoal(db, { ...g, clarifyStage: null, updatedAt: e.ts });
@@ -721,14 +726,15 @@ export function upsertCheckResult(db: Database, r: CheckResult): void {
   );
 }
 
-export function getBrief(db: Database, goalId: string): { brief: Brief; approved: boolean } | null {
-  const r = db.query('SELECT data, approved FROM briefs WHERE goal_id = ?').get(goalId) as { data: string; approved: number } | null;
-  return r ? { brief: JSON.parse(r.data), approved: r.approved === 1 } : null;
+/** the goal's Brief; `skeleton` = the Clarifier's Brief without its tasks, the planner still at work (ADR-0046) */
+export function getBrief(db: Database, goalId: string): { brief: Brief; approved: boolean; skeleton: boolean } | null {
+  const r = db.query('SELECT data, approved, skeleton FROM briefs WHERE goal_id = ?').get(goalId) as { data: string; approved: number; skeleton: number } | null;
+  return r ? { brief: JSON.parse(r.data), approved: r.approved === 1, skeleton: r.skeleton === 1 } : null;
 }
-export function upsertBrief(db: Database, b: Brief, approved: boolean): void {
+export function upsertBrief(db: Database, b: Brief, approved: boolean, skeleton = false): void {
   db.run(
-    'INSERT INTO briefs (goal_id, approved, data) VALUES (?, ?, ?) ON CONFLICT(goal_id) DO UPDATE SET approved = excluded.approved, data = excluded.data',
-    [b.goalId, approved ? 1 : 0, JSON.stringify(b)],
+    'INSERT INTO briefs (goal_id, approved, skeleton, data) VALUES (?, ?, ?, ?) ON CONFLICT(goal_id) DO UPDATE SET approved = excluded.approved, skeleton = excluded.skeleton, data = excluded.data',
+    [b.goalId, approved ? 1 : 0, skeleton ? 1 : 0, JSON.stringify(b)],
   );
 }
 

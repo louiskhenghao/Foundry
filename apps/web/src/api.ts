@@ -387,7 +387,8 @@ export interface GoalDetail {
   attempts: Attempt[];
   checks: Check[];
   checkResults: CheckResult[];
-  brief: { brief: Brief; approved: boolean } | null;
+  /** `skeleton`: the Clarifier's Brief without its tasks, the planner still at work — shown and editable meanwhile */
+  brief: { brief: Brief; approved: boolean; skeleton?: boolean } | null;
   escalations: EscalationRow[];
   events: (EngineEvent & { seq: number })[];
   /** every milestone visit and walkthrough of the goal, oldest first, however far back */
@@ -582,7 +583,8 @@ export function apiForProvider(provider?: AgentProvider) {
   afterMerge: (id: string, opts: { pull?: boolean; force?: boolean }) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/delivery/after-merge`, { method: 'POST', body: JSON.stringify(opts) }),
   deliveryPlan: (id: string, q: Record<string, string>) => req<{ policy: DeliveryPolicy; probes: any; steps: DeliveryPlanStep[] }>(`/api/goals/${id}/delivery/plan?${new URLSearchParams(q)}`),
   cancelDelivery: (id: string) => req<{ ok: boolean }>(`/api/goals/${id}/delivery/cancel`, { method: 'POST' }),
-  editBrief: (id: string, brief: Brief) => req<Brief>(`/api/goals/${id}/brief`, { method: 'PATCH', body: JSON.stringify(brief) }),
+  /** `skeleton`: the page was editing the Brief skeleton; the engine then takes its skeleton fields only and keeps the tasks it has */
+  editBrief: (id: string, brief: Brief, skeleton = false) => req<Brief>(`/api/goals/${id}/brief`, { method: 'PATCH', body: JSON.stringify(skeleton ? { ...brief, skeleton: true } : brief) }),
   draftBrief: (id: string, body: DraftRequest) => req<{ proposal: DraftProposal }>(`/api/goals/${id}/brief/draft`, { method: 'POST', body: JSON.stringify(body) }),
   /** the answers to the round a Revise asked: the proposal, or one more round */
   reviseAnswer: (id: string, body: { brief: Omit<Brief, 'goalId'>; answers: Record<string, string>; finish: boolean; note: string | null }) => req<{ proposal: DraftProposal }>(`/api/goals/${id}/brief/revise/answer`, { method: 'POST', body: JSON.stringify(body) }),

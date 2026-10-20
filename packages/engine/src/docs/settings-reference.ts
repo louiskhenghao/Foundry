@@ -45,7 +45,7 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'models.cheap': { section: 'Models & limits', help: 'Housekeeping model: one-turn engine chores (classifying a goal, summarising logs, the rate-limit probe).' },
   'models.fallbacks': { section: 'Models & limits', help: 'Tried in order when a model is unavailable; the replacement is remembered for that goal.' },
   'models.escalateLastAttempt': { section: 'Models & limits', help: "A task's last attempt (budget ≥ 2) and every retry you grant run on the preset's Complex-task model." },
-  'engine.maxConcurrent': { section: 'Models & limits', help: 'Total concurrent agent sessions across Claude and Codex goals.' },
+  'engine.maxConcurrent': { section: 'Models & limits', help: 'Total concurrent agent sessions across Claude and Codex goals. A session a person is waiting for (Clarify and its planner, a Revise, a Draft) may run as one more beyond it, so at most this number plus one run at once.' },
   'sessions.maxContinuations': { section: 'Models & limits', help: 'How often one attempt may resume its session before a fresh attempt starts; 0 = never.' },
   'sessions.attemptMaxTurns': { section: 'Models & limits', help: 'Model-turn cap for a Claude attempt; tool-call cap for a Codex attempt.' },
   'sessions.attemptMaxCostUsd': { section: 'Models & limits', help: 'Claude-only cost cap (USD) for one attempt session, also bounded by the goal budget. Codex does not report USD costs.' },
