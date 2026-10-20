@@ -232,7 +232,7 @@ A source the system consults to decide which parts of a repository are relevant 
 ## Skills
 
 **Skill**
-A packaged instruction set a Coding agent can load (a `SKILL.md` directory). Foundry does not define skills; it sees the supported skills installed for the selected coding agent, installs curated ones from its Catalog, and tells its Roles which to use.
+A packaged instruction set a Coding agent can load (a `SKILL.md` directory). Foundry does not define skills; it sees the supported skills installed for the selected coding agent, installs curated ones from its Catalog, and tells its Roles which to use. A Skill is *unused* when no session of the last N goals invoked it: information for trimming, never an action.
 
 **Skill Source**
 Where an installed Skill comes from and who updates it: a GitHub repository managed by Foundry, by the community `skills` CLI, or by a Claude Code plugin; a project directory; or a hand-installed copy whose origin is inferred by matching its contents against known sources. Native Codex plugin packages are managed separately from loose skills; their lifecycle belongs to the native CLI. Skills of the same Foundry-managed Source are updated together; a Skill whose bytes match an older version of its Source is *outdated*, one that matches no version is *modified*.

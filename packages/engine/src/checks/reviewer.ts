@@ -10,6 +10,7 @@ import { diff } from '../git/git.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from '../guards/boundary.ts';
 import { reviewDiffDir } from '../workspace.ts';
 import { resolveDiscipline } from '../skills/workflow.ts';
+import { skillMatches } from '../skills/usage.ts';
 import { renderSubjects, sessionDirs, subjectsAddDirs } from '../subjects.ts';
 
 /**
@@ -25,7 +26,7 @@ export interface WorkflowObservation {
 }
 
 /** Did the session invoke this skill? Matches bare names and plugin-qualified names. */
-export const usedSkill = (used: string[], name: string): boolean => used.some((u) => u === name || u.endsWith(`:${name}`) || u === name.replace(/^\//, ''));
+export const usedSkill = (used: string[], name: string): boolean => used.some((u) => skillMatches(u, name.replace(/^\//, '')));
 
 export function formatWorkflowObservation(w: WorkflowObservation | null | undefined): string {
   if (!w?.mandated.length) return '';

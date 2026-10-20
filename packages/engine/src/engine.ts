@@ -64,6 +64,7 @@ import { MILESTONE_CHECK_PREFIX, milestoneCheckSpec } from './checks/milestone-s
 import { cleanDeliverables, deliversCheckName, deliversCheckSpec } from './checks/delivers.ts';
 import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
+import { skillUsage } from './skills/usage.ts';
 import { linkSuiteSkills } from './skills/suites.ts';
 import { exportLearningsSkill } from './learnings-skill.ts';
 import { secondOpinion, secondOpinionOf, secondOpinionOnBrief, type SecondOpinionView } from './brief-second-opinion.ts';
@@ -429,6 +430,12 @@ export class Engine {
       envProbe: (name) => !!(process.env[name] || this.sessionEnvExtra()[name]) || (name === 'MINIMAX_API_KEY' && mmxSignedIn()),
       // every updater run is an audit event (goalId null, informational)
       onRun: (run) => this.store.append({ type: 'skills.update_run', goalId: null, payload: { provider, sourceId: run.sourceId, updater: run.updater, command: run.command, cwd: run.cwd, exitCode: run.exitCode, durationMs: run.durationMs, outputTail: run.outputTail, changed: run.changed, error: run.error } }),
+      // which skills Claude sessions invoked; Codex reports none
+      usage: provider === 'claude' ? (installed, limit) => skillUsage({
+        installed, limit,
+        goals: listGoals(this.store.db).filter((g) => (g.provider ?? 'claude') === 'claude'),
+        events: (goalId) => this.store.listByGoalOfTypes(goalId, ['session.usage', 'attempt.finished', 'attempt.started', 'attempt.session']),
+      }) : undefined,
     });
     this.providerSkills = { claude: makeSkills('claude'), codex: makeSkills('codex') };
     this.skills = this.providerSkills[config.provider];

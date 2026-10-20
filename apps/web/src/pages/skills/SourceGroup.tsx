@@ -1,4 +1,4 @@
-import type { SkillSource, SkillSourceRow } from '@foundry/engine/skills-types';
+import type { SkillSource, SkillSourceRow, SkillUsage } from '@foundry/engine/skills-types';
 import { ChevronDown, ChevronRight, ExternalLink, Eye, RefreshCw } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { Badge, Button, CopyButton, ago, cn } from '../../ui.tsx';
@@ -7,6 +7,9 @@ const MANAGER_LABEL: Record<SkillSource['manager'], string> = { 'foundry': 'Foun
 const STATUS_LABEL: Record<SkillSourceRow['status'], string> = { 'up-to-date': 'up to date', outdated: 'outdated', unreleased: 'unreleased', modified: 'modified', unknown: 'unknown', broken: 'broken' };
 const DOT: Record<string, string> = { 'up-to-date': 'bg-emerald-400', outdated: 'bg-amber-400', unreleased: 'bg-violet-400', modified: 'bg-sky-400', broken: 'bg-rose-400', unknown: 'bg-zinc-600' };
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: new Date(iso).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }) : null);
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+/** the usage window in words: the goals actually counted, not the limit asked for */
+export const lastGoals = (k: number) => (k === 1 ? 'the last goal' : `the last ${k} goals`);
 
 export interface SourceGroupActions {
   onUpdate: (names?: string[]) => void;
@@ -25,7 +28,7 @@ export interface SourceGroupActions {
  * Desktop: one row — identity (label truncates) · state badge at a fixed x · actions column of fixed width.
  * Mobile: identity, then state + counts, then actions — all left-aligned, nothing floating.
  */
-export function SourceGroup({ s, busy, updating, running, filter, a }: { s: SkillSource; busy: boolean; updating: boolean; /** "running…" link to the operation's tab in the operations dock */ running?: ReactNode; filter: (r: SkillSourceRow) => boolean; a: SourceGroupActions }) {
+export function SourceGroup({ s, busy, updating, running, filter, a, usage, windowGoals }: { s: SkillSource; busy: boolean; updating: boolean; /** "running…" link to the operation's tab in the operations dock */ running?: ReactNode; filter: (r: SkillSourceRow) => boolean; a: SourceGroupActions; /** per skill dir: how many recent goals invoked it (null for project rows) */ usage?: Map<string, SkillUsage | null>; /** how many goals that usage was counted over */ windowGoals?: number }) {
   const [open, setOpen] = useState(s.skills.length <= 12);
   const rows = s.skills.filter(filter);
   const counts = s.skills.reduce<Record<string, number>>((m, r) => ((m[r.status] = (m[r.status] ?? 0) + 1), m), {});
@@ -165,7 +168,7 @@ export function SourceGroup({ s, busy, updating, running, filter, a }: { s: Skil
       {open && (
         <div className="border-t border-zinc-800">
           {rows.map((r, i) => (
-            <Row key={r.invoke} r={r} odd={i % 2 === 1} busy={busy} selected={a.selected.has(r.name)} onSelect={(on) => a.onSelect([r.name], on)} onView={() => a.onView(r)} onAdopt={() => a.onAdopt([r.name])} onTrashShadow={() => a.onTrashShadows([r.name])} onUninstall={() => a.onUninstall([r.name])} onUpdate={canUpdate && s.updater.kind !== 'plugin' ? () => a.onUpdate([r.name]) : undefined} />
+            <Row key={r.invoke} r={r} usage={usage?.get(r.dir)} windowGoals={windowGoals ?? 0} odd={i % 2 === 1} busy={busy} selected={a.selected.has(r.name)} onSelect={(on) => a.onSelect([r.name], on)} onView={() => a.onView(r)} onAdopt={() => a.onAdopt([r.name])} onTrashShadow={() => a.onTrashShadows([r.name])} onUninstall={() => a.onUninstall([r.name])} onUpdate={canUpdate && s.updater.kind !== 'plugin' ? () => a.onUpdate([r.name]) : undefined} />
           ))}
         </div>
       )}
@@ -174,7 +177,7 @@ export function SourceGroup({ s, busy, updating, running, filter, a }: { s: Skil
 }
 
 /** One skill: checkbox · name + status · description · actions. Indented under the group, zebra striped. */
-function Row({ r, odd, busy, selected, onSelect, onView, onAdopt, onTrashShadow, onUninstall, onUpdate }: { r: SkillSourceRow; odd: boolean; busy: boolean; selected: boolean; onSelect: (on: boolean) => void; onView: () => void; onAdopt: () => void; onTrashShadow: () => void; onUninstall: () => void; onUpdate?: () => void }) {
+function Row({ r, usage, windowGoals, odd, busy, selected, onSelect, onView, onAdopt, onTrashShadow, onUninstall, onUpdate }: { r: SkillSourceRow; usage?: SkillUsage | null; windowGoals: number; odd: boolean; busy: boolean; selected: boolean; onSelect: (on: boolean) => void; onView: () => void; onAdopt: () => void; onTrashShadow: () => void; onUninstall: () => void; onUpdate?: () => void }) {
   const removable = r.actions.includes('uninstall');
   return (
     <div className={cn('pl-3 sm:pl-6 pr-3 sm:pr-4 py-2 grid grid-cols-[auto_minmax(0,1fr)] md:grid-cols-[auto_17rem_minmax(0,1fr)_15rem] gap-x-3 gap-y-1 items-start text-xs ml-2 sm:ml-4 border-l-2 border-zinc-800/60', odd ? 'bg-zinc-900/50' : 'bg-transparent', selected && 'bg-emerald-500/5')}>
@@ -197,6 +200,12 @@ function Row({ r, odd, busy, selected, onSelect, onView, onAdopt, onTrashShadow,
               {r.upstream.exact ? '' : '*'}
             </span>
           )}
+          {usage?.unused && (
+            <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1 text-amber-300" title={`no session invoked it in ${lastGoals(windowGoals)}`}>
+              unused
+            </span>
+          )}
+          {usage?.lastUsedAt && <span title={`invoked in ${plural(usage.sessions, 'session')}`}>{`used in ${plural(usage.goals, 'goal')} · last ${ago(usage.lastUsedAt)}`}</span>}
           {r.match?.relation === 'older' && r.match.olderCommit && <span title="the installed copy equals upstream at this commit">installed = upstream @ {r.match.olderCommit.slice(0, 7)}</span>}
           {r.status === 'unreleased' && <span title="upstream changed this skill, but the plugin's version number did not go up, so the CLI will not install it yet">changed upstream, not released</span>}
           {r.match?.relation === 'differs' && <span>differs from upstream</span>}

@@ -1,5 +1,6 @@
 import type { BriefStyleOption, Check, Goal, ObservationReport, Task } from '@foundry/core';
 import { renderReferences } from './references.ts';
+import { skillMatches } from './skills/usage.ts';
 
 /** Scenarios whose deliverables have no look — the chosen Style Proposal is noise to them. Everything else (UI, mobile, media, general) must follow it. */
 const STYLE_FREE_SCENARIOS: ReadonlySet<string> = new Set(['backend', 'infra', 'docs', 'data', 'research', 'cad']);
@@ -135,7 +136,7 @@ export function summarizeReport(r: { results: { status: string; summary: string 
   const byId = new Map(checks.map((c) => [c.id, c]));
   const lines: string[] = [];
   if (workflow?.mandated.length) {
-    const hit = (n: string) => workflow.used.some((u) => u === n || u.endsWith(`:${n}`));
+    const hit = (n: string) => workflow.used.some((u) => skillMatches(u, n));
     // a backend that reports no skill invocations (Codex): the workflow is restated, never called skipped
     if (workflow.observable === false) lines.push(`Workflow: ${workflow.mandated.map((m) => m.invoke).join('; ')} — whether they were invoked is not recorded for this backend; follow them again.`);
     else lines.push(`Workflow: ${workflow.mandated.map((m) => `${m.invoke} ${hit(m.name) ? '✓' : 'not invoked — invoke it first next time'}`).join('; ')}.`);
