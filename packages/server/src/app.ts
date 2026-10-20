@@ -1572,9 +1572,21 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   app.post('/api/goals/:id/deploy', async (c) => {
     const goal = goalOr404(c);
-    const body = z.object({ provider: DeployProvider, production: z.boolean().default(false) }).parse(await c.req.json());
+    // smoke (ADR-0058) left out: a preview gets one, production does not
+    const body = z.object({ provider: DeployProvider, production: z.boolean().default(false), smoke: z.boolean().optional() }).parse(await c.req.json());
     try {
       engine.deploy(goal.id, body);
+    } catch (e) {
+      throw new HttpError(409, { error: String((e as Error).message ?? e) });
+    }
+    return c.json({ started: true }, 202);
+  });
+  // Smoke again (ADR-0058): the goal's milestone scripts against a live deploy's address once more; `deployedAt` names the deploy
+  app.post('/api/goals/:id/deploy/smoke', async (c) => {
+    const goal = goalOr404(c);
+    const body = z.object({ deployedAt: z.string() }).parse(await c.req.json());
+    try {
+      engine.smokeDeployment(goal.id, body.deployedAt);
     } catch (e) {
       throw new HttpError(409, { error: String((e as Error).message ?? e) });
     }

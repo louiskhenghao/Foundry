@@ -31,19 +31,36 @@ export function milestoneCheckSpec(script: string): Extract<CheckSpec, { type: '
 /**
  * Write a config next to the project's that is the project's own on Chromium only (a phone project is Chromium too),
  * so the task's check and the recording run the script the same way, whatever other browsers the project tests on.
- * `record` adds a video of every test and a JSON report for Foundry. Null when the repository has no playwright.config.
+ * `record` adds a video of every test and a JSON report for Foundry. `against` runs the script against that address
+ * instead of the project's own server: its `webServer` is left out and `baseURL` is the address, on every project too
+ * (ADR-0058). Null when the repository has no playwright.config.
  */
-export async function writeWrapper(cwd: string, record?: { outputDir: string; report: string }): Promise<{ name: string; remove: () => void } | null> {
+export async function writeWrapper(cwd: string, record?: { outputDir: string; report: string }, against?: string): Promise<{ name: string; remove: () => void } | null> {
   const base = CONFIGS.find((c) => existsSync(join(cwd, c)));
   if (!base) return null;
   const name = `playwright.foundry-${Math.random().toString(36).slice(2, 10)}.config.ts`;
   const from = extname(base) === '.ts' ? `./${base.replace(/\.ts$/, '')}` : `./${base}`;
-  const recording = record
-    ? `
+  const use = [record ? `video: 'on', screenshot: 'on', trace: 'off'` : '', against ? `baseURL: ${JSON.stringify(against)}` : ''].filter(Boolean).join(', ');
+  const recording = `${
+    record
+      ? `
   outputDir: ${JSON.stringify(record.outputDir)},
-  reporter: [['json', { outputFile: ${JSON.stringify(record.report)} }]],
-  use: { ...(b.use ?? {}), video: 'on', screenshot: 'on', trace: 'off' },`
-    : '';
+  reporter: [['json', { outputFile: ${JSON.stringify(record.report)} }]],`
+      : ''
+  }${
+    use
+      ? `
+  use: { ...(b.use ?? {}), ${use} },`
+      : ''
+  }${
+    against
+      ? `
+  // the deployed address instead of the project's own server (ADR-0058)
+  webServer: undefined,`
+      : ''
+  }`;
+  const placed = against ? `// every project goes to the address too: a project's own baseURL would win over the top one
+const placed = kept.map((p) => ({ ...p, use: { ...(p.use ?? {}), baseURL: ${JSON.stringify(against)} } }));` : 'const placed = kept;';
   writeFileSync(
     join(cwd, name),
     `// written by Foundry for one milestone run, removed afterwards
@@ -61,10 +78,11 @@ for (let i = 0; i < kept.length; i++) {
     if (p && !kept.some((x) => x.name === dep)) kept.push(onChromium(p));
   }
 }
+${placed}
 export default {
   ...b,
   retries: 0,${recording}
-  ...(kept.length ? { projects: kept } : {}),
+  ...(placed.length ? { projects: placed } : {}),
 };
 `,
   );
@@ -121,25 +139,33 @@ interface ReportSuite {
 
 const ANSI = /\u001b\[[0-9;]*m/g;
 
+export interface ScriptRunOptions {
+  /** run the script in this folder instead of the goal's recording folder: a deploy's checkout of the deployed commit */
+  cwd?: string;
+  /** run it against this address instead of the project's own server (ADR-0058): no `webServer`, `baseURL` is the address, no ports */
+  against?: string;
+}
+
 /**
  * Run a milestone's Playwright script in the goal's folder, the way its task's check ran it, with a video of every test
  * and its attachments collected: captioned screenshots, an API's responses. The project's own config starts the app
  * (its `webServer`); Foundry adds the recording and the report in a config of its own next to it, removed afterwards.
+ * A smoke runs it in a deploy's checkout against the deployed address instead (`opts`).
  * Never throws: a script that cannot run is a failed run with the reason.
  */
-export async function runMilestoneScript(engine: Engine, goal: Goal, task: Task, prefix: string, deps: ScriptDeps = defaultDeps): Promise<ScriptRun> {
+export async function runMilestoneScript(engine: Engine, goal: Goal, task: Task, prefix: string, deps: ScriptDeps = defaultDeps, opts: ScriptRunOptions = {}): Promise<ScriptRun> {
   const { config } = engine;
   const out: ScriptRun = { status: 'fail', error: null, summary: '', clips: [], shots: [], outputs: [], log: null };
   const script = task.milestoneScript;
   const dir = screenshotsDir(config.dataDir, goal);
   const hide = engine.preview.redactorFor(goal);
   if (!script) return { ...out, error: 'the milestone has no script' };
-  const cwd = await recordingFolder(engine, goal);
-  if (!existsSync(join(cwd, script))) return { ...out, error: `${script} is not on the goal branch` };
+  const cwd = opts.cwd ?? (await recordingFolder(engine, goal));
+  if (!existsSync(join(cwd, script))) return { ...out, error: `${script} is not ${opts.cwd ? 'in the deployed commit' : 'on the goal branch'}` };
   const work = mkdtempSync(join(tmpdir(), 'foundry-milestone-'));
   const report = join(work, 'report.json');
-  // the project's config as it is, on Chromium, plus a video and the report
-  const wrapper = await writeWrapper(cwd, { outputDir: join(work, 'results'), report });
+  // the project's config as it is, on Chromium, plus a video and the report (and the address, for a smoke)
+  const wrapper = await writeWrapper(cwd, { outputDir: join(work, 'results'), report }, opts.against);
   if (!wrapper) {
     rmSync(work, { recursive: true, force: true });
     return { ...out, error: 'there is no playwright.config at the root of the repository' };
@@ -147,7 +173,9 @@ export async function runMilestoneScript(engine: Engine, goal: Goal, task: Task,
   mkdirSync(dir, { recursive: true });
   let logText = '';
   try {
-    const env = { ...process.env, ...(await scriptPorts()), CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' };
+    // against an address nothing of the project's listens here: no ports for it, none from the shell either
+    const env = { ...process.env, ...(opts.against ? { PORT: undefined, API_PORT: undefined } : await scriptPorts()), CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' };
+    if (opts.against) logText += `# against ${opts.against}\n`;
     // the goal's folder may never have installed its dependencies (tasks ran in worktrees): the way the preview does
     for (const step of installSteps(cwd, [])) {
       const i = await deps.run(['sh', '-lc', step.command], { cwd: join(cwd, step.dir), env, timeoutMs: SCRIPT_TIMEOUT_MS });
