@@ -558,7 +558,9 @@ export function apiForProvider(provider?: AgentProvider) {
   learnFrom: (goalId: string) => req<{ repoPath: string; learnings: Learning[] }>(`/api/goals/${goalId}/learn`, { method: 'POST' }),
   /** Deploy (ADR-0041): what a finished goal's web app is, the hosts, the exact commands, the deploys so far */
   deployInfo: (goalId: string, provider?: DeployHost | null, production = false) => req<DeployInfo>(`/api/goals/${goalId}/deploy?${provider ? `provider=${provider}&` : ''}production=${production ? 1 : 0}`),
-  deploy: (goalId: string, provider: DeployHost, production: boolean) => req<{ started: boolean }>(`/api/goals/${goalId}/deploy`, { method: 'POST', body: JSON.stringify({ provider, production }) }),
+  deploy: (goalId: string, provider: DeployHost, production: boolean, smoke: boolean) => req<{ started: boolean }>(`/api/goals/${goalId}/deploy`, { method: 'POST', body: JSON.stringify({ provider, production, smoke }) }),
+  /** Smoke again (ADR-0058): the goal's milestone scripts against a live deploy's address once more */
+  smokeDeployment: (goalId: string, deployedAt: string) => req<{ started: boolean }>(`/api/goals/${goalId}/deploy/smoke`, { method: 'POST', body: JSON.stringify({ deployedAt }) }),
   markFollowUp: (id: string, goalId: string) => req<Goal>(`/api/goals/${id}/follows`, { method: 'POST', body: JSON.stringify({ goalId }) }),
   validateRepo: (repoPath: string) => req<RepoInfo>('/api/validate-repo', { method: 'POST', body: JSON.stringify({ repoPath }) }),
   // schedules (ADR-0054): goals that run on their own
@@ -864,6 +866,10 @@ export interface DeployInfo {
   app: { ok: true; app: { dir: string; framework: string; kind: 'static' | 'built' | 'ssr' }; notes: string[] } | { ok: false; reason: string };
   finished: boolean;
   running: boolean;
+  /** a Smoke again runs (ADR-0058) */
+  smoking: boolean;
+  /** the milestone scripts a smoke tries against the address */
+  smoke: { scripts: string[] };
   providers: { id: DeployHost; label: string; configured: boolean; refused: string | null }[];
   /** the exact commands, tokens left out */
   plan: { label: string; command: string }[];

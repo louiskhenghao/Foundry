@@ -250,14 +250,19 @@ try {
   await shot('schedules', '/schedules', undefined, 420);
   // Deploy (ADR-0041): the demo's site is not a web app the hosts take, so the card's facts are given here and one
   // live preview is recorded on the finished goal, after the shots above
-  demo.engine.store.append({ type: 'deploy.started', goalId: g.done!, payload: { provider: 'vercel', production: false, ref: 'a1b2c3d', framework: 'Vite', dir: '' } });
+  const deployed = demo.engine.store.append({ type: 'deploy.started', goalId: g.done!, payload: { provider: 'vercel', production: false, ref: 'a1b2c3d', framework: 'Vite', dir: '' } });
   demo.engine.store.append({ type: 'deploy.finished', goalId: g.done!, payload: { provider: 'vercel', production: false, url: 'https://studio-site-3f9a2c-preview.vercel.app' } });
+  // its smoke (ADR-0058): the site's milestone scripts passed against the address
+  const smoked = (script: string, summary: string) => ({ script, taskId: null, status: 'pass' as const, error: null, summary, clips: [], shots: [], outputs: [], log: null });
+  demo.engine.store.append({ type: 'deploy.smoke_finished', goalId: g.done!, payload: { provider: 'vercel', production: false, url: 'https://studio-site-3f9a2c-preview.vercel.app', deployedAt: deployed.ts, status: 'pass', detail: '2 scripts passed against https://studio-site-3f9a2c-preview.vercel.app', scripts: [smoked('e2e/milestones/gallery.spec.ts', '2 tests: opens the gallery; opens a picture'), smoked('e2e/milestones/booking.spec.ts', '1 test: books a session')] } });
   await page.route('**/api/goals/*/deploy*', (r) =>
     r.fulfill({
       json: {
         app: { ok: true, app: { dir: '', framework: 'Vite', kind: 'built' }, notes: [] },
         finished: true,
         running: false,
+        smoking: false,
+        smoke: { scripts: ['e2e/milestones/gallery.spec.ts', 'e2e/milestones/booking.spec.ts'] },
         providers: [
           { id: 'vercel', label: 'Vercel', configured: true, refused: null },
           { id: 'netlify', label: 'Netlify', configured: true, refused: null },
