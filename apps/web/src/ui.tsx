@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
@@ -375,11 +375,36 @@ export function Modal({ open, title, onClose, children, wide }: { open: boolean;
   );
 }
 
+/** a page's side panel pinned under the top bar on a wide screen (see useAffix) */
+export const AFFIX_SIDE = 'lg:sticky lg:top-14 lg:self-start';
+
 /**
- * A page's side panel (Extensions' Catalog, Ports' and Agents' Overview): on a wide screen it stays in view under the
- * top bar while the list beside it scrolls, and scrolls on its own when it is taller than the window.
+ * A page's side panel (Extensions' Catalog, Ports' and Agents' Overview): on a wide screen it stays in view right under
+ * the top bar while the list beside it scrolls — as long as it fits under the bar. A taller panel scrolls with the page
+ * instead: pinning it would hide its end, and an inner scroll box of its own caught the wheel and cut its content off.
  */
-export const AFFIX_SIDE = 'lg:sticky lg:top-16 lg:self-start lg:max-h-[calc(100dvh-5rem)] lg:overflow-y-auto';
+export function useAffix<T extends HTMLElement>(): { ref: (el: T | null) => void; className: string } {
+  const [fits, setFits] = useState(true);
+  const stop = useRef<() => void>(() => {});
+  // a callback ref: the panel often mounts after the page's first render (once its data is in), so an effect that
+  // looked at the ref once on mount would never see it
+  const ref = useCallback((el: T | null) => {
+    stop.current();
+    stop.current = () => {};
+    if (!el) return;
+    const check = () => setFits(el.offsetHeight <= window.innerHeight - 64);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    window.addEventListener('resize', check);
+    stop.current = () => {
+      ro.disconnect();
+      window.removeEventListener('resize', check);
+    };
+  }, []);
+  useEffect(() => () => stop.current(), []);
+  return { ref, className: fits ? AFFIX_SIDE : 'lg:self-start' };
+}
 
 export function Empty({ children }: { children: ReactNode }) {
   return <div className="text-sm text-zinc-500 py-8 text-center">{children}</div>;

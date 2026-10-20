@@ -4,7 +4,7 @@ import { RefreshCw, Search, Trash2 } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { apiForProvider, type AgentProvider } from '../../api.ts';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
-import { AFFIX_SIDE, Button, ConfirmDialog, Empty, Input, Modal, ago, cn } from '../../ui.tsx';
+import { Button, ConfirmDialog, Empty, Input, Modal, ago, cn, useAffix } from '../../ui.tsx';
 import { OpsDock } from './OpsDock.tsx';
 import { startOp, useRunningOp, useSkillOps } from './ops.ts';
 import { SessionLine, SidePanelTabs } from './SidePanels.tsx';
@@ -43,6 +43,8 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
   const [pending, setPending] = useState<Set<string>>(new Set());
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err' | 'info'; text: string } | null>(null);
   const [showCatalog, setShowCatalog] = useState(false);
+  /** the catalog stays in view beside the list while it fits under the top bar */
+  const affix = useAffix<HTMLDivElement>();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmNames, setConfirmNames] = useState<string[] | null>(null);
   const [view, setView] = useState<View | null | 'loading'>(null);
@@ -251,7 +253,7 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
           ))}
           {report.sources.every((s) => !s.skills.some(filter)) && <Empty>Nothing matches.</Empty>}
         </div>
-        <div className={cn(showCatalog ? 'block' : 'hidden lg:block', AFFIX_SIDE)}>
+        <div ref={affix.ref} className={cn(showCatalog ? 'block' : 'hidden lg:block', affix.className)}>
           <SidePanelTabs catalog={overview.catalog} trash={trash} runs={runs} busy={(key) => pending.has(key) || !!runningOp(key)} opLink={opLink} onInstall={(id, force) => void install(id, force)} onInstallTier={(tiers) => void installTier(tiers)} onInstallTool={(id) => void installTool(id)} onRestore={restore} />
         </div>
       </div>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ChevronDown, ChevronRight, ExternalLink, Lock, RefreshCw, Search, Square } from 'lucide-react';
 import { api, type PortRow, type PortsView } from '../api.ts';
-import { AFFIX_SIDE, Badge, Button, Card, ConfirmDialog, Empty, Input, Tabs, ago, buttonClass, cn } from '../ui.tsx';
+import { Badge, Button, Card, ConfirmDialog, Empty, Input, Tabs, ago, buttonClass, cn, useAffix } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
 
 type Category = PortRow['category'];
@@ -268,6 +268,7 @@ export function PortsPage() {
   const [devOnly, setDevOnly] = useState(true);
   const [q, setQ] = useState(wanted ? String(wanted) : '');
   const [showSide, setShowSide] = useState(false);
+  const affix = useAffix<HTMLDivElement>();
   const all = view?.rows ?? [];
   const scoped = all.filter((r) => !devOnly || r.relevant || r.port === wanted);
   const matching = useMemo(() => {
@@ -371,7 +372,7 @@ export function PortsPage() {
             );
           })}
         </div>
-        <div className={cn(showSide ? 'block' : 'hidden lg:block', AFFIX_SIDE)}>{view && <SidePanel view={view} scoped={scoped} />}</div>
+        <div ref={affix.ref} className={cn(showSide ? 'block' : 'hidden lg:block', affix.className)}>{view && <SidePanel view={view} scoped={scoped} />}</div>
       </div>
       {dialog}
     </div>
