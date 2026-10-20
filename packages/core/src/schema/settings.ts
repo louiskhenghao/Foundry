@@ -1,7 +1,7 @@
 import { CodexModelPreset } from './codex-presets.ts';
 import { DEFAULT_NATURE_PRESETS, ModelPreset } from './model-presets.ts';
 import { z } from 'zod';
-import { Discipline, GoalMode, PonytailSwitch } from './goal.ts';
+import { Discipline, GoalMode, PonytailSwitch, WorkflowProfile } from './goal.ts';
 import { DeliveryMode, DeliveryUnit } from './delivery.ts';
 
 /**
@@ -62,7 +62,8 @@ export const SessionSettings = z.object({
 /** media-pipeline is the image packs' MCP server (claude-image-gen): allowed unless switched off */
 export const DEFAULT_MCP_ALLOWED = ['mcp__plugin_media-pipeline_media-pipeline'] as const;
 export const WorkflowSettings = z.object({
-  profile: z.enum(['mattpocock', 'plain']).default('mattpocock'),
+  /** the workflow suite new goals start with; each goal fixes its own at creation (ADR-0049) */
+  profile: WorkflowProfile.default('mattpocock'),
   /** TDD discipline new goals start with (Expert mode); Simple mode starts with `preferred` */
   tdd: Discipline.default('required'),
   /** Ponytail (the lazy senior dev: the smallest change that fully solves the task) for new goals; each goal has its own switch */

@@ -1872,6 +1872,11 @@ export class Engine {
     return this.providerSkills[goal.provider ?? this.config.provider];
   }
 
+  /** the workflow suite a goal's sessions follow: its own, or the Settings default for a goal from before suites were per goal (ADR-0049) */
+  workflowProfileOf(goal: Pick<Goal, 'workflow'>): NonNullable<GoalWorkflow['profile']> {
+    return goal.workflow.profile ?? this.config.workflowProfile;
+  }
+
   // ---------- commands ----------
 
   async createGoal(input: CreateGoalInput): Promise<Goal> {
@@ -1960,7 +1965,8 @@ export class Engine {
         const pace = input.workflow?.pace ?? (MEDIA_NATURES.includes(nature) ? 'fast' : this.config.workflowPace);
         // fast goals run only what the Brief asks for: no TDD mandate unless the caller insists
         // cad: geometry checks are the tests, written before the model — preferred, never forced
-        return { pace, tdd: input.workflow?.tdd ?? (pace === 'fast' ? ('off' as const) : mode === 'simple' || nature === 'cad' ? ('preferred' as const) : this.config.workflowTdd), ponytail: input.workflow?.ponytail ?? this.config.workflowPonytail };
+        // the workflow suite is fixed here: a Settings change later never moves a goal that is under way (ADR-0049)
+        return { pace, tdd: input.workflow?.tdd ?? (pace === 'fast' ? ('off' as const) : mode === 'simple' || nature === 'cad' ? ('preferred' as const) : this.config.workflowTdd), ponytail: input.workflow?.ponytail ?? this.config.workflowPonytail, profile: input.workflow?.profile ?? this.config.workflowProfile };
       })(),
       models: provider === 'codex' ? { strong: codexPreset!.tables[natureKey(nature)].clarifier.model, cheap: codexPreset!.tables[natureKey(nature)].housekeeping.model, worker: codexPreset!.tables[natureKey(nature)].standard.model } : { ...this.config.models, ...(input.models ?? {}) },
       state: 'draft',

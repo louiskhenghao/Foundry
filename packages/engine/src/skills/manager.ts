@@ -1,3 +1,4 @@
+import type { WorkflowProfile } from '@foundry/core';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -39,7 +40,7 @@ export interface SkillsManagerOptions {
   /** hints are disabled when user settings (and thus user skills) are not loaded */
   hintsEnabled?: () => boolean;
   /** which prompt section roles get (default mattpocock) */
-  workflowProfile?: () => 'mattpocock' | 'plain';
+  workflowProfile?: () => WorkflowProfile;
   /** chosen option per mutually exclusive pack, e.g. { design: 'ui-ux-pro-max' } */
   packs?: () => Record<string, string | undefined>;
   /** Settings switches gated entries need (Safety → Desktop apps & printers) */
