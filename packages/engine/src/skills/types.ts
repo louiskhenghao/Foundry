@@ -197,6 +197,10 @@ export const PluginMeta = z.object({
 });
 export type PluginMeta = z.infer<typeof PluginMeta>;
 
+/** how many of the newest goals and their sessions invoked an installed skill; `unused` only when the window held goals */
+export const SkillUsage = z.object({ goals: z.number(), sessions: z.number(), lastUsedAt: z.string().nullable(), unused: z.boolean() });
+export type SkillUsage = z.infer<typeof SkillUsage>;
+
 export const InstalledSkill = z.object({
   name: z.string(),
   scope: SkillScope,
@@ -218,6 +222,8 @@ export const InstalledSkill = z.object({
   uninstallNote: z.string().nullable(),
   hint: z.string().nullable(),
   unparsable: z.boolean(),
+  /** null for project skills (read passively, not trimmed here); absent when not computed */
+  usage: SkillUsage.nullable().optional(),
 });
 export type InstalledSkill = z.infer<typeof InstalledSkill>;
 
@@ -381,5 +387,7 @@ export const SkillsOverview = z.object({
   lastSession: SessionView.nullable(),
   scannedAt: z.string(),
   skillsDir: z.string(),
+  /** the goals the rows' `usage` was counted over: how many were found, out of the limit asked for; null when not computed */
+  usageWindow: z.object({ goals: z.number(), limit: z.number() }).nullable(),
 });
 export type SkillsOverview = z.infer<typeof SkillsOverview>;

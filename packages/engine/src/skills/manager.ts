@@ -133,7 +133,7 @@ export class SkillsManager {
   async overview(repoPath?: string): Promise<SkillsOverview> {
     const scan = this.scan(repoPath);
     const catalog = catalogStatus(this.catalog(), scan, this.paths, this.opts.which ?? defaultWhich, this.opts.envProbe ?? defaultEnvProbe);
-    return { installed: scan.installed, catalog, duplicates: scan.duplicates, lastSession: this.lastView, scannedAt: scan.scannedAt, skillsDir: scan.skillsDir };
+    return { installed: scan.installed, catalog, duplicates: scan.duplicates, lastSession: this.lastView, scannedAt: scan.scannedAt, skillsDir: scan.skillsDir, usageWindow: null };
   }
   async doctor(extra: DoctorCheck[] = []): Promise<DoctorReport> {
     // offline: never runs git; shadow detection works from the filesystem alone
