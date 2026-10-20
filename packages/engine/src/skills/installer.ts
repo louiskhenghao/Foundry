@@ -46,7 +46,10 @@ export async function ensureCache(src: Extract<CatalogEntry['source'], { type: '
       const f = await exec(['git', 'fetch', '-q', `--deepen=${depth}`, 'origin'], dir, { timeoutMs: 120_000 });
       if (f.code !== 0) ctx.log?.(`[skills] git fetch failed for ${src.repo}: ${f.stderr.slice(-300)}`);
       else {
-        const head = src.ref ? `origin/${src.ref}` : 'origin/HEAD';
+        // a ref that is a tag (a pinned release, v1.3.1) is fetched by name and reset to as such; a branch as origin/<ref>
+        if (src.ref) await exec(['git', 'fetch', '-q', 'origin', 'tag', src.ref], dir, { timeoutMs: 60_000 });
+        const tag = src.ref && (await exec(['git', 'rev-parse', '-q', '--verify', `refs/tags/${src.ref}^{commit}`], dir, { timeoutMs: 10_000 })).code === 0;
+        const head = src.ref ? (tag ? `refs/tags/${src.ref}` : `origin/${src.ref}`) : 'origin/HEAD';
         const r = await exec(['git', 'reset', '-q', '--hard', head], dir, { timeoutMs: 60_000 });
         if (r.code !== 0) {
           // origin/HEAD may be unset on older clones: fall back to the fetched tip
