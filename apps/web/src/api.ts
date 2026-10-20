@@ -1,4 +1,4 @@
-import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment, InterviewQuestion } from '@foundry/core/browser';
+import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment, DeliveryRevert, InterviewQuestion, MergeMethod } from '@foundry/core/browser';
 import type { Attachment, Attempt, Brief, BriefApp, BriefCheck, BriefDiff, BriefRun, BriefStyleOption, BriefSubject, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, GoalTimeline, SettingsPatch, SettingsView, SubjectPicture, Task, TaskUsage } from '@foundry/core/browser';
 import type { IssueRead } from './pages/new-goal-issue.ts';
 import type { Calibration, GoalRecipe, Schedule, ScheduleCadence } from '@foundry/core/browser';
@@ -560,6 +560,9 @@ export function apiForProvider(provider?: AgentProvider) {
   deployInfo: (goalId: string, provider?: DeployHost | null, production = false) => req<DeployInfo>(`/api/goals/${goalId}/deploy?${provider ? `provider=${provider}&` : ''}production=${production ? 1 : 0}`),
   deploy: (goalId: string, provider: DeployHost, production: boolean, smoke: boolean) => req<{ started: boolean }>(`/api/goals/${goalId}/deploy`, { method: 'POST', body: JSON.stringify({ provider, production, smoke }) }),
   /** Smoke again (ADR-0058): the goal's milestone scripts against a live deploy's address once more */
+  /** Revert (ADR-0059): what a revert of the goal would undo; and start one, with the reason and whether to merge it right away */
+  revertInfo: (goalId: string) => req<RevertInfo>(`/api/goals/${goalId}/revert`),
+  revert: (goalId: string, reason: string, merge: boolean) => req<{ started: boolean }>(`/api/goals/${goalId}/revert`, { method: 'POST', body: JSON.stringify({ reason, merge }) }),
   smokeDeployment: (goalId: string, deployedAt: string) => req<{ started: boolean }>(`/api/goals/${goalId}/deploy/smoke`, { method: 'POST', body: JSON.stringify({ deployedAt }) }),
   markFollowUp: (id: string, goalId: string) => req<Goal>(`/api/goals/${id}/follows`, { method: 'POST', body: JSON.stringify({ goalId }) }),
   validateRepo: (repoPath: string) => req<RepoInfo>('/api/validate-repo', { method: 'POST', body: JSON.stringify({ repoPath }) }),
@@ -862,6 +865,19 @@ export const api = apiForProvider();
 
 export type DeployHost = 'vercel' | 'netlify' | 'cloudflare';
 /** what Deploy can do for a goal now (GET /api/goals/:id/deploy) */
+/** Mirrors the engine's RevertInfo (delivery/revert.ts, ADR-0059): what a Revert would undo, and whether one can start now. */
+export interface RevertInfo {
+  ok: boolean;
+  why: string | null;
+  /** the merges it would undo, newest first */
+  reverts: { prNumber: number | null; ref: string; title: string }[];
+  base: string;
+  remote: string;
+  method: MergeMethod;
+  running: boolean;
+  open: DeliveryRevert | null;
+}
+
 export interface DeployInfo {
   app: { ok: true; app: { dir: string; framework: string; kind: 'static' | 'built' | 'ssr' }; notes: string[] } | { ok: false; reason: string };
   finished: boolean;

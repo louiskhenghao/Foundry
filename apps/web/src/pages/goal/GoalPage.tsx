@@ -119,6 +119,7 @@ export function GoalPage() {
             </h1>
             <Badge state={g.state} className="mt-1" />
             {g.transfer && <span className="text-[10px] rounded-full border border-sky-800 text-sky-300 px-1.5 mt-1.5" title={`came from ${g.transfer.from.hostname}`}>imported</span>}
+            {g.delivery.reverts[g.delivery.reverts.length - 1]?.status === 'merged' && <span className="text-[10px] rounded-full border border-rose-800 text-rose-300 px-1.5 mt-1.5" title="Its merge was undone by a revert pull request (Delivery tab)">reverted</span>}
             {g.workflow.pace === 'fast' && <span className="text-[10px] rounded-full border border-amber-800 text-amber-300 px-1.5 mt-1.5">fast</span>}
             {g.workflow.profile && <span className="text-[10px] rounded-full border border-violet-800 text-violet-300 px-1.5 mt-1.5" title="Workflow suite: whose skills the roles follow for this goal">Powered by {g.workflow.profile}</span>}
           </div>
