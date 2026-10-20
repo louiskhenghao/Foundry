@@ -1592,6 +1592,18 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     }
     return c.json({ started: true }, 202);
   });
+  // ---------- Revert (ADR-0059): a pull request that undoes a merged delivery, on the person's click ----------
+  app.get('/api/goals/:id/revert', (c) => c.json(engine.revertInfo(goalOr404(c).id)));
+  app.post('/api/goals/:id/revert', async (c) => {
+    const goal = goalOr404(c);
+    const body = z.object({ reason: z.string().max(2000).optional(), merge: z.boolean().optional() }).parse(await c.req.json());
+    try {
+      engine.revert(goal.id, body);
+    } catch (e) {
+      throw new HttpError(409, { error: String((e as Error).message ?? e) });
+    }
+    return c.json({ started: true }, 202);
+  });
   // ---------- notifications (test / telegram chat-id detection use the draft credentials, saved ones as fallback) ----------
   app.post('/api/notifications/test', async (c) => {
     // the page never holds saved credentials: an empty draft field means "the saved one", not "none"

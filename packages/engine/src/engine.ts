@@ -96,6 +96,7 @@ import { TelegramBot } from './notify/telegram-bot.ts';
 import { DiscordBot } from './notify/discord-bot.ts';
 import { endedForLearning, learnFromGoal, learnOnEnd, learningWork, learningsOf, setLearnings } from './learnings.ts';
 import { DEPLOYABLE_STATES, type DeployRequest, deployCredentials, deployName, deployWork, deploying, goalDeployability, npxCli, smokeAgain, smoking, startDeploy, unsupported } from './deploy/deploy.ts';
+import { type RevertInfo, type RevertRequest, revertInfo, revertWork, startRevert } from './delivery/revert.ts';
 import { smokeScripts } from './deploy/smoke.ts';
 import { DEPLOY_PROVIDERS, PROVIDER_LABEL, configured, deploySteps, redact } from './deploy/providers.ts';
 import { ModelFallbackRunner } from './models/fallback-runner.ts';
@@ -1148,7 +1149,7 @@ export class Engine {
     // a learning session writes the folder's notebook when it ends (its session was killed above)
     await settle(learningWork(), 5_000);
     // a deploy records how it ended (its commands were killed with the rest)
-    await settle(deployWork(), 5_000);
+    await settle([...deployWork(), ...revertWork()], 5_000);
   }
 
   /** the escalation for a commit a merge attempt made before the engine stopped and git would not take back at the next start */
@@ -2632,6 +2633,14 @@ export class Engine {
   /** Smoke again (ADR-0058): the goal's milestone scripts against a live deploy's address once more, in the background */
   smokeDeployment(goalId: string, deployedAt: string): void {
     smokeAgain(this, goalId, deployedAt);
+  }
+  /** Revert (ADR-0059): a pull request that undoes the goal's merged delivery; what is wrong is thrown at once, the rest runs in the background */
+  revert(goalId: string, req: RevertRequest = {}): void {
+    startRevert(this, goalId, req);
+  }
+  /** what a Revert would undo, and whether one can start now */
+  revertInfo(goalId: string): RevertInfo {
+    return revertInfo(this, this.mustGoal(goalId));
   }
   /** what Deploy can do for a goal now: whether its code is a web app, which hosts are set up and take it, the commands, the deploys so far */
   deployInfo(goalId: string, provider?: DeployProvider, production = false) {

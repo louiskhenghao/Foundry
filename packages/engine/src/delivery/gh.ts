@@ -94,6 +94,8 @@ export interface GhClient {
   prReplyToComment(cwd: string, i: { repo: string; number: number; commentId: number; body: string }): Promise<ExecResult>;
   /** a comment in the pull request's conversation */
   prComment(cwd: string, i: { repo: string; number: number; body: string }): Promise<ExecResult>;
+  /** how many commits a pull request carried: a rebase merge put that many on the base, so a Revert undoes them all (ADR-0059) */
+  prCommits(cwd: string, i: { repo: string; number: number }): Promise<number>;
 }
 
 const FAILED = ['FAILURE', 'ERROR', 'TIMED_OUT', 'CANCELLED', 'ACTION_REQUIRED', 'STARTUP_FAILURE'];
@@ -305,6 +307,11 @@ export class CliGh implements GhClient {
     if (r.code !== 0) throw new Error(`gh api pulls/${i.number}/reviews failed: ${(r.stderr || r.stdout).trim().slice(0, 300)}`);
     const list = JSON.parse(r.stdout);
     return (Array.isArray(list) ? list : []).map((v: any) => ({ id: Number(v.id), author: v.user?.login ?? null, bot: v.user?.type === 'Bot', state: String(v.state ?? ''), body: String(v.body ?? ''), url: v.html_url ?? null, submittedAt: v.submitted_at ?? null }));
+  }
+  async prCommits(cwd: string, i: { repo: string; number: number }): Promise<number> {
+    const r = await this.run(['pr', 'view', String(i.number), '-R', i.repo, '--json', 'commits', '--jq', '.commits | length'], cwd);
+    if (r.code !== 0) throw new Error(`gh pr view failed: ${(r.stderr || r.stdout).trim().slice(0, 300)}`);
+    return Number(r.stdout.trim()) || 1;
   }
   prReplyToComment(cwd: string, i: { repo: string; number: number; commentId: number; body: string }): Promise<ExecResult> {
     return this.run(['api', '-X', 'POST', `repos/${i.repo}/pulls/${i.number}/comments/${i.commentId}/replies`, '-f', `body=${i.body}`], cwd, 60_000);

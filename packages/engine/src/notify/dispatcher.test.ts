@@ -77,6 +77,21 @@ describe('deploys', () => {
   });
 });
 
+describe('reverts', () => {
+  test('a revert says whether its pull request was opened, armed or merged, or why it failed; merged or closed later on GitHub is told too; all under the Delivery switch (ADR-0059)', () => {
+    const base = { id: 'rvt_1', branch: 'goal/g1-revert', pr: { number: 9, url: 'https://github.com/x/y/pull/9' }, commits: ['c1'], mergedRef: null };
+    const opened = compose(ev('delivery.revert_finished', { ...base, status: 'open', detail: 'pull request #9 opened; merging it undoes the goal\'s work on main' }), title)!;
+    expect(opened).toEqual({ family: 'delivery', text: '↩️ Revert opened — Add dark mode\nPR #9: https://github.com/x/y/pull/9\npull request #9 opened; merging it undoes the goal\'s work on main', path: '/goals/g1#delivery' });
+    expect(compose(ev('delivery.revert_finished', { ...base, status: 'armed', detail: 'auto-merge armed on pull request #9' }), title)!.text).toStartWith('↩️ Revert waits for GitHub to merge it — Add dark mode\nPR #9');
+    expect(compose(ev('delivery.revert_finished', { ...base, status: 'merged', mergedRef: 'm1', detail: 'pull request #9 merged with squash; your local main: fast-forwarded main by 1 commit' }), title)!.text).toStartWith('↩️ Reverted — Add dark mode\nPR #9');
+    const failed = compose(ev('delivery.revert_finished', { ...base, status: 'failed', branch: null, pr: null, commits: [], detail: 'reverting the merge of pull request #1 conflicts with what main got since, in src/x.ts' }), title)!;
+    expect(failed.text).toBe('⚠️ Revert failed — Add dark mode\nreverting the merge of pull request #1 conflicts with what main got since, in src/x.ts');
+    expect(compose(ev('delivery.revert_merged', { id: 'rvt_1', prNumber: 9, ref: 'm1', detail: 'origin/goal/g1-revert deleted; your local main: fast-forwarded main by 1 commit' }), title)!.text).toBe('↩️ Reverted — Add dark mode\nRevert PR #9 merged on GitHub\norigin/goal/g1-revert deleted; your local main: fast-forwarded main by 1 commit');
+    expect(compose(ev('delivery.revert_closed', { id: 'rvt_1', prNumber: 9 }), title)!.text).toBe('↩️ Revert PR #9 closed without merging — Add dark mode\nThe goal\'s work stays merged.');
+    expect(compose(ev('delivery.revert_started', { id: 'rvt_1', reason: '', merge: false, reverts: [] }), title)).toBeNull();
+  });
+});
+
 describe('composeEscalation', () => {
   test('says which goal needs the human and why, and points at the inbox', () => {
     const esc = { id: 'esc1', goalId: 'g1', taskId: 't1', attemptId: null, trigger: 'retries_exhausted', message: 'Task "x" used 3/3 attempts', payload: {}, state: 'open', answer: null, createdAt: '', answeredAt: null, suggestion: null } as Escalation;

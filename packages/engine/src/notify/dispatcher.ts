@@ -94,6 +94,18 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
     case 'delivery.review_addressed':
       if (e.payload.status === 'failed') return null; // delivery.failed says it, with the way out
       return { family: 'delivery', text: e.payload.status === 'addressed' ? `✅ Review comments addressed — ${goalTitle(e.goalId)}\n${e.payload.detail.slice(0, 300)}` : `👀 Review comments looked at, nothing to change — ${goalTitle(e.goalId)}\n${e.payload.detail.slice(0, 300)}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
+    // a Revert (ADR-0059): opened, merged or armed right away; merged or closed later on GitHub; or failed with why
+    case 'delivery.revert_finished': {
+      const path = e.goalId ? `/goals/${e.goalId}#delivery` : null;
+      if (e.payload.status === 'failed') return { family: 'delivery', text: `⚠️ Revert failed — ${goalTitle(e.goalId)}\n${e.payload.detail.slice(0, 300)}`, path };
+      const pr = e.payload.pr ? `PR #${e.payload.pr.number}: ${e.payload.pr.url}` : '';
+      const head = e.payload.status === 'merged' ? `↩️ Reverted — ${goalTitle(e.goalId)}` : e.payload.status === 'armed' ? `↩️ Revert waits for GitHub to merge it — ${goalTitle(e.goalId)}` : `↩️ Revert opened — ${goalTitle(e.goalId)}`;
+      return { family: 'delivery', text: [head, pr, e.payload.detail.slice(0, 300)].filter(Boolean).join('\n'), path };
+    }
+    case 'delivery.revert_merged':
+      return { family: 'delivery', text: `↩️ Reverted — ${goalTitle(e.goalId)}\nRevert PR ${e.payload.prNumber != null ? `#${e.payload.prNumber} ` : ''}merged on GitHub${e.payload.detail ? `\n${e.payload.detail.slice(0, 300)}` : ''}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
+    case 'delivery.revert_closed':
+      return { family: 'delivery', text: `↩️ Revert PR ${e.payload.prNumber != null ? `#${e.payload.prNumber} ` : ''}closed without merging — ${goalTitle(e.goalId)}\nThe goal's work stays merged.`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
     case 'deploy.finished':
       return { family: 'delivery', text: `🚀 Deployed to ${PROVIDER_LABEL[e.payload.provider]}${e.payload.production ? '' : ' (preview)'} — ${goalTitle(e.goalId)}\n${e.payload.url}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
     case 'deploy.failed':
