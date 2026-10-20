@@ -308,6 +308,7 @@ The history endpoint returns the last 400 events, slimmed the same way, includin
 | Preview, its branch (`PreviewManager.source`: the Progress folder, or the `preview` worktree beside it for another branch of a finished goal) and environment notes | `engine/src/preview/{manager,detect,services,env,env-hints}.ts` |
 | Goal review, fix tasks | `engine/src/goal-review.ts`, `engine/src/fix-tasks.ts` |
 | Completion Actions (docs, graph refresh, artifacts; Re-run via `Engine.rerunCompletion`) | `engine/src/docs-generate.ts`, `engine/src/completion.ts` |
+| Browser QA (the finished app tried in Chromium before the review) | `engine/src/qa.ts`, `roles/qa.md`, `scheduler.ts` (3b2) |
 | Delivery, PR Stack, CI fixing | `engine/src/delivery/{pipeline,policy,gh}.ts`, `core/src/schema/delivery.ts` |
 | Review comments on a pull request: what counts, the round, the `fix-review` step, the replies | `engine/src/delivery/{reviews,pr-watch,pipeline}.ts`, `core/src/schema/delivery.ts` (`ReviewRound`), `apps/web/src/pages/goal/ReviewRounds.tsx` |
 | Deploy: what is a web app, the hosts' commands, the run | `engine/src/deploy/{detect,providers,deploy}.ts`, `core/src/schema/deploy.ts`, `apps/web/src/pages/goal/DeployCard.tsx` |

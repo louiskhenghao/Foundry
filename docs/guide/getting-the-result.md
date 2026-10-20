@@ -187,10 +187,12 @@ On the Brief you chose what runs by itself at the end (see [Approving the Brief]
 - **Refresh the knowledge graph** updates the code map after delivery: in the progress folder for a Local only goal, in your own folder for a delivered one. It only refreshes the index: GitNexus runs with `--index-only`, and anything a tool still writes into `CLAUDE.md`, `AGENTS.md` or `.claude/` is put back, so the folder is left without uncommitted changes. A GitNexus section or skill folder that appears while a task works (a global hook of yours can run GitNexus) is kept out of the task's commit too.
 
 - **Audit the repository at the end** runs `ponytail-audit` once every task is done, before the final review: must-fix findings in the code the goal touched become fix tasks, and every finding stays on the goal.
+- **Test it in a browser at the end** opens the finished app in Chromium once every task is done, after the audit and before the final review, and tries each acceptance check with Playwright scripts; a must check that fails becomes a fix task, and every result stays on the goal with its screenshots. The scripts live in a scratch folder (`.foundry-qa/`, kept out of git); any other change the session made is thrown away.
 
 The Overview tab's **Completion** card has one row for each, with a tick, a warning or a cross and how it went in one line. Click a row's name for the details:
 
 - **Audit**: what it found, ranked must fix, should fix and nice to have, with the files; a must-fix finding in this goal's code says that a fix task was created. **Follow-up with the rest** starts a goal for the findings this one did not fix.
+- **Browser QA**: each check it tried, pass, fail or skipped, with what it did and saw, the problem and the fix for a failure, and its screenshots; a failed must check says that a fix task was created.
 - **Docs**: the documents chosen, the files written (click one to read it), the commit, what it cost, and the pull request it went out in.
 - **Graph refresh**: each tool (updating your checkout, graphify, GitNexus) with its result; a failed one shows why, for example a missing program.
 
