@@ -14,6 +14,7 @@ import {
   FailingCheck,
   DeliveryOutcome,
   DeliveryPolicy,
+  ReviewRound,
   DeliveryStep,
   Check,
   CheckResult,
@@ -315,7 +316,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
     skillsUsed: z.array(z.string()).default([]),
   }),
   /** sets the policy and (unless one runs) starts a delivery; `resume` carries on with open PRs, `start-over` follows closing them */
-  ev('delivery.policy_set', { policy: DeliveryPolicy, source: z.enum(['create', 'deliver', 'retry', 'resume', 'start-over']) }),
+  /** `review` = a run the engine started itself to address review comments on an open pull request (ADR-0053) */
+  ev('delivery.policy_set', { policy: DeliveryPolicy, source: z.enum(['create', 'deliver', 'retry', 'resume', 'start-over', 'review']) }),
   /** the human saved the policy without starting anything; a running delivery picks the switches up at its next step */
   ev('delivery.policy_saved', { policy: DeliveryPolicy }),
   ev('delivery.started', { policy: DeliveryPolicy, plan: z.array(z.string()) }),
@@ -348,6 +350,12 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('delivery.cleaned', { done: z.boolean(), detail: z.string(), waiting: z.boolean().optional() }),
   /** a pull request was closed on GitHub without being merged (noticed after the delivery finished) */
   ev('delivery.pr_closed', { prNumber: z.number().int() }),
+  /** review comments found on an open pull request (ADR-0053): `fixing` = a run addresses them now, `waiting` = the budget is used up, the person decides */
+  ev('delivery.review_received', { round: ReviewRound, action: z.enum(['fixing', 'waiting']) }),
+  /** the person pressed Fix review comments: the round is addressed whatever the budget */
+  ev('delivery.review_requested', { roundId: z.string() }),
+  ev('delivery.review_started', { roundId: z.string() }),
+  ev('delivery.review_addressed', { roundId: z.string(), status: z.enum(['addressed', 'nochange', 'failed']), commit: z.string().nullable(), replied: z.number().int().nonnegative(), detail: z.string() }),
   ev('delivery.failed', { step: DeliveryStep, reason: z.string() }),
   ev('rate_limit.paused', { provider: z.enum(['claude', 'codex']).optional(), rateLimitType: z.string().nullable(), until: z.string(), reason: z.string() }),
   ev('rate_limit.resumed', { provider: z.enum(['claude', 'codex']).optional(), reason: z.string() }),

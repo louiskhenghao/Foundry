@@ -137,6 +137,10 @@ function project(db: Database, e: EngineEvent): void {
     case 'delivery.local_synced':
     case 'delivery.cleaned':
     case 'delivery.pr_closed':
+    case 'delivery.review_received':
+    case 'delivery.review_requested':
+    case 'delivery.review_started':
+    case 'delivery.review_addressed':
     case 'delivery.failed': {
       const g = getGoal(db, e.goalId!);
       if (!g) break;
@@ -152,8 +156,11 @@ function project(db: Database, e: EngineEvent): void {
           break;
         case 'delivery.policy_set':
           d.policy = e.payload.policy;
-          // Resume / Retry get a fresh fix-CI budget: a spent one made every retry fail within seconds
-          if (e.payload.source === 'retry' || e.payload.source === 'resume' || e.payload.source === 'start-over') d.fixCycles = 0;
+          // Resume / Retry get a fresh fix-CI budget: a spent one made every retry fail within seconds; a run the engine
+          // starts for review comments gets one too, but never a fresh review budget (that is the person's to give)
+          if (e.payload.source === 'retry' || e.payload.source === 'resume' || e.payload.source === 'start-over' || e.payload.source === 'review') d.fixCycles = 0;
+          if (e.payload.source === 'retry' || e.payload.source === 'resume' || e.payload.source === 'start-over') d.reviewCycles = 0;
+          if (e.payload.source === 'start-over') d.reviews = [];
           // Start over closed this goal's PRs: the list begins again
           if (e.payload.source === 'start-over') d.prs = [];
           if (d.status !== 'running') {
@@ -228,6 +235,19 @@ function project(db: Database, e: EngineEvent): void {
           break;
         case 'delivery.pr_closed':
           prAt((p) => p.number === e.payload.prNumber, { state: 'closed' });
+          break;
+        case 'delivery.review_received':
+          d.reviews = [...d.reviews.filter((r) => r.id !== e.payload.round.id), e.payload.round];
+          break;
+        case 'delivery.review_requested':
+          d.reviews = d.reviews.map((r) => (r.id === e.payload.roundId ? { ...r, requested: true } : r));
+          break;
+        case 'delivery.review_started':
+          d.reviews = d.reviews.map((r) => (r.id === e.payload.roundId ? { ...r, status: 'fixing' as const } : r));
+          break;
+        case 'delivery.review_addressed':
+          d.reviews = d.reviews.map((r) => (r.id === e.payload.roundId ? { ...r, status: e.payload.status, commit: e.payload.commit, replied: e.payload.replied, detail: e.payload.detail, finishedAt: e.ts } : r));
+          d.reviewCycles += 1;
           break;
         case 'delivery.failed':
           d.prs = d.prs.map((p) => ({ ...p, activity: null }));
