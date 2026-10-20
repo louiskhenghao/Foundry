@@ -1,3 +1,4 @@
+import type { AgentProvider } from '../api.ts';
 import { ExternalLink } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { apiForProvider, type PacksView } from '../api.ts';
@@ -11,7 +12,7 @@ import { Button, CopyButton, cn } from '../ui.tsx';
  * An install streams its log right under the card and the button stays "Installing…" until the
  * entries actually report installed (the API only *starts* the install).
  */
-export function DesignPacks({ onInstallStarted, compact, pack = 'design', provider }: { provider?: 'claude' | 'codex'; onInstallStarted?: (option: string) => void; compact?: boolean; pack?: 'design' | 'image' | 'video' }) {
+export function DesignPacks({ onInstallStarted, compact, pack = 'design', provider }: { provider?: AgentProvider; onInstallStarted?: (option: string) => void; compact?: boolean; pack?: 'design' | 'image' | 'video' }) {
   const api = apiForProvider(provider);
   const [packs, setPacks] = useState<PacksView | null>(null);
   const [busy, setBusy] = useState<string | null>(null);

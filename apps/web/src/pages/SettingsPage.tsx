@@ -1,3 +1,4 @@
+import type { AgentProvider } from '../api.ts';
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Settings, SettingsView } from '@foundry/core/browser';
 import { RotateCcw } from 'lucide-react';
@@ -72,7 +73,7 @@ export function SettingsPage() {
   const navigate = useNavigate();
   const requestedProvider = new URLSearchParams(search).get('provider');
   const modelProvider = requestedProvider === 'claude' || requestedProvider === 'codex' ? requestedProvider : view?.values.engine.provider ?? 'claude';
-  const setModelProvider = (provider: 'claude' | 'codex') => {
+  const setModelProvider = (provider: AgentProvider) => {
     const params = new URLSearchParams(search);
     params.set('provider', provider);
     navigate({ search: params.toString(), hash }, { replace: true });
@@ -410,9 +411,18 @@ export function SettingsPage() {
       </Card>
 
       <Card id="models" title={<>Models & limits<HelpLink to="settings#models--limits" className="ml-1.5" /></>} className="scroll-mt-16">
-        <ProviderSelector className="mb-5" value={modelProvider} onChange={setModelProvider} controls={{ claude: 'models-claude', codex: 'models-codex' }} />
+        <ProviderSelector className="mb-5" value={modelProvider} onChange={setModelProvider} controls={{ claude: 'models-claude', codex: 'models-codex', agy: 'models-agy' }} />
         <div id="models-codex" role="region" aria-label="Codex models" hidden={modelProvider !== 'codex'}>
           <CodexModelPresetsSection draft={draft} setFields={(patch) => setDraft((previous) => previous ? { ...previous, models: { ...previous.models, ...patch } } : previous)} />
+        </div>
+        <div id="models-agy" role="region" aria-label="Antigravity models" hidden={modelProvider !== 'agy'}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Antigravity model" help="Every role of a new Antigravity goal runs on this model. agy-default follows the model the CLI itself is set to; Sync models lists the slugs agy knows.">{text('models.agyModel', 'agy-default')}</Field>
+            <Field label="Reasoning effort" help="The Antigravity reasoning effort of every role.">
+              <Select value={String(get(draft, 'models.agyEffort') ?? 'high')} onChange={(e) => set('models.agyEffort', e.target.value)}>{['low', 'medium', 'high'].map((e) => <option key={e} value={e}>{e}</option>)}</Select>
+            </Field>
+          </div>
+          <p className="mt-2 text-[11px] text-zinc-500">Antigravity reports tokens, not dollars: goals on it keep time, attempt and concurrency limits, never a USD budget. No presets, no fallback order: an unknown model fails the session outright.</p>
         </div>
         <div id="models-claude" role="region" aria-label="Claude Code models" hidden={modelProvider !== 'claude'}>
         <ModelPresetsSection draft={draft} set={set as (p: `models.${string}`, v: unknown) => void} known={known} reloadModels={loadModels} />

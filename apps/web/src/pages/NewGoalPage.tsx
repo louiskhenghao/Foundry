@@ -1,3 +1,4 @@
+import { AGENT_PROVIDERS } from '@foundry/core/browser';
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Attachment, WorkflowProfile } from '@foundry/core/browser';
 import { ARTIFACT_NATURES, BUDGET_PRESETS } from '@foundry/core/browser';
@@ -68,7 +69,7 @@ export function NewGoalPage() {
   const nav = useNavigate();
   const [params] = useSearchParams();
   const requestedProvider = params.get('provider');
-  const initialProvider = requestedProvider === 'claude' || requestedProvider === 'codex' ? requestedProvider : null;
+  const initialProvider = AGENT_PROVIDERS.includes(requestedProvider as AgentProvider) ? (requestedProvider as AgentProvider) : null;
   // a follow-up started from a goal page (the audit's remaining findings) arrives with its text
   const [prompt, setPrompt] = useState(() => params.get('prompt') ?? '');
   useUnsaved('new-goal', !!prompt.trim());
