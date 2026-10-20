@@ -1,4 +1,6 @@
 import type { Learning, LearningKind, RepoLearnings } from '@foundry/core/browser';
+import { LEARNINGS_EVERYWHERE } from '@foundry/core/browser';
+import { Globe } from 'lucide-react';
 import { ChevronDown, ChevronRight, Folder, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -28,6 +30,11 @@ function readCollapsed(): Record<string, boolean> {
   } catch {
     return {};
   }
+}
+
+/** the everywhere notebook apart from the folders', and an empty one when the person wrote none yet (ADR-0055) */
+export function splitEverywhere(repos: RepoLearnings[]): { everywhere: RepoLearnings; folders: RepoLearnings[] } {
+  return { everywhere: repos.find((r) => r.repoPath === LEARNINGS_EVERYWHERE) ?? { repoPath: LEARNINGS_EVERYWHERE, learnings: [], updatedAt: '' }, folders: repos.filter((r) => r.repoPath !== LEARNINGS_EVERYWHERE) };
 }
 
 /** a learning as a folder's notebook is saved: a new one has no id yet */
@@ -77,8 +84,10 @@ export function LearningsPage() {
       return list.some((r) => r.repoPath === repoPath) ? list.map((r) => (r.repoPath === repoPath ? next : r)) : [...list, next];
     });
 
-  const shown = !repos ? null : only ? [repos.find((r) => r.repoPath === only) ?? { repoPath: only, learnings: [], updatedAt: '' }] : repos;
-  const all = (shown ?? []).flatMap((r) => r.learnings);
+  const split = repos ? splitEverywhere(repos) : null;
+  const shown = !split ? null : only ? [split.folders.find((r) => r.repoPath === only) ?? { repoPath: only, learnings: [], updatedAt: '' }] : split.folders;
+  const everywhere = split?.everywhere ?? null;
+  const all = [...(shown ?? []), ...(everywhere ? [everywhere] : [])].flatMap((r) => r.learnings);
   const q = query.trim().toLowerCase();
   // a folder's learnings that pass the kind and the search (a search that matches the folder keeps all of them)
   const visible = (r: RepoLearnings) => r.learnings.filter((l) => (kind === 'all' || l.kind === kind) && (!q || r.repoPath.toLowerCase().includes(q) || l.text.toLowerCase().includes(q) || (l.goalTitle ?? '').toLowerCase().includes(q)));
@@ -106,7 +115,7 @@ export function LearningsPage() {
         </h1>
         {shown && (
           <span className="text-xs text-zinc-500">
-            {shown.length} folder{shown.length === 1 ? '' : 's'} · {all.length} learning{all.length === 1 ? '' : 's'} · {all.filter((l) => l.by === 'human').length} yours
+            {shown.length} folder{shown.length === 1 ? '' : 's'} · {all.length} learning{all.length === 1 ? '' : 's'} · {all.filter((l) => l.by === 'human').length} yours{everywhere && everywhere.learnings.length ? ` (${everywhere.learnings.length} everywhere)` : ''}
           </span>
         )}
         {only && (
@@ -116,7 +125,7 @@ export function LearningsPage() {
         )}
       </div>
       <p className="text-xs text-zinc-500 -mt-2">
-        What Foundry learned about each project folder from its finished goals, and what you added. Every new goal in a folder gets its notebook: Clarify all of it, each task a short form. Foundry never changes or removes what you wrote (✎).
+        What Foundry learned about each project folder from its finished goals, and what you added. Every new goal in a folder gets its notebook: Clarify all of it, each task a short form. Foundry never changes or removes what you wrote (✎). What you write under <span className="text-zinc-300">Yours, everywhere</span> goes to every goal in every folder.
       </p>
 
       <div className="flex items-center gap-2 flex-wrap">
@@ -143,10 +152,13 @@ export function LearningsPage() {
       </div>
 
       <div className="space-y-2">
+        {everywhere && (!filtering || visible(everywhere).length > 0) && (
+          <FolderCard repo={everywhere} rows={visible(everywhere)} filtering={filtering} open={filtering || !collapsed[LEARNINGS_EVERYWHERE]} onToggle={() => toggle(everywhere)} startAdding={false} onSaved={saved} everywhere />
+        )}
         {!shown ? (
           <Empty>Loading…</Empty>
         ) : shown.length === 0 ? (
-          <Empty>No learnings yet. They are written when a goal ends; a goal's page also links here to add your own.</Empty>
+          <Empty>No learnings for a folder yet. They are written when a goal ends; a goal's page also links here to add your own.</Empty>
         ) : cards.length === 0 ? (
           <Empty>Nothing matches. Pick all, or clear the search.</Empty>
         ) : (
@@ -171,11 +183,11 @@ function KindBadge({ kind }: { kind: LearningKind }) {
 }
 
 /** one project folder: its learnings, each changed on its own; Add opens the window to write a new one */
-function FolderCard({ repo, rows, filtering, open, onToggle, startAdding, onSaved }: { repo: RepoLearnings; rows: Learning[]; filtering: boolean; open: boolean; onToggle: () => void; startAdding: boolean; onSaved: (repoPath: string, learnings: Learning[]) => void }) {
+function FolderCard({ repo, rows, filtering, open, onToggle, startAdding, onSaved, everywhere = false }: { repo: RepoLearnings; rows: Learning[]; filtering: boolean; open: boolean; onToggle: () => void; startAdding: boolean; onSaved: (repoPath: string, learnings: Learning[]) => void; everywhere?: boolean }) {
   // the learning the window is open on (null: a new one); no window when unset
   const [editing, setEditing] = useState<{ learning: Learning | null } | null>(startAdding ? { learning: null } : null);
   const n = repo.learnings.length;
-  const name = repo.repoPath.split('/').filter(Boolean).pop() ?? repo.repoPath;
+  const name = everywhere ? 'Yours, everywhere' : (repo.repoPath.split('/').filter(Boolean).pop() ?? repo.repoPath);
   const panel = `learnings-${repo.repoPath}`;
   return (
     <section className="rounded-lg border border-zinc-800 bg-zinc-900/60">
@@ -189,15 +201,15 @@ function FolderCard({ repo, rows, filtering, open, onToggle, startAdding, onSave
             {filtering ? `${rows.length} of ${n}` : n} learning{n === 1 ? '' : 's'}
             {repo.updatedAt && <> · {ago(repo.updatedAt)}</>}
           </span>
-          <Button size="sm" variant="ghost" className="shrink-0" onClick={() => setEditing({ learning: null })} title="Add a learning to this folder">
+          <Button size="sm" variant="ghost" className="shrink-0" onClick={() => setEditing({ learning: null })} title={everywhere ? 'Add something every goal in every folder should know: how you like things done' : 'Add a learning to this folder'}>
             <Plus size={12} /> Add
           </Button>
         </div>
         <div className="flex items-center gap-2 text-[11px] text-zinc-500 min-w-0 pl-6">
           <span className="flex items-center gap-1.5 min-w-0">
-            <Folder size={11} className="shrink-0" aria-hidden="true" />
-            <span className="mono truncate" title={repo.repoPath}>
-              {shortCwd(repo.repoPath)}
+            {everywhere ? <Globe size={11} className="shrink-0" aria-hidden="true" /> : <Folder size={11} className="shrink-0" aria-hidden="true" />}
+            <span className={cn('truncate', !everywhere && 'mono')} title={everywhere ? 'Given to every goal, in every folder, with the folder’s own learnings; only you write here' : repo.repoPath}>
+              {everywhere ? 'given to every goal in every folder, with the folder’s own; only you write here' : shortCwd(repo.repoPath)}
             </span>
           </span>
           <span className="sm:hidden whitespace-nowrap">
@@ -208,7 +220,7 @@ function FolderCard({ repo, rows, filtering, open, onToggle, startAdding, onSave
       {open && (
         <div id={panel} className="border-t border-zinc-800 px-3 sm:px-4 py-3">
           {n === 0 ? (
-            <div className="text-xs text-zinc-500">Nothing yet. Add a command, a path, a convention or a pitfall the next goal here should know.</div>
+            <div className="text-xs text-zinc-500">{everywhere ? 'Nothing yet. Add how you like things done in every project: the package manager, the language of comments and commits, a rule for every reviewer.' : 'Nothing yet. Add a command, a path, a convention or a pitfall the next goal here should know.'}</div>
           ) : (
             <ul className="divide-y divide-zinc-800/70">
               {rows.map((l) => (
