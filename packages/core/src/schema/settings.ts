@@ -194,6 +194,8 @@ export const NotificationSettings = z.object({
   onInterview: z.boolean().default(true),
   /** a Brief is ready and waits for approval (one the engine approves itself never notifies) */
   onBriefReady: z.boolean().default(true),
+  /** a Schedule fired: the goal it made, or why none was (ADR-0054) */
+  onSchedule: z.boolean().default(true),
   /** a goal ended done / over-delivered / failed (cancelling is the human's own act and never notifies) */
   onGoalFinished: z.boolean().default(true),
   /** a PR opened, merged, or the delivery failed */
