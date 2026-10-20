@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { Learning } from '@foundry/core';
@@ -185,6 +185,52 @@ describe('learning when a goal ends', () => {
     expect(session.prompt).toContain('navigation, automated checks, coding standards');
     expect(session.prompt).toContain('- Prefer: invoke `/mp-skills:writing-for-agents`');
     expect(session.maxTurns).toBeGreaterThanOrEqual(6);
+  }, 60_000);
+
+  test("the folder's Learnings are a project skill for the person's own sessions: it follows every change and leaves with the last entry", async () => {
+    const runner = new ScriptRunner(() => ({ learnings: [{ id: null, kind: 'test', text: 'Run bun test ./packages.' }], note: 'n' }));
+    const engine = make(runner);
+    const g = await engine.createGoal({ prompt: 'noop', repoPath: repo, autoBrief: { mustChecks: ['true'] } });
+    await waitFor(() => terminal(getGoal(engine.store.db, g.id)!.state));
+    await waitFor(() => engine.learnings(repo).length > 0);
+    const claude = join(repo, '.claude', 'skills', 'foundry-learnings', 'SKILL.md');
+    const codex = join(repo, '.agents', 'skills', 'foundry-learnings', 'SKILL.md');
+    await waitFor(() => existsSync(claude) && existsSync(codex));
+    const text = readFileSync(claude, 'utf8');
+    expect(text).toContain('name: foundry-learnings');
+    expect(text).toContain('## How to build, test and run it');
+    expect(text).toContain('- Run bun test ./packages.');
+    expect(readFileSync(join(repo, '.git', 'info', 'exclude'), 'utf8')).toContain('.claude/skills/foundry-learnings/');
+    // the person's edit is theirs, and marked so
+    engine.setLearnings(repo, [{ kind: 'preference', text: 'Keep the README short.' }]);
+    await waitFor(() => readFileSync(claude, 'utf8').includes('- ✎ Keep the README short.'));
+    // the switch removes the file; back on, it returns
+    engine.updateSettings({ workflow: { learningsSkill: false } });
+    await waitFor(() => !existsSync(claude) && !existsSync(codex));
+    engine.updateSettings({ workflow: { learningsSkill: true } });
+    await waitFor(() => existsSync(claude));
+    // an empty notebook removes it
+    engine.setLearnings(repo, []);
+    await waitFor(() => !existsSync(claude));
+    // a goal starting in the folder rewrites a file that went missing
+    engine.setLearnings(repo, [{ kind: 'build', text: 'Install with bun install.' }]);
+    await waitFor(() => existsSync(claude));
+    rmSync(join(repo, '.claude', 'skills', 'foundry-learnings'), { recursive: true, force: true });
+    await engine.createGoal({ prompt: 'noop again', repoPath: repo, autoBrief: { mustChecks: ['true'] } });
+    await waitFor(() => existsSync(claude));
+    expect(readFileSync(claude, 'utf8')).toContain('- ✎ Install with bun install.');
+  }, 60_000);
+
+  test("a goal on the pstack suite reflects in one session: reflect's lenses as text, no retro opener", async () => {
+    const runner = new ScriptRunner(() => ({ learnings: [], note: 'Nothing new.' }));
+    const engine = make(runner);
+    const g = await engine.createGoal({ prompt: 'noop', repoPath: repo, workflow: { profile: 'pstack' }, autoBrief: { mustChecks: ['true'] } });
+    await waitFor(() => terminal(getGoal(engine.store.db, g.id)!.state));
+    await waitFor(() => runner.calls.some((c) => c.label?.startsWith('learnings')));
+    const session = runner.calls.find((c) => c.label?.startsWith('learnings'))!;
+    expect(session.prompt.startsWith("In the manner of pstack's reflect")).toBe(true);
+    expect(session.prompt).toContain("reflect's lenses");
+    expect(session.prompt).not.toContain('navigation, automated checks');
   }, 60_000);
 
   test('with learning off nothing runs at the end, but the person can still ask; a cancelled goal teaches nothing', async () => {

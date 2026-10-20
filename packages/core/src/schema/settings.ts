@@ -91,6 +91,8 @@ export const WorkflowSettings = z.object({
   autoskills: z.boolean().default(true),
   /** when a goal ends, a cheap session adds what it taught about the repository to the folder's Learnings (ADR-0040); the notebook is given to later goals either way */
   learnings: z.boolean().default(true),
+  /** each folder's Learnings written into the repository as a project skill for the person's own sessions (ADR-0050); kept out of git */
+  learningsSkill: z.boolean().default(true),
   /** `--setting-sources` for sessions; null = inherit everything */
   settingSources: z.array(z.string()).nullable().default(null),
   /** MCP tool prefixes worker sessions may use (ADR-0016): mcp__<server>, mcp__plugin_<plugin>_<server>, mcp__claude_ai_<name> */
