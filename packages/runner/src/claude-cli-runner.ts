@@ -70,6 +70,7 @@ export class ClaudeCliRunner implements ClaudeRunner {
     if (spec.settingSources) a.push('--setting-sources', spec.settingSources.join(','));
     if (spec.strictMcp) a.push('--strict-mcp-config');
     for (const d of spec.addDirs ?? []) a.push('--add-dir', d);
+    for (const d of spec.pluginDirs ?? []) a.push('--plugin-dir', d);
     if (spec.resumeSessionId) a.push('--resume', spec.resumeSessionId);
     return a;
   }
