@@ -35,6 +35,7 @@ import {
   AttemptSession,
   LikenessVerdict,
   SubjectPicture,
+  QaResult,
 } from './schema/index.ts';
 
 const base = { id: z.string(), ts: z.string(), goalId: z.string().nullable() };
@@ -172,8 +173,10 @@ export const EngineEvent = z.discriminatedUnion('type', [
    * there, or not delivered this time, keeps its earlier one); all absent on deliveries before they were recorded */
   ev('goal.artifacts_delivered', { status: z.enum(['ok', 'skipped', 'failed']), files: z.array(z.string()), dest: z.string(), detail: z.string(), model: z.string().nullable().optional(), startedAt: z.string().optional(), startedAfter: z.string().optional(), copies: z.record(z.string(), z.string()).optional() }),
   /** completion actions chosen at Brief approval (defaults inferred from the tasks' scenarios when the UI sends nothing) */
-  ev('goal.completion_set', { graphRefresh: z.boolean(), docs: z.array(DocType), audit: z.boolean().optional(), reason: z.string() }),
+  ev('goal.completion_set', { graphRefresh: z.boolean(), docs: z.array(DocType), audit: z.boolean().optional(), qa: z.boolean().optional(), reason: z.string() }),
   /** ponytail-audit ran on the finished branch (once per goal): what it found, and the fix tasks its in-scope must-fix findings became */
+  /** the browser QA ran on the finished app (ADR-0057): what it tried, and the fix tasks its failed must checks became */
+  ev('goal.qa_finished', { status: z.enum(['ok', 'skipped', 'failed']), summary: z.string(), results: z.array(QaResult), fixTaskIds: z.array(z.string()), costUsd: z.number(), detail: z.string() }),
   ev('goal.audit_finished', { status: z.enum(['ok', 'skipped', 'failed']), summary: z.string(), findings: z.array(AuditFinding), fixTaskIds: z.array(z.string()), costUsd: z.number(), detail: z.string() }),
   /** the docs-generation session ran (after the goal review passed); files are repo-relative paths it committed */
   /** `ref`: the docs commit on the goal branch (absent on events written before it was recorded) */

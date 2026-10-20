@@ -53,7 +53,7 @@ function seed(subjects: BriefSubject[] = [subject], state: Goal['state'] = 'runn
     id: 'g_like01', title: 'showcase', prompt: 'a showcase of one car', workspaceDir: null, checkpoint: null, selfCheck: false, previewRef: null, previewPlace: 'auto', milestonePause: false, clarifyStage: null, references: [], investigation: null, interview: null, effort: null, modelPreset: null, modelSubstitutions: {}, repoPath: '/nowhere', baseBranch: 'main', branch: 'goal/g_like01',
     budgets: { maxCostUsd: 5, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3 }, budgetPreset: 'custom', mode: 'expert', workflow: { tdd: 'off', pace: 'thorough', ponytail: 'on' },
     models: { strong: 'opus', cheap: 'haiku', worker: 'opus' }, state, stateBeforeBlock: null, costUsd: 0, fixCycles: 0, delivery: IDLE_DELIVERY, attachments: [], baseSync: null, autoskills: null, follows: null, delegation: { allow: false, autoApprove: false }, delegatedFrom: null,
-    completion: { graphRefresh: false, docs: [], audit: false, auditRun: null, docsRun: null, graphRun: null, artifactsRun: null }, nature: 'code', outputDir: null, runningSince: null, createdAt: now, updatedAt: now,
+    completion: { graphRefresh: false, docs: [], audit: false, auditRun: null, qa: false, qaRun: null, docsRun: null, graphRun: null, artifactsRun: null }, nature: 'code', outputDir: null, runningSince: null, createdAt: now, updatedAt: now,
   } as unknown as Goal;
   engine.store.append({ type: 'goal.created', goalId: goal.id, payload: { goal } });
   const brief = { goalId: goal.id, title: '', understanding: 'u', areas: [], assumptions: [], checks: [], tasks: [], costEstimateUsd: 0, timeEstimateMin: 0, questions: [], styleOptions: [], subjects } as Brief;
