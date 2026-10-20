@@ -259,6 +259,16 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
         })} />
       </Card>
 
+      <Card title="Workflow suite — pstack">
+        <p className="text-xs text-zinc-400 mb-3">
+          A second suite a goal can run on (<span className="mono">Powered by</span> on the New goal form): a bug fix that starts from the failing test, <span className="mono">deslop</span> before a task is handed back, <span className="mono">thermo-nuclear-review</span> for the final review, non-interactive conflict resolution and a technical-writing standard. Foundry keeps one pinned release as its own copy, without the plugin's hooks; Claude loads it per session, Codex gets the skills linked into the goal's workspace. Roles pstack has no skill for keep Matt Pocock's.
+        </p>
+        <BundleStatus provider={provider} bundle="pstack" busy={busy} onInstall={() => runAction('bundle', async () => {
+          const op = await awaitSkillOp(api, (await api.installBundle('pstack')).op);
+          return op.summary ?? op.status;
+        })} />
+      </Card>
+
       <Card title="Less code — Ponytail">
         <p className="text-xs text-zinc-400 mb-3">
           The lazy senior dev: before writing, a worker checks whether the code needs to exist, whether the repository, the standard library or an installed dependency already has it, and only then writes the smallest complete change. The planner plans the same way, and <span className="mono">ponytail-review</span> reviews each task and the whole goal (the code a change touches, not only the diff). Every goal has a Ponytail switch, on by default; TDD still decides how tests are written. The optional audit at the end of a goal uses <span className="mono">ponytail-audit</span>.
