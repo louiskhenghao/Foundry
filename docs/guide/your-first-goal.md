@@ -57,7 +57,7 @@ Foundry works in a *repository*: a project folder that git keeps history for. Yo
 
 Press **New goal** in the top bar. The four numbered steps at the top right (**Goal**, **Repository**, **Budget**, **Delivery**) show how far you are. **Goal** turns green once you describe the goal, **Repository** once a ready folder is picked. **Budget** and **Delivery** are always green: their defaults work. The form starts with two cards of choices; the numbered cards **1** to **4** follow.
 
-Several choices start from [Settings → New goal defaults](./settings.md#new-goal-defaults): the view, **Fast mode**, TDD, and the delivery mode and granularity. Change any of them here for this goal. A field you change on the page keeps your choice.
+Several choices start from [Settings → New goal defaults](./settings.md#new-goal-defaults): the view, **Fast mode**, TDD, the workflow suite, and the delivery mode and granularity. Change any of them here for this goal. A field you change on the page keeps your choice.
 
 ![The New goal form with the shared Coding agent selector](images/new-goal.png)
 
@@ -134,6 +134,10 @@ For Codex, **View … role assignments** shows the model and effort each role wi
 Codex goals retain these settings after creation; later preset edits and deletion do not change them. If a follow-up refers to a deleted preset, the form asks you to choose an available preset. Codex preset names describe reasoning profiles, not USD prices or guaranteed account access.
 
 For **Auto** goals, **Default · By goal type** captures the configured defaults for Code, Docs & research and Media. The role preview initially shows Code; classification switches to the captured table for the inferred type. An explicitly selected preset stays selected regardless of classification.
+
+### Workflow suite
+
+Only in Expert view. **Powered by** picks whose skills the roles follow for this goal: **mattpocock** (the default: Matt Pocock's suite — tests first for features, diagnose first for bugs, code review at the end), **pstack** (pstack's suite, with Matt Pocock's skills where pstack has none) or **plain** (no rules: sessions only hear which skills are installed). The choice is fixed when the goal is created; a follow-up starts from the earlier goal's choice, and a delegated goal takes its main goal's. Simple view goals use the Settings default. The goal page and the Brief show it as a **Powered by** chip.
 
 ### Engineering discipline (TDD)
 

@@ -8,6 +8,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
+| `workflow.profile` | `mattpocock` | `FOUNDRY_WORKFLOW` | Workflow suite new goals start with — whose skills the roles follow: mattpocock (Matt Pocock's suite), pstack (with Matt Pocock's skills where it has none) or plain (the installed-skills hint only). Each goal fixes its own on the New goal form. |
 | `workflow.tdd` | `required` | `FOUNDRY_TDD` | Test-driven discipline for new expert goals: required (observed), preferred (suggested) or off. |
 | `workflow.ponytail` | `on` | `FOUNDRY_PONYTAIL` | Ponytail, the lazy senior dev, for new goals: workers write the smallest change that fully solves the task and reuse what exists, the planner plans lean, and ponytail-review reviews. Each goal has its own switch. |
 | `workflow.audit` | `false` | `FOUNDRY_AUDIT` | New goals run ponytail-audit on the finished branch before the goal review; must-fix findings in the code the goal touched become fix tasks. Chosen per goal at Brief approval. |
@@ -54,7 +55,6 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
-| `workflow.profile` | `mattpocock` | `FOUNDRY_WORKFLOW` | Workflow skill set sessions are told to follow: mattpocock (TDD, diagnosing bugs, code review …) or plain. |
 | `workflow.designPack` | `ui-ux-pro-max` | `FOUNDRY_DESIGN_PACK` | Design skill set for UI tasks. |
 | `workflow.imagePack` | `gpt-image-2` | `FOUNDRY_IMAGE_PACK` | Image-generation skill set for image tasks. |
 | `workflow.videoPack` | `web-video-presentation` | `FOUNDRY_VIDEO_PACK` | Video skill set for video tasks. |
