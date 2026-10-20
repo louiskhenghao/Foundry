@@ -56,6 +56,8 @@ export const help = `foundry — drive the host Claude Code or Codex CLI to deli
   usage [--provider claude|codex] [--json] [--probe]
                                           Activity and available account quota; --probe refreshes status (Claude consumes quota)
                                           Codex shows only reported account windows; weekly-only accounts are supported
+  report [--days 30|90|365] [--all] [--json]
+                                          Spend, goals, hours, retries and estimate error over a window, by project and session kind
 
 (doctor, skills, export and import work offline too; --provider keeps their native homes and caches separate.)
 Both backends share one Foundry; select --provider when creating a goal.

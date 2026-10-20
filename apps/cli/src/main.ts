@@ -31,7 +31,7 @@ function opts(name: string): string[] {
 }
 const has = (name: string) => rest.includes(name);
 const positional = () => rest.filter((a, i) => !a.startsWith('--') && !(i > 0 && rest[i - 1]!.startsWith('--') && !FLAGS.has(rest[i - 1]!)));
-const FLAGS = new Set(['--auto-approve', '--approve', '--verify', '--json', '--follow', '--force', '--self-check', '--no-attachments', '--no-style', '--settings', '--secrets', '--transcripts', '--dry-run', '--password-stdin']);
+const FLAGS = new Set(['--auto-approve', '--approve', '--verify', '--json', '--follow', '--force', '--self-check', '--no-attachments', '--no-style', '--settings', '--secrets', '--transcripts', '--dry-run', '--password-stdin', '--all']);
 const BASE = process.env.FOUNDRY_URL ?? `http://127.0.0.1:${process.env.FOUNDRY_PORT ?? 4111}`;
 
 async function api(path: string, init?: RequestInit): Promise<any> {
@@ -464,6 +464,26 @@ switch (cmd) {
     }
     const st = backend === 'codex' ? await codexAuthStatus(cfg.codexBin ?? Bun.which('codex'), undefined, cfg.codexHome) : await claudeAuthStatus(cfg.claudeBin ?? Bun.which('claude'), undefined, cfg.claudeHome);
     console.log(has('--json') ? JSON.stringify(st, null, 2) : st.loggedIn ? `✔ ${backend}: signed in (${st.email ?? st.authMethod ?? 'account'})` : `✘ ${backend}: ${st.error ?? 'not signed in'} — run: foundry auth login --provider ${backend}`);
+    break;
+  }
+  case 'report': {
+    // Reports (ADR-0060): a window of days, or everything
+    const r = await api(`/api/reports?days=${has('--all') ? 'all' : encodeURIComponent(opt('--days') ?? '30')}`);
+    if (has('--json')) return console.log(JSON.stringify(r, null, 2));
+    const t = r.totals;
+    const pct = (x: number | null) => (x == null ? '—' : `${Math.round(x * 100)}%`);
+    const usd = (x: number) => `$${x.toFixed(2)}`;
+    const hours = (min: number) => (min < 60 ? `${Math.round(min)} min` : `${(min / 60).toFixed(1)} h`);
+    const factor = (f: { factor: number } | null) => (f ? `×${f.factor}` : '—');
+    console.log(`${r.window.days == null ? 'All time' : `Last ${r.window.days} days`}: ${usd(t.costUsd)} (Claude Code)  ${t.sessions} sessions  ${t.goals.finished}/${t.goals.total} goals finished (${t.goals.failed} failed, ${t.goals.cancelled} cancelled)  ${hours(t.activeMin)} worked`);
+    console.log(`retries: ${pct(t.retries.rate)} of ${t.retries.tasks} tasks needed more than one attempt; ${t.retries.fixTasks} fix tasks`);
+    console.log(`estimates: cost ${factor(t.estimate.cost)}, time ${factor(t.estimate.time)} (actual ÷ estimate over ${t.estimate.samples} goal${t.estimate.samples === 1 ? '' : 's'} with one)`);
+    if (r.repos.length) {
+      console.log('by project:');
+      for (const p of r.repos) console.log(`  ${p.name}: ${usd(p.costUsd)}  ${p.goals.finished}/${p.goals.total} finished  ${hours(p.activeMin)}  retries ${pct(p.retries.rate)}  estimate ${factor(p.estimate.cost)}/${factor(p.estimate.time)}`);
+    }
+    if (r.kinds.length) console.log('by kind: ' + r.kinds.map((k: any) => `${k.kind} ${pct(k.costShare)} of $ · ${pct(k.timeShare)} of time`).join(', '));
+    console.log(`\n${r.note}`);
     break;
   }
   case 'usage': {
