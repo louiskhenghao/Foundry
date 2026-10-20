@@ -1238,7 +1238,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.post('/api/goals/:id/reattach', async (c) => c.json(await reattachGoal(engine, goalOr404(c).id)));
 
   // ---------- skills & setup ----------
-  app.get('/api/skills', async (c) => c.json(await skillsFor(c).overview(c.req.query('repo') || undefined)));
+  app.get('/api/skills', async (c) => {
+    // ?goals=N: how many of the newest goals the usage counts over, clamped silently
+    const n = Number.parseInt(c.req.query('goals') ?? '', 10);
+    return c.json(await skillsFor(c).overview(c.req.query('repo') || undefined, { goals: Number.isFinite(n) ? Math.min(500, Math.max(1, n)) : 30 }));
+  });
   app.get('/api/skills/trash', (c) => c.json(skillsFor(c).trash()));
   // Grouped-by-source update report. ?refresh=1 starts an upstream fetch in the background and returns the
   // current (possibly stale) report with refreshing=true; the page polls until it flips back. Fetches can take minutes.

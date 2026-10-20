@@ -58,6 +58,8 @@ export interface SkillsManagerOptions {
   onPluginInstalled?: (pluginId: string) => void;
   updates?: UpdateCheckerOptions;
   updater?: Pick<UpdaterContext, 'spawn' | 'npxBin' | 'timeoutMs'>;
+  /** the rows annotated with how many of the last `limit` goals invoked them; the engine supplies it from its own store (absent on Codex) */
+  usage?: (installed: InstalledSkill[], limit: number) => { installed: InstalledSkill[]; window: { goals: number; limit: number } };
 }
 
 export class UpdateBusy extends Error {
@@ -130,10 +132,11 @@ export class SkillsManager {
   async status(repoPath?: string): Promise<CatalogEntryStatus[]> {
     return catalogStatus(this.catalog(), this.scan(repoPath), this.paths, this.opts.which ?? defaultWhich, this.opts.envProbe ?? defaultEnvProbe);
   }
-  async overview(repoPath?: string): Promise<SkillsOverview> {
+  async overview(repoPath?: string, opts: { goals?: number } = {}): Promise<SkillsOverview> {
     const scan = this.scan(repoPath);
     const catalog = catalogStatus(this.catalog(), scan, this.paths, this.opts.which ?? defaultWhich, this.opts.envProbe ?? defaultEnvProbe);
-    return { installed: scan.installed, catalog, duplicates: scan.duplicates, lastSession: this.lastView, scannedAt: scan.scannedAt, skillsDir: scan.skillsDir, usageWindow: null };
+    const usage = this.opts.usage?.(scan.installed, opts.goals ?? 30);
+    return { installed: usage?.installed ?? scan.installed, catalog, duplicates: scan.duplicates, lastSession: this.lastView, scannedAt: scan.scannedAt, skillsDir: scan.skillsDir, usageWindow: usage?.window ?? null };
   }
   async doctor(extra: DoctorCheck[] = []): Promise<DoctorReport> {
     // offline: never runs git; shadow detection works from the filesystem alone
