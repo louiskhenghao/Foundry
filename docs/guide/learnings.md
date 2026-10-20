@@ -9,6 +9,7 @@ Every goal teaches Foundry something about your project: the command the tests n
 ## Where they come from
 
 - **When a goal ends** (done, over-delivered or failed), a short session on the goal's housekeeping model reads how it went: what you asked and decided, where it stopped for you and what you answered, the hints you gave, the attempts that failed and what they ran into, the warnings and the final review. It adds what is worth keeping about the project, merges repeats and drops what turned out wrong. A cancelled goal teaches nothing. With the `retro` skill installed (Claude), the session runs as a retrospective: it may read the goal's session transcripts, and it looks for what the next goal would have wanted — a pointer to the right file, a check that would have caught a mistake, a rule for the reviewer, an instruction that changed nothing.
+- **On the pstack suite** the session takes pstack's `reflect` as its method — its judgment, tooling and divergent lenses, and what structure would enforce better than a note — in one session, editing no skill.
 - **From you.** What you add or change is yours (✎). Foundry never changes or removes it.
 
 The goal's **Activity** says what changed, for example *Learnings for this folder: +2 — added how the e2e tests start*. The session costs a few cents, counted in the goal's cost.
@@ -20,6 +21,10 @@ The goal's **Activity** says what changed, for example *Learnings for this folde
 - They are a starting point, not a rule: where the code says otherwise, the code wins.
 
 A folder keeps at most 30 learnings, of at most 300 characters each.
+
+## Shared with your own sessions
+
+Each folder's Learnings are also written into the repository as a project skill, `foundry-learnings` (under `.claude/skills` for Claude Code and `.agents/skills` for Codex), so your own sessions there read them too. The file is kept out of git, rewritten whenever the Learnings change and when a goal starts in the folder, and removed with the last entry. Edit the Learnings on their page, not the file. **Settings → New goal defaults → Share Learnings with your own sessions** turns it off and removes the file.
 
 ## Seeing and editing them
 

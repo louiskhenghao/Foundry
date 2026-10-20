@@ -1,3 +1,5 @@
+import type { WorkflowProfile } from '@foundry/core';
+import { readSuite } from './suites.ts';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -11,7 +13,7 @@ import { scanSkills } from './scanner.ts';
 import { TrashError, listTrash, restoreSkill, trashSkill } from './trash.ts';
 import { SkillsUpdateChecker, type UpdateCheckerOptions } from './updates.ts';
 import { runSourceUpdate, spawnStreaming, type UpdaterContext } from './updaters.ts';
-import type { Catalog, CatalogEntryStatus, DoctorCheck, DoctorReport, InstallResult, InstalledSkill, ScanResult, SessionView, SkillTier, SkillUpdateRun, SkillsOverview, SkillsUpdateReport, TrashEntry } from './types.ts';
+import type { Catalog, CatalogEntryStatus, DoctorCheck, DoctorReport, InstallResult, InstalledSkill, InstalledSuite, ScanResult, SessionView, SkillTier, SkillUpdateRun, SkillsOverview, SkillsUpdateReport, TrashEntry } from './types.ts';
 
 export interface BundleResult {
   id: string;
@@ -26,6 +28,8 @@ export interface SkillsManagerOptions {
   claudeSkillsDir?: string;
   /** the home holding ~/.agents (default: the user's home for Codex) */
   sharedHome?: string;
+  /** the workflow suites' store; the engine shares one between both coding agents (ADR-0049) */
+  suitesDir?: string;
   codexBin?: string;
   codexHome?: string;
   claudeHome: string;
@@ -39,7 +43,7 @@ export interface SkillsManagerOptions {
   /** hints are disabled when user settings (and thus user skills) are not loaded */
   hintsEnabled?: () => boolean;
   /** which prompt section roles get (default mattpocock) */
-  workflowProfile?: () => 'mattpocock' | 'plain';
+  workflowProfile?: () => WorkflowProfile;
   /** chosen option per mutually exclusive pack, e.g. { design: 'ui-ux-pro-max' } */
   packs?: () => Record<string, string | undefined>;
   /** Settings switches gated entries need (Safety → Desktop apps & printers) */
@@ -85,12 +89,17 @@ export class SkillsManager {
   private serverMemo = new Map<string, { at: number; value: PluginMcpServer | null }>();
 
   constructor(private opts: SkillsManagerOptions) {
-    this.paths = { ...skillsPaths(opts.claudeHome, opts.dataDir, opts.provider, opts.sharedHome), ...(opts.claudeSkillsDir ? { claudeSkillsDir: opts.claudeSkillsDir } : {}) };
+    this.paths = { ...skillsPaths(opts.claudeHome, opts.dataDir, opts.provider, opts.sharedHome), ...(opts.claudeSkillsDir ? { claudeSkillsDir: opts.claudeSkillsDir } : {}), ...(opts.suitesDir ? { suitesDir: opts.suitesDir } : {}) };
     this.hints = new SkillsHints(() => this.status(), { enabled: opts.hintsEnabled, profile: opts.workflowProfile, packs: opts.packs, gates: opts.gates, provider: opts.provider });
     this.checker = new SkillsUpdateChecker(this.paths, { log: opts.log, ...(opts.updates ?? {}) });
     try {
       if (existsSync(this.paths.sessionViewFile)) this.lastView = JSON.parse(readFileSync(this.paths.sessionViewFile, 'utf8'));
     } catch {}
+  }
+
+  /** a workflow suite's copy in the store (ADR-0049), or null when it is not installed */
+  installedSuite(id: string): InstalledSuite | null {
+    return readSuite(this.paths, id);
   }
 
   catalog(): Catalog {
@@ -238,11 +247,11 @@ export class SkillsManager {
     {
       const results: BundleResult[] = [];
       const statuses = await this.status();
-      const ictx = { paths: this.paths, log: this.opts.log, claudeBin: this.opts.claudeBin, codexBin: this.opts.codexBin, spawn: this.opts.updater?.spawn ?? spawnStreaming, onLine };
+      const ictx = { paths: this.paths, log: this.opts.log, claudeBin: this.opts.claudeBin, codexBin: this.opts.codexBin, spawn: this.opts.updater?.spawn ?? spawnStreaming, onLine, suites: this.catalog().suites };
       // a plugin bundle shares one install: the first member installs it, the others ride along; a plugin already on disk
       // (installed by hand, or a second run) still gets its servers allowed and its runtime warmed up afterwards
       const plugins = new Map<string, { ok: boolean; detail: string; src: PluginSource }>();
-      for (const s of statuses.filter((x) => pick(x.entry) && (x.entry.source.type === 'git' || x.entry.source.type === 'plugin'))) {
+      for (const s of statuses.filter((x) => pick(x.entry) && (x.entry.source.type === 'git' || x.entry.source.type === 'plugin' || x.entry.source.type === 'suite'))) {
         try {
           if (s.entry.source.type === 'plugin') {
             const pid = pluginId(s.entry.source);
@@ -260,13 +269,13 @@ export class SkillsManager {
           }
           if (s.status === 'installed-via-plugin') results.push({ id: s.entry.id, name: s.entry.name, action: 'plugin', detail: s.detail });
           else if (s.status === 'installed') {
-            const u = await updateEntry(s.entry, { paths: this.paths, log: this.opts.log });
+            const u = await updateEntry(s.entry, { paths: this.paths, log: this.opts.log, suites: this.catalog().suites });
             results.push({ id: s.entry.id, name: s.entry.name, action: u.changed ? 'updated' : 'kept', detail: u.changed ? `${u.from?.slice(0, 7)} → ${u.to?.slice(0, 7)}` : `at ${u.to?.slice(0, 7)}` });
           } else if (s.status === 'installed-unmanaged') {
-            const r = await installEntry(s.entry, { paths: this.paths, log: this.opts.log }, { force: true, refresh: true });
+            const r = await installEntry(s.entry, { paths: this.paths, log: this.opts.log, suites: this.catalog().suites }, { force: true, refresh: true });
             results.push({ id: s.entry.id, name: s.entry.name, action: 'adopted', detail: `loose copy replaced @ ${r.commit?.slice(0, 7)} (old copy in trash)` });
           } else {
-            const r = await installEntry(s.entry, { paths: this.paths, log: this.opts.log }, { refresh: true });
+            const r = await installEntry(s.entry, { paths: this.paths, log: this.opts.log, suites: this.catalog().suites }, { refresh: true });
             results.push({ id: s.entry.id, name: s.entry.name, action: r.ok ? 'installed' : 'failed', detail: r.ok ? `@ ${r.commit?.slice(0, 7)}` : (r.error ?? 'failed') });
           }
         } catch (e) {
@@ -325,7 +334,7 @@ export class SkillsManager {
     const { r, src } = await this.serial(async () => {
       const entry = findEntry(this.catalog(), idOrName);
       if (!entry) throw new InstallError(`${idOrName} is not in the catalog`, 'not-found');
-      const r = await installEntry(entry, { paths: this.paths, log: this.opts.log, claudeBin: this.opts.claudeBin, codexBin: this.opts.codexBin, spawn: this.opts.updater?.spawn ?? spawnStreaming, onLine: opts.onLine }, opts);
+      const r = await installEntry(entry, { paths: this.paths, log: this.opts.log, claudeBin: this.opts.claudeBin, codexBin: this.opts.codexBin, spawn: this.opts.updater?.spawn ?? spawnStreaming, onLine: opts.onLine, suites: this.catalog().suites }, opts);
       return { r, src: r.ok && entry.source.type === 'plugin' ? entry.source : null };
     });
     // outside the queue: a warm-up can download for minutes
@@ -388,7 +397,7 @@ export class SkillsManager {
         }
         onLine?.(`installing ${s.entry.name}…`);
         try {
-          const r = await installEntry(s.entry, { paths: this.paths, log: this.opts.log, onLine });
+          const r = await installEntry(s.entry, { paths: this.paths, log: this.opts.log, onLine, suites: this.catalog().suites });
           onLine?.(r.ok ? `✔ ${r.name}${r.commit ? ` @ ${r.commit.slice(0, 7)}` : ''}` : r.manual ? `→ ${r.name}: run this yourself: ${r.manual.command}` : `✘ ${r.name}: ${r.error}`);
           results.push(r);
         } catch (err) {
@@ -494,7 +503,7 @@ export class SkillsManager {
           continue;
         }
         try {
-          const u = await updateEntry(entry, { paths: this.paths, log: this.opts.log });
+          const u = await updateEntry(entry, { paths: this.paths, log: this.opts.log, suites: this.catalog().suites });
           if (u.changed) out.updated.push({ name: u.name, from: u.from, to: u.to });
           else out.unchanged.push(u.name);
         } catch (err) {

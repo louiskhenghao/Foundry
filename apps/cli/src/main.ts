@@ -165,7 +165,7 @@ switch (cmd) {
       },
       modelPreset: opt('--models'),
       nature: opt('--nature'),
-      workflow: opt('--pace') ? { pace: opt('--pace') } : undefined,
+      workflow: opt('--pace') || opt('--suite') ? { ...(opt('--pace') ? { pace: opt('--pace') } : {}), ...(opt('--suite') ? { profile: opt('--suite') } : {}) } : undefined,
       interview: opt('--interview'),
       effort: effort === 'default' ? null : effort,
       ...(has('--self-check') ? { selfCheck: true } : {}),

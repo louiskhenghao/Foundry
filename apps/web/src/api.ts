@@ -159,6 +159,15 @@ export interface DraftProposal {
   /** mode revise: no proposal yet — the Clarifier asks these first; answer them with reviseAnswer */
   round?: { round: number; questions: InterviewQuestion[] };
 }
+/** the goal's last second opinion on its Brief (ADR-0051), its diff against the Brief as it is now */
+export interface SecondOpinionView {
+  at: string;
+  auto: boolean;
+  costUsd: number;
+  costAvailable?: boolean;
+  stale: boolean;
+  proposal: DraftProposal;
+}
 
 export interface BaseSync {
   remote: string | null;
@@ -399,6 +408,8 @@ export interface GoalDetail {
   auditRunning?: boolean;
   /** REA is studying the goal's references */
   investigating?: boolean;
+  secondOpinion?: SecondOpinionView | null;
+  secondOpinionRunning?: boolean;
   /** the Subjects (keys) whose pictures Foundry is searching for now: the Brief waits for them */
   subjectSearches?: string[];
   /** the milestones (task ids) whose recording is being compared with the Subjects' pictures now */
@@ -416,7 +427,7 @@ export interface FollowUpDraft {
   previous: { id: string; title: string; state: GoalState; repoPath: string; baseBranch: string; branch: string; branchExists: boolean };
   followable: boolean;
   reason: string | null;
-  prefill: { provider: 'claude' | 'codex'; codexModel?: string; repoPath: string; baseBranch: string; nature: GoalNature; modelPreset: string | null; effort: CodexEffort | null; pace: 'thorough' | 'fast'; mode: GoalMode; delivery: DeliveryPolicy };
+  prefill: { provider: 'claude' | 'codex'; codexModel?: string; repoPath: string; baseBranch: string; nature: GoalNature; modelPreset: string | null; effort: CodexEffort | null; pace: 'thorough' | 'fast'; profile: 'mattpocock' | 'pstack' | 'plain'; mode: GoalMode; delivery: DeliveryPolicy };
   start: { recommended: 'base' | 'previous'; onBase: boolean; detail: string; baseBranch: string; previousBranch: string | null };
   attachments: Attachment[];
   style: BriefStyleOption | null;
@@ -585,6 +596,7 @@ export function apiForProvider(provider?: AgentProvider) {
   cancelDelivery: (id: string) => req<{ ok: boolean }>(`/api/goals/${id}/delivery/cancel`, { method: 'POST' }),
   /** `skeleton`: the page was editing the Brief skeleton; the engine then takes its skeleton fields only and keeps the tasks it has */
   editBrief: (id: string, brief: Brief, skeleton = false) => req<Brief>(`/api/goals/${id}/brief`, { method: 'PATCH', body: JSON.stringify(skeleton ? { ...brief, skeleton: true } : brief) }),
+  secondOpinion: (id: string) => req<{ proposal: DraftProposal }>(`/api/goals/${id}/brief/second-opinion`, { method: 'POST' }),
   draftBrief: (id: string, body: DraftRequest) => req<{ proposal: DraftProposal }>(`/api/goals/${id}/brief/draft`, { method: 'POST', body: JSON.stringify(body) }),
   /** the answers to the round a Revise asked: the proposal, or one more round */
   reviseAnswer: (id: string, body: { brief: Omit<Brief, 'goalId'>; answers: Record<string, string>; finish: boolean; note: string | null }) => req<{ proposal: DraftProposal }>(`/api/goals/${id}/brief/revise/answer`, { method: 'POST', body: JSON.stringify(body) }),

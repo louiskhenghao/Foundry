@@ -116,6 +116,11 @@ function goalRecord(engine: Engine, goal: Goal): string {
 
 /** the retro skill's categories, kept as the lens of the session whether or not the skill itself is installed */
 const RETRO_LENS = 'navigation, automated checks, coding standards, global AGENTS.md, tool economy, no-ops, information access';
+/**
+ * pstack's reflect, in one session: its three reviewers' lenses and its structural check as text — the skill itself
+ * spawns subagents and edits skills, which a housekeeping session must not (ADR-0050)
+ */
+const REFLECT_LENS = 'judgment (a call the sessions got wrong, or right for a reason worth keeping), tooling (a tool, command or check the sessions lacked or misused), the divergent view (what another approach would have avoided), structure (what a lint rule, script or check would enforce more reliably than a note)';
 
 /** the transcripts of the goal's sessions on this computer: what the retrospective may read beyond the record below */
 function transcriptsOf(engine: Engine, goal: Goal): string[] {
@@ -130,16 +135,24 @@ function transcriptsOf(engine: Engine, goal: Goal): string[] {
  * skill headlessly: the session is a retrospective of the goal, its findings written into the notebook instead of
  * presented to a person. `section` is the Learnings role's workflow skills (writing-for-agents, when installed).
  */
-function buildPrompt(engine: Engine, goal: Goal, existing: Learning[], extra: { retro: string | null; section: string | null } = { retro: null, section: null }): string {
+function buildPrompt(engine: Engine, goal: Goal, existing: Learning[], extra: { retro: string | null; section: string | null; lens?: 'retro' | 'reflect' } = { retro: null, section: null }): string {
   const notebook = existing.map((l) => ({ id: l.id, kind: l.kind, text: l.text, by: l.by }));
   const transcripts = transcriptsOf(engine, goal);
+  const reflect = extra.lens === 'reflect';
+  const lens = reflect
+    ? `Look through reflect's lenses (${REFLECT_LENS}): a judgment to repeat or to avoid, a tool or check the sessions lacked, what a different approach would have avoided, what structure should enforce instead of a note.`
+    : `Look through the retrospective's lens (${RETRO_LENS}): a navigation pointer the sessions lacked, a check that would have caught a mistake, a rule the reviewer should enforce, an instruction that changed nothing, a tool call that cost more than it gave, information a session could not reach.`;
   return [
-    extra.retro ? `${extra.retro} A retrospective of the Foundry goal below, for the folder's notebook: there is no person to present to, so what you would present becomes notebook entries.` : '',
+    extra.retro
+      ? `${extra.retro} A retrospective of the Foundry goal below, for the folder's notebook: there is no person to present to, so what you would present becomes notebook entries.`
+      : reflect
+        ? "In the manner of pstack's reflect — its judgment, tooling and divergent reviewers and their synthesis — but in this one session, reading the transcripts yourself and editing no skill: what reflect would route into a skill becomes an entry of the folder's notebook instead."
+        : '',
     goalRecord(engine, goal),
     `# Primary sources\nThe record above is the summary. ${transcripts.length ? `The sessions' transcripts (NDJSON, one event per line) are on this computer, readable when a detail matters:\n${transcripts.map((p) => `- ${p}`).join('\n')}` : `The transcripts live under ${join(engine.config.dataDir, 'transcripts')}; none of this goal's is on this computer.`}\nRead sparingly: a few turns is all you have.`,
     `# The notebook of this repository so far\n${notebook.length ? `\`\`\`json\n${JSON.stringify(notebook, null, 1)}\n\`\`\`\nEntries by "human" are the person's: keep them word for word.` : '(empty)'}`,
     extra.section ?? '',
-    `# Your job\nReturn the notebook after this goal: durable, repository-specific facts that would save the next goal in this folder time — how to build, test and run it, where things live, its conventions, what the person prefers, what goes wrong and how to get past it. Look through the retrospective's lens (${RETRO_LENS}): a navigation pointer the sessions lacked, a check that would have caught a mistake, a rule the reviewer should enforce, an instruction that changed nothing, a tool call that cost more than it gave, information a session could not reach. Keep what is still true; merge duplicates; add what this goal taught; drop what it proved wrong. Leave out what only concerned this goal (its feature, its files, its outcome) and anything a reader of the code sees at once. Short, concrete entries with the exact command, path or name; paths relative to the repository root, never a session's workspace folder or a transcript. An empty addition is fine: most goals teach nothing new. Output JSON matching the schema, nothing else.`,
+    `# Your job\nReturn the notebook after this goal: durable, repository-specific facts that would save the next goal in this folder time — how to build, test and run it, where things live, its conventions, what the person prefers, what goes wrong and how to get past it. ${lens} Keep what is still true; merge duplicates; add what this goal taught; drop what it proved wrong. Leave out what only concerned this goal (its feature, its files, its outcome) and anything a reader of the code sees at once. Short, concrete entries with the exact command, path or name; paths relative to the repository root, never a session's workspace folder or a transcript. An empty addition is fine: most goals teach nothing new. Output JSON matching the schema, nothing else.`,
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -186,7 +199,7 @@ export function learningsDiff(before: Learning[], after: Learning[]): { added: n
 const chains = new Map<string, Promise<unknown>>();
 
 /**
- * Learn from a goal that ended. Bounded (one session, three turns, a few cents, three minutes); it never fails the goal,
+ * Learn from a goal that ended. Bounded (one session, eight turns, half a dollar, four minutes); it never fails the goal,
  * and a session that returns nothing usable leaves the notebook as it was.
  */
 export function learnFromGoal(engine: Engine, goalId: string, opts: { force?: boolean } = {}): Promise<void> {
@@ -208,10 +221,12 @@ async function distill(engine: Engine, goalId: string, opts: { force?: boolean }
   // a goal that never got to work (it failed before its Brief) has nothing to say about the repository
   if (!listTasks(store.db, goal.id).length && !listEscalations(store.db, { goalId: goal.id }).length) return;
   const existing = learningsOf(engine, goal.repoPath);
-  // the retro skill opens the session when it is installed (a Claude slash command; Codex has none), writing-for-agents shapes the entries
+  // the retro skill opens the session when it is installed (a Claude slash command; Codex has none), writing-for-agents shapes
+  // the entries; on the pstack suite the session reflects instead, with reflect's lenses as text (ADR-0050)
   const hints = engine.skillsFor(goal).hints;
-  const retro = (goal.provider ?? config.provider) === 'codex' ? null : await hints.invokeFor('retro');
-  const prompt = buildPrompt(engine, goal, existing, { retro, section: await hints.sectionFor('learnings') });
+  const profile = engine.workflowProfileOf(goal);
+  const retro = (goal.provider ?? config.provider) === 'codex' || profile === 'pstack' ? null : await hints.invokeFor('retro');
+  const prompt = buildPrompt(engine, goal, existing, { retro, section: await hints.sectionFor('learnings', { profile }), lens: profile === 'pstack' ? 'reflect' : 'retro' });
   const transcriptPath = join(config.dataDir, 'transcripts', `learnings-${goal.id}.jsonl`);
   mkdirSync(dirname(transcriptPath), { recursive: true });
   writeFileSync(transcriptPath.replace(/\.jsonl$/, '.prompt.md'), prompt);

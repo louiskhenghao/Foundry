@@ -4,29 +4,12 @@ import { exec } from '../git/git.ts';
 import { pluginInstallCommand, type PluginSource } from './catalog.ts';
 import { LEGACY_MARKER_FILE, MARKER_FILE, type SkillsPaths } from './paths.ts';
 import { trashSkill } from './trash.ts';
+import { installSuite } from './suites.ts';
 import { FoundryMarker, type CatalogEntry, type InstallResult } from './types.ts';
+import { InstallError, type InstallContext } from './install-types.ts';
 
-export class InstallError extends Error {
-  constructor(
-    message: string,
-    public readonly code: 'conflict' | 'manual' | 'not-found' | 'git' | 'refused',
-    public readonly extra: Record<string, unknown> = {},
-  ) {
-    super(message);
-  }
-}
-
-export interface InstallContext {
-  paths: SkillsPaths;
-  log?: (m: string) => void;
-  /** for plugin sources: the backend's binary (claude, or codex for paths.provider codex) and a streaming spawner (tests inject both) */
-  claudeBin?: string;
-  codexBin?: string;
-  spawn?: (argv: string[], cwd: string, onLine: (l: string) => void, opts?: { timeoutMs?: number; env?: Record<string, string> }) => Promise<{ code: number | null; tail: string }>;
-  onLine?: (l: string) => void;
-  /** what the engine gives every session: a warm-up runs with its switches (CADGEN_*), never with its keys */
-  env?: Record<string, string>;
-}
+export { InstallError };
+export type { InstallContext };
 
 const cloneUrl = (src: Extract<CatalogEntry['source'], { type: 'git' }>) => src.url ?? `https://github.com/${src.repo}.git`;
 
@@ -168,6 +151,14 @@ export async function warmupPlugin(src: PluginSource, installPath: string, ctx: 
 
 export async function installEntry(entry: CatalogEntry, ctx: InstallContext, opts: { force?: boolean; refresh?: boolean } = {}): Promise<InstallResult> {
   if (entry.source.type === 'plugin') return installPlugin(entry, ctx);
+  if (entry.source.type === 'suite') {
+    // the whole suite installs once; every member entry reports the same copy (ADR-0049)
+    const id = entry.source.suite;
+    const suite = ctx.suites?.find((s) => s.id === id);
+    if (!suite) throw new InstallError(`${id} is not a workflow suite of this catalog`, 'not-found');
+    const r = await installSuite(suite, ctx, { refresh: opts.refresh });
+    return { ok: true, id: entry.id, name: entry.name, path: r.path, commit: r.commit, manual: null, error: null };
+  }
   if (entry.source.type !== 'git') {
     return { ok: false, id: entry.id, name: entry.name, path: null, commit: null, manual: { command: entry.source.install, docs: entry.source.docs ?? null }, error: 'manual installation required' };
   }

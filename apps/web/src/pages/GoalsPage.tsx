@@ -33,6 +33,7 @@ export function GoalsPage() {
       {g.mode === 'simple' && <Chip className="border-zinc-700 text-zinc-400">simple</Chip>}
       {g.nature !== 'auto' && g.nature !== 'code' && <Chip className="border-sky-800 text-sky-300">{g.nature}</Chip>}
       {g.workflow.pace === 'fast' && <Chip className="border-amber-800 text-amber-300">fast</Chip>}
+      {g.workflow.profile && g.workflow.profile !== 'mattpocock' && <Chip className="border-violet-800 text-violet-300">{g.workflow.profile}</Chip>}
       {g.openEscalations > 0 && <span className="text-orange-400 text-xs whitespace-nowrap">⚠ {g.openEscalations}</span>}
     </span>
   );

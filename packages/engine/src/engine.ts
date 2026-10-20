@@ -20,6 +20,7 @@ import {
   getAttempt,
   getBrief,
   getGoal,
+  listRepoLearnings,
   getTask,
   listAttempts,
   listAttemptsEndedSince,
@@ -63,6 +64,9 @@ import { MILESTONE_CHECK_PREFIX, milestoneCheckSpec } from './checks/milestone-s
 import { cleanDeliverables, deliversCheckName, deliversCheckSpec } from './checks/delivers.ts';
 import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
+import { linkSuiteSkills } from './skills/suites.ts';
+import { exportLearningsSkill } from './learnings-skill.ts';
+import { secondOpinion, secondOpinionOf, secondOpinionOnBrief, type SecondOpinionView } from './brief-second-opinion.ts';
 import { SATISFIED } from './skills/catalog.ts';
 import { UpdateManager } from './update/updater.ts';
 import { AgentsMonitor, type FoundryLiveSession } from './agents/monitor.ts';
@@ -71,7 +75,7 @@ import { CliGh, type GhClient } from './delivery/gh.ts';
 import { probeForPlan, runDelivery } from './delivery/pipeline.ts';
 import { planDelivery } from './delivery/policy.ts';
 import { usageSummary, type UsageSummary } from './usage/ledger.ts';
-import type { RunResult } from '@foundry/runner';
+import type { RunResult, RunSpec } from '@foundry/runner';
 import type { StreamEvent, StreamListener } from './types.ts';
 import { ARTIFACTS_DIR, defaultWorkspaceDir, deliveryWorkspacePath, dropTaskWorkspace, ensureGoalWorkspace, goalWorkspacePath, internalWorkspaceDir, listArtifacts, listStackBranches, previewWorkspacePath } from './workspace.ts';
 import { transferGoalDir } from './transfer/paths.ts';
@@ -272,6 +276,8 @@ export class Engine {
   readonly auditing = new Set<string>();
   /** goals whose references REA is investigating */
   readonly investigating = new Set<string>();
+  /** goals whose Brief a second opinion is being written for (ADR-0051) */
+  readonly secondOpinions = new Set<string>();
   /** goal tasks whose Delegated goal is landing on the goal branch now, with the landing (delegation.ts); stop() waits for them */
   readonly landingDelegations = new Map<string, Promise<void>>();
   /** Delegated goals whose Brief the engine is approving now, with the approval; stop() waits for them */
@@ -371,7 +377,8 @@ export class Engine {
         killAll: () => (inner as { killAll?: () => number }).killAll?.() ?? 0,
         run: async (spec) => {
           if (provider === 'codex') this.validateCodexChoice(spec.model, spec.effort);
-          const full = { ...spec, env: { ...this.mediaEnv(spec.cwd, spec.meta?.goalId ?? null), ...spec.env } };
+          const suite = await this.suiteFor(spec, provider);
+          const full = { ...spec, ...suite, env: { ...this.mediaEnv(spec.cwd, spec.meta?.goalId ?? null), ...spec.env } };
           // Claude Code reports a resumed session's whole cost; Codex reports none worth correcting
           return provider === 'claude' ? sessionCosts.run(full, (s) => inner.run(s)) : inner.run(full);
         },
@@ -401,6 +408,8 @@ export class Engine {
       claudeSkillsDir: provider === 'codex' ? join(config.claudeHome, 'skills') : undefined,
       dataDir: provider === config.provider ? config.dataDir : join(config.dataDir, 'providers', provider),
       catalogPath: config.catalogPath,
+      // one store for both coding agents: a suite's copy is the same plugin either way
+      suitesDir: join(config.dataDir, 'suites'),
       claudeBin: config.claudeBin,
       log: config.log,
       // user skills only load when user settings are in scope
@@ -464,6 +473,10 @@ export class Engine {
       if (e.type === 'session.usage' && e.payload.sessionId) this.ownedSessionIds.add(e.payload.sessionId);
       // a goal that ended teaches its folder something (ADR-0040)
       if (e.type === 'goal.state_changed') learnOnEnd(this, e.goalId, e.payload.to);
+      // the notebook changed: the folder's exported skill follows (ADR-0050)
+      if (e.type === 'learnings.set') void exportLearningsSkill(this, e.payload.repoPath);
+      // a Brief ready for a person's approval gets a second opinion when Settings say so (ADR-0051)
+      if (e.type === 'goal.state_changed' && e.payload.to === 'awaiting_brief_approval' && e.payload.reason !== 'auto brief' && e.goalId) secondOpinionOnBrief(this, e.goalId);
       if ((e.type === 'task.artifacts_landed' || e.type === 'goal.artifacts_delivered') && e.goalId) this.cadModelMemo.delete(e.goalId);
       // a milestone recorded in a goal with Subject pictures: the Likeness review compares the two (in the background)
       if (e.type === 'milestone.evidence') onMilestoneEvidence(this, e);
@@ -699,6 +712,7 @@ export class Engine {
     }
     if (changed.includes('tools.markitdownBin')) this.markitdown = new Markitdown({ bin: this.config.markitdownBin, log: this.config.log });
     if (changed.some((k) => k.startsWith('workflow.'))) Object.values(this.providerSkills).forEach((skills) => skills.hints.invalidate());
+    if (changed.includes('workflow.learningsSkill')) for (const r of listRepoLearnings(this.store.db)) void exportLearningsSkill(this, r.repoPath);
     if (changed.includes('tools.minimaxApiKey')) {
       this.mmxReady = writeMmxConfig(this.config.dataDir, this.minimaxKey(), this.config.log);
       // the quota belongs to the old key
@@ -1872,6 +1886,30 @@ export class Engine {
     return this.providerSkills[goal.provider ?? this.config.provider];
   }
 
+  /** the workflow suite a goal's sessions follow: its own, or the Settings default for a goal from before suites were per goal (ADR-0049) */
+  workflowProfileOf(goal: Pick<Goal, 'workflow'>): NonNullable<GoalWorkflow['profile']> {
+    return goal.workflow.profile ?? this.config.workflowProfile;
+  }
+
+  /**
+   * What a session of a goal on the pstack suite gets (ADR-0049): Claude loads the suite's hook-less plugin copy with
+   * --plugin-dir; Codex finds the suite's skills linked into the session's workspace. Nothing for another suite, or when
+   * the suite is not installed (the goal then runs on the fallback rules, as the prompt says).
+   */
+  private async suiteFor(spec: RunSpec, provider: 'claude' | 'codex'): Promise<Pick<RunSpec, 'pluginDirs'>> {
+    const goalId = spec.meta?.goalId;
+    const goal = goalId ? getGoal(this.store.db, goalId) : null;
+    if (!goal || this.workflowProfileOf(goal) !== 'pstack') return {};
+    const skills = this.providerSkills[provider];
+    const suite = skills.installedSuite('pstack');
+    if (!suite) return {};
+    if (provider === 'claude') return { pluginDirs: [...(spec.pluginDirs ?? []), suite.dir] };
+    const wanted = skills.catalog().entries.filter((e) => e.source.type === 'suite' && e.source.suite === 'pstack').map((e) => e.name);
+    // only a workspace or worktree takes links (a housekeeping session's cwd is the data dir)
+    if (existsSync(join(spec.cwd, '.git'))) await linkSuiteSkills(spec.cwd, suite, wanted, this.config.log).catch((e) => this.config.log(`[skills] suite links in ${spec.cwd}: ${String((e as Error).message ?? e)}`));
+    return {};
+  }
+
   // ---------- commands ----------
 
   async createGoal(input: CreateGoalInput): Promise<Goal> {
@@ -1960,7 +1998,8 @@ export class Engine {
         const pace = input.workflow?.pace ?? (MEDIA_NATURES.includes(nature) ? 'fast' : this.config.workflowPace);
         // fast goals run only what the Brief asks for: no TDD mandate unless the caller insists
         // cad: geometry checks are the tests, written before the model — preferred, never forced
-        return { pace, tdd: input.workflow?.tdd ?? (pace === 'fast' ? ('off' as const) : mode === 'simple' || nature === 'cad' ? ('preferred' as const) : this.config.workflowTdd), ponytail: input.workflow?.ponytail ?? this.config.workflowPonytail };
+        // the workflow suite is fixed here: a Settings change later never moves a goal that is under way (ADR-0049)
+        return { pace, tdd: input.workflow?.tdd ?? (pace === 'fast' ? ('off' as const) : mode === 'simple' || nature === 'cad' ? ('preferred' as const) : this.config.workflowTdd), ponytail: input.workflow?.ponytail ?? this.config.workflowPonytail, profile: input.workflow?.profile ?? this.config.workflowProfile };
       })(),
       models: provider === 'codex' ? { strong: codexPreset!.tables[natureKey(nature)].clarifier.model, cheap: codexPreset!.tables[natureKey(nature)].housekeeping.model, worker: codexPreset!.tables[natureKey(nature)].standard.model } : { ...this.config.models, ...(input.models ?? {}) },
       state: 'draft',
@@ -1983,6 +2022,8 @@ export class Engine {
       updatedAt: now,
     };
     this.store.append({ type: 'goal.created', goalId: id, payload: { goal } });
+    // a goal starting in the folder refreshes its exported Learnings skill (ADR-0050)
+    void exportLearningsSkill(this, goal.repoPath);
     for (const a of goal.attachments) this.staged.delete(a.id);
     if (input.autoBrief || input.brief) {
       this.store.append({ type: 'goal.state_changed', goalId: id, payload: { from: 'draft', to: 'clarifying', reason: 'auto brief' } });
@@ -2231,6 +2272,16 @@ export class Engine {
   /** the human answered the round a Revise asked: the proposal, or one more round */
   async answerRevise(goalId: string, ans: ReviseAnswer): Promise<DraftProposal> {
     return answerRevise(this, this.mustGoal(goalId), ans);
+  }
+
+  /** a second opinion on the Brief awaiting approval (ADR-0051): the proposal, also kept as an event for the page */
+  secondOpinion(goalId: string): Promise<DraftProposal> {
+    return secondOpinion(this, goalId);
+  }
+
+  /** the goal's last second opinion, against the Brief as it is now */
+  secondOpinionOf(goalId: string): SecondOpinionView | null {
+    return secondOpinionOf(this, goalId);
   }
 
   /** the human let an asking Revise go */

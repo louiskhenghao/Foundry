@@ -1,4 +1,4 @@
-import type { TaskKind, TaskScenario } from '@foundry/core';
+import type { TaskKind, TaskScenario, WorkflowProfile } from '@foundry/core';
 import { SATISFIED, useLabel } from './catalog.ts';
 import type { CatalogEntryStatus, SkillRole } from './types.ts';
 import { formatWorkflowSection, mandatedSkillsFor, type MandatedSkill } from './workflow.ts';
@@ -24,6 +24,8 @@ export interface SectionOpts {
   discipline?: { tdd: 'required' | 'preferred' | 'off'; ponytail?: 'on' | 'off' };
   /** the files the task touches: rules with `whenFiles` apply only when one matches */
   files?: string[];
+  /** the goal's workflow suite (ADR-0049); default: the Settings default */
+  profile?: WorkflowProfile;
 }
 
 /** TTL-cached catalog statuses → prompt sections; the manager invalidates on install/uninstall. */
@@ -31,7 +33,7 @@ export class SkillsHints {
   private cache: { at: number; statuses: CatalogEntryStatus[] } | null = null;
   constructor(
     private load: () => Promise<CatalogEntryStatus[]>,
-    private opts: { ttlMs?: number; enabled?: () => boolean; profile?: () => 'mattpocock' | 'plain'; packs?: () => Record<string, string | undefined>; gates?: () => Record<string, boolean>; provider?: 'claude' | 'codex' } = {},
+    private opts: { ttlMs?: number; enabled?: () => boolean; profile?: () => WorkflowProfile; packs?: () => Record<string, string | undefined>; gates?: () => Record<string, boolean>; provider?: 'claude' | 'codex' } = {},
   ) {}
   invalidate(): void {
     this.cache = null;
@@ -60,13 +62,14 @@ export class SkillsHints {
   async sectionFor(role: SkillRole, opts: SectionOpts = {}): Promise<string | null> {
     const s = await this.statuses();
     if (!s) return null;
-    return formatWorkflowSection({ role, taskKind: opts.taskKind, scenario: opts.scenario, projectSkills: opts.projectSkills, discipline: opts.discipline, files: opts.files, profile: this.opts.profile?.() ?? 'mattpocock', statuses: s, packs: this.packs(), gates: this.opts.gates?.(), provider: this.opts.provider });
+    return formatWorkflowSection({ role, taskKind: opts.taskKind, scenario: opts.scenario, projectSkills: opts.projectSkills, discipline: opts.discipline, files: opts.files, profile: opts.profile ?? this.opts.profile?.() ?? 'mattpocock', statuses: s, packs: this.packs(), gates: this.opts.gates?.(), provider: this.opts.provider });
   }
   /** Skills this role MUST invoke for this task kind / scenario (for the reviewer's note). */
   async mandatedFor(role: SkillRole, opts: SectionOpts = {}): Promise<MandatedSkill[]> {
     const s = await this.statuses();
-    if (!s || (this.opts.profile?.() ?? 'mattpocock') === 'plain') return [];
-    return mandatedSkillsFor({ role, taskKind: opts.taskKind, scenario: opts.scenario, discipline: opts.discipline, files: opts.files, profile: 'mattpocock', statuses: s, packs: this.packs(), gates: this.opts.gates?.() });
+    const profile = opts.profile ?? this.opts.profile?.() ?? 'mattpocock';
+    if (!s || profile === 'plain') return [];
+    return mandatedSkillsFor({ role, taskKind: opts.taskKind, scenario: opts.scenario, discipline: opts.discipline, files: opts.files, profile, statuses: s, packs: this.packs(), gates: this.opts.gates?.() });
   }
   /** how an installed catalog entry is invoked on this machine (the plugin copy first), or null when it is not installed */
   async invokeFor(name: string): Promise<string | null> {

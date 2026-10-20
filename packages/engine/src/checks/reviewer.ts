@@ -156,7 +156,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
     .map((c) => (c.spec.type === 'reviewer' ? `- ${c.name}: ${c.spec.rubric}` : ''))
     .filter(Boolean)
     .join('\n');
-  const reviewerHint = await engine.skillsFor(goal).hints.sectionFor('reviewer-task', { scenario: task.scenario, discipline: resolveDiscipline(goal, task) });
+  const reviewerHint = await engine.skillsFor(goal).hints.sectionFor('reviewer-task', { profile: engine.workflowProfileOf(goal), scenario: task.scenario, discipline: resolveDiscipline(goal, task) });
   const media =
     task.scenario === 'cad'
       ? `# CAD review\nThe deliverables are the model's source in the diff and its exports and snapshots under \`artifacts/\`, which are NOT in the diff (the folder is kept out of git). Read the task's manifest (\`docs/artifacts/…\` in the diff), open the snapshots with the Read tool and compare what you see with the Brief's dimensions and features, run the task's geometry checks, and verify every listed file exists under \`artifacts/\`. A deliverable without snapshots, a missing export, or a dimension off the Brief is a BLOCKER; so is an export or snapshot committed outside \`artifacts/\` that the Brief does not ask for there, and a committed file that reaches into the coding agent's plugin folder (\`~/.claude/plugins/…\`, \`~/.codex/plugins/…\`).`

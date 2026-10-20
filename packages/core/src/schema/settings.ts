@@ -1,7 +1,7 @@
 import { CodexModelPreset } from './codex-presets.ts';
 import { DEFAULT_NATURE_PRESETS, ModelPreset } from './model-presets.ts';
 import { z } from 'zod';
-import { Discipline, GoalMode, PonytailSwitch } from './goal.ts';
+import { Discipline, GoalMode, PonytailSwitch, WorkflowProfile } from './goal.ts';
 import { DeliveryMode, DeliveryUnit } from './delivery.ts';
 
 /**
@@ -62,13 +62,16 @@ export const SessionSettings = z.object({
 /** media-pipeline is the image packs' MCP server (claude-image-gen): allowed unless switched off */
 export const DEFAULT_MCP_ALLOWED = ['mcp__plugin_media-pipeline_media-pipeline'] as const;
 export const WorkflowSettings = z.object({
-  profile: z.enum(['mattpocock', 'plain']).default('mattpocock'),
+  /** the workflow suite new goals start with; each goal fixes its own at creation (ADR-0049) */
+  profile: WorkflowProfile.default('mattpocock'),
   /** TDD discipline new goals start with (Expert mode); Simple mode starts with `preferred` */
   tdd: Discipline.default('required'),
   /** Ponytail (the lazy senior dev: the smallest change that fully solves the task) for new goals; each goal has its own switch */
   ponytail: PonytailSwitch.default('on'),
   /** new goals run ponytail-audit on the finished branch before the goal review (chosen per goal at Brief approval) */
   audit: z.boolean().default(false),
+  /** once a Brief fills in, a reviewer that did not write it proposes what to change — a second opinion (ADR-0051) */
+  briefSecondOpinion: z.boolean().default(false),
   /** which view new goals open in */
   defaultMode: GoalMode.default('expert'),
   designPack: DesignPack.default('ui-ux-pro-max'),
@@ -90,6 +93,8 @@ export const WorkflowSettings = z.object({
   autoskills: z.boolean().default(true),
   /** when a goal ends, a cheap session adds what it taught about the repository to the folder's Learnings (ADR-0040); the notebook is given to later goals either way */
   learnings: z.boolean().default(true),
+  /** each folder's Learnings written into the repository as a project skill for the person's own sessions (ADR-0050); kept out of git */
+  learningsSkill: z.boolean().default(true),
   /** `--setting-sources` for sessions; null = inherit everything */
   settingSources: z.array(z.string()).nullable().default(null),
   /** MCP tool prefixes worker sessions may use (ADR-0016): mcp__<server>, mcp__plugin_<plugin>_<server>, mcp__claude_ai_<name> */

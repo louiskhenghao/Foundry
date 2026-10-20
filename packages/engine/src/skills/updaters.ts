@@ -8,6 +8,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { findEntry } from './catalog.ts';
 import { installEntry, updateEntry } from './installer.ts';
+import { installSuite } from './suites.ts';
 import type { SkillsPaths } from './paths.ts';
 import { runInGroup } from '../proc.ts';
 import { trashSkill } from './trash.ts';
@@ -119,6 +120,22 @@ export async function runSourceUpdate(source: SkillSource, names: string[] | und
       }
       line(`■ done (${changed.length} updated)`);
       return base({ command: ['foundry', 'update', ...pick.map((s) => s.name)], cwd: ctx.paths.skillsDir, exitCode: error ? 1 : 0, outputTail: tailOf.join('\n'), changed, error });
+    }
+    case 'suite': {
+      // the whole suite re-syncs to the catalog's pin (ADR-0049)
+      const id = source.id.startsWith('suite:') ? source.id.slice('suite:'.length) : source.id;
+      const suite = ctx.catalog.suites.find((s) => s.id === id);
+      if (!suite) return base({ error: `${id} is not a workflow suite of this catalog`, outputTail: '' });
+      try {
+        line(`↻ ${suite.label} ← ${suite.repo} @ ${suite.ref}`);
+        const r = await installSuite(suite, { paths: ctx.paths, log: ctx.log }, { refresh: true });
+        line(r.changed ? `✓ ${suite.label}: ${r.from?.slice(0, 7) ?? '?'} → ${r.commit?.slice(0, 7) ?? '?'}` : `= ${suite.label}: already at ${suite.ref}${r.commit ? ` (${r.commit.slice(0, 7)})` : ''}`);
+        return base({ command: ['foundry', 'suite', 'sync', id], cwd: r.path, exitCode: 0, outputTail: tailOf.join('\n'), changed: r.changed ? [{ name: id, from: r.from, to: r.commit }] : [], error: null });
+      } catch (e) {
+        const error = String((e as Error).message ?? e);
+        line(`✗ ${suite.label}: ${error}`);
+        return base({ command: ['foundry', 'suite', 'sync', id], cwd: ctx.paths.suitesDir, exitCode: 1, outputTail: tailOf.join('\n'), error });
+      }
     }
     case 'agents-cli': {
       const npx = ctx.npxBin ?? Bun.which('npx');

@@ -1,11 +1,11 @@
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
-import type { Attachment } from '@foundry/core/browser';
+import type { Attachment, WorkflowProfile } from '@foundry/core/browser';
 import { ARTIFACT_NATURES, BUDGET_PRESETS } from '@foundry/core/browser';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { CornerDownRight, X } from 'lucide-react';
 import { ACTION_INFO, CODEX_MODEL_ACTIONS, effectiveCodexPresets, effectivePresets, natureKey, type CodexModelPreset, type ModelNature, type ModelPreset } from '@foundry/core/browser';
-import { api, type AccountsInfo, type AgentProvider, type FollowUpDraft, type GoalRow, type ModelRecordView, type RepoInfo } from '../api.ts';
+import { api, apiForProvider, type AccountsInfo, type AgentProvider, type FollowUpDraft, type GoalRow, type ModelRecordView, type RepoInfo } from '../api.ts';
 import { AttachmentInput } from '../components/Attachments.tsx';
 import { BudgetPicker, type BudgetDraft } from '../components/BudgetPicker.tsx';
 import { DeliveryPolicyForm, type PolicyDraft } from '../components/DeliveryPolicyForm.tsx';
@@ -101,9 +101,19 @@ export function NewGoalPage() {
     setCad(null);
     void api.cad(provider).then(setCad).catch(() => setCad(null));
   }, [provider]);
+  useEffect(() => {
+    setPstackReady(null);
+    void apiForProvider(provider)
+      .skills()
+      .then((o) => setPstackReady(o.catalog.some((c) => c.entry.bundle === 'pstack' && c.status === 'installed')))
+      .catch(() => setPstackReady(false));
+  }, [provider]);
   const [mode, setModeState] = useState<'simple' | 'expert'>('expert');
   const [tdd, setTddState] = useState<'required' | 'preferred' | 'off'>('required');
   const [ponytail, setPonytailState] = useState<'on' | 'off'>('on');
+  const [profile, setProfileState] = useState<WorkflowProfile>('mattpocock');
+  /** the pstack suite is a choice once its copy is installed (Setup page); null = not known yet */
+  const [pstackReady, setPstackReady] = useState<boolean | null>(null);
   const [pace, setPace] = useState<'thorough' | 'fast'>('thorough');
   // delegated goals: off by default; the second switch only matters with the first
   const [delegate, setDelegate] = useState(false);
@@ -118,6 +128,10 @@ export function NewGoalPage() {
   const setTdd = (v: 'required' | 'preferred' | 'off') => {
     changed.current.add('tdd');
     setTddState(v);
+  };
+  const setProfile = (v: WorkflowProfile) => {
+    changed.current.add('profile');
+    setProfileState(v);
   };
   /** the Settings default; media natures auto-tick fast on top of it unless the human touches the checkbox */
   const basePace = useRef(pace);
@@ -144,6 +158,7 @@ export function NewGoalPage() {
         if (!changed.current.has('mode')) setModeState(d.workflow.defaultMode);
         if (!changed.current.has('tdd')) setTddState(d.workflow.tdd);
         if (!changed.current.has('ponytail')) setPonytailState(d.workflow.ponytail ?? 'on');
+        if (!changed.current.has('profile')) setProfileState(d.workflow.profile ?? 'mattpocock');
         basePace.current = d.workflow.defaultPace;
         // media goals default to fast on top of the Settings pace, as when the goal type is picked by hand
         if (!paceTouched.current) setPace(nature === 'image' || nature === 'video' ? 'fast' : d.workflow.defaultPace);
@@ -177,6 +192,7 @@ export function NewGoalPage() {
       else setModelPreset(p.modelPreset ?? '');
       setEffort(p.effort ?? '');
       choosePace(p.pace);
+      setProfile(p.profile);
       setMode(p.mode);
       changed.current.add('deliveryMode');
       changed.current.add('deliveryUnit');
@@ -292,7 +308,7 @@ export function NewGoalPage() {
         references: auto ? [] : references.map((r) => ({ target: r.target.trim(), lookAt: r.lookAt.trim() })).filter((r) => r.target),
         mode,
         // fast: let the engine default the TDD mandate off instead of pinning it here
-        workflow: pace === 'fast' ? { pace, ponytail } : { pace, tdd: mode === 'simple' ? 'preferred' : tdd, ponytail },
+        workflow: pace === 'fast' ? { pace, ponytail, profile } : { pace, tdd: mode === 'simple' ? 'preferred' : tdd, ponytail, profile },
         nature,
         outputDir: ARTIFACT_NATURES.includes(nature) && outputDir.trim() ? outputDir.trim() : undefined,
         interviewDepth: Number(interviewDepth),
@@ -489,6 +505,22 @@ export function NewGoalPage() {
           {unsupportedCodexChoices.length > 0 && <p role="alert" className="text-xs text-amber-300">{unsupportedCodexChoices.join('; ')}. Choose a supported goal effort or update the preset in Settings.</p>}
           <p className="text-xs text-amber-300">Codex dollar costs are unavailable; dollar budgets do not stop runs. Use duration and attempt limits.</p>
         </div>}
+        {mode === 'expert' && (
+          <div className="mt-3 flex items-center gap-2.5 flex-wrap">
+            <span className="text-xs text-zinc-300">Powered by<HelpLink to="your-first-goal#workflow-suite" className="ml-1.5" /></span>
+            <ButtonGroup
+              label="Workflow suite"
+              value={profile}
+              onChange={setProfile}
+              options={[
+                { id: 'mattpocock', label: 'mattpocock', title: "Matt Pocock's suite: tests first for features, diagnose first for bugs, code review at the end" },
+                { id: 'pstack', label: 'pstack', title: pstackReady === false ? 'Install the pstack suite on the Setup page first' : "pstack's suite, with Matt Pocock's skills where pstack has none", disabled: pstackReady === false },
+                { id: 'plain', label: 'plain', title: 'No workflow rules: sessions only hear which skills are installed' },
+              ]}
+            />
+            <span className="text-[11px] text-zinc-500">Whose skills the roles follow for this goal; fixed once the goal is created.{pstackReady === false && <> pstack is not installed: <Link to="/setup" className="underline">Setup page</Link>.</>}</span>
+          </div>
+        )}
         {mode === 'expert' && (
           <div className="mt-3 flex items-center gap-2.5 flex-wrap">
             <span className="text-xs text-zinc-300">Engineering discipline — TDD<HelpLink to="your-first-goal#engineering-discipline-tdd" className="ml-1.5" /></span>

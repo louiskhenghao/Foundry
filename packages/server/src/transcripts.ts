@@ -22,7 +22,7 @@ export function channelTranscript(dataDir: string, channel: string): string | nu
   const draft = channel.match(/^draft-(.+)$/);
   if (!draft || !existsSync(dir)) return null;
   const goal = draft[1]!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const re = new RegExp(`^(draft|revise)-${goal}-\\d+\\.jsonl$`);
+  const re = new RegExp(`^(draft|revise|second-opinion)-${goal}-\\d+\\.jsonl$`);
   const files = readdirSync(dir).filter((f) => re.test(f)).map((f) => join(dir, f));
   return files.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0] ?? null;
 }

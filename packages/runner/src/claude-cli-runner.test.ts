@@ -5,6 +5,12 @@ import { join } from 'node:path';
 import { ClaudeCliRunner } from './claude-cli-runner.ts';
 
 describe('ClaudeCliRunner arguments', () => {
+  test('a workflow suite is loaded with --plugin-dir, one per directory', () => {
+    const runner = new ClaudeCliRunner({ claudeBin: '/bin/true' });
+    const args = runner.buildArgs({ prompt: 'x', cwd: '/tmp', pluginDirs: ['/suites/pstack/plugin'] });
+    expect(args.slice(args.indexOf('--plugin-dir'), args.indexOf('--plugin-dir') + 2)).toEqual(['--plugin-dir', '/suites/pstack/plugin']);
+    expect(runner.buildArgs({ prompt: 'x', cwd: '/tmp' })).not.toContain('--plugin-dir');
+  });
   test('strictMcp loads no MCP servers; without it the CLI keeps its own', () => {
     const runner = new ClaudeCliRunner({ claudeBin: '/bin/true' });
     expect(runner.buildArgs({ prompt: 'x', cwd: '/tmp', strictMcp: true })).toContain('--strict-mcp-config');

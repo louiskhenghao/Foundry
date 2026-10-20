@@ -31,8 +31,11 @@
 | **Interview depth** | 3 | 写 Brief 之前 Clarifier 问你问得多深：从 **Skip**（不问）和 **1**（只问猜错会白做的事）到 **5**（每个细节，直到没有可问的）。见 [Interview depth](./your-first-goal.zh.md#interview-depth)。 |
 | **Effort for new goals** | Role preset / CLI default | 从 **low** 到 **max** 的全任务覆盖。默认使用 Codex 各角色预设，或 Claude CLI 默认值。 |
 | **TDD for new Expert goals** | required | 测试先行：**required**、**preferred** 或 **off**。 |
+| **Workflow suite for new goals** | mattpocock | 各角色遵循谁的技能：**mattpocock**（Matt Pocock 的套件）、**pstack**（pstack 的套件，它没有的由 Matt Pocock 的技能补上）或 **plain**（没有规则，会话只知道装了哪些技能）。每个 goal 在 New goal 表单上定下自己的。见 [Workflow suite](./your-first-goal.zh.md#workflow-suite)。 |
 | **Ponytail for new goals** | on | 懒惰的资深工程师：worker 写能完整解决任务的最小改动并复用已有的东西，planner 精简地规划，`ponytail-review` 负责审查。测试怎么写仍由 TDD 决定。每个 goal 有自己的开关。见 [Ponytail: less code](./your-first-goal.zh.md#ponytail-less-code)。 |
 | **Learn from finished goals** | 开 | goal 结束时，一个短会话把它教会的项目知识加进这个文件夹的 [Learnings](./learnings.zh.md)，这个文件夹之后的 goal 都会拿到。关掉：不再自动学习；你保留的 Learnings 仍然会用。 |
+| **Second opinion on every Brief** | 关 | goal 的 Brief 准备好等你批准时，一个没写过它的审阅者对着仓库读一遍并提出修改建议，用 goal reviewer 的模型；在 Brief 页面上以清单形式出现，你决定采不采纳。关掉：Brief 页面上仍有这个按钮。见 [Second opinion](./approving-the-brief.zh.md#second-opinion)。 |
+| **Share Learnings with your own sessions** | 开 | 把每个文件夹的 Learnings 写进仓库，作为一个项目技能（`foundry-learnings`，不进 git），你自己在那里开的编码智能体会话会读到；Learnings 一变就重写。关掉：删除这个文件。 |
 | **Audit at the end of new goals** | off | 新 goal 在最终审查前对完成的分支运行 `ponytail-audit`；goal 改过的代码里的 must fix 发现会变成修复任务。批准 Brief 时按 goal 选择。 |
 | **Goal-level fix cycles** | 1 | 最终审查在问你之前，最多可以派几轮修复任务。只用于 thorough 节奏。 |
 | **Small goal (diff lines)** | 400 | 改动行数不超过这个数的 goal，最终审查更轻、更便宜。0 = 从不。 |
@@ -40,7 +43,7 @@
 
 在 **Delivery — what happens to the branch when a goal finishes** 下：**Mode for new goals**（local only）、**Granularity**（one PR per goal）和 **Remote**（origin）。见 [拿到结果](./getting-the-result.zh.md)。
 
-值得知道：New goal 表单就从这些默认值开始。**Default goal view**、**Pace**、**TDD**、**Effort**，以及交付的 **Mode for new goals** 和 **Granularity** 都从这里填入；项目里有这里写的 **Remote** 时，表单也会选它。你在表单上改过的字段，会为这个 goal 保留你的选择。**Interview** 和模型预设只要在表单上保持默认，就跟随 Settings。Codex 主动选择 **Default** effort 则明确使用各角色的预设强度。表单自己会在这个浏览器里记住 goal 类型、预算，以及更细的交付选项（比如合并方式）。
+值得知道：New goal 表单就从这些默认值开始。**Default goal view**、**Pace**、**TDD**、**Workflow suite**、**Effort**，以及交付的 **Mode for new goals** 和 **Granularity** 都从这里填入；项目里有这里写的 **Remote** 时，表单也会选它。你在表单上改过的字段，会为这个 goal 保留你的选择。**Interview** 和模型预设只要在表单上保持默认，就跟随 Settings。Codex 主动选择 **Default** effort 则明确使用各角色的预设强度。表单自己会在这个浏览器里记住 goal 类型、预算，以及更细的交付选项（比如合并方式）。
 
 什么时候改：喜欢被问到细节的话，调高 **Interview depth**；大多数 goal 都很小的话，调低 **Effort**；如果你宁愿自己看没通过的审查，把 **Goal-level fix cycles** 降到 0。
 
@@ -179,7 +182,7 @@ Foundry 启动时，如果发现 Claude Code 自上次同步后更新过，也�
 
 skill 是所选编码智能体可以遵循的打包指令。在这里选择 Foundry 把哪些交给它的会话。
 
-- **Profile**：**mattpocock (mandated + observed)**（默认）告诉 worker 要遵循哪种工作方法（功能先写测试，bug 先诊断，任务改到 `AGENTS.md`、`CLAUDE.md` 或某个 skill 时用 `writing-for-agents` 来写），并记录它们有没有照做；装了 `retro` skill 时，写 goal 的 [Learnings](./learnings.zh.md) 的那个会话会以回顾（retrospective）的方式进行。**plain (hint only)** 只是提一下。这些 skill 来自这套套件的一个固定版本，不会在两个 goal 之间悄悄变化。
+- **Workflow suite**（在 [New goal defaults](#new-goal-defaults) 下）：各角色遵循谁的技能。**mattpocock**（默认）告诉 worker 要遵循哪种工作方法（功能先写测试，bug 先诊断，任务改到 `AGENTS.md`、`CLAUDE.md` 或某个 skill 时用 `writing-for-agents` 来写），并记录它们有没有照做；装了 `retro` skill 时，写 goal 的 [Learnings](./learnings.zh.md) 的那个会话会以回顾（retrospective）的方式进行。**pstack** 遵循 pstack 的套件，它没有的由 Matt Pocock 的技能补上。**plain** 只是提一下装了哪些技能。每套技能都来自一个固定版本，不会在两个 goal 之间悄悄变化；每个 goal 在创建时就定下自己的套件。pstack 套件在 Setup 页整套安装，在这一页显示为 Managed by Foundry 下的一个来源 **pstack suite · v0.9.93**；**Re-sync** 把副本重新对齐到固定版本，只有 Foundry 发版才会移动这个版本。
 - **Setting sources**（仅 Claude）：会话加载哪些 Claude Code 设置。留空。
 - **autoskills per goal**（开）：你批准 Brief 后，把匹配你项目技术栈（React、Tailwind……）的 skill 加到 goal 的文件夹里。它们不会进入你的提交。
 - **MCP tools that run or change things**（关）：让会话使用已允许的 MCP server 里会运行或改动东西的工具。对 REA 来说：启动目标程序、挂调试器、操作连接的 Android 设备。关着时会话只能做静态分析。

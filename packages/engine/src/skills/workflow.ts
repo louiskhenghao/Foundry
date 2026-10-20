@@ -3,7 +3,7 @@
  * kind of work and scenario, with the invoke name that is actually loaded on this machine (plugin copy first).
  * Replaces the one-line hint when the workflow profile is `mattpocock`; falls back to it otherwise.
  */
-import type { Goal, Task, TaskKind, TaskScenario } from '@foundry/core';
+import type { Goal, Task, TaskKind, TaskScenario, WorkflowProfile } from '@foundry/core';
 import { SATISFIED, cliOnly, envLabel, useLabel } from './catalog.ts';
 import { formatSkillsHint } from './hints.ts';
 import { packAllows } from './packs.ts';
@@ -15,7 +15,8 @@ export interface WorkflowSectionInput {
   taskKind?: TaskKind;
   /** the task's (or goal's dominant) scenario; undefined = general */
   scenario?: TaskScenario;
-  profile: 'mattpocock' | 'plain';
+  /** the goal's workflow suite (ADR-0049): plain = the one-line hint only */
+  profile: WorkflowProfile;
   statuses: CatalogEntryStatus[];
   /** chosen option per mutually exclusive pack, e.g. { design: 'ui-ux-pro-max' } */
   packs?: Record<string, string | undefined>;
@@ -32,8 +33,16 @@ export interface WorkflowSectionInput {
   provider?: 'claude' | 'codex';
 }
 
-/** a skill as a Codex session finds it: by name, not as a slash command (`/ui-ux-pro-max:design` → `design`) */
-const codexName = (invoke: string) => invoke.replace(/^\//, '').split(':').at(-1)!;
+/** workflow suites' plugin prefixes: Codex finds a suite skill as `<suite>-<skill>` (ADR-0049) */
+const SUITE_PREFIXES = ['pstack'];
+
+/** a skill as a Codex session finds it: by name, not as a slash command (`/ui-ux-pro-max:design` → `design`; `/pstack:tdd` → `pstack-tdd`) */
+const codexName = (invoke: string) => {
+  const bare = invoke.replace(/^\//, '');
+  const [prefix, ...rest] = bare.split(':');
+  if (rest.length && SUITE_PREFIXES.includes(prefix!)) return `${prefix}-${rest.join(':')}`;
+  return bare.split(':').at(-1)!;
+};
 
 export interface Discipline {
   tdd: 'required' | 'preferred' | 'off';
@@ -83,11 +92,20 @@ export interface MandatedSkill {
 }
 
 /** the orchestration skills of the mattpocock suite: Foundry is the tracker, the spec and the implementation loop (ADR-0004, ADR-0047) */
-const NEVER_RUN = ['/setup-matt-pocock-skills', '/to-spec', '/to-tickets', '/triage', '/implement', '/implement-spec', '/wayfinder', '/grill-with-docs', '/grill-me', '/improve-codebase-architecture'];
+const NEVER_RUN_MATTPOCOCK = ['/setup-matt-pocock-skills', '/to-spec', '/to-tickets', '/triage', '/implement', '/implement-spec', '/wayfinder', '/grill-with-docs', '/grill-me', '/improve-codebase-architecture'];
+/**
+ * pstack's routers, multi-agent and multi-model skills, the ones that need a person, and the ones that commit, push or
+ * touch a PR (ADR-0049): the whole plugin is loaded, so a session is told which of it to leave alone
+ */
+const NEVER_RUN_PSTACK = ['poteto-mode', 'setup-pstack', 'poteto-help', 'arena', 'swarm', 'architect', 'interrogate', 'how', 'why', 'teach', 'correct', 'reflect', 'automate-me', 'show-me-your-work', 'babysit', 'make-pr-easy-to-review', 'fix-ci', 'get-pr-comments', 'what-did-i-get-done', 'create-verification-skill', 'maintain-verification-skill', 'recall', 'ketchup', 'bro', 'in-your-own-words', 'figure-it-out', 'no-comments'].map((n) => `/pstack:${n}`);
+/** what a session on this suite must not run; the mattpocock skills are installed under every suite */
+export const neverRun = (profile: WorkflowProfile): string[] => (profile === 'pstack' ? [...NEVER_RUN_MATTPOCOCK, ...NEVER_RUN_PSTACK] : NEVER_RUN_MATTPOCOCK);
 
 /** a task file matches a rule's pattern: a bare name anywhere, a path exactly (in any package), a folder (`dir/`) anything under it */
 export function matchesFile(file: string, pattern: string): boolean {
   const f = file.replace(/^\.\//, '');
+  // `*.ts`: any file with that extension (a suite's TypeScript rule)
+  if (pattern.startsWith('*.')) return f.endsWith(pattern.slice(1));
   if (pattern.endsWith('/')) return f.startsWith(pattern) || f.includes(`/${pattern}`);
   if (!pattern.includes('/')) return f === pattern || f.endsWith(`/${pattern}`);
   return f === pattern || f.endsWith(`/${pattern}`);
@@ -114,6 +132,8 @@ export function applicableRules(i: WorkflowSectionInput): MandatedSkill[] {
     if (hiddenByDiscipline(s.entry, i)) continue;
     for (const r of s.entry.workflow) {
       if (r.role !== i.role) continue;
+      // a rule of one suite applies under that suite only; a rule of none applies under every suite (ADR-0049)
+      if (r.suite && r.suite !== i.profile) continue;
       if (r.when !== 'any' && i.taskKind && r.when !== i.taskKind) continue;
       if (r.when !== 'any' && !i.taskKind && i.role === 'worker') continue; // unknown kind: only `any` rules
       if (!scenarioOk(r.scenarios, i.scenario)) continue;
@@ -150,6 +170,9 @@ export function goalScenario(tasks: Pick<Task, 'scenario' | 'origin'>[]): TaskSc
   return best;
 }
 
+/** how the section names the suite the rules come from (ADR-0049) */
+const SUITE_LABEL: Record<WorkflowProfile, string> = { mattpocock: "Matt Pocock's", pstack: "pstack's", plain: 'the' };
+
 /** Full prompt section (with its own heading), or null when there is nothing to say. */
 export function formatWorkflowSection(i: WorkflowSectionInput): string | null {
   const visible = visibleStatuses(i).filter((s) => !hiddenByDiscipline(s.entry, i));
@@ -169,7 +192,7 @@ export function formatWorkflowSection(i: WorkflowSectionInput): string | null {
   const lines: string[] = ['# Workflow skills'];
   if (i.scenario && i.scenario !== 'general') lines.push(`Scenario: ${i.scenario}.`);
   if (rules.length) {
-    lines.push(codex ? "This engine follows Matt Pocock's engineering workflow. The skills below are installed for this session: before the work one covers, open its SKILL.md and follow it." : "This engine follows Matt Pocock's engineering workflow. The skills below are loaded in this session; invoke them with the Skill tool.");
+    lines.push(codex ? `This engine follows ${SUITE_LABEL[i.profile]} engineering workflow. The skills below are installed for this session: before the work one covers, open its SKILL.md and follow it.` : `This engine follows ${SUITE_LABEL[i.profile]} engineering workflow. The skills below are loaded in this session; invoke them with the Skill tool.`);
     for (const r of rules) {
       const keys = r.missingEnv.map(envLabel).join(', ');
       const degraded = !r.missingEnv.length
@@ -179,7 +202,7 @@ export function formatWorkflowSection(i: WorkflowSectionInput): string | null {
           : ` ⚠ ${keys} is NOT set in this session, so the skill's API/generation mode is unavailable and it can only advise. If the deliverable depends on it, build the best fallback you can and say so explicitly in your result and manifests — never present the fallback as the real output.`;
       lines.push(`- ${r.mandate === 'must' ? 'MUST' : 'Prefer'}: ${r.cli ? `use the \`${r.cli}\` command-line tool` : codex ? `follow the \`${codexName(r.invoke)}\` skill` : `invoke \`${r.invoke}\``} — ${r.instruction}${degraded}`);
     }
-    lines.push(`- Do NOT run ${NEVER_RUN.join(', ')}: Foundry is the tracker and has already done that work. Never write docs/agents/*.`);
+    lines.push(`- Do NOT run ${(codex ? neverRun(i.profile).map(codexName) : neverRun(i.profile)).join(', ')}: Foundry is the tracker and has already done that work. Never write docs/agents/*.`);
     if (!codex) lines.push('- The engine records which skills you invoked; the reviewer sees it.');
   }
   if (others.length) lines.push(`${rules.length ? 'Other installed' : 'Installed'} skills relevant to this role (use when appropriate): ${(codex ? others.map((o) => (o.startsWith('/') ? codexName(o) : o)) : others).join(', ')}`);

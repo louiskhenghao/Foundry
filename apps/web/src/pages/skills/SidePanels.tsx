@@ -119,7 +119,7 @@ function CatalogRow({ c, busy, running, onInstall, onInstallTool }: { c: Catalog
           {c.entry.name}
         </button>
         {c.entry.bundle && <span className="text-[9px] uppercase rounded bg-zinc-800 text-zinc-400 px-1">{c.entry.bundle}</span>}
-        {(type === 'git' || type === 'plugin') &&
+        {(type === 'git' || type === 'plugin' || type === 'suite') &&
           (satisfied ? (
             c.status === 'installed-unmanaged' && type === 'git' && (
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => onInstall(true)} title="replace the unmanaged copy with the catalog version (old copy goes to trash)">
@@ -156,6 +156,7 @@ function sourceLine(c: CatalogEntryStatus): string {
   if (s.type === 'git') return `${s.repo}${s.ref ? ` @ ${s.ref}` : ''}${s.path ? ` · ${s.path}` : ''}`;
   if (s.type === 'plugin') return `plugin ${s.plugin} from the ${s.marketplaceId} marketplace (${s.marketplace}${s.ref ? ` @ ${s.ref}` : ''})`;
   if (s.type === 'cli') return `command-line tool \`${s.detect}\`${s.skill ? ' with a skill folder of the same name' : ''}`;
+  if (s.type === 'suite') return `the ${s.suite} workflow suite — a Foundry-managed copy of its pinned plugin, without its hooks`;
   return `installed by hand (${s.detectDir}/)`;
 }
 

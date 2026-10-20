@@ -43,6 +43,8 @@ When everything needed is in place the page says **Everything is in place** and 
 
 The card **Development workflow — Matt Pocock's engineering skills** lists the skills Foundry's workers follow (for example writing tests first). If some are missing, press **Install N missing**. The bundle contains eight current upstream skills. The removed `resolving-merge-conflicts` skill is no longer requested; Foundry’s built-in Merger instructions still handle conflicts.
 
+The card **Workflow suite — pstack** installs the second suite a goal can run on (see [Workflow suite](#workflow-suite)): Foundry's own copy of one pinned release of the pstack plugin, without its hooks, as one unit. Its skills then show on Extensions as one source, **pstack suite**.
+
 The card **3D models — text-to-cad (CAD)** installs the plugin behind **CAD** goals: its skills (parts and assemblies, drawings, DXF, robot files, printability and manufacturability checks, headless slicing) and a `cad` viewer server, from earthtojake/text-to-cad (MIT). The install adds the plugin for the selected coding agent, allows its server for sessions and downloads the CAD runtime once (Python 3.13 and OpenCASCADE, a few hundred MB, through uv), with the progress shown under the card; it runs in the background, so the page can be left meanwhile. The **CAD tools** check above says whether uv is on this computer and which slicer or printer apps were found; hand-offs to those apps stay off until **Settings → Safety → Desktop apps & printers** is on. Foundry's sessions run cadgen with usage statistics and update checks off; your own use of text-to-cad keeps its settings.
 
 ### Pick a repository folder
@@ -57,7 +59,7 @@ Foundry works in a *repository*: a project folder that git keeps history for. Yo
 
 Press **New goal** in the top bar. The four numbered steps at the top right (**Goal**, **Repository**, **Budget**, **Delivery**) show how far you are. **Goal** turns green once you describe the goal, **Repository** once a ready folder is picked. **Budget** and **Delivery** are always green: their defaults work. The form starts with two cards of choices; the numbered cards **1** to **4** follow.
 
-Several choices start from [Settings → New goal defaults](./settings.md#new-goal-defaults): the view, **Fast mode**, TDD, and the delivery mode and granularity. Change any of them here for this goal. A field you change on the page keeps your choice.
+Several choices start from [Settings → New goal defaults](./settings.md#new-goal-defaults): the view, **Fast mode**, TDD, the workflow suite, and the delivery mode and granularity. Change any of them here for this goal. A field you change on the page keeps your choice.
 
 ![The New goal form with the shared Coding agent selector](images/new-goal.png)
 
@@ -134,6 +136,10 @@ For Codex, **View … role assignments** shows the model and effort each role wi
 Codex goals retain these settings after creation; later preset edits and deletion do not change them. If a follow-up refers to a deleted preset, the form asks you to choose an available preset. Codex preset names describe reasoning profiles, not USD prices or guaranteed account access.
 
 For **Auto** goals, **Default · By goal type** captures the configured defaults for Code, Docs & research and Media. The role preview initially shows Code; classification switches to the captured table for the inferred type. An explicitly selected preset stays selected regardless of classification.
+
+### Workflow suite
+
+Only in Expert view, and **pstack** only once the Setup page has installed it (the card **Workflow suite — pstack** installs Foundry's own copy of one pinned release, without the plugin's hooks; Claude loads it per session, Codex gets its skills linked into the goal's workspace). Until then the option is greyed out. **Powered by** picks whose skills the roles follow for this goal: **mattpocock** (the default: Matt Pocock's suite — tests first for features, diagnose first for bugs, code review at the end), **pstack** (pstack's suite, with Matt Pocock's skills where pstack has none) or **plain** (no rules: sessions only hear which skills are installed). The choice is fixed when the goal is created; a follow-up starts from the earlier goal's choice, and a delegated goal takes its main goal's. Simple view goals use the Settings default. The goal page and the Brief show it as a **Powered by** chip.
 
 ### Engineering discipline (TDD)
 

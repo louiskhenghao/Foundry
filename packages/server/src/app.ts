@@ -766,6 +766,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       subjectSearches: subjectSearchesFor(id),
       auditRunning: engine.auditing.has(id),
       investigating: engine.investigating.has(id),
+      // the last second opinion on the Brief (ADR-0051), and whether one is being written
+      secondOpinion: engine.secondOpinionOf(id),
+      secondOpinionRunning: engine.secondOpinions.has(id),
       // Follows / Followed by: the earlier goal may have been deleted since (then only its title remains)
       followUps: {
         followsExists: goal.follows ? !!getGoal(db, goal.follows.goalId) : false,
@@ -821,6 +824,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     if (!parsed.success) return c.json({ error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }, 400);
     return c.json({ proposal: await engine.draftBrief(c.req.param('id'), parsed.data) });
   });
+  // a second opinion on the Brief (ADR-0051): a reviewer that did not write it proposes what to change
+  app.post('/api/goals/:id/brief/second-opinion', async (c) => c.json({ proposal: await engine.secondOpinion(c.req.param('id')) }));
 
   // manual merge resolution (a task blocked on a merge conflict)
   app.get('/api/goals/:id/tasks/:taskId/resolve', async (c) => {

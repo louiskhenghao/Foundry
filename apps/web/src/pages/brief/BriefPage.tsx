@@ -17,6 +17,7 @@ import { StyleCards } from './StyleCards.tsx';
 import { useUnsaved } from '../../unsaved.ts';
 import { SubjectsCard } from './SubjectsCard.tsx';
 import { DecisionsBar } from './DecisionsBar.tsx';
+import { SecondOpinionBar } from './SecondOpinionBar.tsx';
 import { GoalAcceptanceCard } from './GoalAcceptanceCard.tsx';
 import { RunCard } from './RunCard.tsx';
 import { InterviewPanel } from '../goal/InterviewPanel.tsx';
@@ -322,6 +323,11 @@ export function BriefPage() {
               <DecisionsBar brief={brief} goal={g} goalId={id} editable={editable} revisable={settled} edit={edit} beforeRevise={dirty ? save : undefined} />
             </section>
           )}
+          {(editable || detail.secondOpinion) && (
+            <section id="brief-second-opinion" className={sec}>
+              <SecondOpinionBar goalId={id} stored={detail.secondOpinion ?? null} running={!!detail.secondOpinionRunning} editable={editable} edit={edit} beforeRun={dirty ? save : undefined} />
+            </section>
+          )}
           <section id="brief-areas" className={sec}>
             <AreasCard brief={brief} goalId={id} editable={editable} draftable={settled} planning={skeleton} edit={edit} />
           </section>
@@ -469,6 +475,7 @@ function Header({ detail, onSimple, beforeReclarify }: { detail: GoalDetail; onS
       <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-lg font-semibold">{g.title}</h1>
         <Badge state={g.state} />
+        {g.workflow.profile && <span className="text-[10px] rounded-full border border-violet-800 text-violet-300 px-1.5" title="Workflow suite: whose skills the roles follow for this goal">Powered by {g.workflow.profile}</span>}
         <HelpLink to="approving-the-brief" label="How to read and approve the Brief (new tab)" />
         {onSimple && (
           <Button size="sm" variant="ghost" className="ml-auto" onClick={onSimple} title="Back to the plain-language view">

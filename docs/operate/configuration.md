@@ -8,9 +8,11 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
+| `workflow.profile` | `mattpocock` | `FOUNDRY_WORKFLOW` | Workflow suite new goals start with — whose skills the roles follow: mattpocock (Matt Pocock's suite), pstack (with Matt Pocock's skills where it has none) or plain (the installed-skills hint only). Each goal fixes its own on the New goal form. |
 | `workflow.tdd` | `required` | `FOUNDRY_TDD` | Test-driven discipline for new expert goals: required (observed), preferred (suggested) or off. |
 | `workflow.ponytail` | `on` | `FOUNDRY_PONYTAIL` | Ponytail, the lazy senior dev, for new goals: workers write the smallest change that fully solves the task and reuse what exists, the planner plans lean, and ponytail-review reviews. Each goal has its own switch. |
 | `workflow.audit` | `false` | `FOUNDRY_AUDIT` | New goals run ponytail-audit on the finished branch before the goal review; must-fix findings in the code the goal touched become fix tasks. Chosen per goal at Brief approval. |
+| `workflow.briefSecondOpinion` | `false` | — | Once a new goal's Brief is ready for your approval, a reviewer that did not write it reads it against the repository and proposes what to change, on the goal reviewer's model: a checklist on the Brief page you apply or not. Off = the Brief page still has the button. |
 | `workflow.defaultMode` | `expert` | `FOUNDRY_GOAL_MODE` | Which view a new goal opens in: simple (plain-language Brief and progress) or expert (every control). |
 | `workflow.defaultPace` | `thorough` | `FOUNDRY_PACE` | thorough = the engine adds its own task and goal reviews and can spawn fix tasks; fast = only the checks you approved run. Image and video goals start fast. |
 | `workflow.interview` | `auto` | `FOUNDRY_INTERVIEW` | The older switch for the interview: auto, always (at least one round) or never (one-shot Brief). Interview depth, when set, takes its place. |
@@ -18,6 +20,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `workflow.milestonePause` | `true` | `FOUNDRY_MILESTONE_PAUSE` | New goals pause at their milestones so you can have a look; off = they go on, and what the milestone shows is sent to your notification channels. Switchable per goal. |
 | `workflow.effort` | — | `FOUNDRY_EFFORT` | Default goal-wide effort override (low … max). Empty uses each Codex role preset or the Claude CLI default. New goals can override it. |
 | `workflow.learnings` | `true` | — | When a goal ends, a short session on the goal's housekeeping model adds what it taught about the repository to the folder's Learnings. Off = nothing is learned automatically; the Learnings you keep are still given to later goals. |
+| `workflow.learningsSkill` | `true` | — | Write each folder's Learnings into the repository as a project skill (foundry-learnings, under .claude/skills and .agents/skills, kept out of git) for your own sessions there; rewritten whenever the Learnings change. Off = the file is removed. |
 | `reviews.alwaysReviewTasks` | `true` | — | Run the task reviewer on every task, not only tasks that ask for a reviewer check (thorough pace). |
 | `reviews.maxFixCycles` | `1` | — | Goal review → fix-task rounds before the goal asks you. |
 | `reviews.smallGoalLines` | `400` | `FOUNDRY_SMALL_GOAL_LINES` | A goal whose whole diff is at most this many lines is reviewed by the Task reviewer model without review skills; 0 = never. |
@@ -54,7 +57,6 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
-| `workflow.profile` | `mattpocock` | `FOUNDRY_WORKFLOW` | Workflow skill set sessions are told to follow: mattpocock (TDD, diagnosing bugs, code review …) or plain. |
 | `workflow.designPack` | `ui-ux-pro-max` | `FOUNDRY_DESIGN_PACK` | Design skill set for UI tasks. |
 | `workflow.imagePack` | `gpt-image-2` | `FOUNDRY_IMAGE_PACK` | Image-generation skill set for image tasks. |
 | `workflow.videoPack` | `web-video-presentation` | `FOUNDRY_VIDEO_PACK` | Video skill set for video tasks. |

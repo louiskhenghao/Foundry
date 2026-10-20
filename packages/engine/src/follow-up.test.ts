@@ -85,7 +85,7 @@ describe('follow-up goals', () => {
     const draft = await engine.followUpDraft(a.id);
     expect(draft.followable).toBe(true);
     expect(draft.start).toMatchObject({ recommended: 'previous', onBase: false, previousBranch: a.branch, baseBranch: 'main' });
-    expect(draft.prefill).toMatchObject({ repoPath: repo, nature: a.nature, pace: a.workflow.pace, delivery: a.delivery.policy });
+    expect(draft.prefill).toMatchObject({ repoPath: repo, nature: a.nature, pace: a.workflow.pace, profile: 'mattpocock', delivery: a.delivery.policy });
 
     const b = await engine.createGoal({ prompt: 'now add b.txt', repoPath: repo, follows: { goalId: a.id } });
     expect(b.follows).toMatchObject({ goalId: a.id, title: a.title, via: 'created', startFrom: 'previous', branch: a.branch });
