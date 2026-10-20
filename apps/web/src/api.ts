@@ -279,7 +279,7 @@ export interface FsRecent {
 }
 import type { AgentLogChunk, AgentsList, AgentsSummary } from '@foundry/engine/agents-types';
 import type { DoctorReport, InstallResult, SkillTier, SkillUpdateRun, SkillsOverview, SkillsUpdateReport, TrashEntry } from '@foundry/engine/skills-types';
-import type { MinimaxQuota, UsageSummary } from '@foundry/engine/usage-types';
+import type { MinimaxQuota, Report, UsageSummary } from '@foundry/engine/usage-types';
 
 export type Usage = UsageSummary & { pausedUntil: string | null };
 
@@ -782,6 +782,8 @@ export function apiForProvider(provider?: AgentProvider) {
   submitLoginCode: (code: string, provider?: AgentProvider) => req<LoginSession>(`/api/auth/login/code${provider ? '?provider=' + provider : ''}`, { method: 'POST', body: JSON.stringify({ code }) }),
   logout: (provider?: AgentProvider) => req<ClaudeAuthStatus>(`/api/auth/logout${provider ? '?provider=' + provider : ''}`, { method: 'POST' }),
   usage: (provider?: AgentProvider) => req<Usage>(`/api/usage${provider ? '?provider=' + provider : ''}`),
+  /** Reports (ADR-0060): the last `days`, or all time with null */
+  report: (days: number | null) => req<Report>(`/api/reports?days=${days ?? 'all'}`),
   resumeUsage: (provider?: AgentProvider) => req<{ resumed: boolean }>(`/api/usage/resume${provider ? `?provider=${provider}` : ''}`, { method: 'POST' }),
   probeUsage: (provider?: AgentProvider) => req<Usage>(`/api/usage/probe${provider ? `?provider=${provider}` : ''}`, { method: 'POST' }),
   minimaxQuota: (refresh = false) => req<MinimaxQuota>(`/api/usage/minimax${refresh ? '?refresh=1' : ''}`),
