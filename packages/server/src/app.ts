@@ -1083,6 +1083,15 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     await engine.recheckDeliveryPr(goalOr404(c).id, Number(c.req.param('number')));
     return c.json({ ok: true, delivery: getGoal(db, c.req.param('id'))!.delivery });
   });
+  // "Fix review comments" on one PR (ADR-0053): read it now, then address its waiting round whatever the budget
+  app.post('/api/goals/:id/delivery/prs/:number/fix-reviews', async (c) => {
+    try {
+      await engine.requestReviewFix(goalOr404(c).id, Number(c.req.param('number')));
+    } catch (e) {
+      throw new HttpError(409, { error: String((e as Error).message ?? e) });
+    }
+    return c.json({ ok: true, delivery: getGoal(db, c.req.param('id'))!.delivery });
+  });
   // the human finished the delivery themselves: merged on GitHub → finished as merged, otherwise delivered by them
   app.post('/api/goals/:id/delivery/mark-delivered', async (c) => {
     await engine.markDelivered(goalOr404(c).id);
