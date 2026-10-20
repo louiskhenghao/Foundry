@@ -22,16 +22,18 @@ import { codeWork } from './skills/workflow.ts';
 const CODE_SCENARIOS = new Set(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra']);
 
 /** Defaults when the UI sends nothing (Simple mode, API callers): inferred from the Brief. */
-export function inferCompletion(brief: Brief, ws: string, pace: 'thorough' | 'fast' = 'thorough', auditDefault = false): { graphRefresh: boolean; docs: DocType[]; audit: boolean; reason: string } {
+export function inferCompletion(brief: Brief, ws: string, pace: 'thorough' | 'fast' = 'thorough', auditDefault = false, qaDefault = false): { graphRefresh: boolean; docs: DocType[]; audit: boolean; qa: boolean; reason: string } {
   const code = brief.tasks.some((t) => CODE_SCENARIOS.has(t.scenario ?? 'general'));
   // the audit is Ponytail's review of the finished branch: a goal of documents, research or media alone gets none
   const audit = auditDefault && brief.tasks.some((t) => codeWork(t));
-  if (pace === 'fast') return { graphRefresh: code, docs: [], audit, reason: 'fast pace: no generated docs' };
+  // the browser QA opens the app: only a goal with a web app to open gets one (ADR-0057)
+  const qa = qaDefault && !!(brief.apps?.length || brief.run);
+  if (pace === 'fast') return { graphRefresh: code, docs: [], audit, qa, reason: 'fast pace: no generated docs' };
   const docs: DocType[] = [];
   if (code) docs.push('to-prd', 'readme-update');
   if (code && existsSync(join(ws, 'CHANGELOG.md'))) docs.push('changelog');
   if (pendingDecisions(brief).length) docs.push('to-questionnaire');
-  return { graphRefresh: code, docs, audit, reason: code ? 'inferred: coding goal' : 'inferred: no coding tasks' };
+  return { graphRefresh: code, docs, audit, qa, reason: code ? 'inferred: coding goal' : 'inferred: no coding tasks' };
 }
 
 /**

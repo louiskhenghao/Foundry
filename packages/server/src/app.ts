@@ -39,6 +39,7 @@ const CompletionBody = z.object({
   graphRefresh: z.boolean().optional(),
   docs: z.array(DocType).optional(),
   audit: z.boolean().optional(),
+  qa: z.boolean().optional(),
 });
 
 const CreateGoalBody = z.object({
@@ -777,6 +778,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       costEstimate: estimateCutSessions(measuredRates(db), engine.store.listByGoalOfTypes(id, ['session.usage'])),
       subjectSearches: subjectSearchesFor(id),
       auditRunning: engine.auditing.has(id),
+      qaRunning: engine.qaing.has(id),
       investigating: engine.investigating.has(id),
       // how far earlier goals ran from their estimate, for the Brief's estimate card (ADR-0056)
       calibration: engine.calibrationFor(goal),
