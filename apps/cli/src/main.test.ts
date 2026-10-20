@@ -201,3 +201,36 @@ describe('CLI report (ADR-0060)', () => {
     }
   });
 });
+
+describe('CLI access (ADR-0061)', () => {
+  test('access add prints the token once, and FOUNDRY_TOKEN travels as a bearer header', async () => {
+    const seen: { path: string; auth: string | null; body: unknown }[] = [];
+    const server = Bun.serve({
+      hostname: '127.0.0.1', port: 0,
+      async fetch(request) {
+        const path = new URL(request.url).pathname;
+        seen.push({ path, auth: request.headers.get('authorization'), body: request.method === 'POST' ? await request.json() : null });
+        if (path === '/api/access/people' && request.method === 'POST') return Response.json({ person: { id: 'p_1', name: 'Ada', createdAt: '2026-10-21T00:00:00Z', lastUsedAt: null }, token: 'fnd_abc' }, { status: 201 });
+        if (path === '/api/access/people') return Response.json({ enabled: true, people: [{ id: 'p_1', name: 'Ada', createdAt: '2026-10-21T00:00:00Z', lastUsedAt: null }] });
+        return new Response('Unexpected request', { status: 404 });
+      },
+    });
+    const run = async (args: string[], env: Record<string, string> = {}) => {
+      const child = Bun.spawn([process.execPath, main, ...args], { env: { FOUNDRY_URL: `http://127.0.0.1:${server.port}`, PATH: process.env.PATH, ...env }, stdout: 'pipe', stderr: 'pipe' });
+      const [exitCode, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]);
+      expect(stderr).toBe('');
+      expect(exitCode).toBe(0);
+      return stdout;
+    };
+    try {
+      const added = await run(['access', 'add', 'Ada']);
+      expect(added).toContain("Ada's token, shown once: fnd_abc");
+      expect(seen.at(-1)).toMatchObject({ path: '/api/access/people', auth: null, body: { name: 'Ada' } });
+      const listed = await run(['access'], { FOUNDRY_TOKEN: 'fnd_abc' });
+      expect(listed).toContain('p_1  Ada  since 2026-10-21  last used never');
+      expect(seen.at(-1)).toMatchObject({ path: '/api/access/people', auth: 'Bearer fnd_abc' });
+    } finally {
+      server.stop(true);
+    }
+  });
+});

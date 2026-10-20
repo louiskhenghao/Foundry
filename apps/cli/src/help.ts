@@ -53,6 +53,9 @@ export const help = `foundry — drive the host Claude Code or Codex CLI to deli
   auth [status|login|logout] [--provider claude|codex]
                                           Independent account; running server owns login/logout and protects active work
                                           An explicit FOUNDRY_URL must be reachable; it never falls back to local auth
+  access [list|add <name>|revoke <id>] [--json]
+                                          Who may use this Foundry from elsewhere: each person a token; once anyone has one,
+                                          every request needs one (FOUNDRY_TOKEN here, the sign-in page in a browser)
   usage [--provider claude|codex] [--json] [--probe]
                                           Activity and available account quota; --probe refreshes status (Claude consumes quota)
                                           Codex shows only reported account windows; weekly-only accounts are supported
