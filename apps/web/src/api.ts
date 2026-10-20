@@ -609,6 +609,8 @@ export function apiForProvider(provider?: AgentProvider) {
   retryDelivery: (id: string) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/delivery/retry`, { method: 'POST' }),
   recheckPr: (id: string, n: number) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/delivery/prs/${n}/recheck`, { method: 'POST' }),
   markDelivered: (id: string) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/delivery/mark-delivered`, { method: 'POST' }),
+  /** "Fix review comments" on one PR (ADR-0053): read it now, then address its waiting round whatever the budget */
+  fixReviews: (id: string, n: number) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/delivery/prs/${n}/fix-reviews`, { method: 'POST' }),
   refreshDelivery: (id: string) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/delivery/refresh`, { method: 'POST' }),
   afterMerge: (id: string, opts: { pull?: boolean; force?: boolean }) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/delivery/after-merge`, { method: 'POST', body: JSON.stringify(opts) }),
   deliveryPlan: (id: string, q: Record<string, string>) => req<{ policy: DeliveryPolicy; probes: any; steps: DeliveryPlanStep[] }>(`/api/goals/${id}/delivery/plan?${new URLSearchParams(q)}`),

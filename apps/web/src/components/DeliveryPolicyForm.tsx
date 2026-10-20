@@ -173,23 +173,41 @@ export function DeliveryPolicyForm({ value, onChange, repo, taskCount = null, lo
             </div>
           </Section>
 
-          {value.mode === 'pr-automerge' && (
+          {isPr && (
             <Section title="Once the PR is open">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5">
-                <Option checked={value.requireChecks ?? true} onChange={(v) => set({ requireChecks: v })} label="Wait for CI checks" hint="Merge only after every check reports. Off = merge as soon as the PR is mergeable." />
-                <Option checked={value.mergeIfNoChecks ?? true} onChange={(v) => set({ mergeIfNoChecks: v })} label="Merge when no checks are configured" hint="Off = a repository without CI stops at the PR." />
-                <Option checked={value.autoResolveConflicts ?? true} onChange={(v) => set({ autoResolveConflicts: v })} label="Auto-resolve conflicts with the base branch" hint="A Merge Attempt resolves them; off = a conflict stops delivery." />
-                <Option checked={value.deleteRemoteBranch ?? true} onChange={(v) => set({ deleteRemoteBranch: v })} label="Delete the remote branch after merging" hint="Only the branch(es) this goal pushed, never the base." />
+                {value.mode === 'pr-automerge' && (
+                  <>
+                    <Option checked={value.requireChecks ?? true} onChange={(v) => set({ requireChecks: v })} label="Wait for CI checks" hint="Merge only after every check reports. Off = merge as soon as the PR is mergeable." />
+                    <Option checked={value.mergeIfNoChecks ?? true} onChange={(v) => set({ mergeIfNoChecks: v })} label="Merge when no checks are configured" hint="Off = a repository without CI stops at the PR." />
+                    <Option checked={value.autoResolveConflicts ?? true} onChange={(v) => set({ autoResolveConflicts: v })} label="Auto-resolve conflicts with the base branch" hint="A Merge Attempt resolves them; off = a conflict stops delivery." />
+                    <Option checked={value.deleteRemoteBranch ?? true} onChange={(v) => set({ deleteRemoteBranch: v })} label="Delete the remote branch after merging" hint="Only the branch(es) this goal pushed, never the base." />
+                    <label className="flex items-start gap-2 sm:col-span-2">
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs text-zinc-200">Fix failing CI</span>
+                        <span className="block text-[11px] text-zinc-500">A bounded fix task reads the failed job log and pushes again.</span>
+                      </span>
+                      <span className="w-36 shrink-0">
+                        <Select value={String(value.fixCiCycles ?? 1)} onChange={(e) => set({ fixCiCycles: Number(e.target.value) })}>
+                          <option value="0">don't fix</option>
+                          <option value="1">up to once</option>
+                          <option value="2">up to twice</option>
+                        </Select>
+                      </span>
+                    </label>
+                  </>
+                )}
                 <label className="flex items-start gap-2 sm:col-span-2">
                   <span className="min-w-0 flex-1">
-                    <span className="block text-xs text-zinc-200">Fix failing CI</span>
-                    <span className="block text-[11px] text-zinc-500">A bounded fix task reads the failed job log and pushes again.</span>
+                    <span className="block text-xs text-zinc-200">Fix review comments</span>
+                    <span className="block text-[11px] text-zinc-500">Inline comments on the diff, and reviews that request changes: a bounded fix task addresses each round, pushes, and replies under every comment. More rounds on your click.</span>
                   </span>
                   <span className="w-36 shrink-0">
-                    <Select value={String(value.fixCiCycles ?? 1)} onChange={(e) => set({ fixCiCycles: Number(e.target.value) })}>
+                    <Select value={String(value.fixReviewCycles ?? 1)} onChange={(e) => set({ fixReviewCycles: Number(e.target.value) })}>
                       <option value="0">don't fix</option>
                       <option value="1">up to once</option>
                       <option value="2">up to twice</option>
+                      <option value="3">up to three times</option>
                     </Select>
                   </span>
                 </label>
