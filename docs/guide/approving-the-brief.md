@@ -122,6 +122,10 @@ If the plan already fits your decisions, press **No changes needed** to stop the
 
 You can also approve with decisions not applied. Workers still receive them; the plan just was not rewritten for them.
 
+### Second opinion
+
+Under the decisions, **Second opinion** has a reviewer that did not write the Brief read it against your project, as your stand-in: is the understanding right, are the tasks the right size and order, do the checks decide what you asked, what is missing or risky. It runs on the goal reviewer's model, read-only, and never asks questions; what it cannot know it assumes and says so. Its proposal appears as the same checklist a revision uses: tick the rows you take, press **Apply**, nothing changes by itself. Your unsaved edits are saved first. **Settings → New goal defaults → Second opinion on every Brief** has one written by itself as soon as a Brief is ready for you; it stays on the page after a reload, and says so when the Brief changed since.
+
 ## Areas
 
 **Areas (N)** are the parts of the product this goal covers: a role or app ("student portal", "teacher portal") or the shared groundwork they all need. Every task belongs to one Area.

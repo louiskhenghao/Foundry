@@ -94,6 +94,10 @@ The user asking the system to re-read the Brief in the light of the current Deci
 
 ## Human involvement
 
+**Second opinion**
+A Revise-shaped Proposal on a Brief awaiting approval written by a Role that did not write the Brief — the Brief Reviewer, on the Goal Reviewer's model row — reading it against the repository as the user's stand-in: what is wrong, missing, too big, in the wrong order, or decided by no Check. On demand from the Brief page, or once by itself when a Brief fills in and Settings say so; never a question. Kept as an event, shown as a diff against the Brief as it is now; the user applies the rows they take.
+_Avoid_: review (a Review judges a diff after the work; a second opinion judges the plan before it), Revise (the same Role rereading its own Brief in the light of Decisions)
+
 **Escalation**
 The only way the system ever asks a human for anything after the Brief is approved. There are exactly six triggers, and nothing else interrupts the user:
 1. a Task exhausted its retry budget with Must Checks still failing (including a failed Goal review);
