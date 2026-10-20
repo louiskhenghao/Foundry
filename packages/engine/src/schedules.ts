@@ -5,7 +5,8 @@
  * at the keyboard; otherwise the Brief waits for the person like any goal's.
  */
 import type { Goal, GoalRecipe, Schedule, ScheduleCadence } from '@foundry/core';
-import { IdPrefix, getBrief, getGoal, getSchedule, isDue, listSchedules, newId, nextRunAt, proposeBudgetFromEstimate, Schedule as ScheduleSchema } from '@foundry/core';
+import { IdPrefix, calibratedEstimate, getBrief, getGoal, getSchedule, isDue, listSchedules, newId, nextRunAt, proposeBudgetFromEstimate, Schedule as ScheduleSchema } from '@foundry/core';
+import { calibrationFor } from './calibration.ts';
 import { linkAttachment } from './attachments.ts';
 import type { Engine } from './engine.ts';
 import { subjectSearchesFor } from './subjects.ts';
@@ -155,7 +156,8 @@ export function autoApproveScheduled(engine: Engine, goal: Goal): void {
   if (engine.investigating.has(goal.id) || engine.approvingDelegated.has(goal.id) || subjectSearchesFor(goal.id).length) return;
   const brief = getBrief(store.db, goal.id)?.brief;
   if (!brief || brief.questions.some((q) => q.blocking && !q.answer?.trim())) return;
-  const budgets = goal.budgetPreset === 'auto' ? proposeBudgetFromEstimate(brief) : undefined;
+  // the estimate as earlier goals corrected it (ADR-0056): a run nobody watches gets a budget that fits
+  const budgets = goal.budgetPreset === 'auto' ? proposeBudgetFromEstimate(calibratedEstimate(brief, calibrationFor(engine, goal))) : undefined;
   engine.approvingDelegated.set(
     goal.id,
     engine
