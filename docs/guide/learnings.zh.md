@@ -10,7 +10,7 @@
 
 - **goal 结束时**（done、over-delivered 或 failed），一个用 goal 的 housekeeping 模型的短会话会读一遍过程：你要求了什么、决定了什么，它在哪里停下来等你、你怎么回答的，你给的提示，失败的尝试遇到了什么，警告和最终审查。它把值得记住的项目知识加进去，合并重复的，删掉被证明不对的。被取消的 goal 不会留下任何东西。装了 `retro` skill 时（Claude），这个会话会以回顾的方式进行：它可以读 goal 的会话记录，专门找下一个 goal 会需要的东西——指向正确文件的提示、本可以抓住错误的检查、给审查者的规则、没起作用的指令。
 - **在 pstack 套件下**，这个会话以 pstack 的 `reflect` 为方法——它的 judgment、tooling、divergent 三个视角，加上"什么该由结构来保证而不是靠一条笔记"——在一个会话里完成，不改任何技能。
-- **来自你。** 你加的或改过的条目就是你的（✎）。Foundry 从不修改或删除它们。
+- **来自你。** 你加的或改过的条目就是你的（✎）。Foundry 从不修改或删除它们。你在每个项目里都想要的东西，写在 **Yours, everywhere** 下面（见下文）。
 
 goal 的 **Activity** 会写明改了什么，例如 *Learnings for this folder: +2 — added how the e2e tests start*。这个会话花几美分，计入 goal 的费用。
 
@@ -21,6 +21,10 @@ goal 的 **Activity** 会写明改了什么，例如 *Learnings for this folder:
 - 它们是起点，不是规定：代码说的不一样时，以代码为准。
 
 一个文件夹最多保留 30 条，每条最多 300 个字符。
+
+## Yours, everywhere
+
+有些你想要的东西不属于某一个项目：你用的包管理器、注释和提交信息的语言、每个审查者都该守的规矩、你永远不想要的做法。Learnings 页面的第一张卡片 **Yours, everywhere** 就是记这些的本子。只有你往里写，每个文件夹里的每个 goal 都会连同文件夹自己的 Learnings 一起拿到它：Clarify 在单独的一行下面看到，每个任务在简短版里看到，你写的排在最前面。它也会写进每个文件夹的 `foundry-learnings` skill，作为最后一节，这样你自己的会话也能读到。文件夹自己的 Learnings 或代码说的不一样时，以它们为准。
 
 ## 分享给你自己的会话
 

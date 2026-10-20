@@ -236,7 +236,9 @@ try {
       note: null,
     },
   });
-  await shot('learnings', '/learnings', undefined, 520);
+  // the person's everywhere notebook (ADR-0055): the first card on the page
+  demo.engine.store.append({ type: 'learnings.set', goalId: null, payload: { repoPath: '*', learnings: [{ id: 'lrn_ev1', kind: 'preference', text: 'Use bun, never npm or yarn, in every project; commit messages in English, one short paragraph.', by: 'human', goalId: null, goalTitle: null, at: ago(90) }, { id: 'lrn_ev2', kind: 'convention', text: 'Reviewers reject any commit that adds a dependency without a note on why it is needed.', by: 'human', goalId: null, goalTitle: null, at: ago(90) }], source: 'human', goalId: null, note: null } });
+  await shot('learnings', '/learnings', undefined, 640);
   // Schedules (ADR-0054): one saved from the New goal form, with a run behind it
   demo.engine.saveSchedule({
     name: 'Weekly dependency upgrade',
