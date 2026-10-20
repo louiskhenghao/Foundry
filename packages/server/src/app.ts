@@ -2,11 +2,11 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } fr
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CodexEffort, Effort, Brief, EscalationAnswer, isHistory, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, ReviseAnswer, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, estimateCutSessions, measuredRates, goalTimeline, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId } from '@foundry/engine';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, ReviseAnswer, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, estimateCutSessions, measuredRates, goalTimeline, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, IssueError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId } from '@foundry/engine';
 import type { Task } from '@foundry/core';
 import { LearningKind, listDelegatedGoals, listRepoLearnings, DeployProvider } from '@foundry/core';
 import { delegationNeedsHuman } from '@foundry/engine';
-import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, PreviewPlace, SettingsPatch } from '@foundry/core';
+import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalIssue, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, PreviewPlace, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
 import { listGuide, readGuide } from './guide.ts';
@@ -71,6 +71,8 @@ const CreateGoalBody = z.object({
   follows: z.object({ goalId: z.string().min(1), startFrom: z.enum(['base', 'previous']).optional(), attachments: z.boolean().optional(), style: z.boolean().optional() }).optional(),
   /** may the planner delegate steps to goals of their own, and are their Briefs approved without the human (both off by default) */
   delegation: z.object({ allow: z.boolean().optional(), autoApprove: z.boolean().optional() }).optional(),
+  /** the GitHub issue the goal is made from, as POST /api/issues/read returned it (ADR-0052) */
+  issue: GoalIssue.optional(),
 });
 
 /**
@@ -290,6 +292,16 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const info = await inspectRepo(repoPath);
     const error = !info.exists ? 'path does not exist' : !info.isDir ? 'not a directory' : info.insideRepoAt ? `inside the repository at ${info.insideRepoAt}` : !info.isGitRepo ? 'not a git repository (you can initialize it)' : !info.hasCommits ? 'repository has no commits yet' : null;
     return c.json({ ...info, ok: info.isGitRepo && info.hasCommits, branch: info.branch ?? '', error, lastGoal: engine.lastWorkflowIn(repoPath) });
+  });
+  // a goal from a GitHub issue (ADR-0052): read it with gh, stage its thread as an attachment, hand back what the form starts from
+  app.post('/api/issues/read', async (c) => {
+    const { ref, repoPath } = z.object({ ref: z.string().min(1), repoPath: z.string().nullable().optional() }).parse(await c.req.json());
+    try {
+      return c.json(await engine.readIssue({ ref, repoPath: repoPath ?? null }));
+    } catch (e) {
+      if (e instanceof IssueError) throw new HttpError(e.code === 'not-found' ? 404 : e.code === 'gh-missing' || e.code === 'gh-login' ? 409 : 400, { error: e.message, code: e.code });
+      throw e;
+    }
   });
   // ---- attachments ----
   const parseUpload = async (c: any): Promise<{ files: { name: string; mime: string | null; bytes: Uint8Array }[]; link: { url: string; name?: string; note?: string } | null }> => {
