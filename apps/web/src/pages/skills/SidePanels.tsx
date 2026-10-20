@@ -3,7 +3,7 @@ import type { CatalogEntryStatus, SessionView, SkillTier, TrashEntry } from '@fo
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { KeyMissing } from '../../components/KeyMissing.tsx';
-import { Badge, Button, Card, CopyButton, Tabs, ago, cn } from '../../ui.tsx';
+import { Badge, Button, Card, CopyButton, Modal, Tabs, ago, cn } from '../../ui.tsx';
 
 const TIERS: SkillTier[] = ['required', 'recommended', 'optional'];
 const TIER_LABEL: Record<SkillTier, string> = { required: 'Required — the engine is noticeably weaker without these', recommended: 'Recommended — improves worker / reviewer / clarifier quality', optional: 'Optional — situational' };
@@ -145,37 +145,81 @@ function CatalogRow({ c, busy, running, onInstall, onInstallTool }: { c: Catalog
       {running && <div className="mt-1">{running}</div>}
       <div className="text-[11px] text-zinc-500 mt-1">{c.entry.summary}</div>
       {satisfied && <KeyMissing keys={c.missingEnv} envFor={c.entry.envFor} />}
-      {open && (
-        <div className="text-[11px] text-zinc-400 mt-2 space-y-1">
-          <div>
-            <span className="text-zinc-500">why:</span> {c.entry.why}
-          </div>
-          <div>
-            <span className="text-zinc-500">status:</span> {c.detail}
-          </div>
-          {c.entry.roles.length > 0 && (
-            <div>
-              <span className="text-zinc-500">used by:</span> {c.entry.roles.join(', ')}
-            </div>
-          )}
-          {c.entry.workflow.length > 0 && (
-            <div>
-              <span className="text-zinc-500">workflow:</span> {c.entry.workflow.map((w) => `${w.role} ${w.mandate}${w.when !== 'any' ? ` (${w.when})` : ''}`).join(' · ')}
-            </div>
-          )}
-          {c.manual && (
-            <div className="mono text-zinc-300 break-all">
-              {c.manual.command} <CopyButton text={c.manual.command} />
-            </div>
-          )}
-          {c.entry.homepage && (
-            <a className="underline" href={c.entry.homepage} target="_blank" rel="noreferrer">
-              {c.entry.homepage}
-            </a>
-          )}
-        </div>
-      )}
+      <CatalogEntryDialog c={c} open={open} onClose={() => setOpen(false)} />
     </div>
+  );
+}
+
+/** where a catalog entry comes from, in a line */
+function sourceLine(c: CatalogEntryStatus): string {
+  const s = c.entry.source;
+  if (s.type === 'git') return `${s.repo}${s.ref ? ` @ ${s.ref}` : ''}${s.path ? ` · ${s.path}` : ''}`;
+  if (s.type === 'plugin') return `plugin ${s.plugin} from the ${s.marketplaceId} marketplace (${s.marketplace}${s.ref ? ` @ ${s.ref}` : ''})`;
+  if (s.type === 'cli') return `command-line tool \`${s.detect}\`${s.skill ? ' with a skill folder of the same name' : ''}`;
+  return `installed by hand (${s.detectDir}/)`;
+}
+
+/** the whole entry, in a window: why it is in the catalog, how it stands on this computer, which roles follow it and how */
+function CatalogEntryDialog({ c, open, onClose }: { c: CatalogEntryStatus; open: boolean; onClose: () => void }) {
+  const row = (k: string, v: ReactNode) => (
+    <div className="grid grid-cols-[6rem_minmax(0,1fr)] gap-2">
+      <span className="text-zinc-500">{k}</span>
+      <span className="min-w-0 break-words">{v}</span>
+    </div>
+  );
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={
+        <span className="flex items-center gap-2">
+          <span className="mono">{c.entry.name}</span>
+          <Badge state={c.status}>{c.status.replace(/-/g, ' ')}</Badge>
+          <Badge state={c.entry.tier} />
+          {c.entry.bundle && <span className="text-[9px] uppercase rounded bg-zinc-800 text-zinc-400 px-1">{c.entry.bundle}</span>}
+        </span>
+      }
+    >
+      <div className="text-xs text-zinc-300 space-y-3">
+        <p className="text-sm text-zinc-200">{c.entry.summary}</p>
+        {row('why', c.entry.why)}
+        {row('status', c.detail)}
+        {c.installedInvoke && row('invoke', <span className="mono">{c.installedInvoke}</span>)}
+        {row('source', sourceLine(c))}
+        {c.entry.roles.length > 0 && row('used by', c.entry.roles.join(', '))}
+        {c.entry.scenarios.length > 0 && row('scenarios', c.entry.scenarios.join(', '))}
+        {c.entry.requiresEnv.length > 0 && row('needs', `${c.entry.requiresEnv.join(', ')}${c.entry.envFor ? ` for ${c.entry.envFor}` : ''}`)}
+        {c.entry.workflow.length > 0 && (
+          <div>
+            <div className="text-zinc-500 mb-1">workflow rules</div>
+            <ul className="space-y-1.5">
+              {c.entry.workflow.map((w, i) => (
+                <li key={i} className="rounded-md border border-zinc-800 surface-inset px-2.5 py-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Badge state={w.mandate}>{w.mandate === 'must' ? 'MUST' : 'Prefer'}</Badge>
+                    <span className="text-zinc-200">{w.role}</span>
+                    {w.when !== 'any' && <span className="text-zinc-500">· {w.when} tasks</span>}
+                    {w.scenarios.length > 0 && <span className="text-zinc-500">· {w.scenarios.join(', ')}</span>}
+                    {w.whenFiles?.length ? <span className="text-zinc-500">· when the task touches {w.whenFiles.join(', ')}</span> : null}
+                  </div>
+                  <div className="text-zinc-400 mt-1">{w.instruction}</div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {c.manual && (
+          <div className="mono text-zinc-300 break-all rounded-md border border-zinc-800 surface-inset px-2.5 py-1.5">
+            {c.manual.command} <CopyButton text={c.manual.command} />
+          </div>
+        )}
+        {c.entry.homepage && (
+          <a className="underline text-sky-300" href={c.entry.homepage} target="_blank" rel="noreferrer">
+            {c.entry.homepage}
+          </a>
+        )}
+      </div>
+    </Modal>
   );
 }
 
