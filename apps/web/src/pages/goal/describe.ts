@@ -56,6 +56,8 @@ export function describe(e: EngineEvent, costAvailable = true): { text: string; 
       return { text: 'Brief edited', tone: 'muted' };
     case 'brief.second_opinion':
       return { text: `Second opinion${p.auto ? ' (by itself)' : ''}: ${p.changeSummary}`, tone: 'info' };
+    case 'brief.second_opinion_failed':
+      return { text: `Second opinion${p.auto ? ' (by itself)' : ''} could not finish: ${p.reason}`, tone: 'warn' };
     case 'brief.decision_added':
       return { text: `Note added: ${p.text.split('\n')[0]}`, tone: 'info', ...cut(p.text) };
     case 'interview.round_asked':

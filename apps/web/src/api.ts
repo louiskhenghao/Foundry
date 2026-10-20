@@ -168,6 +168,13 @@ export interface SecondOpinionView {
   stale: boolean;
   proposal: DraftProposal;
 }
+/** why the goal's last second opinion did not come in (the reviewer ran out, or returned no usable proposal), until one does */
+export interface SecondOpinionFailure {
+  at: string;
+  auto: boolean;
+  costUsd: number;
+  reason: string;
+}
 
 export interface BaseSync {
   remote: string | null;
@@ -418,6 +425,7 @@ export interface GoalDetail {
   investigating?: boolean;
   secondOpinion?: SecondOpinionView | null;
   secondOpinionRunning?: boolean;
+  secondOpinionFailed?: SecondOpinionFailure | null;
   /** the Subjects (keys) whose pictures Foundry is searching for now: the Brief waits for them */
   subjectSearches?: string[];
   /** the milestones (task ids) whose recording is being compared with the Subjects' pictures now */
@@ -604,7 +612,8 @@ export function apiForProvider(provider?: AgentProvider) {
   cancelDelivery: (id: string) => req<{ ok: boolean }>(`/api/goals/${id}/delivery/cancel`, { method: 'POST' }),
   /** `skeleton`: the page was editing the Brief skeleton; the engine then takes its skeleton fields only and keeps the tasks it has */
   editBrief: (id: string, brief: Brief, skeleton = false) => req<Brief>(`/api/goals/${id}/brief`, { method: 'PATCH', body: JSON.stringify(skeleton ? { ...brief, skeleton: true } : brief) }),
-  secondOpinion: (id: string) => req<{ proposal: DraftProposal }>(`/api/goals/${id}/brief/second-opinion`, { method: 'POST' }),
+  /** starts one (202): the goal detail carries it from here — secondOpinionRunning, then secondOpinion or secondOpinionFailed */
+  secondOpinion: (id: string) => req<{ started: true }>(`/api/goals/${id}/brief/second-opinion`, { method: 'POST' }),
   draftBrief: (id: string, body: DraftRequest) => req<{ proposal: DraftProposal }>(`/api/goals/${id}/brief/draft`, { method: 'POST', body: JSON.stringify(body) }),
   /** the answers to the round a Revise asked: the proposal, or one more round */
   reviseAnswer: (id: string, body: { brief: Omit<Brief, 'goalId'>; answers: Record<string, string>; finish: boolean; note: string | null }) => req<{ proposal: DraftProposal }>(`/api/goals/${id}/brief/revise/answer`, { method: 'POST', body: JSON.stringify(body) }),
