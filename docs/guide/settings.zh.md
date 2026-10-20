@@ -142,6 +142,10 @@ Foundry 自带四个预设：
 
 按 **Save** 后改动生效：对新 goal 生效，对运行中的 goal 从下一个会话开始生效。
 
+### Antigravity model
+
+选择 **Coding agent → Antigravity** 后，这一节包含新建 Antigravity goal 的每个角色都使用的 **Antigravity model**（`agy-default` 跟随 CLI 自己设定的模型；**Sync models** 列出 `agy models` 知道的型号）以及每个角色的 **Reasoning effort**（low、medium 或 high）。goal 在创建时记下这两项。Antigravity 只报告 token，不报告美元，因此它的 goal 只保留时间、尝试次数和并发限制，不设美元预算；没有预设，也没有回退顺序。参见 [Run Foundry with Antigravity](../operate/antigravity.md)。
+
 ### Sync models
 
 **Sync models** 询问你的 Claude Code 知道哪些模型（免费），并检查 Fable、Opus、Sonnet 和 Haiku 目前各指哪个模型，每个用一个很小的会话（总共约 $0.04）。旁边一行显示上次运行的时间、用的 Claude Code 版本，以及找到了多少个模型。

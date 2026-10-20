@@ -7,7 +7,7 @@
 Foundry 是一个在你自己电脑上运行的网页应用，地址是 <http://127.0.0.1:4111>。
 你用大白话描述一个 goal：一个功能、一个修复、一份文档、一份报告、几张图片。
 Foundry 读你的项目，问你只有你能决定的事，然后写一份叫 **Brief** 的计划。
-你批准 Brief 之后，它就驱动你选定的 Claude Code 或 Codex 去干活，并检查、审查做出来的结果。
+你批准 Brief 之后，它就驱动你选定的 Claude Code、Codex 或 Antigravity 去干活，并检查、审查做出来的结果。
 做好的东西放在一个单独的分支上；Foundry 只会按你选择的交付策略推送或发布成果。
 
 ![Goals 页面：六个 goal，各处在一个状态，每个都显示任务进度和相对预算的花费](images/goals.png)
@@ -28,7 +28,7 @@ Foundry 读你的项目，问你只有你能决定的事，然后写一份叫 **
 
 | 词 | 意思 |
 |---|---|
-| **Coding agent**（编码智能体） | Claude Code 或 Codex，在创建 goal 时选择，之后固定。账户和权限互相独立。 |
+| **Coding agent**（编码智能体） | Claude Code、Codex 或 Antigravity，在创建 goal 时选择，之后固定。账户和权限互相独立。 |
 | **Goal** | 你想做成的一件事，用大白话写，在一个项目文件夹里。 |
 | **Brief** | Foundry 写的计划，任何工作开始前都要你批准。 |
 | **Area** | goal 涉及的产品的某一部分，比如"学生端""教师端"或"公共基础"。每个任务都属于一个 Area。 |

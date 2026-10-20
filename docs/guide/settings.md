@@ -142,6 +142,10 @@ Press **Edit preset** next to a goal type, or click a preset's name under **Pres
 
 Changes apply when you press **Save**: to new goals, and to running goals from their next session.
 
+### Antigravity model
+
+With **Coding agent → Antigravity** selected, the section holds the **Antigravity model** every role of a new Antigravity goal runs on (`agy-default` follows the model the CLI itself is set to; **Sync models** lists the slugs `agy models` knows) and the **Reasoning effort** of every role (low, medium or high). A goal snapshots both when it is created. Antigravity reports tokens, not dollars, so its goals keep time, attempt and concurrency limits and never a USD budget; there are no presets and no fallback order. See [Run Foundry with Antigravity](../operate/antigravity.md).
+
 ### Sync models
 
 **Sync models** asks your Claude Code which models it knows (free) and checks what Fable, Opus, Sonnet and Haiku currently mean, with one tiny session each (about $0.04 in total). The line next to it says when it last ran, with which Claude Code version, and how many models it found.

@@ -3,7 +3,7 @@
 This track is for the person who installs Foundry, keeps it running, configures it, updates it and fixes it when
 something goes wrong. You work with terminals, Docker and config files, but you do not change Foundry's code.
 
-Foundry is a local orchestrator. It drives the Claude Code and Codex CLIs on one machine to plan and deliver goals in your
+Foundry is a local orchestrator. It drives the Claude Code, Codex and Antigravity CLIs on one machine to plan and deliver goals in your
 repositories. The web UI runs on `http://127.0.0.1:4111`. You can run it from source with Bun, or in Docker
 (image `imlouiskhenghao/foundry`). These pages describe this source revision; what each published release contains is in the [changelog](https://github.com/louiskhenghao/foundry-releases/blob/main/CHANGELOG.md).
 
@@ -13,6 +13,7 @@ repositories. The web UI runs on `http://127.0.0.1:4111`. You can run it from so
 |---|---|
 | [install.md](./install.md) | Requirements, installing locally or with Docker, signing in to each backend, mounting repositories, first-run checks. |
 | [codex.md](./codex.md) | ChatGPT-only sign-in, independent model presets, native extensions, quota windows and capability limits. |
+| [antigravity.md](./antigravity.md) | The Antigravity CLI (`agy`) as a third coding agent: terminal sign-in, one model and effort per goal, hooks-based guard, tokens not dollars, what is not verified. |
 | [updates-and-backup.md](./updates-and-backup.md) | Where Foundry keeps its data, backup and restore, self-update, release channel. |
 | [remote-access.md](./remote-access.md) | Using Foundry from your phone or laptop over Tailscale, and keeping the machine running while you are away. |
 | [notifications.md](./notifications.md) | Setting up Telegram and Discord messages. |

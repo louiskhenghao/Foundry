@@ -13,13 +13,13 @@
 
 ## 账户与编码智能体
 
-点击顶栏 **Accounts**，分别查看 Claude Code 和 Codex。**Sign in to Codex** 使用 ChatGPT 设备授权：窗口会显示一次性验证码（带复制按钮）和 OpenAI 的设备授权页，在那里输入验证码并批准。验证码 15 分钟内有效，窗口也会等这么久；**Sign in to Claude Code** 使用 Claude 原生登录。凭据与本机 CLI 共用，在这里退出也会退出对应 CLI，但不会影响另一个提供商。执行期间不能登录或退出，CLI 请求也遵守同样的保护。Codex 只支持 ChatGPT 登录，不使用 API-key 模式；原生 CLI 提供邮箱和方案时会显示在账户卡片。Foundry 运行期间安装 CLI 后，下次账户检查即可识别；Setup 与 Accounts 都使用当前可执行文件。修改配置中的程序路径或原生配置目录仍需重启。
+点击顶栏 **Accounts**，分别查看 Claude Code、Codex 和 Antigravity。Antigravity 在终端里登录：运行一次 `agy`（它会打开浏览器），然后点 **Refresh status**。**Sign in to Codex** 使用 ChatGPT 设备授权：窗口会显示一次性验证码（带复制按钮）和 OpenAI 的设备授权页，在那里输入验证码并批准。验证码 15 分钟内有效，窗口也会等这么久；**Sign in to Claude Code** 使用 Claude 原生登录。凭据与本机 CLI 共用，在这里退出也会退出对应 CLI，但不会影响另一个提供商。执行期间不能登录或退出，CLI 请求也遵守同样的保护。Codex 只支持 ChatGPT 登录，不使用 API-key 模式；原生 CLI 提供邮箱和方案时会显示在账户卡片。Foundry 运行期间安装 CLI 后，下次账户检查即可识别；Setup 与 Accounts 都使用当前可执行文件。修改配置中的程序路径或原生配置目录仍需重启。
 
 使用 Accounts 顶部的 **Refresh status** 重新检查两个原生账户。检查期间保留现有卡片，预留状态行显示加载或错误，不会用加载文字替换整个页面。
 
 **Setup** 可选择 **Claude Code** 或 **Codex**；检查、登录、修复及技能安装均针对所选编码智能体。**Create your first goal** 会保留该选择。
 
-创建任务时，在 **Coding agent**（编码智能体）中选择 Claude Code 或 Codex。同一 Foundry 实例可以运行两种编码智能体；选定后，澄清、执行、重试、审核等会话始终使用该编码智能体，不会把会话交给另一种 CLI 恢复。两种编码智能体在 **Models** 下各有独立预设。Codex 创建任务时会保存预设中的各角色模型、推理强度和备用模型顺序。
+创建任务时，在 **Coding agent**（编码智能体）中选择 Claude Code、Codex 或 Antigravity。同一 Foundry 实例可以运行三种编码智能体；选定后，澄清、执行、重试、审核等会话始终使用该编码智能体，不会把会话交给另一种 CLI 恢复。两种编码智能体在 **Models** 下各有独立预设。Codex 创建任务时会保存预设中的各角色模型、推理强度和备用模型顺序。
 
 Codex 的预算选项只有时间、尝试次数和并发限制，没有美元上限。**Accounts** 列出了目前的适配限制。
 
@@ -139,7 +139,7 @@ Foundry 写 Brief 之前问你问得多深：**Skip**，然后是 **1** 到 **5*
 
 ### Models
 
-这个 goal 用哪个模型预设，由 **Coding agent** 决定使用 [Claude 预设](./settings.zh.md#presets) 还是 [Codex 预设](./settings.zh.md#codex-预设与模型)。**Default** 使用 Settings 为代码、文档或媒体类 goal 选定的预设；后面的名字就是那个预设，例如 **Default · Production**。换 goal 类型时它会跟着变。选 **Max**、**Production**、**Balanced**、**Economy** 或自定义预设，只为这个 goal 覆盖默认值。切换编码智能体会分别保留各自的选择。
+这个 goal 用哪个模型预设，由 **Coding agent** 决定使用 [Claude 预设](./settings.zh.md#presets) 还是 [Codex 预设](./settings.zh.md#codex-预设与模型)（Antigravity goal 则只有[一个模型和 effort](./settings.zh.md#antigravity-model)）。**Default** 使用 Settings 为代码、文档或媒体类 goal 选定的预设；后面的名字就是那个预设，例如 **Default · Production**。换 goal 类型时它会跟着变。选 **Max**、**Production**、**Balanced**、**Economy** 或自定义预设，只为这个 goal 覆盖默认值。切换编码智能体会分别保留各自的选择。
 
 Codex 的 **View … role assignments** 展开各角色将使用的模型与强度。勾选 **Use one model for every role in this goal**，才会把所有角色改为同一个模型；不勾选就保留预设中的各角色模型。可以从本机目录选择模型，也可用 **Custom model ID…** 输入具体 ID。覆盖选项中的 **CLI default model** 使用本机 Codex 配置。不覆盖时，预设中的 **Default model · from Settings** 使用 Settings 的 **Default Codex model**。覆盖模型后，仍保留各角色强度，除非你同时选择全任务 effort。
 

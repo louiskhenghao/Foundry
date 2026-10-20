@@ -1,6 +1,6 @@
 # Install Foundry
 
-Foundry drives Claude Code or Codex against git repositories you already have. Each goal keeps its chosen backend; both can run in one instance. Codex uses ChatGPT sign-in only. See [Run Foundry with Codex](codex.md) for the native capability differences. You can run it in two ways:
+Foundry drives Claude Code, Codex or the Antigravity CLI against git repositories you already have. Each goal keeps its chosen backend; all three can run in one instance. Codex uses ChatGPT sign-in only. See [Run Foundry with Codex](codex.md) for the native capability differences. You can run it in two ways:
 
 | | Locally, from source | In Docker |
 |---|---|---|
@@ -28,6 +28,7 @@ Both serve the web UI on `http://127.0.0.1:4111`.
 - For Claude goals: the Claude Code CLI, `claude` on your `PATH`, signed in. Install it with its native installer,
   `curl -fsSL https://claude.ai/install.sh | bash` (no npm needed), or `npm install -g @anthropic-ai/claude-code`. The Docker image ships 2.1.259; the Fable 5.1 model needs at least that version.
 - For Codex goals: a hooks-capable Codex CLI, `codex` on your `PATH`, signed in with ChatGPT. This Dockerfile pins 0.160.0. Install with `brew install --cask codex` (macOS), `npm install -g @openai/codex`, or the release binary from [github.com/openai/codex](https://github.com/openai/codex/releases); run `codex login`.
+- For Antigravity goals: the Antigravity CLI, `agy` on your `PATH` (1.1.15 or newer), signed in once from a terminal. Install with `curl -fsSL https://antigravity.google/cli/install.sh | bash` or `brew install --cask antigravity-cli`; see [antigravity.md](antigravity.md).
 - [graphify](https://github.com/safishamsi/graphify). It is the one *required* entry in the skills catalog; the
   doctor reports an error until it is installed. Its installer uses [uv](https://docs.astral.sh/uv/).
 - Optional: Node.js 22 or newer (project skills via `npx autoskills` need it), the GitHub CLI `gh` (only for

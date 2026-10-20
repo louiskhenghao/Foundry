@@ -1,6 +1,6 @@
 # Architecture
 
-Foundry is a Bun/TypeScript monorepo. It drives the host's Claude Code CLI (`claude -p --output-format stream-json`) or Codex CLI (`codex exec --json`) to turn a Goal into a Brief, the Brief into a Task DAG, and each Task into Attempts. Attempts are checked, reviewed and squashed onto a Goal branch, and the finished branch can be delivered as a push or pull request. This page explains how the pieces fit together, so you know where to make a change. Terms in **bold** or Capitalised are defined in [CONTEXT.md](../../CONTEXT.md).
+Foundry is a Bun/TypeScript monorepo. It drives the host's Claude Code CLI (`claude -p --output-format stream-json`) Codex CLI (`codex exec --json`) or the Antigravity CLI (`agy --input-format stream-json --output-format stream-json`) to turn a Goal into a Brief, the Brief into a Task DAG, and each Task into Attempts. Attempts are checked, reviewed and squashed onto a Goal branch, and the finished branch can be delivered as a push or pull request. This page explains how the pieces fit together, so you know where to make a change. Terms in **bold** or Capitalised are defined in [CONTEXT.md](../../CONTEXT.md).
 
 ## Packages
 
@@ -18,12 +18,13 @@ flowchart LR
   web -.->|"@foundry/core/browser"| core
   runner -->|spawns| claude(["claude -p (host CLI)"])
   runner -->|spawns| codex(["codex exec (host CLI)"])
+  runner -->|spawns| agy(["agy (host CLI)"])
 ```
 
 | Workspace | Owns | Entry points |
 |---|---|---|
 | `packages/core` | Zod schemas for every entity (`src/schema/*`), the event union (`src/events.ts`), the SQLite event store and its projections (`src/store/*`), and pure domain helpers (`src/machine/*`: DAG sort and depths, Brief coverage, Decisions, transition tables). No I/O apart from SQLite. | `src/index.ts`; `src/browser.ts` is the browser-safe subset the web app imports |
-| `packages/runner` | `ClaudeCliRunner` and `CodexCliRunner`, which normalize native JSON streams to shared `RunnerEvent` / `RunResult` contracts. Owns process cancellation, hooks, sandbox configuration and the concurrency semaphore; Codex uses `codex-stream-codec.ts` and `codex-guard.ts`. | `src/index.ts` |
+| `packages/runner` | `ClaudeCliRunner`, `CodexCliRunner` and `AgyCliRunner` (ADR-0064), which normalize native JSON streams to shared `RunnerEvent` / `RunResult` contracts. Owns process cancellation, hooks, sandbox configuration and the concurrency semaphore; Codex uses `codex-stream-codec.ts` and `codex-guard.ts`. | `src/index.ts` |
 | `packages/engine` | The `Engine` class and everything that decides what happens next: the tick, scheduler, attempt loop, Clarify/Interview, Draft/Revise, reviews, merges and catch-up, milestones, delivery, preview and self-check, notifications, models and presets, skills, settings, self-update, the agents monitor and the usage ledger. | `src/engine.ts`, `src/index.ts`, `src/config.ts` (`defaultConfig`) |
 | `packages/server` | The Hono HTTP API (`src/app.ts`) and the `Bun.serve` wrapper with the `/ws` WebSocket (`src/index.ts`). It also serves `apps/web/dist`. | `startServer(engine)` |
 | `apps/web` | The UI: React 18, react-router, zustand, Tailwind v4, built by Vite into `apps/web/dist`. | `src/App.tsx` (routes), `src/store.ts` (WS client + live store), `src/api.ts` |

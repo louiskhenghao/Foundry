@@ -7,7 +7,7 @@
 Foundry is a web app that runs on your own computer, at <http://127.0.0.1:4111>.
 You describe a goal in plain words: a feature, a fix, a document, a report, some images.
 Foundry reads your project, asks what only you can decide, and writes a plan called the **Brief**.
-Once you approve the Brief, it drives your chosen coding agent, Claude Code or Codex, to do the work, checks it and reviews it.
+Once you approve the Brief, it drives your chosen coding agent, Claude Code, Codex or Antigravity, to do the work, checks it and reviews it.
 You get the finished work on a separate branch, and Foundry only pushes or publishes it under the delivery policy you chose.
 
 ![The Goals page: six goals, one in each state, each with its tasks and its cost against the budget](images/goals.png)
@@ -28,7 +28,7 @@ Between steps 3 and 7 Foundry only stops for a short list of reasons. They are a
 
 | Word | What it means |
 |---|---|
-| **Coding agent** | Claude Code or Codex, chosen when creating a goal and fixed for its lifetime. Accounts and permissions are independent. |
+| **Coding agent** | Claude Code, Codex or Antigravity, chosen when creating a goal and fixed for its lifetime. Accounts and permissions are independent. |
 | **Goal** | One thing you want done, written in plain words, in one project folder. |
 | **Brief** | The plan Foundry writes and you approve before any work starts. |
 | **Area** | A part of the product the goal touches, for example "student portal", "teacher portal", or "shared groundwork". Every task belongs to one. |

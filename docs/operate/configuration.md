@@ -40,6 +40,8 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `models.codexPresetDocs` | `balanced` | — | Codex preset for document and research goals. |
 | `models.codexPresetMedia` | `balanced` | — | Codex preset for image and video goals. |
 | `models.codexFallbacks` | — | — | Codex fallback model IDs, tried in order only for model-unavailability errors. Captured per new goal; empty pauses for a decision. Does not switch providers or retry authentication and quota errors with another model. |
+| `models.agyModel` | `agy-default` | `FOUNDRY_AGY_MODEL` | The model every role of a new Antigravity goal runs on. agy-default follows the model the CLI itself is set to. |
+| `models.agyEffort` | `high` | — | The Antigravity reasoning effort of every role: low, medium or high. |
 | `models.cheap` | `haiku` | `FOUNDRY_MODEL_CHEAP` | Housekeeping model: one-turn engine chores (classifying a goal, summarising logs, the rate-limit probe). |
 | `models.fallbacks` | `opus, sonnet, haiku` | `FOUNDRY_MODEL_FALLBACKS` | Tried in order when a model is unavailable; the replacement is remembered for that goal. |
 | `models.presets` | — | — | Presets you edited or created (edit them in the Presets editor, not by hand). Built-ins you never touched are not stored. |
@@ -146,6 +148,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `engine.provider` *(restart)* | `claude` | `FOUNDRY_PROVIDER` | Installation default (claude or codex), fixed at launch. Each new goal can select either coding agent; existing goals keep theirs. |
 | `engine.codexBin` *(restart)* | — | `FOUNDRY_CODEX_BIN` | Codex CLI path; empty uses codex on PATH. Requires hooks support. |
 | `engine.codexHome` *(restart)* | — | `FOUNDRY_CODEX_HOME (or CODEX_HOME)` | Codex configuration and login directory; empty uses CODEX_HOME or ~/.codex. |
+| `engine.agyBin` *(restart)* | — | `FOUNDRY_AGY_BIN` | Antigravity CLI path; empty uses agy on PATH. Needs 1.1.15 or newer (stream-json input). |
 | `engine.port` *(restart)* | `4111` | `FOUNDRY_PORT` | Port the UI and API listen on. |
 | `engine.host` *(restart)* | `127.0.0.1` | `FOUNDRY_HOST` | Interface to bind; keep 127.0.0.1 unless the people using it have tokens (Settings → Access). |
 | `engine.claudeBin` *(restart)* | — | — | Path to the claude CLI; empty = first on PATH. |
