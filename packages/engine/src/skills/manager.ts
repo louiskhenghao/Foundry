@@ -65,7 +65,7 @@ export class UpdateBusy extends Error {
 export class UninstallRefused extends Error {
   constructor(
     message: string,
-    public readonly reason: 'managed-by-gstack' | 'managed-needs-force' | 'not-user-scope' | 'not-found' | 'not-uninstallable',
+    public readonly reason: 'managed-needs-force' | 'not-user-scope' | 'not-found' | 'not-uninstallable',
   ) {
     super(message);
   }
@@ -304,7 +304,6 @@ export class SkillsManager {
         const plugin = scan.installed.find((r) => r.scope === 'plugin' && r.name === name);
         if (!row) skipped.push({ name, reason: 'not a user-level skill' });
         else if (!plugin) skipped.push({ name, reason: 'no plugin skill with this name — nothing is shadowed' });
-        else if (row.managedBy === 'gstack' || row.managedBy === 'gstack-copy') skipped.push({ name, reason: 'managed by gstack' });
         else trashed.push(trashSkill(name, this.paths, `shadowed ${plugin.invoke} (plugin copy is newer)`));
       }
       if (trashed.length) this.opts.onRun?.({ sourceId: 'shadows', updater: 'none', command: ['foundry', 'cleanup-shadows', ...trashed.map((t) => t.name)], cwd: this.paths.skillsDir, exitCode: 0, durationMs: 0, outputTail: trashed.map((t) => `trashed ${t.name} → ${t.path}`).join('\n'), changed: [], error: null, at: new Date().toISOString() });
@@ -405,7 +404,6 @@ export class SkillsManager {
     return this.serial(async () => {
       const row = this.scan().installed.find((r) => r.name === name && r.scope === 'user');
       if (!row) throw new UninstallRefused(`${name} is not a user-level skill`, this.scan().installed.some((r) => r.name === name) ? 'not-user-scope' : 'not-found');
-      if (row.managedBy === 'gstack') throw new UninstallRefused('gstack is a git clone that owns hooks in settings.json; remove it with its own tooling', 'managed-by-gstack');
       if (!row.canUninstall) throw new UninstallRefused(row.uninstallNote ?? `${name} cannot be uninstalled here`, 'not-uninstallable');
       if (row.managedBy && row.managedBy !== 'foundry' && !opts.force) throw new UninstallRefused(`${name} is managed by ${row.managedBy}: ${row.uninstallNote ?? 'pass force to remove anyway'}`, 'managed-needs-force');
       const trash = trashSkill(name, this.paths, `uninstalled via Foundry${row.managedBy ? ` (was managed by ${row.managedBy})` : ''}`, { from: dirname(row.dir) });
@@ -422,10 +420,6 @@ export class SkillsManager {
         const row = this.scan().installed.find((r) => r.name === name && r.scope === 'user');
         if (!row) {
           results.push({ name, ok: false, error: 'not a user-level skill', note: null });
-          continue;
-        }
-        if (row.managedBy === 'gstack') {
-          results.push({ name, ok: false, error: 'gstack is a git clone that owns hooks; remove it with its own tooling', note: null });
           continue;
         }
         if (!row.canUninstall) {

@@ -141,7 +141,7 @@ export type FoundryMarker = z.infer<typeof FoundryMarker>;
 export const SkillScope = z.enum(['user', 'plugin', 'project']);
 export type SkillScope = z.infer<typeof SkillScope>;
 
-export const ManagedBy = z.enum(['foundry', 'agents-cli', 'symlink', 'gstack', 'gstack-copy', 'manifest', 'plugin', 'project']);
+export const ManagedBy = z.enum(['foundry', 'agents-cli', 'symlink', 'manifest', 'plugin', 'project']);
 export type ManagedBy = z.infer<typeof ManagedBy>;
 
 /** One record of ~/.agents/.skill-lock.json (written by the community `skills` CLI). */
@@ -256,10 +256,10 @@ export type SessionView = z.infer<typeof SessionView>;
 
 // ---------- sources & updates ----------
 
-export const SkillSourceKind = z.enum(['github', 'plugin', 'gstack', 'project', 'local', 'unknown']);
+export const SkillSourceKind = z.enum(['github', 'plugin', 'project', 'local', 'unknown']);
 export type SkillSourceKind = z.infer<typeof SkillSourceKind>;
 /** who installed / who updates */
-export const SkillManager = z.enum(['foundry', 'agents-cli', 'plugin', 'gstack', 'hand', 'project']);
+export const SkillManager = z.enum(['foundry', 'agents-cli', 'plugin', 'hand', 'project']);
 export type SkillManager = z.infer<typeof SkillManager>;
 export const UpdaterKind = z.enum(['foundry', 'agents-cli', 'plugin', 'adopt', 'hint', 'none']);
 export type UpdaterKind = z.infer<typeof UpdaterKind>;
@@ -293,7 +293,7 @@ export const SkillSourceRow = z.object({
 export type SkillSourceRow = z.infer<typeof SkillSourceRow>;
 
 export const SkillSource = z.object({
-  /** 'github:owner/name' | 'plugin:<id>' | 'gstack' | 'project:<repo>' | 'local' | 'unknown' */
+  /** 'github:owner/name' | 'plugin:<id>' | 'project:<repo>' | 'local' | 'unknown' */
   id: z.string(),
   kind: SkillSourceKind,
   label: z.string(),

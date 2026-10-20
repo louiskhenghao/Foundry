@@ -74,7 +74,6 @@ describe('skills sources & updates', () => {
     expect(by('linked').lock?.source).toBe('x/y');
     expect(sourceOf(by('tdd', 'plugin'), fh.paths)).toMatchObject({ kind: 'plugin', repo: 'mattpocock/skills' });
     expect(by('tdd', 'plugin').plugin?.skillPath).toBe('skills/engineering/tdd');
-    expect(sourceOf(by('autoplan'), fh.paths)?.id).toBe('gstack');
     expect(sourceOf(by('diagnosing-bugs'), fh.paths)).toMatchObject({ manager: 'foundry', repo: 'mattpocock/skills' });
     expect(sourceOf(by('plain'), fh.paths)).toBeNull();
   });
@@ -123,9 +122,6 @@ describe('skills sources & updates', () => {
 
     // unknown origin
     expect(report.sources.find((s) => s.id === 'unknown')!.skills.map((k) => k.name)).toContain('plain');
-    // gstack hint
-    expect(report.sources.find((s) => s.id === 'gstack')!.updater.kind).toBe('hint');
-
     // cached + persisted
     expect(checker.cached()?.stale).toBe(false);
     expect(existsSync(fh.paths.updatesFile)).toBe(true);
@@ -197,12 +193,10 @@ describe('skills sources & updates', () => {
 void cpSync;
 
 describe('isStaleShadow', () => {
-  test('a superseded copy is stale; another tool’s skill that only shares the name is not', async () => {
+  test('a superseded copy is stale; an unshadowed or current one is not', async () => {
     const { isStaleShadow } = await import('./updates.ts');
-    const row = { shadowedBy: '/mattpocock-skills:retro', status: 'outdated', match: null, managedBy: null } as const;
+    const row = { shadowedBy: '/mattpocock-skills:retro', status: 'outdated', match: null } as const;
     expect(isStaleShadow(row as any)).toBe(true);
-    expect(isStaleShadow({ ...row, managedBy: 'gstack-copy' } as any)).toBe(false);
-    expect(isStaleShadow({ ...row, managedBy: 'gstack' } as any)).toBe(false);
     expect(isStaleShadow({ ...row, shadowedBy: null } as any)).toBe(false);
     expect(isStaleShadow({ ...row, status: 'up-to-date' } as any)).toBe(false);
   });

@@ -33,7 +33,7 @@ function sharedAgentSkills(paths: SkillsPaths, own: InstalledSkill[]): Installed
     .map((s) => {
       const via = claudeUses.get(realOr(s.dir));
       if (via) return { ...s, canUninstall: false, uninstallNote: `Claude Code uses it through ${via}. Uninstall it on the Claude Code side first, so Claude Code is not left with a broken link.` };
-      if (!s.canUninstall || s.managedBy === 'gstack') return { ...s, canUninstall: false, uninstallNote: s.uninstallNote ?? s.hint ?? 'Managed by its own tooling; remove it there.' };
+      if (!s.canUninstall) return { ...s, canUninstall: false, uninstallNote: s.uninstallNote ?? s.hint ?? 'Managed by its own tooling; remove it there.' };
       return { ...s, uninstallNote: s.uninstallNote ?? `Shared with every agent that reads ${paths.agentsSkillsDir}; moved to the trash, where it can be restored.` };
     });
 }
@@ -145,14 +145,7 @@ function classifySymlink(name: string, dir: string, paths: SkillsPaths, lock: Ma
 
 function classifyDir(name: string, dir: string, paths: SkillsPaths): InstalledSkill {
   const row = base(name, dir, 'user', `/${name}`);
-  // 2. gstack root (git clone that also owns hooks in settings.json)
-  if (name === 'gstack' && existsSync(join(dir, '.git'))) {
-    row.managedBy = 'gstack';
-    row.canUninstall = false;
-    row.hint = 'managed by gstack (git clone; settings.json hooks point here) — update with /gstack-upgrade';
-    return row;
-  }
-  // 3. our marker (legacy name kept readable so pre-rename installs stay managed)
+  // 2. our marker (legacy name kept readable so pre-rename installs stay managed)
   for (const file of [MARKER_FILE, LEGACY_MARKER_FILE]) {
     const markerPath = join(dir, file);
     if (!existsSync(markerPath)) continue;
@@ -162,7 +155,7 @@ function classifyDir(name: string, dir: string, paths: SkillsPaths): InstalledSk
       return row;
     } catch {}
   }
-  // 4. manifest.json (garden-skills style)
+  // 3. manifest.json (garden-skills style)
   const manifestPath = join(dir, 'manifest.json');
   if (existsSync(manifestPath)) {
     try {
@@ -173,26 +166,9 @@ function classifyDir(name: string, dir: string, paths: SkillsPaths): InstalledSk
       return row;
     } catch {}
   }
-  // 5. gstack flattened copy
-  const gstackTwin = join(paths.skillsDir, 'gstack', name, 'SKILL.md');
-  if (row.skillMd && existsSync(gstackTwin) && sameFile(row.skillMd, gstackTwin)) {
-    row.managedBy = 'gstack-copy';
-    row.uninstallNote = `copy of gstack/${name}; gstack's flatten step may recreate it on /gstack-upgrade`;
-    return row;
-  }
   return row;
 }
 
-function sameFile(a: string, b: string): boolean {
-  try {
-    const sa = statSync(a);
-    const sb = statSync(b);
-    if (sa.size !== sb.size) return false;
-    return readFileSync(a).equals(readFileSync(b));
-  } catch {
-    return false;
-  }
-}
 
 /** Full lock records keyed by skill name (the CLI's hash is its own algorithm; we keep it only for display). */
 export function readAgentsLock(file: string): Map<string, AgentsLockRecord> {

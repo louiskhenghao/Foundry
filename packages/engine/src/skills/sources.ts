@@ -1,6 +1,6 @@
 /**
  * Where does an installed skill come from? Pure, synchronous helpers: map scanner rows to a source
- * (GitHub repo via foundry / npx skills / Claude plugin, gstack clone, project dir) and fingerprint
+ * (GitHub repo via foundry / npx skills / Claude plugin, project dir) and fingerprint
  * directories so copies can be compared byte-for-byte with their upstream.
  */
 import { createHash } from 'node:crypto';
@@ -20,8 +20,6 @@ export interface SourceKey {
   homepage: string | null;
 }
 
-export const GSTACK_REPO = 'garrytan/gstack';
-
 /** Resolve the source of a scanner row from its provenance metadata; null = hand-installed (needs matching). */
 export function sourceOf(row: InstalledSkill, paths: SkillsPaths): SourceKey | null {
   if (row.scope === 'project') {
@@ -39,9 +37,6 @@ export function sourceOf(row: InstalledSkill, paths: SkillsPaths): SourceKey | n
     const repo = row.lock?.source ?? null;
     return { id: `agents-cli:${repo ?? 'unknown'}`, kind: repo ? 'github' : 'unknown', label: repo ?? 'npx skills (unknown source)', manager: 'agents-cli', repo, url: row.lock?.sourceUrl ?? (repo ? `https://github.com/${repo}` : null), homepage: repo ? `https://github.com/${repo}` : null };
   }
-  if (row.managedBy === 'gstack' || row.managedBy === 'gstack-copy') {
-    return { id: 'gstack', kind: 'gstack', label: 'gstack', manager: 'gstack', repo: GSTACK_REPO, url: `https://github.com/${GSTACK_REPO}`, homepage: `https://github.com/${GSTACK_REPO}` };
-  }
   return null;
 }
 
@@ -50,8 +45,6 @@ export function pathInRepoOf(row: InstalledSkill): string | null {
   if (row.marker?.path) return row.marker.path;
   if (row.lock?.skillPath) return row.lock.skillPath.replace(/\/SKILL\.md$/, '');
   if (row.plugin?.skillPath) return row.plugin.skillPath;
-  if (row.managedBy === 'gstack-copy') return row.name;
-  if (row.managedBy === 'gstack') return '.';
   return null;
 }
 

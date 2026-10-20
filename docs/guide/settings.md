@@ -197,7 +197,7 @@ Compatibility depends on a skill’s tools and dependencies, not its author. The
 | `skill-creator` | Uses OpenAI’s version. If an older Anthropic copy is present, expand **Catalog**, find `skill-creator` and use **Replace**; the old copy goes to trash. Shared skills remain managed at their original location. |
 | `claude-api` | Optional reference for projects using the Anthropic SDK. It does not switch Foundry’s login or require Claude as the executing agent; it is not automatically suggested to every worker. |
 | Graphify / Impeccable | Use the Codex installation recipe / native skill directory. Update an older Foundry-managed Impeccable copy to select the current native variant. |
-| gstack / Claude plugin recipes | Not recommended through the Codex skill catalog. gstack’s upstream Codex port is experimental and outside reviews need Claude CLI; native Codex plugins have their own **Plugins** tab. |
+| Claude plugin recipes | Not offered in the Codex skill catalog; native Codex plugins have their own **Plugins** tab. |
 | Image / video skills | Still need their rendering tools, project dependencies and any service credentials. ChatGPT login does not provide image API keys or the desktop app’s image tools to headless sessions. |
 
 An **installed** label means the skill was found, not that every optional tool or service has been configured. Personal/shared skills are still visible; Foundry does not remove them when the selected catalog changes. If an explicit upstream skill path disappears, installation reports the missing path rather than choosing a same-named skill for another agent.

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { SkillsPaths } from './paths.ts';
-import { Catalog, type CatalogEntry, type CatalogEntryStatus, type InstalledSkill, type ScanResult } from './types.ts';
+import { Catalog, type CatalogEntry, type CatalogEntryStatus, type ScanResult } from './types.ts';
 
 export class CatalogError extends Error {}
 
@@ -50,9 +50,7 @@ export function catalogStatus(catalog: Catalog, scan: ScanResult, paths: SkillsP
 
 function statusOf(entry: CatalogEntry, scan: ScanResult, paths: SkillsPaths, which: WhichFn): Omit<CatalogEntryStatus, 'missingEnv'> {
   {
-    // a gstack skill that shares a name with a catalog skill of another source (retro) is not that skill
-    const other = (r: InstalledSkill) => entry.source.type !== 'manual' && (r.managedBy === 'gstack' || r.managedBy === 'gstack-copy');
-    const user = scan.installed.find((r) => r.scope === 'user' && r.name === entry.name && !r.symlink?.broken && !other(r));
+    const user = scan.installed.find((r) => r.scope === 'user' && r.name === entry.name && !r.symlink?.broken);
     const plugin = scan.installed.find((r) => r.scope === 'plugin' && r.name === entry.name);
     const manual =
       entry.source.type === 'cli' || entry.source.type === 'manual'

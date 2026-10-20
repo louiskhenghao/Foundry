@@ -197,7 +197,7 @@ skill 是所选编码智能体可以遵循的打包指令。在这里选择 Foun
 | `skill-creator` | 使用 OpenAI 版本。如果已有 Anthropic 旧副本，展开 **Catalog**，找到 `skill-creator` 并按 **Replace**；旧副本放入回收站。共享技能仍在原位置管理。 |
 | `claude-api` | 给使用 Anthropic SDK 的项目参考，不会改变 Foundry 登录方式，也不要求由 Claude 执行；不会再自动推荐给所有 worker。 |
 | Graphify / Impeccable | 分别使用 Codex 安装命令及原生技能目录。旧的 Foundry 管理的 Impeccable 副本需执行更新，以换成当前原生版本。 |
-| gstack / Claude 插件安装方案 | 不在 Codex 技能目录推荐。上游 gstack 的 Codex 适配仍属实验性，外部评审需要 Claude CLI；Codex 原生插件使用独立的 **Plugins** 标签。 |
+| Claude 插件安装方案 | 不在 Codex 技能目录提供；Codex 原生插件使用独立的 **Plugins** 标签。 |
 | 图片 / 视频技能 | 仍需渲染工具、项目依赖及相关服务凭据。ChatGPT 登录不会为后台会话提供图片 API key 或桌面应用的图片工具。 |
 
 **installed** 表示找到了技能，不代表它需要的每个工具或服务都已配置。个人及共享技能仍然可见，不会因推荐目录改变被删除。若上游明确指定的技能路径消失，安装会指出缺失路径，不会改装另一种 agent 的同名技能。

@@ -256,7 +256,6 @@ export class SkillsUpdateChecker {
       }
     }
     if (!upstreamDir && candidate?.dir) upstreamDir = candidate.dir;
-    if (row.managedBy === 'gstack') upstreamDir = cache; // whole clone vs whole clone
 
     const fact = key.repo && rel && gitOk && facts?.head ? await this.pathFact(key.repo, rel).catch(() => null) : (key.repo && rel && facts?.paths[rel]) || null;
     const upstream = fact ? { commit: fact.commit, committedAt: fact.at, exact: fact.exact } : null;
@@ -311,7 +310,7 @@ export class SkillsUpdateChecker {
     // adopting reinstalls from the catalog: only entries Foundry can install by itself (git, plugin)
     const adoptable = catalogId ? ['git', 'plugin'].includes(catalog.entries.find((e) => e.id === catalogId)?.source.type ?? '') : false;
     if (key.manager === 'hand' && adoptable && out.status !== 'up-to-date') actions.push('adopt');
-    if (isStaleShadow({ ...out, shadowedBy, managedBy: row.managedBy })) actions.push('trash-shadow');
+    if (isStaleShadow({ ...out, shadowedBy })) actions.push('trash-shadow');
     if (row.canUninstall) actions.push('uninstall');
     out.actions = actions;
     return out;
@@ -354,7 +353,7 @@ function pluginVersionIn(repoDir: string, pluginName: string | null): string | n
 }
 
 function updaterFor(key: SourceKey, rows: SkillSourceRow[], provider: 'claude' | 'codex' = 'claude'): SkillSource['updater'] {
-  const kind: UpdaterKind = key.manager === 'foundry' ? 'foundry' : key.manager === 'agents-cli' ? 'agents-cli' : key.manager === 'plugin' ? 'plugin' : key.manager === 'gstack' ? 'hint' : key.manager === 'hand' ? (rows.some((r) => r.actions.includes('adopt')) ? 'adopt' : 'none') : 'none';
+  const kind: UpdaterKind = key.manager === 'foundry' ? 'foundry' : key.manager === 'agents-cli' ? 'agents-cli' : key.manager === 'plugin' ? 'plugin' : key.manager === 'hand' ? (rows.some((r) => r.actions.includes('adopt')) ? 'adopt' : 'none') : 'none';
   const pluginId = key.id.startsWith('plugin:') ? key.id.slice('plugin:'.length) : null;
   const mkt = pluginId?.includes('@') ? pluginId.split('@').slice(1).join('@') : null;
   switch (kind) {
@@ -368,8 +367,6 @@ function updaterFor(key: SourceKey, rows: SkillSourceRow[], provider: 'claude' |
       return { kind, command: null, hint: null };
     case 'adopt':
       return { kind, command: null, hint: 'Replace these loose copies with foundry-managed installs from the catalog (old copies go to the trash).' };
-    case 'hint':
-      return { kind, command: null, hint: 'gstack updates itself: run /gstack-upgrade inside Claude Code.' };
     default:
       return { kind: 'none', command: null, hint: null };
   }
@@ -377,12 +374,8 @@ function updaterFor(key: SourceKey, rows: SkillSourceRow[], provider: 'claude' |
 
 export type { MarketplaceInfo };
 
-/**
- * A user-level copy that a plugin skill of the same name supersedes, and that Foundry may trash. A copy another tool
- * keeps (gstack re-links its skills on every session) is that tool's own skill that merely shares the name: trashing it
- * would not last and is not offered.
- */
-export function isStaleShadow(r: Pick<SkillSourceRow, 'shadowedBy' | 'status' | 'match' | 'managedBy'>): boolean {
-  if (!r.shadowedBy || r.managedBy === 'gstack' || r.managedBy === 'gstack-copy') return false;
+/** A user-level copy that a plugin skill of the same name supersedes, and that Foundry may trash. */
+export function isStaleShadow(r: Pick<SkillSourceRow, 'shadowedBy' | 'status' | 'match'>): boolean {
+  if (!r.shadowedBy) return false;
   return r.status === 'outdated' || r.status === 'modified' || r.match?.relation === 'older';
 }
