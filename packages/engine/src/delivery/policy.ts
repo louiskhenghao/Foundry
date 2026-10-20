@@ -36,6 +36,7 @@ export function planDelivery(goal: Goal, p: DeliveryPolicy, probes: PlanProbes):
   const repo = probes.remoteUrl ? repoSlug(probes.remoteUrl) : p.createRepo ? `${p.createRepo.owner}/${p.createRepo.name}` : '<owner/name>';
   const closes = goal.issue ? `; closes issue ${issueRefFor(goal.issue, repo)} when it merges` : '';
   steps.push(probes.prExists ? { step: 'open-pr', command: null, note: `reuse open PR #${probes.prExists.number}` } : { step: 'open-pr', command: `gh pr create -R ${repo} --base ${base} --head ${goal.branch} --title "${title}" --body-file <summary+evidence+merge-danger>`, note: p.unit === 'task' ? `PR body = summary, decisions, evidence (the checks), merge danger (${n < 2 ? 'only one task commit, so one PR' : 'one PR'})${closes}` : `PR body = summary, decisions, evidence (the checks), merge danger${closes}` });
+  if (p.fixReviewCycles > 0) steps.push({ step: 'fix-review', command: null, note: `review comments on the PR (inline, or a review that requests changes): up to ${p.fixReviewCycles} round(s) addressed by a fix task, pushed and replied to` });
   if (p.mode === 'pr') return steps;
   steps.push({ step: 'wait-checks', command: `gh pr view <n> -R ${repo} --json statusCheckRollup,mergeable`, note: p.requireChecks ? `wait for checks (${p.mergeIfNoChecks ? 'merge if none configured' : 'require at least one'})` : 'checks not required' });
   if (p.fixCiCycles > 0) steps.push({ step: 'fix-ci', command: null, note: `up to ${p.fixCiCycles} "fix CI" task(s) if checks fail` });
@@ -55,6 +56,7 @@ function planStacked(goal: Goal, p: DeliveryPolicy, probes: PlanProbes, base: st
   if (p.mode === 'push') return steps;
   const repo = probes.remoteUrl ? repoSlug(probes.remoteUrl) : p.createRepo ? `${p.createRepo.owner}/${p.createRepo.name}` : '<owner/name>';
   steps.push({ step: 'open-pr', command: `gh pr create -R ${repo} --base ${base} --head ${goal.branch}-1-<slug> --title "<task 1 commit header>" … --base ${goal.branch}-${n - 1}-<slug> --head ${goal.branch}-${n}-<slug>`, note: `${n} PRs bottom-up, each based on the one below; titles are the tasks' Conventional Commit headers${goal.issue ? `; the last one closes issue ${issueRefFor(goal.issue, repo)} when it merges` : ''}` });
+  if (p.fixReviewCycles > 0) steps.push({ step: 'fix-review', command: null, note: `review comments on a PR (inline, or a review that requests changes): up to ${p.fixReviewCycles} round(s) addressed on its branch, pushed and replied to` });
   if (p.mode === 'pr') return steps;
   steps.push({ step: 'wait-checks', command: `gh pr view <n> -R ${repo} --json statusCheckRollup,mergeable`, note: `for each PR in order: ${p.requireChecks ? `wait for checks (${p.mergeIfNoChecks ? 'merge if none configured' : 'require at least one'})` : 'checks not required'}` });
   if (p.fixCiCycles > 0) steps.push({ step: 'fix-ci', command: null, note: `up to ${p.fixCiCycles} "fix CI" task(s) in total if checks fail` });

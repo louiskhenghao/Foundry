@@ -2467,7 +2467,7 @@ export class Engine {
   // ---------- delivery ----------
 
   /** Set (or change) the delivery policy; runs immediately when the goal is already finished. */
-  async deliver(goalId: string, policyIn: Partial<DeliveryPolicy>, source: 'deliver' | 'retry' | 'resume' = 'deliver'): Promise<Goal> {
+  async deliver(goalId: string, policyIn: Partial<DeliveryPolicy>, source: 'deliver' | 'retry' | 'resume' | 'review' = 'deliver'): Promise<Goal> {
     const goal = this.mustGoal(goalId);
     if (goal.delivery.status === 'running') throw new Error('delivery is already running');
     const policy = DeliveryPolicy.parse({ ...goal.delivery.policy, ...policyIn });

@@ -385,7 +385,8 @@ describe('delivery pipeline', () => {
     expect(ev).toContain('delivery.stack_built');
     expect(ev.filter((x) => x === 'delivery.pushed').length).toBe(2);
     const plan = await engine.deliveryPlan(goal.id, { mode: 'pr', unit: 'task' });
-    expect(plan.steps.map((s) => s.step)).toEqual(['preflight', 'ensure-remote', 'build-stack', 'push', 'open-pr']);
+    // the plan ends with the review-comment step the default policy allows (ADR-0053)
+    expect(plan.steps.map((s) => s.step)).toEqual(['preflight', 'ensure-remote', 'build-stack', 'push', 'open-pr', 'fix-review']);
     const before = engine.store.snapshotReadModels();
     engine.store.replay();
     expect(engine.store.snapshotReadModels()).toEqual(before);
@@ -503,7 +504,8 @@ describe('delivery pipeline', () => {
     await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state));
     expect(deliveredStatus(engine, goal.id).status).toBe('idle');
     const plan = await engine.deliveryPlan(goal.id, { mode: 'pr' });
-    expect(plan.steps.map((s) => s.step)).toEqual(['preflight', 'ensure-remote', 'sync-base', 'push', 'open-pr']);
+    expect(plan.steps.map((s) => s.step)).toEqual(['preflight', 'ensure-remote', 'sync-base', 'push', 'open-pr', 'fix-review']);
+    expect((await engine.deliveryPlan(goal.id, { mode: 'pr', fixReviewCycles: 0 })).steps.map((s) => s.step)).toEqual(['preflight', 'ensure-remote', 'sync-base', 'push', 'open-pr']);
     expect(plan.steps.find((s) => s.step === 'push')!.command).toContain(`refs/heads/${goal.branch}:refs/heads/${goal.branch}`);
     await engine.deliver(goal.id, { mode: 'pr' });
     await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 20_000);
