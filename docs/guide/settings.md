@@ -179,7 +179,7 @@ When to change: raise the timeout or Claude cost cap if big tasks keep getting c
 
 Skills are packaged instructions the coding agent can follow. **Coding agent** selects which coding agent's installation status and actions you see; workflow pack choices are shared.
 
-- **Profile**: **mattpocock (mandated + observed)** (default) tells workers which working method to follow (tests first for features, diagnose first for bugs) and records whether they did. **plain (hint only)** only mentions them.
+- **Profile**: **mattpocock (mandated + observed)** (default) tells workers which working method to follow (tests first for features, diagnose first for bugs, the `writing-for-agents` skill when a task edits `AGENTS.md`, `CLAUDE.md` or a skill) and records whether they did; with the `retro` skill installed, the session that writes a goal's [Learnings](./learnings.md) runs as a retrospective. **plain (hint only)** only mentions them. The skills come from one pinned release of the suite, so they do not change between goals.
 - **Setting sources** (Claude only): which Claude Code settings sessions load. Leave empty.
 - **autoskills per goal** (on): after you approve a Brief, adds skills matching your project's technology (React, Tailwind…) to the goal's folder. They never reach your commits.
 - **MCP tools that run or change things** (off): lets sessions use the tools of allowed MCP servers that run or change things. For REA: launching the target app, attaching a debugger, touching a connected Android device. Off, sessions get static analysis only.

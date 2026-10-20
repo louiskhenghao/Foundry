@@ -8,7 +8,7 @@ Every goal teaches Foundry something about your project: the command the tests n
 
 ## Where they come from
 
-- **When a goal ends** (done, over-delivered or failed), a short session on the goal's housekeeping model reads how it went: what you asked and decided, where it stopped for you and what you answered, the hints you gave, the attempts that failed and what they ran into, the warnings and the final review. It adds what is worth keeping about the project, merges repeats and drops what turned out wrong. A cancelled goal teaches nothing.
+- **When a goal ends** (done, over-delivered or failed), a short session on the goal's housekeeping model reads how it went: what you asked and decided, where it stopped for you and what you answered, the hints you gave, the attempts that failed and what they ran into, the warnings and the final review. It adds what is worth keeping about the project, merges repeats and drops what turned out wrong. A cancelled goal teaches nothing. With the `retro` skill installed (Claude), the session runs as a retrospective: it may read the goal's session transcripts, and it looks for what the next goal would have wanted — a pointer to the right file, a check that would have caught a mistake, a rule for the reviewer, an instruction that changed nothing.
 - **From you.** What you add or change is yours (✎). Foundry never changes or removes it.
 
 The goal's **Activity** says what changed, for example *Learnings for this folder: +2 — added how the e2e tests start*. The session costs a few cents, counted in the goal's cost.
