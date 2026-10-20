@@ -231,7 +231,7 @@ A source the system consults to decide which parts of a repository are relevant 
 A packaged instruction set a Coding agent can load (a `SKILL.md` directory). Foundry does not define skills; it sees the supported skills installed for the selected coding agent, installs curated ones from its Catalog, and tells its Roles which to use.
 
 **Skill Source**
-Where an installed Skill comes from and who updates it: a GitHub repository managed by Foundry, by the community `skills` CLI, or by a Claude Code plugin; a gstack clone; a project directory; or a hand-installed copy whose origin is inferred by matching its contents against known sources. Native Codex plugin packages are managed separately from loose skills; their lifecycle belongs to the native CLI. Skills of the same Foundry-managed Source are updated together; a Skill whose bytes match an older version of its Source is *outdated*, one that matches no version is *modified*.
+Where an installed Skill comes from and who updates it: a GitHub repository managed by Foundry, by the community `skills` CLI, or by a Claude Code plugin; a project directory; or a hand-installed copy whose origin is inferred by matching its contents against known sources. Native Codex plugin packages are managed separately from loose skills; their lifecycle belongs to the native CLI. Skills of the same Foundry-managed Source are updated together; a Skill whose bytes match an older version of its Source is *outdated*, one that matches no version is *modified*.
 
 **Shadow copy**
 A user-level Skill that has the same name as a Skill provided by a plugin. Both load; prompts use the plugin's copy because it is the one that gets updated. Shadow copies are reported and can be moved to the trash in one click.
