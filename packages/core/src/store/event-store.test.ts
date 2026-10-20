@@ -156,6 +156,16 @@ describe('EventStore', () => {
     expect(() => store.append({ type: 'goal.state_changed', goalId: 'g', payload: { from: 'draft', to: 'nope', reason: '' } })).toThrow();
   });
 
+  test('close() shuts the database once, and a closed store refuses queries', () => {
+    const store = new EventStore(openDatabase(':memory:'));
+    store.append({ type: 'goal.created', goalId: 'g_c', payload: { goal: goal('g_c') } });
+    expect(store.isClosed).toBe(false);
+    store.close();
+    store.close();
+    expect(store.isClosed).toBe(true);
+    expect(() => store.count()).toThrow();
+  });
+
   test('notifies listeners after commit', () => {
     const store = new EventStore(openDatabase(':memory:'));
     const seen: string[] = [];

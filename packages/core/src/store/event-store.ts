@@ -22,10 +22,28 @@ export class EventStore {
   private listeners = new Set<EventListener>();
   private insert;
   private sinceQuery;
+  private closed = false;
 
   constructor(public readonly db: Database) {
     this.insert = db.query('INSERT INTO events (id, ts, goal_id, type, payload) VALUES (?, ?, ?, ?, ?)');
     this.sinceQuery = db.query('SELECT seq, id, ts, goal_id, type, payload FROM events WHERE seq > ? ORDER BY seq');
+  }
+
+  /** whether close() ran: the database is shut, and nothing reads or writes the store any more */
+  get isClosed(): boolean {
+    return this.closed;
+  }
+
+  /**
+   * Close the database. The engine calls this last when it stops, so that whoever deletes the data directory afterwards
+   * (every engine test does) removes a closed file: on macOS, SQLite marks the descriptors of a database unlinked while
+   * it is open as dead, and the next close of one of them is a guard trap that kills the process (EXC_GUARD, exit 137).
+   * Safe to call more than once; a closed store's queries throw.
+   */
+  close(): void {
+    if (this.closed) return;
+    this.closed = true;
+    this.db.close();
   }
 
   append(e: NewEvent): EngineEvent {

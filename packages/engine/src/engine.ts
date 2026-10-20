@@ -1109,6 +1109,9 @@ export class Engine {
     await settle(learningWork(), 5_000);
     // a deploy records how it ended (its commands were killed with the rest)
     await settle(deployWork(), 5_000);
+    // last of all, the database closes: a data directory deleted after stop() then holds a closed file (on macOS, a
+    // database unlinked while open makes its next close a guard trap that kills the process — the test runner died of it)
+    this.store.close();
   }
 
   /** the escalation for a commit a merge attempt made before the engine stopped and git would not take back at the next start */
