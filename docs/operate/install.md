@@ -407,8 +407,8 @@ With the uid ≠ 1000 recipe this is already covered: the whole home folder is m
 
 ### Docker notes
 
-- The UI has no login. Keep the published port on `127.0.0.1` and never expose 4111 to a network. For access from
-  elsewhere, see [remote-access.md](./remote-access.md).
+- The UI has no login until people have tokens (Settings → Access). Keep the published port on `127.0.0.1` and never
+  expose 4111 to a network. For access from elsewhere, see [remote-access.md](./remote-access.md).
 - The image sets `FOUNDRY_HOST=0.0.0.0` inside the container. Bind to loopback on the host side (`-p 127.0.0.1:…`).
 - On first start with an empty `claude-home` volume, the entrypoint installs the graphify skill into it
   (`graphify install --platform claude`). `FOUNDRY_SKIP_SETUP=1` skips that. A mounted `~/.claude` that already has a

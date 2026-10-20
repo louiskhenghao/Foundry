@@ -308,6 +308,14 @@ key 对下一个会话生效，不用重启。保存过的 key 不会再显示�
 
 关掉你不想要的。这些开关对所有渠道都一样生效。
 
+## Access
+
+谁可以从另一台设备使用这个 Foundry。名单上没人时 —— 默认如此 —— 没有登录这回事：一个人用自己的电脑、自己的 tailnet，不需要。**Add the first person** 给这个人生成一个 token 并打开 Access：从此每个请求都要带 token，这台电脑上也一样；生成第一个 token 的浏览器会自动用它登录，所以没人会被锁在外面。
+
+token 只显示一次；复制下来，私下交给对方。在手机或笔记本上打开 Foundry 的地址，把它贴进登录页：那个浏览器会记住 90 天（**⚙ → Sign out** 忘掉它）。命令行用 `FOUNDRY_TOKEN`；`foundry access` 列出所有人，`foundry access add <name>` 和 `foundry access revoke <id>` 和页面上的按钮一样。
+
+Access 打开后，每个人做的事都记在自己名下：goal 页面会写谁要的这个 goal、谁批准了它的 Brief，Inbox 的条目会写谁回答的。从 Telegram 或 Discord 来的回答不带名字。**Revoke** 立刻收回 token，所有设备上都失效；收回最后一个就等于关掉 Access。token 只以指纹形式存在数据旁边的 `access.json` 里，不进事件日志，也不随 Transfer 走。Access 是给已经和你共用一个 tailnet 的人准备的轻量锁，不是把 Foundry 暴露到公网的理由（见 [remote-access.md](../operate/remote-access.md#give-each-person-a-token)）。
+
 ## Safety
 
 - **Extra boundary patterns**：除了内置的那些（推送、pull request、发布版本、发布包、部署、云工具）之外，Foundry 绝不能让会话自己执行的命令，比如 `terraform apply|kubectl`。被拦下的命令会进入你的 Inbox 等你批准。

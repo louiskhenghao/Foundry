@@ -302,6 +302,10 @@ A Goal viewed by someone who does not want the machinery: one plain-language Bri
 **Discipline**
 How hard the engine pushes an engineering practice on its sessions. For TDD: *required* (the Worker must follow the skill), *preferred* (suggested only), or *off* (never mentioned). Claude's Reviewer can also receive missing-invocation evidence; Codex is judged from the work and tests because invocation telemetry is unavailable. Set per Goal, overridable per Task; Tasks in the docs, infra, research, image or video Scenarios never carry a TDD mandate, and the TDD rules only apply to feature and refactor Tasks. Simple-mode Goals start with *preferred*. Ponytail is the second Discipline: *on* (the Worker climbs its ladder before writing, the Planner plans lean, `ponytail-review` replaces `code-review` in reviews) or *off*; work that is not code never sees it.
 
+**Access**
+Who may use this Foundry from elsewhere: a list of people, each with a token of their own, shown once and kept as a fingerprint beside the data. With no one on the list there is no login. Once anyone has a token every request must carry one — the sign-in page's cookie in a browser, `FOUNDRY_TOKEN` on the command line — and what a person does (a Goal asked for, a Brief approved, an Escalation answered) is recorded under their name. The first token signs in the browser that made it; revoking the last one turns Access off. A light lock for people who share a tailnet, not a reason to face the internet.
+_Avoid_: login (the page, not the feature), user account (no passwords, roles or accounts: a name and a token), authentication (the engineering word; the guide says Access and token)
+
 **Settings**
 The engine's user-editable configuration: concurrency, models, session caps, Workflow suite, Design Pack, autoskills, review and delivery defaults, tools, safety limits. A saved value beats an environment variable, which beats the default; most changes apply immediately, a few only after the engine restarts.
 
