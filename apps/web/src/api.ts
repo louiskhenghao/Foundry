@@ -1,6 +1,10 @@
 import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment, InterviewQuestion } from '@foundry/core/browser';
 import type { Attachment, Attempt, Brief, BriefApp, BriefCheck, BriefDiff, BriefRun, BriefStyleOption, BriefSubject, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, GoalTimeline, SettingsPatch, SettingsView, SubjectPicture, Task, TaskUsage } from '@foundry/core/browser';
 import type { IssueRead } from './pages/new-goal-issue.ts';
+import type { GoalRecipe, Schedule, ScheduleCadence } from '@foundry/core/browser';
+
+/** a Schedule as the Schedules page lists it (ADR-0054): with its next run and the goal of its last run */
+export type ScheduleRow = Schedule & { nextRunAt: string | null; lastGoal: { id: string; title: string; state: GoalState } | null };
 
 /** Mirrors the engine's PreviewAppStatus (preview/manager.ts): one app of the goal's preview. */
 export interface PreviewAppStatus {
@@ -553,6 +557,12 @@ export function apiForProvider(provider?: AgentProvider) {
   deploy: (goalId: string, provider: DeployHost, production: boolean) => req<{ started: boolean }>(`/api/goals/${goalId}/deploy`, { method: 'POST', body: JSON.stringify({ provider, production }) }),
   markFollowUp: (id: string, goalId: string) => req<Goal>(`/api/goals/${id}/follows`, { method: 'POST', body: JSON.stringify({ goalId }) }),
   validateRepo: (repoPath: string) => req<RepoInfo>('/api/validate-repo', { method: 'POST', body: JSON.stringify({ repoPath }) }),
+  // schedules (ADR-0054): goals that run on their own
+  schedules: () => req<{ schedules: ScheduleRow[] }>('/api/schedules'),
+  saveSchedule: (body: { id?: string; name: string; cadence: ScheduleCadence; recipe: GoalRecipe; autoApprove?: boolean; enabled?: boolean }) => req<{ schedule: Schedule }>('/api/schedules', { method: 'PUT', body: JSON.stringify(body) }),
+  setScheduleEnabled: (id: string, enabled: boolean) => req<{ schedule: Schedule }>(`/api/schedules/${id}/enable`, { method: 'POST', body: JSON.stringify({ enabled }) }),
+  runSchedule: (id: string) => req<{ goalId: string | null; skipped: string | null }>(`/api/schedules/${id}/run`, { method: 'POST' }),
+  deleteSchedule: (id: string) => req<{ ok: true }>(`/api/schedules/${id}`, { method: 'DELETE' }),
   /** a goal from a GitHub issue (ADR-0052): read it with gh; its thread comes back staged as an attachment */
   readIssue: (ref: string, repoPath: string | null) => req<IssueRead>('/api/issues/read', { method: 'POST', body: JSON.stringify({ ref, repoPath }) }),
   /** Upload one file with progress; resolves to the staged Attachment. goalId → attach directly to that goal. */

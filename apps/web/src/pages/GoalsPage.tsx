@@ -35,6 +35,7 @@ export function GoalsPage() {
       {g.workflow.pace === 'fast' && <Chip className="border-amber-800 text-amber-300">fast</Chip>}
       {g.workflow.profile && g.workflow.profile !== 'mattpocock' && <Chip className="border-violet-800 text-violet-300">{g.workflow.profile}</Chip>}
       {g.issue && <Chip className="border-sky-900 text-sky-300" title={`from issue ${g.issue.repo}#${g.issue.number}: ${g.issue.title}`}>#{g.issue.number}</Chip>}
+      {g.schedule && <Chip className="border-amber-900 text-amber-300" title={`a run of the schedule ${g.schedule.name}`}>⏰ {g.schedule.name}</Chip>}
       {g.openEscalations > 0 && <span className="text-orange-400 text-xs whitespace-nowrap">⚠ {g.openEscalations}</span>}
     </span>
   );

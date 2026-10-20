@@ -4,7 +4,7 @@ import { RestartDialog } from '../../components/RestartDialog.tsx';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { FollowLinks, MarkFollowUpDialog } from './FollowUps.tsx';
-import { IssueLink } from './IssueLink.tsx';
+import { IssueLink, ScheduleLink } from './IssueLink.tsx';
 import { DelegationLinks } from './Delegations.tsx';
 import { ClarifyProgress, SkeletonNotice, clarifyChannel } from './ClarifyProgress.tsx';
 import { InterviewPanel } from './InterviewPanel.tsx';
@@ -137,6 +137,7 @@ export function GoalPage() {
             </span>
           </div>
           <IssueLink issue={g.issue} />
+          <ScheduleLink schedule={g.schedule} />
           <FollowLinks d={d} />
           <DelegationLinks d={d} />
           {(d.learningsCount ?? 0) > 0 && (
