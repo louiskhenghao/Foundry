@@ -222,6 +222,23 @@ switch (cmd) {
     }
     break;
   }
+  case 'schedules': {
+    // goals that run on their own (ADR-0054): list them, or fire one now
+    const sub = rest[0] ?? 'list';
+    if (sub === 'run') {
+      const id = rest[1];
+      if (!id) return usage('schedules run needs <scheduleId>');
+      const r = await api(`/api/schedules/${id}/run`, { method: 'POST' });
+      console.log(r.goalId ? `started goal ${r.goalId}\n  ui: ${BASE}/goals/${r.goalId}` : `skipped: ${r.skipped}`);
+      break;
+    }
+    if (sub !== 'list') return usage('schedules [list] | schedules run <scheduleId>');
+    const v = await api('/api/schedules');
+    if (has('--json')) return console.log(JSON.stringify(v, null, 2));
+    if (!v.schedules.length) return console.log('no schedules (save one from the New goal form: Schedule…)');
+    for (const s of v.schedules as any[]) console.log(`${pad(s.id, 24)} ${s.enabled ? 'on ' : 'off'} ${pad(s.name, 30)} next ${s.nextRunAt ? new Date(s.nextRunAt).toLocaleString() : '—'}${s.lastGoal ? `  last: ${s.lastGoal.state} ${s.lastGoal.id}` : s.lastRun?.skipped ? `  last: skipped (${s.lastRun.skipped})` : ''}`);
+    break;
+  }
   case 'ports': {
     // what the Ports page shows: every port in use and who holds it (stopping one is done on the page)
     const v = await api('/api/ports');
