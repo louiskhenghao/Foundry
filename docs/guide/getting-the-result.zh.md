@@ -24,6 +24,8 @@ goal 页面会用大白话告诉你："The work is on branch … in your reposit
 
 用 **PR + auto-merge** 时，如果 GitHub 上的分支保护挡住了合并，Foundry 会打开 GitHub 自己的 auto-merge（`gh pr merge --auto`），并等一段时间（[Settings → Git & delivery](./settings.zh.md#git--delivery)）。如果到时 GitHub 还没合并，它之后会自己合并，Foundry 也不会删除这个分支。
 
+[从 GitHub issue](./your-first-goal.zh.md#from-a-github-issue) 创建的 goal，其 pull request 的描述会以 `Closes #12` 开头：pull request 合并后 GitHub 会关闭这个 issue（每个任务一个 PR 时，由最后一个带上这一行）。Foundry 从不往 issue 本身写东西。
+
 每种方式都遵守两条规则：
 
 - 推送、开 PR 和合并都由 Foundry 自己来做，严格按 Delivery 标签上列出的计划。给你做任务的 AI 不能推送；它要是试图推送，Foundry 会拦下并问你（见 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md#它想在你电脑以外做事)）。

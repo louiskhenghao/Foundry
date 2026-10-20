@@ -24,6 +24,8 @@ You pick the delivery on the New goal form (**4 · Delivery**), and can change i
 
 With **PR + auto-merge**, if branch protection on GitHub blocks the merge, Foundry turns on GitHub's own auto-merge (`gh pr merge --auto`) and waits a while ([Settings → Git & delivery](./settings.md#git--delivery)). If GitHub has not merged by then, it merges later by itself, and Foundry does not delete the branch.
 
+A goal made [from a GitHub issue](./your-first-goal.md#from-a-github-issue) starts the pull request's description with `Closes #12`: GitHub closes the issue when the pull request merges (with one PR per task, the last one carries it). Foundry never writes to the issue itself.
+
 Two rules hold for every mode:
 
 - It is Foundry itself that pushes, opens and merges, exactly as the plan on the Delivery tab lists. The AI working on your tasks cannot push; if it tries, Foundry blocks it and asks you (see [When Foundry needs you](./when-foundry-needs-you.md#it-wants-to-do-something-outside-your-computer)).

@@ -292,6 +292,7 @@ The history endpoint returns the last 400 events, slimmed the same way, includin
 |---|---|
 | Goal creation, restart, cancel, delete | `engine/src/engine.ts` (`createGoal`, `restartGoal`, `cancelGoal`, `deleteGoal`) |
 | Follow-ups (start point, Previous goal section, links) | `engine/src/follow-up.ts`, `core/src/schema/goal.ts` (`GoalFollows`) |
+| A goal from a GitHub issue (the read, the thread snapshot, the `Closes` line of the PR body) | `engine/src/issue.ts`, `engine/src/delivery/policy.ts` (`buildPrBody`, `buildTaskPrBody`), `core/src/schema/goal.ts` (`GoalIssue`) |
 | Tick and per-state dispatch | `engine/src/engine.ts` (`tick`, `runTick`) |
 | Scheduling, parallelism, file-overlap waits | `engine/src/scheduler.ts`, `engine/src/catchup.ts` |
 | Attempt loop, Continuations, Observation Report | `engine/src/attempt-loop.ts`, `engine/src/attempt-prompt.ts` |
