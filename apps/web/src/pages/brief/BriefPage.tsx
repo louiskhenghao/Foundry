@@ -1,7 +1,7 @@
 import type { Brief } from '@foundry/core/browser';
 import { decisionsOf, pendingDecisions, proposeBudgetFromEstimate, topoSort, uncoveredAreas } from '@foundry/core/browser';
-import { RotateCcw } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Loader2, RotateCcw } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, type GoalDetail } from '../../api.ts';
 import { FollowLinks } from '../goal/FollowUps.tsx';
@@ -20,10 +20,11 @@ import { DecisionsBar } from './DecisionsBar.tsx';
 import { GoalAcceptanceCard } from './GoalAcceptanceCard.tsx';
 import { RunCard } from './RunCard.tsx';
 import { InterviewPanel } from '../goal/InterviewPanel.tsx';
+import { ClarifyProgress, clarifyChannel } from '../goal/ClarifyProgress.tsx';
 import { PlanSection } from './PlanSection.tsx';
 import { BriefChipNav, BriefSideNav, type BriefNavItem } from './BriefNav.tsx';
 import { SimpleBrief } from './SimpleBrief.tsx';
-import { areaOf, areaStyle, checkProblem, taskProblem } from './shared.ts';
+import { areaOf, areaStyle, checkProblem, taskProblem, withPlan } from './shared.ts';
 import { ProviderBadge } from '../agents/rows.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 import { SectionTitle } from './SectionTitle.tsx';
@@ -52,6 +53,8 @@ export function BriefPage() {
     localStorage.setItem(`foundry.expert.${id}`, e ? '1' : '0');
   };
 
+  /** the page showed the Brief skeleton at the last load: when the plan then arrives, it is merged into unsaved edits */
+  const wasSkeleton = useRef(false);
   useEffect(() => {
     const t = setTimeout(
       () =>
@@ -59,7 +62,13 @@ export function BriefPage() {
           .goal(id)
           .then((d) => {
             setDetail(d);
-            if (!dirty && d.brief) setBrief(d.brief.brief);
+            const skeletonNow = d.goal.state === 'clarifying' && !!d.brief?.skeleton;
+            if (d.brief) {
+              if (!dirty) setBrief(d.brief.brief);
+              // the plan arrived while this page held edits: the tasks, their checks and the estimate come in, the edits stay
+              else if (wasSkeleton.current && !skeletonNow) setBrief((b) => (b ? withPlan(b, d.brief!.brief) : d.brief!.brief));
+            }
+            wasSkeleton.current = skeletonNow;
           })
           .catch((e) => setErr(e.message)),
       150,
@@ -86,24 +95,32 @@ export function BriefPage() {
   if (err && !detail) return <Empty>{err}</Empty>;
   if (!detail) return <Empty>Loading…</Empty>;
   const g = detail.goal;
+  /** the Clarifier's Brief without its tasks: read and edit it while the planner works; approval and the AI buttons wait for the plan */
+  const skeleton = g.state === 'clarifying' && !!detail.brief?.skeleton;
 
-  if (g.state === 'clarifying' || !brief) {
+  if ((g.state === 'clarifying' && !skeleton) || !brief) {
     return (
       <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
         <Header detail={detail} />
         {g.interview ? (
-          <InterviewPanel goal={g} />
+          <InterviewPanel goal={g} events={detail.events} />
         ) : (
           <Card title="Clarifying…">
-            <p className="text-sm text-zinc-400 mb-3">The Clarifier is exploring the repository, listing the Areas the goal covers and drafting the Brief. This page updates automatically.</p>
-            <LiveLog attemptId={`clarify-${id}`} />
+            <p className="text-sm text-zinc-400 mb-3">The Clarifier is exploring the repository, listing the Areas the goal covers and drafting the Brief. This page shows the Brief as soon as its skeleton is written, and updates by itself.</p>
+            <div className="mb-3 text-xs">
+              <ClarifyProgress goal={g} writingBrief events={detail.events} />
+            </div>
+            <LiveLog attemptId={clarifyChannel(g)} />
           </Card>
         )}
       </div>
     );
   }
 
-  const editable = g.state === 'awaiting_brief_approval';
+  /** the fields can be changed: the Brief awaits approval, or it is the skeleton the planner is still filling */
+  const editable = g.state === 'awaiting_brief_approval' || skeleton;
+  /** the plan is in: approval, Revise, Draft and the Subjects' tools apply */
+  const settled = g.state === 'awaiting_brief_approval';
   const update = (patch: Partial<Brief>) => edit((b) => ({ ...b, ...patch }));
   /** what the Questions card shows: a note is a Decision, listed with the others */
   const asked = brief.questions.filter((q) => q.kind !== 'note');
@@ -113,9 +130,10 @@ export function BriefPage() {
   const gaps = uncoveredAreas(brief);
   const pending = pendingDecisions(brief);
   const blockers = [
+    skeleton ? 'the planner is still splitting the goal into tasks' : '',
     blockingUnanswered.length ? `${blockingUnanswered.length} blocking question${blockingUnanswered.length > 1 ? 's' : ''} unanswered` : '',
     !graph.ok ? 'task graph has a cycle' : '',
-    brief.tasks.length === 0 ? 'no tasks' : '',
+    brief.tasks.length === 0 && !skeleton ? 'no tasks' : '',
     badTasks.length ? `${badTasks.length} task${badTasks.length > 1 ? 's' : ''} without a title` : '',
     badChecks.length ? `${badChecks.length} incomplete check${badChecks.length > 1 ? 's' : ''}` : '',
     detail?.investigating ? 'REA is still studying the references' : '',
@@ -125,13 +143,14 @@ export function BriefPage() {
   const subjects = detail.brief?.brief.subjects ?? [];
   const searching = detail.subjectSearches ?? [];
   const visual = subjects.length > 0 || brief.styleOptions.length > 0 || ['image', 'video', 'cad'].includes(g.nature) || brief.tasks.some((t) => ['frontend', 'fullstack', 'mobile', 'image', 'video', 'cad'].includes(t.scenario));
-  const subjectsCard = visual ? <SubjectsCard goalId={id} subjects={subjects} searching={searching} editable={editable} /> : null;
+  const subjectsCard = visual ? <SubjectsCard goalId={id} subjects={subjects} searching={searching} editable={settled} /> : null;
 
   const save = async () => {
     setBusy(true);
     setErr(null);
     try {
-      await api.editBrief(id, brief);
+      // a skeleton's save hands the planner's result the edited fields and keeps whatever tasks are stored by then
+      await api.editBrief(id, brief, skeleton);
       setDirty(false);
     } catch (e: any) {
       setErr(e.message);
@@ -168,6 +187,7 @@ export function BriefPage() {
         brief={brief}
         goal={g}
         editable={editable}
+        planning={skeleton}
         update={update}
         budgetDraft={budgetDraft}
         setBudgetEdit={setBudgetEdit}
@@ -196,12 +216,13 @@ export function BriefPage() {
     ...(subjectsCard ? [{ id: 'brief-subjects', label: 'Looks like', status: searching.length ? 'searching' : subjects.length ? String(subjects.length) : null }] : []),
     { id: 'brief-assumptions', label: 'Assumptions', status: brief.assumptions.length ? `${brief.assumptions.filter((a) => a.accepted).length}/${brief.assumptions.length}` : null },
     ...(decisions.length || editable ? [{ id: 'brief-decisions', label: 'Decisions', status: pending.length ? `${pending.length} to apply` : decisions.length ? String(decisions.length) : null, warn: pending.length > 0 }] : []),
-    { id: 'brief-areas', label: 'Areas', status: gaps.length ? `${gaps.length} empty` : String(brief.areas.length), warn: gaps.length > 0 },
-    { id: 'brief-plan', label: 'Plan', status: `${brief.tasks.length} task${brief.tasks.length === 1 ? '' : 's'}`, warn: !graph.ok || badTasks.length > 0 },
+    // while the planner works every Area is still empty: nothing to warn about yet
+    { id: 'brief-areas', label: 'Areas', status: gaps.length && !skeleton ? `${gaps.length} empty` : String(brief.areas.length), warn: !skeleton && gaps.length > 0 },
+    { id: 'brief-plan', label: 'Plan', status: skeleton ? 'planning…' : `${brief.tasks.length} task${brief.tasks.length === 1 ? '' : 's'}`, warn: !skeleton && (!graph.ok || badTasks.length > 0) },
     { id: 'brief-acceptance', label: 'Goal acceptance', status: String(goalChecks), warn: badChecks.length > 0 },
     { id: 'brief-run', label: 'How to run it' },
     { id: 'brief-completion', label: 'Completion' },
-    { id: 'brief-budget', label: 'Estimate & budget', status: `${costAvailable ? `$${brief.costEstimateUsd} · ` : ''}${brief.timeEstimateMin}m`, warn: overCost || overTime },
+    { id: 'brief-budget', label: 'Estimate & budget', status: skeleton ? 'with the plan' : `${costAvailable ? `$${brief.costEstimateUsd} · ` : ''}${brief.timeEstimateMin}m`, warn: !skeleton && (overCost || overTime) },
   ];
   const sec = 'scroll-mt-14 lg:scroll-mt-4';
 
@@ -298,14 +319,26 @@ export function BriefPage() {
 
           {(decisions.length > 0 || editable) && (
             <section id="brief-decisions" className={sec}>
-              <DecisionsBar brief={brief} goal={g} goalId={id} editable={editable} edit={edit} beforeRevise={dirty ? save : undefined} />
+              <DecisionsBar brief={brief} goal={g} goalId={id} editable={editable} revisable={settled} edit={edit} beforeRevise={dirty ? save : undefined} />
             </section>
           )}
           <section id="brief-areas" className={sec}>
-            <AreasCard brief={brief} goalId={id} editable={editable} edit={edit} />
+            <AreasCard brief={brief} goalId={id} editable={editable} draftable={settled} planning={skeleton} edit={edit} />
           </section>
           <section id="brief-plan" className={sec}>
-            <PlanSection costAvailable={costAvailable} brief={brief} goalId={id} editable={editable} edit={edit} />
+            {skeleton ? (
+              <Card title={<><SectionTitle section="plan">Plan</SectionTitle><HelpLink to="approving-the-brief#while-the-planner-works" className="ml-1.5" /></>}>
+                <div className="text-xs space-y-3">
+                  <ClarifyProgress goal={g} writingBrief skeleton events={detail.events} />
+                  <p className="text-zinc-400">
+                    The tasks, their checks and the estimate appear here by themselves. Read and edit the rest meanwhile: what you change is kept, and the plan fills in around it. <b>Save edits</b> hands your changes to the planner's result even if you leave the page.
+                  </p>
+                  <LiveLog attemptId={clarifyChannel(g)} className="max-h-48" />
+                </div>
+              </Card>
+            ) : (
+              <PlanSection costAvailable={costAvailable} brief={brief} goalId={id} editable={editable} edit={edit} />
+            )}
           </section>
           <section id="brief-acceptance" className={sec}>
             <GoalAcceptanceCard brief={brief} editable={editable} edit={edit} />
@@ -324,6 +357,7 @@ export function BriefPage() {
 
           <section id="brief-budget" className={sec}>
             <Card title={<SectionTitle section="budget">{isAuto && editable ? 'Estimate → proposed budget' : 'Estimate & budget'}</SectionTitle>}>
+              {skeleton && <p className="text-xs text-sky-300 mb-2">The estimate arrives with the plan.</p>}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 {costAvailable ? <div>
                   Estimated cost <span className="mono">${brief.costEstimateUsd}</span>
@@ -376,7 +410,12 @@ export function BriefPage() {
           {err && <div className="text-sm text-rose-400">{err}</div>}
           {editable ? (
             <div className="flex items-center justify-end gap-2 flex-wrap sticky bottom-0 py-3 bg-zinc-950/90 backdrop-blur">
-              {(gaps.length > 0 || pending.length > 0) && (
+              {skeleton && (
+                <span className="text-[11px] text-sky-300 mr-auto inline-flex items-center gap-1.5">
+                  <Loader2 size={12} className="animate-spin" /> The planner is splitting the goal into tasks. Read and edit meanwhile; approval opens when the plan is in.
+                </span>
+              )}
+              {!skeleton && (gaps.length > 0 || pending.length > 0) && (
                 <span className="text-[11px] text-amber-300 mr-auto">
                   {gaps.length > 0 && <span title="Areas without tasks will simply not be built">{gaps.map((a) => a.name).join(', ')} {gaps.length > 1 ? 'have' : 'has'} no tasks. </span>}
                   {pending.length > 0 && <span title="Workers receive your decisions, but the tasks and checks were planned before them">{pending.length} decision{pending.length > 1 ? 's' : ''} not applied to the plan — Revise, or approve anyway.</span>}

@@ -5,7 +5,7 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { FollowLinks, MarkFollowUpDialog } from './FollowUps.tsx';
 import { DelegationLinks } from './Delegations.tsx';
-import { ClarifyProgress } from './ClarifyProgress.tsx';
+import { ClarifyProgress, SkeletonNotice, clarifyChannel } from './ClarifyProgress.tsx';
 import { InterviewPanel } from './InterviewPanel.tsx';
 import { MilestoneCard } from './MilestoneCard.tsx';
 import { ImportedCard } from './ImportedCard.tsx';
@@ -232,11 +232,16 @@ export function GoalPage() {
 
       {g.state === 'awaiting_feedback' && <MilestoneCard d={d} />}
 
-      {g.state === 'clarifying' && g.interview && <InterviewPanel goal={g} />}
+      {g.state === 'clarifying' && g.interview && <InterviewPanel goal={g} skeleton={!!d.brief?.skeleton} events={d.events} />}
       {((g.state === 'clarifying' && !g.interview) || g.state === 'goal_review') && (
-        <Card title={g.state === 'clarifying' ? 'Clarifying…' : 'Goal review…'}>
-          {g.state === 'clarifying' && <div className="mb-3 text-xs"><ClarifyProgress goal={g} writingBrief /></div>}
-          <LiveLog attemptId={g.state === 'clarifying' ? `clarify-${id}` : `goal-review-${id}-${g.fixCycles}`} />
+        <Card title={g.state === 'clarifying' ? (d.brief?.skeleton ? 'Planning…' : 'Clarifying…') : 'Goal review…'}>
+          {g.state === 'clarifying' && (
+            <div className="mb-3 text-xs">
+              <ClarifyProgress goal={g} writingBrief skeleton={!!d.brief?.skeleton} events={d.events} />
+              {d.brief?.skeleton && <SkeletonNotice goalId={id} />}
+            </div>
+          )}
+          <LiveLog attemptId={g.state === 'clarifying' ? clarifyChannel(g) : `goal-review-${id}-${g.fixCycles}`} />
         </Card>
       )}
 

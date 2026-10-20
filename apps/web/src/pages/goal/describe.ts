@@ -49,7 +49,34 @@ export function describe(e: EngineEvent, costAvailable = true): { text: string; 
     case 'clarify.started':
       return { text: 'Clarifier exploring the repository', tone: 'muted' };
     case 'clarify.stage':
-      return { text: p.stage === 'planning' ? 'Planner splitting the goal into tasks' : 'Clarifier at work', tone: 'muted' };
+      return { text: p.stage === 'planning' ? 'Planner splitting the goal into tasks' : p.stage === 'queued' ? 'Waiting for a free session slot' : p.stage === 'investigating' ? 'REA studying the references' : 'Clarifier at work', tone: 'muted' };
+    case 'brief.skeleton_proposed':
+      return { text: `Brief skeleton proposed: ${n(p.brief.areas.length, 'Area')}; the planner is splitting the goal into tasks`, tone: 'info' };
+    case 'brief.edited':
+      return { text: 'Brief edited', tone: 'muted' };
+    case 'brief.decision_added':
+      return { text: `Note added: ${p.text.split('\n')[0]}`, tone: 'info', ...cut(p.text) };
+    case 'interview.round_asked':
+      return { text: `Clarifier asked round ${p.round}: ${n(p.questions.length, 'question')}`, tone: 'info' };
+    case 'interview.round_answered': {
+      const k = Object.keys(p.answers ?? {}).length;
+      const answers = `${k ? n(k, 'answer') : 'no answers'}${p.note ? ', with a note' : ''}`;
+      return { text: p.finish ? `You asked for the Brief after round ${p.round}: ${answers}` : `You answered round ${p.round}: ${answers}`, tone: 'info' };
+    }
+    case 'interview.finished':
+      return { text: p.reason === 'nothing_to_ask' ? 'Interview over: nothing to ask' : `Interview over after ${n(p.rounds, 'round')}: ${p.reason === 'human' ? 'you asked for the Brief' : p.reason === 'cap' ? 'the round cap was reached' : 'nothing left to ask'}`, tone: 'muted' };
+    case 'revise.round_asked':
+      return { text: `Revise asked round ${p.round}: ${n(p.questions.length, 'question')}`, tone: 'info' };
+    case 'revise.round_answered': {
+      const k = Object.keys(p.answers ?? {}).length;
+      return { text: `You answered the Revise round ${p.round}: ${k ? n(k, 'answer') : 'no answers'}${p.note ? ', with a note' : ''}${p.finish ? ' (asked it to propose)' : ''}`, tone: 'info' };
+    }
+    case 'revise.finished':
+      return { text: p.reason === 'proposal' ? `Revise proposed after ${n(p.rounds, 'round')}` : p.reason === 'abandoned' ? `Revise let go after ${n(p.rounds, 'round')}` : p.reason === 'cap' ? `Revise proposed at the round cap (${n(p.rounds, 'round')})` : `Revise failed after ${n(p.rounds, 'round')}`, tone: p.reason === 'failed' ? 'warn' : 'muted' };
+    case 'goal.nature_set':
+      return { text: `Nature: ${p.nature} (${p.reason})`, tone: 'muted' };
+    case 'goal.reclarified':
+      return { text: `Clarify re-run: ${p.reason}`, tone: 'info' };
     case 'goal.cost_added':
       return { text: `+${cost(p.costUsd)} ${p.source}`, tone: 'muted' };
     case 'goal.budgets_changed':
@@ -80,6 +107,9 @@ export function describe(e: EngineEvent, costAvailable = true): { text: string; 
       return { text: e.type, tone: 'muted' };
   }
 }
+
+/** a count with its noun: "1 question", "3 rounds" */
+const n = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
 
 /** the whole text, when the one-line description keeps only its first line (up to `max` characters) */
 function cut(text: string, max = Infinity, raw = false): { full?: string; raw?: boolean } {

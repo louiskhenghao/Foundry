@@ -19,7 +19,7 @@ type Round = { round: number; questions: InterviewQuestion[] };
  * let go, or the Brief is approved. A note written here is a Decision too: saved with the Brief, it reaches every
  * session and a Re-run Clarify.
  */
-export function DecisionsBar({ brief, goal, goalId, editable, edit, beforeRevise }: { brief: Brief; goal: Goal; goalId: string; editable: boolean; edit: (fn: (b: Brief) => Brief) => void; /** saves the page's edits first, so a note typed here survives a reload while a round waits */ beforeRevise?: () => Promise<void> }) {
+export function DecisionsBar({ brief, goal, goalId, editable, revisable = editable, edit, beforeRevise }: { brief: Brief; goal: Goal; goalId: string; editable: boolean; /** Revise applies (false while the planner still fills the Brief skeleton: notes can be added, nothing revised yet) */ revisable?: boolean; edit: (fn: (b: Brief) => Brief) => void; /** saves the page's edits first, so a note typed here survives a reload while a round waits */ beforeRevise?: () => Promise<void> }) {
   const [proposal, setProposal] = useState<DraftProposal | null>(null);
   /** which proposal is on screen: a new one gets a fresh panel, never the previous one's ticks */
   const [proposalNo, setProposalNo] = useState(0);
@@ -90,7 +90,7 @@ export function DecisionsBar({ brief, goal, goalId, editable, edit, beforeRevise
     <Card
       title={<SectionTitle section="decisions">{`Decisions (${decisions.length})`}</SectionTitle>}
       actions={
-        editable && decisions.length > 0 && (
+        editable && revisable && decisions.length > 0 && (
           <span className="flex items-center gap-1.5">
             <Button size="sm" className="whitespace-nowrap" variant={pending.length ? 'primary' : 'default'} disabled={busy} onClick={revise} title="The Clarifier re-reads the Brief and the repository and proposes the changes your decisions imply; you accept them item by item (≤ $3)">
               <Sparkles size={12} /> {busy ? 'Revising…' : 'Revise with answers'}

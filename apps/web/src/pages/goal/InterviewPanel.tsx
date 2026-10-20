@@ -1,11 +1,11 @@
-import type { Goal } from '@foundry/core/browser';
+import type { EngineEvent, Goal } from '@foundry/core/browser';
 import { MessageCircleQuestion } from 'lucide-react';
 import { useState } from 'react';
 import { api } from '../../api.ts';
 import { Card } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { HelpLink } from '../HelpPage.tsx';
-import { ClarifyProgress } from './ClarifyProgress.tsx';
+import { ClarifyProgress, SkeletonNotice, clarifyChannel } from './ClarifyProgress.tsx';
 import { RoundForm, type RoundSubmitKind } from './RoundForm.tsx';
 
 /**
@@ -13,7 +13,7 @@ import { RoundForm, type RoundSubmitKind } from './RoundForm.tsx';
  * and a free-text answer; "Accept all recommended" answers a round in one click, "Enough" asks for the Brief with what
  * there is; a note carries what the questions missed. Earlier rounds fold up below.
  */
-export function InterviewPanel({ goal }: { goal: Goal }) {
+export function InterviewPanel({ goal, skeleton = false, events = [] }: { goal: Goal; /** the Brief skeleton is out: the planner works, the Brief page shows it */ skeleton?: boolean; /** the goal's events, for how long each Clarify step took */ events?: Pick<EngineEvent, 'type' | 'ts' | 'payload'>[] }) {
   const iv = goal.interview;
   const open = iv?.status === 'awaiting_answers' ? iv.rounds.at(-1) : null;
   const [busy, setBusy] = useState<RoundSubmitKind | null>(null);
@@ -60,8 +60,9 @@ export function InterviewPanel({ goal }: { goal: Goal }) {
           </>
         ) : (
           <>
-            {iv.status !== 'done' && <ClarifyProgress goal={goal} writingBrief={!!iv.rounds.at(-1)?.finish || goal.clarifyStage?.stage === 'planning'} />}
-            {iv.status !== 'done' && <LiveLog attemptId={`clarify-${goal.id}`} />}
+            <ClarifyProgress goal={goal} writingBrief={!!iv.rounds.at(-1)?.finish || goal.clarifyStage?.stage === 'planning'} skeleton={skeleton} events={events} />
+            {skeleton && <SkeletonNotice goalId={goal.id} />}
+            <LiveLog attemptId={clarifyChannel(goal)} />
           </>
         )}
         {past.length > 0 && (
