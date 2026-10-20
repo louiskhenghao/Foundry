@@ -313,6 +313,7 @@ The history endpoint returns the last 400 events, slimmed the same way, includin
 | Deploy: what is a web app, the hosts' commands, the run | `engine/src/deploy/{detect,providers,deploy}.ts`, `core/src/schema/deploy.ts`, `apps/web/src/pages/goal/DeployCard.tsx` |
 | Escalations, Suggestions | `engine/src/escalation.ts`, `engine/src/escalation-suggest.ts`, `core/src/schema/escalation.ts` |
 | Budgets | `engine/src/budget.ts`, `core/src/schema/goal.ts` (`BUDGET_PRESETS`) |
+| Estimate calibration (the samples, the factors, the sentence on the Brief) | `engine/src/calibration.ts`, `core/src/machine/calibration.ts` |
 | Usage Pause, usage ledger | `Engine.observeRateLimit` / `pauseUntil`, `engine/src/usage/ledger.ts` |
 | Unmeasured sessions (a cut session's turns and tokens counted, its cost unknown — not zero) | `runner/src/usage-tally.ts`, `ClaudeCliRunner.run` (no result line), `core/src/machine/task-usage.ts` |
 | Model Presets, worker routing | `core/src/schema/model-presets.ts`, `engine/src/models/roles.ts` |
