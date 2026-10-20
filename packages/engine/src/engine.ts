@@ -117,7 +117,7 @@ import { type FollowUpDraft, type FollowUpInput, copyAttachments, followUpDraft,
 import { autoApproveDelegated, delegatingTasks, isDelegationTask, settleDelegations } from './delegation.ts';
 import { startDueSearches, subjectSearchesFor, trashSubjects } from './subjects.ts';
 import { onMilestoneEvidence } from './likeness.ts';
-import { ATTACHMENT_LIMITS, GoalIssue, type GoalDelegatedFrom, type GoalDelegation } from '@foundry/core';
+import { ATTACHMENT_LIMITS, GoalIssue, LEARNINGS_EVERYWHERE, type GoalDelegatedFrom, type GoalDelegation } from '@foundry/core';
 import { readIssue, type IssueRead } from './issue.ts';
 import { autoApproveScheduled, checkSchedules, deleteSchedule, fireSchedule, saveSchedule, setScheduleEnabled, type ScheduleInput } from './schedules.ts';
 import { getSchedule, listSchedules, nextRunAt, type GoalSchedule, type Schedule } from '@foundry/core';
@@ -489,7 +489,8 @@ export class Engine {
       // a goal that ended teaches its folder something (ADR-0040)
       if (e.type === 'goal.state_changed') learnOnEnd(this, e.goalId, e.payload.to);
       // the notebook changed: the folder's exported skill follows (ADR-0050)
-      if (e.type === 'learnings.set') void exportLearningsSkill(this, e.payload.repoPath);
+      // the everywhere notebook is in every folder's exported skill (ADR-0055): a change of it rewrites them all
+      if (e.type === 'learnings.set') for (const r of e.payload.repoPath === LEARNINGS_EVERYWHERE ? listRepoLearnings(this.store.db).map((x) => x.repoPath).filter((x) => x !== LEARNINGS_EVERYWHERE) : [e.payload.repoPath]) void exportLearningsSkill(this, r);
       // a Brief ready for a person's approval gets a second opinion when Settings say so (ADR-0051)
       if (e.type === 'goal.state_changed' && e.payload.to === 'awaiting_brief_approval' && e.payload.reason !== 'auto brief' && e.goalId) secondOpinionOnBrief(this, e.goalId);
       if ((e.type === 'task.artifacts_landed' || e.type === 'goal.artifacts_delivered') && e.goalId) this.cadModelMemo.delete(e.goalId);
@@ -727,7 +728,7 @@ export class Engine {
     }
     if (changed.includes('tools.markitdownBin')) this.markitdown = new Markitdown({ bin: this.config.markitdownBin, log: this.config.log });
     if (changed.some((k) => k.startsWith('workflow.'))) Object.values(this.providerSkills).forEach((skills) => skills.hints.invalidate());
-    if (changed.includes('workflow.learningsSkill')) for (const r of listRepoLearnings(this.store.db)) void exportLearningsSkill(this, r.repoPath);
+    if (changed.includes('workflow.learningsSkill')) for (const r of listRepoLearnings(this.store.db)) if (r.repoPath !== LEARNINGS_EVERYWHERE) void exportLearningsSkill(this, r.repoPath);
     if (changed.includes('tools.minimaxApiKey')) {
       this.mmxReady = writeMmxConfig(this.config.dataDir, this.minimaxKey(), this.config.log);
       // the quota belongs to the old key
