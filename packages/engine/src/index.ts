@@ -67,3 +67,4 @@ export { mapRepo, reattachGoal, type MapResult } from './transfer/reattach.ts';
 export { learnFromGoal, learningsContext, learningsForWorker, mergeLearnings } from './learnings.ts';
 export { deployability } from './deploy/detect.ts';
 export { DEPLOY_PROVIDERS, PROVIDER_LABEL } from './deploy/providers.ts';
+export { Access, AccessError, type Person } from './access.ts';

@@ -147,7 +147,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `engine.codexBin` *(restart)* | — | `FOUNDRY_CODEX_BIN` | Codex CLI path; empty uses codex on PATH. Requires hooks support. |
 | `engine.codexHome` *(restart)* | — | `FOUNDRY_CODEX_HOME (or CODEX_HOME)` | Codex configuration and login directory; empty uses CODEX_HOME or ~/.codex. |
 | `engine.port` *(restart)* | `4111` | `FOUNDRY_PORT` | Port the UI and API listen on. |
-| `engine.host` *(restart)* | `127.0.0.1` | `FOUNDRY_HOST` | Interface to bind; keep 127.0.0.1 (the UI has no login). |
+| `engine.host` *(restart)* | `127.0.0.1` | `FOUNDRY_HOST` | Interface to bind; keep 127.0.0.1 unless the people using it have tokens (Settings → Access). |
 | `engine.claudeBin` *(restart)* | — | — | Path to the claude CLI; empty = first on PATH. |
 | `engine.claudeHome` *(restart)* | — | `FOUNDRY_CLAUDE_HOME (or CLAUDE_CONFIG_DIR)` | Claude home (skills, plugins, settings); empty = ~/.claude or CLAUDE_CONFIG_DIR. |
 | `engine.workspacesRoot` | — | `FOUNDRY_WORKSPACES_ROOT` | Where progress folders go: empty = next to each repository as <repo>-foundry/, or <root>/<repo>/ under this folder. |

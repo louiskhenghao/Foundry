@@ -9,6 +9,8 @@ function fixture(active = 0) {
     logout: () => { calls.push(`${provider}:logout`); return { loggedIn: false }; },
   });
   const app = createApp({
+    // Access (ADR-0061) off: every request is let in
+    access: { enabled: () => false },
     config: { provider: 'claude', dataDir: '/nonexistent', rootDir: '/nonexistent', log: () => {} },
     store: { db: {} }, broadcast: () => {}, busy: () => ({ total: active }),
     accounts: { claude: account('claude'), codex: account('codex') },

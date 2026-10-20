@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } fr
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CodexEffort, Effort, Brief, EscalationAnswer, isHistory, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, ReviseAnswer, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, estimateCutSessions, measuredRates, goalTimeline, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, IssueError, ScheduleError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId } from '@foundry/engine';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, ReviseAnswer, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, estimateCutSessions, measuredRates, goalTimeline, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, IssueError, ScheduleError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId, AccessError, type Person } from '@foundry/engine';
 import type { Task } from '@foundry/core';
 import { LEARNINGS_EVERYWHERE, LearningKind, listDelegatedGoals, listRepoLearnings, DeployProvider } from '@foundry/core';
 import { delegationNeedsHuman } from '@foundry/engine';
@@ -154,11 +154,44 @@ const SCREENSHOT_TYPES: Record<string, string> = {
   txt: 'text/plain; charset=utf-8',
 };
 
+/** the access token a request carries: a bearer header (the CLI), or the cookie the login page set (ADR-0061) */
+export function tokenOf(req: Request): string | null {
+  const auth = req.headers.get('authorization');
+  if (auth?.toLowerCase().startsWith('bearer ')) return auth.slice(7).trim() || null;
+  const cookie = req.headers.get('cookie') ?? '';
+  const m = cookie.split(';').map((c) => c.trim()).find((c) => c.startsWith(`${ACCESS_COOKIE}=`));
+  return m ? decodeURIComponent(m.slice(ACCESS_COOKIE.length + 1)) || null : null;
+}
+const ACCESS_COOKIE = 'foundry_token';
+const ACCESS_COOKIE_DAYS = 90;
+/** the login cookie: kept from scripts, same-site, and marked secure when the browser came over HTTPS (a tailnet serve) */
+const accessCookie = (token: string, req: Request) => {
+  const https = new URL(req.url).protocol === 'https:' || req.headers.get('x-forwarded-proto') === 'https';
+  return `${ACCESS_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${ACCESS_COOKIE_DAYS * 86_400}${https ? '; Secure' : ''}`;
+};
+const CLEAR_ACCESS_COOKIE = `${ACCESS_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+/** the requests Access lets through without a token: finding out whether it is on, and signing in */
+const ACCESS_OPEN = new Set(['GET /api/access/me', 'POST /api/access/login']);
+/** failed sign-ins are slowed down: this many a minute, for everyone together, then a wait */
+const LOGIN_FAILS_PER_MINUTE = 10;
+
 export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
-  const app = new Hono();
+  const app = new Hono<{ Variables: { person: Person | null } }>();
+  const loginFails: number[] = [];
   app.use('*', async (c, next) => {
     const host = c.req.header('host') ?? null;
     if (!knownHost(host, () => extraHosts(engine))) return c.text(UNKNOWN_HOST(host), 403);
+    await next();
+  });
+  // Access (ADR-0061): once anyone has a token, every API request carries one; who it is goes with the request
+  app.use('/api/*', async (c, next) => {
+    if (!engine.access.enabled() || ACCESS_OPEN.has(`${c.req.method} ${c.req.path}`)) {
+      c.set('person', null);
+      return next();
+    }
+    const person = engine.access.verify(tokenOf(c.req.raw));
+    if (!person) return c.json({ error: 'sign in first: this Foundry needs an access token', code: 'auth' }, 401);
+    c.set('person', person);
     await next();
   });
   app.use('/api/*', async (c, next) => {
@@ -191,6 +224,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const op = opOf(err);
     const json = (body: Record<string, unknown>, status: number) => c.json(op ? { ...body, op } : body, status as 400);
     if (err instanceof HttpError) return json(err.body, err.status);
+    if (err instanceof AccessError) return json({ error: err.message }, err.status);
     if (err instanceof SkillOpError) return json({ error: err.message }, err.status);
     if (err instanceof InstallError) return json({ error: err.message, code: err.code, ...err.extra }, err.code === 'conflict' ? 409 : err.code === 'manual' ? 422 : err.code === 'not-found' ? 404 : 400);
     if (err instanceof UninstallRefused) return json({ error: err.message, reason: err.reason }, err.reason === 'not-found' ? 404 : 409);
@@ -272,7 +306,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
 
   app.post('/api/goals', async (c) => {
     const body = CreateGoalBody.parse(await c.req.json());
-    const goal = await engine.createGoal(body);
+    const goal = await engine.createGoal({ ...body, by: c.get('person')?.name ?? null });
     return c.json(goal, 201);
   });
 
@@ -1003,7 +1037,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const brief = json && json.understanding !== undefined ? Brief.parse({ ...json, goalId: c.req.param('id') }) : undefined;
     const budgets = json?.budgets ? BudgetsBody.parse(json.budgets) : undefined;
     const completion = json?.completion ? CompletionBody.parse(json.completion) : undefined;
-    await engine.approveBrief(c.req.param('id'), brief, budgets, completion);
+    await engine.approveBrief(c.req.param('id'), brief, budgets, completion, c.get('person')?.name ?? null);
     return c.json({ ok: true });
   });
 
@@ -1194,7 +1228,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     let applied = false;
     // a joined request may find the escalation already answered by the one it joined
     if (body?.apply === true && suggestion.action === 'retry_with_hint' && getEscalation(db, c.req.param('id'))?.state === 'open') {
-      await engine.answerEscalation(c.req.param('id'), { action: 'retry_with_hint', hint: suggestion.hint, extraAttempts: 1 });
+      await engine.answerEscalation(c.req.param('id'), { action: 'retry_with_hint', hint: suggestion.hint, extraAttempts: 1 }, c.get('person')?.name ?? null);
       applied = true;
     }
     return c.json({ suggestion, applied });
@@ -1204,7 +1238,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const refused = historyRefused(getEscalation(db, c.req.param('id'))?.goalId);
     if (refused) return c.json({ error: refused }, 409);
     const answer = EscalationAnswer.parse(await c.req.json());
-    await engine.answerEscalation(c.req.param('id'), answer);
+    await engine.answerEscalation(c.req.param('id'), answer, c.get('person')?.name ?? null);
     return c.json({ ok: true });
   });
 
@@ -1695,6 +1729,38 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json(status);
   });
 
+  // ---------- Access (ADR-0061): who may use this Foundry from elsewhere ----------
+  app.get('/api/access/me', (c) => {
+    const enabled = engine.access.enabled();
+    return c.json({ enabled, person: enabled ? engine.access.verify(tokenOf(c.req.raw)) : null });
+  });
+  app.post('/api/access/login', async (c) => {
+    const now = Date.now();
+    while (loginFails.length && now - loginFails[0]! > 60_000) loginFails.shift();
+    if (loginFails.length >= LOGIN_FAILS_PER_MINUTE) return c.json({ error: 'too many failed sign-ins; wait a minute' }, 429);
+    const { token } = z.object({ token: z.string().min(1) }).parse(await c.req.json());
+    const person = engine.access.enabled() ? engine.access.verify(token.trim()) : null;
+    if (!person) {
+      loginFails.push(now);
+      return c.json({ error: engine.access.enabled() ? 'that token is not known here' : 'Access is off: no token is needed' }, 401);
+    }
+    c.header('set-cookie', accessCookie(token.trim(), c.req.raw));
+    return c.json({ person });
+  });
+  app.post('/api/access/logout', (c) => {
+    c.header('set-cookie', CLEAR_ACCESS_COOKIE);
+    return c.json({ ok: true });
+  });
+  app.get('/api/access/people', (c) => c.json({ enabled: engine.access.enabled(), people: engine.access.list() }));
+  app.post('/api/access/people', async (c) => {
+    const { name } = z.object({ name: z.string().min(1).max(60) }).parse(await c.req.json());
+    const wasOff = !engine.access.enabled();
+    const made = engine.access.add(name);
+    // the first token signs its maker in: turning Access on locks no one out
+    if (wasOff) c.header('set-cookie', accessCookie(made.token, c.req.raw));
+    return c.json(made, 201);
+  });
+  app.delete('/api/access/people/:id', (c) => c.json({ person: engine.access.revoke(c.req.param('id')) }));
   // Reports (ADR-0060): ?days=30|90|365 or all
   app.get('/api/reports', (c) => {
     const q = c.req.query('days');

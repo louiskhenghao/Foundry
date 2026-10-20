@@ -117,7 +117,7 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'safety.desktopApps': { section: 'Safety', help: 'Let sessions open desktop apps and hand files to printers (text-to-cad\'s Bambu hand-off, `open …`, `xdg-open`, the slicers\' windows). Off: the boundary guard refuses those commands and the hand-off skill; headless slicing stays available.' },
   // Engine (install)
   'engine.port': { section: 'Engine (install)', help: 'Port the UI and API listen on.' },
-  'engine.host': { section: 'Engine (install)', help: 'Interface to bind; keep 127.0.0.1 (the UI has no login).' },
+  'engine.host': { section: 'Engine (install)', help: 'Interface to bind; keep 127.0.0.1 unless the people using it have tokens (Settings → Access).' },
   'engine.claudeBin': { section: 'Engine (install)', help: 'Path to the claude CLI; empty = first on PATH.' },
   'engine.claudeHome': { section: 'Engine (install)', help: 'Claude home (skills, plugins, settings); empty = ~/.claude or CLAUDE_CONFIG_DIR.' },
   'engine.workspacesRoot': { section: 'Engine (install)', help: 'Where progress folders go: empty = next to each repository as <repo>-foundry/, or <root>/<repo>/ under this folder.' },

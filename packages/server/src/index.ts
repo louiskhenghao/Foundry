@@ -1,7 +1,7 @@
 import type { Engine, StreamEvent } from '@foundry/engine';
 import type { EngineEvent } from '@foundry/core';
 import type { ServerWebSocket } from 'bun';
-import { UNKNOWN_HOST, createApp, crossSite, extraHosts, knownHost } from './app.ts';
+import { UNKNOWN_HOST, createApp, crossSite, extraHosts, knownHost, tokenOf } from './app.ts';
 import { slimEvent } from './transcripts.ts';
 
 export interface ServeOptions {
@@ -43,6 +43,8 @@ export function startServer(engine: Engine, opts: ServeOptions = {}) {
         const host = req.headers.get('host');
         if (!knownHost(host, () => extraHosts(engine))) return new Response(UNKNOWN_HOST(host), { status: 403 });
         if (crossSite(req)) return new Response('refused: a connection from another site', { status: 403 });
+        // Access (ADR-0061): the live feed needs the same token as the API
+        if (engine.access.enabled() && !engine.access.verify(tokenOf(req))) return new Response('sign in first: this Foundry needs an access token', { status: 401 });
         if (server.upgrade(req)) return undefined as unknown as Response;
         return new Response('upgrade failed', { status: 400 });
       }

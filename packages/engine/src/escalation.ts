@@ -61,18 +61,18 @@ export function raiseEscalation(engine: Engine, i: RaiseInput): Escalation {
 /** escalations whose answer is being applied: an answer waits for the goal workspace to take a commit back first */
 const answering = new Set<string>();
 
-export async function answerEscalation(engine: Engine, id: string, answer: EscalationAnswer): Promise<void> {
+export async function answerEscalation(engine: Engine, id: string, answer: EscalationAnswer, by?: string | null): Promise<void> {
   // a second answer meanwhile (a retried request) would be applied as well
   if (answering.has(id)) throw new Error(`escalation ${id} is being answered already`);
   answering.add(id);
   try {
-    await applyAnswer(engine, id, answer);
+    await applyAnswer(engine, id, answer, by);
   } finally {
     answering.delete(id);
   }
 }
 
-async function applyAnswer(engine: Engine, id: string, answer: EscalationAnswer): Promise<void> {
+async function applyAnswer(engine: Engine, id: string, answer: EscalationAnswer, by?: string | null): Promise<void> {
   const { store } = engine;
   const esc = getEscalation(store.db, id);
   if (!esc) throw new Error(`escalation ${id} not found`);
@@ -87,7 +87,7 @@ async function applyAnswer(engine: Engine, id: string, answer: EscalationAnswer)
     const left = await takeBackStuck(engine, getGoal(store.db, esc.goalId)!, stuck);
     if (left) throw new Error(left);
   }
-  store.append({ type: 'escalation.answered', goalId: esc.goalId, payload: { escalationId: id, answer } });
+  store.append({ type: 'escalation.answered', goalId: esc.goalId, payload: { escalationId: id, answer, by: by ?? null } });
 
   const goal = getGoal(store.db, esc.goalId)!;
   const task = esc.taskId ? getTask(store.db, esc.taskId) : null;
