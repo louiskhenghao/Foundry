@@ -144,4 +144,18 @@ describe('reading an issue for a new goal', () => {
     // nothing was staged for a read that failed
     expect(existsSync(join(dataDir, 'attachments'))).toBe(false);
   });
+
+  test('the pull request of the delivery closes the issue: its body starts with the Closes line', async () => {
+    const { repo, bare } = await makeRepoWithRemote();
+    const gh = ghWith();
+    const engine = new Engine(cfg(), new FakeRunner((spec) => writeFileSync(join(spec.cwd, 'done.txt'), 'ok')), gh);
+    const read = await engine.readIssue({ ref: 'acme/app#7' });
+    const goal = await engine.createGoal({ prompt: read.prompt, repoPath: repo, issue: read.issue, attachments: [read.attachment], autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr' } });
+    await waitFor(() => ['delivered', 'failed'].includes(getGoal(engine.store.db, goal.id)!.delivery.status), 20_000);
+    expect(getGoal(engine.store.db, goal.id)!.delivery).toMatchObject({ status: 'delivered', outcome: 'pr_open' });
+    // the bare remote is not on GitHub, so the issue is named with its repository
+    const body = readFileSync(join(dataDir, 'delivery', goal.id, 'pr-body.md'), 'utf8');
+    expect(body.startsWith('Closes acme/app#7\n\n## Summary')).toBe(true);
+    expect(bare).toBeTruthy();
+  });
 });

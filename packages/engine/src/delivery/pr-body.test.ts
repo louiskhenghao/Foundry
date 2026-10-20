@@ -62,3 +62,21 @@ describe('the pull request body', () => {
     expect(body).toContain('2 files, +30 −1');
   });
 });
+
+describe('a goal made from a GitHub issue (ADR-0052)', () => {
+  const issue = { repo: 'acme/app', number: 12, url: 'https://github.com/acme/app/issues/12', title: 'CSV export', state: 'open' as const, labels: [], readAt: '2026-10-20T00:00:00Z' };
+  test('the whole-goal PR body starts with Closes: #n in the issue’s repository, owner/name#n elsewhere, nothing without an issue', () => {
+    const g = { ...goal, issue } as Goal;
+    expect(buildPrBody(g, null, null, new Map(), { repo: 'acme/app' }).startsWith('Closes #12\n\n## Summary')).toBe(true);
+    expect(buildPrBody(g, null, null, new Map(), { repo: 'acme/fork' }).startsWith('Closes acme/app#12\n\n')).toBe(true);
+    expect(buildPrBody(g, null, null, new Map()).startsWith('Closes acme/app#12\n\n')).toBe(true);
+    expect(buildPrBody(goal, null, null, new Map(), { repo: 'acme/app' }).startsWith('## Summary')).toBe(true);
+  });
+  test('in a stack only the last PR closes the issue; the ones below refer to it', () => {
+    const g = { ...goal, issue } as Goal;
+    const task = { id: 't_1', title: 'add export', spec: 'write it', commitMessage: null } as Task;
+    expect(buildTaskPrBody(g, task, { index: 1, total: 2, goalTitle: 'CSV export', prevPr: null, prevBranch: null, repo: 'acme/app' }, [], null).startsWith('Part of #12\n\n_Part 1/2')).toBe(true);
+    expect(buildTaskPrBody(g, task, { index: 2, total: 2, goalTitle: 'CSV export', prevPr: 1, prevBranch: 'goal/g_1-1-x', repo: 'acme/app' }, [], null).startsWith('Closes #12\n\n_Part 2/2')).toBe(true);
+    expect(buildTaskPrBody(goal, task, { index: 2, total: 2, goalTitle: 'CSV export', prevPr: 1, prevBranch: 'goal/g_1-1-x', repo: 'acme/app' }, [], null).startsWith('_Part 2/2')).toBe(true);
+  });
+});
