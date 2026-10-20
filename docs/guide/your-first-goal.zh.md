@@ -45,6 +45,8 @@ Codex 的预算选项只有时间、尝试次数和并发限制，没有美元�
 
 **Development workflow — Matt Pocock's engineering skills** 这张卡片列出 Foundry 的执行者遵循的技能（比如先写测试）。如果缺了一些，按 **Install N missing**。该包包含上游现有的八项技能，不再安装已被删除的 `resolving-merge-conflicts`；冲突处理仍由 Foundry 内置的 Merger 指令负责。
 
+**Workflow suite — pstack** 这张卡片整套安装 goal 可以选用的第二个套件（见 [Workflow suite](#workflow-suite)）：Foundry 自己保存的 pstack 插件固定版本副本，不带它的 hooks。装好后它的技能在 Extensions 页显示为一个来源 **pstack suite**。
+
 **3D models — text-to-cad (CAD)** 这张卡片安装 **CAD** goal 背后的插件：它的技能（零件与装配体、工程图、DXF、机器人文件、可打印性和可制造性检查、无头切片）和一个 `cad` 查看器 server，来自 earthtojake/text-to-cad（MIT）。安装会为所选编码智能体加上这个插件，允许会话使用它的 server，并下载一次 CAD 运行时（Python 3.13 和 OpenCASCADE，几百 MB，通过 uv），进度显示在卡片下方；安装在后台进行，期间可以离开这个页面。上面的 **CAD tools** 检查项会说明这台电脑上有没有 uv，以及找到了哪些切片或打印机应用；向这些应用的移交在 **Settings → Safety → Desktop apps & printers** 打开之前一直是关的。Foundry 的会话运行 cadgen 时关闭使用统计和更新检查；你自己使用 text-to-cad 时的设置不受影响。
 
 ### 选一个仓库文件夹
@@ -139,7 +141,7 @@ Codex 任务创建后保留这些设置；以后编辑或删除预设不会改�
 
 ### Workflow suite
 
-只在 Expert 视图里有。**Powered by** 选这个 goal 的各角色遵循谁的技能：**mattpocock**（默认：Matt Pocock 的套件——功能先写测试，bug 先诊断，最后做 code review）、**pstack**（pstack 的套件，它没有的由 Matt Pocock 的技能补上）或 **plain**（没有规则：会话只知道装了哪些技能）。goal 创建时就定下来了；follow-up 从前一个 goal 的选择开始，delegated goal 沿用主 goal 的。Simple 视图的 goal 用 Settings 的默认值。goal 页面和 Brief 上会显示一个 **Powered by** 标签。
+只在 Expert 视图里有；**pstack** 要先在 Setup 页装好才可选（**Workflow suite — pstack** 这张卡片会安装 Foundry 自己保存的一个固定版本副本，不带插件的 hooks；Claude 每个会话加载它，Codex 则把它的技能链接进 goal 的工作区）。装好之前这个选项是灰的。**Powered by** 选这个 goal 的各角色遵循谁的技能：**mattpocock**（默认：Matt Pocock 的套件——功能先写测试，bug 先诊断，最后做 code review）、**pstack**（pstack 的套件，它没有的由 Matt Pocock 的技能补上）或 **plain**（没有规则：会话只知道装了哪些技能）。goal 创建时就定下来了；follow-up 从前一个 goal 的选择开始，delegated goal 沿用主 goal 的。Simple 视图的 goal 用 Settings 的默认值。goal 页面和 Brief 上会显示一个 **Powered by** 标签。
 
 ### Engineering discipline (TDD)
 

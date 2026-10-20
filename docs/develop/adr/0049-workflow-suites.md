@@ -39,10 +39,22 @@ not active — reach the session through that same `--settings` JSON, and `disab
 - **The dials stay.** TDD, Ponytail and pace are still the goal's own switches; the suite only decides which skill
   carries a mandate (pstack's `tdd` or Matt Pocock's). A role the chosen suite has no skill for falls back to Matt
   Pocock's, then to plain.
-- **pstack is loaded from a hook-less copy.** Foundry manages a clone of the plugin pinned to one tag (v0.9.93),
-  materialises a plugin directory with its skills and manifest but no `hooks/`, and passes that to `--plugin-dir`
-  for Claude sessions; Codex sessions get the skills linked into the goal workspace. Foundry's guards keep their
-  hooks; the person's own user-level hooks keep running inside Foundry sessions, as before.
+- **pstack is loaded from a hook-less copy.** The catalog names the suite once (`suites`: repo, pinned tag
+  v0.9.93, plugin path) and lists the skills roles use as entries of source `suite`. Foundry keeps the clone at the tag
+  under its data directory (`suites/pstack/clone`) and materialises `suites/pstack/plugin`: the plugin's skills, agents
+  and manifest, without `hooks/`, with a marker. A Claude session of a pstack goal gets `--plugin-dir` of that copy
+  (`/pstack:<skill>`); a Codex session finds the suite's skills linked into its workspace as `.agents/skills/pstack-<skill>`,
+  git-excluded. Foundry's guards keep their hooks; the person's own user-level hooks keep running inside Foundry
+  sessions, as before. A Foundry release moves the pin; the Extensions page's Update re-syncs the copy to it.
+- **A suite's rows never shadow a bare name.** On the Extensions page the copy is one source (`suite:pstack`, under
+  Managed by Foundry) whose rows are named `pstack:<skill>`: pstack's `tdd` and Matt Pocock's `tdd` are different skills,
+  so neither is a duplicate, a shadow or the other's install target. Catalog entries of the suite are matched to those
+  rows, never to a loose copy of the same name.
+- **A rule carries the suite it applies under.** `WorkflowRule.suite` (`mattpocock` | `pstack`; absent = every suite)
+  is how the catalog says that pstack's `tdd` replaces `diagnosing-bugs` for a bug while Matt Pocock's `tdd` stays for
+  a feature: the mattpocock rules pstack replaces say `suite: mattpocock`, the pstack rules say `suite: pstack`, the
+  rest say nothing. Each suite has its own never-run list; under pstack both lists are given, since the whole plugin
+  is loaded. A `whenFiles` pattern may now be an extension (`*.ts`).
 - **Every prompt names the suite** ("This engine follows pstack's engineering workflow"), so a session and a reader
   of its transcript know whose rules applied.
 
@@ -51,6 +63,8 @@ not active — reach the session through that same `--settings` JSON, and `disab
 - `WorkflowProfile` is one enum in core, used by Settings and the goal; `SkillsHints` takes the goal's suite per call
   (`SectionOpts.profile`) and keeps the Settings default as its fallback; every caller passes `engine.workflowProfileOf(goal)`.
 - The Settings field moves from the Skills card to New goal defaults, where the other per-goal defaults are.
-- The pstack rules, the catalog entries that carry them, the managed clone and the Codex linking are the next
-  block; until they land, a goal on `pstack` follows Matt Pocock's rules (the fallback) under pstack's name.
+- A goal on `pstack` with the suite not installed follows Matt Pocock's rules under pstack's name; the New goal form
+  greys the option out until the Setup page has installed the suite.
+- The suite's multi-agent skills stay out of the mapping except `thermos` for a large goal review; `reflect`, which
+  spawns three subagents, is not invoked — the Learnings session uses its lenses as prompt text (next block).
 - Telemetry matches skill names by their suffix, so `/pstack:tdd` and `/tdd` are both `tdd`.

@@ -43,6 +43,8 @@ When everything needed is in place the page says **Everything is in place** and 
 
 The card **Development workflow — Matt Pocock's engineering skills** lists the skills Foundry's workers follow (for example writing tests first). If some are missing, press **Install N missing**. The bundle contains eight current upstream skills. The removed `resolving-merge-conflicts` skill is no longer requested; Foundry’s built-in Merger instructions still handle conflicts.
 
+The card **Workflow suite — pstack** installs the second suite a goal can run on (see [Workflow suite](#workflow-suite)): Foundry's own copy of one pinned release of the pstack plugin, without its hooks, as one unit. Its skills then show on Extensions as one source, **pstack suite**.
+
 The card **3D models — text-to-cad (CAD)** installs the plugin behind **CAD** goals: its skills (parts and assemblies, drawings, DXF, robot files, printability and manufacturability checks, headless slicing) and a `cad` viewer server, from earthtojake/text-to-cad (MIT). The install adds the plugin for the selected coding agent, allows its server for sessions and downloads the CAD runtime once (Python 3.13 and OpenCASCADE, a few hundred MB, through uv), with the progress shown under the card; it runs in the background, so the page can be left meanwhile. The **CAD tools** check above says whether uv is on this computer and which slicer or printer apps were found; hand-offs to those apps stay off until **Settings → Safety → Desktop apps & printers** is on. Foundry's sessions run cadgen with usage statistics and update checks off; your own use of text-to-cad keeps its settings.
 
 ### Pick a repository folder
@@ -137,7 +139,7 @@ For **Auto** goals, **Default · By goal type** captures the configured defaults
 
 ### Workflow suite
 
-Only in Expert view. **Powered by** picks whose skills the roles follow for this goal: **mattpocock** (the default: Matt Pocock's suite — tests first for features, diagnose first for bugs, code review at the end), **pstack** (pstack's suite, with Matt Pocock's skills where pstack has none) or **plain** (no rules: sessions only hear which skills are installed). The choice is fixed when the goal is created; a follow-up starts from the earlier goal's choice, and a delegated goal takes its main goal's. Simple view goals use the Settings default. The goal page and the Brief show it as a **Powered by** chip.
+Only in Expert view, and **pstack** only once the Setup page has installed it (the card **Workflow suite — pstack** installs Foundry's own copy of one pinned release, without the plugin's hooks; Claude loads it per session, Codex gets its skills linked into the goal's workspace). Until then the option is greyed out. **Powered by** picks whose skills the roles follow for this goal: **mattpocock** (the default: Matt Pocock's suite — tests first for features, diagnose first for bugs, code review at the end), **pstack** (pstack's suite, with Matt Pocock's skills where pstack has none) or **plain** (no rules: sessions only hear which skills are installed). The choice is fixed when the goal is created; a follow-up starts from the earlier goal's choice, and a delegated goal takes its main goal's. Simple view goals use the Settings default. The goal page and the Brief show it as a **Powered by** chip.
 
 ### Engineering discipline (TDD)
 

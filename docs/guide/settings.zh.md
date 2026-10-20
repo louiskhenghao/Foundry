@@ -180,7 +180,7 @@ Foundry 启动时，如果发现 Claude Code 自上次同步后更新过，也�
 
 skill 是所选编码智能体可以遵循的打包指令。在这里选择 Foundry 把哪些交给它的会话。
 
-- **Workflow suite**（在 [New goal defaults](#new-goal-defaults) 下）：各角色遵循谁的技能。**mattpocock**（默认）告诉 worker 要遵循哪种工作方法（功能先写测试，bug 先诊断，任务改到 `AGENTS.md`、`CLAUDE.md` 或某个 skill 时用 `writing-for-agents` 来写），并记录它们有没有照做；装了 `retro` skill 时，写 goal 的 [Learnings](./learnings.zh.md) 的那个会话会以回顾（retrospective）的方式进行。**pstack** 遵循 pstack 的套件，它没有的由 Matt Pocock 的技能补上。**plain** 只是提一下装了哪些技能。每套技能都来自一个固定版本，不会在两个 goal 之间悄悄变化；每个 goal 在创建时就定下自己的套件。
+- **Workflow suite**（在 [New goal defaults](#new-goal-defaults) 下）：各角色遵循谁的技能。**mattpocock**（默认）告诉 worker 要遵循哪种工作方法（功能先写测试，bug 先诊断，任务改到 `AGENTS.md`、`CLAUDE.md` 或某个 skill 时用 `writing-for-agents` 来写），并记录它们有没有照做；装了 `retro` skill 时，写 goal 的 [Learnings](./learnings.zh.md) 的那个会话会以回顾（retrospective）的方式进行。**pstack** 遵循 pstack 的套件，它没有的由 Matt Pocock 的技能补上。**plain** 只是提一下装了哪些技能。每套技能都来自一个固定版本，不会在两个 goal 之间悄悄变化；每个 goal 在创建时就定下自己的套件。pstack 套件在 Setup 页整套安装，在这一页显示为 Managed by Foundry 下的一个来源 **pstack suite · v0.9.93**；**Re-sync** 把副本重新对齐到固定版本，只有 Foundry 发版才会移动这个版本。
 - **Setting sources**（仅 Claude）：会话加载哪些 Claude Code 设置。留空。
 - **autoskills per goal**（开）：你批准 Brief 后，把匹配你项目技术栈（React、Tailwind……）的 skill 加到 goal 的文件夹里。它们不会进入你的提交。
 - **MCP tools that run or change things**（关）：让会话使用已允许的 MCP server 里会运行或改动东西的工具。对 REA 来说：启动目标程序、挂调试器、操作连接的 Android 设备。关着时会话只能做静态分析。

@@ -77,7 +77,7 @@ The catalog is selected before status, installation, updates and workflow hints.
 
 The [compatibility table](../guide/settings.md#skill-compatibility) describes user-visible choices. Anthropic’s portable frontend-design and Python Playwright guidance remain available. Codex gets OpenAI’s skill-creator, `graphify install --platform codex`, and Impeccable’s `.agents/skills/impeccable` source.
 
-The Matt Pocock bundle contains eight current skills. Upstream removed resolving-merge-conflicts; the built-in Merger role retains conflict-resolution instructions without that external dependency. Existing personal/shared copies are not automatically deleted or rewritten. Update managed native variants or explicitly replace an old skill-creator copy in Extensions; shared-directory copies must be managed at their source. A found skill is not proof that all optional executables, image tools, credentials or child-agent capabilities are available.
+A Codex goal on the pstack workflow suite finds the suite's skills linked into its workspace as `.agents/skills/pstack-<skill>` (git-excluded, from Foundry's copy of the pinned plugin); the prompt names them `pstack-tdd`, `pstack-deslop` and so on. The Matt Pocock bundle contains eight current skills. Upstream removed resolving-merge-conflicts; the built-in Merger role retains conflict-resolution instructions without that external dependency. Existing personal/shared copies are not automatically deleted or rewritten. Update managed native variants or explicitly replace an old skill-creator copy in Extensions; shared-directory copies must be managed at their source. A found skill is not proof that all optional executables, image tools, credentials or child-agent capabilities are available.
 
 ## Docker
 
