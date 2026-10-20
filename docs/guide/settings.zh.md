@@ -34,6 +34,7 @@
 | **Workflow suite for new goals** | mattpocock | 各角色遵循谁的技能：**mattpocock**（Matt Pocock 的套件）、**pstack**（pstack 的套件，它没有的由 Matt Pocock 的技能补上）或 **plain**（没有规则，会话只知道装了哪些技能）。每个 goal 在 New goal 表单上定下自己的。见 [Workflow suite](./your-first-goal.zh.md#workflow-suite)。 |
 | **Ponytail for new goals** | on | 懒惰的资深工程师：worker 写能完整解决任务的最小改动并复用已有的东西，planner 精简地规划，`ponytail-review` 负责审查。测试怎么写仍由 TDD 决定。每个 goal 有自己的开关。见 [Ponytail: less code](./your-first-goal.zh.md#ponytail-less-code)。 |
 | **Learn from finished goals** | 开 | goal 结束时，一个短会话把它教会的项目知识加进这个文件夹的 [Learnings](./learnings.zh.md)，这个文件夹之后的 goal 都会拿到。关掉：不再自动学习；你保留的 Learnings 仍然会用。 |
+| **Share Learnings with your own sessions** | 开 | 把每个文件夹的 Learnings 写进仓库，作为一个项目技能（`foundry-learnings`，不进 git），你自己在那里开的编码智能体会话会读到；Learnings 一变就重写。关掉：删除这个文件。 |
 | **Audit at the end of new goals** | off | 新 goal 在最终审查前对完成的分支运行 `ponytail-audit`；goal 改过的代码里的 must fix 发现会变成修复任务。批准 Brief 时按 goal 选择。 |
 | **Goal-level fix cycles** | 1 | 最终审查在问你之前，最多可以派几轮修复任务。只用于 thorough 节奏。 |
 | **Small goal (diff lines)** | 400 | 改动行数不超过这个数的 goal，最终审查更轻、更便宜。0 = 从不。 |

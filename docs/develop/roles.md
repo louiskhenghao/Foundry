@@ -152,7 +152,7 @@ Foundry does not define skills. It sees the ones installed on the host, and it t
 | `brief-draft.ts` | `sectionFor('clarifier', { scenario })` |
 | `attempt-loop.ts` | `sectionFor('worker', { taskKind, scenario, projectSkills, discipline, files })` and `mandatedFor('worker', ...)`; `files` is the task's `relevantFiles` |
 | `docs-generate.ts` | `sectionFor('documenter', { scenario: 'docs' })` |
-| `learnings.ts` | `sectionFor('learnings')`, and `invokeFor('retro')` for the slash name that opens the session |
+| `learnings.ts` | `sectionFor('learnings')`, and `invokeFor('retro')` for the slash name that opens the session; on the pstack suite the opener is reflect's lenses as text (ADR-0050) |
 | `checks/reviewer.ts` | `sectionFor('reviewer-task', { scenario })` |
 | `goal-review.ts` | `sectionFor('reviewer-goal', { scenario: goalScenario(tasks) })`, skipped for small goals |
 | `merge.ts` | `sectionFor('merger')` |

@@ -19,6 +19,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `workflow.milestonePause` | `true` | `FOUNDRY_MILESTONE_PAUSE` | New goals pause at their milestones so you can have a look; off = they go on, and what the milestone shows is sent to your notification channels. Switchable per goal. |
 | `workflow.effort` | — | `FOUNDRY_EFFORT` | Default goal-wide effort override (low … max). Empty uses each Codex role preset or the Claude CLI default. New goals can override it. |
 | `workflow.learnings` | `true` | — | When a goal ends, a short session on the goal's housekeeping model adds what it taught about the repository to the folder's Learnings. Off = nothing is learned automatically; the Learnings you keep are still given to later goals. |
+| `workflow.learningsSkill` | `true` | — | Write each folder's Learnings into the repository as a project skill (foundry-learnings, under .claude/skills and .agents/skills, kept out of git) for your own sessions there; rewritten whenever the Learnings change. Off = the file is removed. |
 | `reviews.alwaysReviewTasks` | `true` | — | Run the task reviewer on every task, not only tasks that ask for a reviewer check (thorough pace). |
 | `reviews.maxFixCycles` | `1` | — | Goal review → fix-task rounds before the goal asks you. |
 | `reviews.smallGoalLines` | `400` | `FOUNDRY_SMALL_GOAL_LINES` | A goal whose whole diff is at most this many lines is reviewed by the Task reviewer model without review skills; 0 = never. |

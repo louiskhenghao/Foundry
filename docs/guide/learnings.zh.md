@@ -9,6 +9,7 @@
 ## 它们从哪里来
 
 - **goal 结束时**（done、over-delivered 或 failed），一个用 goal 的 housekeeping 模型的短会话会读一遍过程：你要求了什么、决定了什么，它在哪里停下来等你、你怎么回答的，你给的提示，失败的尝试遇到了什么，警告和最终审查。它把值得记住的项目知识加进去，合并重复的，删掉被证明不对的。被取消的 goal 不会留下任何东西。装了 `retro` skill 时（Claude），这个会话会以回顾的方式进行：它可以读 goal 的会话记录，专门找下一个 goal 会需要的东西——指向正确文件的提示、本可以抓住错误的检查、给审查者的规则、没起作用的指令。
+- **在 pstack 套件下**，这个会话以 pstack 的 `reflect` 为方法——它的 judgment、tooling、divergent 三个视角，加上"什么该由结构来保证而不是靠一条笔记"——在一个会话里完成，不改任何技能。
 - **来自你。** 你加的或改过的条目就是你的（✎）。Foundry 从不修改或删除它们。
 
 goal 的 **Activity** 会写明改了什么，例如 *Learnings for this folder: +2 — added how the e2e tests start*。这个会话花几美分，计入 goal 的费用。
@@ -20,6 +21,10 @@ goal 的 **Activity** 会写明改了什么，例如 *Learnings for this folder:
 - 它们是起点，不是规定：代码说的不一样时，以代码为准。
 
 一个文件夹最多保留 30 条，每条最多 300 个字符。
+
+## 分享给你自己的会话
+
+每个文件夹的 Learnings 也会写进仓库，作为一个项目技能 `foundry-learnings`（Claude Code 在 `.claude/skills` 下，Codex 在 `.agents/skills` 下），这样你自己在那里开的会话也能读到。这个文件不进 git，Learnings 一变就重写，goal 在这个文件夹开始时也会刷新，最后一条删掉它就消失。请在 Learnings 页面上编辑，不要改文件。**Settings → New goal defaults → Share Learnings with your own sessions** 可以关掉它并删除文件。
 
 ## 查看和编辑
 
