@@ -203,6 +203,10 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 
 这个文件夹里以前跑过 goal 时，卡片下面会有一行，说 Foundry 对它有几条 [Learnings](./learnings.zh.md)：那些 goal 教会的项目知识。计划会带着它们来写。
 
+### Also change: companion folders
+
+一个 goal 要改不止一个仓库 —— 后端和调用它的前端、一个库和用它的应用 —— 就在 Repository 卡片下面的 **Also change these folders** 里填上其它文件夹（主文件夹就绪后出现）。每个都像主文件夹一样检查（在某个分支上的 git 仓库）。planner 会把每个这样的文件夹里要做的部分规划成一个绑定到它的 **goal** 类任务，由那个仓库里一个独立的[委派 goal](#delegated-goals) 来做（Delegated goals 会自动为你打开），从那个文件夹当前的分支开始。这个委派 goal 会去主仓库读两边共用的接口，什么都不会落到这个 goal 的分支上 —— 后面的任务读的是它的摘要 —— 它的成果留在自己仓库的分支上，直到这个 goal 交付时一起交付：每个仓库一个 pull request，各自写明属于哪个 goal（见 [伴随仓库](./getting-the-result.zh.md#伴随仓库)）。主文件夹自己的预览、检查和截图不覆盖伴随仓库；每个委派 goal 有自己的。命令行：`--also <path>`，每个文件夹一次。
+
 ### Follows
 
 仓库下面，当这个仓库已经有结束了的 goal 时：**Follows** 用来选这个 goal 接着做的是哪一个更早的 goal（或者选 **Nothing — a new line of work**）。这样 Clarifier 会拿到那个 goal 当时要求了什么、做了哪些决定、结果如何，你不用再解释一遍。更改这个选择器不会改变 **Workflow suite**、**TDD** 和 **Ponytail**。

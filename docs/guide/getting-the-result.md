@@ -33,6 +33,10 @@ Two rules hold for every mode:
 
 The pull request modes need the GitHub CLI and a connected account: see [Connecting GitHub](#connecting-github).
 
+## Companion repositories
+
+A goal that also changes other folders ([Also change](./your-first-goal.md#also-change-companion-folders)) delivers each of them the way it delivers its own: when you deliver it, the delegated goal that did a companion's part gets the same delivery settings — the same mode and merge method, that repository's own remote and base branch — and runs its own delivery, so each repository gets its own pull request. The main pull request lists the companion repositories and their pull requests once they are open; each companion's says which goal it is part of. The Delivery tab shows the companions under **Companion repositories**, with links to their goals, where each can be re-checked, resumed or reverted on its own. **Local only** leaves every branch where it is: the main goal's in its folder, each companion's in its own.
+
 ## One PR for the whole goal or one per task
 
 Under **Granularity** (shown once you pick a mode other than Local only):

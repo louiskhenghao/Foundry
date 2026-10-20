@@ -201,6 +201,10 @@ If the folder is not a repository, press **Initialize git here**. If you picked 
 
 When earlier goals ran in this folder, a line under the card says how many [Learnings](./learnings.md) Foundry has for it: what those goals taught about the project. The plan is written with them.
 
+### Also change: companion folders
+
+A goal that must change more than one repository — a backend and the frontend that calls it, a library and the app that uses it — names the other folders under **Also change these folders**, under the Repository card once the main folder is ready. Each is checked like the main one (a git repository on a branch). The planner then gives every such folder its part as a task of kind **goal** bound to it, done by a [delegated goal](#delegated-goals) of its own in that repository (Delegated goals is switched on for you), starting from that folder's current branch. That delegated goal reads the main repository for the interface the parts share, lands nothing on this goal's branch — its summary is what the tasks after it read — and keeps its result on its own branch there until this goal is delivered, when it is delivered the same way: one pull request per repository, each saying which goal it is part of (see [Companion repositories](./getting-the-result.md#companion-repositories)). The main folder's own preview, checks and screenshots do not cover the companions; each delegated goal has its own. From the command line: `--also <path>`, once per folder.
+
 ### Follows
 
 Under the repository, when it already has finished goals: **Follows** picks the earlier goal this one continues (or **Nothing — a new line of work**). The Clarifier then gets what that goal asked for, what was decided and how it ended, so you do not have to explain it again. Changing this picker leaves **Workflow suite**, **TDD** and **Ponytail** unchanged.
