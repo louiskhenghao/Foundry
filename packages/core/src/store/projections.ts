@@ -98,9 +98,15 @@ function project(db: Database, e: EngineEvent): void {
       upsertBrief(db, { ...b.brief, styleOptions }, b.approved);
       break;
     }
-    case 'brief.approved':
+    case 'brief.approved': {
       upsertBrief(db, e.payload.brief, true);
+      // who approved it (ADR-0061) goes on the goal, where its page reads it
+      if (e.payload.by !== undefined) {
+        const g = getGoal(db, e.goalId!);
+        if (g) upsertGoal(db, { ...g, approvedBy: e.payload.by, updatedAt: e.ts });
+      }
       break;
+    }
     case 'brief.subject_set':
     case 'brief.subject_removed':
     case 'brief.subject_pictures':
@@ -683,7 +689,7 @@ function project(db: Database, e: EngineEvent): void {
       break;
     case 'escalation.answered': {
       const esc = getEscalation(db, e.payload.escalationId);
-      if (esc) upsertEscalation(db, { ...esc, state: 'answered', answer: e.payload.answer, answeredAt: e.ts });
+      if (esc) upsertEscalation(db, { ...esc, state: 'answered', answer: e.payload.answer, answeredAt: e.ts, answeredBy: e.payload.by ?? null });
       break;
     }
     default:
