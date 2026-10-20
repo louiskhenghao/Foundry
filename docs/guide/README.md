@@ -36,6 +36,7 @@ Between steps 3 and 7 Foundry only stops for a short list of reasons. They are a
 | **Milestone** | A feature you can see or try, on the task that finishes it. Foundry records what it shows when it lands, and again in the final walkthrough. |
 | **Inbox** | The list of things waiting for you: the tray icon next to **New goal**, with a number on it. |
 | **Learnings** | What Foundry learned about a project folder from its finished goals, plus what you added. Every later goal in that folder is given it. See [Learnings](./learnings.md). |
+| **Schedule** | The New goal form saved with a time: every day, week or month Foundry makes a goal from it and runs it by itself. See [Schedules](./schedules.md). |
 | **Progress folder** | The folder where the work happens, next to your project: `<project>-foundry/<goal>/`, or under the folder set in Settings. It is named after the goal's title (up to its first punctuation mark, at most 40 characters) plus the last 6 characters of the goal's id. You can open it at any time. |
 | **Model preset** | Which model does each job (planning, tasks, reviews). Each coding agent has its own Max, Production, Balanced and Economy presets. Codex also captures each role’s reasoning effort. |
 
@@ -50,10 +51,11 @@ The full glossary, for the curious, is `CONTEXT.md` in the Foundry repository.
 5. [While it runs](./while-it-runs.md): the goal page, tasks, logs, the progress folder, previews and milestones.
 6. [When Foundry needs you](./when-foundry-needs-you.md): the only reasons it stops, and what to press.
 7. [Getting the result](./getting-the-result.md): branches, pushes and pull requests, and media files.
-8. [Settings explained](./settings.md): every Settings section in plain words.
-9. [Costs and usage](./costs-and-usage.md): what costs money and how to spend less.
-10. [Moving to a new computer](./moving-to-a-new-computer.md): carrying settings, keys and goals to another Foundry.
-11. [Ports](./ports.md): which ports are in use, who holds them, and freeing one.
-12. [FAQ](./faq.md): short answers to common questions.
+8. [Schedules](./schedules.md): goals that run on their own, every day, week or month.
+9. [Settings explained](./settings.md): every Settings section in plain words.
+10. [Costs and usage](./costs-and-usage.md): what costs money and how to spend less.
+11. [Moving to a new computer](./moving-to-a-new-computer.md): carrying settings, keys and goals to another Foundry.
+12. [Ports](./ports.md): which ports are in use, who holds them, and freeing one.
+13. [FAQ](./faq.md): short answers to common questions.
 
-**Help** in the ⚙ menu at the right of the top bar shows this guide inside Foundry. The same menu holds **Settings**, **Setup**, **Transfer**, **Ports**, the light or dark mode, and the version you run: a red dot on the ⚙ button marks a newer one, and pressing the version opens **About & updates**.
+**Help** in the ⚙ menu at the right of the top bar shows this guide inside Foundry. The same menu holds **Settings**, **Setup**, **Transfer**, **Ports**, **Learnings**, **Schedules**, the light or dark mode, and the version you run: a red dot on the ⚙ button marks a newer one, and pressing the version opens **About & updates**.

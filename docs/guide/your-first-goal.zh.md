@@ -237,6 +237,10 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 
 自检（Foundry 在一个隐藏的浏览器里打开运行中的结果并截图）在 [Settings → Preview & self-check](./settings.zh.md#preview--self-check) 里设置，也可以在 Brief 页面（**How to run it**）或之后在 goal 页面上为单个 goal 打开。见 [运行期间](./while-it-runs.zh.md#self-check)。
 
+### Schedule it
+
+创建按钮旁边的 **Schedule…** 把表单保存为一个 [Schedule](./schedules.zh.md)，而不是生成 goal：每天、每周或每月，Foundry 用它生成一个 goal 并自己跑完。上传的文件、参考和 issue 不会被 schedule 保留；链接会。
+
 ## 按下创建按钮之后
 
 按钮上写的是 **Create & clarify**（如果你跳过了 Clarify，就是 **Create & run**）。如果按钮是灰的，旁边的文字会写出第一个还缺的东西：**Describe the goal**、**Select a repository folder**、**Repository is not ready (see above)**、**Sign in to Claude Code first: see Accounts**（选 Codex 时则是 Codex）、**Choose a model preset (see above)**，或者某个 Codex 模型不支持所选的 reasoning。

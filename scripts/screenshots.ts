@@ -237,6 +237,15 @@ try {
     },
   });
   await shot('learnings', '/learnings', undefined, 520);
+  // Schedules (ADR-0054): one saved from the New goal form, with a run behind it
+  demo.engine.saveSchedule({
+    name: 'Weekly dependency upgrade',
+    cadence: { kind: 'weekly', weekday: 1, at: '03:00' },
+    recipe: { prompt: 'Upgrade every dependency to its latest minor version, run the test suite, and note anything that needed a code change in the pull request.', repoPath: demo.engine.store.db ? (await (await fetch(`${demo.url}/api/goals/${g.done}`)).json()).goal.repoPath : '', budgetPreset: 'quick', delivery: { mode: 'pr' }, links: [] },
+    autoApprove: true,
+  });
+  demo.engine.store.append({ type: 'schedule.fired', goalId: g.done!, payload: { scheduleId: demo.engine.listSchedules()[0]!.id, name: 'Weekly dependency upgrade', at: new Date(Date.now() - 2 * 86_400_000).toISOString(), skipped: null, late: false, manual: false } });
+  await shot('schedules', '/schedules', undefined, 420);
   // Deploy (ADR-0041): the demo's site is not a web app the hosts take, so the card's facts are given here and one
   // live preview is recorded on the finished goal, after the shots above
   demo.engine.store.append({ type: 'deploy.started', goalId: g.done!, payload: { provider: 'vercel', production: false, ref: 'a1b2c3d', framework: 'Vite', dir: '' } });
