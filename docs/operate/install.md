@@ -23,7 +23,7 @@ Both serve the web UI on `http://127.0.0.1:4111`.
 **Local install:**
 
 - macOS or Linux.
-- [Bun](https://bun.sh) 1.1 or newer. The Docker image ships Bun 1.3.13.
+- [Bun](https://bun.sh) 1.4 or newer. Bun 1.3 runs Foundry but can end a browser it opened for a self-check or a milestone walkthrough (a runtime defect, oven-sh/bun#33828); Doctor says so. The Docker image ships Bun 1.4.3.
 - git.
 - For Claude goals: the Claude Code CLI, `claude` on your `PATH`, signed in. Install it with its native installer,
   `curl -fsSL https://claude.ai/install.sh | bash` (no npm needed), or `npm install -g @anthropic-ai/claude-code`. The Docker image ships 2.1.259; the Fable 5.1 model needs at least that version.

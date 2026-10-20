@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # foundry — the orchestrator, its web UI and the Claude Code CLI it drives.
 # The image brings the tools; the login and your repositories come from mounted volumes.
-ARG BUN_VERSION=1.3.13
+ARG BUN_VERSION=1.4.3
 ARG CLAUDE_CODE_VERSION=2.1.259
 ARG CODEX_VERSION=0.160.0
 
