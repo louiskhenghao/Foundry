@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { Learning } from '@foundry/core';
@@ -143,7 +143,11 @@ describe('learning when a goal ends', () => {
     const learnt = engine.learnings(repo)[0]!;
     expect(learnt).toMatchObject({ kind: 'test', by: 'foundry', goalId: first.id, goalTitle: getGoal(engine.store.db, first.id)!.title });
     const session = runner.calls.find((c) => c.label?.startsWith('learnings'))!;
-    expect(session.allowedTools).toEqual([]);
+    // it may read the goal's transcripts and call a skill, nothing else; without the retro skill it is a plain session
+    expect(session.allowedTools).toEqual(['Read', 'Skill']);
+    expect(session.prompt.startsWith('/')).toBe(false);
+    expect(session.prompt).toContain('# Primary sources');
+    expect(session.prompt).toContain(join(dataDir, 'transcripts'));
     expect(session.model).toBe(getGoal(engine.store.db, first.id)!.models.cheap);
     expect(session.prompt).toContain('# The notebook of this repository so far\n(empty)');
     expect(engine.store.listByGoal(first.id, 2000).some((e) => e.type === 'engine.note' && (e.payload as { message: string }).message.startsWith('Learnings for this folder: +1 — Added how the checks run.'))).toBe(true);
@@ -158,6 +162,29 @@ describe('learning when a goal ends', () => {
     // the second learning session saw the notebook so far, and nothing new is fine
     await waitFor(() => runner.calls.filter((c) => c.label?.startsWith('learnings')).length === 2);
     expect(runner.calls.filter((c) => c.label?.startsWith('learnings'))[1]!.prompt).toContain('Checks run with `true`');
+  }, 60_000);
+
+  test('with the retro skill installed for a Claude goal, the session opens as a retrospective and its categories are the lens', async () => {
+    // a plugin that ships retro and writing-for-agents, as a marketplace install leaves it
+    const home = join(dataDir, 'claude-home');
+    const plug = join(home, 'plugins', 'cache', 'mkt', 'mp-skills', '1.3.1');
+    for (const [dir, name, extra] of [['engineering/retro', 'retro', 'disable-model-invocation: true\n'], ['productivity/writing-for-agents', 'writing-for-agents', '']] as const) {
+      mkdirSync(join(plug, 'skills', dir), { recursive: true });
+      writeFileSync(join(plug, 'skills', dir, 'SKILL.md'), `---\nname: ${name}\ndescription: ${name}\n${extra}---\n# ${name}\n`);
+    }
+    mkdirSync(join(plug, '.claude-plugin'), { recursive: true });
+    writeFileSync(join(plug, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'mp-skills', skills: ['./skills/engineering/retro', './skills/productivity/writing-for-agents'] }));
+    writeFileSync(join(home, 'plugins', 'installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'mp-skills@mkt': [{ scope: 'user', installPath: plug, version: '1.3.1' }] } }));
+    const runner = new ScriptRunner(() => ({ learnings: [], note: 'Nothing new.' }));
+    const engine = make(runner);
+    const g = await engine.createGoal({ prompt: 'noop', repoPath: repo, autoBrief: { mustChecks: ['true'] } });
+    await waitFor(() => terminal(getGoal(engine.store.db, g.id)!.state));
+    await waitFor(() => runner.calls.some((c) => c.label?.startsWith('learnings')));
+    const session = runner.calls.find((c) => c.label?.startsWith('learnings'))!;
+    expect(session.prompt.startsWith('/mp-skills:retro ')).toBe(true);
+    expect(session.prompt).toContain('navigation, automated checks, coding standards');
+    expect(session.prompt).toContain('- Prefer: invoke `/mp-skills:writing-for-agents`');
+    expect(session.maxTurns).toBeGreaterThanOrEqual(6);
   }, 60_000);
 
   test('with learning off nothing runs at the end, but the person can still ask; a cancelled goal teaches nothing', async () => {

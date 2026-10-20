@@ -60,7 +60,7 @@ The session runs with `CLARIFY_MAX_TURNS = 90` and `CLARIFY_MAX_BUDGET_USD = 6`,
 
 ### Planner (`roles/planner.md`)
 
-**Drives** the Task DAG: 1–6 tasks per Area, tracer-bullet slices, explicit `dependsOnKeys`, disjoint `relevantFiles` for parallel tasks, groundwork in the `shared` Area, 1–3 milestones, task-level checks and the estimate. `planTasks` in `clarify.ts` runs it as its own read-only session with the Planner model and effort, for both backends, once the Clarifier has written its Brief skeleton (ADR-0028). `buildPlannerPrompt` gives it the goal, the interview answers, the nature rules, the overview, the skeleton and the Clarifier's `planningNotes`. Its `PlanOutput` goes into the Brief as written (`mergePlan`); an unusable plan gets one more try in the same session, an Area without tasks one repair turn, and a plan that never comes leaves one task per Area and a blocking question. `PLANNER_MAX_TURNS = 45`, `$4`.
+**Drives** the Task DAG: 1–6 tasks per Area, tracer-bullet slices (the `to-tickets` method: vertical slices, prefactoring first, expand–contract for wide refactors, specs that say what to build from the user's side), explicit `dependsOnKeys`, disjoint `relevantFiles` for parallel tasks, groundwork in the `shared` Area, 1–3 milestones, task-level checks and the estimate. `planTasks` in `clarify.ts` runs it as its own read-only session with the Planner model and effort, for both backends, once the Clarifier has written its Brief skeleton (ADR-0028). `buildPlannerPrompt` gives it the goal, the interview answers, the nature rules, the overview, the skeleton and the Clarifier's `planningNotes`. Its `PlanOutput` goes into the Brief as written (`mergePlan`); an unusable plan gets one more try in the same session, an Area without tasks one repair turn, and a plan that never comes leaves one task per Area and a blocking question. `PLANNER_MAX_TURNS = 45`, `$4`.
 
 ### Worker (`roles/worker.md`)
 
@@ -113,7 +113,7 @@ A Continuation sends only `continuationMessage(reason)` into the resumed session
 
 ### Documenter (`roles/documenter.md`)
 
-**Drives** the completion documents chosen at approval (`DocType`: `to-prd`, `readme-update`, `changelog`, `to-questionnaire`; instructions in `DOC_INSTRUCTIONS`). It runs after the goal review passes and before the goal turns `done`. The prompt carries the goal, understanding, Decisions, the task commit subjects and the diffstat.
+**Drives** the completion documents chosen at approval (`DocType`: `to-prd`, `readme-update`, `changelog`, `to-questionnaire`; instructions in `DOC_INSTRUCTIONS`). It runs after the goal review passes and before the goal turns `done`. The prompt carries the goal, understanding, Decisions, the task commit subjects, the diffstat and the documenter skill hint (`writing-for-agents` preferred for a document an agent reads).
 
 **Output:** files. The engine resets anything the session committed, stages only `.md/.mdx/.txt/.rst/.adoc` files, discards everything else, and commits `docs: <goal title>`. The result is recorded as `goal.docs_generated` and never blocks the goal. The session gets 50 turns and `DOCS_MAX_BUDGET_USD = 3`.
 
@@ -135,13 +135,14 @@ A Continuation sends only `continuationMessage(reason)` into the resumed session
 | Subject pictures search | `subjects.ts` `startSubjectSearch` | preset `styleSample` (worker tools, $1.50, 6 minutes) | `{ pictures[{ file, url, caption }], note }`; the files it downloaded into `<dataDir>/subjects/<goal>/.incoming/<key>/`, of which the engine keeps the real pictures as `<key>-<n>.<type>` ([ADR-0042](adr/0042-subjects-and-the-likeness-review.md)) |
 | Likeness review | `likeness.ts` `reviewLikeness` | preset `taskReviewer` (read-only, $0.80) | `LikenessVerdict` `{ subjects[{ key, shown, score, matches[], differences[{ what, major }], shots[] }], summary }`, recorded as `milestone.likeness`; major differences make one `likeness-fix` task per milestone |
 | Check-output distillation | `distill/summarize.ts` via `Engine.summarizer` | Claude: `goal.models.cheap`; Codex: captured `housekeeping` choice | `{ summary, keyErrors[] }` |
+| Learnings (a goal ended) | `learnings.ts` `distill` | `goal.models.cheap` (Read and Skill only, 8 turns, $0.50) | `DistillOutput` `{ learnings[], note }`: the folder's notebook after the goal ([ADR-0040](adr/0040-learnings-per-repository.md)). The prompt opens with the `retro` skill's slash name when it is installed (Claude), lists the goal's transcripts as primary sources, carries the `learnings` skill hint, and is kept as `transcripts/learnings-<goal>.prompt.md` ([ADR-0047](adr/0047-latest-mattpocock-skills-in-the-workflow.md)) |
 | Model probe, usage probe | `Engine.probeModel`, `Engine.probeUsage` | the probed model/effort; Claude quota probe uses `config.models.cheap`, Codex quota uses account metadata | none (reads `init` / the rate-limit signal) |
 
 ## Skill hints
 
 Foundry does not define skills. It sees the ones installed on the host, and it tells each role which to use ([ADR-0004](adr/0004-workflow-skills-mandated-and-observed.md), [ADR-0005](adr/0005-scenario-skills-and-settings.md)).
 
-**Where the rules come from.** Each entry in `catalog/skills.json` can list `roles` (the roles it is relevant to), `scenarios`, and `workflow` rules of the form `{ role, mandate: 'must' | 'prefer', when: <task kind> | 'any', scenarios, instruction }`. `SkillRole` (`engine/src/skills/types.ts`) covers `clarifier`, `planner`, `worker`, `reviewer-task`, `reviewer-goal` and `merger`. The Documenter and feedback triage get no hints.
+**Where the rules come from.** Each entry in `catalog/skills.json` can list `roles` (the roles it is relevant to), `scenarios`, and `workflow` rules of the form `{ role, mandate: 'must' | 'prefer', when: <task kind> | 'any', scenarios, whenFiles, instruction }`; `whenFiles` (worker rules) names files the task must touch for the rule to apply — a file name anywhere, a path, or a folder ending in `/` — matched against the task's `relevantFiles` (`matchesFile`). `SkillRole` (`engine/src/skills/types.ts`) covers `clarifier`, `planner`, `worker`, `reviewer-task`, `reviewer-goal`, `merger`, `documenter` and `learnings`. Feedback triage gets no hints. The mattpocock entries are pinned to one release (`ref: v1.3.1` on their git source; the installer fetches and resets the cache to the tag, [ADR-0047](adr/0047-latest-mattpocock-skills-in-the-workflow.md)).
 
 **How a section is built.** `engine.skillsFor(goal).hints` selects the goal’s native skill manager and its `SkillsHints` (`engine/src/skills/hints.ts`). It caches catalog statuses for 10 seconds, and the cache is invalidated on install, uninstall and relevant Settings changes. Call sites ask for a prompt section:
 
@@ -149,7 +150,9 @@ Foundry does not define skills. It sees the ones installed on the host, and it t
 |---|---|
 | `clarify.ts` | `sectionFor('clarifier', { scenario })` and `sectionFor('planner', { scenario })`; the scenario is set only for docs/research/media natures (`natureScenario`) |
 | `brief-draft.ts` | `sectionFor('clarifier', { scenario })` |
-| `attempt-loop.ts` | `sectionFor('worker', { taskKind, scenario, projectSkills, discipline })` and `mandatedFor('worker', ...)` |
+| `attempt-loop.ts` | `sectionFor('worker', { taskKind, scenario, projectSkills, discipline, files })` and `mandatedFor('worker', ...)`; `files` is the task's `relevantFiles` |
+| `docs-generate.ts` | `sectionFor('documenter', { scenario: 'docs' })` |
+| `learnings.ts` | `sectionFor('learnings')`, and `invokeFor('retro')` for the slash name that opens the session |
 | `checks/reviewer.ts` | `sectionFor('reviewer-task', { scenario })` |
 | `goal-review.ts` | `sectionFor('reviewer-goal', { scenario: goalScenario(tasks) })`, skipped for small goals |
 | `merge.ts` | `sectionFor('merger')` |
@@ -158,7 +161,7 @@ Foundry does not define skills. It sees the ones installed on the host, and it t
 `formatWorkflowSection` (`engine/src/skills/workflow.ts`) turns that into a `# Workflow skills` block:
 
 - Only **installed** skills count. Members of an exclusive pack the user did not choose (Design, Image, Video Pack) are invisible (`packAllows`, `skills/packs.ts`).
-- `applicableRules` keeps the rules for this role whose `when` matches the Task Kind and whose `scenarios` match. Media scenarios see only skills that explicitly list them.
+- `applicableRules` keeps the rules for this role whose `when` matches the Task Kind, whose `scenarios` match, and whose `whenFiles` (if any) match one of the task's files. Media scenarios see only skills that explicitly list them.
 - **Discipline** changes the TDD rule: `off` drops it entirely (not even listed as installed), and `preferred` downgrades MUST to Prefer. `resolveDiscipline` lets a task's `tdd: 'off'` override the goal.
 - Each rule becomes `- MUST: invoke \`/<invoke>\` — <instruction>` or `- Prefer: ...`. The invoke name is the one actually loaded on this machine, plugin copy first. A rule whose skill needs an env var the session lacks gets a "degraded" warning.
 - The block always tells the session not to run the setup and ticketing skills (`NEVER_RUN`), then lists other relevant installed skills, then the goal's **Project Skills** from autoskills.

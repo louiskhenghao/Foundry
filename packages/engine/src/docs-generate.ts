@@ -42,6 +42,8 @@ export async function runDocsGeneration(engine: Engine, goalIn: Goal, opts: { re
     const stat = await git(['diff', '--stat', ...(range ? [range.from, range.to] : [`${goal.baseBranch}...HEAD`])], ws).catch(() => null);
     const log = await git(['log', '--no-merges', '--format=%s', range ? `${range.from}..${range.to}` : `${goal.baseBranch}..HEAD`], ws).catch(() => null);
     const before = await headRef(ws);
+    // a document an agent reads (AGENTS.md, CLAUDE.md, a skill) is written by the writing-for-agents skill when it is installed
+    const skillsHint = await engine.skillsFor(goal).hints.sectionFor('documenter', { scenario: 'docs' });
     const prompt = [
       `# Goal\n${goal.title}\n\n${goal.prompt}`,
       brief ? `# Approved understanding\n${brief.understanding}` : '',
@@ -49,6 +51,7 @@ export async function runDocsGeneration(engine: Engine, goalIn: Goal, opts: { re
       log?.stdout.trim() ? `# Task commits of this goal\n${log.stdout.trim()}` : '',
       range ? `# Where you are\nThis goal's work is already merged into ${goal.delivery.policy.baseBranch ?? goal.baseBranch}, which is checked out here; document it as it is now.` : '',
       stat?.stdout.trim() ? `# Changed files (diffstat ${range ? 'of the merged work' : `against ${goal.baseBranch}`})\n\`\`\`\n${stat.stdout.trim().slice(0, 4000)}\n\`\`\`` : '',
+      skillsHint ?? '',
       `# Documents to produce\n${types.map((t) => `- **${t}**: ${DOC_INSTRUCTIONS[t]}`).join('\n')}`,
       `Read the changed code where the diffstat alone is not enough. Write ONLY documentation (markdown); never change code, configuration or tests. Do not commit — the engine commits for you. Reply with a one-paragraph summary of what you wrote.`,
     ]

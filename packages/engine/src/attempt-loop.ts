@@ -151,8 +151,9 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
 
   const relevantContext = resume ? null : await engine.context.locate(goal, task).catch(() => null);
   const discipline = resolveDiscipline(goal, task);
-  const skillsHint = await engine.skillsFor(goal).hints.sectionFor('worker', { taskKind: task.kind, scenario: task.scenario, projectSkills: goal.autoskills?.status === 'installed' ? goal.autoskills.skills : [], discipline });
-  const mandated = await engine.skillsFor(goal).hints.mandatedFor('worker', { taskKind: task.kind, scenario: task.scenario, discipline });
+  // the files the task touches decide some rules (writing for agents when AGENTS.md, CLAUDE.md or a skill is among them)
+  const skillsHint = await engine.skillsFor(goal).hints.sectionFor('worker', { taskKind: task.kind, scenario: task.scenario, projectSkills: goal.autoskills?.status === 'installed' ? goal.autoskills.skills : [], discipline, files: task.relevantFiles });
+  const mandated = await engine.skillsFor(goal).hints.mandatedFor('worker', { taskKind: task.kind, scenario: task.scenario, discipline, files: task.relevantFiles });
   const brief = getBrief(store.db, goal.id)?.brief;
   const areaDescription = task.area ? (brief?.areas.find((a) => a.name === task.area)?.description ?? '') : '';
   const decisions = brief ? renderDecisions(brief) : '';

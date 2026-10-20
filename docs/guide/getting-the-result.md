@@ -19,7 +19,7 @@ You pick the delivery on the New goal form (**4 · Delivery**), and can change i
 |---|---|
 | **Local only** | Nothing. The work stays on a local branch. You push when you want. This is the default in [Settings → New goal defaults](./settings.md#new-goal-defaults), which the New goal form starts from. |
 | **Push branch** | Brings in any new work from the base branch, then pushes the goal's branch to the online copy (for example GitHub). No pull request. |
-| **Open a PR** | Pushes, then opens a pull request with the Brief and the check results as its description. You review and merge it. |
+| **Open a PR** | Pushes, then opens a pull request whose description has a summary (what was understood, and the tasks under their Areas), your decisions, the evidence (the check results and the reviewer's notes) and the merge danger (how to undo it, and how much it touches). You review and merge it. |
 | **PR + auto-merge** | Opens the pull request, waits for its automatic checks (CI), fixes CI if needed, merges when everything is green, and deletes the pushed branch. |
 
 With **PR + auto-merge**, if branch protection on GitHub blocks the merge, Foundry turns on GitHub's own auto-merge (`gh pr merge --auto`) and waits a while ([Settings → Git & delivery](./settings.md#git--delivery)). If GitHub has not merged by then, it merges later by itself, and Foundry does not delete the branch.

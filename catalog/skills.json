@@ -41,6 +41,7 @@
       "source": {
         "type": "git",
         "repo": "mattpocock/skills",
+        "ref": "v1.3.1",
         "path": "skills/engineering/tdd"
       },
       "roles": [
@@ -56,7 +57,7 @@
           "role": "worker",
           "mandate": "must",
           "when": "feature",
-          "instruction": "Before writing implementation code, invoke it and follow red → green → refactor through public interfaces; keep the failing test in the diff and run single test files often, the full suite once at the end.",
+          "instruction": "Before writing implementation code, invoke it and follow red → green → refactor through public interfaces; keep the failing test in the diff and run single test files often, the full suite once at the end. The seams are given: the task spec, its checks and the interfaces it names are the pre-agreed seams — write them down in your plan and test at them; there is no person to confirm them.",
           "scenarios": [
             "frontend",
             "backend",
@@ -71,7 +72,7 @@
           "role": "worker",
           "mandate": "must",
           "when": "refactor",
-          "instruction": "Invoke it first: pin the current behaviour with tests through public interfaces, then restructure in small green steps.",
+          "instruction": "Invoke it first: pin the current behaviour with tests through public interfaces, then restructure in small green steps. The seams are given: the task spec, its checks and the interfaces it names are the pre-agreed seams — write them down in your plan and test at them; there is no person to confirm them.",
           "scenarios": [
             "frontend",
             "backend",
@@ -102,6 +103,7 @@
       "source": {
         "type": "git",
         "repo": "mattpocock/skills",
+        "ref": "v1.3.1",
         "path": "skills/engineering/diagnosing-bugs"
       },
       "roles": [
@@ -151,6 +153,7 @@
       "source": {
         "type": "git",
         "repo": "mattpocock/skills",
+        "ref": "v1.3.1",
         "path": "skills/engineering/code-review"
       },
       "roles": [
@@ -167,7 +170,7 @@
           "role": "reviewer-goal",
           "mandate": "prefer",
           "when": "any",
-          "instruction": "Use its two axes (Standards and Spec) on the whole diff; the base branch named under \"Fixed point\" is your fixed point.",
+          "instruction": "Use its two axes (Standards and Spec) on the whole diff; the base branch named under \"Fixed point and spec\" is your fixed point, and the spec is the approved understanding, the Decisions and the checks in the prompt — there is no issue tracker to look up and nothing to ask for.",
           "scenarios": [
             "frontend",
             "backend",
@@ -395,6 +398,7 @@
       "source": {
         "type": "git",
         "repo": "mattpocock/skills",
+        "ref": "v1.3.1",
         "path": "skills/productivity/grilling"
       },
       "roles": [
@@ -416,7 +420,96 @@
         "mobile",
         "infra",
         "general"
+      ],
+      "workflow": [
+        {
+          "role": "clarifier",
+          "mandate": "prefer",
+          "when": "any",
+          "instruction": "Its frontier method is the interview: a round is every decision askable now, numbered, your recommended answer first. One round is one JSON output — never wait for the answers inside a turn; the engine brings them back as the next message.",
+          "scenarios": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "data",
+            "mobile",
+            "infra",
+            "general"
+          ]
+        }
       ]
+    },
+    {
+      "id": "writing-for-agents",
+      "name": "writing-for-agents",
+      "summary": "How to write what an agent reads: a skill, AGENTS.md, CLAUDE.md, a document behind a pointer.",
+      "why": "A task that edits an agent-facing file shapes every later session in that repository; written by this skill such files stay short, trigger reliably and age well instead of sprawling.",
+      "tier": "recommended",
+      "source": {
+        "type": "git",
+        "repo": "mattpocock/skills",
+        "ref": "v1.3.1",
+        "path": "skills/productivity/writing-for-agents"
+      },
+      "roles": [
+        "worker",
+        "documenter",
+        "learnings"
+      ],
+      "tags": [
+        "docs",
+        "agents"
+      ],
+      "homepage": "https://github.com/mattpocock/skills",
+      "bundle": "mattpocock",
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "any",
+          "whenFiles": [
+            "AGENTS.md",
+            "CLAUDE.md",
+            ".claude/skills/",
+            ".agents/skills/"
+          ],
+          "instruction": "This task writes for an agent (AGENTS.md, CLAUDE.md or a skill): invoke it first and write by it — context pointers that trigger, steps with checkable completion criteria, reference pushed behind pointers, nothing an agent does not need on every turn."
+        },
+        {
+          "role": "documenter",
+          "mandate": "prefer",
+          "when": "any",
+          "instruction": "When a document you write is read by an agent (AGENTS.md, CLAUDE.md, a skill), invoke it and write by it; documents for people follow the repository's voice instead."
+        },
+        {
+          "role": "learnings",
+          "mandate": "prefer",
+          "when": "any",
+          "instruction": "Notebook entries are read by agents: write them as it says — one fact each, front-loaded, with the exact command, path or name."
+        }
+      ]
+    },
+    {
+      "id": "retro",
+      "name": "retro",
+      "summary": "A retrospective of a coding session: what in the environment would improve the next run.",
+      "why": "The Learnings session that ends a goal opens with it (Claude only: it is a slash command): its categories — navigation, automated checks, coding standards, global AGENTS.md, tool economy, no-ops, information access — turn a goal's transcripts into notebook entries the next goal in the folder benefits from.",
+      "tier": "recommended",
+      "source": {
+        "type": "git",
+        "repo": "mattpocock/skills",
+        "ref": "v1.3.1",
+        "path": "skills/engineering/retro"
+      },
+      "providers": [
+        "claude"
+      ],
+      "roles": [],
+      "tags": [
+        "learnings"
+      ],
+      "homepage": "https://github.com/mattpocock/skills",
+      "bundle": "mattpocock"
     },
     {
       "id": "domain-modeling",
@@ -427,6 +520,7 @@
       "source": {
         "type": "git",
         "repo": "mattpocock/skills",
+        "ref": "v1.3.1",
         "path": "skills/engineering/domain-modeling"
       },
       "roles": [
@@ -474,6 +568,7 @@
       "source": {
         "type": "git",
         "repo": "mattpocock/skills",
+        "ref": "v1.3.1",
         "path": "skills/engineering/codebase-design"
       },
       "roles": [
@@ -1023,6 +1118,7 @@
       "source": {
         "type": "git",
         "repo": "mattpocock/skills",
+        "ref": "v1.3.1",
         "path": "skills/engineering/prototype"
       },
       "roles": [
@@ -1070,6 +1166,7 @@
       "source": {
         "type": "git",
         "repo": "mattpocock/skills",
+        "ref": "v1.3.1",
         "path": "skills/engineering/research"
       },
       "roles": [

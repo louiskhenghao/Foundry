@@ -19,7 +19,7 @@ goal 页面会用大白话告诉你："The work is on branch … in your reposit
 |---|---|
 | **Local only** | 什么都不做。工作留在本地分支上。你想推送时自己推。这是 [Settings → New goal defaults](./settings.zh.md#new-goal-defaults) 里的默认，New goal 表单就从那里开始。 |
 | **Push branch** | 先把基础分支上的新工作并进来，再把 goal 的分支推送到线上副本（比如 GitHub）。不开 pull request。 |
-| **Open a PR** | 推送，然后开一个 pull request，用 Brief 和检查结果作为描述。由你审查并合并。 |
+| **Open a PR** | 推送，然后开一个 pull request，描述里有摘要（理解了什么，以及按 Area 列出的任务）、你的决定、证据（检查结果和审查者的备注）和合并风险（怎么撤销、动了多少）。由你审查并合并。 |
 | **PR + auto-merge** | 开 pull request，等它的自动检查（CI），需要时修好 CI，全部通过后合并，并删除推送的分支。 |
 
 用 **PR + auto-merge** 时，如果 GitHub 上的分支保护挡住了合并，Foundry 会打开 GitHub 自己的 auto-merge（`gh pr merge --auto`），并等一段时间（[Settings → Git & delivery](./settings.zh.md#git--delivery)）。如果到时 GitHub 还没合并，它之后会自己合并，Foundry 也不会删除这个分支。

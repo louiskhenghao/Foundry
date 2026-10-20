@@ -7,7 +7,8 @@
  * it: what is still true, what this goal taught, nothing that only concerned this goal. The person's own entries are
  * never changed or dropped. Clarify gets the whole notebook; every attempt gets it in short.
  */
-import { join } from 'node:path';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import type { Goal, Learning, LearningKind as LearningKindT } from '@foundry/core';
 import { LEARNINGS_MAX, LEARNING_MAX_CHARS, LearningKind, getBrief, getGoal, getObservation, getRepoLearnings, isHistory, listAttemptsByGoal, listEscalations, listTasks, newId, renderDecisions } from '@foundry/core';
 import { z } from 'zod';
@@ -113,13 +114,35 @@ function goalRecord(engine: Engine, goal: Goal): string {
   return parts.join('\n\n');
 }
 
-function buildPrompt(engine: Engine, goal: Goal, existing: Learning[]): string {
+/** the retro skill's categories, kept as the lens of the session whether or not the skill itself is installed */
+const RETRO_LENS = 'navigation, automated checks, coding standards, global AGENTS.md, tool economy, no-ops, information access';
+
+/** the transcripts of the goal's sessions on this computer: what the retrospective may read beyond the record below */
+function transcriptsOf(engine: Engine, goal: Goal): string[] {
+  const dir = join(engine.config.dataDir, 'transcripts');
+  const named = [`clarify-${goal.id}.jsonl`, `planner-${goal.id}.jsonl`, ...Array.from({ length: goal.fixCycles + 1 }, (_, i) => `goal-review-${goal.id}-${i}.jsonl`)];
+  const attempts = listAttemptsByGoal(engine.store.db, goal.id).map((a) => a.transcriptPath ?? join(dir, `${a.id}.jsonl`));
+  return [...named.map((n) => join(dir, n)), ...attempts].filter((p) => existsSync(p)).slice(0, 12);
+}
+
+/**
+ * The session's prompt. With the retro skill installed (Claude), it opens with the skill's slash name, which starts the
+ * skill headlessly: the session is a retrospective of the goal, its findings written into the notebook instead of
+ * presented to a person. `section` is the Learnings role's workflow skills (writing-for-agents, when installed).
+ */
+function buildPrompt(engine: Engine, goal: Goal, existing: Learning[], extra: { retro: string | null; section: string | null } = { retro: null, section: null }): string {
   const notebook = existing.map((l) => ({ id: l.id, kind: l.kind, text: l.text, by: l.by }));
+  const transcripts = transcriptsOf(engine, goal);
   return [
+    extra.retro ? `${extra.retro} A retrospective of the Foundry goal below, for the folder's notebook: there is no person to present to, so what you would present becomes notebook entries.` : '',
     goalRecord(engine, goal),
+    `# Primary sources\nThe record above is the summary. ${transcripts.length ? `The sessions' transcripts (NDJSON, one event per line) are on this computer, readable when a detail matters:\n${transcripts.map((p) => `- ${p}`).join('\n')}` : `The transcripts live under ${join(engine.config.dataDir, 'transcripts')}; none of this goal's is on this computer.`}\nRead sparingly: a few turns is all you have.`,
     `# The notebook of this repository so far\n${notebook.length ? `\`\`\`json\n${JSON.stringify(notebook, null, 1)}\n\`\`\`\nEntries by "human" are the person's: keep them word for word.` : '(empty)'}`,
-    `# Your job\nReturn the notebook after this goal: durable, repository-specific facts that would save the next goal in this folder time — how to build, test and run it, where things live, its conventions, what the person prefers, what goes wrong and how to get past it. Keep what is still true; merge duplicates; add what this goal taught; drop what it proved wrong. Leave out what only concerned this goal (its feature, its files, its outcome) and anything a reader of the code sees at once. Short, concrete entries with the exact command, path or name. An empty addition is fine: most goals teach nothing new. Output JSON matching the schema, nothing else.`,
-  ].join('\n\n');
+    extra.section ?? '',
+    `# Your job\nReturn the notebook after this goal: durable, repository-specific facts that would save the next goal in this folder time — how to build, test and run it, where things live, its conventions, what the person prefers, what goes wrong and how to get past it. Look through the retrospective's lens (${RETRO_LENS}): a navigation pointer the sessions lacked, a check that would have caught a mistake, a rule the reviewer should enforce, an instruction that changed nothing, a tool call that cost more than it gave, information a session could not reach. Keep what is still true; merge duplicates; add what this goal taught; drop what it proved wrong. Leave out what only concerned this goal (its feature, its files, its outcome) and anything a reader of the code sees at once. Short, concrete entries with the exact command, path or name; paths relative to the repository root, never a session's workspace folder or a transcript. An empty addition is fine: most goals teach nothing new. Output JSON matching the schema, nothing else.`,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 /**
@@ -185,19 +208,27 @@ async function distill(engine: Engine, goalId: string, opts: { force?: boolean }
   // a goal that never got to work (it failed before its Brief) has nothing to say about the repository
   if (!listTasks(store.db, goal.id).length && !listEscalations(store.db, { goalId: goal.id }).length) return;
   const existing = learningsOf(engine, goal.repoPath);
+  // the retro skill opens the session when it is installed (a Claude slash command; Codex has none), writing-for-agents shapes the entries
+  const hints = engine.skillsFor(goal).hints;
+  const retro = (goal.provider ?? config.provider) === 'codex' ? null : await hints.invokeFor('retro');
+  const prompt = buildPrompt(engine, goal, existing, { retro, section: await hints.sectionFor('learnings') });
+  const transcriptPath = join(config.dataDir, 'transcripts', `learnings-${goal.id}.jsonl`);
+  mkdirSync(dirname(transcriptPath), { recursive: true });
+  writeFileSync(transcriptPath.replace(/\.jsonl$/, '.prompt.md'), prompt);
   const handle = await engine.runner.run({
-    prompt: buildPrompt(engine, goal, existing),
+    prompt,
     cwd: config.dataDir,
     model: goal.models.cheap,
     meta: { goalId: goal.id },
-    maxTurns: 3,
-    maxBudgetUsd: 0.3,
+    maxTurns: 8,
+    maxBudgetUsd: 0.5,
     permissionMode: 'dontAsk',
-    allowedTools: [],
-    disallowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Task', 'WebFetch', 'WebSearch'],
+    // it may read the transcripts and call a skill (the retro asks for writing-for-agents), nothing else
+    allowedTools: ['Read', 'Skill'],
+    disallowedTools: ['Bash', 'Write', 'Edit', 'Glob', 'Grep', 'Task', 'WebFetch', 'WebSearch'],
     jsonSchema: zodToJsonSchema(DistillOutput, { $refStrategy: 'none' }),
-    timeoutMs: 3 * 60_000,
-    transcriptPath: join(config.dataDir, 'transcripts', `learnings-${goal.id}.jsonl`),
+    timeoutMs: 4 * 60_000,
+    transcriptPath,
     label: `learnings ${goal.title}`,
   });
   const untrack = engine.trackBackground(goal.id, handle);

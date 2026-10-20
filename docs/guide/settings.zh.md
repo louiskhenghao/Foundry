@@ -179,7 +179,7 @@ Foundry 启动时，如果发现 Claude Code 自上次同步后更新过，也�
 
 skill 是所选编码智能体可以遵循的打包指令。在这里选择 Foundry 把哪些交给它的会话。
 
-- **Profile**：**mattpocock (mandated + observed)**（默认）告诉 worker 要遵循哪种工作方法（功能先写测试，bug 先诊断），并记录它们有没有照做。**plain (hint only)** 只是提一下。
+- **Profile**：**mattpocock (mandated + observed)**（默认）告诉 worker 要遵循哪种工作方法（功能先写测试，bug 先诊断，任务改到 `AGENTS.md`、`CLAUDE.md` 或某个 skill 时用 `writing-for-agents` 来写），并记录它们有没有照做；装了 `retro` skill 时，写 goal 的 [Learnings](./learnings.zh.md) 的那个会话会以回顾（retrospective）的方式进行。**plain (hint only)** 只是提一下。这些 skill 来自这套套件的一个固定版本，不会在两个 goal 之间悄悄变化。
 - **Setting sources**（仅 Claude）：会话加载哪些 Claude Code 设置。留空。
 - **autoskills per goal**（开）：你批准 Brief 后，把匹配你项目技术栈（React、Tailwind……）的 skill 加到 goal 的文件夹里。它们不会进入你的提交。
 - **MCP tools that run or change things**（关）：让会话使用已允许的 MCP server 里会运行或改动东西的工具。对 REA 来说：启动目标程序、挂调试器、操作连接的 Android 设备。关着时会话只能做静态分析。

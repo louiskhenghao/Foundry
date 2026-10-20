@@ -105,3 +105,28 @@ describe('installer', () => {
     await expect(manager.uninstall('design')).rejects.toMatchObject({ reason: 'not-user-scope' });
   });
 });
+
+describe('a git source pinned to a tag', () => {
+  test('installs the tagged content, and an update keeps it there while main moves on', async () => {
+    const up = join(fake.home, 'upstream-tagged');
+    mkdirSync(join(up, 'skills', 'pin'), { recursive: true });
+    writeFileSync(join(up, 'skills', 'pin', 'SKILL.md'), skillMd('pin', 'tagged'));
+    const g = (args: string) => Bun.$`sh -c ${`cd ${up} && git -c user.name=t -c user.email=t@t ${args}`}`.quiet();
+    await g('init -q -b main');
+    await g('add -A');
+    await g('commit -q -m one');
+    await g('tag v1.0.0');
+    writeFileSync(join(up, 'skills', 'pin', 'SKILL.md'), skillMd('pin', 'newer'));
+    await g('commit -q -am two');
+    const catalogPath = writeCatalog(join(fake.home, 'catalog-pinned'), [{ id: 'pin', name: 'pin', summary: '', why: '', tier: 'recommended', source: { type: 'git', repo: 'acme/tagged', url: `file://${up}`, ref: 'v1.0.0', path: 'skills/pin' } }]);
+    const m = new SkillsManager({ claudeHome: fake.claudeHome, dataDir: fake.dataDir, catalogPath, which: () => null });
+    expect((await m.install('pin')).ok).toBe(true);
+    const skill = join(fake.paths.skillsDir, 'pin', 'SKILL.md');
+    expect(readFileSync(skill, 'utf8')).toContain('tagged');
+    // the refresh fetches and resets the cache: to the tag, not to the branch that moved on
+    const u = await m.update('pin');
+    expect(u.unchanged).toEqual(['pin']);
+    expect(readFileSync(skill, 'utf8')).toContain('tagged');
+    expect(readFileSync(skill, 'utf8')).not.toContain('newer');
+  });
+});
