@@ -178,6 +178,8 @@ switch (cmd) {
       ...(has('--self-check') ? { selfCheck: true } : {}),
       // delegated goals: the planner may hand big steps to goals of their own; their Briefs approved by the engine on request
       ...(has('--delegate') || has('--delegate-auto-approve') ? { delegation: { allow: true, autoApprove: has('--delegate-auto-approve') } } : {}),
+      // companion repositories (ADR-0063)
+      ...(opts('--also').length ? { companions: opts('--also').map((p) => ({ repoPath: resolve(p) })) } : {}),
     };
     if (has('--auto-approve')) body.autoBrief = { mustChecks: opts('--check'), stretchChecks: opts('--stretch') };
     if (opt('--deliver')) body.delivery = { mode: opt('--deliver'), remote: opt('--remote') ?? 'origin', remoteUrl: opt('--remote-url') ?? null };
