@@ -141,6 +141,10 @@ function project(db: Database, e: EngineEvent): void {
     case 'delivery.review_requested':
     case 'delivery.review_started':
     case 'delivery.review_addressed':
+    case 'delivery.revert_started':
+    case 'delivery.revert_finished':
+    case 'delivery.revert_merged':
+    case 'delivery.revert_closed':
     case 'delivery.failed': {
       const g = getGoal(db, e.goalId!);
       if (!g) break;
@@ -248,6 +252,19 @@ function project(db: Database, e: EngineEvent): void {
         case 'delivery.review_addressed':
           d.reviews = d.reviews.map((r) => (r.id === e.payload.roundId ? { ...r, status: e.payload.status, commit: e.payload.commit, replied: e.payload.replied, detail: e.payload.detail, finishedAt: e.ts } : r));
           d.reviewCycles += 1;
+          break;
+        case 'delivery.revert_started':
+          d.reverts = [...d.reverts, { id: e.payload.id, status: 'running' as const, reason: e.payload.reason, merge: e.payload.merge, reverts: e.payload.reverts, branch: null, pr: null, commits: [], mergedRef: null, detail: '', at: e.ts, finishedAt: null }];
+          break;
+        case 'delivery.revert_finished':
+          // open or armed: the pull request is still to merge, so the revert is not over
+          d.reverts = d.reverts.map((r) => (r.id === e.payload.id ? { ...r, status: e.payload.status, branch: e.payload.branch, pr: e.payload.pr, commits: e.payload.commits, mergedRef: e.payload.mergedRef, detail: e.payload.detail, finishedAt: e.payload.status === 'merged' || e.payload.status === 'failed' ? e.ts : null } : r));
+          break;
+        case 'delivery.revert_merged':
+          d.reverts = d.reverts.map((r) => (r.id === e.payload.id ? { ...r, status: 'merged' as const, mergedRef: e.payload.ref, detail: e.payload.detail, finishedAt: e.ts } : r));
+          break;
+        case 'delivery.revert_closed':
+          d.reverts = d.reverts.map((r) => (r.id === e.payload.id ? { ...r, status: 'closed' as const, finishedAt: e.ts } : r));
           break;
         case 'delivery.failed':
           d.prs = d.prs.map((p) => ({ ...p, activity: null }));

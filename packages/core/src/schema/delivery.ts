@@ -35,7 +35,8 @@ export const DeliveryPolicy = z.object({
 export type DeliveryPolicy = z.infer<typeof DeliveryPolicy>;
 export const LOCAL_POLICY: DeliveryPolicy = DeliveryPolicy.parse({});
 
-export const DeliveryStep = z.enum(['preflight', 'ensure-remote', 'sync-base', 'build-stack', 'push', 'open-pr', 'fix-review', 'wait-checks', 'fix-ci', 'merge', 'cleanup']);
+/** `revert` is no step of a delivery's run: it names the commands of a Revert (ADR-0059) in the same audit */
+export const DeliveryStep = z.enum(['preflight', 'ensure-remote', 'sync-base', 'build-stack', 'push', 'open-pr', 'fix-review', 'wait-checks', 'fix-ci', 'merge', 'cleanup', 'revert']);
 export type DeliveryStep = z.infer<typeof DeliveryStep>;
 export const DeliveryStatus = z.enum(['idle', 'running', 'delivered', 'failed']);
 export type DeliveryStatus = z.infer<typeof DeliveryStatus>;
@@ -115,6 +116,34 @@ export const ReviewRound = z.object({
 });
 export type ReviewRound = z.infer<typeof ReviewRound>;
 
+/**
+ * A Revert of a merged Delivery (ADR-0059): a branch from the online base that undoes the merge commit of each of its
+ * pull requests, newest first, and a pull request for it — merged right away when the person asked. Kept on the
+ * Delivery; the goal, its branch and its page stay as they are.
+ */
+export const DeliveryRevert = z.object({
+  id: z.string(),
+  /** running = being built and opened; open = its pull request waits for a merge; armed = GitHub merges it once the
+   * branch protections are satisfied; merged; closed = closed without merging; failed = nothing was opened (the detail says why) */
+  status: z.enum(['running', 'open', 'armed', 'merged', 'closed', 'failed']),
+  /** why, in the person's words: it goes into the pull request */
+  reason: z.string().default(''),
+  /** merge the pull request right away, with the policy's merge method */
+  merge: z.boolean().default(false),
+  /** the merges it undoes, newest first: each pull request and its merge commit */
+  reverts: z.array(z.object({ prNumber: z.number().int().nullable(), ref: z.string(), title: z.string().default('') })).default([]),
+  branch: z.string().nullable().default(null),
+  pr: z.object({ number: z.number().int(), url: z.string() }).nullable().default(null),
+  /** the revert commits on the branch, one per merge undone */
+  commits: z.array(z.string()).default([]),
+  /** the merge commit of the revert's own pull request */
+  mergedRef: z.string().nullable().default(null),
+  detail: z.string().default(''),
+  at: z.string(),
+  finishedAt: z.string().nullable().default(null),
+});
+export type DeliveryRevert = z.infer<typeof DeliveryRevert>;
+
 export const DeliveryState = z.object({
   policy: DeliveryPolicy.default(() => LOCAL_POLICY),
   status: DeliveryStatus.default('idle'),
@@ -130,6 +159,8 @@ export const DeliveryState = z.object({
   reviews: z.array(ReviewRound).default([]),
   /** rounds the engine addressed by itself; the policy's fixReviewCycles caps it, Resume and Retry reset it */
   reviewCycles: z.number().int().nonnegative().default(0),
+  /** the Reverts of the merged delivery, oldest first (ADR-0059); at most one has its pull request open at a time */
+  reverts: z.array(DeliveryRevert).default([]),
   error: z.string().nullable().default(null),
   startedAt: z.string().nullable().default(null),
   finishedAt: z.string().nullable().default(null),
