@@ -2,6 +2,7 @@ import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, realpat
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { parseSkillMd } from './frontmatter.ts';
 import { LEGACY_MARKER_FILE, MARKER_FILE, type SkillsPaths } from './paths.ts';
+import { scanSuites, suiteSkillRows } from './suites.ts';
 import { FoundryMarker, type AgentsLockRecord, type InstalledSkill, type ScanResult } from './types.ts';
 
 export interface ScanOptions {
@@ -15,8 +16,11 @@ export function scanSkills(paths: SkillsPaths, opts: ScanOptions = {}): ScanResu
   const shared = paths.provider === 'codex' ? sharedAgentSkills(paths, own) : [];
   const rows: InstalledSkill[] = [...own, ...shared, ...(paths.provider === 'codex' ? scanCodexPlugins(paths) : scanPlugins(paths))];
   if (opts.repoPath) rows.push(...scanProject(opts.repoPath, paths.provider === 'codex' ? '.agents' : '.claude'));
+  // workflow suites' copies (ADR-0049): rows named <suite>:<skill>, so a bare-named copy of the same skill is no duplicate
+  const suites = scanSuites(paths);
+  for (const s of suites) rows.push(...suiteSkillRows(paths, s));
   markDuplicates(rows);
-  return { installed: rows, duplicates: [...new Set(rows.filter((r) => r.duplicateOf.length).map((r) => r.name))].sort(), scannedAt: new Date().toISOString(), skillsDir: paths.skillsDir };
+  return { installed: rows, duplicates: [...new Set(rows.filter((r) => r.duplicateOf.length).map((r) => r.name))].sort(), scannedAt: new Date().toISOString(), skillsDir: paths.skillsDir, suites };
 }
 
 // ---------- Codex: the shared ~/.agents/skills folder ----------

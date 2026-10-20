@@ -82,6 +82,32 @@ describe('workflow section', () => {
     expect(s).toContain("This engine follows pstack's engineering workflow");
     expect(s).toContain('MUST: invoke `/mattpocock-skills:tdd`');
   });
+  test('a rule of one suite applies under that suite only; a suite skill is named for Codex under its prefix', () => {
+    const suite = [
+      st(entry({ id: 'pstack-tdd', name: 'tdd', roles: ['worker'], bundle: 'pstack', source: { type: 'suite', suite: 'pstack' }, workflow: [{ role: 'worker', mandate: 'must', when: 'bug', scenarios: [], suite: 'pstack', instruction: 'bug test first' }] }), 'installed', '/pstack:tdd'),
+      st(entry({ id: 'diagnosing-bugs', roles: ['worker'], workflow: [{ role: 'worker', mandate: 'must', when: 'bug', scenarios: [], suite: 'mattpocock', instruction: 'diagnose first' }] }), 'installed', '/diagnosing-bugs'),
+      st(entry({ id: 'pstack-typescript-best-practices', name: 'typescript-best-practices', roles: ['worker'], bundle: 'pstack', source: { type: 'suite', suite: 'pstack' }, workflow: [{ role: 'worker', mandate: 'prefer', when: 'any', scenarios: [], suite: 'pstack', whenFiles: ['*.ts', '*.tsx'], instruction: 'type discipline' }] }), 'installed', '/pstack:typescript-best-practices'),
+    ];
+    // the shared fixture's diagnosing-bugs carries no suite; this test's copy is the catalog's (mattpocock only)
+    const all = [...statuses.filter((s) => s.entry.id !== 'diagnosing-bugs'), ...suite];
+    const under = (profile: 'mattpocock' | 'pstack', files: string[] = []) => applicableRules({ role: 'worker', taskKind: 'bug', profile, statuses: all, files }).map((r) => r.invoke);
+    expect(under('mattpocock')).toContain('/diagnosing-bugs');
+    expect(under('mattpocock')).not.toContain('/pstack:tdd');
+    expect(under('pstack')).toContain('/pstack:tdd');
+    expect(under('pstack')).not.toContain('/diagnosing-bugs');
+    // `*.ts` matches by extension, in any folder
+    expect(under('pstack', ['src/a.ts'])).toContain('/pstack:typescript-best-practices');
+    expect(under('pstack', ['src/a.py'])).not.toContain('/pstack:typescript-best-practices');
+    const s = formatWorkflowSection({ role: 'worker', taskKind: 'bug', profile: 'pstack', statuses: all })!;
+    expect(s).toContain("This engine follows pstack's engineering workflow");
+    expect(s).toContain('Do NOT run');
+    expect(s).toContain('/pstack:poteto-mode');
+    expect(s).toContain('/to-tickets');
+    expect(formatWorkflowSection({ role: 'worker', taskKind: 'bug', profile: 'mattpocock', statuses: all })!).not.toContain('/pstack:poteto-mode');
+    const codex = formatWorkflowSection({ role: 'worker', taskKind: 'bug', profile: 'pstack', statuses: all, provider: 'codex' })!;
+    expect(codex).toContain('follow the `pstack-tdd` skill');
+    expect(codex).toContain('pstack-poteto-mode');
+  });
   test('plain profile falls back to the one-line hint', () => {
     const s = formatWorkflowSection({ role: 'worker', taskKind: 'feature', profile: 'plain', statuses })!;
     expect(s.startsWith('# Skills\nInstalled skills relevant to this role')).toBe(true);

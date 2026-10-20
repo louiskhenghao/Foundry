@@ -63,6 +63,7 @@ import { MILESTONE_CHECK_PREFIX, milestoneCheckSpec } from './checks/milestone-s
 import { cleanDeliverables, deliversCheckName, deliversCheckSpec } from './checks/delivers.ts';
 import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
+import { linkSuiteSkills } from './skills/suites.ts';
 import { SATISFIED } from './skills/catalog.ts';
 import { UpdateManager } from './update/updater.ts';
 import { AgentsMonitor, type FoundryLiveSession } from './agents/monitor.ts';
@@ -71,7 +72,7 @@ import { CliGh, type GhClient } from './delivery/gh.ts';
 import { probeForPlan, runDelivery } from './delivery/pipeline.ts';
 import { planDelivery } from './delivery/policy.ts';
 import { usageSummary, type UsageSummary } from './usage/ledger.ts';
-import type { RunResult } from '@foundry/runner';
+import type { RunResult, RunSpec } from '@foundry/runner';
 import type { StreamEvent, StreamListener } from './types.ts';
 import { ARTIFACTS_DIR, defaultWorkspaceDir, deliveryWorkspacePath, dropTaskWorkspace, ensureGoalWorkspace, goalWorkspacePath, internalWorkspaceDir, listArtifacts, listStackBranches, previewWorkspacePath } from './workspace.ts';
 import { transferGoalDir } from './transfer/paths.ts';
@@ -371,7 +372,8 @@ export class Engine {
         killAll: () => (inner as { killAll?: () => number }).killAll?.() ?? 0,
         run: async (spec) => {
           if (provider === 'codex') this.validateCodexChoice(spec.model, spec.effort);
-          const full = { ...spec, env: { ...this.mediaEnv(spec.cwd, spec.meta?.goalId ?? null), ...spec.env } };
+          const suite = await this.suiteFor(spec, provider);
+          const full = { ...spec, ...suite, env: { ...this.mediaEnv(spec.cwd, spec.meta?.goalId ?? null), ...spec.env } };
           // Claude Code reports a resumed session's whole cost; Codex reports none worth correcting
           return provider === 'claude' ? sessionCosts.run(full, (s) => inner.run(s)) : inner.run(full);
         },
@@ -401,6 +403,8 @@ export class Engine {
       claudeSkillsDir: provider === 'codex' ? join(config.claudeHome, 'skills') : undefined,
       dataDir: provider === config.provider ? config.dataDir : join(config.dataDir, 'providers', provider),
       catalogPath: config.catalogPath,
+      // one store for both coding agents: a suite's copy is the same plugin either way
+      suitesDir: join(config.dataDir, 'suites'),
       claudeBin: config.claudeBin,
       log: config.log,
       // user skills only load when user settings are in scope
@@ -1875,6 +1879,24 @@ export class Engine {
   /** the workflow suite a goal's sessions follow: its own, or the Settings default for a goal from before suites were per goal (ADR-0049) */
   workflowProfileOf(goal: Pick<Goal, 'workflow'>): NonNullable<GoalWorkflow['profile']> {
     return goal.workflow.profile ?? this.config.workflowProfile;
+  }
+
+  /**
+   * What a session of a goal on the pstack suite gets (ADR-0049): Claude loads the suite's hook-less plugin copy with
+   * --plugin-dir; Codex finds the suite's skills linked into the session's workspace. Nothing for another suite, or when
+   * the suite is not installed (the goal then runs on the fallback rules, as the prompt says).
+   */
+  private async suiteFor(spec: RunSpec, provider: 'claude' | 'codex'): Promise<Pick<RunSpec, 'pluginDirs'>> {
+    const goalId = spec.meta?.goalId;
+    const goal = goalId ? getGoal(this.store.db, goalId) : null;
+    if (!goal || this.workflowProfileOf(goal) !== 'pstack') return {};
+    const skills = this.providerSkills[provider];
+    const suite = skills.installedSuite('pstack');
+    if (!suite) return {};
+    if (provider === 'claude') return { pluginDirs: [...(spec.pluginDirs ?? []), suite.dir] };
+    const wanted = skills.catalog().entries.filter((e) => e.source.type === 'suite' && e.source.suite === 'pstack').map((e) => e.name);
+    if (existsSync(spec.cwd)) await linkSuiteSkills(spec.cwd, suite, wanted, this.config.log).catch((e) => this.config.log(`[skills] suite links in ${spec.cwd}: ${String((e as Error).message ?? e)}`));
+    return {};
   }
 
   // ---------- commands ----------

@@ -104,6 +104,20 @@ export function makeFakeHome(): FakeHome {
   return { home, claudeHome, dataDir, paths, repo };
 }
 
+/** a workflow suite's copy in the store, as installSuite leaves it (ADR-0049); no clone is needed for scans and sessions */
+export function fakeSuite(dataDir: string, o: { id?: string; ref?: string; skills?: string[]; repo?: string } = {}): string {
+  const id = o.id ?? 'pstack';
+  const plugin = join(dataDir, 'suites', id, 'plugin');
+  mkdirSync(join(plugin, '.claude-plugin'), { recursive: true });
+  writeFileSync(join(plugin, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: id, version: (o.ref ?? 'v0.9.93').replace(/^v/, '') }));
+  for (const s of o.skills ?? ['tdd', 'sharpen']) {
+    mkdirSync(join(plugin, 'skills', s), { recursive: true });
+    writeFileSync(join(plugin, 'skills', s, 'SKILL.md'), skillMd(s, `${id} ${s}`));
+  }
+  writeFileSync(join(plugin, '.foundry-suite.json'), JSON.stringify({ suite: id, repo: o.repo ?? 'acme/pstack', ref: o.ref ?? 'v0.9.93', commit: 'f00dcafe00000000000000000000000000000000', path: 'plugins/pstack', installedAt: '2026-10-20T00:00:00.000Z' }));
+  return plugin;
+}
+
 export function writeCatalog(dir: string, entries: object[]): string {
   mkdirSync(dir, { recursive: true });
   const p = join(dir, 'skills.json');

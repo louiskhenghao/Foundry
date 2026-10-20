@@ -26,6 +26,11 @@ export function sourceOf(row: InstalledSkill, paths: SkillsPaths): SourceKey | n
     const repoRoot = row.dir.replace(/\/\.(?:claude|agents|codex)\/skills\/.*$/, '');
     return { id: `project:${repoRoot}`, kind: 'project', label: `Project skills · ${basename(repoRoot)}`, manager: 'project', repo: null, url: null, homepage: null };
   }
+  // a workflow suite's copy (ADR-0049): one source Foundry re-syncs to its pinned release; no cache clone to compare against
+  if (row.scope === 'plugin' && row.plugin?.id.startsWith('suite:')) {
+    const homepage = row.plugin.marketplaceRepo ? `https://github.com/${row.plugin.marketplaceRepo}` : null;
+    return { id: row.plugin.id, kind: 'suite', label: `${row.plugin.name} suite · ${row.plugin.version ?? '?'}`, manager: 'foundry', repo: null, url: homepage, homepage };
+  }
   if (row.scope === 'plugin' && row.plugin) {
     const repo = row.plugin.marketplaceRepo;
     return { id: `plugin:${row.plugin.id}`, kind: 'plugin', label: repo ?? row.plugin.id, manager: 'plugin', repo, url: repo ? `https://github.com/${repo}` : null, homepage: repo ? `https://github.com/${repo}` : null };

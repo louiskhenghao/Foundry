@@ -58,6 +58,11 @@ export const CatalogSource = z.discriminatedUnion('type', [
     /** run once after the install: a shipped server's command with its subcommand replaced by `args`, so its runtime downloads while the person watches */
     warmup: z.object({ mcpServer: z.string().min(1), args: z.array(z.string()).min(1), note: z.string().min(1) }).optional(),
   }),
+  z.object({
+    type: z.literal('suite'),
+    /** a workflow suite of the catalog (`suites`): this entry is one of its skills and is installed with the suite (ADR-0049) */
+    suite: z.string().min(1),
+  }),
 ]);
 export type CatalogSource = z.infer<typeof CatalogSource>;
 
@@ -78,6 +83,8 @@ export const WorkflowRule = z.object({
    * folder (ending in `/`) anything under it, in any package; empty = any task
    */
   whenFiles: z.array(z.string().min(1)).optional(),
+  /** the workflow suite this rule applies under (ADR-0049); absent = under every suite (plain has no rules) */
+  suite: z.enum(['mattpocock', 'pstack']).optional(),
   /** one or two sentences shown to the session */
   instruction: z.string().min(1),
 });
@@ -123,7 +130,24 @@ export const CatalogEntry = z.object({
 });
 export type CatalogEntry = z.infer<typeof CatalogEntry>;
 
-export const Catalog = z.object({ version: z.literal(1), entries: z.array(CatalogEntry) });
+/** a workflow suite (ADR-0049): a Claude Code plugin Foundry clones at one pinned release and loads from a hook-less copy */
+export const CatalogSuite = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  summary: z.string(),
+  /** owner/name on GitHub */
+  repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/),
+  /** clone URL override (tests use file://) */
+  url: z.string().optional(),
+  /** the pinned tag; a Foundry release moves it, with the rules reviewed */
+  ref: z.string().min(1),
+  /** the plugin root inside the repo (holds .claude-plugin/plugin.json and skills/) */
+  path: z.string().min(1),
+  homepage: z.string().url(),
+});
+export type CatalogSuite = z.infer<typeof CatalogSuite>;
+
+export const Catalog = z.object({ version: z.literal(1), suites: z.array(CatalogSuite).default([]), entries: z.array(CatalogEntry) });
 export type Catalog = z.infer<typeof Catalog>;
 
 export const FoundryMarker = z.object({
@@ -214,11 +238,26 @@ export const CatalogEntryStatus = z.object({
 });
 export type CatalogEntryStatus = z.infer<typeof CatalogEntryStatus>;
 
+/** a workflow suite's copy in the store (ADR-0049) */
+export const InstalledSuite = z.object({
+  id: z.string(),
+  /** the hook-less plugin copy (what --plugin-dir loads) */
+  dir: z.string(),
+  repo: z.string(),
+  ref: z.string(),
+  commit: z.string().nullable(),
+  installedAt: z.string(),
+  /** bare skill names the copy has */
+  skills: z.array(z.string()),
+});
+export type InstalledSuite = z.infer<typeof InstalledSuite>;
+
 export const ScanResult = z.object({
   installed: z.array(InstalledSkill),
   duplicates: z.array(z.string()),
   scannedAt: z.string(),
   skillsDir: z.string(),
+  suites: z.array(InstalledSuite).default([]),
 });
 export type ScanResult = z.infer<typeof ScanResult>;
 
@@ -256,12 +295,12 @@ export type SessionView = z.infer<typeof SessionView>;
 
 // ---------- sources & updates ----------
 
-export const SkillSourceKind = z.enum(['github', 'plugin', 'project', 'local', 'unknown']);
+export const SkillSourceKind = z.enum(['github', 'plugin', 'suite', 'project', 'local', 'unknown']);
 export type SkillSourceKind = z.infer<typeof SkillSourceKind>;
 /** who installed / who updates */
 export const SkillManager = z.enum(['foundry', 'agents-cli', 'plugin', 'hand', 'project']);
 export type SkillManager = z.infer<typeof SkillManager>;
-export const UpdaterKind = z.enum(['foundry', 'agents-cli', 'plugin', 'adopt', 'hint', 'none']);
+export const UpdaterKind = z.enum(['foundry', 'agents-cli', 'plugin', 'suite', 'adopt', 'hint', 'none']);
 export type UpdaterKind = z.infer<typeof UpdaterKind>;
 /** `unreleased`: upstream changed, but a plugin's version number did not, so the CLI will not deliver it yet */
 export const SkillRowStatus = z.enum(['up-to-date', 'outdated', 'unreleased', 'modified', 'unknown', 'broken']);
