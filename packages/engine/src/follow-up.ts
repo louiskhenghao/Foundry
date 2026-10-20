@@ -8,7 +8,7 @@
 import { cpSync, existsSync, mkdirSync, realpathSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 import type { Attachment, BriefStyleOption, DeliveryPolicy, CodexEffort, Goal, GoalFollows, GoalMode, GoalNature, GoalState, WorkflowProfile } from '@foundry/core';
-import { ATTACHMENT_LIMITS, FOLLOWABLE_STATES, IdPrefix, chosenStyle, getBrief, getGoal, listCheckResultsByGoal, listChecks, listTasks, newId, renderDecisions } from '@foundry/core';
+import { ATTACHMENT_LIMITS, FOLLOWABLE_STATES, GoalWorkflow, IdPrefix, chosenStyle, getBrief, getGoal, listCheckResultsByGoal, listChecks, listTasks, newId, renderDecisions } from '@foundry/core';
 import { renderStyle } from './attempt-prompt.ts';
 import { attachmentsDir } from './attachments.ts';
 import type { Engine } from './engine.ts';
@@ -104,13 +104,14 @@ function styleOf(engine: Engine, a: Goal): BriefStyleOption | null {
 export async function followUpDraft(engine: Engine, goalId: string): Promise<FollowUpDraft> {
   const a = getGoal(engine.store.db, goalId);
   if (!a) throw new FollowUpError(`goal ${goalId} not found`, 404);
+  const workflow = GoalWorkflow.parse(a.workflow);
   const followable = FOLLOWABLE_STATES.includes(a.state);
   const w = await previousWorkOnBase(a.repoPath, a.baseBranch, a.branch).catch(() => ({ onBase: true, branchExists: false, detail: 'the repository could not be read' }));
   return {
     previous: { id: a.id, title: a.title, state: a.state, repoPath: a.repoPath, baseBranch: a.baseBranch, branch: a.branch, branchExists: w.branchExists },
     followable,
     reason: followable ? null : `the goal is ${a.state}; it can be followed once it is finished`,
-    prefill: { provider: a.provider ?? engine.config.provider, codexModel: a.provider === 'codex' ? a.codexModelOverride ?? (!a.codexPreset ? a.models.worker : undefined) : undefined, repoPath: a.repoPath, baseBranch: a.baseBranch, nature: a.nature, modelPreset: a.modelPreset, effort: a.provider === 'codex' && !a.codexPreset && a.effort === 'max' ? 'xhigh' : a.effort, pace: a.workflow.pace, profile: engine.workflowProfileOf(a), tdd: a.workflow.tdd, ponytail: a.workflow.ponytail, mode: a.mode, delivery: a.delivery.policy },
+    prefill: { provider: a.provider ?? engine.config.provider, codexModel: a.provider === 'codex' ? a.codexModelOverride ?? (!a.codexPreset ? a.models.worker : undefined) : undefined, repoPath: a.repoPath, baseBranch: a.baseBranch, nature: a.nature, modelPreset: a.modelPreset, effort: a.provider === 'codex' && !a.codexPreset && a.effort === 'max' ? 'xhigh' : a.effort, pace: workflow.pace, profile: engine.workflowProfileOf(a), tdd: workflow.tdd, ponytail: workflow.ponytail, mode: a.mode, delivery: a.delivery.policy },
     start: { recommended: w.onBase ? 'base' : 'previous', onBase: w.onBase, detail: w.detail, baseBranch: a.baseBranch, previousBranch: w.branchExists ? a.branch : null },
     attachments: a.attachments,
     style: styleOf(engine, a),

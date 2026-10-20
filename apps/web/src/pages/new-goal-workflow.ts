@@ -46,10 +46,10 @@ export function updateWorkflow(state: WorkflowState, event: Event, changed: Read
     next.inherited = [];
   }
   if (event.type === 'validated') {
-    if (!event.ok || !event.lastGoal) return next;
+    if (!event.ok || !event.lastGoal || state.followUp) return next;
     source = event.lastGoal.workflow;
     next.lastGoal = event.lastGoal;
-    next.inherited = fields.filter((f) => !changed.has(f) && !state.followUp);
+    next.inherited = fields.filter((f) => !changed.has(f));
   }
   next.values = { ...state.values };
   for (const field of fields) {

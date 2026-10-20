@@ -61,7 +61,7 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 
 按顶栏上的 **New goal**。右上角的四个编号步骤（**Goal**、**Repository**、**Budget**、**Delivery**）显示你填到哪了。描述了 goal，**Goal** 就变绿；选好一个可用的文件夹，**Repository** 就变绿。**Budget** 和 **Delivery** 一直是绿的：它们的默认值就能用。表单开头是两张选项卡片，后面是编号 **1** 到 **4** 的卡片。
 
-有几项选择从 [Settings → New goal defaults](./settings.zh.md#new-goal-defaults) 开始：视图、**Fast mode**、TDD、Ponytail、工作流套件，以及交付方式和粒度。你可以在这里为这个 goal 改其中任何一项。你在页面上改过的字段会保留你的选择。 选好可用的仓库文件夹后，未改过的 **Workflow suite**、**TDD** 和 **Ponytail** 会从这个完全相同路径下最新创建的 goal 继承（不包括导入的历史记录）。Expert 视图会在 **Powered by** 下方以淡色显示 `from the last goal in this folder: <title>`；只要还有一个字段继承它，这条提示就保留。验证进行中、验证失败或文件夹还没有 goal 时，未改过的字段使用 Settings 默认值。拉取或初始化后重新验证会刷新它们。从 goal 页面打开的 **Follow-up** 则优先继承那个 goal 的这三项选择；页面上的 **Follows** 选择器只建立关联。Simple 视图仍提交 preferred TDD；Fast mode 仍关闭 TDD。
+有几项选择从 [Settings → New goal defaults](./settings.zh.md#new-goal-defaults) 开始：视图、**Fast mode**、TDD、Ponytail、工作流套件，以及交付方式和粒度。你可以在这里为这个 goal 改其中任何一项。你在页面上改过的字段会保留你的选择。 选好可用的仓库文件夹后，未改过的 **Workflow suite**、**TDD** 和 **Ponytail** 会从这个完全相同路径下最新创建的 goal 继承（不包括导入的历史记录）。Expert 视图会在 **Powered by** 下方以淡色显示 `from the last goal in this folder: <title>`；只要还有一个字段继承它，这条提示就保留。验证进行中、验证失败或文件夹还没有 goal 时，未改过的字段使用 Settings 默认值。拉取或初始化后重新验证会刷新它们。从 goal 页面打开的 **Follow-up** 则优先继承所选 goal 的这三项选择，包括它当前保存的 Ponytail 值，即使文件夹里已有更新的 goal。稍后返回的 Settings 或文件夹验证结果不会覆盖它们，也不会显示文件夹来源提示。创建前仍可手动修改；页面上的 **Follows** 选择器只建立关联。Simple 视图仍提交 preferred TDD；Fast mode 仍关闭 TDD。
 
 ![New goal 表单，使用统一的 Coding agent 选择控件](images/new-goal.png)
 

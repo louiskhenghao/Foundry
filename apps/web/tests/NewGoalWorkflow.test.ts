@@ -87,7 +87,25 @@ test('Follow-up wins over folder inheritance and Settings, without adding human 
   state = updateWorkflow(state, { type: 'validated', request: 2, ok: true, lastGoal }, untouched);
   expect(state.values).toEqual(defaults);
   expect(state.inherited).toEqual([]);
+  expect(state.lastGoal).toBeNull();
   expect(untouched.size).toBe(0);
+});
+
+test('manual changes after a Follow-up survive delayed Settings and folder revalidation', () => {
+  const changed = new Set<string>();
+  let state = updateWorkflow(inherited(), { type: 'follow-up', values: defaults }, changed);
+  changed.add('profile');
+  state = updateWorkflow(state, { type: 'edit', field: 'profile', value: { profile: 'mattpocock' } }, changed);
+  changed.add('tdd');
+  state = updateWorkflow(state, { type: 'edit', field: 'tdd', value: { tdd: 'required' } }, changed);
+  changed.add('ponytail');
+  state = updateWorkflow(state, { type: 'edit', field: 'ponytail', value: { ponytail: 'off' } }, changed);
+  state = updateWorkflow(state, { type: 'settings', values: defaults }, changed);
+  state = updateWorkflow(state, { type: 'pending', request: 2 }, changed);
+  state = updateWorkflow(state, { type: 'validated', request: 2, ok: true, lastGoal }, changed);
+  expect(state.values).toEqual({ profile: 'mattpocock', tdd: 'required', ponytail: 'off' });
+  expect(state.inherited).toEqual([]);
+  expect(state.lastGoal).toBeNull();
 });
 
 test('a delayed Follow-up preserves edited TDD and Ponytail while keeping Follow-up profile precedence', () => {

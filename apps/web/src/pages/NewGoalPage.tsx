@@ -197,6 +197,7 @@ export function NewGoalPage() {
       setProvider(p.provider);
       setCodexOverride(p.provider === 'codex' && !!p.codexModel);
       if (p.codexModel) setCodexModel(p.codexModel);
+      changeWorkflow({ type: 'follow-up', values: { profile: p.profile, tdd: p.tdd, ponytail: p.ponytail } });
       setRepoPath(p.repoPath);
       setRepoKey((k) => k + 1);
       const validation = beginRepoValidation();
@@ -206,7 +207,6 @@ export function NewGoalPage() {
       else setModelPreset(p.modelPreset ?? '');
       setEffort(p.effort ?? '');
       choosePace(p.pace);
-      changeWorkflow({ type: 'follow-up', values: { profile: p.profile, tdd: p.tdd, ponytail: p.ponytail } });
       setMode(p.mode);
       changed.current.add('deliveryMode');
       changed.current.add('deliveryUnit');

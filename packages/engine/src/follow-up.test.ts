@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import type { Brief, BriefOutput, Goal } from '@foundry/core';
-import { getBrief, getGoal, listFollowUps } from '@foundry/core';
+import type { Brief, BriefOutput } from '@foundry/core';
+import { Goal, getBrief, getGoal, listFollowUps, upsertGoal } from '@foundry/core';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
 import { linkAttachment, stageFile } from './attachments.ts';
 import { defaultConfig } from './config.ts';
@@ -78,6 +78,28 @@ async function finishedGoal(engine: Engine, extra: Partial<Parameters<Engine['cr
 const clarifyPrompt = (runner: HybridRunner, goalId: string, engine: Engine) => runner.calls.find((c) => c.label === `clarify ${getGoal(engine.store.db, goalId)!.title}`)!.prompt;
 
 describe('follow-up goals', () => {
+  test('draft uses the chosen older goal, normalized TDD and current saved Ponytail, rather than folder or Settings defaults', async () => {
+    const engine = track(new Engine(cfg(), new HybridRunner()));
+    engine.beginUpdateDrain();
+    const older = Goal.parse({
+      id: 'g_older', title: 'Chosen earlier goal', prompt: 'p', repoPath: repo, baseBranch: 'main', branch: 'goal/older',
+      budgets: {}, models: { strong: 'opus', cheap: 'haiku', worker: 'opus' }, state: 'done',
+      stateBeforeBlock: null, costUsd: 0, fixCycles: 0, runningSince: null,
+      createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z',
+      workflow: { profile: 'plain', tdd: 'preferred', pace: 'thorough', ponytail: 'off' },
+    });
+    upsertGoal(engine.store.db, older);
+    upsertGoal(engine.store.db, { ...older, id: 'g_newest', createdAt: '2026-02-01T00:00:00Z', workflow: { profile: 'pstack', tdd: 'off', ponytail: 'off', pace: 'fast' } });
+    engine.setPonytail(older.id, true);
+    expect(engine.lastWorkflowIn(repo)?.goalId).toBe('g_newest');
+    expect((await engine.followUpDraft(older.id)).prefill).toMatchObject({ profile: 'plain', tdd: 'preferred', ponytail: 'on', pace: 'thorough' });
+
+    const saved = getGoal(engine.store.db, older.id)!;
+    const { tdd: _tdd, ...workflow } = saved.workflow;
+    engine.store.db.run('UPDATE goals SET data = ? WHERE id = ?', [JSON.stringify({ ...saved, workflow }), older.id]);
+    expect((await engine.followUpDraft(older.id)).prefill).toMatchObject({ profile: 'plain', tdd: 'required', ponytail: 'on' });
+  });
+
   test('A not merged: B starts from A\'s goal branch and Clarify gets the "# Previous goal" section', async () => {
     const runner = new HybridRunner();
     const engine = track(new Engine(cfg(), runner));
