@@ -112,6 +112,7 @@ describe('delegated goals', () => {
     expect(d0.prompt).toContain('create sub.txt');
     expect(d0.delegation).toEqual({ allow: false, autoApprove: true });
     expect(d0.delivery.policy.mode).toBe('local');
+    expect(d0.workflow.profile).toBe(main.workflow.profile); // the main goal's workflow suite (ADR-0049)
     const t1 = listTasks(engine.store.db, main.id).find((t) => t.kind === 'goal')!;
     expect(t1.delegatedGoalId).toBe(d0.id);
     expect(t1.state).toBe('running');

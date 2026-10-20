@@ -59,7 +59,7 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 
 按顶栏上的 **New goal**。右上角的四个编号步骤（**Goal**、**Repository**、**Budget**、**Delivery**）显示你填到哪了。描述了 goal，**Goal** 就变绿；选好一个可用的文件夹，**Repository** 就变绿。**Budget** 和 **Delivery** 一直是绿的：它们的默认值就能用。表单开头是两张选项卡片，后面是编号 **1** 到 **4** 的卡片。
 
-有几项选择从 [Settings → New goal defaults](./settings.zh.md#new-goal-defaults) 开始：视图、**Fast mode**、TDD，以及交付方式和粒度。你可以在这里为这个 goal 改其中任何一项。你在页面上改过的字段会保留你的选择。
+有几项选择从 [Settings → New goal defaults](./settings.zh.md#new-goal-defaults) 开始：视图、**Fast mode**、TDD、工作流套件，以及交付方式和粒度。你可以在这里为这个 goal 改其中任何一项。你在页面上改过的字段会保留你的选择。
 
 ![New goal 表单，使用统一的 Coding agent 选择控件](images/new-goal.png)
 
@@ -136,6 +136,10 @@ Codex 的 **View … role assignments** 展开各角色将使用的模型与强�
 Codex 任务创建后保留这些设置；以后编辑或删除预设不会改变已有任务。如果后续任务引用的预设已被删除，表单会要求重新选择可用预设。Codex 预设名称表示推理强度分配，不表示美元价格，也不保证账户一定可用。
 
 **Auto** 类型的 **Default · By goal type** 会保存 Code、Docs & research 和 Media 的配置默认表。角色预览初始显示 Code；分类后使用对应类型的已保存表。明确选择一个预设时，分类不会改变所选预设。
+
+### Workflow suite
+
+只在 Expert 视图里有。**Powered by** 选这个 goal 的各角色遵循谁的技能：**mattpocock**（默认：Matt Pocock 的套件——功能先写测试，bug 先诊断，最后做 code review）、**pstack**（pstack 的套件，它没有的由 Matt Pocock 的技能补上）或 **plain**（没有规则：会话只知道装了哪些技能）。goal 创建时就定下来了；follow-up 从前一个 goal 的选择开始，delegated goal 沿用主 goal 的。Simple 视图的 goal 用 Settings 的默认值。goal 页面和 Brief 上会显示一个 **Powered by** 标签。
 
 ### Engineering discipline (TDD)
 

@@ -469,6 +469,7 @@ function Header({ detail, onSimple, beforeReclarify }: { detail: GoalDetail; onS
       <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-lg font-semibold">{g.title}</h1>
         <Badge state={g.state} />
+        {g.workflow.profile && <span className="text-[10px] rounded-full border border-violet-800 text-violet-300 px-1.5" title="Workflow suite: whose skills the roles follow for this goal">Powered by {g.workflow.profile}</span>}
         <HelpLink to="approving-the-brief" label="How to read and approve the Brief (new tab)" />
         {onSimple && (
           <Button size="sm" variant="ghost" className="ml-auto" onClick={onSimple} title="Back to the plain-language view">

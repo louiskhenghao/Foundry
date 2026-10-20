@@ -211,7 +211,7 @@ async function distill(engine: Engine, goalId: string, opts: { force?: boolean }
   // the retro skill opens the session when it is installed (a Claude slash command; Codex has none), writing-for-agents shapes the entries
   const hints = engine.skillsFor(goal).hints;
   const retro = (goal.provider ?? config.provider) === 'codex' ? null : await hints.invokeFor('retro');
-  const prompt = buildPrompt(engine, goal, existing, { retro, section: await hints.sectionFor('learnings') });
+  const prompt = buildPrompt(engine, goal, existing, { retro, section: await hints.sectionFor('learnings', { profile: engine.workflowProfileOf(goal) }) });
   const transcriptPath = join(config.dataDir, 'transcripts', `learnings-${goal.id}.jsonl`);
   mkdirSync(dirname(transcriptPath), { recursive: true });
   writeFileSync(transcriptPath.replace(/\.jsonl$/, '.prompt.md'), prompt);

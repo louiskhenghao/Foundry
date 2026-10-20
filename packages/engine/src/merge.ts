@@ -221,7 +221,7 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
     const idx = lines.findIndex((l) => l.startsWith('<<<<<<<'));
     hunks.push(`## ${f}\n\`\`\`\n${lines.slice(Math.max(0, idx - 5), idx + 200).join('\n')}\n\`\`\``);
   }
-  const mergerHint = await engine.skillsFor(goal).hints.sectionFor('merger');
+  const mergerHint = await engine.skillsFor(goal).hints.sectionFor('merger', { profile: engine.workflowProfileOf(goal) });
   // what the receiving side did since the two diverged: the merger must keep that too
   const mb = await git(['merge-base', 'HEAD', src.ref], cwd);
   const ours = mb.code === 0 ? (await git(['log', '--no-merges', '--format=%s', `${mb.stdout.trim()}..HEAD`], cwd)).stdout.split('\n').filter(Boolean) : [];

@@ -3,7 +3,7 @@
  * kind of work and scenario, with the invoke name that is actually loaded on this machine (plugin copy first).
  * Replaces the one-line hint when the workflow profile is `mattpocock`; falls back to it otherwise.
  */
-import type { Goal, Task, TaskKind, TaskScenario } from '@foundry/core';
+import type { Goal, Task, TaskKind, TaskScenario, WorkflowProfile } from '@foundry/core';
 import { SATISFIED, cliOnly, envLabel, useLabel } from './catalog.ts';
 import { formatSkillsHint } from './hints.ts';
 import { packAllows } from './packs.ts';
@@ -15,7 +15,8 @@ export interface WorkflowSectionInput {
   taskKind?: TaskKind;
   /** the task's (or goal's dominant) scenario; undefined = general */
   scenario?: TaskScenario;
-  profile: 'mattpocock' | 'plain';
+  /** the goal's workflow suite (ADR-0049): plain = the one-line hint only */
+  profile: WorkflowProfile;
   statuses: CatalogEntryStatus[];
   /** chosen option per mutually exclusive pack, e.g. { design: 'ui-ux-pro-max' } */
   packs?: Record<string, string | undefined>;
@@ -150,6 +151,9 @@ export function goalScenario(tasks: Pick<Task, 'scenario' | 'origin'>[]): TaskSc
   return best;
 }
 
+/** how the section names the suite the rules come from (ADR-0049) */
+const SUITE_LABEL: Record<WorkflowProfile, string> = { mattpocock: "Matt Pocock's", pstack: "pstack's", plain: 'the' };
+
 /** Full prompt section (with its own heading), or null when there is nothing to say. */
 export function formatWorkflowSection(i: WorkflowSectionInput): string | null {
   const visible = visibleStatuses(i).filter((s) => !hiddenByDiscipline(s.entry, i));
@@ -169,7 +173,7 @@ export function formatWorkflowSection(i: WorkflowSectionInput): string | null {
   const lines: string[] = ['# Workflow skills'];
   if (i.scenario && i.scenario !== 'general') lines.push(`Scenario: ${i.scenario}.`);
   if (rules.length) {
-    lines.push(codex ? "This engine follows Matt Pocock's engineering workflow. The skills below are installed for this session: before the work one covers, open its SKILL.md and follow it." : "This engine follows Matt Pocock's engineering workflow. The skills below are loaded in this session; invoke them with the Skill tool.");
+    lines.push(codex ? `This engine follows ${SUITE_LABEL[i.profile]} engineering workflow. The skills below are installed for this session: before the work one covers, open its SKILL.md and follow it.` : `This engine follows ${SUITE_LABEL[i.profile]} engineering workflow. The skills below are loaded in this session; invoke them with the Skill tool.`);
     for (const r of rules) {
       const keys = r.missingEnv.map(envLabel).join(', ');
       const degraded = !r.missingEnv.length

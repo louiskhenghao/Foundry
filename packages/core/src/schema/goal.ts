@@ -84,6 +84,14 @@ export const MEDIA_NATURES: GoalNature[] = ['image', 'video'];
 /** natures whose deliverables are files under artifacts/ (kept out of git, delivered to the output folder) */
 export const ARTIFACT_NATURES: GoalNature[] = ['image', 'video', 'cad'];
 
+/**
+ * The workflow suite a goal's sessions follow (ADR-0049): whose skills the roles are told to invoke. mattpocock (the
+ * default) = Matt Pocock's suite; pstack = pstack's, with Matt Pocock's skills where it has none; plain = the one-line
+ * hint of installed skills only.
+ */
+export const WorkflowProfile = z.enum(['mattpocock', 'pstack', 'plain']);
+export type WorkflowProfile = z.infer<typeof WorkflowProfile>;
+
 /** How hard the engine pushes a discipline: required = MUST + noted when skipped; preferred = suggested only; off = not mentioned. */
 export const Discipline = z.enum(['required', 'preferred', 'off']);
 export type Discipline = z.infer<typeof Discipline>;
@@ -125,6 +133,8 @@ export const GoalWorkflow = z.object({
   pace: GoalPace.default('thorough'),
   /** default: goals from before the switch get it too, from their next session */
   ponytail: PonytailSwitch.default('on'),
+  /** frozen at creation; absent on a goal from before suites were per goal: the Settings default applies at session time */
+  profile: WorkflowProfile.optional(),
 });
 export type GoalWorkflow = z.infer<typeof GoalWorkflow>;
 

@@ -77,6 +77,11 @@ describe('workflow section', () => {
     expect(applicableRules({ role: 'planner', profile: 'mattpocock', statuses })).toEqual([]);
     expect(formatWorkflowSection({ role: 'planner', profile: 'mattpocock', statuses })).toBe('# Workflow skills\nInstalled skills relevant to this role (use when appropriate): /codebase-design');
   });
+  test('the pstack suite names itself and, with no pstack rules yet, keeps Matt Pocock\'s', () => {
+    const s = formatWorkflowSection({ role: 'worker', taskKind: 'feature', profile: 'pstack', statuses })!;
+    expect(s).toContain("This engine follows pstack's engineering workflow");
+    expect(s).toContain('MUST: invoke `/mattpocock-skills:tdd`');
+  });
   test('plain profile falls back to the one-line hint', () => {
     const s = formatWorkflowSection({ role: 'worker', taskKind: 'feature', profile: 'plain', statuses })!;
     expect(s.startsWith('# Skills\nInstalled skills relevant to this role')).toBe(true);

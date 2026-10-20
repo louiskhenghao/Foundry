@@ -383,6 +383,16 @@ describe('goal mode and discipline', () => {
     expect(c.goal.workflow.tdd).toBe('preferred');
     expect(c.prompt).toContain('Prefer: invoke `/tdd`');
     expect(c.prompt).not.toContain('MUST: invoke `/tdd`');
+    // the workflow suite (ADR-0049): the Settings default is fixed on the goal; a goal's own choice names the suite in every prompt
+    expect(a.goal.workflow.profile).toBe('mattpocock');
+    expect(a.prompt).toContain("This engine follows Matt Pocock's engineering workflow");
+    const d = await run({ prompt: 'pstack', repoPath: repo, workflow: { profile: 'pstack' }, autoBrief: { mustChecks: ['test -f done.txt'] } });
+    expect(d.goal.workflow.profile).toBe('pstack');
+    expect(d.prompt).toContain("This engine follows pstack's engineering workflow");
+    expect(d.prompt).toContain('MUST: invoke `/tdd`'); // no pstack rules yet: Matt Pocock's are the fallback
+    const e = await run({ prompt: 'plain', repoPath: repo, workflow: { profile: 'plain' }, autoBrief: { mustChecks: ['test -f done.txt'] } });
+    expect(e.goal.workflow.profile).toBe('plain');
+    expect(e.prompt).not.toContain('MUST: invoke `/tdd`');
     const before = engine.store.snapshotReadModels();
     engine.store.replay();
     expect(engine.store.snapshotReadModels()).toEqual(before);

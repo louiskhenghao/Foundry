@@ -105,7 +105,7 @@ export interface EngineConfig {
    * `mattpocock` (default): roles are told which workflow skills they MUST / should invoke (catalog `workflow` rules)
    * and the engine records which skills each session used. `plain`: only the one-line "installed skills" hint.
    */
-  workflowProfile: 'mattpocock' | 'plain';
+  workflowProfile: 'mattpocock' | 'pstack' | 'plain';
   /** TDD discipline new Expert-mode goals start with */
   workflowTdd: 'required' | 'preferred' | 'off';
   /** Ponytail (the lazy senior dev) for new goals */
@@ -201,7 +201,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     autoskills: process.env.FOUNDRY_AUTOSKILLS ? !/^(0|false|off|no)$/i.test(process.env.FOUNDRY_AUTOSKILLS) : true,
     sync: { fetchBeforeGoal: process.env.FOUNDRY_SYNC_FETCH ? !/^(0|false|off|no)$/i.test(process.env.FOUNDRY_SYNC_FETCH) : true, startFrom: process.env.FOUNDRY_SYNC_START === 'local' ? 'local' : 'auto', refreshBetweenTasks: /^(1|true|on|yes)$/i.test(process.env.FOUNDRY_SYNC_REFRESH ?? '') },
     delivery: { pollMs: 30_000, noChecksGraceMs: 90_000, checksTimeoutMs: 30 * 60_000, automergeWaitMs: 10 * 60_000, updateLocalBase: true, prWatchMs: 5 * 60_000, copyWaitMs: 30_000 },
-    workflowProfile: process.env.FOUNDRY_WORKFLOW === 'plain' ? 'plain' : 'mattpocock',
+    workflowProfile: (['mattpocock', 'pstack', 'plain'].includes(process.env.FOUNDRY_WORKFLOW ?? '') ? process.env.FOUNDRY_WORKFLOW : 'mattpocock') as 'mattpocock' | 'pstack' | 'plain',
     workflowTdd: (['required', 'preferred', 'off'].includes(process.env.FOUNDRY_TDD ?? '') ? process.env.FOUNDRY_TDD : 'required') as 'required' | 'preferred' | 'off',
     workflowPonytail: process.env.FOUNDRY_PONYTAIL === 'off' ? 'off' : 'on',
     workflowAudit: process.env.FOUNDRY_AUDIT === '1' || process.env.FOUNDRY_AUDIT === 'true',

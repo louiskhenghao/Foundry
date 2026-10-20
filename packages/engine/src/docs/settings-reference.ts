@@ -51,7 +51,7 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'sessions.attemptMaxCostUsd': { section: 'Models & limits', help: 'Claude-only cost cap (USD) for one attempt session, also bounded by the goal budget. Codex does not report USD costs.' },
   'sessions.attemptTimeoutMin': { section: 'Models & limits', help: 'Wall-clock cap for one attempt session.' },
   // Skills
-  'workflow.profile': { section: 'Skills', help: 'Workflow skill set sessions are told to follow: mattpocock (TDD, diagnosing bugs, code review …) or plain.' },
+  'workflow.profile': { section: 'New goal defaults', help: "Workflow suite new goals start with — whose skills the roles follow: mattpocock (Matt Pocock's suite), pstack (with Matt Pocock's skills where it has none) or plain (the installed-skills hint only). Each goal fixes its own on the New goal form." },
   'workflow.designPack': { section: 'Skills', help: 'Design skill set for UI tasks.' },
   'workflow.imagePack': { section: 'Skills', help: 'Image-generation skill set for image tasks.' },
   'workflow.videoPack': { section: 'Skills', help: 'Video skill set for video tasks.' },

@@ -7,7 +7,7 @@ export const help = `foundry — drive the host Claude Code or Codex CLI to deli
        [--title t] [--base branch] [--preset auto|quick|thorough|unlimited|custom] [--max-cost 5|none] [--max-min 120|none] [--concurrency 3] [--attempts 3]
        [--auto-approve --check "<cmd>"]... [--stretch "<cmd>"]...   skip Clarify: one task + command checks
        [--models max|production|balanced|economy|<your preset>]   Selected agent model preset (default: Settings' preset for the goal type)
-       [--nature auto|code|docs|research|image|video|cad] [--pace thorough|fast] [--interview auto|always|never]
+       [--nature auto|code|docs|research|image|video|cad] [--pace thorough|fast] [--suite mattpocock|pstack|plain] [--interview auto|always|never]
        [--effort default|none|minimal|low|medium|high|xhigh|max|ultra] [--self-check]
        [--delegate [--delegate-auto-approve]]   let the planner hand a step that is a project of its own to a Delegated goal
                                           (its own Clarify and plan, side by side within the goal's parallel limit); --delegate-auto-approve approves their Briefs for you
