@@ -140,18 +140,23 @@ switch (cmd) {
   }
   case 'goal': {
     if (rest[0] !== 'new') return usage();
-    const prompt = rest[1];
+    // the prompt is the first positional; a goal from an issue may have none
+    const prompt = rest[1] && !rest[1].startsWith('--') ? rest[1] : undefined;
     // a Follow-up: the earlier goal's repository and settings are the defaults, any flag given wins
     const followsId = opt('--follows');
     const draft = followsId ? await api(`/api/goals/${followsId}/follow-up-draft`) : null;
     if (draft && !draft.followable) return usage(`goal ${followsId} cannot be followed: ${draft.reason}`);
     const repoPath = opt('--repo') ?? draft?.prefill.repoPath;
-    if (!prompt || !repoPath) return usage('goal new needs "<prompt>" and --repo <path> (or --follows <goal id>)');
+    // a goal from a GitHub issue: its title and body stand in for the prompt, its thread is attached (ADR-0052)
+    const issueRef = opt('--issue');
+    if (!repoPath || (!prompt && !issueRef)) return usage('goal new needs "<prompt>" (or --issue <link>) and --repo <path> (or --follows <goal id>)');
+    const issue = issueRef ? await api('/api/issues/read', { method: 'POST', body: JSON.stringify({ ref: issueRef, repoPath: resolve(repoPath) }) }) : null;
     const effort = opt('--effort');
     const body: any = {
-      prompt,
+      prompt: prompt ?? issue.prompt,
       repoPath: resolve(repoPath),
-      title: opt('--title'),
+      title: opt('--title') ?? issue?.title,
+      ...(issue ? { issue: issue.issue, attachments: [issue.attachment] } : {}),
       provider: opt('--provider') ?? draft?.prefill.provider,
       codexModel: opt('--codex-model') ?? (opt('--models') ? undefined : draft?.prefill.codexModel),
       baseBranch: opt('--base'),
@@ -187,6 +192,7 @@ switch (cmd) {
     }
     const goal = await api('/api/goals', { method: 'POST', body: JSON.stringify(body) });
     console.log(`created goal ${goal.id} [${goal.state}] ${goal.title}`);
+    if (goal.issue) console.log(`  from issue ${goal.issue.repo}#${goal.issue.number} (${goal.issue.url}); its pull request closes it`);
     if (goal.follows) console.log(`  follows ${goal.follows.title} (${goal.follows.goalId}), starting from ${goal.follows.startFrom === 'previous' ? `its goal branch ${goal.follows.branch}` : goal.baseBranch}`);
     console.log(`  ui: ${BASE}/goals/${goal.id}`);
     if (has('--follow')) await watch(goal.id);

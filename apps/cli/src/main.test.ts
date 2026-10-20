@@ -89,3 +89,52 @@ describe('CLI goal creation defaults', () => {
     expect((await submittedGoal(['--provider', 'codex', '--effort', 'default'], null)).effort).toBeNull();
   });
 });
+
+describe('a goal from a GitHub issue (ADR-0052)', () => {
+  const read = {
+    issue: { repo: 'acme/app', number: 7, url: 'https://github.com/acme/app/issues/7', title: 'Export orders as CSV', state: 'open', labels: [], readAt: '2026-10-20T00:00:00Z' },
+    title: 'Export orders as CSV',
+    prompt: 'The orders page needs a CSV export.',
+    attachment: { id: 'att_7', kind: 'link', name: 'acme/app#7', mime: null, size: null, path: null, url: 'https://github.com/acme/app/issues/7', note: null, addedAt: '2026-10-20T00:00:00Z', markdown: null },
+  };
+  async function fromIssue(args: string[]) {
+    let asked: Record<string, any> | undefined;
+    let submitted: Record<string, any> | undefined;
+    const server = Bun.serve({
+      hostname: '127.0.0.1', port: 0,
+      async fetch(request) {
+        const path = new URL(request.url).pathname;
+        if (path === '/api/issues/read') {
+          asked = await request.json();
+          return Response.json(read);
+        }
+        if (path === '/api/goals' && request.method === 'POST') {
+          submitted = await request.json();
+          return Response.json({ id: 'g_1', title: submitted!.title, state: 'draft', issue: read.issue });
+        }
+        return new Response('Unexpected request', { status: 404 });
+      },
+    });
+    try {
+      const child = Bun.spawn([process.execPath, main, 'goal', 'new', ...args], { env: { FOUNDRY_URL: `http://127.0.0.1:${server.port}`, PATH: process.env.PATH }, stdout: 'pipe', stderr: 'pipe' });
+      const [exitCode, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]);
+      expect(stderr).toBe('');
+      expect(exitCode).toBe(0);
+      return { asked, submitted, stdout };
+    } finally {
+      server.stop(true);
+    }
+  }
+
+  test('--issue reads the issue first: its title and body stand in for the prompt, its thread is attached', async () => {
+    const { asked, submitted, stdout } = await fromIssue(['--issue', 'acme/app#7', '--repo', '/tmp/foundry-cli-fixture']);
+    expect(asked).toEqual({ ref: 'acme/app#7', repoPath: '/tmp/foundry-cli-fixture' });
+    expect(submitted).toMatchObject({ prompt: read.prompt, title: read.title, issue: read.issue, attachments: [read.attachment] });
+    expect(stdout).toContain('from issue acme/app#7 (https://github.com/acme/app/issues/7); its pull request closes it');
+  });
+
+  test('a prompt and a title given on the command line win over the issue’s', async () => {
+    const { submitted } = await fromIssue(['Own words', '--issue', 'https://github.com/acme/app/issues/7', '--title', 'Own title', '--repo', '/tmp/foundry-cli-fixture']);
+    expect(submitted).toMatchObject({ prompt: 'Own words', title: 'Own title', issue: read.issue });
+  });
+});

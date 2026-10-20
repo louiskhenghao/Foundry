@@ -9,6 +9,8 @@ foundry — drive the host Claude Code or Codex CLI to deliver on goals
 
   serve                                   start engine + server (http://127.0.0.1:4111)
   goal new "<prompt>" --repo <path>       create a goal (Clarify → Brief → approve in UI or via `brief`)
+       [--issue <link|owner/name#12|#12>]   a goal from a GitHub issue (needs gh, logged in): its title and body stand in for the
+                                          prompt when none is given, its thread is attached, and the pull request closes it
        [--provider claude|codex] [--codex-model <model ID>]   backend fixed for this goal; follow-ups inherit it
        [--title t] [--base branch] [--preset auto|quick|thorough|unlimited|custom] [--max-cost 5|none] [--max-min 120|none] [--concurrency 3] [--attempts 3]
        [--auto-approve --check "<cmd>"]... [--stretch "<cmd>"]...   skip Clarify: one task + command checks
