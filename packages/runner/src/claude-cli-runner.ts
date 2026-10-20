@@ -36,6 +36,9 @@ export class ClaudeCliRunner implements ClaudeRunner {
   setMaxConcurrent(n: number): void {
     this.sem.setLimit(n);
   }
+  wouldQueue(lane?: RunSpec['lane']): boolean {
+    return !this.sem.available(lane);
+  }
   /** every live child process; killed on shutdown so no session outlives the engine and keeps spending */
   private procs = new Set<ReturnType<typeof Bun.spawn>>();
   killAll(signal: 'SIGTERM' | 'SIGKILL' = 'SIGTERM'): number {
@@ -72,7 +75,7 @@ export class ClaudeCliRunner implements ClaudeRunner {
   }
 
   async run(spec: RunSpec): Promise<RunHandle> {
-    const release = await this.sem.acquire();
+    const release = await this.sem.acquire(spec.lane);
     const queue = new EventQueue();
     const started = Date.now();
     const log = this.opts.log ?? (() => {});
