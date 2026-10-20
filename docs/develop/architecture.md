@@ -243,7 +243,7 @@ flowchart LR
 | `/api/transcripts/:file/event?line=&block=` | one live-log event in full, read back from the transcript line its `ref` names |
 | `/api/attempts/:id/transcript`, `/prompt` | raw session transcript and worker prompt |
 | `/api/mcp`, `/api/mcp/check`, `/api/mcp/install`, `/api/mcp/remove`, `/api/mcp/allowed` | provider-specific native MCP configuration, health, install/remove, OAuth and Allowed in goals permissions; `provider` query selects `claude` or `codex` |
-| `/api/skills/*`, `/api/tools/*` | skills view, catalog, install/uninstall/update, packs; markitdown, playwright and CLI tool installs; the Skills page's operations (`/api/skills/ops`, `/api/skills/ops/:id`) |
+| `/api/skills/*`, `/api/tools/*` | skills view (with per-skill usage over the newest Claude goals; `?goals=N`, default 30, clamped to 1–500), catalog, install/uninstall/update, packs; markitdown, playwright and CLI tool installs; the Skills page's operations (`/api/skills/ops`, `/api/skills/ops/:id`) |
 | `/api/models`, `/api/settings`, `/api/notifications/*` | provider-specific model list/sync/probe, settings get/put/reset, notification tests |
 | `/api/agents`, `/api/usage` (+ `/api/usage/minimax`: `mmx quota show`, kept 10 min), `/api/auth`, `/api/github`, `/api/update`, `/api/doctor`, `/api/health` | Agents monitor, provider-specific usage/probe and sign-in, gh status/login, self-update, environment report; health includes `pausedUntilByProvider` |
 | `/api/accounts`, `/api/plugins` | both native account states/capabilities; Codex native plugin inventory and install/remove |
