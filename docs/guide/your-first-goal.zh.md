@@ -61,7 +61,13 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 
 按顶栏上的 **New goal**。右上角的四个编号步骤（**Goal**、**Repository**、**Budget**、**Delivery**）显示你填到哪了。描述了 goal，**Goal** 就变绿；选好一个可用的文件夹，**Repository** 就变绿。**Budget** 和 **Delivery** 一直是绿的：它们的默认值就能用。表单开头是两张选项卡片，后面是编号 **1** 到 **4** 的卡片。
 
-有几项选择从 [Settings → New goal defaults](./settings.zh.md#new-goal-defaults) 开始：视图、**Fast mode**、TDD、Ponytail、工作流套件，以及交付方式和粒度。你可以在这里为这个 goal 改其中任何一项。你在页面上改过的字段会保留你的选择。 选好可用的仓库文件夹后，未改过的 **Workflow suite**、**TDD** 和 **Ponytail** 会从这个完全相同路径下最新创建的 goal 继承（不包括导入的历史记录）。Expert 视图会在 **Powered by** 下方以淡色显示 `from the last goal in this folder: <title>`；只要还有一个字段继承它，这条提示就保留。验证进行中、验证失败或文件夹还没有 goal 时，未改过的字段使用 Settings 默认值。拉取或初始化后重新验证会刷新它们。从 goal 页面打开的 **Follow-up** 则优先继承所选 goal 的这三项选择，包括它当前保存的 Ponytail 值，即使文件夹里已有更新的 goal。稍后返回的 Settings 或文件夹验证结果不会覆盖它们，也不会显示文件夹来源提示。创建前仍可手动修改；页面上的 **Follows** 选择器只建立关联。Simple 视图仍提交 preferred TDD；Fast mode 仍关闭 TDD。
+有几项选择从 [Settings → New goal defaults](./settings.zh.md#new-goal-defaults) 开始：视图、**Fast mode**、TDD、Ponytail、工作流套件，以及交付方式和粒度。你可以为这个 goal 修改它们。
+
+选好可用的仓库文件夹后，未改过的 **Workflow suite**、**TDD** 和 **Ponytail** 会从完全相同路径下按创建时间最新的 goal 继承。仍属于导入历史记录的 goal 不参与选择。继承的是 goal 当前保存的值，包括创建后对 Ponytail 的修改。你在这个页面上改过的每个字段都会保留你的选择。Expert 视图在 **Powered by** 下方以淡色显示来源：`from the last goal in this folder: <title>`。只要这三项中还有一项继承自该 goal，这条提示就保留。
+
+选择另一个文件夹时，未改过的字段会立即重置为 Settings 默认值，并隐藏旧的来源提示。验证进行中、文件夹无效或没有提交、文件夹没有更早的 goal 时，都使用 Settings 默认值。验证成功后才应用该文件夹的最新值；拉取或初始化后重新验证也会刷新它们。
+
+从 goal 页面打开的 **Follow-up** 则优先从所选的较早 goal 预填这三项，即使文件夹里已有更新的 goal。稍后返回的 Settings 或文件夹验证结果不会覆盖它们，也不会显示文件夹来源提示。创建前仍可手动修改。页面上的 **Follows** 选择器只建立关联。Simple 视图保留继承的套件和 Ponytail，但提交 **preferred** TDD；**Fast mode** 不提交 TDD，由引擎默认设为 **off**。
 
 ![New goal 表单，使用统一的 Coding agent 选择控件](images/new-goal.png)
 
@@ -141,7 +147,7 @@ Codex 任务创建后保留这些设置；以后编辑或删除预设不会改�
 
 ### Workflow suite
 
-只在 Expert 视图里有；**pstack** 要先在 Setup 页装好才可选（**Workflow suite — pstack** 这张卡片会安装 Foundry 自己保存的一个固定版本副本，不带插件的 hooks；Claude 每个会话加载它，Codex 则把它的技能链接进 goal 的工作区）。装好之前这个选项是灰的；从文件夹继承的 pstack 选择会保留，并显示安装提示。**Powered by** 选这个 goal 的各角色遵循谁的技能：**mattpocock**（默认：Matt Pocock 的套件——功能先写测试，bug 先诊断，最后做 code review）、**pstack**（pstack 的套件，它没有的由 Matt Pocock 的技能补上）或 **plain**（没有规则：会话只知道装了哪些技能）。goal 创建时就定下来了；follow-up 从前一个 goal 的选择开始，delegated goal 沿用主 goal 的。Simple 视图保留继承的套件；文件夹没有更早的 goal 时使用 Settings 默认值。goal 页面和 Brief 上会显示一个 **Powered by** 标签。
+选择器只在 Expert 视图里显示。**pstack** 要先在 Setup 页装好才可选（**Workflow suite — pstack** 这张卡片会安装 Foundry 自己保存的一个固定版本副本，不带插件的 hooks；Claude 每个会话加载它，Codex 则把它的技能链接进 goal 的工作区）。装好之前这个选项是灰的；从文件夹或 Follow-up 继承的 pstack 选择会保留，并显示安装提示；引擎仍使用现有的回退规则。**Powered by** 选这个 goal 的各角色遵循谁的技能：**mattpocock**（Settings 的初始默认值：Matt Pocock 的套件——功能先写测试，bug 先诊断，最后做 code review）、**pstack**（pstack 的套件，它没有的由 Matt Pocock 的技能补上）或 **plain**（没有规则：会话只知道装了哪些技能）。goal 创建时就定下来了；从 goal 页面打开的 Follow-up 从所选较早 goal 的选择开始，delegated goal 沿用主 goal 的。Simple 和 Expert 视图使用相同的套件继承规则，以 Settings 为回退值。较早的 goal 没有保存套件时，继承的套件使用当前 Settings 值。goal 页面和 Brief 上会显示一个 **Powered by** 标签。
 
 ### Engineering discipline (TDD)
 
@@ -149,15 +155,15 @@ Codex 任务创建后保留这些设置；以后编辑或删除预设不会改�
 
 | 选项 | 意思 |
 |---|---|
-| **required** | 执行者必须遵守；Claude 会提供技能调用证据，Codex 根据工作与测试结果审查。这是默认，除非 Settings 里另有设置。 |
-| **preferred** | 只是建议。Simple 视图的 goal 总是用这个。 |
+| **required** | 执行者必须遵守；Claude 会提供技能调用证据，Codex 根据工作与测试结果审查。这是 Settings 的初始默认值；文件夹和 Follow-up 继承可以替换它。 |
+| **preferred** | 只是建议。Simple 视图提交这个值，除非开启 Fast mode。 |
 | **off** | 完全不提。 |
 
 docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单个任务也可以在 Brief 里关掉它。勾上 **Fast mode** 时，TDD 是关闭的。
 
 ### Ponytail: less code
 
-只在 Expert 视图里有，默认开启。Ponytail 是"懒惰的资深工程师"：写代码之前，worker 先问这段代码需不需要存在，仓库、标准库、平台或已装的依赖是不是已经有了，然后才写能完整解决任务的最小改动，连同调用方、测试和 fixture。planner 也这样规划；`ponytail-review` 审查每个任务和整个 goal：它读改动牵连到的代码，不只看 diff，只有它的 *must fix* 发现（bug、安全漏洞、丢数据、在预期负载下出问题）会阻断，其余写进审查笔记和 pull request。测试怎么写仍由 TDD 决定。不是代码的工作（文档、调研、媒体）从来不会用到它；开关之后可以在 goal 页面上改，从 goal 的下一个会话起生效。它需要 Ponytail 的 skill，在 Setup 页安装。
+开关只在 Expert 视图里显示。Settings 的初始默认值是开启；表单遵循上面的继承规则。Ponytail 是"懒惰的资深工程师"：写代码之前，worker 先问这段代码需不需要存在，仓库、标准库、平台或已装的依赖是不是已经有了，然后才写能完整解决任务的最小改动，连同调用方、测试和 fixture。planner 也这样规划；`ponytail-review` 审查每个任务和整个 goal：它读改动牵连到的代码，不只看 diff，只有它的 *must fix* 发现（bug、安全漏洞、丢数据、在预期负载下出问题）会阻断，其余写进审查笔记和 pull request。测试怎么写仍由 TDD 决定。不是代码的工作（文档、调研、媒体）从来不会用到它；开关之后可以在 goal 页面上改，从 goal 的下一个会话起生效。它需要 Ponytail 的 skill，在 Setup 页安装。
 
 ### What do you want done
 
@@ -191,11 +197,11 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 
 ### Follows
 
-仓库下面，当这个仓库已经有结束了的 goal 时：**Follows** 用来选这个 goal 接着做的是哪一个更早的 goal（或者选 **Nothing — a new line of work**）。这样 Clarifier 会拿到那个 goal 当时要求了什么、做了哪些决定、结果如何，你不用再解释一遍。
+仓库下面，当这个仓库已经有结束了的 goal 时：**Follows** 用来选这个 goal 接着做的是哪一个更早的 goal（或者选 **Nothing — a new line of work**）。这样 Clarifier 会拿到那个 goal 当时要求了什么、做了哪些决定、结果如何，你不用再解释一遍。更改这个选择器不会改变 **Workflow suite**、**TDD** 和 **Ponytail**。
 
 选择器下面的卡片会说明新 goal 从哪里开始。如果之前那个 goal 的工作已经在你的基础分支上（它的 pull request 已经合并），就从那里开始。如果还没有（Local only 的 goal、没合并的 pull request、失败的 goal），就从之前那个 goal 的分支开始，那些改动会随着这个 goal 的 pull request 一起交付。**Start from** 可以在两者之间切换。勾选或取消 **Bring its attachments** 和 **Keep its style direction**，决定是否把附件和风格方向一起带过来。
 
-在一个已结束的 goal 上按 **Continue with a follow-up…**，会打开已经填好的这个表单；见 [Continue with a follow-up](./getting-the-result.zh.md#continue-with-a-follow-up)。
+在一个已结束的 goal 上按 **Continue with a follow-up…**，会打开已经填好的这个表单，包括该 goal 的 **Workflow suite**、**TDD** 和当前保存的 **Ponytail**。它们优先于文件夹默认值；见 [Continue with a follow-up](./getting-the-result.zh.md#continue-with-a-follow-up)。
 
 ### Budget
 
@@ -227,7 +233,7 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 
 按钮上写的是 **Create & clarify**（如果你跳过了 Clarify，就是 **Create & run**）。如果按钮是灰的，旁边的文字会写出第一个还缺的东西：**Describe the goal**、**Select a repository folder**、**Repository is not ready (see above)**、**Sign in to Claude Code first: see Accounts**（选 Codex 时则是 Codex）、**Choose a model preset (see above)**，或者某个 Codex 模型不支持所选的 reasoning。
 
-这个浏览器会记住 goal 类型、预算，以及更细的交付选项（比如合并方式和 CI 相关的开关），下一个 goal 就从这些开始。视图、Fast mode、TDD，以及交付方式和粒度，每次都从 Settings → New goal defaults 开始。
+这个浏览器会记住 goal 类型、预算，以及更细的交付选项（比如合并方式和 CI 相关的开关），下一个 goal 就从这些开始。视图、**Fast mode**，以及交付方式和粒度从 Settings → New goal defaults 开始。**Workflow suite**、**TDD** 和 **Ponytail** 遵循上面的文件夹和 Follow-up 规则；浏览器不会把它们记作默认值。
 
 然后你会进入 goal 的 Brief 页面，Foundry 开始读你的项目：
 
