@@ -1,6 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import type { EngineEvent } from '../events.ts';
-import { FINAL_WALK, IDLE_COMPLETION, NO_DELEGATION, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type RepoLearnings, type Task } from '../schema/index.ts';
+import { FINAL_WALK, IDLE_COMPLETION, NO_DELEGATION, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type RepoLearnings, type Task, Schedule } from '../schema/index.ts';
 import type { ObservationReport } from '../schema/observation.ts';
 import { applySubjectEvent } from '../machine/subjects.ts';
 
@@ -600,6 +600,20 @@ function project(db: Database, e: EngineEvent): void {
       }
       break;
     }
+    case 'schedule.set': {
+      const sch = e.payload.schedule;
+      db.run('INSERT OR REPLACE INTO schedules (id, data) VALUES (?, ?)', [sch.id, JSON.stringify(sch)]);
+      break;
+    }
+    case 'schedule.deleted':
+      db.run('DELETE FROM schedules WHERE id = ?', [e.payload.scheduleId]);
+      break;
+    case 'schedule.fired': {
+      const sch = getSchedule(db, e.payload.scheduleId);
+      // a skipped firing keeps the goal of the run before it: that run is the one still going
+      if (sch) db.run('INSERT OR REPLACE INTO schedules (id, data) VALUES (?, ?)', [sch.id, JSON.stringify({ ...sch, lastRun: { at: e.payload.at, goalId: e.goalId ?? sch.lastRun?.goalId ?? null, skipped: e.payload.skipped }, runs: sch.runs + 1 })]);
+      break;
+    }
     case 'learnings.set': {
       const p = e.payload;
       if (p.learnings.length) db.run('INSERT OR REPLACE INTO repo_learnings (repo_path, data) VALUES (?, ?)', [p.repoPath, JSON.stringify({ repoPath: p.repoPath, learnings: p.learnings, updatedAt: e.ts })]);
@@ -836,11 +850,21 @@ export function getRepoLearnings(db: Database, repoPath: string): RepoLearnings 
   return r ? (JSON.parse(r.data) as RepoLearnings) : null;
 }
 /** every repository with Learnings, the most recently changed first */
+/** a Schedule (ADR-0054), or null */
+export function getSchedule(db: Database, id: string): Schedule | null {
+  const r = db.query('SELECT data FROM schedules WHERE id = ?').get(id) as { data: string } | null;
+  return r ? Schedule.parse(JSON.parse(r.data)) : null;
+}
+/** every Schedule, the newest made first */
+export function listSchedules(db: Database): Schedule[] {
+  return (db.query('SELECT data FROM schedules').all() as { data: string }[]).map((r) => Schedule.parse(JSON.parse(r.data))).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
 export function listRepoLearnings(db: Database): RepoLearnings[] {
   return (db.query('SELECT data FROM repo_learnings').all() as { data: string }[]).map((r) => JSON.parse(r.data) as RepoLearnings).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
-const READ_MODEL_TABLES = ['goals', 'tasks', 'attempts', 'checks', 'check_results', 'briefs', 'observations', 'escalations', 'usage_ledger', 'rate_limit_state', 'repo_learnings'];
+const READ_MODEL_TABLES = ['goals', 'tasks', 'attempts', 'checks', 'check_results', 'briefs', 'observations', 'escalations', 'usage_ledger', 'rate_limit_state', 'repo_learnings', 'schedules'];
 
 export function clearReadModels(db: Database): void {
   for (const t of READ_MODEL_TABLES) db.exec(`DELETE FROM ${t}`);

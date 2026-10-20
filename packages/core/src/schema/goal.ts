@@ -268,6 +268,17 @@ export const GoalIssue = z.object({
 });
 export type GoalIssue = z.infer<typeof GoalIssue>;
 
+/** the Schedule a Goal was made by, on the Goal (ADR-0054) */
+export const GoalSchedule = z.object({
+  id: z.string(),
+  /** the schedule's name when it fired; shown as-is once the schedule is deleted */
+  name: z.string(),
+  at: z.string(),
+  /** the engine approves the Brief itself (the interview was skipped) */
+  autoApprove: z.boolean(),
+});
+export type GoalSchedule = z.infer<typeof GoalSchedule>;
+
 /**
  * Where an Imported Goal came from and how far it got here (ADR-0030). It arrives as history; mapping its repository
  * restores its branch, and an unfinished one can then be Reattached. Absent on goals made on this instance.
@@ -405,6 +416,8 @@ export const Goal = z.object({
   delegatedFrom: GoalDelegatedFrom.nullable().default(null),
   /** the GitHub issue the goal was made from (ADR-0052); absent on goals made before, and on goals made some other way */
   issue: GoalIssue.nullable().optional(),
+  /** the Schedule the goal was made by (ADR-0054); absent on goals made by hand */
+  schedule: GoalSchedule.nullable().optional(),
   /** set when the goal arrived through a Transfer (ADR-0030) */
   transfer: GoalTransfer.optional(),
   runningSince: z.string().nullable(),

@@ -38,4 +38,6 @@ export const IdPrefix = {
   attachment: 'att',
   /** a round of review comments on a pull request (ADR-0053) */
   review: 'rev',
+  /** a Schedule (ADR-0054) */
+  schedule: 'sch',
 } as const;

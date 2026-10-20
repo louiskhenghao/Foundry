@@ -126,7 +126,7 @@ export class EventStore {
     for (const t of ['goals', 'tasks', 'attempts', 'checks', 'check_results', 'briefs', 'observations', 'escalations']) {
       out[t] = (this.db.query(`SELECT data FROM ${t} ORDER BY 1`).all() as { data: string }[]).map((r) => r.data).sort();
     }
-    for (const t of ['usage_ledger', 'rate_limit_state', 'repo_learnings']) {
+    for (const t of ['usage_ledger', 'rate_limit_state', 'repo_learnings', 'schedules']) {
       out[t] = (this.db.query(`SELECT * FROM ${t}`).all() as object[]).map((r) => JSON.stringify(r)).sort();
     }
     return out;
