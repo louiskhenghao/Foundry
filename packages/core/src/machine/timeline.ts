@@ -71,6 +71,7 @@ const SESSION_KINDS: Record<string, { kind: SpanKind; label: string }> = {
   'style-sample': { kind: 'other', label: 'Style sample' },
   'subject-search': { kind: 'other', label: 'Subject pictures' },
   'review-goal': { kind: 'review', label: 'Goal review' },
+  'second-opinion': { kind: 'review', label: 'Second opinion' },
   walkthrough: { kind: 'review', label: 'Milestone walkthrough' },
   likeness: { kind: 'review', label: 'Likeness review' },
   feedback: { kind: 'review', label: 'Feedback triage' },

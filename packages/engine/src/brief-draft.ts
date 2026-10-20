@@ -308,7 +308,7 @@ export function cancelRevise(engine: Engine, goal: Goal): void {
  * assumption verdicts preserved (assumption ids matched by text; new ones get ids), the answers and notes of the
  * rounds the Revise asked as applied Decisions, new non-blocking questions appended.
  */
-function toRevisedBrief(current: Brief, out: RevisionOutput, decided: Brief['questions'] = []): Omit<Brief, 'goalId'> {
+export function toRevisedBrief(current: Brief, out: RevisionOutput, decided: Brief['questions'] = []): Omit<Brief, 'goalId'> {
   const areaKeys = new Set(out.areas.map((a) => a.key));
   const area = (k: string | null | undefined) => (k && areaKeys.has(k) ? k : null);
   const usedQ = new Set<string>();
@@ -345,7 +345,7 @@ function keyAllocator(brief: Brief) {
   return (prefix: 'T' | 'C') => `${prefix}${++counters[prefix]!}`;
 }
 
-function briefSummary(brief: Brief): string {
+export function briefSummary(brief: Brief): string {
   const areaName = (k: string | null) => brief.areas.find((a) => a.key === k)?.name ?? '—';
   const lines = [
     `## Understanding\n${brief.understanding.trim()}`,
@@ -358,8 +358,11 @@ function briefSummary(brief: Brief): string {
   return lines.filter(Boolean).join('\n\n');
 }
 
+/** what every proposal on the Brief page must keep to (a Draft, a Revise, a second opinion) */
+export const DRAFT_RULES = `Rules:\n- Acceptance checks must be decidable: a command check is a real command that runs from the repo root (exit 0 = pass); a reviewer check has a concrete rubric naming what to look at. Must = what the human asked for; stretch = valuable extras.\n- Do not restate or duplicate existing tasks and checks; reference them by key where relevant (dependsOnKeys).\n- Keep the language and conventions of the Brief and the repository. Task titles are imperative commit subjects without type prefix.`;
+
 function buildDraftPrompt(goal: Goal, brief: Brief, req: DraftRequest, task: BriefTask | undefined, area: Brief['areas'][number] | undefined, overview: string | null, skillsHint: string | null, attachments: string): string {
-  const rules = `Rules:\n- Acceptance checks must be decidable: a command check is a real command that runs from the repo root (exit 0 = pass); a reviewer check has a concrete rubric naming what to look at. Must = what the human asked for; stretch = valuable extras.\n- Do not restate or duplicate existing tasks and checks; reference them by key where relevant (dependsOnKeys).\n- Keep the language and conventions of the Brief and the repository. Task titles are imperative commit subjects without type prefix.`;
+  const rules = DRAFT_RULES;
   const ask =
     req.mode === 'revise'
       ? `# Your job\nThe human answered questions, wrote notes and/or rejected assumptions (see "Decisions from the human" above). Revise the Brief so that every decision is honoured: change, add or drop tasks and checks as needed (including Areas if a decision changes the scope), update the understanding and the estimate. Explore the repository (read-only) where a decision needs it.\n\nYou may ask the human first. When a decision leaves something open that you cannot safely assume, output \`{"questions": [...], "revision": null}\`: at most ${INTERVIEW_MAX_QUESTIONS_REVISE} questions, the most consequential first, each with 2–4 options (YOUR recommendation first) and the reason that leaves it open. The page asks them and you get the answers; you may ask at most ${REVISE_MAX_ROUNDS} rounds. Facts are yours to find in the repository; only decisions are theirs. Otherwise output \`{"questions": [], "revision": {...}}\` with the revision.\n\nRules for the revision:\n- **Keep the keys** of every task, check and Area you keep (changed or not); give new ones the next free number (T${brief.tasks.length + 1}…, C${brief.checks.length + 1}…). A task you drop simply does not appear.\n- Do not touch what no decision affects. Keep each kept task's \`milestone\` and \`milestoneScript\` as they are unless a decision changes them.\n- newQuestions is for genuinely new, non-blocking questions the revision raises for the Brief page (usually none); what you need answered before revising goes in \`questions\` instead.\n- Say in changeSummary what changed because of which decision.\nOutput the complete revised Brief as JSON matching the schema.`
