@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { CornerDownRight, X } from 'lucide-react';
 import { ACTION_INFO, CODEX_MODEL_ACTIONS, effectiveCodexPresets, effectivePresets, natureKey, type CodexModelPreset, type ModelNature, type ModelPreset } from '@foundry/core/browser';
-import { api, type AccountsInfo, type AgentProvider, type FollowUpDraft, type GoalRow, type ModelRecordView, type RepoInfo } from '../api.ts';
+import { api, apiForProvider, type AccountsInfo, type AgentProvider, type FollowUpDraft, type GoalRow, type ModelRecordView, type RepoInfo } from '../api.ts';
 import { AttachmentInput } from '../components/Attachments.tsx';
 import { BudgetPicker, type BudgetDraft } from '../components/BudgetPicker.tsx';
 import { DeliveryPolicyForm, type PolicyDraft } from '../components/DeliveryPolicyForm.tsx';
@@ -101,10 +101,19 @@ export function NewGoalPage() {
     setCad(null);
     void api.cad(provider).then(setCad).catch(() => setCad(null));
   }, [provider]);
+  useEffect(() => {
+    setPstackReady(null);
+    void apiForProvider(provider)
+      .skills()
+      .then((o) => setPstackReady(o.catalog.some((c) => c.entry.bundle === 'pstack' && c.status === 'installed')))
+      .catch(() => setPstackReady(false));
+  }, [provider]);
   const [mode, setModeState] = useState<'simple' | 'expert'>('expert');
   const [tdd, setTddState] = useState<'required' | 'preferred' | 'off'>('required');
   const [ponytail, setPonytailState] = useState<'on' | 'off'>('on');
   const [profile, setProfileState] = useState<WorkflowProfile>('mattpocock');
+  /** the pstack suite is a choice once its copy is installed (Setup page); null = not known yet */
+  const [pstackReady, setPstackReady] = useState<boolean | null>(null);
   const [pace, setPace] = useState<'thorough' | 'fast'>('thorough');
   // delegated goals: off by default; the second switch only matters with the first
   const [delegate, setDelegate] = useState(false);
@@ -505,11 +514,11 @@ export function NewGoalPage() {
               onChange={setProfile}
               options={[
                 { id: 'mattpocock', label: 'mattpocock', title: "Matt Pocock's suite: tests first for features, diagnose first for bugs, code review at the end" },
-                { id: 'pstack', label: 'pstack', title: "pstack's suite, with Matt Pocock's skills where pstack has none" },
+                { id: 'pstack', label: 'pstack', title: pstackReady === false ? 'Install the pstack suite on the Setup page first' : "pstack's suite, with Matt Pocock's skills where pstack has none", disabled: pstackReady === false },
                 { id: 'plain', label: 'plain', title: 'No workflow rules: sessions only hear which skills are installed' },
               ]}
             />
-            <span className="text-[11px] text-zinc-500">Whose skills the roles follow for this goal; fixed once the goal is created.</span>
+            <span className="text-[11px] text-zinc-500">Whose skills the roles follow for this goal; fixed once the goal is created.{pstackReady === false && <> pstack is not installed: <Link to="/setup" className="underline">Setup page</Link>.</>}</span>
           </div>
         )}
         {mode === 'expert' && (

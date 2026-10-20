@@ -241,6 +241,12 @@ export class SkillsUpdateChecker {
     };
     const base: SkillSourceRow = { name: row.name, invoke: row.invoke, description: row.description, dir: row.dir, scope: row.scope, managedBy: row.managedBy, status: 'unknown', local, pathInRepo, upstream: null, match: null, shadowedBy, duplicateOf: row.duplicateOf, catalogId, actions: [], keptBecause: row.scope === 'user' && !row.canUninstall ? row.uninstallNote : null };
     if (row.symlink?.broken || row.unparsable) return { ...base, status: 'broken', actions: row.canUninstall ? ['uninstall'] : [] };
+    // a workflow suite's row (ADR-0049): at the catalog's pin or not; the copy is Foundry's own, nothing to compare byte by byte
+    if (key.kind === 'suite') {
+      const pinned = catalog.suites.find((s) => `suite:${s.id}` === key.id);
+      const current = !!pinned && row.plugin?.version === pinned.ref;
+      return { ...base, status: current ? 'up-to-date' : 'outdated', actions: current ? [] : ['update'] };
+    }
 
     // upstream dir to compare against: cache clone path, else the candidate's own dir (marketplace clone / ~/.agents)
     let upstreamDir: string | null = null;
@@ -353,7 +359,7 @@ function pluginVersionIn(repoDir: string, pluginName: string | null): string | n
 }
 
 function updaterFor(key: SourceKey, rows: SkillSourceRow[], provider: 'claude' | 'codex' = 'claude'): SkillSource['updater'] {
-  const kind: UpdaterKind = key.manager === 'foundry' ? 'foundry' : key.manager === 'agents-cli' ? 'agents-cli' : key.manager === 'plugin' ? 'plugin' : key.manager === 'hand' ? (rows.some((r) => r.actions.includes('adopt')) ? 'adopt' : 'none') : 'none';
+  const kind: UpdaterKind = key.kind === 'suite' ? 'suite' : key.manager === 'foundry' ? 'foundry' : key.manager === 'agents-cli' ? 'agents-cli' : key.manager === 'plugin' ? 'plugin' : key.manager === 'hand' ? (rows.some((r) => r.actions.includes('adopt')) ? 'adopt' : 'none') : 'none';
   const pluginId = key.id.startsWith('plugin:') ? key.id.slice('plugin:'.length) : null;
   const mkt = pluginId?.includes('@') ? pluginId.split('@').slice(1).join('@') : null;
   switch (kind) {
@@ -365,6 +371,8 @@ function updaterFor(key: SourceKey, rows: SkillSourceRow[], provider: 'claude' |
       return { kind, command: ['claude', 'plugin', 'marketplace', 'update', mkt ?? '', '&&', 'claude', 'plugin', 'update', pluginId ?? '', '-y'], hint: 'Restart Claude sessions afterwards; the engine picks the new version up on its next session.' };
     case 'foundry':
       return { kind, command: null, hint: null };
+    case 'suite':
+      return { kind, command: null, hint: 'A workflow suite, pinned to one release by Foundry; Update re-syncs the copy to that release.' };
     case 'adopt':
       return { kind, command: null, hint: 'Replace these loose copies with foundry-managed installs from the catalog (old copies go to the trash).' };
     default:

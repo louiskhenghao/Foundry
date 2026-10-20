@@ -10,8 +10,8 @@ export async function checkAccountDiscovery(home: string, provider: 'claude' | '
   const bin = join(home, 'bin', provider);
   const nativeHome = join(home, provider);
   mkdirSync(nativeHome, { recursive: true });
-  writeFileSync(join(home, 'skills.json'), JSON.stringify({ version: 1, entries: [] }));
-  writeFileSync(join(home, 'mcp.json'), JSON.stringify({ version: 1, entries: [] }));
+  writeFileSync(join(home, 'skills.json'), JSON.stringify({ version: 1, suites: [], entries: [] }));
+  writeFileSync(join(home, 'mcp.json'), JSON.stringify({ version: 1, suites: [], entries: [] }));
   const engine = new Engine(defaultConfig(resolve(import.meta.dir, '../../..'), {
     provider: 'claude', dataDir: join(home, 'data'), catalogPath: join(home, 'skills.json'),
     claudeHome: join(home, 'claude'), codexHome: join(home, 'codex'),

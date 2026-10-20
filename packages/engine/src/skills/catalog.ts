@@ -49,6 +49,14 @@ export function catalogStatus(catalog: Catalog, scan: ScanResult, paths: SkillsP
 }
 
 function statusOf(entry: CatalogEntry, scan: ScanResult, paths: SkillsPaths, which: WhichFn): Omit<CatalogEntryStatus, 'missingEnv'> {
+  if (entry.source.type === 'suite') {
+    // one of a workflow suite's skills (ADR-0049): installed with the suite's copy, invoked under the suite's prefix
+    const id = entry.source.suite;
+    const row = scan.installed.find((r) => r.scope === 'plugin' && r.plugin?.id === `suite:${id}` && r.plugin?.skillPath === `skills/${entry.name}`);
+    if (row) return { entry, status: 'installed', installedInvoke: row.invoke, commit: row.plugin?.gitCommitSha ?? null, detail: `${id} suite ${row.plugin?.version ?? ''} (Foundry-managed copy)`.trim(), manual: null };
+    const suite = scan.suites.find((s) => s.id === id);
+    return { entry, status: 'missing', installedInvoke: null, commit: null, detail: suite ? `the ${id} suite ${suite.ref} has no ${entry.name} skill` : `the ${id} suite is not installed`, manual: null };
+  }
   {
     const user = scan.installed.find((r) => r.scope === 'user' && r.name === entry.name && !r.symlink?.broken);
     const plugin = scan.installed.find((r) => r.scope === 'plugin' && r.name === entry.name);

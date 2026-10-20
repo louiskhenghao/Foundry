@@ -37,6 +37,8 @@ export interface RunSpec {
   /** load no MCP servers at all (Claude Code's --strict-mcp-config without --mcp-config): a session that only reads the repository */
   strictMcp?: boolean;
   addDirs?: string[];
+  /** Claude Code plugin directories loaded for this session (`--plugin-dir`): a workflow suite's hook-less copy (ADR-0049) */
+  pluginDirs?: string[];
   resumeSessionId?: string;
   /** Claude Code effort level (`--effort`); omitted = the CLI default */
   effort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra';

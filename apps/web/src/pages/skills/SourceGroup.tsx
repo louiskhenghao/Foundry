@@ -33,7 +33,7 @@ export function SourceGroup({ s, busy, updating, running, filter, a }: { s: Skil
   const adoptable = s.skills.filter((r) => r.actions.includes('adopt')).map((r) => r.name);
   const removable = s.skills.filter((r) => r.actions.includes('uninstall')).map((r) => r.name);
   // a plugin whose upstream changes are unreleased: Update would only confirm the same version
-  const canUpdate = (s.updater.kind === 'foundry' || s.updater.kind === 'agents-cli' || s.updater.kind === 'plugin') && !(s.manager === 'plugin' && s.updateAvailable === false && s.skills.some((r) => r.status === 'unreleased'));
+  const canUpdate = (s.updater.kind === 'foundry' || s.updater.kind === 'agents-cli' || s.updater.kind === 'plugin' || s.updater.kind === 'suite') && !(s.manager === 'plugin' && s.updateAvailable === false && s.skills.some((r) => r.status === 'unreleased'));
   const [confirmPlugin, setConfirmPlugin] = useState(false);
   const pluginRemovable = s.manager === 'plugin' && !!a.onUninstallPlugin;
   // nothing to install, but upstream moved on under the same version: not "up to date" either
@@ -72,7 +72,7 @@ export function SourceGroup({ s, busy, updating, running, filter, a }: { s: Skil
     <>
       {canUpdate && (
         <Button size="sm" variant={s.updateAvailable ? 'primary' : 'default'} disabled={busy || updating} onClick={() => a.onUpdate()} title={s.updater.command ? s.updater.command.join(' ') : 'update via Foundry'}>
-          <RefreshCw size={12} className={cn(updating && 'animate-spin')} /> {updating ? 'Updating…' : s.updater.kind === 'plugin' ? 'Update plugin' : s.updater.kind === 'agents-cli' ? 'Update (npx)' : 'Update'}
+          <RefreshCw size={12} className={cn(updating && 'animate-spin')} /> {updating ? 'Updating…' : s.updater.kind === 'plugin' ? 'Update plugin' : s.updater.kind === 'agents-cli' ? 'Update (npx)' : s.updater.kind === 'suite' ? 'Re-sync' : 'Update'}
         </Button>
       )}
       {adoptable.length > 0 && (

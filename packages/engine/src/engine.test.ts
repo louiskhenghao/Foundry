@@ -8,7 +8,7 @@ import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
 import { ESCALATION_MESSAGE_MAX, raiseEscalation } from './escalation.ts';
 import { goalWorkspacePath } from './workspace.ts';
-import { writeCatalog } from './skills/fake-home.test-helper.ts';
+import { fakeSuite, writeCatalog } from './skills/fake-home.test-helper.ts';
 import { scriptDeps } from './checks/walkthrough.ts';
 import { repairTitle } from './checkpoint.ts';
 
@@ -201,7 +201,7 @@ describe('Engine loop (fake runner)', () => {
     mkdirSync(join(claudeHome, 'skills', 'tdd'), { recursive: true });
     writeFileSync(join(claudeHome, 'skills', 'tdd', 'SKILL.md'), '---\nname: tdd\ndescription: t\n---\n');
     const catalogPath = join(dataDir, 'catalog.json');
-    writeFileSync(catalogPath, JSON.stringify({ version: 1, entries: [{ id: 'tdd', name: 'tdd', summary: '', why: '', tier: 'recommended', source: { type: 'git', repo: 'o/r' }, roles: ['worker'] }] }));
+    writeFileSync(catalogPath, JSON.stringify({ version: 1, suites: [], entries: [{ id: 'tdd', name: 'tdd', summary: '', why: '', tier: 'recommended', source: { type: 'git', repo: 'o/r' }, roles: ['worker'] }] }));
     const runner = new FakeRunner((spec) => writeFileSync(join(spec.cwd, 'done.txt'), 'ok'));
     runner.rateLimit = { status: 'allowed', resetsAt: Math.floor(Date.now() / 1000) + 3600, rateLimitType: 'five_hour', isUsingOverage: false, raw: {} };
     const engine = track(new Engine(cfg({ catalogPath }), runner));
@@ -363,7 +363,7 @@ describe('goal mode and discipline', () => {
     mkdirSync(join(claudeHome, 'skills', 'tdd'), { recursive: true });
     wf(join(claudeHome, 'skills', 'tdd', 'SKILL.md'), '---\nname: tdd\ndescription: t\n---\n');
     const catalogPath = join(dataDir, 'catalog.json');
-    wf(catalogPath, JSON.stringify({ version: 1, entries: [{ id: 'tdd', name: 'tdd', summary: '', why: '', tier: 'recommended', source: { type: 'git', repo: 'o/r' }, roles: ['worker'], workflow: [{ role: 'worker', mandate: 'must', when: 'feature', instruction: 'tests first' }] }] }));
+    wf(catalogPath, JSON.stringify({ version: 1, suites: [], entries: [{ id: 'tdd', name: 'tdd', summary: '', why: '', tier: 'recommended', source: { type: 'git', repo: 'o/r' }, roles: ['worker'], workflow: [{ role: 'worker', mandate: 'must', when: 'feature', instruction: 'tests first' }] }] }));
     const runner = new FakeRunner((spec) => writeFileSync(join(spec.cwd, 'done.txt'), 'ok'));
     const engine = track(new Engine(cfg({ catalogPath }), runner));
     const run = async (input: Parameters<typeof engine.createGoal>[0]) => {
@@ -389,7 +389,14 @@ describe('goal mode and discipline', () => {
     const d = await run({ prompt: 'pstack', repoPath: repo, workflow: { profile: 'pstack' }, autoBrief: { mustChecks: ['test -f done.txt'] } });
     expect(d.goal.workflow.profile).toBe('pstack');
     expect(d.prompt).toContain("This engine follows pstack's engineering workflow");
-    expect(d.prompt).toContain('MUST: invoke `/tdd`'); // no pstack rules yet: Matt Pocock's are the fallback
+    expect(d.prompt).toContain('MUST: invoke `/tdd`'); // the suite is not installed here: Matt Pocock's rules are the fallback
+    expect(runner.calls.find((c) => c.prompt === d.prompt)!.pluginDirs).toBeUndefined();
+    // with the suite's copy in the store, a Claude session of a pstack goal loads it (ADR-0049)
+    const pluginDir = fakeSuite(dataDir, { skills: ['tdd', 'deslop', 'sharpen'] });
+    const f = await run({ prompt: 'pstack loaded', repoPath: repo, workflow: { profile: 'pstack' }, autoBrief: { mustChecks: ['test -f done.txt'] } });
+    expect(runner.calls.find((c) => c.prompt === f.prompt)!.pluginDirs).toEqual([pluginDir]);
+    expect(f.prompt).toContain('/pstack:poteto-mode'); // the suite's never-run list joins Matt Pocock's
+    rmSync(join(dataDir, 'suites'), { recursive: true, force: true });
     const e = await run({ prompt: 'plain', repoPath: repo, workflow: { profile: 'plain' }, autoBrief: { mustChecks: ['test -f done.txt'] } });
     expect(e.goal.workflow.profile).toBe('plain');
     expect(e.prompt).not.toContain('MUST: invoke `/tdd`');
@@ -799,7 +806,7 @@ describe('MCP tools that run or change things', () => {
     // a catalog folder with a skills catalog but no mcp.json: the MCP catalog cannot be read
     const catalogPath = join(dataDir, 'catalog-no-mcp', 'skills.json');
     mkdirSync(dirname(catalogPath), { recursive: true });
-    writeFileSync(catalogPath, JSON.stringify({ version: 1, entries: [] }));
+    writeFileSync(catalogPath, JSON.stringify({ version: 1, suites: [], entries: [] }));
     const engine = track(new Engine(cfg({ catalogPath, mcpAllowed: ['mcp__rea', 'mcp__context7'] }), new FakeRunner(() => {})));
     const ref = await engine.createGoal({ prompt: 'p', repoPath: repo, references: [{ target: 'https://x.example.com' }] });
     await waitFor(() => getGoal(engine.store.db, ref.id)!.investigation != null, 20_000);
