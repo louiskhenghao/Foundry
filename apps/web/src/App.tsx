@@ -63,12 +63,11 @@ export function App() {
       <NavLink to="/" end className={link} title="Goals">
         <ListTodo size={15} /> <span className={label}>Goals</span>
       </NavLink>
-      <NavLink to="/agents" className={link} title={busy ? `Agents: ${busy} session${busy === 1 ? '' : 's'} working · ${agents?.idle ?? 0} idle` : 'Agents'} aria-label={busy ? `Agents, ${busy} working` : 'Agents'}>
-        <span className="relative inline-flex">
-          <Bot size={15} aria-hidden="true" />
-          {busy > 0 && <span className="absolute -top-1.5 -right-2 min-w-3.5 h-3.5 rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-[0.875rem] text-center text-white ring-2 ring-zinc-950">{busy > 99 ? '99+' : busy}</span>}
-        </span>
+      <NavLink to="/agents" className={(p) => cn(link(p), 'relative')} title={busy ? `Agents: ${busy} session${busy === 1 ? '' : 's'} working · ${agents?.idle ?? 0} idle` : 'Agents'} aria-label={busy ? `Agents, ${busy} working` : 'Agents'}>
+        <Bot size={15} aria-hidden="true" />
         <span className={label}>Agents</span>
+        {/* the count sits on the whole item's corner, over the word when it shows and over the icon when it does not */}
+        {busy > 0 && <span className="absolute -top-1 -right-1 min-w-3.5 h-3.5 rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-[0.875rem] text-center text-white ring-2 ring-zinc-950">{busy > 99 ? '99+' : busy}</span>}
       </NavLink>
       <NavLink to="/skills" className={link} title="Extensions: skills and MCP servers">
         <Puzzle size={15} /> <span className={label}>Extensions</span>
