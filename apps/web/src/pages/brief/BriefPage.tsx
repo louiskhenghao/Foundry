@@ -325,7 +325,7 @@ export function BriefPage() {
           )}
           {(editable || detail.secondOpinion) && (
             <section id="brief-second-opinion" className={sec}>
-              <SecondOpinionBar goalId={id} stored={detail.secondOpinion ?? null} running={!!detail.secondOpinionRunning} editable={editable} edit={edit} beforeRun={dirty ? save : undefined} />
+              <SecondOpinionBar goalId={id} stored={detail.secondOpinion ?? null} failed={detail.secondOpinionFailed ?? null} running={!!detail.secondOpinionRunning} editable={editable} edit={edit} beforeRun={dirty ? save : undefined} />
             </section>
           )}
           <section id="brief-areas" className={sec}>
