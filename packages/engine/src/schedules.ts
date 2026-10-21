@@ -105,6 +105,7 @@ export async function fireSchedule(engine: Engine, s: Schedule, opts: { manual?:
     const goal = await engine.createGoal({
       provider: r.provider,
       codexModel: r.codexModel,
+      agyModel: r.agyModel,
       prompt: r.prompt,
       repoPath: r.repoPath,
       title: `${r.title?.trim() || s.name} · ${day(now)}`,

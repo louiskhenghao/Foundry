@@ -9,6 +9,7 @@ import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
 import { modelFor, tableFor } from './models/roles.ts';
 import { AGY_SEED_MODELS, parseAgyModels } from './models/registry.ts';
+import { fireSchedule } from './schedules.ts';
 import { runDoctor } from './skills/doctor.ts';
 import { catalogStatus, loadCatalog } from './skills/catalog.ts';
 import { makeFakeHome, writeCatalog } from './skills/fake-home.test-helper.ts';
@@ -55,6 +56,24 @@ describe('Antigravity as a coding agent (ADR-0064)', () => {
     expect(engine.mcpAllowedFor(g)).toEqual([]);
     await expect(engine.createGoal({ prompt: 'x', repoPath: repo, provider: 'agy', models: { worker: 'opus' } })).rejects.toThrow('Antigravity uses its own model settings');
     await expect(engine.createGoal({ prompt: 'x', repoPath: repo, provider: 'agy', modelPreset: 'production' })).rejects.toThrow('no presets');
+  });
+
+  test('a pinned Antigravity model carries over to a follow-up and to a scheduled run', async () => {
+    const repo = await makeRepo();
+    dirs.push(repo);
+    const dataDir = mkdtempSync(join(tmpdir(), 'foundry-agy-'));
+    dirs.push(dataDir);
+    const engine = new Engine(defaultConfig(ROOT, { provider: 'claude', dataDir, agyModel: 'gemini-3.8-flash-high', log: () => {}, useGraphify: false }), { claude: new FakeRunner(() => {}), agy: new FakeRunner(() => {}) });
+    engines.push(engine);
+    const plain = await engine.createGoal({ prompt: 'on the Settings model', repoPath: repo, provider: 'agy' });
+    const pinned = await engine.createGoal({ prompt: 'pinned', repoPath: repo, provider: 'agy', agyModel: 'claude-sonnet-4-6' });
+    // the Settings model is not pinned on a follow-up: it follows Settings, as the goal did
+    expect((await engine.followUpDraft(plain.id)).prefill.agyModel).toBeUndefined();
+    expect((await engine.followUpDraft(pinned.id)).prefill.agyModel).toBe('claude-sonnet-4-6');
+    const s = engine.saveSchedule({ name: 'Nightly', cadence: { kind: 'daily', at: '03:00' }, recipe: { provider: 'agy', agyModel: 'claude-sonnet-4-6', prompt: 'nightly check', repoPath: repo, links: [] } });
+    expect(s.recipe.agyModel).toBe('claude-sonnet-4-6');
+    const { goalId } = await fireSchedule(engine, s, { manual: true });
+    expect(getGoal(engine.store.db, goalId!)!.models.worker).toBe('claude-sonnet-4-6');
   });
 
   test('FOUNDRY_PROVIDER=agy selects it with its own data directory, and the models listing parses both of agy models formats', () => {

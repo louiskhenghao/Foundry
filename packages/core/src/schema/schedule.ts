@@ -22,6 +22,7 @@ export type ScheduleCadence = z.infer<typeof ScheduleCadence>;
 export const GoalRecipe = z.object({
   provider: AgentProvider.optional(),
   codexModel: z.string().trim().min(1).optional(),
+  agyModel: z.string().trim().min(1).optional(),
   prompt: z.string().min(1),
   repoPath: z.string().min(1),
   title: z.string().optional(),

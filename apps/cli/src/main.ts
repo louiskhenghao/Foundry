@@ -164,7 +164,7 @@ switch (cmd) {
       ...(issue ? { issue: issue.issue, attachments: [issue.attachment] } : {}),
       provider: opt('--provider') ?? draft?.prefill.provider,
       codexModel: opt('--codex-model') ?? (opt('--models') ? undefined : draft?.prefill.codexModel),
-      agyModel: opt('--agy-model'),
+      agyModel: opt('--agy-model') ?? draft?.prefill.agyModel,
       baseBranch: opt('--base'),
       budgetPreset: opt('--preset') ?? (opt('--max-cost') || opt('--max-min') ? 'custom' : 'auto'),
       budgets: {

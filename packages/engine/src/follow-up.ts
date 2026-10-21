@@ -44,7 +44,7 @@ export interface FollowUpDraft {
   /** false = A is not finished; `reason` says why */
   followable: boolean;
   reason: string | null;
-  prefill: { provider: AgentProvider; codexModel?: string; repoPath: string; baseBranch: string; nature: GoalNature; modelPreset: string | null; effort: CodexEffort | null; pace: 'thorough' | 'fast'; profile: WorkflowProfile; tdd: Goal['workflow']['tdd']; ponytail: Goal['workflow']['ponytail']; mode: GoalMode; delivery: DeliveryPolicy };
+  prefill: { provider: AgentProvider; codexModel?: string; agyModel?: string; repoPath: string; baseBranch: string; nature: GoalNature; modelPreset: string | null; effort: CodexEffort | null; pace: 'thorough' | 'fast'; profile: WorkflowProfile; tdd: Goal['workflow']['tdd']; ponytail: Goal['workflow']['ponytail']; mode: GoalMode; delivery: DeliveryPolicy };
   start: {
     /** where B starts unless the human picks the other one */
     recommended: 'base' | 'previous';
@@ -112,7 +112,7 @@ export async function followUpDraft(engine: Engine, goalId: string): Promise<Fol
     previous: { id: a.id, title: a.title, state: a.state, repoPath: a.repoPath, baseBranch: a.baseBranch, branch: a.branch, branchExists: w.branchExists },
     followable,
     reason: followable ? null : `the goal is ${a.state}; it can be followed once it is finished`,
-    prefill: { provider: a.provider ?? engine.config.provider, codexModel: a.provider === 'codex' ? a.codexModelOverride ?? (!a.codexPreset ? a.models.worker : undefined) : undefined, repoPath: a.repoPath, baseBranch: a.baseBranch, nature: a.nature, modelPreset: a.modelPreset, effort: a.provider === 'codex' && !a.codexPreset && a.effort === 'max' ? 'xhigh' : a.effort, pace: workflow.pace, profile: engine.workflowProfileOf(a), tdd: workflow.tdd, ponytail: workflow.ponytail, mode: a.mode, delivery: a.delivery.policy },
+    prefill: { provider: a.provider ?? engine.config.provider, codexModel: a.provider === 'codex' ? a.codexModelOverride ?? (!a.codexPreset ? a.models.worker : undefined) : undefined, agyModel: a.provider === 'agy' && a.models.worker !== engine.config.agyModel ? a.models.worker : undefined, repoPath: a.repoPath, baseBranch: a.baseBranch, nature: a.nature, modelPreset: a.modelPreset, effort: a.provider === 'codex' && !a.codexPreset && a.effort === 'max' ? 'xhigh' : a.effort, pace: workflow.pace, profile: engine.workflowProfileOf(a), tdd: workflow.tdd, ponytail: workflow.ponytail, mode: a.mode, delivery: a.delivery.policy },
     start: { recommended: w.onBase ? 'base' : 'previous', onBase: w.onBase, detail: w.detail, baseBranch: a.baseBranch, previousBranch: w.branchExists ? a.branch : null },
     attachments: a.attachments,
     style: styleOf(engine, a),
