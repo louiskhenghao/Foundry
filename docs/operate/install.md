@@ -52,7 +52,7 @@ curl -fsSL https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.
 container, see [the Docker section](#install-with-docker)). It suggests source on macOS and on Linux with a desktop,
 Docker on a Linux server. From source it:
 
-1. installs what is missing, and only that: git, Bun, uv, graphify and its skill, the coding agent's CLI (Claude Code
+1. installs what is missing, and only that: git, Bun (1.4 or newer; an older Bun is updated), uv, graphify and its skill, the coding agent's CLI (Claude Code
    through its native installer; Codex through Homebrew's cask on macOS or its release binary), the GitHub CLI, and
    Node.js 22 with corepack (pnpm and yarn), which autoskills and previews of JavaScript projects need. On macOS these
    come from Homebrew, which it installs first if needed; on Linux it uses release builds in `~/.local`, so no `sudo`
