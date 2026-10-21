@@ -136,7 +136,12 @@ export async function markDelivered(engine: Engine, goalId: string): Promise<voi
 /** One pass over every goal with an open PR. */
 export async function checkOpenPrs(engine: Engine): Promise<void> {
   for (const g of listGoals(engine.store.db)) {
-    if (!watched(g)) continue;
-    await checkGoalPrs(engine, g.id).catch((err) => engine.config.log(`[delivery] PR check for ${g.id} failed: ${String((err as Error).message ?? err)}`));
+    // a goal the watch cannot read is logged and passed over: one row never stops the others
+    try {
+      if (!watched(g)) continue;
+      await checkGoalPrs(engine, g.id);
+    } catch (err) {
+      engine.config.log(`[delivery] PR check for ${g.id} failed: ${String((err as Error).message ?? err)}`);
+    }
   }
 }

@@ -992,16 +992,17 @@ export class Engine {
     this.preview.startSweeper();
     // pull requests merged or closed on GitHub after their delivery finished (ADR-0015)
     this.prWatchTimer = setInterval(() => {
-      if (!this.stopped) void checkOpenPrs(this);
+      if (!this.stopped) void checkOpenPrs(this).catch((err) => this.config.log(`[delivery] the PR watch failed: ${String((err as Error).message ?? err)}`));
     }, this.config.delivery.prWatchMs);
     this.prWatchTimer.unref?.();
-    void checkOpenPrs(this);
+    // background loops log what goes wrong: an unhandled rejection here would end the server
+    void checkOpenPrs(this).catch((err) => this.config.log(`[delivery] the PR watch failed: ${String((err as Error).message ?? err)}`));
     // schedules that are due (ADR-0054): every minute, and once now (a run missed while the engine was off fires once)
     this.scheduleTimer = setInterval(() => {
-      if (!this.stopped) void checkSchedules(this);
+      if (!this.stopped) void checkSchedules(this).catch((err) => this.config.log(`[schedules] the check failed: ${String((err as Error).message ?? err)}`));
     }, 60_000);
     this.scheduleTimer.unref?.();
-    void checkSchedules(this);
+    void checkSchedules(this).catch((err) => this.config.log(`[schedules] the check failed: ${String((err as Error).message ?? err)}`));
     this.telegram.start();
     this.discord.start();
     for (const g of listGoals(this.store.db)) this.tick(g.id);
@@ -1172,6 +1173,9 @@ export class Engine {
     await settle(learningWork(), 5_000);
     // a deploy records how it ended (its commands were killed with the rest)
     await settle([...deployWork(), ...revertWork()], 5_000);
+    // last of all, the database closes: a data directory deleted after stop() then holds a closed file (on macOS, a
+    // database unlinked while open makes its next close a guard trap that kills the process — the test runner died of it)
+    this.store.close();
   }
 
   /** the escalation for a commit a merge attempt made before the engine stopped and git would not take back at the next start */

@@ -52,6 +52,7 @@ main() {
   parse_flags "$@"
   case "$(uname -s)" in Darwin|Linux) ;; *) fail "Foundry runs on macOS and Linux; on Windows use WSL" ;; esac
   setup_tty
+  prefer_bun
   case "$cmd" in
     install) install ;;
     update) update ;;
@@ -251,14 +252,28 @@ need_git() {
   ok "git installed"
 }
 
+# Foundry needs Bun 1.4 or newer: 1.3 closes a child's pipes twice and ends a preview's browser (oven-sh/bun#33828)
+BUN_MIN=1.4.0
+bun_new_enough() { # bun_new_enough "1.3.13" → 0 when the version is BUN_MIN or newer
+  local v="${1%%[^0-9.]*}" a b c
+  IFS=. read -r a b c <<<"$v"
+  [ "${a:-0}" -gt 1 ] 2>/dev/null || { [ "${a:-0}" -eq 1 ] && [ "${b:-0}" -ge 4 ]; } 2>/dev/null
+}
+# the Bun Foundry runs on: the one Bun's installer put in ~/.bun/bin goes first once it is new enough, so that an older
+# one elsewhere on PATH (Homebrew's, say) is not the one the service, the build and the foundry command pick up
+prefer_bun() {
+  if [ -x "$HOME/.bun/bin/bun" ] && bun_new_enough "$("$HOME/.bun/bin/bun" --version 2>/dev/null)"; then export PATH="$HOME/.bun/bin:$PATH"; hash -r; else path_add "$HOME/.bun/bin"; fi
+}
 need_bun() {
-  path_add "$HOME/.bun/bin"
-  if have bun; then ok "bun $(bun --version)"; return; fi
-  if [ "$DRY" = 1 ]; then plan "install Bun"; return; fi
-  step "Installing Bun"
+  prefer_bun
+  if have bun && bun_new_enough "$(bun --version)"; then ok "bun $(bun --version)"; return; fi
+  if [ "$DRY" = 1 ]; then if have bun; then plan "update Bun $(bun --version) to $BUN_MIN or newer"; else plan "install Bun"; fi; return; fi
+  if have bun; then step "Updating Bun $(bun --version): Foundry needs $BUN_MIN or newer"; else step "Installing Bun"; fi
   if ! is_mac && ! have unzip; then pkg_install unzip || fail "Bun's installer needs unzip; install it and run this again"; fi
   fetch_run https://bun.sh/install bash >/dev/null || true
-  have bun || fail "Bun did not install; see https://bun.sh"
+  # the fresh one goes first for this run; the service and the foundry command take its path
+  prefer_bun
+  have bun && bun_new_enough "$(bun --version)" || fail "Bun $BUN_MIN or newer did not install; see https://bun.sh (a Homebrew Bun: brew upgrade bun)"
   ok "bun $(bun --version)"
 }
 
@@ -439,14 +454,16 @@ sign_in_source() {
   [ -z "$TTY" ] && return 0
   step "Signing in (Enter on a question skips it; the Setup page can do it later)"
   if [ "$AGENT" != codex ] && have claude && ! claude auth status --json 2>/dev/null | grep -q '"loggedIn": *true'; then
-    yesno "Sign in to Claude Code now?" y && { claude auth login <"$TTY" >"$TTY" 2>&1 || warn "Claude Code sign-in did not finish"; }
+    if yesno "Sign in to Claude Code now?" y; then claude auth login <"$TTY" >"$TTY" 2>&1 || warn "Claude Code sign-in did not finish"; fi
   fi
   if [ "$AGENT" != claude ] && have codex && ! codex login status >/dev/null 2>&1; then
-    yesno "Sign in to Codex now?" y && { codex login <"$TTY" >"$TTY" 2>&1 || warn "Codex sign-in did not finish"; }
+    if yesno "Sign in to Codex now?" y; then codex login <"$TTY" >"$TTY" 2>&1 || warn "Codex sign-in did not finish"; fi
   fi
   if have gh && ! gh auth status >/dev/null 2>&1; then
-    yesno "Sign in to GitHub now (for pull requests)?" y && { gh auth login --web --git-protocol https <"$TTY" >"$TTY" 2>&1 || warn "GitHub sign-in did not finish"; }
+    if yesno "Sign in to GitHub now (for pull requests)?" y; then gh auth login --web --git-protocol https <"$TTY" >"$TTY" 2>&1 || warn "GitHub sign-in did not finish"; fi
   fi
+  # a declined question is not a failure: with errexit, `yesno … && …` as a function's last command would end the installer
+  return 0
 }
 
 # what is still missing, as Foundry itself sees it
@@ -684,14 +701,15 @@ sign_in_docker() {
   step "Signing in inside the container (Enter on a question skips it; the Setup page can do it later)"
   local it="$DOCKER exec -it foundry"
   if [ "$AGENT" != codex ] && ! $DOCKER exec foundry claude auth status --json 2>/dev/null | grep -q '"loggedIn": *true'; then
-    yesno "Sign in to Claude Code now?" y && { $it claude auth login <"$TTY" >"$TTY" 2>&1 || warn "Claude Code sign-in did not finish"; }
+    if yesno "Sign in to Claude Code now?" y; then $it claude auth login <"$TTY" >"$TTY" 2>&1 || warn "Claude Code sign-in did not finish"; fi
   fi
   if [ "$AGENT" != claude ] && ! $DOCKER exec foundry codex login status >/dev/null 2>&1; then
-    yesno "Sign in to Codex now?" y && { $it codex login --device-auth <"$TTY" >"$TTY" 2>&1 || warn "Codex sign-in did not finish"; }
+    if yesno "Sign in to Codex now?" y; then $it codex login --device-auth <"$TTY" >"$TTY" 2>&1 || warn "Codex sign-in did not finish"; fi
   fi
   if ! $DOCKER exec foundry gh auth status >/dev/null 2>&1; then
-    yesno "Sign in to GitHub now (for pull requests)?" y && { $it gh auth login --web --git-protocol https <"$TTY" >"$TTY" 2>&1 || warn "GitHub sign-in did not finish"; }
+    if yesno "Sign in to GitHub now (for pull requests)?" y; then $it gh auth login --web --git-protocol https <"$TTY" >"$TTY" 2>&1 || warn "GitHub sign-in did not finish"; fi
   fi
+  return 0
 }
 
 # ---------- the foundry command, PATH, the end ----------

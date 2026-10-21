@@ -1,7 +1,7 @@
 import type { AgentProvider } from '../schema/provider.ts';
 import type { Database } from 'bun:sqlite';
 import type { EngineEvent } from '../events.ts';
-import { FINAL_WALK, IDLE_COMPLETION, NO_DELEGATION, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type RepoLearnings, type Task, Schedule } from '../schema/index.ts';
+import { FINAL_WALK, IDLE_COMPLETION, IDLE_DELIVERY, NO_DELEGATION, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type RepoLearnings, type Task, Schedule } from '../schema/index.ts';
 import type { ObservationReport } from '../schema/observation.ts';
 import { applySubjectEvent } from '../machine/subjects.ts';
 
@@ -717,6 +717,14 @@ function normalizeGoal(g: Goal): Goal {
   g.delegatedFrom ??= null;
   if (g.workflow && g.workflow.ponytail == null) g.workflow.ponytail = 'on';
   g.completion = { ...IDLE_COMPLETION, ...(g.completion ?? {}) };
+  // delivery fields added after a goal was written: review rounds (ADR-0053) and reverts (ADR-0059). Readers use them
+  // as given (`reverts.some`, `reviewCycles < fixReviewCycles`), so a row of an earlier release must come back with them
+  if (g.delivery) {
+    g.delivery.reviews ??= [];
+    g.delivery.reviewCycles ??= 0;
+    g.delivery.reverts ??= [];
+    if (g.delivery.policy) g.delivery.policy.fixReviewCycles ??= IDLE_DELIVERY.policy.fixReviewCycles;
+  }
   return g;
 }
 export function getGoal(db: Database, id: string): Goal | null {
@@ -728,7 +736,7 @@ export function listGoals(db: Database): Goal[] {
 }
 /** "Followed by": the goals that follow this one (oldest first). */
 export function listFollowUps(db: Database, goalId: string): Goal[] {
-  return (db.query("SELECT data FROM goals WHERE json_extract(data, '$.follows.goalId') = ? ORDER BY created_at").all(goalId) as { data: string }[]).map((r) => JSON.parse(r.data));
+  return (db.query("SELECT data FROM goals WHERE json_extract(data, '$.follows.goalId') = ? ORDER BY created_at").all(goalId) as { data: string }[]).map((r) => normalizeGoal(JSON.parse(r.data)));
 }
 export function upsertGoal(db: Database, g: Goal): void {
   db.run(
