@@ -46,6 +46,7 @@ beforeAll(async () => {
 afterAll(() => rmSync(fake.home, { recursive: true, force: true }));
 
 describe('workflow suites (ADR-0049)', () => {
+  // these two clone, install and re-sync a real repository: more than the default 5 s on a busy machine
   test('installing one of its skills installs the suite: a hook-less copy at the pinned release, rows under its prefix', async () => {
     const m = new SkillsManager({ claudeHome: fake.claudeHome, dataDir: fake.dataDir, catalogPath, which: () => null });
     const r = await m.install('pstack-tdd');
@@ -77,7 +78,7 @@ describe('workflow suites (ADR-0049)', () => {
 
     // the same copy serves every member; a second install at the same pin changes nothing
     expect(await m.install('pstack-sharpen')).toMatchObject({ ok: true, path: plugin });
-  });
+  }, 30_000);
 
   test('the Extensions page sees one source at the pin; moving the pin marks it outdated and Update re-syncs', async () => {
     const m = new SkillsManager({ claudeHome: fake.claudeHome, dataDir: fake.dataDir, catalogPath, which: () => null });
@@ -101,7 +102,7 @@ describe('workflow suites (ADR-0049)', () => {
     expect(readFileSync(join(plugin, 'skills', 'tdd', 'SKILL.md'), 'utf8')).toContain('v2');
     expect(readSuite(fake.paths, 'pstack')!.ref).toBe('v2');
     expect(existsSync(join(plugin, 'hooks'))).toBe(false);
-  });
+  }, 30_000);
 
   test('a re-sync at the pin keeps the pinned release while upstream moves on', async () => {
     // the pin is v1 again; main is at v2
