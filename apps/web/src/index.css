@@ -89,6 +89,10 @@ select:not([multiple]):is(:not([size]), [size='1']) {
   --color-fuchsia-200: var(--color-fuchsia-800);
   --color-fuchsia-300: var(--color-fuchsia-700);
   --color-fuchsia-400: var(--color-fuchsia-600);
+  /* the Antigravity badge */
+  --color-teal-200: var(--color-teal-800);
+  --color-teal-300: var(--color-teal-700);
+  --color-teal-400: var(--color-teal-600);
 }
 
 /*
