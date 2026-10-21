@@ -9,6 +9,7 @@ export * from './machine/subjects.ts';
 export * from './machine/task-usage.ts';
 export * from './machine/timeline.ts';
 export * from './machine/schedule.ts';
+export * from './machine/calibration.ts';
 export * from './store/db.ts';
 export * from './store/event-store.ts';
 export * from './store/projections.ts';

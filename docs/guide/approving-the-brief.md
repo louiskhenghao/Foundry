@@ -277,7 +277,9 @@ Documents are written after the final review passes and saved on the goal's bran
 
 For Claude, the card shows **Estimated cost** and **Estimated time**. Codex shows time and execution limits only.
 
-With the **Auto** budget, the card is titled **Estimate → proposed budget**: Foundry proposes twice the estimate as the limit, rounded up, and never less than $3 and 30 minutes. Edit **max cost $** and **max minutes**, press **Keep unlimited** for no limit, or **Use estimate ×2** to go back to the proposal. With a budget you set yourself, the card warns in yellow if the estimate is higher. The change is applied when you approve. For Codex, this proposal uses time only (at least 30 minutes); dollar estimates and `max cost $` are hidden.
+Under the two figures, once this folder has three finished goals (or, failing that, this computer has three finished goals of the same kind), a line says how far they ran from their estimates and what this one likely comes to: *Earlier goals in this folder ran at 1.6× the estimated cost and 1.3× the estimated time (median of 5 finished goals): likely about $12 and 45 min.* Hover it for the goals it rests on. The Clarifier's figures stay as written; the line only reads them with experience. A wide spread between those goals is said.
+
+With the **Auto** budget, the card is titled **Estimate → proposed budget**: Foundry proposes twice the estimate as the limit (twice the calibrated estimate when there is one), rounded up, and never less than $3 and 30 minutes. Edit **max cost $** and **max minutes**, press **Keep unlimited** for no limit, or **Use estimate ×2** (**Use calibrated estimate ×2** when there is one) to go back to the proposal. With a budget you set yourself, the card warns in yellow if the estimate is higher. The change is applied when you approve. For Codex, this proposal uses time only (at least 30 minutes); dollar estimates and `max cost $` are hidden.
 
 Reaching a limit never destroys work: the goal pauses and asks you. See [When Foundry needs you](./when-foundry-needs-you.md#the-budget-ran-out).
 

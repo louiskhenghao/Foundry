@@ -120,6 +120,8 @@ import { onMilestoneEvidence } from './likeness.ts';
 import { ATTACHMENT_LIMITS, GoalIssue, LEARNINGS_EVERYWHERE, type GoalDelegatedFrom, type GoalDelegation } from '@foundry/core';
 import { readIssue, type IssueRead } from './issue.ts';
 import { autoApproveScheduled, checkSchedules, deleteSchedule, fireSchedule, saveSchedule, setScheduleEnabled, type ScheduleInput } from './schedules.ts';
+import { calibrationFor } from './calibration.ts';
+import { calibratedEstimate, type Calibration } from '@foundry/core';
 import { getSchedule, listSchedules, nextRunAt, type GoalSchedule, type Schedule } from '@foundry/core';
 import { Tailnet } from './notify/tailnet.ts';
 import { SessionCosts } from './session-costs.ts';
@@ -2081,7 +2083,8 @@ export class Engine {
       this.store.append({ type: 'brief.proposed', goalId: id, payload: { brief } });
       this.store.append({ type: 'goal.state_changed', goalId: id, payload: { from: 'clarifying', to: 'awaiting_brief_approval', reason: 'auto brief' } });
       // Auto preset: no human sees the Brief here, so the engine adopts the proposed budget itself
-      await this.approveBrief(id, brief, goal.budgetPreset === 'auto' ? proposeBudgetFromEstimate(brief) : undefined);
+      // an Auto budget comes from the estimate as earlier goals in this folder corrected it (ADR-0056)
+      await this.approveBrief(id, brief, goal.budgetPreset === 'auto' ? proposeBudgetFromEstimate(calibratedEstimate(brief, calibrationFor(this, goal))) : undefined);
     }
     return getGoal(this.store.db, id)!;
   }
@@ -2566,6 +2569,11 @@ export class Engine {
     if (!ac) return false;
     ac.abort();
     return true;
+  }
+
+  /** how far earlier goals ran from their estimate, for this goal's Brief (ADR-0056) */
+  calibrationFor(goal: Pick<Goal, 'id' | 'repoPath' | 'nature'>): Calibration {
+    return calibrationFor(this, goal);
   }
 
   // ---------- schedules (ADR-0054) ----------

@@ -1,7 +1,7 @@
 import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment, InterviewQuestion } from '@foundry/core/browser';
 import type { Attachment, Attempt, Brief, BriefApp, BriefCheck, BriefDiff, BriefRun, BriefStyleOption, BriefSubject, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, GoalTimeline, SettingsPatch, SettingsView, SubjectPicture, Task, TaskUsage } from '@foundry/core/browser';
 import type { IssueRead } from './pages/new-goal-issue.ts';
-import type { GoalRecipe, Schedule, ScheduleCadence } from '@foundry/core/browser';
+import type { Calibration, GoalRecipe, Schedule, ScheduleCadence } from '@foundry/core/browser';
 
 /** a Schedule as the Schedules page lists it (ADR-0054): with its next run and the goal of its last run */
 export type ScheduleRow = Schedule & { nextRunAt: string | null; lastGoal: { id: string; title: string; state: GoalState } | null };
@@ -405,6 +405,8 @@ export interface DelegatedView {
 
 export interface GoalDetail {
   goal: Goal;
+  /** how far earlier goals ran from their estimate (ADR-0056) */
+  calibration?: Calibration;
   /** how many Learnings the goal's folder has (ADR-0040) */
   learningsCount?: number;
   /** directories the Open menu can launch: the user's checkout and the goal branch worktree (when it exists) */

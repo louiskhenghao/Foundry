@@ -20,6 +20,7 @@ export function engineHost(engine: Engine, drafts: Drafts): ActionHost {
       return classifyFeedback(engine, goal, text);
     },
     resumeNow: (provider) => engine.resumeNow(provider),
+    calibration: (goal) => engine.calibrationFor(goal),
     note: (goalId, message) => void engine.store.append({ type: 'engine.note', goalId, payload: { level: 'info', message } }),
     drafts,
   };

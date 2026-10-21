@@ -778,6 +778,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       subjectSearches: subjectSearchesFor(id),
       auditRunning: engine.auditing.has(id),
       investigating: engine.investigating.has(id),
+      // how far earlier goals ran from their estimate, for the Brief's estimate card (ADR-0056)
+      calibration: engine.calibrationFor(goal),
       // the last second opinion on the Brief (ADR-0051), whether one is being written, and why the last one did not come in (until one does)
       secondOpinion: engine.secondOpinionOf(id),
       secondOpinionRunning: engine.secondOpinions.has(id),

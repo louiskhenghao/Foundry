@@ -277,7 +277,9 @@ goal 给了参考对象时（见 [你的第一个 goal](./your-first-goal.zh.md#
 
 Claude 卡片显示 **Estimated cost** 和 **Estimated time**，旁边是预算；Codex 只显示时间及执行限制。
 
-用 **Auto** 预算时，卡片标题是 **Estimate → proposed budget**：Foundry 提议把估算的两倍作为上限，向上取整，而且不少于 $3 和 30 分钟。你可以改 **max cost $** 和 **max minutes**，按 **Keep unlimited** 表示不设上限，或者按 **Use estimate ×2** 回到提议值。如果是你自己设的预算，而估算比它高，卡片会用黄色提醒。改动在你批准时生效。Codex 只提议时间上限（至少 30 分钟），隐藏美元估算及 `max cost $`。
+两个数字下面，当这个文件夹已经有三个结束了的 goal（或者退一步，这台电脑上有三个同类的结束了的 goal）时，会有一行说明它们比各自的估算多跑了多少，以及这个 goal 大概会花多少：*Earlier goals in this folder ran at 1.6× the estimated cost and 1.3× the estimated time (median of 5 finished goals): likely about $12 and 45 min.* 悬停可以看到它依据的 goal。Clarifier 的数字照原样保留；这一行只是用经验来读它。那些 goal 之间差距很大时会说明。
+
+用 **Auto** 预算时，卡片标题是 **Estimate → proposed budget**：Foundry 提议把估算的两倍（有校准值时是校准后估算的两倍）作为上限，向上取整，而且不少于 $3 和 30 分钟。你可以改 **max cost $** 和 **max minutes**，按 **Keep unlimited** 表示不设上限，或者按 **Use estimate ×2**（有校准值时是 **Use calibrated estimate ×2**）回到提议值。如果是你自己设的预算，而估算比它高，卡片会用黄色提醒。改动在你批准时生效。Codex 只提议时间上限（至少 30 分钟），隐藏美元估算及 `max cost $`。
 
 碰到上限从不会毁掉已做的工作：goal 会暂停并问你。见 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md#预算用完了)。
 

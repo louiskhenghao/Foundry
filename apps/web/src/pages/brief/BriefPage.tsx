@@ -1,5 +1,5 @@
 import type { Brief } from '@foundry/core/browser';
-import { decisionsOf, pendingDecisions, proposeBudgetFromEstimate, topoSort, uncoveredAreas } from '@foundry/core/browser';
+import { calibratedEstimate, decisionsOf, describeCalibration, pendingDecisions, proposeBudgetFromEstimate, topoSort, uncoveredAreas } from '@foundry/core/browser';
 import { Loader2, RotateCcw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -161,7 +161,9 @@ export function BriefPage() {
   };
   const isAuto = g.budgetPreset === 'auto';
   const costAvailable = g.provider !== 'codex';
-  const proposed = { ...proposeBudgetFromEstimate(brief), ...(!costAvailable ? { maxCostUsd: null } : {}) };
+  // the estimate as earlier goals corrected it (ADR-0056): the Auto proposal is twice that
+  const calibration = describeCalibration(detail.calibration ?? null, brief, costAvailable);
+  const proposed = { ...proposeBudgetFromEstimate(calibratedEstimate(brief, costAvailable ? (detail.calibration ?? null) : detail.calibration ? { cost: null, time: detail.calibration.time } : null)), ...(!costAvailable ? { maxCostUsd: null } : {}) };
   // Auto: start from the proposal; otherwise from the goal's own budget
   const budgetDraft = budgetEdit ?? (isAuto && g.budgets.maxCostUsd == null && g.budgets.maxDurationMin == null ? proposed : { maxCostUsd: g.budgets.maxCostUsd, maxDurationMin: g.budgets.maxDurationMin });
   const budgetChanged = budgetDraft.maxCostUsd !== g.budgets.maxCostUsd || budgetDraft.maxDurationMin !== g.budgets.maxDurationMin;
@@ -188,6 +190,7 @@ export function BriefPage() {
         brief={brief}
         goal={g}
         editable={editable}
+        calibration={calibration?.text ?? null}
         planning={skeleton}
         update={update}
         budgetDraft={budgetDraft}
@@ -374,12 +377,17 @@ export function BriefPage() {
                   <span className={cn('ml-1', overTime ? 'text-amber-300' : 'text-zinc-500')}>(budget {fmtLimitMin(g.budgets.maxDurationMin)})</span>
                 </div>
               </div>
+              {calibration && !skeleton && (
+                <p className="mt-2 text-xs text-zinc-400" title={detail.calibration?.samples.map((s) => `${s.title}: ${s.actualUsd != null ? `$${s.actualUsd.toFixed(2)} of $${s.estimateUsd}` : 'no cost'}, ${s.actualMin != null ? `${Math.round(s.actualMin)} of ${s.estimateMin} min` : 'no time'}`).join('\n')}>
+                  {calibration.text}
+                </p>
+              )}
               {editable && (
                 <div className="mt-3 rounded-md border border-zinc-800 bg-zinc-950/50 p-3">
                   <div className="text-xs text-zinc-400 mb-2">
                     {isAuto ? (
                       <>
-                        <span className="text-emerald-300">Auto budget preset:</span> no cap was set while clarifying; this proposal (estimate ×2) becomes the goal's budget when you approve. Edit it, or keep it unlimited — the engine pauses and asks you if a limit is reached.
+                        <span className="text-emerald-300">Auto budget preset:</span> no cap was set while clarifying; this proposal ({calibration ? 'the calibrated estimate ×2' : 'estimate ×2'}) becomes the goal's budget when you approve. Edit it, or keep it unlimited — the engine pauses and asks you if a limit is reached.
                       </>
                     ) : overCost || overTime ? (
                       <span className="text-amber-300">The estimate exceeds the budget you set. Raise it here or approve anyway (the engine will pause when it is reached).</span>
@@ -398,7 +406,7 @@ export function BriefPage() {
                     </label>
                     {(overCost || overTime || budgetChanged) && (
                       <Button size="sm" variant="ghost" onClick={() => setBudgetEdit(proposed)}>
-                        Use estimate ×2 ({costAvailable && <>${proposed.maxCostUsd} / </>}{proposed.maxDurationMin} min)
+                        Use {calibration ? 'calibrated estimate' : 'estimate'} ×2 ({costAvailable && <>${proposed.maxCostUsd} / </>}{proposed.maxDurationMin} min)
                       </Button>
                     )}
                     {isAuto && (budgetDraft.maxCostUsd != null || budgetDraft.maxDurationMin != null) && (

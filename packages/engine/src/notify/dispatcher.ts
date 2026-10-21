@@ -5,7 +5,7 @@ import { join } from 'node:path';
  * Fire-and-forget: a notification is a hint, not a ledger — sends are retried a couple of times,
  * then noted as an engine.note and dropped; nothing is queued or replayed after a restart.
  */
-import type { Brief, EngineEvent, Escalation, EscalationTrigger, Goal, NotificationSettings } from '@foundry/core';
+import type { Brief, EngineEvent, Escalation, EscalationTrigger, Goal, NotificationSettings, Calibration } from '@foundry/core';
 import { getBrief, getGoal, isHistory } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { engineApproves } from '../schedules.ts';
@@ -128,13 +128,13 @@ function localTime(iso: string): string {
  * engine approves in the same breath, or a Delegated goal's Brief its main goal approves (unless a blocking question is
  * left for the person).
  */
-export function composeBriefReady(goal: Goal, brief: Brief | null, reason: string): Composed | null {
+export function composeBriefReady(goal: Goal, brief: Brief | null, reason: string, calibration: Calibration | null = null): Composed | null {
   if (!brief || reason === 'auto brief') return null;
   const blocking = brief.questions.filter((q) => q.blocking && !q.answer?.trim()).length;
   if (engineApproves(goal) && !blocking) return null;
   const n = brief.tasks.length;
   const estimate = goal.provider === 'codex' ? `~${brief.timeEstimateMin} min` : `$${brief.costEstimateUsd.toFixed(2)} · ~${brief.timeEstimateMin} min`;
-  const next = blocking ? `${blocking} blocking question${blocking === 1 ? '' : 's'} to answer on the Brief first.` : `Budget on approval: ${budgetOnApproval(goal, brief).text}.`;
+  const next = blocking ? `${blocking} blocking question${blocking === 1 ? '' : 's'} to answer on the Brief first.` : `Budget on approval: ${budgetOnApproval(goal, brief, calibration).text}.`;
   const understanding = brief.understanding.trim();
   return {
     family: 'briefReady',
@@ -191,7 +191,7 @@ export class NotificationDispatcher {
     if (this.settings().onDelivery && this.digest.take(e, this.goalTitle(e.goalId))) return;
     if (e.type === 'goal.state_changed' && e.payload.to === 'awaiting_brief_approval' && goal) {
       const s = this.settings();
-      const c = s.onBriefReady ? composeBriefReady(goal, getBrief(this.engine.store.db, goal.id)?.brief ?? null, e.payload.reason) : null;
+      const c = s.onBriefReady ? composeBriefReady(goal, getBrief(this.engine.store.db, goal.id)?.brief ?? null, e.payload.reason, this.engine.calibrationFor(goal)) : null;
       if (c) this.deliver(s, c.text, c.path, goal.id, [], null, { kind: 'brief', goalId: goal.id });
       return;
     }
