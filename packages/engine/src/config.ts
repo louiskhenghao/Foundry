@@ -12,7 +12,7 @@ export interface EngineConfig {
   /** the base Antigravity model; `agy-default` follows the CLI's own setting */
   agyModel: string;
   /** the Antigravity reasoning effort of every role */
-  agyEffort: 'low' | 'medium' | 'high';
+  agyEffort: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
   codexModel: string;
   codexPresets: Record<string, CodexModelPreset>;
   codexNaturePreset: Record<ModelNature, string>;

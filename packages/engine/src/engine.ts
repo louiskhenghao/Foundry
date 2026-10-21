@@ -1497,7 +1497,7 @@ export class Engine {
     if (provider === 'agy') {
       const bin = this.config.agyBin ?? Bun.which('agy');
       if (!bin) throw new Error('The Antigravity CLI is not installed. Set the CLI path in Accounts and restart Foundry.');
-      const r = await exec([bin, 'models', '--output-format', 'json'], this.config.dataDir, { timeoutMs: 60_000 }).catch(() => null);
+      const r = await exec([bin, 'models'], this.config.dataDir, { timeoutMs: 60_000 }).catch(() => null);
       if (!r || r.code !== 0) throw new Error(`agy models failed: ${(r?.stderr || r?.stdout || 'no output').trim().slice(0, 200)}`);
       const found = parseAgyModels(r.stdout);
       if (found.length) registry.noteDiscovered(found.map((m) => ({ id: m.id, family: m.id.replace(/-(high|medium|low)$/, ''), newest: false })));

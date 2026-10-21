@@ -57,15 +57,8 @@ export const SEED_MODELS: { name: string; label: string; note: string }[] = [
 /** a full model id (dated or versioned), as opposed to a family alias */
 export const isPinnedId = (name: string) => /^claude-/.test(name) || /\d{8}|\d+-\d+/.test(name);
 
-/** the models the Antigravity CLI lists (`agy models`); `agy-default` follows the CLI's own choice */
-export const AGY_SEED_MODELS: { name: string; label: string; note: string }[] = [
-  { name: 'agy-default', label: 'Antigravity default', note: 'the model the CLI itself is set to' },
-  { name: 'gemini-4-argon-high', label: 'Gemini 4 Argon (High)', note: '' },
-  { name: 'gemini-4-argon-medium', label: 'Gemini 4 Argon (Medium)', note: '' },
-  { name: 'gemini-3.8-flash-high', label: 'Gemini 3.8 Flash (High)', note: '' },
-  { name: 'gemini-3.8-flash-medium', label: 'Gemini 3.8 Flash (Medium)', note: '' },
-  { name: 'gemini-3.1-pro-high', label: 'Gemini 3.1 Pro (High)', note: '' },
-];
+/** `agy-default` follows the CLI's own choice; the account's models come from `agy models` (Sync models): they differ by tier */
+export const AGY_SEED_MODELS: { name: string; label: string; note: string }[] = [{ name: 'agy-default', label: 'Antigravity default', note: 'the model the CLI itself is set to' }];
 
 export class ModelRegistry {
   readonly path: string;
@@ -171,8 +164,8 @@ export class ModelRegistry {
 }
 
 /**
- * The models `agy models` lists: its `--output-format json` payload (an array, or an object holding one) with each
- * model's slug, else the plain table of `slug  label` lines the command prints without the flag.
+ * The models `agy models` lists: one `slug<TAB>label` line each (agy 1.4.4; the command takes no --output-format), or a
+ * JSON payload (an array, or an object holding one) should a later release print one.
  */
 export function parseAgyModels(text: string): { id: string; label: string | null }[] {
   const out = new Map<string, string | null>();
@@ -189,7 +182,7 @@ export function parseAgyModels(text: string): { id: string; label: string | null
     for (const item of Array.isArray(list) ? list : []) take(item);
   } else {
     for (const line of text.split('\n')) {
-      const m = /^\s*([A-Za-z0-9][\w.-]*)\s{2,}(.+?)\s*$/.exec(line);
+      const m = /^\s*([A-Za-z0-9][\w.-]*)(?:\t+|\s{2,})(.+?)\s*$/.exec(line);
       if (m) out.set(m[1]!, m[2]!);
     }
   }

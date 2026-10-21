@@ -44,8 +44,8 @@ export const ModelSettings = z.object({
   codexFallbacks: z.array(z.string().trim().min(1)).default([]),
   /** agy-default uses the model the Antigravity CLI itself is set to. */
   agyModel: z.string().trim().min(1).default('agy-default'),
-  /** the Antigravity reasoning effort for every role: low, medium or high */
-  agyEffort: z.enum(['low', 'medium', 'high']).default('high'),
+  /** the Antigravity reasoning effort for every role: low, medium, high, xhigh or max */
+  agyEffort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).default('high'),
   /** the housekeeping model: one-turn engine chores (classifying a goal, summarising logs, the rate-limit probe) */
   cheap: z.string().min(1).default('haiku'),
   /** tried in order when a tier's model is unavailable (deprecated, unknown alias …) */

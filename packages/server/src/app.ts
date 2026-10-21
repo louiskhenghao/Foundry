@@ -1515,7 +1515,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.post('/api/models/sync', async (c) => c.json(await engine.syncModels({ provider: authProvider(c) })));
   app.post('/api/models/probe', async (c) => {
     const provider = authProvider(c);
-    const { name, effort } = z.object({ name: z.string().trim().min(1).max(200), effort: (provider === 'codex' ? CodexEffort : provider === 'agy' ? z.enum(['low', 'medium', 'high']) : Effort).optional() }).parse(await c.req.json());
+    const { name, effort } = z.object({ name: z.string().trim().min(1).max(200), effort: (provider === 'codex' ? CodexEffort : provider === 'agy' ? z.enum(['low', 'medium', 'high', 'xhigh', 'max']) : Effort).optional() }).parse(await c.req.json());
     return c.json(await engine.probeModel(name, provider, effort));
   });
 

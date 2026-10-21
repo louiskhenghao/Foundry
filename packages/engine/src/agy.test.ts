@@ -39,8 +39,8 @@ describe('Antigravity as a coding agent (ADR-0064)', () => {
     expect(g.budgets.maxCostUsd).toBeNull();
     expect(g.models).toEqual({ strong: 'gemini-3.8-flash-high', cheap: 'gemini-3.8-flash-high', worker: 'gemini-3.8-flash-high' });
     expect(modelFor(config, g, 'clarifier').model).toBe('gemini-3.8-flash-high');
-    const pinned = await engine.createGoal({ prompt: 'pinned', repoPath: repo, provider: 'agy', agyModel: 'gemini-4-argon-high' });
-    expect(tableFor(config, pinned).table.simple).toBe('gemini-4-argon-high');
+    const pinned = await engine.createGoal({ prompt: 'pinned', repoPath: repo, provider: 'agy', agyModel: 'claude-sonnet-4-6' });
+    expect(tableFor(config, pinned).table.simple).toBe('claude-sonnet-4-6');
     const handle = await engine.runner.run({ prompt: 'test', cwd: repo, model: g.models.cheap, meta: { goalId: g.id }, resumeSessionId: 'agy-session' });
     for await (const _ of handle.events) {}
     await handle.result;
@@ -69,10 +69,14 @@ describe('Antigravity as a coding agent (ADR-0064)', () => {
       if (before === undefined) delete process.env.FOUNDRY_PROVIDER;
       else process.env.FOUNDRY_PROVIDER = before;
     }
-    expect(parseAgyModels('gemini-4-argon-high       Gemini 4 Argon (High)\ngemini-3.8-flash-medium   Gemini 3.8 Flash (Medium)\n')).toEqual([
-      { id: 'gemini-4-argon-high', label: 'Gemini 4 Argon (High)' },
-      { id: 'gemini-3.8-flash-medium', label: 'Gemini 3.8 Flash (Medium)' },
+    // what agy 1.4.4 prints: one `slug<TAB>label` line each
+    expect(parseAgyModels('gemini-3.8-flash-high\tGemini 3.8 Flash (High)\nclaude-sonnet-4-6\tClaude Sonnet 4.6 (Thinking)\ngpt-oss-120b-medium\tGPT-OSS 120B (Medium)\n')).toEqual([
+      { id: 'gemini-3.8-flash-high', label: 'Gemini 3.8 Flash (High)' },
+      { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (Thinking)' },
+      { id: 'gpt-oss-120b-medium', label: 'GPT-OSS 120B (Medium)' },
     ]);
+    // a table spaced instead of tabbed reads the same
+    expect(parseAgyModels('gemini-3.8-flash-medium   Gemini 3.8 Flash (Medium)\n')).toEqual([{ id: 'gemini-3.8-flash-medium', label: 'Gemini 3.8 Flash (Medium)' }]);
     expect(parseAgyModels(JSON.stringify({ models: [{ slug: 'gemini-3.1-pro-high', displayName: 'Gemini 3.1 Pro (High)' }, 'gemini-3.6-flash-high'] }))).toEqual([
       { id: 'gemini-3.1-pro-high', label: 'Gemini 3.1 Pro (High)' },
       { id: 'gemini-3.6-flash-high', label: null },
