@@ -982,16 +982,17 @@ export class Engine {
     this.preview.startSweeper();
     // pull requests merged or closed on GitHub after their delivery finished (ADR-0015)
     this.prWatchTimer = setInterval(() => {
-      if (!this.stopped) void checkOpenPrs(this);
+      if (!this.stopped) void checkOpenPrs(this).catch((err) => this.config.log(`[delivery] the PR watch failed: ${String((err as Error).message ?? err)}`));
     }, this.config.delivery.prWatchMs);
     this.prWatchTimer.unref?.();
-    void checkOpenPrs(this);
+    // background loops log what goes wrong: an unhandled rejection here would end the server
+    void checkOpenPrs(this).catch((err) => this.config.log(`[delivery] the PR watch failed: ${String((err as Error).message ?? err)}`));
     // schedules that are due (ADR-0054): every minute, and once now (a run missed while the engine was off fires once)
     this.scheduleTimer = setInterval(() => {
-      if (!this.stopped) void checkSchedules(this);
+      if (!this.stopped) void checkSchedules(this).catch((err) => this.config.log(`[schedules] the check failed: ${String((err as Error).message ?? err)}`));
     }, 60_000);
     this.scheduleTimer.unref?.();
-    void checkSchedules(this);
+    void checkSchedules(this).catch((err) => this.config.log(`[schedules] the check failed: ${String((err as Error).message ?? err)}`));
     this.telegram.start();
     this.discord.start();
     for (const g of listGoals(this.store.db)) this.tick(g.id);
