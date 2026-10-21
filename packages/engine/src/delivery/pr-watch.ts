@@ -12,6 +12,7 @@ import { afterMerge } from './after-merge.ts';
 import { failingChecks, reduceChecks } from './gh.ts';
 import { closeDeliveryFailures } from './inbox.ts';
 import { repoSlug } from './policy.ts';
+import { collectReviews } from './reviews.ts';
 
 /** a PR is watched this long after its delivery stopped */
 export const PR_WATCH_DAYS = 14;
@@ -52,6 +53,8 @@ async function readPr(engine: Engine, goal: Goal, repo: string, number: number):
   if (state !== pr.checks || JSON.stringify(failing) !== JSON.stringify(pr.failing)) {
     engine.store.append({ type: 'delivery.checks', goalId: goal.id, payload: { state, summary: view.checks.map((c) => `${c.name}: ${c.conclusion ?? c.status}`).join(', ') || 'no checks reported', prNumber: number, failing } });
   }
+  // review comments left on it since the last look (ADR-0053): a round, and a run of the delivery when the budget allows
+  await collectReviews(engine, goal, repo, number).catch((err) => engine.config.log(`[delivery] ${goal.id}: review comments on PR #${number} could not be read: ${String((err as Error).message ?? err)}`));
   return state;
 }
 

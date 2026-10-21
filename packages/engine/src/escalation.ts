@@ -109,7 +109,7 @@ async function applyAnswer(engine: Engine, id: string, answer: EscalationAnswer)
       }
       store.append({ type: 'task.hint_set', goalId: goal.id, payload: { taskId: task.id, hint: answer.hint ?? null, extraAttempts: answer.extraAttempts ?? 1 } });
       const terminalGoal = ['done', 'over_delivered'].includes(goal.state);
-      if (terminalGoal && (task.origin === 'merge' || task.origin === 'delivery-fix')) {
+      if (terminalGoal && (task.origin === 'merge' || task.origin === 'delivery-fix' || task.origin === 'review-fix')) {
         // delivery-time task: re-arm the (idempotent) pipeline instead of the scheduler
         if (task.state === 'blocked') store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'blocked', to: 'failed', reason: 'superseded by a new delivery run' } });
         store.append({ type: 'delivery.policy_set', goalId: goal.id, payload: { policy: goal.delivery.policy, source: 'retry' } });

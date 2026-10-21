@@ -87,6 +87,7 @@ import { afterMerge, type AfterMergeOptions } from './delivery/after-merge.ts';
 import { startOver, structuralChanges } from './delivery/start-over.ts';
 import { runDocsAfterMerge, runDocsGeneration } from './docs-generate.ts';
 import { checkGoalPrs, checkOpenPrs, markDelivered, recheckPr } from './delivery/pr-watch.ts';
+import { startReviewRun } from './delivery/reviews.ts';
 import { attachmentDir, claimStaged, conversionTmpPath, markdownFileName, sweepStaging, trashAttachment } from './attachments.ts';
 import { Markitdown } from './convert/markitdown.ts';
 import { SettingsError, SettingsStore, applySettingsToConfig } from './settings.ts';
@@ -989,6 +990,21 @@ export class Engine {
     const g = this.mustGoal(goalId);
     if (g.delivery.policy.mode === 'local') throw new Error('this goal is delivered Local only — pick a delivery on the Delivery tab first');
     return this.deliver(goalId, {}, 'retry');
+  }
+
+  /**
+   * "Fix review comments" on one PR (ADR-0053): read it on GitHub now, then address its waiting round whatever the
+   * budget. Throws when the PR has no review comments waiting.
+   */
+  async requestReviewFix(goalId: string, prNumber: number): Promise<void> {
+    const goal = this.mustGoal(goalId);
+    if (goal.delivery.status === 'running') throw new Error('a delivery is running: the comments are picked up by it, or by the next look once it ends');
+    await recheckPr(this, goalId, prNumber);
+    const fresh = getGoal(this.store.db, goalId)!;
+    const round = fresh.delivery.reviews.filter((r) => r.prNumber === prNumber && r.status === 'pending').at(-1);
+    if (!round) throw new Error(`no review comments are waiting on PR #${prNumber}`);
+    if (!round.requested) this.store.append({ type: 'delivery.review_requested', goalId, payload: { roundId: round.id } });
+    await startReviewRun(this, goalId, `${round.comments.length} review comment(s) on PR #${prNumber}, asked for`);
   }
 
   /** "Re-check" on one PR: read it on GitHub now; a passing PR of a stopped delivery carries on with the delivery */
@@ -2467,7 +2483,7 @@ export class Engine {
   // ---------- delivery ----------
 
   /** Set (or change) the delivery policy; runs immediately when the goal is already finished. */
-  async deliver(goalId: string, policyIn: Partial<DeliveryPolicy>, source: 'deliver' | 'retry' | 'resume' = 'deliver'): Promise<Goal> {
+  async deliver(goalId: string, policyIn: Partial<DeliveryPolicy>, source: 'deliver' | 'retry' | 'resume' | 'review' = 'deliver'): Promise<Goal> {
     const goal = this.mustGoal(goalId);
     if (goal.delivery.status === 'running') throw new Error('delivery is already running');
     const policy = DeliveryPolicy.parse({ ...goal.delivery.policy, ...policyIn });

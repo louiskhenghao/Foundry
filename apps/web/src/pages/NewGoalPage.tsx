@@ -365,7 +365,7 @@ export function NewGoalPage() {
         issue: issue?.read.issue,
       });
       try {
-        localStorage.setItem(DELIVERY_KEY, JSON.stringify({ remote: delivery.remote, mergeMethod: delivery.mergeMethod, requireChecks: delivery.requireChecks, autoResolveConflicts: delivery.autoResolveConflicts, fixCiCycles: delivery.fixCiCycles, deleteRemoteBranch: delivery.deleteRemoteBranch }));
+        localStorage.setItem(DELIVERY_KEY, JSON.stringify({ remote: delivery.remote, mergeMethod: delivery.mergeMethod, requireChecks: delivery.requireChecks, autoResolveConflicts: delivery.autoResolveConflicts, fixCiCycles: delivery.fixCiCycles, fixReviewCycles: delivery.fixReviewCycles, deleteRemoteBranch: delivery.deleteRemoteBranch }));
         localStorage.setItem(BUDGET_KEY, JSON.stringify(budget));
       } catch {}
       nav(auto ? `/goals/${goal.id}` : `/goals/${goal.id}/brief`);

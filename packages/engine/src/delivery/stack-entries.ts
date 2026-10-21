@@ -5,8 +5,8 @@ import type { Engine } from '../engine.ts';
 /**
  * Every task commit in the order it landed on the goal branch, with its stable stack position and whether a previous
  * delivery already merged it. Positions never shift when a task merges, so a re-run reuses the same branch names (and
- * therefore the same PRs). A fix-CI commit is not an entry of its own: it was made on its PR's branch and travels with
- * it. The docs commit written when the goal finished comes last, as its own PR, when there is a stack.
+ * therefore the same PRs). A fix-CI or review-fix commit is not an entry of its own: it was made on its PR's branch and
+ * travels with it. The docs commit written when the goal finished comes last, as its own PR, when there is a stack.
  */
 export function stackEntries(engine: Engine, goal: Goal): { task: Task; index: number; merged: boolean }[] {
   const { store } = engine;
@@ -23,7 +23,7 @@ export function stackEntries(engine: Engine, goal: Goal): { task: Task; index: n
   const tasks = listTasks(store.db, goal.id);
   const committed = order
     .map((id) => tasks.find((t) => t.id === id))
-    .filter((t): t is Task => !!t && !!t.commitRef && t.state === 'done' && t.origin !== 'delivery-fix');
+    .filter((t): t is Task => !!t && !!t.commitRef && t.state === 'done' && t.origin !== 'delivery-fix' && t.origin !== 'review-fix');
   const docs = committed.length >= 2 ? docsTask(goal, events) : null;
   const reference = committed.length >= 2 ? referenceTasks(goal, events) : [];
   return [...reference, ...committed, ...(docs ? [docs] : [])].map((task, i) => ({ task, index: i + 1, merged: mergedTaskIds.has(task.id) }));

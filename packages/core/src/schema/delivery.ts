@@ -28,12 +28,14 @@ export const DeliveryPolicy = z.object({
   mergeIfNoChecks: z.boolean().default(true),
   autoResolveConflicts: z.boolean().default(true),
   fixCiCycles: z.number().int().min(0).max(2).default(1),
+  /** rounds of review comments on the pull request Foundry addresses by itself (ADR-0053); more on the person's click */
+  fixReviewCycles: z.number().int().min(0).max(3).default(1),
   deleteRemoteBranch: z.boolean().default(true),
 });
 export type DeliveryPolicy = z.infer<typeof DeliveryPolicy>;
 export const LOCAL_POLICY: DeliveryPolicy = DeliveryPolicy.parse({});
 
-export const DeliveryStep = z.enum(['preflight', 'ensure-remote', 'sync-base', 'build-stack', 'push', 'open-pr', 'wait-checks', 'fix-ci', 'merge', 'cleanup']);
+export const DeliveryStep = z.enum(['preflight', 'ensure-remote', 'sync-base', 'build-stack', 'push', 'open-pr', 'fix-review', 'wait-checks', 'fix-ci', 'merge', 'cleanup']);
 export type DeliveryStep = z.infer<typeof DeliveryStep>;
 export const DeliveryStatus = z.enum(['idle', 'running', 'delivered', 'failed']);
 export type DeliveryStatus = z.infer<typeof DeliveryStatus>;
@@ -74,6 +76,45 @@ export const DeliveryPr = z.object({
 });
 export type DeliveryPr = z.infer<typeof DeliveryPr>;
 
+/**
+ * One comment of a review on a pull request Foundry opened (ADR-0053): an inline comment on the diff, or a review that
+ * requested changes (its body). A plain conversation comment, an approval, and anything a bot wrote are not ones.
+ */
+export const ReviewComment = z.object({
+  /** GitHub's id of the comment (inline) or of the review */
+  id: z.number().int(),
+  kind: z.enum(['inline', 'review']),
+  author: z.string().nullable().default(null),
+  body: z.string(),
+  /** inline: the file and line the comment is on, with the diff around it */
+  path: z.string().nullable().default(null),
+  line: z.number().int().nullable().default(null),
+  diffHunk: z.string().nullable().default(null),
+  url: z.string().nullable().default(null),
+  createdAt: z.string().nullable().default(null),
+});
+export type ReviewComment = z.infer<typeof ReviewComment>;
+
+/** The review comments one look at a pull request brought, addressed together by one fix task (ADR-0053). */
+export const ReviewRound = z.object({
+  id: z.string(),
+  prNumber: z.number().int(),
+  at: z.string(),
+  comments: z.array(ReviewComment),
+  /** pending = not addressed yet; fixing = the fix task runs; addressed = a fix was pushed and replied; nochange = looked
+   * at, nothing to change, replied; failed = the fix task could not (the delivery stopped) */
+  status: z.enum(['pending', 'fixing', 'addressed', 'nochange', 'failed']).default('pending'),
+  /** the person asked for this round to be addressed (Fix review comments), budget or not */
+  requested: z.boolean().default(false),
+  /** the fix commit pushed to the pull request's branch */
+  commit: z.string().nullable().default(null),
+  /** how many comments got a reply */
+  replied: z.number().int().nonnegative().default(0),
+  detail: z.string().nullable().default(null),
+  finishedAt: z.string().nullable().default(null),
+});
+export type ReviewRound = z.infer<typeof ReviewRound>;
+
 export const DeliveryState = z.object({
   policy: DeliveryPolicy.default(() => LOCAL_POLICY),
   status: DeliveryStatus.default('idle'),
@@ -85,6 +126,10 @@ export const DeliveryState = z.object({
   outcome: DeliveryOutcome.nullable().default(null),
   mergedRef: z.string().nullable().default(null),
   fixCycles: z.number().int().nonnegative().default(0),
+  /** every round of review comments on the delivery's pull requests, oldest first (ADR-0053) */
+  reviews: z.array(ReviewRound).default([]),
+  /** rounds the engine addressed by itself; the policy's fixReviewCycles caps it, Resume and Retry reset it */
+  reviewCycles: z.number().int().nonnegative().default(0),
   error: z.string().nullable().default(null),
   startedAt: z.string().nullable().default(null),
   finishedAt: z.string().nullable().default(null),

@@ -59,7 +59,7 @@ If your project has no online copy yet, the form says **No remote yet** and offe
 
 ### Once the PR is open
 
-Only for **PR + auto-merge**. The four switches are on by default.
+The four switches and **Fix failing CI** are only for **PR + auto-merge** and are on by default; **Fix review comments** applies to **Open a PR** too.
 
 | Option | Meaning |
 |---|---|
@@ -68,6 +68,7 @@ Only for **PR + auto-merge**. The four switches are on by default.
 | **Auto-resolve conflicts with the base branch** | If `main` moved on and conflicts, Foundry resolves it. Off: a conflict stops the delivery. |
 | **Delete the remote branch after merging** | Only the branch this goal pushed, never the base branch. |
 | **Fix failing CI** | **don't fix**, **up to once** (default) or **up to twice**. See [When CI fails](#when-ci-fails). |
+| **Fix review comments** | **don't fix**, **up to once** (default), **up to twice** or **up to three times**: rounds of review comments Foundry addresses by itself. See [When someone reviews the pull request](#when-someone-reviews-the-pull-request). |
 
 ## Connecting GitHub
 
@@ -131,6 +132,16 @@ When it stops, the Delivery tab lists each failing check under its pull request,
 If you merge the pull request on GitHub yourself, Foundry notices and finishes the delivery; with one pull request per task, the rest wait for **Resume delivery**.
 
 With one pull request per task, a fix for CI is committed on the branch of the pull request that failed and pushed there. The other pull requests are not touched.
+
+## When someone reviews the pull request
+
+A pull request Foundry opened can be reviewed like any other. Foundry reads the review comments on its open pull requests every few minutes, and whenever you open the goal's page. Two kinds count: **inline comments on the diff**, and a **review that requests changes** (its text). An approval, a review that only comments, a comment in the conversation, and anything a bot wrote are left alone, so a comment is how you talk, and a comment on the diff or a request for changes is how you ask for work.
+
+The comments found on one look form a **round**. Within the budget of **Fix review comments** (one round by default), Foundry runs the delivery again: a small fix task reads every comment, with the file, the line and the diff around it, changes the branch in the smallest way that answers them, and the goal's must checks run on the result. The fix is pushed to the pull request's branch, and Foundry replies under each comment with the commit and the files it changed. When the task looked and found nothing to change, the reply says so, and the task's report on the goal page says why. With **PR + auto-merge**, the checks are then waited for and the merge goes on as before. With one PR per task, the fix lands on the branch of the pull request that was reviewed; the others are not touched.
+
+The Delivery tab lists each round under its pull request: how many comments, who wrote them, and what became of them. A round beyond the budget waits for you, with a note and a message, and **Fix review comments** addresses it on your click. **Resume delivery** and **Retry delivery** give a fresh budget. A fix the task cannot make stops the delivery like a CI fix that cannot: one *Delivery stopped* item in the Inbox, and the pull request as it was; answer the comments on GitHub, or press **Resume delivery** to try again.
+
+Foundry writes nothing else to GitHub: no comment when it starts, no review of its own. Its replies end with a hidden mark, so it never mistakes them for yours. Comments left while a delivery is running are picked up once it ends.
 
 ## Changing delivery later
 

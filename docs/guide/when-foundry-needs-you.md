@@ -74,7 +74,7 @@ The goal reached the cost or time limit you set. **Raise budget** (empty fields 
 
 **Inbox:** *Delivery stopped* — where it stopped and why, with the failing checks named, for example "Deploy preview — Deployment was blocked", and a link to each.
 
-The work is done, but pushing it or getting the pull request merged did not go through. Fix the cause (the link shows it), then:
+The work is done, but pushing it or getting the pull request merged did not go through. A fix task for review comments that could not make the checks pass stops here too (see [When someone reviews the pull request](./getting-the-result.md#when-someone-reviews-the-pull-request)). Fix the cause (the link shows it), then:
 
 - **Resume delivery** carries on from the first pull request that is not merged: merged ones are skipped, open ones kept, and fixing CI gets a fresh budget. To change a setting first, for example to stop waiting for CI, change it under **Delivery settings** and press **Save**.
 - **Mark as delivered** if you finished it yourself. Foundry reads the pull requests first: if they are merged it finishes as merged (your own folder is updated and the goal tidied up); otherwise it only records it as delivered by you.
