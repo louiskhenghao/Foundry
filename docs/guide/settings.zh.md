@@ -1,12 +1,12 @@
 # 设置说明
 
-## 两种编码智能体
+## 三种编码智能体
 
-**Models & limits** 使用统一的 **Coding agent**（编码智能体） 控件选择 **Claude Code** 或 **Codex**，各自拥有独立的预设和模型选项。Codex 任务在创建时保存各角色模型、推理强度和备用模型顺序；修改设置只影响新任务。**Claude cost cap per session (USD)** 只适用于 Claude。**Concurrent agent sessions** 是两种编码智能体共用的总并发上限。
+**Models & limits** 使用统一的 **Coding agent**（编码智能体） 控件选择 **Claude Code**、**Codex** 或 **Antigravity**，各自拥有独立的模型选项：Claude Code 和 Codex 用预设，Antigravity 用一个模型和一个推理强度。Codex 任务在创建时保存各角色模型、推理强度和备用模型顺序；修改设置只影响新任务。**Claude cost cap per session (USD)** 只适用于 Claude。**Concurrent agent sessions** 是所有编码智能体共用的总并发上限。
 
-**Engine (install)** 显示两种 CLI 路径和配置目录。**Default coding agent** 在启动时选择，不限制新建任务的编码智能体选择。打开旧数据目录时保留原启动配置，以正确识别历史记录。现有分开的数据目录不会自动合并。
+**Engine (install)** 显示每种 CLI 的路径，以及 Claude Code 和 Codex 的配置目录。**Default coding agent** 在启动时选择，不限制新建任务的编码智能体选择。打开旧数据目录时保留原启动配置，以正确识别历史记录。现有分开的数据目录不会自动合并。
 
-**Setup** 和 **Extensions** 都可独立选择 **Claude Code** 或 **Codex**，不再跟随启动配置。安装、更新、回收站、OAuth 和 MCP 权限都操作所选编码智能体。Codex 使用自己的技能目录和共享 `.agents/skills`；autoskills 会把项目技能安装到 `.agents/skills` 并复制到任务 worktree，不进入提交。原生插件的安装和移除改在 **Extensions → Codex → Plugins** 管理。Codex 技能调用记录不可用，审核依据成果，不能据此判定没有使用技能。
+**Setup** 和 **Extensions** 都可独立选择 **Claude Code**、**Codex** 或 **Antigravity**，不再跟随启动配置。安装、更新、回收站、OAuth 和 MCP 权限都操作所选编码智能体。Codex 使用自己的技能目录和共享 `.agents/skills`；autoskills 会把项目技能安装到 `.agents/skills` 并复制到任务 worktree，不进入提交。原生插件的安装和移除改在 **Extensions → Codex → Plugins** 管理。Antigravity 只从 goal 的工作区读取技能：Foundry 把技能装进共享的 `~/.agents/skills`（Codex 和 skills CLI 也读它），再把已安装的技能链接进每个 goal 的工作区，不进入 git。Antigravity 不接受 Foundry 安装的插件，所以不能用 text-to-cad；它的 MCP 服务器也由它自己管理（`agy mcp add`、`agy mcp list`），**Extensions → MCP servers** 会说明这一点，而不是列出它们。Codex 和 Antigravity 的技能调用记录不可用，审核依据成果，不能据此判定没有使用技能。
 
 
 > [English](./settings.md) · 中文
@@ -29,7 +29,7 @@
 | **Pace for new goals** | thorough | **thorough — engine reviews the work** 或 **fast — approved checks only**。图片和视频 goal 总是以 fast 开始。 |
 | **Have a look: pause new goals at milestones** | 开 | 所有任务完成后的最终走查、以及没有脚本的里程碑完成时，goal 会暂停让你看一看。关掉：goal 继续往下跑，每个里程碑的内容发到你的通知渠道。每个 goal 有自己的开关。 |
 | **Interview depth** | 3 | 写 Brief 之前 Clarifier 问你问得多深：从 **Skip**（不问）和 **1**（只问猜错会白做的事）到 **5**（每个细节，直到没有可问的）。见 [Interview depth](./your-first-goal.zh.md#interview-depth)。 |
-| **Effort for new goals** | Role preset / CLI default | 从 **low** 到 **max** 的全任务覆盖。默认使用 Codex 各角色预设，或 Claude CLI 默认值。 |
+| **Effort for new goals** | Role preset / CLI default | 从 **low** 到 **max** 的全任务覆盖。默认使用 Codex 各角色预设、Antigravity 的推理强度，或 Claude CLI 默认值。 |
 | **TDD for new Expert goals** | required | 测试先行：**required**、**preferred** 或 **off**。 |
 | **Workflow suite for new goals** | mattpocock | 各角色遵循谁的技能：**mattpocock**（Matt Pocock 的套件）、**pstack**（pstack 的套件，它没有的由 Matt Pocock 的技能补上）或 **plain**（没有规则，会话只知道装了哪些技能）。每个 goal 在 New goal 表单上定下自己的。见 [Workflow suite](./your-first-goal.zh.md#workflow-suite)。 |
 | **Ponytail for new goals** | on | 懒惰的资深工程师：worker 写能完整解决任务的最小改动并复用已有的东西，planner 精简地规划，`ponytail-review` 负责审查。测试怎么写仍由 TDD 决定。每个 goal 有自己的开关。见 [Ponytail: less code](./your-first-goal.zh.md#ponytail-less-code)。 |
@@ -56,7 +56,7 @@
 
 ## Models & limits
 
-这一部分决定哪个模型做哪件事。先在 **Coding agent** 选择 **Claude Code** 或 **Codex**；两者的预设和模型目录互相独立。两个面板的布局相同：**Sync models**、**Preset per goal type**、**Presets** 编辑器，然后是 **Other models**。会话限制位于所选编码智能体的模型设置下方。
+这一部分决定哪个模型做哪件事。先在 **Coding agent** 选择 **Claude Code**、**Codex** 或 **Antigravity**；它们的模型设置互相独立。Claude Code 和 Codex 的面板布局相同（[Antigravity 的](#antigravity-model)只有一个模型和一个推理强度）：**Sync models**、**Preset per goal type**、**Presets** 编辑器，然后是 **Other models**。会话限制位于所选编码智能体的模型设置下方。
 
 ![Settings 的 Models & limits：Sync models 按钮，以及每种 goal 类型一个预设和它的模型表](images/settings-models.png)
 
@@ -144,7 +144,7 @@ Foundry 自带四个预设：
 
 ### Antigravity model
 
-选择 **Coding agent → Antigravity** 后，这一节包含新建 Antigravity goal 的每个角色都使用的 **Antigravity model**（`agy-default` 跟随 CLI 自己设定的模型；**Sync models** 列出 `agy models` 知道的型号）以及每个角色的 **Reasoning effort**（low、medium 或 high）。goal 在创建时记下这两项。Antigravity 只报告 token，不报告美元，因此它的 goal 只保留时间、尝试次数和并发限制，不设美元预算；没有预设，也没有回退顺序。参见 [Run Foundry with Antigravity](../operate/antigravity.md)。
+选择 **Coding agent → Antigravity** 后，这一节包含新建 Antigravity goal 的每个角色都使用的 **Antigravity model**（**Antigravity default** 跟随 CLI 自己设定的模型；**Sync models** 用 `agy models` 列出账户可用的模型，不运行模型；**Custom model slug…** 可以手动填写）以及每个角色的 **Reasoning effort**（low、medium、high、xhigh 或 max）。goal 在创建时记下这两项。Antigravity 只报告 token，不报告美元，因此它的 goal 只保留时间、尝试次数和并发限制，不设美元预算；没有预设，也没有回退顺序。参见 [Run Foundry with Antigravity](../operate/antigravity.md)。
 
 ### Sync models
 
@@ -182,7 +182,7 @@ Foundry 启动时，如果发现 Claude Code 自上次同步后更新过，也�
 | **Claude cost cap per session (USD)** | 10 | Claude worker 花到这个数就停（也不会超过 goal 剩余预算）。Codex 没有美元上限。 |
 | **Attempt timeout (minutes)** | 20 | 运行超过这个时间的会话会被停止。它已提交的内容会保留；Foundry 会续接或重试。 |
 | **Continuations per attempt** | 2 | 被停止的会话在开始新尝试之前最多续接几次（续接更便宜，会保留它读过的内容）。 |
-| **Turn cap per session** | 150 | Claude 的模型轮数；Codex 的工具调用次数。设宽松一点。 |
+| **Turn cap per session** | 150 | Claude 的模型轮数；Codex 的工具调用次数；Antigravity 每轮允许三次工具调用，因为它每读一个文件就调用一次工具。设宽松一点。 |
 | **Concurrent agent sessions** | 3 | 两种编码智能体的所有 goal 加起来同时运行的会话总数。 |
 | **Reference investigation: cost cap** | $3 | Clarify 之前用 REA 调查 goal 参考对象的会话到这个花费就停下，把已有的发现写成报告。 |
 | **Reference investigation: minutes** | 20 | 它的时间上限。 |

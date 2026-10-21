@@ -2,7 +2,7 @@
 
 ## 不同编码智能体的限制
 
-Codex 的 Brief 在 Simple 与 Expert 视图都显示时间及执行限制，隐藏美元估算与美元上限。批准或修改 Brief 不会改变任务创建时选择的编码智能体。
+Codex 和 Antigravity 的 Brief 在 Simple 与 Expert 视图都显示时间及执行限制，隐藏美元估算与美元上限。批准或修改 Brief 不会改变任务创建时选择的编码智能体。
 
 
 > [English](./approving-the-brief.md) · 中文
@@ -276,7 +276,7 @@ goal 给了参考对象时（见 [你的第一个 goal](./your-first-goal.zh.md#
 
 ## 估算和预算
 
-Claude 卡片显示 **Estimated cost** 和 **Estimated time**，旁边是预算；Codex 只显示时间及执行限制。
+Claude 卡片显示 **Estimated cost** 和 **Estimated time**，旁边是预算；Codex 和 Antigravity 只显示时间及执行限制。
 
 两个数字下面，当这个文件夹已经有三个结束了的 goal（或者退一步，这台电脑上有三个同类的结束了的 goal）时，会有一行说明它们比各自的估算多跑了多少，以及这个 goal 大概会花多少：*Earlier goals in this folder ran at 1.6× the estimated cost and 1.3× the estimated time (median of 5 finished goals): likely about $12 and 45 min.* 悬停可以看到它依据的 goal。Clarifier 的数字照原样保留；这一行只是用经验来读它。那些 goal 之间差距很大时会说明。
 
@@ -311,6 +311,6 @@ Simple view 用大白话显示同一份 Brief：
 | **Anything to add?** | 没有哪个问题问到的事：写下来，按 **Add note**。备注和你的答案一样会到达每个执行者。 |
 | **I will assume… (untick anything that is wrong)** | 把不对的取消勾选。 |
 | **What you will get (N pieces of work)** | 各项任务，按 Area 分组。要改它们，就打开 **Expert view**。 |
-| **Price & time** / **Time & limits** | Claude 提供费用与时间估算及上限；Codex 提供时间及执行限制，没有美元字段。对应字段留空表示不设上限。 |
+| **Price & time** / **Time & limits** | Claude 提供费用与时间估算及上限；Codex 和 Antigravity 提供时间及执行限制，没有美元字段。对应字段留空表示不设上限。 |
 
 然后按 **Looks good — go** 批准，按 **Save** 之后再回来，或者按 **Cancel** 放弃。如果你的回答改变了该做的东西，先打开 **Expert view** 按 **Revise with answers**。

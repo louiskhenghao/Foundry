@@ -2,13 +2,13 @@
 
 > English · [中文](./settings.zh.md)
 
-## Two coding agents
+## Three coding agents
 
-**Models & limits** uses the shared **Coding agent** selector for **Claude Code** and **Codex**. Each provider has its own presets and model choices. Codex goals capture their role models, reasoning effort and fallback order when created; edits affect new goals. **Claude cost cap per session (USD)** applies only to Claude. **Concurrent agent sessions** is one total limit across both providers.
+**Models & limits** uses the shared **Coding agent** selector for **Claude Code**, **Codex** and **Antigravity**. Each provider has its own model choices: presets for Claude Code and Codex, one model and effort for Antigravity. Codex goals capture their role models, reasoning effort and fallback order when created; edits affect new goals. **Claude cost cap per session (USD)** applies only to Claude. **Concurrent agent sessions** is one total limit across all of them.
 
-**Engine (install)** exposes both CLI paths and homes. The **Default coding agent** is chosen at launch; it does not restrict the **New goal** selector. Keep the original launch profile when opening an existing data directory so legacy records retain their provenance. Existing separate directories are not automatically merged.
+**Engine (install)** exposes each CLI's path, and the Claude Code and Codex homes. The **Default coding agent** is chosen at launch; it does not restrict the **New goal** selector. Keep the original launch profile when opening an existing data directory so legacy records retain their provenance. Existing separate directories are not automatically merged.
 
-**Setup** and **Extensions** each let you select **Claude Code** or **Codex**, independently of the launch profile. Installs, updates, trash, OAuth and MCP permissions target that selection. Codex loads its home skills plus shared `.agents/skills`; its per-goal autoskills installer writes `.agents/skills` and copies them into task worktrees without committing them. Use **Extensions → Codex → Plugins** for native plugin installs and removals. Skill invocation telemetry is unavailable for Codex, so reviewers judge the work rather than infer a skipped invocation.
+**Setup** and **Extensions** each let you select **Claude Code**, **Codex** or **Antigravity**, independently of the launch profile. Installs, updates, trash, OAuth and MCP permissions target that selection. Codex loads its home skills plus shared `.agents/skills`; its per-goal autoskills installer writes `.agents/skills` and copies them into task worktrees without committing them. Use **Extensions → Codex → Plugins** for native plugin installs and removals. Antigravity reads skills only from a goal's workspace: Foundry installs them in the shared `~/.agents/skills` (Codex and the skills CLI read it too) and links the installed ones into each goal's workspace, kept out of git. Antigravity takes no plugins from Foundry, so text-to-cad is not available for it, and it keeps its MCP servers itself (`agy mcp add`, `agy mcp list`): **Extensions → MCP servers** says so instead of listing them. Skill invocation telemetry is unavailable for Codex and Antigravity, so reviewers judge the work rather than infer a skipped invocation.
 
 
 Open the ⚙ menu at the right of the top bar and choose **Settings**. The sections are listed on the left; this page follows them in order and explains, in plain words, the controls you might want to touch and when. The exact keys, defaults and environment variables are in the operator reference, [configuration.md](../operate/configuration.md).
@@ -29,7 +29,7 @@ What a new goal starts with. Most of them can be changed for one goal on the New
 | **Pace for new goals** | thorough | **thorough — engine reviews the work**, or **fast — approved checks only**. Image and video goals always start fast. |
 | **Have a look: pause new goals at milestones** | on | A goal pauses for the final walkthrough once every task is done, and when a milestone without a script lands, so you can look. Off: it goes on, and what each milestone shows is sent to your notification channels. Each goal has its own switch. |
 | **Interview depth** | 3 | How deep the Clarifier questions you before the Brief: from **Skip** (no questions) and **1** (only what a wrong guess would waste) to **5** (every detail, until nothing is left). See [Interview depth](./your-first-goal.md#interview-depth). |
-| **Effort for new goals** | Role preset / CLI default | A goal-wide override, **low** to **max**. Default uses Codex role presets or Claude's CLI default. |
+| **Effort for new goals** | Role preset / CLI default | A goal-wide override, **low** to **max**. Default uses Codex role presets, the Antigravity effort or Claude's CLI default. |
 | **TDD for new Expert goals** | required | Test-first: **required**, **preferred** or **off**. |
 | **Workflow suite for new goals** | mattpocock | Whose skills the roles follow: **mattpocock** (Matt Pocock's suite), **pstack** (pstack's suite, with Matt Pocock's skills where it has none) or **plain** (no rules; sessions only hear which skills are installed). Each goal fixes its own on the New goal form. See [Workflow suite](./your-first-goal.md#workflow-suite). |
 | **Ponytail for new goals** | on | The lazy senior dev: workers write the smallest change that fully solves the task and reuse what exists, the planner plans lean, and `ponytail-review` reviews. TDD still decides how tests are written. Each goal has its own switch. See [Ponytail: less code](./your-first-goal.md#ponytail-less-code). |
@@ -56,7 +56,7 @@ When to change: raise **Interview depth** if you like to be asked about details;
 
 ## Models & limits
 
-This section decides which model does each job. Choose **Claude Code** or **Codex** under **Coding agent**; their presets and catalogs are independent. Both panels have the same layout: **Sync models**, **Preset per goal type**, the **Presets** editor, then **Other models**. Session limits appear below the selected coding agent’s model settings.
+This section decides which model does each job. Choose **Claude Code**, **Codex** or **Antigravity** under **Coding agent**; their model settings are independent. The Claude Code and Codex panels have the same layout ([Antigravity's](#antigravity-model) is one model and one effort): **Sync models**, **Preset per goal type**, the **Presets** editor, then **Other models**. Session limits appear below the selected coding agent’s model settings.
 
 ![Settings, Models & limits: the Sync models button and one preset per goal type with its model grid](images/settings-models.png)
 
@@ -144,7 +144,7 @@ Changes apply when you press **Save**: to new goals, and to running goals from t
 
 ### Antigravity model
 
-With **Coding agent → Antigravity** selected, the section holds the **Antigravity model** every role of a new Antigravity goal runs on (`agy-default` follows the model the CLI itself is set to; **Sync models** lists the slugs `agy models` knows) and the **Reasoning effort** of every role (low, medium or high). A goal snapshots both when it is created. Antigravity reports tokens, not dollars, so its goals keep time, attempt and concurrency limits and never a USD budget; there are no presets and no fallback order. See [Run Foundry with Antigravity](../operate/antigravity.md).
+With **Coding agent → Antigravity** selected, the section holds the **Antigravity model** every role of a new Antigravity goal runs on (**Antigravity default** follows the model the CLI itself is set to; **Sync models** lists the account's models with `agy models`, which runs no model, and **Custom model slug…** takes one by hand) and the **Reasoning effort** of every role (low, medium, high, xhigh or max). A goal snapshots both when it is created. Antigravity reports tokens, not dollars, so its goals keep time, attempt and concurrency limits and never a USD budget; there are no presets and no fallback order. See [Run Foundry with Antigravity](../operate/antigravity.md).
 
 ### Sync models
 
@@ -182,7 +182,7 @@ On by default. When a task is allowed two or more attempts, its last attempt, an
 | **Claude cost cap per session (USD)** | 10 | A Claude worker stops at this spend (and never spends more than the goal has left). Codex has no USD cap. |
 | **Attempt timeout (minutes)** | 20 | A session running longer is stopped. What it committed stays; Foundry resumes or retries. |
 | **Continuations per attempt** | 2 | How often a stopped session is resumed (cheaper, it keeps what it read) before a fresh attempt starts. |
-| **Turn cap per session** | 150 | Model turns for Claude; tool calls for Codex. Keep it generous. |
+| **Turn cap per session** | 150 | Model turns for Claude; tool calls for Codex; three tool calls per turn for Antigravity, which calls a tool for every file it reads. Keep it generous. |
 | **Concurrent agent sessions** | 3 | Total simultaneous sessions across both providers and all goals. |
 | **Reference investigation: cost cap** | $3 | The session that studies a goal's reference with REA before Clarify stops at this cost and writes up what it found so far. |
 | **Reference investigation: minutes** | 20 | Its time cap. |

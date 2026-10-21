@@ -40,7 +40,7 @@ Before approving, everything is editable: [Approving the Brief](./approving-the-
 - Tick **Fast mode** for routine goals.
 - Set **Effort** to **low** for small goals.
 - Mark easy tasks **simple** on the Brief; they run on the preset's **Simple tasks** model and, for Codex, its role effort. Sonnet/Opus examples apply to Claude presets; Codex preset names do not promise a price.
-- Set time and attempt limits. Claude also supports a USD budget; Codex does not report or enforce dollar cost.
+- Set time and attempt limits. Claude also supports a USD budget; Codex and Antigravity do not report or enforce dollar cost.
 
 More in [Costs and usage](./costs-and-usage.md#ways-to-spend-less).
 
@@ -86,7 +86,7 @@ Close the browser any time: the work continues. The computer must stay on and aw
 
 ## Can I run several goals at once?
 
-Yes. Claude and Codex goals share the limit **Concurrent agent sessions** (3 by default, in [Settings → Models & limits](./settings.md#limits)), so more goals at once means each one moves slower. Two goals on the same project do not see each other's work until you merge it.
+Yes. Goals on every coding agent share the limit **Concurrent agent sessions** (3 by default, in [Settings → Models & limits](./settings.md#limits)), so more goals at once means each one moves slower. Two goals on the same project do not see each other's work until you merge it.
 
 ## Can Claude and Codex share one instance?
 
