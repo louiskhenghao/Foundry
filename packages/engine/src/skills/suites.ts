@@ -10,6 +10,7 @@
  * Matt Pocock's `tdd` are different skills). Codex has no plugins: its sessions get the suite's skills linked into the
  * goal workspace as `.agents/skills/<id>-<skill>`.
  */
+import type { AgentProvider } from '@foundry/core';
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
@@ -76,7 +77,7 @@ export function scanSuites(paths: SkillsPaths): InstalledSuite[] {
 }
 
 /** how a session names a suite skill: Claude as the plugin's slash command, Codex as the linked folder */
-export const suiteInvoke = (provider: 'claude' | 'codex', suite: string, skill: string): string => (provider === 'codex' ? `${suite}-${skill}` : `/${suite}:${skill}`);
+export const suiteInvoke = (provider: AgentProvider, suite: string, skill: string): string => (provider !== 'claude' ? `${suite}-${skill}` : `/${suite}:${skill}`);
 
 /** the Extensions page's rows for an installed suite: one source, names that never collide with a bare skill name */
 export function suiteSkillRows(paths: SkillsPaths, s: InstalledSuite): InstalledSkill[] {
@@ -178,6 +179,28 @@ export async function linkSuiteSkills(ws: string, s: InstalledSuite, skills: str
     mkdirSync(dirname(link), { recursive: true });
     symlinkSync(target, link);
     linked.push(`${s.id}-${skill}`);
+  }
+  if (linked.length) await excludeFromGit(ws, linked.map((n) => `.agents/skills/${n}`), log);
+  return linked;
+}
+
+/**
+ * Antigravity: link skill folders into a workspace's `.agents/skills/<name>` (git-excluded), idempotently. A name the
+ * workspace already holds (a project skill, an earlier link) is left as it is.
+ */
+export async function linkSkillDirs(ws: string, skills: { name: string; dir: string }[], log?: (m: string) => void): Promise<string[]> {
+  const dir = join(ws, '.agents', 'skills');
+  const linked: string[] = [];
+  for (const s of skills) {
+    if (!/^[\w.-]+$/.test(s.name) || !existsSync(join(s.dir, 'SKILL.md'))) continue;
+    const link = join(dir, s.name);
+    try {
+      lstatSync(link);
+      continue;
+    } catch {}
+    mkdirSync(dir, { recursive: true });
+    symlinkSync(s.dir, link);
+    linked.push(s.name);
   }
   if (linked.length) await excludeFromGit(ws, linked.map((n) => `.agents/skills/${n}`), log);
   return linked;

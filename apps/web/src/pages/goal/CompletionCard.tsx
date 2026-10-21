@@ -2,6 +2,7 @@ import { AlertTriangle, CheckCircle2, ChevronRight, CircleDashed, ExternalLink, 
 import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { AuditFinding } from '@foundry/core/browser';
+import { reportsDollars } from '@foundry/core/browser';
 import { api, type GoalDetail } from '../../api.ts';
 import { openFile } from '../../components/FilePreview.tsx';
 import { Badge, Button, Card, CopyButton, cn, fmtUsd } from '../../ui.tsx';
@@ -82,7 +83,7 @@ export function CompletionCard({ d }: { d: GoalDetail }) {
     <>
       {docs.files.length} file{docs.files.length === 1 ? '' : 's'}
       {docs.ref && <span className="mono text-zinc-500"> · {docs.ref.slice(0, 7)}</span>}
-      {g.provider !== 'codex' && docs.costUsd > 0 && <span className="text-zinc-500"> · {fmtUsd(docs.costUsd)}</span>}
+      {reportsDollars(g.provider) && docs.costUsd > 0 && <span className="text-zinc-500"> · {fmtUsd(docs.costUsd)}</span>}
       {docsPr?.url && (
         <a href={docsPr.url} target="_blank" rel="noreferrer" className="ml-1.5 inline-flex items-center gap-0.5 text-sky-300 hover:underline">
           PR #{docsPr.number} <ExternalLink size={10} />
@@ -122,7 +123,7 @@ export function CompletionCard({ d }: { d: GoalDetail }) {
           <Row
             status={auditStatus}
             label="Audit"
-            summary={d.auditRunning ? 'ponytail-audit is reading the finished branch…' : !audit ? 'runs once every task is done, before the final review' : audit.status === 'ok' ? `${audit.detail}${g.provider !== 'codex' && audit.costUsd > 0 ? ` · ${fmtUsd(audit.costUsd)}` : ''}` : audit.detail}
+            summary={d.auditRunning ? 'ponytail-audit is reading the finished branch…' : !audit ? 'runs once every task is done, before the final review' : audit.status === 'ok' ? `${audit.detail}${reportsDollars(g.provider) && audit.costUsd > 0 ? ` · ${fmtUsd(audit.costUsd)}` : ''}` : audit.detail}
             open={audit?.status === 'failed' || (audit?.findings.some((f) => f.severity === 'must') ?? false)}
             action={finished && rest.length > 0 && (
               <Button size="sm" variant="info" className="shrink-0" onClick={followUp} title="Start a follow-up goal that fixes what the audit found outside this goal's code">
@@ -154,7 +155,7 @@ export function CompletionCard({ d }: { d: GoalDetail }) {
           <Row
             status={qaStatus}
             label="Browser QA"
-            summary={d.qaRunning ? 'the finished app is being tried in Chromium…' : !qa ? 'runs once every task is done, before the final review' : qa.status === 'ok' ? `${qa.detail}${g.provider !== 'codex' && qa.costUsd > 0 ? ` · ${fmtUsd(qa.costUsd)}` : ''}` : qa.detail}
+            summary={d.qaRunning ? 'the finished app is being tried in Chromium…' : !qa ? 'runs once every task is done, before the final review' : qa.status === 'ok' ? `${qa.detail}${reportsDollars(g.provider) && qa.costUsd > 0 ? ` · ${fmtUsd(qa.costUsd)}` : ''}` : qa.detail}
             open={qa?.status === 'failed' || (qa?.results.some((r) => r.status === 'fail') ?? false)}
           >
             {qa?.summary && <p className="text-zinc-300">{qa.summary}</p>}

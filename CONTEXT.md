@@ -5,7 +5,7 @@ This file is a glossary. It defines the language used across the codebase, the U
 ## Core concepts
 
 **Coding agent**
-The provider chosen for a Goal: Claude Code or Codex. Formerly called Agent backend. It stays fixed for that Goal, including retries and reviews. Accounts are independent; goals can share one Foundry instance. An unavailable measurement (cost, quota, turns or skill telemetry) is unknown, never zero.
+The provider chosen for a Goal: Claude Code, Codex or Antigravity (the `agy` CLI). Formerly called Agent backend. It stays fixed for that Goal, including retries and reviews. Accounts are independent; goals can share one Foundry instance. An unavailable measurement (cost, quota, turns or skill telemetry) is unknown, never zero.
 
 **Launch profile**
 The coding agent selected when Foundry starts. It determines defaults and the data directory’s ownership marker, not the coding agent of every Goal. One instance can run both coding agents; changing the profile does not migrate existing state.

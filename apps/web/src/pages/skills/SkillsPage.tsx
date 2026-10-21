@@ -1,4 +1,5 @@
 import type { EngineEvent } from '@foundry/core/browser';
+import { PROVIDER_LABEL } from '@foundry/core/browser';
 import type { InstalledSkill, SkillScope, SkillSourceRow, SkillTier, SkillUsage, SkillsOverview, SkillsUpdateReport, TrashEntry } from '@foundry/engine/skills-types';
 import { RefreshCw, Search, Trash2 } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
@@ -44,7 +45,7 @@ export function usageNote(installed: Pick<InstalledSkill, 'usage'>[], window: Sk
  */
 export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }) {
   const api = apiForProvider(provider);
-  const backend = provider === 'codex' ? 'Codex' : 'Claude Code';
+  const backend = PROVIDER_LABEL[provider];
   const startProviderOp = (operation: Parameters<typeof startOp>[0]) => startOp({ ...operation, label: `${backend} · ${operation.label}`, targets: operation.targets.map((target) => `${provider}:${target}`) });
   const [overview, setOverview] = useState<SkillsOverview | null>(null);
   const [report, setReport] = useState<Report | null>(null);
@@ -226,11 +227,11 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
         </div>
       </div>
       <p className="text-xs text-zinc-500 -mt-2">
-        {provider === 'codex' ? 'Codex skills are grouped by their native source. Foundry manages supported standalone installs and updates; manage native Codex plugins in the Plugins tab. Skills in the shared ~/.agents/skills folder can be uninstalled here (to the trash), except one Claude Code reaches through a link: remove that one on the Claude Code side.' : "Grouped by where each skill comes from. Updates run the source's own tool (npx skills, claude plugin) or Foundry's installer; every run is recorded in History. Uninstall never deletes — copies go to the Trash tab."}
+        {provider === 'agy' ? "Antigravity reads skills only from a goal's workspace: Foundry installs them in the shared ~/.agents/skills folder (Codex and the skills CLI read it too) and links the installed ones into each goal's workspace. Plugins and their servers are not available for Antigravity. Uninstall never deletes — copies go to the Trash tab." : provider === 'codex' ? 'Codex skills are grouped by their native source. Foundry manages supported standalone installs and updates; manage native Codex plugins in the Plugins tab. Skills in the shared ~/.agents/skills folder can be uninstalled here (to the trash), except one Claude Code reaches through a link: remove that one on the Claude Code side.' : "Grouped by where each skill comes from. Updates run the source's own tool (npx skills, claude plugin) or Foundry's installer; every run is recorded in History. Uninstall never deletes — copies go to the Trash tab."}
       </p>
       <div className="-mt-1">
-        {provider === 'codex' ? (
-          <p className="text-[11px] text-zinc-500">Skill invocation telemetry is unavailable for Codex. Installed or listed skills do not prove a session used them; review the work and tests.</p>
+        {provider !== 'claude' ? (
+          <p className="text-[11px] text-zinc-500">Skill invocation telemetry is unavailable for {backend}. Installed or listed skills do not prove a session used them; review the work and tests.</p>
         ) : (
           <>
             <SessionLine view={overview.lastSession} />

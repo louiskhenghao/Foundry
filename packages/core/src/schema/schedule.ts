@@ -1,3 +1,4 @@
+import { AgentProvider } from './provider.ts';
 import { z } from 'zod';
 import { CodexEffort } from './codex-presets.ts';
 import { DeliveryPolicy } from './delivery.ts';
@@ -19,8 +20,9 @@ export type ScheduleCadence = z.infer<typeof ScheduleCadence>;
  * upload (staged once), a reference (investigated once), an issue (read once). Links are attached to every run.
  */
 export const GoalRecipe = z.object({
-  provider: z.enum(['claude', 'codex']).optional(),
+  provider: AgentProvider.optional(),
   codexModel: z.string().trim().min(1).optional(),
+  agyModel: z.string().trim().min(1).optional(),
   prompt: z.string().min(1),
   repoPath: z.string().min(1),
   title: z.string().optional(),

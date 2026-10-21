@@ -1,3 +1,4 @@
+import { AGENT_PROVIDERS, PROVIDER_LABEL, reportsDollars } from '@foundry/core/browser';
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Attachment, WorkflowProfile } from '@foundry/core/browser';
 import { ARTIFACT_NATURES, BUDGET_PRESETS } from '@foundry/core/browser';
@@ -68,7 +69,7 @@ export function NewGoalPage() {
   const nav = useNavigate();
   const [params] = useSearchParams();
   const requestedProvider = params.get('provider');
-  const initialProvider = requestedProvider === 'claude' || requestedProvider === 'codex' ? requestedProvider : null;
+  const initialProvider = AGENT_PROVIDERS.includes(requestedProvider as AgentProvider) ? (requestedProvider as AgentProvider) : null;
   // a follow-up started from a goal page (the audit's remaining findings) arrives with its text
   const [prompt, setPrompt] = useState(() => params.get('prompt') ?? '');
   useUnsaved('new-goal', !!prompt.trim());
@@ -107,8 +108,13 @@ export function NewGoalPage() {
   const [codexModel, setCodexModel] = useState('codex-default');
   const [codexOverride, setCodexOverride] = useState(false);
   const [codexKnown, setCodexKnown] = useState<ModelRecordView[] | null>(null);
+  // Antigravity runs every role on one model: '' = the one Settings names
+  const [agyModel, setAgyModel] = useState('');
+  const [agyDefault, setAgyDefault] = useState('agy-default');
+  const [agyKnown, setAgyKnown] = useState<ModelRecordView[] | null>(null);
   useEffect(() => { api.accounts().then(setAccounts).catch((e) => setAccountError(e.message)); }, []);
   useEffect(() => { if (provider === 'codex' && !codexKnown) void api.models('codex').then((r) => setCodexKnown(r.models)).catch(() => setCodexKnown([])); }, [provider]);
+  useEffect(() => { if (provider === 'agy' && !agyKnown) void api.models('agy').then((r) => setAgyKnown(r.models)).catch(() => setAgyKnown([])); }, [provider]);
   const [modelPreset, setModelPreset] = useState('');
   const [codexPreset, setCodexPreset] = useState('');
   const [presetInfo, setPresetInfo] = useState<{ ids: { id: string; label: string }[]; picks: Record<ModelNature, string> } | null>(null);
@@ -180,6 +186,7 @@ export function NewGoalPage() {
       .settings()
       .then((v) => {
         if (!changed.current.has('codexModel')) setCodexModel(v.values.models.codexModel);
+        setAgyDefault(v.values.models.agyModel);
         if (!changed.current.has('provider')) setProvider(v.values.engine.provider);
         const presets = effectivePresets((v.values.models.presets ?? {}) as Record<string, ModelPreset>);
         setPresetInfo({ ids: Object.entries(presets).map(([id, p]) => ({ id, label: p.label })), picks: { code: v.values.models.presetCode, docs: v.values.models.presetDocs, media: v.values.models.presetMedia } });
@@ -215,6 +222,7 @@ export function NewGoalPage() {
       setProvider(p.provider);
       setCodexOverride(p.provider === 'codex' && !!p.codexModel);
       if (p.codexModel) setCodexModel(p.codexModel);
+      setAgyModel(p.provider === 'agy' ? p.agyModel ?? '' : '');
       changeWorkflow({ type: 'follow-up', values: { profile: p.profile, tdd: p.tdd, ponytail: p.ponytail } });
       setRepoPath(p.repoPath);
       setRepoKey((k) => k + 1);
@@ -289,6 +297,7 @@ export function NewGoalPage() {
       if (r.provider) setProvider(r.provider);
       setCodexOverride(r.provider === 'codex' && !!r.codexModel);
       if (r.codexModel) setCodexModel(r.codexModel);
+      setAgyModel(r.provider === 'agy' ? r.agyModel ?? '' : '');
       setRepoPath(r.repoPath);
       setRepoKey((k) => k + 1);
       const validation = beginRepoValidation();
@@ -368,9 +377,10 @@ export function NewGoalPage() {
     setDelivery(next);
   };
 
-  const activePresetInfo = provider === 'codex' ? codexPresetInfo : presetInfo;
+  // Antigravity has no presets: one model for every role
+  const activePresetInfo = provider === 'codex' ? codexPresetInfo : provider === 'agy' ? null : presetInfo;
   const selectedAccount = accounts?.accounts.find((account) => account.provider === provider);
-  const selectedPreset = provider === 'codex' ? codexPreset : modelPreset;
+  const selectedPreset = provider === 'codex' ? codexPreset : provider === 'agy' ? '' : modelPreset;
   const missingPreset = !!selectedPreset && !!activePresetInfo && !activePresetInfo.ids.some((p) => p.id === selectedPreset);
   const codexPreview = codexPresetInfo?.presets[codexPreset || codexPresetInfo.picks[natureKey(nature)]];
   const unsupportedCodexChoices = provider === 'codex' && codexPreview ? [...new Set(CODEX_MODEL_ACTIONS.flatMap((role) => {
@@ -381,7 +391,7 @@ export function NewGoalPage() {
     const advertised = metadata?.available ? metadata.reasoningEfforts : undefined;
     return wantedEffort && advertised?.length && !advertised.includes(wantedEffort) ? [`${model} does not advertise ${wantedEffort} reasoning`] : [];
   }))] : [];
-  const agentName = provider === 'codex' ? 'Codex' : 'Claude Code';
+  const agentName = PROVIDER_LABEL[provider];
   // the first thing still missing, said next to the button: a greyed-out button must never leave you guessing
   const notReady = !prompt.trim()
     ? 'Describe the goal'
@@ -411,10 +421,11 @@ export function NewGoalPage() {
   const formBody = () => ({
         provider,
         codexModel: provider === 'codex' && codexOverride ? codexModel.trim() : undefined,
+        agyModel: provider === 'agy' && agyModel ? agyModel : undefined,
         prompt,
         repoPath: repoPath.trim(),
         title: title.trim() || undefined,
-        budgets: { ...budget.budgets, ...(provider === 'codex' ? { maxCostUsd: null } : {}) },
+        budgets: { ...budget.budgets, ...(!reportsDollars(provider) ? { maxCostUsd: null } : {}) },
         budgetPreset: budget.preset,
         autoBrief: auto ? { mustChecks: checks.split('\n').map((s) => s.trim()).filter(Boolean), stretchChecks: stretch.split('\n').map((s) => s.trim()).filter(Boolean) } : undefined,
         delivery,
@@ -428,7 +439,7 @@ export function NewGoalPage() {
         outputDir: ARTIFACT_NATURES.includes(nature) && outputDir.trim() ? outputDir.trim() : undefined,
         interviewDepth: Number(interviewDepth),
         effort: effort || (provider === 'codex' ? null : undefined),
-        modelPreset: (provider === 'codex' ? codexPreset : modelPreset) || undefined,
+        modelPreset: (provider === 'codex' ? codexPreset : provider === 'agy' ? '' : modelPreset) || undefined,
         follows: follow ? { goalId: follow.draft.previous.id, startFrom: follow.startFrom, attachments: follow.attachments, style: follow.style } : undefined,
         delegation: { allow: delegate, autoApprove: delegate && delegateAuto },
         companions: companions.map((p) => p.trim()).filter(Boolean).map((p) => ({ repoPath: p })),
@@ -482,8 +493,8 @@ export function NewGoalPage() {
       )}
 
       <Card title="Coding agent">
-        <ProviderSelector hideLabel value={provider} onChange={(id) => { changed.current.add('provider'); setProvider(id); if (id === 'claude' && ['none', 'minimal', 'ultra'].includes(effort)) setEffort(''); }} />
-        <p className="mt-2 text-xs text-zinc-400">{provider === 'codex' ? 'Codex' : 'Claude Code'} · {!selectedAccount ? 'Checking account…' : selectedAccount.status.loggedIn ? 'Connected' : selectedAccount.installed ? 'Sign in required' : 'CLI not installed'}</p>
+        <ProviderSelector hideLabel value={provider} onChange={(id) => { changed.current.add('provider'); setProvider(id); if (id !== 'codex' && ['none', 'minimal', 'ultra'].includes(effort)) setEffort(''); }} />
+        <p className="mt-2 text-xs text-zinc-400">{PROVIDER_LABEL[provider]} · {!selectedAccount ? 'Checking account…' : selectedAccount.status.loggedIn ? 'Connected' : selectedAccount.installed ? 'Sign in required' : 'CLI not installed'}</p>
         {accountError && <p role="alert" className="mt-3 text-xs text-rose-400">Unable to check accounts: {accountError}. Open Manage accounts to retry.</p>}
         <p className="text-xs text-zinc-400 mt-3">This choice stays fixed for the goal, including retries and reviews. <a href="/accounts" className="text-emerald-400">Manage accounts</a></p>
       </Card>
@@ -510,7 +521,7 @@ export function NewGoalPage() {
         </div>
         {nature === 'cad' && cad && !cad.installed && (
           <p className="mt-2 text-xs text-amber-300" role="status">
-            text-to-cad is not installed for this coding agent: a CAD goal waits for it before Clarify. Install it on the <Link to={`/setup?provider=${provider}`} className="underline">Setup page</Link> (3D models){cad.uv ? '' : '; uv, which runs its CAD kernel, is missing too'}.
+            {provider === 'agy' ? 'text-to-cad is not available for Antigravity: a CAD goal would wait for it before Clarify. Run CAD goals on Claude Code or Codex.' : <>text-to-cad is not installed for this coding agent: a CAD goal waits for it before Clarify. Install it on the <Link to={`/setup?provider=${provider}`} className="underline">Setup page</Link> (3D models){cad.uv ? '' : '; uv, which runs its CAD kernel, is missing too'}.</>}
           </p>
         )}
         {ARTIFACT_NATURES.includes(nature) && (
@@ -602,6 +613,14 @@ export function NewGoalPage() {
           </div>
           <div className="flex items-center gap-2.5 flex-wrap">
             <span className="text-xs text-zinc-300">Models<HelpLink to="your-first-goal#models" className="ml-1.5" /></span>
+            {provider === 'agy' ? (
+              <div className="w-72 max-w-full">
+                <Select aria-label="Antigravity model" className="text-xs" value={agyModel} onChange={(e) => { changed.current.add('agyModel'); setAgyModel(e.target.value); }}>
+                  <option value="">Default · {agyDefault}</option>
+                  {(agyKnown ?? []).map((m) => <option key={m.name} value={m.name}>{m.label ? `${m.label} · ${m.name}` : m.name}</option>)}
+                </Select>
+              </div>
+            ) : (
             <ButtonGroup
               label={provider === 'codex' ? 'Codex preset' : 'Models'}
               value={provider === 'codex' ? codexPreset : modelPreset}
@@ -615,6 +634,7 @@ export function NewGoalPage() {
                 ...(activePresetInfo?.ids ?? []).map((p) => ({ id: p.id, label: p.label })),
               ]}
             />
+            )}
           </div>
         </div>
         {missingPreset && <p role="alert" className="mt-3 text-xs text-amber-300">The earlier goal’s preset “{selectedPreset}” is no longer available. Choose a preset for this new goal.</p>}
@@ -626,6 +646,10 @@ export function NewGoalPage() {
           {codexPreview && <details className="text-xs"><summary className="cursor-pointer text-zinc-300">View {codexPreview.label} role assignments</summary><p className="text-zinc-500 mt-2">{codexPreview.description}</p><div className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5 mt-3">{CODEX_MODEL_ACTIONS.map((role) => { const choice = codexPreview.tables[natureKey(nature)][role]; const model = codexOverride || choice.model === 'codex-default' ? codexModel : choice.model; return <div key={role} className="flex justify-between gap-3 border-b border-zinc-800 py-1"><span className="text-zinc-400">{role === 'housekeeping' ? 'Housekeeping' : ACTION_INFO[role].label}</span><span className="text-right mono text-zinc-300">{model === 'codex-default' ? 'CLI default model' : model} · {effort || choice.effort || 'CLI effort'}</span></div>; })}</div></details>}
           {unsupportedCodexChoices.length > 0 && <p role="alert" className="text-xs text-amber-300">{unsupportedCodexChoices.join('; ')}. Choose a supported goal effort or update the preset in Settings.</p>}
           <p className="text-xs text-amber-300">Codex dollar costs are unavailable; dollar budgets do not stop runs. Use duration and attempt limits.</p>
+        </div>}
+        {provider === 'agy' && <div className="mt-4 space-y-2 rounded-md border border-zinc-800 p-3">
+          <p className="text-xs text-zinc-400">Every role of this goal runs on the one model above, kept when the goal is created. Default is the model Settings names; Antigravity default follows the model agy itself is set to. An explicit effort applies to every role.</p>
+          <p className="text-xs text-amber-300">Antigravity dollar costs are unavailable; dollar budgets do not stop runs. Use duration and attempt limits.</p>
         </div>}
         {mode === 'expert' && (
           <div className="mt-3 flex items-center gap-2.5 flex-wrap">
@@ -766,7 +790,7 @@ export function NewGoalPage() {
       </Card>
 
       <Card title={<>3 · Budget<HelpLink to="your-first-goal#budget" className="ml-1.5" /></>}>
-        <BudgetPicker costAvailable={provider === 'claude'} value={budget} onChange={setBudget} />
+        <BudgetPicker costAvailable={reportsDollars(provider)} value={budget} onChange={setBudget} />
       </Card>
 
       <Card title={<>4 · Delivery — what may the engine do with the result?<HelpLink to="your-first-goal#delivery" className="ml-1.5" /></>}>
@@ -800,7 +824,7 @@ export function NewGoalPage() {
                 </div>
               </div>
             )}
-            {auto && budget.preset === 'auto' && <p className="text-xs text-zinc-500 mt-2">With Auto budget and no Brief, the engine applies the minimum proposal ({provider === 'codex' ? '30 min' : '$3 / 30 min'}) and pauses to ask if it is exceeded.</p>}
+            {auto && budget.preset === 'auto' && <p className="text-xs text-zinc-500 mt-2">With Auto budget and no Brief, the engine applies the minimum proposal ({reportsDollars(provider) ? '$3 / 30 min' : '30 min'}) and pauses to ask if it is exceeded.</p>}
           </Card>
         )}
       </div>

@@ -162,7 +162,7 @@ export function BudgetPicker({
           </button>
         </div>
       )}
-      {!costAvailable && <p className="text-xs text-amber-300">Codex reports tokens, not dollar cost. USD budgets are unavailable.</p>}
+      {!costAvailable && <p className="text-xs text-amber-300">This coding agent reports tokens, not dollar cost. USD budgets are unavailable.</p>}
       {invalid && (
         <div className="text-xs text-rose-400">
           Limits must be positive (leave blank for no limit).

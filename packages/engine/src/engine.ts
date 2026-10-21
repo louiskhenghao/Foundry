@@ -1,6 +1,8 @@
+import { AgentProvider, PROVIDER_NAME, reportsDollars } from '@foundry/core';
 import type { CodexQuota } from './usage/types.ts';
 import { CAD_VIEWER_KEY, CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, Effort, effectiveCodexPresets, isHistory, natureKey, repoHere, type CodexModelPreset } from '@foundry/core';
 import { CodexPlugins } from './plugins/codex-plugins.ts';
+import { AgyQuotaReader } from './usage/agy-quota.ts';
 import { CodexQuotaReader } from './usage/codex-quota.ts';
 import { discoverCodexModels } from './models/codex-discover.ts';
 import { basename, dirname, join } from 'node:path';
@@ -34,7 +36,7 @@ import {
   Brief as BriefSchema,
 } from '@foundry/core';
 import { ProviderRunner } from './provider-runner.ts';
-import { CodexCliRunner, ClaudeCliRunner, type ClaudeRunner, type RunHandle } from '@foundry/runner';
+import { AgyCliRunner, CodexCliRunner, ClaudeCliRunner, type ClaudeRunner, type RunHandle } from '@foundry/runner';
 import { McpManager } from './mcp/manager.ts';
 import { CodexMcpManager } from './mcp/codex-manager.ts';
 import { mmxConfigDir, mmxSignedIn, writeMmxConfig } from './mmx.ts';
@@ -65,7 +67,7 @@ import { cleanDeliverables, deliversCheckName, deliversCheckSpec } from './check
 import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
 import { skillUsage } from './skills/usage.ts';
-import { linkSuiteSkills } from './skills/suites.ts';
+import { linkSkillDirs, linkSuiteSkills } from './skills/suites.ts';
 import { exportLearningsSkill } from './learnings-skill.ts';
 import { secondOpinion, secondOpinionFailureOf, secondOpinionOf, secondOpinionOnBrief, startSecondOpinion, type SecondOpinionFailure, type SecondOpinionView } from './brief-second-opinion.ts';
 import { SATISFIED } from './skills/catalog.ts';
@@ -107,7 +109,7 @@ import { DEPLOY_PROVIDERS, PROVIDER_LABEL, configured, deploySteps, redact } fro
 import { ModelFallbackRunner } from './models/fallback-runner.ts';
 import { modelsInBinary } from './models/discover.ts';
 import { EffortRunner } from './effort-runner.ts';
-import { ModelRegistry, SEED_MODELS, isPinnedId, type ModelRecord } from './models/registry.ts';
+import { AGY_SEED_MODELS, ModelRegistry, SEED_MODELS, isPinnedId, parseAgyModels, type ModelRecord } from './models/registry.ts';
 import { copyProjectSkills, hasStackManifest, runAutoskills, type AutoskillsDeps } from './skills/autoskills.ts';
 import { artifactsDue, deliverArtifacts, inferCompletion, runGraphRefresh, shouldRunGraphRefresh, type GraphRefreshDeps } from './completion.ts';
 import { stuckCommits, takeBackOrphaned, takeBackStuck } from './take-back.ts';
@@ -118,6 +120,7 @@ import { spawnStreaming } from './skills/updaters.ts';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { removeWorktree } from './git/git.ts';
 import { BaselineChecks } from './checks/baseline.ts';
+import { homedir } from 'node:os';
 import { relative, resolve } from 'node:path';
 import { adoptLocalBin, AGENT_CLI_IDS, agentCliInstall, type AgentCliId } from './agent-cli.ts';
 import { type FollowUpDraft, type FollowUpInput, copyAttachments, followUpDraft, linkFollowUp, prepareFollowUp } from './follow-up.ts';
@@ -140,8 +143,10 @@ import { pluginServerPrefix } from './mcp/servers.ts';
 import { serverBaseArgs } from './skills/installer.ts';
 
 export interface CreateGoalInput {
-  provider?: 'claude' | 'codex';
+  provider?: AgentProvider;
   codexModel?: string;
+  /** the Antigravity model of every role of this goal; default: Settings */
+  agyModel?: string;
   title?: string;
   prompt: string;
   repoPath: string;
@@ -244,11 +249,12 @@ export class Engine {
   readonly mcp: McpManager;
   readonly codexMcp: CodexMcpManager;
   readonly codexQuota: CodexQuotaReader;
+  readonly agyQuota: AgyQuotaReader;
   readonly codexPlugins: CodexPlugins;
   readonly agents: AgentsMonitor;
   readonly auth: ClaudeAuth;
-  readonly accounts: Record<'claude' | 'codex', ClaudeAuth>;
-  private providerSkills: Record<'claude' | 'codex', SkillsManager>;
+  readonly accounts: Record<AgentProvider, ClaudeAuth>;
+  private providerSkills: Record<AgentProvider, SkillsManager>;
   readonly gh: GhClient;
   /** who may use this Foundry from elsewhere (ADR-0061) */
   readonly access: Access;
@@ -334,8 +340,8 @@ export class Engine {
   readonly baseline = new BaselineChecks(this);
   private reviewing = new Set<string>();
   private ownedSessionIds = new Set<string>();
-  private rateLimitedUntil = new Map<'claude' | 'codex', number>();
-  private resumeTimers = new Map<'claude' | 'codex', ReturnType<typeof setTimeout>>();
+  private rateLimitedUntil = new Map<AgentProvider, number>();
+  private resumeTimers = new Map<AgentProvider, ReturnType<typeof setTimeout>>();
 
   readonly settings: SettingsStore;
   /** pushes escalations / goal endings / delivery results / usage pauses to Telegram & Discord (Settings → Notifications) */
@@ -360,7 +366,7 @@ export class Engine {
   private mmxReady = false;
   /** what this machine has learned about model names (requested → resolved id, last ok/fail) */
   readonly models: ModelRegistry;
-  readonly providerModels: Record<'claude' | 'codex', ModelRegistry>;
+  readonly providerModels: Record<AgentProvider, ModelRegistry>;
   /** autoskills runs in progress, per goal (tasks wait for them before their first attempt) */
   private autoskillsRuns = new Map<string, Promise<void>>();
   /** test seam: deps handed to runAutoskills (fake npx / node version) */
@@ -372,7 +378,7 @@ export class Engine {
 
   constructor(
     public readonly config: EngineConfig,
-    runner?: ClaudeRunner | Record<'claude' | 'codex', ClaudeRunner>,
+    runner?: ClaudeRunner | Partial<Record<AgentProvider, ClaudeRunner>>,
     gh?: GhClient,
   ) {
     // settings file > env > defaults: only file-sourced leaves override the env-built config (code overrides stay)
@@ -395,12 +401,13 @@ export class Engine {
     this.providerModels = {
       claude: new ModelRegistry(config.provider === 'claude' ? config.dataDir : join(config.dataDir, 'providers', 'claude'), 'claude'),
       codex: new ModelRegistry(config.provider === 'codex' ? config.dataDir : join(config.dataDir, 'providers', 'codex'), 'codex'),
+      agy: new ModelRegistry(config.provider === 'agy' ? config.dataDir : join(config.dataDir, 'providers', 'agy'), 'agy'),
     };
     this.models = this.providerModels[config.provider];
     const env = () => ({ ...claudeConfigEnv(config.claudeHome), FOUNDRY_CALLBACK: `http://${config.host}:${config.port}`, ...this.sessionEnvExtra() });
-    const supplied = (provider: 'claude' | 'codex') => runner && ('run' in runner ? runner : runner[provider]);
+    const supplied = (provider: AgentProvider) => runner && ('run' in runner ? runner : runner[provider]);
     const sessionCosts = new SessionCosts(config.dataDir);
-    const wrap = (inner: ClaudeRunner, provider: 'claude' | 'codex') => {
+    const wrap = (inner: ClaudeRunner, provider: AgentProvider) => {
       const checked: ClaudeRunner & { killAll: () => number } = {
         active: () => inner.active(),
         setMaxConcurrent: (n) => inner.setMaxConcurrent?.(n),
@@ -414,7 +421,8 @@ export class Engine {
         },
       };
       const fallback = new ModelFallbackRunner(checked, {
-        fallbacks: (spec) => provider === 'codex' ? (spec.meta?.goalId ? this.mustGoal(spec.meta.goalId).codexFallbacks ?? [] : config.codexFallbacks) : config.modelFallbacks,
+        // Antigravity has no fallback order: its CLI refuses an unknown model outright
+        fallbacks: (spec) => provider === 'codex' ? (spec.meta?.goalId ? this.mustGoal(spec.meta.goalId).codexFallbacks ?? [] : config.codexFallbacks) : provider === 'agy' ? [] : config.modelFallbacks,
         registry: this.providerModels[provider],
         log: config.log,
         onFallback: ({ spec, from, to, reason }) => {
@@ -422,20 +430,23 @@ export class Engine {
           this.store.append({ type: 'goal.models_changed', goalId, payload: { tier: null, from, to, reason } });
         },
       });
-      return new EffortRunner(fallback, () => this.store.db, () => provider === 'codex' ? null : this.config.effort);
+      return new EffortRunner(fallback, () => this.store.db, () => (provider === 'codex' ? null : provider === 'agy' ? this.config.agyEffort : this.config.effort));
     };
     this.runner = new ProviderRunner({
       claude: wrap(supplied('claude') ?? new ClaudeCliRunner({ claudeBin: config.claudeBin, claudeHome: config.claudeHome, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'claude'),
       codex: wrap(supplied('codex') ?? new CodexCliRunner({ codexBin: config.codexBin, codexHome: config.codexHome, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'codex'),
+      agy: wrap(supplied('agy') ?? new AgyCliRunner({ agyBin: config.agyBin, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'agy'),
     }, (spec) => {
       if (spec.meta?.goalId) return this.mustGoal(spec.meta.goalId).provider ?? config.provider;
-      return spec.meta?.provider === 'claude' || spec.meta?.provider === 'codex' ? spec.meta.provider : config.provider;
+      const named = AgentProvider.safeParse(spec.meta?.provider);
+      return named.success ? named.data : config.provider;
     }, config.maxConcurrent);
     this.roles = new Roles(config.rolesDir);
-    const makeSkills = (provider: 'claude' | 'codex') => new SkillsManager({
-      provider, codexBin: config.codexBin, codexHome: config.codexHome,
-      claudeHome: provider === 'codex' ? config.codexHome : config.claudeHome,
-      claudeSkillsDir: provider === 'codex' ? join(config.claudeHome, 'skills') : undefined,
+    const makeSkills = (provider: AgentProvider) => new SkillsManager({
+      provider, codexBin: config.codexBin, codexHome: config.codexHome, agyBin: config.agyBin,
+      // Antigravity reads skills only from a workspace's .agents/skills: its store is the shared ~/.agents/skills, linked in per goal
+      claudeHome: provider === 'codex' ? config.codexHome : provider === 'agy' ? join(homedir(), '.agents') : config.claudeHome,
+      claudeSkillsDir: provider !== 'claude' ? join(config.claudeHome, 'skills') : undefined,
       dataDir: provider === config.provider ? config.dataDir : join(config.dataDir, 'providers', provider),
       catalogPath: config.catalogPath,
       // one store for both coding agents: a suite's copy is the same plugin either way
@@ -448,7 +459,7 @@ export class Engine {
       packs: () => ({ design: config.designPack, image: config.imagePack, video: config.videoPack }),
       // a plugin that ships MCP servers (text-to-cad's `cad`) is allowed for sessions as soon as it is installed, under the prefix this coding agent gives it
       onPluginServers: (prefixes) => {
-        for (const p of prefixes) this.mcpFor(provider).allow(p, true);
+        if (provider !== 'agy') for (const p of prefixes) this.mcpFor(provider).allow(p, true);
       },
       sessionEnv: () => this.sessionEnvExtra(),
       gates: () => ({ desktopApps: this.config.desktopApps }),
@@ -466,7 +477,7 @@ export class Engine {
         events: (goalId) => this.store.listByGoalOfTypes(goalId, ['session.usage', 'attempt.finished', 'attempt.started', 'attempt.session']),
       }) : undefined,
     });
-    this.providerSkills = { claude: makeSkills('claude'), codex: makeSkills('codex') };
+    this.providerSkills = { claude: makeSkills('claude'), codex: makeSkills('codex'), agy: makeSkills('agy') };
     this.skills = this.providerSkills[config.provider];
     this.mcp = new McpManager({
       claudeHome: config.claudeHome,
@@ -485,9 +496,11 @@ export class Engine {
     });
     this.codexPlugins = new CodexPlugins({ codexHome: config.codexHome, codexBin: config.codexBin });
     this.codexQuota = new CodexQuotaReader({ bin: () => config.codexBin ?? Bun.which('codex'), home: config.codexHome });
+    this.agyQuota = new AgyQuotaReader({ bin: () => config.agyBin ?? Bun.which('agy') });
     this.accounts = {
       claude: new ClaudeAuth({ provider: 'claude', claudeHome: config.claudeHome, claudeBin: () => config.claudeBin ?? Bun.which('claude'), log: config.log }),
       codex: new ClaudeAuth({ provider: 'codex', claudeBin: () => config.codexBin ?? Bun.which('codex'), codexHome: config.codexHome, log: config.log }),
+      agy: new ClaudeAuth({ provider: 'agy', claudeBin: () => config.agyBin ?? Bun.which('agy'), log: config.log }),
     };
     this.accounts.codex.onLoginUpdate(() => { this.codexQuota.invalidate(); this.codexPlugins.invalidate(); });
     this.auth = this.accounts[config.provider];
@@ -651,7 +664,7 @@ export class Engine {
    * What the New goal form and a waiting goal's page ask: the plugin and uv, for a coding agent. A cad goal waiting for
    * the plugin goes on when it turned up (installed by hand, say): the page asks while it waits.
    */
-  async cadStatus(provider: 'claude' | 'codex'): Promise<{ installed: boolean; uv: boolean }> {
+  async cadStatus(provider: AgentProvider): Promise<{ installed: boolean; uv: boolean }> {
     const installed = await this.cadAvailable({ provider, repoPath: '' });
     if (installed) for (const id of this.cadWaiting) {
       const g = getGoal(this.store.db, id);
@@ -661,7 +674,7 @@ export class Engine {
   }
 
   /** a plugin was installed for this coding agent: forget what was known, and let the cad goals waiting for it go on to Clarify */
-  pluginInstalled(provider: 'claude' | 'codex'): void {
+  pluginInstalled(provider: AgentProvider): void {
     this.cadMemo.clear();
     for (const g of listGoals(this.store.db)) if (g.state === 'clarifying' && g.nature === 'cad' && (g.provider ?? this.config.provider) === provider) void this.tick(g.id);
   }
@@ -769,7 +782,7 @@ export class Engine {
    */
   private propagateModels(before: ModelConfig): void {
     for (const goal of listGoals(this.store.db)) {
-      if (goal.provider === 'codex' || isHistory(goal)) continue;
+      if ((goal.provider ?? 'claude') !== 'claude' || isHistory(goal)) continue;
       if (['done', 'over_delivered', 'failed', 'cancelled'].includes(goal.state)) continue;
       for (const tier of ['strong', 'worker', 'cheap'] as const) {
         const to = this.config.models[tier];
@@ -1286,7 +1299,7 @@ export class Engine {
   // ---------- usage & rate limits ----------
 
   /** Single funnel for every finished session: ledger event + rate-limit observation. */
-  recordSessionUsage(result: RunResult, meta: { goalId: string | null; kind: string; model?: string | null; provider?: 'claude' | 'codex' }): void {
+  recordSessionUsage(result: RunResult, meta: { goalId: string | null; kind: string; model?: string | null; provider?: AgentProvider }): void {
     const provider = (meta.goalId ? this.mustGoal(meta.goalId).provider : meta.provider) ?? this.config.provider;
     const u: any = result.usage ?? {};
     const n = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? x : 0);
@@ -1317,7 +1330,7 @@ export class Engine {
     this.observeRateLimit(result, provider);
   }
 
-  private observeRateLimit(result: RunResult, provider: 'claude' | 'codex'): void {
+  private observeRateLimit(result: RunResult, provider: AgentProvider): void {
     const rl = result.rateLimit;
     const now = Date.now();
     const byStatus = limitPauseUntil(rl, now);
@@ -1343,11 +1356,11 @@ export class Engine {
     this.store.append({ type: 'rate_limit.paused', goalId: null, payload: { provider, rateLimitType, until: new Date(until).toISOString(), reason } });
     this.armResume(until, provider);
   }
-  private armResume(until: number, provider: 'claude' | 'codex'): void {
+  private armResume(until: number, provider: AgentProvider): void {
     clearTimeout(this.resumeTimers.get(provider));
     this.resumeTimers.set(provider, setTimeout(() => this.resume(provider, 'retry time reached'), Math.max(0, until - Date.now()) + 1000));
   }
-  private resume(provider: 'claude' | 'codex', reason: string): void {
+  private resume(provider: AgentProvider, reason: string): void {
     clearTimeout(this.resumeTimers.get(provider));
     this.rateLimitedUntil.delete(provider);
     this.resumeTimers.delete(provider);
@@ -1380,16 +1393,16 @@ export class Engine {
   rateLimitedUntilIso(provider = this.config.provider): string | null { return this.isRateLimited(provider) ? new Date(this.rateLimitedUntil.get(provider)!).toISOString() : null; }
 
   usage(provider = this.config.provider): UsageSummary & { pausedUntil: string | null } {
-    return { ...usageSummary(this.store.db, Date.now(), provider, this.config.provider), provider, costAvailable: provider !== 'codex', ...(provider === 'codex' ? { codexQuota: this.codexQuota.current(), note: 'Codex reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. Account quota follows the native account; activity totals count only Foundry sessions.' } : {}), pausedUntil: this.rateLimitedUntilIso(provider) };
+    return { ...usageSummary(this.store.db, Date.now(), provider, this.config.provider), provider, costAvailable: reportsDollars(provider), ...(provider === 'codex' ? { codexQuota: this.codexQuota.current(), note: 'Codex reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. Account quota follows the native account; activity totals count only Foundry sessions.' } : provider === 'agy' ? { agyQuota: this.agyQuota.current(), note: 'Antigravity reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. The quota is the account\'s own, read from agy; activity totals count only Foundry sessions.' } : {}), pausedUntil: this.rateLimitedUntilIso(provider) };
   }
 
   // ---------- models ----------
 
   /** seed aliases ∪ names seen in sessions, with what they resolved to; what the Settings page lists */
-  listModels(provider: 'claude' | 'codex' = this.config.provider): (ModelRecord & { label: string | null; note: string | null; pinned: boolean; inUse: string[] })[] {
+  listModels(provider: AgentProvider = this.config.provider): (ModelRecord & { label: string | null; note: string | null; pinned: boolean; inUse: string[] })[] {
     const used = this.modelsInUse(provider);
     return this.providerModels[provider].list().map((r) => {
-      const seed = SEED_MODELS.find((s) => s.name === r.name);
+      const seed = (provider === 'agy' ? AGY_SEED_MODELS : SEED_MODELS).find((s) => s.name === r.name);
       const inUse = used.get(r.name) ?? [];
       return { ...r, label: provider === 'codex' ? r.codex?.displayName ?? (r.name === 'codex-default' ? 'CLI default' : null) : seed?.label ?? null, note: provider === 'codex' ? r.codex?.description ?? null : seed?.note ?? null, pinned: isPinnedId(r.name), inUse };
     });
@@ -1402,7 +1415,7 @@ export class Engine {
     }
   }
   /** One minimal session with `name` (user-triggered; costs one short call) to learn what it resolves to. */
-  async probeModel(name: string, provider: 'claude' | 'codex' = this.config.provider, effort?: CodexEffort): Promise<{ ok: boolean; name: string; resolvedId: string | null; costUsd: number; costAvailable: boolean; error: string | null }> {
+  async probeModel(name: string, provider: AgentProvider = this.config.provider, effort?: CodexEffort): Promise<{ ok: boolean; name: string; resolvedId: string | null; costUsd: number; costAvailable: boolean; error: string | null }> {
     const handle = await this.runner.run({ prompt: 'Reply with the single word OK.', cwd: this.config.dataDir, model: name, effort, meta: { tier: 'probe', provider }, maxTurns: 1, maxBudgetUsd: 0.5, permissionMode: 'dontAsk', allowedTools: [], timeoutMs: 90_000, label: `model probe ${name}` });
     let resolved: string | null = null;
     for await (const ev of handle.events) if (ev.kind === 'init') resolved = ev.model;
@@ -1420,13 +1433,18 @@ export class Engine {
 
   async readUsage(provider = this.config.provider, force = false): Promise<UsageSummary & { pausedUntil: string | null }> {
     if (provider === 'codex') await this.codexQuota.read(force);
+    if (provider === 'agy') await this.agyQuota.read(force);
     return this.usage(provider);
   }
 
   /** the models the presets Settings picks actually use, with where: "opus" → ["Code: Standard tasks", …] */
-  modelsInUse(provider: 'claude' | 'codex' = this.config.provider): Map<string, string[]> {
+  modelsInUse(provider: AgentProvider = this.config.provider): Map<string, string[]> {
     const presets = effectivePresets(this.config.modelPresets);
     const used = new Map<string, string[]>();
+    if (provider === 'agy') {
+      used.set(this.config.agyModel, ['Every role']);
+      return used;
+    }
     if (provider === 'codex') {
       const native = effectiveCodexPresets(this.config.codexPresets);
       for (const n of MODEL_NATURES) {
@@ -1445,7 +1463,7 @@ export class Engine {
     return used;
   }
 
-  private modelsCheck(provider: 'claude' | 'codex' = this.config.provider) {
+  private modelsCheck(provider: AgentProvider = this.config.provider) {
     const registry = this.providerModels[provider];
     const issues: string[] = [];
     for (const [name, where] of this.modelsInUse(provider)) {
@@ -1453,8 +1471,8 @@ export class Engine {
       if (r?.lastFailAt && (!r.lastOkAt || r.lastFailAt > r.lastOkAt)) issues.push(`${name} (${where.length} action${where.length === 1 ? '' : 's'}): last failed ${r.lastFailAt.slice(0, 16).replace('T', ' ')} (${r.lastError ?? 'model unavailable'})`);
       else if (!r || (!r.seed && !r.discovered && !registry.known(name))) issues.push(`${name} (${where.length} action${where.length === 1 ? '' : 's'}): never seen resolving on this machine`);
     }
-    const picks = provider === 'codex' ? `Codex: ${this.config.codexModel}` : MODEL_NATURES.map((n) => `${NATURE_LABEL[n]} ${effectivePresets(this.config.modelPresets)[this.config.naturePreset[n]]?.label ?? this.config.naturePreset[n]}`).join(' · ');
-    const detail = issues.length ? issues.join('; ') : `${picks}${provider === 'codex' ? '' : '; fallbacks ' + this.config.modelFallbacks.join(' → ')}`;
+    const picks = provider === 'codex' ? `Codex: ${this.config.codexModel}` : provider === 'agy' ? `Antigravity: ${this.config.agyModel} (${this.config.agyEffort} effort)` : MODEL_NATURES.map((n) => `${NATURE_LABEL[n]} ${effectivePresets(this.config.modelPresets)[this.config.naturePreset[n]]?.label ?? this.config.naturePreset[n]}`).join(' · ');
+    const detail = issues.length ? issues.join('; ') : `${picks}${provider !== 'claude' ? '' : '; fallbacks ' + this.config.modelFallbacks.join(' → ')}`;
     return { id: 'models', label: 'Models (presets in use)', ok: issues.length === 0, severity: 'warn' as const, detail, fix: issues.length ? { action: 'test-models' as const } : null };
   }
 
@@ -1463,7 +1481,7 @@ export class Engine {
    * session each so the dropdowns show what `fable` / `opus` / `sonnet` / `haiku` mean today. Runs on demand and when the
    * Claude Code version changes.
    */
-  async syncModels(opts: { probe?: boolean; provider?: 'claude' | 'codex' } = {}): Promise<{ found: number; newest: string[]; resolved: Record<string, string | null>; cliVersion: string | null }> {
+  async syncModels(opts: { probe?: boolean; provider?: AgentProvider } = {}): Promise<{ found: number; newest: string[]; resolved: Record<string, string | null>; cliVersion: string | null }> {
     const provider = opts.provider ?? this.config.provider;
     const registry = this.providerModels[provider];
     if (provider === 'codex') {
@@ -1479,6 +1497,19 @@ export class Engine {
       const cliVersion = result.cliVersion ?? null;
       registry.noteSync({ cliVersion, at: new Date().toISOString(), found: result.models.length });
       return { found: result.models.length, newest: result.models.filter((m) => m.isDefault).map((m) => m.id), resolved: {}, cliVersion };
+    }
+    if (provider === 'agy') {
+      const bin = this.config.agyBin ?? Bun.which('agy');
+      if (!bin) throw new Error('The Antigravity CLI is not installed. Set the CLI path in Accounts and restart Foundry.');
+      const r = await exec([bin, 'models'], this.config.dataDir, { timeoutMs: 60_000 }).catch(() => null);
+      if (!r || r.code !== 0) throw new Error(`agy models failed: ${(r?.stderr || r?.stdout || 'no output').trim().slice(0, 200)}`);
+      const found = parseAgyModels(r.stdout);
+      if (found.length) registry.noteDiscovered(found.map((m) => ({ id: m.id, family: m.id.replace(/-(high|medium|low)$/, ''), newest: false })));
+      const v = await exec([bin, '--version'], this.config.dataDir, { timeoutMs: 15_000 }).catch(() => null);
+      const cliVersion = v?.code === 0 ? v.stdout.trim().split(/\s/).pop() ?? null : null;
+      registry.noteSync({ cliVersion, at: new Date().toISOString(), found: found.length });
+      this.config.log(`[models] sync: ${found.length} model(s) listed by agy`);
+      return { found: found.length, newest: [], resolved: {}, cliVersion };
     }
     const bin = this.config.claudeBin ?? Bun.which('claude');
     const found = bin ? modelsInBinary(bin) : [];
@@ -1501,7 +1532,7 @@ export class Engine {
    * is moved to the shipped defaults once, with a note listing what it had so the choice can be undone.
    */
   private migrateModelTiersToPresets(): void {
-    if (this.config.provider === 'codex') return;
+    if (this.config.provider !== 'claude') return;
     for (const name of ['FOUNDRY_MODEL_STRONG', 'FOUNDRY_MODEL_WORKER', 'FOUNDRY_GOAL_REVIEWER']) {
       if (process.env[name]) this.config.log(`[settings] ${name} is set but no longer does anything: models come from presets (Settings → Models & limits)`);
     }
@@ -1521,7 +1552,7 @@ export class Engine {
 
   /** a new Claude Code version may know new models: sync once, in the background */
   private async syncModelsIfCliChanged(): Promise<void> {
-    if (this.config.provider === 'codex') return; // no paid model probes at startup
+    if (this.config.provider !== 'claude') return; // no paid model probes at startup
     const v = await this.claudeVersion();
     if (v && v !== this.models.syncState().cliVersion) await this.syncModels().catch((err) => this.config.log(`[models] sync failed: ${String(err)}`));
   }
@@ -1548,8 +1579,8 @@ export class Engine {
     return this.minimaxRun;
   }
 
-  async probeUsage(provider: 'claude' | 'codex' = this.config.provider): Promise<UsageSummary & { pausedUntil: string | null }> {
-    if (provider === 'codex') return this.readUsage(provider, true);
+  async probeUsage(provider: AgentProvider = this.config.provider): Promise<UsageSummary & { pausedUntil: string | null }> {
+    if (provider !== 'claude') return this.readUsage(provider, true);
     const handle = await this.runner.run({ prompt: 'Reply with the single word OK.', cwd: this.config.dataDir, model: this.config.models.cheap, maxTurns: 1, maxBudgetUsd: 0.05, permissionMode: 'dontAsk', allowedTools: [], timeoutMs: 60_000, label: 'usage probe', meta: { provider } });
     for await (const _ of handle.events) {
       /* drain */
@@ -1889,16 +1920,20 @@ export class Engine {
     }
   }
 
-  skillsForProvider(provider: 'claude' | 'codex' = this.config.provider): SkillsManager {
+  skillsForProvider(provider: AgentProvider = this.config.provider): SkillsManager {
     return this.providerSkills[provider];
   }
 
-  mcpFor(provider: 'claude' | 'codex' = this.config.provider) {
+  /** the MCP manager of a coding agent; Antigravity keeps its servers itself (`agy mcp`), so it has none here */
+  mcpFor(provider: AgentProvider = this.config.provider) {
+    if (provider === 'agy') throw new Error("Antigravity keeps its MCP servers itself: add them with agy mcp add, list them with agy mcp list.");
     return provider === 'codex' ? this.codexMcp : this.mcp;
   }
 
   mcpAllowedFor(goal: Goal): string[] {
-    return (goal.provider ?? this.config.provider) === 'codex' ? this.config.codexMcpAllowed : this.config.mcpAllowed;
+    const provider = goal.provider ?? this.config.provider;
+    // Antigravity sessions use the servers the person configured in agy itself; Foundry keeps no allowlist for them
+    return provider === 'codex' ? this.config.codexMcpAllowed : provider === 'agy' ? [] : this.config.mcpAllowed;
   }
 
   /**
@@ -1907,7 +1942,7 @@ export class Engine {
    * unless Settings opened them. The catalog is data on disk; when it cannot be read (a broken install) there is no
    * deny list to apply, so no MCP server reaches the session at all: safe by default, and the Setup page says why.
    */
-  mcpToolPolicy(provider: 'claude' | 'codex', allowed: readonly string[]): { allowed: string[]; denied: string[] | undefined; catalogUnreadable: boolean } {
+  mcpToolPolicy(provider: AgentProvider, allowed: readonly string[]): { allowed: string[]; denied: string[] | undefined; catalogUnreadable: boolean } {
     const servers = allowed.filter((p) => p.startsWith('mcp__'));
     if (this.config.mcpDynamicTools || !servers.length) return { allowed: [...allowed], denied: undefined, catalogUnreadable: false };
     let lists: { prefix: string; denyTools: string[] }[];
@@ -1933,7 +1968,7 @@ export class Engine {
   }
 
   /** the tools to deny for these servers; undefined = nothing to deny (see mcpToolPolicy) */
-  deniedMcpTools(provider: 'claude' | 'codex', allowed: readonly string[]): string[] | undefined {
+  deniedMcpTools(provider: AgentProvider, allowed: readonly string[]): string[] | undefined {
     return this.mcpToolPolicy(provider, allowed).denied;
   }
 
@@ -1973,9 +2008,10 @@ export class Engine {
    * --plugin-dir; Codex finds the suite's skills linked into the session's workspace. Nothing for another suite, or when
    * the suite is not installed (the goal then runs on the fallback rules, as the prompt says).
    */
-  private async suiteFor(spec: RunSpec, provider: 'claude' | 'codex'): Promise<Pick<RunSpec, 'pluginDirs'>> {
+  private async suiteFor(spec: RunSpec, provider: AgentProvider): Promise<Pick<RunSpec, 'pluginDirs'>> {
     const goalId = spec.meta?.goalId;
     const goal = goalId ? getGoal(this.store.db, goalId) : null;
+    if (provider === 'agy') await this.linkAgySkills(spec.cwd).catch((e) => this.config.log(`[skills] skill links in ${spec.cwd}: ${String((e as Error).message ?? e)}`));
     if (!goal || this.workflowProfileOf(goal) !== 'pstack') return {};
     const skills = this.providerSkills[provider];
     const suite = skills.installedSuite('pstack');
@@ -1987,18 +2023,32 @@ export class Engine {
     return {};
   }
 
+  /**
+   * Antigravity reads skills from a workspace's `.agents/skills` only, not from ~/.agents/skills (agy 1.4.4): the catalog
+   * skills installed there, the ones a session may be told to follow, are linked into the session's workspace (git-excluded).
+   */
+  private async linkAgySkills(cwd: string): Promise<void> {
+    if (!existsSync(join(cwd, '.git'))) return;
+    const skills = this.providerSkills.agy;
+    const wanted = new Set((await skills.status()).filter((s) => SATISFIED.includes(s.status) && s.entry.source.type !== 'suite').map((s) => (s.installedInvoke ?? `/${s.entry.name}`).replace(/^\//, '')));
+    const rows = skills.scan().installed.filter((r) => r.scope === 'user' && wanted.has(r.name));
+    await linkSkillDirs(cwd, rows.map((r) => ({ name: r.name, dir: r.dir })), this.config.log);
+  }
+
   // ---------- commands ----------
 
   async createGoal(input: CreateGoalInput): Promise<Goal> {
     const provider = input.provider ?? this.config.provider;
-    if (!['claude', 'codex'].includes(provider)) throw new Error('Unknown coding agent');
+    if (!AgentProvider.safeParse(provider).success) throw new Error('Unknown coding agent');
     // the investigation runs before Clarify: a goal that skips Clarify has nowhere to learn from a reference
     if ((input.autoBrief || input.brief) && input.references?.some((r) => r.target.trim())) throw new Error('A goal that skips Clarify cannot learn from a reference: the investigation runs before Clarify.');
     // a cad goal that skips Clarify skips the wait for text-to-cad too: refused here, not in paid attempts
     if (input.nature === 'cad' && (input.autoBrief || input.brief) && !(await this.cadAvailable({ provider, repoPath: input.repoPath }))) throw new Error('text-to-cad is not installed for this coding agent: install it on the Setup page (3D models) before creating a CAD goal with a ready Brief.');
     const codexModel = input.codexModel?.trim() || this.config.codexModel;
+    const agyModel = input.agyModel?.trim() || this.config.agyModel;
     // an unknown preset would silently fall back to the Settings pick while the goal still shows the typo
-    if (provider === 'codex' && input.models) throw new Error('Codex uses its own model presets, not Claude tiers.');
+    if (provider !== 'claude' && input.models) throw new Error(`${PROVIDER_NAME[provider]} uses its own model settings, not Claude tiers.`);
+    if (provider === 'agy' && input.modelPreset) throw new Error('Antigravity has one model setting (Settings → Models & limits), no presets.');
     if (provider === 'claude' && input.effort != null && !Effort.safeParse(input.effort).success) throw new Error('This reasoning effort is only supported by Codex.');
     if (input.modelPreset) {
       const known = Object.keys(provider === 'codex' ? effectiveCodexPresets(this.config.codexPresets) : effectivePresets(this.config.modelPresets));
@@ -2079,7 +2129,7 @@ export class Engine {
       })(),
       baseBranch,
       branch: `goal/${id}`,
-      budgets: Budgets.parse({ ...BUDGET_PRESETS[input.budgetPreset ?? 'custom'].budgets, ...(input.budgets ?? {}), ...(provider === 'codex' ? { maxCostUsd: null } : {}) }),
+      budgets: Budgets.parse({ ...BUDGET_PRESETS[input.budgetPreset ?? 'custom'].budgets, ...(input.budgets ?? {}), ...(!reportsDollars(provider) ? { maxCostUsd: null } : {}) }),
       budgetPreset: input.budgetPreset ?? 'custom',
       mode,
       nature,
@@ -2092,7 +2142,7 @@ export class Engine {
         // the workflow suite is fixed here: a Settings change later never moves a goal that is under way (ADR-0049)
         return { pace, tdd: input.workflow?.tdd ?? (pace === 'fast' ? ('off' as const) : mode === 'simple' || nature === 'cad' ? ('preferred' as const) : this.config.workflowTdd), ponytail: input.workflow?.ponytail ?? this.config.workflowPonytail, profile: input.workflow?.profile ?? this.config.workflowProfile };
       })(),
-      models: provider === 'codex' ? { strong: codexPreset!.tables[natureKey(nature)].clarifier.model, cheap: codexPreset!.tables[natureKey(nature)].housekeeping.model, worker: codexPreset!.tables[natureKey(nature)].standard.model } : { ...this.config.models, ...(input.models ?? {}) },
+      models: provider === 'codex' ? { strong: codexPreset!.tables[natureKey(nature)].clarifier.model, cheap: codexPreset!.tables[natureKey(nature)].housekeeping.model, worker: codexPreset!.tables[natureKey(nature)].standard.model } : provider === 'agy' ? { strong: agyModel, cheap: agyModel, worker: agyModel } : { ...this.config.models, ...(input.models ?? {}) },
       state: 'draft',
       stateBeforeBlock: null,
       costUsd: 0,
@@ -2247,7 +2297,7 @@ export class Engine {
     return playwrightStatus();
   }
 
-  async installTool(id: string, onLine: (l: string) => void, provider: 'claude' | 'codex' = this.config.provider): Promise<{ ok: boolean; command: string; exitCode: number | null }> {
+  async installTool(id: string, onLine: (l: string) => void, provider: AgentProvider = this.config.provider): Promise<{ ok: boolean; command: string; exitCode: number | null }> {
     if (id === 'playwright') {
       const r = await this.installPlaywright(onLine);
       return { ok: r.ok, command: r.command.join(' '), exitCode: r.exitCode };
@@ -2265,7 +2315,7 @@ export class Engine {
       return { ok, command: CODE_SERVER_INSTALL, exitCode: r.code };
     }
     // a coding agent's own CLI (Setup's Claude Code / Codex check), else a CLI tool from the skills catalog
-    const agentCli = AGENT_CLI_IDS.includes(id as AgentCliId) ? agentCliInstall(id === 'codex-cli' ? 'codex' : 'claude') : null;
+    const agentCli = AGENT_CLI_IDS.includes(id as AgentCliId) ? agentCliInstall(id === 'codex-cli' ? 'codex' : id === 'antigravity-cli' ? 'agy' : 'claude') : null;
     if (AGENT_CLI_IDS.includes(id as AgentCliId) && !agentCli) throw new Error(`${id}: no installer available here (needs curl, Homebrew or npm) — see the linked setup docs`);
     const entry = agentCli ? null : this.skillsForProvider(provider).catalog().entries.find((e) => e.id === id);
     if (!agentCli && (!entry || entry.source.type !== 'cli')) throw new Error(`${id} is not a CLI tool in the catalog`);
@@ -2284,7 +2334,7 @@ export class Engine {
   }
 
   /** Doctor report including engine-level optional tools. */
-  async doctor(provider: 'claude' | 'codex' = this.config.provider) {
+  async doctor(provider: AgentProvider = this.config.provider) {
     const available = this.markitdown.available();
     const cmd = this.markitdown.installCommand();
     const check = available
@@ -2297,14 +2347,14 @@ export class Engine {
       : { id: 'notifications', label: 'Notifications (optional)', ok: false, severity: 'warn' as const, detail: 'not configured — get a Telegram or Discord ping when a goal needs you, finishes, or a delivery fails', fix: { url: '/settings' } };
     const rea = await this.reaEnginesCheck(provider);
     const cad = await this.cadToolsCheck(provider);
-    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...await this.mcpFor(provider).doctorChecks()]);
+    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...(provider === 'agy' ? [] : await this.mcpFor(provider).doctorChecks())]);
   }
 
   /**
    * text-to-cad's tools on this computer: uv, which runs cadgen (a problem only once the plugin is installed), and the
    * desktop apps its hand-offs would open, which stay behind Settings → Safety → Desktop apps & printers.
    */
-  private async cadToolsCheck(provider: 'claude' | 'codex') {
+  private async cadToolsCheck(provider: AgentProvider) {
     const statuses = await this.providerSkills[provider].status().catch(() => []);
     const installed = statuses.some(Engine.cadInstalled);
     const uv = Bun.which('uvx') ?? Bun.which('uv');
@@ -2323,7 +2373,8 @@ export class Engine {
    * With REA installed: whether a native analysis engine is on this computer. Websites, JavaScript and Electron apps,
    * .NET and Android packages need none; native apps and binaries need Hopper, Ghidra or IDA.
    */
-  private async reaEnginesCheck(provider: 'claude' | 'codex') {
+  private async reaEnginesCheck(provider: AgentProvider) {
+    if (provider === 'agy') return null; // its MCP servers are agy's own
     const view = await this.mcpFor(provider).view();
     if (!view.catalog.some((c) => c.entry.id === 'rea' && c.installed)) return null;
     const env = process.env;
@@ -2456,7 +2507,7 @@ export class Engine {
       payload: { graphRefresh: chosen?.graphRefresh ?? inferred.graphRefresh, docs: chosen?.docs ?? inferred.docs, audit: chosen?.audit ?? inferred.audit, qa: chosen?.qa ?? inferred.qa, reason: goal.delegatedFrom ? 'delegated goal: the main goal completes' : completion ? 'set at brief approval' : inferred.reason },
     });
     if (budgets && Object.keys(budgets).length) {
-      const next = Budgets.parse({ ...goal.budgets, ...budgets, ...(goal.provider === 'codex' ? { maxCostUsd: null } : {}) });
+      const next = Budgets.parse({ ...goal.budgets, ...budgets, ...(!reportsDollars(goal.provider) ? { maxCostUsd: null } : {}) });
       this.store.append({ type: 'goal.budgets_changed', goalId, payload: { budgets: next, reason: goal.budgetPreset === 'auto' ? 'auto-from-brief' : 'set at brief approval' } });
     }
     const now = new Date().toISOString();
@@ -2841,7 +2892,7 @@ export class Engine {
     }
     const goal = getGoal(this.store.db, goalId)!;
     const task = attempt ? getTask(this.store.db, attempt.taskId) : null;
-    const agent = (goal.provider ?? this.config.provider) === 'codex' ? 'Codex' : 'Claude';
+    const agent = PROVIDER_NAME[goal.provider ?? this.config.provider];
     this.store.append({ type: 'boundary.blocked', goalId, payload: { taskId: task?.id ?? null, attemptId, command, ...(reason ? { reason } : {}), ...(skill ? { skill } : {}) } });
     if (reason === 'skill') {
       this.store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `${agent} asked for the skill ${skill}, which opens a desktop app or hands a file to a printer on this computer; it was refused and the work goes on without it. Settings → Safety → Desktop apps & printers opens it.` } });

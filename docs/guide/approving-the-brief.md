@@ -4,7 +4,7 @@
 
 ## Limits by coding agent
 
-A Codex Brief shows time and execution limits, with dollar estimates and USD controls hidden. This applies to Simple and Expert views. The provider chosen at goal creation stays fixed when you approve or revise the Brief.
+A Codex or Antigravity Brief shows time and execution limits, with dollar estimates and USD controls hidden. This applies to Simple and Expert views. The provider chosen at goal creation stays fixed when you approve or revise the Brief.
 
 
 The Brief is the plan. Foundry writes it after reading your project and hearing your answers. Nothing is built until you approve it, and after you approve, Foundry works on its own.
@@ -276,7 +276,7 @@ Documents are written after the final review passes and saved on the goal's bran
 
 ## Estimate and budget
 
-For Claude, the card shows **Estimated cost** and **Estimated time**. Codex shows time and execution limits only.
+For Claude, the card shows **Estimated cost** and **Estimated time**. Codex and Antigravity show time and execution limits only.
 
 Under the two figures, once this folder has three finished goals (or, failing that, this computer has three finished goals of the same kind), a line says how far they ran from their estimates and what this one likely comes to: *Earlier goals in this folder ran at 1.6× the estimated cost and 1.3× the estimated time (median of 5 finished goals): likely about $12 and 45 min.* Hover it for the goals it rests on. The Clarifier's figures stay as written; the line only reads them with experience. A wide spread between those goals is said.
 
@@ -311,6 +311,6 @@ The Simple view shows the same Brief in plain words:
 | **Anything to add?** | What no question asked: write it and press **Add note**. Notes reach every worker, like your answers. |
 | **I will assume… (untick anything that is wrong)** | Untick what is wrong. |
 | **What you will get (N pieces of work)** | The tasks, grouped by Area. To change them, open **Expert view**. |
-| **Price & time** / **Time & limits** | Claude offers cost and time estimates and limits; Codex offers time and execution limits without a dollar field. Blank means no cap for that field. |
+| **Price & time** / **Time & limits** | Claude offers cost and time estimates and limits; Codex and Antigravity offer time and execution limits without a dollar field. Blank means no cap for that field. |
 
 Then press **Looks good — go** to approve, **Save** to come back later, or **Cancel** to give up. If your answers change what should be built, open **Expert view** and press **Revise with answers** first.

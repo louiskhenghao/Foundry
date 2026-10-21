@@ -4,7 +4,7 @@
  * or a change to a role's prompt. It spends real money (a few dollars for the whole set) and uses the signed-in
  * coding agent of this machine.
  *
- *   bun scripts/regress.ts [--only a,b] [--provider claude|codex] [--profile mattpocock|pstack|plain] [--model alias]
+ *   bun scripts/regress.ts [--only a,b] [--provider claude|codex|agy] [--profile mattpocock|pstack|plain] [--model alias]
  *                          [--no-clarify] [--label text] [--baseline regress/baselines/<name>.json]
  *                          [--save-baseline <name>] [--work-dir path] [--dry-run]
  *
@@ -29,8 +29,8 @@ const usage = (why: string): never => {
   process.exit(2);
 };
 
-const provider = (opt('--provider') ?? 'claude') as 'claude' | 'codex';
-if (!['claude', 'codex'].includes(provider)) usage('--provider expects claude or codex');
+const provider = (opt('--provider') ?? 'claude') as 'claude' | 'codex' | 'agy';
+if (!['claude', 'codex', 'agy'].includes(provider)) usage('--provider expects claude, codex or agy');
 const profile = opt('--profile') as 'mattpocock' | 'pstack' | 'plain' | undefined;
 if (profile && !['mattpocock', 'pstack', 'plain'].includes(profile)) usage('--profile expects mattpocock, pstack or plain');
 const cases = pickCases(opt('--only')?.split(',').map((s) => s.trim()).filter(Boolean) ?? null);

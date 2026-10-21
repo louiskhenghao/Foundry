@@ -1,3 +1,4 @@
+import { AGENT_PROVIDERS } from '@foundry/core/browser';
 import { useEffect } from 'react';
 import { api, type AgentProvider } from '../../api.ts';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
@@ -13,7 +14,7 @@ export function SkillsTabs() {
   const { hash } = useLocation();
   const nav = useNavigate();
   const rawProvider = params.get('provider');
-  const provider: AgentProvider | null = rawProvider === 'claude' || rawProvider === 'codex' ? rawProvider : null;
+  const provider: AgentProvider | null = AGENT_PROVIDERS.find((p) => p === rawProvider) ?? null;
   useEffect(() => {
     if (provider) return;
     let alive = true;
@@ -47,7 +48,19 @@ export function SkillsTabs() {
           onChange={(t) => go(provider, t)}
         />
       </div>
-      {tab === 'plugins' ? <CodexPluginsPanel /> : tab === 'mcp' ? <McpPanel key={`mcp:${provider}`} provider={provider} /> : <SkillsPage key={`skills:${provider}`} provider={provider} />}
+      {tab === 'plugins' ? <CodexPluginsPanel /> : tab === 'mcp' ? (provider === 'agy' ? <AgyMcpNote /> : <McpPanel key={`mcp:${provider}`} provider={provider} />) : <SkillsPage key={`skills:${provider}`} provider={provider} />}
     </>
+  );
+}
+
+/** Antigravity keeps its MCP servers in agy: Foundry neither lists nor changes them (the server refuses it) */
+function AgyMcpNote() {
+  return (
+    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6">
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 text-sm text-zinc-300 space-y-2">
+        <p>Antigravity keeps its MCP servers itself, and Foundry neither lists nor changes them.</p>
+        <p className="text-xs text-zinc-400">Add one with <span className="mono text-zinc-200">agy mcp add</span> and list them with <span className="mono text-zinc-200">agy mcp list</span>, in a terminal on this computer.</p>
+      </div>
+    </div>
   );
 }

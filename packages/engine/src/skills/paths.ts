@@ -1,9 +1,10 @@
+import type { AgentProvider } from '@foundry/core';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 /** The single place that knows how the host lays out Claude Code skills/plugins. */
 export interface SkillsPaths {
-  provider?: 'claude' | 'codex';
+  provider?: AgentProvider;
   claudeHome: string;
   skillsDir: string;
   pluginsDir: string;
@@ -24,8 +25,8 @@ export interface SkillsPaths {
   claudeSkillsDir?: string;
 }
 
-export function skillsPaths(claudeHome: string, dataDir: string, provider: 'claude' | 'codex' = 'claude', sharedHome?: string): SkillsPaths {
-  const home = sharedHome ?? (provider === 'codex' ? homedir() : dirname(claudeHome));
+export function skillsPaths(claudeHome: string, dataDir: string, provider: AgentProvider = 'claude', sharedHome?: string): SkillsPaths {
+  const home = sharedHome ?? (provider !== 'claude' ? homedir() : dirname(claudeHome));
   return {
     provider,
     claudeHome,

@@ -19,7 +19,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `workflow.interview` | `auto` | `FOUNDRY_INTERVIEW` | The older switch for the interview: auto, always (at least one round) or never (one-shot Brief). Interview depth, when set, takes its place. |
 | `workflow.interviewDepth` | — | `FOUNDRY_INTERVIEW_DEPTH` | How deep Clarify interviews you before writing the Brief: 0 = not at all (one-shot Brief), 1 = only what a wrong guess would waste … 5 = every detail, until nothing is left to decide. Empty = what Interview stands for (auto 3, always 4, never 0). Switchable per goal. |
 | `workflow.milestonePause` | `true` | `FOUNDRY_MILESTONE_PAUSE` | New goals pause at their milestones so you can have a look; off = they go on, and what the milestone shows is sent to your notification channels. Switchable per goal. |
-| `workflow.effort` | — | `FOUNDRY_EFFORT` | Default goal-wide effort override (low … max). Empty uses each Codex role preset or the Claude CLI default. New goals can override it. |
+| `workflow.effort` | — | `FOUNDRY_EFFORT` | Default goal-wide effort override (low … max). Empty uses each Codex role preset, the Antigravity effort (models.agyEffort) or the Claude CLI default. New goals can override it. |
 | `workflow.learnings` | `true` | — | When a goal ends, a short session on the goal's housekeeping model adds what it taught about the repository to the folder's Learnings. Off = nothing is learned automatically; the Learnings you keep are still given to later goals. |
 | `workflow.learningsSkill` | `true` | — | Write each folder's Learnings into the repository as a project skill (foundry-learnings, under .claude/skills and .agents/skills, kept out of git) for your own sessions there; rewritten whenever the Learnings change. Off = the file is removed. |
 | `reviews.alwaysReviewTasks` | `true` | — | Run the task reviewer on every task, not only tasks that ask for a reviewer check (thorough pace). |
@@ -40,6 +40,8 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `models.codexPresetDocs` | `balanced` | — | Codex preset for document and research goals. |
 | `models.codexPresetMedia` | `balanced` | — | Codex preset for image and video goals. |
 | `models.codexFallbacks` | — | — | Codex fallback model IDs, tried in order only for model-unavailability errors. Captured per new goal; empty pauses for a decision. Does not switch providers or retry authentication and quota errors with another model. |
+| `models.agyModel` | `agy-default` | `FOUNDRY_AGY_MODEL` | The model every role of a new Antigravity goal runs on. agy-default follows the model the CLI itself is set to. |
+| `models.agyEffort` | `high` | — | The Antigravity reasoning effort of every role: low, medium, high, xhigh or max. |
 | `models.cheap` | `haiku` | `FOUNDRY_MODEL_CHEAP` | Housekeeping model: one-turn engine chores (classifying a goal, summarising logs, the rate-limit probe). |
 | `models.fallbacks` | `opus, sonnet, haiku` | `FOUNDRY_MODEL_FALLBACKS` | Tried in order when a model is unavailable; the replacement is remembered for that goal. |
 | `models.presets` | — | — | Presets you edited or created (edit them in the Presets editor, not by hand). Built-ins you never touched are not stored. |
@@ -48,7 +50,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `models.presetMedia` | `balanced` | — | Model preset for image and video goals. |
 | `models.escalateLastAttempt` | `true` | — | A task's last attempt (budget ≥ 2) and every retry you grant run on the preset's Complex-task model. |
 | `sessions.maxContinuations` | `2` | `FOUNDRY_MAX_CONTINUATIONS` | How often one attempt may resume its session before a fresh attempt starts; 0 = never. |
-| `sessions.attemptMaxTurns` | `150` | `FOUNDRY_ATTEMPT_MAX_TURNS` | Model-turn cap for a Claude attempt; tool-call cap for a Codex attempt. |
+| `sessions.attemptMaxTurns` | `150` | `FOUNDRY_ATTEMPT_MAX_TURNS` | Model-turn cap for a Claude attempt; tool-call cap for a Codex attempt; three tool calls per turn for an Antigravity attempt. |
 | `sessions.attemptMaxCostUsd` | `10` | `FOUNDRY_ATTEMPT_MAX_COST` | Claude-only cost cap (USD) for one attempt session, also bounded by the goal budget. Codex does not report USD costs. |
 | `sessions.attemptTimeoutMin` | `20` | — | Wall-clock cap for one attempt session. |
 | `workflow.investigationMaxCostUsd` | `3` | `FOUNDRY_INVESTIGATION_MAX_COST` | Cost cap of the session that investigates a goal's reference with REA before Clarify. |
@@ -143,9 +145,10 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
-| `engine.provider` *(restart)* | `claude` | `FOUNDRY_PROVIDER` | Installation default (claude or codex), fixed at launch. Each new goal can select either coding agent; existing goals keep theirs. |
+| `engine.provider` *(restart)* | `claude` | `FOUNDRY_PROVIDER` | Installation default (claude, codex or agy), fixed at launch. Each new goal can select any coding agent; existing goals keep theirs. |
 | `engine.codexBin` *(restart)* | — | `FOUNDRY_CODEX_BIN` | Codex CLI path; empty uses codex on PATH. Requires hooks support. |
 | `engine.codexHome` *(restart)* | — | `FOUNDRY_CODEX_HOME (or CODEX_HOME)` | Codex configuration and login directory; empty uses CODEX_HOME or ~/.codex. |
+| `engine.agyBin` *(restart)* | — | `FOUNDRY_AGY_BIN` | Antigravity CLI path; empty uses agy on PATH. Needs 1.1.15 or newer (stream-json input). |
 | `engine.port` *(restart)* | `4111` | `FOUNDRY_PORT` | Port the UI and API listen on. |
 | `engine.host` *(restart)* | `127.0.0.1` | `FOUNDRY_HOST` | Interface to bind; keep 127.0.0.1 unless the people using it have tokens (Settings → Access). |
 | `engine.claudeBin` *(restart)* | — | — | Path to the claude CLI; empty = first on PATH. |

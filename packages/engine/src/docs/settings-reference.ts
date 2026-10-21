@@ -9,10 +9,13 @@ import { ENV_VARS, SETTING_PATHS } from '../settings.ts';
 type Section = 'New goal defaults' | 'Models & limits' | 'Skills' | 'Git & delivery' | 'Tools & keys' | 'Preview & self-check' | 'Notifications' | 'Safety' | 'Engine (install)';
 
 export const SETTING_DOCS: Record<string, { section: Section; help: string }> = {
-  'engine.provider': { section: 'Engine (install)', help: 'Installation default (claude or codex), fixed at launch. Each new goal can select either coding agent; existing goals keep theirs.' },
+  'engine.provider': { section: 'Engine (install)', help: 'Installation default (claude, codex or agy), fixed at launch. Each new goal can select any coding agent; existing goals keep theirs.' },
   'engine.codexBin': { section: 'Engine (install)', help: 'Codex CLI path; empty uses codex on PATH. Requires hooks support.' },
+  'engine.agyBin': { section: 'Engine (install)', help: 'Antigravity CLI path; empty uses agy on PATH. Needs 1.1.15 or newer (stream-json input).' },
   'engine.codexHome': { section: 'Engine (install)', help: 'Codex configuration and login directory; empty uses CODEX_HOME or ~/.codex.' },
   'models.codexModel': { section: 'Models & limits', help: 'Base model substituted for codex-default in new Codex goal presets. codex-default leaves model choice to the native CLI; an explicit model ID pins it.' },
+  'models.agyModel': { section: 'Models & limits', help: 'The model every role of a new Antigravity goal runs on. agy-default follows the model the CLI itself is set to.' },
+  'models.agyEffort': { section: 'Models & limits', help: 'The Antigravity reasoning effort of every role: low, medium, high, xhigh or max.' },
   // New goal defaults
   'workflow.defaultMode': { section: 'New goal defaults', help: 'Which view a new goal opens in: simple (plain-language Brief and progress) or expert (every control).' },
   'workflow.defaultPace': { section: 'New goal defaults', help: 'thorough = the engine adds its own task and goal reviews and can spawn fix tasks; fast = only the checks you approved run. Image and video goals start fast.' },
@@ -26,7 +29,7 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'workflow.milestonePause': { section: 'New goal defaults', help: 'New goals pause at their milestones so you can have a look; off = they go on, and what the milestone shows is sent to your notification channels. Switchable per goal.' },
   'workflow.interview': { section: 'New goal defaults', help: 'The older switch for the interview: auto, always (at least one round) or never (one-shot Brief). Interview depth, when set, takes its place.' },
   'workflow.interviewDepth': { section: 'New goal defaults', help: 'How deep Clarify interviews you before writing the Brief: 0 = not at all (one-shot Brief), 1 = only what a wrong guess would waste … 5 = every detail, until nothing is left to decide. Empty = what Interview stands for (auto 3, always 4, never 0). Switchable per goal.' },
-  'workflow.effort': { section: 'New goal defaults', help: 'Default goal-wide effort override (low … max). Empty uses each Codex role preset or the Claude CLI default. New goals can override it.' },
+  'workflow.effort': { section: 'New goal defaults', help: 'Default goal-wide effort override (low … max). Empty uses each Codex role preset, the Antigravity effort (models.agyEffort) or the Claude CLI default. New goals can override it.' },
   'reviews.alwaysReviewTasks': { section: 'New goal defaults', help: 'Run the task reviewer on every task, not only tasks that ask for a reviewer check (thorough pace).' },
   'reviews.maxFixCycles': { section: 'New goal defaults', help: 'Goal review → fix-task rounds before the goal asks you.' },
   'reviews.smallGoalLines': { section: 'New goal defaults', help: 'A goal whose whole diff is at most this many lines is reviewed by the Task reviewer model without review skills; 0 = never.' },
@@ -48,7 +51,7 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'models.escalateLastAttempt': { section: 'Models & limits', help: "A task's last attempt (budget ≥ 2) and every retry you grant run on the preset's Complex-task model." },
   'engine.maxConcurrent': { section: 'Models & limits', help: 'Total concurrent agent sessions across Claude and Codex goals. A session a person is waiting for (Clarify and its planner, a Revise, a Draft) may run as one more beyond it, so at most this number plus one run at once.' },
   'sessions.maxContinuations': { section: 'Models & limits', help: 'How often one attempt may resume its session before a fresh attempt starts; 0 = never.' },
-  'sessions.attemptMaxTurns': { section: 'Models & limits', help: 'Model-turn cap for a Claude attempt; tool-call cap for a Codex attempt.' },
+  'sessions.attemptMaxTurns': { section: 'Models & limits', help: 'Model-turn cap for a Claude attempt; tool-call cap for a Codex attempt; three tool calls per turn for an Antigravity attempt.' },
   'sessions.attemptMaxCostUsd': { section: 'Models & limits', help: 'Claude-only cost cap (USD) for one attempt session, also bounded by the goal budget. Codex does not report USD costs.' },
   'sessions.attemptTimeoutMin': { section: 'Models & limits', help: 'Wall-clock cap for one attempt session.' },
   // Skills

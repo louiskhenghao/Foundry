@@ -1,3 +1,4 @@
+import { agentsFolder } from '@foundry/core/browser';
 import type { GoalDetail } from '../../api.ts';
 import { Card } from '../../ui.tsx';
 
@@ -26,7 +27,7 @@ function group(skills: string[]): [string, string[]][] {
 export function ProjectSkillsCard({ d }: { d: GoalDetail }) {
   const a = d.goal.autoskills;
   if (!a) return null;
-  const dir = d.goal.provider === 'codex' ? '.agents/skills' : '.claude/skills';
+  const dir = `${agentsFolder(d.goal.provider)}/skills`;
   const installed = a.status === 'installed';
   return (
     <Card title={installed ? `Project skills · ${a.skills.length}` : 'Project skills'} actions={<span className="text-[11px] text-zinc-500">autoskills</span>}>

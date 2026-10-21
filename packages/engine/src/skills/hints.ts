@@ -1,3 +1,4 @@
+import type { AgentProvider } from '@foundry/core';
 import type { TaskKind, TaskScenario, WorkflowProfile } from '@foundry/core';
 import { SATISFIED, useLabel } from './catalog.ts';
 import type { CatalogEntryStatus, SkillRole } from './types.ts';
@@ -33,7 +34,7 @@ export class SkillsHints {
   private cache: { at: number; statuses: CatalogEntryStatus[] } | null = null;
   constructor(
     private load: () => Promise<CatalogEntryStatus[]>,
-    private opts: { ttlMs?: number; enabled?: () => boolean; profile?: () => WorkflowProfile; packs?: () => Record<string, string | undefined>; gates?: () => Record<string, boolean>; provider?: 'claude' | 'codex' } = {},
+    private opts: { ttlMs?: number; enabled?: () => boolean; profile?: () => WorkflowProfile; packs?: () => Record<string, string | undefined>; gates?: () => Record<string, boolean>; provider?: AgentProvider } = {},
   ) {}
   invalidate(): void {
     this.cache = null;

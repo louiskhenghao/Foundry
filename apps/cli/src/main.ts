@@ -2,7 +2,10 @@
 /**
  * foundry CLI — thin client over the local server, plus `serve` and `replay`.
  */
+import { AGENT_PROVIDERS, reportsDollars } from '@foundry/core';
+import type { AgentProvider } from '@foundry/core';
 import { help } from './help.ts';
+import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { codexQuotaWindows } from '@foundry/engine/quota-windows';
 
@@ -62,13 +65,13 @@ const safeJson = (t: string) => {
 
 
 /** Use the server when it is up, otherwise run in-process (doctor/skills must work before `serve`). */
-async function skillsLocal(selected?: 'claude' | 'codex') {
+async function skillsLocal(selected?: AgentProvider) {
   const { SkillsManager, defaultConfig, SettingsStore, applySettingsToConfig } = await import('@foundry/engine');
   const cfg = defaultConfig(ROOT);
   const settings = new SettingsStore(cfg.dataDir);
   applySettingsToConfig(cfg, settings.values(), settings.fileLeaves());
   const provider = selected ?? cfg.provider;
-  return new SkillsManager({ provider, codexBin: cfg.codexBin, codexHome: cfg.codexHome, claudeBin: cfg.claudeBin, claudeHome: provider === 'codex' ? cfg.codexHome : cfg.claudeHome, dataDir: provider === cfg.provider ? cfg.dataDir : join(cfg.dataDir, 'providers', provider), catalogPath: cfg.catalogPath, log: (m) => console.error(m) });
+  return new SkillsManager({ provider, codexBin: cfg.codexBin, codexHome: cfg.codexHome, claudeBin: cfg.claudeBin, claudeHome: provider === 'codex' ? cfg.codexHome : provider === 'agy' ? join(homedir(), '.agents') : cfg.claudeHome, dataDir: provider === cfg.provider ? cfg.dataDir : join(cfg.dataDir, 'providers', provider), catalogPath: cfg.catalogPath, log: (m) => console.error(m) });
 }
 /** a Transfer's password: the first line of stdin with --password-stdin, else FOUNDRY_TRANSFER_PASSWORD */
 async function transferPassword(): Promise<string> {
@@ -115,8 +118,8 @@ await main();
 
 async function main(): Promise<void> {
 const selected = opt('--provider');
-if (has('--provider') && selected !== 'claude' && selected !== 'codex') return usage('--provider must be claude or codex');
-const provider = selected as 'claude' | 'codex' | undefined;
+if (has('--provider') && !AGENT_PROVIDERS.includes(selected as AgentProvider)) return usage('--provider must be claude, codex or agy');
+const provider = selected as AgentProvider | undefined;
 const scoped = (path: string) => provider ? `${path}${path.includes('?') ? '&' : '?'}provider=${provider}` : path;
 const providerApi = (path: string, init?: RequestInit) => api(scoped(path), init);
 switch (cmd) {
@@ -161,6 +164,7 @@ switch (cmd) {
       ...(issue ? { issue: issue.issue, attachments: [issue.attachment] } : {}),
       provider: opt('--provider') ?? draft?.prefill.provider,
       codexModel: opt('--codex-model') ?? (opt('--models') ? undefined : draft?.prefill.codexModel),
+      agyModel: opt('--agy-model') ?? draft?.prefill.agyModel,
       baseBranch: opt('--base'),
       budgetPreset: opt('--preset') ?? (opt('--max-cost') || opt('--max-min') ? 'custom' : 'auto'),
       budgets: {
@@ -207,18 +211,18 @@ switch (cmd) {
     if (!id) {
       const goals = await api('/api/goals');
       if (!goals.length) console.log('no goals');
-      for (const g of goals) console.log(`${g.id}  ${pad(g.state, 24)} ${g.provider === 'codex' ? 'Codex · cost unavailable' : `$${g.costUsd.toFixed(2)}/${g.budgets.maxCostUsd ?? '∞'}`}  tasks=${JSON.stringify(g.taskCounts)}  esc=${g.openEscalations}  ${g.title}`);
+      for (const g of goals) console.log(`${g.id}  ${pad(g.state, 24)} ${!reportsDollars(g.provider) ? 'Codex · cost unavailable' : `$${g.costUsd.toFixed(2)}/${g.budgets.maxCostUsd ?? '∞'}`}  tasks=${JSON.stringify(g.taskCounts)}  esc=${g.openEscalations}  ${g.title}`);
     } else {
       const d = await api(`/api/goals/${id}`);
       if (has('--json')) return console.log(JSON.stringify(d, null, 2));
       const g = d.goal;
-      console.log(`${g.id} [${g.state}] ${g.title}\n  repo ${g.repoPath} (${g.baseBranch} → ${g.branch})\n  cost ${g.provider === 'codex' ? 'unavailable' : `$${g.costUsd.toFixed(3)} / ${g.budgets.maxCostUsd == null ? 'no cap' : `$${g.budgets.maxCostUsd}`}`}    elapsed ${d.budget.elapsedMin.toFixed(1)} / ${g.budgets.maxDurationMin ?? '∞'} min   preset ${g.budgetPreset}`);
+      console.log(`${g.id} [${g.state}] ${g.title}\n  repo ${g.repoPath} (${g.baseBranch} → ${g.branch})\n  cost ${!reportsDollars(g.provider) ? 'unavailable' : `$${g.costUsd.toFixed(3)} / ${g.budgets.maxCostUsd == null ? 'no cap' : `$${g.budgets.maxCostUsd}`}`}    elapsed ${d.budget.elapsedMin.toFixed(1)} / ${g.budgets.maxDurationMin ?? '∞'} min   preset ${g.budgetPreset}`);
       for (const t of d.tasks) {
         const attempts = d.attempts.filter((a: any) => a.taskId === t.id);
         console.log(`  - ${pad(t.state, 10)} ${t.title}  (attempts ${attempts.length}/${t.retryBudget + t.extraAttempts}${t.worktreePath ? ', own worktree' : ''})`);
         for (const a of attempts) {
           const res = d.checkResults.filter((r: any) => r.attemptId === a.id);
-          console.log(`      #${a.index} ${a.kind} ${pad(a.state, 9)} ${g.provider === 'codex' ? 'cost and turns unavailable' : `$${a.costUsd.toFixed(3)} turns=${a.numTurns}`} ${a.resultSubtype ?? ''} checks: ${res.map((r: any) => (r.status === 'pass' ? '✅' : '❌')).join('') || '-'}`);
+          console.log(`      #${a.index} ${a.kind} ${pad(a.state, 9)} ${!reportsDollars(g.provider) ? 'cost and turns unavailable' : `$${a.costUsd.toFixed(3)} turns=${a.numTurns}`} ${a.resultSubtype ?? ''} checks: ${res.map((r: any) => (r.status === 'pass' ? '✅' : '❌')).join('') || '-'}`);
         }
       }
       const open = d.escalations.filter((e: any) => e.state === 'open');
@@ -270,7 +274,7 @@ switch (cmd) {
       const notes = b.questions.filter((q: any) => q.kind === 'note');
       if (asked.length) console.log('\nQuestions:\n' + asked.map((q: any) => `  ${q.blocking ? '(blocking) ' : ''}${q.text} → ${q.answer ?? '(unanswered)'}`).join('\n'));
       if (notes.length) console.log('\nNotes from you:\n' + notes.map((q: any) => `  ${q.text}`).join('\n'));
-      console.log(`\nEstimate: ${d.goal.provider === 'codex' ? 'cost unavailable' : `$${b.costEstimateUsd}`} / ${b.timeEstimateMin} min`);
+      console.log(`\nEstimate: ${!reportsDollars(d.goal.provider) ? 'cost unavailable' : `$${b.costEstimateUsd}`} / ${b.timeEstimateMin} min`);
     }
     if (has('--approve')) {
       const answers = opts('--answer');
@@ -634,7 +638,7 @@ switch (cmd) {
 }
 }
 
-async function serverLogin(provider: 'claude' | 'codex'): Promise<void> {
+async function serverLogin(provider: AgentProvider): Promise<void> {
   const query = `?provider=${provider}`;
   let session = await api(`/api/auth/login${query}`, { method: 'POST', body: '{}' });
   const id = session.id;

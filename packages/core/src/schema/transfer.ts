@@ -1,3 +1,4 @@
+import { AgentProvider } from './provider.ts';
 import { z } from 'zod';
 import { GoalState } from './goal.ts';
 import { SECRET_SETTINGS, SettingsPatch } from './settings.ts';
@@ -17,7 +18,7 @@ export const TransferGoalEntry = z.object({
   id: z.string(),
   title: z.string(),
   state: GoalState,
-  provider: z.enum(['claude', 'codex']).nullable().default(null),
+  provider: AgentProvider.nullable().default(null),
   createdAt: z.string(),
   costUsd: z.number().default(0),
   /** the repository as the other computer knew it, and where its remote points (to find the same checkout here) */
@@ -44,7 +45,7 @@ export const TransferManifest = z.object({
   release: z.string(),
   transferId: z.string(),
   exportedAt: z.string(),
-  source: z.object({ hostname: z.string(), platform: z.string(), provider: z.enum(['claude', 'codex']), dataDir: z.string() }),
+  source: z.object({ hostname: z.string(), platform: z.string(), provider: AgentProvider, dataDir: z.string() }),
   categories: z.record(TransferCategory, z.boolean()).default({}),
   goals: z.array(TransferGoalEntry).default([]),
 });

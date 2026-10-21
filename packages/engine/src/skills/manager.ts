@@ -1,3 +1,4 @@
+import type { AgentProvider } from '@foundry/core';
 import type { WorkflowProfile } from '@foundry/core';
 import { readSuite } from './suites.ts';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
@@ -23,7 +24,7 @@ export interface BundleResult {
 }
 
 export interface SkillsManagerOptions {
-  provider?: 'claude' | 'codex';
+  provider?: AgentProvider;
   /** Codex: Claude Code's skills folder (shared skills it links to are not removed from the Codex side) */
   claudeSkillsDir?: string;
   /** the home holding ~/.agents (default: the user's home for Codex) */
@@ -31,6 +32,7 @@ export interface SkillsManagerOptions {
   /** the workflow suites' store; the engine shares one between both coding agents (ADR-0049) */
   suitesDir?: string;
   codexBin?: string;
+  agyBin?: string;
   codexHome?: string;
   claudeHome: string;
   dataDir: string;
@@ -141,7 +143,7 @@ export class SkillsManager {
   async doctor(extra: DoctorCheck[] = []): Promise<DoctorReport> {
     // offline: never runs git; shadow detection works from the filesystem alone
     const updates = await this.checker.report(this.scan(), this.catalog(), { offline: true }).catch(() => null);
-    return runDoctor({ provider: this.opts.provider, codexBin: this.opts.codexBin, codexHome: this.opts.codexHome, paths: this.paths, catalog: this.catalog(), statuses: await this.status(), claudeBin: this.opts.claudeBin, which: this.opts.which, updates, packs: this.opts.packs?.(), extra });
+    return runDoctor({ provider: this.opts.provider, codexBin: this.opts.codexBin, codexHome: this.opts.codexHome, agyBin: this.opts.agyBin, paths: this.paths, catalog: this.catalog(), statuses: await this.status(), claudeBin: this.opts.claudeBin, which: this.opts.which, updates, packs: this.opts.packs?.(), extra });
   }
 
   // ---------- sources & updates ----------
@@ -202,6 +204,7 @@ export class SkillsManager {
   uninstallPlugin(sourceId: string, onLine?: (l: string) => void): Promise<{ ok: boolean; error: string | null }> {
     return this.serial(async () => {
       if (this.opts.provider === 'codex') throw new Error('Manage Codex plugins in Codex.');
+      if (this.opts.provider === 'agy') throw new Error('Manage Antigravity plugins in agy.');
       if (!sourceId.startsWith('plugin:')) throw new Error(`${sourceId} is not a Claude plugin`);
       const pluginId = sourceId.slice('plugin:'.length);
       const claude = this.opts.claudeBin ?? Bun.which('claude');

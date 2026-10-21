@@ -112,6 +112,8 @@ export async function createDelegatedGoal(engine: Engine, main: Goal, task: Task
   const made = await engine.createGoal({
     provider: main.provider,
     codexModel: main.codexModelOverride,
+    // an Antigravity goal runs every role on one model: its parts keep it
+    agyModel: main.provider === 'agy' ? main.models.worker : undefined,
     title: task.title,
     prompt,
     repoPath: companion?.repoPath ?? main.repoPath,

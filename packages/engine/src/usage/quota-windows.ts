@@ -1,4 +1,4 @@
-import type { CodexQuota, CodexQuotaWindow } from './types.ts';
+import type { AgyQuota, CodexQuota, CodexQuotaWindow } from './types.ts';
 
 type Bucket = Extract<CodexQuota, { state: 'available' }>['buckets'][number];
 
@@ -37,3 +37,13 @@ export function codexQuotaSummary(quota?: CodexQuota): string {
   }
   return quota.ordinaryUsageAllowed === false ? `blocked · ${summary}` : summary;
 }
+
+/** Antigravity's groups share a weekly limit each: the header names what is left of every one */
+export function agyQuotaSummary(quota?: AgyQuota | null): string {
+  if (!quota || quota.state !== 'available') return 'quota unavailable';
+  const parts = quota.groups.flatMap((g) => g.buckets.map((b) => `${g.name} ${b.remainingFraction == null ? 'remaining unknown' : `${Math.round(b.remainingFraction * 1000) / 10}% remaining`}`));
+  return parts.length ? parts.join(' · ') : 'quota windows unavailable';
+}
+
+/** a group of Antigravity models has used up its limit: sessions on them fail until it resets */
+export const agyQuotaExhausted = (quota?: AgyQuota | null): boolean => quota?.state === 'available' && quota.groups.some((g) => g.buckets.some((b) => b.remainingFraction === 0));

@@ -333,11 +333,12 @@ export interface LoginSession {
   /** Codex device sign-in: the one-time code to enter on `url` */
   deviceCode?: string | null;
 }
-export type AgentProvider = 'claude' | 'codex';
+import type { AgentProvider } from '@foundry/core/browser';
+export type { AgentProvider } from '@foundry/core/browser';
 export interface AccountInfo { provider: AgentProvider; installed: boolean; status: ClaudeAuthStatus; capabilities: { dollarCosts: boolean; skillTelemetry: boolean; nativeSubagents: boolean; managedMcp: boolean; externalSessions: boolean } }
 export interface AccountsInfo { defaultProvider: AgentProvider; accounts: AccountInfo[] }
 export interface AuthInfo {
-  provider: 'claude' | 'codex';
+  provider: AgentProvider;
   status: ClaudeAuthStatus;
   login: LoginSession | null;
 }
@@ -465,7 +466,7 @@ export interface FollowUpDraft {
   previous: { id: string; title: string; state: GoalState; repoPath: string; baseBranch: string; branch: string; branchExists: boolean };
   followable: boolean;
   reason: string | null;
-  prefill: { provider: 'claude' | 'codex'; codexModel?: string; repoPath: string; baseBranch: string; nature: GoalNature; modelPreset: string | null; effort: CodexEffort | null; pace: 'thorough' | 'fast'; profile: 'mattpocock' | 'pstack' | 'plain'; tdd: 'required' | 'preferred' | 'off'; ponytail: 'on' | 'off'; mode: GoalMode; delivery: DeliveryPolicy };
+  prefill: { provider: AgentProvider; codexModel?: string; agyModel?: string; repoPath: string; baseBranch: string; nature: GoalNature; modelPreset: string | null; effort: CodexEffort | null; pace: 'thorough' | 'fast'; profile: 'mattpocock' | 'pstack' | 'plain'; tdd: 'required' | 'preferred' | 'off'; ponytail: 'on' | 'off'; mode: GoalMode; delivery: DeliveryPolicy };
   start: { recommended: 'base' | 'previous'; onBase: boolean; detail: string; baseBranch: string; previousBranch: string | null };
   attachments: Attachment[];
   style: BriefStyleOption | null;

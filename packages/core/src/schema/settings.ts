@@ -1,3 +1,4 @@
+import { AgentProvider } from './provider.ts';
 import { CodexModelPreset } from './codex-presets.ts';
 import { DEFAULT_NATURE_PRESETS, ModelPreset } from './model-presets.ts';
 import { z } from 'zod';
@@ -18,9 +19,11 @@ export const VideoPack = z.enum(['web-video-presentation', 'mmx-cli', 'hyperfram
 export type VideoPack = z.infer<typeof VideoPack>;
 
 export const EngineSettings = z.object({
-  provider: z.enum(['claude', 'codex']).default('claude'),
+  provider: AgentProvider.default('claude'),
   codexBin: z.string().nullable().default(null),
   codexHome: z.string().nullable().default(null),
+  /** path to the Antigravity CLI binary; null = `agy` on PATH */
+  agyBin: z.string().nullable().default(null),
   port: z.number().int().min(1).max(65535).default(4111),
   host: z.string().min(1).default('127.0.0.1'),
   maxConcurrent: z.number().int().min(1).max(16).default(3),
@@ -39,6 +42,10 @@ export const ModelSettings = z.object({
   codexPresetDocs: z.string().min(1).default('balanced'),
   codexPresetMedia: z.string().min(1).default('balanced'),
   codexFallbacks: z.array(z.string().trim().min(1)).default([]),
+  /** agy-default uses the model the Antigravity CLI itself is set to. */
+  agyModel: z.string().trim().min(1).default('agy-default'),
+  /** the Antigravity reasoning effort for every role: low, medium, high, xhigh or max */
+  agyEffort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).default('high'),
   /** the housekeeping model: one-turn engine chores (classifying a goal, summarising logs, the rate-limit probe) */
   cheap: z.string().min(1).default('haiku'),
   /** tried in order when a tier's model is unavailable (deprecated, unknown alias …) */
@@ -264,7 +271,7 @@ export const SettingsPatch = z.object({
 export type SettingsPatch = z.infer<typeof SettingsPatch>;
 
 /** dotted leaf paths whose change only takes effect after the engine restarts */
-export const RESTART_SETTINGS = ['engine.provider', 'engine.codexBin', 'engine.codexHome', 'engine.port', 'engine.host', 'engine.claudeBin', 'engine.claudeHome'] as const;
+export const RESTART_SETTINGS = ['engine.provider', 'engine.codexBin', 'engine.codexHome', 'engine.agyBin', 'engine.port', 'engine.host', 'engine.claudeBin', 'engine.claudeHome'] as const;
 
 /**
  * leaves that hold a credential: the settings view sent to the browser carries them as null, with only whether each is

@@ -6,7 +6,7 @@
 
 **Write the goal in one sentence. Get back finished, checked, reviewed work.**
 
-Foundry runs on your own computer and drives your Claude Code or Codex CLI from a web page:<br>
+Foundry runs on your own computer and drives your Claude Code, Codex or Antigravity CLI from a web page:<br>
 it asks what only you can decide, shows you the plan once, then builds, tests, reviews and delivers on its own.
 
 English · [中文](./README.zh.md)
@@ -21,7 +21,7 @@ English · [中文](./README.zh.md)
 
 ## Why Foundry
 
-Claude Code and Codex can carry out a request. Keeping a real piece of work on track is the part left to you: saying what
+Claude Code, Codex and Antigravity can carry out a request. Keeping a real piece of work on track is the part left to you: saying what
 you actually mean, splitting it up, checking every step, noticing when it drifts, and not letting it burn your plan.
 Foundry does that part.
 
@@ -42,7 +42,7 @@ Foundry does that part.
 
 ## How it works
 
-One workflow for **Claude Code and Codex**. Connect the native accounts independently in **Accounts**, then choose the coding agent for each new goal. The screenshots below use demonstration data.
+One workflow for **Claude Code, Codex and Antigravity**. Connect the native accounts independently in **Accounts**, then choose the coding agent for each new goal. The screenshots below use demonstration data.
 
 <table>
 <tr>

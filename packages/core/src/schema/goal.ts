@@ -1,3 +1,4 @@
+import { AgentProvider } from './provider.ts';
 import { CodexEffort, CodexModelPreset } from './codex-presets.ts';
 import { z } from 'zod';
 import { Attachment } from './attachment.ts';
@@ -349,7 +350,7 @@ export type PreviewPlace = z.infer<typeof PreviewPlace>;
 
 export const Goal = z.object({
   /** Fixed at creation. Absent only in events written before provider support. */
-  provider: z.enum(['claude', 'codex']).optional(),
+  provider: AgentProvider.optional(),
   id: z.string(),
   title: z.string().min(1),
   prompt: z.string().min(1),

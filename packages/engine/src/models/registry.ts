@@ -3,6 +3,7 @@
  * for (`--model fable`) and the id Claude Code actually resolved it to (`claude-fable-5`), plus when it
  * last worked or failed. No hard-coded model knowledge beyond a seed list of family aliases.
  */
+import type { AgentProvider } from '@foundry/core';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { FailureClass, RunResult } from '@foundry/runner';
@@ -56,16 +57,19 @@ export const SEED_MODELS: { name: string; label: string; note: string }[] = [
 /** a full model id (dated or versioned), as opposed to a family alias */
 export const isPinnedId = (name: string) => /^claude-/.test(name) || /\d{8}|\d+-\d+/.test(name);
 
+/** `agy-default` follows the CLI's own choice; the account's models come from `agy models` (Sync models): they differ by tier */
+export const AGY_SEED_MODELS: { name: string; label: string; note: string }[] = [{ name: 'agy-default', label: 'Antigravity default', note: 'the model the CLI itself is set to' }];
+
 export class ModelRegistry {
   readonly path: string;
   private records = new Map<string, ModelRecord>();
-  constructor(dataDir: string, provider: 'claude' | 'codex' = 'claude') {
+  constructor(dataDir: string, provider: AgentProvider = 'claude') {
     this.path = join(dataDir, 'models.json');
     try {
       if (existsSync(this.path)) for (const r of JSON.parse(readFileSync(this.path, 'utf8')) as ModelRecord[]) this.records.set(r.name, r);
     } catch {}
     const now = new Date().toISOString();
-    for (const s of provider === 'codex' ? [{ name: 'codex-default' }] : SEED_MODELS) if (!this.records.has(s.name)) this.records.set(s.name, { name: s.name, resolvedId: null, firstSeenAt: now, lastSeenAt: now, lastOkAt: null, lastFailAt: null, lastError: null, sessions: 0, seed: true });
+    for (const s of provider === 'codex' ? [{ name: 'codex-default' }] : provider === 'agy' ? AGY_SEED_MODELS : SEED_MODELS) if (!this.records.has(s.name)) this.records.set(s.name, { name: s.name, resolvedId: null, firstSeenAt: now, lastSeenAt: now, lastOkAt: null, lastFailAt: null, lastError: null, sessions: 0, seed: true });
   }
   private save(): void {
     try {
@@ -157,4 +161,30 @@ export class ModelRegistry {
     const r = this.records.get(name);
     return !!r && (!!r.resolvedId || !!r.lastOkAt);
   }
+}
+
+/**
+ * The models `agy models` lists: one `slug<TAB>label` line each (agy 1.4.4; the command takes no --output-format), or a
+ * JSON payload (an array, or an object holding one) should a later release print one.
+ */
+export function parseAgyModels(text: string): { id: string; label: string | null }[] {
+  const out = new Map<string, string | null>();
+  const take = (item: any) => {
+    const id = typeof item === 'string' ? item : item?.slug ?? item?.id ?? item?.name ?? item?.model;
+    if (typeof id === 'string' && id.trim()) out.set(id.trim(), typeof item === 'object' ? ((item.label ?? item.displayName ?? item.display_name ?? item.title) as string | undefined) ?? null : null);
+  };
+  let json: any = null;
+  try {
+    json = JSON.parse(text.trim());
+  } catch {}
+  if (json) {
+    const list = Array.isArray(json) ? json : (json.models ?? json.data ?? json.items ?? json.structured_output ?? []);
+    for (const item of Array.isArray(list) ? list : []) take(item);
+  } else {
+    for (const line of text.split('\n')) {
+      const m = /^\s*([A-Za-z0-9][\w.-]*)(?:\t+|\s{2,})(.+?)\s*$/.exec(line);
+      if (m) out.set(m[1]!, m[2]!);
+    }
+  }
+  return [...out].map(([id, label]) => ({ id, label }));
 }

@@ -1,4 +1,5 @@
 /** Browser-safe usage types (no runtime imports). Exported as `@foundry/engine/usage-types`. */
+import type { AgentProvider } from '@foundry/core/browser';
 export interface WindowSummary {
   label: string;
   windowStart: string;
@@ -44,10 +45,33 @@ export interface GroupMeasures {
   outputTokens: number;
 }
 
+/** one quota bucket of the Antigravity account, as `agy -p /usage` reports it (agy 1.4.4) */
+export interface AgyQuotaBucket {
+  id: string;
+  name: string;
+  window: string | null;
+  /** 0–1 of the window's limit still left */
+  remainingFraction: number | null;
+  resetTime: string | null;
+}
+/** a group of models sharing a limit ("Gemini Models", the third-party ones) */
+export interface AgyQuotaGroup {
+  name: string;
+  description: string | null;
+  buckets: AgyQuotaBucket[];
+}
+export interface AgyQuota {
+  state: 'available' | 'unavailable';
+  groups: AgyQuotaGroup[];
+  checkedAt: string;
+  error: string | null;
+}
+
 export interface UsageSummary {
-  provider?: 'claude' | 'codex';
+  provider?: AgentProvider;
   costAvailable?: boolean;
   codexQuota?: CodexQuota;
+  agyQuota?: AgyQuota | null;
   now: string;
   fiveHour: WindowSummary;
   sevenDay: WindowSummary;

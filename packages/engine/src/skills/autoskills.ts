@@ -4,13 +4,15 @@
  * up so nothing it wrote reaches a commit: the generated/modified CLAUDE.md is restored and the skill
  * dirs + skills-lock.json are excluded via the repository's `.git/info/exclude`.
  */
+import { agentsFolder } from '@foundry/core';
+import type { AgentProvider } from '@foundry/core';
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { exec, git } from '../git/git.ts';
 import { spawnStreaming } from './updaters.ts';
 
 export interface AutoskillsDeps {
-  provider?: 'claude' | 'codex';
+  provider?: AgentProvider;
   spawn?: typeof spawnStreaming;
   /** `node -v` → "v22.3.0"; injected in tests */
   nodeVersion?: () => Promise<string | null>;
@@ -98,7 +100,7 @@ export async function runAutoskills(ws: string, deps: AutoskillsDeps = {}, onLin
   const major = await nodeMajor(deps);
   if (major == null || major < 22) return { status: 'skipped', skills: [], detail: major == null ? 'node is not on PATH (autoskills needs Node ≥ 22)' : `node v${major} is too old for autoskills (needs ≥ 22)` };
 
-  const folder = deps.provider === 'codex' ? '.agents' : '.claude';
+  const folder = agentsFolder(deps.provider);
   const before = new Set(skillDirs(ws, folder));
   // the agent guidance files autoskills may write (CLAUDE.md for one agent, AGENTS.md for the other), as they were
   const guidance = ['CLAUDE.md', 'AGENTS.md'].map((name) => {
@@ -109,7 +111,8 @@ export async function runAutoskills(ws: string, deps: AutoskillsDeps = {}, onLin
   const hadLock = existsSync(lockPath);
 
   const spawn = deps.spawn ?? spawnStreaming;
-  const r = await spawn(['npx', '-y', 'autoskills@latest', '-y', '--agent', deps.provider === 'codex' ? 'codex' : 'claude-code'], ws, onLine, { timeoutMs: deps.timeoutMs ?? 4 * 60_000 });
+  // Antigravity reads the .agents/skills that Codex's layout writes (autoskills has no agent of its own for it)
+  const r = await spawn(['npx', '-y', 'autoskills@latest', '-y', '--agent', (deps.provider ?? 'claude') === 'claude' ? 'claude-code' : 'codex'], ws, onLine, { timeoutMs: deps.timeoutMs ?? 4 * 60_000 });
 
   // 1. CLAUDE.md / AGENTS.md: autoskills generates or edits them; the skills themselves are what matters, so put them back
   for (const { path, before } of guidance) {
@@ -129,7 +132,7 @@ export async function runAutoskills(ws: string, deps: AutoskillsDeps = {}, onLin
   // dangling link for everyone who checks the branch out, so drop it from the index (the file stays on disk)
   // Codex writes native directories, so it has no legacy Foundry symlink migration.
   // Existing tracked .agents links belong to the repository and must never be staged for deletion.
-  const untracked = deps.provider === 'codex' ? 0 : await untrackSkillLinks(ws, after, deps.log, folder);
+  const untracked = (deps.provider ?? 'claude') !== 'claude' ? 0 : await untrackSkillLinks(ws, after, deps.log, folder);
 
   if (r.code !== 0 && !added.length) return { status: 'failed', skills: [], detail: `npx autoskills exited ${r.code}: ${r.tail.split('\n').slice(-3).join(' | ').slice(0, 300)}` };
   if (!added.length) return { status: 'skipped', skills: after, detail: `${after.length ? `nothing new to install (${after.length} project skill(s) already present)` : 'autoskills found no skills for this stack'}${untracked ? `; ${untracked} stale tracked link(s) removed from the index` : ''}` };
@@ -174,8 +177,8 @@ export async function untrackSkillLinks(ws: string, names: string[], log?: (m: s
 }
 
 /** Give a task worktree the goal workspace's project skills (they are git-excluded, so a checkout lacks them). */
-export function copyProjectSkills(fromWs: string, toWs: string, provider: 'claude' | 'codex' = 'claude'): number {
-  const folder = provider === 'codex' ? '.agents' : '.claude';
+export function copyProjectSkills(fromWs: string, toWs: string, provider: AgentProvider = 'claude'): number {
+  const folder = agentsFolder(provider);
   const src = join(fromWs, folder, 'skills');
   if (!existsSync(src)) return 0;
   const dest = join(toWs, folder, 'skills');

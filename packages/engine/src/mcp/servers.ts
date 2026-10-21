@@ -1,3 +1,4 @@
+import type { AgentProvider } from '@foundry/core';
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
@@ -14,7 +15,7 @@ export const toolName = (s: string): string => {
 export const userPrefix = (name: string) => `mcp__${toolName(name)}`;
 export const pluginPrefix = (plugin: string, server: string) => `mcp__plugin_${toolName(plugin)}_${toolName(server)}`;
 /** the tool prefix of a server a plugin ships, as each coding agent names it: Claude Code under the plugin's name, Codex by the server's own name */
-export const pluginServerPrefix = (provider: 'claude' | 'codex', plugin: string, server: string) => (provider === 'codex' ? userPrefix(server) : pluginPrefix(plugin, server));
+export const pluginServerPrefix = (provider: AgentProvider, plugin: string, server: string) => (provider !== 'claude' ? userPrefix(server) : pluginPrefix(plugin, server));
 
 /** the .claude.json the `claude` Foundry spawns reads: $CLAUDE_CONFIG_DIR/.claude.json, else ~/.claude.json */
 export const defaultClaudeJson = (): string => (process.env.CLAUDE_CONFIG_DIR ? join(process.env.CLAUDE_CONFIG_DIR, '.claude.json') : join(homedir(), '.claude.json'));

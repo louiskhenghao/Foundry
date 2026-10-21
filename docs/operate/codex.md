@@ -1,6 +1,6 @@
 # Run Foundry with Codex
 
-Foundry can drive either Claude Code or Codex CLI. Both use the same goal, interview, Brief, worktree, acceptance-check, review and delivery engine. The launch profile selects defaults and the data directory. Each new goal can select either backend in the same instance; all of its sessions keep that backend.
+Foundry can drive Claude Code, Codex CLI or the [Antigravity CLI](antigravity.md). Both use the same goal, interview, Brief, worktree, acceptance-check, review and delivery engine. The launch profile selects defaults and the data directory. Each new goal can select either backend in the same instance; all of its sessions keep that backend.
 
 ## Shared engine, independent native accounts
 

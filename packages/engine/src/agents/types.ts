@@ -1,3 +1,4 @@
+import type { AgentProvider } from '@foundry/core/browser';
 // Browser-safe: imported by the web app via `@foundry/engine/agents-types` — no node imports here.
 
 export type AgentSource = 'foundry' | 'external';
@@ -19,7 +20,7 @@ export interface AgentSubagentRow {
 
 export interface AgentSessionRow {
   sessionId: string;
-  provider?: 'claude' | 'codex';
+  provider?: AgentProvider;
   source: AgentSource;
   /** 'cli' | 'claude-vscode' | … from the session registry/transcript; 'foundry' for engine-spawned rows */
   entrypoint: string | null;

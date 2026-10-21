@@ -1,3 +1,4 @@
+import { reportsDollars } from '@foundry/core/browser';
 import { type ReactNode, useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, CornerDownRight, Folder } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -51,7 +52,7 @@ export function GoalsPage() {
       .map(([k, v]) => `${v} ${k}`)
       .join(' · ') || 'no tasks yet';
   const cost = (g: GoalRow) =>
-    g.provider === 'codex' ? <span className="font-sans text-zinc-400">cost unavailable</span> : <>{fmtUsd(g.costUsd)} <span className="text-zinc-500">/ {fmtLimitUsd(g.budgets.maxCostUsd)}</span></>;
+    !reportsDollars(g.provider) ? <span className="font-sans text-zinc-400">cost unavailable</span> : <>{fmtUsd(g.costUsd)} <span className="text-zinc-500">/ {fmtLimitUsd(g.budgets.maxCostUsd)}</span></>;
 
   // Delegated goals fold under their main goal; one whose main goal is gone stays in the list on its own, saying so
   const ids = new Set((goals ?? []).map((g) => g.id));

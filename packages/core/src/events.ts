@@ -1,3 +1,4 @@
+import { AgentProvider } from './schema/provider.ts';
 import { z } from 'zod';
 import { Attachment, AttachmentMarkdown } from './schema/attachment.ts';
 import { FeedbackPlan } from './schema/feedback.ts';
@@ -46,14 +47,14 @@ function ev<T extends string, P extends z.ZodRawShape>(type: T, payload: P) {
 
 export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.created', { goal: Goal }),
-  ev('goal.provider_assigned', { provider: z.enum(['claude', 'codex']) }),
+  ev('goal.provider_assigned', { provider: AgentProvider }),
   ev('goal.state_changed', { from: GoalState, to: GoalState, reason: z.string() }),
   ev('goal.budgets_changed', { budgets: Budgets, reason: z.string().optional() }),
   ev('goal.cost_added', { costUsd: z.number(), source: z.string() }),
   ev('goal.attachment_added', { attachment: Attachment }),
   /** one executed skills updater run (informational audit, goalId null; not projected) */
   ev('skills.update_run', {
-    provider: z.enum(['claude', 'codex']).optional(),
+    provider: AgentProvider.optional(),
     sourceId: z.string(),
     updater: z.string(),
     command: z.array(z.string()),
@@ -308,7 +309,7 @@ export const EngineEvent = z.discriminatedUnion('type', [
 
   ev('budget.snapshot', { costUsd: z.number(), elapsedMin: z.number() }),
   ev('session.usage', {
-    provider: z.enum(['claude', 'codex']).optional(),
+    provider: AgentProvider.optional(),
     sessionId: z.string().nullable(),
     kind: z.string(),
     model: z.string().nullable(),
@@ -375,8 +376,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('delivery.revert_merged', { id: z.string(), prNumber: z.number().int().nullable(), ref: z.string().nullable(), detail: z.string() }),
   ev('delivery.revert_closed', { id: z.string(), prNumber: z.number().int().nullable() }),
   ev('delivery.failed', { step: DeliveryStep, reason: z.string() }),
-  ev('rate_limit.paused', { provider: z.enum(['claude', 'codex']).optional(), rateLimitType: z.string().nullable(), until: z.string(), reason: z.string() }),
-  ev('rate_limit.resumed', { provider: z.enum(['claude', 'codex']).optional(), reason: z.string() }),
+  ev('rate_limit.paused', { provider: AgentProvider.optional(), rateLimitType: z.string().nullable(), until: z.string(), reason: z.string() }),
+  ev('rate_limit.resumed', { provider: AgentProvider.optional(), reason: z.string() }),
   /** a Release newer than this instance appeared on the version source (announced once per version) */
   ev('update.available', { current: z.string(), latest: z.string(), mode: z.enum(['docker', 'local', 'unknown']) }),
   /** one self-update attempt ran to its end (success or rolled back) */

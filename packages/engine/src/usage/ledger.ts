@@ -1,3 +1,4 @@
+import type { AgentProvider } from '@foundry/core';
 import type { Database } from 'bun:sqlite';
 import { listGoals, listRateLimitState, listUsageSince, type UsageRow } from '@foundry/core';
 import type { UsageBucket, UsageSummary, WindowSummary, GroupMeasures } from './types.ts';
@@ -44,8 +45,8 @@ const dayLabel = (t: number) => new Date(t).toLocaleDateString(undefined, { week
  * Aggregate our own ledger into the two windows Claude subscriptions use. The 5-hour window is
  * aligned to the CLI's `resetsAt` when we have seen one; otherwise it is "the last 5 hours".
  */
-export function usageSummary(db: Database, now = Date.now(), provider?: 'claude' | 'codex', legacyProvider: 'claude' | 'codex' = 'claude'): UsageSummary {
-  const state = provider === 'codex' ? [] : listRateLimitState(db);
+export function usageSummary(db: Database, now = Date.now(), provider?: AgentProvider, legacyProvider: AgentProvider = 'claude'): UsageSummary {
+  const state = provider === 'codex' || provider === 'agy' ? [] : listRateLimitState(db);
   const five = state.find((s) => s.rate_limit_type === 'five_hour') ?? null;
   const week = state.find((s) => /seven_day|weekly/.test(s.rate_limit_type)) ?? null;
 

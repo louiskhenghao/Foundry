@@ -17,7 +17,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc --noEmit -p apps/web",
     "test": "bun test packages",
     "serve:codex": "FOUNDRY_PROVIDER=codex bun apps/cli/src/main.ts serve",
-    "dev:codex": "FOUNDRY_PROVIDER=codex bun scripts/dev.ts"
+    "dev:codex": "FOUNDRY_PROVIDER=codex bun scripts/dev.ts",
+    "serve:agy": "FOUNDRY_PROVIDER=agy bun apps/cli/src/main.ts serve",
+    "dev:agy": "FOUNDRY_PROVIDER=agy bun scripts/dev.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",

@@ -1,3 +1,4 @@
+import { reportsDollars } from '@foundry/core/browser';
 import type { EscalationAction } from '@foundry/core/browser';
 import { ACTIONS_BY_TRIGGER } from '@foundry/core/browser';
 import { useEffect, useState } from 'react';
@@ -131,7 +132,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
         action,
         hint: hint || undefined,
         extraAttempts: action === 'retry_with_hint' ? attempts : undefined,
-        newMaxCostUsd: e.provider !== 'codex' && action === 'raise_budget' && cost ? Number(cost) : undefined,
+        newMaxCostUsd: reportsDollars(e.provider) && action === 'raise_budget' && cost ? Number(cost) : undefined,
         newMaxDurationMin: action === 'raise_budget' && minutes ? Number(minutes) : undefined,
       });
     } catch (x: any) {
@@ -252,7 +253,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
         {open && actions.includes('raise_budget') && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] uppercase tracking-wide text-zinc-500">New limits</span>
-            {e.provider !== 'codex' && <Input type="number" min={0.5} step={0.5} className="w-36" placeholder="new max $ (blank = ×2)" value={cost} onChange={(x) => setCost(x.target.value)} />}
+            {reportsDollars(e.provider) && <Input type="number" min={0.5} step={0.5} className="w-36" placeholder="new max $ (blank = ×2)" value={cost} onChange={(x) => setCost(x.target.value)} />}
             <Input type="number" min={5} step={5} className="w-40" placeholder="new max min (blank = ×2)" value={minutes} onChange={(x) => setMinutes(x.target.value)} />
           </div>
         )}
@@ -264,7 +265,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
           <>
             {canSuggest && (
               <>
-                <Button size="sm" variant="info" disabled={busy || !!suggesting} onClick={() => suggest(false)} title={`The AI reads the task, the failing checks and the last session, explains the cause and writes a hint for you (${e.provider === 'codex' ? 'uses ChatGPT quota; USD cost unavailable' : '≤ $1'})`}>
+                <Button size="sm" variant="info" disabled={busy || !!suggesting} onClick={() => suggest(false)} title={`The AI reads the task, the failing checks and the last session, explains the cause and writes a hint for you (${e.provider === 'codex' ? 'uses ChatGPT quota; USD cost unavailable' : e.provider === 'agy' ? 'uses Antigravity quota; USD cost unavailable' : '≤ $1'})`}>
                   <Sparkles size={12} /> {suggesting === 'suggest' ? 'Analysing…' : 'Suggest a hint'}
                 </Button>
                 <Button size="sm" variant="info" disabled={busy || !!suggesting} onClick={() => suggest(true)} title="Same analysis; when the answer is 'retry with this hint' it is applied immediately (one extra attempt). Skipping, budget and manual merges are never applied for you.">

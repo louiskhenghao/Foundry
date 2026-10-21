@@ -1,6 +1,6 @@
 # Remote access: run Foundry at home, use it from anywhere
 
-Foundry drives Claude Code or Codex against repositories on **one machine** — that machine does the work, and the web UI
+Foundry drives Claude Code, Codex or Antigravity against repositories on **one machine** — that machine does the work, and the web UI
 is how you steer it. This guide makes that machine reachable from your phone or laptop wherever you are, and
 keeps it working while you are away, using [Tailscale](https://tailscale.com) (a WireGuard mesh: only devices
 signed in to *your* tailnet can reach it — no port forwarding, no public exposure).

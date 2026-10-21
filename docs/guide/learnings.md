@@ -28,7 +28,7 @@ Some of what you want is not about one project: the package manager you use, the
 
 ## Shared with your own sessions
 
-Each folder's Learnings are also written into the repository as a project skill, `foundry-learnings` (under `.claude/skills` for Claude Code and `.agents/skills` for Codex), so your own sessions there read them too. The file is kept out of git, rewritten whenever the Learnings change and when a goal starts in the folder, and removed with the last entry. Edit the Learnings on their page, not the file. **Settings → New goal defaults → Share Learnings with your own sessions** turns it off and removes the file.
+Each folder's Learnings are also written into the repository as a project skill, `foundry-learnings` (under `.claude/skills` for Claude Code and `.agents/skills` for Codex and Antigravity), so your own sessions there read them too. The file is kept out of git, rewritten whenever the Learnings change and when a goal starts in the folder, and removed with the last entry. Edit the Learnings on their page, not the file. **Settings → New goal defaults → Share Learnings with your own sessions** turns it off and removes the file.
 
 ## Seeing and editing them
 

@@ -159,7 +159,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
   const transcriptPath = join(config.dataDir, 'transcripts', `clarify-${goal.id}.jsonl`);
   const classifiedGoal = { ...goal, nature };
   const clarifierModel = modelFor(config, classifiedGoal, 'clarifier');
-  const codex = (goal.provider ?? config.provider) === 'codex';
+  const codex = (goal.provider ?? config.provider) !== 'claude'; // no Skill tool: skills are read from their SKILL.md
   const run = (p: string, resume?: string) =>
     engine.runner.run({
       prompt: p,

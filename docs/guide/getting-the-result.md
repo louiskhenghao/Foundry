@@ -245,7 +245,7 @@ What it needs: a delivery that merged through Foundry (**Open a PR** or **PR + a
 
 ## Continue with a follow-up
 
-For Codex, an explicitly selected all-role model override is prefilled in the follow-up, even after the default model changes in Settings. Without an explicit override, the selected preset keeps its separate role assignments. The follow-up is a new goal and captures the preset’s current tables at creation; it does not copy the earlier goal’s frozen table.
+For Codex, an explicitly selected all-role model override is prefilled in the follow-up, even after the default model changes in Settings. Without an explicit override, the selected preset keeps its separate role assignments. The follow-up is a new goal and captures the preset’s current tables at creation; it does not copy the earlier goal’s frozen table. For Antigravity, the earlier goal's model is prefilled when it is not the one Settings names now.
 
 A goal is rarely the last word. When a goal has finished (done, over-delivered, failed or cancelled), its page shows **Continue with a follow-up…**. It opens the New goal form with a **Follows: …** chip and the earlier goal's repository, goal type, models, effort, Fast mode, workflow suite, TDD, current saved Ponytail, view and delivery already filled in. The workflow suite, TDD and Ponytail take precedence over folder defaults. You write what should happen next; remove the chip if you change your mind. The form's [Follows](./your-first-goal.md#follows) section says where the new goal starts and lets you leave the attachments or the style direction behind.
 

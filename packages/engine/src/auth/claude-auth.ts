@@ -1,10 +1,12 @@
+import type { AgentProvider } from '@foundry/core';
 import { claudeConfigEnv } from '../config.ts';
 import { exec } from '../git/git.ts';
 import { readCodexAccount } from './codex-account.ts';
 import { CodexAccountReadError } from './codex-app-server.ts';
+import { agyAuthStatus } from './agy-auth.ts';
 
 export interface ClaudeAuthStatus {
-  provider?: 'claude' | 'codex';
+  provider?: AgentProvider;
   loggedIn: boolean;
   authMethod: string | null;
   apiProvider: string | null;
@@ -88,7 +90,7 @@ export class ClaudeAuth {
   private listeners = new Set<(s: LoginSession) => void>();
 
   constructor(
-    private opts: { provider?: 'claude' | 'codex'; codexHome?: string; claudeHome?: string; claudeBin: string | null | (() => string | null); timeoutMs?: number; codeTimeoutMs?: number; run?: typeof exec; log?: (m: string) => void },
+    private opts: { provider?: AgentProvider; codexHome?: string; claudeHome?: string; claudeBin: string | null | (() => string | null); timeoutMs?: number; codeTimeoutMs?: number; run?: typeof exec; log?: (m: string) => void },
   ) {}
 
   /** A CLI can be installed or moved while Foundry is running. Never cache its absence for the process lifetime. */
@@ -106,7 +108,7 @@ export class ClaudeAuth {
     if (this.pending) return this.pending;
     if (!force && this.cached && Date.now() - Date.parse(this.cached.checkedAt) < 60_000) return this.cached;
     const generation = this.generation;
-    const read = this.opts.provider === 'codex' ? codexAuthStatus(bin, this.opts.run, this.opts.codexHome) : claudeAuthStatus(bin, this.opts.run, this.opts.claudeHome);
+    const read = this.opts.provider === 'codex' ? codexAuthStatus(bin, this.opts.run, this.opts.codexHome) : this.opts.provider === 'agy' ? agyAuthStatus(bin, this.opts.run) : claudeAuthStatus(bin, this.opts.run, this.opts.claudeHome);
     const pending = read.then(value => {
       // An earlier account poll must neither repopulate the cache nor return stale identity to the UI.
       if (generation !== this.generation) return this.status();
@@ -136,6 +138,8 @@ export class ClaudeAuth {
   startLogin(input: { email?: string } = {}): LoginSession {
     const bin = this.binary();
     if (!bin) throw new Error(`${this.opts.provider ?? 'claude'} CLI not installed`);
+    // the Antigravity CLI signs in through the browser from an interactive session only; Foundry reads the account afterwards
+    if (this.opts.provider === 'agy') throw new Error('Sign in to Antigravity by running `agy` once in a terminal (it opens the browser for you); Foundry then sees the account.');
     if (this.current && !this.current.done) return this.current;
     const session: LoginSession = { id: `login_${Date.now().toString(36)}`, startedAt: new Date().toISOString(), url: null, lines: [], done: false, ok: null, error: null, finishedAt: null, needsCode: false, deviceCode: null };
     this.current = session;
@@ -265,6 +269,7 @@ export class ClaudeAuth {
   async logout(): Promise<ClaudeAuthStatus> {
     const bin = this.binary();
     if (!bin) throw new Error(`${this.opts.provider ?? 'claude'} CLI not installed`);
+    if (this.opts.provider === 'agy') throw new Error('Sign out of Antigravity with /logout inside `agy`.');
     const run = this.opts.run ?? exec;
     const r = await run([bin, ...(this.opts.provider === 'codex' ? ['logout'] : ['auth', 'logout'])], process.cwd(), { timeoutMs: 30_000, env: this.opts.codexHome ? { CODEX_HOME: this.opts.codexHome } : claudeConfigEnv(this.opts.claudeHome) });
     this.invalidate();

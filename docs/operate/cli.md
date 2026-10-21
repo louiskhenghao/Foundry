@@ -11,7 +11,7 @@ foundry — drive the host Claude Code or Codex CLI to deliver on goals
   goal new "<prompt>" --repo <path>       create a goal (Clarify → Brief → approve in UI or via `brief`)
        [--issue <link|owner/name#12|#12>]   a goal from a GitHub issue (needs gh, logged in): its title and body stand in for the
                                           prompt when none is given, its thread is attached, and the pull request closes it
-       [--provider claude|codex] [--codex-model <model ID>]   backend fixed for this goal; follow-ups inherit it
+       [--provider claude|codex|agy] [--codex-model <model ID>] [--agy-model <model ID>]   backend fixed for this goal; follow-ups inherit it
        [--title t] [--base branch] [--preset auto|quick|thorough|unlimited|custom] [--max-cost 5|none] [--max-min 120|none] [--concurrency 3] [--attempts 3]
        [--auto-approve --check "<cmd>"]... [--stretch "<cmd>"]...   skip Clarify: one task + command checks
        [--models max|production|balanced|economy|<your preset>]   Selected agent model preset (default: Settings' preset for the goal type)
@@ -40,14 +40,14 @@ foundry — drive the host Claude Code or Codex CLI to deliver on goals
   diff <goalId>                           print the goal branch diff
   cancel <goalId>
   replay --verify                         rebuild read models from the event log and compare
-  doctor [--provider claude|codex] [--json]                         environment check: selected agent, login, git, bun, required skills
+  doctor [--provider claude|codex|agy] [--json]                         environment check: selected agent, login, git, bun, required skills
   skills list [--scope user|plugin|project|all] [--repo <path>] [--json]
   skills catalog                          required / recommended / optional skills and their status
   skills install <id|name> [--force]      install into the selected agent's skills directory
   skills install --tier required|recommended
   skills uninstall <name> [--force]       move to trash (reversible)
   skills restore <name> · skills update [name] · skills trash
-       All skills commands accept --provider claude|codex (default: the running instance).
+       All skills commands accept --provider claude|codex|agy (default: the running instance).
   deliver <goalId> [--mode push|pr|pr-automerge ...]   deliver a finished goal (no --mode: print the plan)
   export [--out <file>] [--settings] [--secrets] [--goals all|<id,id>] [--transcripts] [--password-stdin]
                                           write a Transfer file for another Foundry (no category flag: Settings and every goal)
@@ -58,13 +58,13 @@ foundry — drive the host Claude Code or Codex CLI to deliver on goals
                                           differing Settings sections are taken unless kept with --keep-mine
   reattach <goalId> [--repo <path>]       carry an unfinished imported goal on here (--repo maps its repository first)
   github [status|login]                   GitHub CLI status / device-flow login (needed for PR modes)
-  auth [status|login|logout] [--provider claude|codex]
+  auth [status|login|logout] [--provider claude|codex|agy]
                                           Independent account; running server owns login/logout and protects active work
                                           An explicit FOUNDRY_URL must be reachable; it never falls back to local auth
   access [list|add <name>|revoke <id>] [--json]
                                           Who may use this Foundry from elsewhere: each person a token; once anyone has one,
                                           every request needs one (FOUNDRY_TOKEN here, the sign-in page in a browser)
-  usage [--provider claude|codex] [--json] [--probe]
+  usage [--provider claude|codex|agy] [--json] [--probe]
                                           Activity and available account quota; --probe refreshes status (Claude consumes quota)
                                           Codex shows only reported account windows; weekly-only accounts are supported
   report [--days 30|90|365] [--all] [--json]

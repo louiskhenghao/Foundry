@@ -1,5 +1,5 @@
 import type { AgentSessionRow, AgentStatus } from '@foundry/engine/agents-types';
-import { Sparkle, SquareTerminal } from 'lucide-react';
+import { Sparkle, SquareTerminal, Orbit } from 'lucide-react';
 import { cn } from '../../ui.tsx';
 
 export function StatusDot({ status }: { status: AgentStatus }) {
@@ -11,6 +11,7 @@ export function StatusDot({ status }: { status: AgentStatus }) {
 const PROVIDERS = {
   claude: { label: 'Claude Code', Icon: Sparkle, cls: 'border-orange-500/40 bg-orange-500/10 text-orange-300' },
   codex: { label: 'Codex', Icon: SquareTerminal, cls: 'border-blue-500/40 bg-blue-500/10 text-blue-300' },
+  agy: { label: 'Antigravity', Icon: Orbit, cls: 'border-teal-500/40 bg-teal-500/10 text-teal-300' },
 } as const;
 
 /** The coding agent, with an icon and colour of its own so Claude Code and Codex tell apart at a glance; `compact` keeps the icon only. */

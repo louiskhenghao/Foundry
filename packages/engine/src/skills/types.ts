@@ -2,6 +2,7 @@
  * Browser-safe types for the skills manager (zod only, no node imports).
  * Exported as `@foundry/engine/skills-types`.
  */
+import { AgentProvider } from '@foundry/core/browser';
 import { z } from 'zod';
 
 export const SkillTier = z.enum(['required', 'recommended', 'optional']);
@@ -99,9 +100,9 @@ export const CatalogEntry = z.object({
   tier: SkillTier,
   source: CatalogSource,
   /** Omitted means both backends; restrict recipes that depend on a particular native runtime. */
-  providers: z.array(z.enum(['claude', 'codex'])).min(1).optional(),
+  providers: z.array(AgentProvider).min(1).optional(),
   /** Complete source recipes, selected before status, install, update and workflow hints. */
-  providerSources: z.object({ claude: CatalogSource.optional(), codex: CatalogSource.optional() }).optional(),
+  providerSources: z.object({ claude: CatalogSource.optional(), codex: CatalogSource.optional(), agy: CatalogSource.optional() }).optional(),
   roles: z.array(SkillRole).default([]),
   /** slash name; defaults to `/${name}` */
   invoke: z.string().optional(),

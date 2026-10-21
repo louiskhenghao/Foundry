@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { api, apiForProvider, type AgentProvider } from '../api.ts';
 
 const FINISHED = ['done', 'over_delivered', 'failed', 'cancelled'];
-const NAME: Record<AgentProvider, string> = { claude: 'Claude Code', codex: 'Codex' };
+const NAME: Record<AgentProvider, string> = { claude: 'Claude Code', codex: 'Codex', agy: 'Antigravity' };
 
 /**
  * Persistent banner shown while any required check fails, for the default coding agent and for any other agent an

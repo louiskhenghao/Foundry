@@ -2,7 +2,7 @@ import type { Goal, ModelAction, ModelNature, ModelPreset, PresetTable, Task } f
 import { BUILTIN_PRESETS, DEFAULT_NATURE_PRESETS, effectivePresets, natureKey } from '@foundry/core';
 import type { EngineConfig } from '../config.ts';
 
-type PresetConfig = Pick<EngineConfig, 'modelPresets' | 'naturePreset'> & Partial<Pick<EngineConfig, 'provider' | 'codexModel'>>;
+type PresetConfig = Pick<EngineConfig, 'modelPresets' | 'naturePreset'> & Partial<Pick<EngineConfig, 'provider' | 'codexModel' | 'agyModel'>>;
 type GoalRef = Pick<Goal, 'nature' | 'modelPreset'> & Partial<Pick<Goal, 'modelSubstitutions' | 'provider' | 'models' | 'codexPreset'>>;
 
 /**
@@ -20,6 +20,14 @@ export function tableFor(config: PresetConfig, goal: GoalRef): { table: PresetTa
       return [action, model];
     })) as PresetTable;
     return { table, presetId: goal.modelPreset ?? 'codex', nature };
+  }
+  if ((goal.provider ?? config.provider) === 'agy') {
+    // one model for every role, the goal's snapshot first (Settings may have moved on since); substitutions as for the others
+    const subs = goal.modelSubstitutions ?? {};
+    let model = goal.models?.worker ?? config.agyModel ?? 'agy-default';
+    for (let i = 0; i < 4 && subs[model]; i++) model = subs[model]!;
+    const table = Object.fromEntries(Object.keys(BUILTIN_PRESETS.production!.tables[nature]).map((action) => [action, model])) as PresetTable;
+    return { table, presetId: 'agy', nature };
   }
   const presets = effectivePresets(config.modelPresets);
   const candidates = [goal.modelPreset, config.naturePreset[nature], DEFAULT_NATURE_PRESETS[nature]].filter((x): x is string => !!x);

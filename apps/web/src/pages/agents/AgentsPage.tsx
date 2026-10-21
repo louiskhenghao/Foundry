@@ -1,3 +1,4 @@
+import { AGENT_PROVIDERS, PROVIDER_LABEL } from '@foundry/core/browser';
 import type { AgentSessionRow, AgentsList } from '@foundry/engine/agents-types';
 import { ChevronDown, ChevronRight, CornerDownRight, Folder, Search, Square } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -71,7 +72,7 @@ export function AgentsPage() {
   const live = (s: AgentSessionRow) => s.status === 'busy' || s.status === 'idle';
   const matching = sessions.filter(s => (provider === 'all' || s.provider === provider) && (!liveOnly || live(s)) &&
     [s.title, s.foundry?.goalTitle, s.foundry?.taskTitle, s.cwd, s.model, s.sessionId].some(value => value?.toLowerCase().includes(q)));
-  const counts = { all: sessions.length, claude: sessions.filter(s => s.provider === 'claude').length, codex: sessions.filter(s => s.provider === 'codex').length };
+  const counts = { all: sessions.length, ...Object.fromEntries(AGENT_PROVIDERS.map((p) => [p, sessions.filter(s => s.provider === p).length])) } as Record<AgentProvider | 'all', number>;
   // Foundry sessions grouped by goal, in order of their latest session; then the person's own, one card per folder
   const goalGroups: SessionGroup[] = [];
   for (const s of matching.filter((r) => r.source === 'foundry')) {
@@ -112,12 +113,12 @@ export function AgentsPage() {
         )}
         <span className="ml-auto text-[11px] text-zinc-500">refreshes every 5 s</span>
       </div>
-      <p className="text-xs text-zinc-500 -mt-2">Claude Code and Codex, together: the sessions Foundry runs for your goals, and the ones you opened yourself, from the last 24 hours. Foundry's can be stopped here; yours are read-only, and an external Codex session's live state is unknown.</p>
+      <p className="text-xs text-zinc-500 -mt-2">Every coding agent, together: the sessions Foundry runs for your goals, and the ones you opened yourself, from the last 24 hours. Foundry's can be stopped here; yours are read-only, and an external Codex session's live state is unknown.</p>
 
       <div className="flex items-center gap-2 flex-wrap">
-        {(['all', 'claude', 'codex'] as const).map((p) => (
+        {(['all', ...AGENT_PROVIDERS] as const).map((p) => (
           <button key={p} onClick={() => setProvider(p)} className={cn('rounded-md border px-2 py-1 text-xs', provider === p ? 'border-emerald-500 text-emerald-300' : 'border-zinc-800 text-zinc-400')}>
-            {p === 'all' ? 'all' : p === 'claude' ? 'Claude Code' : 'Codex'} <span className="text-zinc-600">{list ? counts[p] : ''}</span>
+            {p === 'all' ? 'all' : PROVIDER_LABEL[p]} <span className="text-zinc-600">{list ? counts[p] : ''}</span>
           </button>
         ))}
         <label className="flex items-center gap-1 text-xs text-zinc-400" title="working or waiting for input">

@@ -1,3 +1,4 @@
+import { AGENT_PROVIDERS } from '@foundry/core/browser';
 import type { DoctorReport, SkillsOverview } from '@foundry/engine/skills-types';
 import { CheckCircle2, CircleAlert, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -53,12 +54,12 @@ function BundleStatus({ provider, bundle, busy, onInstall }: { provider: AgentPr
 export function SetupPage() {
   const [params, setParams] = useSearchParams();
   const rawProvider = params.get('provider');
-  const provider: AgentProvider | null = rawProvider === 'claude' || rawProvider === 'codex' ? rawProvider : null;
+  const provider: AgentProvider | null = AGENT_PROVIDERS.find((p) => p === rawProvider) ?? null;
   useEffect(() => {
     if (provider) return;
     let alive = true;
     const select = (value: AgentProvider) => alive && setParams((current) => {
-      if (['claude', 'codex'].includes(current.get('provider') ?? '')) return current;
+      if (AGENT_PROVIDERS.some((p) => p === current.get('provider'))) return current;
       const next = new URLSearchParams(current);
       next.set('provider', value);
       return next;
@@ -157,6 +158,7 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
                         Sign in
                       </Button>
                     )}
+                    {c.id === 'agy-auth' && <span className="text-zinc-400">Run it in a terminal and sign in with your Google account; this check turns green afterwards.</span>}
                     {c.id === 'gh-auth' && (
                       <Button size="sm" variant="primary" onClick={() => setGhSignIn(true)}>
                         Sign in
@@ -251,7 +253,7 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
 
       <Card title="Development workflow — Matt Pocock's engineering skills">
         <p className="text-xs text-zinc-400 mb-3">
-          Foundry's roles follow this workflow: workers use <span className="mono">tdd</span> for features and refactors and <span className="mono">diagnosing-bugs</span> for bugs, the merger follows built-in conflict-resolution instructions, and the goal reviewer applies <span className="mono">code-review</span>'s two axes. {provider === 'codex' ? 'Codex reads native SKILL.md instructions. Skill invocation telemetry is unavailable; reviews assess the work and tests instead of treating missing telemetry as a skipped skill.' : <>The engine records which skills each session invoked. Skills provided by the <span className="mono">mattpocock-skills</span> plugin are used as-is; others are installed from the catalog.</>}
+          Foundry's roles follow this workflow: workers use <span className="mono">tdd</span> for features and refactors and <span className="mono">diagnosing-bugs</span> for bugs, the merger follows built-in conflict-resolution instructions, and the goal reviewer applies <span className="mono">code-review</span>'s two axes. {provider === 'codex' ? 'Codex reads native SKILL.md instructions. Skill invocation telemetry is unavailable; reviews assess the work and tests instead of treating missing telemetry as a skipped skill.' : provider === 'agy' ? 'Antigravity reads skills only from a workspace: Foundry installs them in ~/.agents/skills (shared with Codex and the skills CLI) and links them into each goal\'s workspace. Skill invocation telemetry is unavailable; reviews assess the work and tests instead.' : <>The engine records which skills each session invoked. Skills provided by the <span className="mono">mattpocock-skills</span> plugin are used as-is; others are installed from the catalog.</>}
         </p>
         <BundleStatus provider={provider} bundle="mattpocock" busy={busy} onInstall={() => runAction('bundle', async () => {
           const op = await awaitSkillOp(api, (await api.installBundle('mattpocock')).op);
@@ -261,7 +263,7 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
 
       <Card title="Workflow suite — pstack">
         <p className="text-xs text-zinc-400 mb-3">
-          A second suite a goal can run on (<span className="mono">Powered by</span> on the New goal form): a bug fix that starts from the failing test, <span className="mono">deslop</span> before a task is handed back, <span className="mono">thermo-nuclear-review</span> for the final review, non-interactive conflict resolution and a technical-writing standard. Foundry keeps one pinned release as its own copy, without the plugin's hooks; Claude loads it per session, Codex gets the skills linked into the goal's workspace. Roles pstack has no skill for keep Matt Pocock's.
+          A second suite a goal can run on (<span className="mono">Powered by</span> on the New goal form): a bug fix that starts from the failing test, <span className="mono">deslop</span> before a task is handed back, <span className="mono">thermo-nuclear-review</span> for the final review, non-interactive conflict resolution and a technical-writing standard. Foundry keeps one pinned release as its own copy, without the plugin's hooks; Claude loads it per session, Codex and Antigravity get the skills linked into the goal's workspace. Roles pstack has no skill for keep Matt Pocock's.
         </p>
         <BundleStatus provider={provider} bundle="pstack" busy={busy} onInstall={() => runAction('bundle', async () => {
           const op = await awaitSkillOp(api, (await api.installBundle('pstack')).op);
@@ -284,12 +286,12 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
           Parts and assemblies as STEP (STL, 3MF and GLB on request), engineering drawings, DXF cut profiles, URDF/SRDF/SDF robot files, printability and manufacturability checks, headless slicing: skills and a <span className="mono">cad</span> viewer server from{' '}
           <a className="underline" href="https://github.com/earthtojake/text-to-cad" target="_blank" rel="noreferrer">earthtojake/text-to-cad</a> (MIT). Goals get the <span className="mono">cad</span> nature; code goals use the same skills in their CAD tasks.
         </p>
-        <ul className="text-xs text-zinc-500 mb-3 max-w-3xl list-disc pl-4 space-y-0.5">
+        {provider !== 'agy' && <ul className="text-xs text-zinc-500 mb-3 max-w-3xl list-disc pl-4 space-y-0.5">
           <li>Needs uv: the CAD kernel (cadgen) runs through it. The line below says whether it is on this computer.</li>
           <li>Install adds the plugin for this coding agent, allows its <span className="mono">cad</span> server for sessions (its telemetry switch and page-only tools stay out of reach) and downloads the CAD runtime once (Python 3.13 and OpenCASCADE, a few hundred MB); the progress shows here and the page can be left meanwhile.</li>
           <li>Sessions run cadgen with usage statistics and update checks off; your own use of text-to-cad keeps its settings. Hand-offs to Bambu Connect, Bambu Studio or OrcaSlicer's window stay off until Settings → Safety → Desktop apps &amp; printers is on.</li>
-        </ul>
-        {cadTools && (
+        </ul>}
+        {cadTools && provider !== 'agy' && (
           <p className={cn('text-xs mb-3', cadTools.ok ? 'text-zinc-400' : 'text-amber-300')}>
             {cadTools.detail}
             {cadTools.fix?.command ? (
@@ -299,6 +301,9 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
             ) : null}
           </p>
         )}
+        {provider === 'agy' ? (
+          <p className="text-xs text-amber-300">Not available for Antigravity: text-to-cad comes as a plugin with its own server, and agy takes neither from Foundry. CAD goals run on Claude Code or Codex.</p>
+        ) : (
         <BundleStatus provider={provider} bundle="text-to-cad" busy={busy} onInstall={() => runAction('bundle', async () => {
           const opId = `cad-${Date.now().toString(36)}`;
           setBundleLog({ title: 'text-to-cad', channel: `skills-op:${opId}`, status: 'running' });
@@ -306,6 +311,7 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
           setBundleLog({ title: 'text-to-cad', channel: op.channel, status: op.status });
           return op.summary ?? op.status;
         })} />
+        )}
         {bundleLog && (
           <div className="mt-3">
             <div className="flex items-center justify-between mb-1">

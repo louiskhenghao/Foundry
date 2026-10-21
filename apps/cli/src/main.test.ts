@@ -88,6 +88,12 @@ describe('CLI goal creation defaults', () => {
     expect(await submittedGoal([], null)).not.toHaveProperty('effort');
     expect((await submittedGoal(['--provider', 'codex', '--effort', 'default'], null)).effort).toBeNull();
   });
+
+  test('an Antigravity goal names its agent and may pin its model (ADR-0064)', async () => {
+    const body = await submittedGoal(['--provider', 'agy', '--agy-model', 'gemini-3.8-flash-high'], null);
+    expect(body.provider).toBe('agy');
+    expect(body.agyModel).toBe('gemini-3.8-flash-high');
+  });
 });
 
 describe('a goal from a GitHub issue (ADR-0052)', () => {

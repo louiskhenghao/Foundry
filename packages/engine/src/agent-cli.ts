@@ -1,19 +1,25 @@
+import type { AgentProvider } from '@foundry/core';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, join } from 'node:path';
 
-export type AgentCliId = 'claude-code' | 'codex-cli';
-export const AGENT_CLI_IDS: AgentCliId[] = ['claude-code', 'codex-cli'];
+export type AgentCliId = 'claude-code' | 'codex-cli' | 'antigravity-cli';
+export const AGENT_CLI_IDS: AgentCliId[] = ['claude-code', 'codex-cli', 'antigravity-cli'];
 
 /**
  * How Setup installs a coding agent's CLI on this machine, preferring installers that need no npm: Claude Code's native
  * installer, Codex through Homebrew's cask, else npm, else its release binary. null = nothing Foundry can run here;
  * Setup shows the docs instead.
  */
-export function agentCliInstall(provider: 'claude' | 'codex', which: (bin: string) => string | null = (b) => Bun.which(b), platform: NodeJS.Platform = process.platform, arch: string = process.arch): { id: AgentCliId; command: string } | null {
+export function agentCliInstall(provider: AgentProvider, which: (bin: string) => string | null = (b) => Bun.which(b), platform: NodeJS.Platform = process.platform, arch: string = process.arch): { id: AgentCliId; command: string } | null {
   if (provider === 'claude') {
     if (which('curl')) return { id: 'claude-code', command: 'curl -fsSL https://claude.ai/install.sh | bash' };
     return which('npm') ? { id: 'claude-code', command: 'npm install -g @anthropic-ai/claude-code' } : null;
+  }
+  if (provider === 'agy') {
+    // Google's installer puts the binary in ~/.local/bin; Homebrew has a cask on macOS
+    if (platform === 'darwin' && which('brew')) return { id: 'antigravity-cli', command: 'brew install --cask antigravity-cli' };
+    return which('curl') ? { id: 'antigravity-cli', command: 'curl -fsSL https://antigravity.google/cli/install.sh | bash' } : null;
   }
   if (platform === 'darwin' && which('brew')) return { id: 'codex-cli', command: 'brew install --cask codex' };
   if (which('npm')) return { id: 'codex-cli', command: 'npm install -g @openai/codex' };

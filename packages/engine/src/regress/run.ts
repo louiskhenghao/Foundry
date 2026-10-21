@@ -5,6 +5,7 @@
  * checkout: every check exits 0, no file outside the allowed ones changed, and the goal ended done within its budget.
  * A run is a plain record — what passed, what it cost, how long it took — that `compare` sets against a saved one.
  */
+import type { AgentProvider } from '@foundry/core';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getGoal, listAttemptsByGoal, listEscalations, listTasks, type GoalState } from '@foundry/core';
@@ -42,7 +43,7 @@ export interface RegressRun {
   at: string;
   label: string;
   foundry: string;
-  provider: 'claude' | 'codex';
+  provider: AgentProvider;
   profile: EngineConfig['workflowProfile'];
   model: string | null;
   clarify: boolean;
@@ -56,7 +57,7 @@ export interface RunOptions {
   workDir: string;
   /** the repository root (for `defaultConfig`) */
   root: string;
-  provider?: 'claude' | 'codex';
+  provider?: AgentProvider;
   profile?: EngineConfig['workflowProfile'];
   /** one model alias for every role of every goal; null = the presets as configured */
   model?: string | null;
@@ -96,7 +97,8 @@ export async function runCase(engine: Engine, c: RegressCase, opts: Pick<RunOpti
       milestonePause: false,
       selfCheck: false,
       budgets: { maxCostUsd: c.maxCostUsd, maxDurationMin: c.maxMinutes, maxConcurrent: 2, attemptsPerTask: 2 },
-      ...(opts.model ? { models: { strong: opts.model, cheap: opts.model, worker: opts.model } } : {}),
+      // each agent names its model its own way: Claude tiers, the Codex model, the one Antigravity model
+      ...(opts.model ? (engine.config.provider === 'codex' ? { codexModel: opts.model } : engine.config.provider === 'agy' ? { agyModel: opts.model } : { models: { strong: opts.model, cheap: opts.model, worker: opts.model } }) : {}),
       ...(clarify ? {} : { autoBrief: { mustChecks: c.checks } }),
       delivery: { mode: 'local' },
     });

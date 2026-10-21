@@ -40,7 +40,7 @@ Brief 本身不能改：一经批准就固定了。但你可以调整方向：
 - 常规 goal 勾选 **Fast mode**。
 - 小 goal 把 **Effort** 设为 **low**。
 - 在 Brief 上把简单任务标成 **simple**；它们用预设里的 **Simple tasks** 模型运行，Codex 还使用该角色的推理强度。Sonnet／Opus 示例只适用于 Claude 预设，Codex 预设名称不保证价格。
-- 设置时间和尝试次数限制。Claude 还支持美元预算；Codex 不报告美元费用，也不执行美元上限。
+- 设置时间和尝试次数限制。Claude 还支持美元预算；Codex 和 Antigravity 不报告美元费用，也不执行美元上限。
 
 更多见 [费用与用量](./costs-and-usage.zh.md#怎样少花钱)。
 
@@ -86,7 +86,7 @@ Foundry 写计划时，会把每个任务评为 **simple**、**standard** 或 **
 
 ## 能同时运行几个 goal 吗？
 
-能。Claude 和 Codex goal 共用 **Concurrent agent sessions** 这个上限（默认 3，在 [Settings → Models & limits](./settings.zh.md#limits) 里），所以同时跑的 goal 越多，每个就越慢。同一个项目上的两个 goal，在你合并之前看不到彼此的工作。
+能。所有编码智能体的 goal 共用 **Concurrent agent sessions** 这个上限（默认 3，在 [Settings → Models & limits](./settings.zh.md#limits) 里），所以同时跑的 goal 越多，每个就越慢。同一个项目上的两个 goal，在你合并之前看不到彼此的工作。
 
 ## Claude 和 Codex 可以共用一个实例吗？
 

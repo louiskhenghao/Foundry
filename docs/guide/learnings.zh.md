@@ -28,7 +28,7 @@ goal 的 **Activity** 会写明改了什么，例如 *Learnings for this folder:
 
 ## 分享给你自己的会话
 
-每个文件夹的 Learnings 也会写进仓库，作为一个项目技能 `foundry-learnings`（Claude Code 在 `.claude/skills` 下，Codex 在 `.agents/skills` 下），这样你自己在那里开的会话也能读到。这个文件不进 git，Learnings 一变就重写，goal 在这个文件夹开始时也会刷新，最后一条删掉它就消失。请在 Learnings 页面上编辑，不要改文件。**Settings → New goal defaults → Share Learnings with your own sessions** 可以关掉它并删除文件。
+每个文件夹的 Learnings 也会写进仓库，作为一个项目技能 `foundry-learnings`（Claude Code 在 `.claude/skills` 下，Codex 和 Antigravity 在 `.agents/skills` 下），这样你自己在那里开的会话也能读到。这个文件不进 git，Learnings 一变就重写，goal 在这个文件夹开始时也会刷新，最后一条删掉它就消失。请在 Learnings 页面上编辑，不要改文件。**Settings → New goal defaults → Share Learnings with your own sessions** 可以关掉它并删除文件。
 
 ## 查看和编辑
 

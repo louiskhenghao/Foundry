@@ -7,6 +7,7 @@
  * Channel-agnostic: a channel turns a `Keyboard` into its buttons, a button's `data` back into a `press`, a reply into
  * a `reply`, and shows the `Outcome`.
  */
+import { AgentProvider, PROVIDER_LABEL, reportsDollars } from '@foundry/core';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { ACTIONS_BY_TRIGGER, proposeBudgetFromEstimate, calibratedEstimate, type Calibration } from '@foundry/core';
@@ -19,7 +20,7 @@ export type Target =
   | { kind: 'round'; goalId: string; round: number }
   | { kind: 'brief'; goalId: string }
   | { kind: 'plan'; escId: string }
-  | { kind: 'usage'; provider: 'claude' | 'codex' };
+  | { kind: 'usage'; provider: AgentProvider };
 
 /** what words sent in reply mean */
 export type TextTarget = { kind: 'hint'; escId: string } | { kind: 'feedback'; escId: string } | { kind: 'answer'; goalId: string; round: number; index: number } | { kind: 'note'; goalId: string; round: number };
@@ -65,7 +66,7 @@ export type Press =
   | { kind: 'round'; goalId: string; round: number; code: 'a' | 's' | 'e' | 'n' }
   | { kind: 'brief'; goalId: string; code: 'a' | 'A' | 'n' }
   | { kind: 'plan'; escId: string; code: 'a' | 'n' }
-  | { kind: 'usage'; provider: 'claude' | 'codex' };
+  | { kind: 'usage'; provider: AgentProvider };
 
 const ID = /^[a-z]+_[0-9a-z]+$/;
 const num = (s: string | undefined) => (s && /^\d{1,3}$/.test(s) ? Number(s) : null);
@@ -94,7 +95,7 @@ export function parsePress(data: string): Press | null {
     case 'p':
       return p.length === 3 && id && (p[2] === 'a' || p[2] === 'n') ? { kind: 'plan', escId: id, code: p[2] } : null;
     case 'u':
-      return p.length === 2 && (p[1] === 'claude' || p[1] === 'codex') ? { kind: 'usage', provider: p[1] } : null;
+      return p.length === 2 && AgentProvider.safeParse(p[1]).success ? { kind: 'usage', provider: p[1] as AgentProvider } : null;
     default:
       return null;
   }
@@ -177,14 +178,14 @@ export function briefKeyboard(goalId: string, brief: Brief | null): Keyboard {
 }
 
 export const planKeyboard = (escId: string): Keyboard => [[btn('✅ Apply', `p:${escId}:a`), btn('↩︎ Drop', `p:${escId}:n`)]];
-export const usageKeyboard = (provider: 'claude' | 'codex'): Keyboard => [[btn('▶️ Resume now', `u:${provider}`)]];
+export const usageKeyboard = (provider: AgentProvider): Keyboard => [[btn('▶️ Resume now', `u:${provider}`)]];
 
 /**
  * The budget a Brief is approved with, as the Brief page does it: an Auto goal with no limits yet takes the estimate ×2
  * (no dollar limit for Codex, which reports no cost); otherwise the goal's limits stand.
  */
 export function budgetOnApproval(goal: Pick<Goal, 'provider' | 'budgetPreset' | 'budgets'>, brief: Pick<Brief, 'costEstimateUsd' | 'timeEstimateMin'>, calibration: Calibration | null = null): { budgets?: Partial<Budgets>; text: string } {
-  const codex = goal.provider === 'codex';
+  const codex = !reportsDollars(goal.provider);
   if (goal.budgetPreset === 'auto' && goal.budgets.maxCostUsd == null && goal.budgets.maxDurationMin == null) {
     // the estimate as earlier goals corrected it (ADR-0056), then ×2 as on the Brief page
     const corrected = calibration && calibration.scope !== 'none';
@@ -219,7 +220,7 @@ export interface ActionHost {
   answerInterview(goalId: string, answers: Record<string, string>, finish: boolean, note: string | null): void;
   approveBrief(goalId: string, budgets?: Partial<Budgets>): Promise<void>;
   classifyFeedback(goalId: string, text: string): Promise<FeedbackPlan>;
-  resumeNow(provider: 'claude' | 'codex'): boolean;
+  resumeNow(provider: AgentProvider): boolean;
   /** how far earlier goals ran from their estimate, for the budget a Brief is approved with (ADR-0056) */
   calibration?(goal: Goal): Calibration | null;
   /** an entry in the activity: what was answered, from where, by whom */
@@ -290,7 +291,7 @@ export async function press(host: ActionHost, data: string, via: Via): Promise<O
       return pressPlan(host, p, via);
     case 'usage': {
       const resumed = host.resumeNow(p.provider);
-      if (resumed) host.note(null, `${p.provider === 'codex' ? 'Codex' : 'Claude Code'} sessions resumed ${fromVia(via)}`);
+      if (resumed) host.note(null, `${PROVIDER_LABEL[p.provider]} sessions resumed ${fromVia(via)}`);
       return { toast: resumed ? 'Sessions start again now. If the limit still holds, the next one pauses them again.' : 'Not paused any more.', buttons: statusRow(`✓ Resumed · ${clock()}`) };
     }
   }
