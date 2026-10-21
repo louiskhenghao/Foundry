@@ -183,3 +183,25 @@ export async function linkSuiteSkills(ws: string, s: InstalledSuite, skills: str
   if (linked.length) await excludeFromGit(ws, linked.map((n) => `.agents/skills/${n}`), log);
   return linked;
 }
+
+/**
+ * Antigravity: link skill folders into a workspace's `.agents/skills/<name>` (git-excluded), idempotently. A name the
+ * workspace already holds (a project skill, an earlier link) is left as it is.
+ */
+export async function linkSkillDirs(ws: string, skills: { name: string; dir: string }[], log?: (m: string) => void): Promise<string[]> {
+  const dir = join(ws, '.agents', 'skills');
+  const linked: string[] = [];
+  for (const s of skills) {
+    if (!/^[\w.-]+$/.test(s.name) || !existsSync(join(s.dir, 'SKILL.md'))) continue;
+    const link = join(dir, s.name);
+    try {
+      lstatSync(link);
+      continue;
+    } catch {}
+    mkdirSync(dir, { recursive: true });
+    symlinkSync(s.dir, link);
+    linked.push(s.name);
+  }
+  if (linked.length) await excludeFromGit(ws, linked.map((n) => `.agents/skills/${n}`), log);
+  return linked;
+}

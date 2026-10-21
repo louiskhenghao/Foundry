@@ -221,7 +221,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   const ops = new SkillOps((s) => engine.broadcast(s));
   const authProvider = (c: any): AgentProvider => AgentProvider.parse(c.req.query('provider') ?? engine.config.provider ?? 'claude');
   const skillsFor = (c: any) => engine.skillsForProvider(authProvider(c));
-  const mcpFor = (c: any) => engine.mcpFor(authProvider(c));
+  // Antigravity keeps its MCP servers itself (agy mcp): Foundry does not change them for it
+  const mcpFor = (c: any) => {
+    if (authProvider(c) === 'agy') throw new HttpError(400, { error: 'Antigravity keeps its MCP servers itself: add them with agy mcp add, list them with agy mcp list.' });
+    return engine.mcpFor(authProvider(c));
+  };
 
   app.onError((err, c) => {
     // an error that ended a Skills page operation names it, so the page can show that operation as failed

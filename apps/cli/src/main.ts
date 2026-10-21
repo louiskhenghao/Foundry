@@ -71,7 +71,7 @@ async function skillsLocal(selected?: AgentProvider) {
   const settings = new SettingsStore(cfg.dataDir);
   applySettingsToConfig(cfg, settings.values(), settings.fileLeaves());
   const provider = selected ?? cfg.provider;
-  return new SkillsManager({ provider, codexBin: cfg.codexBin, codexHome: cfg.codexHome, claudeBin: cfg.claudeBin, claudeHome: provider === 'codex' ? cfg.codexHome : provider === 'agy' ? join(homedir(), '.gemini', 'config') : cfg.claudeHome, dataDir: provider === cfg.provider ? cfg.dataDir : join(cfg.dataDir, 'providers', provider), catalogPath: cfg.catalogPath, log: (m) => console.error(m) });
+  return new SkillsManager({ provider, codexBin: cfg.codexBin, codexHome: cfg.codexHome, claudeBin: cfg.claudeBin, claudeHome: provider === 'codex' ? cfg.codexHome : provider === 'agy' ? join(homedir(), '.agents') : cfg.claudeHome, dataDir: provider === cfg.provider ? cfg.dataDir : join(cfg.dataDir, 'providers', provider), catalogPath: cfg.catalogPath, log: (m) => console.error(m) });
 }
 /** a Transfer's password: the first line of stdin with --password-stdin, else FOUNDRY_TRANSFER_PASSWORD */
 async function transferPassword(): Promise<string> {

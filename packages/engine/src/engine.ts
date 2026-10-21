@@ -66,7 +66,7 @@ import { cleanDeliverables, deliversCheckName, deliversCheckSpec } from './check
 import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
 import { skillUsage } from './skills/usage.ts';
-import { linkSuiteSkills } from './skills/suites.ts';
+import { linkSkillDirs, linkSuiteSkills } from './skills/suites.ts';
 import { exportLearningsSkill } from './learnings-skill.ts';
 import { secondOpinion, secondOpinionFailureOf, secondOpinionOf, secondOpinionOnBrief, startSecondOpinion, type SecondOpinionFailure, type SecondOpinionView } from './brief-second-opinion.ts';
 import { SATISFIED } from './skills/catalog.ts';
@@ -442,8 +442,8 @@ export class Engine {
     this.roles = new Roles(config.rolesDir);
     const makeSkills = (provider: AgentProvider) => new SkillsManager({
       provider, codexBin: config.codexBin, codexHome: config.codexHome, agyBin: config.agyBin,
-      // Antigravity keeps its own files under ~/.gemini/config and reads the shared ~/.agents/skills like Codex
-      claudeHome: provider === 'codex' ? config.codexHome : provider === 'agy' ? join(homedir(), '.gemini', 'config') : config.claudeHome,
+      // Antigravity reads skills only from a workspace's .agents/skills: its store is the shared ~/.agents/skills, linked in per goal
+      claudeHome: provider === 'codex' ? config.codexHome : provider === 'agy' ? join(homedir(), '.agents') : config.claudeHome,
       claudeSkillsDir: provider !== 'claude' ? join(config.claudeHome, 'skills') : undefined,
       dataDir: provider === config.provider ? config.dataDir : join(config.dataDir, 'providers', provider),
       catalogPath: config.catalogPath,
@@ -457,7 +457,7 @@ export class Engine {
       packs: () => ({ design: config.designPack, image: config.imagePack, video: config.videoPack }),
       // a plugin that ships MCP servers (text-to-cad's `cad`) is allowed for sessions as soon as it is installed, under the prefix this coding agent gives it
       onPluginServers: (prefixes) => {
-        for (const p of prefixes) this.mcpFor(provider).allow(p, true);
+        if (provider !== 'agy') for (const p of prefixes) this.mcpFor(provider).allow(p, true);
       },
       sessionEnv: () => this.sessionEnvExtra(),
       gates: () => ({ desktopApps: this.config.desktopApps }),
@@ -1920,7 +1920,9 @@ export class Engine {
     return this.providerSkills[provider];
   }
 
+  /** the MCP manager of a coding agent; Antigravity keeps its servers itself (`agy mcp`), so it has none here */
   mcpFor(provider: AgentProvider = this.config.provider) {
+    if (provider === 'agy') throw new Error("Antigravity keeps its MCP servers itself: add them with agy mcp add, list them with agy mcp list.");
     return provider === 'codex' ? this.codexMcp : this.mcp;
   }
 
@@ -2005,6 +2007,7 @@ export class Engine {
   private async suiteFor(spec: RunSpec, provider: AgentProvider): Promise<Pick<RunSpec, 'pluginDirs'>> {
     const goalId = spec.meta?.goalId;
     const goal = goalId ? getGoal(this.store.db, goalId) : null;
+    if (provider === 'agy') await this.linkAgySkills(spec.cwd).catch((e) => this.config.log(`[skills] skill links in ${spec.cwd}: ${String((e as Error).message ?? e)}`));
     if (!goal || this.workflowProfileOf(goal) !== 'pstack') return {};
     const skills = this.providerSkills[provider];
     const suite = skills.installedSuite('pstack');
@@ -2014,6 +2017,18 @@ export class Engine {
     // only a workspace or worktree takes links (a housekeeping session's cwd is the data dir)
     if (existsSync(join(spec.cwd, '.git'))) await linkSuiteSkills(spec.cwd, suite, wanted, this.config.log).catch((e) => this.config.log(`[skills] suite links in ${spec.cwd}: ${String((e as Error).message ?? e)}`));
     return {};
+  }
+
+  /**
+   * Antigravity reads skills from a workspace's `.agents/skills` only, not from ~/.agents/skills (agy 1.4.4): the catalog
+   * skills installed there, the ones a session may be told to follow, are linked into the session's workspace (git-excluded).
+   */
+  private async linkAgySkills(cwd: string): Promise<void> {
+    if (!existsSync(join(cwd, '.git'))) return;
+    const skills = this.providerSkills.agy;
+    const wanted = new Set((await skills.status()).filter((s) => SATISFIED.includes(s.status) && s.entry.source.type !== 'suite').map((s) => (s.installedInvoke ?? `/${s.entry.name}`).replace(/^\//, '')));
+    const rows = skills.scan().installed.filter((r) => r.scope === 'user' && wanted.has(r.name));
+    await linkSkillDirs(cwd, rows.map((r) => ({ name: r.name, dir: r.dir })), this.config.log);
   }
 
   // ---------- commands ----------
@@ -2296,7 +2311,7 @@ export class Engine {
       return { ok, command: CODE_SERVER_INSTALL, exitCode: r.code };
     }
     // a coding agent's own CLI (Setup's Claude Code / Codex check), else a CLI tool from the skills catalog
-    const agentCli = AGENT_CLI_IDS.includes(id as AgentCliId) ? agentCliInstall(id === 'codex-cli' ? 'codex' : 'claude') : null;
+    const agentCli = AGENT_CLI_IDS.includes(id as AgentCliId) ? agentCliInstall(id === 'codex-cli' ? 'codex' : id === 'antigravity-cli' ? 'agy' : 'claude') : null;
     if (AGENT_CLI_IDS.includes(id as AgentCliId) && !agentCli) throw new Error(`${id}: no installer available here (needs curl, Homebrew or npm) — see the linked setup docs`);
     const entry = agentCli ? null : this.skillsForProvider(provider).catalog().entries.find((e) => e.id === id);
     if (!agentCli && (!entry || entry.source.type !== 'cli')) throw new Error(`${id} is not a CLI tool in the catalog`);
@@ -2328,7 +2343,7 @@ export class Engine {
       : { id: 'notifications', label: 'Notifications (optional)', ok: false, severity: 'warn' as const, detail: 'not configured — get a Telegram or Discord ping when a goal needs you, finishes, or a delivery fails', fix: { url: '/settings' } };
     const rea = await this.reaEnginesCheck(provider);
     const cad = await this.cadToolsCheck(provider);
-    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...await this.mcpFor(provider).doctorChecks()]);
+    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...(provider === 'agy' ? [] : await this.mcpFor(provider).doctorChecks())]);
   }
 
   /**
@@ -2355,6 +2370,7 @@ export class Engine {
    * .NET and Android packages need none; native apps and binaries need Hopper, Ghidra or IDA.
    */
   private async reaEnginesCheck(provider: AgentProvider) {
+    if (provider === 'agy') return null; // its MCP servers are agy's own
     const view = await this.mcpFor(provider).view();
     if (!view.catalog.some((c) => c.entry.id === 'rea' && c.installed)) return null;
     const env = process.env;

@@ -48,6 +48,16 @@ describe('provider-scoped extensions and setup', () => {
     expect((await send('/api/mcp/remove?provider=claude', 'POST', { name: 'example' })).status).toBe(200);
     expect(calls).toEqual(['codex:install:tdd', 'claude:bundle:workflow', 'codex:restore:test', 'codex:allow:mcp__example:true', 'claude:remove:example']);
   });
+  test('Antigravity: its skills are managed like the others; its MCP servers are refused before any configuration is touched', async () => {
+    const { send, calls } = fixture();
+    expect((await send('/api/skills/install?provider=agy', 'POST', { id: 'tdd' })).status).toBe(200);
+    for (const [path, method, body] of [['/api/mcp?provider=agy', 'GET', undefined], ['/api/mcp/allowed?provider=agy', 'PUT', { prefix: 'mcp__example', on: true }], ['/api/mcp/remove?provider=agy', 'POST', { name: 'example' }]] as const) {
+      const r = await send(path, method, body);
+      expect(r.status).toBe(400);
+      expect((await r.json()).error).toContain('agy mcp add');
+    }
+    expect(calls).toEqual(['agy:install:tdd']);
+  });
   test('unknown providers fail before touching either native configuration', async () => {
     const { send, calls } = fixture();
     const r = await send('/api/mcp/allowed?provider=other', 'PUT', { prefix: 'mcp__example', on: true });
