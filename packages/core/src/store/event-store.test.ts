@@ -1,4 +1,7 @@
 import { describe, expect, test } from 'bun:test';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { openDatabase } from './db.ts';
 import { EventStore } from './event-store.ts';
 import { getBrief, getGoal, getTask, listGoals, listTasks } from './projections.ts';
@@ -156,14 +159,43 @@ describe('EventStore', () => {
     expect(() => store.append({ type: 'goal.state_changed', goalId: 'g', payload: { from: 'draft', to: 'nope', reason: '' } })).toThrow();
   });
 
-  test('close() shuts the database once, and a closed store refuses queries', () => {
-    const store = new EventStore(openDatabase(':memory:'));
-    store.append({ type: 'goal.created', goalId: 'g_c', payload: { goal: goal('g_c') } });
-    expect(store.isClosed).toBe(false);
-    store.close();
-    store.close();
-    expect(store.isClosed).toBe(true);
-    expect(() => store.count()).toThrow();
+  test('close() shuts the file once; what comes after works on a copy in memory and never reaches the file', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'foundry-store-close-'));
+    try {
+      const path = join(dir, 'engine.db');
+      const store = new EventStore(openDatabase(path));
+      store.append({ type: 'goal.created', goalId: 'g_c', payload: { goal: goal('g_c') } });
+      expect(store.isClosed).toBe(false);
+      store.close();
+      store.close();
+      expect(store.isClosed).toBe(true);
+      // late work reads the final state and writes without throwing, even once the file is gone
+      expect(getGoal(store.db, 'g_c')?.title).toBe('t');
+      rmSync(dir, { recursive: true, force: true });
+      store.append({ type: 'goal.state_changed', goalId: 'g_c', payload: { from: 'draft', to: 'clarifying', reason: 'late' } });
+      expect(getGoal(store.db, 'g_c')?.state).toBe('clarifying');
+      expect(store.count()).toBe(2);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('a WAL file is copied whole: the late writes stay in memory, the file keeps what it had', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'foundry-store-wal-'));
+    try {
+      const path = join(dir, 'engine.db');
+      const store = new EventStore(openDatabase(path));
+      for (let i = 0; i < 50; i++) store.append({ type: 'goal.created', goalId: `g_${i}`, payload: { goal: goal(`g_${i}`) } });
+      store.close();
+      store.append({ type: 'goal.created', goalId: 'g_late', payload: { goal: goal('g_late') } });
+      expect(listGoals(store.db)).toHaveLength(51);
+      const reopened = new EventStore(openDatabase(path));
+      expect(reopened.count()).toBe(50);
+      expect(getGoal(reopened.db, 'g_late')).toBeNull();
+      reopened.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test('notifies listeners after commit', () => {
