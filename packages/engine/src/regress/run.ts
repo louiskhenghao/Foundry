@@ -97,7 +97,8 @@ export async function runCase(engine: Engine, c: RegressCase, opts: Pick<RunOpti
       milestonePause: false,
       selfCheck: false,
       budgets: { maxCostUsd: c.maxCostUsd, maxDurationMin: c.maxMinutes, maxConcurrent: 2, attemptsPerTask: 2 },
-      ...(opts.model ? { models: { strong: opts.model, cheap: opts.model, worker: opts.model } } : {}),
+      // each agent names its model its own way: Claude tiers, the Codex model, the one Antigravity model
+      ...(opts.model ? (engine.config.provider === 'codex' ? { codexModel: opts.model } : engine.config.provider === 'agy' ? { agyModel: opts.model } : { models: { strong: opts.model, cheap: opts.model, worker: opts.model } }) : {}),
       ...(clarify ? {} : { autoBrief: { mustChecks: c.checks } }),
       delivery: { mode: 'local' },
     });
