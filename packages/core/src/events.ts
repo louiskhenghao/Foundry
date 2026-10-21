@@ -3,6 +3,7 @@ import { Attachment, AttachmentMarkdown } from './schema/attachment.ts';
 import { FeedbackPlan } from './schema/feedback.ts';
 import { InterviewQuestion } from './schema/interview.ts';
 import { Learning } from './schema/learnings.ts';
+import { Schedule } from './schema/schedule.ts';
 import { DeployProvider } from './schema/deploy.ts';
 import {
   Attempt,
@@ -188,6 +189,11 @@ export const EngineEvent = z.discriminatedUnion('type', [
    * A global event (no goal on the envelope), so a Transfer of the goal does not carry one machine's notebook to another.
    */
   ev('learnings.set', { repoPath: z.string(), learnings: z.array(Learning), source: z.enum(['distill', 'human']), goalId: z.string().nullable(), note: z.string().nullable() }),
+  /** a Schedule saved whole (ADR-0054): made, edited, enabled or disabled. A global event, like the Learnings. */
+  ev('schedule.set', { schedule: Schedule }),
+  ev('schedule.deleted', { scheduleId: z.string(), name: z.string() }),
+  /** a Schedule fired: the goal it made (the envelope's goal), or why none was made; `late` = past its time by more than an hour (the engine was off) */
+  ev('schedule.fired', { scheduleId: z.string(), name: z.string(), at: z.string(), skipped: z.string().nullable(), late: z.boolean(), manual: z.boolean() }),
 
   ev('clarify.started', { attemptId: z.string().nullable() }),
   /**

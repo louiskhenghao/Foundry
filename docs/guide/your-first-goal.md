@@ -235,6 +235,10 @@ A link under the form. It runs the goal as one task with command checks you type
 
 The self-check (Foundry opens the running result in a hidden browser and takes screenshots) is set in [Settings → Preview & self-check](./settings.md#preview--self-check) and can be switched on per goal on the Brief page (**How to run it**) or later on the goal page. See [While it runs](./while-it-runs.md#self-check).
 
+### Schedule it
+
+**Schedule…** next to the create button saves the form as a [Schedule](./schedules.md) instead of making a goal: every day, week or month Foundry makes a goal from it and runs it by itself. Uploaded files, references and an issue are not kept by a schedule; links are.
+
 ## After you press the create button
 
 The button says **Create & clarify** (or **Create & run** if you skipped Clarify). If it is greyed out, the text next to it names the first thing missing: **Describe the goal**, **Select a repository folder**, **Repository is not ready (see above)**, **Sign in to Claude Code first: see Accounts** (or Codex, whichever coding agent you chose), **Choose a model preset (see above)**, or a Codex model that does not support the chosen reasoning.

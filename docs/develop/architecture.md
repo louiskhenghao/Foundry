@@ -330,6 +330,7 @@ The history endpoint returns the last 400 events, slimmed the same way, includin
 | Notifications (Telegram, Discord) | `engine/src/notify/{dispatcher,channels}.ts` |
 | Chat Answers (Telegram buttons and replies by long polling; Discord buttons and forms by a bot on the gateway) | `engine/src/notify/{actions,chat-bot,telegram-bot,discord-bot,host}.ts` |
 | Learnings: written when a goal ends, given to Clarify and attempts, edited on the Learnings page | `engine/src/learnings.ts`, `core/src/schema/learnings.ts`, `apps/web/src/pages/LearningsPage.tsx` |
+| Schedules: the cadence, the firing, the engine's approval of a run's Brief, the page | `core/src/schema/schedule.ts`, `core/src/machine/schedule.ts`, `engine/src/schedules.ts`, `apps/web/src/pages/SchedulesPage.tsx`, `apps/web/src/components/ScheduleDialog.tsx` |
 | Self-update, Update Check, Drain | `engine/src/update/updater.ts`, `Engine.beginUpdateDrain` |
 | Agents monitor | `engine/src/agents/*`, `apps/web/src/pages/agents/AgentsPage.tsx` |
 | Native sign-in, ChatGPT quota | `engine/src/auth/{claude-auth,codex-account}.ts`, `engine/src/usage/codex-quota.ts` |

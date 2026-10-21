@@ -292,13 +292,14 @@ key 对下一个会话生效，不用重启。保存过的 key 不会再显示�
 
 **Discord bot token (buttons)**：可选，和 webhook 一起用。设了之后，等你处理的消息由你的机器人发到 webhook 所在的频道，带同样的按钮；要输入文字时，按钮会打开一个表单。见 [Answering from Discord](../operate/notifications.md#answering-from-discord)。
 
-七个开关，默认全开：
+八个开关，默认全开：
 
 | 开关 | 什么时候收到消息 | 该做什么 |
 |---|---|---|
 | **Needs you** | 某个 goal 或任务在等你：一个失败的任务、一条被拦下的命令、预算用完、一个里程碑要看。 | 打开 Inbox 或 goal 回应。你回应之前，那一部分会一直等着。见 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md)。 |
 | **Interview round** | Foundry 写 Brief 前问一轮问题。 | 回答它们；goal 在等你。 |
 | **Brief ready** | 有 Brief 等你批准。Foundry 自己批准的 Brief 不会发。 | 读一遍，然后在 Brief 页面或用消息上的按钮批准。 |
+| **Schedule fired** | 一个 [Schedule](./schedules.zh.md) 触发了：生成了哪个 goal，或者为什么没有生成（上一次运行还在进行）。 | 不用做什么，除非被跳过的那次是你在等的。 |
 | **Goal finished** | 某个 goal 以 done、over-delivered 或 failed 结束。你自己取消的不会发。 | 看结果，或看哪里失败了。 |
 | **Delivery** | 有 pull request 开出或合并了，或者交付失败了。 | 审查 pull request，或看 Delivery 标签。 |
 | **Usage pause** | 某个编码智能体达到用量上限而暂停新会话，重新尝试时再通知；另一个编码智能体仍可继续。 | Foundry 自动重试；持续失败时检查 Accounts 和 Usage。 |

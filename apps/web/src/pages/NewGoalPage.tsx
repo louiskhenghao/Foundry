@@ -17,6 +17,9 @@ import { INTERVIEW_DEPTHS } from '../interview-depth.ts';
 import { HelpLink } from './HelpPage.tsx';
 import { initialWorkflow, updateWorkflow } from './new-goal-workflow.ts';
 import { applyIssueRead, clearIssue, keptOwnText, type IssueFormState } from './new-goal-issue.ts';
+import { defaultCadence, recipeFromBody, scheduleNameFrom } from './new-goal-schedule.ts';
+import { ScheduleDialog, type ScheduleMeta } from '../components/ScheduleDialog.tsx';
+import type { ScheduleRow } from '../api.ts';
 
 const DELIVERY_KEY = 'foundry.delivery';
 const BUDGET_KEY = 'foundry.budget';
@@ -78,6 +81,11 @@ export function NewGoalPage() {
   const [issueOpen, setIssueOpen] = useState(() => !!params.get('issue'));
   const [issueBusy, setIssueBusy] = useState(false);
   const [issueErr, setIssueErr] = useState<string | null>(null);
+  // a schedule (ADR-0054): the form is its editor; `?schedule=<id>` opens one, Schedule… saves the form as one
+  const [schedule, setSchedule] = useState<ScheduleRow | null>(null);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleBusy, setScheduleBusy] = useState(false);
+  const [scheduleErr, setScheduleErr] = useState<string | null>(null);
   /** shipped software the goal learns from: REA studies each before Clarify */
   const [references, setReferences] = useState<{ target: string; lookAt: string }[]>([]);
   const [delivery, setDelivery] = useState<PolicyDraft>(loadDraft());
@@ -247,10 +255,69 @@ export function NewGoalPage() {
     setIssue(null);
     setIssueRef('');
   };
+  const saveSchedule = async (meta: ScheduleMeta) => {
+    setScheduleBusy(true);
+    setScheduleErr(null);
+    try {
+      await api.saveSchedule({ id: schedule?.id, name: meta.name, cadence: meta.cadence, autoApprove: meta.autoApprove, recipe: recipeFromBody(formBody() as never) });
+      nav('/schedules');
+    } catch (e: any) {
+      setScheduleErr(e.message);
+    } finally {
+      setScheduleBusy(false);
+    }
+  };
+  /** `?schedule=<id>`: the form filled with the schedule's recipe; Save schedule writes it back */
+  const openSchedule = async (id: string) => {
+    try {
+      const row = (await api.schedules()).schedules.find((x) => x.id === id);
+      if (!row) return setErr(`schedule ${id} not found`);
+      const r = row.recipe;
+      setSchedule(row);
+      changed.current.add('provider');
+      changed.current.add('codexModel');
+      changed.current.add('effort');
+      changed.current.add('interviewDepth');
+      changed.current.add('mode');
+      changed.current.add('deliveryMode');
+      changed.current.add('deliveryUnit');
+      setPrompt(r.prompt);
+      setTitle(r.title ?? '');
+      if (r.provider) setProvider(r.provider);
+      setCodexOverride(r.provider === 'codex' && !!r.codexModel);
+      if (r.codexModel) setCodexModel(r.codexModel);
+      setRepoPath(r.repoPath);
+      setRepoKey((k) => k + 1);
+      const validation = beginRepoValidation();
+      void api.validateRepo(r.repoPath).then(validation.finish).catch(() => validation.finish(null));
+      if (r.nature) setNature(r.nature as Nature);
+      if (r.provider === 'codex') setCodexPreset(r.modelPreset ?? '');
+      else setModelPreset(r.modelPreset ?? '');
+      setEffort(r.effort ?? '');
+      if (r.workflow?.pace) choosePace(r.workflow.pace);
+      if (r.mode) setModeState(r.mode);
+      changeWorkflow({ type: 'follow-up', values: { profile: r.workflow?.profile ?? profile, tdd: r.workflow?.tdd ?? tdd, ponytail: r.workflow?.ponytail ?? ponytail } });
+      if (r.interviewDepth != null) setInterviewDepth(String(r.interviewDepth));
+      if (r.delivery) setDelivery((cur) => ({ ...cur, ...r.delivery }));
+      if (r.budgetPreset) setBudget((b) => ({ preset: r.budgetPreset!, budgets: { ...b.budgets, ...(r.budgets ?? {}) } }));
+      setDelegate(!!r.delegation?.allow);
+      setDelegateAuto(!!r.delegation?.autoApprove);
+      if (r.autoBrief) {
+        setAuto(true);
+        setChecks(r.autoBrief.mustChecks.join('\n'));
+        setStretch((r.autoBrief.stretchChecks ?? []).join('\n'));
+      }
+      if (r.outputDir) setOutputDir(r.outputDir);
+      for (const l of r.links) void api.addLink(l.url, { name: l.name, note: l.note }).then((a) => setAttachments((cur) => [...cur, a])).catch(() => {});
+    } catch (e: any) {
+      setErr(e.message);
+    }
+  };
   useEffect(() => {
     const id = params.get('follows');
     if (id) void chooseFollow(id, true);
     if (params.get('issue')) void readIssue(params.get('issue')!);
+    if (params.get('schedule')) void openSchedule(params.get('schedule')!);
     api
       .goals()
       .then((gs) => setFinishedGoals(gs.filter((g) => FINISHED.includes(g.state))))
@@ -333,13 +400,12 @@ export function NewGoalPage() {
                     ? 'Pick the Codex model'
                     : null;
   const ready = notReady === null;
+  // a schedule is saved without starting a session: the sign-in gates do not hold it back (a run refuses at its time instead)
+  const scheduleReady = !!prompt.trim() && !!repoInfo?.ok && !missingPreset && !unsupportedCodexChoices.length && !(provider === 'codex' && codexOverride && !codexModel.trim());
   const done = [prompt.trim().length > 0, repoInfo?.ok ?? false, true, true];
 
-  const submit = async () => {
-    setBusy(true);
-    setErr(null);
-    try {
-      const goal = await api.createGoal({
+  /** what Create sends: the goal as the form stands (a schedule keeps it as its recipe) */
+  const formBody = () => ({
         provider,
         codexModel: provider === 'codex' && codexOverride ? codexModel.trim() : undefined,
         prompt,
@@ -364,6 +430,11 @@ export function NewGoalPage() {
         delegation: { allow: delegate, autoApprove: delegate && delegateAuto },
         issue: issue?.read.issue,
       });
+  const submit = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const goal = await api.createGoal(formBody());
       try {
         localStorage.setItem(DELIVERY_KEY, JSON.stringify({ remote: delivery.remote, mergeMethod: delivery.mergeMethod, requireChecks: delivery.requireChecks, autoResolveConflicts: delivery.autoResolveConflicts, fixCiCycles: delivery.fixCiCycles, fixReviewCycles: delivery.fixReviewCycles, deleteRemoteBranch: delivery.deleteRemoteBranch }));
         localStorage.setItem(BUDGET_KEY, JSON.stringify(budget));
@@ -736,9 +807,13 @@ export function NewGoalPage() {
             {notReady}
           </span>
         )}
+        <Button variant={schedule ? 'default' : 'ghost'} disabled={busy || !scheduleReady} onClick={() => setScheduleOpen(true)} title="Save this form as a schedule: it fires every day, week or month and makes a goal from it each time (ADR-0054)">
+          {schedule ? 'Save schedule' : 'Schedule…'}
+        </Button>
         <Button variant="primary" disabled={busy || !ready} onClick={submit}>
           {busy ? 'Creating…' : auto ? 'Create & run' : 'Create & clarify'}
         </Button>
+        <ScheduleDialog open={scheduleOpen} editing={!!schedule} initial={{ name: schedule?.name ?? scheduleNameFrom(title, prompt), cadence: schedule?.cadence ?? defaultCadence(), autoApprove: schedule?.autoApprove ?? true }} busy={scheduleBusy} error={scheduleErr} onClose={() => setScheduleOpen(false)} onSave={saveSchedule} />
       </div>
     </div>
   );

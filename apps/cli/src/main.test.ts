@@ -138,3 +138,28 @@ describe('a goal from a GitHub issue (ADR-0052)', () => {
     expect(submitted).toMatchObject({ prompt: 'Own words', title: 'Own title', issue: read.issue });
   });
 });
+
+describe('schedules (ADR-0054)', () => {
+  async function cli(args: string[], handle: (path: string, method: string) => Response | null) {
+    const server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: (request) => handle(new URL(request.url).pathname, request.method) ?? new Response('Unexpected request', { status: 404 }) });
+    try {
+      const child = Bun.spawn([process.execPath, main, 'schedules', ...args], { env: { FOUNDRY_URL: `http://127.0.0.1:${server.port}`, PATH: process.env.PATH }, stdout: 'pipe', stderr: 'pipe' });
+      const [exitCode, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]);
+      return { exitCode, stdout, stderr };
+    } finally {
+      server.stop(true);
+    }
+  }
+  const row = { id: 'sch_1', name: 'Weekly upgrade', enabled: true, nextRunAt: '2026-10-26T03:00:00.000Z', lastRun: { at: '2026-10-19T03:00:00.000Z', goalId: 'g_1', skipped: null }, lastGoal: { id: 'g_1', title: 'Weekly upgrade · 2026-10-19', state: 'done' }, runs: 1 };
+  test('schedules lists each one with its next and last run; schedules run fires one', async () => {
+    const list = await cli([], (path, method) => (path === '/api/schedules' && method === 'GET' ? Response.json({ schedules: [row] }) : null));
+    expect(list.exitCode).toBe(0);
+    expect(list.stdout).toContain('sch_1');
+    expect(list.stdout).toContain('Weekly upgrade');
+    expect(list.stdout).toContain('last: done g_1');
+    const run = await cli(['run', 'sch_1'], (path, method) => (path === '/api/schedules/sch_1/run' && method === 'POST' ? Response.json({ goalId: 'g_2', skipped: null }) : null));
+    expect(run.stdout).toContain('started goal g_2');
+    const skipped = await cli(['run', 'sch_1'], (path) => (path === '/api/schedules/sch_1/run' ? Response.json({ goalId: null, skipped: 'the previous run is still going' }) : null));
+    expect(skipped.stdout).toContain('skipped: the previous run is still going');
+  });
+});

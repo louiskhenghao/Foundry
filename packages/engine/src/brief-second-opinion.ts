@@ -17,6 +17,7 @@ import { DRAFT_RULES, briefSummary, toRevisedBrief, type DraftProposal } from '.
 import { budgetStatus } from './budget.ts';
 import { tryJson } from './checks/reviewer.ts';
 import type { Engine } from './engine.ts';
+import { engineApproves } from './schedules.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
 import { metaFor, modelFor } from './models/roles.ts';
 
@@ -191,7 +192,7 @@ export function secondOpinionOnBrief(engine: Engine, goalId: string): void {
   if (!engine.settings.values().workflow.briefSecondOpinion) return;
   const goal = getGoal(engine.store.db, goalId);
   if (!goal || goal.state !== 'awaiting_brief_approval') return;
-  if (goal.delegatedFrom && goal.delegation.autoApprove) return;
+  if (engineApproves(goal)) return;
   const events = engine.store.listByGoal(goalId, 5000);
   const proposed = events.filter((e) => e.type === 'brief.proposed').at(-1);
   if (!proposed || events.some((e) => e.type === 'brief.second_opinion' && e.seq > proposed.seq)) return;

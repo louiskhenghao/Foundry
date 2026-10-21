@@ -89,4 +89,9 @@ export const MIGRATIONS: Migration[] = [
     id: '0007-brief-skeleton',
     sql: `ALTER TABLE briefs ADD COLUMN skeleton INTEGER NOT NULL DEFAULT 0;`,
   },
+  {
+    // Schedules (ADR-0054): one row per schedule, whole, as JSON
+    id: '0008-schedules',
+    sql: `CREATE TABLE IF NOT EXISTS schedules (id TEXT PRIMARY KEY, data TEXT NOT NULL);`,
+  },
 ];

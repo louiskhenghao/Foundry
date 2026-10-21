@@ -119,6 +119,8 @@ import { startDueSearches, subjectSearchesFor, trashSubjects } from './subjects.
 import { onMilestoneEvidence } from './likeness.ts';
 import { ATTACHMENT_LIMITS, GoalIssue, type GoalDelegatedFrom, type GoalDelegation } from '@foundry/core';
 import { readIssue, type IssueRead } from './issue.ts';
+import { autoApproveScheduled, checkSchedules, deleteSchedule, fireSchedule, saveSchedule, setScheduleEnabled, type ScheduleInput } from './schedules.ts';
+import { getSchedule, listSchedules, nextRunAt, type GoalSchedule, type Schedule } from '@foundry/core';
 import { Tailnet } from './notify/tailnet.ts';
 import { SessionCosts } from './session-costs.ts';
 import { CODE_SERVER_INSTALL, CodeServer } from './editor/code-server.ts';
@@ -176,6 +178,8 @@ export interface CreateGoalInput {
   delegatedFrom?: Omit<GoalDelegatedFrom, 'at'>;
   /** the GitHub issue the goal is made from, as `readIssue` returned it (ADR-0052); its thread travels in `attachments` */
   issue?: GoalIssue;
+  /** engine-internal (schedules.ts): the Schedule this goal is a run of (ADR-0054) */
+  schedule?: GoalSchedule;
 }
 
 /** events of a Delegated goal its main goal must hear of: the ones that change what the main goal waits for, or cost it */
@@ -960,12 +964,19 @@ export class Engine {
     }, this.config.delivery.prWatchMs);
     this.prWatchTimer.unref?.();
     void checkOpenPrs(this);
+    // schedules that are due (ADR-0054): every minute, and once now (a run missed while the engine was off fires once)
+    this.scheduleTimer = setInterval(() => {
+      if (!this.stopped) void checkSchedules(this);
+    }, 60_000);
+    this.scheduleTimer.unref?.();
+    void checkSchedules(this);
     this.telegram.start();
     this.discord.start();
     for (const g of listGoals(this.store.db)) this.tick(g.id);
   }
 
   private prWatchTimer: ReturnType<typeof setInterval> | null = null;
+  private scheduleTimer: ReturnType<typeof setInterval> | null = null;
   /** start() is putting right what the last run left (orphaned attempts, overlays): no goal runs meanwhile */
   private reconciling = false;
   private deliveryRefreshAt = new Map<string, number>();
@@ -1091,6 +1102,7 @@ export class Engine {
     await Promise.all([this.telegram.stop(), this.discord.stop()]);
     this.updater.stopSchedule();
     if (this.prWatchTimer) clearInterval(this.prWatchTimer);
+    if (this.scheduleTimer) clearInterval(this.scheduleTimer);
     for (const timer of this.resumeTimers.values()) clearTimeout(timer);
     this.resumeTimers.clear();
     for (const account of Object.values(this.accounts)) account.cancelLogin();
@@ -1786,6 +1798,8 @@ export class Engine {
         else if (startDueSearches(this, goal)) return;
         // a Delegated goal whose main goal approves for it: approved once its Brief leaves no question to the person
         else if (goal.delegatedFrom) autoApproveDelegated(this, goal);
+        // a scheduled run whose schedule approves for the person (ADR-0054)
+        else if (goal.schedule?.autoApprove) autoApproveScheduled(this, goal);
         return;
       case 'blocked':
         // a main goal blocked while its Delegated goal needs the person goes on once it no longer does; a finished one lands meanwhile
@@ -2046,6 +2060,7 @@ export class Engine {
       completion: { ...IDLE_COMPLETION },
       follows: followUp?.follows ?? null,
       issue,
+      schedule: input.schedule ?? null,
       // one level: a Delegated goal never delegates, whatever the caller says
       delegation: { allow: input.delegatedFrom ? false : !!input.delegation?.allow, autoApprove: !!input.delegation?.autoApprove },
       delegatedFrom: input.delegatedFrom ? { ...input.delegatedFrom, at: now } : null,
@@ -2550,6 +2565,34 @@ export class Engine {
     if (!ac) return false;
     ac.abort();
     return true;
+  }
+
+  // ---------- schedules (ADR-0054) ----------
+
+  /** every Schedule with when it fires next and the goal of its last run */
+  listSchedules(): (Schedule & { nextRunAt: string | null; lastGoal: { id: string; title: string; state: Goal['state'] } | null })[] {
+    return listSchedules(this.store.db).map((s) => {
+      const g = s.lastRun?.goalId ? getGoal(this.store.db, s.lastRun.goalId) : null;
+      return { ...s, nextRunAt: nextRunAt(s)?.toISOString() ?? null, lastGoal: g ? { id: g.id, title: g.title, state: g.state } : null };
+    });
+  }
+  schedule(id: string): Schedule | null {
+    return getSchedule(this.store.db, id);
+  }
+  saveSchedule(input: ScheduleInput): Schedule {
+    return saveSchedule(this, input);
+  }
+  setScheduleEnabled(id: string, enabled: boolean): Schedule {
+    return setScheduleEnabled(this, id, enabled);
+  }
+  deleteSchedule(id: string): void {
+    deleteSchedule(this, id);
+  }
+  /** "Run now": fire the schedule at once; refuses while its previous run is still going */
+  async runSchedule(id: string): Promise<{ goalId: string | null; skipped: string | null }> {
+    const s = getSchedule(this.store.db, id);
+    if (!s) throw new Error(`schedule ${id} not found`);
+    return fireSchedule(this, s, { manual: true });
   }
 
   /** a folder's Learnings (ADR-0040) */

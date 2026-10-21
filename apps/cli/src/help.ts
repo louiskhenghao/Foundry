@@ -24,6 +24,8 @@ export const help = `foundry — drive the host Claude Code or Codex CLI to deli
   brief <goalId> [--approve]              print the brief; --approve approves it as-is
   ports [--all] [--json]                  ports in use and who holds them: Foundry, tailscale serve, Docker, other processes
                                           (stop one on the Ports page; --all adds system and background processes)
+  schedules [list] [--json]               goals that run on their own: each schedule, on or off, its next run and its last
+  schedules run <scheduleId>              fire a schedule now (refused while its previous run is still going)
   escalations                             list open escalations
   answer <escalationId> <action> [--hint "..."] [--attempts N] [--max-cost N] [--max-min N]
   watch <goalId>                          tail live stream + events for a goal

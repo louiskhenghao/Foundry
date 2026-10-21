@@ -292,13 +292,14 @@ Foundry can message you on Telegram or Discord when something happens, so you do
 
 **Discord bot token (buttons)**: optional, beside the webhook. Your bot then posts the messages that wait for you in the webhook's channel, with the same buttons; words are typed in a form the button opens. See [Answering from Discord](../operate/notifications.md#answering-from-discord).
 
-The seven switches, all on by default:
+The eight switches, all on by default:
 
 | Switch | You get a message when | What to do |
 |---|---|---|
 | **Needs you** | A goal or task is waiting for you: a failed task, a blocked command, a budget reached, a milestone to look at. | Open the Inbox or the goal and answer. Until you do, that part waits. See [When Foundry needs you](./when-foundry-needs-you.md). |
 | **Interview round** | Foundry asks a round of questions before writing the Brief. | Answer them; the goal waits for you. |
 | **Brief ready** | A Brief waits for your approval. Never one Foundry approves itself. | Read it, then approve it on the Brief page or with the message's button. |
+| **Schedule fired** | A [Schedule](./schedules.md) fired: the goal it made, or why none was made (its previous run still going). | Nothing, unless a run was skipped you expected. |
 | **Goal finished** | A goal ended done, over-delivered or failed. Never when you cancelled it yourself. | Look at the result, or at what failed. |
 | **Delivery** | A pull request was opened or merged, or the delivery failed. | Review the pull request, or look at the Delivery tab. |
 | **Usage pause** | A coding agent’s usage limit paused its new sessions, and again when retrying resumes. Other coding agents can continue. | Foundry retries automatically; check Accounts and Usage if failures persist. |

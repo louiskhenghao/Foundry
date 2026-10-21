@@ -2,11 +2,11 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } fr
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CodexEffort, Effort, Brief, EscalationAnswer, isHistory, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, ReviseAnswer, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, estimateCutSessions, measuredRates, goalTimeline, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, IssueError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId } from '@foundry/engine';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, ReviseAnswer, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, estimateCutSessions, measuredRates, goalTimeline, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, IssueError, ScheduleError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId } from '@foundry/engine';
 import type { Task } from '@foundry/core';
 import { LearningKind, listDelegatedGoals, listRepoLearnings, DeployProvider } from '@foundry/core';
 import { delegationNeedsHuman } from '@foundry/engine';
-import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalIssue, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, PreviewPlace, SettingsPatch } from '@foundry/core';
+import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalIssue, GoalMode, GoalNature, GoalRecipe, GoalWorkflow, NotificationSettings, PreviewPlace, ScheduleCadence, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
 import { listGuide, readGuide } from './guide.ts';
@@ -1498,6 +1498,44 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   app.post('/api/settings/reset', (c) => c.json(engine.resetSettings()));
   // ---------- Learnings (ADR-0040): what Foundry knows about each project folder ----------
+  // ---- schedules (ADR-0054): goals that run on their own ----
+  const scheduleError = (e: unknown) => {
+    if (e instanceof ScheduleError) throw new HttpError(e.status, { error: e.message });
+    throw e;
+  };
+  app.get('/api/schedules', (c) => c.json({ schedules: engine.listSchedules() }));
+  app.put('/api/schedules', async (c) => {
+    const body = z.object({ id: z.string().optional(), name: z.string().trim().min(1).max(80), cadence: ScheduleCadence, recipe: GoalRecipe, autoApprove: z.boolean().optional(), enabled: z.boolean().optional() }).parse(await c.req.json());
+    try {
+      return c.json({ schedule: engine.saveSchedule(body) });
+    } catch (e) {
+      return scheduleError(e);
+    }
+  });
+  app.post('/api/schedules/:id/enable', async (c) => {
+    const { enabled } = z.object({ enabled: z.boolean() }).parse(await c.req.json());
+    try {
+      return c.json({ schedule: engine.setScheduleEnabled(c.req.param('id'), enabled) });
+    } catch (e) {
+      return scheduleError(e);
+    }
+  });
+  app.post('/api/schedules/:id/run', async (c) => {
+    try {
+      return c.json(await engine.runSchedule(c.req.param('id')));
+    } catch (e) {
+      if (e instanceof ScheduleError) throw new HttpError(e.status, { error: e.message });
+      throw new HttpError(404, { error: String((e as Error).message ?? e) });
+    }
+  });
+  app.delete('/api/schedules/:id', (c) => {
+    try {
+      engine.deleteSchedule(c.req.param('id'));
+    } catch (e) {
+      return scheduleError(e);
+    }
+    return c.json({ ok: true });
+  });
   app.get('/api/learnings', (c) => {
     const repo = c.req.query('repo');
     if (repo) return c.json({ repoPath: repo, learnings: engine.learnings(repo) });

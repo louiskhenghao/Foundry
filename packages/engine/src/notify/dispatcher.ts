@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import type { Brief, EngineEvent, Escalation, EscalationTrigger, Goal, NotificationSettings } from '@foundry/core';
 import { getBrief, getGoal, isHistory } from '@foundry/core';
 import type { Engine } from '../engine.ts';
+import { engineApproves } from '../schedules.ts';
 import { screenshotsDir } from '../workspace.ts';
 import { budgetOnApproval, type Target } from './actions.ts';
 import { DiscordNotifier, TelegramNotifier, type Link, type MediaFile, type Notifier } from './channels.ts';
@@ -15,7 +16,7 @@ import { DeliveryDigest } from './digest.ts';
 import { PROVIDER_LABEL } from '../deploy/providers.ts';
 
 export interface Composed {
-  family: 'goalFinished' | 'delivery' | 'rateLimit' | 'updateAvailable' | 'interview' | 'milestone' | 'briefReady';
+  family: 'goalFinished' | 'delivery' | 'rateLimit' | 'updateAvailable' | 'interview' | 'milestone' | 'briefReady' | 'schedule';
   text: string;
   /** web-UI path the message links to, on this computer and on the tailnet */
   path: string | null;
@@ -105,6 +106,9 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
       const provider = e.payload.provider ?? defaultProvider;
       return { family: 'rateLimit', text: `▶️ ${provider === 'codex' ? 'Codex' : 'Claude Code'} session retries resume`, path: `/usage?provider=${provider}` };
     }
+    case 'schedule.fired':
+      if (e.payload.skipped) return { family: 'schedule', text: `⏰ Schedule "${e.payload.name}" skipped${e.payload.late ? ' (late)' : ''}\n${e.payload.skipped.slice(0, 300)}`, path: '/schedules' };
+      return { family: 'schedule', text: `⏰ Schedule "${e.payload.name}" started a goal${e.payload.late ? ' (late: Foundry was off at its time)' : ''} — ${goalTitle(e.goalId)}`, path: e.goalId ? `/goals/${e.goalId}` : '/schedules' };
     case 'update.available':
       // the checker announces once per version, so this family never repeats itself
       return { family: 'updateAvailable', text: `⬆️ Foundry ${e.payload.latest} is available — you run ${e.payload.current}`, path: '/settings' };
@@ -127,7 +131,7 @@ function localTime(iso: string): string {
 export function composeBriefReady(goal: Goal, brief: Brief | null, reason: string): Composed | null {
   if (!brief || reason === 'auto brief') return null;
   const blocking = brief.questions.filter((q) => q.blocking && !q.answer?.trim()).length;
-  if (goal.delegatedFrom && goal.delegation.autoApprove && !blocking) return null;
+  if (engineApproves(goal) && !blocking) return null;
   const n = brief.tasks.length;
   const estimate = goal.provider === 'codex' ? `~${brief.timeEstimateMin} min` : `$${brief.costEstimateUsd.toFixed(2)} · ~${brief.timeEstimateMin} min`;
   const next = blocking ? `${blocking} blocking question${blocking === 1 ? '' : 's'} to answer on the Brief first.` : `Budget on approval: ${budgetOnApproval(goal, brief).text}.`;
@@ -195,7 +199,7 @@ export class NotificationDispatcher {
     if (!c) return;
     const s = this.settings();
     // a milestone is the same note whether the goal pauses for it (an escalation) or goes on
-    const on = { goalFinished: s.onGoalFinished, delivery: s.onDelivery, rateLimit: s.onRateLimit, updateAvailable: s.onUpdateAvailable, interview: s.onInterview, milestone: s.onEscalation, briefReady: s.onBriefReady }[c.family];
+    const on = { goalFinished: s.onGoalFinished, delivery: s.onDelivery, rateLimit: s.onRateLimit, updateAvailable: s.onUpdateAvailable, interview: s.onInterview, milestone: s.onEscalation, briefReady: s.onBriefReady, schedule: s.onSchedule }[c.family];
     // what a chat can answer: an interview round, a usage pause (Resume now)
     const target: Target | null =
       e.type === 'interview.round_asked' && e.goalId ? { kind: 'round', goalId: e.goalId, round: e.payload.round } : e.type === 'rate_limit.paused' ? { kind: 'usage', provider: e.payload.provider ?? this.engine.config.provider } : null;
