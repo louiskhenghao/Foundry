@@ -40,4 +40,6 @@ export const IdPrefix = {
   review: 'rev',
   /** a Schedule (ADR-0054) */
   schedule: 'sch',
+  /** a Revert of a merged delivery (ADR-0059) */
+  revert: 'rvt',
 } as const;

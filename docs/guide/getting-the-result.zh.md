@@ -231,6 +231,14 @@ git merge goal/abc123
 
 不再需要这个 goal 时，**⋯ → Delete goal…** 会删除它和它的进度文件夹；只有在工作已经合并或推送之后，才勾选 **Also delete the branch**。
 
+## 撤销已合并的 goal
+
+合并后发现不对的 goal，可以在它的页面上撤销：在 Delivery 标签上面那三行的下方按 **Revert…**。对话框会列出它要撤销的合并 —— 这个 goal 的 pull request，或者每个任务一个 PR 时的每一个，从最新的开始 —— 问你原因（你写的话会进入 pull request），以及是用交付的合并方式马上合并（**Merge it right away**），还是把 pull request 留给你。
+
+然后 Foundry 从线上的基础分支开一个分支，每个合并用一个 revert 提交撤销，推送这个分支，并开一个标题为 *Revert "…"* 的 pull request，描述里写明撤销了哪些合并、你的原因和它改动的范围。勾了 **Merge it right away** 时，它会立刻合并这个 pull request；分支保护挡住时则像交付一样打开 GitHub 的 auto-merge。revert 合并之后 —— 不管是立刻合并，还是之后你自己在 GitHub 上合并 —— 会像交付的合并一样被发现：交付设置里说要删时删掉线上分支，安全时把你本地的基础分支 fast-forward（见 [pull request 合并之后](#pull-request-合并之后)）。goal 页面会显示一个 **reverted** 标签，Delivery 标签上会多一行这次 revert 和它的 pull request；goal 自己的那几行、它的分支和历史都保持原样。
+
+它需要：一次通过 Foundry 合并的交付（**Open a PR** 或 **PR + auto-merge**；Local only 的 goal，或你自己标记为已交付的 goal，Foundry 不知道合并了什么，也就没法撤销）、已登录的 GitHub CLI，以及这些合并仍在基础分支上。如果后来的改动碰了同样的行、合并已经没法干净地撤销，它会拒绝并列出冲突的文件：手动撤销，或者开一个 [follow-up](#continue-with-a-follow-up) 来撤掉它。这里没有模型写任何东西，你自己的文件夹也不会被改。要把工作找回来，在 GitHub 上 revert 这个 revert 的 pull request，或者开一个 follow-up goal。
+
 ## Continue with a follow-up
 
 Codex 的 follow-up 会保留明确指定的全角色模型覆盖，即使 Settings 中的默认模型后来改变。没有明确覆盖时，会保留预设的各角色独立分配，不把它们压成单一模型。Follow-up 是新 goal，会在创建时保存预设当前的角色表，不会复制前一个 goal 已冻结的角色表。

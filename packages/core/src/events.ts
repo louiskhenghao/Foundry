@@ -368,6 +368,12 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('delivery.review_requested', { roundId: z.string() }),
   ev('delivery.review_started', { roundId: z.string() }),
   ev('delivery.review_addressed', { roundId: z.string(), status: z.enum(['addressed', 'nochange', 'failed']), commit: z.string().nullable(), replied: z.number().int().nonnegative(), detail: z.string() }),
+  // a Revert of a merged delivery (ADR-0059): started on the person's click; finished with its pull request open (or
+  // merged / armed when asked), or failed with why; merged or closed later on GitHub, noticed by the pull request watch
+  ev('delivery.revert_started', { id: z.string(), reason: z.string(), merge: z.boolean(), reverts: z.array(z.object({ prNumber: z.number().int().nullable(), ref: z.string(), title: z.string().default('') })) }),
+  ev('delivery.revert_finished', { id: z.string(), status: z.enum(['open', 'armed', 'merged', 'failed']), branch: z.string().nullable(), pr: z.object({ number: z.number().int(), url: z.string() }).nullable(), commits: z.array(z.string()), mergedRef: z.string().nullable(), detail: z.string() }),
+  ev('delivery.revert_merged', { id: z.string(), prNumber: z.number().int().nullable(), ref: z.string().nullable(), detail: z.string() }),
+  ev('delivery.revert_closed', { id: z.string(), prNumber: z.number().int().nullable() }),
   ev('delivery.failed', { step: DeliveryStep, reason: z.string() }),
   ev('rate_limit.paused', { provider: z.enum(['claude', 'codex']).optional(), rateLimitType: z.string().nullable(), until: z.string(), reason: z.string() }),
   ev('rate_limit.resumed', { provider: z.enum(['claude', 'codex']).optional(), reason: z.string() }),

@@ -94,9 +94,16 @@ export class FakeGh implements GhClient {
     const pr = [...this.prs.values()].find((p) => p.repo === i.repo && p.head === i.head && p.base === i.base && p.state === 'OPEN');
     return pr ? { number: pr.number, url: pr.url } : null;
   }
+  /** commits each PR carried when it was opened (`prCommits`), counted on the bare remote */
+  commitCounts = new Map<number, number>();
+  async prCommits(_cwd: string, i: { repo: string; number: number }): Promise<number> {
+    if (!this.prs.has(i.number)) throw new Error('no such PR');
+    return this.commitCounts.get(i.number) ?? 1;
+  }
   async prCreate(_cwd: string, i: { repo: string; head: string; base: string; title: string; bodyFile: string }): Promise<PrRef> {
     this.calls.push(['prCreate', i.repo, i.head, i.base]);
     const number = this.nextPr++;
+    if (this.bareRemote) this.commitCounts.set(number, Number((await git(['rev-list', '--count', `refs/heads/${i.base}..refs/heads/${i.head}`], this.bareRemote)).stdout.trim()) || 1);
     const pr = { number, url: `https://github.com/${i.repo}/pull/${number}`, state: 'OPEN', mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN', mergedAt: null, mergeCommit: null, checks: [], head: i.head, base: i.base, repo: i.repo };
     this.prs.set(number, pr);
     return { number, url: pr.url };
