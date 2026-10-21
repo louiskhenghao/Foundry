@@ -1,6 +1,7 @@
 import type { AgentProvider } from '../api.ts';
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Settings, SettingsView } from '@foundry/core/browser';
+import { AGENT_PROVIDERS, PROVIDER_LABEL } from '@foundry/core/browser';
 import { RotateCcw } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -8,6 +9,7 @@ import { api, type ModelRecordView, type UpdateStatusView } from '../api.ts';
 import { LiveLog } from './LiveLog.tsx';
 import { ModelPresetsSection } from './settings/ModelPresets.tsx';
 import { CodexModelPresetsSection } from './settings/CodexModelPresets.tsx';
+import { AgyModelsSection } from './settings/AgyModels.tsx';
 import { SectionTitle } from './settings/PresetParts.tsx';
 import { DesignPacks } from '../components/DesignPacks.tsx';
 import { UpdateDialog } from '../components/UpdateDialog.tsx';
@@ -72,7 +74,7 @@ export function SettingsPage() {
   const { hash, search } = useLocation();
   const navigate = useNavigate();
   const requestedProvider = new URLSearchParams(search).get('provider');
-  const modelProvider = requestedProvider === 'claude' || requestedProvider === 'codex' ? requestedProvider : view?.values.engine.provider ?? 'claude';
+  const modelProvider = AGENT_PROVIDERS.find((p) => p === requestedProvider) ?? view?.values.engine.provider ?? 'claude';
   const setModelProvider = (provider: AgentProvider) => {
     const params = new URLSearchParams(search);
     params.set('provider', provider);
@@ -339,7 +341,7 @@ export function SettingsPage() {
                 </Select>
               </Field>
               {bool('workflow.milestonePause', 'Have a look: pause new goals at milestones', 'On: a goal pauses for the final walkthrough once every task is done, and when a milestone without a script lands, so you can look before it goes on. Off: it goes on, and what each milestone shows is sent to your notification channels. Each goal has its own switch on its Brief and its page.')}
-              <Field label="Effort for new goals" aside={aside('workflow.effort')} help="An explicit level overrides every role's effort. Default uses each Codex role's preset effort, or the Claude CLI default. Switchable per goal when creating it.">
+              <Field label="Effort for new goals" aside={aside('workflow.effort')} help="An explicit level overrides every role's effort. Default uses each Codex role's preset effort, the Antigravity effort under Models & limits, or the Claude CLI default. Switchable per goal when creating it.">
                 <Select value={(draft.workflow.effort as string | null) ?? ''} onChange={(e) => set('workflow.effort', e.target.value || null)}>
                   <option value="">Role preset / CLI default</option>
                   <option value="low">low</option>
@@ -416,12 +418,7 @@ export function SettingsPage() {
           <CodexModelPresetsSection draft={draft} setFields={(patch) => setDraft((previous) => previous ? { ...previous, models: { ...previous.models, ...patch } } : previous)} />
         </div>
         <div id="models-agy" role="region" aria-label="Antigravity models" hidden={modelProvider !== 'agy'}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Antigravity model" help="Every role of a new Antigravity goal runs on this model. agy-default follows the model the CLI itself is set to; Sync models lists the slugs agy knows.">{text('models.agyModel', 'agy-default')}</Field>
-            <Field label="Reasoning effort" help="The Antigravity reasoning effort of every role.">
-              <Select value={String(get(draft, 'models.agyEffort') ?? 'high')} onChange={(e) => set('models.agyEffort', e.target.value)}>{['low', 'medium', 'high'].map((e) => <option key={e} value={e}>{e}</option>)}</Select>
-            </Field>
-          </div>
+          <AgyModelsSection model={String(get(draft, 'models.agyModel') ?? 'agy-default')} effort={String(get(draft, 'models.agyEffort') ?? 'high')} onModel={(value) => set('models.agyModel', value)} onEffort={(value) => set('models.agyEffort', value)} />
           <p className="mt-2 text-[11px] text-zinc-500">Antigravity reports tokens, not dollars: goals on it keep time, attempt and concurrency limits, never a USD budget. No presets, no fallback order: an unknown model fails the session outright.</p>
         </div>
         <div id="models-claude" role="region" aria-label="Claude Code models" hidden={modelProvider !== 'claude'}>
@@ -463,7 +460,7 @@ export function SettingsPage() {
               <Field label="Continuations per attempt" aside={aside('sessions.maxContinuations')} help="How often one attempt may resume its own session (after a restart, a turn/cost cap, a timeout, or failing checks with progress) before a fresh attempt is started. Resuming keeps the session's context — far cheaper than starting over. 0 = always start fresh.">
                 {num('sessions.maxContinuations', { min: 0, max: 5 })}
               </Field>
-              <Field label="Turn cap per session" aside={aside('sessions.attemptMaxTurns')} help="Claude: model turns. Codex: tool calls. Keep it generous; wall-clock timeout remains the hard stop.">
+              <Field label="Turn cap per session" aside={aside('sessions.attemptMaxTurns')} help="Claude: model turns. Codex: tool calls. Antigravity: three tool calls per turn. Keep it generous; wall-clock timeout remains the hard stop.">
                 {num('sessions.attemptMaxTurns', { min: 10, max: 2000 })}
               </Field>
               <Field label="Concurrent agent sessions" aside={aside('engine.maxConcurrent')} help="Global cap across all goals (workers, reviewers, clarify) — the throughput knob, and the one that decides how fast the bill grows. Applies immediately.">
@@ -488,7 +485,7 @@ export function SettingsPage() {
             </>,
           )}
           {bool('workflow.mcpDynamicTools', 'MCP tools that run or change things', 'Let sessions use the tools of allowed MCP servers that run or change things — for REA: launching the target app, attaching a debugger, touching a connected Android device. Off: static analysis only (binaries, apps, packages, websites, captures).')}
-          {bool('workflow.autoskills', 'autoskills per goal', 'After the Brief is approved, run `npx autoskills` in the goal workspace to install skills matching the repository’s stack (needs Node ≥ 22). Uses .claude/skills for Claude and .agents/skills for Codex. The generated CLAUDE.md is restored and the skills are git-excluded.')}
+          {bool('workflow.autoskills', 'autoskills per goal', 'After the Brief is approved, run `npx autoskills` in the goal workspace to install skills matching the repository’s stack (needs Node ≥ 22). Uses .claude/skills for Claude and .agents/skills for Codex and Antigravity. The generated CLAUDE.md is restored and the skills are git-excluded.')}
           <div>
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-xs text-zinc-300">Design skills</span>
@@ -726,12 +723,13 @@ export function SettingsPage() {
             <Field label="Host" aside={aside('engine.host')} help="Bind address; keep 127.0.0.1 unless you know why.">
               {text('engine.host')}
             </Field>
-            <Field label="Default coding agent" help="Default for new goals in this data directory. Choose either coding agent on New goal; existing goals keep theirs.">
-              <div className="text-sm">{draft.engine.provider === 'codex' ? 'Codex' : 'Claude Code'}</div>
+            <Field label="Default coding agent" help="Default for new goals in this data directory. Choose any coding agent on New goal; existing goals keep theirs.">
+              <div className="text-sm">{PROVIDER_LABEL[draft.engine.provider]}</div>
             </Field>
             {<>
               <Field label="Codex binary" aside={aside('engine.codexBin')} help="Empty = codex on PATH.">{text('engine.codexBin', 'codex', true)}</Field>
               <Field label="Codex home" aside={aside('engine.codexHome')} help="Empty = CODEX_HOME or ~/.codex.">{text('engine.codexHome', '~/.codex', true)}</Field>
+              <Field label="Antigravity binary" aside={aside('engine.agyBin')} help="Empty = agy on PATH. Needs agy 1.1.15 or newer.">{text('engine.agyBin', 'agy', true)}</Field>
             </>}<><Field label="Claude binary" aside={aside('engine.claudeBin')} help="Path to the Claude Code CLI; empty = first `claude` on PATH.">
               {text('engine.claudeBin', 'claude', true)}
             </Field>
