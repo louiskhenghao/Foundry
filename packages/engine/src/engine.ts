@@ -2,6 +2,7 @@ import { AgentProvider, PROVIDER_NAME, reportsDollars } from '@foundry/core';
 import type { CodexQuota } from './usage/types.ts';
 import { CAD_VIEWER_KEY, CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, Effort, effectiveCodexPresets, isHistory, natureKey, repoHere, type CodexModelPreset } from '@foundry/core';
 import { CodexPlugins } from './plugins/codex-plugins.ts';
+import { AgyQuotaReader } from './usage/agy-quota.ts';
 import { CodexQuotaReader } from './usage/codex-quota.ts';
 import { discoverCodexModels } from './models/codex-discover.ts';
 import { basename, dirname, join } from 'node:path';
@@ -248,6 +249,7 @@ export class Engine {
   readonly mcp: McpManager;
   readonly codexMcp: CodexMcpManager;
   readonly codexQuota: CodexQuotaReader;
+  readonly agyQuota: AgyQuotaReader;
   readonly codexPlugins: CodexPlugins;
   readonly agents: AgentsMonitor;
   readonly auth: ClaudeAuth;
@@ -494,6 +496,7 @@ export class Engine {
     });
     this.codexPlugins = new CodexPlugins({ codexHome: config.codexHome, codexBin: config.codexBin });
     this.codexQuota = new CodexQuotaReader({ bin: () => config.codexBin ?? Bun.which('codex'), home: config.codexHome });
+    this.agyQuota = new AgyQuotaReader({ bin: () => config.agyBin ?? Bun.which('agy') });
     this.accounts = {
       claude: new ClaudeAuth({ provider: 'claude', claudeHome: config.claudeHome, claudeBin: () => config.claudeBin ?? Bun.which('claude'), log: config.log }),
       codex: new ClaudeAuth({ provider: 'codex', claudeBin: () => config.codexBin ?? Bun.which('codex'), codexHome: config.codexHome, log: config.log }),
@@ -1390,7 +1393,7 @@ export class Engine {
   rateLimitedUntilIso(provider = this.config.provider): string | null { return this.isRateLimited(provider) ? new Date(this.rateLimitedUntil.get(provider)!).toISOString() : null; }
 
   usage(provider = this.config.provider): UsageSummary & { pausedUntil: string | null } {
-    return { ...usageSummary(this.store.db, Date.now(), provider, this.config.provider), provider, costAvailable: reportsDollars(provider), ...(provider === 'codex' ? { codexQuota: this.codexQuota.current(), note: 'Codex reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. Account quota follows the native account; activity totals count only Foundry sessions.' } : provider === 'agy' ? { note: 'Antigravity reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. Account quota is not read; activity totals count only Foundry sessions.' } : {}), pausedUntil: this.rateLimitedUntilIso(provider) };
+    return { ...usageSummary(this.store.db, Date.now(), provider, this.config.provider), provider, costAvailable: reportsDollars(provider), ...(provider === 'codex' ? { codexQuota: this.codexQuota.current(), note: 'Codex reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. Account quota follows the native account; activity totals count only Foundry sessions.' } : provider === 'agy' ? { agyQuota: this.agyQuota.current(), note: 'Antigravity reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. The quota is the account\'s own, read from agy; activity totals count only Foundry sessions.' } : {}), pausedUntil: this.rateLimitedUntilIso(provider) };
   }
 
   // ---------- models ----------
@@ -1430,6 +1433,7 @@ export class Engine {
 
   async readUsage(provider = this.config.provider, force = false): Promise<UsageSummary & { pausedUntil: string | null }> {
     if (provider === 'codex') await this.codexQuota.read(force);
+    if (provider === 'agy') await this.agyQuota.read(force);
     return this.usage(provider);
   }
 

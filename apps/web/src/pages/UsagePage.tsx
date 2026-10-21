@@ -1,10 +1,12 @@
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { MinimaxQuota, UsageBucket, WindowSummary } from '@foundry/engine/usage-types';
-import { codexQuotaSummary } from '@foundry/engine/quota-windows';
+import { agyQuotaExhausted, agyQuotaSummary, codexQuotaSummary } from '@foundry/engine/quota-windows';
+import { AGENT_PROVIDERS, PROVIDER_LABEL, PROVIDER_NAME, reportsDollars } from '@foundry/core/browser';
 import { Gauge, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, type AgentProvider, type Usage } from '../api.ts';
+import { AgyQuotaCard } from '../components/AgyQuotaCard.tsx';
 import { CodexQuotaCard } from '../components/CodexQuotaCard.tsx';
 import { useLive } from '../store.ts';
 import { Badge, Button, Card, Empty, cn, fmtUsd } from '../ui.tsx';
@@ -23,7 +25,7 @@ const fmtDur = (ms: number | null) => (ms == null ? '—' : ms < 1000 ? `${ms} m
 
 export function UsagePage() {
   const [query, setQuery] = useSearchParams();
-  const provider: AgentProvider = query.get('provider') === 'codex' ? 'codex' : 'claude';
+  const provider: AgentProvider = AGENT_PROVIDERS.find((p) => p === query.get('provider')) ?? 'claude';
   // shared numbers first, so switching the coding agent below moves nothing above it
   return <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-6">
     <div className="space-y-3">
@@ -83,16 +85,17 @@ function ProviderUsage({ provider }: { provider: AgentProvider }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-xs text-zinc-500">{provider === 'codex' ? 'The ChatGPT account’s quota, and Foundry’s Codex activity on this machine' : 'Claude’s usage windows, and what Foundry spent in each on this machine'}</span>
-        <Button size="sm" variant="primary" className="ml-auto" disabled={busy} onClick={probe} title={provider === 'codex' ? 'Reads native Codex account limits without running inference' : 'Runs one tiny haiku session (~$0.02) to refresh the rate-limit signal'}>
-          <RefreshCw size={13} className={cn(busy && 'animate-spin')} /> {provider === 'codex' ? 'Refresh quota' : 'Refresh signal'}
+        <span className="text-xs text-zinc-500">{provider === 'codex' ? 'The ChatGPT account’s quota, and Foundry’s Codex activity on this machine' : provider === 'agy' ? 'The Google account’s Antigravity quota, and Foundry’s Antigravity activity on this machine' : 'Claude’s usage windows, and what Foundry spent in each on this machine'}</span>
+        <Button size="sm" variant="primary" className="ml-auto" disabled={busy} onClick={probe} title={provider === 'codex' ? 'Reads native Codex account limits without running inference' : provider === 'agy' ? 'Reads the account quota with agy /usage, without running a model' : 'Runs one tiny haiku session (~$0.02) to refresh the rate-limit signal'}>
+          <RefreshCw size={13} className={cn(busy && 'animate-spin')} /> {provider === 'claude' ? 'Refresh signal' : 'Refresh quota'}
         </Button>
         {err && <span className="text-xs text-rose-400 basis-full">{err}</span>}
       </div>
       {provider === 'codex' && <CodexQuotaCard quota={u.codexQuota} />}
+      {provider === 'agy' && <AgyQuotaCard quota={u.agyQuota} />}
       {u.pausedUntil && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-4 py-2.5 text-sm">
-          {provider === 'codex' ? <>⏸ New Codex sessions are paused after a rate-limit response. Foundry's next retry is scheduled for {new Date(u.pausedUntil).toLocaleString()}; account availability is checked independently.</> : <>⏸ Rate limited — this backend is not starting new sessions and will resume automatically in {untilText(u.pausedUntil)} ({new Date(u.pausedUntil).toLocaleString()}). Goals stay where they are.</>}{' '}
+          {provider !== 'claude' ? <>⏸ New {PROVIDER_LABEL[provider]} sessions are paused after a rate-limit response. Foundry's next retry is scheduled for {new Date(u.pausedUntil).toLocaleString()}; account availability is checked independently.</> : <>⏸ Rate limited — this backend is not starting new sessions and will resume automatically in {untilText(u.pausedUntil)} ({new Date(u.pausedUntil).toLocaleString()}). Goals stay where they are.</>}{' '}
           <button type="button" className="underline text-amber-200 disabled:opacity-50" disabled={busy} onClick={resume} title="Start sessions again now; if the limit still holds, the next session pauses them again">
             Resume now
           </button>
@@ -105,8 +108,8 @@ function ProviderUsage({ provider }: { provider: AgentProvider }) {
 }
 
 /**
- * What Foundry recorded over the last 7 days, for both coding agents together: these numbers come from Foundry's own
- * session ledger, not from either account. Time and tokens exist for both agents, so rows are compared by them;
+ * What Foundry recorded over the last 7 days, for every coding agent together: these numbers come from Foundry's own
+ * session ledger, not from any account. Time and tokens exist for every agent, so rows are compared by them;
  * dollars exist for Claude Code only and stay a column of their own.
  */
 function FoundryActivity() {
@@ -115,7 +118,7 @@ function FoundryActivity() {
   useEffect(() => {
     let current = true;
     const t = setTimeout(async () => {
-      const providers = ['claude', 'codex'] as const;
+      const providers = AGENT_PROVIDERS;
       const results = await Promise.allSettled(providers.map((p) => api.usage(p)));
       if (current) setBoth(Object.fromEntries(results.flatMap((r, i) => (r.status === 'fulfilled' ? [[providers[i], r.value]] : []))));
     }, 200);
@@ -127,21 +130,21 @@ function FoundryActivity() {
     <section className="space-y-3" aria-labelledby="foundry-activity">
       <div className="flex items-baseline gap-2 flex-wrap">
         <h2 id="foundry-activity" className="text-sm font-medium text-zinc-200">Foundry activity · last 7 days</h2>
-        <span className="text-xs text-zinc-500">Claude Code and Codex together, as recorded by Foundry.</span>
+        <span className="text-xs text-zinc-500">Every coding agent together, as recorded by Foundry.</span>
         <Link to="/reports" className="text-xs underline text-sky-300 sm:ml-auto" title="Longer windows, by project and over time, with retries and estimate error">
           Longer windows, by project: Reports →
         </Link>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Kpi label="cache hit rate" value={m.cacheHitRate == null ? '—' : `${(m.cacheHitRate * 100).toFixed(0)}%`} hint="cache-read tokens ÷ all input tokens" good={m.cacheHitRate != null && m.cacheHitRate > 0.6} />
-        <Kpi label="avg cost / Claude session" value={m.avgCostPerSession == null ? '—' : fmtUsd(m.avgCostPerSession)} hint="Claude Code only: Codex reports no dollar cost" />
+        <Kpi label="avg cost / Claude session" value={m.avgCostPerSession == null ? '—' : fmtUsd(m.avgCostPerSession)} hint="Claude Code only: Codex and Antigravity report no dollar cost" />
         <Kpi label="avg session length" value={fmtDur(m.avgDurationMs)} />
         <Kpi label="sessions not successful" value={String(m.errorSessions)} hint="ended with an error, timeout or kill" good={m.errorSessions === 0} bad={m.errorSessions > 0} />
         <Kpi label="sessions with unknown cost" value={String(m.unmeasuredSessions)} hint="Claude Code sessions cut before a cost was reported: unknown, not $0, and missing from every cost here" good={m.unmeasuredSessions === 0} bad={m.unmeasuredSessions > 0} />
       </div>
       <Breakdowns m={m} />
       <p className="text-xs text-zinc-500">
-        Rows are listed by time, which both coding agents report. Cost is estimated for Claude Code only; Codex reports no dollar cost, so its rows show —, and <span className="mono">*</span> marks a row whose cost leaves sessions out: its Codex sessions, or Claude Code sessions cut before a cost was reported (unknown, not $0). Counts only sessions started by Foundry on this machine. Account limits are below, per coding agent; for exact Claude percentages run /usage inside Claude Code.
+        Rows are listed by time, which every coding agent reports. Cost is estimated for Claude Code only; Codex and Antigravity report no dollar cost, so their rows show —, and <span className="mono">*</span> marks a row whose cost leaves sessions out: its Codex or Antigravity sessions, or Claude Code sessions cut before a cost was reported (unknown, not $0). Counts only sessions started by Foundry on this machine. Account limits are below, per coding agent; for exact Claude percentages run /usage inside Claude Code.
       </p>
     </section>
   );
@@ -169,8 +172,8 @@ const SHOWN = 8;
 
 /**
  * One breakdown as grouped rows, like the Goals list: what it is and what it cost on the first line, how much time,
- * how many sessions and tokens on the second. Cost is Claude Code's alone: — for a Codex-only row, * when it leaves
- * sessions out (Codex ones, or Claude Code ones cut before a cost was reported).
+ * how many sessions and tokens on the second. Cost is Claude Code's alone: — for a row without Claude Code, * when it
+ * leaves sessions out (Codex or Antigravity ones, or Claude Code ones cut before a cost was reported).
  */
 function Breakdown({ title, rows }: { title: string; rows: ActivityRow[] }) {
   const [all, setAll] = useState(false);
@@ -199,7 +202,7 @@ function Breakdown({ title, rows }: { title: string; rows: ActivityRow[] }) {
                   )}
                   <span className="ml-auto pl-2 mono shrink-0 text-zinc-200">
                     {r.costUsd == null ? (
-                      <span className="text-zinc-600" title="Codex reports no dollar cost">—</span>
+                      <span className="text-zinc-600" title={`${r.agents.map((a) => PROVIDER_NAME[a]).join(' and ')} report${r.agents.length === 1 ? 's' : ''} no dollar cost`}>—</span>
                     ) : (
                       <span title={r.partial ? partialNote(r) : 'estimated cost'}>
                         {fmtUsd(r.costUsd)}
@@ -228,7 +231,7 @@ function Breakdown({ title, rows }: { title: string; rows: ActivityRow[] }) {
   );
 }
 
-/** one breakdown row for both coding agents: time and tokens from both, cost from Claude Code only */
+/** one breakdown row for every coding agent: time and tokens from all, cost from Claude Code only */
 export interface ActivityRow {
   id: string;
   label: string;
@@ -242,7 +245,7 @@ export interface ActivityRow {
   tokens: { input: number; cacheRead: number; cacheCreate: number; output: number };
   /** Claude Code's part; null when the row has no Claude Code sessions */
   costUsd: number | null;
-  /** the cost leaves sessions out: Codex ones (no dollar cost) or Claude Code ones cut before a cost was reported */
+  /** the cost leaves sessions out: Codex or Antigravity ones (no dollar cost) or Claude Code ones cut before a cost was reported */
   partial: boolean;
   /** Claude Code sessions cut before a cost was reported: unknown, not $0 */
   unmeasured: number;
@@ -251,16 +254,17 @@ export interface ActivityRow {
 /** why a row's cost is marked *: which of its sessions it leaves out */
 function partialNote(r: ActivityRow): string {
   const parts: string[] = [];
-  if (r.agents.length > 1) parts.push('its Codex sessions report no dollar cost');
+  const others = r.agents.filter((a) => !reportsDollars(a));
+  if (others.length) parts.push(`its ${others.map((a) => PROVIDER_NAME[a]).join(' and ')} sessions report no dollar cost`);
   if (r.unmeasured > 0) parts.push(`${r.unmeasured} Claude Code session${r.unmeasured === 1 ? '' : 's'} ended before a cost was reported (unknown, not $0)`);
   return `This row's cost leaves sessions out: ${parts.join('; ')}`;
 }
 
 type Part = { sessions: number; costUsd: number; unmeasured?: number; durationMs?: number; avgDurationMs?: number; inputTokens?: number; cacheReadTokens?: number; cacheCreateTokens?: number; outputTokens?: number };
 
-/** Both agents' 7-day breakdowns as one; Codex contributes sessions, time and tokens but no cost. */
+/** Every agent's 7-day breakdowns as one; Codex and Antigravity contribute sessions, time and tokens but no cost. */
 export function mergeActivity(both: Partial<Record<AgentProvider, Pick<Usage, 'sevenDay' | 'byGoal' | 'byKind' | 'byModel' | 'totals'>>>) {
-  const parts = (['claude', 'codex'] as const).flatMap((p) => (both[p] ? [{ p, u: both[p]! }] : []));
+  const parts = AGENT_PROVIDERS.flatMap((p) => (both[p] ? [{ p, u: both[p]! }] : []));
   const merge = (map: Map<string, ActivityRow>, id: string, base: Pick<ActivityRow, 'label' | 'goalId' | 'state' | 'muted'>, p: AgentProvider, x: Part) => {
     const row = map.get(id) ?? { id, ...base, agents: [], sessions: 0, durationMs: 0, tokens: { input: 0, cacheRead: 0, cacheCreate: 0, output: 0 }, costUsd: null, partial: false, unmeasured: 0 };
     if (!row.agents.includes(p)) row.agents.push(p);
@@ -371,7 +375,7 @@ function MinimaxCard() {
 
 /** Fixed reporting periods describe local activity; they do not create account quota windows. */
 export function UsageActivity({ provider, u }: { provider: AgentProvider; u: Pick<Usage, 'costAvailable' | 'fiveHour' | 'sevenDay' | 'series' | 'now'> }) {
-  if (provider === 'codex') return <div className="space-y-2">
+  if (!reportsDollars(provider)) return <div className="space-y-2">
     <p className="text-xs text-zinc-500">Local activity over the last 7 days. This reporting period is not an account limit.</p>
     <WindowCard showSignal={false} costAvailable={false} w={{ ...u.sevenDay, label: 'Foundry activity · last 7 days' }} series={u.series.daily} now={u.now} />
   </div>;
@@ -489,7 +493,7 @@ export function UsagePill() {
   useEffect(() => {
     let alive = true;
     const load = async () => {
-      const providers = ['claude', 'codex'] as const;
+      const providers = AGENT_PROVIDERS;
       const results = await Promise.allSettled(providers.map(provider => api.usage(provider)));
       if (alive) setUsages(Object.fromEntries(results.flatMap((result, index) => result.status === 'fulfilled' ? [[providers[index], result.value]] : [])));
     };
@@ -503,16 +507,16 @@ export function UsagePill() {
 export function UsagePillView({ usages, minimaxLow = false }: { usages: Partial<Record<AgentProvider, Usage>>; minimaxLow?: boolean }) {
   const values = Object.values(usages);
   const paused = values.some(u => u.pausedUntil && Date.parse(u.pausedUntil) > Date.now());
-  const blocked = values.some(u => u.provider === 'codex' ? u.codexQuota?.state === 'available' && u.codexQuota.ordinaryUsageAllowed === false : !!u.fiveHour.status && u.fiveHour.status !== 'allowed');
+  const blocked = values.some(u => u.provider === 'codex' ? u.codexQuota?.state === 'available' && u.codexQuota.ordinaryUsageAllowed === false : u.provider === 'agy' ? agyQuotaExhausted(u.agyQuota) : !!u.fiveHour.status && u.fiveHour.status !== 'allowed');
   const attention = paused || blocked || minimaxLow;
-  const summaries = (['claude', 'codex'] as const).map(provider => {
+  const summaries = AGENT_PROVIDERS.map(provider => {
     const u = usages[provider];
-    const name = provider === 'codex' ? 'Codex' : 'Claude Code';
+    const name = PROVIDER_LABEL[provider];
     if (!u) return `${name} · usage unavailable`;
-    return `${name} · ${u.pausedUntil && Date.parse(u.pausedUntil) > Date.now() ? 'sessions paused · ' : ''}${provider === 'codex' ? codexQuotaSummary(u.codexQuota) : `Foundry activity (5h) ${fmtUsd(u.fiveHour.costUsd)}`}`;
+    return `${name} · ${u.pausedUntil && Date.parse(u.pausedUntil) > Date.now() ? 'sessions paused · ' : ''}${provider === 'codex' ? codexQuotaSummary(u.codexQuota) : provider === 'agy' ? agyQuotaSummary(u.agyQuota) : `Foundry activity (5h) ${fmtUsd(u.fiveHour.costUsd)}`}`;
   });
   const title = [...summaries, ...(minimaxLow ? ['MiniMax quota low'] : []), 'Open Usage to view each coding agent separately.'].join('\n');
-  return <Link to="/usage" aria-label={`Usage across Claude Code and Codex${attention ? ' · needs attention' : ''}`} title={title} className={cn('flex h-8 sm:h-7 shrink-0 items-center gap-1.5 rounded-md border px-2 text-xs', attention ? 'text-amber-300 border-amber-500/40' : 'text-zinc-300 border-zinc-700 hover:bg-zinc-900')}>
+  return <Link to="/usage" aria-label={`Usage across the coding agents${attention ? ' · needs attention' : ''}`} title={title} className={cn('flex h-8 sm:h-7 shrink-0 items-center gap-1.5 rounded-md border px-2 text-xs', attention ? 'text-amber-300 border-amber-500/40' : 'text-zinc-300 border-zinc-700 hover:bg-zinc-900')}>
     <Gauge size={14} /><span className="hidden sm:inline">Usage</span>
     {attention && <span className="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true" />}
   </Link>;
