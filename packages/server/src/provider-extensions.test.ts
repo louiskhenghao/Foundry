@@ -18,6 +18,8 @@ function fixture() {
     login: { session: () => ({ provider }), cancel: () => calls.push(`${provider}:cancel`) },
   });
   const app = createApp({
+    // Access (ADR-0061) off: every request is let in
+    access: { enabled: () => false },
     config: { provider: 'claude', dataDir: '/nonexistent', rootDir: '/nonexistent', log: () => {} },
     store: { db: {} }, broadcast: () => {},
     skillsForProvider: skills, mcpFor: mcp,

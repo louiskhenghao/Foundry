@@ -440,6 +440,10 @@ export const Goal = z.object({
   issue: GoalIssue.nullable().optional(),
   /** the Schedule the goal was made by (ADR-0054); absent on goals made by hand */
   schedule: GoalSchedule.nullable().optional(),
+  /** who asked for the goal: the Person signed in when it was made (ADR-0061); null or absent when Access is off or it came another way */
+  by: z.string().nullable().optional(),
+  /** who approved its Brief: the Person signed in, or the chat it was approved from; absent before Access existed */
+  approvedBy: z.string().nullable().optional(),
   /** set when the goal arrived through a Transfer (ADR-0030) */
   transfer: GoalTransfer.optional(),
   runningSince: z.string().nullable(),

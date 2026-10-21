@@ -129,6 +129,11 @@ export function GoalPage() {
               {repoName}
             </span>
             <CopyButton text={g.repoPath} />
+            {(g.by || g.approvedBy) && (
+              <span className="truncate" title="Who asked for the goal and who approved its Brief (Settings → Access)">
+                · {[g.by ? `asked by ${g.by}` : '', g.approvedBy ? `Brief approved by ${g.approvedBy}` : ''].filter(Boolean).join(', ')}
+              </span>
+            )}
             <span className="text-zinc-600">·</span>
             <ProviderBadge provider={g.provider} />
             <span className="text-zinc-600">·</span>

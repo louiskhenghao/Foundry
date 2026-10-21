@@ -1,5 +1,5 @@
 import { AccountsPage } from './pages/AccountsPage.tsx';
-import { ArrowLeftRight, ArrowUpCircle, BarChart3, Bot, Inbox, ListTodo, Menu, Moon, Network, NotebookPen, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X, HelpCircle, AlarmClock } from 'lucide-react';
+import { ArrowLeftRight, ArrowUpCircle, BarChart3, Bot, Inbox, ListTodo, LogOut, Menu, Moon, Network, NotebookPen, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X, HelpCircle, AlarmClock } from 'lucide-react';
 import { HelpPage } from './pages/HelpPage.tsx';
 import { TransferPage } from './pages/TransferPage.tsx';
 import { PortsPage } from './pages/PortsPage.tsx';
@@ -8,7 +8,7 @@ import { AgentsPage } from './pages/AgentsPage.tsx';
 import { useAgentsSummary } from './pages/agents/AgentsPill.tsx';
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { api, type UpdateStatusView } from './api.ts';
+import { api, type AccessMe, type UpdateStatusView } from './api.ts';
 import { AccountMenu } from './components/AccountMenu.tsx';
 import { FilePreviewHost } from './components/FilePreview.tsx';
 import { UpdatePill } from './components/UpdateDialog.tsx';
@@ -23,6 +23,7 @@ import { SchedulesPage } from './pages/SchedulesPage.tsx';
 import { NewGoalPage } from './pages/NewGoalPage.tsx';
 import { SetupPage } from './pages/SetupPage.tsx';
 import { SkillsTabs } from './pages/skills/SkillsTabs.tsx';
+import { LoginPage } from './pages/LoginPage.tsx';
 import { ReportsPage } from './pages/ReportsPage.tsx';
 import { UsagePage, UsagePill } from './pages/UsagePage.tsx';
 import { useLive } from './store.ts';
@@ -125,6 +126,7 @@ export function App() {
           <Route path="/setup" element={<SetupPage />} />
           <Route path="/usage" element={<UsagePage />} />
           <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/login" element={<LoginPage />} />
           <Route path="/accounts" element={<AccountsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/transfer" element={<TransferPage />} />
@@ -149,6 +151,11 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
   const nav = useNavigate();
   const loc = useLocation();
   const [update, setUpdate] = useState<UpdateStatusView | null>(null);
+  // Access (ADR-0061): who this browser is signed in as, when the Foundry asks for tokens
+  const [me, setMe] = useState<AccessMe | null>(null);
+  useEffect(() => {
+    api.accessMe().then(setMe).catch(() => {});
+  }, [loc.pathname]);
   useEffect(() => {
     const load = () => api.updateStatus().then(setUpdate).catch(() => {});
     const t = setTimeout(load, 1000);
@@ -207,6 +214,11 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
           <MenuItem icon={<HelpCircle size={13} />} onClick={() => go(close, '/help')}>
             Help — how to use Foundry
           </MenuItem>
+          {me?.enabled && me.person && (
+            <MenuItem icon={<LogOut size={13} />} onClick={() => api.accessLogout().catch(() => {}).then(() => location.assign('/login'))} title="Forget this browser's token; sign in again with it or another">
+              Sign out ({me.person.name})
+            </MenuItem>
+          )}
           <div className="my-1 border-t border-zinc-800" />
           <MenuItem icon={light ? <Moon size={13} /> : <Sun size={13} />} onClick={toggleTheme}>
             {light ? 'Dark mode' : 'Light mode'}

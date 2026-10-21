@@ -308,6 +308,14 @@ The eight switches, all on by default:
 
 Turn off what you do not want. The switches apply to every channel alike.
 
+## Access
+
+Who may use this Foundry from another device. With no one on the list — the default — there is no login: a single person on their own computer, or on their own tailnet, needs none. **Add the first person** makes a token for them and turns Access on: from then on every request needs a token, on this computer too, and the browser that made the first token is signed in with it, so no one is locked out.
+
+A token is shown once; copy it and hand it over in private. On a phone or laptop, open Foundry's address and paste it on the sign-in page: that browser keeps it for 90 days (**⚙ → Sign out** forgets it). For the command line, set `FOUNDRY_TOKEN`; `foundry access` lists people, `foundry access add <name>` and `foundry access revoke <id>` do what the buttons do.
+
+While Access is on, what a person does is recorded under their name: the goal page says who asked for the goal and who approved its Brief, and an Inbox item says who answered it. Answers from Telegram or Discord carry no name. **Revoke** takes a token back at once, on every device; revoking the last one turns Access off. Tokens are kept as fingerprints in `access.json` beside the data, never in the event log and never in a Transfer. Access is a light lock for people who already share a tailnet with you; it is not a reason to expose Foundry to the internet (see [remote-access.md](../operate/remote-access.md#give-each-person-a-token)).
+
 ## Safety
 
 - **Extra boundary patterns**: commands Foundry must never let a session run on its own, on top of the built-in ones (pushes, pull requests, releases, publishing, deploys, cloud tools), for example `terraform apply|kubectl`. A blocked command comes to your Inbox for approval.

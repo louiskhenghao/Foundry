@@ -73,6 +73,8 @@ function fakeEngine() {
   let updating: string | null = null;
   let finishUpdate: () => void = () => {};
   const engine = {
+    // Access (ADR-0061) off: every request is let in
+    access: { enabled: () => false },
     store: { db: {} },
     config: { dataDir: '/nonexistent', rootDir: '/nonexistent', log: () => {} },
     broadcast: (s: StreamEvent) => events.push(s),

@@ -98,6 +98,7 @@ import { endedForLearning, learnFromGoal, learnOnEnd, learningWork, learningsOf,
 import { DEPLOYABLE_STATES, type DeployRequest, deployCredentials, deployName, deployWork, deploying, goalDeployability, npxCli, smokeAgain, smoking, startDeploy, unsupported } from './deploy/deploy.ts';
 import { type RevertInfo, type RevertRequest, revertInfo, revertWork, startRevert } from './delivery/revert.ts';
 import { buildReport } from './reports.ts';
+import { Access } from './access.ts';
 import type { Report } from './usage/types.ts';
 import { smokeScripts } from './deploy/smoke.ts';
 import { DEPLOY_PROVIDERS, PROVIDER_LABEL, configured, deploySteps, redact } from './deploy/providers.ts';
@@ -187,6 +188,8 @@ export interface CreateGoalInput {
   issue?: GoalIssue;
   /** engine-internal (schedules.ts): the Schedule this goal is a run of (ADR-0054) */
   schedule?: GoalSchedule;
+  /** the Person who asked for it (ADR-0061); null when Access is off or it came another way */
+  by?: string | null;
 }
 
 /** events of a Delegated goal its main goal must hear of: the ones that change what the main goal waits for, or cost it */
@@ -243,6 +246,8 @@ export class Engine {
   readonly accounts: Record<'claude' | 'codex', ClaudeAuth>;
   private providerSkills: Record<'claude' | 'codex', SkillsManager>;
   readonly gh: GhClient;
+  /** who may use this Foundry from elsewhere (ADR-0061) */
+  readonly access: Access;
   context: ContextProvider;
   private delivering = new Map<string, AbortController>();
   /** escalation id → the analysis running for it */
@@ -376,6 +381,7 @@ export class Engine {
     writeFileSync(providerFile, config.provider);
     this.mmxReady = writeMmxConfig(config.dataDir, this.minimaxKey(), config.log);
     this.gh = gh ?? new CliGh({ onCommand: (cmd, cwd, r, ms) => config.log(`[gh] ${cmd.slice(0, 4).join(' ')} → ${r.code} (${ms}ms) ${cwd}`) });
+    this.access = new Access(config.dataDir);
     this.store = new EventStore(openDatabase(join(config.dataDir, 'engine.db')));
     for (const row of this.store.db.query("SELECT DISTINCT json_extract(payload, '$.sessionId') AS id FROM events WHERE type = 'session.usage'").all() as { id: string | null }[]) {
       if (row.id) this.ownedSessionIds.add(row.id);
@@ -2084,6 +2090,8 @@ export class Engine {
       runningSince: null,
       activeMs: 0,
       activeSince: null,
+      by: input.by ?? null,
+      approvedBy: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -2098,7 +2106,8 @@ export class Engine {
       this.store.append({ type: 'goal.state_changed', goalId: id, payload: { from: 'clarifying', to: 'awaiting_brief_approval', reason: 'auto brief' } });
       // Auto preset: no human sees the Brief here, so the engine adopts the proposed budget itself
       // an Auto budget comes from the estimate as earlier goals in this folder corrected it (ADR-0056)
-      await this.approveBrief(id, brief, goal.budgetPreset === 'auto' ? proposeBudgetFromEstimate(calibratedEstimate(brief, calibrationFor(this, goal))) : undefined);
+      // approved by whoever asked for it (ADR-0061)
+      await this.approveBrief(id, brief, goal.budgetPreset === 'auto' ? proposeBudgetFromEstimate(calibratedEstimate(brief, calibrationFor(this, goal))) : undefined, undefined, input.by ?? null);
     }
     return getGoal(this.store.db, id)!;
   }
@@ -2397,7 +2406,7 @@ export class Engine {
    * `budgets` (optional) is applied first — this is how the Auto preset's proposed budget, confirmed or edited
    * by the human on the Brief page, becomes the goal's budget before any work starts.
    */
-  async approveBrief(goalId: string, edited?: Brief, budgets?: Partial<Budgets>, completion?: { graphRefresh?: boolean; docs?: DocType[]; audit?: boolean; qa?: boolean }): Promise<void> {
+  async approveBrief(goalId: string, edited?: Brief, budgets?: Partial<Budgets>, completion?: { graphRefresh?: boolean; docs?: DocType[]; audit?: boolean; qa?: boolean }, by?: string | null): Promise<void> {
     const goal = this.mustGoal(goalId);
     if (goal.state !== 'awaiting_brief_approval') throw new Error(`goal is ${goal.state}, cannot approve`);
     // a Revise still waiting for answers is let go: the Brief as it stands is what runs
@@ -2431,7 +2440,7 @@ export class Engine {
     const now = new Date().toISOString();
     const idByKey = new Map<string, string>();
     for (const t of brief.tasks) idByKey.set(t.key, newId(IdPrefix.task));
-    this.store.append({ type: 'brief.approved', goalId, payload: { brief } });
+    this.store.append({ type: 'brief.approved', goalId, payload: { brief, by: by ?? null } });
     for (const t of brief.tasks) {
       const area = brief.areas.find((a) => a.key === t.areaKey) ?? null;
       const task: Task = {
@@ -2509,8 +2518,8 @@ export class Engine {
     this.store.append({ type: 'goal.state_changed', goalId, payload: { from: 'awaiting_brief_approval', to: 'running', reason: 'brief approved' } });
   }
 
-  async answerEscalation(id: string, answer: EscalationAnswer): Promise<void> {
-    await answerEsc(this, id, answer);
+  async answerEscalation(id: string, answer: EscalationAnswer, by?: string | null): Promise<void> {
+    await answerEsc(this, id, answer, by);
   }
 
   // ---------- delivery ----------

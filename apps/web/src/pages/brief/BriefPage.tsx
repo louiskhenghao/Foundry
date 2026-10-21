@@ -448,7 +448,7 @@ export function BriefPage() {
             </div>
           ) : (
             <div className="text-sm text-zinc-400">
-              This brief was {detail.brief?.approved ? 'approved' : 'superseded'}. <Link className="underline" to={`/goals/${id}`}>Go to run view</Link>.
+              This brief was {detail.brief?.approved ? `approved${detail.goal.approvedBy ? ` by ${detail.goal.approvedBy}` : ''}` : 'superseded'}. <Link className="underline" to={`/goals/${id}`}>Go to run view</Link>.
             </div>
           )}
         </div>

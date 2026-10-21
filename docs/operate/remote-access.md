@@ -5,7 +5,7 @@ is how you steer it. This guide makes that machine reachable from your phone or 
 keeps it working while you are away, using [Tailscale](https://tailscale.com) (a WireGuard mesh: only devices
 signed in to *your* tailnet can reach it — no port forwarding, no public exposure).
 
-**Why not just open the port?** The UI has no login. Anyone who can reach port 4111 can create goals, approve
+**Why not just open the port?** The UI has no login until you give people tokens ([below](#give-each-person-a-token)), and a token is a light lock, not a perimeter. Anyone who can reach port 4111 can create goals, approve
 Briefs, push branches with your `gh` login and use either signed-in backend’s quota. So the rule is simple: Foundry
 stays on loopback, and Tailscale is the only door. Never publish it to the internet, never use `tailscale funnel`.
 
@@ -56,6 +56,17 @@ should be green.
 > `serve` is unavailable on your Tailscale plan; never use `0.0.0.0`.
 
 To undo: `tailscale serve reset`.
+
+### Give each person a token
+
+One tailnet, two or three people? Turn on **Access** (Settings → Access, or `foundry access add <name>` on the
+machine): each person gets a token, shown once. From then on every request to Foundry needs one — the sign-in page
+takes it in a browser and keeps it in a cookie for 90 days; the CLI reads `FOUNDRY_TOKEN` — and a goal, a Brief
+approval or an Inbox answer is recorded under the person's name (the goal page says *asked by Ada, Brief approved by
+Bob*). The first token signs in the browser that made it, so turning Access on locks no one out; revoke a token to
+take it back, revoke them all to turn Access off. Tokens are kept as fingerprints in `access.json` beside the data,
+never in the event log and never in a Transfer. It is a light lock for people you already share a tailnet with, not a
+reason to open the port to the internet: everything in the checklist below still holds.
 
 ## 3. Keep it working while you are away
 
@@ -183,7 +194,9 @@ delivery pushes with that machine's `gh` login — set it up once while you are 
 - The Foundry machine holds your native backend logins, your repositories and a `gh` login that can push and open PRs.
   Treat it like your laptop: disk encryption on, screen lock on, only your own devices on the tailnet.
 - Sharing the tailnet with other people (family, colleagues)? Restrict who can reach port 4111 with a
-  Tailscale ACL (<https://login.tailscale.com/admin/acls>), e.g. only devices tagged as yours.
+  Tailscale ACL (<https://login.tailscale.com/admin/acls>), e.g. only devices tagged as yours. Sharing the Foundry
+  itself with two or three of them? Give each a token ([above](#give-each-person-a-token)): what each does is then
+  recorded under their name, and a lost phone is one revoked token.
 - Keep the `docker-compose.yml` watchtower sidecar's API unpublished (the shipped file does); it is reachable
   only from inside the compose network.
 

@@ -224,7 +224,7 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('brief.skeleton_proposed', { brief: Brief }),
   ev('brief.proposed', { brief: Brief }),
   ev('brief.edited', { brief: Brief }),
-  ev('brief.approved', { brief: Brief }),
+  ev('brief.approved', { brief: Brief, by: z.string().nullable().optional() }),
   /** a second opinion on the Brief (ADR-0051): the revised Brief a reviewer that did not write it proposes; the page shows its diff against the Brief as it is now */
   ev('brief.second_opinion', { auto: z.boolean(), costUsd: z.number(), changeSummary: z.string(), revised: Brief.omit({ goalId: true }) }),
   /** no second opinion came in — the reviewer ran out, or returned no usable proposal: why, for the page, until one does; what it cost is the goal's all the same */
@@ -304,7 +304,7 @@ export const EngineEvent = z.discriminatedUnion('type', [
   }),
 
   ev('escalation.raised', { escalation: Escalation }),
-  ev('escalation.answered', { escalationId: z.string(), answer: EscalationAnswer }),
+  ev('escalation.answered', { escalationId: z.string(), answer: EscalationAnswer, by: z.string().nullable().optional() }),
 
   ev('budget.snapshot', { costUsd: z.number(), elapsedMin: z.number() }),
   ev('session.usage', {

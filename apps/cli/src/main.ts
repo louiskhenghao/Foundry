@@ -37,7 +37,8 @@ const BASE = process.env.FOUNDRY_URL ?? `http://127.0.0.1:${process.env.FOUNDRY_
 async function api(path: string, init?: RequestInit): Promise<any> {
   let res: Response;
   try {
-    res = await fetch(BASE + path, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) } });
+    // Access (ADR-0061): the person's token travels as a bearer header
+    res = await fetch(BASE + path, { ...init, headers: { 'content-type': 'application/json', ...(process.env.FOUNDRY_TOKEN ? { authorization: `Bearer ${process.env.FOUNDRY_TOKEN}` } : {}), ...(init?.headers ?? {}) } });
   } catch {
     console.error(`Cannot reach foundry at ${BASE}. Start it with: bun run serve`);
     process.exit(2);
@@ -45,7 +46,8 @@ async function api(path: string, init?: RequestInit): Promise<any> {
   const text = await res.text();
   const body = text ? safeJson(text) : null;
   if (!res.ok) {
-    console.error(`error ${res.status}: ${body?.error ?? text}`);
+    if (res.status === 401 && body?.code === 'auth') console.error('This Foundry asks for an access token: set FOUNDRY_TOKEN to yours (Settings → Access makes one per person; on the machine, `foundry access add <name>` before Access is on).');
+    else console.error(`error ${res.status}: ${body?.error ?? text}`);
     process.exit(1);
   }
   return body;
@@ -464,6 +466,32 @@ switch (cmd) {
     }
     const st = backend === 'codex' ? await codexAuthStatus(cfg.codexBin ?? Bun.which('codex'), undefined, cfg.codexHome) : await claudeAuthStatus(cfg.claudeBin ?? Bun.which('claude'), undefined, cfg.claudeHome);
     console.log(has('--json') ? JSON.stringify(st, null, 2) : st.loggedIn ? `✔ ${backend}: signed in (${st.email ?? st.authMethod ?? 'account'})` : `✘ ${backend}: ${st.error ?? 'not signed in'} — run: foundry auth login --provider ${backend}`);
+    break;
+  }
+  case 'access': {
+    // Access (ADR-0061): who may use this Foundry from elsewhere; each person a token, shown once
+    const sub = positional()[0] ?? 'list';
+    if (sub === 'add') {
+      const name = positional()[1];
+      if (!name) return usage('access add needs a name');
+      const r = await api('/api/access/people', { method: 'POST', body: JSON.stringify({ name }) });
+      if (has('--json')) return console.log(JSON.stringify(r, null, 2));
+      console.log(`${r.person.name}'s token, shown once: ${r.token}`);
+      console.log('Set it as FOUNDRY_TOKEN for the CLI, or paste it on the sign-in page in a browser.');
+      break;
+    }
+    if (sub === 'revoke') {
+      const id = positional()[1];
+      if (!id) return usage('access revoke needs the id `foundry access` lists');
+      const r = await api(`/api/access/people/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      console.log(has('--json') ? JSON.stringify(r, null, 2) : `revoked ${r.person.name}'s token`);
+      break;
+    }
+    if (sub !== 'list') return usage('access expects list, add <name> or revoke <id>');
+    const r = await api('/api/access/people');
+    if (has('--json')) return console.log(JSON.stringify(r, null, 2));
+    if (!r.people.length) console.log('Access is off: no one has a token, so every request is let in. `foundry access add <name>` turns it on.');
+    for (const p of r.people) console.log(`${p.id}  ${p.name}  since ${p.createdAt.slice(0, 10)}  last used ${p.lastUsedAt ? p.lastUsedAt.slice(0, 16).replace('T', ' ') : 'never'}`);
     break;
   }
   case 'report': {
