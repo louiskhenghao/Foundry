@@ -1,6 +1,7 @@
-import type { Database } from 'bun:sqlite';
+import { Database } from 'bun:sqlite';
 import { EngineEvent, type NewEvent } from '../events.ts';
 import { newId, IdPrefix } from '../ids.ts';
+import { openDatabase } from './db.ts';
 import { applyEvent, clearReadModels } from './projections.ts';
 
 export type EventListener = (event: EngineEvent) => void;
@@ -22,10 +23,41 @@ export class EventStore {
   private listeners = new Set<EventListener>();
   private insert;
   private sinceQuery;
+  private closed = false;
+  private current: Database;
 
-  constructor(public readonly db: Database) {
+  constructor(db: Database) {
+    this.current = db;
     this.insert = db.query('INSERT INTO events (id, ts, goal_id, type, payload) VALUES (?, ?, ?, ?, ?)');
     this.sinceQuery = db.query('SELECT seq, id, ts, goal_id, type, payload FROM events WHERE seq > ? ORDER BY seq');
+  }
+
+  /** the database: the file until close(), then an in-memory copy of its final state */
+  get db(): Database {
+    return this.current;
+  }
+
+  /** whether close() ran: the file is shut, and what still reads or writes the store works on a copy in memory */
+  get isClosed(): boolean {
+    return this.closed;
+  }
+
+  /**
+   * Close the database file. The engine calls this last when it stops, so that whoever deletes the data directory
+   * afterwards (every engine test does) removes a closed file: on macOS, SQLite marks the descriptors of a database
+   * unlinked while it is open as dead, and the next close of one of them is a guard trap that kills the process
+   * (EXC_GUARD, exit 137). Work still in flight when the engine stopped (a session's last event, an attachment's
+   * conversion, a notification) goes on against an in-memory copy of the final state: its reads see what the file held,
+   * its writes reach no file, and nothing throws. Safe to call more than once.
+   */
+  close(): void {
+    if (this.closed) return;
+    this.closed = true;
+    const copy = memoryCopy(this.current);
+    this.current.close();
+    this.current = copy;
+    this.insert = copy.query('INSERT INTO events (id, ts, goal_id, type, payload) VALUES (?, ?, ?, ?, ?)');
+    this.sinceQuery = copy.query('SELECT seq, id, ts, goal_id, type, payload FROM events WHERE seq > ? ORDER BY seq');
   }
 
   append(e: NewEvent): EngineEvent {
@@ -130,5 +162,25 @@ export class EventStore {
       out[t] = (this.db.query(`SELECT * FROM ${t}`).all() as object[]).map((r) => JSON.stringify(r)).sort();
     }
     return out;
+  }
+}
+
+/**
+ * An in-memory database holding what `db` holds. A WAL file's image says so in its header (bytes 18 and 19), which a
+ * database in memory cannot open: the copy is marked as a rollback-journal database first. When nothing can be copied,
+ * an empty store with its tables, so that late work still finds them.
+ */
+function memoryCopy(db: Database): Database {
+  try {
+    const image = db.serialize();
+    if (image.length > 19) {
+      image[18] = 1;
+      image[19] = 1;
+    }
+    const copy = Database.deserialize(image);
+    copy.exec('PRAGMA foreign_keys = ON;');
+    return copy;
+  } catch {
+    return openDatabase(':memory:');
   }
 }

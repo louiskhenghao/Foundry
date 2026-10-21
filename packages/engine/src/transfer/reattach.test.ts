@@ -56,8 +56,10 @@ async function exportHalfDone(): Promise<{ file: string; goal: Goal }> {
   block = false;
   const file = join(tmp, 'move.tgz');
   await exportTransfer(engineTransferHost(a), { categories: { goals: true }, out: file });
+  // read before the stop: a stopped engine's database is closed
+  const goal = getGoal(a.store.db, g.id)!;
   await a.stop();
-  return { file, goal: getGoal(a.store.db, g.id)! };
+  return { file, goal };
 }
 
 describe('mapping and Reattach (ADR-0030)', () => {

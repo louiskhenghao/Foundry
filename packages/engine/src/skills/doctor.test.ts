@@ -26,7 +26,7 @@ describe('doctor', () => {
 
   test('reports each check with fixes', async () => {
     const statuses = catalogStatus(catalog, scanSkills(fake.paths), fake.paths, which);
-    const r = await runDoctor({ paths: fake.paths, catalog, statuses, claudeBin: claude, which });
+    const r = await runDoctor({ paths: fake.paths, catalog, statuses, claudeBin: claude, which, runtimeVersion: '1.4.3' });
     const by = (id: string) => r.checks.find((c) => c.id === id)!;
     expect(by('claude-bin')).toMatchObject({ ok: true, detail: '2.1.238 (Claude Code)' });
     expect(by('claude-auth')).toMatchObject({ ok: false, fix: { command: 'claude auth login' } });
@@ -45,10 +45,19 @@ describe('doctor', () => {
     writeFileSync(join(fake.paths.skillsDir, 'graphify', 'SKILL.md'), '---\nname: graphify\ndescription: g\n---\n');
     const whichAll = (b: string) => `/bin/${b}`;
     const statuses = catalogStatus(catalog, scanSkills(fake.paths), fake.paths, whichAll);
-    const r = await runDoctor({ paths: fake.paths, catalog, statuses, claudeBin: claudeOk, which: whichAll });
+    const r = await runDoctor({ paths: fake.paths, catalog, statuses, claudeBin: claudeOk, which: whichAll, runtimeVersion: '1.4.3' });
     expect(r.checks.find((c) => c.id === 'claude-auth')).toMatchObject({ ok: true, detail: 'logged in as a@b (max)' });
     expect(r.checks.find((c) => c.id === 'required:graphify')!.ok).toBe(true);
     expect(r.ok).toBe(true); // only the settings.json warning remains
+  });
+
+  test('a Bun before 1.4 is a warning with the upgrade as the fix; 1.4 is fine', async () => {
+    const statuses = catalogStatus(catalog, scanSkills(fake.paths), fake.paths, which);
+    const old = await runDoctor({ paths: fake.paths, catalog, statuses, claudeBin: claude, which, runtimeVersion: '1.3.13' });
+    expect(old.checks.find((c) => c.id === 'bun')).toMatchObject({ ok: false, severity: 'warn', fix: { command: 'bun upgrade' } });
+    expect(old.checks.find((c) => c.id === 'bun')!.detail).toContain('1.4.0 or newer');
+    const fresh = await runDoctor({ paths: fake.paths, catalog, statuses, claudeBin: claude, which, runtimeVersion: '1.4.3' });
+    expect(fresh.checks.find((c) => c.id === 'bun')).toMatchObject({ ok: true, detail: '/usr/local/bin/bun (1.4.3)' });
   });
 
   test('missing claude binary', async () => {
