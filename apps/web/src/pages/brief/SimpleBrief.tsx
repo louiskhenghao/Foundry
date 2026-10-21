@@ -1,3 +1,4 @@
+import { reportsDollars } from '@foundry/core/browser';
 import type { Brief, Goal } from '@foundry/core/browser';
 import { Check, Loader2, Settings2 } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -153,12 +154,12 @@ export function SimpleBrief(p: {
         <p className="text-[11px] text-zinc-500 mt-3">To change the plan itself (add, remove or reorder pieces, set acceptance checks), open Expert view.</p>
       </Card>
 
-      <Card title={<SectionTitle section="budget">{g.provider === 'codex' ? 'Time & limits' : 'Price & time'}</SectionTitle>}>
-        {p.planning ? <p className="text-sm text-sky-300">The estimate arrives with the plan.</p> : <p className="text-sm text-zinc-300">{g.provider !== 'codex' && <>Estimated ${brief.costEstimateUsd} and </>}about {brief.timeEstimateMin} min.</p>}
+      <Card title={<SectionTitle section="budget">{!reportsDollars(g.provider) ? 'Time & limits' : 'Price & time'}</SectionTitle>}>
+        {p.planning ? <p className="text-sm text-sky-300">The estimate arrives with the plan.</p> : <p className="text-sm text-zinc-300">{reportsDollars(g.provider) && <>Estimated ${brief.costEstimateUsd} and </>}about {brief.timeEstimateMin} min.</p>}
         {!p.planning && p.calibration && <p className="text-xs text-zinc-400 mt-1">{p.calibration}</p>}
-        {g.provider === 'codex' && <p className="text-xs text-zinc-400 mt-2">Dollar cost is unavailable. Time, attempts and concurrency still apply.</p>}
+        {!reportsDollars(g.provider) && <p className="text-xs text-zinc-400 mt-2">Dollar cost is unavailable. Time, attempts and concurrency still apply.</p>}
         {editable && <div className="flex flex-wrap gap-3 mt-3">
-          {g.provider !== 'codex' && <label className="text-xs text-zinc-400">Max cost (USD)<Input type="number" min={0.5} step={0.5} value={p.budgetDraft.maxCostUsd ?? ''} placeholder="No limit" onChange={(e) => p.setBudgetEdit({ ...p.budgetDraft, maxCostUsd: e.target.value === '' ? null : Number(e.target.value) })} /></label>}
+          {reportsDollars(g.provider) && <label className="text-xs text-zinc-400">Max cost (USD)<Input type="number" min={0.5} step={0.5} value={p.budgetDraft.maxCostUsd ?? ''} placeholder="No limit" onChange={(e) => p.setBudgetEdit({ ...p.budgetDraft, maxCostUsd: e.target.value === '' ? null : Number(e.target.value) })} /></label>}
           <label className="text-xs text-zinc-400">Max minutes<Input type="number" min={5} step={5} value={p.budgetDraft.maxDurationMin ?? ''} placeholder="No limit" onChange={(e) => p.setBudgetEdit({ ...p.budgetDraft, maxDurationMin: e.target.value === '' ? null : Number(e.target.value) })} /></label>
         </div>}
       </Card>

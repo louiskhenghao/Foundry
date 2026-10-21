@@ -1,3 +1,4 @@
+import { PROVIDER_LABEL, reportsDollars } from '@foundry/core/browser';
 import type { Brief } from '@foundry/core/browser';
 import { calibratedEstimate, decisionsOf, describeCalibration, pendingDecisions, proposeBudgetFromEstimate, topoSort, uncoveredAreas } from '@foundry/core/browser';
 import { Loader2, RotateCcw } from 'lucide-react';
@@ -160,7 +161,7 @@ export function BriefPage() {
     }
   };
   const isAuto = g.budgetPreset === 'auto';
-  const costAvailable = g.provider !== 'codex';
+  const costAvailable = reportsDollars(g.provider);
   // the estimate as earlier goals corrected it (ADR-0056): the Auto proposal is twice that
   const calibration = describeCalibration(detail.calibration ?? null, brief, costAvailable);
   const proposed = { ...proposeBudgetFromEstimate(calibratedEstimate(brief, costAvailable ? (detail.calibration ?? null) : detail.calibration ? { cost: null, time: detail.calibration.time } : null)), ...(!costAvailable ? { maxCostUsd: null } : {}) };
@@ -371,7 +372,7 @@ export function BriefPage() {
                 {costAvailable ? <div>
                   Estimated cost <span className="mono">${brief.costEstimateUsd}</span>
                   <span className={cn('ml-1', overCost ? 'text-amber-300' : 'text-zinc-500')}>(budget {fmtLimitUsd(g.budgets.maxCostUsd)})</span>
-                </div> : <p className="text-zinc-400">Codex dollar costs are unavailable. Time and attempt limits apply.</p>}
+                </div> : <p className="text-zinc-400">{PROVIDER_LABEL[g.provider ?? 'claude']} dollar costs are unavailable. Time and attempt limits apply.</p>}
                 <div>
                   Estimated time <span className="mono">{brief.timeEstimateMin} min</span>
                   <span className={cn('ml-1', overTime ? 'text-amber-300' : 'text-zinc-500')}>(budget {fmtLimitMin(g.budgets.maxDurationMin)})</span>

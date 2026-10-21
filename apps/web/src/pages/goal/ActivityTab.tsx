@@ -1,3 +1,4 @@
+import { reportsDollars } from '@foundry/core/browser';
 import { useMemo, useState } from 'react';
 import type { GoalDetail } from '../../api.ts';
 import { type FullText, FullTextDialog } from '../../components/FullTextDialog.tsx';
@@ -17,7 +18,7 @@ export function ActivityTab({ d }: { d: GoalDetail }) {
   const items = useMemo(() => {
     const ev = d.events
       .filter((e) => showNoisy || !NOISY.has(e.type))
-      .map((e) => ({ ts: e.ts, key: e.id, ...describe(e, d.goal.provider !== 'codex'), kind: 'event' as const, type: e.type }))
+      .map((e) => ({ ts: e.ts, key: e.id, ...describe(e, reportsDollars(d.goal.provider)), kind: 'event' as const, type: e.type }))
       .filter((e) => !onlyImportant || e.tone !== 'muted');
     // fold worker text from live streams of this goal's attempts
     const texts = Object.entries(streams)

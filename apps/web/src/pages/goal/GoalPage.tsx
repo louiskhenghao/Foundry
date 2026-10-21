@@ -1,4 +1,4 @@
-import { isHistory, taskUsage, unmeasuredSessions } from '@foundry/core/browser';
+import { PROVIDER_LABEL, isHistory, reportsDollars, taskUsage, unmeasuredSessions } from '@foundry/core/browser';
 import { Ban, CornerDownRight, Folder, GitBranch, Link2, NotebookPen, RotateCcw, Trash2 } from 'lucide-react';
 import { RestartDialog } from '../../components/RestartDialog.tsx';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
@@ -79,7 +79,7 @@ export function GoalPage() {
         const attempts = d!.attempts.filter((a) => a.taskId === t.id);
         const model = attempts.flatMap((a) => a.sessions).filter((s) => s.role === 'worker' && s.model).at(-1)?.model ?? null;
         const u = attempts.length ? taskUsage(attempts) : null;
-        return { ...t, attempts: attempts.length, maxAttempts: t.retryBudget + t.extraAttempts, totalCost: d!.goal.provider !== 'codex' && u ? u.costUsd : null, unmeasured: u?.unmeasured ?? 0, model: model?.replace(/^claude-/, '').replace(/\[1m\]$/, '') ?? null };
+        return { ...t, attempts: attempts.length, maxAttempts: t.retryBudget + t.extraAttempts, totalCost: reportsDollars(d!.goal.provider) && u ? u.costUsd : null, unmeasured: u?.unmeasured ?? 0, model: model?.replace(/^claude-/, '').replace(/\[1m\]$/, '') ?? null };
       }),
     [d],
   );
@@ -161,8 +161,8 @@ export function GoalPage() {
         </div>
         <div className="space-y-2.5">
           <div className="grid grid-cols-2 gap-3">
-            {g.provider === 'codex' ? (
-              <span className="text-xs text-zinc-400">Codex · dollar cost unavailable</span>
+            {!reportsDollars(g.provider) ? (
+              <span className="text-xs text-zinc-400">{PROVIDER_LABEL[g.provider ?? 'claude']} · dollar cost unavailable</span>
             ) : (
               <div>
                 <Meter label={`cost ${fmtUsd(g.costUsd)} / ${fmtLimitUsd(g.budgets.maxCostUsd)}`} value={g.costUsd} max={g.budgets.maxCostUsd} note={unmeasured > 0 ? <CutSessionsDot n={unmeasured} est={d.costEstimate} /> : null} />

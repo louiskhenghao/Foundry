@@ -1,3 +1,4 @@
+import { AGENT_PROVIDERS, PROVIDER_LABEL } from '@foundry/core/browser';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type AgentProvider } from '../api.ts';
@@ -21,7 +22,7 @@ export function UsagePausedBanner() {
     };
   }, [version]);
   const [resuming, setResuming] = useState<AgentProvider | null>(null);
-  const active = (['claude', 'codex'] as const).filter((provider) => pauses[provider] && Date.parse(pauses[provider]!) > Date.now());
+  const active = AGENT_PROVIDERS.filter((provider) => pauses[provider] && Date.parse(pauses[provider]!) > Date.now());
   const resume = (provider: AgentProvider) => {
     setResuming(provider);
     api
@@ -35,12 +36,12 @@ export function UsagePausedBanner() {
     <div className="space-y-2" role="status">
       {active.map((provider) => (
         <div key={provider} className="rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-200 text-sm px-3 py-2 flex items-center gap-2 flex-wrap">
-          <span>⏸ {provider === 'codex' ? 'Codex' : 'Claude Code'} usage limit — new sessions paused. Automatic retry {retryAt(pauses[provider]!)}.</span>
+          <span>⏸ {PROVIDER_LABEL[provider]} usage limit — new sessions paused. Automatic retry {retryAt(pauses[provider]!)}.</span>
           <span className="ml-auto flex items-center gap-3">
             <button type="button" className="underline text-amber-100 disabled:opacity-50" disabled={resuming === provider} onClick={() => resume(provider)} title="Start sessions again now; if the limit still holds, the next session pauses them again">
               {resuming === provider ? 'Resuming…' : 'Resume now'}
             </button>
-            <Link to={`/usage?provider=${provider}`} className="underline text-amber-300">{provider === 'codex' ? 'Codex' : 'Claude Code'} usage</Link>
+            <Link to={`/usage?provider=${provider}`} className="underline text-amber-300">{PROVIDER_LABEL[provider]} usage</Link>
           </span>
         </div>
       ))}

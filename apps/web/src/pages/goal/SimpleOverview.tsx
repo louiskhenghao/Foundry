@@ -1,4 +1,4 @@
-import { unmeasuredSessions } from '@foundry/core/browser';
+import { PROVIDER_LABEL, reportsDollars, unmeasuredSessions } from '@foundry/core/browser';
 import { CutSessionsDot } from '../../components/CutSessionsDot.tsx';
 import { MergeStatus } from '../../components/MergeStatus.tsx';
 import { Check } from 'lucide-react';
@@ -97,7 +97,7 @@ export function SimpleOverview({ d, onDeliver }: { d: GoalDetail; onDeliver: () 
 
       <Card title="Cost">
         <div className="text-sm text-zinc-300">
-          {g.provider === 'codex' ? 'Codex · dollar cost unavailable' : <>Spent <span className="mono text-zinc-100">{fmtUsd(g.costUsd)}</span> of {fmtLimitUsd(g.budgets.maxCostUsd)}{unmeasured > 0 && (
+          {!reportsDollars(g.provider) ? `${PROVIDER_LABEL[g.provider ?? 'claude']} · dollar cost unavailable` : <>Spent <span className="mono text-zinc-100">{fmtUsd(g.costUsd)}</span> of {fmtLimitUsd(g.budgets.maxCostUsd)}{unmeasured > 0 && (
                 <span className="inline-flex items-center gap-1 align-middle">
                   {' '}
                   <CutSessionsDot n={unmeasured} est={d.costEstimate} />

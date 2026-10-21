@@ -47,7 +47,7 @@ const factor = (f: ReportFactor | null) => (f ? `×${f.factor}` : '—');
 const factors = (e: ReportEstimate) => (e.cost || e.time ? `${factor(e.cost)} / ${factor(e.time)}` : '—');
 /** what a spend leaves out */
 const partial = (s: { unmeasured: number; codexSessions: number }) =>
-  [s.unmeasured ? `${s.unmeasured} Claude Code session${s.unmeasured === 1 ? '' : 's'} with unknown cost left out` : '', s.codexSessions ? `${s.codexSessions} Codex session${s.codexSessions === 1 ? '' : 's'} report no cost` : ''].filter(Boolean).join('; ');
+  [s.unmeasured ? `${s.unmeasured} Claude Code session${s.unmeasured === 1 ? '' : 's'} with unknown cost left out` : '', s.codexSessions ? `${s.codexSessions} Codex or Antigravity session${s.codexSessions === 1 ? '' : 's'} report no cost` : ''].filter(Boolean).join('; ');
 
 /** Reports (ADR-0060): what Foundry cost and did over a window, by project and by session kind. */
 export function ReportsPage() {
@@ -169,7 +169,7 @@ export function ReportView({ report: r }: { report: Report }) {
             )}
           </tbody>
         </table>
-        {r.repos.some((p) => partial(p)) && <div className="px-4 py-2 text-[11px] text-zinc-500">* a spend that leaves sessions out: Codex sessions, or Claude Code sessions with unknown cost (hover for which).</div>}
+        {r.repos.some((p) => partial(p)) && <div className="px-4 py-2 text-[11px] text-zinc-500">* a spend that leaves sessions out: Codex or Antigravity sessions, or Claude Code sessions with unknown cost (hover for which).</div>}
       </Card>
 
       <Card title="Where the budget goes">

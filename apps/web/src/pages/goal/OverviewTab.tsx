@@ -1,4 +1,5 @@
 import type { CheckResult } from '@foundry/core/browser';
+import { reportsDollars } from '@foundry/core/browser';
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { api, type GoalDetail } from '../../api.ts';
@@ -129,7 +130,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
                     );
                   })}
                 <div className="text-[11px] text-zinc-500">
-                  Preset: <span className="mono">{g.provider === 'codex' ? g.codexPreset?.label ?? 'Legacy single model' : g.modelPreset ?? 'Settings default for this goal type'}</span>
+                  {g.provider === 'agy' ? 'Model' : 'Preset'}: <span className="mono">{g.provider === 'codex' ? g.codexPreset?.label ?? 'Legacy single model' : g.provider === 'agy' ? `${g.models.worker} (every role)` : g.modelPreset ?? 'Settings default for this goal type'}</span>
                   {Object.keys(g.modelSubstitutions ?? {}).length > 0 && (
                     <>
                       {' '}· replaced for this goal:{' '}
@@ -288,7 +289,7 @@ export function BriefStrip({ d }: { d: GoalDetail }) {
     `${b.tasks.length} task${b.tasks.length === 1 ? '' : 's'}`,
     b.assumptions.length ? `${b.assumptions.filter((a) => a.accepted).length}/${b.assumptions.length} assumptions accepted` : null,
     b.questions.length ? `${b.questions.filter((q) => q.answer).length}/${b.questions.length} questions answered` : null,
-    `est. ${g.provider !== 'codex' ? `$${b.costEstimateUsd} / ` : ''}${b.timeEstimateMin} min`,
+    `est. ${reportsDollars(g.provider) ? `$${b.costEstimateUsd} / ` : ''}${b.timeEstimateMin} min`,
   ].filter(Boolean);
   return (
     <Link to={`/goals/${g.id}/brief`} className="group flex items-center gap-x-3 gap-y-1 flex-wrap rounded-md border border-zinc-800 px-3 py-2 text-xs hover:border-zinc-600" title="Open the Brief: the Understanding, questions, assumptions, plan and checks">

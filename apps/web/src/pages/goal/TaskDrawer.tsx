@@ -1,4 +1,5 @@
 import type { Attempt, CheckResult, Task } from '@foundry/core/browser';
+import { reportsDollars } from '@foundry/core/browser';
 import { CornerDownRight, GitMerge, Play, RotateCcw, Square } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { type ReactNode, useEffect, useState } from 'react';
@@ -14,7 +15,7 @@ import { LiveLog } from '../LiveLog.tsx';
 import { EscalationCard } from '../InboxPage.tsx';
 
 export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; task: Task; onClose: () => void; onRestart?: () => void }) {
-  const cost = (value: number) => d.goal.provider === 'codex' ? 'unavailable' : fmtUsd(value);
+  const cost = (value: number) => !reportsDollars(d.goal.provider) ? 'unavailable' : fmtUsd(value);
   const attempts = d.attempts.filter((a) => a.taskId === task.id);
   const row = d.tasks.find((t) => t.id === task.id);
   const usage = row?.usage ?? null;
@@ -271,7 +272,7 @@ const fmtDur = (ms: number) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${M
 
 /** Labelled facts about one attempt, then every session that ran for it (worker segments, reviewer, merger). */
 function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; concluded: { state?: string; reason?: string } | null }) {
-  const cost = (value: number) => d.goal.provider === 'codex' ? 'unavailable' : fmtUsd(value);
+  const cost = (value: number) => !reportsDollars(d.goal.provider) ? 'unavailable' : fmtUsd(value);
   const reviewerCost = a.sessions.filter((s) => s.role === 'reviewer').reduce((n, s) => n + s.costUsd, 0);
   // sessions cut before the coding agent reported a cost: their dollars are unknown, so the sums above leave them out
   const unmeasured = a.sessions.filter((s) => s.costAvailable === false).length;
@@ -297,7 +298,7 @@ function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; conclude
         {cell('Started', ago(a.startedAt))}
         {cell('Duration', a.endedAt ? fmtDur(Date.parse(a.endedAt) - Date.parse(a.startedAt)) : 'running…')}
         {cell('Session', a.sessionId ? <span className="mono">{a.sessionId.slice(0, 8)}</span> : '—', a.sessionId ?? undefined)}
-        {cell('Skills', d.goal.provider === 'codex' ? 'not observable' : a.skillsUsed.length ? a.skillsUsed.join(', ') : '—', 'skills invoked with the Skill tool')}
+        {cell('Skills', d.goal.provider !== 'claude' && d.goal.provider != null ? 'not observable' : a.skillsUsed.length ? a.skillsUsed.join(', ') : '—', 'skills invoked with the Skill tool')}
       </div>
       {!running && concluded?.reason && <div className={cn('text-xs', concluded.state === 'passed' ? 'text-emerald-300/80' : 'text-orange-300/90')}>→ {concluded.reason}</div>}
       {a.sessions.length > 0 && (

@@ -1,3 +1,4 @@
+import { reportsDollars } from '@foundry/core/browser';
 import type { Goal } from '@foundry/core/browser';
 import { ExternalLink, Loader2, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
@@ -60,7 +61,7 @@ export function ReferenceCard({ goal, investigating = false }: { goal: Goal; inv
               {inv.docPath && <span className="mono">{inv.docPath} on the goal branch</span>}
               <span>
                 {ago(inv.at)}
-                {goal.provider !== 'codex' && inv.costUsd > 0 ? ` · ${fmtUsd(inv.costUsd)}` : ''}
+                {reportsDollars(goal.provider) && inv.costUsd > 0 ? ` · ${fmtUsd(inv.costUsd)}` : ''}
               </span>
             </div>
           </div>
