@@ -95,7 +95,8 @@ import { NotificationDispatcher } from './notify/dispatcher.ts';
 import { TelegramBot } from './notify/telegram-bot.ts';
 import { DiscordBot } from './notify/discord-bot.ts';
 import { endedForLearning, learnFromGoal, learnOnEnd, learningWork, learningsOf, setLearnings } from './learnings.ts';
-import { DEPLOYABLE_STATES, deployCredentials, deployName, deployWork, deploying, goalDeployability, npxCli, startDeploy, unsupported } from './deploy/deploy.ts';
+import { DEPLOYABLE_STATES, type DeployRequest, deployCredentials, deployName, deployWork, deploying, goalDeployability, npxCli, smokeAgain, smoking, startDeploy, unsupported } from './deploy/deploy.ts';
+import { smokeScripts } from './deploy/smoke.ts';
 import { DEPLOY_PROVIDERS, PROVIDER_LABEL, configured, deploySteps, redact } from './deploy/providers.ts';
 import { ModelFallbackRunner } from './models/fallback-runner.ts';
 import { modelsInBinary } from './models/discover.ts';
@@ -2625,8 +2626,12 @@ export class Engine {
   }
 
   /** Deploy the finished goal's web app (ADR-0041): what is wrong is thrown at once, the deploy runs in the background */
-  deploy(goalId: string, req: { provider: DeployProvider; production: boolean }): void {
+  deploy(goalId: string, req: DeployRequest): void {
     startDeploy(this, goalId, req);
+  }
+  /** Smoke again (ADR-0058): the goal's milestone scripts against a live deploy's address once more, in the background */
+  smokeDeployment(goalId: string, deployedAt: string): void {
+    smokeAgain(this, goalId, deployedAt);
   }
   /** what Deploy can do for a goal now: whether its code is a web app, which hosts are set up and take it, the commands, the deploys so far */
   deployInfo(goalId: string, provider?: DeployProvider, production = false) {
@@ -2637,6 +2642,9 @@ export class Engine {
       app,
       finished: DEPLOYABLE_STATES.has(goal.state),
       running: deploying(goalId),
+      smoking: smoking(goalId),
+      // the smoke a deploy can have (ADR-0058): the goal's milestone scripts
+      smoke: { scripts: smokeScripts(this, goalId).map((s) => s.script) },
       providers: DEPLOY_PROVIDERS.map((id) => ({ id, label: PROVIDER_LABEL[id], configured: configured(id, c), refused: unsupported(id, app) })),
       // the exact commands a deploy runs, tokens left out: nothing else runs
       plan: provider && app.ok ? deploySteps({ provider, cwd: `<deploy folder>/${app.app.dir}`.replace(/\/$/, ''), kind: app.app.kind, name: deployName(goal), production, branch: goal.branch.replace(/[^A-Za-z0-9-]+/g, '-').slice(0, 28), productionBranch: goal.baseBranch, install: app.app.install, build: app.app.build, outputDir: app.app.outputDir, message: `${goal.title} (Foundry)`, credentials: c, cli: this.deployCli }).map((s) => ({ label: s.label, command: redact(s.argv.join(' '), c) })) : [],

@@ -311,7 +311,7 @@ The history endpoint returns the last 400 events, slimmed the same way, includin
 | Browser QA (the finished app tried in Chromium before the review) | `engine/src/qa.ts`, `roles/qa.md`, `scheduler.ts` (3b2) |
 | Delivery, PR Stack, CI fixing | `engine/src/delivery/{pipeline,policy,gh}.ts`, `core/src/schema/delivery.ts` |
 | Review comments on a pull request: what counts, the round, the `fix-review` step, the replies | `engine/src/delivery/{reviews,pr-watch,pipeline}.ts`, `core/src/schema/delivery.ts` (`ReviewRound`), `apps/web/src/pages/goal/ReviewRounds.tsx` |
-| Deploy: what is a web app, the hosts' commands, the run | `engine/src/deploy/{detect,providers,deploy}.ts`, `core/src/schema/deploy.ts`, `apps/web/src/pages/goal/DeployCard.tsx` |
+| Deploy: what is a web app, the hosts' commands, the run; the smoke against the address afterwards | `engine/src/deploy/{detect,providers,deploy,smoke}.ts`, `engine/src/checks/milestone-script.ts` (`writeWrapper` against an address), `core/src/schema/deploy.ts`, `apps/web/src/pages/goal/{DeployCard,DeploySmoke}.tsx` |
 | Escalations, Suggestions | `engine/src/escalation.ts`, `engine/src/escalation-suggest.ts`, `core/src/schema/escalation.ts` |
 | Budgets | `engine/src/budget.ts`, `core/src/schema/goal.ts` (`BUDGET_PRESETS`) |
 | Estimate calibration (the samples, the factors, the sentence on the Brief) | `engine/src/calibration.ts`, `core/src/machine/calibration.ts` |

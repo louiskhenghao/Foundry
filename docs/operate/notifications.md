@@ -133,7 +133,7 @@ switches, one per kind of message. All are on by default. Turn off the ones you 
 | **Brief ready** | `notifications.onBriefReady` | a Brief waits for your approval (never one the engine approves itself: an automatic Brief, a delegated goal's Brief its main goal approves, a scheduled run that approves its own) |
 | **Schedule fired** | `notifications.onSchedule` | a Schedule fired: the goal it made, or why none was made (ADR-0054) |
 | **Goal finished** | `notifications.onGoalFinished` | a goal ends done, over-delivered or failed (never when you cancel it) |
-| **Delivery** | `notifications.onDelivery` | a pull request is opened or merged, or a delivery fails (a stack of pull requests is told together, see below) |
+| **Delivery** | `notifications.onDelivery` | a pull request is opened or merged, a delivery fails, a deploy ends, or its smoke passes or fails (a stack of pull requests is told together, see below) |
 | **Usage pause** | `notifications.onRateLimit` | a backend’s usage limit pauses its new sessions, and when retrying resumes; other backends can continue |
 | **New version** | `notifications.onUpdateAvailable` | a newer Foundry release is out (once per version) |
 

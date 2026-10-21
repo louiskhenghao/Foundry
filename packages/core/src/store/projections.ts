@@ -643,6 +643,24 @@ function project(db: Database, e: EngineEvent): void {
       upsertGoal(db, { ...g, deployments: list, updatedAt: e.ts });
       break;
     }
+    case 'deploy.smoke_started':
+    case 'deploy.smoke_finished': {
+      const g = getGoal(db, e.goalId!);
+      if (!g) break;
+      const list = [...(g.deployments ?? [])];
+      const i = list.findLastIndex((d) => d.provider === e.payload.provider && d.at === e.payload.deployedAt);
+      if (i < 0) break;
+      const was = list[i]!.smoke;
+      list[i] = {
+        ...list[i]!,
+        smoke:
+          e.type === 'deploy.smoke_started'
+            ? { status: 'running', detail: e.payload.scripts.join(', '), scripts: [], at: e.ts, endedAt: null }
+            : { status: e.payload.status, detail: e.payload.detail, scripts: e.payload.scripts, at: was?.status === 'running' ? was.at : e.ts, endedAt: e.ts },
+      };
+      upsertGoal(db, { ...g, deployments: list, updatedAt: e.ts });
+      break;
+    }
     case 'escalation.raised':
       upsertEscalation(db, e.payload.escalation);
       break;

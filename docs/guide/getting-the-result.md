@@ -168,7 +168,7 @@ A CAD goal's preview card also shows **CAD Viewer**, text-to-cad's own viewer: *
 
 A finished goal whose result is a web page or an all-in-one web app can be put online from the end of its **Delivery** tab: on Vercel, Netlify or Cloudflare Pages, as a preview address unless you ask for production.
 
-![The Deploy card: the app found, the hosts, the exact command, and a live preview](images/deploy.png)
+![The Deploy card: the app found, the hosts, the exact command, and a live preview with its smoke](images/deploy.png)
 
 - **What is deployed**: a folder of pages, a site or single-page app built with a known tool (Vite, Astro, Gatsby, Docusaurus, Eleventy, Create React App, Angular), or a full-stack web framework the hosts run (Next.js, Nuxt, SvelteKit, Astro with an adapter, Remix, React Router, SolidStart). The card says which it found, and in which folder of a monorepo.
 - **What is not**: workers in Docker or a Procfile, a backend deployed apart from its pages (an API in its own folder, a Go or Python service), an app with a custom server of its own, or a repository with several web apps. The card says which it found instead. Half a system online is a broken one, so nothing is deployed.
@@ -176,6 +176,7 @@ A finished goal whose result is a web page or an all-in-one web app can be put o
 - **Before anything runs**, the card lists the exact commands. They run in a checkout of the goal's commit in Foundry's data folder, never in your folder, and nothing is pushed to your repository. Each host gets one project per repository, named after its folder, so later deploys go to the same place.
 - **Preview or production**: a preview gets an address of its own. **Production** asks you to confirm first, because it replaces what the project's address serves. A host's very first deploy of a new project is its production deploy.
 - **Afterwards** the card lists every deploy with its address, the commands' output folds open below, and a **Delivery** notification says where it went or why it failed.
+- **A smoke afterwards**: once a preview is live, Foundry runs the goal's milestone scripts against its address — the same Playwright scripts that recorded each feature, with no server of their own — and keeps what they showed under the deploy: passed or failed, each script's video and screenshots, and the runner's log. A failed script is told like a failed delivery and is yours to look into: what differs online is usually the host's environment (a variable, a database or a service it lacks). **Smoke again** tries once you changed it. Production gets no smoke unless you tick **Try the milestone scripts against it afterwards**: a script writes what it tries (an order, an account), and that would land in production's data. A goal without milestone scripts gets none.
 
 Each host needs its token in **Settings → Git & delivery → Deploy**: see [Git & delivery](./settings.md#git--delivery). The engine keeps the tokens to itself; no coding session ever gets them. A coding session cannot deploy on its own either: the boundary guard blocks the hosts' deploy commands, however they are spelled.
 

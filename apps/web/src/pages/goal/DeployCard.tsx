@@ -5,13 +5,15 @@ import { Link } from 'react-router-dom';
 import { api, type DeployHost, type DeployInfo, type GoalDetail } from '../../api.ts';
 import { Button, Card, ConfirmDialog, ago, cn } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
+import { SmokeView } from './DeploySmoke.tsx';
 
 const KIND: Record<'static' | 'built' | 'ssr', string> = { static: 'a folder of pages, uploaded as it is', built: 'built into files', ssr: 'rendered on the host’s servers' };
 const STATUS: Record<Deployment['status'], string> = { running: 'text-sky-300 border-sky-800', live: 'text-emerald-300 border-emerald-800', failed: 'text-rose-300 border-rose-800' };
 
 /**
  * Deploy (ADR-0041): a finished goal's web app to Vercel, Netlify or Cloudflare Pages on the person's click — what is
- * deployed (or why nothing is), the hosts set up, the exact commands before anything runs, and the deploys so far.
+ * deployed (or why nothing is), the hosts set up, the exact commands before anything runs, and the deploys so far, each
+ * with its smoke (ADR-0058): the goal's milestone scripts tried against the address afterwards.
  */
 export function DeployCard({ d }: { d: GoalDetail }) {
   const g = d.goal;
@@ -19,6 +21,9 @@ export function DeployCard({ d }: { d: GoalDetail }) {
   const [info, setInfo] = useState<DeployInfo | null>(null);
   const [provider, setProvider] = useState<DeployHost | null>(null);
   const [production, setProduction] = useState(false);
+  // the smoke follows the kind of deploy: a preview gets one, production only when asked (a script writes what it tries)
+  const [smoke, setSmoke] = useState(true);
+  useEffect(() => setSmoke(!production), [production]);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -49,7 +54,7 @@ export function DeployCard({ d }: { d: GoalDetail }) {
     setBusy(true);
     setErr(null);
     try {
-      await api.deploy(g.id, provider, production);
+      await api.deploy(g.id, provider, production, smoke && scripts > 0);
     } catch (e: any) {
       setErr(e.message);
     } finally {
@@ -57,6 +62,18 @@ export function DeployCard({ d }: { d: GoalDetail }) {
       setConfirm(false);
     }
   };
+  const again = async (deployedAt: string) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api.smokeDeployment(g.id, deployedAt);
+    } catch (e: any) {
+      setErr(e.body?.error ?? e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const scripts = info?.smoke?.scripts.length ?? 0;
   const chosen = info?.providers.find((p) => p.id === provider);
   const running = info?.running || deployments.some((x) => x.status === 'running');
   const commands = d.events.filter((e) => e.type === 'deploy.command').slice(-12);
@@ -103,6 +120,11 @@ export function DeployCard({ d }: { d: GoalDetail }) {
             <input type="checkbox" className="accent-emerald-500" checked={production} onChange={(e) => setProduction(e.target.checked)} />
             Production <span className="text-zinc-500">(otherwise a preview address)</span>
           </label>
+          <label className={cn('flex items-center gap-2', scripts ? 'text-zinc-300' : 'text-zinc-500')} title={scripts ? 'The scripts run against the deployed address once it is live, with no server of their own; what they show is kept here' : undefined}>
+            <input type="checkbox" className="accent-emerald-500" checked={smoke && scripts > 0} disabled={!scripts} onChange={(e) => setSmoke(e.target.checked)} />
+            Try the milestone scripts against it afterwards{' '}
+            <span className="text-zinc-500">{scripts ? `(${scripts} script${scripts === 1 ? '' : 's'}; off for production by default, since a script writes what it tries)` : '(the goal has no milestone scripts)'}</span>
+          </label>
           {chosen && !chosen.refused && info.plan.length > 0 && (
             <div>
               <div className="text-[11px] text-zinc-500 mb-1">The exact commands, in a checkout of this goal's commit — nothing else runs:</div>
@@ -126,18 +148,21 @@ export function DeployCard({ d }: { d: GoalDetail }) {
       {deployments.length > 0 && (
         <ul className="mt-3 space-y-1.5 border-t border-zinc-800 pt-2">
           {[...deployments].reverse().map((x, i) => (
-            <li key={i} className="flex items-center gap-2 text-xs min-w-0">
-              <span className={cn('shrink-0 rounded border px-1.5 py-px text-[10px]', STATUS[x.status])}>{x.status}</span>
-              <span className="shrink-0 text-zinc-300">{info?.providers.find((p) => p.id === x.provider)?.label ?? x.provider}</span>
-              <span className="shrink-0 text-zinc-500">{x.production ? 'production' : 'preview'}</span>
-              {x.url ? (
-                <a href={x.url} target="_blank" rel="noreferrer" className="mono truncate text-sky-300 hover:underline inline-flex items-center gap-1">
-                  {x.url} <ExternalLink size={11} />
-                </a>
-              ) : x.reason ? (
-                <span className="truncate text-rose-300/90" title={x.reason}>{x.reason}</span>
-              ) : null}
-              <span className="ml-auto shrink-0 text-zinc-500">{ago(x.endedAt ?? x.at)}</span>
+            <li key={i} className="text-xs min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className={cn('shrink-0 rounded border px-1.5 py-px text-[10px]', STATUS[x.status])}>{x.status}</span>
+                <span className="shrink-0 text-zinc-300">{info?.providers.find((p) => p.id === x.provider)?.label ?? x.provider}</span>
+                <span className="shrink-0 text-zinc-500">{x.production ? 'production' : 'preview'}</span>
+                {x.url ? (
+                  <a href={x.url} target="_blank" rel="noreferrer" className="mono truncate text-sky-300 hover:underline inline-flex items-center gap-1">
+                    {x.url} <ExternalLink size={11} />
+                  </a>
+                ) : x.reason ? (
+                  <span className="truncate text-rose-300/90" title={x.reason}>{x.reason}</span>
+                ) : null}
+                <span className="ml-auto shrink-0 text-zinc-500">{ago(x.endedAt ?? x.at)}</span>
+              </div>
+              <SmokeView goalId={g.id} deployment={x} scripts={scripts} busy={busy || !!info?.smoking || running} onAgain={() => void again(x.at)} />
             </li>
           ))}
         </ul>
@@ -162,6 +187,7 @@ export function DeployCard({ d }: { d: GoalDetail }) {
       )}
       <ConfirmDialog open={confirm} title={`Deploy to ${chosen?.label ?? 'the host'} production?`} confirmLabel="Deploy to production" busy={busy} onConfirm={() => void run()} onClose={() => setConfirm(false)}>
         This replaces what the production address of this project serves now with this goal's web app.
+        {smoke && scripts > 0 && ' Afterwards the goal\'s milestone scripts run against the production address, and what they try is written there.'}
       </ConfirmDialog>
     </Card>
   );

@@ -65,6 +65,16 @@ describe('deploys', () => {
     const failed = compose(ev('deploy.failed', { provider: 'cloudflare', production: false, reason: 'the build failed' }), title)!;
     expect(failed.text).toBe('⚠️ Deploy to Cloudflare Pages failed — Add dark mode\nthe build failed');
   });
+
+  test('a smoke says whether the scripts passed against the address, under the Delivery switch; a skipped one says nothing (ADR-0058)', () => {
+    const base = { provider: 'vercel' as const, production: false, url: 'https://site-abc.vercel.app', deployedAt: '2026-10-21T10:00:00.000Z', scripts: [] };
+    const passed = compose(ev('deploy.smoke_finished', { ...base, status: 'pass', detail: '2 scripts passed against https://site-abc.vercel.app' }), title)!;
+    expect(passed).toEqual({ family: 'delivery', text: '✅ Smoke passed on the preview deploy to Vercel — Add dark mode\n2 scripts passed against https://site-abc.vercel.app', path: '/goals/g1#delivery' });
+    const failed = compose(ev('deploy.smoke_finished', { ...base, production: true, provider: 'netlify', status: 'fail', detail: '1 of 2 scripts failed against https://site.netlify.app: e2e/milestones/cart.spec.ts — "adds to the cart" failed' }), title)!;
+    expect(failed.text).toBe('⚠️ Smoke failed on the production deploy to Netlify — Add dark mode\n1 of 2 scripts failed against https://site.netlify.app: e2e/milestones/cart.spec.ts — "adds to the cart" failed');
+    expect(compose(ev('deploy.smoke_finished', { ...base, status: 'skipped', detail: 'the goal has no milestone scripts to try against it' }), title)).toBeNull();
+    expect(compose(ev('deploy.smoke_started', { ...base, scripts: ['e2e/milestones/cart.spec.ts'] }), title)).toBeNull();
+  });
 });
 
 describe('composeEscalation', () => {

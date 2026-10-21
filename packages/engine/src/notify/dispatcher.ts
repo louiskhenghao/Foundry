@@ -98,6 +98,12 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
       return { family: 'delivery', text: `🚀 Deployed to ${PROVIDER_LABEL[e.payload.provider]}${e.payload.production ? '' : ' (preview)'} — ${goalTitle(e.goalId)}\n${e.payload.url}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
     case 'deploy.failed':
       return { family: 'delivery', text: `⚠️ Deploy to ${PROVIDER_LABEL[e.payload.provider]} failed — ${goalTitle(e.goalId)}\n${e.payload.reason.slice(0, 300)}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
+    case 'deploy.smoke_finished': {
+      // a skipped smoke has nothing to say: the deploy's own message named the address
+      if (e.payload.status === 'skipped') return null;
+      const where = `the ${e.payload.production ? 'production' : 'preview'} deploy to ${PROVIDER_LABEL[e.payload.provider]}`;
+      return { family: 'delivery', text: `${e.payload.status === 'pass' ? '✅ Smoke passed on' : '⚠️ Smoke failed on'} ${where} — ${goalTitle(e.goalId)}\n${e.payload.detail.slice(0, 300)}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
+    }
     case 'rate_limit.paused': {
       const provider = e.payload.provider ?? defaultProvider;
       return { family: 'rateLimit', text: `⏸️ ${provider === 'codex' ? 'Codex' : 'Claude Code'} usage limit — new sessions paused; retry at ${localTime(e.payload.until)}`, path: `/usage?provider=${provider}` };

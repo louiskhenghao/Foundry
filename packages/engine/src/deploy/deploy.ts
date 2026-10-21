@@ -17,9 +17,21 @@ import { exec, git } from '../git/git.ts';
 import { goalWorkspacePath } from '../workspace.ts';
 import { type Deployability, deployability } from './detect.ts';
 import { CLI, PROVIDER_LABEL, SUPPORTS, type DeployCredentials, configured, deploySteps, deployedUrl, projectName, redact } from './providers.ts';
+import { runSmoke, smokeScripts, type SmokeTarget } from './smoke.ts';
 
 /** a goal is deployed once it is done: a failed or unfinished goal's branch is not a thing to publish */
 export const DEPLOYABLE_STATES = new Set(['done', 'over_delivered']);
+
+export interface DeployRequest {
+  provider: DeployProvider;
+  production: boolean;
+  /**
+   * try the goal's milestone scripts against the address afterwards (ADR-0058): a preview's default, never
+   * production's unless asked, since a script writes what it tries
+   */
+  smoke?: boolean;
+}
+export const smokeByDefault = (production: boolean) => !production;
 const STEP_TIMEOUT_MS = 20 * 60_000;
 
 export function deployCredentials(engine: Engine): DeployCredentials {
@@ -89,16 +101,19 @@ export function unsupported(provider: DeployProvider, d: Deployability): string 
 
 /** the deploys running now, per goal (the engine waits for them when it stops) */
 const running = new Map<string, Promise<void>>();
-/** one deploy per repository folder at a time: they share it */
+/** the smokes running on their own (Smoke again), per goal */
+const smokes = new Map<string, Promise<void>>();
+/** one deploy or smoke per repository folder at a time: they share it */
 const folders = new Map<string, Promise<unknown>>();
-export const deployWork = () => [...running.values()];
+export const deployWork = () => [...running.values(), ...smokes.values()];
 export const deploying = (goalId: string) => running.has(goalId);
+export const smoking = (goalId: string) => smokes.has(goalId);
 
 /**
  * Start a deploy; what is wrong is thrown at once (a goal not done, a host not set up, a deploy already running),
  * the rest happens in the background and in the goal's events.
  */
-export function startDeploy(engine: Engine, goalId: string, req: { provider: DeployProvider; production: boolean }): void {
+export function startDeploy(engine: Engine, goalId: string, req: DeployRequest): void {
   const goal = getGoal(engine.store.db, goalId);
   if (!goal) throw new Error(`goal ${goalId} not found`);
   if (!DEPLOYABLE_STATES.has(goal.state)) throw new Error(`the goal is ${goal.state.replace(/_/g, ' ')}: only a finished goal is deployed`);
@@ -114,7 +129,7 @@ export function startDeploy(engine: Engine, goalId: string, req: { provider: Dep
   running.set(goalId, done);
 }
 
-async function run(engine: Engine, goal: Goal, dir: string, req: { provider: DeployProvider; production: boolean }): Promise<void> {
+async function run(engine: Engine, goal: Goal, dir: string, req: DeployRequest): Promise<void> {
   const { store } = engine;
   const c = deployCredentials(engine);
   const { provider, production } = req;
@@ -127,7 +142,7 @@ async function run(engine: Engine, goal: Goal, dir: string, req: { provider: Dep
     if (!d.ok) return fail(d.reason);
     const refused = unsupported(provider, d);
     if (refused) return fail(refused);
-    store.append({ type: 'deploy.started', goalId: goal.id, payload: { provider, production, ref, framework: d.app.framework, dir: d.app.dir } });
+    const started = store.append({ type: 'deploy.started', goalId: goal.id, payload: { provider, production, ref, framework: d.app.framework, dir: d.app.dir } });
     for (const note of d.notes) store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `deploy: ${note}` } });
     const cwd = join(dir, d.app.dir);
     const steps = deploySteps({
@@ -163,9 +178,48 @@ async function run(engine: Engine, goal: Goal, dir: string, req: { provider: Dep
     const url = deployedUrl(provider, last, production);
     if (!url) return fail(`${PROVIDER_LABEL[provider]} finished but named no address: its output is in the activity`);
     store.append({ type: 'deploy.finished', goalId: goal.id, payload: { provider, production, url } });
+    // the smoke (ADR-0058): the milestone scripts against the address, in this checkout; it records its own end
+    if (req.smoke ?? smokeByDefault(production)) await runSmoke(engine, goal, dir, { provider, production, url, deployedAt: started.ts });
   } catch (err) {
     fail(String((err as Error)?.message ?? err));
   }
+}
+
+/**
+ * Try the milestone scripts against a live deploy again (the host's environment was changed, a script mended): what is
+ * wrong is thrown at once, the smoke runs in the background in the deploy folder, after any deploy or smoke using it.
+ */
+export function smokeAgain(engine: Engine, goalId: string, deployedAt: string): void {
+  const goal = getGoal(engine.store.db, goalId);
+  if (!goal) throw new Error(`goal ${goalId} not found`);
+  const dep = (goal.deployments ?? []).find((d) => d.at === deployedAt);
+  if (!dep) throw new Error('that deploy is not on the goal');
+  if (dep.status !== 'live' || !dep.url) throw new Error(`that deploy ${dep.status === 'running' ? 'is still running' : 'failed'}: only a live address is tried`);
+  if (running.has(goalId)) throw new Error('a deploy of this goal is running');
+  if (smokes.has(goalId)) throw new Error('a smoke of this goal is running');
+  if (!smokeScripts(engine, goalId).length) throw new Error('the goal has no milestone scripts to try against it');
+  const dir = deployDir(engine, goal);
+  const target: SmokeTarget = { provider: dep.provider, production: dep.production, url: dep.url, deployedAt };
+  const work = (folders.get(dir) ?? Promise.resolve()).then(() => smokeInFolder(engine, goal, dir, target, dep.ref));
+  folders.set(dir, work);
+  const done = work.catch(() => {}).finally(() => {
+    smokes.delete(goalId);
+    if (folders.get(dir) === work) folders.delete(dir);
+  });
+  smokes.set(goalId, done);
+}
+
+/** the deploy folder at the deployed commit, then the smoke; a checkout that fails is the smoke's failure */
+async function smokeInFolder(engine: Engine, goal: Goal, dir: string, target: SmokeTarget, ref: string | null): Promise<void> {
+  try {
+    const at = ref ?? (await deployRef(goal));
+    if (!at) throw new Error(`neither the goal's branch (${goal.branch}) nor its base branch (${goal.baseBranch}) is in the repository any more`);
+    await checkout(goal, dir, at);
+  } catch (err) {
+    engine.store.append({ type: 'deploy.smoke_finished', goalId: goal.id, payload: { ...target, status: 'fail', detail: `could not check the deployed commit out: ${String((err as Error)?.message ?? err)}`.slice(0, 1_000), scripts: [] } });
+    return;
+  }
+  await runSmoke(engine, goal, dir, target);
 }
 
 /** how a host's CLI is run: `npx` with the pinned major version (it is cached after the first deploy) */
