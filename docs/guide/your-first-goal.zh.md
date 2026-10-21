@@ -171,6 +171,12 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 
 大文本框 **1 · What do you want done?**。像跟一位资深同事说话那样描述 goal：你想要什么、给谁用、有什么必须发生或绝不能发生。Foundry 会把它变成验收检查和计划交给你批准，所以你不用写得面面俱到。
 
+### From a GitHub issue
+
+文本框上方的 **From a GitHub issue** 接受一个 issue 链接（`https://github.com/owner/name/issues/12`）、`owner/name#12`，或者在下面选好了带 GitHub 远端的仓库文件夹之后只写 `#12`。按 **Read issue**：issue 的标题和正文会填进标题和文本框（你已经写的文字会保留），整个讨论串（当时的正文和评论）会作为带文本的链接附件附上，这个 goal 的每个会话都能读到。一个小标签标出这个 issue；它的 **×** 取消关联并移除讨论串，你的文字保留。
+
+读取 issue 需要已连接的 GitHub CLI（Setup 页，或 Settings → Git & delivery）。goal 以 **Open a PR** 或 **PR + auto-merge** 交付时，pull request 的描述会以 `Closes #12` 开头，pull request 合并后 GitHub 会关闭这个 issue；每个任务一个 PR 时，由最后一个关闭。Foundry 不会往 issue 本身写任何东西。goal 页面的标题下会显示 **From issue**，goal 列表会有一个 `#12` 标签。命令行里 `foundry goal new --issue <链接> --repo <路径>` 做同样的事。
+
 ### Attachments
 
 文本框下面：**Attach screenshots, PDFs, files or links — or drop / paste them here.** 用 **Files** 选文件，或者用 **Link** 加一个网址，然后按 **Add**。你也可以直接把截图粘贴到页面上。

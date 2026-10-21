@@ -55,6 +55,7 @@ export { runAutoskills, hasStackManifest } from './skills/autoskills.ts';
 export { decodeLine } from '@foundry/runner';
 export { canResolve, startResolution, describeResolution, resolveFile, takeSide, unresolveFile, finishResolution, abortResolution, type ResolveState, type ResolveFile, type FinishResult } from './merge-resolve.ts';
 export { FollowUpError, previousWorkOnBase, type FollowUpDraft, type FollowUpInput } from './follow-up.ts';
+export { IssueError, githubRepoOf, issueRefFor, parseIssueRef, renderIssueThread, type IssueRead } from './issue.ts';
 
 export { codexAuthStatus } from './auth/claude-auth.ts';
 export { TransferError } from './transfer/errors.ts';

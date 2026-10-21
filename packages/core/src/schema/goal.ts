@@ -251,6 +251,24 @@ export const GoalFollows = z.object({
 export type GoalFollows = z.infer<typeof GoalFollows>;
 
 /**
+ * The GitHub issue a Goal was made from (ADR-0052). Read once, when the person pressed Read issue: the issue's thread
+ * is the Goal's attachment, the body its description; the pull request of the Delivery closes the issue when it merges.
+ */
+export const GoalIssue = z.object({
+  /** owner/name of the repository the issue is in */
+  repo: z.string().min(1),
+  number: z.number().int().positive(),
+  url: z.string().url(),
+  /** the issue's title when it was read */
+  title: z.string(),
+  state: z.enum(['open', 'closed']),
+  labels: z.array(z.string()).default([]),
+  /** when it was read: the attachment snapshot dates from then */
+  readAt: z.string(),
+});
+export type GoalIssue = z.infer<typeof GoalIssue>;
+
+/**
  * Where an Imported Goal came from and how far it got here (ADR-0030). It arrives as history; mapping its repository
  * restores its branch, and an unfinished one can then be Reattached. Absent on goals made on this instance.
  */
@@ -385,6 +403,8 @@ export const Goal = z.object({
   delegation: GoalDelegation.default(() => ({ ...NO_DELEGATION })),
   /** set on a Delegated goal: the main goal and the task it does */
   delegatedFrom: GoalDelegatedFrom.nullable().default(null),
+  /** the GitHub issue the goal was made from (ADR-0052); absent on goals made before, and on goals made some other way */
+  issue: GoalIssue.nullable().optional(),
   /** set when the goal arrived through a Transfer (ADR-0030) */
   transfer: GoalTransfer.optional(),
   runningSince: z.string().nullable(),

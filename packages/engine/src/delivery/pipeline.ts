@@ -227,7 +227,7 @@ export async function runDelivery(engine: Engine, goalIn: Goal, signal: AbortSig
       const review = [...store.listByGoal(goal.id, 2000)].reverse().find((e) => e.type === 'review.goal.finished')?.payload as any;
       const names = new Map(listChecks(store.db, goal.id).map((c) => [c.id, c.name]));
       const bodyFile = bodyPath(ctx, 'pr-body.md');
-      writeFileSync(bodyFile, buildPrBody(goal, brief, review ?? null, names, { tasks: listTasks(store.db, goal.id), stats: await diffStats(ctx.goalWs, `${ctx.remote}/${ctx.base}...HEAD`) }));
+      writeFileSync(bodyFile, buildPrBody(goal, brief, review ?? null, names, { tasks: listTasks(store.db, goal.id), stats: await diffStats(ctx.goalWs, `${ctx.remote}/${ctx.base}...HEAD`), repo }));
       const created = await ctx.gh.prCreate(ctx.goalWs, { repo, head: goal.branch, base: ctx.base, title, bodyFile });
       ev({ type: 'delivery.pr_opened', goalId: goal.id, payload: { number: created.number, url: created.url, base: ctx.base, head: goal.branch, taskId: null, title } });
       return { status: 'ok', detail: `opened PR #${created.number}`, value: created };
@@ -421,7 +421,7 @@ async function runStacked(ctx: Ctx, stack: StackBranch[], step: StepFn, done: (o
       // the reviewer's notes (what it would still fix, what it left as advice) and any blockers it raised at the time
       const verdict = reviewNote?.verdict as { notes?: string; blockers?: string[] } | undefined;
       const reviewText = verdict ? clip([verdict.notes, verdict.blockers?.length ? `Blockers at review time: ${verdict.blockers.join('; ')}` : null].filter(Boolean).join('\n')) || null : null;
-      writeFileSync(bodyFile, buildTaskPrBody(goal, b.task, { index: b.index, total: stack.length, goalTitle, prevPr: out[i - 1]?.number ?? null, prevBranch: i === 0 ? null : base }, results, reviewText, await diffStats(ctx.goalWs, `${i === 0 ? `${ctx.remote}/${ctx.base}` : base}...${b.branch}`)));
+      writeFileSync(bodyFile, buildTaskPrBody(goal, b.task, { index: b.index, total: stack.length, goalTitle, prevPr: out[i - 1]?.number ?? null, prevBranch: i === 0 ? null : base, repo }, results, reviewText, await diffStats(ctx.goalWs, `${i === 0 ? `${ctx.remote}/${ctx.base}` : base}...${b.branch}`)));
       const created = await ctx.gh.prCreate(ctx.goalWs, { repo, head: b.branch, base, title: b.title, bodyFile });
       ev({ type: 'delivery.pr_opened', goalId: goal.id, payload: { number: created.number, url: created.url, base, head: b.branch, taskId: b.task.id, title: b.title } });
       out.push({ b, number: created.number, url: created.url });

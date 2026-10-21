@@ -169,6 +169,12 @@ The switch appears only in Expert view. The initial Settings default is on; the 
 
 The big text box, **1 · What do you want done?** Describe the goal as you would to a senior colleague: what you want, for whom, and anything that must or must not happen. Foundry will turn it into acceptance checks and a plan for you to approve, so you do not need to be complete.
 
+### From a GitHub issue
+
+Above the text box, **From a GitHub issue** takes an issue link (`https://github.com/owner/name/issues/12`), `owner/name#12`, or just `#12` once the repository folder below is chosen and has a GitHub remote. Press **Read issue**: the issue's title and description fill the title and the text box (text you already wrote is kept), and the whole thread, description and comments as they are at that moment, is attached as a link with its text, so every session of the goal reads it. A chip names the issue; its **×** unlinks it and drops the thread, keeping your words.
+
+Reading an issue needs the GitHub CLI connected (the Setup page, or Settings → Git & delivery). When the goal is delivered with **Open a PR** or **PR + auto-merge**, the pull request's description starts with `Closes #12`, so GitHub closes the issue when the pull request merges; with one PR per task, the last one closes it. Foundry writes nothing to the issue itself. The goal page shows **From issue** under the title, and the goal list a `#12` tag. From the command line, `foundry goal new --issue <link> --repo <path>` does the same.
+
 ### Attachments
 
 Below the text box: **Attach screenshots, PDFs, files or links — or drop / paste them here.** Use **Files** to pick files, or **Link** to add a web address, then **Add**. You can also paste a screenshot straight into the page.

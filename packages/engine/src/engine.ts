@@ -116,7 +116,8 @@ import { type FollowUpDraft, type FollowUpInput, copyAttachments, followUpDraft,
 import { autoApproveDelegated, delegatingTasks, isDelegationTask, settleDelegations } from './delegation.ts';
 import { startDueSearches, subjectSearchesFor, trashSubjects } from './subjects.ts';
 import { onMilestoneEvidence } from './likeness.ts';
-import { ATTACHMENT_LIMITS, type GoalDelegatedFrom, type GoalDelegation } from '@foundry/core';
+import { ATTACHMENT_LIMITS, GoalIssue, type GoalDelegatedFrom, type GoalDelegation } from '@foundry/core';
+import { readIssue, type IssueRead } from './issue.ts';
 import { Tailnet } from './notify/tailnet.ts';
 import { SessionCosts } from './session-costs.ts';
 import { CODE_SERVER_INSTALL, CodeServer } from './editor/code-server.ts';
@@ -172,6 +173,8 @@ export interface CreateGoalInput {
   delegation?: Partial<GoalDelegation>;
   /** engine-internal (delegation.ts): this goal does one `goal` task of a main goal; the API never sets it */
   delegatedFrom?: Omit<GoalDelegatedFrom, 'at'>;
+  /** the GitHub issue the goal is made from, as `readIssue` returned it (ADR-0052); its thread travels in `attachments` */
+  issue?: GoalIssue;
 }
 
 /** events of a Delegated goal its main goal must hear of: the ones that change what the main goal waits for, or cost it */
@@ -1972,7 +1975,8 @@ export class Engine {
     }
     // anyone-facing default: prose and media goals open in the plain-language view; cad is code work with a geometry kernel and keeps the default
     const mode: GoalMode = input.mode ?? (nature !== 'auto' && nature !== 'code' && nature !== 'cad' ? 'simple' : this.config.defaultGoalMode);
-    const title = input.title?.trim() || input.prompt.trim().split('\n')[0]!.slice(0, 80);
+    const issue = input.issue ? GoalIssue.parse(input.issue) : null;
+    const title = input.title?.trim() || issue?.title.trim() || input.prompt.trim().split('\n')[0]!.slice(0, 80);
     const goal: Goal = {
       provider,
       id,
@@ -2025,6 +2029,7 @@ export class Engine {
       autoskills: null,
       completion: { ...IDLE_COMPLETION },
       follows: followUp?.follows ?? null,
+      issue,
       // one level: a Delegated goal never delegates, whatever the caller says
       delegation: { allow: input.delegatedFrom ? false : !!input.delegation?.allow, autoApprove: !!input.delegation?.autoApprove },
       delegatedFrom: input.delegatedFrom ? { ...input.delegatedFrom, at: now } : null,
@@ -2047,6 +2052,11 @@ export class Engine {
       await this.approveBrief(id, brief, goal.budgetPreset === 'auto' ? proposeBudgetFromEstimate(brief) : undefined);
     }
     return getGoal(this.store.db, id)!;
+  }
+
+  /** Read a GitHub issue for a new goal: its thread staged as an attachment, its title and body to start from (ADR-0052). */
+  readIssue(i: { ref: string; repoPath?: string | null }): Promise<IssueRead> {
+    return readIssue(this, i);
   }
 
   // ---------- attachments & markdown conversion ----------

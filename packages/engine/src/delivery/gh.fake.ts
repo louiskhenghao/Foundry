@@ -1,6 +1,6 @@
 import type { ExecResult } from '../git/git.ts';
 import { git } from '../git/git.ts';
-import type { GhAvailability, GhClient, PrRef, PrView } from './gh.ts';
+import type { GhAvailability, GhClient, IssueView, PrRef, PrView } from './gh.ts';
 
 /**
  * Scripted GitHub for tests. PRs live in memory; "merge" fast-forwards the bare remote's base
@@ -42,6 +42,8 @@ export class FakeGh implements GhClient {
   failedLogText: string | null = null;
   /** when set, a failing check is reported like this (e.g. a deploy integration's commit status) instead of an Actions run */
   failingCheck: { name: string; description: string; url: string; kind: 'run' | 'status' } | null = null;
+  /** issues `issueView` can read, keyed `owner/name#number` */
+  issues = new Map<string, IssueView>();
   calls: string[][] = [];
   /** path of the bare remote so merges can update refs */
   constructor(private bareRemote: string | null = null) {}
@@ -190,5 +192,13 @@ export class FakeGh implements GhClient {
   }
   async failedLog() {
     return this.failedLogText;
+  }
+  async issueView(_cwd: string, i: { repo: string; number: number }): Promise<IssueView> {
+    this.calls.push(['issueView', i.repo, String(i.number)]);
+    if (!this.installed) throw new Error('gh not installed');
+    if (!this.authenticated) throw new Error('gh issue view failed: To get started with GitHub CLI, please run:  gh auth login');
+    const issue = this.issues.get(`${i.repo}#${i.number}`);
+    if (!issue) throw new Error(`gh issue view failed: GraphQL: Could not resolve to an Issue with the number of ${i.number}. (repository.issue)`);
+    return structuredClone(issue);
   }
 }

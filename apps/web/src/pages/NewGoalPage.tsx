@@ -3,7 +3,7 @@ import type { Attachment, WorkflowProfile } from '@foundry/core/browser';
 import { ARTIFACT_NATURES, BUDGET_PRESETS } from '@foundry/core/browser';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { CornerDownRight, X } from 'lucide-react';
+import { CornerDownRight, Github, X } from 'lucide-react';
 import { ACTION_INFO, CODEX_MODEL_ACTIONS, effectiveCodexPresets, effectivePresets, natureKey, type CodexModelPreset, type ModelNature, type ModelPreset } from '@foundry/core/browser';
 import { api, apiForProvider, type AccountsInfo, type AgentProvider, type FollowUpDraft, type GoalRow, type ModelRecordView, type RepoInfo } from '../api.ts';
 import { AttachmentInput } from '../components/Attachments.tsx';
@@ -16,6 +16,7 @@ import { Button, ButtonGroup, Card, Input, Select, Textarea, cn } from '../ui.ts
 import { INTERVIEW_DEPTHS } from '../interview-depth.ts';
 import { HelpLink } from './HelpPage.tsx';
 import { initialWorkflow, updateWorkflow } from './new-goal-workflow.ts';
+import { applyIssueRead, clearIssue, keptOwnText, type IssueFormState } from './new-goal-issue.ts';
 
 const DELIVERY_KEY = 'foundry.delivery';
 const BUDGET_KEY = 'foundry.budget';
@@ -71,6 +72,12 @@ export function NewGoalPage() {
   const [title, setTitle] = useState('');
   const [repoInfo, setRepoInfo] = useState<RepoInfo | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  // a goal from a GitHub issue (ADR-0052): read once, its title and body fill the form, its thread is attached
+  const [issue, setIssue] = useState<IssueFormState['issue']>(null);
+  const [issueRef, setIssueRef] = useState(() => params.get('issue') ?? '');
+  const [issueOpen, setIssueOpen] = useState(() => !!params.get('issue'));
+  const [issueBusy, setIssueBusy] = useState(false);
+  const [issueErr, setIssueErr] = useState<string | null>(null);
   /** shipped software the goal learns from: REA studies each before Clarify */
   const [references, setReferences] = useState<{ target: string; lookAt: string }[]>([]);
   const [delivery, setDelivery] = useState<PolicyDraft>(loadDraft());
@@ -216,9 +223,34 @@ export function NewGoalPage() {
       setErr(e.message);
     }
   };
+  const readIssue = async (ref: string) => {
+    if (!ref.trim()) return;
+    setIssueBusy(true);
+    setIssueErr(null);
+    try {
+      const read = await api.readIssue(ref.trim(), repoInfo?.ok ? repoPath.trim() : null);
+      const next = applyIssueRead({ prompt, title, attachments, issue }, read);
+      setPrompt(next.prompt);
+      setTitle(next.title);
+      setAttachments(next.attachments);
+      setIssue(next.issue);
+      setIssueOpen(false);
+    } catch (e: any) {
+      setIssueErr(e.message);
+    } finally {
+      setIssueBusy(false);
+    }
+  };
+  const unlinkIssue = () => {
+    const next = clearIssue({ prompt, title, attachments, issue });
+    setAttachments(next.attachments);
+    setIssue(null);
+    setIssueRef('');
+  };
   useEffect(() => {
     const id = params.get('follows');
     if (id) void chooseFollow(id, true);
+    if (params.get('issue')) void readIssue(params.get('issue')!);
     api
       .goals()
       .then((gs) => setFinishedGoals(gs.filter((g) => FINISHED.includes(g.state))))
@@ -330,6 +362,7 @@ export function NewGoalPage() {
         modelPreset: (provider === 'codex' ? codexPreset : modelPreset) || undefined,
         follows: follow ? { goalId: follow.draft.previous.id, startFrom: follow.startFrom, attachments: follow.attachments, style: follow.style } : undefined,
         delegation: { allow: delegate, autoApprove: delegate && delegateAuto },
+        issue: issue?.read.issue,
       });
       try {
         localStorage.setItem(DELIVERY_KEY, JSON.stringify({ remote: delivery.remote, mergeMethod: delivery.mergeMethod, requireChecks: delivery.requireChecks, autoResolveConflicts: delivery.autoResolveConflicts, fixCiCycles: delivery.fixCiCycles, deleteRemoteBranch: delivery.deleteRemoteBranch }));
@@ -566,6 +599,50 @@ export function NewGoalPage() {
       </Card>
 
       <Card title={<>1 · What do you want done?<HelpLink to="your-first-goal#what-do-you-want-done" className="ml-1.5" /></>}>
+        <div className="mb-2 flex items-center gap-2 flex-wrap text-xs">
+          {issue ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-900 bg-sky-950/40 px-2 py-0.5 text-sky-200" title={issue.read.issue.title}>
+              <Github size={12} className="shrink-0" />
+              <a href={issue.read.issue.url} target="_blank" rel="noreferrer" className="hover:underline">
+                {issue.read.issue.repo}#{issue.read.issue.number}
+              </a>
+              <span className="text-sky-400/80">· {issue.read.issue.state}</span>
+              <button type="button" className="rounded-full p-0.5 hover:bg-sky-900 shrink-0" style={{ minHeight: 0 }} aria-label="Unlink issue" title="This goal is not made from the issue after all: its thread leaves the attachments; your text stays" onClick={unlinkIssue}>
+                <X size={12} />
+              </button>
+            </span>
+          ) : (
+            <Button size="sm" variant="ghost" type="button" onClick={() => setIssueOpen(!issueOpen)} title="Make this goal from a GitHub issue: its title and description fill the form, its thread is attached for every session, and the pull request closes it when it merges">
+              <Github size={12} /> From a GitHub issue<HelpLink to="your-first-goal#from-a-github-issue" className="ml-1.5" />
+            </Button>
+          )}
+          {issue && keptOwnText({ prompt, title, attachments, issue }) && <span className="text-zinc-500">your description is kept; the issue's thread is attached</span>}
+          {issueOpen && !issue && (
+            <form
+              className="basis-full flex items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void readIssue(issueRef);
+              }}
+            >
+              <Input className="text-xs" placeholder="https://github.com/owner/name/issues/12, owner/name#12, or #12 in the chosen repository" value={issueRef} onChange={(e) => setIssueRef(e.target.value)} />
+              <Button size="sm" type="submit" disabled={!issueRef.trim() || issueBusy}>
+                {issueBusy ? 'Reading…' : 'Read issue'}
+              </Button>
+            </form>
+          )}
+          {issueErr && (
+            <p className="basis-full text-[11px] text-rose-300">
+              {issueErr}
+              {/not logged in|not installed/i.test(issueErr) && (
+                <>
+                  {' '}
+                  <Link to="/setup" className="underline">Open Setup</Link>
+                </>
+              )}
+            </p>
+          )}
+        </div>
         <Textarea rows={6} placeholder="Describe the goal as you would to a senior engineer. The system clarifies, proposes Must / Stretch acceptance checks and a task plan for you to approve." value={prompt} onChange={(e) => setPrompt(e.target.value)} />
         <AttachmentInput className="mt-2" items={attachments} onChange={setAttachments} />
         <div className="mt-3 space-y-1.5">

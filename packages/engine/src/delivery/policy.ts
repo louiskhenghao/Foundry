@@ -1,6 +1,7 @@
 import type { Brief, CheckResult, DeliveryPlanStep, DeliveryPolicy, Goal, Task } from '@foundry/core';
 import { decisionsOf } from '@foundry/core';
 import { headerOf } from '../git/conventional.ts';
+import { issueRefFor } from '../issue.ts';
 
 export const needsGh = (p: DeliveryPolicy) => p.mode === 'pr' || p.mode === 'pr-automerge' || !!p.createRepo;
 export const baseOf = (goal: Goal, p: DeliveryPolicy) => p.baseBranch ?? goal.baseBranch;
@@ -33,7 +34,8 @@ export function planDelivery(goal: Goal, p: DeliveryPolicy, probes: PlanProbes):
   steps.push({ step: 'push', command: `git push -u ${p.remote} refs/heads/${goal.branch}:refs/heads/${goal.branch}`, note: 'never force, never the base branch' });
   if (p.mode === 'push') return steps;
   const repo = probes.remoteUrl ? repoSlug(probes.remoteUrl) : p.createRepo ? `${p.createRepo.owner}/${p.createRepo.name}` : '<owner/name>';
-  steps.push(probes.prExists ? { step: 'open-pr', command: null, note: `reuse open PR #${probes.prExists.number}` } : { step: 'open-pr', command: `gh pr create -R ${repo} --base ${base} --head ${goal.branch} --title "${title}" --body-file <summary+evidence+merge-danger>`, note: p.unit === 'task' ? `PR body = summary, decisions, evidence (the checks), merge danger (${n < 2 ? 'only one task commit, so one PR' : 'one PR'})` : 'PR body = summary, decisions, evidence (the checks), merge danger' });
+  const closes = goal.issue ? `; closes issue ${issueRefFor(goal.issue, repo)} when it merges` : '';
+  steps.push(probes.prExists ? { step: 'open-pr', command: null, note: `reuse open PR #${probes.prExists.number}` } : { step: 'open-pr', command: `gh pr create -R ${repo} --base ${base} --head ${goal.branch} --title "${title}" --body-file <summary+evidence+merge-danger>`, note: p.unit === 'task' ? `PR body = summary, decisions, evidence (the checks), merge danger (${n < 2 ? 'only one task commit, so one PR' : 'one PR'})${closes}` : `PR body = summary, decisions, evidence (the checks), merge danger${closes}` });
   if (p.mode === 'pr') return steps;
   steps.push({ step: 'wait-checks', command: `gh pr view <n> -R ${repo} --json statusCheckRollup,mergeable`, note: p.requireChecks ? `wait for checks (${p.mergeIfNoChecks ? 'merge if none configured' : 'require at least one'})` : 'checks not required' });
   if (p.fixCiCycles > 0) steps.push({ step: 'fix-ci', command: null, note: `up to ${p.fixCiCycles} "fix CI" task(s) if checks fail` });
@@ -52,7 +54,7 @@ function planStacked(goal: Goal, p: DeliveryPolicy, probes: PlanProbes, base: st
   steps.push({ step: 'push', command: `git push -u ${p.remote} refs/heads/${goal.branch}-<n>-<slug>:refs/heads/${goal.branch}-<n>-<slug> × ${n}`, note: 'never force, never the base branch' });
   if (p.mode === 'push') return steps;
   const repo = probes.remoteUrl ? repoSlug(probes.remoteUrl) : p.createRepo ? `${p.createRepo.owner}/${p.createRepo.name}` : '<owner/name>';
-  steps.push({ step: 'open-pr', command: `gh pr create -R ${repo} --base ${base} --head ${goal.branch}-1-<slug> --title "<task 1 commit header>" … --base ${goal.branch}-${n - 1}-<slug> --head ${goal.branch}-${n}-<slug>`, note: `${n} PRs bottom-up, each based on the one below; titles are the tasks' Conventional Commit headers` });
+  steps.push({ step: 'open-pr', command: `gh pr create -R ${repo} --base ${base} --head ${goal.branch}-1-<slug> --title "<task 1 commit header>" … --base ${goal.branch}-${n - 1}-<slug> --head ${goal.branch}-${n}-<slug>`, note: `${n} PRs bottom-up, each based on the one below; titles are the tasks' Conventional Commit headers${goal.issue ? `; the last one closes issue ${issueRefFor(goal.issue, repo)} when it merges` : ''}` });
   if (p.mode === 'pr') return steps;
   steps.push({ step: 'wait-checks', command: `gh pr view <n> -R ${repo} --json statusCheckRollup,mergeable`, note: `for each PR in order: ${p.requireChecks ? `wait for checks (${p.mergeIfNoChecks ? 'merge if none configured' : 'require at least one'})` : 'checks not required'}` });
   if (p.fixCiCycles > 0) steps.push({ step: 'fix-ci', command: null, note: `up to ${p.fixCiCycles} "fix CI" task(s) in total if checks fail` });
@@ -87,8 +89,10 @@ function mergeDanger(base: string, stats: DiffStats | null | undefined): string 
 }
 
 /** Body of one PR of a stacked delivery: summary, evidence and merge danger for that task alone. */
-export function buildTaskPrBody(goal: Goal, task: Task, i: { index: number; total: number; goalTitle: string; prevPr: number | null; prevBranch: string | null }, results: { name: string; status: string }[], reviewNote: string | null, stats?: DiffStats | null): string {
+export function buildTaskPrBody(goal: Goal, task: Task, i: { index: number; total: number; goalTitle: string; prevPr: number | null; prevBranch: string | null; /** owner/name the PR is opened in: decides how the goal's issue is referred to */ repo?: string | null }, results: { name: string; status: string }[], reviewNote: string | null, stats?: DiffStats | null): string {
   const lines: string[] = [];
+  // the issue the goal came from (ADR-0052): the last PR of the stack closes it, the others only refer to it
+  if (goal.issue) lines.push(`${i.index === i.total ? 'Closes' : 'Part of'} ${issueRefFor(goal.issue, i.repo)}`);
   lines.push(`_Part ${i.index}/${i.total} of **${i.goalTitle}**${i.prevPr ? ` · stacked on #${i.prevPr}` : i.prevBranch ? ` · stacked on \`${i.prevBranch}\`` : ''}. Merge bottom-up; once the PR below merges, use **Update branch** (or let Foundry do it) before merging this one._`);
   lines.push(`## Summary\n\n**${headerOf(task.commitMessage ?? task.title)}**\n\n${task.spec.trim()}\n\nPart of the goal: ${goal.prompt.trim()}`);
   const evidence = results.length ? `| check | result |\n|---|---|\n${results.map((r) => `| ${r.name} | ${r.status === 'pass' ? '✅ pass' : `❌ ${r.status}`} |`).join('\n')}` : 'No checks were run for this task.';
@@ -128,8 +132,10 @@ function taskTree(goal: Goal, brief: Brief | null, tasks: Pick<Task, 'title' | '
  * the tasks as a tree under their Areas), the Decisions the person made, the Evidence (the acceptance checks and the
  * reviewer's notes) and the Merge Danger (door and blast radius). No model writes it; the engine knows all of it.
  */
-export function buildPrBody(goal: Goal, brief: Brief | null, review: { mustResults: CheckResult[]; stretchResults: CheckResult[]; notes: string; overDelivered: boolean } | null, checkNames: Map<string, string>, extra: { tasks?: Pick<Task, 'title' | 'area' | 'commitMessage' | 'origin'>[]; stats?: DiffStats | null } = {}): string {
+export function buildPrBody(goal: Goal, brief: Brief | null, review: { mustResults: CheckResult[]; stretchResults: CheckResult[]; notes: string; overDelivered: boolean } | null, checkNames: Map<string, string>, extra: { tasks?: Pick<Task, 'title' | 'area' | 'commitMessage' | 'origin'>[]; stats?: DiffStats | null; /** owner/name the PR is opened in: decides how the goal's issue is referred to */ repo?: string | null } = {}): string {
   const lines: string[] = [];
+  // the issue the goal came from (ADR-0052): GitHub closes it when the PR merges into the default branch
+  if (goal.issue) lines.push(`Closes ${issueRefFor(goal.issue, extra.repo)}`);
   const tasks = (extra.tasks ?? []).filter((t) => t.origin !== 'merge');
   lines.push(`## Summary\n\n${brief ? brief.understanding.trim() : goal.prompt.trim()}${tasks.length ? `\n\n\`\`\`text\n${taskTree(goal, brief, tasks)}\n\`\`\`` : ''}${brief ? `\n\n**Asked for:** ${goal.prompt.trim()}` : ''}`);
   if (brief) {

@@ -21,6 +21,19 @@ export interface PrView extends PrRef {
   checks: { name: string; status: string; conclusion: string | null; kind?: 'run' | 'status'; description?: string | null; url?: string | null }[];
 }
 export type ChecksReduced = 'pending' | 'passing' | 'failing' | 'none';
+/** One issue as `gh issue view` reports it: its metadata, body and the comments under it, oldest first. */
+export interface IssueView {
+  number: number;
+  url: string;
+  title: string;
+  state: 'OPEN' | 'CLOSED' | string;
+  body: string;
+  labels: string[];
+  author: string | null;
+  createdAt: string | null;
+  comments: { author: string | null; body: string; createdAt: string | null }[];
+}
+
 
 /** Everything the pipeline needs from GitHub. `CliGh` shells out to `gh`; tests use a fake. */
 export interface GhClient {
@@ -44,6 +57,8 @@ export interface GhClient {
   /** close a PR without merging, leaving a comment that says why */
   prClose(cwd: string, i: { repo: string; number: number; comment: string }): Promise<ExecResult>;
   failedLog(cwd: string, i: { repo: string; branch: string }): Promise<string | null>;
+  /** read one issue with its comments (`gh issue view`); throws when there is no such issue or gh cannot read it */
+  issueView(cwd: string, i: { repo: string; number: number }): Promise<IssueView>;
 }
 
 const FAILED = ['FAILURE', 'ERROR', 'TIMED_OUT', 'CANCELLED', 'ACTION_REQUIRED', 'STARTUP_FAILURE'];
@@ -215,5 +230,22 @@ export class CliGh implements GhClient {
     if (!failed) return null;
     const v = await this.run(['run', 'view', String(failed.databaseId), '-R', i.repo, '--log-failed'], cwd, 120_000);
     return v.stdout || v.stderr || null;
+  }
+  async issueView(cwd: string, i: { repo: string; number: number }): Promise<IssueView> {
+    const r = await this.run(['issue', 'view', String(i.number), '-R', i.repo, '--json', 'number,url,title,state,body,labels,author,createdAt,comments'], cwd, 60_000);
+    if (r.code !== 0) throw new Error(`gh issue view failed: ${(r.stderr || r.stdout).trim().slice(0, 300) || `exit ${r.code}`}`);
+    const j = JSON.parse(r.stdout);
+    const login = (a: any): string | null => (a && typeof a === 'object' ? (a.login ?? a.name ?? null) : typeof a === 'string' ? a : null);
+    return {
+      number: Number(j.number),
+      url: String(j.url ?? `https://github.com/${i.repo}/issues/${i.number}`),
+      title: String(j.title ?? ''),
+      state: String(j.state ?? 'OPEN'),
+      body: String(j.body ?? ''),
+      labels: (Array.isArray(j.labels) ? j.labels : []).map((l: any) => (typeof l === 'string' ? l : l?.name)).filter((x: unknown): x is string => typeof x === 'string' && !!x),
+      author: login(j.author),
+      createdAt: j.createdAt ?? null,
+      comments: (Array.isArray(j.comments) ? j.comments : []).map((c: any) => ({ author: login(c.author), body: String(c.body ?? ''), createdAt: c.createdAt ?? null })),
+    };
   }
 }
