@@ -1695,6 +1695,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json(status);
   });
 
+  // Reports (ADR-0060): ?days=30|90|365 or all
+  app.get('/api/reports', (c) => {
+    const q = c.req.query('days');
+    return c.json(engine.report(q === 'all' ? null : Math.max(1, Math.min(3650, Math.round(Number(q) || 30)))));
+  });
   app.get('/api/usage', async (c) => c.json(await engine.readUsage(authProvider(c))));
   app.post('/api/usage/probe', async (c) => {
     const provider = authProvider(c);

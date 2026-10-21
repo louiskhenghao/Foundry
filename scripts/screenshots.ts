@@ -202,6 +202,8 @@ try {
     await page.waitForTimeout(300);
   });
   await shot('usage', '/usage');
+  // Reports (ADR-0060): the demo's goals and their sessions over the last 30 days
+  await shot('reports', '/reports');
   // Agents reads this machine's own Claude Code and Codex history: the guide shows demonstration sessions instead
   const title = (id: string) => getGoal(demo.engine.store.db, id)?.title ?? null;
   const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();

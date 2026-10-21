@@ -163,3 +163,41 @@ describe('schedules (ADR-0054)', () => {
     expect(skipped.stdout).toContain('skipped: the previous run is still going');
   });
 });
+
+describe('CLI report (ADR-0060)', () => {
+  test('report prints the window, the retries, the estimates, the projects and the session kinds the server reports', async () => {
+    const spend = { sessions: 12, costUsd: 18.5, unmeasured: 1, codexSessions: 0, durationMs: 3_600_000 };
+    const retries = { tasks: 10, retried: 2, attempts: 13, fixTasks: 1, rate: 0.2 };
+    const estimate = { cost: { factor: 1.4, samples: 3, spread: 'tight' }, time: null, samples: 3 };
+    const fixture = {
+      now: '2026-10-21T12:00:00Z', window: { days: 90, from: '2026-07-23T12:00:00Z', to: '2026-10-21T12:00:00Z' }, step: 'week',
+      totals: { ...spend, goals: { total: 4, finished: 3, failed: 1, cancelled: 0, open: 0 }, activeMin: 150, retries, estimate, noGoal: { sessions: 0, costUsd: 0, unmeasured: 0, codexSessions: 0, durationMs: 0 } },
+      series: [], repos: [{ repoPath: '/x/alpha', name: 'alpha', ...spend, goals: { total: 4, finished: 3, failed: 1, cancelled: 0, open: 0 }, activeMin: 150, costPerFinishedGoal: 6.17, retries, estimate }],
+      kinds: [{ kind: 'attempt', sessions: 10, costUsd: 16, unmeasured: 1, codexSessions: 0, durationMs: 3_000_000, costShare: 0.86, timeShare: 0.83 }], misses: [], note: 'From the sessions Foundry started on this machine.',
+    };
+    let asked = '';
+    const server = Bun.serve({
+      hostname: '127.0.0.1', port: 0,
+      fetch(request) {
+        const u = new URL(request.url);
+        asked = u.pathname + u.search;
+        return Response.json(fixture);
+      },
+    });
+    try {
+      const child = Bun.spawn([process.execPath, main, 'report', '--days', '90'], { env: { FOUNDRY_URL: `http://127.0.0.1:${server.port}`, PATH: process.env.PATH }, stdout: 'pipe', stderr: 'pipe' });
+      const [exitCode, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]);
+      expect(stderr).toBe('');
+      expect(exitCode).toBe(0);
+      expect(asked).toBe('/api/reports?days=90');
+      expect(stdout).toContain('Last 90 days: $18.50 (Claude Code)  12 sessions  3/4 goals finished (1 failed, 0 cancelled)  2.5 h worked');
+      expect(stdout).toContain('retries: 20% of 10 tasks needed more than one attempt; 1 fix tasks');
+      expect(stdout).toContain('estimates: cost ×1.4, time — (actual ÷ estimate over 3 goals with one)');
+      expect(stdout).toContain('  alpha: $18.50  3/4 finished  2.5 h  retries 20%  estimate ×1.4/—');
+      expect(stdout).toContain('by kind: attempt 86% of $ · 83% of time');
+      expect(stdout).toContain(fixture.note);
+    } finally {
+      server.stop(true);
+    }
+  });
+});

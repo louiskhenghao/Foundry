@@ -53,6 +53,19 @@ Codex 在创建、批准 Brief、提高预算时都会移除美元上限。超�
 - 用量到了上限时，Foundry 只暂停对应编码智能体的新会话，之后重试。横幅显示的是重试时间（不是今天时会带日期），不保证额度已经恢复。横幅或 Usage 页面上的 **Resume now** 会马上恢复新会话；如果上限仍在，下一个会话会再次暂停。额外用量（overage）用完时，除非会话本来就在用它，否则不会暂停；任何暂停都不会超过一周。
 - **MiniMax**（通过 mmx 做视频和配音）在 **Usage** 页面底部有自己的卡片，打开页面时读取：Token Plan 下每个模型当前窗口和本周还剩多少，或者按量付费 key 的余额。**Refresh** 会重新读取。某个窗口剩下不到 10%，或者余额不到 1 时，顶栏的用量标签上会出现一个琥珀色小点。只有装了 mmx 时才会显示这张卡片。
 
+## 报表
+
+![Reports：按时间、按项目、按会话类型看花费，以及重试率和估算偏差 —— 演示数据](images/reports.png)
+
+**⚙ → Reports** 比 Usage 页面看得更远，数据来自 Foundry 自己的会话记录：最近 30 天、90 天、12 个月或全部。顶上六个数字 —— 花费、会话数、开始的 goal 里完成了几个、Foundry 工作的小时数、重试率和估算偏差 —— 下面四块：
+
+- **Spend over time**：每天、每周或每月的 Claude Code 花费（粒度跟着时间窗走），以及每段里完成了几个 goal。
+- **By project**：每个跑过 goal 的文件夹 —— 完成、失败、取消各几个，花了多少、平均一个完成的 goal 花多少，Foundry 工作了几小时，重试率，以及 Brief 的估算和 goal 实际结果差多远。
+- **Where the budget goes**：每种会话 —— 做任务的 worker、任务审查、Clarify、规划、goal review、合并尝试、审计、浏览器 QA、文档、探测 —— 各占多少钱和多少时间。
+- **Estimate misses**：成本或时间偏离 Brief 估算最远的 goal，偏多偏少都算。这里的系数就是[校准](./approving-the-brief.zh.md#估算和预算)用来修正新估算的那个：实际 ÷ 估算，取有估算的 goal 的中位数。
+
+goal 按创建时间算，会话按运行时间算。重试率是尝试过的任务里需要不止一次尝试的比例；修复任务（审查的、审计的、CI 的、浏览器 QA 的、review 评论的）单独计数放在旁边。钱是 Claude Code 的估算，和 Foundry 其它地方一样：Codex 不报告花费，中途被切断、没报告花费的会话不计入，算作未知。命令行：`foundry report --days 90`（`--all`、`--json`）。
+
 ## 图片类 goal 需要图片 key
 
 配置的图片技能使用独立的媒体服务 API key：OpenAI 兼容的 key，或 Gemini key。这个 key 不会启用 Codex API-key 推理，也不会代替 ChatGPT 登录。在 **Settings → Tools & keys** 里添加；下一个会话就生效，不用重启。没有 key 时，图片任务只能做出手绘的 SVG 或 HTML 渲染，质量低很多 —— Brief 会在你批准前告诉你。

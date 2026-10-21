@@ -1,5 +1,5 @@
 import { AccountsPage } from './pages/AccountsPage.tsx';
-import { ArrowLeftRight, ArrowUpCircle, Bot, Inbox, ListTodo, Menu, Moon, Network, NotebookPen, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X, HelpCircle, AlarmClock } from 'lucide-react';
+import { ArrowLeftRight, ArrowUpCircle, BarChart3, Bot, Inbox, ListTodo, Menu, Moon, Network, NotebookPen, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X, HelpCircle, AlarmClock } from 'lucide-react';
 import { HelpPage } from './pages/HelpPage.tsx';
 import { TransferPage } from './pages/TransferPage.tsx';
 import { PortsPage } from './pages/PortsPage.tsx';
@@ -23,6 +23,7 @@ import { SchedulesPage } from './pages/SchedulesPage.tsx';
 import { NewGoalPage } from './pages/NewGoalPage.tsx';
 import { SetupPage } from './pages/SetupPage.tsx';
 import { SkillsTabs } from './pages/skills/SkillsTabs.tsx';
+import { ReportsPage } from './pages/ReportsPage.tsx';
 import { UsagePage, UsagePill } from './pages/UsagePage.tsx';
 import { useLive } from './store.ts';
 import { Button, Menu as DropMenu, MenuItem, cn } from './ui.tsx';
@@ -123,6 +124,7 @@ export function App() {
           <Route path="/skills" element={<SkillsTabs />} />
           <Route path="/setup" element={<SetupPage />} />
           <Route path="/usage" element={<UsagePage />} />
+          <Route path="/reports" element={<ReportsPage />} />
           <Route path="/accounts" element={<AccountsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/transfer" element={<TransferPage />} />
@@ -162,7 +164,7 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
       localStorage.setItem('foundry.theme', next ? 'light' : 'dark');
     } catch {}
   };
-  const here = ['/settings', '/setup', '/transfer', '/ports', '/learnings', '/schedules', '/help'].some((p) => loc.pathname.startsWith(p));
+  const here = ['/settings', '/setup', '/transfer', '/ports', '/learnings', '/schedules', '/reports', '/help'].some((p) => loc.pathname.startsWith(p));
   const go = (close: () => void, to: string) => {
     close();
     nav(to);
@@ -198,6 +200,9 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
           </MenuItem>
           <MenuItem icon={<AlarmClock size={13} />} onClick={() => go(close, '/schedules')}>
             Schedules — goals that run on their own
+          </MenuItem>
+          <MenuItem icon={<BarChart3 size={13} />} onClick={() => go(close, '/reports')}>
+            Reports — what it cost, by project and over time
           </MenuItem>
           <MenuItem icon={<HelpCircle size={13} />} onClick={() => go(close, '/help')}>
             Help — how to use Foundry

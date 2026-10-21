@@ -286,7 +286,7 @@ The history endpoint returns the last 400 events, slimmed the same way, includin
 
 **Shared controls.** `components/ProviderSelector.tsx` is the native radio group used for **Coding agent** in Setup, Settings, Extensions, Usage and New goal. It provides a visible selected state and native keyboard navigation. Shared select styling in `index.css` reserves space for the chevron, including native selects outside `ui.tsx`; forced-colors mode retains the system arrow.
 
-**Web pages** (`apps/web/src/App.tsx`): Goals `/`, New goal `/goals/new`, Brief `/goals/:id/brief` (`pages/brief/*`), Goal `/goals/:id` (`pages/goal/*`: overview, DAG, diff, delivery, activity, interview, milestone, preview), Manual Resolution, Agents, Inbox, Skills, Setup, Usage, Settings (`pages/settings/ModelPresets.tsx` for presets) and Help `/help`, `/help/:slug` (`pages/HelpPage.tsx`, the user guide).
+**Web pages** (`apps/web/src/App.tsx`): Goals `/`, New goal `/goals/new`, Brief `/goals/:id/brief` (`pages/brief/*`), Goal `/goals/:id` (`pages/goal/*`: overview, DAG, diff, delivery, activity, interview, milestone, preview), Manual Resolution, Agents, Inbox, Skills, Setup, Usage, Reports `/reports` (`pages/ReportsPage.tsx`, [ADR-0060](adr/0060-reports.md)), Settings (`pages/settings/ModelPresets.tsx` for presets) and Help `/help`, `/help/:slug` (`pages/HelpPage.tsx`, the user guide).
 
 ## Where does X live?
 
@@ -319,6 +319,7 @@ The history endpoint returns the last 400 events, slimmed the same way, includin
 | Budgets | `engine/src/budget.ts`, `core/src/schema/goal.ts` (`BUDGET_PRESETS`) |
 | Estimate calibration (the samples, the factors, the sentence on the Brief) | `engine/src/calibration.ts`, `core/src/machine/calibration.ts` |
 | Usage Pause, usage ledger | `Engine.observeRateLimit` / `pauseUntil`, `engine/src/usage/ledger.ts` |
+| Reports: spend over time, each project's goals, spend, hours, retry rate and estimate error, each session kind's share, the estimate misses (ADR-0060) | `engine/src/reports.ts` (`buildReport`), `engine/src/usage/types.ts` (`Report`), `Engine.report`, `GET /api/reports`, `apps/web/src/pages/ReportsPage.tsx`, `foundry report` |
 | Unmeasured sessions (a cut session's turns and tokens counted, its cost unknown — not zero) | `runner/src/usage-tally.ts`, `ClaudeCliRunner.run` (no result line), `core/src/machine/task-usage.ts` |
 | Model Presets, worker routing | `core/src/schema/model-presets.ts`, `engine/src/models/roles.ts` |
 | Model Registry, Fallback, model sync | `engine/src/models/{registry,fallback-runner,discover}.ts` |

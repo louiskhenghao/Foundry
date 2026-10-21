@@ -373,6 +373,10 @@ Re-indexing the knowledge graph (graphify, and gitnexus when installed) where th
 **Tech Stack Question**
 The one blocking Question a Brief carries when the repository is empty: there are no facts to discover, so the stack is the human's Decision. It offers 2–4 concrete options with the Clarifier's recommendation first; the plan assumes the recommendation, and the first Task scaffolds the chosen stack.
 
+**Report**
+What Foundry cost and did over a window — the last 30 days, 90 days, 12 months or all time — reduced on request from its own session records and the Goals: the spend over time, each project's Goals started, finished and failed, its spend, Foundry's working hours, its retry rate (attempted tasks that needed more than one attempt) and its estimate error (the Calibration's factor), each session kind's share of the dollars and of the time, and the Goals whose Brief estimates missed most. Goals count by creation, sessions by when they ran; dollars are the ledger's Claude Code estimates. Nothing is stored. The Usage page keeps the last seven days and the account limits.
+_Avoid_: analytics, dashboard, statistics, usage (the Usage page)
+
 **Usage Pause**
 The engine's reaction to one coding agent's usage limit: no new sessions start on that coding agent while its Goals keep their state. Other coding agents can continue. A reported reset schedules the next retry; without one, Codex retries after a short delay that does not claim the account has recovered. The pause survives engine restarts and is visible as a banner and on the Usage page; it is never an Escalation.
 
