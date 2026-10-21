@@ -293,6 +293,11 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
             <Input type="number" min={1} step={1} className="mono text-xs py-1 mt-0.5 w-40" disabled={!editable} placeholder="even share of what is left" value={task.budgetUsd ?? ''} onChange={(e) => change({ budgetUsd: e.target.value ? Number(e.target.value) : null })} title="What the delegated goal doing this step may spend, within this goal's budget; blank = an even share of what is left among the goal tasks still to run" />
           </label>
         )}
+        {task.kind === 'goal' && task.repo && (
+          <div className="text-xs text-zinc-400" title="A companion repository: the delegated goal doing this step works there, on that folder's own branch, and is delivered with this goal">
+            In the companion folder <span className="mono text-zinc-200">{task.repo}</span>: done by a delegated goal there; nothing of it lands on this goal's branch.
+          </div>
+        )}
 
         <div>
           <div className="flex items-center gap-2 mb-1.5">

@@ -1,6 +1,7 @@
 import { afterMerge } from './after-merge.ts';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { companionExtras } from '../companions.ts';
 import type { Check, DeliveryPolicy, DeliveryStep, Goal, ReviewRound, Task } from '@foundry/core';
 import { IdPrefix, getBrief, getGoal, getTask, listCheckResultsByGoal, listChecks, listTasks, newId } from '@foundry/core';
 import { maxAttemptsFor, runAttempt } from '../attempt-loop.ts';
@@ -228,7 +229,7 @@ export async function runDelivery(engine: Engine, goalIn: Goal, signal: AbortSig
       const review = [...store.listByGoal(goal.id, 2000)].reverse().find((e) => e.type === 'review.goal.finished')?.payload as any;
       const names = new Map(listChecks(store.db, goal.id).map((c) => [c.id, c.name]));
       const bodyFile = bodyPath(ctx, 'pr-body.md');
-      writeFileSync(bodyFile, buildPrBody(goal, brief, review ?? null, names, { tasks: listTasks(store.db, goal.id), stats: await diffStats(ctx.goalWs, `${ctx.remote}/${ctx.base}...HEAD`), repo }));
+      writeFileSync(bodyFile, buildPrBody(goal, brief, review ?? null, names, { tasks: listTasks(store.db, goal.id), stats: await diffStats(ctx.goalWs, `${ctx.remote}/${ctx.base}...HEAD`), repo, ...companionExtras(ctx.engine, goal) }));
       const created = await ctx.gh.prCreate(ctx.goalWs, { repo, head: goal.branch, base: ctx.base, title, bodyFile });
       ev({ type: 'delivery.pr_opened', goalId: goal.id, payload: { number: created.number, url: created.url, base: ctx.base, head: goal.branch, taskId: null, title } });
       return { status: 'ok', detail: `opened PR #${created.number}`, value: created };

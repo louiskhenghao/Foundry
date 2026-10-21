@@ -6,6 +6,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { CornerDownRight, Github, X } from 'lucide-react';
 import { ACTION_INFO, CODEX_MODEL_ACTIONS, effectiveCodexPresets, effectivePresets, natureKey, type CodexModelPreset, type ModelNature, type ModelPreset } from '@foundry/core/browser';
 import { api, apiForProvider, type AccountsInfo, type AgentProvider, type FollowUpDraft, type GoalRow, type ModelRecordView, type RepoInfo } from '../api.ts';
+import { CompanionFolders } from '../components/CompanionFolders.tsx';
 import { AttachmentInput } from '../components/Attachments.tsx';
 import { BudgetPicker, type BudgetDraft } from '../components/BudgetPicker.tsx';
 import { DeliveryPolicyForm, type PolicyDraft } from '../components/DeliveryPolicyForm.tsx';
@@ -72,6 +73,8 @@ export function NewGoalPage() {
   const [prompt, setPrompt] = useState(() => params.get('prompt') ?? '');
   useUnsaved('new-goal', !!prompt.trim());
   const [repoPath, setRepoPath] = useState('');
+  // companion repositories (ADR-0063): other folders the goal changes too
+  const [companions, setCompanions] = useState<string[]>([]);
   const [title, setTitle] = useState('');
   const [repoInfo, setRepoInfo] = useState<RepoInfo | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -428,6 +431,7 @@ export function NewGoalPage() {
         modelPreset: (provider === 'codex' ? codexPreset : modelPreset) || undefined,
         follows: follow ? { goalId: follow.draft.previous.id, startFrom: follow.startFrom, attachments: follow.attachments, style: follow.style } : undefined,
         delegation: { allow: delegate, autoApprove: delegate && delegateAuto },
+        companions: companions.map((p) => p.trim()).filter(Boolean).map((p) => ({ repoPath: p })),
         issue: issue?.read.issue,
       });
   const submit = async () => {
@@ -758,6 +762,7 @@ export function NewGoalPage() {
           </div>
         )}
         {repoInfo?.ok && (followCandidates.length > 0 || follow) && <FollowsPicker follow={follow} candidates={followCandidates} onPick={(id) => void chooseFollow(id, false)} onChange={setFollow} />}
+        {repoInfo?.ok && <CompanionFolders value={companions} onChange={setCompanions} main={repoPath.trim()} />}
       </Card>
 
       <Card title={<>3 · Budget<HelpLink to="your-first-goal#budget" className="ml-1.5" /></>}>

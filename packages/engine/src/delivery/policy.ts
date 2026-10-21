@@ -134,10 +134,11 @@ function taskTree(goal: Goal, brief: Brief | null, tasks: Pick<Task, 'title' | '
  * the tasks as a tree under their Areas), the Decisions the person made, the Evidence (the acceptance checks and the
  * reviewer's notes) and the Merge Danger (door and blast radius). No model writes it; the engine knows all of it.
  */
-export function buildPrBody(goal: Goal, brief: Brief | null, review: { mustResults: CheckResult[]; stretchResults: CheckResult[]; notes: string; overDelivered: boolean } | null, checkNames: Map<string, string>, extra: { tasks?: Pick<Task, 'title' | 'area' | 'commitMessage' | 'origin'>[]; stats?: DiffStats | null; /** owner/name the PR is opened in: decides how the goal's issue is referred to */ repo?: string | null } = {}): string {
+export function buildPrBody(goal: Goal, brief: Brief | null, review: { mustResults: CheckResult[]; stretchResults: CheckResult[]; notes: string; overDelivered: boolean } | null, checkNames: Map<string, string>, extra: { tasks?: Pick<Task, 'title' | 'area' | 'commitMessage' | 'origin'>[]; stats?: DiffStats | null; /** owner/name the PR is opened in: decides how the goal's issue is referred to */ repo?: string | null; /** the companion repositories and their pull requests (ADR-0063) */ companions?: string[]; /** a companion's own pull request: the goal it is part of */ partOf?: string } = {}): string {
   const lines: string[] = [];
   // the issue the goal came from (ADR-0052): GitHub closes it when the PR merges into the default branch
   if (goal.issue) lines.push(`Closes ${issueRefFor(goal.issue, extra.repo)}`);
+  if (extra.partOf) lines.push(extra.partOf);
   const tasks = (extra.tasks ?? []).filter((t) => t.origin !== 'merge');
   lines.push(`## Summary\n\n${brief ? brief.understanding.trim() : goal.prompt.trim()}${tasks.length ? `\n\n\`\`\`text\n${taskTree(goal, brief, tasks)}\n\`\`\`` : ''}${brief ? `\n\n**Asked for:** ${goal.prompt.trim()}` : ''}`);
   if (brief) {
@@ -152,6 +153,7 @@ export function buildPrBody(goal: Goal, brief: Brief | null, review: { mustResul
     if (review.notes) parts.push(`**Reviewer:** ${review.notes.trim()}`);
     lines.push(`## Evidence\n\n${parts.join('\n\n')}`);
   } else lines.push('## Evidence\n\nNo checks were run.');
+  if (extra.companions?.length) lines.push(`## Companion repositories\n\nThis goal also changes these repositories, each through a delegated goal with a pull request of its own:\n\n${extra.companions.map((n) => `- ${n}`).join('\n')}`);
   lines.push(mergeDanger(goal.baseBranch, extra.stats));
   lines.push(`---\n_Opened by Foundry · goal \`${goal.id}\` · est. cost $${goal.costUsd.toFixed(2)}_`);
   return lines.join('\n\n');

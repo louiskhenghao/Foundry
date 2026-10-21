@@ -98,6 +98,8 @@ import { endedForLearning, learnFromGoal, learnOnEnd, learningWork, learningsOf,
 import { DEPLOYABLE_STATES, type DeployRequest, deployCredentials, deployName, deployWork, deploying, goalDeployability, npxCli, smokeAgain, smoking, startDeploy, unsupported } from './deploy/deploy.ts';
 import { type RevertInfo, type RevertRequest, revertInfo, revertWork, startRevert } from './delivery/revert.ts';
 import { buildReport } from './reports.ts';
+import { deliverCompanions } from './companions.ts';
+import type { GoalCompanion } from '@foundry/core';
 import { Access } from './access.ts';
 import type { Report } from './usage/types.ts';
 import { smokeScripts } from './deploy/smoke.ts';
@@ -190,6 +192,8 @@ export interface CreateGoalInput {
   schedule?: GoalSchedule;
   /** the Person who asked for it (ADR-0061); null when Access is off or it came another way */
   by?: string | null;
+  /** the other repositories the goal changes (ADR-0063): each gets its part as a `goal` task bound to it */
+  companions?: { repoPath: string; baseBranch?: string }[];
 }
 
 /** events of a Delegated goal its main goal must hear of: the ones that change what the main goal waits for, or cost it */
@@ -1997,6 +2001,18 @@ export class Engine {
       if (!known.includes(input.modelPreset)) throw new Error(`unknown model preset "${input.modelPreset}"; use one of: ${known.join(', ')}`);
     }
     if (!(await isGitRepo(input.repoPath))) throw new Error(`${input.repoPath} is not a git repository`);
+    // companion repositories (ADR-0063): each a repository of its own, not this one, named once, on a branch
+    const companions: GoalCompanion[] = [];
+    for (const c of input.companions ?? []) {
+      const path = resolve(c.repoPath);
+      if (path === resolve(input.repoPath) || companions.some((x) => x.repoPath === path)) throw new Error(`${c.repoPath} is the goal's own repository, or named twice`);
+      if (!existsSync(path)) throw new Error(`the companion ${c.repoPath} does not exist`);
+      if (!(await isGitRepo(path))) throw new Error(`the companion ${c.repoPath} is not a git repository`);
+      const base = c.baseBranch ?? (await currentBranch(path));
+      if (base === 'HEAD') throw new Error(`the companion ${c.repoPath} is in detached HEAD state; name its base branch`);
+      companions.push({ repoPath: path, baseBranch: base });
+    }
+    if (companions.length && input.delegatedFrom) throw new Error('a delegated goal has no companion repositories of its own');
     const id = newId(IdPrefix.goal);
     // a Follow-up snapshots what it needs from the earlier goal now, and delivers to the same base branch
     const followUp = input.follows ? await prepareFollowUp(this, input.follows, input.repoPath, id, input.attachments?.length ?? 0) : null;
@@ -2036,6 +2052,7 @@ export class Engine {
       title,
       prompt: input.prompt,
       repoPath: input.repoPath,
+      companions,
       // the progress folder: next to the repository (or under Settings → workspaces root), named after the title
       workspaceDir: defaultWorkspaceDir(this.config.workspacesRoot, { id, title, repoPath: input.repoPath }),
       checkpoint: null,
@@ -2085,7 +2102,8 @@ export class Engine {
       issue,
       schedule: input.schedule ?? null,
       // one level: a Delegated goal never delegates, whatever the caller says
-      delegation: { allow: input.delegatedFrom ? false : !!input.delegation?.allow, autoApprove: !!input.delegation?.autoApprove },
+      // a goal with companions needs `goal` tasks for their parts: delegation is on for it (ADR-0063)
+      delegation: { allow: input.delegatedFrom ? false : companions.length > 0 || !!input.delegation?.allow, autoApprove: !!input.delegation?.autoApprove },
       delegatedFrom: input.delegatedFrom ? { ...input.delegatedFrom, at: now } : null,
       runningSince: null,
       activeMs: 0,
@@ -2460,6 +2478,8 @@ export class Engine {
         relevantFiles: t.relevantFiles,
         delivers: cleanDeliverables(t.delivers),
         budgetUsd: t.kind === 'goal' && t.budgetUsd ? t.budgetUsd : null,
+        // a companion's part (ADR-0063): only a path the goal named
+        repo: t.kind === 'goal' && t.repo && (goal.companions ?? []).some((c) => c.repoPath === t.repo) ? t.repo : null,
         milestone: t.milestone ?? null,
         milestoneScript: t.milestone ? (t.milestoneScript ?? null) : null,
         milestoneVisits: 0,
@@ -2532,6 +2552,8 @@ export class Engine {
     this.refuseStructural(goal, policy);
     await this.checkDeliverable(goal, policy);
     this.store.append({ type: 'delivery.policy_set', goalId, payload: { policy, source } });
+    // the companions' goals are delivered the same way, each in its repository (ADR-0063)
+    await deliverCompanions(this, goal, policy, source);
     return getGoal(this.store.db, goalId)!;
   }
 

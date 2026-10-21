@@ -5,6 +5,7 @@ import { api, type GoalDetail, type RepoInfo } from '../../api.ts';
 import { DeliveryPolicyForm, type PolicyDraft, type PolicyLock } from '../../components/DeliveryPolicyForm.tsx';
 import { MergeStatus } from '../../components/MergeStatus.tsx';
 import { Badge, Button, Card, ConfirmDialog, cn } from '../../ui.tsx';
+import { CompanionDeliveries } from './Delegations.tsx';
 import { RevertSection } from './DeliveryRevert.tsx';
 import { DeployCard } from './DeployCard.tsx';
 import { ReviewRounds } from './ReviewRounds.tsx';
@@ -226,6 +227,7 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
           </div>
           <MergeStatus goal={g} className="mt-3" />
           {!isHistory(g) && <RevertSection goal={g} busy={busy || running} />}
+          <CompanionDeliveries d={d} />
           {del.error && <div className="mt-2 text-xs text-rose-300 whitespace-pre-wrap break-words">{del.error}</div>}
           {(del.status === 'failed' || (del.status === 'delivered' && (del.outcome === 'pr_open' || del.outcome === 'automerge_armed'))) && (
             <div className="mt-3 flex flex-wrap gap-2">

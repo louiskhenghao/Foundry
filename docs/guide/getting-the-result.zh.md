@@ -33,6 +33,10 @@ goal 页面会用大白话告诉你："The work is on branch … in your reposit
 
 pull request 类的方式需要 GitHub CLI 和一个已连接的账户：见 [连接 GitHub](#连接-github)。
 
+## 伴随仓库
+
+一个还改了其它文件夹的 goal（[Also change](./your-first-goal.zh.md#also-change-companion-folders)）会像交付自己一样交付它们：你交付它时，做伴随部分的那个委派 goal 会拿到同样的交付设置 —— 同样的方式和合并方法，用那个仓库自己的 remote 和基础分支 —— 然后自己跑一遍交付，所以每个仓库都有自己的 pull request。主 pull request 会列出伴随仓库和它们的 pull request（开出之后）；每个伴随仓库的 pull request 会写明它属于哪个 goal。Delivery 标签在 **Companion repositories** 下显示它们，并链接到各自的 goal，可以单独重新检查、继续或撤销。**Local only** 把每条分支留在原处：主 goal 的在它的文件夹里，每个伴随仓库的在自己那里。
+
 ## 整个 goal 一个 PR，还是每个任务一个
 
 在 **Granularity** 下（选了 Local only 以外的方式后才出现）：

@@ -49,6 +49,8 @@ const CreateGoalBody = z.object({
   prompt: z.string().min(1),
   repoPath: z.string().min(1),
   baseBranch: z.string().optional(),
+  /** companion repositories (ADR-0063) */
+  companions: z.array(z.object({ repoPath: z.string().min(1), baseBranch: z.string().min(1).optional() })).max(8).optional(),
   budgets: BudgetsBody.optional(),
   budgetPreset: BudgetPreset.optional(),
   models: z.object({ strong: z.string().optional(), cheap: z.string().optional(), worker: z.string().optional() }).optional(),
@@ -828,7 +830,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       // Delegated from / Delegated goals: the main goal may have been deleted since (then only its title remains)
       delegations: {
         fromExists: goal.delegatedFrom ? !!getGoal(db, goal.delegatedFrom.goalId) : false,
-        goals: listDelegatedGoals(db, id).map((g) => ({ id: g.id, title: g.title, state: g.state, taskId: g.delegatedFrom!.taskId })),
+        // a companion's goal (ADR-0063) says which repository it works in and how its delivery stands
+        goals: listDelegatedGoals(db, id).map((g) => ({ id: g.id, title: g.title, state: g.state, taskId: g.delegatedFrom!.taskId, repoPath: g.repoPath, delivery: { status: g.delivery.status, outcome: g.delivery.outcome, pr: g.delivery.pr } })),
       },
     });
   });

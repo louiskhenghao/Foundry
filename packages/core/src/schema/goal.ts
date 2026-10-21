@@ -244,6 +244,14 @@ export const GoalDelegatedFrom = z.object({
 });
 export type GoalDelegatedFrom = z.infer<typeof GoalDelegatedFrom>;
 
+/**
+ * A companion repository (ADR-0063): another folder the Goal must change besides its own. The planner gives it its part
+ * as a `goal` task bound to it, done by a Delegated goal in that repository on this base branch, and delivered with the
+ * main goal.
+ */
+export const GoalCompanion = z.object({ repoPath: z.string().min(1), baseBranch: z.string().min(1) });
+export type GoalCompanion = z.infer<typeof GoalCompanion>;
+
 /** Goal states a Follow-up can be created from: the earlier goal is finished, whatever the outcome. */
 export const FOLLOWABLE_STATES: GoalState[] = ['done', 'over_delivered', 'failed', 'cancelled'];
 
@@ -444,6 +452,8 @@ export const Goal = z.object({
   by: z.string().nullable().optional(),
   /** who approved its Brief: the Person signed in, or the chat it was approved from; absent before Access existed */
   approvedBy: z.string().nullable().optional(),
+  /** the other repositories the goal changes (ADR-0063); absent on goals made before, and on goals with none */
+  companions: z.array(GoalCompanion).optional(),
   /** set when the goal arrived through a Transfer (ADR-0030) */
   transfer: GoalTransfer.optional(),
   runningSince: z.string().nullable(),

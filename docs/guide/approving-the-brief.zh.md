@@ -174,7 +174,7 @@ Delegated goal 和 follow-up 会带着来源 goal 的 Subject 和图片开始，
 | **refactor** | 调整结构，不改变行为。 |
 | **research** | 查清楚某件事。 |
 | **chore** | 环境搭建、依赖、日常维护。 |
-| **goal** | 由一个独立的委派 goal 来做的步骤，它有自己的 Clarify 和计划。只有 goal 允许委派时 planner 才会用它；见 [Delegated goals](./your-first-goal.zh.md#delegated-goals)。 |
+| **goal** | 由一个独立的委派 goal 来做的步骤，它有自己的 Clarify 和计划。只有 goal 允许委派时 planner 才会用它；见 [Delegated goals](./your-first-goal.zh.md#delegated-goals)。绑定到[伴随文件夹](./your-first-goal.zh.md#also-change-companion-folders)的 goal 任务会在卡片上写明：那个委派 goal 在那个仓库里工作。 |
 
 类型决定执行者遵循哪种工作方法（比如做功能时先写测试）。
 

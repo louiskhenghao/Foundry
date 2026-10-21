@@ -457,7 +457,7 @@ export interface GoalDetail {
   /** Follows / Followed by (goal.follows holds the earlier goal; it may have been deleted since) */
   followUps: { followsExists: boolean; followedBy: { id: string; title: string; state: GoalState }[] };
   /** Delegated from / Delegated goals (goal.delegatedFrom holds the main goal; it may have been deleted since) */
-  delegations?: { fromExists: boolean; goals: { id: string; title: string; state: GoalState; taskId: string }[] };
+  delegations?: { fromExists: boolean; goals: { id: string; title: string; state: GoalState; taskId: string; /** the repository it works in: a companion's when it differs from the goal's (ADR-0063) */ repoPath?: string; delivery?: { status: string; outcome: string | null; pr: { number: number; url: string } | null } }[] };
 }
 
 /** Mirrors the engine's FollowUpDraft (follow-up.ts): prefill and start point for a Follow-up of a goal. */
