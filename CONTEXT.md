@@ -352,6 +352,10 @@ The automatic wrap-up of a finished Goal, chosen once at Brief approval (default
 **Audit**
 A Completion Action: once every Task has landed, `ponytail-audit` maps the finished Goal branch and ranks what to fix. Must-fix findings in the code the Goal changed (the files themselves) become fix Tasks (origin `audit-fix`) before the final walkthrough and the Goal review; every finding stays on the Goal with the fix Task it became, and a Follow-up can start with the rest. One pass per Goal, with the Goal review's cost cap; a Goal with no budget left skips it.
 
+**Browser QA**
+A Completion Action: once every Task has landed, after the Audit and before the final walkthrough and the Goal review, one session opens the finished app in Chromium (the Goal's own preview) and tries each acceptance Check the way the user would, with Playwright scripts it writes in a scratch folder kept out of git. One result per Check (pass, fail with the steps and the smallest fix, skipped with why) plus `general` for a problem outside the Checks, each with screenshots. A failed must Check becomes a fix Task (origin `qa-fix`); the session changes no code, and whatever it changed outside its scratch folder is put back. Offered only for a Goal whose Brief names an app to run.
+_Avoid_: e2e suite (the QA writes throwaway scripts, not the project's tests), self-check (which only looks for errors)
+
 **Documenter**
 The session that writes a finished Goal's documentation (PRD, README updates, changelog entry, stakeholder confirmation sheet) after the Goal review passes. It may only touch documentation; its files land as one `docs:` commit on the Goal branch, so they ship in the same delivery as the code they describe.
 

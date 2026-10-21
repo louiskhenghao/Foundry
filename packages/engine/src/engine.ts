@@ -121,6 +121,7 @@ import { ATTACHMENT_LIMITS, GoalIssue, LEARNINGS_EVERYWHERE, type GoalDelegatedF
 import { readIssue, type IssueRead } from './issue.ts';
 import { autoApproveScheduled, checkSchedules, deleteSchedule, fireSchedule, saveSchedule, setScheduleEnabled, type ScheduleInput } from './schedules.ts';
 import { calibrationFor } from './calibration.ts';
+import { defaultQaDeps, type QaDeps } from './qa.ts';
 import { calibratedEstimate, type Calibration } from '@foundry/core';
 import { getSchedule, listSchedules, nextRunAt, type GoalSchedule, type Schedule } from '@foundry/core';
 import { Tailnet } from './notify/tailnet.ts';
@@ -285,6 +286,10 @@ export class Engine {
   readonly finalWalking = new Set<string>();
   /** goals whose audit (ponytail-audit on the finished branch) is running */
   readonly auditing = new Set<string>();
+  /** goals whose browser QA (the finished app tried in Chromium) is running */
+  readonly qaing = new Set<string>();
+  /** what the browser QA needs from outside its session (the browser, the preview); tests replace it */
+  qaDeps: QaDeps = defaultQaDeps;
   /** goals whose references REA is investigating */
   readonly investigating = new Set<string>();
   /** goals whose Brief a second opinion is being written for (ADR-0051) */
@@ -2383,7 +2388,7 @@ export class Engine {
    * `budgets` (optional) is applied first — this is how the Auto preset's proposed budget, confirmed or edited
    * by the human on the Brief page, becomes the goal's budget before any work starts.
    */
-  async approveBrief(goalId: string, edited?: Brief, budgets?: Partial<Budgets>, completion?: { graphRefresh?: boolean; docs?: DocType[]; audit?: boolean }): Promise<void> {
+  async approveBrief(goalId: string, edited?: Brief, budgets?: Partial<Budgets>, completion?: { graphRefresh?: boolean; docs?: DocType[]; audit?: boolean; qa?: boolean }): Promise<void> {
     const goal = this.mustGoal(goalId);
     if (goal.state !== 'awaiting_brief_approval') throw new Error(`goal is ${goal.state}, cannot approve`);
     // a Revise still waiting for answers is let go: the Brief as it stands is what runs
@@ -2402,13 +2407,13 @@ export class Engine {
     const ws = await this.ensureSyncedWorkspace(goal);
     this.startAutoskills(goal, ws);
     // completion actions: what the UI sent, holes filled from the Brief (Simple mode and API callers send nothing)
-    const inferred = inferCompletion(brief, ws, goal.workflow.pace, this.config.workflowAudit);
+    const inferred = inferCompletion(brief, ws, goal.workflow.pace, this.config.workflowAudit, this.config.workflowQa);
     // a Delegated goal has no completion actions of its own: the main goal documents, audits and refreshes the graph once everything landed
-    const chosen = goal.delegatedFrom ? { graphRefresh: false, docs: [] as DocType[], audit: false } : completion;
+    const chosen = goal.delegatedFrom ? { graphRefresh: false, docs: [] as DocType[], audit: false, qa: false } : completion;
     this.store.append({
       type: 'goal.completion_set',
       goalId,
-      payload: { graphRefresh: chosen?.graphRefresh ?? inferred.graphRefresh, docs: chosen?.docs ?? inferred.docs, audit: chosen?.audit ?? inferred.audit, reason: goal.delegatedFrom ? 'delegated goal: the main goal completes' : completion ? 'set at brief approval' : inferred.reason },
+      payload: { graphRefresh: chosen?.graphRefresh ?? inferred.graphRefresh, docs: chosen?.docs ?? inferred.docs, audit: chosen?.audit ?? inferred.audit, qa: chosen?.qa ?? inferred.qa, reason: goal.delegatedFrom ? 'delegated goal: the main goal completes' : completion ? 'set at brief approval' : inferred.reason },
     });
     if (budgets && Object.keys(budgets).length) {
       const next = Budgets.parse({ ...goal.budgets, ...budgets, ...(goal.provider === 'codex' ? { maxCostUsd: null } : {}) });

@@ -4,6 +4,7 @@ import { type Continuation, continuationMessage, decideNext, maxAttemptsFor, run
 import { budgetStatus } from './budget.ts';
 import type { Engine } from './engine.ts';
 import { runAudit } from './audit.ts';
+import { runQa } from './qa.ts';
 import { dueCheckpoint, finalLookDue, openCheckpoint, openFinalCheckpoint, passMilestone, runFinalWalk, scriptedMilestones } from './checkpoint.ts';
 import { raiseEscalation } from './escalation.ts';
 import { headRef } from './git/git.ts';
@@ -90,6 +91,18 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
             engine.tick(goal.id);
           });
       }
+    } else if (goal.completion.qa && !goal.completion.qaRun) {
+      // 3b2. the browser QA: the finished app tried in Chromium, once, after the audit; a must check that fails becomes a
+      // fix task, so it runs before the final walkthrough and the review (not awaited: minutes) (ADR-0057)
+      if (!engine.qaing.has(goal.id)) {
+        engine.qaing.add(goal.id);
+        void runQa(engine, goal, engine.qaDeps)
+          .catch((err) => store.append({ type: 'goal.qa_finished', goalId: goal.id, payload: { status: 'failed', summary: '', results: [], fixTaskIds: [], costUsd: 0, detail: `the browser QA crashed: ${String(err).slice(0, 280)}` } }))
+          .finally(() => {
+            engine.qaing.delete(goal.id);
+            engine.tick(goal.id);
+          });
+      }
     } else if (scriptedMilestones(tasks).length && !goal.finalWalk?.ranAt) {
       // 3c. the final walkthrough: every feature's script once more on the finished branch (not awaited: minutes)
       if (!engine.finalWalking.has(goal.id)) {
@@ -127,7 +140,7 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
   }
 
   // 5. start ready tasks within capacity — none while the final walkthrough or the audit runs: they read the branch as it is
-  if (engine.finalWalking.has(goal.id) || engine.auditing.has(goal.id)) return;
+  if (engine.finalWalking.has(goal.id) || engine.auditing.has(goal.id) || engine.qaing.has(goal.id)) return;
   // 5a. the ready goal tasks start as Delegated goals, as many at a time as the goal's parallel limit allows (they take no session slot: each goal has slots of its own)
   if (tasks.some((t) => isDelegationTask(t) && t.state === 'ready')) {
     await startDelegations(engine, goal, tasks);

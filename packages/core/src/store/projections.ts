@@ -449,7 +449,12 @@ function project(db: Database, e: EngineEvent): void {
     }
     case 'goal.completion_set': {
       const g = getGoal(db, e.goalId!);
-      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, graphRefresh: e.payload.graphRefresh, docs: e.payload.docs, audit: e.payload.audit ?? g.completion.audit }, updatedAt: e.ts });
+      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, graphRefresh: e.payload.graphRefresh, docs: e.payload.docs, audit: e.payload.audit ?? g.completion.audit, qa: e.payload.qa ?? g.completion.qa }, updatedAt: e.ts });
+      break;
+    }
+    case 'goal.qa_finished': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, qaRun: { status: e.payload.status, summary: e.payload.summary, results: e.payload.results, fixTaskIds: e.payload.fixTaskIds, costUsd: e.payload.costUsd, detail: e.payload.detail, at: e.ts } }, updatedAt: e.ts });
       break;
     }
     case 'goal.audit_finished': {

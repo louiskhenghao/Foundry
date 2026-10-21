@@ -162,11 +162,33 @@ export const AuditFinding = z.object({
 });
 export type AuditFinding = z.infer<typeof AuditFinding>;
 
+/** one thing the browser QA tried (ADR-0057): an acceptance check by name, or `general` for a problem outside them */
+export const QaResult = z.object({
+  check: z.string(),
+  status: z.enum(['pass', 'fail', 'skipped']),
+  /** what was done in the browser and what was seen */
+  evidence: z.string(),
+  problem: z.string().nullable().default(null),
+  fix: z.string().nullable().default(null),
+  files: z.array(z.string()).default([]),
+  /** screenshot file names under the goal's screenshots folder */
+  shots: z.array(z.string()).default([]),
+  /** the check is a must check of the goal: a failure becomes a fix task */
+  must: z.boolean().default(false),
+  /** the fix task this failure became, when it did */
+  fixTaskId: z.string().nullable().default(null),
+});
+export type QaResult = z.infer<typeof QaResult>;
+
 export const GoalCompletion = z.object({
   graphRefresh: z.boolean().default(false),
   docs: z.array(DocType).default([]),
   /** ponytail-audit on the finished branch once every task is done, before the goal review */
   audit: z.boolean().default(false),
+  /** the browser QA on the finished app once every task is done, before the goal review (ADR-0057) */
+  qa: z.boolean().default(false),
+  /** result of the browser QA (null = not run yet): what it tried, and the fix tasks its failed must checks became */
+  qaRun: z.object({ status: z.enum(['ok', 'skipped', 'failed']), summary: z.string(), results: z.array(QaResult), fixTaskIds: z.array(z.string()), costUsd: z.number(), detail: z.string(), at: z.string() }).nullable().default(null),
   /** result of the audit (null = not run yet): its findings, and the fix tasks its in-scope must-fix findings became */
   auditRun: z.object({ status: z.enum(['ok', 'skipped', 'failed']), summary: z.string(), findings: z.array(AuditFinding), fixTaskIds: z.array(z.string()), costUsd: z.number(), detail: z.string(), at: z.string() }).nullable().default(null),
   /** result of the docs-generation session (null = not run yet) */
@@ -192,7 +214,7 @@ export const GoalCompletion = z.object({
     .default(null),
 });
 export type GoalCompletion = z.infer<typeof GoalCompletion>;
-export const IDLE_COMPLETION: GoalCompletion = { graphRefresh: false, docs: [], audit: false, auditRun: null, docsRun: null, graphRun: null, artifactsRun: null };
+export const IDLE_COMPLETION: GoalCompletion = { graphRefresh: false, docs: [], audit: false, auditRun: null, qa: false, qaRun: null, docsRun: null, graphRun: null, artifactsRun: null };
 
 /**
  * Delegation: whether the planner may plan `goal` tasks (steps done by a Delegated goal of their own), and whether such a

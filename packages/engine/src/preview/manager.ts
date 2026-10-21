@@ -15,7 +15,7 @@ import { listeningPorts } from './listeners.ts';
 import { envFiles, nativePort, rewriteLocalPorts } from './ports.ts';
 import { ServicesManager } from './services.ts';
 
-export type PreviewStarter = 'human' | 'milestone' | 'integration';
+export type PreviewStarter = 'human' | 'milestone' | 'integration' | 'qa';
 
 
 /** an address on the person's tailnet for a local url: the tailnet origin with the url's path and query */

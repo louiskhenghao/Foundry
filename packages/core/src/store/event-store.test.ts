@@ -30,7 +30,7 @@ function goal(id: string): Goal {
     attachments: [],
     baseSync: null,
     autoskills: null, follows: null, delegation: { allow: false, autoApprove: false }, delegatedFrom: null,
-    completion: { graphRefresh: false, docs: [], audit: false, auditRun: null, docsRun: null, graphRun: null, artifactsRun: null },
+    completion: { graphRefresh: false, docs: [], audit: false, auditRun: null, qa: false, qaRun: null, docsRun: null, graphRun: null, artifactsRun: null },
     nature: 'auto',
     outputDir: null,
     runningSince: null,
@@ -331,7 +331,7 @@ describe('goal rows written by an older Foundry', () => {
       expect(g.references).toEqual([]);
       expect(g.investigation).toBeNull();
       expect(g.workflow.ponytail).toBe('on');
-      expect(g.completion).toMatchObject({ audit: false, auditRun: null, graphRefresh: false, docs: [] });
+      expect(g.completion).toMatchObject({ audit: false, auditRun: null, qa: false, qaRun: null, graphRefresh: false, docs: [] });
     }
     expect(getGoal(db, 'g_missing')).toBeNull();
   });

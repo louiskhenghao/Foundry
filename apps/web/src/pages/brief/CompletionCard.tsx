@@ -11,6 +11,8 @@ export interface CompletionChoice {
   docs: DocType[];
   /** ponytail-audit on the finished branch once every task is done, before the goal review */
   audit: boolean;
+  /** the finished app tried in a browser once every task is done, before the goal review (ADR-0057) */
+  qa: boolean;
 }
 
 const CODE_SCENARIOS = new Set(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra']);
@@ -27,21 +29,31 @@ const DOC_LABELS: { type: DocType; label: string; hint: string }[] = [
  * README update, a questionnaire when decisions pend. Changelog is only inferred server-side (it needs the
  * repository), so an untouched card sends nothing and lets the engine decide.
  */
-export function inferCompletionDefaults(brief: Brief, audit = false): CompletionChoice {
+export function inferCompletionDefaults(brief: Brief, audit = false, qa = false): CompletionChoice {
   const code = brief.tasks.some((t) => CODE_SCENARIOS.has(t.scenario ?? 'general'));
   const docs: DocType[] = code ? ['to-prd', 'readme-update'] : [];
   if (pendingDecisions(brief).length) docs.push('to-questionnaire');
-  return { graphRefresh: code, docs, audit: code && audit };
+  // the browser QA opens the app: only a goal with a web app gets one (ADR-0057)
+  return { graphRefresh: code, docs, audit: code && audit, qa: qa && !!(brief.apps?.length || brief.run) };
 }
 
 /** Expert-mode card: what runs automatically when the goal finishes. Untouched = the engine infers the same defaults. */
 export function CompletionCard({ brief, editable, value, onChange }: { brief: Brief; editable: boolean; value: CompletionChoice | null; onChange: (v: CompletionChoice) => void }) {
   // the Settings default for the audit, as the engine applies it when the card is left untouched
   const [auditDefault, setAuditDefault] = useState(false);
+  const [qaDefault, setQaDefault] = useState(false);
   useEffect(() => {
-    void api.settings().then((s) => setAuditDefault(!!(s.values as { workflow?: { audit?: boolean } }).workflow?.audit)).catch(() => {});
+    void api
+      .settings()
+      .then((s) => {
+        const w = (s.values as { workflow?: { audit?: boolean; qa?: boolean } }).workflow;
+        setAuditDefault(!!w?.audit);
+        setQaDefault(!!w?.qa);
+      })
+      .catch(() => {});
   }, []);
-  const v = value ?? inferCompletionDefaults(brief, auditDefault);
+  const v = value ?? inferCompletionDefaults(brief, auditDefault, qaDefault);
+  const hasApp = !!(brief.apps?.length || brief.run);
   const toggleDoc = (t: DocType) => onChange({ ...v, docs: v.docs.includes(t) ? v.docs.filter((x) => x !== t) : [...v.docs, t] });
   return (
     <Card title={<><SectionTitle section="completion">Completion</SectionTitle><HelpLink to="approving-the-brief#completion" className="ml-1.5" /></>}>
@@ -58,6 +70,12 @@ export function CompletionCard({ brief, editable, value, onChange }: { brief: Br
         <input type="checkbox" className="mt-1" disabled={!editable} checked={v.audit} onChange={(e) => onChange({ ...v, audit: e.target.checked })} />
         <span>
           Audit the repository at the end <span className="text-zinc-500">(ponytail-audit: must-fix findings in the code this goal touched become fix tasks)</span>
+        </span>
+      </label>
+      <label className={cn('flex items-start gap-2 text-sm mb-2', !hasApp && 'opacity-60')} title={hasApp ? 'Once every task is done, one session opens the finished app in Chromium and tries each acceptance check the way you would, with Playwright scripts it writes in a scratch folder. A must check that fails becomes a fix task before the final review; everything it tried is shown with screenshots. The session changes no code. Needs Chromium for Playwright (Settings → Preview & self-check).' : 'The Brief names no app to run: there is nothing to open in a browser.'}>
+        <input type="checkbox" className="mt-1" disabled={!editable || !hasApp} checked={v.qa} onChange={(e) => onChange({ ...v, qa: e.target.checked })} />
+        <span>
+          Test it in a browser at the end <span className="text-zinc-500">(each acceptance check tried in Chromium; a must check that fails becomes a fix task)</span>
         </span>
       </label>
       <div className="flex flex-wrap gap-1.5">

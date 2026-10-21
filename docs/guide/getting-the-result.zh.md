@@ -187,10 +187,12 @@ CAD goal 的预览卡片上还会显示 **CAD Viewer**，也就是 text-to-cad �
 - **Refresh the knowledge graph** 在交付后更新代码地图：Local only 的 goal 在进度文件夹里更新，已交付的 goal 在你自己的文件夹里更新。它只刷新索引：GitNexus 以 `--index-only` 运行，工具如果还往 `CLAUDE.md`、`AGENTS.md` 或 `.claude/` 里写了东西，会被还原，文件夹里不会留下未提交的改动。任务进行中出现的 GitNexus 段落或 skill 文件夹（你的全局 hook 可能会运行 GitNexus）也不会进入任务的提交。
 
 - **Audit the repository at the end** 在所有任务完成后、最终审查之前运行 `ponytail-audit`：goal 改过的代码里的 must fix 发现会变成修复任务，所有发现都留在 goal 上。
+- **Test it in a browser at the end** 会在每个任务都完成之后、审计之后、最终审查之前，在 Chromium 里打开做好的应用，用 Playwright 脚本逐条尝试验收检查；没通过的 must 检查会变成修复任务，每条结果都连同截图留在 goal 上。脚本放在一个临时文件夹里（`.foundry-qa/`，不进 git）；会话做的其它改动都会被丢弃。
 
 Overview 标签的 **Completion** 卡片每一项一行，用勾、警告或叉加一句话写出结果。点名字可以看详情：
 
 - **Audit**：它发现了什么，按 must fix、should fix、nice to have 排列，带文件名；这个 goal 代码里的 must fix 发现会写明已开修复任务。**Follow-up with the rest** 为这个 goal 没修的发现开一个 goal。
+- **Browser QA**：它试过的每一项检查，通过、失败或跳过，做了什么、看到了什么，失败时的问题和修法，以及截图；没通过的 must 检查会注明已创建修复任务。
 - **Docs**：选了哪些文档、写了哪些文件（点开就能看）、提交、花费，以及它随哪个 pull request 交付。
 - **Graph refresh**：每个工具（更新你的 checkout、graphify、GitNexus）及其结果；失败的会写出原因，比如缺少某个程序。
 

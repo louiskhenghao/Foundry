@@ -428,6 +428,8 @@ export interface GoalDetail {
   milestoneRuns?: string[];
   /** ponytail-audit is reading the finished branch */
   auditRunning?: boolean;
+  /** the browser QA of the finished app is running (ADR-0057) */
+  qaRunning?: boolean;
   /** REA is studying the goal's references */
   investigating?: boolean;
   secondOpinion?: SecondOpinionView | null;

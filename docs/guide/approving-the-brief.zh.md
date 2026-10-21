@@ -269,6 +269,7 @@ goal 给了参考对象时（见 [你的第一个 goal](./your-first-goal.zh.md#
 
 - **Refresh the knowledge graph**：交付之后，更新一些工具使用的代码地图。
 - **Audit the repository at the end**：所有任务完成后，`ponytail-audit` 会梳理完成的分支并排出先修什么。这个 goal 改过的代码里的 must fix 发现会在最终审查之前变成修复任务；其余列在 goal 页面上，**Follow-up with the rest** 可以为它们开一个 goal。默认关（Settings 里有新 goal 的默认值）；需要 Ponytail 的 skill，而且 goal 还得有剩余预算。
+- **Test it in a browser at the end**：每个任务都完成之后，一个会话会在 Chromium 里打开做好的应用，用它写在临时文件夹里的 Playwright 脚本，像你那样逐条尝试验收检查。没通过的 must 检查会在最终审查前变成修复任务；它试过的所有内容都会连同截图列在 goal 页面上。它不改任何代码。只有 **How to run it** 里写了应用时才会出现；默认关闭（Settings 里有新 goal 的默认值）；需要 Playwright 的 Chromium（Settings → Preview & self-check）。
 - 文档标签：**PRD**（要求了什么、做出了什么）、**README update**、**Changelog**、**Confirmation sheet**（给别人确认各项决定用）。点一个标签来打开或关闭它。
 
 文档会在最终审查通过后写出，保存在 goal 的分支上，所以会和工作一起交付。Claude 会话上限是 $3；Codex 使用 ChatGPT 额度，不提供美元上限。更多内容见 [拿到结果](./getting-the-result.zh.md#完成后的附加项)。

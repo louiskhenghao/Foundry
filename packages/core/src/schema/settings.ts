@@ -70,6 +70,8 @@ export const WorkflowSettings = z.object({
   ponytail: PonytailSwitch.default('on'),
   /** new goals run ponytail-audit on the finished branch before the goal review (chosen per goal at Brief approval) */
   audit: z.boolean().default(false),
+  /** new goals with a web app test it in a browser once every task is done, before the goal review (chosen per goal at Brief approval, ADR-0057) */
+  qa: z.boolean().default(false),
   /** once a Brief fills in, a reviewer that did not write it proposes what to change — a second opinion (ADR-0051) */
   briefSecondOpinion: z.boolean().default(false),
   /** which view new goals open in */

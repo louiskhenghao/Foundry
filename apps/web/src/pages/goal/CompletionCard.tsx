@@ -51,7 +51,7 @@ export function CompletionCard({ d }: { d: GoalDetail }) {
   const [rerun, setRerun] = useState<{ docs?: string | null; graph?: string | null }>({});
   const [err, setErr] = useState<string | null>(null);
   const nav = useNavigate();
-  if (!c.graphRefresh && !c.docs.length && !c.artifactsRun && !c.audit) return null;
+  if (!c.graphRefresh && !c.docs.length && !c.artifactsRun && !c.audit && !c.qa) return null;
   const finished = g.state === 'done' || g.state === 'over_delivered';
   const docsBusy = 'docs' in rerun && rerun.docs === (c.docsRun?.at ?? null);
   const graphBusy = 'graph' in rerun && rerun.graph === (c.graphRun?.at ?? null);
@@ -110,6 +110,9 @@ export function CompletionCard({ d }: { d: GoalDetail }) {
     const text = [`Fix what the audit of "${g.title}" found and this goal did not cover:`, ...rest.map((f) => `- [${f.severity} fix] ${f.title}: ${f.problem}\n  Fix: ${f.fix}${f.files.length ? `\n  Files: ${f.files.join(', ')}` : ''}`)].join('\n');
     nav(`/goals/new?follows=${encodeURIComponent(g.id)}&prompt=${encodeURIComponent(text)}`);
   };
+  const qa = c.qaRun;
+  const qaStatus: Status = d.qaRunning ? 'running' : !qa ? 'pending' : qa.status === 'ok' ? (qa.results.some((r) => r.status === 'fail') ? 'partial' : 'ok') : qa.status === 'failed' ? 'failed' : 'skipped';
+  const QA_TONE: Record<string, string> = { pass: 'text-emerald-300', fail: 'text-rose-300', skipped: 'text-zinc-400' };
   const SEVERITY_LABEL: Record<AuditFinding['severity'], string> = { must: 'Must fix', should: 'Should fix', nice: 'Nice to have' };
   const SEVERITY_TONE: Record<AuditFinding['severity'], string> = { must: 'text-rose-300', should: 'text-amber-300', nice: 'text-zinc-400' };
   return (
@@ -145,6 +148,42 @@ export function CompletionCard({ d }: { d: GoalDetail }) {
               </ol>
             )}
             {audit && audit.status !== 'ok' && <div className={audit.status === 'failed' ? 'text-rose-300' : 'text-zinc-400'}>{audit.detail}</div>}
+          </Row>
+        )}
+        {c.qa && (
+          <Row
+            status={qaStatus}
+            label="Browser QA"
+            summary={d.qaRunning ? 'the finished app is being tried in Chromium…' : !qa ? 'runs once every task is done, before the final review' : qa.status === 'ok' ? `${qa.detail}${g.provider !== 'codex' && qa.costUsd > 0 ? ` · ${fmtUsd(qa.costUsd)}` : ''}` : qa.detail}
+            open={qa?.status === 'failed' || (qa?.results.some((r) => r.status === 'fail') ?? false)}
+          >
+            {qa?.summary && <p className="text-zinc-300">{qa.summary}</p>}
+            {qa?.status === 'ok' && qa.results.length > 0 && (
+              <ol className="space-y-1.5">
+                {qa.results.map((r, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className={cn('shrink-0 w-20 text-[10px] uppercase tracking-wide pt-0.5', QA_TONE[r.status])}>{r.status}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="text-zinc-200">{r.check}</span>
+                      {r.must && r.status === 'fail' && <Badge state={r.fixTaskId ? 'done' : 'ready'} className="ml-1.5 normal-case">{r.fixTaskId ? 'fix task created' : 'must check, for a follow-up'}</Badge>}
+                      <span className="block text-zinc-400 whitespace-pre-wrap">{r.evidence}</span>
+                      {r.problem && <span className="block text-rose-200/80 whitespace-pre-wrap">{r.problem}</span>}
+                      {r.fix && <span className="block text-zinc-500">Fix: {r.fix}</span>}
+                      {r.shots.length > 0 && (
+                        <span className="mt-1 flex flex-wrap gap-1.5">
+                          {r.shots.map((f) => (
+                            <a key={f} href={`/api/goals/${g.id}/screenshots/${encodeURIComponent(f)}`} target="_blank" rel="noreferrer" title={f}>
+                              <img src={`/api/goals/${g.id}/screenshots/${encodeURIComponent(f)}`} alt={f} className="h-16 rounded border border-zinc-800 object-cover" />
+                            </a>
+                          ))}
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+            {qa && qa.status !== 'ok' && <div className={qa.status === 'failed' ? 'text-rose-300' : 'text-zinc-400'}>{qa.detail}</div>}
           </Row>
         )}
         {c.docs.length > 0 && (

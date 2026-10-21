@@ -112,6 +112,8 @@ export interface EngineConfig {
   workflowPonytail: 'on' | 'off';
   /** new goals run ponytail-audit on the finished branch before the goal review */
   workflowAudit: boolean;
+  /** new goals with a web app run the browser QA before the goal review (ADR-0057) */
+  workflowQa: boolean;
   /** tools of allowed catalog MCP servers that run or change things are usable in sessions */
   mcpDynamicTools: boolean;
   /** caps of the session that investigates a goal's reference */
@@ -205,6 +207,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     workflowTdd: (['required', 'preferred', 'off'].includes(process.env.FOUNDRY_TDD ?? '') ? process.env.FOUNDRY_TDD : 'required') as 'required' | 'preferred' | 'off',
     workflowPonytail: process.env.FOUNDRY_PONYTAIL === 'off' ? 'off' : 'on',
     workflowAudit: process.env.FOUNDRY_AUDIT === '1' || process.env.FOUNDRY_AUDIT === 'true',
+    workflowQa: process.env.FOUNDRY_QA === '1' || process.env.FOUNDRY_QA === 'true',
     mcpDynamicTools: process.env.FOUNDRY_MCP_DYNAMIC_TOOLS === '1' || process.env.FOUNDRY_MCP_DYNAMIC_TOOLS === 'true',
     desktopApps: process.env.FOUNDRY_DESKTOP_APPS === '1' || process.env.FOUNDRY_DESKTOP_APPS === 'true',
     investigationMaxCostUsd: Number(process.env.FOUNDRY_INVESTIGATION_MAX_COST ?? 3) || 3,
