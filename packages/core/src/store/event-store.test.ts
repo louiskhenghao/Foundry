@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openDatabase } from './db.ts';
 import { EventStore } from './event-store.ts';
-import { getBrief, getGoal, getTask, listGoals, listTasks } from './projections.ts';
+import { getBrief, getGoal, getTask, listDelegatedGoals, listFollowUps, listGoals, listTasks, upsertGoal } from './projections.ts';
 import { type Brief, IDLE_DELIVERY, type Goal, type Task } from '../schema/index.ts';
 
 function goal(id: string): Goal {
@@ -204,6 +204,28 @@ describe('EventStore', () => {
     store.subscribe((e) => seen.push(e.type));
     store.append({ type: 'engine.note', goalId: null, payload: { level: 'info', message: 'hi' } });
     expect(seen).toEqual(['engine.note']);
+  });
+});
+
+describe('goals written by an earlier release', () => {
+  test('a goal stored before review rounds (ADR-0053) and reverts (ADR-0059) reads with their defaults, on every read', () => {
+    const store = new EventStore(openDatabase(':memory:'));
+    // what a v2.2.1 row holds: its delivery has none of the fields added since, and the row never went through the schema
+    const old = goal('g_old');
+    const { reviews, reviewCycles, reverts, ...delivery } = old.delivery as typeof old.delivery & Record<string, unknown>;
+    const { fixReviewCycles, ...policy } = delivery.policy as typeof delivery.policy & Record<string, unknown>;
+    void reviews, reviewCycles, reverts, fixReviewCycles;
+    const legacy = { ...old, follows: { goalId: 'g_first', title: 'first' }, delegatedFrom: { goalId: 'g_main', taskId: 't_1', taskKey: 'T1', mainTitle: 'main' }, delivery: { ...delivery, policy } } as unknown as Goal;
+    upsertGoal(store.db, legacy);
+    for (const g of [getGoal(store.db, 'g_old')!, listGoals(store.db)[0]!, listFollowUps(store.db, 'g_first')[0]!, listDelegatedGoals(store.db, 'g_main')[0]!]) {
+      expect(g.delivery.reviews).toEqual([]);
+      expect(g.delivery.reviewCycles).toBe(0);
+      expect(g.delivery.reverts).toEqual([]);
+      expect(g.delivery.policy.fixReviewCycles).toBe(1);
+    }
+    // the defaults are the goal's own: filling one goal's list never fills another's
+    getGoal(store.db, 'g_old')!.delivery.reverts.push({} as never);
+    expect(getGoal(store.db, 'g_old')!.delivery.reverts).toEqual([]);
   });
 });
 
