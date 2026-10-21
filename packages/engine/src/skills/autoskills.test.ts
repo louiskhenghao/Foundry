@@ -169,6 +169,23 @@ describe('Codex project skills', () => {
   });
 });
 
+test('Antigravity autoskills writes the .agents/skills it reads, kept out of task commits', async () => {
+  const repo = await makeRepo();
+  writeFileSync(join(repo, 'package.json'), '{}');
+  await sh('git add -A && git -c user.name=t -c user.email=t@t commit -qm "chore: fixture"', repo);
+  const r = await runAutoskills(repo, {
+    provider: 'agy', nodeVersion: async () => 'v22.1.0',
+    spawn: async (args, cwd) => {
+      expect(args.slice(-2)).toEqual(['--agent', 'codex']);
+      mkdirSync(join(cwd, '.agents/skills/react'), { recursive: true });
+      writeFileSync(join(cwd, '.agents/skills/react/SKILL.md'), 'react instructions');
+      return { code: 0, tail: 'installed' };
+    },
+  });
+  expect(r).toMatchObject({ status: 'installed', skills: ['react'] });
+  expect(await sh('git status --porcelain', repo)).toBe('');
+});
+
 test('Codex autoskills preserves existing tracked native skill symlinks', async () => {
   const { symlinkSync } = await import('node:fs');
   const repo = await makeRepo();

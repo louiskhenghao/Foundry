@@ -111,7 +111,8 @@ export async function runAutoskills(ws: string, deps: AutoskillsDeps = {}, onLin
   const hadLock = existsSync(lockPath);
 
   const spawn = deps.spawn ?? spawnStreaming;
-  const r = await spawn(['npx', '-y', 'autoskills@latest', '-y', '--agent', deps.provider === 'codex' ? 'codex' : 'claude-code'], ws, onLine, { timeoutMs: deps.timeoutMs ?? 4 * 60_000 });
+  // Antigravity reads the .agents/skills that Codex's layout writes (autoskills has no agent of its own for it)
+  const r = await spawn(['npx', '-y', 'autoskills@latest', '-y', '--agent', (deps.provider ?? 'claude') === 'claude' ? 'claude-code' : 'codex'], ws, onLine, { timeoutMs: deps.timeoutMs ?? 4 * 60_000 });
 
   // 1. CLAUDE.md / AGENTS.md: autoskills generates or edits them; the skills themselves are what matters, so put them back
   for (const { path, before } of guidance) {
