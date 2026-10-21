@@ -9,11 +9,15 @@ async function main() {
   const payload = JSON.parse((await Bun.stdin.text()) || '{}');
   const policy = JSON.parse(readFileSync(process.argv[2]!, 'utf8'));
   if (!existsSync(policy.canary)) deny('Foundry session guard did not initialize. Stop this session.');
-  // the hook input is the CLI's (camelCase); the other spellings keep this working should it change
-  const name = String(payload.toolName ?? payload.tool_name ?? payload.tool?.name ?? payload.name ?? '');
-  const input = payload.toolInput ?? payload.tool_input ?? payload.parameters ?? payload.tool?.parameters ?? payload.input ?? {};
+  // agy 1.4 hands the call as toolCall { name, args }; the other spellings keep this working should it change
+  const name = String(payload.toolCall?.name ?? payload.toolName ?? payload.tool_name ?? payload.name ?? '');
+  const input = payload.toolCall?.args ?? payload.toolInput ?? payload.tool_input ?? payload.input ?? {};
+  // `finish` is how the CLI hands over an answer under --json-schema: never blocked, never counted
+  if (name === 'finish') process.exit(0);
   if (policy.noTools) deny('This Foundry session does not permit tools.');
-  if (policy.readOnly && (/^(write_to_file|replace_file_content|multi_replace_file_content|delete_file|create_directory|edit_file|apply_patch)$/.test(name) || (/(write|replace|delete|patch)/i.test(name) && !/^(read|view|list|search|grep|find)/i.test(name)))) deny('This Foundry role is read-only.');
+  // Foundry orchestrates the roles: a session does its own work, as Codex sessions do with native delegation off
+  if (/^(invoke_subagent|define_subagent|manage_subagents|browser_subagent|schedule)$/.test(name)) deny('Foundry runs the roles itself: do this work in this session.');
+  if (policy.readOnly && (/^(write_to_file|replace_file_content|multi_replace_file_content|sed_file|notebook_edit|delete_file|apply_patch)$/.test(name) || (/(write|replace|delete|patch)/i.test(name) && !/^(read|view|list|search|grep|find)/i.test(name)))) deny('This Foundry role is read-only.');
   // the allowance stands in for a turn cap the CLI does not have
   if (policy.maxToolCalls) {
     let count = 0;
@@ -27,8 +31,8 @@ async function main() {
     }
     writeFileSync(policy.counter, String(count + 1));
   }
-  if (/^(run_command|run_terminal_cmd|execute_command|shell|bash)$/i.test(name)) {
-    const command = input.CommandLine ?? input.command_line ?? input.command ?? input.cmd ?? '';
+  if (/^(run_command|send_command_input|run_terminal_cmd|execute_command|shell|bash)$/i.test(name)) {
+    const command = input.CommandLine ?? input.Input ?? input.command_line ?? input.command ?? input.cmd ?? '';
     const proc = Bun.spawn(['sh', policy.boundary], { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
     proc.stdin.write(JSON.stringify({ ...payload, tool_name: 'Bash', tool_input: { ...input, command: Array.isArray(command) ? command.join(' ') : String(command) } }));
     proc.stdin.end();

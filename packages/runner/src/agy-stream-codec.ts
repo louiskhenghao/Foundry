@@ -63,7 +63,7 @@ export class AgyStreamDecoder {
       ];
     }
     if (s.subagent_info) return s.state === 'DONE' ? [{ kind: 'tool_use', id: `step-${index}`, name: 'Agent', input: s.subagent_info }] : [];
-    if (s.step_type === 'user_input' || s.step_type === 'checkpoint') return [];
+    if (s.step_type === 'user_input' || s.step_type === 'checkpoint' || s.step_type === 'system_message') return [];
     return [{ kind: 'unknown', raw: msg }];
   }
 }

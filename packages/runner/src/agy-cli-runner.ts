@@ -12,7 +12,12 @@ import { classifyFailure, type AgentRunner, type RunHandle, type RunResult, type
 export const AGY_DEFAULT_MODEL = 'agy-default';
 /** the workspace hooks file the CLI reads: Foundry's session canary and tool guard go in before a run and out after it */
 export const AGY_HOOKS_FILE = '.agents/hooks.json';
-export const AGY_EFFORTS = ['low', 'medium', 'high'] as const;
+export const AGY_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+/**
+ * A turn cap allows this many agy tool calls. agy calls a tool for every file it reads or lists, where a Claude turn
+ * takes several: one call per turn ran a documentation session out of its allowance just before it wrote (agy 1.4.4).
+ */
+export const AGY_CALLS_PER_TURN = 3;
 export type AgyEffort = (typeof AGY_EFFORTS)[number];
 
 export interface AgyCliRunnerOptions {
@@ -26,11 +31,12 @@ export interface AgyCliRunnerOptions {
 
 const shellQuote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
 
-/** Foundry's effort words on the CLI's three levels */
+/** Foundry's effort words on the CLI's levels (low, medium, high, xhigh, max) */
 export function agyEffort(effort: RunSpec['effort'] | null | undefined): AgyEffort | null {
   if (!effort) return null;
-  if (effort === 'medium') return 'medium';
-  return ['none', 'minimal', 'low'].includes(effort) ? 'low' : 'high';
+  if (effort === 'none' || effort === 'minimal' || effort === 'low') return 'low';
+  if (effort === 'medium' || effort === 'high' || effort === 'xhigh') return effort;
+  return 'max';
 }
 
 /** the role text goes ahead of the task: the CLI has no developer-instructions switch */
@@ -44,10 +50,17 @@ export function agyPrompt(spec: RunSpec): string {
   return `# Role\n\n${role}\n\n# Task\n\n${spec.prompt}`;
 }
 
-/** what Foundry adds to the workspace hooks file for one session: its canary at the start, its guard before every tool */
+/**
+ * What Foundry adds to the workspace hooks file for one session: its canary, its guard before every tool. A session
+ * event takes its handlers as they are, a tool event takes them under a matcher: the CLI refuses the whole file when one
+ * entry is spelled the other way, and then no hook runs at all. The canary is written on SessionStart and on
+ * PreInvocation too, because a resumed conversation starts no session (all checked against agy 1.4.4).
+ */
 export function agyHooksEntry(files: { canary: string; guard: string; policy: string }): unknown {
+  const canary = [{ type: 'command', command: `cat > ${shellQuote(files.canary)}`, timeout: 10 }];
   return {
-    SessionStart: [{ hooks: [{ type: 'command', command: `cat > ${shellQuote(files.canary)}`, timeout: 10 }] }],
+    SessionStart: canary,
+    PreInvocation: canary,
     PreToolUse: [{ matcher: '*', hooks: [{ type: 'command', command: `${shellQuote(process.execPath)} ${shellQuote(files.guard)} ${shellQuote(files.policy)}`, timeout: 15 }] }],
   };
 }
@@ -175,7 +188,7 @@ export class AgyCliRunner implements AgentRunner {
       const policy = join(dir, 'policy.json');
       const capped = join(dir, 'capped');
       const hooksDir = fileURLToPath(new URL('../hooks/', import.meta.url));
-      writeFileSync(policy, JSON.stringify({ canary, counter: join(dir, 'calls'), capped, boundary: join(hooksDir, 'boundary-guard.sh'), readOnly: this.readOnly(spec), noTools: spec.allowedTools?.length === 0, maxToolCalls: spec.maxTurns }));
+      writeFileSync(policy, JSON.stringify({ canary, counter: join(dir, 'calls'), capped, boundary: join(hooksDir, 'boundary-guard.sh'), readOnly: this.readOnly(spec), noTools: spec.allowedTools?.length === 0, maxToolCalls: spec.maxTurns ? spec.maxTurns * AGY_CALLS_PER_TURN : spec.maxTurns }));
       const schema = spec.jsonSchema ? join(dir, 'schema.json') : undefined;
       if (schema) writeFileSync(schema, JSON.stringify(spec.jsonSchema));
       if (spec.transcriptPath) mkdirSync(dirname(spec.transcriptPath), { recursive: true });

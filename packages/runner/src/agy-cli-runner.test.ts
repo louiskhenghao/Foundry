@@ -26,9 +26,10 @@ const hooksPath = path.join(process.cwd(), '.agents/hooks.json');
 const hooks = fs.existsSync(hooksPath) ? JSON.parse(fs.readFileSync(hooksPath, 'utf8')) : {};
 const runHook = async (h, payload) => { const p = Bun.spawn(['sh', '-c', h.command], { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', env: process.env }); p.stdin.write(JSON.stringify(payload)); p.stdin.end(); const out = await new Response(p.stdout).text(); await p.exited; return out.trim(); };
 const entries = Object.entries(hooks).filter(([k]) => k.startsWith('foundry'));
-if (!process.env.SKIP_HOOKS) for (const [, e] of entries) for (const g of e.SessionStart ?? []) for (const h of g.hooks) await runHook(h, { hookEventName: 'SessionStart', modelName: 'test-model', conversationId: 'c1' });
+const resumed = args.includes('--conversation');
+if (!process.env.SKIP_HOOKS) for (const [, e] of entries) for (const h of [...(resumed ? [] : e.SessionStart ?? []), ...(e.PreInvocation ?? [])]) { if (!h.command) { console.error('invalid hook: command hook must specify command'); process.exit(1); } await runHook(h, { conversationId: 'c1', modelName: 'test-model', workspacePaths: [process.cwd()], transcriptPath: '/t', artifactDirectoryPath: '/a' }); }
 const decisions = [];
-for (const call of JSON.parse(process.env.TOOL_CALLS ?? '[]')) for (const [, e] of entries) for (const g of e.PreToolUse ?? []) for (const h of g.hooks) decisions.push(await runHook(h, call));
+for (const call of JSON.parse(process.env.TOOL_CALLS ?? '[]')) for (const [, e] of entries) for (const g of e.PreToolUse ?? []) for (const h of g.hooks) decisions.push(await runHook(h, { conversationId: 'c1', stepIdx: 1, toolCall: call }));
 if (process.env.CAPTURE) fs.writeFileSync(process.env.CAPTURE, JSON.stringify({ args, stdin, hooks, decisions, schema: args.includes('--json-schema') ? JSON.parse(fs.readFileSync(args[args.indexOf('--json-schema') + 1], 'utf8')) : null }));
 if (process.env.AGY_ERROR) console.error('AGY_ERROR: ' + process.env.AGY_ERROR);
 for (const event of JSON.parse(process.env.EVENTS ?? '[]')) console.log(JSON.stringify(event));
@@ -69,7 +70,8 @@ describe('Antigravity stream decoder', () => {
     expect(d.decode({ event: 'result', result: { status: 'ERROR', error: 'boom' } })).toMatchObject([{ kind: 'stderr', text: 'boom' }]);
     expect(decodeAgyLines(['not json', JSON.stringify(stream[0])]).map((e) => e.kind)).toEqual(['init']);
     expect(agyUsage(usage)).toEqual({ input_tokens: 40, cache_read_input_tokens: 60, output_tokens: 10, thinking_tokens: 5, total_tokens: 110 });
-    expect(agyEffort('xhigh')).toBe('high');
+    expect(agyEffort('xhigh')).toBe('xhigh');
+    expect(agyEffort('ultra')).toBe('max');
     expect(agyEffort('minimal')).toBe('low');
     expect(agyEffort(undefined)).toBeNull();
   });
@@ -83,7 +85,7 @@ describe('Antigravity CLI adapter', () => {
     const runner = new AgyCliRunner({ agyBin: bin, env: { CAPTURE: capture, EVENTS: JSON.stringify(stream) } });
     const { events, result } = await collect(runner, dir, { model: 'gemini-3.8-flash-high', effort: 'xhigh', resumeSessionId: 'c0', appendSystemPrompt: 'Be brief.', jsonSchema: { type: 'object', properties: { ok: { type: 'boolean' } } }, allowedTools: ['Write', 'Read'], transcriptPath: transcript, label: 'attempt 1' });
     const got = JSON.parse(readFileSync(capture, 'utf8'));
-    expect(got.args).toEqual(expect.arrayContaining(['--input-format', 'stream-json', '--output-format', 'stream-json', '--dangerously-skip-permissions', '--conversation', 'c0', '--model', 'gemini-3.8-flash-high', '--effort', 'high', '--json-schema', expect.any(String), '--print-timeout', '2m']));
+    expect(got.args).toEqual(expect.arrayContaining(['--input-format', 'stream-json', '--output-format', 'stream-json', '--dangerously-skip-permissions', '--conversation', 'c0', '--model', 'gemini-3.8-flash-high', '--effort', 'xhigh', '--json-schema', expect.any(String), '--print-timeout', '2m']));
     expect(got.schema).toEqual({ type: 'object', properties: { ok: { type: 'boolean' } } });
     const sent = JSON.parse(got.stdin.trim());
     expect(sent).toMatchObject({ event: 'user', message: {} });
@@ -91,7 +93,11 @@ describe('Antigravity CLI adapter', () => {
     expect(sent.message.content).toContain('inside Foundry using the Antigravity CLI');
     expect(sent.message.content).toEndWith('# Task\n\ntask');
     const entry = Object.entries(got.hooks).find(([k]) => k.startsWith('foundry-'))![1] as any;
-    expect(entry.SessionStart[0].hooks[0].command).toStartWith("cat > '");
+    // a session event's handler as it is, a tool event's under its matcher: agy refuses the whole file otherwise
+    expect(entry.SessionStart[0]).toMatchObject({ type: 'command' });
+    expect(entry.SessionStart[0].command).toStartWith("cat > '");
+    // a resumed conversation starts no session: the canary is written before each invocation too (this run resumes c0)
+    expect(entry.PreInvocation).toEqual(entry.SessionStart);
     expect(entry.PreToolUse[0]).toMatchObject({ matcher: '*' });
     expect(entry.PreToolUse[0].hooks[0].command).toContain('agy-guard.ts');
     expect(existsSync(join(dir, AGY_HOOKS_FILE))).toBe(false);
@@ -168,19 +174,31 @@ describe('Antigravity CLI adapter', () => {
     expect(runner.active()).toBe(0);
   });
 
+  test('a session without tools still hands over its answer: the finish tool passes, others do not', async () => {
+    const { dir, bin } = fixture();
+    const capture = join(dir, 'capture.json');
+    const calls = [{ name: 'finish', args: { answer: '{"ok":true}' } }, { name: 'view_file', args: { AbsolutePath: 'a.txt' } }];
+    const runner = new AgyCliRunner({ agyBin: bin, env: { CAPTURE: capture, TOOL_CALLS: JSON.stringify(calls), EVENTS: JSON.stringify(stream) } });
+    await collect(runner, dir, { allowedTools: [], jsonSchema: { type: 'object' } });
+    const decisions = JSON.parse(readFileSync(capture, 'utf8')).decisions.map((d: string) => (d ? JSON.parse(d) : null));
+    expect(decisions[0]).toBeNull();
+    expect(decisions[1]).toMatchObject({ decision: 'deny', reason: 'This Foundry session does not permit tools.' });
+  });
+
   test('the guard keeps the boundary, a read-only role and the tool-call allowance', async () => {
     const { dir, bin } = fixture();
     const capture = join(dir, 'capture.json');
     const calls = [
-      { toolName: 'run_command', toolInput: { CommandLine: 'git push origin main' } },
-      { toolName: 'write_to_file', toolInput: { TargetFile: 'a.txt' } },
-      { toolName: 'read_file', toolInput: { TargetFile: 'a.txt' } },
-      { toolName: 'run_command', toolInput: { CommandLine: 'bun test' } },
-      { toolName: 'read_file', toolInput: { TargetFile: 'b.txt' } },
+      { name: 'run_command', args: { CommandLine: 'git push origin main', WaitMsBeforeAsync: 5000 } },
+      { name: 'write_to_file', args: { TargetFile: 'a.txt' } },
+      { name: 'view_file', args: { AbsolutePath: 'a.txt' } },
+      { name: 'run_command', args: { CommandLine: 'bun test' } },
+      { name: 'view_file', args: { AbsolutePath: 'b.txt' } },
+      { name: 'invoke_subagent', args: { Task: 'do it for me' } },
     ];
     const runner = new AgyCliRunner({ agyBin: bin, env: { CAPTURE: capture, TOOL_CALLS: JSON.stringify(calls), EVENTS: JSON.stringify(stream) } });
-    // four calls are counted (the read-only denial comes before the count): the fourth is the allowance's last
-    const { result } = await collect(runner, dir, { allowedTools: ['Read'], maxTurns: 3 });
+    // one turn allows three calls; the read-only denial comes before the count, so the fourth counted call is refused
+    const { result } = await collect(runner, dir, { allowedTools: ['Read'], maxTurns: 1 });
     const decisions = JSON.parse(readFileSync(capture, 'utf8')).decisions.map((d: string) => (d ? JSON.parse(d) : null));
     expect(decisions[0]).toMatchObject({ decision: 'deny' });
     expect(decisions[0].reason).toMatch(/push|boundary|worktree/i);
@@ -189,6 +207,8 @@ describe('Antigravity CLI adapter', () => {
     expect(decisions[3]).toBeNull();
     expect(decisions[4]).toMatchObject({ decision: 'deny' });
     expect(decisions[4].reason).toContain('allowance');
+    // Foundry runs the roles: no subagent of the CLI's own
+    expect(decisions[5]).toMatchObject({ decision: 'deny', reason: 'Foundry runs the roles itself: do this work in this session.' });
     // cut by the allowance: continued by the attempt loop, like a --max-turns stop
     expect(result).toMatchObject({ subtype: 'error_max_turns', isError: true });
   });
