@@ -3,7 +3,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import type { Learning } from '@foundry/core/browser';
-import { LearningDialog, LearningRow, applyChange } from '../src/pages/LearningsPage.tsx';
+import { LearningDialog, LearningRow, applyChange, splitEverywhere } from '../src/pages/LearningsPage.tsx';
 
 const learning = (over: Partial<Learning> = {}): Learning => ({ id: 'l1', kind: 'test', text: 'Run `bun test` from the root.', by: 'foundry', goalId: 'g1', goalTitle: 'Newsletter sign-up', at: new Date(Date.now() - 2 * 86_400_000).toISOString(), ...over });
 
@@ -55,4 +55,11 @@ test('a learning is added, changed or removed in a window with room to write it'
   expect(edit).toContain('Remove');
   // unchanged, nothing to save yet
   expect(edit).toMatch(/<button class="[^"]*" disabled="">Save<\/button>/);
+});
+
+test('the everywhere notebook is kept apart from the folders, and stands empty when the person wrote none', () => {
+  const folder = { repoPath: '/repo', learnings: [learning()], updatedAt: '2026-10-21T00:00:00Z' };
+  const everywhere = { repoPath: '*', learnings: [learning({ id: 'e1', by: 'human', goalId: null, goalTitle: null, kind: 'preference', text: 'Use bun.' })], updatedAt: '2026-10-21T00:00:00Z' };
+  expect(splitEverywhere([folder, everywhere])).toEqual({ everywhere, folders: [folder] });
+  expect(splitEverywhere([folder])).toEqual({ everywhere: { repoPath: '*', learnings: [], updatedAt: '' }, folders: [folder] });
 });

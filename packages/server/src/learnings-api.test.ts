@@ -26,6 +26,10 @@ test("a folder's Learnings are listed, edited by the person, and counted on its 
     expect((await (await app.request(`/api/goals/${goal.id}`)).json()).learningsCount).toBe(1);
 
     expect((await put({ repoPath: 'relative/path', learnings: [] })).status).toBe(400);
+    // the everywhere notebook (ADR-0055) is written under its key and listed with the folders
+    expect((await put({ repoPath: '*', learnings: [{ kind: 'preference', text: 'Use bun.' }] })).status).toBe(200);
+    expect((await (await app.request('/api/learnings?repo=*')).json()).learnings).toEqual([expect.objectContaining({ text: 'Use bun.', by: 'human' })]);
+    expect((await (await app.request('/api/learnings')).json()).repos.map((r: { repoPath: string }) => r.repoPath).sort()).toEqual(['*', repo]);
     expect((await put({ repoPath: repo, learnings: [{ kind: 'build', text: 'x'.repeat(301) }] })).status).toBe(422);
     expect((await put({ repoPath: repo, learnings: [{ kind: 'nonsense', text: 'a' }] })).status).toBe(400);
   } finally {

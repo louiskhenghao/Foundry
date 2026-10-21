@@ -10,7 +10,7 @@ Every goal teaches Foundry something about your project: the command the tests n
 
 - **When a goal ends** (done, over-delivered or failed), a short session on the goal's housekeeping model reads how it went: what you asked and decided, where it stopped for you and what you answered, the hints you gave, the attempts that failed and what they ran into, the warnings and the final review. It adds what is worth keeping about the project, merges repeats and drops what turned out wrong. A cancelled goal teaches nothing. With the `retro` skill installed (Claude), the session runs as a retrospective: it may read the goal's session transcripts, and it looks for what the next goal would have wanted — a pointer to the right file, a check that would have caught a mistake, a rule for the reviewer, an instruction that changed nothing.
 - **On the pstack suite** the session takes pstack's `reflect` as its method — its judgment, tooling and divergent lenses, and what structure would enforce better than a note — in one session, editing no skill.
-- **From you.** What you add or change is yours (✎). Foundry never changes or removes it.
+- **From you.** What you add or change is yours (✎). Foundry never changes or removes it. What you want in every project goes under **Yours, everywhere** (below).
 
 The goal's **Activity** says what changed, for example *Learnings for this folder: +2 — added how the e2e tests start*. The session costs a few cents, counted in the goal's cost.
 
@@ -21,6 +21,10 @@ The goal's **Activity** says what changed, for example *Learnings for this folde
 - They are a starting point, not a rule: where the code says otherwise, the code wins.
 
 A folder keeps at most 30 learnings, of at most 300 characters each.
+
+## Yours, everywhere
+
+Some of what you want is not about one project: the package manager you use, the language of your comments and commit messages, a rule every reviewer should hold, a thing you never want done. The first card on the Learnings page, **Yours, everywhere**, is a notebook for that. Only you write in it, and every goal in every folder is given it with the folder's own Learnings: Clarify under a line of its own, each task in the short form, where your entries come first. It is written into every folder's `foundry-learnings` skill too, as a last section, so your own sessions read it. Where a folder's Learnings or the code say otherwise, they win.
 
 ## Shared with your own sessions
 

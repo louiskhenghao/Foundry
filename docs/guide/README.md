@@ -35,7 +35,7 @@ Between steps 3 and 7 Foundry only stops for a short list of reasons. They are a
 | **Task** | One piece of work in the plan. A goal usually has a handful. |
 | **Milestone** | A feature you can see or try, on the task that finishes it. Foundry records what it shows when it lands, and again in the final walkthrough. |
 | **Inbox** | The list of things waiting for you: the tray icon next to **New goal**, with a number on it. |
-| **Learnings** | What Foundry learned about a project folder from its finished goals, plus what you added. Every later goal in that folder is given it. See [Learnings](./learnings.md). |
+| **Learnings** | What Foundry learned about a project folder from its finished goals, plus what you added. Every later goal in that folder is given it, with what you wrote under **Yours, everywhere** for every folder. See [Learnings](./learnings.md). |
 | **Schedule** | The New goal form saved with a time: every day, week or month Foundry makes a goal from it and runs it by itself. See [Schedules](./schedules.md). |
 | **Progress folder** | The folder where the work happens, next to your project: `<project>-foundry/<goal>/`, or under the folder set in Settings. It is named after the goal's title (up to its first punctuation mark, at most 40 characters) plus the last 6 characters of the goal's id. You can open it at any time. |
 | **Model preset** | Which model does each job (planning, tasks, reviews). Each coding agent has its own Max, Production, Balanced and Economy presets. Codex also captures each role’s reasoning effort. |

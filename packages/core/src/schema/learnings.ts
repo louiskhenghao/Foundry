@@ -22,6 +22,12 @@ export const Learning = z.object({
 });
 export type Learning = z.infer<typeof Learning>;
 
+/**
+ * The notebook that follows the person into every folder (ADR-0055): the person's own entries only, given to every goal
+ * with the folder's notebook, written into every folder's exported skill. It is kept under this key beside the folders'.
+ */
+export const LEARNINGS_EVERYWHERE = '*';
+
 /** a repository's notebook, keyed by its folder */
 export const RepoLearnings = z.object({
   repoPath: z.string(),
