@@ -1,6 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import type { EngineEvent } from '../events.ts';
-import { FINAL_WALK, IDLE_COMPLETION, NO_DELEGATION, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type RepoLearnings, type Task } from '../schema/index.ts';
+import { FINAL_WALK, IDLE_COMPLETION, NO_DELEGATION, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type RepoLearnings, type Task, Schedule } from '../schema/index.ts';
 import type { ObservationReport } from '../schema/observation.ts';
 import { applySubjectEvent } from '../machine/subjects.ts';
 
@@ -98,9 +98,15 @@ function project(db: Database, e: EngineEvent): void {
       upsertBrief(db, { ...b.brief, styleOptions }, b.approved);
       break;
     }
-    case 'brief.approved':
+    case 'brief.approved': {
       upsertBrief(db, e.payload.brief, true);
+      // who approved it (ADR-0061) goes on the goal, where its page reads it
+      if (e.payload.by !== undefined) {
+        const g = getGoal(db, e.goalId!);
+        if (g) upsertGoal(db, { ...g, approvedBy: e.payload.by, updatedAt: e.ts });
+      }
       break;
+    }
     case 'brief.subject_set':
     case 'brief.subject_removed':
     case 'brief.subject_pictures':
@@ -137,6 +143,14 @@ function project(db: Database, e: EngineEvent): void {
     case 'delivery.local_synced':
     case 'delivery.cleaned':
     case 'delivery.pr_closed':
+    case 'delivery.review_received':
+    case 'delivery.review_requested':
+    case 'delivery.review_started':
+    case 'delivery.review_addressed':
+    case 'delivery.revert_started':
+    case 'delivery.revert_finished':
+    case 'delivery.revert_merged':
+    case 'delivery.revert_closed':
     case 'delivery.failed': {
       const g = getGoal(db, e.goalId!);
       if (!g) break;
@@ -152,8 +166,11 @@ function project(db: Database, e: EngineEvent): void {
           break;
         case 'delivery.policy_set':
           d.policy = e.payload.policy;
-          // Resume / Retry get a fresh fix-CI budget: a spent one made every retry fail within seconds
-          if (e.payload.source === 'retry' || e.payload.source === 'resume' || e.payload.source === 'start-over') d.fixCycles = 0;
+          // Resume / Retry get a fresh fix-CI budget: a spent one made every retry fail within seconds; a run the engine
+          // starts for review comments gets one too, but never a fresh review budget (that is the person's to give)
+          if (e.payload.source === 'retry' || e.payload.source === 'resume' || e.payload.source === 'start-over' || e.payload.source === 'review') d.fixCycles = 0;
+          if (e.payload.source === 'retry' || e.payload.source === 'resume' || e.payload.source === 'start-over') d.reviewCycles = 0;
+          if (e.payload.source === 'start-over') d.reviews = [];
           // Start over closed this goal's PRs: the list begins again
           if (e.payload.source === 'start-over') d.prs = [];
           if (d.status !== 'running') {
@@ -228,6 +245,32 @@ function project(db: Database, e: EngineEvent): void {
           break;
         case 'delivery.pr_closed':
           prAt((p) => p.number === e.payload.prNumber, { state: 'closed' });
+          break;
+        case 'delivery.review_received':
+          d.reviews = [...d.reviews.filter((r) => r.id !== e.payload.round.id), e.payload.round];
+          break;
+        case 'delivery.review_requested':
+          d.reviews = d.reviews.map((r) => (r.id === e.payload.roundId ? { ...r, requested: true } : r));
+          break;
+        case 'delivery.review_started':
+          d.reviews = d.reviews.map((r) => (r.id === e.payload.roundId ? { ...r, status: 'fixing' as const } : r));
+          break;
+        case 'delivery.review_addressed':
+          d.reviews = d.reviews.map((r) => (r.id === e.payload.roundId ? { ...r, status: e.payload.status, commit: e.payload.commit, replied: e.payload.replied, detail: e.payload.detail, finishedAt: e.ts } : r));
+          d.reviewCycles += 1;
+          break;
+        case 'delivery.revert_started':
+          d.reverts = [...d.reverts, { id: e.payload.id, status: 'running' as const, reason: e.payload.reason, merge: e.payload.merge, reverts: e.payload.reverts, branch: null, pr: null, commits: [], mergedRef: null, detail: '', at: e.ts, finishedAt: null }];
+          break;
+        case 'delivery.revert_finished':
+          // open or armed: the pull request is still to merge, so the revert is not over
+          d.reverts = d.reverts.map((r) => (r.id === e.payload.id ? { ...r, status: e.payload.status, branch: e.payload.branch, pr: e.payload.pr, commits: e.payload.commits, mergedRef: e.payload.mergedRef, detail: e.payload.detail, finishedAt: e.payload.status === 'merged' || e.payload.status === 'failed' ? e.ts : null } : r));
+          break;
+        case 'delivery.revert_merged':
+          d.reverts = d.reverts.map((r) => (r.id === e.payload.id ? { ...r, status: 'merged' as const, mergedRef: e.payload.ref, detail: e.payload.detail, finishedAt: e.ts } : r));
+          break;
+        case 'delivery.revert_closed':
+          d.reverts = d.reverts.map((r) => (r.id === e.payload.id ? { ...r, status: 'closed' as const, finishedAt: e.ts } : r));
           break;
         case 'delivery.failed':
           d.prs = d.prs.map((p) => ({ ...p, activity: null }));
@@ -429,7 +472,12 @@ function project(db: Database, e: EngineEvent): void {
     }
     case 'goal.completion_set': {
       const g = getGoal(db, e.goalId!);
-      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, graphRefresh: e.payload.graphRefresh, docs: e.payload.docs, audit: e.payload.audit ?? g.completion.audit }, updatedAt: e.ts });
+      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, graphRefresh: e.payload.graphRefresh, docs: e.payload.docs, audit: e.payload.audit ?? g.completion.audit, qa: e.payload.qa ?? g.completion.qa }, updatedAt: e.ts });
+      break;
+    }
+    case 'goal.qa_finished': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, completion: { ...g.completion, qaRun: { status: e.payload.status, summary: e.payload.summary, results: e.payload.results, fixTaskIds: e.payload.fixTaskIds, costUsd: e.payload.costUsd, detail: e.payload.detail, at: e.ts } }, updatedAt: e.ts });
       break;
     }
     case 'goal.audit_finished': {
@@ -580,6 +628,20 @@ function project(db: Database, e: EngineEvent): void {
       }
       break;
     }
+    case 'schedule.set': {
+      const sch = e.payload.schedule;
+      db.run('INSERT OR REPLACE INTO schedules (id, data) VALUES (?, ?)', [sch.id, JSON.stringify(sch)]);
+      break;
+    }
+    case 'schedule.deleted':
+      db.run('DELETE FROM schedules WHERE id = ?', [e.payload.scheduleId]);
+      break;
+    case 'schedule.fired': {
+      const sch = getSchedule(db, e.payload.scheduleId);
+      // a skipped firing keeps the goal of the run before it: that run is the one still going
+      if (sch) db.run('INSERT OR REPLACE INTO schedules (id, data) VALUES (?, ?)', [sch.id, JSON.stringify({ ...sch, lastRun: { at: e.payload.at, goalId: e.goalId ?? sch.lastRun?.goalId ?? null, skipped: e.payload.skipped }, runs: sch.runs + 1 })]);
+      break;
+    }
     case 'learnings.set': {
       const p = e.payload;
       if (p.learnings.length) db.run('INSERT OR REPLACE INTO repo_learnings (repo_path, data) VALUES (?, ?)', [p.repoPath, JSON.stringify({ repoPath: p.repoPath, learnings: p.learnings, updatedAt: e.ts })]);
@@ -604,12 +666,30 @@ function project(db: Database, e: EngineEvent): void {
       upsertGoal(db, { ...g, deployments: list, updatedAt: e.ts });
       break;
     }
+    case 'deploy.smoke_started':
+    case 'deploy.smoke_finished': {
+      const g = getGoal(db, e.goalId!);
+      if (!g) break;
+      const list = [...(g.deployments ?? [])];
+      const i = list.findLastIndex((d) => d.provider === e.payload.provider && d.at === e.payload.deployedAt);
+      if (i < 0) break;
+      const was = list[i]!.smoke;
+      list[i] = {
+        ...list[i]!,
+        smoke:
+          e.type === 'deploy.smoke_started'
+            ? { status: 'running', detail: e.payload.scripts.join(', '), scripts: [], at: e.ts, endedAt: null }
+            : { status: e.payload.status, detail: e.payload.detail, scripts: e.payload.scripts, at: was?.status === 'running' ? was.at : e.ts, endedAt: e.ts },
+      };
+      upsertGoal(db, { ...g, deployments: list, updatedAt: e.ts });
+      break;
+    }
     case 'escalation.raised':
       upsertEscalation(db, e.payload.escalation);
       break;
     case 'escalation.answered': {
       const esc = getEscalation(db, e.payload.escalationId);
-      if (esc) upsertEscalation(db, { ...esc, state: 'answered', answer: e.payload.answer, answeredAt: e.ts });
+      if (esc) upsertEscalation(db, { ...esc, state: 'answered', answer: e.payload.answer, answeredAt: e.ts, answeredBy: e.payload.by ?? null });
       break;
     }
     default:
@@ -816,11 +896,21 @@ export function getRepoLearnings(db: Database, repoPath: string): RepoLearnings 
   return r ? (JSON.parse(r.data) as RepoLearnings) : null;
 }
 /** every repository with Learnings, the most recently changed first */
+/** a Schedule (ADR-0054), or null */
+export function getSchedule(db: Database, id: string): Schedule | null {
+  const r = db.query('SELECT data FROM schedules WHERE id = ?').get(id) as { data: string } | null;
+  return r ? Schedule.parse(JSON.parse(r.data)) : null;
+}
+/** every Schedule, the newest made first */
+export function listSchedules(db: Database): Schedule[] {
+  return (db.query('SELECT data FROM schedules').all() as { data: string }[]).map((r) => Schedule.parse(JSON.parse(r.data))).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
 export function listRepoLearnings(db: Database): RepoLearnings[] {
   return (db.query('SELECT data FROM repo_learnings').all() as { data: string }[]).map((r) => JSON.parse(r.data) as RepoLearnings).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
-const READ_MODEL_TABLES = ['goals', 'tasks', 'attempts', 'checks', 'check_results', 'briefs', 'observations', 'escalations', 'usage_ledger', 'rate_limit_state', 'repo_learnings'];
+const READ_MODEL_TABLES = ['goals', 'tasks', 'attempts', 'checks', 'check_results', 'briefs', 'observations', 'escalations', 'usage_ledger', 'rate_limit_state', 'repo_learnings', 'schedules'];
 
 export function clearReadModels(db: Database): void {
   for (const t of READ_MODEL_TABLES) db.exec(`DELETE FROM ${t}`);

@@ -3,7 +3,8 @@ import { Attachment, AttachmentMarkdown } from './schema/attachment.ts';
 import { FeedbackPlan } from './schema/feedback.ts';
 import { InterviewQuestion } from './schema/interview.ts';
 import { Learning } from './schema/learnings.ts';
-import { DeployProvider } from './schema/deploy.ts';
+import { Schedule } from './schema/schedule.ts';
+import { DeployProvider, SmokeScript } from './schema/deploy.ts';
 import {
   Attempt,
   AuditFinding,
@@ -14,6 +15,7 @@ import {
   FailingCheck,
   DeliveryOutcome,
   DeliveryPolicy,
+  ReviewRound,
   DeliveryStep,
   Check,
   CheckResult,
@@ -33,6 +35,7 @@ import {
   AttemptSession,
   LikenessVerdict,
   SubjectPicture,
+  QaResult,
 } from './schema/index.ts';
 
 const base = { id: z.string(), ts: z.string(), goalId: z.string().nullable() };
@@ -170,8 +173,10 @@ export const EngineEvent = z.discriminatedUnion('type', [
    * there, or not delivered this time, keeps its earlier one); all absent on deliveries before they were recorded */
   ev('goal.artifacts_delivered', { status: z.enum(['ok', 'skipped', 'failed']), files: z.array(z.string()), dest: z.string(), detail: z.string(), model: z.string().nullable().optional(), startedAt: z.string().optional(), startedAfter: z.string().optional(), copies: z.record(z.string(), z.string()).optional() }),
   /** completion actions chosen at Brief approval (defaults inferred from the tasks' scenarios when the UI sends nothing) */
-  ev('goal.completion_set', { graphRefresh: z.boolean(), docs: z.array(DocType), audit: z.boolean().optional(), reason: z.string() }),
+  ev('goal.completion_set', { graphRefresh: z.boolean(), docs: z.array(DocType), audit: z.boolean().optional(), qa: z.boolean().optional(), reason: z.string() }),
   /** ponytail-audit ran on the finished branch (once per goal): what it found, and the fix tasks its in-scope must-fix findings became */
+  /** the browser QA ran on the finished app (ADR-0057): what it tried, and the fix tasks its failed must checks became */
+  ev('goal.qa_finished', { status: z.enum(['ok', 'skipped', 'failed']), summary: z.string(), results: z.array(QaResult), fixTaskIds: z.array(z.string()), costUsd: z.number(), detail: z.string() }),
   ev('goal.audit_finished', { status: z.enum(['ok', 'skipped', 'failed']), summary: z.string(), findings: z.array(AuditFinding), fixTaskIds: z.array(z.string()), costUsd: z.number(), detail: z.string() }),
   /** the docs-generation session ran (after the goal review passed); files are repo-relative paths it committed */
   /** `ref`: the docs commit on the goal branch (absent on events written before it was recorded) */
@@ -187,6 +192,11 @@ export const EngineEvent = z.discriminatedUnion('type', [
    * A global event (no goal on the envelope), so a Transfer of the goal does not carry one machine's notebook to another.
    */
   ev('learnings.set', { repoPath: z.string(), learnings: z.array(Learning), source: z.enum(['distill', 'human']), goalId: z.string().nullable(), note: z.string().nullable() }),
+  /** a Schedule saved whole (ADR-0054): made, edited, enabled or disabled. A global event, like the Learnings. */
+  ev('schedule.set', { schedule: Schedule }),
+  ev('schedule.deleted', { scheduleId: z.string(), name: z.string() }),
+  /** a Schedule fired: the goal it made (the envelope's goal), or why none was made; `late` = past its time by more than an hour (the engine was off) */
+  ev('schedule.fired', { scheduleId: z.string(), name: z.string(), at: z.string(), skipped: z.string().nullable(), late: z.boolean(), manual: z.boolean() }),
 
   ev('clarify.started', { attemptId: z.string().nullable() }),
   /**
@@ -214,7 +224,7 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('brief.skeleton_proposed', { brief: Brief }),
   ev('brief.proposed', { brief: Brief }),
   ev('brief.edited', { brief: Brief }),
-  ev('brief.approved', { brief: Brief }),
+  ev('brief.approved', { brief: Brief, by: z.string().nullable().optional() }),
   /** a second opinion on the Brief (ADR-0051): the revised Brief a reviewer that did not write it proposes; the page shows its diff against the Brief as it is now */
   ev('brief.second_opinion', { auto: z.boolean(), costUsd: z.number(), changeSummary: z.string(), revised: Brief.omit({ goalId: true }) }),
   /** no second opinion came in — the reviewer ran out, or returned no usable proposal: why, for the page, until one does; what it cost is the goal's all the same */
@@ -294,7 +304,7 @@ export const EngineEvent = z.discriminatedUnion('type', [
   }),
 
   ev('escalation.raised', { escalation: Escalation }),
-  ev('escalation.answered', { escalationId: z.string(), answer: EscalationAnswer }),
+  ev('escalation.answered', { escalationId: z.string(), answer: EscalationAnswer, by: z.string().nullable().optional() }),
 
   ev('budget.snapshot', { costUsd: z.number(), elapsedMin: z.number() }),
   ev('session.usage', {
@@ -315,7 +325,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
     skillsUsed: z.array(z.string()).default([]),
   }),
   /** sets the policy and (unless one runs) starts a delivery; `resume` carries on with open PRs, `start-over` follows closing them */
-  ev('delivery.policy_set', { policy: DeliveryPolicy, source: z.enum(['create', 'deliver', 'retry', 'resume', 'start-over']) }),
+  /** `review` = a run the engine started itself to address review comments on an open pull request (ADR-0053) */
+  ev('delivery.policy_set', { policy: DeliveryPolicy, source: z.enum(['create', 'deliver', 'retry', 'resume', 'start-over', 'review']) }),
   /** the human saved the policy without starting anything; a running delivery picks the switches up at its next step */
   ev('delivery.policy_saved', { policy: DeliveryPolicy }),
   ev('delivery.started', { policy: DeliveryPolicy, plan: z.array(z.string()) }),
@@ -328,6 +339,9 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('deploy.command', { provider: DeployProvider, label: z.string(), command: z.string(), exitCode: z.number().nullable(), durationMs: z.number(), outputTail: z.string() }),
   ev('deploy.finished', { provider: DeployProvider, production: z.boolean(), url: z.string() }),
   ev('deploy.failed', { provider: DeployProvider, production: z.boolean(), reason: z.string() }),
+  /** the smoke of a deploy (ADR-0058): the goal's milestone scripts against the deployed address; `deployedAt` names the deploy (its `at`) */
+  ev('deploy.smoke_started', { provider: DeployProvider, production: z.boolean(), url: z.string(), deployedAt: z.string(), scripts: z.array(z.string()) }),
+  ev('deploy.smoke_finished', { provider: DeployProvider, production: z.boolean(), url: z.string(), deployedAt: z.string(), status: z.enum(['pass', 'fail', 'skipped']), detail: z.string(), scripts: z.array(SmokeScript) }),
   ev('delivery.repo_created', { owner: z.string(), name: z.string(), url: z.string(), visibility: z.string() }),
   ev('delivery.pushed', { remote: z.string(), branch: z.string(), ref: z.string(), taskId: z.string().nullable().default(null) }),
   /** the stacked branches built from the tasks' commits (unit = task), bottom first */
@@ -348,6 +362,18 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('delivery.cleaned', { done: z.boolean(), detail: z.string(), waiting: z.boolean().optional() }),
   /** a pull request was closed on GitHub without being merged (noticed after the delivery finished) */
   ev('delivery.pr_closed', { prNumber: z.number().int() }),
+  /** review comments found on an open pull request (ADR-0053): `fixing` = a run addresses them now, `waiting` = the budget is used up, the person decides */
+  ev('delivery.review_received', { round: ReviewRound, action: z.enum(['fixing', 'waiting']) }),
+  /** the person pressed Fix review comments: the round is addressed whatever the budget */
+  ev('delivery.review_requested', { roundId: z.string() }),
+  ev('delivery.review_started', { roundId: z.string() }),
+  ev('delivery.review_addressed', { roundId: z.string(), status: z.enum(['addressed', 'nochange', 'failed']), commit: z.string().nullable(), replied: z.number().int().nonnegative(), detail: z.string() }),
+  // a Revert of a merged delivery (ADR-0059): started on the person's click; finished with its pull request open (or
+  // merged / armed when asked), or failed with why; merged or closed later on GitHub, noticed by the pull request watch
+  ev('delivery.revert_started', { id: z.string(), reason: z.string(), merge: z.boolean(), reverts: z.array(z.object({ prNumber: z.number().int().nullable(), ref: z.string(), title: z.string().default('') })) }),
+  ev('delivery.revert_finished', { id: z.string(), status: z.enum(['open', 'armed', 'merged', 'failed']), branch: z.string().nullable(), pr: z.object({ number: z.number().int(), url: z.string() }).nullable(), commits: z.array(z.string()), mergedRef: z.string().nullable(), detail: z.string() }),
+  ev('delivery.revert_merged', { id: z.string(), prNumber: z.number().int().nullable(), ref: z.string().nullable(), detail: z.string() }),
+  ev('delivery.revert_closed', { id: z.string(), prNumber: z.number().int().nullable() }),
   ev('delivery.failed', { step: DeliveryStep, reason: z.string() }),
   ev('rate_limit.paused', { provider: z.enum(['claude', 'codex']).optional(), rateLimitType: z.string().nullable(), until: z.string(), reason: z.string() }),
   ev('rate_limit.resumed', { provider: z.enum(['claude', 'codex']).optional(), reason: z.string() }),

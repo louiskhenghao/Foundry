@@ -73,6 +73,8 @@ export const Escalation = z.object({
   answer: EscalationAnswer.nullable(),
   createdAt: z.string(),
   answeredAt: z.string().nullable(),
+  /** who answered: the Person signed in, or the chat the answer came from (ADR-0061); absent before Access existed */
+  answeredBy: z.string().nullable().optional(),
   /** last AI suggestion for this escalation (default keeps older events replayable) */
   suggestion: EscalationSuggestion.nullable().default(null),
 });

@@ -10,6 +10,7 @@ import { CodexModelPresetsSection } from './settings/CodexModelPresets.tsx';
 import { SectionTitle } from './settings/PresetParts.tsx';
 import { DesignPacks } from '../components/DesignPacks.tsx';
 import { UpdateDialog } from '../components/UpdateDialog.tsx';
+import { AccessCard } from './settings/AccessCard.tsx';
 import { Button, Card, CopyButton, Empty, Field, Input, Select, cn } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
 import { INTERVIEW_DEPTHS } from '../interview-depth.ts';
@@ -368,6 +369,7 @@ export function SettingsPage() {
                 </Select>
               </Field>
               {bool('workflow.audit', 'Audit at the end of new goals', 'Once every task is done, ponytail-audit maps the finished branch and ranks what to fix; must-fix findings in the code the goal touched become fix tasks before the final review, the rest is listed for a follow-up. Chosen per goal at Brief approval.')}
+              {bool('workflow.qa', 'Browser QA at the end of new goals', 'New goals with a web app: once every task is done, one session opens the finished app in Chromium and tries each acceptance check with Playwright; a must check that fails becomes a fix task before the final review. Chosen per goal at Brief approval; needs Chromium for Playwright.')}
               {bool('workflow.learnings', 'Learn from finished goals', "When a goal ends, a short session on the housekeeping model adds what it taught about the project to that folder's Learnings, which later goals there are given. Off: nothing is learned automatically; the Learnings you keep are still used.")}
               {bool('workflow.briefSecondOpinion', 'Second opinion on every Brief', "Once a goal's Brief is ready for your approval, a reviewer that did not write it reads it against the repository and proposes what to change, on the goal reviewer's model — a checklist on the Brief page you apply or not. Off: the Brief page still has the button.")}
               {bool('workflow.learningsSkill', 'Share Learnings with your own sessions', "Writes each folder's Learnings into the repository as a project skill (foundry-learnings, kept out of git) that your own coding-agent sessions there read; rewritten whenever the Learnings change. Off: the file is removed.")}
@@ -672,7 +674,8 @@ export function SettingsPage() {
             {bool('notifications.telegramActions', 'Answer from Telegram', "Messages about something that waits for you carry buttons (Retry, Skip, Continue, Approve…), and a reply answers in words. Foundry reads the bot's messages while this is on, so give each Foundry its own bot. Commands outside the workspace are approved in the Inbox only.")}
             {bool('notifications.onEscalation', 'Needs you', 'An escalation was raised — a task or goal is blocked until you answer it on the Inbox page.')}
             {bool('notifications.onInterview', 'Interview round', 'The Clarifier asked a round of questions before writing the Brief; the goal waits for your answers.')}
-            {bool('notifications.onBriefReady', 'Brief ready', 'A Brief waits for your approval. A Brief the engine approves itself (an automatic one, a delegated goal its main goal approves) never notifies.')}
+            {bool('notifications.onBriefReady', 'Brief ready', 'A Brief waits for your approval. A Brief the engine approves itself (an automatic one, a delegated goal its main goal approves, a scheduled run that approves its own) never notifies.')}
+            {bool('notifications.onSchedule', 'Schedule fired', 'A schedule fired: the goal it made, or why none was made (its previous run still going).')}
             {bool('notifications.onGoalFinished', 'Goal finished', 'A goal ended done, over-delivered, or failed. Cancelling a goal yourself never notifies.')}
             {bool('notifications.onDelivery', 'Delivery', 'A pull request was opened or merged, or the delivery failed.')}
             {bool('notifications.onRateLimit', 'Usage pause', 'A provider usage limit paused its goals, and when the retry pause lifts.')}
@@ -687,6 +690,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
+      <AccessCard />
       <Card id="safety" title={<>Safety<HelpLink to="settings#safety" className="ml-1.5" /></>} className="scroll-mt-16">
         {grid(
           <>

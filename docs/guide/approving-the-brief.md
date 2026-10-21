@@ -174,7 +174,7 @@ Inside a task you can change:
 | **refactor** | Restructuring without changing behaviour. |
 | **research** | Finding something out. |
 | **chore** | Setup, dependencies, housekeeping. |
-| **goal** | A step done by a delegated goal of its own, with its own Clarify and plan. The planner uses it only when the goal allows delegation; see [Delegated goals](./your-first-goal.md#delegated-goals). |
+| **goal** | A step done by a delegated goal of its own, with its own Clarify and plan. The planner uses it only when the goal allows delegation; see [Delegated goals](./your-first-goal.md#delegated-goals). A goal task bound to a [companion folder](./your-first-goal.md#also-change-companion-folders) says so on its card: that delegated goal works in that repository. |
 
 The kind decides which working method the worker follows (for example tests first for features).
 
@@ -269,6 +269,7 @@ When the goal was given a reference (see [Your first goal](./your-first-goal.md#
 
 - **Refresh the knowledge graph**: updates the code map some tools use, after delivery.
 - **Audit the repository at the end**: once every task is done, `ponytail-audit` maps the finished branch and ranks what to fix. Must-fix findings in the code this goal touched become fix tasks before the final review; the rest is listed on the goal page, where **Follow-up with the rest** starts a goal for them. Off by default (Settings has the default for new goals); needs the Ponytail skills and budget left on the goal.
+- **Test it in a browser at the end**: once every task is done, one session opens the finished app in Chromium and tries each acceptance check the way you would, with Playwright scripts it writes in a scratch folder. A must check that fails becomes a fix task before the final review; everything it tried is listed on the goal page with screenshots. It changes no code. Only offered when **How to run it** names an app; off by default (Settings has the default for new goals); needs Chromium for Playwright (Settings → Preview & self-check).
 - Document chips: **PRD** (what was asked and what was built), **README update**, **Changelog**, **Confirmation sheet** (for someone else to confirm the decisions). Click a chip to switch it on or off.
 
 Documents are written after the final review passes and saved on the goal's branch, so they ship with the work. Claude has a $3 session cap for this; Codex uses ChatGPT quota without a USD cap. More in [Getting the result](./getting-the-result.md#completion-extras).
@@ -277,7 +278,9 @@ Documents are written after the final review passes and saved on the goal's bran
 
 For Claude, the card shows **Estimated cost** and **Estimated time**. Codex shows time and execution limits only.
 
-With the **Auto** budget, the card is titled **Estimate → proposed budget**: Foundry proposes twice the estimate as the limit, rounded up, and never less than $3 and 30 minutes. Edit **max cost $** and **max minutes**, press **Keep unlimited** for no limit, or **Use estimate ×2** to go back to the proposal. With a budget you set yourself, the card warns in yellow if the estimate is higher. The change is applied when you approve. For Codex, this proposal uses time only (at least 30 minutes); dollar estimates and `max cost $` are hidden.
+Under the two figures, once this folder has three finished goals (or, failing that, this computer has three finished goals of the same kind), a line says how far they ran from their estimates and what this one likely comes to: *Earlier goals in this folder ran at 1.6× the estimated cost and 1.3× the estimated time (median of 5 finished goals): likely about $12 and 45 min.* Hover it for the goals it rests on. The Clarifier's figures stay as written; the line only reads them with experience. A wide spread between those goals is said.
+
+With the **Auto** budget, the card is titled **Estimate → proposed budget**: Foundry proposes twice the estimate as the limit (twice the calibrated estimate when there is one), rounded up, and never less than $3 and 30 minutes. Edit **max cost $** and **max minutes**, press **Keep unlimited** for no limit, or **Use estimate ×2** (**Use calibrated estimate ×2** when there is one) to go back to the proposal. With a budget you set yourself, the card warns in yellow if the estimate is higher. The change is applied when you approve. For Codex, this proposal uses time only (at least 30 minutes); dollar estimates and `max cost $` are hidden.
 
 Reaching a limit never destroys work: the goal pauses and asks you. See [When Foundry needs you](./when-foundry-needs-you.md#the-budget-ran-out).
 

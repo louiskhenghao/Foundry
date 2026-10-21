@@ -22,6 +22,46 @@ export interface PrView extends PrRef {
 }
 export type ChecksReduced = 'pending' | 'passing' | 'failing' | 'none';
 
+/** One inline review comment on a pull request's diff, as the REST API lists them (`pulls/{n}/comments`). */
+export interface PrReviewComment {
+  id: number;
+  author: string | null;
+  /** written by a GitHub App or bot account (`user.type === 'Bot'`) */
+  bot: boolean;
+  body: string;
+  path: string | null;
+  line: number | null;
+  diffHunk: string | null;
+  url: string | null;
+  createdAt: string | null;
+  /** the comment this one replies to, in a thread */
+  inReplyTo: number | null;
+}
+/** One review on a pull request (`pulls/{n}/reviews`): its state (APPROVED, CHANGES_REQUESTED, COMMENTED, …) and body. */
+export interface PrReview {
+  id: number;
+  author: string | null;
+  bot: boolean;
+  state: string;
+  body: string;
+  url: string | null;
+  submittedAt: string | null;
+}
+
+/** One issue as `gh issue view` reports it: its metadata, body and the comments under it, oldest first. */
+export interface IssueView {
+  number: number;
+  url: string;
+  title: string;
+  state: 'OPEN' | 'CLOSED' | string;
+  body: string;
+  labels: string[];
+  author: string | null;
+  createdAt: string | null;
+  comments: { author: string | null; body: string; createdAt: string | null }[];
+}
+
+
 /** Everything the pipeline needs from GitHub. `CliGh` shells out to `gh`; tests use a fake. */
 export interface GhClient {
   available(): Promise<GhAvailability>;
@@ -44,6 +84,18 @@ export interface GhClient {
   /** close a PR without merging, leaving a comment that says why */
   prClose(cwd: string, i: { repo: string; number: number; comment: string }): Promise<ExecResult>;
   failedLog(cwd: string, i: { repo: string; branch: string }): Promise<string | null>;
+  /** read one issue with its comments (`gh issue view`); throws when there is no such issue or gh cannot read it */
+  issueView(cwd: string, i: { repo: string; number: number }): Promise<IssueView>;
+  /** the inline review comments on a pull request's diff, oldest first (ADR-0053) */
+  prReviewComments(cwd: string, i: { repo: string; number: number }): Promise<PrReviewComment[]>;
+  /** the reviews on a pull request, oldest first */
+  prReviews(cwd: string, i: { repo: string; number: number }): Promise<PrReview[]>;
+  /** reply under one inline review comment */
+  prReplyToComment(cwd: string, i: { repo: string; number: number; commentId: number; body: string }): Promise<ExecResult>;
+  /** a comment in the pull request's conversation */
+  prComment(cwd: string, i: { repo: string; number: number; body: string }): Promise<ExecResult>;
+  /** how many commits a pull request carried: a rebase merge put that many on the base, so a Revert undoes them all (ADR-0059) */
+  prCommits(cwd: string, i: { repo: string; number: number }): Promise<number>;
 }
 
 const FAILED = ['FAILURE', 'ERROR', 'TIMED_OUT', 'CANCELLED', 'ACTION_REQUIRED', 'STARTUP_FAILURE'];
@@ -215,5 +267,56 @@ export class CliGh implements GhClient {
     if (!failed) return null;
     const v = await this.run(['run', 'view', String(failed.databaseId), '-R', i.repo, '--log-failed'], cwd, 120_000);
     return v.stdout || v.stderr || null;
+  }
+  async issueView(cwd: string, i: { repo: string; number: number }): Promise<IssueView> {
+    const r = await this.run(['issue', 'view', String(i.number), '-R', i.repo, '--json', 'number,url,title,state,body,labels,author,createdAt,comments'], cwd, 60_000);
+    if (r.code !== 0) throw new Error(`gh issue view failed: ${(r.stderr || r.stdout).trim().slice(0, 300) || `exit ${r.code}`}`);
+    const j = JSON.parse(r.stdout);
+    const login = (a: any): string | null => (a && typeof a === 'object' ? (a.login ?? a.name ?? null) : typeof a === 'string' ? a : null);
+    return {
+      number: Number(j.number),
+      url: String(j.url ?? `https://github.com/${i.repo}/issues/${i.number}`),
+      title: String(j.title ?? ''),
+      state: String(j.state ?? 'OPEN'),
+      body: String(j.body ?? ''),
+      labels: (Array.isArray(j.labels) ? j.labels : []).map((l: any) => (typeof l === 'string' ? l : l?.name)).filter((x: unknown): x is string => typeof x === 'string' && !!x),
+      author: login(j.author),
+      createdAt: j.createdAt ?? null,
+      comments: (Array.isArray(j.comments) ? j.comments : []).map((c: any) => ({ author: login(c.author), body: String(c.body ?? ''), createdAt: c.createdAt ?? null })),
+    };
+  }
+  async prReviewComments(cwd: string, i: { repo: string; number: number }): Promise<PrReviewComment[]> {
+    const r = await this.run(['api', `repos/${i.repo}/pulls/${i.number}/comments?per_page=100`], cwd, 60_000);
+    if (r.code !== 0) throw new Error(`gh api pulls/${i.number}/comments failed: ${(r.stderr || r.stdout).trim().slice(0, 300)}`);
+    const list = JSON.parse(r.stdout);
+    return (Array.isArray(list) ? list : []).map((c: any) => ({
+      id: Number(c.id),
+      author: c.user?.login ?? null,
+      bot: c.user?.type === 'Bot',
+      body: String(c.body ?? ''),
+      path: c.path ?? null,
+      line: c.line ?? c.original_line ?? null,
+      diffHunk: c.diff_hunk ?? null,
+      url: c.html_url ?? null,
+      createdAt: c.created_at ?? null,
+      inReplyTo: c.in_reply_to_id ?? null,
+    }));
+  }
+  async prReviews(cwd: string, i: { repo: string; number: number }): Promise<PrReview[]> {
+    const r = await this.run(['api', `repos/${i.repo}/pulls/${i.number}/reviews?per_page=100`], cwd, 60_000);
+    if (r.code !== 0) throw new Error(`gh api pulls/${i.number}/reviews failed: ${(r.stderr || r.stdout).trim().slice(0, 300)}`);
+    const list = JSON.parse(r.stdout);
+    return (Array.isArray(list) ? list : []).map((v: any) => ({ id: Number(v.id), author: v.user?.login ?? null, bot: v.user?.type === 'Bot', state: String(v.state ?? ''), body: String(v.body ?? ''), url: v.html_url ?? null, submittedAt: v.submitted_at ?? null }));
+  }
+  async prCommits(cwd: string, i: { repo: string; number: number }): Promise<number> {
+    const r = await this.run(['pr', 'view', String(i.number), '-R', i.repo, '--json', 'commits', '--jq', '.commits | length'], cwd);
+    if (r.code !== 0) throw new Error(`gh pr view failed: ${(r.stderr || r.stdout).trim().slice(0, 300)}`);
+    return Number(r.stdout.trim()) || 1;
+  }
+  prReplyToComment(cwd: string, i: { repo: string; number: number; commentId: number; body: string }): Promise<ExecResult> {
+    return this.run(['api', '-X', 'POST', `repos/${i.repo}/pulls/${i.number}/comments/${i.commentId}/replies`, '-f', `body=${i.body}`], cwd, 60_000);
+  }
+  prComment(cwd: string, i: { repo: string; number: number; body: string }): Promise<ExecResult> {
+    return this.run(['api', '-X', 'POST', `repos/${i.repo}/issues/${i.number}/comments`, '-f', `body=${i.body}`], cwd, 60_000);
   }
 }

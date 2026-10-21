@@ -1,14 +1,17 @@
-import type { DeliveryPlanStep } from '@foundry/core/browser';
+import { isHistory, type DeliveryPlanStep } from '@foundry/core/browser';
 import { CheckCircle2, CircleDashed, ExternalLink, Loader2, XCircle } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { api, type GoalDetail, type RepoInfo } from '../../api.ts';
 import { DeliveryPolicyForm, type PolicyDraft, type PolicyLock } from '../../components/DeliveryPolicyForm.tsx';
 import { MergeStatus } from '../../components/MergeStatus.tsx';
 import { Badge, Button, Card, ConfirmDialog, cn } from '../../ui.tsx';
+import { CompanionDeliveries } from './Delegations.tsx';
+import { RevertSection } from './DeliveryRevert.tsx';
 import { DeployCard } from './DeployCard.tsx';
+import { ReviewRounds } from './ReviewRounds.tsx';
 
-const STEP_LABEL: Record<string, string> = { preflight: 'Preflight', 'ensure-remote': 'Remote', 'sync-base': 'Sync with base', 'build-stack': 'Build stack', push: 'Push', 'open-pr': 'Open PR', 'wait-checks': 'CI checks', 'fix-ci': 'Fix CI', merge: 'Merge', cleanup: 'Cleanup' };
-const STEPS = ['preflight', 'ensure-remote', 'sync-base', 'build-stack', 'push', 'open-pr', 'wait-checks', 'fix-ci', 'merge', 'cleanup'];
+const STEP_LABEL: Record<string, string> = { preflight: 'Preflight', 'ensure-remote': 'Remote', 'sync-base': 'Sync with base', 'build-stack': 'Build stack', push: 'Push', 'open-pr': 'Open PR', 'fix-review': 'Fix review', 'wait-checks': 'CI checks', 'fix-ci': 'Fix CI', merge: 'Merge', cleanup: 'Cleanup', revert: 'Revert' };
+const STEPS = ['preflight', 'ensure-remote', 'sync-base', 'build-stack', 'push', 'open-pr', 'fix-review', 'wait-checks', 'fix-ci', 'merge', 'cleanup'];
 const PR_STATE: Record<string, string> = { pending: 'pending', open: 'open', merged: 'done', closed: 'cancelled', failed: 'failed' };
 const SYNC_LABEL: Record<string, string | null> = { current: null, rebased: 'rebased onto base', merged: 'base merged in', resolved: 'conflict resolved' };
 
@@ -188,6 +191,7 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
                     {p.branchDeleted && <Tag title={p.branch}>branch deleted</Tag>}
                   </div>
                 )}
+                {p.number != null && <ReviewRounds rounds={del.reviews.filter((r) => r.prNumber === p.number)} open={p.state === 'open'} busy={busy || running} onFix={() => act(() => api.fixReviews(g.id, p.number!))} />}
                 {p.failing.length > 0 && p.state === 'open' && (
                   <ul className="mt-1 ml-7 space-y-0.5">
                     {p.failing.map((c) => (
@@ -219,8 +223,11 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
             {del.outcome && <span className="text-emerald-300">outcome: {del.outcome === 'by_you' ? 'delivered by you' : del.outcome.replace('_', ' ')}</span>}
             {del.mergedRef && <span className="mono text-zinc-500">merged {del.mergedRef.slice(0, 7)}</span>}
             {del.fixCycles > 0 && <span className="text-zinc-400">fix-CI cycles: {del.fixCycles}</span>}
+            {del.reviewCycles > 0 && <span className="text-zinc-400">review rounds addressed: {del.reviewCycles} / {del.policy.fixReviewCycles} by itself</span>}
           </div>
           <MergeStatus goal={g} className="mt-3" />
+          {!isHistory(g) && <RevertSection goal={g} busy={busy || running} />}
+          <CompanionDeliveries d={d} />
           {del.error && <div className="mt-2 text-xs text-rose-300 whitespace-pre-wrap break-words">{del.error}</div>}
           {(del.status === 'failed' || (del.status === 'delivered' && (del.outcome === 'pr_open' || del.outcome === 'automerge_armed'))) && (
             <div className="mt-3 flex flex-wrap gap-2">

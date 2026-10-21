@@ -55,6 +55,8 @@ export { runAutoskills, hasStackManifest } from './skills/autoskills.ts';
 export { decodeLine } from '@foundry/runner';
 export { canResolve, startResolution, describeResolution, resolveFile, takeSide, unresolveFile, finishResolution, abortResolution, type ResolveState, type ResolveFile, type FinishResult } from './merge-resolve.ts';
 export { FollowUpError, previousWorkOnBase, type FollowUpDraft, type FollowUpInput } from './follow-up.ts';
+export { IssueError, githubRepoOf, issueRefFor, parseIssueRef, renderIssueThread, type IssueRead } from './issue.ts';
+export { ScheduleError, checkSchedules, engineApproves, fireSchedule, type ScheduleInput } from './schedules.ts';
 
 export { codexAuthStatus } from './auth/claude-auth.ts';
 export { TransferError } from './transfer/errors.ts';
@@ -65,3 +67,4 @@ export { mapRepo, reattachGoal, type MapResult } from './transfer/reattach.ts';
 export { learnFromGoal, learningsContext, learningsForWorker, mergeLearnings } from './learnings.ts';
 export { deployability } from './deploy/detect.ts';
 export { DEPLOY_PROVIDERS, PROVIDER_LABEL } from './deploy/providers.ts';
+export { Access, AccessError, type Person } from './access.ts';

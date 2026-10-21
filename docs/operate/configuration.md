@@ -12,6 +12,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `workflow.tdd` | `required` | `FOUNDRY_TDD` | Test-driven discipline for new expert goals: required (observed), preferred (suggested) or off. |
 | `workflow.ponytail` | `on` | `FOUNDRY_PONYTAIL` | Ponytail, the lazy senior dev, for new goals: workers write the smallest change that fully solves the task and reuse what exists, the planner plans lean, and ponytail-review reviews. Each goal has its own switch. |
 | `workflow.audit` | `false` | `FOUNDRY_AUDIT` | New goals run ponytail-audit on the finished branch before the goal review; must-fix findings in the code the goal touched become fix tasks. Chosen per goal at Brief approval. |
+| `workflow.qa` | `false` | `FOUNDRY_QA` | New goals with a web app test it in a browser once every task is done, before the goal review: one session tries each acceptance check with Playwright and a must check that fails becomes a fix task. Chosen per goal at Brief approval; needs Chromium for Playwright. |
 | `workflow.briefSecondOpinion` | `false` | — | Once a new goal's Brief is ready for your approval, a reviewer that did not write it reads it against the repository and proposes what to change, on the goal reviewer's model: a checklist on the Brief page you apply or not. Off = the Brief page still has the button. |
 | `workflow.defaultMode` | `expert` | `FOUNDRY_GOAL_MODE` | Which view a new goal opens in: simple (plain-language Brief and progress) or expert (every control). |
 | `workflow.defaultPace` | `thorough` | `FOUNDRY_PACE` | thorough = the engine adds its own task and goal reviews and can spawn fix tasks; fast = only the checks you approved run. Image and video goals start fast. |
@@ -124,6 +125,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `notifications.onEscalation` | `true` | — | Notify when something needs you (Inbox). |
 | `notifications.onInterview` | `true` | — | Notify when Clarify asks an interview round. |
 | `notifications.onBriefReady` | `true` | — | Notify when a Brief waits for your approval (one the engine approves itself never notifies). |
+| `notifications.onSchedule` | `true` | — | Notify when a Schedule fires: the goal it made, or why none was made (the previous run still going). |
 | `notifications.onGoalFinished` | `true` | — | Notify when a goal ends done, over-delivered or failed. |
 | `notifications.onDelivery` | `true` | — | Notify when a PR opens, merges, or delivery fails. |
 | `notifications.onRateLimit` | `true` | — | Notify when a usage limit pauses the engine and when it resumes. |
@@ -145,7 +147,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `engine.codexBin` *(restart)* | — | `FOUNDRY_CODEX_BIN` | Codex CLI path; empty uses codex on PATH. Requires hooks support. |
 | `engine.codexHome` *(restart)* | — | `FOUNDRY_CODEX_HOME (or CODEX_HOME)` | Codex configuration and login directory; empty uses CODEX_HOME or ~/.codex. |
 | `engine.port` *(restart)* | `4111` | `FOUNDRY_PORT` | Port the UI and API listen on. |
-| `engine.host` *(restart)* | `127.0.0.1` | `FOUNDRY_HOST` | Interface to bind; keep 127.0.0.1 (the UI has no login). |
+| `engine.host` *(restart)* | `127.0.0.1` | `FOUNDRY_HOST` | Interface to bind; keep 127.0.0.1 unless the people using it have tokens (Settings → Access). |
 | `engine.claudeBin` *(restart)* | — | — | Path to the claude CLI; empty = first on PATH. |
 | `engine.claudeHome` *(restart)* | — | `FOUNDRY_CLAUDE_HOME (or CLAUDE_CONFIG_DIR)` | Claude home (skills, plugins, settings); empty = ~/.claude or CLAUDE_CONFIG_DIR. |
 | `engine.workspacesRoot` | — | `FOUNDRY_WORKSPACES_ROOT` | Where progress folders go: empty = next to each repository as <repo>-foundry/, or <root>/<repo>/ under this folder. |

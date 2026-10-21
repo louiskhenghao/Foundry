@@ -31,13 +31,14 @@ function opts(name: string): string[] {
 }
 const has = (name: string) => rest.includes(name);
 const positional = () => rest.filter((a, i) => !a.startsWith('--') && !(i > 0 && rest[i - 1]!.startsWith('--') && !FLAGS.has(rest[i - 1]!)));
-const FLAGS = new Set(['--auto-approve', '--approve', '--verify', '--json', '--follow', '--force', '--self-check', '--no-attachments', '--no-style', '--settings', '--secrets', '--transcripts', '--dry-run', '--password-stdin']);
+const FLAGS = new Set(['--auto-approve', '--approve', '--verify', '--json', '--follow', '--force', '--self-check', '--no-attachments', '--no-style', '--settings', '--secrets', '--transcripts', '--dry-run', '--password-stdin', '--all']);
 const BASE = process.env.FOUNDRY_URL ?? `http://127.0.0.1:${process.env.FOUNDRY_PORT ?? 4111}`;
 
 async function api(path: string, init?: RequestInit): Promise<any> {
   let res: Response;
   try {
-    res = await fetch(BASE + path, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) } });
+    // Access (ADR-0061): the person's token travels as a bearer header
+    res = await fetch(BASE + path, { ...init, headers: { 'content-type': 'application/json', ...(process.env.FOUNDRY_TOKEN ? { authorization: `Bearer ${process.env.FOUNDRY_TOKEN}` } : {}), ...(init?.headers ?? {}) } });
   } catch {
     console.error(`Cannot reach foundry at ${BASE}. Start it with: bun run serve`);
     process.exit(2);
@@ -45,7 +46,8 @@ async function api(path: string, init?: RequestInit): Promise<any> {
   const text = await res.text();
   const body = text ? safeJson(text) : null;
   if (!res.ok) {
-    console.error(`error ${res.status}: ${body?.error ?? text}`);
+    if (res.status === 401 && body?.code === 'auth') console.error('This Foundry asks for an access token: set FOUNDRY_TOKEN to yours (Settings → Access makes one per person; on the machine, `foundry access add <name>` before Access is on).');
+    else console.error(`error ${res.status}: ${body?.error ?? text}`);
     process.exit(1);
   }
   return body;
@@ -140,18 +142,23 @@ switch (cmd) {
   }
   case 'goal': {
     if (rest[0] !== 'new') return usage();
-    const prompt = rest[1];
+    // the prompt is the first positional; a goal from an issue may have none
+    const prompt = rest[1] && !rest[1].startsWith('--') ? rest[1] : undefined;
     // a Follow-up: the earlier goal's repository and settings are the defaults, any flag given wins
     const followsId = opt('--follows');
     const draft = followsId ? await api(`/api/goals/${followsId}/follow-up-draft`) : null;
     if (draft && !draft.followable) return usage(`goal ${followsId} cannot be followed: ${draft.reason}`);
     const repoPath = opt('--repo') ?? draft?.prefill.repoPath;
-    if (!prompt || !repoPath) return usage('goal new needs "<prompt>" and --repo <path> (or --follows <goal id>)');
+    // a goal from a GitHub issue: its title and body stand in for the prompt, its thread is attached (ADR-0052)
+    const issueRef = opt('--issue');
+    if (!repoPath || (!prompt && !issueRef)) return usage('goal new needs "<prompt>" (or --issue <link>) and --repo <path> (or --follows <goal id>)');
+    const issue = issueRef ? await api('/api/issues/read', { method: 'POST', body: JSON.stringify({ ref: issueRef, repoPath: resolve(repoPath) }) }) : null;
     const effort = opt('--effort');
     const body: any = {
-      prompt,
+      prompt: prompt ?? issue.prompt,
       repoPath: resolve(repoPath),
-      title: opt('--title'),
+      title: opt('--title') ?? issue?.title,
+      ...(issue ? { issue: issue.issue, attachments: [issue.attachment] } : {}),
       provider: opt('--provider') ?? draft?.prefill.provider,
       codexModel: opt('--codex-model') ?? (opt('--models') ? undefined : draft?.prefill.codexModel),
       baseBranch: opt('--base'),
@@ -171,6 +178,8 @@ switch (cmd) {
       ...(has('--self-check') ? { selfCheck: true } : {}),
       // delegated goals: the planner may hand big steps to goals of their own; their Briefs approved by the engine on request
       ...(has('--delegate') || has('--delegate-auto-approve') ? { delegation: { allow: true, autoApprove: has('--delegate-auto-approve') } } : {}),
+      // companion repositories (ADR-0063)
+      ...(opts('--also').length ? { companions: opts('--also').map((p) => ({ repoPath: resolve(p) })) } : {}),
     };
     if (has('--auto-approve')) body.autoBrief = { mustChecks: opts('--check'), stretchChecks: opts('--stretch') };
     if (opt('--deliver')) body.delivery = { mode: opt('--deliver'), remote: opt('--remote') ?? 'origin', remoteUrl: opt('--remote-url') ?? null };
@@ -187,6 +196,7 @@ switch (cmd) {
     }
     const goal = await api('/api/goals', { method: 'POST', body: JSON.stringify(body) });
     console.log(`created goal ${goal.id} [${goal.state}] ${goal.title}`);
+    if (goal.issue) console.log(`  from issue ${goal.issue.repo}#${goal.issue.number} (${goal.issue.url}); its pull request closes it`);
     if (goal.follows) console.log(`  follows ${goal.follows.title} (${goal.follows.goalId}), starting from ${goal.follows.startFrom === 'previous' ? `its goal branch ${goal.follows.branch}` : goal.baseBranch}`);
     console.log(`  ui: ${BASE}/goals/${goal.id}`);
     if (has('--follow')) await watch(goal.id);
@@ -214,6 +224,23 @@ switch (cmd) {
       const open = d.escalations.filter((e: any) => e.state === 'open');
       for (const e of open) console.log(`  ⚠ escalation ${e.id} [${e.trigger}] ${e.message.split('\n')[0]}`);
     }
+    break;
+  }
+  case 'schedules': {
+    // goals that run on their own (ADR-0054): list them, or fire one now
+    const sub = rest[0] ?? 'list';
+    if (sub === 'run') {
+      const id = rest[1];
+      if (!id) return usage('schedules run needs <scheduleId>');
+      const r = await api(`/api/schedules/${id}/run`, { method: 'POST' });
+      console.log(r.goalId ? `started goal ${r.goalId}\n  ui: ${BASE}/goals/${r.goalId}` : `skipped: ${r.skipped}`);
+      break;
+    }
+    if (sub !== 'list') return usage('schedules [list] | schedules run <scheduleId>');
+    const v = await api('/api/schedules');
+    if (has('--json')) return console.log(JSON.stringify(v, null, 2));
+    if (!v.schedules.length) return console.log('no schedules (save one from the New goal form: Schedule…)');
+    for (const s of v.schedules as any[]) console.log(`${pad(s.id, 24)} ${s.enabled ? 'on ' : 'off'} ${pad(s.name, 30)} next ${s.nextRunAt ? new Date(s.nextRunAt).toLocaleString() : '—'}${s.lastGoal ? `  last: ${s.lastGoal.state} ${s.lastGoal.id}` : s.lastRun?.skipped ? `  last: skipped (${s.lastRun.skipped})` : ''}`);
     break;
   }
   case 'ports': {
@@ -441,6 +468,52 @@ switch (cmd) {
     }
     const st = backend === 'codex' ? await codexAuthStatus(cfg.codexBin ?? Bun.which('codex'), undefined, cfg.codexHome) : await claudeAuthStatus(cfg.claudeBin ?? Bun.which('claude'), undefined, cfg.claudeHome);
     console.log(has('--json') ? JSON.stringify(st, null, 2) : st.loggedIn ? `✔ ${backend}: signed in (${st.email ?? st.authMethod ?? 'account'})` : `✘ ${backend}: ${st.error ?? 'not signed in'} — run: foundry auth login --provider ${backend}`);
+    break;
+  }
+  case 'access': {
+    // Access (ADR-0061): who may use this Foundry from elsewhere; each person a token, shown once
+    const sub = positional()[0] ?? 'list';
+    if (sub === 'add') {
+      const name = positional()[1];
+      if (!name) return usage('access add needs a name');
+      const r = await api('/api/access/people', { method: 'POST', body: JSON.stringify({ name }) });
+      if (has('--json')) return console.log(JSON.stringify(r, null, 2));
+      console.log(`${r.person.name}'s token, shown once: ${r.token}`);
+      console.log('Set it as FOUNDRY_TOKEN for the CLI, or paste it on the sign-in page in a browser.');
+      break;
+    }
+    if (sub === 'revoke') {
+      const id = positional()[1];
+      if (!id) return usage('access revoke needs the id `foundry access` lists');
+      const r = await api(`/api/access/people/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      console.log(has('--json') ? JSON.stringify(r, null, 2) : `revoked ${r.person.name}'s token`);
+      break;
+    }
+    if (sub !== 'list') return usage('access expects list, add <name> or revoke <id>');
+    const r = await api('/api/access/people');
+    if (has('--json')) return console.log(JSON.stringify(r, null, 2));
+    if (!r.people.length) console.log('Access is off: no one has a token, so every request is let in. `foundry access add <name>` turns it on.');
+    for (const p of r.people) console.log(`${p.id}  ${p.name}  since ${p.createdAt.slice(0, 10)}  last used ${p.lastUsedAt ? p.lastUsedAt.slice(0, 16).replace('T', ' ') : 'never'}`);
+    break;
+  }
+  case 'report': {
+    // Reports (ADR-0060): a window of days, or everything
+    const r = await api(`/api/reports?days=${has('--all') ? 'all' : encodeURIComponent(opt('--days') ?? '30')}`);
+    if (has('--json')) return console.log(JSON.stringify(r, null, 2));
+    const t = r.totals;
+    const pct = (x: number | null) => (x == null ? '—' : `${Math.round(x * 100)}%`);
+    const usd = (x: number) => `$${x.toFixed(2)}`;
+    const hours = (min: number) => (min < 60 ? `${Math.round(min)} min` : `${(min / 60).toFixed(1)} h`);
+    const factor = (f: { factor: number } | null) => (f ? `×${f.factor}` : '—');
+    console.log(`${r.window.days == null ? 'All time' : `Last ${r.window.days} days`}: ${usd(t.costUsd)} (Claude Code)  ${t.sessions} sessions  ${t.goals.finished}/${t.goals.total} goals finished (${t.goals.failed} failed, ${t.goals.cancelled} cancelled)  ${hours(t.activeMin)} worked`);
+    console.log(`retries: ${pct(t.retries.rate)} of ${t.retries.tasks} tasks needed more than one attempt; ${t.retries.fixTasks} fix tasks`);
+    console.log(`estimates: cost ${factor(t.estimate.cost)}, time ${factor(t.estimate.time)} (actual ÷ estimate over ${t.estimate.samples} goal${t.estimate.samples === 1 ? '' : 's'} with one)`);
+    if (r.repos.length) {
+      console.log('by project:');
+      for (const p of r.repos) console.log(`  ${p.name}: ${usd(p.costUsd)}  ${p.goals.finished}/${p.goals.total} finished  ${hours(p.activeMin)}  retries ${pct(p.retries.rate)}  estimate ${factor(p.estimate.cost)}/${factor(p.estimate.time)}`);
+    }
+    if (r.kinds.length) console.log('by kind: ' + r.kinds.map((k: any) => `${k.kind} ${pct(k.costShare)} of $ · ${pct(k.timeShare)} of time`).join(', '));
+    console.log(`\n${r.note}`);
     break;
   }
   case 'usage': {

@@ -53,6 +53,19 @@ Which model each of these uses — and so how much it really costs — is set by
 - When a usage limit is reached, Foundry pauses new sessions only on that coding agent and retries later. A banner shows the retry time (with the date when it is not today); it is not proof of recovered quota. **Resume now** on the banner or the Usage page starts sessions again at once; if the limit still holds, the next session pauses them again. Extra usage (overage) that ran out pauses nothing unless sessions were already running on it, and no pause lasts longer than a week.
 - **MiniMax** (video and narration through mmx) has its own card at the bottom of **Usage**, read when the page opens: what is left of each model's window and week on a Token Plan, or the balance of a pay-as-you-go key. **Refresh** reads it again. When under 10% of a window is left, or the balance is under 1, the usage pill in the top bar shows an amber dot. The card only appears when mmx is installed.
 
+## Reports
+
+![Reports: spend over time, by project and by session kind, with the retry rate and the estimate error — demonstration data](images/reports.png)
+
+**⚙ → Reports** looks further back than the Usage page, from Foundry's own session records: the last 30 days, 90 days, 12 months or all time. Six numbers at the top — the spend, the sessions, goals finished of those started, the hours Foundry worked, the retry rate and the estimate error — and four parts:
+
+- **Spend over time**: Claude Code dollars per day, week or month (the step follows the window), with how many goals finished in each.
+- **By project**: for every folder goals ran in — how many finished, failed or were cancelled, what they cost and what a finished goal cost on average, the hours Foundry worked, the retry rate and how far the Brief's estimates ran from what the goals came to.
+- **Where the budget goes**: each kind of session — the workers on tasks, task reviews, Clarify, planning, goal reviews, merge attempts, audits, browser QA, docs, probes — with its share of the dollars and of the time.
+- **Estimate misses**: the goals whose cost or time ran furthest from their Brief's estimate, too much or too little. The factors are the ones [calibration](./approving-the-brief.md#estimate-and-budget) corrects new estimates with: actual ÷ estimate, the median over the goals that had an estimate.
+
+Goals count by when they were created, sessions by when they ran. The retry rate is the share of attempted tasks that needed more than one attempt; fix tasks (a review's, an audit's, CI's, the browser QA's or a review comment's) are counted beside it. Dollars are Claude Code's estimates, as everywhere in Foundry: Codex reports none, and a session cut before it reported a cost is left out and counted as unknown. From the command line: `foundry report --days 90` (`--all`, `--json`).
+
 ## Image goals need an image key
 
 The configured image skills use a separate media-service API key: an OpenAI-compatible key, or a Gemini key. This key does not enable Codex API-key inference or replace ChatGPT sign-in. Add it in **Settings → Tools & keys**; it applies to the next session, no restart. Without a key, image tasks produce hand-drawn SVG or HTML renders of much lower quality — the Brief tells you so before you approve.

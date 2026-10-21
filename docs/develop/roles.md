@@ -35,6 +35,7 @@ Dollar caps below apply only to Claude, whose native protocol reports cost. Code
 | `merger.md` | Merge Attempt (`merge.ts` `runMergeAttempt`): integrate, Catch-up, base refresh, delivery sync and PR Stack | `merger` | `workerTools(mcpAllowed)` | resolved, `git add`-ed files and a short summary |
 | `documenter.md` | Completion docs (`docs-generate.ts` `runDocsGeneration`) | `documenter` | `workerTools(mcpAllowed)` | markdown files; the engine commits only doc files |
 | `feedback.md` | Milestone feedback triage (`feedback.ts` `classifyFeedback`) | `feedback` | read-only | `FeedbackPlan` `{ kind, rationale, hint, fixTasks[], decision }` |
+| `qa.md` | Browser QA at the end of a goal (`qa.ts` `runQa`): the finished app tried in Chromium ([ADR-0057](adr/0057-browser-qa.md)) | `goalReviewer` | the worker's tools (scripts under `.foundry-qa/` only; other changes are put back) | `QaOutput` `{ summary, results[{ check, status, evidence, problem, fix, files, shots }] }`; a failed must check becomes a `qa-fix` task |
 
 "Read-only" means `READONLY_TOOLS` plus `disallowedTools: READONLY_DISALLOWED` (no Write/Edit/MultiEdit/NotebookEdit), from `engine/src/guards/boundary.ts`. Every session also gets boundary settings. Claude uses the hook canary, boundary guard and rm guard. Codex enforces the role through native sandboxing and its SessionStart/PreToolUse guards.
 
@@ -125,6 +126,10 @@ A Continuation sends only `continuationMessage(reason)` into the resumed session
 **Input:** the goal, understanding, Decisions, the milestone and its "look for" note, the landed and remaining tasks, and what the person wrote.
 
 **Output:** `FeedbackPlan` (`core/src/schema/feedback.ts`). The engine applies it only after the person confirms, when the checkpoint Escalation is answered with `feedback` (`applyFeedback`, `checkpoint.ts`). The session gets 15 turns and `FEEDBACK_MAX_BUDGET_USD = 0.5`.
+
+### QA tester (`roles/qa.md`)
+
+Runs once every task has landed, after the audit, when the Brief chose **Test it in a browser at the end**. The engine starts the goal's preview and the prompt gives the app's address, the acceptance checks by name (must first), the path of Foundry's Playwright, the screenshots folder and a file-name prefix. The session writes Playwright scripts under `.foundry-qa/` (excluded from git), runs them with `bun`, and reports one result per check with screenshots; after it, the engine puts back anything it changed outside the scratch folder. Failed must checks become `qa-fix` tasks before the final walkthrough and the review ([ADR-0057](adr/0057-browser-qa.md)).
 
 ## Sessions without a role file
 

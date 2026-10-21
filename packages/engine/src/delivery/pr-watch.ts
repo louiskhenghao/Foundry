@@ -12,17 +12,21 @@ import { afterMerge } from './after-merge.ts';
 import { failingChecks, reduceChecks } from './gh.ts';
 import { closeDeliveryFailures } from './inbox.ts';
 import { repoSlug } from './policy.ts';
+import { afterRevertMerged } from './revert.ts';
+import { collectReviews } from './reviews.ts';
 
 /** a PR is watched this long after its delivery stopped */
 export const PR_WATCH_DAYS = 14;
 
 const hasOpenPr = (g: Goal) => g.delivery.prs.some((p) => p.state === 'open' && p.number != null);
-// an Imported Goal's pull requests are the other computer's to follow (ADR-0030)
-const watched = (g: Goal, now = Date.now()) =>
-  !isHistory(g) &&
+const prWatched = (g: Goal, now: number) =>
   hasOpenPr(g) &&
   ((g.delivery.status === 'delivered' && (g.delivery.outcome === 'pr_open' || g.delivery.outcome === 'automerge_armed')) || g.delivery.status === 'failed') &&
   (!g.delivery.finishedAt || now - Date.parse(g.delivery.finishedAt) < PR_WATCH_DAYS * 86_400_000);
+/** a Revert's pull request, open or armed (ADR-0059), is watched the same way */
+const revertWatched = (g: Goal, now: number) => g.delivery.reverts.some((r) => (r.status === 'open' || r.status === 'armed') && r.pr != null && now - Date.parse(r.at) < PR_WATCH_DAYS * 86_400_000);
+// an Imported Goal's pull requests are the other computer's to follow (ADR-0030)
+const watched = (g: Goal, now = Date.now()) => !isHistory(g) && (prWatched(g, now) || revertWatched(g, now));
 
 /** owner/name the delivery talked to, read from the remote the way the pipeline does */
 async function repoOf(goal: Goal): Promise<string | null> {
@@ -52,6 +56,8 @@ async function readPr(engine: Engine, goal: Goal, repo: string, number: number):
   if (state !== pr.checks || JSON.stringify(failing) !== JSON.stringify(pr.failing)) {
     engine.store.append({ type: 'delivery.checks', goalId: goal.id, payload: { state, summary: view.checks.map((c) => `${c.name}: ${c.conclusion ?? c.status}`).join(', ') || 'no checks reported', prNumber: number, failing } });
   }
+  // review comments left on it since the last look (ADR-0053): a round, and a run of the delivery when the budget allows
+  await collectReviews(engine, goal, repo, number).catch((err) => engine.config.log(`[delivery] ${goal.id}: review comments on PR #${number} could not be read: ${String((err as Error).message ?? err)}`));
   return state;
 }
 
@@ -71,14 +77,31 @@ async function finishIfAllMerged(engine: Engine, goalId: string, why: string): P
   return true;
 }
 
-/** Check one goal's open PRs on GitHub. Returns true when the whole delivery turned out merged. */
+/** A Revert's open pull request read on GitHub (ADR-0059): merged → recorded, the remote branch tidied and the person's base brought up; closed → recorded. */
+async function readReverts(engine: Engine, goal: Goal, repo: string): Promise<void> {
+  for (const r of goal.delivery.reverts) {
+    if ((r.status !== 'open' && r.status !== 'armed') || !r.pr) continue;
+    const view = await engine.gh.prView(goal.repoPath, { repo, number: r.pr.number }).catch(() => null);
+    if (!view) continue;
+    if (view.state === 'MERGED') {
+      const detail = await afterRevertMerged(engine, goal, r.branch);
+      engine.store.append({ type: 'delivery.revert_merged', goalId: goal.id, payload: { id: r.id, prNumber: r.pr.number, ref: view.mergeCommit, detail } });
+    } else if (view.state === 'CLOSED') engine.store.append({ type: 'delivery.revert_closed', goalId: goal.id, payload: { id: r.id, prNumber: r.pr.number } });
+  }
+}
+
+/** Check one goal's open PRs on GitHub — the delivery's, and a Revert's. Returns true when the whole delivery turned out merged. */
 export async function checkGoalPrs(engine: Engine, goalId: string): Promise<boolean> {
   const goal = getGoal(engine.store.db, goalId);
   if (!goal || !watched(goal)) return false;
   const repo = await repoOf(goal);
   if (!repo) return false;
-  for (const pr of goal.delivery.prs) if (pr.number != null) await readPr(engine, getGoal(engine.store.db, goalId)!, repo, pr.number);
-  return finishIfAllMerged(engine, goalId, 'merged on GitHub after the delivery stopped');
+  const now = Date.now();
+  const prs = prWatched(goal, now);
+  if (prs) for (const pr of goal.delivery.prs) if (pr.number != null) await readPr(engine, getGoal(engine.store.db, goalId)!, repo, pr.number);
+  if (revertWatched(goal, now)) await readReverts(engine, goal, repo);
+  // a delivery that merged long ago is not finished again for its revert
+  return prs ? finishIfAllMerged(engine, goalId, 'merged on GitHub after the delivery stopped') : false;
 }
 
 /**

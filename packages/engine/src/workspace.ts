@@ -254,6 +254,11 @@ export function deliveryWorkspacePath(dataDir: string, goal: WorkspaceRef): stri
   const internal = internalWorkspaceDir(goal);
   return internal ? join(internal, 'delivery') : join(legacyWorkspaceRoot(dataDir, goal.id), '_delivery');
 }
+/** throw-away worktree where a Revert's branch is built from the online base (ADR-0059) */
+export function revertWorkspacePath(dataDir: string, goal: WorkspaceRef): string {
+  const internal = internalWorkspaceDir(goal);
+  return internal ? join(internal, 'revert') : join(legacyWorkspaceRoot(dataDir, goal.id), '_revert');
+}
 /** detached worktree where a human resolves one task's conflicted integration by hand (one per task) */
 export function resolveWorkspacePath(dataDir: string, goal: WorkspaceRef, taskId: string): string {
   const internal = internalWorkspaceDir(goal);

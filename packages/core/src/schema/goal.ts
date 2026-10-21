@@ -162,11 +162,33 @@ export const AuditFinding = z.object({
 });
 export type AuditFinding = z.infer<typeof AuditFinding>;
 
+/** one thing the browser QA tried (ADR-0057): an acceptance check by name, or `general` for a problem outside them */
+export const QaResult = z.object({
+  check: z.string(),
+  status: z.enum(['pass', 'fail', 'skipped']),
+  /** what was done in the browser and what was seen */
+  evidence: z.string(),
+  problem: z.string().nullable().default(null),
+  fix: z.string().nullable().default(null),
+  files: z.array(z.string()).default([]),
+  /** screenshot file names under the goal's screenshots folder */
+  shots: z.array(z.string()).default([]),
+  /** the check is a must check of the goal: a failure becomes a fix task */
+  must: z.boolean().default(false),
+  /** the fix task this failure became, when it did */
+  fixTaskId: z.string().nullable().default(null),
+});
+export type QaResult = z.infer<typeof QaResult>;
+
 export const GoalCompletion = z.object({
   graphRefresh: z.boolean().default(false),
   docs: z.array(DocType).default([]),
   /** ponytail-audit on the finished branch once every task is done, before the goal review */
   audit: z.boolean().default(false),
+  /** the browser QA on the finished app once every task is done, before the goal review (ADR-0057) */
+  qa: z.boolean().default(false),
+  /** result of the browser QA (null = not run yet): what it tried, and the fix tasks its failed must checks became */
+  qaRun: z.object({ status: z.enum(['ok', 'skipped', 'failed']), summary: z.string(), results: z.array(QaResult), fixTaskIds: z.array(z.string()), costUsd: z.number(), detail: z.string(), at: z.string() }).nullable().default(null),
   /** result of the audit (null = not run yet): its findings, and the fix tasks its in-scope must-fix findings became */
   auditRun: z.object({ status: z.enum(['ok', 'skipped', 'failed']), summary: z.string(), findings: z.array(AuditFinding), fixTaskIds: z.array(z.string()), costUsd: z.number(), detail: z.string(), at: z.string() }).nullable().default(null),
   /** result of the docs-generation session (null = not run yet) */
@@ -192,7 +214,7 @@ export const GoalCompletion = z.object({
     .default(null),
 });
 export type GoalCompletion = z.infer<typeof GoalCompletion>;
-export const IDLE_COMPLETION: GoalCompletion = { graphRefresh: false, docs: [], audit: false, auditRun: null, docsRun: null, graphRun: null, artifactsRun: null };
+export const IDLE_COMPLETION: GoalCompletion = { graphRefresh: false, docs: [], audit: false, auditRun: null, qa: false, qaRun: null, docsRun: null, graphRun: null, artifactsRun: null };
 
 /**
  * Delegation: whether the planner may plan `goal` tasks (steps done by a Delegated goal of their own), and whether such a
@@ -222,6 +244,14 @@ export const GoalDelegatedFrom = z.object({
 });
 export type GoalDelegatedFrom = z.infer<typeof GoalDelegatedFrom>;
 
+/**
+ * A companion repository (ADR-0063): another folder the Goal must change besides its own. The planner gives it its part
+ * as a `goal` task bound to it, done by a Delegated goal in that repository on this base branch, and delivered with the
+ * main goal.
+ */
+export const GoalCompanion = z.object({ repoPath: z.string().min(1), baseBranch: z.string().min(1) });
+export type GoalCompanion = z.infer<typeof GoalCompanion>;
+
 /** Goal states a Follow-up can be created from: the earlier goal is finished, whatever the outcome. */
 export const FOLLOWABLE_STATES: GoalState[] = ['done', 'over_delivered', 'failed', 'cancelled'];
 
@@ -249,6 +279,35 @@ export const GoalFollows = z.object({
   at: z.string(),
 });
 export type GoalFollows = z.infer<typeof GoalFollows>;
+
+/**
+ * The GitHub issue a Goal was made from (ADR-0052). Read once, when the person pressed Read issue: the issue's thread
+ * is the Goal's attachment, the body its description; the pull request of the Delivery closes the issue when it merges.
+ */
+export const GoalIssue = z.object({
+  /** owner/name of the repository the issue is in */
+  repo: z.string().min(1),
+  number: z.number().int().positive(),
+  url: z.string().url(),
+  /** the issue's title when it was read */
+  title: z.string(),
+  state: z.enum(['open', 'closed']),
+  labels: z.array(z.string()).default([]),
+  /** when it was read: the attachment snapshot dates from then */
+  readAt: z.string(),
+});
+export type GoalIssue = z.infer<typeof GoalIssue>;
+
+/** the Schedule a Goal was made by, on the Goal (ADR-0054) */
+export const GoalSchedule = z.object({
+  id: z.string(),
+  /** the schedule's name when it fired; shown as-is once the schedule is deleted */
+  name: z.string(),
+  at: z.string(),
+  /** the engine approves the Brief itself (the interview was skipped) */
+  autoApprove: z.boolean(),
+});
+export type GoalSchedule = z.infer<typeof GoalSchedule>;
 
 /**
  * Where an Imported Goal came from and how far it got here (ADR-0030). It arrives as history; mapping its repository
@@ -385,6 +444,16 @@ export const Goal = z.object({
   delegation: GoalDelegation.default(() => ({ ...NO_DELEGATION })),
   /** set on a Delegated goal: the main goal and the task it does */
   delegatedFrom: GoalDelegatedFrom.nullable().default(null),
+  /** the GitHub issue the goal was made from (ADR-0052); absent on goals made before, and on goals made some other way */
+  issue: GoalIssue.nullable().optional(),
+  /** the Schedule the goal was made by (ADR-0054); absent on goals made by hand */
+  schedule: GoalSchedule.nullable().optional(),
+  /** who asked for the goal: the Person signed in when it was made (ADR-0061); null or absent when Access is off or it came another way */
+  by: z.string().nullable().optional(),
+  /** who approved its Brief: the Person signed in, or the chat it was approved from; absent before Access existed */
+  approvedBy: z.string().nullable().optional(),
+  /** the other repositories the goal changes (ADR-0063); absent on goals made before, and on goals with none */
+  companions: z.array(GoalCompanion).optional(),
   /** set when the goal arrived through a Transfer (ADR-0030) */
   transfer: GoalTransfer.optional(),
   runningSince: z.string().nullable(),

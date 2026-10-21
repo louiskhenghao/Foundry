@@ -1,7 +1,8 @@
 import { afterMerge } from './after-merge.ts';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Check, DeliveryPolicy, DeliveryStep, Goal, Task } from '@foundry/core';
+import { companionExtras } from '../companions.ts';
+import type { Check, DeliveryPolicy, DeliveryStep, Goal, ReviewRound, Task } from '@foundry/core';
 import { IdPrefix, getBrief, getGoal, getTask, listCheckResultsByGoal, listChecks, listTasks, newId } from '@foundry/core';
 import { maxAttemptsFor, runAttempt } from '../attempt-loop.ts';
 import { runCommandCheck } from '../checks/command.ts';
@@ -17,6 +18,7 @@ import { deliveryWorkspacePath, ensureGoalWorkspace, goalWorkspacePath, isStackB
 import { describeFailing, failingChecks, reduceChecks, type GhClient, type PrView } from './gh.ts';
 import { closeDeliveryFailures, raiseDeliveryFailure } from './inbox.ts';
 import { baseOf, buildPrBody, buildTaskPrBody, type DiffStats, needsGh, planDelivery, repoSlug } from './policy.ts';
+import { pendingRounds, renderReviewSpec, replyText, reviewReply, roundAllowed } from './reviews.ts';
 
 /** what a range changes, for a PR body's Merge Danger: files and lines from `git diff --shortstat`, commits from `rev-list` */
 export async function diffStats(cwd: string, range: string): Promise<DiffStats | null> {
@@ -72,7 +74,7 @@ interface Ctx {
 const clip = (text: string, max = 4000) => (text.length > max ? `${text.slice(0, max)}\n…(${text.length - max} more characters in the review notes on the task)` : text);
 
 /** the switches a person may change while a delivery runs; everything else keeps the value the run started with */
-const SWITCHES = ['requireChecks', 'mergeIfNoChecks', 'autoResolveConflicts', 'deleteRemoteBranch', 'fixCiCycles'] as const;
+const SWITCHES = ['requireChecks', 'mergeIfNoChecks', 'autoResolveConflicts', 'deleteRemoteBranch', 'fixCiCycles', 'fixReviewCycles'] as const;
 
 /** The policy as it stands now: switches saved mid-run apply from the next step on; mode, unit and merge method do not change under a run. */
 function live(ctx: Ctx): DeliveryPolicy {
@@ -227,13 +229,11 @@ export async function runDelivery(engine: Engine, goalIn: Goal, signal: AbortSig
       const review = [...store.listByGoal(goal.id, 2000)].reverse().find((e) => e.type === 'review.goal.finished')?.payload as any;
       const names = new Map(listChecks(store.db, goal.id).map((c) => [c.id, c.name]));
       const bodyFile = bodyPath(ctx, 'pr-body.md');
-      writeFileSync(bodyFile, buildPrBody(goal, brief, review ?? null, names, { tasks: listTasks(store.db, goal.id), stats: await diffStats(ctx.goalWs, `${ctx.remote}/${ctx.base}...HEAD`) }));
+      writeFileSync(bodyFile, buildPrBody(goal, brief, review ?? null, names, { tasks: listTasks(store.db, goal.id), stats: await diffStats(ctx.goalWs, `${ctx.remote}/${ctx.base}...HEAD`), repo, ...companionExtras(ctx.engine, goal) }));
       const created = await ctx.gh.prCreate(ctx.goalWs, { repo, head: goal.branch, base: ctx.base, title, bodyFile });
       ev({ type: 'delivery.pr_opened', goalId: goal.id, payload: { number: created.number, url: created.url, base: ctx.base, head: goal.branch, taskId: null, title } });
       return { status: 'ok', detail: `opened PR #${created.number}`, value: created };
     }))!;
-    if (policy.mode === 'pr') return done('pr_open');
-
     const unit: PrUnit = {
       cwd: ctx.goalWs,
       branch: goal.branch,
@@ -243,6 +243,11 @@ export async function runDelivery(engine: Engine, goalIn: Goal, signal: AbortSig
         return syncWithBase(ctx, `${ctx.remote}/${ctx.base}`);
       },
     };
+    if (policy.mode === 'pr') {
+      // review comments the watch found on the open PR (ADR-0053): addressed here, the PR stays open for the person
+      await addressReviews(ctx, step, repo, pr.number, unit);
+      return done('pr_open');
+    }
     const merged = await settleAndMerge(ctx, step, repo, pr.number, unit);
     if (!merged) return done('automerge_armed');
 
@@ -421,7 +426,7 @@ async function runStacked(ctx: Ctx, stack: StackBranch[], step: StepFn, done: (o
       // the reviewer's notes (what it would still fix, what it left as advice) and any blockers it raised at the time
       const verdict = reviewNote?.verdict as { notes?: string; blockers?: string[] } | undefined;
       const reviewText = verdict ? clip([verdict.notes, verdict.blockers?.length ? `Blockers at review time: ${verdict.blockers.join('; ')}` : null].filter(Boolean).join('\n')) || null : null;
-      writeFileSync(bodyFile, buildTaskPrBody(goal, b.task, { index: b.index, total: stack.length, goalTitle, prevPr: out[i - 1]?.number ?? null, prevBranch: i === 0 ? null : base }, results, reviewText, await diffStats(ctx.goalWs, `${i === 0 ? `${ctx.remote}/${ctx.base}` : base}...${b.branch}`)));
+      writeFileSync(bodyFile, buildTaskPrBody(goal, b.task, { index: b.index, total: stack.length, goalTitle, prevPr: out[i - 1]?.number ?? null, prevBranch: i === 0 ? null : base, repo }, results, reviewText, await diffStats(ctx.goalWs, `${i === 0 ? `${ctx.remote}/${ctx.base}` : base}...${b.branch}`)));
       const created = await ctx.gh.prCreate(ctx.goalWs, { repo, head: b.branch, base, title: b.title, bodyFile });
       ev({ type: 'delivery.pr_opened', goalId: goal.id, payload: { number: created.number, url: created.url, base, head: b.branch, taskId: b.task.id, title: b.title } });
       out.push({ b, number: created.number, url: created.url });
@@ -429,6 +434,12 @@ async function runStacked(ctx: Ctx, stack: StackBranch[], step: StepFn, done: (o
     return { status: 'ok', detail: `${out.length} PRs: ${out.map((p) => `#${p.number}`).join(' → ')}`, value: out };
   }))!;
   if (policy.mode === 'pr') {
+    // review comments on any of the open PRs (ADR-0053): each is addressed on its own stacked branch
+    for (const p of prs) {
+      if (!pendingRounds(getGoal(store.db, goal.id)!, p.number).length) continue;
+      await gitOk(['checkout', '-q', p.b.branch], ctx.deliveryWs);
+      await addressReviews(ctx, step, repo, p.number, { cwd: ctx.deliveryWs, branch: p.b.branch, taskId: p.b.task.id, resync: async () => !!(await syncStackBranch(ctx, p.b)) });
+    }
     await removeWorktree(ctx.repoPath, ctx.deliveryWs).catch(() => {});
     return done('pr_open');
   }
@@ -629,6 +640,8 @@ async function settlePr(ctx: Ctx, step: StepFn, repo: string, number: number, un
   const { engine, goal } = ctx;
   const { store } = engine;
   for (;;) {
+    // review comments found while the PR waited (ADR-0053): the fix goes on the branch before its checks are waited for
+    await addressReviews(ctx, step, repo, number, unit);
     const view = (await step<PrView>(
       'wait-checks',
       async () => {
@@ -1017,6 +1030,137 @@ async function fixCi(ctx: Ctx, repo: string, prNumber: number, unit: PrUnit, log
     return 'failed';
   } finally {
     engine.release(task.id, slot);
+  }
+}
+
+/** what a round of review comments came to: the fix commit on the PR's branch, or nothing to change, or no fix at all */
+interface ReviewFixOutcome {
+  status: 'addressed' | 'nochange' | 'failed';
+  commit: string | null;
+  header: string | null;
+  files: string[];
+}
+
+/**
+ * Bounded "address review comments" task (ADR-0053), run like the fix-CI task: directly in the unit's checkout, its
+ * attempts squashed into one commit on the PR's branch. The goal's must checks run on the result.
+ */
+async function fixReview(ctx: Ctx, prNumber: number, unit: PrUnit, round: ReviewRound): Promise<ReviewFixOutcome> {
+  const { engine, goal } = ctx;
+  const { store } = engine;
+  const goalChecks = listChecks(store.db, goal.id).filter((c) => c.taskId === null && c.tier === 'must' && c.spec.type === 'command');
+  const now = new Date().toISOString();
+  const base = await headRef(unit.cwd);
+  await ensureDeps(ctx, unit.cwd);
+  const task: Task = {
+    id: newId(IdPrefix.task),
+    goalId: goal.id,
+    title: `address review comments on PR #${prNumber}`,
+    kind: 'chore',
+    scope: 'review',
+    scenario: 'general',
+    area: null, tdd: 'inherit',
+    spec: renderReviewSpec(prNumber, round),
+    dependsOn: [],
+    relevantFiles: [...new Set(round.comments.map((c) => c.path).filter((p): p is string => !!p))],
+    parallelizable: false,
+    retryBudget: goal.budgets.attemptsPerTask,
+    origin: 'review-fix', milestone: null, milestoneVisits: 0, checkpointOf: null, difficulty: 'standard' as const,
+    state: 'running',
+    branch: null,
+    worktreePath: null,
+    baseRef: base,
+    commitRef: null,
+    commitMessage: null,
+    hint: null,
+    extraAttempts: 0,
+    delegatedGoalId: null,
+    summary: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  store.append({ type: 'task.created', goalId: goal.id, payload: { task } });
+  store.append({ type: 'task.base_ref', goalId: goal.id, payload: { taskId: task.id, ref: base } });
+  for (const c of goalChecks) {
+    const copy: Check = { ...c, id: newId(IdPrefix.check), taskId: task.id };
+    store.append({ type: 'check.created', goalId: goal.id, payload: { check: copy } });
+  }
+  const none: ReviewFixOutcome = { status: 'failed', commit: null, header: null, files: [] };
+  const slot = engine.reserve(task.id);
+  try {
+    for (let i = 0; i < maxAttemptsFor(task); i++) {
+      const out = await runAttempt(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!, unit.cwd);
+      if (!out.passed) continue;
+      store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'running', to: 'observing', reason: 'fix attempt passed' } });
+      for (const c of goalChecks) {
+        const r = await runCommandCheck(c, { cwd: unit.cwd, outputDir: join(engine.config.dataDir, 'check-output'), attemptId: out.attempt.id });
+        store.append({ type: 'check.finished', goalId: goal.id, payload: { result: r } });
+        if (r.status !== 'pass') return none;
+      }
+      const message = taskCommitMessage(goal, task);
+      if ((await headRef(unit.cwd)) !== base) {
+        await gitOk(['reset', '--soft', base], unit.cwd);
+        const c = await commitStaged(unit.cwd, message);
+        store.append({ type: 'task.committed', goalId: goal.id, payload: { taskId: task.id, ref: c.committed ? c.ref : null, message } });
+        store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'observing', to: 'done', reason: c.committed ? 'review comments addressed' : 'no change needed' } });
+        if (!c.committed) return { status: 'nochange', commit: null, header: null, files: [] };
+        const files = (await git(['diff', '--name-only', base, c.ref], unit.cwd)).stdout.split('\n').map((f) => f.trim()).filter(Boolean);
+        return { status: 'addressed', commit: c.ref, header: headerOf(message), files };
+      }
+      store.append({ type: 'task.committed', goalId: goal.id, payload: { taskId: task.id, ref: null, message } });
+      store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'observing', to: 'done', reason: 'no change needed' } });
+      return { status: 'nochange', commit: null, header: null, files: [] };
+    }
+    store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'running', to: 'blocked', reason: 'fix attempts exhausted' } });
+    return none;
+  } finally {
+    engine.release(task.id, slot);
+  }
+}
+
+/**
+ * The pending rounds of review comments on one PR (ADR-0053): each within the policy's budget (or asked for by the
+ * person) gets a fix task, its commit pushed, and a reply under every comment; a round beyond the budget waits for the
+ * person and is said so once. A fix that could not be made stops the delivery like a CI fix that could not.
+ */
+async function addressReviews(ctx: Ctx, step: StepFn, repo: string, number: number, unit: PrUnit): Promise<void> {
+  const { engine, goal } = ctx;
+  const { store } = engine;
+  for (;;) {
+    const fresh = getGoal(store.db, goal.id)!;
+    const round = pendingRounds(fresh, number)[0];
+    if (!round) return;
+    if (!roundAllowed({ ...fresh, delivery: { ...fresh.delivery, policy: live(ctx) } }, round)) {
+      store.append({ type: 'delivery.note', goalId: goal.id, payload: { message: `${round.comments.length} review comment(s) on PR #${number} wait for you: Foundry addressed ${fresh.delivery.reviewCycles} round(s) by itself and the policy allows ${live(ctx).fixReviewCycles}. Press Fix review comments on the Delivery tab, or answer on GitHub.` } });
+      return;
+    }
+    const out = (await step<ReviewFixOutcome>(
+      'fix-review',
+      async () => {
+        store.append({ type: 'delivery.review_started', goalId: goal.id, payload: { roundId: round.id } });
+        const r = await fixReview(ctx, number, unit, round);
+        if (r.status === 'failed') {
+          store.append({ type: 'delivery.review_addressed', goalId: goal.id, payload: { roundId: round.id, status: 'failed', commit: null, replied: 0, detail: 'the fix task could not address the comments' } });
+          throw new DeliveryFailed('fix-review', `the fix task could not address the ${round.comments.length} review comment(s) on PR #${number} (${round.comments.map((c) => c.url ?? c.body.slice(0, 60)).join(', ')}). Answer them on GitHub, or press Resume delivery to try again.`);
+        }
+        return { status: 'ok', detail: r.status === 'addressed' ? `${round.comments.length} comment(s) on PR #${number} addressed: ${r.header}` : `${round.comments.length} comment(s) on PR #${number}: nothing to change`, value: r };
+      },
+      unit.branch,
+    ))!;
+    if (out.status === 'addressed') await step('push', async () => ({ status: 'ok', detail: `pushed the review fix @ ${(await pushRef(ctx, unit.branch, unit.taskId)).slice(0, 7)}` }), unit.branch);
+    // the replies: one under each inline comment, one in the conversation for a review; a refused write is noted, never fatal
+    const text = replyText(out.status === 'nochange' ? 'nochange' : 'addressed', out);
+    let replied = 0;
+    const refused: string[] = [];
+    for (const c of round.comments) {
+      const t0 = Date.now();
+      const r = c.kind === 'inline' ? await ctx.gh.prReplyToComment(ctx.goalWs, { repo, number, commentId: c.id, body: text }) : await ctx.gh.prComment(ctx.goalWs, { repo, number, body: reviewReply(c, text) });
+      logCmd(ctx, 'fix-review', ['gh', 'api', '-X', 'POST', c.kind === 'inline' ? `repos/${repo}/pulls/${number}/comments/${c.id}/replies` : `repos/${repo}/issues/${number}/comments`], ctx.goalWs, r, Date.now() - t0);
+      if (r.code === 0) replied++;
+      else refused.push((r.stderr || r.stdout).trim().slice(0, 120));
+    }
+    const detail = `${out.status === 'addressed' ? `fix ${out.commit?.slice(0, 7)} pushed` : 'nothing to change'}; replied under ${replied} of ${round.comments.length} comment(s)${refused.length ? ` (${refused.length} repl${refused.length === 1 ? 'y' : 'ies'} refused: ${refused[0]})` : ''}`;
+    store.append({ type: 'delivery.review_addressed', goalId: goal.id, payload: { roundId: round.id, status: out.status, commit: out.commit, replied, detail } });
   }
 }
 

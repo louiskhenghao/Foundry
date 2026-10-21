@@ -10,7 +10,7 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { Goal, Learning, LearningKind as LearningKindT } from '@foundry/core';
-import { LEARNINGS_MAX, LEARNING_MAX_CHARS, LearningKind, getBrief, getGoal, getObservation, getRepoLearnings, isHistory, listAttemptsByGoal, listEscalations, listTasks, newId, renderDecisions } from '@foundry/core';
+import { LEARNINGS_EVERYWHERE, LEARNINGS_MAX, LEARNING_MAX_CHARS, LearningKind, getBrief, getGoal, getObservation, getRepoLearnings, isHistory, listAttemptsByGoal, listEscalations, listTasks, newId, renderDecisions } from '@foundry/core';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { tryJson } from './checks/reviewer.ts';
@@ -38,6 +38,11 @@ export function learningsOf(engine: Engine, repoPath: string): Learning[] {
   return getRepoLearnings(engine.store.db, repoPath)?.learnings ?? [];
 }
 
+/** the person's entries that follow them into every folder (ADR-0055); empty when they wrote none */
+export function everywhereLearnings(engine: Engine): Learning[] {
+  return getRepoLearnings(engine.store.db, LEARNINGS_EVERYWHERE)?.learnings ?? [];
+}
+
 /** the person's entries first (they wrote them for a reason), then Foundry's, newest first */
 function ordered(ls: Learning[]): Learning[] {
   return [...ls].sort((a, b) => (a.by === b.by ? b.at.localeCompare(a.at) : a.by === 'human' ? -1 : 1));
@@ -46,17 +51,22 @@ function ordered(ls: Learning[]): Learning[] {
 /** Clarify's section: the whole notebook */
 export function learningsContext(engine: Engine, goal: Pick<Goal, 'repoPath'>): string {
   const ls = learningsOf(engine, goal.repoPath);
-  if (!ls.length) return '';
+  const everywhere = everywhereLearnings(engine);
+  if (!ls.length && !everywhere.length) return '';
+  const line = (l: Learning) => `- [${l.kind}]${l.by === 'human' ? ' ✎' : ''} ${l.text}`;
   return [
     '# What Foundry learned about this repository',
     'From earlier goals in this folder, and from the person (marked ✎). Trust them unless the code says otherwise, and plan with them: they cost a goal time once already.',
-    ...ordered(ls).map((l) => `- [${l.kind}]${l.by === 'human' ? ' ✎' : ''} ${l.text}`),
+    ...ordered(ls).map(line),
+    // the person's standing wishes come with every folder (ADR-0055)
+    ...(everywhere.length ? ['', 'What the person wants in every project, whatever the folder (✎):', ...ordered(everywhere).map(line)] : []),
   ].join('\n');
 }
 
 /** an attempt's section: the notebook in short (the operational kinds first), at most `max` characters */
 export function learningsForWorker(engine: Engine, goal: Pick<Goal, 'repoPath'>, max = 1_500): string {
-  const ls = learningsOf(engine, goal.repoPath);
+  // the person's everywhere entries ride along (they are theirs, so they sort first)
+  const ls = [...everywhereLearnings(engine), ...learningsOf(engine, goal.repoPath)];
   if (!ls.length) return '';
   const first: LearningKindT[] = ['build', 'test', 'run', 'pitfall'];
   const sorted = ordered(ls).sort((a, b) => Number(!first.includes(a.kind)) - Number(!first.includes(b.kind)));
@@ -68,7 +78,7 @@ export function learningsForWorker(engine: Engine, goal: Pick<Goal, 'repoPath'>,
     lines.push(line);
     used += line.length + 1;
   }
-  return `# Notes on this repository\nWhat earlier goals here learned. Follow them unless the code says otherwise.\n${lines.join('\n')}`;
+  return `# Notes on this repository\nWhat earlier goals here learned, and what the person wants everywhere. Follow them unless the code says otherwise.\n${lines.join('\n')}`;
 }
 
 /** how the goal went, for the session that learns from it */
@@ -289,7 +299,7 @@ export function setLearnings(engine: Engine, repoPath: string, entries: { id?: s
     const old = e.id ? before.get(e.id) : undefined;
     next.push(old && old.text === text && old.kind === e.kind ? old : { id: old?.id ?? newId('lrn'), kind: e.kind, text, by: 'human', goalId: old?.goalId ?? null, goalTitle: old?.goalTitle ?? null, at: now });
   }
-  if (next.length > LEARNINGS_MAX) throw new Error(`a folder keeps at most ${LEARNINGS_MAX} learnings`);
+  if (next.length > LEARNINGS_MAX) throw new Error(`${repoPath === LEARNINGS_EVERYWHERE ? 'the everywhere notebook keeps' : 'a folder keeps'} at most ${LEARNINGS_MAX} learnings`);
   engine.store.append({ type: 'learnings.set', goalId: null, payload: { repoPath, learnings: next, source: 'human', goalId: null, note: null } });
   return next;
 }

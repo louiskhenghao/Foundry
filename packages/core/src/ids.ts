@@ -36,4 +36,10 @@ export const IdPrefix = {
   event: 'evt',
   brief: 'b',
   attachment: 'att',
+  /** a round of review comments on a pull request (ADR-0053) */
+  review: 'rev',
+  /** a Schedule (ADR-0054) */
+  schedule: 'sch',
+  /** a Revert of a merged delivery (ADR-0059) */
+  revert: 'rvt',
 } as const;

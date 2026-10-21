@@ -65,6 +65,31 @@ describe('deploys', () => {
     const failed = compose(ev('deploy.failed', { provider: 'cloudflare', production: false, reason: 'the build failed' }), title)!;
     expect(failed.text).toBe('⚠️ Deploy to Cloudflare Pages failed — Add dark mode\nthe build failed');
   });
+
+  test('a smoke says whether the scripts passed against the address, under the Delivery switch; a skipped one says nothing (ADR-0058)', () => {
+    const base = { provider: 'vercel' as const, production: false, url: 'https://site-abc.vercel.app', deployedAt: '2026-10-21T10:00:00.000Z', scripts: [] };
+    const passed = compose(ev('deploy.smoke_finished', { ...base, status: 'pass', detail: '2 scripts passed against https://site-abc.vercel.app' }), title)!;
+    expect(passed).toEqual({ family: 'delivery', text: '✅ Smoke passed on the preview deploy to Vercel — Add dark mode\n2 scripts passed against https://site-abc.vercel.app', path: '/goals/g1#delivery' });
+    const failed = compose(ev('deploy.smoke_finished', { ...base, production: true, provider: 'netlify', status: 'fail', detail: '1 of 2 scripts failed against https://site.netlify.app: e2e/milestones/cart.spec.ts — "adds to the cart" failed' }), title)!;
+    expect(failed.text).toBe('⚠️ Smoke failed on the production deploy to Netlify — Add dark mode\n1 of 2 scripts failed against https://site.netlify.app: e2e/milestones/cart.spec.ts — "adds to the cart" failed');
+    expect(compose(ev('deploy.smoke_finished', { ...base, status: 'skipped', detail: 'the goal has no milestone scripts to try against it' }), title)).toBeNull();
+    expect(compose(ev('deploy.smoke_started', { ...base, scripts: ['e2e/milestones/cart.spec.ts'] }), title)).toBeNull();
+  });
+});
+
+describe('reverts', () => {
+  test('a revert says whether its pull request was opened, armed or merged, or why it failed; merged or closed later on GitHub is told too; all under the Delivery switch (ADR-0059)', () => {
+    const base = { id: 'rvt_1', branch: 'goal/g1-revert', pr: { number: 9, url: 'https://github.com/x/y/pull/9' }, commits: ['c1'], mergedRef: null };
+    const opened = compose(ev('delivery.revert_finished', { ...base, status: 'open', detail: 'pull request #9 opened; merging it undoes the goal\'s work on main' }), title)!;
+    expect(opened).toEqual({ family: 'delivery', text: '↩️ Revert opened — Add dark mode\nPR #9: https://github.com/x/y/pull/9\npull request #9 opened; merging it undoes the goal\'s work on main', path: '/goals/g1#delivery' });
+    expect(compose(ev('delivery.revert_finished', { ...base, status: 'armed', detail: 'auto-merge armed on pull request #9' }), title)!.text).toStartWith('↩️ Revert waits for GitHub to merge it — Add dark mode\nPR #9');
+    expect(compose(ev('delivery.revert_finished', { ...base, status: 'merged', mergedRef: 'm1', detail: 'pull request #9 merged with squash; your local main: fast-forwarded main by 1 commit' }), title)!.text).toStartWith('↩️ Reverted — Add dark mode\nPR #9');
+    const failed = compose(ev('delivery.revert_finished', { ...base, status: 'failed', branch: null, pr: null, commits: [], detail: 'reverting the merge of pull request #1 conflicts with what main got since, in src/x.ts' }), title)!;
+    expect(failed.text).toBe('⚠️ Revert failed — Add dark mode\nreverting the merge of pull request #1 conflicts with what main got since, in src/x.ts');
+    expect(compose(ev('delivery.revert_merged', { id: 'rvt_1', prNumber: 9, ref: 'm1', detail: 'origin/goal/g1-revert deleted; your local main: fast-forwarded main by 1 commit' }), title)!.text).toBe('↩️ Reverted — Add dark mode\nRevert PR #9 merged on GitHub\norigin/goal/g1-revert deleted; your local main: fast-forwarded main by 1 commit');
+    expect(compose(ev('delivery.revert_closed', { id: 'rvt_1', prNumber: 9 }), title)!.text).toBe('↩️ Revert PR #9 closed without merging — Add dark mode\nThe goal\'s work stays merged.');
+    expect(compose(ev('delivery.revert_started', { id: 'rvt_1', reason: '', merge: false, reverts: [] }), title)).toBeNull();
+  });
 });
 
 describe('composeEscalation', () => {

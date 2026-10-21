@@ -128,6 +128,9 @@ function FoundryActivity() {
       <div className="flex items-baseline gap-2 flex-wrap">
         <h2 id="foundry-activity" className="text-sm font-medium text-zinc-200">Foundry activity · last 7 days</h2>
         <span className="text-xs text-zinc-500">Claude Code and Codex together, as recorded by Foundry.</span>
+        <Link to="/reports" className="text-xs underline text-sky-300 sm:ml-auto" title="Longer windows, by project and over time, with retries and estimate error">
+          Longer windows, by project: Reports →
+        </Link>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Kpi label="cache hit rate" value={m.cacheHitRate == null ? '—' : `${(m.cacheHitRate * 100).toFixed(0)}%`} hint="cache-read tokens ÷ all input tokens" good={m.cacheHitRate != null && m.cacheHitRate > 0.6} />

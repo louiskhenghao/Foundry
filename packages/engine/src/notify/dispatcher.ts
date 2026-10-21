@@ -5,9 +5,10 @@ import { join } from 'node:path';
  * Fire-and-forget: a notification is a hint, not a ledger — sends are retried a couple of times,
  * then noted as an engine.note and dropped; nothing is queued or replayed after a restart.
  */
-import type { Brief, EngineEvent, Escalation, EscalationTrigger, Goal, NotificationSettings } from '@foundry/core';
+import type { Brief, EngineEvent, Escalation, EscalationTrigger, Goal, NotificationSettings, Calibration } from '@foundry/core';
 import { getBrief, getGoal, isHistory } from '@foundry/core';
 import type { Engine } from '../engine.ts';
+import { engineApproves } from '../schedules.ts';
 import { screenshotsDir } from '../workspace.ts';
 import { budgetOnApproval, type Target } from './actions.ts';
 import { DiscordNotifier, TelegramNotifier, type Link, type MediaFile, type Notifier } from './channels.ts';
@@ -15,7 +16,7 @@ import { DeliveryDigest } from './digest.ts';
 import { PROVIDER_LABEL } from '../deploy/providers.ts';
 
 export interface Composed {
-  family: 'goalFinished' | 'delivery' | 'rateLimit' | 'updateAvailable' | 'interview' | 'milestone' | 'briefReady';
+  family: 'goalFinished' | 'delivery' | 'rateLimit' | 'updateAvailable' | 'interview' | 'milestone' | 'briefReady' | 'schedule';
   text: string;
   /** web-UI path the message links to, on this computer and on the tailnet */
   path: string | null;
@@ -85,10 +86,36 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
       return { family: 'delivery', text: `🎉 PR ${e.payload.prNumber != null ? `#${e.payload.prNumber} ` : ''}merged — ${goalTitle(e.goalId)}`, path: e.goalId ? `/goals/${e.goalId}` : null };
     case 'delivery.failed':
       return { family: 'delivery', text: `⚠️ Delivery failed at ${e.payload.step} — ${goalTitle(e.goalId)}\n${e.payload.reason.slice(0, 300)}`, path: e.goalId ? `/goals/${e.goalId}` : null };
+    case 'delivery.review_received': {
+      const n = e.payload.round.comments.length;
+      const head = `💬 ${n} review comment${n === 1 ? '' : 's'} on PR #${e.payload.round.prNumber} — ${goalTitle(e.goalId)}`;
+      return { family: 'delivery', text: e.payload.action === 'fixing' ? `${head}\nFoundry addresses them in a fix task and replies under each.` : `${head}\nThey wait for you: the fix budget of the policy is used up. Fix review comments on the Delivery tab, or answer on GitHub.`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
+    }
+    case 'delivery.review_addressed':
+      if (e.payload.status === 'failed') return null; // delivery.failed says it, with the way out
+      return { family: 'delivery', text: e.payload.status === 'addressed' ? `✅ Review comments addressed — ${goalTitle(e.goalId)}\n${e.payload.detail.slice(0, 300)}` : `👀 Review comments looked at, nothing to change — ${goalTitle(e.goalId)}\n${e.payload.detail.slice(0, 300)}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
+    // a Revert (ADR-0059): opened, merged or armed right away; merged or closed later on GitHub; or failed with why
+    case 'delivery.revert_finished': {
+      const path = e.goalId ? `/goals/${e.goalId}#delivery` : null;
+      if (e.payload.status === 'failed') return { family: 'delivery', text: `⚠️ Revert failed — ${goalTitle(e.goalId)}\n${e.payload.detail.slice(0, 300)}`, path };
+      const pr = e.payload.pr ? `PR #${e.payload.pr.number}: ${e.payload.pr.url}` : '';
+      const head = e.payload.status === 'merged' ? `↩️ Reverted — ${goalTitle(e.goalId)}` : e.payload.status === 'armed' ? `↩️ Revert waits for GitHub to merge it — ${goalTitle(e.goalId)}` : `↩️ Revert opened — ${goalTitle(e.goalId)}`;
+      return { family: 'delivery', text: [head, pr, e.payload.detail.slice(0, 300)].filter(Boolean).join('\n'), path };
+    }
+    case 'delivery.revert_merged':
+      return { family: 'delivery', text: `↩️ Reverted — ${goalTitle(e.goalId)}\nRevert PR ${e.payload.prNumber != null ? `#${e.payload.prNumber} ` : ''}merged on GitHub${e.payload.detail ? `\n${e.payload.detail.slice(0, 300)}` : ''}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
+    case 'delivery.revert_closed':
+      return { family: 'delivery', text: `↩️ Revert PR ${e.payload.prNumber != null ? `#${e.payload.prNumber} ` : ''}closed without merging — ${goalTitle(e.goalId)}\nThe goal's work stays merged.`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
     case 'deploy.finished':
       return { family: 'delivery', text: `🚀 Deployed to ${PROVIDER_LABEL[e.payload.provider]}${e.payload.production ? '' : ' (preview)'} — ${goalTitle(e.goalId)}\n${e.payload.url}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
     case 'deploy.failed':
       return { family: 'delivery', text: `⚠️ Deploy to ${PROVIDER_LABEL[e.payload.provider]} failed — ${goalTitle(e.goalId)}\n${e.payload.reason.slice(0, 300)}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
+    case 'deploy.smoke_finished': {
+      // a skipped smoke has nothing to say: the deploy's own message named the address
+      if (e.payload.status === 'skipped') return null;
+      const where = `the ${e.payload.production ? 'production' : 'preview'} deploy to ${PROVIDER_LABEL[e.payload.provider]}`;
+      return { family: 'delivery', text: `${e.payload.status === 'pass' ? '✅ Smoke passed on' : '⚠️ Smoke failed on'} ${where} — ${goalTitle(e.goalId)}\n${e.payload.detail.slice(0, 300)}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
+    }
     case 'rate_limit.paused': {
       const provider = e.payload.provider ?? defaultProvider;
       return { family: 'rateLimit', text: `⏸️ ${provider === 'codex' ? 'Codex' : 'Claude Code'} usage limit — new sessions paused; retry at ${localTime(e.payload.until)}`, path: `/usage?provider=${provider}` };
@@ -97,6 +124,9 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
       const provider = e.payload.provider ?? defaultProvider;
       return { family: 'rateLimit', text: `▶️ ${provider === 'codex' ? 'Codex' : 'Claude Code'} session retries resume`, path: `/usage?provider=${provider}` };
     }
+    case 'schedule.fired':
+      if (e.payload.skipped) return { family: 'schedule', text: `⏰ Schedule "${e.payload.name}" skipped${e.payload.late ? ' (late)' : ''}\n${e.payload.skipped.slice(0, 300)}`, path: '/schedules' };
+      return { family: 'schedule', text: `⏰ Schedule "${e.payload.name}" started a goal${e.payload.late ? ' (late: Foundry was off at its time)' : ''} — ${goalTitle(e.goalId)}`, path: e.goalId ? `/goals/${e.goalId}` : '/schedules' };
     case 'update.available':
       // the checker announces once per version, so this family never repeats itself
       return { family: 'updateAvailable', text: `⬆️ Foundry ${e.payload.latest} is available — you run ${e.payload.current}`, path: '/settings' };
@@ -116,13 +146,13 @@ function localTime(iso: string): string {
  * engine approves in the same breath, or a Delegated goal's Brief its main goal approves (unless a blocking question is
  * left for the person).
  */
-export function composeBriefReady(goal: Goal, brief: Brief | null, reason: string): Composed | null {
+export function composeBriefReady(goal: Goal, brief: Brief | null, reason: string, calibration: Calibration | null = null): Composed | null {
   if (!brief || reason === 'auto brief') return null;
   const blocking = brief.questions.filter((q) => q.blocking && !q.answer?.trim()).length;
-  if (goal.delegatedFrom && goal.delegation.autoApprove && !blocking) return null;
+  if (engineApproves(goal) && !blocking) return null;
   const n = brief.tasks.length;
   const estimate = goal.provider === 'codex' ? `~${brief.timeEstimateMin} min` : `$${brief.costEstimateUsd.toFixed(2)} · ~${brief.timeEstimateMin} min`;
-  const next = blocking ? `${blocking} blocking question${blocking === 1 ? '' : 's'} to answer on the Brief first.` : `Budget on approval: ${budgetOnApproval(goal, brief).text}.`;
+  const next = blocking ? `${blocking} blocking question${blocking === 1 ? '' : 's'} to answer on the Brief first.` : `Budget on approval: ${budgetOnApproval(goal, brief, calibration).text}.`;
   const understanding = brief.understanding.trim();
   return {
     family: 'briefReady',
@@ -179,7 +209,7 @@ export class NotificationDispatcher {
     if (this.settings().onDelivery && this.digest.take(e, this.goalTitle(e.goalId))) return;
     if (e.type === 'goal.state_changed' && e.payload.to === 'awaiting_brief_approval' && goal) {
       const s = this.settings();
-      const c = s.onBriefReady ? composeBriefReady(goal, getBrief(this.engine.store.db, goal.id)?.brief ?? null, e.payload.reason) : null;
+      const c = s.onBriefReady ? composeBriefReady(goal, getBrief(this.engine.store.db, goal.id)?.brief ?? null, e.payload.reason, this.engine.calibrationFor(goal)) : null;
       if (c) this.deliver(s, c.text, c.path, goal.id, [], null, { kind: 'brief', goalId: goal.id });
       return;
     }
@@ -187,7 +217,7 @@ export class NotificationDispatcher {
     if (!c) return;
     const s = this.settings();
     // a milestone is the same note whether the goal pauses for it (an escalation) or goes on
-    const on = { goalFinished: s.onGoalFinished, delivery: s.onDelivery, rateLimit: s.onRateLimit, updateAvailable: s.onUpdateAvailable, interview: s.onInterview, milestone: s.onEscalation, briefReady: s.onBriefReady }[c.family];
+    const on = { goalFinished: s.onGoalFinished, delivery: s.onDelivery, rateLimit: s.onRateLimit, updateAvailable: s.onUpdateAvailable, interview: s.onInterview, milestone: s.onEscalation, briefReady: s.onBriefReady, schedule: s.onSchedule }[c.family];
     // what a chat can answer: an interview round, a usage pause (Resume now)
     const target: Target | null =
       e.type === 'interview.round_asked' && e.goalId ? { kind: 'round', goalId: e.goalId, round: e.payload.round } : e.type === 'rate_limit.paused' ? { kind: 'usage', provider: e.payload.provider ?? this.engine.config.provider } : null;

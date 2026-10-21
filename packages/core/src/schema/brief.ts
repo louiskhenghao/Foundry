@@ -92,6 +92,8 @@ export const BriefTask = z.object({
   delivers: z.array(z.string()).optional(),
   /** a `goal` task: the share of the goal's cost budget (USD) its Delegated goal may spend; null = an even share of what is left */
   budgetUsd: z.number().positive().nullable().optional(),
+  /** a `goal` task done in a companion repository (ADR-0063): its path as the goal names it; null or absent = this repository */
+  repo: z.string().nullable().optional(),
   /** simple / standard / complex: picks the worker model (Settings → Models); absent = standard */
   difficulty: TaskDifficulty.optional(),
   /** what to look at or try when this task lands; set = milestone, the goal pauses there for a human look */
@@ -196,6 +198,8 @@ const outputTaskSchema = (delegation: boolean) => z.object({
     .positive()
     .nullish()
     .describe("For a goal task only: the share of this goal's cost budget (USD, rough) its delegated goal may spend, within the whole estimate. Leave out otherwise, or when you cannot say; the engine then gives it an even share of what is left."),
+  /** a `goal` task done in a companion repository (ADR-0063): the companion's path as the prompt gives it */
+  repo: z.string().nullable().optional(),
   difficulty: z
     .enum(['simple', 'standard', 'complex'])
     .describe('How hard this task is for one engineer-session. simple = mechanical, well-trodden (config, copy edits, scaffolding from a template, one small component); standard = typical feature work; complex = cross-cutting, subtle or high-risk (architecture, concurrency, data migration, tricky algorithms, a large refactor). It picks the model the worker runs on: be honest, most tasks are standard.'),

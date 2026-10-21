@@ -4,6 +4,7 @@ import { RestartDialog } from '../../components/RestartDialog.tsx';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { FollowLinks, MarkFollowUpDialog } from './FollowUps.tsx';
+import { IssueLink, ScheduleLink } from './IssueLink.tsx';
 import { DelegationLinks } from './Delegations.tsx';
 import { ClarifyProgress, SkeletonNotice, clarifyChannel } from './ClarifyProgress.tsx';
 import { InterviewPanel } from './InterviewPanel.tsx';
@@ -118,6 +119,12 @@ export function GoalPage() {
             </h1>
             <Badge state={g.state} className="mt-1" />
             {g.transfer && <span className="text-[10px] rounded-full border border-sky-800 text-sky-300 px-1.5 mt-1.5" title={`came from ${g.transfer.from.hostname}`}>imported</span>}
+            {g.delivery.reverts[g.delivery.reverts.length - 1]?.status === 'merged' && <span className="text-[10px] rounded-full border border-rose-800 text-rose-300 px-1.5 mt-1.5" title="Its merge was undone by a revert pull request (Delivery tab)">reverted</span>}
+            {(g.companions?.length ?? 0) > 0 && (
+              <span className="text-[10px] rounded-full border border-zinc-700 text-zinc-300 px-1.5 mt-1.5" title={`Also changes: ${g.companions!.map((c) => c.repoPath).join(', ')}`}>
+                +{g.companions!.length} folder{g.companions!.length === 1 ? '' : 's'}
+              </span>
+            )}
             {g.workflow.pace === 'fast' && <span className="text-[10px] rounded-full border border-amber-800 text-amber-300 px-1.5 mt-1.5">fast</span>}
             {g.workflow.profile && <span className="text-[10px] rounded-full border border-violet-800 text-violet-300 px-1.5 mt-1.5" title="Workflow suite: whose skills the roles follow for this goal">Powered by {g.workflow.profile}</span>}
           </div>
@@ -127,6 +134,11 @@ export function GoalPage() {
               {repoName}
             </span>
             <CopyButton text={g.repoPath} />
+            {(g.by || g.approvedBy) && (
+              <span className="truncate" title="Who asked for the goal and who approved its Brief (Settings → Access)">
+                · {[g.by ? `asked by ${g.by}` : '', g.approvedBy ? `Brief approved by ${g.approvedBy}` : ''].filter(Boolean).join(', ')}
+              </span>
+            )}
             <span className="text-zinc-600">·</span>
             <ProviderBadge provider={g.provider} />
             <span className="text-zinc-600">·</span>
@@ -135,6 +147,8 @@ export function GoalPage() {
               {g.baseBranch} → {g.branch}
             </span>
           </div>
+          <IssueLink issue={g.issue} />
+          <ScheduleLink schedule={g.schedule} />
           <FollowLinks d={d} />
           <DelegationLinks d={d} />
           {(d.learningsCount ?? 0) > 0 && (

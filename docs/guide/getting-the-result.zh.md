@@ -24,12 +24,18 @@ goal 页面会用大白话告诉你："The work is on branch … in your reposit
 
 用 **PR + auto-merge** 时，如果 GitHub 上的分支保护挡住了合并，Foundry 会打开 GitHub 自己的 auto-merge（`gh pr merge --auto`），并等一段时间（[Settings → Git & delivery](./settings.zh.md#git--delivery)）。如果到时 GitHub 还没合并，它之后会自己合并，Foundry 也不会删除这个分支。
 
+[从 GitHub issue](./your-first-goal.zh.md#from-a-github-issue) 创建的 goal，其 pull request 的描述会以 `Closes #12` 开头：pull request 合并后 GitHub 会关闭这个 issue（每个任务一个 PR 时，由最后一个带上这一行）。Foundry 从不往 issue 本身写东西。
+
 每种方式都遵守两条规则：
 
 - 推送、开 PR 和合并都由 Foundry 自己来做，严格按 Delivery 标签上列出的计划。给你做任务的 AI 不能推送；它要是试图推送，Foundry 会拦下并问你（见 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md#它想在你电脑以外做事)）。
 - Foundry 从不直接推送到你的基础分支（比如 `main`）。改动只能通过合并进入 `main`。goal 的分支从不强制推送。唯一的例外是 **One PR per task** 下某个任务的分支：它下面的 pull request 合并后，这个分支自己的提交会在 `main` 之上重放，然后替换掉原分支，但前提是这期间没有别人推送过它（`--force-with-lease`）。如果有人推送过，Foundry 会保留他们的提交，改为把 `main` 合并进来。
 
 pull request 类的方式需要 GitHub CLI 和一个已连接的账户：见 [连接 GitHub](#连接-github)。
+
+## 伴随仓库
+
+一个还改了其它文件夹的 goal（[Also change](./your-first-goal.zh.md#also-change-companion-folders)）会像交付自己一样交付它们：你交付它时，做伴随部分的那个委派 goal 会拿到同样的交付设置 —— 同样的方式和合并方法，用那个仓库自己的 remote 和基础分支 —— 然后自己跑一遍交付，所以每个仓库都有自己的 pull request。主 pull request 会列出伴随仓库和它们的 pull request（开出之后）；每个伴随仓库的 pull request 会写明它属于哪个 goal。Delivery 标签在 **Companion repositories** 下显示它们，并链接到各自的 goal，可以单独重新检查、继续或撤销。**Local only** 把每条分支留在原处：主 goal 的在它的文件夹里，每个伴随仓库的在自己那里。
 
 ## 整个 goal 一个 PR，还是每个任务一个
 
@@ -57,7 +63,7 @@ pull request 类的方式需要 GitHub CLI 和一个已连接的账户：见 [�
 
 ### PR 开出之后
 
-只用于 **PR + auto-merge**。四个开关默认都打开。
+四个开关和 **Fix failing CI** 只用于 **PR + auto-merge**，默认都打开；**Fix review comments** 对 **Open a PR** 也有效。
 
 | 选项 | 含义 |
 |---|---|
@@ -66,6 +72,7 @@ pull request 类的方式需要 GitHub CLI 和一个已连接的账户：见 [�
 | **Auto-resolve conflicts with the base branch** | 如果 `main` 有了新进展并产生冲突，由 Foundry 解决。关闭：冲突会让交付停下。 |
 | **Delete the remote branch after merging** | 只删这个 goal 推送的分支，从不删基础分支。 |
 | **Fix failing CI** | **don't fix**、**up to once**（默认）或 **up to twice**。见 [CI 失败时](#ci-失败时)。 |
+| **Fix review comments** | **don't fix**、**up to once**（默认）、**up to twice** 或 **up to three times**：Foundry 自己处理的审查评论轮数。见 [有人审查 pull request 时](#有人审查-pull-request-时)。 |
 
 ## 连接 GitHub
 
@@ -130,6 +137,16 @@ CI 是你的线上仓库对每个 pull request 运行的一组自动检查。交
 
 每个任务一个 pull request 时，CI 的修复会提交到失败的那个 pull request 的分支上并推送，其它 pull request 不受影响。
 
+## 有人审查 pull request 时
+
+Foundry 开出的 pull request 可以像任何 pull request 一样被审查。Foundry 每隔几分钟、以及你每次打开 goal 页面时，都会读取它开着的 pull request 上的审查评论。两种评论算数：**diff 上的行内评论**，以及**要求修改（request changes）的审查**（它的正文）。批准、只是评论的审查、会话区里的普通评论，以及机器人写的任何东西都不会被处理——所以普通评论是你用来说话的，diff 上的评论或要求修改是你用来派活的。
+
+一次读取发现的评论组成一**轮**。在 **Fix review comments** 的额度内（默认一轮），Foundry 会再跑一次交付：一个小的修复任务读每条评论（带文件、行号和周围的 diff），用能回答它们的最小改动修改分支，并在结果上跑 goal 的 must 检查。修复会推送到 pull request 的分支，Foundry 在每条评论下回复提交号和改了哪些文件。任务看过之后发现没有要改的，回复会这么说，goal 页面上该任务的报告写了原因。用 **PR + auto-merge** 时，接着照常等检查、合并。每个任务一个 PR 时，修复落在被审查的那个 pull request 的分支上，其它分支不动。
+
+Delivery 标签会在每个 pull request 下列出每一轮：多少条评论、谁写的、结果如何。超出额度的一轮会等你，带一条备注和一条消息，按 **Fix review comments** 就会处理它。**Resume delivery** 和 **Retry delivery** 会重新给额度。任务做不到的修复会让交付停下，和 CI 修不好时一样：Inbox 里一项 *Delivery stopped*，pull request 保持原样；你可以在 GitHub 上回答评论，或按 **Resume delivery** 再试一次。
+
+Foundry 不会往 GitHub 写别的东西：开始时不留言，也不会自己写审查。它的回复末尾带一个隐藏标记，所以它永远不会把自己的回复当成你的。交付正在运行时留下的评论，会在它结束后被读到。
+
 ## 之后再改交付方式
 
 随时可以在 Delivery 标签上改方式：
@@ -155,7 +172,7 @@ CAD goal 的预览卡片上还会显示 **CAD Viewer**，也就是 text-to-cad �
 
 结果是网页或一体式网页应用的 goal，完成后可以在 **Delivery** 标签的最下面把它放上线：放到 Vercel、Netlify 或 Cloudflare Pages，默认是预览地址，你要求时才是正式（production）地址。
 
-![Deploy 卡片：找到的应用、几个托管平台、要执行的确切命令，以及一个已上线的预览](images/deploy.png)
+![Deploy 卡片：找到的应用、几个托管平台、要执行的确切命令，以及一个已上线的预览和它的冒烟测试](images/deploy.png)
 
 - **会部署的**：一个装着网页的文件夹、用常见工具构建的网站或单页应用（Vite、Astro、Gatsby、Docusaurus、Eleventy、Create React App、Angular），或者托管平台能运行的全栈网页框架（Next.js、Nuxt、SvelteKit、带适配器的 Astro、Remix、React Router、SolidStart）。卡片会写明它找到的是哪一种、在 monorepo 的哪个文件夹里。
 - **不会部署的**：Docker 或 Procfile 里的 worker、和页面分开部署的后端（独立文件夹里的 API、Go 或 Python 服务）、自带服务器的应用，或者有好几个网页应用的仓库。卡片会写明它找到了什么。只上线半个系统等于上线一个坏掉的系统，所以这时什么都不部署。
@@ -163,6 +180,7 @@ CAD goal 的预览卡片上还会显示 **CAD Viewer**，也就是 text-to-cad �
 - **执行之前**，卡片会列出确切的命令。它们在 Foundry 数据文件夹里这个 goal 提交的一份检出中执行，从不在你的文件夹里执行，也不会往你的仓库推送任何东西。每个托管平台为每个仓库建一个项目，以文件夹名命名，所以之后的部署都去同一个地方。
 - **预览还是正式**：预览会有一个自己的地址。**Production** 会先请你确认，因为它会替换这个项目正式地址上现在的内容。托管平台对一个新项目的第一次部署就是正式部署。
 - **之后**卡片会列出每次部署和它的地址，下面可以展开看命令的输出，**Delivery** 通知会告诉你部署到了哪里，或者为什么失败。
+- **之后的冒烟测试（smoke）**：预览地址上线后，Foundry 会用这个 goal 的里程碑脚本去跑这个地址——就是记录每个功能时用的那些 Playwright 脚本，只是不再自己启动服务器——并把结果留在这次部署下面：通过还是失败、每个脚本的视频和截图、运行日志。脚本失败时会像交付失败一样通知你，由你来查：线上不一样的多半是托管平台的环境（某个变量、数据库，或缺的服务）。改好之后点 **Smoke again** 再试一次。正式（production）部署默认不做冒烟测试，除非你勾上 **Try the milestone scripts against it afterwards**：脚本会真的写入它试的东西（一笔订单、一个账号），那会进到正式环境的数据里。没有里程碑脚本的 goal 不会做。
 
 每个托管平台都需要在 **Settings → Git & delivery → Deploy** 里填上它的 token：见 [Git & delivery](./settings.zh.md#git--delivery)。这些 token 只由引擎保管，任何编码会话都拿不到。编码会话也不能自己去部署：边界守卫会拦下托管平台的部署命令，不管它怎么写。
 
@@ -174,10 +192,12 @@ CAD goal 的预览卡片上还会显示 **CAD Viewer**，也就是 text-to-cad �
 - **Refresh the knowledge graph** 在交付后更新代码地图：Local only 的 goal 在进度文件夹里更新，已交付的 goal 在你自己的文件夹里更新。它只刷新索引：GitNexus 以 `--index-only` 运行，工具如果还往 `CLAUDE.md`、`AGENTS.md` 或 `.claude/` 里写了东西，会被还原，文件夹里不会留下未提交的改动。任务进行中出现的 GitNexus 段落或 skill 文件夹（你的全局 hook 可能会运行 GitNexus）也不会进入任务的提交。
 
 - **Audit the repository at the end** 在所有任务完成后、最终审查之前运行 `ponytail-audit`：goal 改过的代码里的 must fix 发现会变成修复任务，所有发现都留在 goal 上。
+- **Test it in a browser at the end** 会在每个任务都完成之后、审计之后、最终审查之前，在 Chromium 里打开做好的应用，用 Playwright 脚本逐条尝试验收检查；没通过的 must 检查会变成修复任务，每条结果都连同截图留在 goal 上。脚本放在一个临时文件夹里（`.foundry-qa/`，不进 git）；会话做的其它改动都会被丢弃。
 
 Overview 标签的 **Completion** 卡片每一项一行，用勾、警告或叉加一句话写出结果。点名字可以看详情：
 
 - **Audit**：它发现了什么，按 must fix、should fix、nice to have 排列，带文件名；这个 goal 代码里的 must fix 发现会写明已开修复任务。**Follow-up with the rest** 为这个 goal 没修的发现开一个 goal。
+- **Browser QA**：它试过的每一项检查，通过、失败或跳过，做了什么、看到了什么，失败时的问题和修法，以及截图；没通过的 must 检查会注明已创建修复任务。
 - **Docs**：选了哪些文档、写了哪些文件（点开就能看）、提交、花费，以及它随哪个 pull request 交付。
 - **Graph refresh**：每个工具（更新你的 checkout、graphify、GitNexus）及其结果；失败的会写出原因，比如缺少某个程序。
 
@@ -214,6 +234,14 @@ git merge goal/abc123
 分支名用 goal 页面顶部显示的那个。或者把交付方式改成 **Push branch** 或 **Open a PR**，让 Foundry 通过 GitHub 来做。
 
 不再需要这个 goal 时，**⋯ → Delete goal…** 会删除它和它的进度文件夹；只有在工作已经合并或推送之后，才勾选 **Also delete the branch**。
+
+## 撤销已合并的 goal
+
+合并后发现不对的 goal，可以在它的页面上撤销：在 Delivery 标签上面那三行的下方按 **Revert…**。对话框会列出它要撤销的合并 —— 这个 goal 的 pull request，或者每个任务一个 PR 时的每一个，从最新的开始 —— 问你原因（你写的话会进入 pull request），以及是用交付的合并方式马上合并（**Merge it right away**），还是把 pull request 留给你。
+
+然后 Foundry 从线上的基础分支开一个分支，每个合并用一个 revert 提交撤销，推送这个分支，并开一个标题为 *Revert "…"* 的 pull request，描述里写明撤销了哪些合并、你的原因和它改动的范围。勾了 **Merge it right away** 时，它会立刻合并这个 pull request；分支保护挡住时则像交付一样打开 GitHub 的 auto-merge。revert 合并之后 —— 不管是立刻合并，还是之后你自己在 GitHub 上合并 —— 会像交付的合并一样被发现：交付设置里说要删时删掉线上分支，安全时把你本地的基础分支 fast-forward（见 [pull request 合并之后](#pull-request-合并之后)）。goal 页面会显示一个 **reverted** 标签，Delivery 标签上会多一行这次 revert 和它的 pull request；goal 自己的那几行、它的分支和历史都保持原样。
+
+它需要：一次通过 Foundry 合并的交付（**Open a PR** 或 **PR + auto-merge**；Local only 的 goal，或你自己标记为已交付的 goal，Foundry 不知道合并了什么，也就没法撤销）、已登录的 GitHub CLI，以及这些合并仍在基础分支上。如果后来的改动碰了同样的行、合并已经没法干净地撤销，它会拒绝并列出冲突的文件：手动撤销，或者开一个 [follow-up](#continue-with-a-follow-up) 来撤掉它。这里没有模型写任何东西，你自己的文件夹也不会被改。要把工作找回来，在 GitHub 上 revert 这个 revert 的 pull request，或者开一个 follow-up goal。
 
 ## Continue with a follow-up
 

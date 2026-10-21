@@ -9,6 +9,8 @@ foundry — drive the host Claude Code or Codex CLI to deliver on goals
 
   serve                                   start engine + server (http://127.0.0.1:4111)
   goal new "<prompt>" --repo <path>       create a goal (Clarify → Brief → approve in UI or via `brief`)
+       [--issue <link|owner/name#12|#12>]   a goal from a GitHub issue (needs gh, logged in): its title and body stand in for the
+                                          prompt when none is given, its thread is attached, and the pull request closes it
        [--provider claude|codex] [--codex-model <model ID>]   backend fixed for this goal; follow-ups inherit it
        [--title t] [--base branch] [--preset auto|quick|thorough|unlimited|custom] [--max-cost 5|none] [--max-min 120|none] [--concurrency 3] [--attempts 3]
        [--auto-approve --check "<cmd>"]... [--stretch "<cmd>"]...   skip Clarify: one task + command checks
@@ -17,6 +19,8 @@ foundry — drive the host Claude Code or Codex CLI to deliver on goals
        [--effort default|none|minimal|low|medium|high|xhigh|max|ultra] [--self-check]
        [--delegate [--delegate-auto-approve]]   let the planner hand a step that is a project of its own to a Delegated goal
                                           (its own Clarify and plan, side by side within the goal's parallel limit); --delegate-auto-approve approves their Briefs for you
+       [--also <path>]...                 companion folders this goal changes too: each gets its part as a delegated goal in that
+                                          repository, on its own branch, delivered with this goal (one pull request per repository)
        [--follows <goalId> [--start-from base|previous] [--no-attachments] [--no-style]]
          Follow-ups inherit the agent and preset; --effort default explicitly clears inherited effort.
          none, minimal and ultra are Codex-only; available efforts depend on the native model.
@@ -28,6 +32,8 @@ foundry — drive the host Claude Code or Codex CLI to deliver on goals
   brief <goalId> [--approve]              print the brief; --approve approves it as-is
   ports [--all] [--json]                  ports in use and who holds them: Foundry, tailscale serve, Docker, other processes
                                           (stop one on the Ports page; --all adds system and background processes)
+  schedules [list] [--json]               goals that run on their own: each schedule, on or off, its next run and its last
+  schedules run <scheduleId>              fire a schedule now (refused while its previous run is still going)
   escalations                             list open escalations
   answer <escalationId> <action> [--hint "..."] [--attempts N] [--max-cost N] [--max-min N]
   watch <goalId>                          tail live stream + events for a goal
@@ -55,9 +61,14 @@ foundry — drive the host Claude Code or Codex CLI to deliver on goals
   auth [status|login|logout] [--provider claude|codex]
                                           Independent account; running server owns login/logout and protects active work
                                           An explicit FOUNDRY_URL must be reachable; it never falls back to local auth
+  access [list|add <name>|revoke <id>] [--json]
+                                          Who may use this Foundry from elsewhere: each person a token; once anyone has one,
+                                          every request needs one (FOUNDRY_TOKEN here, the sign-in page in a browser)
   usage [--provider claude|codex] [--json] [--probe]
                                           Activity and available account quota; --probe refreshes status (Claude consumes quota)
                                           Codex shows only reported account windows; weekly-only accounts are supported
+  report [--days 30|90|365] [--all] [--json]
+                                          Spend, goals, hours, retries and estimate error over a window, by project and session kind
 
 (doctor, skills, export and import work offline too; --provider keeps their native homes and caches separate.)
 Both backends share one Foundry; select --provider when creating a goal.

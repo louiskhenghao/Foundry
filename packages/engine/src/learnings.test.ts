@@ -7,8 +7,9 @@ import { getGoal, getRepoLearnings, listRepoLearnings } from '@foundry/core';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
 import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
-import { learningsContext, learningsForWorker, mergeLearnings } from './learnings.ts';
-import { makeRepo, terminal, waitFor } from './test-helpers.ts';
+import { everywhereLearnings, learningsContext, learningsForWorker, mergeLearnings } from './learnings.ts';
+import { LEARNINGS_SKILL, exportLearningsSkill, renderLearningsSkill } from './learnings-skill.ts';
+import { FakeRunner, makeRepo, terminal, waitFor } from './test-helpers.ts';
 
 const ROOT = resolve(import.meta.dir, '../../..');
 const goal = { id: 'g_new', title: 'Add dark mode' };
@@ -248,4 +249,64 @@ describe('learning when a goal ends', () => {
     expect(() => engine.learnFrom(busy.id)).toThrow(/teaches its folder once it ended/);
     engine.cancelGoal(busy.id);
   }, 60_000);
+});
+
+describe("the person's everywhere notebook (ADR-0055)", () => {
+  let dataDir: string;
+  beforeEach(() => {
+    dataDir = mkdtempSync(join(tmpdir(), 'foundry-learnings-everywhere-'));
+  });
+  const cfg = () => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, log: () => {} });
+  test('given to every goal with the folder’s notebook, apart from it in Clarify’s section, first in the short form; never a folder’s own', () => {
+    const engine = new Engine(cfg(), new FakeRunner(() => {}));
+    engine.setLearnings('*', [{ kind: 'preference', text: 'Use bun, never npm.' }, { kind: 'convention', text: 'Comments in Chinese.' }]);
+    engine.setLearnings('/repo', [{ kind: 'build', text: 'Run pnpm install first.' }]);
+    expect(everywhereLearnings(engine).map((l) => [l.text, l.by])).toEqual([
+      ['Use bun, never npm.', 'human'],
+      ['Comments in Chinese.', 'human'],
+    ]);
+    expect(engine.learnings('/repo').map((l) => l.text)).toEqual(['Run pnpm install first.']);
+    const ctx = learningsContext(engine, { repoPath: '/repo' });
+    expect(ctx).toContain('- [build] ✎ Run pnpm install first.');
+    expect(ctx).toContain('What the person wants in every project, whatever the folder (✎):\n- [preference] ✎ Use bun, never npm.\n- [convention] ✎ Comments in Chinese.');
+    // a folder with nothing of its own still gets the everywhere entries
+    expect(learningsContext(engine, { repoPath: '/other' })).toContain('- [preference] ✎ Use bun, never npm.');
+    const worker = learningsForWorker(engine, { repoPath: '/repo' }).split('\n').slice(2);
+    expect(worker).toEqual(['- Run pnpm install first.', '- Use bun, never npm.', '- Comments in Chinese.']);
+    expect(learningsForWorker(engine, { repoPath: '/other' }).split('\n').slice(2)).toEqual(['- Use bun, never npm.', '- Comments in Chinese.']);
+    // the read model keeps it apart from the folders
+    expect(listRepoLearnings(engine.store.db).map((r) => r.repoPath).sort()).toEqual(['*', '/repo']);
+    expect(() => engine.setLearnings('*', Array.from({ length: 31 }, (_, i) => ({ kind: 'preference' as const, text: `wish ${i}` })))).toThrow(/everywhere notebook keeps at most 30/);
+  });
+});
+
+describe("the everywhere notebook in every folder's exported skill (ADR-0055)", () => {
+  let dataDir: string;
+  beforeEach(() => {
+    dataDir = mkdtempSync(join(tmpdir(), 'foundry-learnings-skill-everywhere-'));
+  });
+  const cfg = () => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, log: () => {} });
+  test('a folder with nothing of its own gets the skill for the everywhere entries; a change of them rewrites it; the last entry gone removes it', async () => {
+    const repo = await makeRepo();
+    const engine = new Engine(cfg(), new FakeRunner(() => {}));
+    const file = join(repo, '.claude/skills', LEARNINGS_SKILL, 'SKILL.md');
+    expect(await exportLearningsSkill(engine, repo)).toBe('unchanged');
+    expect(existsSync(file)).toBe(false);
+    engine.setLearnings('*', [{ kind: 'preference', text: 'Use bun, never npm.' }]);
+    expect(await exportLearningsSkill(engine, repo)).toBe('written');
+    const text = readFileSync(file, 'utf8');
+    expect(text).toContain('## What the person wants in every project');
+    expect(text).toContain('- ✎ Use bun, never npm.');
+    expect(text).toContain('(1 entry,');
+    engine.setLearnings(repo, [{ kind: 'build', text: 'Run bun install first.' }]);
+    expect(await exportLearningsSkill(engine, repo)).toBe('written');
+    const both = readFileSync(file, 'utf8');
+    expect(both.indexOf('## How to build, test and run it')).toBeLessThan(both.indexOf('## What the person wants in every project'));
+    expect(both).toContain('(2 entries,');
+    engine.setLearnings(repo, []);
+    engine.setLearnings('*', []);
+    expect(await exportLearningsSkill(engine, repo)).toBe('removed');
+    expect(existsSync(file)).toBe(false);
+    expect(renderLearningsSkill([], '2026-10-21T00:00:00Z', [{ id: 'l', kind: 'preference', text: 'x', by: 'human', goalId: null, goalTitle: null, at: 'now' }])).toContain('## What the person wants in every project\n\n- ✎ x');
+  });
 });

@@ -70,6 +70,8 @@ export const WorkflowSettings = z.object({
   ponytail: PonytailSwitch.default('on'),
   /** new goals run ponytail-audit on the finished branch before the goal review (chosen per goal at Brief approval) */
   audit: z.boolean().default(false),
+  /** new goals with a web app test it in a browser once every task is done, before the goal review (chosen per goal at Brief approval, ADR-0057) */
+  qa: z.boolean().default(false),
   /** once a Brief fills in, a reviewer that did not write it proposes what to change — a second opinion (ADR-0051) */
   briefSecondOpinion: z.boolean().default(false),
   /** which view new goals open in */
@@ -194,6 +196,8 @@ export const NotificationSettings = z.object({
   onInterview: z.boolean().default(true),
   /** a Brief is ready and waits for approval (one the engine approves itself never notifies) */
   onBriefReady: z.boolean().default(true),
+  /** a Schedule fired: the goal it made, or why none was (ADR-0054) */
+  onSchedule: z.boolean().default(true),
   /** a goal ended done / over-delivered / failed (cancelling is the human's own act and never notifies) */
   onGoalFinished: z.boolean().default(true),
   /** a PR opened, merged, or the delivery failed */

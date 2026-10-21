@@ -87,6 +87,7 @@ import { afterMerge, type AfterMergeOptions } from './delivery/after-merge.ts';
 import { startOver, structuralChanges } from './delivery/start-over.ts';
 import { runDocsAfterMerge, runDocsGeneration } from './docs-generate.ts';
 import { checkGoalPrs, checkOpenPrs, markDelivered, recheckPr } from './delivery/pr-watch.ts';
+import { startReviewRun } from './delivery/reviews.ts';
 import { attachmentDir, claimStaged, conversionTmpPath, markdownFileName, sweepStaging, trashAttachment } from './attachments.ts';
 import { Markitdown } from './convert/markitdown.ts';
 import { SettingsError, SettingsStore, applySettingsToConfig } from './settings.ts';
@@ -94,7 +95,14 @@ import { NotificationDispatcher } from './notify/dispatcher.ts';
 import { TelegramBot } from './notify/telegram-bot.ts';
 import { DiscordBot } from './notify/discord-bot.ts';
 import { endedForLearning, learnFromGoal, learnOnEnd, learningWork, learningsOf, setLearnings } from './learnings.ts';
-import { DEPLOYABLE_STATES, deployCredentials, deployName, deployWork, deploying, goalDeployability, npxCli, startDeploy, unsupported } from './deploy/deploy.ts';
+import { DEPLOYABLE_STATES, type DeployRequest, deployCredentials, deployName, deployWork, deploying, goalDeployability, npxCli, smokeAgain, smoking, startDeploy, unsupported } from './deploy/deploy.ts';
+import { type RevertInfo, type RevertRequest, revertInfo, revertWork, startRevert } from './delivery/revert.ts';
+import { buildReport } from './reports.ts';
+import { deliverCompanions } from './companions.ts';
+import type { GoalCompanion } from '@foundry/core';
+import { Access } from './access.ts';
+import type { Report } from './usage/types.ts';
+import { smokeScripts } from './deploy/smoke.ts';
 import { DEPLOY_PROVIDERS, PROVIDER_LABEL, configured, deploySteps, redact } from './deploy/providers.ts';
 import { ModelFallbackRunner } from './models/fallback-runner.ts';
 import { modelsInBinary } from './models/discover.ts';
@@ -116,7 +124,13 @@ import { type FollowUpDraft, type FollowUpInput, copyAttachments, followUpDraft,
 import { autoApproveDelegated, delegatingTasks, isDelegationTask, settleDelegations } from './delegation.ts';
 import { startDueSearches, subjectSearchesFor, trashSubjects } from './subjects.ts';
 import { onMilestoneEvidence } from './likeness.ts';
-import { ATTACHMENT_LIMITS, type GoalDelegatedFrom, type GoalDelegation } from '@foundry/core';
+import { ATTACHMENT_LIMITS, GoalIssue, LEARNINGS_EVERYWHERE, type GoalDelegatedFrom, type GoalDelegation } from '@foundry/core';
+import { readIssue, type IssueRead } from './issue.ts';
+import { autoApproveScheduled, checkSchedules, deleteSchedule, fireSchedule, saveSchedule, setScheduleEnabled, type ScheduleInput } from './schedules.ts';
+import { calibrationFor } from './calibration.ts';
+import { defaultQaDeps, type QaDeps } from './qa.ts';
+import { calibratedEstimate, type Calibration } from '@foundry/core';
+import { getSchedule, listSchedules, nextRunAt, type GoalSchedule, type Schedule } from '@foundry/core';
 import { Tailnet } from './notify/tailnet.ts';
 import { SessionCosts } from './session-costs.ts';
 import { CODE_SERVER_INSTALL, CodeServer } from './editor/code-server.ts';
@@ -172,6 +186,14 @@ export interface CreateGoalInput {
   delegation?: Partial<GoalDelegation>;
   /** engine-internal (delegation.ts): this goal does one `goal` task of a main goal; the API never sets it */
   delegatedFrom?: Omit<GoalDelegatedFrom, 'at'>;
+  /** the GitHub issue the goal is made from, as `readIssue` returned it (ADR-0052); its thread travels in `attachments` */
+  issue?: GoalIssue;
+  /** engine-internal (schedules.ts): the Schedule this goal is a run of (ADR-0054) */
+  schedule?: GoalSchedule;
+  /** the Person who asked for it (ADR-0061); null when Access is off or it came another way */
+  by?: string | null;
+  /** the other repositories the goal changes (ADR-0063): each gets its part as a `goal` task bound to it */
+  companions?: { repoPath: string; baseBranch?: string }[];
 }
 
 /** events of a Delegated goal its main goal must hear of: the ones that change what the main goal waits for, or cost it */
@@ -228,6 +250,8 @@ export class Engine {
   readonly accounts: Record<'claude' | 'codex', ClaudeAuth>;
   private providerSkills: Record<'claude' | 'codex', SkillsManager>;
   readonly gh: GhClient;
+  /** who may use this Foundry from elsewhere (ADR-0061) */
+  readonly access: Access;
   context: ContextProvider;
   private delivering = new Map<string, AbortController>();
   /** escalation id → the analysis running for it */
@@ -275,6 +299,10 @@ export class Engine {
   readonly finalWalking = new Set<string>();
   /** goals whose audit (ponytail-audit on the finished branch) is running */
   readonly auditing = new Set<string>();
+  /** goals whose browser QA (the finished app tried in Chromium) is running */
+  readonly qaing = new Set<string>();
+  /** what the browser QA needs from outside its session (the browser, the preview); tests replace it */
+  qaDeps: QaDeps = defaultQaDeps;
   /** goals whose references REA is investigating */
   readonly investigating = new Set<string>();
   /** goals whose Brief a second opinion is being written for (ADR-0051) */
@@ -357,6 +385,7 @@ export class Engine {
     writeFileSync(providerFile, config.provider);
     this.mmxReady = writeMmxConfig(config.dataDir, this.minimaxKey(), config.log);
     this.gh = gh ?? new CliGh({ onCommand: (cmd, cwd, r, ms) => config.log(`[gh] ${cmd.slice(0, 4).join(' ')} → ${r.code} (${ms}ms) ${cwd}`) });
+    this.access = new Access(config.dataDir);
     this.store = new EventStore(openDatabase(join(config.dataDir, 'engine.db')));
     for (const row of this.store.db.query("SELECT DISTINCT json_extract(payload, '$.sessionId') AS id FROM events WHERE type = 'session.usage'").all() as { id: string | null }[]) {
       if (row.id) this.ownedSessionIds.add(row.id);
@@ -481,7 +510,8 @@ export class Engine {
       // a goal that ended teaches its folder something (ADR-0040)
       if (e.type === 'goal.state_changed') learnOnEnd(this, e.goalId, e.payload.to);
       // the notebook changed: the folder's exported skill follows (ADR-0050)
-      if (e.type === 'learnings.set') void exportLearningsSkill(this, e.payload.repoPath);
+      // the everywhere notebook is in every folder's exported skill (ADR-0055): a change of it rewrites them all
+      if (e.type === 'learnings.set') for (const r of e.payload.repoPath === LEARNINGS_EVERYWHERE ? listRepoLearnings(this.store.db).map((x) => x.repoPath).filter((x) => x !== LEARNINGS_EVERYWHERE) : [e.payload.repoPath]) void exportLearningsSkill(this, r);
       // a Brief ready for a person's approval gets a second opinion when Settings say so (ADR-0051)
       if (e.type === 'goal.state_changed' && e.payload.to === 'awaiting_brief_approval' && e.payload.reason !== 'auto brief' && e.goalId) secondOpinionOnBrief(this, e.goalId);
       if ((e.type === 'task.artifacts_landed' || e.type === 'goal.artifacts_delivered') && e.goalId) this.cadModelMemo.delete(e.goalId);
@@ -719,7 +749,7 @@ export class Engine {
     }
     if (changed.includes('tools.markitdownBin')) this.markitdown = new Markitdown({ bin: this.config.markitdownBin, log: this.config.log });
     if (changed.some((k) => k.startsWith('workflow.'))) Object.values(this.providerSkills).forEach((skills) => skills.hints.invalidate());
-    if (changed.includes('workflow.learningsSkill')) for (const r of listRepoLearnings(this.store.db)) void exportLearningsSkill(this, r.repoPath);
+    if (changed.includes('workflow.learningsSkill')) for (const r of listRepoLearnings(this.store.db)) if (r.repoPath !== LEARNINGS_EVERYWHERE) void exportLearningsSkill(this, r.repoPath);
     if (changed.includes('tools.minimaxApiKey')) {
       this.mmxReady = writeMmxConfig(this.config.dataDir, this.minimaxKey(), this.config.log);
       // the quota belongs to the old key
@@ -956,12 +986,19 @@ export class Engine {
     }, this.config.delivery.prWatchMs);
     this.prWatchTimer.unref?.();
     void checkOpenPrs(this);
+    // schedules that are due (ADR-0054): every minute, and once now (a run missed while the engine was off fires once)
+    this.scheduleTimer = setInterval(() => {
+      if (!this.stopped) void checkSchedules(this);
+    }, 60_000);
+    this.scheduleTimer.unref?.();
+    void checkSchedules(this);
     this.telegram.start();
     this.discord.start();
     for (const g of listGoals(this.store.db)) this.tick(g.id);
   }
 
   private prWatchTimer: ReturnType<typeof setInterval> | null = null;
+  private scheduleTimer: ReturnType<typeof setInterval> | null = null;
   /** start() is putting right what the last run left (orphaned attempts, overlays): no goal runs meanwhile */
   private reconciling = false;
   private deliveryRefreshAt = new Map<string, number>();
@@ -986,6 +1023,21 @@ export class Engine {
     const g = this.mustGoal(goalId);
     if (g.delivery.policy.mode === 'local') throw new Error('this goal is delivered Local only — pick a delivery on the Delivery tab first');
     return this.deliver(goalId, {}, 'retry');
+  }
+
+  /**
+   * "Fix review comments" on one PR (ADR-0053): read it on GitHub now, then address its waiting round whatever the
+   * budget. Throws when the PR has no review comments waiting.
+   */
+  async requestReviewFix(goalId: string, prNumber: number): Promise<void> {
+    const goal = this.mustGoal(goalId);
+    if (goal.delivery.status === 'running') throw new Error('a delivery is running: the comments are picked up by it, or by the next look once it ends');
+    await recheckPr(this, goalId, prNumber);
+    const fresh = getGoal(this.store.db, goalId)!;
+    const round = fresh.delivery.reviews.filter((r) => r.prNumber === prNumber && r.status === 'pending').at(-1);
+    if (!round) throw new Error(`no review comments are waiting on PR #${prNumber}`);
+    if (!round.requested) this.store.append({ type: 'delivery.review_requested', goalId, payload: { roundId: round.id } });
+    await startReviewRun(this, goalId, `${round.comments.length} review comment(s) on PR #${prNumber}, asked for`);
   }
 
   /** "Re-check" on one PR: read it on GitHub now; a passing PR of a stopped delivery carries on with the delivery */
@@ -1072,6 +1124,7 @@ export class Engine {
     await Promise.all([this.telegram.stop(), this.discord.stop()]);
     this.updater.stopSchedule();
     if (this.prWatchTimer) clearInterval(this.prWatchTimer);
+    if (this.scheduleTimer) clearInterval(this.scheduleTimer);
     for (const timer of this.resumeTimers.values()) clearTimeout(timer);
     this.resumeTimers.clear();
     for (const account of Object.values(this.accounts)) account.cancelLogin();
@@ -1108,7 +1161,7 @@ export class Engine {
     // a learning session writes the folder's notebook when it ends (its session was killed above)
     await settle(learningWork(), 5_000);
     // a deploy records how it ended (its commands were killed with the rest)
-    await settle(deployWork(), 5_000);
+    await settle([...deployWork(), ...revertWork()], 5_000);
     // last of all, the database closes: a data directory deleted after stop() then holds a closed file (on macOS, a
     // database unlinked while open makes its next close a guard trap that kills the process — the test runner died of it)
     this.store.close();
@@ -1359,6 +1412,11 @@ export class Engine {
     return { ok, name, resolvedId: resolved ?? rec?.resolvedId ?? null, costUsd: r.costUsd, costAvailable: provider === 'claude' && r.costStatus !== 'unavailable', error: ok ? null : (r.errorMessage ?? r.subtype) };
   }
   /** Read native account metadata separately from local activity; never start inference. */
+  /** Reports (ADR-0060): what Foundry cost and did over the last `days` (null = all time), by project and session kind */
+  report(days: number | null = 30): Report {
+    return buildReport(this, { days });
+  }
+
   async readUsage(provider = this.config.provider, force = false): Promise<UsageSummary & { pausedUntil: string | null }> {
     if (provider === 'codex') await this.codexQuota.read(force);
     return this.usage(provider);
@@ -1770,6 +1828,8 @@ export class Engine {
         else if (startDueSearches(this, goal)) return;
         // a Delegated goal whose main goal approves for it: approved once its Brief leaves no question to the person
         else if (goal.delegatedFrom) autoApproveDelegated(this, goal);
+        // a scheduled run whose schedule approves for the person (ADR-0054)
+        else if (goal.schedule?.autoApprove) autoApproveScheduled(this, goal);
         return;
       case 'blocked':
         // a main goal blocked while its Delegated goal needs the person goes on once it no longer does; a finished one lands meanwhile
@@ -1944,6 +2004,18 @@ export class Engine {
       if (!known.includes(input.modelPreset)) throw new Error(`unknown model preset "${input.modelPreset}"; use one of: ${known.join(', ')}`);
     }
     if (!(await isGitRepo(input.repoPath))) throw new Error(`${input.repoPath} is not a git repository`);
+    // companion repositories (ADR-0063): each a repository of its own, not this one, named once, on a branch
+    const companions: GoalCompanion[] = [];
+    for (const c of input.companions ?? []) {
+      const path = resolve(c.repoPath);
+      if (path === resolve(input.repoPath) || companions.some((x) => x.repoPath === path)) throw new Error(`${c.repoPath} is the goal's own repository, or named twice`);
+      if (!existsSync(path)) throw new Error(`the companion ${c.repoPath} does not exist`);
+      if (!(await isGitRepo(path))) throw new Error(`the companion ${c.repoPath} is not a git repository`);
+      const base = c.baseBranch ?? (await currentBranch(path));
+      if (base === 'HEAD') throw new Error(`the companion ${c.repoPath} is in detached HEAD state; name its base branch`);
+      companions.push({ repoPath: path, baseBranch: base });
+    }
+    if (companions.length && input.delegatedFrom) throw new Error('a delegated goal has no companion repositories of its own');
     const id = newId(IdPrefix.goal);
     // a Follow-up snapshots what it needs from the earlier goal now, and delivers to the same base branch
     const followUp = input.follows ? await prepareFollowUp(this, input.follows, input.repoPath, id, input.attachments?.length ?? 0) : null;
@@ -1975,13 +2047,15 @@ export class Engine {
     }
     // anyone-facing default: prose and media goals open in the plain-language view; cad is code work with a geometry kernel and keeps the default
     const mode: GoalMode = input.mode ?? (nature !== 'auto' && nature !== 'code' && nature !== 'cad' ? 'simple' : this.config.defaultGoalMode);
-    const title = input.title?.trim() || input.prompt.trim().split('\n')[0]!.slice(0, 80);
+    const issue = input.issue ? GoalIssue.parse(input.issue) : null;
+    const title = input.title?.trim() || issue?.title.trim() || input.prompt.trim().split('\n')[0]!.slice(0, 80);
     const goal: Goal = {
       provider,
       id,
       title,
       prompt: input.prompt,
       repoPath: input.repoPath,
+      companions,
       // the progress folder: next to the repository (or under Settings → workspaces root), named after the title
       workspaceDir: defaultWorkspaceDir(this.config.workspacesRoot, { id, title, repoPath: input.repoPath }),
       checkpoint: null,
@@ -2028,12 +2102,17 @@ export class Engine {
       autoskills: null,
       completion: { ...IDLE_COMPLETION },
       follows: followUp?.follows ?? null,
+      issue,
+      schedule: input.schedule ?? null,
       // one level: a Delegated goal never delegates, whatever the caller says
-      delegation: { allow: input.delegatedFrom ? false : !!input.delegation?.allow, autoApprove: !!input.delegation?.autoApprove },
+      // a goal with companions needs `goal` tasks for their parts: delegation is on for it (ADR-0063)
+      delegation: { allow: input.delegatedFrom ? false : companions.length > 0 || !!input.delegation?.allow, autoApprove: !!input.delegation?.autoApprove },
       delegatedFrom: input.delegatedFrom ? { ...input.delegatedFrom, at: now } : null,
       runningSince: null,
       activeMs: 0,
       activeSince: null,
+      by: input.by ?? null,
+      approvedBy: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -2047,9 +2126,16 @@ export class Engine {
       this.store.append({ type: 'brief.proposed', goalId: id, payload: { brief } });
       this.store.append({ type: 'goal.state_changed', goalId: id, payload: { from: 'clarifying', to: 'awaiting_brief_approval', reason: 'auto brief' } });
       // Auto preset: no human sees the Brief here, so the engine adopts the proposed budget itself
-      await this.approveBrief(id, brief, goal.budgetPreset === 'auto' ? proposeBudgetFromEstimate(brief) : undefined);
+      // an Auto budget comes from the estimate as earlier goals in this folder corrected it (ADR-0056)
+      // approved by whoever asked for it (ADR-0061)
+      await this.approveBrief(id, brief, goal.budgetPreset === 'auto' ? proposeBudgetFromEstimate(calibratedEstimate(brief, calibrationFor(this, goal))) : undefined, undefined, input.by ?? null);
     }
     return getGoal(this.store.db, id)!;
+  }
+
+  /** Read a GitHub issue for a new goal: its thread staged as an attachment, its title and body to start from (ADR-0052). */
+  readIssue(i: { ref: string; repoPath?: string | null }): Promise<IssueRead> {
+    return readIssue(this, i);
   }
 
   // ---------- attachments & markdown conversion ----------
@@ -2341,7 +2427,7 @@ export class Engine {
    * `budgets` (optional) is applied first — this is how the Auto preset's proposed budget, confirmed or edited
    * by the human on the Brief page, becomes the goal's budget before any work starts.
    */
-  async approveBrief(goalId: string, edited?: Brief, budgets?: Partial<Budgets>, completion?: { graphRefresh?: boolean; docs?: DocType[]; audit?: boolean }): Promise<void> {
+  async approveBrief(goalId: string, edited?: Brief, budgets?: Partial<Budgets>, completion?: { graphRefresh?: boolean; docs?: DocType[]; audit?: boolean; qa?: boolean }, by?: string | null): Promise<void> {
     const goal = this.mustGoal(goalId);
     if (goal.state !== 'awaiting_brief_approval') throw new Error(`goal is ${goal.state}, cannot approve`);
     // a Revise still waiting for answers is let go: the Brief as it stands is what runs
@@ -2360,13 +2446,13 @@ export class Engine {
     const ws = await this.ensureSyncedWorkspace(goal);
     this.startAutoskills(goal, ws);
     // completion actions: what the UI sent, holes filled from the Brief (Simple mode and API callers send nothing)
-    const inferred = inferCompletion(brief, ws, goal.workflow.pace, this.config.workflowAudit);
+    const inferred = inferCompletion(brief, ws, goal.workflow.pace, this.config.workflowAudit, this.config.workflowQa);
     // a Delegated goal has no completion actions of its own: the main goal documents, audits and refreshes the graph once everything landed
-    const chosen = goal.delegatedFrom ? { graphRefresh: false, docs: [] as DocType[], audit: false } : completion;
+    const chosen = goal.delegatedFrom ? { graphRefresh: false, docs: [] as DocType[], audit: false, qa: false } : completion;
     this.store.append({
       type: 'goal.completion_set',
       goalId,
-      payload: { graphRefresh: chosen?.graphRefresh ?? inferred.graphRefresh, docs: chosen?.docs ?? inferred.docs, audit: chosen?.audit ?? inferred.audit, reason: goal.delegatedFrom ? 'delegated goal: the main goal completes' : completion ? 'set at brief approval' : inferred.reason },
+      payload: { graphRefresh: chosen?.graphRefresh ?? inferred.graphRefresh, docs: chosen?.docs ?? inferred.docs, audit: chosen?.audit ?? inferred.audit, qa: chosen?.qa ?? inferred.qa, reason: goal.delegatedFrom ? 'delegated goal: the main goal completes' : completion ? 'set at brief approval' : inferred.reason },
     });
     if (budgets && Object.keys(budgets).length) {
       const next = Budgets.parse({ ...goal.budgets, ...budgets, ...(goal.provider === 'codex' ? { maxCostUsd: null } : {}) });
@@ -2375,7 +2461,7 @@ export class Engine {
     const now = new Date().toISOString();
     const idByKey = new Map<string, string>();
     for (const t of brief.tasks) idByKey.set(t.key, newId(IdPrefix.task));
-    this.store.append({ type: 'brief.approved', goalId, payload: { brief } });
+    this.store.append({ type: 'brief.approved', goalId, payload: { brief, by: by ?? null } });
     for (const t of brief.tasks) {
       const area = brief.areas.find((a) => a.key === t.areaKey) ?? null;
       const task: Task = {
@@ -2395,6 +2481,8 @@ export class Engine {
         relevantFiles: t.relevantFiles,
         delivers: cleanDeliverables(t.delivers),
         budgetUsd: t.kind === 'goal' && t.budgetUsd ? t.budgetUsd : null,
+        // a companion's part (ADR-0063): only a path the goal named
+        repo: t.kind === 'goal' && t.repo && (goal.companions ?? []).some((c) => c.repoPath === t.repo) ? t.repo : null,
         milestone: t.milestone ?? null,
         milestoneScript: t.milestone ? (t.milestoneScript ?? null) : null,
         milestoneVisits: 0,
@@ -2453,20 +2541,22 @@ export class Engine {
     this.store.append({ type: 'goal.state_changed', goalId, payload: { from: 'awaiting_brief_approval', to: 'running', reason: 'brief approved' } });
   }
 
-  async answerEscalation(id: string, answer: EscalationAnswer): Promise<void> {
-    await answerEsc(this, id, answer);
+  async answerEscalation(id: string, answer: EscalationAnswer, by?: string | null): Promise<void> {
+    await answerEsc(this, id, answer, by);
   }
 
   // ---------- delivery ----------
 
   /** Set (or change) the delivery policy; runs immediately when the goal is already finished. */
-  async deliver(goalId: string, policyIn: Partial<DeliveryPolicy>, source: 'deliver' | 'retry' | 'resume' = 'deliver'): Promise<Goal> {
+  async deliver(goalId: string, policyIn: Partial<DeliveryPolicy>, source: 'deliver' | 'retry' | 'resume' | 'review' = 'deliver'): Promise<Goal> {
     const goal = this.mustGoal(goalId);
     if (goal.delivery.status === 'running') throw new Error('delivery is already running');
     const policy = DeliveryPolicy.parse({ ...goal.delivery.policy, ...policyIn });
     this.refuseStructural(goal, policy);
     await this.checkDeliverable(goal, policy);
     this.store.append({ type: 'delivery.policy_set', goalId, payload: { policy, source } });
+    // the companions' goals are delivered the same way, each in its repository (ADR-0063)
+    await deliverCompanions(this, goal, policy, source);
     return getGoal(this.store.db, goalId)!;
   }
 
@@ -2529,6 +2619,39 @@ export class Engine {
     return true;
   }
 
+  /** how far earlier goals ran from their estimate, for this goal's Brief (ADR-0056) */
+  calibrationFor(goal: Pick<Goal, 'id' | 'repoPath' | 'nature'>): Calibration {
+    return calibrationFor(this, goal);
+  }
+
+  // ---------- schedules (ADR-0054) ----------
+
+  /** every Schedule with when it fires next and the goal of its last run */
+  listSchedules(): (Schedule & { nextRunAt: string | null; lastGoal: { id: string; title: string; state: Goal['state'] } | null })[] {
+    return listSchedules(this.store.db).map((s) => {
+      const g = s.lastRun?.goalId ? getGoal(this.store.db, s.lastRun.goalId) : null;
+      return { ...s, nextRunAt: nextRunAt(s)?.toISOString() ?? null, lastGoal: g ? { id: g.id, title: g.title, state: g.state } : null };
+    });
+  }
+  schedule(id: string): Schedule | null {
+    return getSchedule(this.store.db, id);
+  }
+  saveSchedule(input: ScheduleInput): Schedule {
+    return saveSchedule(this, input);
+  }
+  setScheduleEnabled(id: string, enabled: boolean): Schedule {
+    return setScheduleEnabled(this, id, enabled);
+  }
+  deleteSchedule(id: string): void {
+    deleteSchedule(this, id);
+  }
+  /** "Run now": fire the schedule at once; refuses while its previous run is still going */
+  async runSchedule(id: string): Promise<{ goalId: string | null; skipped: string | null }> {
+    const s = getSchedule(this.store.db, id);
+    if (!s) throw new Error(`schedule ${id} not found`);
+    return fireSchedule(this, s, { manual: true });
+  }
+
   /** a folder's Learnings (ADR-0040) */
   learnings(repoPath: string): Learning[] {
     return learningsOf(this, repoPath);
@@ -2545,8 +2668,20 @@ export class Engine {
   }
 
   /** Deploy the finished goal's web app (ADR-0041): what is wrong is thrown at once, the deploy runs in the background */
-  deploy(goalId: string, req: { provider: DeployProvider; production: boolean }): void {
+  deploy(goalId: string, req: DeployRequest): void {
     startDeploy(this, goalId, req);
+  }
+  /** Smoke again (ADR-0058): the goal's milestone scripts against a live deploy's address once more, in the background */
+  smokeDeployment(goalId: string, deployedAt: string): void {
+    smokeAgain(this, goalId, deployedAt);
+  }
+  /** Revert (ADR-0059): a pull request that undoes the goal's merged delivery; what is wrong is thrown at once, the rest runs in the background */
+  revert(goalId: string, req: RevertRequest = {}): void {
+    startRevert(this, goalId, req);
+  }
+  /** what a Revert would undo, and whether one can start now */
+  revertInfo(goalId: string): RevertInfo {
+    return revertInfo(this, this.mustGoal(goalId));
   }
   /** what Deploy can do for a goal now: whether its code is a web app, which hosts are set up and take it, the commands, the deploys so far */
   deployInfo(goalId: string, provider?: DeployProvider, production = false) {
@@ -2557,6 +2692,9 @@ export class Engine {
       app,
       finished: DEPLOYABLE_STATES.has(goal.state),
       running: deploying(goalId),
+      smoking: smoking(goalId),
+      // the smoke a deploy can have (ADR-0058): the goal's milestone scripts
+      smoke: { scripts: smokeScripts(this, goalId).map((s) => s.script) },
       providers: DEPLOY_PROVIDERS.map((id) => ({ id, label: PROVIDER_LABEL[id], configured: configured(id, c), refused: unsupported(id, app) })),
       // the exact commands a deploy runs, tokens left out: nothing else runs
       plan: provider && app.ok ? deploySteps({ provider, cwd: `<deploy folder>/${app.app.dir}`.replace(/\/$/, ''), kind: app.app.kind, name: deployName(goal), production, branch: goal.branch.replace(/[^A-Za-z0-9-]+/g, '-').slice(0, 28), productionBranch: goal.baseBranch, install: app.app.install, build: app.app.build, outputDir: app.app.outputDir, message: `${goal.title} (Foundry)`, credentials: c, cli: this.deployCli }).map((s) => ({ label: s.label, command: redact(s.argv.join(' '), c) })) : [],

@@ -32,7 +32,7 @@ function goal(id: string, state: Goal['state'], delivery = IDLE_DELIVERY): Goal 
     provider: 'claude', id, title: 'imported', prompt: 'p', workspaceDir: null, checkpoint: null, selfCheck: false, previewRef: null, previewPlace: 'auto', milestonePause: true, clarifyStage: null, references: [], investigation: null, revise: null, interview: null, effort: null, modelPreset: null, modelSubstitutions: {}, repoPath: repo, baseBranch: 'main', branch: `goal/${id}`,
     budgets: { maxCostUsd: 5, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3 }, budgetPreset: 'custom', mode: 'expert', workflow: { tdd: 'off', pace: 'thorough', ponytail: 'on' },
     models: { strong: 'opus', cheap: 'haiku', worker: 'opus' }, state, stateBeforeBlock: null, costUsd: 0, fixCycles: 0, delivery, attachments: [], baseSync: null, autoskills: null, follows: null, delegation: { allow: false, autoApprove: false }, delegatedFrom: null,
-    completion: { graphRefresh: false, docs: [], audit: false, auditRun: null, docsRun: null, graphRun: null, artifactsRun: null }, nature: 'code', outputDir: null, runningSince: t0(0), createdAt: t0(0), updatedAt: t0(0),
+    completion: { graphRefresh: false, docs: [], audit: false, auditRun: null, qa: false, qaRun: null, docsRun: null, graphRun: null, artifactsRun: null }, nature: 'code', outputDir: null, runningSince: t0(0), createdAt: t0(0), updatedAt: t0(0),
   };
 }
 function importHistory(engine: Engine, g: Goal, extra: { type: string; payload: unknown }[] = []) {

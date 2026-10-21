@@ -37,6 +37,7 @@ What a new goal starts with. Most of them can be changed for one goal on the New
 | **Second opinion on every Brief** | off | Once a goal's Brief is ready for your approval, a reviewer that did not write it reads it against the repository and proposes what to change, on the goal reviewer's model: a checklist on the Brief page you apply or not. Off: the Brief page still has the button. See [Second opinion](./approving-the-brief.md#second-opinion). |
 | **Share Learnings with your own sessions** | on | Writes each folder's Learnings into the repository as a project skill (`foundry-learnings`, kept out of git) that your own coding-agent sessions there read; rewritten whenever the Learnings change. Off: the file is removed. |
 | **Audit at the end of new goals** | off | New goals run `ponytail-audit` on the finished branch before the final review; must-fix findings in the code the goal touched become fix tasks. Chosen per goal at Brief approval. |
+| **Browser QA at the end of new goals** | off | New goals with a web app: once every task is done, one session opens the finished app in Chromium and tries each acceptance check with Playwright; a must check that fails becomes a fix task before the final review. Chosen per goal at Brief approval; needs Chromium for Playwright. |
 | **Goal-level fix cycles** | 1 | How many times the final review may send fix tasks before asking you. Thorough pace only. |
 | **Small goal (diff lines)** | 400 | A goal that changed this many lines or fewer gets a lighter, cheaper final review. 0 = never. |
 | **Review every task** | on | A short review of every task, even when the Brief did not ask for one. Thorough pace only. |
@@ -292,19 +293,28 @@ Foundry can message you on Telegram or Discord when something happens, so you do
 
 **Discord bot token (buttons)**: optional, beside the webhook. Your bot then posts the messages that wait for you in the webhook's channel, with the same buttons; words are typed in a form the button opens. See [Answering from Discord](../operate/notifications.md#answering-from-discord).
 
-The seven switches, all on by default:
+The eight switches, all on by default:
 
 | Switch | You get a message when | What to do |
 |---|---|---|
 | **Needs you** | A goal or task is waiting for you: a failed task, a blocked command, a budget reached, a milestone to look at. | Open the Inbox or the goal and answer. Until you do, that part waits. See [When Foundry needs you](./when-foundry-needs-you.md). |
 | **Interview round** | Foundry asks a round of questions before writing the Brief. | Answer them; the goal waits for you. |
 | **Brief ready** | A Brief waits for your approval. Never one Foundry approves itself. | Read it, then approve it on the Brief page or with the message's button. |
+| **Schedule fired** | A [Schedule](./schedules.md) fired: the goal it made, or why none was made (its previous run still going). | Nothing, unless a run was skipped you expected. |
 | **Goal finished** | A goal ended done, over-delivered or failed. Never when you cancelled it yourself. | Look at the result, or at what failed. |
-| **Delivery** | A pull request was opened or merged, or the delivery failed. | Review the pull request, or look at the Delivery tab. |
+| **Delivery** | A pull request was opened or merged, the delivery failed, a deploy ended, its smoke passed or failed, or a revert of a merged goal was opened, merged, closed or failed. | Review the pull request, or look at the Delivery tab. |
 | **Usage pause** | A coding agent’s usage limit paused its new sessions, and again when retrying resumes. Other coding agents can continue. | Foundry retries automatically; check Accounts and Usage if failures persist. |
 | **New version** | A newer Foundry version is out (once per version). | Update when convenient, see [About & updates](#about--updates). |
 
 Turn off what you do not want. The switches apply to every channel alike.
+
+## Access
+
+Who may use this Foundry from another device. With no one on the list — the default — there is no login: a single person on their own computer, or on their own tailnet, needs none. **Add the first person** makes a token for them and turns Access on: from then on every request needs a token, on this computer too, and the browser that made the first token is signed in with it, so no one is locked out.
+
+A token is shown once; copy it and hand it over in private. On a phone or laptop, open Foundry's address and paste it on the sign-in page: that browser keeps it for 90 days (**⚙ → Sign out** forgets it). For the command line, set `FOUNDRY_TOKEN`; `foundry access` lists people, `foundry access add <name>` and `foundry access revoke <id>` do what the buttons do.
+
+While Access is on, what a person does is recorded under their name: the goal page says who asked for the goal and who approved its Brief, and an Inbox item says who answered it. Answers from Telegram or Discord carry no name. **Revoke** takes a token back at once, on every device; revoking the last one turns Access off. Tokens are kept as fingerprints in `access.json` beside the data, never in the event log and never in a Transfer. Access is a light lock for people who already share a tailnet with you; it is not a reason to expose Foundry to the internet (see [remote-access.md](../operate/remote-access.md#give-each-person-a-token)).
 
 ## Safety
 

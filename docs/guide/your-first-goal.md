@@ -169,6 +169,12 @@ The switch appears only in Expert view. The initial Settings default is on; the 
 
 The big text box, **1 · What do you want done?** Describe the goal as you would to a senior colleague: what you want, for whom, and anything that must or must not happen. Foundry will turn it into acceptance checks and a plan for you to approve, so you do not need to be complete.
 
+### From a GitHub issue
+
+Above the text box, **From a GitHub issue** takes an issue link (`https://github.com/owner/name/issues/12`), `owner/name#12`, or just `#12` once the repository folder below is chosen and has a GitHub remote. Press **Read issue**: the issue's title and description fill the title and the text box (text you already wrote is kept), and the whole thread, description and comments as they are at that moment, is attached as a link with its text, so every session of the goal reads it. A chip names the issue; its **×** unlinks it and drops the thread, keeping your words.
+
+Reading an issue needs the GitHub CLI connected (the Setup page, or Settings → Git & delivery). When the goal is delivered with **Open a PR** or **PR + auto-merge**, the pull request's description starts with `Closes #12`, so GitHub closes the issue when the pull request merges; with one PR per task, the last one closes it. Foundry writes nothing to the issue itself. The goal page shows **From issue** under the title, and the goal list a `#12` tag. From the command line, `foundry goal new --issue <link> --repo <path>` does the same.
+
 ### Attachments
 
 Below the text box: **Attach screenshots, PDFs, files or links — or drop / paste them here.** Use **Files** to pick files, or **Link** to add a web address, then **Add**. You can also paste a screenshot straight into the page.
@@ -194,6 +200,10 @@ Foundry then shows what it found: the branch, whether there are uncommitted chan
 If the folder is not a repository, press **Initialize git here**. If you picked a folder inside a repository, Foundry offers the repository's top folder instead.
 
 When earlier goals ran in this folder, a line under the card says how many [Learnings](./learnings.md) Foundry has for it: what those goals taught about the project. The plan is written with them.
+
+### Also change: companion folders
+
+A goal that must change more than one repository — a backend and the frontend that calls it, a library and the app that uses it — names the other folders under **Also change these folders**, under the Repository card once the main folder is ready. Each is checked like the main one (a git repository on a branch). The planner then gives every such folder its part as a task of kind **goal** bound to it, done by a [delegated goal](#delegated-goals) of its own in that repository (Delegated goals is switched on for you), starting from that folder's current branch. That delegated goal reads the main repository for the interface the parts share, lands nothing on this goal's branch — its summary is what the tasks after it read — and keeps its result on its own branch there until this goal is delivered, when it is delivered the same way: one pull request per repository, each saying which goal it is part of (see [Companion repositories](./getting-the-result.md#companion-repositories)). The main folder's own preview, checks and screenshots do not cover the companions; each delegated goal has its own. From the command line: `--also <path>`, once per folder.
 
 ### Follows
 
@@ -228,6 +238,10 @@ A link under the form. It runs the goal as one task with command checks you type
 ### Not on the form: self-check
 
 The self-check (Foundry opens the running result in a hidden browser and takes screenshots) is set in [Settings → Preview & self-check](./settings.md#preview--self-check) and can be switched on per goal on the Brief page (**How to run it**) or later on the goal page. See [While it runs](./while-it-runs.md#self-check).
+
+### Schedule it
+
+**Schedule…** next to the create button saves the form as a [Schedule](./schedules.md) instead of making a goal: every day, week or month Foundry makes a goal from it and runs it by itself. Uploaded files, references and an issue are not kept by a schedule; links are.
 
 ## After you press the create button
 

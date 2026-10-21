@@ -3,9 +3,10 @@ import type { Attachment, WorkflowProfile } from '@foundry/core/browser';
 import { ARTIFACT_NATURES, BUDGET_PRESETS } from '@foundry/core/browser';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { CornerDownRight, X } from 'lucide-react';
+import { CornerDownRight, Github, X } from 'lucide-react';
 import { ACTION_INFO, CODEX_MODEL_ACTIONS, effectiveCodexPresets, effectivePresets, natureKey, type CodexModelPreset, type ModelNature, type ModelPreset } from '@foundry/core/browser';
 import { api, apiForProvider, type AccountsInfo, type AgentProvider, type FollowUpDraft, type GoalRow, type ModelRecordView, type RepoInfo } from '../api.ts';
+import { CompanionFolders } from '../components/CompanionFolders.tsx';
 import { AttachmentInput } from '../components/Attachments.tsx';
 import { BudgetPicker, type BudgetDraft } from '../components/BudgetPicker.tsx';
 import { DeliveryPolicyForm, type PolicyDraft } from '../components/DeliveryPolicyForm.tsx';
@@ -16,6 +17,10 @@ import { Button, ButtonGroup, Card, Input, Select, Textarea, cn } from '../ui.ts
 import { INTERVIEW_DEPTHS } from '../interview-depth.ts';
 import { HelpLink } from './HelpPage.tsx';
 import { initialWorkflow, updateWorkflow } from './new-goal-workflow.ts';
+import { applyIssueRead, clearIssue, keptOwnText, type IssueFormState } from './new-goal-issue.ts';
+import { defaultCadence, recipeFromBody, scheduleNameFrom } from './new-goal-schedule.ts';
+import { ScheduleDialog, type ScheduleMeta } from '../components/ScheduleDialog.tsx';
+import type { ScheduleRow } from '../api.ts';
 
 const DELIVERY_KEY = 'foundry.delivery';
 const BUDGET_KEY = 'foundry.budget';
@@ -68,9 +73,22 @@ export function NewGoalPage() {
   const [prompt, setPrompt] = useState(() => params.get('prompt') ?? '');
   useUnsaved('new-goal', !!prompt.trim());
   const [repoPath, setRepoPath] = useState('');
+  // companion repositories (ADR-0063): other folders the goal changes too
+  const [companions, setCompanions] = useState<string[]>([]);
   const [title, setTitle] = useState('');
   const [repoInfo, setRepoInfo] = useState<RepoInfo | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  // a goal from a GitHub issue (ADR-0052): read once, its title and body fill the form, its thread is attached
+  const [issue, setIssue] = useState<IssueFormState['issue']>(null);
+  const [issueRef, setIssueRef] = useState(() => params.get('issue') ?? '');
+  const [issueOpen, setIssueOpen] = useState(() => !!params.get('issue'));
+  const [issueBusy, setIssueBusy] = useState(false);
+  const [issueErr, setIssueErr] = useState<string | null>(null);
+  // a schedule (ADR-0054): the form is its editor; `?schedule=<id>` opens one, Schedule… saves the form as one
+  const [schedule, setSchedule] = useState<ScheduleRow | null>(null);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleBusy, setScheduleBusy] = useState(false);
+  const [scheduleErr, setScheduleErr] = useState<string | null>(null);
   /** shipped software the goal learns from: REA studies each before Clarify */
   const [references, setReferences] = useState<{ target: string; lookAt: string }[]>([]);
   const [delivery, setDelivery] = useState<PolicyDraft>(loadDraft());
@@ -216,9 +234,93 @@ export function NewGoalPage() {
       setErr(e.message);
     }
   };
+  const readIssue = async (ref: string) => {
+    if (!ref.trim()) return;
+    setIssueBusy(true);
+    setIssueErr(null);
+    try {
+      const read = await api.readIssue(ref.trim(), repoInfo?.ok ? repoPath.trim() : null);
+      const next = applyIssueRead({ prompt, title, attachments, issue }, read);
+      setPrompt(next.prompt);
+      setTitle(next.title);
+      setAttachments(next.attachments);
+      setIssue(next.issue);
+      setIssueOpen(false);
+    } catch (e: any) {
+      setIssueErr(e.message);
+    } finally {
+      setIssueBusy(false);
+    }
+  };
+  const unlinkIssue = () => {
+    const next = clearIssue({ prompt, title, attachments, issue });
+    setAttachments(next.attachments);
+    setIssue(null);
+    setIssueRef('');
+  };
+  const saveSchedule = async (meta: ScheduleMeta) => {
+    setScheduleBusy(true);
+    setScheduleErr(null);
+    try {
+      await api.saveSchedule({ id: schedule?.id, name: meta.name, cadence: meta.cadence, autoApprove: meta.autoApprove, recipe: recipeFromBody(formBody() as never) });
+      nav('/schedules');
+    } catch (e: any) {
+      setScheduleErr(e.message);
+    } finally {
+      setScheduleBusy(false);
+    }
+  };
+  /** `?schedule=<id>`: the form filled with the schedule's recipe; Save schedule writes it back */
+  const openSchedule = async (id: string) => {
+    try {
+      const row = (await api.schedules()).schedules.find((x) => x.id === id);
+      if (!row) return setErr(`schedule ${id} not found`);
+      const r = row.recipe;
+      setSchedule(row);
+      changed.current.add('provider');
+      changed.current.add('codexModel');
+      changed.current.add('effort');
+      changed.current.add('interviewDepth');
+      changed.current.add('mode');
+      changed.current.add('deliveryMode');
+      changed.current.add('deliveryUnit');
+      setPrompt(r.prompt);
+      setTitle(r.title ?? '');
+      if (r.provider) setProvider(r.provider);
+      setCodexOverride(r.provider === 'codex' && !!r.codexModel);
+      if (r.codexModel) setCodexModel(r.codexModel);
+      setRepoPath(r.repoPath);
+      setRepoKey((k) => k + 1);
+      const validation = beginRepoValidation();
+      void api.validateRepo(r.repoPath).then(validation.finish).catch(() => validation.finish(null));
+      if (r.nature) setNature(r.nature as Nature);
+      if (r.provider === 'codex') setCodexPreset(r.modelPreset ?? '');
+      else setModelPreset(r.modelPreset ?? '');
+      setEffort(r.effort ?? '');
+      if (r.workflow?.pace) choosePace(r.workflow.pace);
+      if (r.mode) setModeState(r.mode);
+      changeWorkflow({ type: 'follow-up', values: { profile: r.workflow?.profile ?? profile, tdd: r.workflow?.tdd ?? tdd, ponytail: r.workflow?.ponytail ?? ponytail } });
+      if (r.interviewDepth != null) setInterviewDepth(String(r.interviewDepth));
+      if (r.delivery) setDelivery((cur) => ({ ...cur, ...r.delivery }));
+      if (r.budgetPreset) setBudget((b) => ({ preset: r.budgetPreset!, budgets: { ...b.budgets, ...(r.budgets ?? {}) } }));
+      setDelegate(!!r.delegation?.allow);
+      setDelegateAuto(!!r.delegation?.autoApprove);
+      if (r.autoBrief) {
+        setAuto(true);
+        setChecks(r.autoBrief.mustChecks.join('\n'));
+        setStretch((r.autoBrief.stretchChecks ?? []).join('\n'));
+      }
+      if (r.outputDir) setOutputDir(r.outputDir);
+      for (const l of r.links) void api.addLink(l.url, { name: l.name, note: l.note }).then((a) => setAttachments((cur) => [...cur, a])).catch(() => {});
+    } catch (e: any) {
+      setErr(e.message);
+    }
+  };
   useEffect(() => {
     const id = params.get('follows');
     if (id) void chooseFollow(id, true);
+    if (params.get('issue')) void readIssue(params.get('issue')!);
+    if (params.get('schedule')) void openSchedule(params.get('schedule')!);
     api
       .goals()
       .then((gs) => setFinishedGoals(gs.filter((g) => FINISHED.includes(g.state))))
@@ -301,13 +403,12 @@ export function NewGoalPage() {
                     ? 'Pick the Codex model'
                     : null;
   const ready = notReady === null;
+  // a schedule is saved without starting a session: the sign-in gates do not hold it back (a run refuses at its time instead)
+  const scheduleReady = !!prompt.trim() && !!repoInfo?.ok && !missingPreset && !unsupportedCodexChoices.length && !(provider === 'codex' && codexOverride && !codexModel.trim());
   const done = [prompt.trim().length > 0, repoInfo?.ok ?? false, true, true];
 
-  const submit = async () => {
-    setBusy(true);
-    setErr(null);
-    try {
-      const goal = await api.createGoal({
+  /** what Create sends: the goal as the form stands (a schedule keeps it as its recipe) */
+  const formBody = () => ({
         provider,
         codexModel: provider === 'codex' && codexOverride ? codexModel.trim() : undefined,
         prompt,
@@ -330,9 +431,16 @@ export function NewGoalPage() {
         modelPreset: (provider === 'codex' ? codexPreset : modelPreset) || undefined,
         follows: follow ? { goalId: follow.draft.previous.id, startFrom: follow.startFrom, attachments: follow.attachments, style: follow.style } : undefined,
         delegation: { allow: delegate, autoApprove: delegate && delegateAuto },
+        companions: companions.map((p) => p.trim()).filter(Boolean).map((p) => ({ repoPath: p })),
+        issue: issue?.read.issue,
       });
+  const submit = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const goal = await api.createGoal(formBody());
       try {
-        localStorage.setItem(DELIVERY_KEY, JSON.stringify({ remote: delivery.remote, mergeMethod: delivery.mergeMethod, requireChecks: delivery.requireChecks, autoResolveConflicts: delivery.autoResolveConflicts, fixCiCycles: delivery.fixCiCycles, deleteRemoteBranch: delivery.deleteRemoteBranch }));
+        localStorage.setItem(DELIVERY_KEY, JSON.stringify({ remote: delivery.remote, mergeMethod: delivery.mergeMethod, requireChecks: delivery.requireChecks, autoResolveConflicts: delivery.autoResolveConflicts, fixCiCycles: delivery.fixCiCycles, fixReviewCycles: delivery.fixReviewCycles, deleteRemoteBranch: delivery.deleteRemoteBranch }));
         localStorage.setItem(BUDGET_KEY, JSON.stringify(budget));
       } catch {}
       nav(auto ? `/goals/${goal.id}` : `/goals/${goal.id}/brief`);
@@ -566,6 +674,50 @@ export function NewGoalPage() {
       </Card>
 
       <Card title={<>1 · What do you want done?<HelpLink to="your-first-goal#what-do-you-want-done" className="ml-1.5" /></>}>
+        <div className="mb-2 flex items-center gap-2 flex-wrap text-xs">
+          {issue ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-900 bg-sky-950/40 px-2 py-0.5 text-sky-200" title={issue.read.issue.title}>
+              <Github size={12} className="shrink-0" />
+              <a href={issue.read.issue.url} target="_blank" rel="noreferrer" className="hover:underline">
+                {issue.read.issue.repo}#{issue.read.issue.number}
+              </a>
+              <span className="text-sky-400/80">· {issue.read.issue.state}</span>
+              <button type="button" className="rounded-full p-0.5 hover:bg-sky-900 shrink-0" style={{ minHeight: 0 }} aria-label="Unlink issue" title="This goal is not made from the issue after all: its thread leaves the attachments; your text stays" onClick={unlinkIssue}>
+                <X size={12} />
+              </button>
+            </span>
+          ) : (
+            <Button size="sm" variant="ghost" type="button" onClick={() => setIssueOpen(!issueOpen)} title="Make this goal from a GitHub issue: its title and description fill the form, its thread is attached for every session, and the pull request closes it when it merges">
+              <Github size={12} /> From a GitHub issue<HelpLink to="your-first-goal#from-a-github-issue" className="ml-1.5" />
+            </Button>
+          )}
+          {issue && keptOwnText({ prompt, title, attachments, issue }) && <span className="text-zinc-500">your description is kept; the issue's thread is attached</span>}
+          {issueOpen && !issue && (
+            <form
+              className="basis-full flex items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void readIssue(issueRef);
+              }}
+            >
+              <Input className="text-xs" placeholder="https://github.com/owner/name/issues/12, owner/name#12, or #12 in the chosen repository" value={issueRef} onChange={(e) => setIssueRef(e.target.value)} />
+              <Button size="sm" type="submit" disabled={!issueRef.trim() || issueBusy}>
+                {issueBusy ? 'Reading…' : 'Read issue'}
+              </Button>
+            </form>
+          )}
+          {issueErr && (
+            <p className="basis-full text-[11px] text-rose-300">
+              {issueErr}
+              {/not logged in|not installed/i.test(issueErr) && (
+                <>
+                  {' '}
+                  <Link to="/setup" className="underline">Open Setup</Link>
+                </>
+              )}
+            </p>
+          )}
+        </div>
         <Textarea rows={6} placeholder="Describe the goal as you would to a senior engineer. The system clarifies, proposes Must / Stretch acceptance checks and a task plan for you to approve." value={prompt} onChange={(e) => setPrompt(e.target.value)} />
         <AttachmentInput className="mt-2" items={attachments} onChange={setAttachments} />
         <div className="mt-3 space-y-1.5">
@@ -610,6 +762,7 @@ export function NewGoalPage() {
           </div>
         )}
         {repoInfo?.ok && (followCandidates.length > 0 || follow) && <FollowsPicker follow={follow} candidates={followCandidates} onPick={(id) => void chooseFollow(id, false)} onChange={setFollow} />}
+        {repoInfo?.ok && <CompanionFolders value={companions} onChange={setCompanions} main={repoPath.trim()} />}
       </Card>
 
       <Card title={<>3 · Budget<HelpLink to="your-first-goal#budget" className="ml-1.5" /></>}>
@@ -659,9 +812,13 @@ export function NewGoalPage() {
             {notReady}
           </span>
         )}
+        <Button variant={schedule ? 'default' : 'ghost'} disabled={busy || !scheduleReady} onClick={() => setScheduleOpen(true)} title="Save this form as a schedule: it fires every day, week or month and makes a goal from it each time (ADR-0054)">
+          {schedule ? 'Save schedule' : 'Schedule…'}
+        </Button>
         <Button variant="primary" disabled={busy || !ready} onClick={submit}>
           {busy ? 'Creating…' : auto ? 'Create & run' : 'Create & clarify'}
         </Button>
+        <ScheduleDialog open={scheduleOpen} editing={!!schedule} initial={{ name: schedule?.name ?? scheduleNameFrom(title, prompt), cadence: schedule?.cadence ?? defaultCadence(), autoApprove: schedule?.autoApprove ?? true }} busy={scheduleBusy} error={scheduleErr} onClose={() => setScheduleOpen(false)} onSave={saveSchedule} />
       </div>
     </div>
   );

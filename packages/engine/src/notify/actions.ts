@@ -9,7 +9,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { ACTIONS_BY_TRIGGER, proposeBudgetFromEstimate } from '@foundry/core';
+import { ACTIONS_BY_TRIGGER, proposeBudgetFromEstimate, calibratedEstimate, type Calibration } from '@foundry/core';
 import type { Brief, Budgets, Escalation, EscalationAction, EscalationAnswer, FeedbackPlan, Goal, InterviewQuestion } from '@foundry/core';
 
 /** what a message with buttons is about */
@@ -183,11 +183,13 @@ export const usageKeyboard = (provider: 'claude' | 'codex'): Keyboard => [[btn('
  * The budget a Brief is approved with, as the Brief page does it: an Auto goal with no limits yet takes the estimate ×2
  * (no dollar limit for Codex, which reports no cost); otherwise the goal's limits stand.
  */
-export function budgetOnApproval(goal: Pick<Goal, 'provider' | 'budgetPreset' | 'budgets'>, brief: Pick<Brief, 'costEstimateUsd' | 'timeEstimateMin'>): { budgets?: Partial<Budgets>; text: string } {
+export function budgetOnApproval(goal: Pick<Goal, 'provider' | 'budgetPreset' | 'budgets'>, brief: Pick<Brief, 'costEstimateUsd' | 'timeEstimateMin'>, calibration: Calibration | null = null): { budgets?: Partial<Budgets>; text: string } {
   const codex = goal.provider === 'codex';
   if (goal.budgetPreset === 'auto' && goal.budgets.maxCostUsd == null && goal.budgets.maxDurationMin == null) {
-    const p = proposeBudgetFromEstimate(brief);
-    return { budgets: codex ? { maxDurationMin: p.maxDurationMin } : p, text: `${codex ? '' : `$${p.maxCostUsd} / `}${p.maxDurationMin} min (the estimate ×2)` };
+    // the estimate as earlier goals corrected it (ADR-0056), then ×2 as on the Brief page
+    const corrected = calibration && calibration.scope !== 'none';
+    const p = proposeBudgetFromEstimate(calibratedEstimate(brief, calibration));
+    return { budgets: codex ? { maxDurationMin: p.maxDurationMin } : p, text: `${codex ? '' : `$${p.maxCostUsd} / `}${p.maxDurationMin} min (the ${corrected ? 'calibrated ' : ''}estimate ×2)` };
   }
   const { maxCostUsd, maxDurationMin } = goal.budgets;
   return { text: `${codex ? '' : `${maxCostUsd == null ? 'no cost limit' : `$${maxCostUsd}`} / `}${maxDurationMin == null ? 'no time limit' : `${maxDurationMin} min`}` };
@@ -218,6 +220,8 @@ export interface ActionHost {
   approveBrief(goalId: string, budgets?: Partial<Budgets>): Promise<void>;
   classifyFeedback(goalId: string, text: string): Promise<FeedbackPlan>;
   resumeNow(provider: 'claude' | 'codex'): boolean;
+  /** how far earlier goals ran from their estimate, for the budget a Brief is approved with (ADR-0056) */
+  calibration?(goal: Goal): Calibration | null;
   /** an entry in the activity: what was answered, from where, by whom */
   note(goalId: string | null, message: string): void;
   drafts: Drafts;
@@ -383,7 +387,7 @@ async function pressBrief(host: ActionHost, p: Extract<Press, { kind: 'brief' }>
   if (!brief) return { toast: 'The Brief is gone.', buttons: [] };
   const left = blockingLeft(brief).length;
   if (left) return { toast: `Answer the Brief's ${left} blocking question${left === 1 ? '' : 's'} on its page first.`, buttons: [] };
-  const budget = budgetOnApproval(goal, brief);
+  const budget = budgetOnApproval(goal, brief, host.calibration?.(goal) ?? null);
   if (p.code === 'n') return { toast: 'Not approved: the Brief waits on its page.', buttons: briefKeyboard(p.goalId, brief) };
   if (p.code === 'a')
     return { toast: clip(`Approve and run with ${budget.text}?`, 200), buttons: [[btn('✅ Yes, approve and run', `b:${p.goalId}:A`)], [btn('↩︎ Not now', `b:${p.goalId}:n`)]] };

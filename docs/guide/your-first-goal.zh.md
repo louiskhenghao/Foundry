@@ -171,6 +171,12 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 
 大文本框 **1 · What do you want done?**。像跟一位资深同事说话那样描述 goal：你想要什么、给谁用、有什么必须发生或绝不能发生。Foundry 会把它变成验收检查和计划交给你批准，所以你不用写得面面俱到。
 
+### From a GitHub issue
+
+文本框上方的 **From a GitHub issue** 接受一个 issue 链接（`https://github.com/owner/name/issues/12`）、`owner/name#12`，或者在下面选好了带 GitHub 远端的仓库文件夹之后只写 `#12`。按 **Read issue**：issue 的标题和正文会填进标题和文本框（你已经写的文字会保留），整个讨论串（当时的正文和评论）会作为带文本的链接附件附上，这个 goal 的每个会话都能读到。一个小标签标出这个 issue；它的 **×** 取消关联并移除讨论串，你的文字保留。
+
+读取 issue 需要已连接的 GitHub CLI（Setup 页，或 Settings → Git & delivery）。goal 以 **Open a PR** 或 **PR + auto-merge** 交付时，pull request 的描述会以 `Closes #12` 开头，pull request 合并后 GitHub 会关闭这个 issue；每个任务一个 PR 时，由最后一个关闭。Foundry 不会往 issue 本身写任何东西。goal 页面的标题下会显示 **From issue**，goal 列表会有一个 `#12` 标签。命令行里 `foundry goal new --issue <链接> --repo <路径>` 做同样的事。
+
 ### Attachments
 
 文本框下面：**Attach screenshots, PDFs, files or links — or drop / paste them here.** 用 **Files** 选文件，或者用 **Link** 加一个网址，然后按 **Add**。你也可以直接把截图粘贴到页面上。
@@ -196,6 +202,10 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 如果文件夹还不是仓库，按 **Initialize git here**。如果你选的是某个仓库里面的子文件夹，Foundry 会改为提供这个仓库的顶层文件夹。
 
 这个文件夹里以前跑过 goal 时，卡片下面会有一行，说 Foundry 对它有几条 [Learnings](./learnings.zh.md)：那些 goal 教会的项目知识。计划会带着它们来写。
+
+### Also change: companion folders
+
+一个 goal 要改不止一个仓库 —— 后端和调用它的前端、一个库和用它的应用 —— 就在 Repository 卡片下面的 **Also change these folders** 里填上其它文件夹（主文件夹就绪后出现）。每个都像主文件夹一样检查（在某个分支上的 git 仓库）。planner 会把每个这样的文件夹里要做的部分规划成一个绑定到它的 **goal** 类任务，由那个仓库里一个独立的[委派 goal](#delegated-goals) 来做（Delegated goals 会自动为你打开），从那个文件夹当前的分支开始。这个委派 goal 会去主仓库读两边共用的接口，什么都不会落到这个 goal 的分支上 —— 后面的任务读的是它的摘要 —— 它的成果留在自己仓库的分支上，直到这个 goal 交付时一起交付：每个仓库一个 pull request，各自写明属于哪个 goal（见 [伴随仓库](./getting-the-result.zh.md#伴随仓库)）。主文件夹自己的预览、检查和截图不覆盖伴随仓库；每个委派 goal 有自己的。命令行：`--also <path>`，每个文件夹一次。
 
 ### Follows
 
@@ -230,6 +240,10 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 ### 表单上没有的：自检
 
 自检（Foundry 在一个隐藏的浏览器里打开运行中的结果并截图）在 [Settings → Preview & self-check](./settings.zh.md#preview--self-check) 里设置，也可以在 Brief 页面（**How to run it**）或之后在 goal 页面上为单个 goal 打开。见 [运行期间](./while-it-runs.zh.md#self-check)。
+
+### Schedule it
+
+创建按钮旁边的 **Schedule…** 把表单保存为一个 [Schedule](./schedules.zh.md)，而不是生成 goal：每天、每周或每月，Foundry 用它生成一个 goal 并自己跑完。上传的文件、参考和 issue 不会被 schedule 保留；链接会。
 
 ## 按下创建按钮之后
 

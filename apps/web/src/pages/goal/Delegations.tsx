@@ -39,11 +39,46 @@ export function DelegationLinks({ d }: { d: GoalDetail }) {
                 {g.title}
               </Link>
               <Badge state={g.state} />
+              {g.repoPath && g.repoPath !== d.goal.repoPath && (
+                <span className="mono text-[11px] text-zinc-500" title={`works in the companion repository ${g.repoPath}`}>
+                  in {g.repoPath.split('/').pop()}
+                </span>
+              )}
               {i < goals.length - 1 && <span>,</span>}
             </span>
           ))}
         </span>
       )}
+    </div>
+  );
+}
+
+/**
+ * The companions' deliveries on the Delivery tab (ADR-0063): each companion repository's delegated goal, how its own
+ * delivery stands and its pull request, with a link to that goal, where it can be re-checked, resumed or reverted.
+ */
+export function CompanionDeliveries({ d }: { d: GoalDetail }) {
+  const mine = (d.delegations?.goals ?? []).filter((g) => g.repoPath && g.repoPath !== d.goal.repoPath);
+  if (!mine.length) return null;
+  return (
+    <div className="mt-3 rounded-md border border-zinc-800 bg-zinc-950/40 p-2.5 text-xs space-y-1">
+      <div className="text-zinc-200">Companion repositories</div>
+      <p className="text-[11px] text-zinc-500">Each is delivered with this goal, the same way, by its delegated goal; its pull request is its own.</p>
+      <ul className="space-y-0.5">
+        {mine.map((g) => (
+          <li key={g.id} className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span className="mono text-zinc-300" title={g.repoPath}>{g.repoPath!.split('/').pop()}</span>
+            <Badge state={g.state} />
+            {g.delivery && <span className="text-zinc-400">delivery: {g.delivery.status}{g.delivery.outcome ? ` · ${g.delivery.outcome.replace('_', ' ')}` : ''}</span>}
+            {g.delivery?.pr && (
+              <a className="underline text-sky-300" href={g.delivery.pr.url} target="_blank" rel="noreferrer">
+                PR #{g.delivery.pr.number}
+              </a>
+            )}
+            <Link to={`/goals/${g.id}#delivery`} className="underline text-zinc-400">its goal →</Link>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

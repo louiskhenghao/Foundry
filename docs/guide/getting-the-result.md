@@ -24,12 +24,18 @@ You pick the delivery on the New goal form (**4 · Delivery**), and can change i
 
 With **PR + auto-merge**, if branch protection on GitHub blocks the merge, Foundry turns on GitHub's own auto-merge (`gh pr merge --auto`) and waits a while ([Settings → Git & delivery](./settings.md#git--delivery)). If GitHub has not merged by then, it merges later by itself, and Foundry does not delete the branch.
 
+A goal made [from a GitHub issue](./your-first-goal.md#from-a-github-issue) starts the pull request's description with `Closes #12`: GitHub closes the issue when the pull request merges (with one PR per task, the last one carries it). Foundry never writes to the issue itself.
+
 Two rules hold for every mode:
 
 - It is Foundry itself that pushes, opens and merges, exactly as the plan on the Delivery tab lists. The AI working on your tasks cannot push; if it tries, Foundry blocks it and asks you (see [When Foundry needs you](./when-foundry-needs-you.md#it-wants-to-do-something-outside-your-computer)).
 - Foundry never pushes to your base branch (for example `main`) directly. Changes reach `main` only through a merge. It never force-pushes the goal's branch. The one exception is a task's branch under **One PR per task**: after the pull request below it merges, that branch's own commits are replayed on top of `main` and the branch is replaced, but only if nobody else pushed to it since (`--force-with-lease`). If someone did, Foundry keeps their commits and merges `main` in instead.
 
 The pull request modes need the GitHub CLI and a connected account: see [Connecting GitHub](#connecting-github).
+
+## Companion repositories
+
+A goal that also changes other folders ([Also change](./your-first-goal.md#also-change-companion-folders)) delivers each of them the way it delivers its own: when you deliver it, the delegated goal that did a companion's part gets the same delivery settings — the same mode and merge method, that repository's own remote and base branch — and runs its own delivery, so each repository gets its own pull request. The main pull request lists the companion repositories and their pull requests once they are open; each companion's says which goal it is part of. The Delivery tab shows the companions under **Companion repositories**, with links to their goals, where each can be re-checked, resumed or reverted on its own. **Local only** leaves every branch where it is: the main goal's in its folder, each companion's in its own.
 
 ## One PR for the whole goal or one per task
 
@@ -57,7 +63,7 @@ If your project has no online copy yet, the form says **No remote yet** and offe
 
 ### Once the PR is open
 
-Only for **PR + auto-merge**. The four switches are on by default.
+The four switches and **Fix failing CI** are only for **PR + auto-merge** and are on by default; **Fix review comments** applies to **Open a PR** too.
 
 | Option | Meaning |
 |---|---|
@@ -66,6 +72,7 @@ Only for **PR + auto-merge**. The four switches are on by default.
 | **Auto-resolve conflicts with the base branch** | If `main` moved on and conflicts, Foundry resolves it. Off: a conflict stops the delivery. |
 | **Delete the remote branch after merging** | Only the branch this goal pushed, never the base branch. |
 | **Fix failing CI** | **don't fix**, **up to once** (default) or **up to twice**. See [When CI fails](#when-ci-fails). |
+| **Fix review comments** | **don't fix**, **up to once** (default), **up to twice** or **up to three times**: rounds of review comments Foundry addresses by itself. See [When someone reviews the pull request](#when-someone-reviews-the-pull-request). |
 
 ## Connecting GitHub
 
@@ -130,6 +137,16 @@ If you merge the pull request on GitHub yourself, Foundry notices and finishes t
 
 With one pull request per task, a fix for CI is committed on the branch of the pull request that failed and pushed there. The other pull requests are not touched.
 
+## When someone reviews the pull request
+
+A pull request Foundry opened can be reviewed like any other. Foundry reads the review comments on its open pull requests every few minutes, and whenever you open the goal's page. Two kinds count: **inline comments on the diff**, and a **review that requests changes** (its text). An approval, a review that only comments, a comment in the conversation, and anything a bot wrote are left alone, so a comment is how you talk, and a comment on the diff or a request for changes is how you ask for work.
+
+The comments found on one look form a **round**. Within the budget of **Fix review comments** (one round by default), Foundry runs the delivery again: a small fix task reads every comment, with the file, the line and the diff around it, changes the branch in the smallest way that answers them, and the goal's must checks run on the result. The fix is pushed to the pull request's branch, and Foundry replies under each comment with the commit and the files it changed. When the task looked and found nothing to change, the reply says so, and the task's report on the goal page says why. With **PR + auto-merge**, the checks are then waited for and the merge goes on as before. With one PR per task, the fix lands on the branch of the pull request that was reviewed; the others are not touched.
+
+The Delivery tab lists each round under its pull request: how many comments, who wrote them, and what became of them. A round beyond the budget waits for you, with a note and a message, and **Fix review comments** addresses it on your click. **Resume delivery** and **Retry delivery** give a fresh budget. A fix the task cannot make stops the delivery like a CI fix that cannot: one *Delivery stopped* item in the Inbox, and the pull request as it was; answer the comments on GitHub, or press **Resume delivery** to try again.
+
+Foundry writes nothing else to GitHub: no comment when it starts, no review of its own. Its replies end with a hidden mark, so it never mistakes them for yours. Comments left while a delivery is running are picked up once it ends.
+
 ## Changing delivery later
 
 You can change the mode at any time on the Delivery tab:
@@ -155,7 +172,7 @@ A CAD goal's preview card also shows **CAD Viewer**, text-to-cad's own viewer: *
 
 A finished goal whose result is a web page or an all-in-one web app can be put online from the end of its **Delivery** tab: on Vercel, Netlify or Cloudflare Pages, as a preview address unless you ask for production.
 
-![The Deploy card: the app found, the hosts, the exact command, and a live preview](images/deploy.png)
+![The Deploy card: the app found, the hosts, the exact command, and a live preview with its smoke](images/deploy.png)
 
 - **What is deployed**: a folder of pages, a site or single-page app built with a known tool (Vite, Astro, Gatsby, Docusaurus, Eleventy, Create React App, Angular), or a full-stack web framework the hosts run (Next.js, Nuxt, SvelteKit, Astro with an adapter, Remix, React Router, SolidStart). The card says which it found, and in which folder of a monorepo.
 - **What is not**: workers in Docker or a Procfile, a backend deployed apart from its pages (an API in its own folder, a Go or Python service), an app with a custom server of its own, or a repository with several web apps. The card says which it found instead. Half a system online is a broken one, so nothing is deployed.
@@ -163,6 +180,7 @@ A finished goal whose result is a web page or an all-in-one web app can be put o
 - **Before anything runs**, the card lists the exact commands. They run in a checkout of the goal's commit in Foundry's data folder, never in your folder, and nothing is pushed to your repository. Each host gets one project per repository, named after its folder, so later deploys go to the same place.
 - **Preview or production**: a preview gets an address of its own. **Production** asks you to confirm first, because it replaces what the project's address serves. A host's very first deploy of a new project is its production deploy.
 - **Afterwards** the card lists every deploy with its address, the commands' output folds open below, and a **Delivery** notification says where it went or why it failed.
+- **A smoke afterwards**: once a preview is live, Foundry runs the goal's milestone scripts against its address — the same Playwright scripts that recorded each feature, with no server of their own — and keeps what they showed under the deploy: passed or failed, each script's video and screenshots, and the runner's log. A failed script is told like a failed delivery and is yours to look into: what differs online is usually the host's environment (a variable, a database or a service it lacks). **Smoke again** tries once you changed it. Production gets no smoke unless you tick **Try the milestone scripts against it afterwards**: a script writes what it tries (an order, an account), and that would land in production's data. A goal without milestone scripts gets none.
 
 Each host needs its token in **Settings → Git & delivery → Deploy**: see [Git & delivery](./settings.md#git--delivery). The engine keeps the tokens to itself; no coding session ever gets them. A coding session cannot deploy on its own either: the boundary guard blocks the hosts' deploy commands, however they are spelled.
 
@@ -174,10 +192,12 @@ On the Brief you chose what runs by itself at the end (see [Approving the Brief]
 - **Refresh the knowledge graph** updates the code map after delivery: in the progress folder for a Local only goal, in your own folder for a delivered one. It only refreshes the index: GitNexus runs with `--index-only`, and anything a tool still writes into `CLAUDE.md`, `AGENTS.md` or `.claude/` is put back, so the folder is left without uncommitted changes. A GitNexus section or skill folder that appears while a task works (a global hook of yours can run GitNexus) is kept out of the task's commit too.
 
 - **Audit the repository at the end** runs `ponytail-audit` once every task is done, before the final review: must-fix findings in the code the goal touched become fix tasks, and every finding stays on the goal.
+- **Test it in a browser at the end** opens the finished app in Chromium once every task is done, after the audit and before the final review, and tries each acceptance check with Playwright scripts; a must check that fails becomes a fix task, and every result stays on the goal with its screenshots. The scripts live in a scratch folder (`.foundry-qa/`, kept out of git); any other change the session made is thrown away.
 
 The Overview tab's **Completion** card has one row for each, with a tick, a warning or a cross and how it went in one line. Click a row's name for the details:
 
 - **Audit**: what it found, ranked must fix, should fix and nice to have, with the files; a must-fix finding in this goal's code says that a fix task was created. **Follow-up with the rest** starts a goal for the findings this one did not fix.
+- **Browser QA**: each check it tried, pass, fail or skipped, with what it did and saw, the problem and the fix for a failure, and its screenshots; a failed must check says that a fix task was created.
 - **Docs**: the documents chosen, the files written (click one to read it), the commit, what it cost, and the pull request it went out in.
 - **Graph refresh**: each tool (updating your checkout, graphify, GitNexus) with its result; a failed one shows why, for example a missing program.
 
@@ -214,6 +234,14 @@ git merge goal/abc123
 with the branch name shown at the top of the goal page. Or change the delivery to **Push branch** or **Open a PR** and let Foundry do it through GitHub.
 
 When you no longer need the goal, **⋯ → Delete goal…** removes it and its progress folder; tick **Also delete the branch** only once the work is merged or pushed.
+
+## Reverting a merged goal
+
+A merged goal that turns out wrong is undone from its page: on the Delivery tab, under the three lines above, press **Revert…**. The dialog lists the merges it would undo — the goal's pull request, or every pull request of a stack, newest first — asks why (your words go into the pull request), and whether to **Merge it right away** with the delivery's merge method or leave the pull request for you.
+
+Foundry then starts a branch from your base branch as it is online, undoes each merge with one revert commit, pushes the branch and opens a pull request titled *Revert "…"*, whose description names the merges, your reason and what the revert touches. With **Merge it right away** it merges the pull request at once, or arms GitHub's auto-merge when branch protections hold it, as a delivery does. A revert that merges — right away, or later when you merge it yourself on GitHub — is noticed the way a delivery's merge is: the remote branch is deleted when the delivery settings say so, and your local base branch is fast-forwarded when that is safe (see [After a pull request merged](#after-a-pull-request-merged)). The goal page then shows a **reverted** tag, and the Delivery tab a line for the revert with its pull request; the goal's own lines, its branch and its history stay as they were.
+
+What it needs: a delivery that merged through Foundry (**Open a PR** or **PR + auto-merge** — a Local only goal, or one you marked as delivered yourself, has nothing Foundry knows to revert), GitHub CLI signed in, and the merges still on the base branch. A merge that no longer reverts cleanly, because a later change touched the same lines, is refused with the files in conflict: revert it by hand, or start a [follow-up](#continue-with-a-follow-up) that undoes it. No model writes anything here, and nothing of your own folder is changed. To bring the work back, revert the revert's pull request on GitHub, or start a follow-up goal.
 
 ## Continue with a follow-up
 

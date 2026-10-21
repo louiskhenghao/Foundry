@@ -8,9 +8,9 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Learning, LearningKind } from '@foundry/core';
-import { getRepoLearnings } from '@foundry/core';
+import { LEARNINGS_EVERYWHERE, getRepoLearnings } from '@foundry/core';
 import type { Engine } from './engine.ts';
-import { learningsOf } from './learnings.ts';
+import { everywhereLearnings, learningsOf } from './learnings.ts';
 import { excludeFromGit } from './skills/autoskills.ts';
 
 export const LEARNINGS_SKILL = 'foundry-learnings';
@@ -27,8 +27,10 @@ const SECTIONS: [LearningKind[], string][] = [
 ];
 
 /** the SKILL.md text: a reader-facing notebook, the person's entries marked ✎ */
-export function renderLearningsSkill(ls: Learning[], updatedAt: string): string {
+export function renderLearningsSkill(ls: Learning[], updatedAt: string, everywhere: Learning[] = []): string {
   const groups = SECTIONS.map(([kinds, heading]) => [heading, ls.filter((l) => kinds.includes(l.kind))] as const).filter(([, g]) => g.length);
+  // the person's standing wishes for every project come last, as a section of their own (ADR-0055)
+  if (everywhere.length) groups.push(['What the person wants in every project', everywhere] as const);
   return [
     '---',
     `name: ${LEARNINGS_SKILL}`,
@@ -37,7 +39,7 @@ export function renderLearningsSkill(ls: Learning[], updatedAt: string): string 
     '',
     '# What Foundry learned about this repository',
     '',
-    `${MARK} (${ls.length} ${ls.length === 1 ? 'entry' : 'entries'}, updated ${updatedAt.slice(0, 10)}). Edit them on Foundry's Learnings page, not here: this file is rewritten whenever they change and is kept out of git. Trust them unless the code says otherwise. An entry marked ✎ is the person's own.`,
+    `${MARK} (${ls.length + everywhere.length} ${ls.length + everywhere.length === 1 ? 'entry' : 'entries'}, updated ${updatedAt.slice(0, 10)}). Edit them on Foundry's Learnings page, not here: this file is rewritten whenever they change and is kept out of git. Trust them unless the code says otherwise. An entry marked ✎ is the person's own.`,
     '',
     ...groups.flatMap(([heading, g]) => [`## ${heading}`, '', ...g.map((l) => `- ${l.by === 'human' ? '✎ ' : ''}${l.text}`), '']),
   ].join('\n');
@@ -53,8 +55,9 @@ export async function exportLearningsSkill(engine: Engine, repoPath: string): Pr
     if (!existsSync(join(repoPath, '.git'))) return 'skipped';
     const on = engine.settings.values().workflow.learningsSkill;
     const ls = on ? learningsOf(engine, repoPath) : [];
+    const everywhere = on ? everywhereLearnings(engine) : [];
     const dirs = DIRS.map((d) => join(repoPath, d, LEARNINGS_SKILL));
-    if (!ls.length) {
+    if (!ls.length && !everywhere.length) {
       let removed = false;
       for (const dir of dirs) {
         if (!ours(dir)) continue;
@@ -63,7 +66,8 @@ export async function exportLearningsSkill(engine: Engine, repoPath: string): Pr
       }
       return removed ? 'removed' : 'unchanged';
     }
-    const text = renderLearningsSkill(ls, getRepoLearnings(engine.store.db, repoPath)?.updatedAt ?? new Date().toISOString());
+    const updated = [getRepoLearnings(engine.store.db, repoPath)?.updatedAt, getRepoLearnings(engine.store.db, LEARNINGS_EVERYWHERE)?.updatedAt].filter((x): x is string => !!x).sort().at(-1) ?? new Date().toISOString();
+    const text = renderLearningsSkill(ls, updated, everywhere);
     const stale = dirs.filter((dir) => {
       const file = join(dir, 'SKILL.md');
       if (existsSync(file) && !ours(dir)) return false;

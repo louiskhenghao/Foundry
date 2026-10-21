@@ -22,3 +22,6 @@ fixtures/**
 # Playwright evidence and traces
 /test-results/
 /playwright-report/
+
+# role-prompt regression runs (scripts/regress.ts); the baselines beside them are kept
+regress/results/

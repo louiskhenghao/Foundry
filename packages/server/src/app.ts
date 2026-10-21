@@ -2,11 +2,11 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } fr
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CodexEffort, Effort, Brief, EscalationAnswer, isHistory, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, ReviseAnswer, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, estimateCutSessions, measuredRates, goalTimeline, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId } from '@foundry/engine';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, ReviseAnswer, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, estimateCutSessions, measuredRates, goalTimeline, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, IssueError, ScheduleError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId, AccessError, type Person } from '@foundry/engine';
 import type { Task } from '@foundry/core';
-import { LearningKind, listDelegatedGoals, listRepoLearnings, DeployProvider } from '@foundry/core';
+import { LEARNINGS_EVERYWHERE, LearningKind, listDelegatedGoals, listRepoLearnings, DeployProvider } from '@foundry/core';
 import { delegationNeedsHuman } from '@foundry/engine';
-import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalMode, GoalNature, GoalWorkflow, NotificationSettings, PreviewPlace, SettingsPatch } from '@foundry/core';
+import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalIssue, GoalMode, GoalNature, GoalRecipe, GoalWorkflow, NotificationSettings, PreviewPlace, ScheduleCadence, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
 import { listGuide, readGuide } from './guide.ts';
@@ -39,6 +39,7 @@ const CompletionBody = z.object({
   graphRefresh: z.boolean().optional(),
   docs: z.array(DocType).optional(),
   audit: z.boolean().optional(),
+  qa: z.boolean().optional(),
 });
 
 const CreateGoalBody = z.object({
@@ -48,6 +49,8 @@ const CreateGoalBody = z.object({
   prompt: z.string().min(1),
   repoPath: z.string().min(1),
   baseBranch: z.string().optional(),
+  /** companion repositories (ADR-0063) */
+  companions: z.array(z.object({ repoPath: z.string().min(1), baseBranch: z.string().min(1).optional() })).max(8).optional(),
   budgets: BudgetsBody.optional(),
   budgetPreset: BudgetPreset.optional(),
   models: z.object({ strong: z.string().optional(), cheap: z.string().optional(), worker: z.string().optional() }).optional(),
@@ -71,6 +74,8 @@ const CreateGoalBody = z.object({
   follows: z.object({ goalId: z.string().min(1), startFrom: z.enum(['base', 'previous']).optional(), attachments: z.boolean().optional(), style: z.boolean().optional() }).optional(),
   /** may the planner delegate steps to goals of their own, and are their Briefs approved without the human (both off by default) */
   delegation: z.object({ allow: z.boolean().optional(), autoApprove: z.boolean().optional() }).optional(),
+  /** the GitHub issue the goal is made from, as POST /api/issues/read returned it (ADR-0052) */
+  issue: GoalIssue.optional(),
 });
 
 /**
@@ -151,11 +156,44 @@ const SCREENSHOT_TYPES: Record<string, string> = {
   txt: 'text/plain; charset=utf-8',
 };
 
+/** the access token a request carries: a bearer header (the CLI), or the cookie the login page set (ADR-0061) */
+export function tokenOf(req: Request): string | null {
+  const auth = req.headers.get('authorization');
+  if (auth?.toLowerCase().startsWith('bearer ')) return auth.slice(7).trim() || null;
+  const cookie = req.headers.get('cookie') ?? '';
+  const m = cookie.split(';').map((c) => c.trim()).find((c) => c.startsWith(`${ACCESS_COOKIE}=`));
+  return m ? decodeURIComponent(m.slice(ACCESS_COOKIE.length + 1)) || null : null;
+}
+const ACCESS_COOKIE = 'foundry_token';
+const ACCESS_COOKIE_DAYS = 90;
+/** the login cookie: kept from scripts, same-site, and marked secure when the browser came over HTTPS (a tailnet serve) */
+const accessCookie = (token: string, req: Request) => {
+  const https = new URL(req.url).protocol === 'https:' || req.headers.get('x-forwarded-proto') === 'https';
+  return `${ACCESS_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${ACCESS_COOKIE_DAYS * 86_400}${https ? '; Secure' : ''}`;
+};
+const CLEAR_ACCESS_COOKIE = `${ACCESS_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+/** the requests Access lets through without a token: finding out whether it is on, and signing in */
+const ACCESS_OPEN = new Set(['GET /api/access/me', 'POST /api/access/login']);
+/** failed sign-ins are slowed down: this many a minute, for everyone together, then a wait */
+const LOGIN_FAILS_PER_MINUTE = 10;
+
 export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
-  const app = new Hono();
+  const app = new Hono<{ Variables: { person: Person | null } }>();
+  const loginFails: number[] = [];
   app.use('*', async (c, next) => {
     const host = c.req.header('host') ?? null;
     if (!knownHost(host, () => extraHosts(engine))) return c.text(UNKNOWN_HOST(host), 403);
+    await next();
+  });
+  // Access (ADR-0061): once anyone has a token, every API request carries one; who it is goes with the request
+  app.use('/api/*', async (c, next) => {
+    if (!engine.access.enabled() || ACCESS_OPEN.has(`${c.req.method} ${c.req.path}`)) {
+      c.set('person', null);
+      return next();
+    }
+    const person = engine.access.verify(tokenOf(c.req.raw));
+    if (!person) return c.json({ error: 'sign in first: this Foundry needs an access token', code: 'auth' }, 401);
+    c.set('person', person);
     await next();
   });
   app.use('/api/*', async (c, next) => {
@@ -188,6 +226,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const op = opOf(err);
     const json = (body: Record<string, unknown>, status: number) => c.json(op ? { ...body, op } : body, status as 400);
     if (err instanceof HttpError) return json(err.body, err.status);
+    if (err instanceof AccessError) return json({ error: err.message }, err.status);
     if (err instanceof SkillOpError) return json({ error: err.message }, err.status);
     if (err instanceof InstallError) return json({ error: err.message, code: err.code, ...err.extra }, err.code === 'conflict' ? 409 : err.code === 'manual' ? 422 : err.code === 'not-found' ? 404 : 400);
     if (err instanceof UninstallRefused) return json({ error: err.message, reason: err.reason }, err.reason === 'not-found' ? 404 : 409);
@@ -269,7 +308,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
 
   app.post('/api/goals', async (c) => {
     const body = CreateGoalBody.parse(await c.req.json());
-    const goal = await engine.createGoal(body);
+    const goal = await engine.createGoal({ ...body, by: c.get('person')?.name ?? null });
     return c.json(goal, 201);
   });
 
@@ -290,6 +329,16 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const info = await inspectRepo(repoPath);
     const error = !info.exists ? 'path does not exist' : !info.isDir ? 'not a directory' : info.insideRepoAt ? `inside the repository at ${info.insideRepoAt}` : !info.isGitRepo ? 'not a git repository (you can initialize it)' : !info.hasCommits ? 'repository has no commits yet' : null;
     return c.json({ ...info, ok: info.isGitRepo && info.hasCommits, branch: info.branch ?? '', error, lastGoal: engine.lastWorkflowIn(repoPath) });
+  });
+  // a goal from a GitHub issue (ADR-0052): read it with gh, stage its thread as an attachment, hand back what the form starts from
+  app.post('/api/issues/read', async (c) => {
+    const { ref, repoPath } = z.object({ ref: z.string().min(1), repoPath: z.string().nullable().optional() }).parse(await c.req.json());
+    try {
+      return c.json(await engine.readIssue({ ref, repoPath: repoPath ?? null }));
+    } catch (e) {
+      if (e instanceof IssueError) throw new HttpError(e.code === 'not-found' ? 404 : e.code === 'gh-missing' || e.code === 'gh-login' ? 409 : 400, { error: e.message, code: e.code });
+      throw e;
+    }
   });
   // ---- attachments ----
   const parseUpload = async (c: any): Promise<{ files: { name: string; mime: string | null; bytes: Uint8Array }[]; link: { url: string; name?: string; note?: string } | null }> => {
@@ -765,7 +814,10 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       costEstimate: estimateCutSessions(measuredRates(db), engine.store.listByGoalOfTypes(id, ['session.usage'])),
       subjectSearches: subjectSearchesFor(id),
       auditRunning: engine.auditing.has(id),
+      qaRunning: engine.qaing.has(id),
       investigating: engine.investigating.has(id),
+      // how far earlier goals ran from their estimate, for the Brief's estimate card (ADR-0056)
+      calibration: engine.calibrationFor(goal),
       // the last second opinion on the Brief (ADR-0051), whether one is being written, and why the last one did not come in (until one does)
       secondOpinion: engine.secondOpinionOf(id),
       secondOpinionRunning: engine.secondOpinions.has(id),
@@ -778,7 +830,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       // Delegated from / Delegated goals: the main goal may have been deleted since (then only its title remains)
       delegations: {
         fromExists: goal.delegatedFrom ? !!getGoal(db, goal.delegatedFrom.goalId) : false,
-        goals: listDelegatedGoals(db, id).map((g) => ({ id: g.id, title: g.title, state: g.state, taskId: g.delegatedFrom!.taskId })),
+        // a companion's goal (ADR-0063) says which repository it works in and how its delivery stands
+        goals: listDelegatedGoals(db, id).map((g) => ({ id: g.id, title: g.title, state: g.state, taskId: g.delegatedFrom!.taskId, repoPath: g.repoPath, delivery: { status: g.delivery.status, outcome: g.delivery.outcome, pr: g.delivery.pr } })),
       },
     });
   });
@@ -987,7 +1040,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const brief = json && json.understanding !== undefined ? Brief.parse({ ...json, goalId: c.req.param('id') }) : undefined;
     const budgets = json?.budgets ? BudgetsBody.parse(json.budgets) : undefined;
     const completion = json?.completion ? CompletionBody.parse(json.completion) : undefined;
-    await engine.approveBrief(c.req.param('id'), brief, budgets, completion);
+    await engine.approveBrief(c.req.param('id'), brief, budgets, completion, c.get('person')?.name ?? null);
     return c.json({ ok: true });
   });
 
@@ -1069,6 +1122,15 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   // read one PR on GitHub again (merged, closed, or its checks); a passing PR of a stopped delivery carries on
   app.post('/api/goals/:id/delivery/prs/:number/recheck', async (c) => {
     await engine.recheckDeliveryPr(goalOr404(c).id, Number(c.req.param('number')));
+    return c.json({ ok: true, delivery: getGoal(db, c.req.param('id'))!.delivery });
+  });
+  // "Fix review comments" on one PR (ADR-0053): read it now, then address its waiting round whatever the budget
+  app.post('/api/goals/:id/delivery/prs/:number/fix-reviews', async (c) => {
+    try {
+      await engine.requestReviewFix(goalOr404(c).id, Number(c.req.param('number')));
+    } catch (e) {
+      throw new HttpError(409, { error: String((e as Error).message ?? e) });
+    }
     return c.json({ ok: true, delivery: getGoal(db, c.req.param('id'))!.delivery });
   });
   // the human finished the delivery themselves: merged on GitHub → finished as merged, otherwise delivered by them
@@ -1169,7 +1231,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     let applied = false;
     // a joined request may find the escalation already answered by the one it joined
     if (body?.apply === true && suggestion.action === 'retry_with_hint' && getEscalation(db, c.req.param('id'))?.state === 'open') {
-      await engine.answerEscalation(c.req.param('id'), { action: 'retry_with_hint', hint: suggestion.hint, extraAttempts: 1 });
+      await engine.answerEscalation(c.req.param('id'), { action: 'retry_with_hint', hint: suggestion.hint, extraAttempts: 1 }, c.get('person')?.name ?? null);
       applied = true;
     }
     return c.json({ suggestion, applied });
@@ -1179,7 +1241,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const refused = historyRefused(getEscalation(db, c.req.param('id'))?.goalId);
     if (refused) return c.json({ error: refused }, 409);
     const answer = EscalationAnswer.parse(await c.req.json());
-    await engine.answerEscalation(c.req.param('id'), answer);
+    await engine.answerEscalation(c.req.param('id'), answer, c.get('person')?.name ?? null);
     return c.json({ ok: true });
   });
 
@@ -1477,6 +1539,44 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   app.post('/api/settings/reset', (c) => c.json(engine.resetSettings()));
   // ---------- Learnings (ADR-0040): what Foundry knows about each project folder ----------
+  // ---- schedules (ADR-0054): goals that run on their own ----
+  const scheduleError = (e: unknown) => {
+    if (e instanceof ScheduleError) throw new HttpError(e.status, { error: e.message });
+    throw e;
+  };
+  app.get('/api/schedules', (c) => c.json({ schedules: engine.listSchedules() }));
+  app.put('/api/schedules', async (c) => {
+    const body = z.object({ id: z.string().optional(), name: z.string().trim().min(1).max(80), cadence: ScheduleCadence, recipe: GoalRecipe, autoApprove: z.boolean().optional(), enabled: z.boolean().optional() }).parse(await c.req.json());
+    try {
+      return c.json({ schedule: engine.saveSchedule(body) });
+    } catch (e) {
+      return scheduleError(e);
+    }
+  });
+  app.post('/api/schedules/:id/enable', async (c) => {
+    const { enabled } = z.object({ enabled: z.boolean() }).parse(await c.req.json());
+    try {
+      return c.json({ schedule: engine.setScheduleEnabled(c.req.param('id'), enabled) });
+    } catch (e) {
+      return scheduleError(e);
+    }
+  });
+  app.post('/api/schedules/:id/run', async (c) => {
+    try {
+      return c.json(await engine.runSchedule(c.req.param('id')));
+    } catch (e) {
+      if (e instanceof ScheduleError) throw new HttpError(e.status, { error: e.message });
+      throw new HttpError(404, { error: String((e as Error).message ?? e) });
+    }
+  });
+  app.delete('/api/schedules/:id', (c) => {
+    try {
+      engine.deleteSchedule(c.req.param('id'));
+    } catch (e) {
+      return scheduleError(e);
+    }
+    return c.json({ ok: true });
+  });
   app.get('/api/learnings', (c) => {
     const repo = c.req.query('repo');
     if (repo) return c.json({ repoPath: repo, learnings: engine.learnings(repo) });
@@ -1484,7 +1584,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   app.put('/api/learnings', async (c) => {
     const body = z.object({ repoPath: z.string().min(1), learnings: z.array(z.object({ id: z.string().nullable().optional(), kind: LearningKind, text: z.string() })) }).parse(await c.req.json());
-    if (!body.repoPath.startsWith('/')) throw new HttpError(400, { error: 'repoPath must be an absolute folder path' });
+    if (!body.repoPath.startsWith('/') && body.repoPath !== LEARNINGS_EVERYWHERE) throw new HttpError(400, { error: 'repoPath must be an absolute folder path (or * for the everywhere notebook)' });
     try {
       return c.json({ repoPath: body.repoPath, learnings: engine.setLearnings(body.repoPath, body.learnings) });
     } catch (e) {
@@ -1509,9 +1609,33 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   app.post('/api/goals/:id/deploy', async (c) => {
     const goal = goalOr404(c);
-    const body = z.object({ provider: DeployProvider, production: z.boolean().default(false) }).parse(await c.req.json());
+    // smoke (ADR-0058) left out: a preview gets one, production does not
+    const body = z.object({ provider: DeployProvider, production: z.boolean().default(false), smoke: z.boolean().optional() }).parse(await c.req.json());
     try {
       engine.deploy(goal.id, body);
+    } catch (e) {
+      throw new HttpError(409, { error: String((e as Error).message ?? e) });
+    }
+    return c.json({ started: true }, 202);
+  });
+  // Smoke again (ADR-0058): the goal's milestone scripts against a live deploy's address once more; `deployedAt` names the deploy
+  app.post('/api/goals/:id/deploy/smoke', async (c) => {
+    const goal = goalOr404(c);
+    const body = z.object({ deployedAt: z.string() }).parse(await c.req.json());
+    try {
+      engine.smokeDeployment(goal.id, body.deployedAt);
+    } catch (e) {
+      throw new HttpError(409, { error: String((e as Error).message ?? e) });
+    }
+    return c.json({ started: true }, 202);
+  });
+  // ---------- Revert (ADR-0059): a pull request that undoes a merged delivery, on the person's click ----------
+  app.get('/api/goals/:id/revert', (c) => c.json(engine.revertInfo(goalOr404(c).id)));
+  app.post('/api/goals/:id/revert', async (c) => {
+    const goal = goalOr404(c);
+    const body = z.object({ reason: z.string().max(2000).optional(), merge: z.boolean().optional() }).parse(await c.req.json());
+    try {
+      engine.revert(goal.id, body);
     } catch (e) {
       throw new HttpError(409, { error: String((e as Error).message ?? e) });
     }
@@ -1608,6 +1732,43 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json(status);
   });
 
+  // ---------- Access (ADR-0061): who may use this Foundry from elsewhere ----------
+  app.get('/api/access/me', (c) => {
+    const enabled = engine.access.enabled();
+    return c.json({ enabled, person: enabled ? engine.access.verify(tokenOf(c.req.raw)) : null });
+  });
+  app.post('/api/access/login', async (c) => {
+    const now = Date.now();
+    while (loginFails.length && now - loginFails[0]! > 60_000) loginFails.shift();
+    if (loginFails.length >= LOGIN_FAILS_PER_MINUTE) return c.json({ error: 'too many failed sign-ins; wait a minute' }, 429);
+    const { token } = z.object({ token: z.string().min(1) }).parse(await c.req.json());
+    const person = engine.access.enabled() ? engine.access.verify(token.trim()) : null;
+    if (!person) {
+      loginFails.push(now);
+      return c.json({ error: engine.access.enabled() ? 'that token is not known here' : 'Access is off: no token is needed' }, 401);
+    }
+    c.header('set-cookie', accessCookie(token.trim(), c.req.raw));
+    return c.json({ person });
+  });
+  app.post('/api/access/logout', (c) => {
+    c.header('set-cookie', CLEAR_ACCESS_COOKIE);
+    return c.json({ ok: true });
+  });
+  app.get('/api/access/people', (c) => c.json({ enabled: engine.access.enabled(), people: engine.access.list() }));
+  app.post('/api/access/people', async (c) => {
+    const { name } = z.object({ name: z.string().min(1).max(60) }).parse(await c.req.json());
+    const wasOff = !engine.access.enabled();
+    const made = engine.access.add(name);
+    // the first token signs its maker in: turning Access on locks no one out
+    if (wasOff) c.header('set-cookie', accessCookie(made.token, c.req.raw));
+    return c.json(made, 201);
+  });
+  app.delete('/api/access/people/:id', (c) => c.json({ person: engine.access.revoke(c.req.param('id')) }));
+  // Reports (ADR-0060): ?days=30|90|365 or all
+  app.get('/api/reports', (c) => {
+    const q = c.req.query('days');
+    return c.json(engine.report(q === 'all' ? null : Math.max(1, Math.min(3650, Math.round(Number(q) || 30)))));
+  });
   app.get('/api/usage', async (c) => c.json(await engine.readUsage(authProvider(c))));
   app.post('/api/usage/probe', async (c) => {
     const provider = authProvider(c);

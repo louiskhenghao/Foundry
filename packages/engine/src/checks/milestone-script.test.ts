@@ -7,7 +7,7 @@ import { defaultConfig } from '../config.ts';
 import { Engine } from '../engine.ts';
 import type { GroupResult } from '../proc.ts';
 import { goalWorkspacePath, screenshotsDir } from '../workspace.ts';
-import { milestoneCheckSpec, runMilestoneScript, type ScriptDeps } from './milestone-script.ts';
+import { milestoneCheckSpec, runMilestoneScript, type ScriptDeps, writeWrapper } from './milestone-script.ts';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
 let dataDir: string;
@@ -32,7 +32,7 @@ const setup = (files: Record<string, string> = { [SCRIPT]: 'test', 'playwright.c
     id: 'g_ms1', title: 'Users', prompt: 'p', workspaceDir: join(data, 'ws'), checkpoint: null, selfCheck: false, previewRef: null, previewPlace: 'auto', milestonePause: true, clarifyStage: null, references: [], investigation: null, revise: null, interview: null, effort: null, modelPreset: null, modelSubstitutions: {}, repoPath: join(data, 'repo'), baseBranch: 'main', branch: 'goal/g_ms1',
     budgets: { maxCostUsd: 5, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3 }, budgetPreset: 'custom', mode: 'expert', workflow: { tdd: 'off', pace: 'thorough', ponytail: 'on' },
     models: { strong: 'opus', cheap: 'haiku', worker: 'opus' }, state: 'running', stateBeforeBlock: null, costUsd: 0, fixCycles: 0, delivery: IDLE_DELIVERY, attachments: [], baseSync: null, autoskills: null, follows: null, delegation: { allow: false, autoApprove: false }, delegatedFrom: null,
-    completion: { graphRefresh: false, docs: [], audit: false, auditRun: null, docsRun: null, graphRun: null, artifactsRun: null }, nature: 'auto', outputDir: null, runningSince: null, createdAt: now, updatedAt: now,
+    completion: { graphRefresh: false, docs: [], audit: false, auditRun: null, qa: false, qaRun: null, docsRun: null, graphRun: null, artifactsRun: null }, nature: 'auto', outputDir: null, runningSince: null, createdAt: now, updatedAt: now,
   } as Goal;
   engine.store.append({ type: 'goal.created', goalId: g.id, payload: { goal: g } });
   const goal = getGoal(engine.store.db, g.id)!;
@@ -120,5 +120,38 @@ describe('a milestone script', () => {
     const missing = setup();
     const run = await runMilestoneScript(missing.engine, missing.goal, missing.task, 'p-', fakeRun(() => ({}), { code: 127, stderr: 'sh: npx: command not found' }));
     expect(run).toMatchObject({ status: 'fail', error: 'a command was not found: sh: npx: command not found' });
+  });
+});
+
+describe('a script against an address (ADR-0058)', () => {
+  test('the wrapper leaves the project’s webServer out and points baseURL at the address, on every project too', async () => {
+    const cwd = mkdtempSync(join(dataDir, 'against-'));
+    writeFileSync(
+      join(cwd, 'playwright.config.ts'),
+      `export default {
+  testDir: 'e2e',
+  use: { baseURL: 'http://localhost:3000', trace: 'on-first-retry' },
+  webServer: { command: 'npm start', port: 3000 },
+  projects: [
+    { name: 'chromium', use: { browserName: 'chromium', baseURL: 'http://localhost:3001' } },
+    { name: 'firefox', use: { browserName: 'firefox' } },
+  ],
+};
+`,
+    );
+    const wrapper = (await writeWrapper(cwd, { outputDir: join(cwd, 'out'), report: join(cwd, 'report.json') }, 'https://site.example'))!;
+    const cfg = ((await import(join(cwd, wrapper.name))) as { default: { webServer?: unknown; use: Record<string, unknown>; projects: { name: string; use: Record<string, unknown> }[]; retries: number } }).default;
+    expect(cfg.webServer).toBeUndefined();
+    expect(cfg.use).toMatchObject({ baseURL: 'https://site.example', trace: 'off', video: 'on', screenshot: 'on' });
+    // the project's own address would win over the top one: it is replaced; only Chromium stays
+    expect(cfg.projects.map((p) => [p.name, p.use.baseURL])).toEqual([['chromium', 'https://site.example']]);
+    expect(cfg.retries).toBe(0);
+    wrapper.remove();
+    // without an address the project's server and addresses stay as they are
+    const plain = (await writeWrapper(cwd, { outputDir: join(cwd, 'out'), report: join(cwd, 'report.json') }))!;
+    const kept = ((await import(join(cwd, plain.name))) as { default: { webServer?: unknown; use: Record<string, unknown> } }).default;
+    expect(kept.webServer).toEqual({ command: 'npm start', port: 3000 });
+    expect(kept.use.baseURL).toBe('http://localhost:3000');
+    plain.remove();
   });
 });

@@ -174,7 +174,7 @@ Delegated goal 和 follow-up 会带着来源 goal 的 Subject 和图片开始，
 | **refactor** | 调整结构，不改变行为。 |
 | **research** | 查清楚某件事。 |
 | **chore** | 环境搭建、依赖、日常维护。 |
-| **goal** | 由一个独立的委派 goal 来做的步骤，它有自己的 Clarify 和计划。只有 goal 允许委派时 planner 才会用它；见 [Delegated goals](./your-first-goal.zh.md#delegated-goals)。 |
+| **goal** | 由一个独立的委派 goal 来做的步骤，它有自己的 Clarify 和计划。只有 goal 允许委派时 planner 才会用它；见 [Delegated goals](./your-first-goal.zh.md#delegated-goals)。绑定到[伴随文件夹](./your-first-goal.zh.md#also-change-companion-folders)的 goal 任务会在卡片上写明：那个委派 goal 在那个仓库里工作。 |
 
 类型决定执行者遵循哪种工作方法（比如做功能时先写测试）。
 
@@ -269,6 +269,7 @@ goal 给了参考对象时（见 [你的第一个 goal](./your-first-goal.zh.md#
 
 - **Refresh the knowledge graph**：交付之后，更新一些工具使用的代码地图。
 - **Audit the repository at the end**：所有任务完成后，`ponytail-audit` 会梳理完成的分支并排出先修什么。这个 goal 改过的代码里的 must fix 发现会在最终审查之前变成修复任务；其余列在 goal 页面上，**Follow-up with the rest** 可以为它们开一个 goal。默认关（Settings 里有新 goal 的默认值）；需要 Ponytail 的 skill，而且 goal 还得有剩余预算。
+- **Test it in a browser at the end**：每个任务都完成之后，一个会话会在 Chromium 里打开做好的应用，用它写在临时文件夹里的 Playwright 脚本，像你那样逐条尝试验收检查。没通过的 must 检查会在最终审查前变成修复任务；它试过的所有内容都会连同截图列在 goal 页面上。它不改任何代码。只有 **How to run it** 里写了应用时才会出现；默认关闭（Settings 里有新 goal 的默认值）；需要 Playwright 的 Chromium（Settings → Preview & self-check）。
 - 文档标签：**PRD**（要求了什么、做出了什么）、**README update**、**Changelog**、**Confirmation sheet**（给别人确认各项决定用）。点一个标签来打开或关闭它。
 
 文档会在最终审查通过后写出，保存在 goal 的分支上，所以会和工作一起交付。Claude 会话上限是 $3；Codex 使用 ChatGPT 额度，不提供美元上限。更多内容见 [拿到结果](./getting-the-result.zh.md#完成后的附加项)。
@@ -277,7 +278,9 @@ goal 给了参考对象时（见 [你的第一个 goal](./your-first-goal.zh.md#
 
 Claude 卡片显示 **Estimated cost** 和 **Estimated time**，旁边是预算；Codex 只显示时间及执行限制。
 
-用 **Auto** 预算时，卡片标题是 **Estimate → proposed budget**：Foundry 提议把估算的两倍作为上限，向上取整，而且不少于 $3 和 30 分钟。你可以改 **max cost $** 和 **max minutes**，按 **Keep unlimited** 表示不设上限，或者按 **Use estimate ×2** 回到提议值。如果是你自己设的预算，而估算比它高，卡片会用黄色提醒。改动在你批准时生效。Codex 只提议时间上限（至少 30 分钟），隐藏美元估算及 `max cost $`。
+两个数字下面，当这个文件夹已经有三个结束了的 goal（或者退一步，这台电脑上有三个同类的结束了的 goal）时，会有一行说明它们比各自的估算多跑了多少，以及这个 goal 大概会花多少：*Earlier goals in this folder ran at 1.6× the estimated cost and 1.3× the estimated time (median of 5 finished goals): likely about $12 and 45 min.* 悬停可以看到它依据的 goal。Clarifier 的数字照原样保留；这一行只是用经验来读它。那些 goal 之间差距很大时会说明。
+
+用 **Auto** 预算时，卡片标题是 **Estimate → proposed budget**：Foundry 提议把估算的两倍（有校准值时是校准后估算的两倍）作为上限，向上取整，而且不少于 $3 和 30 分钟。你可以改 **max cost $** 和 **max minutes**，按 **Keep unlimited** 表示不设上限，或者按 **Use estimate ×2**（有校准值时是 **Use calibrated estimate ×2**）回到提议值。如果是你自己设的预算，而估算比它高，卡片会用黄色提醒。改动在你批准时生效。Codex 只提议时间上限（至少 30 分钟），隐藏美元估算及 `max cost $`。
 
 碰到上限从不会毁掉已做的工作：goal 会暂停并问你。见 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md#预算用完了)。
 

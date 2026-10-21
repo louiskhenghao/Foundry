@@ -1,5 +1,10 @@
-import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment, InterviewQuestion } from '@foundry/core/browser';
+import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment, DeliveryRevert, InterviewQuestion, MergeMethod } from '@foundry/core/browser';
 import type { Attachment, Attempt, Brief, BriefApp, BriefCheck, BriefDiff, BriefRun, BriefStyleOption, BriefSubject, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, GoalTimeline, SettingsPatch, SettingsView, SubjectPicture, Task, TaskUsage } from '@foundry/core/browser';
+import type { IssueRead } from './pages/new-goal-issue.ts';
+import type { Calibration, GoalRecipe, Schedule, ScheduleCadence } from '@foundry/core/browser';
+
+/** a Schedule as the Schedules page lists it (ADR-0054): with its next run and the goal of its last run */
+export type ScheduleRow = Schedule & { nextRunAt: string | null; lastGoal: { id: string; title: string; state: GoalState } | null };
 
 /** Mirrors the engine's PreviewAppStatus (preview/manager.ts): one app of the goal's preview. */
 export interface PreviewAppStatus {
@@ -274,9 +279,22 @@ export interface FsRecent {
 }
 import type { AgentLogChunk, AgentsList, AgentsSummary } from '@foundry/engine/agents-types';
 import type { DoctorReport, InstallResult, SkillTier, SkillUpdateRun, SkillsOverview, SkillsUpdateReport, TrashEntry } from '@foundry/engine/skills-types';
-import type { MinimaxQuota, UsageSummary } from '@foundry/engine/usage-types';
+import type { MinimaxQuota, Report, UsageSummary } from '@foundry/engine/usage-types';
 
 export type Usage = UsageSummary & { pausedUntil: string | null };
+
+/** Access (ADR-0061): a person who may use this Foundry, with a token of their own */
+export interface Person {
+  id: string;
+  name: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+/** whether Access is on, and who this browser is signed in as */
+export interface AccessMe {
+  enabled: boolean;
+  person: Person | null;
+}
 
 export interface ClaudeAuthStatus {
   loggedIn: boolean;
@@ -400,6 +418,8 @@ export interface DelegatedView {
 
 export interface GoalDetail {
   goal: Goal;
+  /** how far earlier goals ran from their estimate (ADR-0056) */
+  calibration?: Calibration;
   /** how many Learnings the goal's folder has (ADR-0040) */
   learningsCount?: number;
   /** directories the Open menu can launch: the user's checkout and the goal branch worktree (when it exists) */
@@ -421,6 +441,8 @@ export interface GoalDetail {
   milestoneRuns?: string[];
   /** ponytail-audit is reading the finished branch */
   auditRunning?: boolean;
+  /** the browser QA of the finished app is running (ADR-0057) */
+  qaRunning?: boolean;
   /** REA is studying the goal's references */
   investigating?: boolean;
   secondOpinion?: SecondOpinionView | null;
@@ -435,7 +457,7 @@ export interface GoalDetail {
   /** Follows / Followed by (goal.follows holds the earlier goal; it may have been deleted since) */
   followUps: { followsExists: boolean; followedBy: { id: string; title: string; state: GoalState }[] };
   /** Delegated from / Delegated goals (goal.delegatedFrom holds the main goal; it may have been deleted since) */
-  delegations?: { fromExists: boolean; goals: { id: string; title: string; state: GoalState; taskId: string }[] };
+  delegations?: { fromExists: boolean; goals: { id: string; title: string; state: GoalState; taskId: string; /** the repository it works in: a companion's when it differs from the goal's (ADR-0063) */ repoPath?: string; delivery?: { status: string; outcome: string | null; pr: { number: number; url: string } | null } }[] };
 }
 
 /** Mirrors the engine's FollowUpDraft (follow-up.ts): prefill and start point for a Follow-up of a goal. */
@@ -504,6 +526,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) } });
   const text = await res.text();
   const body = text ? safeJson(text) : null;
+  // Access (ADR-0061): a request this Foundry wants a token for sends the person to the login page, back here afterwards
+  if (res.status === 401 && (body as any)?.code === 'auth' && location.pathname !== '/login') location.assign(`/login?next=${encodeURIComponent(location.pathname + location.search + location.hash)}`);
   if (!res.ok) throw new ApiError((body as any)?.error ?? text ?? res.statusText, res.status, body);
   return body as T;
 }
@@ -549,9 +573,22 @@ export function apiForProvider(provider?: AgentProvider) {
   learnFrom: (goalId: string) => req<{ repoPath: string; learnings: Learning[] }>(`/api/goals/${goalId}/learn`, { method: 'POST' }),
   /** Deploy (ADR-0041): what a finished goal's web app is, the hosts, the exact commands, the deploys so far */
   deployInfo: (goalId: string, provider?: DeployHost | null, production = false) => req<DeployInfo>(`/api/goals/${goalId}/deploy?${provider ? `provider=${provider}&` : ''}production=${production ? 1 : 0}`),
-  deploy: (goalId: string, provider: DeployHost, production: boolean) => req<{ started: boolean }>(`/api/goals/${goalId}/deploy`, { method: 'POST', body: JSON.stringify({ provider, production }) }),
+  deploy: (goalId: string, provider: DeployHost, production: boolean, smoke: boolean) => req<{ started: boolean }>(`/api/goals/${goalId}/deploy`, { method: 'POST', body: JSON.stringify({ provider, production, smoke }) }),
+  /** Smoke again (ADR-0058): the goal's milestone scripts against a live deploy's address once more */
+  /** Revert (ADR-0059): what a revert of the goal would undo; and start one, with the reason and whether to merge it right away */
+  revertInfo: (goalId: string) => req<RevertInfo>(`/api/goals/${goalId}/revert`),
+  revert: (goalId: string, reason: string, merge: boolean) => req<{ started: boolean }>(`/api/goals/${goalId}/revert`, { method: 'POST', body: JSON.stringify({ reason, merge }) }),
+  smokeDeployment: (goalId: string, deployedAt: string) => req<{ started: boolean }>(`/api/goals/${goalId}/deploy/smoke`, { method: 'POST', body: JSON.stringify({ deployedAt }) }),
   markFollowUp: (id: string, goalId: string) => req<Goal>(`/api/goals/${id}/follows`, { method: 'POST', body: JSON.stringify({ goalId }) }),
   validateRepo: (repoPath: string) => req<RepoInfo>('/api/validate-repo', { method: 'POST', body: JSON.stringify({ repoPath }) }),
+  // schedules (ADR-0054): goals that run on their own
+  schedules: () => req<{ schedules: ScheduleRow[] }>('/api/schedules'),
+  saveSchedule: (body: { id?: string; name: string; cadence: ScheduleCadence; recipe: GoalRecipe; autoApprove?: boolean; enabled?: boolean }) => req<{ schedule: Schedule }>('/api/schedules', { method: 'PUT', body: JSON.stringify(body) }),
+  setScheduleEnabled: (id: string, enabled: boolean) => req<{ schedule: Schedule }>(`/api/schedules/${id}/enable`, { method: 'POST', body: JSON.stringify({ enabled }) }),
+  runSchedule: (id: string) => req<{ goalId: string | null; skipped: string | null }>(`/api/schedules/${id}/run`, { method: 'POST' }),
+  deleteSchedule: (id: string) => req<{ ok: true }>(`/api/schedules/${id}`, { method: 'DELETE' }),
+  /** a goal from a GitHub issue (ADR-0052): read it with gh; its thread comes back staged as an attachment */
+  readIssue: (ref: string, repoPath: string | null) => req<IssueRead>('/api/issues/read', { method: 'POST', body: JSON.stringify({ ref, repoPath }) }),
   /** Upload one file with progress; resolves to the staged Attachment. goalId → attach directly to that goal. */
   upload: (file: File, opts: { goalId?: string; onProgress?: (pct: number) => void } = {}) =>
     new Promise<Attachment>((resolve, reject) => {
@@ -606,6 +643,8 @@ export function apiForProvider(provider?: AgentProvider) {
   retryDelivery: (id: string) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/delivery/retry`, { method: 'POST' }),
   recheckPr: (id: string, n: number) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/delivery/prs/${n}/recheck`, { method: 'POST' }),
   markDelivered: (id: string) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/delivery/mark-delivered`, { method: 'POST' }),
+  /** "Fix review comments" on one PR (ADR-0053): read it now, then address its waiting round whatever the budget */
+  fixReviews: (id: string, n: number) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/delivery/prs/${n}/fix-reviews`, { method: 'POST' }),
   refreshDelivery: (id: string) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/delivery/refresh`, { method: 'POST' }),
   afterMerge: (id: string, opts: { pull?: boolean; force?: boolean }) => req<{ ok: true; delivery: DeliveryState }>(`/api/goals/${id}/delivery/after-merge`, { method: 'POST', body: JSON.stringify(opts) }),
   deliveryPlan: (id: string, q: Record<string, string>) => req<{ policy: DeliveryPolicy; probes: any; steps: DeliveryPlanStep[] }>(`/api/goals/${id}/delivery/plan?${new URLSearchParams(q)}`),
@@ -758,6 +797,15 @@ export function apiForProvider(provider?: AgentProvider) {
   submitLoginCode: (code: string, provider?: AgentProvider) => req<LoginSession>(`/api/auth/login/code${provider ? '?provider=' + provider : ''}`, { method: 'POST', body: JSON.stringify({ code }) }),
   logout: (provider?: AgentProvider) => req<ClaudeAuthStatus>(`/api/auth/logout${provider ? '?provider=' + provider : ''}`, { method: 'POST' }),
   usage: (provider?: AgentProvider) => req<Usage>(`/api/usage${provider ? '?provider=' + provider : ''}`),
+  /** Reports (ADR-0060): the last `days`, or all time with null */
+  report: (days: number | null) => req<Report>(`/api/reports?days=${days ?? 'all'}`),
+  /** Access (ADR-0061) */
+  accessMe: () => req<AccessMe>('/api/access/me'),
+  accessLogin: (token: string) => req<{ person: Person }>('/api/access/login', { method: 'POST', body: JSON.stringify({ token }) }),
+  accessLogout: () => req<{ ok: true }>('/api/access/logout', { method: 'POST' }),
+  accessPeople: () => req<{ enabled: boolean; people: Person[] }>('/api/access/people'),
+  accessAdd: (name: string) => req<{ person: Person; token: string }>('/api/access/people', { method: 'POST', body: JSON.stringify({ name }) }),
+  accessRevoke: (id: string) => req<{ person: Person }>(`/api/access/people/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   resumeUsage: (provider?: AgentProvider) => req<{ resumed: boolean }>(`/api/usage/resume${provider ? `?provider=${provider}` : ''}`, { method: 'POST' }),
   probeUsage: (provider?: AgentProvider) => req<Usage>(`/api/usage/probe${provider ? `?provider=${provider}` : ''}`, { method: 'POST' }),
   minimaxQuota: (refresh = false) => req<MinimaxQuota>(`/api/usage/minimax${refresh ? '?refresh=1' : ''}`),
@@ -841,10 +889,27 @@ export const api = apiForProvider();
 
 export type DeployHost = 'vercel' | 'netlify' | 'cloudflare';
 /** what Deploy can do for a goal now (GET /api/goals/:id/deploy) */
+/** Mirrors the engine's RevertInfo (delivery/revert.ts, ADR-0059): what a Revert would undo, and whether one can start now. */
+export interface RevertInfo {
+  ok: boolean;
+  why: string | null;
+  /** the merges it would undo, newest first */
+  reverts: { prNumber: number | null; ref: string; title: string }[];
+  base: string;
+  remote: string;
+  method: MergeMethod;
+  running: boolean;
+  open: DeliveryRevert | null;
+}
+
 export interface DeployInfo {
   app: { ok: true; app: { dir: string; framework: string; kind: 'static' | 'built' | 'ssr' }; notes: string[] } | { ok: false; reason: string };
   finished: boolean;
   running: boolean;
+  /** a Smoke again runs (ADR-0058) */
+  smoking: boolean;
+  /** the milestone scripts a smoke tries against the address */
+  smoke: { scripts: string[] };
   providers: { id: DeployHost; label: string; configured: boolean; refused: string | null }[];
   /** the exact commands, tokens left out */
   plan: { label: string; command: string }[];

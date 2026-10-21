@@ -35,7 +35,8 @@ Foundry 读你的项目，问你只有你能决定的事，然后写一份叫 **
 | **Task**（任务） | 计划里的一项工作。一个 goal 通常有几个。 |
 | **Milestone**（里程碑） | 一个看得见、可以试的功能，设在完成它的那个任务上。功能完成时 Foundry 会录下它的样子，最终走查时再录一次。 |
 | **Inbox** | 等你处理的事项列表：**New goal** 旁边的托盘图标，上面会显示数字。 |
-| **Learnings** | Foundry 从一个项目文件夹里结束了的 goal 学到的东西，加上你自己添加的。这个文件夹之后的每个 goal 都会拿到。见 [Learnings](./learnings.zh.md)。 |
+| **Learnings** | Foundry 从一个项目文件夹里结束了的 goal 学到的东西，加上你自己添加的。这个文件夹之后的每个 goal 都会拿到，连同你在 **Yours, everywhere** 下为所有文件夹写的东西。见 [Learnings](./learnings.zh.md)。 |
+| **Schedule** | 存下来并加了时间的 New goal 表单：每天、每周或每月，Foundry 用它生成一个 goal 并自己跑完。见 [Schedules](./schedules.zh.md)。 |
 | **Progress folder**（进度文件夹） | 实际干活的文件夹，就在你的项目旁边：`<project>-foundry/<goal>/`，或者在 Settings 里设的文件夹下面。它以 goal 的标题（到第一个标点为止，最多 40 个字符）加上 goal id 的最后 6 个字符命名。你随时都能打开。 |
 | **Model preset**（模型预设） | 哪个模型负责规划、任务和审查。两种编码智能体各有独立的 Max、Production、Balanced 和 Economy 预设；Codex 还保存各角色的推理强度。 |
 
@@ -50,10 +51,11 @@ Foundry 读你的项目，问你只有你能决定的事，然后写一份叫 **
 5. [运行期间](./while-it-runs.zh.md)：goal 页面、任务、日志、进度文件夹、预览和里程碑。
 6. [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md)：它停下来的全部原因，以及该按什么。
 7. [拿到结果](./getting-the-result.zh.md)：分支、推送和 pull request，还有媒体文件。
-8. [设置说明](./settings.zh.md)：用大白话讲 Settings 的每一部分。
-9. [费用与用量](./costs-and-usage.zh.md)：哪些要花钱，怎样少花钱。
-10. [搬到新电脑](./moving-to-a-new-computer.zh.md)：把设置、key 和 goal 带到另一个 Foundry。
-11. [端口](./ports.zh.md)：哪些端口正在被使用、被谁占着，以及怎样释放。
-12. [常见问题](./faq.zh.md)：常见问题的简短回答。
+8. [Schedules](./schedules.zh.md)：自己运行的 goal，每天、每周或每月。
+9. [设置说明](./settings.zh.md)：用大白话讲 Settings 的每一部分。
+10. [费用与用量](./costs-and-usage.zh.md)：哪些要花钱，怎样少花钱。
+11. [搬到新电脑](./moving-to-a-new-computer.zh.md)：把设置、key 和 goal 带到另一个 Foundry。
+12. [端口](./ports.zh.md)：哪些端口正在被使用、被谁占着，以及怎样释放。
+13. [常见问题](./faq.zh.md)：常见问题的简短回答。
 
 顶栏右侧 ⚙ 菜单里的 **Help** 在 Foundry 里面直接显示本指南。同一个菜单里还有 **Settings**、**Setup**、**Transfer**、**Ports**、浅色／深色模式，以及你运行的版本：⚙ 按钮上的红点表示有新版本，按版本号会打开 **About & updates**。

@@ -37,6 +37,7 @@
 | **Second opinion on every Brief** | 关 | goal 的 Brief 准备好等你批准时，一个没写过它的审阅者对着仓库读一遍并提出修改建议，用 goal reviewer 的模型；在 Brief 页面上以清单形式出现，你决定采不采纳。关掉：Brief 页面上仍有这个按钮。见 [Second opinion](./approving-the-brief.zh.md#second-opinion)。 |
 | **Share Learnings with your own sessions** | 开 | 把每个文件夹的 Learnings 写进仓库，作为一个项目技能（`foundry-learnings`，不进 git），你自己在那里开的编码智能体会话会读到；Learnings 一变就重写。关掉：删除这个文件。 |
 | **Audit at the end of new goals** | off | 新 goal 在最终审查前对完成的分支运行 `ponytail-audit`；goal 改过的代码里的 must fix 发现会变成修复任务。批准 Brief 时按 goal 选择。 |
+| **Browser QA at the end of new goals** | off | 有网页应用的新 goal：每个任务都完成之后，一个会话在 Chromium 里打开做好的应用，用 Playwright 逐条尝试验收检查；没通过的 must 检查会在最终审查前变成修复任务。批准 Brief 时按 goal 选择；需要 Playwright 的 Chromium。 |
 | **Goal-level fix cycles** | 1 | 最终审查在问你之前，最多可以派几轮修复任务。只用于 thorough 节奏。 |
 | **Small goal (diff lines)** | 400 | 改动行数不超过这个数的 goal，最终审查更轻、更便宜。0 = 从不。 |
 | **Review every task** | on | 对每个任务做一次简短审查，即使 Brief 没要求。只用于 thorough 节奏。 |
@@ -292,19 +293,28 @@ key 对下一个会话生效，不用重启。保存过的 key 不会再显示�
 
 **Discord bot token (buttons)**：可选，和 webhook 一起用。设了之后，等你处理的消息由你的机器人发到 webhook 所在的频道，带同样的按钮；要输入文字时，按钮会打开一个表单。见 [Answering from Discord](../operate/notifications.md#answering-from-discord)。
 
-七个开关，默认全开：
+八个开关，默认全开：
 
 | 开关 | 什么时候收到消息 | 该做什么 |
 |---|---|---|
 | **Needs you** | 某个 goal 或任务在等你：一个失败的任务、一条被拦下的命令、预算用完、一个里程碑要看。 | 打开 Inbox 或 goal 回应。你回应之前，那一部分会一直等着。见 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md)。 |
 | **Interview round** | Foundry 写 Brief 前问一轮问题。 | 回答它们；goal 在等你。 |
 | **Brief ready** | 有 Brief 等你批准。Foundry 自己批准的 Brief 不会发。 | 读一遍，然后在 Brief 页面或用消息上的按钮批准。 |
+| **Schedule fired** | 一个 [Schedule](./schedules.zh.md) 触发了：生成了哪个 goal，或者为什么没有生成（上一次运行还在进行）。 | 不用做什么，除非被跳过的那次是你在等的。 |
 | **Goal finished** | 某个 goal 以 done、over-delivered 或 failed 结束。你自己取消的不会发。 | 看结果，或看哪里失败了。 |
-| **Delivery** | 有 pull request 开出或合并了，或者交付失败了。 | 审查 pull request，或看 Delivery 标签。 |
+| **Delivery** | 有 pull request 开出或合并了、交付失败了、一次部署结束了、它的冒烟测试通过或失败了，或者某个已合并 goal 的 revert 开出、合并、关闭或失败了。 | 审查 pull request，或看 Delivery 标签。 |
 | **Usage pause** | 某个编码智能体达到用量上限而暂停新会话，重新尝试时再通知；另一个编码智能体仍可继续。 | Foundry 自动重试；持续失败时检查 Accounts 和 Usage。 |
 | **New version** | Foundry 出了新版本（每个版本一次）。 | 方便时更新，见 [About & updates](#about--updates)。 |
 
 关掉你不想要的。这些开关对所有渠道都一样生效。
+
+## Access
+
+谁可以从另一台设备使用这个 Foundry。名单上没人时 —— 默认如此 —— 没有登录这回事：一个人用自己的电脑、自己的 tailnet，不需要。**Add the first person** 给这个人生成一个 token 并打开 Access：从此每个请求都要带 token，这台电脑上也一样；生成第一个 token 的浏览器会自动用它登录，所以没人会被锁在外面。
+
+token 只显示一次；复制下来，私下交给对方。在手机或笔记本上打开 Foundry 的地址，把它贴进登录页：那个浏览器会记住 90 天（**⚙ → Sign out** 忘掉它）。命令行用 `FOUNDRY_TOKEN`；`foundry access` 列出所有人，`foundry access add <name>` 和 `foundry access revoke <id>` 和页面上的按钮一样。
+
+Access 打开后，每个人做的事都记在自己名下：goal 页面会写谁要的这个 goal、谁批准了它的 Brief，Inbox 的条目会写谁回答的。从 Telegram 或 Discord 来的回答不带名字。**Revoke** 立刻收回 token，所有设备上都失效；收回最后一个就等于关掉 Access。token 只以指纹形式存在数据旁边的 `access.json` 里，不进事件日志，也不随 Transfer 走。Access 是给已经和你共用一个 tailnet 的人准备的轻量锁，不是把 Foundry 暴露到公网的理由（见 [remote-access.md](../operate/remote-access.md#give-each-person-a-token)）。
 
 ## Safety
 
