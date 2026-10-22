@@ -72,12 +72,15 @@ export function MergeStatus({ goal, className }: { goal: Goal; className?: strin
   );
 }
 
-/** one line: done in green; not done yet in yellow, its button being yours to press; still waiting, hollow and quiet */
+/**
+ * one line: done in green; not done yet in yellow when its button is yours to press, in red when nothing is left to do
+ * (a pull request closed without merging); still waiting, hollow and quiet
+ */
 function Line({ ok, bad, label, detail, action }: { ok?: boolean; bad?: boolean; label: string; detail?: string; action?: ReactNode }) {
   const Icon = ok ? CheckCircle2 : bad ? XCircle : CircleDashed;
   return (
     <div className="flex items-start gap-2">
-      <Icon size={14} className={cn('mt-0.5 shrink-0', ok ? 'text-ok-ink' : bad ? 'text-you-ink' : 'text-ink-faint')} />
+      <Icon size={14} className={cn('mt-0.5 shrink-0', ok ? 'text-ok-ink' : bad ? (action ? 'text-you-ink' : 'text-bad-ink') : 'text-ink-faint')} />
       <div className="min-w-0 flex-1">
         <div className="font-semibold text-ink">{label}</div>
         {detail && <div className="text-[11px] text-ink-faint break-words">{detail}</div>}

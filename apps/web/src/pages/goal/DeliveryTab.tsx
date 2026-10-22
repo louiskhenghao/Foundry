@@ -14,6 +14,10 @@ import { ReviewRounds } from './ReviewRounds.tsx';
 const STEP_LABEL: Record<string, string> = { preflight: 'Preflight', 'ensure-remote': 'Remote', 'sync-base': 'Sync with base', 'build-stack': 'Build stack', push: 'Push', 'open-pr': 'Open PR', 'fix-review': 'Fix review', 'wait-checks': 'CI checks', 'fix-ci': 'Fix CI', merge: 'Merge', cleanup: 'Cleanup', revert: 'Revert' };
 const STEPS = ['preflight', 'ensure-remote', 'sync-base', 'build-stack', 'push', 'open-pr', 'fix-review', 'wait-checks', 'fix-ci', 'merge', 'cleanup'];
 const PR_STATE: Record<string, string> = { pending: 'pending', open: 'open', merged: 'done', closed: 'cancelled', failed: 'failed' };
+/** a pull request's badge in its signal: an open one waits for you to merge it, or is at work when it merges by itself */
+const prBadge = (state: string, automerge: boolean) => (state === 'open' && automerge ? 'running' : (PR_STATE[state] ?? state));
+/** CI's badge in its signal: green passing, red failing, blue while the checks run, quiet when there are none */
+const CI_STATE: Record<string, string> = { passing: 'pass', failing: 'fail', none: 'skipped', pending: 'running' };
 const SYNC_LABEL: Record<string, string | null> = { current: null, rebased: 'rebased onto base', merged: 'base merged in', resolved: 'conflict resolved' };
 /** a delivery step as a checklist's square, and its state in words for a screen reader */
 const STEP_MARK: Record<string, [CheckMark, string]> = { ok: ['done', 'done'], skipped: ['off', 'skipped'], failed: ['bad', 'failed'] };
@@ -144,14 +148,14 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
                 <li key={s} className="flex items-start gap-3 py-0.5">
                   <CheckSquare mark={mark} label={word} />
                   <span className="w-28 shrink-0 pt-px text-[13px] font-bold text-ink">{STEP_LABEL[s]}</span>
-                  <span className="min-w-0 pt-0.5 text-xs text-ink-soft break-words">{st?.detail || (st?.status === 'started' ? 'in progress…' : '')}</span>
+                  <span className={cn('min-w-0 pt-0.5 text-xs break-words', mark === 'bad' ? 'font-semibold text-bad-ink' : mark === 'run' ? 'text-work-ink' : 'text-ink-soft')}>{st?.detail || (st?.status === 'started' ? 'in progress…' : '')}</span>
                 </li>
               );
             })}
           </ol>
           {del.prs.length > 0 && (
             // the pull requests on a board: one row each, its title first, then how its CI and its state stand
-            <ul className="mt-4 overflow-hidden rounded-xl bg-panel shadow-[0_0_0_1px_var(--color-line),0_1px_2px_rgb(0_0_0/0.06)] divide-y divide-line">
+            <ul className="mt-4 overflow-hidden rounded-xl bg-panel shadow-[0_0_0_1px_var(--color-line),var(--surface-shadow)] divide-y divide-line">
               {del.prs.map((p, i) => {
                 const below = i > 0 ? del.prs[i - 1] : null;
                 const waitsFor = p.state === 'open' && below && below.state !== 'merged' && below.number != null ? below.number : null;
@@ -167,9 +171,9 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
                   {p.ciSkipped ? (
                     <Badge state="skipped" className="no-caps">CI skipped</Badge>
                   ) : (
-                    p.checks && <Badge state={p.checks === 'passing' ? 'pass' : p.checks === 'failing' ? 'fail' : p.checks === 'none' ? 'skipped' : 'pending'}>{p.checks === 'none' ? 'no CI' : `CI ${p.checks}`}</Badge>
+                    p.checks && <Badge state={CI_STATE[p.checks] ?? 'pending'}>{p.checks === 'none' ? 'no CI' : `CI ${p.checks}`}</Badge>
                   )}
-                  <Badge state={PR_STATE[p.state] ?? p.state}>{p.state}</Badge>
+                  <Badge state={prBadge(p.state, del.policy.mode === 'pr-automerge')}>{p.state}</Badge>
                   {p.url ? (
                     <a className="mono font-semibold text-work-ink hover:underline flex items-center gap-1 shrink-0" href={p.url} target="_blank" rel="noreferrer">
                       <ExternalLink size={12} /> #{p.number}
@@ -228,7 +232,7 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
                 <ExternalLink size={12} /> PR #{del.pr.number}
               </a>
             )}
-            {del.checks && del.prs.length <= 1 && <span className="text-ink-soft">checks: <Badge state={del.checks === 'passing' ? 'pass' : del.checks === 'failing' ? 'fail' : 'pending'}>{del.checks}</Badge></span>}
+            {del.checks && del.prs.length <= 1 && <span className="text-ink-soft">checks: <Badge state={del.checks === 'passing' ? 'pass' : del.checks === 'failing' ? 'fail' : del.checks === 'pending' ? 'running' : 'pending'}>{del.checks}</Badge></span>}
             {del.outcome && <span className="font-semibold text-ok-ink">outcome: {del.outcome === 'by_you' ? 'delivered by you' : del.outcome.replace('_', ' ')}</span>}
             {del.mergedRef && <span className="mono text-ink-faint">merged {del.mergedRef.slice(0, 7)}</span>}
             {del.fixCycles > 0 && <span className="text-ink-soft">fix-CI cycles: <span className="mono">{del.fixCycles}</span></span>}
@@ -253,7 +257,7 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
           )}
           {commands.length > 0 && (
             <details className="mt-3">
-              <summary className="text-xs font-semibold text-ink-faint hover:text-ink cursor-pointer">{commands.length} remote command(s) — full audit</summary>
+              <summary className="py-1.5 sm:py-0 text-xs font-semibold text-ink-faint hover:text-ink cursor-pointer">{commands.length} remote command(s) — full audit</summary>
               <div className="mono text-[11px] mt-1.5 space-y-1 max-h-72 overflow-auto">
                 {commands.map((c, i) => (
                   <div key={i} className="border-l-2 border-line pl-2">

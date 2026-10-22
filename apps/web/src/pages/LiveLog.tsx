@@ -2,7 +2,10 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { api } from '../api.ts';
 import { type FullText, FullTextDialog } from '../components/FullTextDialog.tsx';
 import { type StreamItem, useLive } from '../store.ts';
-import { cn } from '../ui.tsx';
+import { CODES, cn } from '../ui.tsx';
+
+/** each session role's category colour (ADR-0067), the hues they had before themes: the worker blue, the reviewer violet, the merger magenta */
+export const ROLE_INK: Record<string, string> = { worker: CODES[0].ink, reviewer: CODES[2].ink, merger: CODES[6].ink };
 
 /** The full content of a stream event for the dialog; null when the line already says everything. */
 function fullOf(ev: any, items: StreamItem[]): Omit<FullText, 'note' | 'loading'> | null {
@@ -90,7 +93,7 @@ export function LiveLog({ attemptId, className }: { attemptId: string; className
         {items.length === 0 && <div className="text-ink-faint">{loaded ? 'no output recorded yet…' : 'loading…'}</div>}
         {items.map((it, i) => {
           const ev = it.event;
-          const tag = it.role && it.role !== 'worker' ? <span className="text-extra-ink shrink-0" title={`${it.role} session (shares this attempt's log)`}>[{it.role}]</span> : null;
+          const tag = it.role && it.role !== 'worker' ? <span className={cn('shrink-0', ROLE_INK[it.role] ?? 'text-ink-soft')} title={`${it.role} session (shares this attempt's log)`}>[{it.role}]</span> : null;
           // one line per entry; entries with more behind them are buttons that open the full text
           const line = (cls: string, node: ReactNode) => {
             const body = (
@@ -101,7 +104,8 @@ export function LiveLog({ attemptId, className }: { attemptId: string; className
             );
             if (!hasFull(ev)) return <div key={i} className={cn('flex gap-1.5 min-w-0', cls)}>{body}</div>;
             return (
-              <button key={i} type="button" onClick={() => show(ev)} title="Show the full message" className={cn('log-row flex gap-1.5 min-w-0 w-full text-left rounded-sm hover:bg-panel focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent cursor-pointer', cls)}>
+              // its line in the middle of the 32px a phone gives a button
+              <button key={i} type="button" onClick={() => show(ev)} title="Show the full message" className={cn('log-row flex items-center gap-1.5 min-w-0 w-full text-left rounded-sm hover:bg-panel focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent cursor-pointer', cls)}>
                 {body}
               </button>
             );
@@ -115,11 +119,12 @@ export function LiveLog({ attemptId, className }: { attemptId: string; className
           if (ev.kind === 'result') {
             const r = ev.result;
             const said = r.finalText ?? r.errorMessage;
-            // a session cut by its own cap is not a failure of the work: ink in bold, not red, and what happens next said for the log it is in
+            // a session cut by its own cap is not a failure of the work: ink in bold, not red, and what happens next said for
+            // the log it is in; one that ended in an error is red
             const cut = r.subtype === 'error_max_turns' || r.subtype === 'error_max_budget_usd';
             const next = cut && resumes(attemptId, it.role) ? ' — the engine resumes this session (continuation)' : '';
             const cap = r.subtype === 'error_max_budget_usd' ? " · the cost cap per session (Settings → Models & limits), not the goal's budget" : '';
-            return line(r.subtype === 'success' ? 'font-bold text-ok-ink' : 'font-bold text-ink', <>■ {r.subtype} · {r.costStatus === 'unavailable' ? 'cost unavailable' : `$${r.costUsd.toFixed(3)}`} · {r.costStatus === 'unavailable' ? 'turn count unavailable' : `${r.numTurns} turns`}{cap}{next}{said ? <span className="font-normal text-ink-soft"> — {oneLine(said)}</span> : null}</>);
+            return line(r.subtype === 'success' ? 'font-bold text-ok-ink' : cut ? 'font-bold text-ink' : 'font-bold text-bad-ink', <>■ {r.subtype} · {r.costStatus === 'unavailable' ? 'cost unavailable' : `$${r.costUsd.toFixed(3)}`} · {r.costStatus === 'unavailable' ? 'turn count unavailable' : `${r.numTurns} turns`}{cap}{next}{said ? <span className="font-normal text-ink-soft"> — {oneLine(said)}</span> : null}</>);
           }
           if (ev.kind === 'progress') {
             // one line per running tool, kept current: consecutive heartbeats of the same call replace each other

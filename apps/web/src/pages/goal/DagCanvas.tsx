@@ -1,4 +1,4 @@
-import type { Task } from '@foundry/core/browser';
+import type { BriefArea, Task } from '@foundry/core/browser';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { DelegatedView } from '../../api.ts';
@@ -6,6 +6,7 @@ import { TaskTags } from '../../components/TaskTags.tsx';
 import { markFill, taskMark } from '../../components/progress.tsx';
 import { useElementWidth } from '../../hooks/useElementWidth.ts';
 import { Badge, cn, fmtUsd } from '../../ui.tsx';
+import { areaStyle } from '../brief/shared.ts';
 
 const MIN_W = 236;
 const MAX_W = 480;
@@ -22,6 +23,11 @@ const LIST_BREAKPOINT = 640;
  * when it failed, grey before it can start
  */
 const STROKE: Record<string, string> = { done: 'var(--color-ok)', running: 'var(--color-work)', observing: 'var(--color-extra)', merging: 'var(--color-extra)', blocked: 'var(--color-you)', failed: 'var(--color-bad)', skipped: 'var(--color-line-strong)', ready: 'var(--color-work)', pending: 'var(--color-line-strong)' };
+/**
+ * a card's top edge where its state needs the eye, in the state's signal: a flowing hatch while it works (blue, violet
+ * while it is reviewed or merged), yellow when it waits for you, red when it failed
+ */
+const EDGE: Partial<Record<string, string>> = { running: 'hatch text-work', observing: 'hatch text-extra', merging: 'hatch text-extra', blocked: 'bg-you', failed: 'bg-bad' };
 
 export interface DagTask extends Task {
   depth: number;
@@ -63,9 +69,11 @@ interface Edge {
  * (re-measured on resize), so nothing is clipped by a guessed fixed height.
  * Column width stretches to fill the container (so a single task is not a narrow box hugging the left edge);
  * on narrow containers the graph degrades to a vertical list grouped by step.
+ * `areas`: the Brief's Areas, when it is at hand: each task's Area chip then takes the Area's colour, as on the Brief.
  */
-export function DagCanvas({ tasks, selected, onSelect }: { tasks: DagTask[]; selected: string | null; onSelect: (id: string | null) => void }) {
+export function DagCanvas({ tasks, selected, onSelect, areas }: { tasks: DagTask[]; selected: string | null; onSelect: (id: string | null) => void; areas?: BriefArea[] }) {
   const { ref, width: cw } = useElementWidth<HTMLDivElement>();
+  const chipOf = (area: string | null) => (areas && area ? areaStyle({ areas }, areas.find((a) => a.name === area)?.key ?? null).chip : undefined);
   const cols = useMemo(() => {
     const m = new Map<number, DagTask[]>();
     for (const t of tasks) m.set(t.depth, [...(m.get(t.depth) ?? []), t]);
@@ -127,7 +135,7 @@ export function DagCanvas({ tasks, selected, onSelect }: { tasks: DagTask[]; sel
               <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint mb-2">Step {depth + 1}</div>
               <div className="space-y-2">
                 {ts.map((t) => (
-                  <TaskNode key={t.id} t={t} selected={selected === t.id} onSelect={onSelect} className="w-full" style={{ minHeight: MIN_H }} after={t.dependsOn.map((d) => byId.get(d)?.title ?? d)} />
+                  <TaskNode key={t.id} t={t} areaChip={chipOf(t.area)} selected={selected === t.id} onSelect={onSelect} className="w-full" style={{ minHeight: MIN_H }} after={t.dependsOn.map((d) => byId.get(d)?.title ?? d)} />
                 ))}
               </div>
             </div>
@@ -171,7 +179,7 @@ export function DagCanvas({ tasks, selected, onSelect }: { tasks: DagTask[]; sel
                       onMouseEnter={() => setHovered(t.id)}
                       onMouseLeave={() => setHovered((h) => (h === t.id ? null : h))}
                     >
-                      <TaskNode t={t} selected={selected === t.id} onSelect={onSelect} linked={related != null && related.has(t.id) && t.id !== focus} dim={related != null && !related.has(t.id)} className="w-full" style={{ minHeight: MIN_H }} />
+                      <TaskNode t={t} areaChip={chipOf(t.area)} selected={selected === t.id} onSelect={onSelect} linked={related != null && related.has(t.id) && t.id !== focus} dim={related != null && !related.has(t.id)} className="w-full" style={{ minHeight: MIN_H }} />
                     </div>
                   ))}
                 </div>
@@ -184,7 +192,7 @@ export function DagCanvas({ tasks, selected, onSelect }: { tasks: DagTask[]; sel
   );
 }
 
-function TaskNode({ t, selected, linked, dim, onSelect, className, style, after }: { t: DagTask; selected: boolean; linked?: boolean; dim?: boolean; onSelect: (id: string | null) => void; className?: string; style?: React.CSSProperties; after?: string[] }) {
+function TaskNode({ t, areaChip, selected, linked, dim, onSelect, className, style, after }: { t: DagTask; areaChip?: string; selected: boolean; linked?: boolean; dim?: boolean; onSelect: (id: string | null) => void; className?: string; style?: React.CSSProperties; after?: string[] }) {
   const nav = useNavigate();
   const goalTask = t.kind === 'goal' && !t.plain;
   const open = (e: React.SyntheticEvent) => {
@@ -193,14 +201,15 @@ function TaskNode({ t, selected, linked, dim, onSelect, className, style, after 
   };
   const mark = t.plain ? null : taskMark(t.state);
   const waiting = t.state === 'pending' || t.state === 'ready';
+  const edge = t.plain ? undefined : EDGE[t.state];
   return (
     <button
       onClick={() => onSelect(selected ? null : t.id)}
       style={style}
-      // a panel card: the chosen one ringed in the accent, its neighbours outlined; one under way carries a flowing hatch
-      className={cn('relative overflow-hidden text-left rounded-lg border bg-panel p-3 shadow-[0_1px_2px_rgb(0_0_0/0.06)] transition-[border-color,box-shadow,opacity]', selected ? 'border-accent ring-2 ring-accent' : linked ? 'border-line-strong ring-1 ring-line-strong' : 'border-line hover:border-line-strong', t.kind === 'goal' && 'border-dashed', dim && 'opacity-40', className)}
+      // a panel card: the chosen one ringed in the accent, its neighbours outlined; its top edge in its state's signal
+      className={cn('relative overflow-hidden text-left rounded-lg border bg-panel p-3 shadow-[var(--surface-shadow)] transition-[border-color,box-shadow,opacity]', selected ? 'border-accent ring-2 ring-accent' : linked ? 'border-line-strong ring-1 ring-line-strong' : 'border-line hover:border-line-strong', t.kind === 'goal' && 'border-dashed', dim && 'opacity-40', className)}
     >
-      {mark === 'run' && <i aria-hidden="true" className="absolute inset-x-0 top-0 h-1.5 hatch text-ink" />}
+      {edge && <i aria-hidden="true" className={cn('absolute inset-x-0 top-0 h-1.5', edge)} />}
       <div className="flex items-center justify-between gap-2">
         {t.plain ? (
           <span className="text-[11px] font-semibold text-ink-soft flex items-center gap-1.5 min-w-0">
@@ -226,11 +235,11 @@ function TaskNode({ t, selected, linked, dim, onSelect, className, style, after 
       </div>
       <div className={cn('mt-2 text-[14px] leading-snug', waiting && !t.plain ? 'font-semibold text-ink-soft' : 'font-bold text-ink')}>{t.title}</div>
       <div className="mt-1.5 flex items-center gap-x-1.5 gap-y-1 flex-wrap">
-        <TaskTags kind={t.kind} scenario={t.scenario} area={t.plain ? null : t.area} difficulty={t.difficulty} />
+        <TaskTags kind={t.kind} scenario={t.scenario} area={t.plain ? null : t.area} areaChip={areaChip} difficulty={t.difficulty} />
         {t.model && <span className="mono text-[11px] text-ink-faint whitespace-nowrap" title="The model the latest attempt ran on (the difficulty picks it from the preset)">{t.model}</span>}
         {t.worktreePath && t.state !== 'done' && <span className="text-[11px] text-ink-faint whitespace-nowrap">own worktree</span>}
         {!t.parallelizable && !t.plain && !['done', 'skipped', 'failed'].includes(t.state) && (
-          <span className="rounded-sm px-1.5 py-px text-[10.5px] font-semibold leading-tight text-ink-soft ring-1 ring-inset ring-line-strong whitespace-nowrap" title="Marked not parallelizable in the Brief: it starts only when no other task of the goal is running. A wait, not a dependency, so no line leads to it.">
+          <span className="rounded-sm px-1.5 py-px text-[11px] font-semibold leading-tight text-ink-soft ring-1 ring-inset ring-line-strong whitespace-nowrap" title="Marked not parallelizable in the Brief: it starts only when no other task of the goal is running. A wait, not a dependency, so no line leads to it.">
             runs alone
           </span>
         )}

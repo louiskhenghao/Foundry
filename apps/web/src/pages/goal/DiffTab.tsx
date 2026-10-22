@@ -210,7 +210,7 @@ export function DiffTab({ goalId, baseBranch, branch, workspace }: { goalId: str
         </span>
       </div>
       {/* the files on a board: the folder quiet, the file's name in bold, what it added and removed */}
-      <ul className="overflow-hidden rounded-xl bg-panel shadow-[0_0_0_1px_var(--color-line),0_1px_2px_rgb(0_0_0/0.06)] divide-y divide-line">
+      <ul className="overflow-hidden rounded-xl bg-panel shadow-[0_0_0_1px_var(--color-line),var(--surface-shadow)] divide-y divide-line">
         {files.map((f, i) => {
           const name = f.path.lastIndexOf('/') + 1;
           return (

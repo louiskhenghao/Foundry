@@ -1,9 +1,18 @@
 import { ChevronDown, ChevronRight, FileSearch, Search } from 'lucide-react';
 import { type ReactNode, useMemo, useState } from 'react';
-import { cn, focusFirst } from '../ui.tsx';
+import { CODES, cn, focusFirst } from '../ui.tsx';
 import { openFile } from './FilePreview.tsx';
 
 type Json = null | boolean | number | string | Json[] | { [k: string]: Json };
+
+/** each kind of value in a category colour, the hues it had before themes: strings blue, numbers orange, true and false violet */
+const VALUE = { string: CODES[0].ink, number: CODES[3].ink, boolean: CODES[2].ink };
+/**
+ * a button inside a line of the tree keeps the line's height on a phone too (its 32px buttons would push the lines
+ * apart): `style={IN_LINE}`, with the ::before as the thumb's target
+ */
+const IN_LINE = { minHeight: 0 };
+const TARGET = "relative before:absolute before:-inset-2 before:content-['']";
 
 /** The value when `text` is a JSON object or array (what tool calls and many tool results are), else undefined. */
 export function parseJsonDoc(text: string): Json | undefined {
@@ -100,17 +109,17 @@ export function JsonTree({ value }: { value: Json }) {
     if (typeof v === 'string') {
       const path = looksLikeFilePath(v);
       return (
-        <span className="text-work-ink whitespace-pre-wrap [overflow-wrap:anywhere]">
+        <span className={cn(VALUE.string, 'whitespace-pre-wrap [overflow-wrap:anywhere]')}>
           "<Highlight text={v} q={q} />"
           {path && (
-            <button type="button" onClick={() => openFile(v)} className="ml-1.5 inline-flex items-center gap-0.5 rounded-md px-1 text-[10.5px] font-semibold text-ink-soft ring-1 ring-inset ring-line-strong hover:text-ink hover:bg-sunken align-middle" title={`Open ${v}`}>
+            <button type="button" onClick={() => openFile(v)} style={IN_LINE} className={cn(TARGET, 'ml-1.5 inline-flex items-center gap-0.5 rounded-md px-1 text-[11px] font-semibold text-ink-soft ring-1 ring-inset ring-line-strong hover:text-ink hover:bg-sunken align-middle')} title={`Open ${v}`}>
               <FileSearch size={10} /> open
             </button>
           )}
         </span>
       );
     }
-    const cls = typeof v === 'number' ? 'font-semibold text-ink' : typeof v === 'boolean' ? 'text-extra-ink' : 'text-ink-faint';
+    const cls = typeof v === 'number' ? VALUE.number : typeof v === 'boolean' ? VALUE.boolean : 'text-ink-faint';
     return (
       <span className={cls}>
         <Highlight text={String(v)} q={q} />
@@ -139,7 +148,7 @@ export function JsonTree({ value }: { value: Json }) {
     const open = isOpen(path);
     return (
       <div key={path} className={k === null ? '' : 'pl-4'}>
-        <button type="button" onClick={() => toggle(path)} className="-ml-4 inline-flex w-4 justify-center text-ink-faint hover:text-ink align-[-2px]" aria-label={open ? 'Fold' : 'Unfold'}>
+        <button type="button" onClick={() => toggle(path)} style={IN_LINE} className={cn(TARGET, '-ml-4 inline-flex w-4 justify-center text-ink-faint hover:text-ink align-[-2px]')} aria-label={open ? 'Fold' : 'Unfold'}>
           {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         </button>
         {keyEl}
@@ -150,7 +159,7 @@ export function JsonTree({ value }: { value: Json }) {
             <span className="text-ink-faint">{c}</span>
           </>
         ) : (
-          <button type="button" onClick={() => toggle(path)} className="text-ink-faint hover:text-ink">
+          <button type="button" onClick={() => toggle(path)} style={IN_LINE} className={cn(TARGET, 'text-ink-faint hover:text-ink')}>
             {' '}
             {list.length} {Array.isArray(v) ? (list.length === 1 ? 'item' : 'items') : list.length === 1 ? 'key' : 'keys'} {c}
           </button>
@@ -168,10 +177,10 @@ export function JsonTree({ value }: { value: Json }) {
           <input autoFocus={focusFirst} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search keys and values" className="w-full bg-transparent text-xs text-ink placeholder:text-ink-faint focus:outline-none" />
         </label>
         {matches && <span className={cn('text-[11px]', matches.count ? 'text-ink-soft' : 'text-bad-ink')}>{matches.count ? `${matches.count} match${matches.count === 1 ? '' : 'es'}` : 'no match'}</span>}
-        <button type="button" className="rounded-md px-2 py-0.5 text-[10.5px] font-semibold text-ink-soft ring-1 ring-inset ring-line-strong hover:text-ink hover:bg-sunken" onClick={() => setAll(false)}>
+        <button type="button" className="rounded-md px-2 py-0.5 text-[11px] font-semibold text-ink-soft ring-1 ring-inset ring-line-strong hover:text-ink hover:bg-sunken" onClick={() => setAll(false)}>
           Expand all
         </button>
-        <button type="button" className="rounded-md px-2 py-0.5 text-[10.5px] font-semibold text-ink-soft ring-1 ring-inset ring-line-strong hover:text-ink hover:bg-sunken" onClick={() => setAll(true)}>
+        <button type="button" className="rounded-md px-2 py-0.5 text-[11px] font-semibold text-ink-soft ring-1 ring-inset ring-line-strong hover:text-ink hover:bg-sunken" onClick={() => setAll(true)}>
           Collapse all
         </button>
       </div>

@@ -4,11 +4,14 @@ import { useEffect, useState } from 'react';
 import { api, type RevertInfo } from '../../api.ts';
 import { Badge, Button, ConfirmDialog, Textarea, ago, cn } from '../../ui.tsx';
 
-/** what each state of a Revert is called on the Delivery tab (ADR-0059) */
-export const REVERT_STATUS: Record<DeliveryRevert['status'], { label: string; state: 'running' | 'pending' | 'done' | 'cancelled' | 'failed' }> = {
+/**
+ * what each state of a Revert is called on the Delivery tab (ADR-0059), and the badge's signal: an open pull request
+ * waits for you to merge it, an armed one merges by itself
+ */
+export const REVERT_STATUS: Record<DeliveryRevert['status'], { label: string; state: 'running' | 'open' | 'done' | 'cancelled' | 'failed' }> = {
   running: { label: 'reverting…', state: 'running' },
-  open: { label: 'revert PR open', state: 'pending' },
-  armed: { label: 'revert auto-merge armed', state: 'pending' },
+  open: { label: 'revert PR open', state: 'open' },
+  armed: { label: 'revert auto-merge armed', state: 'running' },
   merged: { label: 'reverted', state: 'done' },
   closed: { label: 'revert PR closed', state: 'cancelled' },
   failed: { label: 'revert failed', state: 'failed' },

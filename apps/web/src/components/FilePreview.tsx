@@ -173,11 +173,12 @@ export function FilePreviewHost() {
           )}
           <CopyButton text={info?.path ?? shown} />
           {info && (
+            // 32px links on a phone, as its buttons are
             <>
-              <a href={fileUrl(file)} target="_blank" rel="noreferrer" className="rounded-md p-1 text-ink-soft hover:bg-sunken hover:text-ink" title="Open in a new tab">
+              <a href={fileUrl(file)} target="_blank" rel="noreferrer" className="shrink-0 rounded-md p-[9px] sm:p-1 text-ink-soft hover:bg-sunken hover:text-ink" title="Open in a new tab">
                 <ExternalLink size={14} />
               </a>
-              <a href={`${fileUrl(file)}&download=1`} className="rounded-md p-1 text-ink-soft hover:bg-sunken hover:text-ink" title="Download">
+              <a href={`${fileUrl(file)}&download=1`} className="shrink-0 rounded-md p-[9px] sm:p-1 text-ink-soft hover:bg-sunken hover:text-ink" title="Download">
                 <Download size={14} />
               </a>
             </>

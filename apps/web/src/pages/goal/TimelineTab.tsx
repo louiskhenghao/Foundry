@@ -8,13 +8,13 @@ import { Button, Card, chipClass, cn, fmtUsd } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 
 /**
- * what each kind of bar means, and its colour in the theme's names: blue for reading and asking, yellow for waiting on
- * you, graphite for the agents' work, violet for reviews, green for landing it and delivering it
+ * what each kind of bar means, and its signal: blue for the agents at work (lighter while they read and ask), yellow for
+ * waiting on you, violet for reviews, green for landing it and delivering it
  */
 const KIND: Record<SpanKind, { label: string; color: string }> = {
-  clarify: { label: 'Clarify', color: 'bg-work' },
+  clarify: { label: 'Clarify', color: 'bg-work/50' },
   waiting: { label: 'Waiting for you', color: 'bg-you' },
-  work: { label: 'Work', color: 'bg-ink' },
+  work: { label: 'Work', color: 'bg-work' },
   review: { label: 'Reviews', color: 'bg-extra' },
   merge: { label: 'Landing', color: 'bg-ok' },
   delivery: { label: 'Delivery', color: 'bg-ok/45' },
@@ -261,7 +261,7 @@ export function TimelineView({ t, onOpenTask }: { t: GoalTimeline; onOpenTask?: 
                     {l.span.label}
                     {l.row !== l.span.label && !l.span.label.endsWith(l.row) && <span className="text-zinc-500"> · {l.row}</span>}
                   </span>
-                  {l.span.open && <span className="text-[11px] font-semibold text-ink-soft shrink-0">still going</span>}
+                  {l.span.open && <span className="text-[11px] font-semibold text-work-ink shrink-0">still going</span>}
                 </li>
               ))}
             </ol>
@@ -465,7 +465,7 @@ function SpanDetails({ ctx, goalId, onOpenTask, onClose }: { ctx: Ctx; goalId: s
         <div className="text-ink-soft">
           {clock(span.start)} → {span.open ? 'now' : clock(span.end)} · <span className="mono font-semibold text-ink">{fmtDur(spanMs(span))}</span>
           {span.costUsd ? <> · <span className="mono">{fmtUsd(span.costUsd)}</span></> : null}
-          {span.open && <span className="font-semibold text-ink"> · still going</span>}
+          {span.open && <span className="font-semibold text-work-ink"> · still going</span>}
         </div>
       )}
       <div className="flex flex-wrap gap-2 pt-0.5">

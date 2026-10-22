@@ -44,7 +44,7 @@ function CopyTextButton({ text }: { text: string }) {
     return () => clearTimeout(t);
   }, [copied]);
   return (
-    <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10.5px] font-semibold text-ink-soft ring-1 ring-inset ring-line-strong hover:text-ink hover:bg-sunken" onClick={() => void copyText(text).then(setCopied)} title="Copy the full text">
+    <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold text-ink-soft ring-1 ring-inset ring-line-strong hover:text-ink hover:bg-sunken" onClick={() => void copyText(text).then(setCopied)} title="Copy the full text">
       {copied ? <Check size={11} /> : <Copy size={11} />} {copied ? 'Copied' : 'Copy'}
     </button>
   );
@@ -75,7 +75,7 @@ export function FullTextDialog({ value, onClose }: { value: FullText | null; onC
       {json !== undefined && (
         // a JSON object or array (a tool call, most tool results) reads as a tree; the text view stays one click away
         <div className="mb-2 flex items-center gap-2">
-          <div className="flex gap-0.5 rounded-md p-0.5 ring-1 ring-inset ring-line-strong text-[10.5px] font-semibold">
+          <div className="flex gap-0.5 rounded-md p-0.5 ring-1 ring-inset ring-line-strong text-[11px] font-semibold">
             <button className={cn('rounded-sm px-2 py-0.5', tree ? 'bg-accent text-on-accent' : 'text-ink-soft hover:text-ink')} onClick={() => setTree(true)}>
               Tree
             </button>

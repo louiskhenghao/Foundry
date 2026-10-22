@@ -11,9 +11,10 @@ import { OpenMenu } from '../../components/OpenMenu.tsx';
 import { taskMark } from '../../components/progress.tsx';
 import { TaskTags } from '../../components/TaskTags.tsx';
 import { Badge, Button, ConfirmDialog, ago, chipClass, choiceClass, cn, fmtUsd, stateLabel } from '../../ui.tsx';
+import { areaStyle } from '../brief/shared.ts';
 import { CHECK_RESULT, CheckSquare } from './CompletionCard.tsx';
 import { delegatedProgress } from './DagCanvas.tsx';
-import { LiveLog } from '../LiveLog.tsx';
+import { LiveLog, ROLE_INK } from '../LiveLog.tsx';
 import { EscalationCard } from '../InboxPage.tsx';
 
 /** a section's label in the drawer, in small capitals */
@@ -24,14 +25,15 @@ const FACT = 'inline-flex items-center gap-1.5 min-w-0 max-w-full rounded-md bg-
 const CHECKER = 'bg-[image:repeating-conic-gradient(color-mix(in_srgb,var(--color-ink-faint)_16%,transparent)_0_25%,transparent_0_50%)] bg-[length:12px_12px]';
 
 /**
- * A task's state as a plate, the way the goal page heads its goal: graphite while it works and once it is done, yellow
- * while it waits for you, red when it failed, hollow before it starts.
+ * A task's state as a plate in its signal colour, the way the goal page heads its goal: blue while it works, violet while
+ * it is reviewed or merged, green once done, yellow while it waits for you, red when it failed, hollow before it starts.
  */
 function TaskPlate({ state }: { state: TaskState }) {
   const m = taskMark(state);
   const Icon = m === 'done' ? Check : m === 'you' ? Hand : m === 'bad' ? X : m === 'off' ? Ban : m === 'next' ? Clock : state === 'observing' ? Eye : state === 'merging' ? GitMerge : Play;
+  const look = m === 'done' ? 'bg-ok text-on-ok' : m === 'you' ? 'bg-you text-on-you' : m === 'bad' ? 'bg-bad text-on-bad' : m === 'next' || m === 'off' ? 'ring-[1.5px] ring-inset ring-line-strong text-ink-soft' : state === 'running' ? 'bg-work text-on-work' : 'bg-extra text-on-extra';
   return (
-    <span className={cn('inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11.5px] font-extrabold uppercase tracking-[0.08em] leading-none', m === 'you' ? 'bg-you text-on-you' : m === 'bad' ? 'bg-bad text-on-bad' : m === 'next' || m === 'off' ? 'ring-[1.5px] ring-inset ring-line-strong text-ink-soft' : 'bg-ink text-on-ink')}>
+    <span className={cn('inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11.5px] font-extrabold uppercase tracking-[0.08em] leading-none', look)}>
       <Icon size={12} strokeWidth={2.5} aria-hidden="true" />
       {stateLabel(state)}
     </span>
@@ -62,6 +64,9 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
   const delegated = row?.delegated ?? null;
   // the planner touched this task up after a delegated goal landed (Replan): the person sees why
   const revised = [...d.events].reverse().find((e) => e.type === 'task.revised' && (e.payload as any).taskId === task.id)?.payload as { reason?: string } | undefined;
+  // its Area's chip in the Area's colour, as the Brief shows it
+  const brief = d.brief?.brief;
+  const areaChip = brief && task.area ? areaStyle(brief, brief.areas.find((x) => x.name === task.area)?.key ?? null).chip : undefined;
 
   useEffect(() => {
     setPrompt(null);
@@ -74,7 +79,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
   return (
     // fills the full-height panel: on wide screens each column scrolls on its own, so a long file list never scrolls the attempt
     // away; narrower, the whole panel scrolls, its head with it, so the head never takes most of a phone's screen
-    <section className="relative h-full flex flex-col overflow-y-auto lg:overflow-hidden rounded-lg border border-line bg-panel shadow-[0_1px_2px_rgb(0_0_0/0.05)]">
+    <section className="relative h-full flex flex-col overflow-y-auto lg:overflow-hidden rounded-lg border border-line bg-panel shadow-[var(--surface-shadow)]">
       {/* the × stays in the corner while the panel scrolls under it */}
       <div className="sticky top-0 z-10 h-0 shrink-0 flex justify-end">
         <button type="button" className="mt-3 mr-3 h-fit rounded-md bg-panel/90 p-1.5 text-ink-faint hover:text-ink hover:bg-sunken" onClick={onClose} aria-label="close">
@@ -87,7 +92,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
           <div className="min-w-0 grow basis-[20rem]">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
               <TaskPlate state={task.state} />
-              <TaskTags kind={task.kind} scenario={task.scenario} area={task.area} difficulty={task.difficulty} />
+              <TaskTags kind={task.kind} scenario={task.scenario} area={task.area} areaChip={areaChip} difficulty={task.difficulty} />
               {task.origin !== 'brief' && <span className="text-[11px] font-semibold text-ink-faint">{task.origin}</span>}
             </div>
             <h2 className="mt-2.5 text-xl sm:text-2xl lg:text-[1.75rem] font-extrabold leading-tight tracking-[-0.025em] text-ink break-words">{task.title}</h2>
@@ -173,8 +178,8 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
                   <span className="min-w-0 flex-1 truncate font-semibold text-ink" title={c.spec.type === 'command' ? c.spec.cmd : c.name}>
                     {c.name}
                   </span>
-                  <span className="shrink-0 text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-ink-faint" title={c.tier}>{c.tier}</span>
-                  <span className={cn('mono text-[11px] shrink-0 w-[3.25rem] text-right', res.mark === 'bad' ? 'font-bold text-bad-ink' : 'text-ink-faint')}>{r ? res.word : '—'}</span>
+                  <span className="shrink-0 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint" title={c.tier}>{c.tier}</span>
+                  <span className={cn('mono text-[11px] shrink-0 w-[3.25rem] text-right', res.mark === 'bad' ? 'font-bold text-bad-ink' : res.mark === 'done' ? 'font-semibold text-ok-ink' : 'text-ink-faint')}>{r ? res.word : '—'}</span>
                 </div>
               );
             })}
@@ -241,9 +246,10 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
           {!openEsc.length && task.state !== 'done' && lastState?.reason && task.state !== 'blocked' && <div className="mb-2 text-xs text-ink-faint">last transition: {lastState.to} — {lastState.reason}</div>}
           {task.state === 'ready' && row?.waiting && <div className="mb-2 text-xs text-ink-faint">not started yet: {row.waiting}</div>}
           {goalTask && (
-            <div className="mb-4 rounded-lg border border-extra/30 bg-extra/5 px-3.5 py-2.5 text-[13px] text-ink-soft space-y-1">
+            // in the colour of its kind's chip (a step done by a goal of its own)
+            <div className="mb-4 rounded-lg border border-code-7/35 bg-code-7/5 px-3.5 py-2.5 text-[13px] text-ink-soft space-y-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-bold text-extra-ink">Done by a delegated goal</span>
+                <span className="font-bold text-code-7-ink">Done by a delegated goal</span>
                 {delegated?.exists && <Badge state={delegated.state ?? 'pending'} />}
                 {delegated?.exists && <span className="text-ink-soft">{delegatedProgress(delegated.taskCounts)}</span>}
               </div>
@@ -300,7 +306,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
                 .filter((r) => r.status !== 'pass')
                 .map((r) => (
                   <details key={r.id} className="mt-2">
-                    <summary className="text-xs font-semibold text-bad-ink cursor-pointer">✗ {d.checks.find((c) => c.id === r.checkId)?.name}</summary>
+                    <summary className="py-1.5 sm:py-0 text-xs font-semibold text-bad-ink cursor-pointer">✗ {d.checks.find((c) => c.id === r.checkId)?.name}</summary>
                     <pre className="mono text-xs whitespace-pre-wrap text-ink-soft bg-sunken border border-line rounded-md p-2.5 mt-1.5 max-h-64 overflow-auto">{r.summary}</pre>
                   </details>
                 ))}
@@ -330,7 +336,7 @@ function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; conclude
   const running = !a.endedAt;
   const cell = (label: string, value: ReactNode, title?: string) => (
     <div className="min-w-0" title={title}>
-      <div className="text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">{label}</div>
+      <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">{label}</div>
       <div className="mt-1 text-[13px] font-semibold text-ink truncate">{value}</div>
     </div>
   );
@@ -346,11 +352,12 @@ function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; conclude
         {cell('Session', a.sessionId ? <span className="mono">{a.sessionId.slice(0, 8)}</span> : '—', a.sessionId ?? undefined)}
         {cell('Skills', d.goal.provider !== 'claude' && d.goal.provider != null ? 'not observable' : a.skillsUsed.length ? a.skillsUsed.join(', ') : '—', 'skills invoked with the Skill tool')}
       </div>
-      {!running && concluded?.reason && <div className={cn('text-xs font-semibold', concluded.state === 'passed' ? 'text-ok-ink' : concluded.state === 'failed' ? 'text-bad-ink' : 'text-ink-soft')}>→ {concluded.reason}</div>}
+      {!running && concluded?.reason && <div className={cn('text-xs font-semibold', concluded.state === 'passed' ? 'text-ok-ink' : concluded.state === 'failed' || concluded.state === 'error' ? 'text-bad-ink' : 'text-ink-soft')}>→ {concluded.reason}</div>}
       {a.sessions.length > 0 && (
+        // a row a line: on a phone the table slides sideways in its box rather than folding every cell
         <div className="overflow-x-auto">
-          <table className="text-[11.5px] w-full">
-            <thead className="text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">
+          <table className="text-[11.5px] w-full whitespace-nowrap">
+            <thead className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">
               <tr className="text-left">
                 <th className="pr-3 pb-1 font-extrabold">session</th>
                 <th className="pr-3 pb-1 font-extrabold">model</th>
@@ -364,7 +371,7 @@ function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; conclude
               {a.sessions.map((s, i) => (
                 <tr key={i} className="border-t border-line">
                   <td className="pr-3 py-1">
-                    <span className={cn('font-semibold', s.role === 'worker' ? 'text-work-ink' : 'text-extra-ink')}>{s.role}</span>
+                    <span className={cn('font-semibold', ROLE_INK[s.role] ?? 'text-ink-soft')}>{s.role}</span>
                     {s.role === 'worker' && s.segment > 0 && <span className="text-ink-faint"> · continuation {s.segment}</span>}
                   </td>
                   <td className="pr-3 mono">{s.model ?? '—'}</td>
