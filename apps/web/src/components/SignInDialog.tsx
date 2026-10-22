@@ -72,7 +72,7 @@ export function SignInDialog({ onClose, provider: selectedProvider, add = false 
 
         {/* the steps as the Tasks list draws a task's: leaning chips in their signal colour — done green, the one waiting
             for you yellow (blue while Foundry asks for a code), failed red; the first outlined in ink until you start */}
-        <ol className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-5 pb-4" aria-label="Sign-in steps">
+        <ol className="flex flex-wrap items-center gap-x-1.5 sm:gap-x-2 gap-y-1.5 px-5 pb-4" aria-label="Sign-in steps">
           {steps.map((label, i) => {
             const done = i < step || (i === 2 && !!session?.ok);
             const now = i === step && !done;
@@ -89,7 +89,7 @@ export function SignInDialog({ onClose, provider: selectedProvider, add = false 
                       : { plate: 'bg-you', text: 'text-on-you' }
                 : { plate: 'inset-ring inset-ring-line-strong', text: 'text-ink-faint' };
             return (
-              <li key={label} className={cn('relative isolate inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1 text-xs font-bold', look.text)} aria-current={now ? 'step' : undefined}>
+              <li key={label} className={cn('relative isolate inline-flex items-center gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 py-1 text-[11px] sm:text-xs font-bold', look.text)} aria-current={now ? 'step' : undefined}>
                 <i className={cn('absolute inset-0 -z-10 rounded-[3px] slant', look.plate)} aria-hidden="true" />
                 {done ? <Check size={12} strokeWidth={2.5} aria-hidden="true" /> : <span className="mono">{i + 1}</span>}
                 {label}
