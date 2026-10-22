@@ -157,25 +157,8 @@ select:not([multiple]):is(:not([size]), [size='1']) {
  * page-coloured (or transparent) in dark dissolves into the light page. Marked boxes become white
  * cards, the one shape every panel shares here; their border does the separating when they nest.
  */
-:root.light .surface-card,
-:root.light .dag-node {
+:root.light .surface-card {
   background-color: var(--color-panel);
-}
-:root.light .dag-node {
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
-}
-
-/*
- * Dark has two surface levels (page 950 / card 900) and uses 900 for BOTH cards and the panels
- * nested inside them. Light needs a third step, or those nested panels turn white-on-white:
- * code blocks, table headers and the diff file strip get the tint between page and card.
- */
-:root.light .md code,
-:root.light .md pre,
-:root.light .md th,
-:root.light .diff-file-head,
-:root.light .surface-inset {
-  background-color: var(--color-sunken);
 }
 :root.light .surface-card .log-row:hover {
   /* hover:bg-zinc-900 is white in light — invisible on a white card (the Agents log), so rows tint instead (a step past the inset tint, so the "you" rows still react) */

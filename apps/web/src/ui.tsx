@@ -112,11 +112,11 @@ export function Field({ label, help, aside, children, className }: { label: Reac
 /** `hint`: what the item is for, on a smaller second line under its label (the icon stays with the label) */
 export function MenuItem({ icon, children, hint, danger, className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { icon?: ReactNode; danger?: boolean; hint?: ReactNode }) {
   return (
-    <button className={cn('w-full flex gap-2 rounded-md px-2 py-1.5 text-left text-xs disabled:opacity-40 disabled:cursor-not-allowed', hint ? 'items-start' : 'items-center', danger ? 'text-rose-300 hover:bg-rose-500/10' : 'text-zinc-200 hover:bg-zinc-800', className)} {...props}>
-      {icon && <span className={cn('shrink-0 text-zinc-400', !!hint && 'mt-px')}>{icon}</span>}
+    <button className={cn('w-full flex gap-2 rounded-md px-2 py-1.5 text-left text-xs disabled:opacity-40 disabled:cursor-not-allowed', hint ? 'items-start' : 'items-center', danger ? 'text-bad-ink hover:bg-bad/10' : 'text-ink hover:bg-sunken', className)} {...props}>
+      {icon && <span className={cn('shrink-0 text-ink-soft', !!hint && 'mt-px')}>{icon}</span>}
       <span className="min-w-0 flex-1">
         {children}
-        {hint ? <span className="block mt-0.5 text-[10px] leading-snug text-zinc-500">{hint}</span> : null}
+        {hint ? <span className="block mt-0.5 text-[10.5px] leading-snug text-ink-faint">{hint}</span> : null}
       </span>
     </button>
   );
@@ -131,8 +131,8 @@ export function buttonClass(variant: ButtonVariant = 'default', size: 'sm' | 'md
     size === 'sm' ? 'px-2.5 py-1 text-xs' : 'px-3.5 py-1.5 text-sm',
     variant === 'primary' && 'bg-accent text-on-accent hover:bg-accent/85',
     variant === 'default' && 'bg-panel text-ink hover:bg-zinc-800 border border-line-strong',
-    variant === 'danger' && 'bg-rose-600/20 text-rose-300 border border-rose-700/50 hover:bg-rose-600/30',
-    variant === 'info' && 'bg-sky-600/20 text-sky-300 border border-sky-700/50 hover:bg-sky-600/30',
+    variant === 'danger' && 'bg-bad/10 text-bad-ink border border-bad/40 hover:bg-bad/20',
+    variant === 'info' && 'bg-work/10 text-work-ink border border-work/40 hover:bg-work/20',
     variant === 'ghost' && 'text-ink-soft hover:text-ink hover:bg-zinc-800',
     className,
   );
@@ -187,7 +187,7 @@ export function Card({ children, className, bodyClassName, title, actions, id, o
           <h3 className="text-[12.5px] font-extrabold uppercase tracking-[0.1em] text-ink min-w-0 grow shrink basis-56">{title}</h3>
           {actions && <div className="flex flex-wrap items-center gap-2 shrink-0 max-w-full ml-auto">{actions}</div>}
           {onClose && (
-            <button type="button" className="absolute top-2 right-2 rounded p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800" onClick={onClose} aria-label="close">
+            <button type="button" className="absolute top-2 right-2 rounded-md p-1.5 text-ink-soft hover:text-ink hover:bg-sunken" onClick={onClose} aria-label="close">
               <X size={15} />
             </button>
           )}

@@ -392,7 +392,7 @@ function FullScreen({ children, onClose }: { children: ReactNode; onClose: () =>
     // translucent and blurred: the goal page stays in view behind the panel; a click beside the panel closes it.
     // The panel is always the full viewport height, so switching tasks never resizes it; its content scrolls inside.
     <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[3px] p-3 sm:p-6" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="max-w-6xl mx-auto h-full rounded-lg bg-zinc-950 shadow-2xl">{children}</div>
+      <div className="max-w-6xl mx-auto h-full rounded-lg bg-panel shadow-2xl">{children}</div>
     </div>
   );
 }
