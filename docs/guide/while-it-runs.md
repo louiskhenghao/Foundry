@@ -26,7 +26,7 @@ Open a goal from **Goals** (the list in the top bar). At the top of its page:
 
 Below that, cards appear only when they matter: the milestone card when the goal waits for your look, the interview while Foundry asks questions, and **Goal review…** with a live log while the final review runs.
 
-If a coding agent reaches its usage limit, the banner identifies it and the retry time. Only that coding agent’s new sessions pause. Without a reported reset, Foundry retries after a delay; the retry does not guarantee recovered quota. See [Costs and usage](./costs-and-usage.md).
+If a coding agent reaches its usage limit, the banner identifies it and the retry time. Only that coding agent’s new sessions pause. Without a reported reset, Foundry retries after a delay; the retry does not guarantee recovered quota. When another account of that coding agent is free, the banner also offers **Switch to *account* and continue**. See [Costs and usage](./costs-and-usage.md) and [Several accounts](./costs-and-usage.md#several-accounts).
 
 ## Simple view: progress
 

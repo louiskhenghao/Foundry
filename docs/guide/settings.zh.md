@@ -186,6 +186,7 @@ Foundry 启动时，如果发现 Claude Code 自上次同步后更新过，也�
 | **Concurrent agent sessions** | 3 | 两种编码智能体的所有 goal 加起来同时运行的会话总数。 |
 | **Reference investigation: cost cap** | $3 | Clarify 之前用 REA 调查 goal 参考对象的会话到这个花费就停下，把已有的发现写成报告。 |
 | **Reference investigation: minutes** | 20 | 它的时间上限。 |
+| **Account switch on a usage limit** | 关 | 用量上限是否把新会话转到这个编码智能体的下一个账号。这里只显示，在 Accounts 页面打开：见 [多个账号](./costs-and-usage.zh.md#多个账号)。 |
 
 什么时候改：如果大任务总是被中途截断，调高超时或 Claude 费用上限；如果你经常碰到套餐的用量上限，调低 **Concurrent agent sessions**。
 
@@ -307,7 +308,7 @@ key 对下一个会话生效，不用重启。保存过的 key 不会再显示�
 | **Schedule fired** | 一个 [Schedule](./schedules.zh.md) 触发了：生成了哪个 goal，或者为什么没有生成（上一次运行还在进行）。 | 不用做什么，除非被跳过的那次是你在等的。 |
 | **Goal finished** | 某个 goal 以 done、over-delivered 或 failed 结束。你自己取消的不会发。 | 看结果，或看哪里失败了。 |
 | **Delivery** | 有 pull request 开出或合并了、交付失败了、一次部署结束了、它的冒烟测试通过或失败了，或者某个已合并 goal 的 revert 开出、合并、关闭或失败了。 | 审查 pull request，或看 Delivery 标签。 |
-| **Usage pause** | 某个编码智能体达到用量上限而暂停新会话，重新尝试时再通知；另一个编码智能体仍可继续。 | Foundry 自动重试；持续失败时检查 Accounts 和 Usage。 |
+| **Usage pause** | 某个编码智能体达到用量上限而暂停新会话，重新尝试时再通知；用量上限把新会话转到另一个账号时也会通知。另一个编码智能体仍可继续。 | Foundry 自动重试；持续失败时检查 Accounts 和 Usage。 |
 | **New version** | Foundry 出了新版本（每个版本一次）。 | 方便时更新，见 [About & updates](#about--updates)。 |
 
 关掉你不想要的。这些开关对所有渠道都一样生效。

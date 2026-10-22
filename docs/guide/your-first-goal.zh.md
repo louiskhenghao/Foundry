@@ -13,7 +13,7 @@
 
 ## 账户与编码智能体
 
-点击顶栏 **Accounts**，分别查看 Claude Code、Codex 和 Antigravity。Antigravity 在终端里登录：运行一次 `agy`（它会打开浏览器），然后点 **Refresh status**。**Sign in to Codex** 使用 ChatGPT 设备授权：窗口会显示一次性验证码（带复制按钮）和 OpenAI 的设备授权页，在那里输入验证码并批准。验证码 15 分钟内有效，窗口也会等这么久；**Sign in to Claude Code** 使用 Claude 原生登录。凭据与本机 CLI 共用，在这里退出也会退出对应 CLI，但不会影响另一个提供商。执行期间不能登录或退出，CLI 请求也遵守同样的保护。Codex 只支持 ChatGPT 登录，不使用 API-key 模式；原生 CLI 提供邮箱和方案时会显示在账户卡片。Foundry 运行期间安装 CLI 后，下次账户检查即可识别；Setup 与 Accounts 都使用当前可执行文件。修改配置中的程序路径或原生配置目录仍需重启。
+点击顶栏 **Accounts**，分别查看 Claude Code、Codex 和 Antigravity。Antigravity 在终端里登录：运行一次 `agy`（它会打开浏览器），然后点 **Refresh status**。**Sign in to Codex** 使用 ChatGPT 设备授权：窗口会显示一次性验证码（带复制按钮）和 OpenAI 的设备授权页，在那里输入验证码并批准。验证码 15 分钟内有效，窗口也会等这么久；**Sign in to Claude Code** 使用 Claude 原生登录。凭据与本机 CLI 共用，在这里退出也会退出对应 CLI，但不会影响另一个提供商。执行期间不能登录或退出，CLI 请求也遵守同样的保护。Codex 只支持 ChatGPT 登录，不使用 API-key 模式；原生 CLI 提供邮箱和方案时会显示在账户卡片。Foundry 运行期间安装 CLI 后，下次账户检查即可识别；Setup 与 Accounts 都使用当前可执行文件。修改配置中的程序路径或原生配置目录仍需重启。Claude Code 和 Codex 可以同时登录你的多个账号，执行期间也可以添加：见 [多个账号](./costs-and-usage.zh.md#多个账号)。
 
 使用 Accounts 顶部的 **Refresh status** 重新检查两个原生账户。检查期间保留现有卡片，预留状态行显示加载或错误，不会用加载文字替换整个页面。
 
