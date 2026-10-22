@@ -15,20 +15,30 @@ export function StatusDot({ status }: { status: AgentStatus }) {
 }
 
 
-/** The coding agent, with an icon and colour of its own so Claude Code and Codex tell apart at a glance; `compact` keeps the icon only. */
-export function ProviderBadge({ provider, compact = false }: { provider: AgentSessionRow['provider']; compact?: boolean }) {
+/**
+ * The coding agent, with an icon and colour of its own so Claude Code and Codex tell apart at a glance; `compact` keeps
+ * the icon only. `md`: the size of a page head's facts (the goal page, the Brief), the same type and height as they.
+ */
+export function ProviderBadge({ provider, compact = false, size = 'sm' }: { provider: AgentSessionRow['provider']; compact?: boolean; size?: 'sm' | 'md' }) {
   const p = provider ? PROVIDER_STYLE[provider] : null;
   const label = p?.label ?? 'Agent unknown';
   return (
-    <span className={cn('inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] leading-none shrink-0', p?.chip ?? 'border-zinc-700 text-zinc-400')} title={`Coding agent: ${label}`} aria-label={compact ? label : undefined}>
-      {p && <p.Icon size={11} aria-hidden="true" className="shrink-0" />}
+    <span
+      className={cn(
+        'inline-flex items-center shrink-0 font-semibold',
+        size === 'md' ? cn('gap-1.5 rounded-md px-2.5 py-1 text-[13px] ring-1 ring-inset', p?.plate ?? 'ring-line text-ink-soft') : cn('gap-1 rounded-[5px] border px-1.5 py-0.5 text-[11px] leading-none', p?.chip ?? 'border-line-strong text-ink-soft'),
+      )}
+      title={`Coding agent: ${label}`}
+      aria-label={compact ? label : undefined}
+    >
+      {p && <p.Icon size={size === 'md' ? 13 : 11} aria-hidden="true" className="shrink-0" />}
       {!compact && label}
     </span>
   );
 }
 
 /** a neutral small plate in capitals: where a session or a port comes from (FOUNDRY, YOURS, TAILSCALE, PROCESS…), never a signal */
-export const PLATE = 'inline-flex items-center whitespace-nowrap rounded-sm border border-line-strong px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.07em] text-ink-soft';
+export const PLATE = 'inline-flex items-center whitespace-nowrap rounded-sm border border-line-strong px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-soft';
 /**
  * A quiet trait chip in small letters (a session's work, a kind of learning, a schedule that approves itself), as the
  * Goals page's; `tone` colours one that is a merge (the reviews' violet) or what goes wrong (red). One colour per chip:
@@ -36,7 +46,7 @@ export const PLATE = 'inline-flex items-center whitespace-nowrap rounded-sm bord
  */
 export const traitChip = (tone?: 'extra' | 'bad') => cn('inline-flex items-center whitespace-nowrap rounded-sm border px-1.5 py-px text-[10.5px] font-semibold leading-tight', tone === 'extra' ? 'border-extra/50 text-extra-ink' : tone === 'bad' ? 'border-bad/50 text-bad-ink' : 'border-line-strong/70 text-ink-soft');
 /** the label of a figure or a fact: tiny capitals beside or over its mono figure */
-export const FIGURE_LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint';
+export const FIGURE_LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint';
 /** a board's panel without its heading, for a list the page's own title already names */
 export const BOARD_PANEL = 'overflow-hidden rounded-xl bg-panel shadow-[0_0_0_1px_var(--color-line),0_1px_2px_rgb(0_0_0/0.06)]';
 

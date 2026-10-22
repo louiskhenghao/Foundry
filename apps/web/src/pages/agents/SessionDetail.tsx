@@ -2,7 +2,7 @@ import type { AgentSessionRow, AgentSubagentRow } from '@foundry/engine/agents-t
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { LiveLog } from '../LiveLog.tsx';
-import { ago, chipClass, cn } from '../../ui.tsx';
+import { PAGE_TITLE, ago, chipClass, cn } from '../../ui.tsx';
 import { ContextGauge } from './ContextGauge.tsx';
 import { FIGURE_LABEL, ProviderBadge, SourceBadge, StatusDot, shortCwd, shortModel } from './rows.tsx';
 import { TranscriptView } from './TranscriptView.tsx';
@@ -41,7 +41,7 @@ export function SessionDetail({ row, agentId, onOpen, onBack }: { row: AgentSess
             </Link>
           )}
         </div>
-        <h1 className="text-2xl sm:text-[2rem] font-extrabold leading-[1.1] tracking-[-0.03em] text-ink line-clamp-3 break-words">{sub ? `${sub.agentType}: ${sub.description || sub.agentId}` : (row.title ?? row.sessionId)}</h1>
+        <h1 className={cn(PAGE_TITLE, 'text-ink line-clamp-3')}>{sub ? `${sub.agentType}: ${sub.description || sub.agentId}` : (row.title ?? row.sessionId)}</h1>
         {row.source === 'external' && row.provider === 'codex' && <p className="text-sm text-ink-faint">External Codex conversation, shown for reading only. Its live process state is unknown. Foundry does not resume, stop or modify this session.</p>}
         <dl className="flex flex-wrap gap-2">
           {facts.map(([k, v]) => (

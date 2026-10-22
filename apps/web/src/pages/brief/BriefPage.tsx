@@ -10,7 +10,7 @@ import { OpenFull } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { StageRail, StatePlate, stageMarks, stageNotes, taskMark } from '../../components/progress.tsx';
 import { useLive } from '../../store.ts';
-import { Badge, Button, Card, CopyButton, Empty, Input, Textarea, chipClass, cn, fmtLimitMin, fmtLimitUsd, stateLabel } from '../../ui.tsx';
+import { Badge, Button, Card, CopyButton, Empty, Input, PAGE_TITLE, Textarea, chipClass, cn, fmtLimitMin, fmtLimitUsd, stateLabel } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { ReferenceCard } from './ReferenceCard.tsx';
 import { AreasCard } from './AreasCard.tsx';
@@ -464,7 +464,7 @@ export function BriefPage() {
 function Figure({ label, value, note, dim }: { label: string; value: string; note: ReactNode; /** not known yet (the plan is still coming) */ dim?: boolean }) {
   return (
     <div className="min-w-0">
-      <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">{label}</div>
+      <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">{label}</div>
       <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         <b className={cn('mono text-2xl font-bold', dim ? 'text-ink-faint' : 'text-ink')}>{value}</b>
         <span className="text-xs">{note}</span>
@@ -532,7 +532,7 @@ function Header({ detail, simple = false, onView, beforeReclarify }: { detail: G
             <StatePlate state={g.state} label={stateLabel(g.state)} />
             <HelpLink to="approving-the-brief" label="How to read and approve the Brief (new tab)" />
           </div>
-          <h1 className="text-[1.75rem] sm:text-4xl lg:text-[2.75rem] font-extrabold leading-[1.05] tracking-[-0.035em] line-clamp-3 break-words" title={g.title}>
+          <h1 className={cn(PAGE_TITLE, 'line-clamp-3')} title={g.title}>
             {g.title}
           </h1>
           <ul className="mt-4 flex flex-wrap gap-2" aria-label="About this goal">
@@ -546,7 +546,7 @@ function Header({ detail, simple = false, onView, beforeReclarify }: { detail: G
               <span className="mono font-medium truncate">{g.baseBranch} → {g.branch}</span>
             </li>
             <li className="inline-flex items-center">
-              <ProviderBadge provider={g.provider} />
+              <ProviderBadge provider={g.provider} size="md" />
             </li>
             {g.workflow.profile && (
               <li className={fact} title="Workflow suite: whose skills the roles follow for this goal">

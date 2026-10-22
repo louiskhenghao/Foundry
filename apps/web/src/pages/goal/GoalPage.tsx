@@ -12,7 +12,7 @@ import { MilestoneCard } from './MilestoneCard.tsx';
 import { ImportedCard } from './ImportedCard.tsx';
 import { api, type GoalDetail } from '../../api.ts';
 import { useLive } from '../../store.ts';
-import { Button, ButtonGroup, Card, ConfirmDialog, CopyButton, Empty, Meter, Tabs, fmtLimitMin, fmtLimitUsd, fmtUsd, stateLabel } from '../../ui.tsx';
+import { Button, ButtonGroup, Card, ConfirmDialog, CopyButton, Empty, Meter, PAGE_TITLE, Tabs, cn, fmtLimitMin, fmtLimitUsd, fmtUsd, stateLabel } from '../../ui.tsx';
 import { StatePlate, StageRail, stageMarks, stageNotes, taskMark } from '../../components/progress.tsx';
 import { CutSessionsDot } from '../../components/CutSessionsDot.tsx';
 import { OpenMenu } from '../../components/OpenMenu.tsx';
@@ -162,7 +162,7 @@ export function GoalPage() {
             {g.transfer && <span className="text-[11px] font-semibold rounded-sm ring-1 ring-inset ring-sky-800 text-sky-300 px-1.5 py-0.5" title={`came from ${g.transfer.from.hostname}`}>imported</span>}
             {g.delivery.reverts[g.delivery.reverts.length - 1]?.status === 'merged' && <span className="text-[11px] font-semibold rounded-sm ring-1 ring-inset ring-rose-800 text-rose-300 px-1.5 py-0.5" title="Its merge was undone by a revert pull request (Delivery tab)">reverted</span>}
           </div>
-          <h1 className="text-[1.75rem] sm:text-4xl lg:text-[2.75rem] font-extrabold leading-[1.05] tracking-[-0.035em] line-clamp-3 break-words" title={g.title}>
+          <h1 className={cn(PAGE_TITLE, 'line-clamp-3')} title={g.title}>
             {g.title}
           </h1>
           <ul className="mt-4 flex flex-wrap gap-2" aria-label="About this goal">
@@ -176,7 +176,7 @@ export function GoalPage() {
               <span className="mono font-medium truncate">{g.baseBranch} → {g.branch}</span>
             </li>
             <li className="inline-flex items-center">
-              <ProviderBadge provider={g.provider} />
+              <ProviderBadge provider={g.provider} size="md" />
             </li>
             {g.workflow.profile && (
               <li className={fact} title="Workflow suite: whose skills the roles follow for this goal">
