@@ -11,6 +11,7 @@ import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalIssue, GoalMode,
 import { Hono } from 'hono';
 import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
 import { listGuide, readGuide } from './guide.ts';
+import { copyTheme, listThemes, prepareThemesDir, themesDir } from './themes.ts';
 import { OP_ID, SkillOpError, SkillOps, opIdOfChannel, opOf } from './skill-ops.ts';
 import { channelTranscript, readHistory, readTranscriptEvent } from './transcripts.ts';
 import { z } from 'zod';
@@ -1554,6 +1555,26 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     }
   });
   app.post('/api/settings/reset', (c) => c.json(engine.resetSettings()));
+  // ---- themes (ADR-0066): the built-in ones and the JSON files in the data folder's themes/ ----
+  const themes = () => listThemes(themesDir(engine.config.dataDir));
+  app.get('/api/themes', (c) => c.json(themes()));
+  // a copy of a theme to edit by hand: the file is written, the person opens it in their editor
+  app.post('/api/themes', async (c) => {
+    const body = z.object({ from: z.string().min(1), name: z.string().max(40).optional() }).parse(await c.req.json());
+    const from = themes().themes.find((t) => t.id === body.from);
+    if (!from) throw new HttpError(404, { error: `no theme ${body.from}` });
+    return c.json(copyTheme(themesDir(engine.config.dataDir), from, body.name), 201);
+  });
+  app.post('/api/themes/open', async (c) => {
+    const { target } = z.object({ target: z.string() }).parse(await c.req.json());
+    const path = prepareThemesDir(themesDir(engine.config.dataDir));
+    try {
+      return c.json({ ok: true, path, command: (await openPath(target as OpenTargetId, path)).command });
+    } catch (e) {
+      if (e instanceof OpenError) throw new HttpError(e.code === 'unknown-target' ? 404 : 400, { error: e.message, code: e.code, path });
+      throw e;
+    }
+  });
   // ---------- Learnings (ADR-0040): what Foundry knows about each project folder ----------
   // ---- schedules (ADR-0054): goals that run on their own ----
   const scheduleError = (e: unknown) => {

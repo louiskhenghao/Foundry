@@ -83,6 +83,8 @@ export interface ThemeEntry {
   builtIn: boolean;
   /** the app's own stylesheet draws it as it is: nothing is generated for it (Classic) */
   stock?: boolean;
+  /** a custom theme's file */
+  file?: string;
 }
 
 /** A theme file that could not be used, and why — shown in Settings so the person can fix it. */
