@@ -620,6 +620,12 @@ export function apiForProvider(provider?: AgentProvider) {
   // themes (ADR-0066): the built-in ones and the files in the data folder's themes/
   themes: () => req<{ dir: string; themes: ThemeEntry[]; problems: ThemeProblem[] }>('/api/themes'),
   copyTheme: (from: string, name?: string) => req<ThemeEntry>('/api/themes', { method: 'POST', body: JSON.stringify({ from, name }) }),
+  /** a theme of your own: renamed (its id follows the name), deleted, or the address its file is saved from */
+  renameTheme: (id: string, name: string) => req<ThemeEntry>(`/api/themes/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  deleteTheme: (id: string) => req<{ ok: true }>(`/api/themes/${id}`, { method: 'DELETE' }),
+  themeFileUrl: (id: string) => `/api/themes/${id}/file`,
+  /** a theme file from elsewhere: its name and its text */
+  importTheme: (file: string, text: string) => req<ThemeEntry>('/api/themes/import', { method: 'POST', body: JSON.stringify({ file, text }) }),
   /** the themes folder, or with `theme` that theme's own file (in an editor) */
   openThemes: (target: OpenTarget['id'], theme?: string) => req<{ ok: true; path: string; command: string[] }>('/api/themes/open', { method: 'POST', body: JSON.stringify({ target, theme }) }),
   openGoal: (goalId: string, target: OpenTarget['id'], which: 'repo' | 'workspace' | `task:${string}` | `resolve:${string}`) => req<{ ok: true; path: string; command: string[] }>(`/api/goals/${goalId}/open`, { method: 'POST', body: JSON.stringify({ target, which }) }),

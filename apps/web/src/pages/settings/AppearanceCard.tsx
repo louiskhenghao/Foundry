@@ -1,9 +1,9 @@
 import { fillPalette, layoutOf, type Layout, type ThemeEntry } from '@foundry/core/browser';
-import { Check, ChevronDown, Copy, FilePenLine, FolderOpen, RefreshCw } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Check, ChevronDown, Copy, Download, FilePenLine, FolderOpen, MoreHorizontal, Pencil, RefreshCw, Trash2, Upload } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { api, type OpenTarget } from '../../api.ts';
 import { loadThemes, selectTheme, setMode, useTheme, type Mode } from '../../theme.ts';
-import { Button, ButtonGroup, Card, CopyButton, Menu, MenuItem, cn } from '../../ui.tsx';
+import { Button, ButtonGroup, Card, ConfirmDialog, CopyButton, Input, Menu, MenuItem, cn } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 import { SettingsTitle } from './sections.tsx';
 
@@ -27,6 +27,11 @@ export function AppearanceCard() {
 export function Appearance({ themes, problems, dir, id, mode, light, editors = [] }: Pick<ReturnType<typeof useTheme.getState>, 'themes' | 'problems' | 'dir' | 'id' | 'mode' | 'light'> & { /** the editors found on this computer, to open a theme's file in */ editors?: OpenTarget[] }) {
   const [note, setNote] = useState<{ text: string; file?: string; id?: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  /** a theme of your own being renamed (with the name typed so far) or about to be deleted */
+  const [renaming, setRenaming] = useState<{ entry: ThemeEntry; name: string } | null>(null);
+  const [deleting, setDeleting] = useState<ThemeEntry | null>(null);
+  const [busy, setBusy] = useState(false);
+  const picker = useRef<HTMLInputElement>(null);
 
   const copy = async (from: ThemeEntry) => {
     setErr(null);
@@ -40,6 +45,55 @@ export function Appearance({ themes, problems, dir, id, mode, light, editors = [
       setErr((e as Error).message);
     }
   };
+  /** runs a change to a theme of your own; the note about it goes when the theme it names does */
+  const change = async (entry: ThemeEntry, act: () => Promise<void>) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await act();
+      if (note?.id === entry.id) setNote(null);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+      setRenaming(null);
+      setDeleting(null);
+    }
+  };
+  // renamed, its id follows its name: this browser keeps wearing it under the new one
+  const rename = (entry: ThemeEntry, name: string) =>
+    change(entry, async () => {
+      const made = await api.renameTheme(entry.id, name);
+      await loadThemes();
+      if (entry.id === id) selectTheme(made.id);
+    });
+  // deleted, a browser that wore it goes back to the default (loadThemes sees it gone)
+  const remove = (entry: ThemeEntry) =>
+    change(entry, async () => {
+      await api.deleteTheme(entry.id);
+      await loadThemes();
+    });
+  const exportFile = (entry: ThemeEntry) => {
+    const a = document.createElement('a');
+    a.href = api.themeFileUrl(entry.id);
+    a.download = `${entry.id}.json`;
+    a.click();
+  };
+  // a theme file from elsewhere: checked by Foundry, and worn at once as a copy is
+  const importFile = async (file: File | undefined) => {
+    if (!file) return;
+    setErr(null);
+    try {
+      const made = await api.importTheme(file.name, await file.text());
+      await loadThemes();
+      selectTheme(made.id);
+      setNote({ text: `“${made.theme.name}” is imported and in use now.`, file: made.file, id: made.id });
+    } catch (e) {
+      setErr(`${file.name}: ${(e as Error).message}`);
+    } finally {
+      if (picker.current) picker.current.value = '';
+    }
+  };
 
   return (
     <Card id="appearance" title={<SettingsTitle id="appearance">Appearance<HelpLink to="themes" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
@@ -48,7 +102,17 @@ export function Appearance({ themes, problems, dir, id, mode, light, editors = [
 
         <div role="radiogroup" aria-label="Theme" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {themes.map((t) => (
-            <ThemeOption key={t.id} entry={t} chosen={t.id === id} light={light} onChoose={() => selectTheme(t.id)} onCopy={() => copy(t)} editors={editors} onError={setErr} />
+            <ThemeOption
+              key={t.id}
+              entry={t}
+              chosen={t.id === id}
+              light={light}
+              onChoose={() => selectTheme(t.id)}
+              onCopy={() => copy(t)}
+              editors={editors}
+              onError={setErr}
+              mine={{ rename: () => setRenaming({ entry: t, name: t.theme.name }), exportFile: () => exportFile(t), remove: () => setDeleting(t) }}
+            />
           ))}
         </div>
 
@@ -102,6 +166,10 @@ export function Appearance({ themes, problems, dir, id, mode, light, editors = [
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <OpenFolder onError={setErr} />
+            <Button size="sm" onClick={() => picker.current?.click()} title="Brings in a theme file from elsewhere (one exported from another Foundry, or written by hand): Foundry checks it and puts it in use">
+              <Upload size={13} /> Import a theme file
+            </Button>
+            <input ref={picker} type="file" accept=".json,application/json" className="sr-only" tabIndex={-1} aria-hidden="true" onChange={(e) => void importFile(e.target.files?.[0])} />
             <Button size="sm" variant="ghost" onClick={() => void loadThemes()} title="Reads the theme files again (Foundry also does whenever this window comes back to the front)">
               <RefreshCw size={13} /> Read the files again
             </Button>
@@ -124,6 +192,31 @@ export function Appearance({ themes, problems, dir, id, mode, light, editors = [
           </p>
         </section>
       </div>
+
+      <ConfirmDialog
+        open={!!renaming}
+        title="Rename the theme"
+        confirmLabel="Rename"
+        busy={busy}
+        confirmDisabled={!renaming?.name.trim()}
+        onConfirm={() => renaming && void rename(renaming.entry, renaming.name)}
+        onClose={() => setRenaming(null)}
+      >
+        <p>Its file takes the new name too.</p>
+        <Input
+          autoFocus
+          aria-label="New name"
+          maxLength={40}
+          value={renaming?.name ?? ''}
+          onChange={(e) => setRenaming((r) => (r ? { ...r, name: e.target.value } : r))}
+          onKeyDown={(e) => e.key === 'Enter' && renaming?.name.trim() && void rename(renaming.entry, renaming.name)}
+        />
+      </ConfirmDialog>
+      <ConfirmDialog open={!!deleting} title={`Delete “${deleting?.theme.name}”?`} confirmLabel="Delete" danger busy={busy} onConfirm={() => deleting && void remove(deleting)} onClose={() => setDeleting(null)}>
+        <p>
+          Its file <span className="mono text-ink">{deleting?.id}.json</span> is removed from the themes folder: export it first to keep a copy. A browser that wears it goes back to Wayfinding.
+        </p>
+      </ConfirmDialog>
     </Card>
   );
 }
@@ -144,7 +237,7 @@ export const layoutWords = (l: Layout): string[] => (Object.keys(LAYOUT_WORDS) a
  * side column, a card with text and the signal colours, its category colours, a Needs you sign as a strip or a card),
  * its name in its own title font, what it is, and its layout in a few words.
  */
-function ThemeOption({ entry, chosen, light, onChoose, onCopy, editors, onError }: { entry: ThemeEntry; chosen: boolean; light: boolean; onChoose: () => void; onCopy: () => void; editors: OpenTarget[]; onError: (e: string | null) => void }) {
+function ThemeOption({ entry, chosen, light, onChoose, onCopy, editors, onError, mine }: { entry: ThemeEntry; chosen: boolean; light: boolean; onChoose: () => void; onCopy: () => void; editors: OpenTarget[]; onError: (e: string | null) => void; /** what a theme of your own can have done to it */ mine: { rename: () => void; exportFile: () => void; remove: () => void } }) {
   const t = entry.theme;
   const p = fillPalette(light ? t.light : t.dark, light ? 'light' : 'dark');
   const r = t.shape?.radius ?? 8;
@@ -211,11 +304,48 @@ function ThemeOption({ entry, chosen, light, onChoose, onCopy, editors, onError 
           </span>
         </span>
       </button>
+      {/* a built-in theme is copied; a theme of your own opens in your editor, the rest it can have done in its "⋯" */}
       <div className="mt-auto flex flex-wrap items-center gap-2 px-3 pb-3 pt-2.5">
-        {!entry.builtIn && <OpenInEditor theme={entry.id} editors={editors} onError={onError} />}
-        <Button size="sm" variant="ghost" onClick={onCopy} title="Writes this theme as a new file in the themes folder, to edit by hand">
-          <Copy size={13} /> Make a copy
-        </Button>
+        {entry.builtIn ? (
+          <Button size="sm" variant="ghost" onClick={onCopy} title="Writes this theme as a new file in the themes folder, to edit by hand">
+            <Copy size={13} /> Make a copy
+          </Button>
+        ) : (
+          <>
+            <OpenInEditor theme={entry.id} editors={editors} onError={onError} />
+            <Menu
+              align="left"
+              trigger={({ open, toggle }) => (
+                <Button size="sm" variant="ghost" onClick={toggle} aria-expanded={open} aria-label={`More for ${t.name}`} title="Rename, make a copy, export or delete">
+                  <MoreHorizontal size={14} />
+                </Button>
+              )}
+            >
+              {(close) => (
+                <>
+                  {[
+                    { label: 'Rename…', icon: <Pencil size={13} />, run: mine.rename },
+                    { label: 'Make a copy', icon: <Copy size={13} />, run: onCopy },
+                    { label: 'Export the file', icon: <Download size={13} />, run: mine.exportFile },
+                    { label: 'Delete…', icon: <Trash2 size={13} />, run: mine.remove, danger: true },
+                  ].map((it) => (
+                    <MenuItem
+                      key={it.label}
+                      icon={it.icon}
+                      danger={it.danger}
+                      onClick={() => {
+                        close();
+                        it.run();
+                      }}
+                    >
+                      {it.label}
+                    </MenuItem>
+                  ))}
+                </>
+              )}
+            </Menu>
+          </>
+        )}
       </div>
     </div>
   );

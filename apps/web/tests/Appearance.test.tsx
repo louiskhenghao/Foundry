@@ -21,6 +21,10 @@ test('Appearance offers every theme, says which is in use, and how to make your 
   expect(html).toContain('href="/help/themes"');
   // no editor found: nothing offers to open the file
   expect(html).not.toContain('Open in');
+  // only a theme of your own has more to do (rename, export, delete); any theme file can come in
+  expect(html.match(/aria-label="More for /g)).toHaveLength(1);
+  expect(html).toContain('aria-label="More for Night shift"');
+  expect(html).toContain('Import a theme file');
 });
 
 test('a theme of your own opens in the editor found, or offers a choice of several', () => {

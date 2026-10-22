@@ -256,7 +256,7 @@ flowchart LR
 | `/api/accounts`, `/api/plugins` | both native account states/capabilities; Codex native plugin inventory and install/remove |
 | `/api/fs/*`, `/api/repos/*`, `/api/uploads`, `/api/validate-repo`, `/api/open/targets` | folder picker, repo init/upstream/pull, staged uploads, repository check for the New goal form, the editors and file managers a goal folder can be opened in |
 | `/api/guide`, `/api/guide/page/:slug`, `/api/guide/images/:file` | the user guide for the Help page (`packages/server/src/guide.ts`) |
-| `/api/themes`, `/api/themes/open` | the built-in themes and the theme files in `<data>/themes/` (each file that cannot be used, with why), a copy of a theme to edit by hand, that folder opened in an editor (`packages/server/src/themes.ts`) |
+| `/api/themes`, `/api/themes/:id`, `/api/themes/:id/file`, `/api/themes/import`, `/api/themes/open` | the built-in themes and the theme files in `<data>/themes/` (each file that cannot be used, with why), a copy of a theme to edit by hand, a theme of the person's own renamed (its file follows the name), deleted or its file downloaded, a theme file imported (checked as the folder's own files are), that folder opened in an editor or file manager, or one theme's file in an editor (`packages/server/src/themes.ts`) |
 | `/internal/boundary` | the boundary hook's callback |
 | `*` | static files from `apps/web/dist` (`index.html` revalidated, `/assets/*` immutable) |
 

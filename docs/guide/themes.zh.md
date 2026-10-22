@@ -28,7 +28,9 @@
 
 有错误的文件会列在 **Make your own theme** 下面，并说明要改什么，比如 `my-theme.json — light.page: a colour is written #rgb or #rrggbb`。文件有错期间，主题保持最后一次正常的样子。
 
-主题文件夹是 Foundry 数据文件夹里的 `themes/`；Appearance 卡片会显示它在你电脑上的位置。除了 `theme.schema.json`，里面每个 `.json` 文件都是一个主题，以文件名命名：只能用小写字母、数字和连字符，并且不能叫 `wayfinding`、`ledger` 或 `classic`，这几个名字已经被占用。想分享主题，把文件复制到另一台 Foundry 的主题文件夹里就行。
+你自己的主题在卡片上有一个 **⋯** 菜单。**Rename…** 给它改名，文件名也跟着改：这个浏览器继续用它，别的用着它的浏览器会回到 Wayfinding。**Make a copy** 以它为起点再做一个主题，**Export the file** 把它的文件存到你的电脑上，**Delete…** 删除这个文件。**Open the folder** 旁边的 **Import a theme file** 可以导入别处来的主题文件，比如从另一台 Foundry 导出的，或者手写的：Foundry 会像检查文件夹里的文件一样检查它，有错时说明要改什么，没错就直接用上。
+
+主题文件夹是 Foundry 数据文件夹里的 `themes/`；Appearance 卡片会显示它在你电脑上的位置。除了 `theme.schema.json`，里面每个 `.json` 文件都是一个主题，以文件名命名：只能用小写字母、数字和连字符，并且不能叫 `wayfinding`、`ledger` 或 `classic`，这几个名字已经被占用。想分享主题，导出它的文件，在另一台 Foundry 上导入；或者把文件复制到那台 Foundry 的主题文件夹里。
 
 ## 主题文件
 

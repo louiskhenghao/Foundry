@@ -11,7 +11,7 @@ import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalIssue, GoalMode,
 import { Hono } from 'hono';
 import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
 import { listGuide, readGuide } from './guide.ts';
-import { copyTheme, listThemes, prepareThemesDir, themesDir } from './themes.ts';
+import { copyTheme, deleteTheme, importTheme, renameTheme, themeFileText, listThemes, prepareThemesDir, themesDir } from './themes.ts';
 import { OP_ID, SkillOpError, SkillOps, opIdOfChannel, opOf } from './skill-ops.ts';
 import { channelTranscript, readHistory, readTranscriptEvent } from './transcripts.ts';
 import { z } from 'zod';
@@ -1564,6 +1564,32 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const from = themes().themes.find((t) => t.id === body.from);
     if (!from) throw new HttpError(404, { error: `no theme ${body.from}` });
     return c.json(copyTheme(themesDir(engine.config.dataDir), from, body.name), 201);
+  });
+  /** a theme of the person's own, by id: a built-in theme has no file to change */
+  const ownTheme = (id: string) => {
+    const t = themes().themes.find((x) => x.id === id && !x.builtIn && x.file);
+    if (!t) throw new HttpError(404, { error: `no theme of your own called ${id}` });
+    return t;
+  };
+  // a theme of your own renamed (its file follows the name), deleted, or its file to keep or pass on
+  app.patch('/api/themes/:id', async (c) => {
+    const { name } = z.object({ name: z.string().trim().min(1).max(40) }).parse(await c.req.json());
+    return c.json(renameTheme(themesDir(engine.config.dataDir), ownTheme(c.req.param('id')), name));
+  });
+  app.delete('/api/themes/:id', (c) => {
+    deleteTheme(ownTheme(c.req.param('id')));
+    return c.json({ ok: true });
+  });
+  app.get('/api/themes/:id/file', (c) => {
+    const t = ownTheme(c.req.param('id'));
+    return c.body(themeFileText(t), 200, { 'content-type': 'application/json; charset=utf-8', 'content-disposition': `attachment; filename="${t.id}.json"` });
+  });
+  // a theme file from elsewhere, checked as the folder's own files are
+  app.post('/api/themes/import', async (c) => {
+    const body = z.object({ file: z.string().max(200), text: z.string() }).parse(await c.req.json());
+    const made = importTheme(themesDir(engine.config.dataDir), body.file, body.text);
+    if ('error' in made) throw new HttpError(400, { error: made.error });
+    return c.json(made, 201);
   });
   // the themes folder, or with `theme` one theme of the person's own as its file (in an editor only); never another path
   app.post('/api/themes/open', async (c) => {

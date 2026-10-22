@@ -28,7 +28,9 @@ Both are kept in this browser, so each person and each device picks their own. A
 
 A file with a mistake is listed under **Make your own theme** with what to fix, for example `my-theme.json — light.page: a colour is written #rgb or #rrggbb`. While the file is wrong, the theme keeps the last look that worked.
 
-The themes folder is `themes/` in Foundry's data folder; the Appearance card shows where that is on your computer. Every `.json` file in it except `theme.schema.json` is a theme, named after the file: lowercase letters, digits and hyphens, and not `wayfinding`, `ledger` or `classic`, which are taken. To share a theme, copy its file into another Foundry's themes folder.
+A theme of your own has a **⋯** menu on its card. **Rename…** gives it a new name, and its file takes the name too: this browser keeps wearing it, another browser that wore it goes back to Wayfinding. **Make a copy** starts another theme from it, **Export the file** saves its file to your computer, and **Delete…** removes the file. **Import a theme file**, next to **Open the folder**, brings in a theme file from elsewhere, one exported from another Foundry or written by hand: Foundry checks it as it checks the folder's files, says what to fix when something is wrong, and puts it in use.
+
+The themes folder is `themes/` in Foundry's data folder; the Appearance card shows where that is on your computer. Every `.json` file in it except `theme.schema.json` is a theme, named after the file: lowercase letters, digits and hyphens, and not `wayfinding`, `ledger` or `classic`, which are taken. To share a theme, export its file and import it on the other Foundry, or copy the file into that Foundry's themes folder.
 
 ## The theme file
 
