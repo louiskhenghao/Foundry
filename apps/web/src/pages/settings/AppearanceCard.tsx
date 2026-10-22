@@ -1,4 +1,4 @@
-import { fillPalette, type ThemeEntry } from '@foundry/core/browser';
+import { fillPalette, layoutOf, type Layout, type ThemeEntry } from '@foundry/core/browser';
 import { Check, ChevronDown, Copy, FolderOpen, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import { api, type OpenTarget } from '../../api.ts';
@@ -77,7 +77,7 @@ export function Appearance({ themes, problems, dir, id, mode, light }: Pick<Retu
             <li>
               Press <b className="text-ink">Make a copy</b> under the theme closest to what you want. Foundry writes it as a file in the themes folder below, under a name of its own, and puts it in use.
             </li>
-            <li>Open the file in an editor. Change its colours (written #rrggbb), its fonts or its corners; the editor checks every value and explains each setting as you type.</li>
+            <li>Open the file in an editor. Change its colours (written #rrggbb), its fonts, its corners or its layout (where the navigation sits, how titles, stages, labels and signs look); the editor checks every value and explains each setting as you type.</li>
             <li>Save the file and come back to this window: Foundry shows the change at once. A file with a mistake is listed here with what to fix, and the theme keeps its last good look meanwhile.</li>
           </ol>
           <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -119,25 +119,49 @@ export function Appearance({ themes, problems, dir, id, mode, light }: Pick<Retu
   );
 }
 
+/** a theme's layout in a few words, as its card in Appearance lists it */
+const LAYOUT_WORDS: { [K in keyof Layout]: Record<Layout[K], string> } = {
+  nav: { top: 'Top bar', side: 'Side column' },
+  header: { poster: 'Poster titles', compact: 'Compact titles' },
+  stages: { plates: 'Stage plates', steps: 'Numbered steps' },
+  labels: { caps: 'Capitals', 'small-caps': 'Small capitals', plain: 'Labels as written' },
+  signs: { strip: 'Yellow strips', card: 'Cards with an edge' },
+  surface: { raised: 'Raised cards', flat: 'Flat cards' },
+};
+export const layoutWords = (l: Layout): string[] => (Object.keys(LAYOUT_WORDS) as (keyof Layout)[]).map((k) => (LAYOUT_WORDS[k] as Record<string, string>)[l[k]]!);
+
 /**
- * One theme to pick: a small picture drawn from its own colours in the mode the page is in (its top bar, a card with
- * text, a Needs you sign, the signal colours), its name in its own font, and what it is.
+ * One theme to pick: a small picture drawn from its own colours and layout in the mode the page is in (its top bar or
+ * side column, a card with text and the signal colours, its category colours, a Needs you sign as a strip or a card),
+ * its name in its own title font, what it is, and its layout in a few words.
  */
 function ThemeOption({ entry, chosen, light, onChoose, onCopy }: { entry: ThemeEntry; chosen: boolean; light: boolean; onChoose: () => void; onCopy: () => void }) {
   const t = entry.theme;
   const p = fillPalette(light ? t.light : t.dark, light ? 'light' : 'dark');
   const r = t.shape?.radius ?? 8;
+  const layout = layoutOf(t);
+  const side = layout.nav === 'side';
+  const mark = <span className="h-2.5 w-2.5 shrink-0" style={{ background: p.accent === p.band ? p.bandInk : p.accent, borderRadius: r / 4 }} />;
   return (
     <div className={cn('flex flex-col overflow-hidden rounded-lg bg-panel ring-inset', chosen ? 'ring-2 ring-accent' : 'ring-1 ring-line')}>
       <button type="button" role="radio" aria-checked={chosen} onClick={onChoose} className="block text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" aria-label={`${t.name}${chosen ? ', in use' : ''}`}>
-        <span aria-hidden="true" className="block h-28 overflow-hidden" style={{ background: p.page }}>
-          <span className="flex h-5 items-center gap-1.5 px-2" style={{ background: p.band }}>
-            <span className="h-2.5 w-2.5" style={{ background: p.accent === p.band ? p.bandInk : p.accent, borderRadius: r / 4 }} />
-            <span className="h-1 w-8 rounded-full opacity-80" style={{ background: p.bandInk }} />
-            <span className="ml-auto h-2.5 w-4" style={{ background: p.you, borderRadius: r / 5 }} />
-          </span>
-          <span className="flex gap-2 p-2.5">
-            <span className="flex-1 space-y-1.5 border p-2" style={{ background: p.panel, borderColor: p.line, borderRadius: r * 0.6 }}>
+        <span aria-hidden="true" className={cn('flex h-32 overflow-hidden', side ? 'flex-row' : 'flex-col')} style={{ background: p.page }}>
+          {side ? (
+            <span className="flex w-10 shrink-0 flex-col gap-1.5 p-1.5" style={{ background: p.band, borderRight: `1px solid ${p.line}` }}>
+              {mark}
+              {[0, 1, 2].map((i) => (
+                <span key={i} className="h-1 w-full rounded-full" style={{ background: p.bandInk, opacity: i ? 0.45 : 0.85 }} />
+              ))}
+            </span>
+          ) : (
+            <span className="flex h-5 shrink-0 items-center gap-1.5 px-2" style={{ background: p.band }}>
+              {mark}
+              <span className="h-1 w-8 rounded-full opacity-80" style={{ background: p.bandInk }} />
+              <span className="ml-auto h-2.5 w-4" style={{ background: p.you, borderRadius: r / 5 }} />
+            </span>
+          )}
+          <span className="flex min-w-0 flex-1 gap-2 p-2.5">
+            <span className="min-w-0 flex-1 space-y-1.5 p-2" style={{ background: p.panel, border: `1px solid ${p.line}`, borderRadius: r * 0.6 }}>
               <span className="block h-1.5 w-4/5 rounded-full" style={{ background: p.ink }} />
               <span className="block h-1.5 w-3/5 rounded-full" style={{ background: p.inkSoft }} />
               <span className="flex gap-1 pt-1">
@@ -145,16 +169,21 @@ function ThemeOption({ entry, chosen, light, onChoose, onCopy }: { entry: ThemeE
                   <span key={i} className="h-2 w-2" style={{ background: c, borderRadius: 2 }} />
                 ))}
               </span>
+              <span className="flex gap-[3px] pt-0.5">
+                {p.codes.map((c, i) => (
+                  <span key={i} className="h-1.5 flex-1 rounded-full" style={{ background: c }} />
+                ))}
+              </span>
             </span>
-            <span className="w-14 p-1.5" style={{ background: p.you, borderRadius: r * 0.6 }}>
-              <span className="block h-3 w-3" style={{ background: p.ink, borderRadius: 2 }} />
+            <span className="w-14 shrink-0 p-1.5" style={layout.signs === 'card' ? { background: p.panel, border: `1px solid ${p.line}`, boxShadow: `inset 4px 0 0 ${p.you}`, borderRadius: r * 0.6 } : { background: p.you, borderRadius: r * 0.6 }}>
+              <span className="block h-3 w-3" style={{ background: layout.signs === 'card' ? p.you : p.ink, borderRadius: 2 }} />
               <span className="mt-1.5 block h-1.5 w-full rounded-full" style={{ background: p.ink }} />
             </span>
           </span>
         </span>
         <span className="flex flex-col gap-1 px-3 pt-3">
           <span className="flex items-center gap-2">
-            <b className="text-[15px] text-ink" style={{ fontFamily: t.fonts?.sans }}>{t.name}</b>
+            <b className="text-[15px] text-ink" style={{ fontFamily: t.fonts?.display ?? t.fonts?.sans }}>{t.name}</b>
             {chosen && (
               <span className="inline-flex items-center gap-1 rounded-sm bg-accent px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-on-accent">
                 <Check size={11} aria-hidden="true" /> in use
@@ -163,6 +192,13 @@ function ThemeOption({ entry, chosen, light, onChoose, onCopy }: { entry: ThemeE
             <span className="ml-auto text-[11px] text-ink-faint">{entry.builtIn ? 'built in' : `${entry.id}.json`}</span>
           </span>
           {t.description && <span className="text-xs text-ink-faint">{t.description}</span>}
+          <span className="flex flex-wrap gap-1 pt-1" aria-label="Layout">
+            {layoutWords(layout).map((w) => (
+              <span key={w} className="rounded-sm px-1.5 py-0.5 text-[11px] font-semibold text-ink-soft ring-1 ring-inset ring-line">
+                {w}
+              </span>
+            ))}
+          </span>
         </span>
       </button>
       <div className="mt-auto flex items-center gap-2 px-3 pb-3 pt-2.5">
