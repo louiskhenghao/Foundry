@@ -29,6 +29,7 @@ bun run release patch|minor|major|x.y.z [--notes "..."] [--dry-run]
 - **`gh` is authenticated** (`gh auth status`) as an account that can create, clone and push `louiskhenghao/foundry-releases`.
 - `git push` to `origin` works.
 - **The guide's screenshots are current.** If a screen the user guide shows changed since the last release, run `bun scripts/screenshots.ts` and commit the new images first (see [testing.md](testing.md#the-seeded-demo-and-the-guides-screenshots)).
+- **The open-source credits are current.** After a dependency, Dockerfile or Extensions catalog change, run `bun install --frozen-lockfile` and then `bun scripts/gen-credits.ts`, and commit `THIRD-PARTY-NOTICES.txt` and `apps/web/src/pages/credits/credits.json`. A tool the Dockerfile newly installs is credited by hand in `scripts/credits/tools.ts`, with its license text in `scripts/credits/licenses/`. A new catalog project is credited, or excluded with the reason, in `scripts/credits/catalog.ts`. `apps/web/tests/credits.test.ts` fails until all of this is done.
 
 After a workflow suite or model bump (mattpocock, pstack, a model alias that moved) or a change to a role's prompt, run the [role-prompt regression set](testing.md#role-prompt-regression-set) first and compare it with the last baseline: it spends a few dollars on the real coding agent and says whether the roles still finish small goals, at what cost.
 
@@ -40,6 +41,8 @@ bun run typecheck
 bun run web:build
 bun scripts/gen-docs.ts
 git diff --exit-code -- docs/operate/configuration.md docs/operate/cli.md
+bun scripts/gen-credits.ts
+git diff --exit-code -- THIRD-PARTY-NOTICES.txt apps/web/src/pages/credits/credits.json
 ```
 
 For backend changes, review [the native validation record](codex-validation.md), run the plugin smoke check with the Docker-pinned CLI and verify the image’s native prerequisites. Record untested integrations in release notes. Back up the database, settings, progress folders and both native homes before upgrading a live mixed-provider instance; rollback requires the matching pre-upgrade data backup, not just an older image. See [updates and backup](../operate/updates-and-backup.md). Do not describe a locally built PR image as already published.

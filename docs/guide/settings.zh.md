@@ -346,4 +346,6 @@ Access 打开后，每个人做的事都记在自己名下：goal 页面会写�
 - **Not now** 关闭对话框。
 - 如果这个安装没法自己更新，对话框会改为显示要运行的命令。
 
+卡片底部的 **Open source credits** 打开一个页面，列出 Foundry 所依托的开源项目，以及 Docker 镜像里每个组件的许可声明。**Download .txt** 把同样的声明存成一个文件。
+
 运维细节：[updates-and-backup.md](../operate/updates-and-backup.md)。
