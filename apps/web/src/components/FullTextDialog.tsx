@@ -44,7 +44,7 @@ function CopyTextButton({ text }: { text: string }) {
     return () => clearTimeout(t);
   }, [copied]);
   return (
-    <button type="button" className="inline-flex items-center gap-1 rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-300 hover:text-zinc-100 hover:border-zinc-500" onClick={() => void copyText(text).then(setCopied)} title="Copy the full text">
+    <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10.5px] font-semibold text-ink-soft ring-1 ring-inset ring-line-strong hover:text-ink hover:bg-inset" onClick={() => void copyText(text).then(setCopied)} title="Copy the full text">
       {copied ? <Check size={11} /> : <Copy size={11} />} {copied ? 'Copied' : 'Copy'}
     </button>
   );
@@ -75,11 +75,11 @@ export function FullTextDialog({ value, onClose }: { value: FullText | null; onC
       {json !== undefined && (
         // a JSON object or array (a tool call, most tool results) reads as a tree; the text view stays one click away
         <div className="mb-2 flex items-center gap-2">
-          <div className="flex rounded border border-zinc-700 overflow-hidden text-[10px]">
-            <button className={cn('px-2 py-0.5', tree ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400')} onClick={() => setTree(true)}>
+          <div className="flex gap-0.5 rounded-md p-0.5 ring-1 ring-inset ring-line-strong text-[10.5px] font-semibold">
+            <button className={cn('rounded-sm px-2 py-0.5', tree ? 'bg-accent text-on-accent' : 'text-ink-soft hover:text-ink')} onClick={() => setTree(true)}>
               Tree
             </button>
-            <button className={cn('px-2 py-0.5', !tree ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400')} onClick={() => setTree(false)}>
+            <button className={cn('rounded-sm px-2 py-0.5', !tree ? 'bg-accent text-on-accent' : 'text-ink-soft hover:text-ink')} onClick={() => setTree(false)}>
               Text
             </button>
           </div>
@@ -107,7 +107,7 @@ export function FullTextDialog({ value, onClose }: { value: FullText | null; onC
 /** The icon-only "Open full" button every panel uses to open its text in the FullTextDialog. */
 export function OpenFullButton({ onClick, className }: { onClick: () => void; className?: string }) {
   return (
-    <button type="button" className={cn('inline-flex items-center justify-center rounded border border-zinc-700 p-1 text-zinc-400 hover:text-zinc-100 hover:border-zinc-500', className)} onClick={onClick} title="Open full" aria-label="Open full">
+    <button type="button" className={cn('inline-flex items-center justify-center rounded-md p-1 text-ink-soft ring-1 ring-inset ring-line-strong hover:text-ink hover:bg-inset', className)} onClick={onClick} title="Open full" aria-label="Open full">
       <Maximize2 size={11} />
     </button>
   );
