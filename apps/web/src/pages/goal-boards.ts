@@ -31,12 +31,3 @@ export function boardOf(e: ListEntry): 'working' | 'finished' | 'sign' {
   if (needOf(e.goal)) return 'sign';
   return isFinished(e.goal) ? 'finished' : 'working';
 }
-
-/** how long ago, in the fewest words: 40 s, 7 min, 3 h, 2 d */
-export function waited(iso: string, now = Date.now()): string {
-  const s = Math.max(0, (now - Date.parse(iso)) / 1000);
-  if (s < 60) return `${Math.floor(s)} s`;
-  if (s < 3600) return `${Math.floor(s / 60)} min`;
-  if (s < 86400) return `${Math.floor(s / 3600)} h`;
-  return `${Math.floor(s / 86400)} d`;
-}

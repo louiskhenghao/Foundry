@@ -1,11 +1,13 @@
 import { PROVIDER_LABEL, reportsDollars, unmeasuredSessions } from '@foundry/core/browser';
 import { CutSessionsDot } from '../../components/CutSessionsDot.tsx';
 import { MergeStatus } from '../../components/MergeStatus.tsx';
-import { Check } from 'lucide-react';
+import { Check, FileText, Hand, PartyPopper } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { GoalDetail } from '../../api.ts';
 import { OpenMenu } from '../../components/OpenMenu.tsx';
-import { Badge, Button, Card, cn, fmtLimitUsd, fmtUsd } from '../../ui.tsx';
+import { TaskSquares, markFill, taskMark, type Mark } from '../../components/progress.tsx';
+import { Badge, Button, Card, NEEDS_YOU_CARD, YouStrip, cn, fmtLimitMin, fmtLimitUsd, fmtUsd } from '../../ui.tsx';
 import { EscalationCard } from '../InboxPage.tsx';
 import { OpenFull } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
@@ -26,10 +28,16 @@ const STATE_TEXT: Record<string, string> = {
   failed: 'Stopped: some parts could not be finished.',
   cancelled: 'Cancelled.',
 };
+/** the squares in a row read finished first, as on the Goals page */
+const MARK_ORDER: Mark[] = ['done', 'run', 'you', 'bad', 'next', 'off'];
+/** a figure's label, in small capitals */
+const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint';
 
 /**
  * Progress for people who do not want the machinery: what is happening, how far, what it costs, what needs them, and
  * what there is to see — the preview, every milestone's walkthrough, the verdict — with what they asked for at the end.
+ * Where things stand reads in large type; what needs them comes as the yellow strips of the Inbox; the pieces of work
+ * are squares, the cost and the time are figures.
  */
 export function SimpleOverview({ d, onDeliver }: { d: GoalDetail; onDeliver: () => void }) {
   const g = d.goal;
@@ -42,52 +50,66 @@ export function SimpleOverview({ d, onDeliver }: { d: GoalDetail; onDeliver: () 
   const pct = total ? Math.round((done / total) * 100) : g.state === 'clarifying' ? 5 : 0;
   const approved = !['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state);
   const review = [...d.events].reverse().find((e) => e.type === 'review.goal.finished')?.payload as { passed: boolean; overDelivered: boolean; notes: string } | undefined;
+  const marks = d.tasks.map((t) => taskMark(t.state)).sort((a, b) => MARK_ORDER.indexOf(a) - MARK_ORDER.indexOf(b));
+  const share = (v: number, max: number | null) => (max ? (v / max) * 100 : null);
   return (
-    <div className="space-y-4">
-      <div className="text-sm text-zinc-300">{STATE_TEXT[g.state] ?? g.state}</div>
+    <div className="space-y-5">
+      <p className="max-w-[60ch] text-xl sm:text-2xl font-bold leading-snug tracking-[-0.015em] text-ink">{STATE_TEXT[g.state] ?? g.state}</p>
 
       {open.length > 0 && (
-        <div className="space-y-2">
-          <div className="text-xs text-orange-300 font-medium">Needs you</div>
+        <section aria-labelledby="simple-needs-you" className="space-y-3">
+          <h2 id="simple-needs-you" className="flex items-center gap-2.5 text-[12.5px] font-extrabold uppercase tracking-[0.12em] text-ink">
+            <Hand size={14} aria-hidden="true" />
+            Needs you
+            <b className="mono grid h-5 min-w-5 place-items-center rounded-[5px] bg-you px-1.5 text-xs tracking-normal text-on-you">{open.length}</b>
+          </h2>
           {open.map((e) => (
             <EscalationCard key={e.id} e={{ ...e, taskTitle: d.tasks.find((t) => t.id === e.taskId)?.title ?? null }} embedded />
           ))}
-        </div>
+        </section>
       )}
 
       {g.state === 'awaiting_brief_approval' && (
-        <Card>
-          <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-sm text-zinc-200">Read the plan and say go.</span>
-            <Link to={`/goals/${g.id}/brief`} className="ml-auto">
-              <Button size="sm" variant="primary">Read the plan →</Button>
-            </Link>
-          </div>
-        </Card>
+        <section className={NEEDS_YOU_CARD}>
+          <YouStrip
+            icon={FileText}
+            title="Read the plan and say go."
+            since={g.updatedAt}
+            aside={
+              <Link to={`/goals/${g.id}/brief`}>
+                <Button size="sm" variant="primary">Read the plan →</Button>
+              </Link>
+            }
+          />
+        </section>
       )}
 
       {total > 0 && (
         <Card title="Progress">
-          <div className="flex items-center gap-3 text-sm">
-            <div className="flex-1 h-2 rounded-full bg-zinc-800 overflow-hidden">
-              <div className={cn('h-full rounded-full', finished ? 'bg-emerald-500' : 'bg-sky-500')} style={{ width: `${pct}%` }} />
+          <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+            <div className="flex items-baseline gap-2">
+              <b className="mono text-2xl font-bold leading-none text-ink">{done}/{total}</b>
+              <span className="text-sm text-ink-soft">pieces</span>
             </div>
-            <span className="text-zinc-300 whitespace-nowrap">
-              {done}/{total} pieces
-            </span>
+            {/* the squares a size up from a list row's: here they are the progress itself */}
+            <TaskSquares marks={marks} max={40} className="gap-1 pb-0.5 [&>i]:h-4 [&>i]:w-4 [&>i]:rounded-[4px]" />
           </div>
+          <span className="mt-3 block h-1.5 overflow-hidden rounded-xs bg-line" aria-hidden="true">
+            <i className="block h-full rounded-xs bg-ink" style={{ width: `${pct}%` }} />
+          </span>
           {running.length > 0 && (
-            <ul className="mt-3 text-sm text-zinc-300 space-y-1">
+            <ul className="mt-4 space-y-1.5 text-sm text-ink">
               {running.map((t) => (
-                <li key={t.id} className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
-                  <span>{t.title}</span>
-                  <span className="text-[11px] text-zinc-500">{t.state === 'merging' ? 'combining with the rest' : t.state === 'observing' ? 'checking' : 'in progress'}</span>
+                <li key={t.id} className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
+                  {/* under way: the flowing hatch of running work */}
+                  <i className={cn('block h-3 w-3 shrink-0 rounded-[3px]', markFill.run)} aria-hidden="true" />
+                  <span className="font-semibold">{t.title}</span>
+                  <span className="text-xs text-ink-faint">{t.state === 'merging' ? 'combining with the rest' : t.state === 'observing' ? 'checking' : 'in progress'}</span>
                 </li>
               ))}
             </ul>
           )}
-          {d.tasks.some((t) => t.state === 'blocked') && <div className="mt-2 text-xs text-orange-300">{d.tasks.filter((t) => t.state === 'blocked').length} piece(s) waiting for you — see above.</div>}
+          {d.tasks.some((t) => t.state === 'blocked') && <div className="mt-3 text-[13px] font-semibold text-you-ink">{d.tasks.filter((t) => t.state === 'blocked').length} piece(s) waiting for you — see above.</div>}
         </Card>
       )}
 
@@ -96,37 +118,48 @@ export function SimpleOverview({ d, onDeliver }: { d: GoalDetail; onDeliver: () 
       {approved && <MilestonesCard d={d} />}
 
       <Card title="Cost">
-        <div className="text-sm text-zinc-300">
-          {!reportsDollars(g.provider) ? `${PROVIDER_LABEL[g.provider ?? 'claude']} · dollar cost unavailable` : <>Spent <span className="mono text-zinc-100">{fmtUsd(g.costUsd)}</span> of {fmtLimitUsd(g.budgets.maxCostUsd)}{unmeasured > 0 && (
-                <span className="inline-flex items-center gap-1 align-middle">
-                  {' '}
-                  <CutSessionsDot n={unmeasured} est={d.costEstimate} />
-                </span>
-              )}</>} · worked {d.budget.elapsedMin.toFixed(0)} min (waiting for you not counted).
+        <div className="grid gap-x-10 gap-y-5 sm:grid-cols-2">
+          {!reportsDollars(g.provider) ? (
+            <div>
+              <div className={LABEL}>Spent</div>
+              <p className="mt-1.5 text-sm text-ink-soft">{PROVIDER_LABEL[g.provider ?? 'claude']} · dollar cost unavailable</p>
+            </div>
+          ) : (
+            <Figure label="Spent" value={fmtUsd(g.costUsd)} limit={fmtLimitUsd(g.budgets.maxCostUsd)} pct={share(g.costUsd, g.budgets.maxCostUsd)} note={unmeasured > 0 && <CutSessionsDot n={unmeasured} est={d.costEstimate} />} />
+          )}
+          <Figure label="Worked" value={`${d.budget.elapsedMin.toFixed(0)} min`} limit={fmtLimitMin(g.budgets.maxDurationMin)} pct={share(d.budget.elapsedMin, g.budgets.maxDurationMin)}>
+            <p className="mt-1.5 text-xs text-ink-faint">(waiting for you not counted)</p>
+          </Figure>
         </div>
       </Card>
 
       {finished && (
         <Card title="Result">
           {g.completion.artifactsRun && (
-            <div className={`text-sm mb-2 ${g.completion.artifactsRun.status === 'ok' ? 'text-emerald-300' : 'text-zinc-300'}`}>
+            <div className={cn('mb-3 flex items-start gap-2 text-sm', g.completion.artifactsRun.status === 'ok' ? 'text-ok-ink' : 'text-ink-soft')}>
               {g.completion.artifactsRun.status === 'ok' ? (
                 <>
-                  🎉 {g.completion.artifactsRun.files.length} file(s) are in <span className="mono">{g.completion.artifactsRun.dest}</span> — open the folder and have a look.
+                  <PartyPopper size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
+                  <span>
+                    {g.completion.artifactsRun.files.length} file(s) are in <span className="mono">{g.completion.artifactsRun.dest}</span> — open the folder and have a look.
+                  </span>
                 </>
               ) : (
                 <>{g.completion.artifactsRun.detail}</>
               )}
             </div>
           )}
-          <div className="flex items-center gap-3 flex-wrap text-sm text-zinc-300">
-            <Check size={14} className="text-emerald-300" />
-            <span>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+            {/* done: the solid plate the goal's state wears when it is finished */}
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ink text-on-ink" aria-hidden="true">
+              <Check size={17} strokeWidth={2.5} />
+            </span>
+            <span className="min-w-0 flex-1 basis-64 text-[15px] leading-snug text-ink">
               {g.delivery.cleanup?.done ? (
-                <>The work is in your repository on <span className="mono text-zinc-100">{g.delivery.policy.baseBranch ?? g.baseBranch}</span>.</>
+                <>The work is in your repository on <span className="mono font-semibold">{g.delivery.policy.baseBranch ?? g.baseBranch}</span>.</>
               ) : (
                 <>
-                  The work is on branch <span className="mono text-zinc-100">{g.branch}</span> in your repository.
+                  The work is on branch <span className="mono font-semibold">{g.branch}</span> in your repository.
                   {g.delivery.status === 'delivered' ? ' It has been delivered as configured.' : ' Nothing has left your machine.'}
                 </>
               )}
@@ -146,9 +179,30 @@ export function SimpleOverview({ d, onDeliver }: { d: GoalDetail; onDeliver: () 
       {review && <GoalReview review={review} />}
       <MarkdownPanel title="what you asked for" source={g.prompt} maxHeight={160} actions={<OpenFull value={{ title: g.title, text: g.prompt }} />} />
       {g.state !== 'awaiting_brief_approval' && <BriefStrip d={d} />}
-      <div className="text-[11px] text-zinc-600">
-        <Badge state={g.state} /> · goal {g.id}
+      <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-faint">
+        <Badge state={g.state} /> · goal <span className="mono">{g.id}</span>
       </div>
+    </div>
+  );
+}
+
+/** a figure of the Cost card: its label in small capitals, the value large, its limit, and a thin bar against the limit */
+function Figure({ label, value, limit, pct, note, children }: { label: string; value: ReactNode; limit: string; /** null: no limit, no bar */ pct: number | null; note?: ReactNode; children?: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <div className={LABEL}>{label}</div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <b className="mono text-2xl font-bold leading-none text-ink">{value}</b>
+        <span className="mono text-sm text-ink-faint">of {limit}</span>
+        {note}
+      </div>
+      {pct != null && (
+        // ink, yellow past 70 %, red past 90 %
+        <span className="mt-2.5 block h-1 max-w-xs overflow-hidden rounded-xs bg-line" aria-hidden="true">
+          <i className={cn('block h-full rounded-xs', pct > 90 ? 'bg-bad' : pct > 70 ? 'bg-you' : 'bg-ink')} style={{ width: `${Math.max(2, Math.min(100, pct))}%` }} />
+        </span>
+      )}
+      {children}
     </div>
   );
 }

@@ -1,8 +1,10 @@
 import { AGENT_PROVIDERS, PROVIDER_LABEL } from '@foundry/core/browser';
+import { Pause } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type AgentProvider } from '../api.ts';
 import { useLive } from '../store.ts';
+import { Button } from '../ui.tsx';
 
 /**
  * Each backend pauses independently. A retry time is not a promise that the account limit resets. Resume now starts
@@ -53,18 +55,24 @@ export function UsagePausedBanner() {
   return (
     <div className="space-y-2" role="status">
       {active.map((provider) => (
-        <div key={provider} className="rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-200 text-sm px-3 py-2 flex items-center gap-2 flex-wrap">
-          <span>⏸ {PROVIDER_LABEL[provider]} usage limit — new sessions paused. Automatic retry {retryAt(pauses[provider]!)}.</span>
-          <span className="ml-auto flex items-center gap-3">
+        // new sessions wait for the limit, or for you: a plate in the yellow tint, its sign square solid
+        <div key={provider} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-you/10 px-3 py-2.5 ring-1 ring-inset ring-you/50 sm:px-4">
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-you text-on-you" aria-hidden="true">
+            <Pause size={14} strokeWidth={2.75} />
+          </span>
+          <span className="min-w-0 flex-1 basis-64 text-sm leading-snug text-ink">
+            <b>{PROVIDER_LABEL[provider]} usage limit</b> — new sessions paused. Automatic retry {retryAt(pauses[provider]!)}.
+          </span>
+          <span className="flex flex-wrap items-center gap-2">
             {switchTo[provider] && (
-              <button type="button" className="underline text-amber-100 disabled:opacity-50" disabled={resuming === provider} onClick={() => switchAccount(provider)} title="New sessions run on this account from now; the stopped session resumes there">
+              <Button type="button" size="sm" variant="primary" disabled={resuming === provider} onClick={() => switchAccount(provider)} title="New sessions run on this account from now; the stopped session resumes there">
                 Switch to {switchTo[provider]} and continue
-              </button>
+              </Button>
             )}
-            <button type="button" className="underline text-amber-100 disabled:opacity-50" disabled={resuming === provider} onClick={() => resume(provider)} title="Start sessions again now; if the limit still holds, the next session pauses them again">
+            <Button type="button" size="sm" disabled={resuming === provider} onClick={() => resume(provider)} title="Start sessions again now; if the limit still holds, the next session pauses them again">
               {resuming === provider ? 'Resuming…' : 'Resume now'}
-            </button>
-            <Link to={`/usage?provider=${provider}`} className="underline text-amber-300">{PROVIDER_LABEL[provider]} usage</Link>
+            </Button>
+            <Link to={`/usage?provider=${provider}`} className="px-1 text-[13px] font-semibold text-ink-soft underline underline-offset-2 hover:text-ink">{PROVIDER_LABEL[provider]} usage</Link>
           </span>
         </div>
       ))}

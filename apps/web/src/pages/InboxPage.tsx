@@ -3,13 +3,14 @@ import type { EscalationAction } from '@foundry/core/browser';
 import { ACTIONS_BY_TRIGGER } from '@foundry/core/browser';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Ban, CheckCircle2, Eye, GitPullRequest, HelpCircle, RotateCcw, ShieldAlert, Sparkles, Wallet } from 'lucide-react';
+import { AlertTriangle, Ban, CheckCircle2, Eye, GitPullRequest, HelpCircle, RotateCcw, ShieldAlert, Sparkles, Wallet, type LucideIcon } from 'lucide-react';
 import { api, apiForProvider, type EscalationRow } from '../api.ts';
 import { FullTextDialog, OpenFullButton } from '../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../components/Markdown.tsx';
+import { PROVIDER_STYLE } from '../components/ProviderMark.tsx';
 import { suggestEscalation, useEscalationDraft, useEscalationDrafts, useLive } from '../store.ts';
 import { UsagePausedBanner } from '../components/UsageBanner.tsx';
-import { Badge, Button, Empty, Input, Textarea, ago, buttonClass, cn } from '../ui.tsx';
+import { Badge, Button, Empty, Input, NEEDS_YOU_CARD, PageHeader, Textarea, YouStrip, ago, buttonClass, cn, stateLabel } from '../ui.tsx';
 import { ProviderBadge } from './agents/rows.tsx';
 import { HelpLink } from './HelpPage.tsx';
 
@@ -54,18 +55,44 @@ export function InboxPage() {
     const t = setTimeout(() => api.escalations(!all).then(setList).catch(() => {}), 150);
     return () => clearTimeout(t);
   }, [version, all]);
+  const waiting = list?.filter((e) => e.state === 'open').length ?? 0;
+  const answered = (list?.length ?? 0) - waiting;
   return (
-    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-3">
-      <UsagePausedBanner />
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold flex items-center gap-2">
-          Inbox <HelpLink to="when-foundry-needs-you" label="Why Foundry stops and what to press (new tab)" />
-        </h1>
-        <label className="text-xs text-zinc-400 flex items-center gap-1">
-          <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> show answered
-        </label>
+    <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 pt-6 md:pt-9 pb-16">
+      <div className="mb-3">
+        <UsagePausedBanner />
       </div>
-      {!list ? <Empty>Loading…</Empty> : list.length === 0 ? <Empty>Nothing needs you. The engine only asks for: blocking brief questions, exhausted retries, leaving the workspace, exceeded budgets, or denied tools.</Empty> : list.map((e) => <EscalationCard key={e.id} e={e} />)}
+      <PageHeader
+        title="Inbox"
+        help={<HelpLink to="when-foundry-needs-you" label="Why Foundry stops and what to press (new tab)" />}
+        summary={
+          list && list.length > 0 ? (
+            <>
+              {waiting > 0 ? <span className="rounded-[5px] bg-you px-1.5 py-0.5 font-bold text-on-you">{waiting} wait{waiting === 1 ? 's' : ''} for you</span> : 'Nothing waits for you'}
+              {answered > 0 && ` · ${answered} answered`}
+            </>
+          ) : null
+        }
+        actions={
+          <label className="inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] font-semibold text-ink-soft ring-1 ring-inset ring-line-strong hover:text-ink">
+            <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> show answered
+          </label>
+        }
+      />
+      {!list ? (
+        <Empty>Loading…</Empty>
+      ) : list.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-line-strong px-6 py-14 text-center">
+          <p className="text-lg font-bold">Nothing needs you.</p>
+          <p className="mt-1 text-sm text-ink-faint">The engine only asks for: blocking brief questions, exhausted retries, leaving the workspace, exceeded budgets, or denied tools.</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {list.map((e) => (
+            <EscalationCard key={e.id} e={e} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -144,86 +171,111 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
   const kind = (e.payload as { kind?: string }).kind;
   const open = e.state === 'open';
   const Icon = TRIGGER_ICON[e.trigger] ?? AlertTriangle;
-  const tone = e.trigger === 'milestone' ? TONE.look : e.trigger === 'budget_exceeded' || e.trigger === 'boundary_action' ? TONE.ask : TONE.stop;
   const plain = kind === 'merge' ? 'Two pieces of work changed the same files and the automatic merge could not combine them.' : kind === 'engine' ? 'The engine itself hit an error (not the model).' : kind === 'desktop' ? 'It wants to open a desktop app or hand a file to a printer on this computer (Settings → Safety → Desktop apps & printers is off) and needs your OK.' : (PLAIN[e.trigger] ?? '');
   const choices = actions.filter((a) => a !== 'resolve_manually' && a !== 'feedback');
   const label = (a: EscalationAction) => (a === 'skip_task' && !e.taskId ? 'Accept as-is (finish goal)' : ACTION_LABEL[a]);
   const variant = (a: EscalationAction) => (a === 'abort_goal' || a === 'deny' ? 'danger' : a === 'retry_with_hint' || a === 'approve' || a === 'raise_budget' || a === 'retry_delivery' ? 'primary' : 'default');
+  const provider = e.provider ? PROVIDER_STYLE[e.provider] : null;
+  /** the card's side padding: tighter inside the task view */
+  const pad = embedded ? 'px-3 sm:px-4' : 'px-4 sm:px-5';
+  const link = open ? 'text-on-you hover:underline' : 'text-ink-soft hover:text-ink hover:underline';
   return (
-    <section className={cn('rounded-lg border bg-zinc-900/60 overflow-hidden', open ? tone.border : 'border-zinc-800')}>
-      {/* header: what stopped, in one line and one plain sentence; where it belongs when shown outside its task */}
-      <header className={cn('px-3 sm:px-4 py-2.5 space-y-1 border-b border-zinc-800', open && tone.wash)}>
-        <div className="flex items-center gap-2 min-w-0 flex-wrap">
-          <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-md', open ? tone.icon : 'bg-zinc-800 text-zinc-400')}>
-            <Icon size={13} aria-hidden="true" />
-          </span>
-          <span className="text-sm font-semibold text-zinc-100">{kind === 'desktop' ? 'Wants to open a desktop app' : (TRIGGER_LABEL[e.trigger] ?? e.trigger)}</span>
-          <Badge state={e.state} />
-          {kind === 'merge' && <Badge state="warn">merge conflict</Badge>}
-          {e.provider && <ProviderBadge provider={e.provider} />}
-          <span className="text-[11px] text-zinc-500">{ago(e.createdAt)}</span>
-          {!embedded && (
-            <span className="ml-auto flex items-center gap-3 text-[11px]">
+    <section className={NEEDS_YOU_CARD}>
+      {/* the head: what stopped in its largest words, one plain sentence, where it belongs when shown outside its task — yellow while it waits */}
+      <YouStrip
+        quiet={!open}
+        icon={Icon}
+        title={kind === 'desktop' ? 'Wants to open a desktop app' : (TRIGGER_LABEL[e.trigger] ?? e.trigger)}
+        tags={
+          <>
+            {open ? <span className={stripTag()}>{stateLabel(e.state)}</span> : <Badge state={e.state} />}
+            {kind === 'merge' && <span className={stripTag(!open)}>merge conflict</span>}
+          </>
+        }
+        since={open ? e.createdAt : null}
+        aside={
+          !embedded && (
+            <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] font-bold underline-offset-[3px]">
               {e.taskId && (
-                <Link to={`/goals/${e.goalId}?task=${e.taskId}#tasks`} className="text-zinc-400 hover:text-emerald-300">
+                <Link to={`/goals/${e.goalId}?task=${e.taskId}#tasks`} className={link}>
                   Open task →
                 </Link>
               )}
-              <Link to={`/goals/${e.goalId}`} className="text-zinc-500 hover:text-emerald-300">
+              <Link to={`/goals/${e.goalId}`} className={link}>
                 Open goal →
               </Link>
             </span>
+          )
+        }
+      >
+        {plain && <p className={cn('mt-1 max-w-[72ch] text-[15px] leading-snug', !open && 'text-ink-soft')}>{plain}</p>}
+        <p className={cn('mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]', open ? 'font-semibold' : 'text-ink-faint')}>
+          {!embedded && (
+            <span className="min-w-0 max-w-full truncate">
+              {/* an id where the title did not come along (the goal page's own list) */}
+              {e.goalTitle ?? <span className="mono">{e.goalId}</span>}
+              {e.taskId && (
+                <>
+                  <span className="opacity-60"> › </span>
+                  <span className={open ? 'font-bold' : 'text-ink-soft'}>{e.taskTitle ?? <span className="mono">{e.taskId}</span>}</span>
+                </>
+              )}
+            </span>
           )}
-        </div>
-        {plain && <div className="text-xs text-zinc-300 pl-8">{plain}</div>}
-        {!embedded && (
-          <div className="text-[11px] text-zinc-500 pl-8 min-w-0 truncate">
-            {e.goalTitle ?? e.goalId}
-            {e.taskId && (
-              <>
-                <span className="text-zinc-600"> › </span>
-                <span className="text-zinc-300">{e.taskTitle ?? e.taskId}</span>
-              </>
-            )}
-          </div>
-        )}
-      </header>
+          {provider &&
+            (open ? (
+              // on the yellow the coding agent is written in the strip's own ink, as on a Goals page sign
+              <span className="inline-flex items-center gap-1.5" title={`Coding agent: ${provider.label}`}>
+                <provider.Icon size={13} aria-hidden="true" />
+                {provider.label}
+              </span>
+            ) : (
+              <ProviderBadge provider={e.provider ?? undefined} />
+            ))}
+          {!open && (
+            <time className="mono text-xs" dateTime={e.createdAt} title={new Date(e.createdAt).toLocaleString()}>
+              {ago(e.createdAt)}
+            </time>
+          )}
+        </p>
+      </YouStrip>
 
-      <div className="p-3 sm:p-4 space-y-3">
+      <div className={cn('space-y-4 py-4', pad)}>
         <MarkdownPanel title="details" source={e.message} maxHeight={260} actions={long && <OpenFullButton onClick={() => setFull(true)} />} />
         <FullTextDialog value={full ? { title: TRIGGER_LABEL[e.trigger] ?? e.trigger, text: e.message } : null} onClose={() => setFull(false)} />
         {suggestion && (
-          <div className="rounded-md border border-sky-500/30 bg-sky-500/5 overflow-hidden text-xs">
-            <div className="flex items-center gap-2 px-3 py-2 border-b border-sky-500/20 flex-wrap">
-              <Sparkles size={12} className="text-sky-300" />
-              <span className="text-sky-200 font-medium">AI diagnosis</span>
-              <span className="text-zinc-500">{suggestion.confidence} confidence · {suggestion.costAvailable === false ? 'cost unavailable' : `$${suggestion.costUsd.toFixed(2)}`}</span>
-              <span className="ml-auto text-zinc-400">
-                suggests <b className="text-zinc-200">{ACTION_LABEL[suggestion.action as EscalationAction] ?? suggestion.action}</b>
+          // the AI's reading is information: the work colour, not a signal
+          <div className="overflow-hidden rounded-lg border border-work/35 bg-work/[0.05] text-xs">
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-work/20 px-3 py-2">
+              <Sparkles size={13} className="text-work-ink" aria-hidden="true" />
+              <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-work-ink">AI diagnosis</span>
+              <span className="text-ink-faint">{suggestion.confidence} confidence · {suggestion.costAvailable === false ? 'cost unavailable' : <span className="mono">${suggestion.costUsd.toFixed(2)}</span>}</span>
+              <span className="ml-auto text-ink-soft">
+                suggests <b className="text-ink">{ACTION_LABEL[suggestion.action as EscalationAction] ?? suggestion.action}</b>
               </span>
             </div>
-            <div className="px-3 py-2 space-y-1">
-              <div className="text-zinc-300 whitespace-pre-wrap">{suggestion.diagnosis}</div>
-              {suggestion.action === 'retry_with_hint' && suggestion.hint && <div className="text-zinc-400">Hint filled in below — press <b>Retry with hint</b> to use it.</div>}
-              {suggestion.action === 'resolve_manually' && <div className="text-zinc-400">Open <b>Resolve manually</b> and settle the conflict yourself.</div>}
-              {suggestion.action === 'skip_task' && <div className="text-zinc-400">The AI thinks this part is not worth pursuing here — your call: <b>Skip task</b>.</div>}
+            <div className="space-y-1.5 px-3 py-2.5">
+              <div className="whitespace-pre-wrap text-[13px] leading-relaxed text-ink">{suggestion.diagnosis}</div>
+              {suggestion.action === 'retry_with_hint' && suggestion.hint && <div className="text-ink-soft">Hint filled in below — press <b className="text-ink">Retry with hint</b> to use it.</div>}
+              {suggestion.action === 'resolve_manually' && <div className="text-ink-soft">Open <b className="text-ink">Resolve manually</b> and settle the conflict yourself.</div>}
+              {suggestion.action === 'skip_task' && <div className="text-ink-soft">The AI thinks this part is not worth pursuing here — your call: <b className="text-ink">Skip task</b>.</div>}
             </div>
           </div>
         )}
         {open && mcpDenied.length > 0 && e.taskId && mcpAllowed && mcpToAllow.length === 0 && (
-          <div className="rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-xs text-zinc-300">
-            Refused MCP server: <span className="mono">{mcpNames}</span>. It is already allowed in goals, so something else stopped it — often it needs signing in.{' '}
-            <Link to={`/skills?provider=${e.provider}#mcp`} className="underline">
+          <div className="rounded-md border border-line bg-inset px-3 py-2 text-xs text-ink-soft">
+            Refused MCP server: <span className="mono text-ink">{mcpNames}</span>. It is already allowed in goals, so something else stopped it — often it needs signing in.{' '}
+            <Link to={`/skills?provider=${e.provider}#mcp`} className="font-semibold text-work-ink underline">
               Check it under Extensions → MCP servers
             </Link>
             , then retry.
           </div>
         )}
-        {open && mcpDenied.length > 0 && (mcpError || !e.provider) && <p className="text-xs text-amber-300">{mcpError ?? 'The goal backend is unavailable; MCP permissions cannot be changed here.'}</p>}
+        {open && mcpDenied.length > 0 && (mcpError || !e.provider) && <p className="text-xs text-bad-ink">{mcpError ?? 'The goal backend is unavailable; MCP permissions cannot be changed here.'}</p>}
         {open && mcpToAllow.length > 0 && e.taskId && mcpAllowed && (
-          <div className="flex flex-wrap items-center gap-2 rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2">
-            <span className="text-xs text-zinc-300">
-              Refused MCP server: <span className="mono">{mcpNames}</span> — goals may only use servers you allowed.
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-inset px-3 py-2">
+            <span className="text-xs text-ink-soft">
+              Refused MCP server: <span className="mono text-ink">{mcpNames}</span> — goals may only use servers you allowed.
             </span>
             <Button size="sm" variant="primary" disabled={busy} onClick={allowAndRetry} title="Ticks Allowed in goals for this server (Extensions → MCP servers) and retries the task">
               Allow this server and retry
@@ -233,12 +285,12 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
         {/* what the answer carries: a hint and its extra attempts, or the new limits */}
         {open && actions.includes('retry_with_hint') && (
           <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-wide text-zinc-500">Hint for the next attempt</span>
-              <span className="text-[10px] text-zinc-600">optional</span>
-              <label className="ml-auto flex items-center gap-1.5 whitespace-nowrap text-[11px] text-zinc-400" title="How many more tries the task gets with this hint">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className={LABEL}>Hint for the next attempt</span>
+              <span className="text-[11px] text-ink-faint">optional</span>
+              <label className="ml-auto flex items-center gap-1.5 whitespace-nowrap text-xs text-ink-soft" title="How many more tries the task gets with this hint">
                 extra attempts
-                <select className="rounded-md bg-zinc-900 border border-zinc-700 px-1.5 py-0.5 text-xs text-zinc-100 focus:outline-none focus:border-emerald-500" value={attempts} onChange={(x) => patch(e.id, { attempts: Number(x.target.value) })}>
+                <select className="rounded-md bg-panel border border-line-strong px-1.5 py-0.5 text-xs text-ink focus:outline-none focus:border-accent" value={attempts} onChange={(x) => patch(e.id, { attempts: Number(x.target.value) })}>
                   {[1, 2, 3, 5].map((n) => (
                     <option key={n} value={n}>
                       {n}
@@ -251,16 +303,23 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
           </div>
         )}
         {open && actions.includes('raise_budget') && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] uppercase tracking-wide text-zinc-500">New limits</span>
-            {reportsDollars(e.provider) && <Input type="number" min={0.5} step={0.5} className="w-36" placeholder="new max $ (blank = ×2)" value={cost} onChange={(x) => setCost(x.target.value)} />}
-            <Input type="number" min={5} step={5} className="w-40" placeholder="new max min (blank = ×2)" value={minutes} onChange={(x) => setMinutes(x.target.value)} />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className={LABEL}>New limits</span>
+            {/* the kit's fields fill their box: the boxes give them their width */}
+            {reportsDollars(e.provider) && (
+              <span className="w-52 max-w-full">
+                <Input type="number" min={0.5} step={0.5} placeholder="new max $ (blank = ×2)" value={cost} onChange={(x) => setCost(x.target.value)} />
+              </span>
+            )}
+            <span className="w-52 max-w-full">
+              <Input type="number" min={5} step={5} placeholder="new max min (blank = ×2)" value={minutes} onChange={(x) => setMinutes(x.target.value)} />
+            </span>
           </div>
         )}
       </div>
 
       {/* footer: help from the AI on the left, the answers on the right — or what was answered */}
-      <footer className="px-3 sm:px-4 py-2.5 border-t border-zinc-800 bg-zinc-950/30 flex flex-wrap items-center gap-2">
+      <footer className={cn('flex flex-wrap items-center gap-2 border-t border-line bg-inset py-3', pad)}>
         {open ? (
           <>
             {canSuggest && (
@@ -274,7 +333,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
               </>
             )}
             <span className="ml-auto flex flex-wrap items-center justify-end gap-2">
-              {err && <span className="text-xs text-rose-400">{err}</span>}
+              {err && <span className="text-xs text-bad-ink">{err}</span>}
               {e.taskId && kind === 'merge' && (
                 <Link to={`/goals/${e.goalId}/resolve/${e.taskId}`} className={buttonClass('primary', 'sm')} title="See the conflicted files with both sides and resolve them yourself (in the browser or your editor)">
                   Resolve manually →
@@ -294,11 +353,11 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
             </span>
           </>
         ) : (
-          <span className="flex items-center gap-1.5 text-xs text-zinc-400 min-w-0">
-            <CheckCircle2 size={13} className="text-emerald-400 shrink-0" aria-hidden="true" />
-            Answered: <b className="text-zinc-200">{ACTION_LABEL[e.answer?.action as EscalationAction] ?? e.answer?.action}</b>
+          <span className="flex items-center gap-1.5 text-xs text-ink-soft min-w-0">
+            <CheckCircle2 size={13} className="text-ok-ink shrink-0" aria-hidden="true" />
+            Answered: <b className="shrink-0 whitespace-nowrap text-ink">{ACTION_LABEL[e.answer?.action as EscalationAction] ?? e.answer?.action}</b>
             {e.answer?.hint ? <span className="truncate"> — “{e.answer.hint}”</span> : null}
-            {e.answeredBy ? <span className="text-zinc-500 shrink-0"> · by {e.answeredBy}</span> : null}
+            {e.answeredBy ? <span className="text-ink-faint shrink-0"> · by {e.answeredBy}</span> : null}
           </span>
         )}
       </footer>
@@ -306,8 +365,14 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
   );
 }
 
+/** a label in small capitals above a field */
+const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint';
+
+/** a small plate in a strip's title line (its state, a merge conflict): in the strip's own ink, or quiet */
+const stripTag = (quiet = false) => cn('inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-1 text-[10.5px] font-extrabold uppercase leading-none tracking-[0.08em] ring-[1.5px] ring-inset', quiet ? 'ring-line-strong text-ink-soft' : 'ring-on-you/45 text-on-you');
+
 /** a trigger's icon in the card's header */
-const TRIGGER_ICON: Record<string, typeof AlertTriangle> = {
+const TRIGGER_ICON: Record<string, LucideIcon> = {
   brief_question: HelpCircle,
   retries_exhausted: RotateCcw,
   boundary_action: ShieldAlert,
@@ -315,12 +380,6 @@ const TRIGGER_ICON: Record<string, typeof AlertTriangle> = {
   permission_denial: Ban,
   milestone: Eye,
   delivery_failed: GitPullRequest,
-};
-/** a card's colours: something failed (orange), a question or a limit (amber), a milestone to look at (sky) */
-const TONE = {
-  stop: { border: 'border-orange-500/40', wash: 'bg-orange-500/5', icon: 'bg-orange-500/15 text-orange-300' },
-  ask: { border: 'border-amber-500/40', wash: 'bg-amber-500/5', icon: 'bg-amber-500/15 text-amber-300' },
-  look: { border: 'border-sky-500/40', wash: 'bg-sky-500/5', icon: 'bg-sky-500/15 text-sky-300' },
 };
 /** buttons in the footer, quieter first so the main answer sits rightmost */
 const RANK: Record<string, number> = { default: 0, danger: 1, primary: 2 };

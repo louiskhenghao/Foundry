@@ -8,10 +8,10 @@ import { PROVIDER_STYLE } from '../components/ProviderMark.tsx';
 import { SetupBanner } from '../components/SetupBanner.tsx';
 import { UsagePausedBanner } from '../components/UsageBanner.tsx';
 import { ProviderBadge, shortCwd } from './agents/rows.tsx';
-import { boardOf, isFinished, needOf, waited, type Need } from './goal-boards.ts';
+import { boardOf, isFinished, needOf, type Need } from './goal-boards.ts';
 import { listEntries, type GoalChain, type ListEntry } from './goal-chains.ts';
 import { useLive } from '../store.ts';
-import { BOARD_HEAD, BOARD_ROW, Board, Button, Empty, PageHeader, ago, cn, fmtUsd, stateLabel } from '../ui.tsx';
+import { BOARD_HEAD, BOARD_ROW, Board, Button, Empty, PageHeader, ago, cn, fmtUsd, stateLabel, waited } from '../ui.tsx';
 
 /** Trait chip (nature, pace, view mode): quiet, so the state and the signs carry the colour. */
 function Chip({ className, children, title }: { className?: string; children: ReactNode; title?: string }) {

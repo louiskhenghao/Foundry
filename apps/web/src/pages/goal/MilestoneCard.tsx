@@ -1,19 +1,22 @@
 import type { FeedbackPlan } from '@foundry/core/browser';
-import { Eye, Loader2, MessageSquare, Play } from 'lucide-react';
+import { Eye, MessageSquare, Play } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { type GoalDetail, api } from '../../api.ts';
-import { Button, Card, Select, Textarea, cn } from '../../ui.tsx';
+import { Button, NEEDS_YOU_CARD, Select, Textarea, YouStrip, cn } from '../../ui.tsx';
 import { MediaLightbox } from '../../components/MediaLightbox.tsx';
+import { markFill } from '../../components/progress.tsx';
 import { type Evidence, EvidenceView, FINAL_WALK, LikenessView, evidenceStatus, likenessOf, showsFiles } from './MilestoneEvidence.tsx';
 import { PreviewCard } from './PreviewCard.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 
 const KIND_LABEL: Record<FeedbackPlan['kind'], string> = { hint: 'Hint for the remaining tasks', fix: 'Fix tasks (then a second look here)', decision: 'Decision (every later task follows it)' };
 const IMAGE = /\.(png|jpe?g|webp|gif|svg)$/i;
+/** a label in small capitals over a row of pictures */
+const LABEL = 'mb-1.5 text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint';
 
 /**
  * The goal paused at a milestone: what to look at, the preview, what the self-check saw, the artifacts — and the two ways
- * out: continue, or write what you saw and confirm what it becomes.
+ * out: continue, or write what you saw and confirm what it becomes. It waits for you, so it opens with a yellow strip.
  */
 export function MilestoneCard({ d }: { d: GoalDetail }) {
   const g = d.goal;
@@ -52,63 +55,70 @@ export function MilestoneCard({ d }: { d: GoalDetail }) {
   const cont = () => esc && act('continue', () => api.answer(esc.id, { action: 'continue' }));
   const confirm = () => esc && plan && act('confirm', () => api.answer(esc.id, { action: 'feedback', feedback: text, plan }));
   return (
-    <Card
-      title={
-        <span className="flex items-center gap-2">
-          <Eye size={14} className="text-amber-300" /> {cp.recheck ? 'Second look' : 'Have a look'} — {cp.taskId === FINAL_WALK ? 'the final walkthrough' : (task?.title ?? cp.taskId)}
-          <HelpLink to="while-it-runs#milestones" label="What a milestone look is for (new tab)" />
-        </span>
-      }
-    >
-      <div className="space-y-3 text-xs text-zinc-400">
-        <p className="text-sm text-zinc-200 whitespace-pre-wrap">{cp.lookFor}</p>
-        {cp.recheck && cp.taskId !== FINAL_WALK && <p className="text-[11px] text-amber-300">This is the second look at this milestone, after the fix tasks from your feedback landed. Anything you write now becomes a hint for the remaining tasks; the goal does not pause here again.</p>}
-        {cp.recheck && cp.taskId === FINAL_WALK && <p className="text-[11px] text-amber-300">This is the second look at the final walkthrough, after the fixes from your feedback landed. What you write now still becomes fix tasks, but the goal does not pause here again.</p>}
+    <section className={NEEDS_YOU_CARD}>
+      <YouStrip
+        icon={Eye}
+        title={
+          <>
+            {cp.recheck ? 'Second look' : 'Have a look'}
+            <span className="text-lg sm:text-xl font-bold tracking-[-0.01em]"> — {cp.taskId === FINAL_WALK ? 'the final walkthrough' : (task?.title ?? cp.taskId)}</span>
+          </>
+        }
+        tags={<HelpLink to="while-it-runs#milestones" label="What a milestone look is for (new tab)" />}
+        since={cp.openedAt}
+      />
+      <div className="space-y-4 p-4 sm:p-5 text-xs text-ink-soft">
+        {/* what to look at: the question the look answers, the largest words on the panel */}
+        <p className="whitespace-pre-wrap text-base sm:text-[17px] font-semibold leading-snug text-ink">{cp.lookFor}</p>
+        {cp.recheck && cp.taskId !== FINAL_WALK && <p className="text-[13px] leading-snug text-work-ink">This is the second look at this milestone, after the fix tasks from your feedback landed. Anything you write now becomes a hint for the remaining tasks; the goal does not pause here again.</p>}
+        {cp.recheck && cp.taskId === FINAL_WALK && <p className="text-[13px] leading-snug text-work-ink">This is the second look at the final walkthrough, after the fixes from your feedback landed. What you write now still becomes fix tasks, but the goal does not pause here again.</p>}
         {cp.taskId === FINAL_WALK ? <FinalWalkthrough d={d} /> : <Walkthrough d={d} taskId={cp.taskId} since={cp.openedAt} />}
         <PreviewCard goalId={g.id} embedded />
         {shots.length > 0 && (
           <div>
-            <div className="text-[11px] text-zinc-500 mb-1">What the self-check saw</div>
+            <div className={LABEL}>What the self-check saw</div>
             <div className="flex gap-2 flex-wrap">
               {shots.slice(0, 4).map((s) => (
                 <a key={s.at} href={api.screenshotUrl(g.id, s.screenshot!)} target="_blank" rel="noreferrer" title={`${s.status} · ${s.summary.split('\n')[0]}`}>
-                  <img src={api.screenshotUrl(g.id, s.screenshot!)} alt={s.summary} className={cn('h-24 w-40 object-cover object-top rounded border-2', s.status === 'pass' ? 'border-emerald-500/60' : s.status === 'fail' ? 'border-rose-500/60' : 'border-zinc-700')} />
+                  <img src={api.screenshotUrl(g.id, s.screenshot!)} alt={s.summary} className={cn('h-24 w-40 object-cover object-top rounded-md border-2', s.status === 'pass' ? 'border-ok/70' : s.status === 'fail' ? 'border-bad/70' : 'border-line-strong')} />
                 </a>
               ))}
             </div>
           </div>
         )}
         <ArtifactsStrip goalId={g.id} files={artifacts} shown={stripShown(d, task, cp.openedAt)} />
-        <div className="text-[11px] text-zinc-500">The code so far is on the Diff tab; the folder itself is under Open ▾ above.</div>
-        <div className="border-t border-zinc-800 pt-3 space-y-2">
+        <div className="text-xs text-ink-faint">The code so far is on the Diff tab; the folder itself is under Open ▾ above.</div>
+        <div className="border-t border-line pt-4 space-y-3">
           <Textarea className="w-full text-sm min-h-[72px]" placeholder="What did you see? Anything to change, keep, or that is wrong… (leave empty and press Continue if it looks right)" value={text} onChange={(e) => { setText(e.target.value); setPlan(null); }} disabled={!esc || busy !== null} />
           {plan && (
-            <div className="rounded border border-zinc-700 bg-zinc-900/60 p-2 space-y-2">
+            <div className="rounded-md border border-line bg-inset p-3 space-y-2">
               <div className="flex items-center gap-2 flex-wrap">
-                <MessageSquare size={12} className="text-sky-300" />
-                <span className="text-zinc-300">This becomes:</span>
-                <Select className="text-xs py-1" value={plan.kind} onChange={(e) => rekind(e.target.value as FeedbackPlan['kind'])} disabled={cp.recheck}>
-                  {(Object.keys(KIND_LABEL) as FeedbackPlan['kind'][]).map((k) => (
-                    <option key={k} value={k}>{KIND_LABEL[k]}</option>
-                  ))}
-                </Select>
+                <MessageSquare size={13} className="text-work-ink" aria-hidden="true" />
+                <span className="font-semibold text-ink">This becomes:</span>
+                <span className="min-w-0 max-w-full">
+                  <Select className="text-xs py-1" value={plan.kind} onChange={(e) => rekind(e.target.value as FeedbackPlan['kind'])} disabled={cp.recheck}>
+                    {(Object.keys(KIND_LABEL) as FeedbackPlan['kind'][]).map((k) => (
+                      <option key={k} value={k}>{KIND_LABEL[k]}</option>
+                    ))}
+                  </Select>
+                </span>
               </div>
-              <div className="text-zinc-400">{plan.rationale}</div>
-              {plan.kind === 'hint' && <div className="text-zinc-300 whitespace-pre-wrap">{plan.hint || <span className="text-zinc-500">(nothing to pass on — the remaining tasks run unchanged)</span>}</div>}
-              {plan.kind === 'decision' && <div className="text-zinc-300 whitespace-pre-wrap">Decision: {plan.decision}</div>}
+              <div className="text-ink-soft">{plan.rationale}</div>
+              {plan.kind === 'hint' && <div className="text-[13px] text-ink whitespace-pre-wrap">{plan.hint || <span className="text-ink-faint">(nothing to pass on — the remaining tasks run unchanged)</span>}</div>}
+              {plan.kind === 'decision' && <div className="text-[13px] text-ink whitespace-pre-wrap">Decision: {plan.decision}</div>}
               {plan.fixTasks.length > 0 && (
-                <ul className="list-disc pl-4 space-y-1">
+                <ul className="list-disc pl-4 space-y-1 marker:text-ink-faint">
                   {plan.fixTasks.map((f, i) => (
                     <li key={i}>
-                      <span className="text-zinc-200">{f.title}</span>
-                      {f.relevantFiles.length > 0 && <span className="mono text-zinc-500"> · {f.relevantFiles.join(', ')}</span>}
+                      <span className="text-[13px] font-semibold text-ink">{f.title}</span>
+                      {f.relevantFiles.length > 0 && <span className="mono text-ink-faint"> · {f.relevantFiles.join(', ')}</span>}
                     </li>
                   ))}
                 </ul>
               )}
             </div>
           )}
-          {err && <div className="text-rose-300">{err}</div>}
+          {err && <div className="text-bad-ink">{err}</div>}
           <div className="flex items-center gap-2 flex-wrap">
             {!plan ? (
               <Button size="sm" variant="primary" disabled={!esc || !text.trim() || busy !== null} onClick={classify} title="A small session reads your note and proposes what it becomes; you confirm before anything changes (≤ $0.5)">
@@ -122,11 +132,11 @@ export function MilestoneCard({ d }: { d: GoalDetail }) {
             <Button size="sm" variant={plan ? 'ghost' : 'default'} disabled={!esc || busy !== null} onClick={cont} title="Looks right — carry on with the remaining tasks">
               <Play size={12} /> {busy === 'continue' ? 'Continuing…' : 'Continue'}
             </Button>
-            {!esc && <span className="text-zinc-500">(no open milestone escalation — refresh)</span>}
+            {!esc && <span className="text-ink-faint">(no open milestone escalation — refresh)</span>}
           </div>
         </div>
       </div>
-    </Card>
+    </section>
   );
 }
 
@@ -155,15 +165,15 @@ export function ArtifactsStrip({ goalId, files, shown }: { goalId: string; files
   const pictures = rest.slice(0, 12).filter((f) => IMAGE.test(f));
   return (
     <div>
-      <div className="text-[11px] text-zinc-500 mb-1">{shown ? 'Other artifacts' : 'Artifacts'} ({rest.length})</div>
+      <div className={LABEL}>{shown ? 'Other artifacts' : 'Artifacts'} ({rest.length})</div>
       <div className="flex gap-2 flex-wrap items-end">
         {rest.slice(0, 12).map((f) =>
           IMAGE.test(f) ? (
             <button key={f} type="button" onClick={() => setViewing(pictures.indexOf(f))} title={f}>
-              <img src={api.artifactUrl(goalId, f)} alt={f} loading="lazy" decoding="async" className="h-24 w-24 object-cover rounded border border-zinc-700 hover:border-zinc-500" />
+              <img src={api.artifactUrl(goalId, f)} alt={f} loading="lazy" decoding="async" className="h-24 w-24 object-cover rounded-md border border-line-strong hover:border-ink-faint" />
             </button>
           ) : (
-            <a key={f} href={api.artifactUrl(goalId, f)} target="_blank" rel="noreferrer" className="mono text-[11px] text-zinc-300 hover:underline">
+            <a key={f} href={api.artifactUrl(goalId, f)} target="_blank" rel="noreferrer" className="mono text-[11px] text-ink-soft hover:text-ink hover:underline">
               {f}
             </a>
           ),
@@ -184,12 +194,13 @@ function FinalWalkthrough({ d }: { d: GoalDetail }) {
   rows.sort((a, b) => Number(evidenceStatus(a.ev) === 'pass') - Number(evidenceStatus(b.ev) === 'pass'));
   if (!rows.length) return null;
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {rows.map(({ task, ev, at }) => (
-        <div key={task.id} className="space-y-1">
-          <div className="text-xs font-medium text-zinc-200">
+        <div key={task.id} className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2 text-[13px] font-bold text-ink">
             {task.title}
-            {evidenceStatus(ev) !== 'pass' && <span className={cn('ml-2 text-[11px] font-normal', evidenceStatus(ev) === 'fail' ? 'text-rose-300' : 'text-amber-300')}>{evidenceStatus(ev) === 'fail' ? 'failed' : 'fake data only'}</span>}
+            {/* a failed recording in the failure colour; fake data is a caveat, not a signal */}
+            {evidenceStatus(ev) !== 'pass' && <span className={cn('rounded-sm px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.07em] ring-1 ring-inset', evidenceStatus(ev) === 'fail' ? 'bg-bad/10 text-bad-ink ring-bad/40' : 'text-ink-soft ring-line-strong')}>{evidenceStatus(ev) === 'fail' ? 'failed' : 'fake data only'}</span>}
           </div>
           <EvidenceView key={at} goalId={d.goal.id} evidence={ev} taskId={task.id} />
         </div>
@@ -206,7 +217,13 @@ function Walkthrough({ d, taskId, since }: { d: GoalDetail; taskId: string; sinc
   const files = !!task && showsFiles(task);
   // an older recording shows while no new one is on its way (a milestone that paused after its script failed again)
   if (!ev || (ev.ts < since && (d.milestoneRuns ?? []).includes(taskId)))
-    return <div className="text-[11px] text-zinc-500 flex items-center gap-1.5">{files ? <><Loader2 size={11} className="animate-spin" /> Collecting what the task produced…</> : <><Play size={11} /> Recording a walkthrough of the preview…</>}</div>;
+    return (
+      <div className="flex items-center gap-2 text-[13px] text-ink-soft">
+        {/* under way: the flowing hatch of running work */}
+        <i className={cn('block h-3 w-3 shrink-0 rounded-[3px]', markFill.run)} aria-hidden="true" />
+        {files ? 'Collecting what the task produced…' : 'Recording a walkthrough of the preview…'}
+      </div>
+    );
   const look = likenessOf(d, taskId, ev.ts);
   return (
     <div className="space-y-2">

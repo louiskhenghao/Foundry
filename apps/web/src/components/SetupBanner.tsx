@@ -3,6 +3,7 @@ import { CircleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, apiForProvider, type AgentProvider } from '../api.ts';
+import { buttonClass } from '../ui.tsx';
 
 const FINISHED = ['done', 'over_delivered', 'failed', 'cancelled'];
 const NAME: Record<AgentProvider, string> = { claude: 'Claude Code', codex: 'Codex', agy: 'Antigravity' };
@@ -32,13 +33,16 @@ export function SetupBanner() {
   return (
     <div className="space-y-2 mb-4">
       {failing.map(({ provider, report }) => (
-        <div key={provider} className="rounded-lg border border-rose-500/40 bg-rose-500/5 px-4 py-2.5 flex items-center gap-3 text-sm">
-          <CircleAlert size={16} className="text-rose-400 shrink-0" />
-          <div className="flex-1">
-            <span className="text-zinc-100">Setup incomplete{several ? ` for ${NAME[provider]}` : ''}:</span>{' '}
-            <span className="text-zinc-300">{report.checks.filter((c) => !c.ok && c.severity === 'error').map((e) => e.label).join(' · ')}</span>
+        // broken until it is fixed: a plate in the red tint, its sign square solid
+        <div key={provider} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-bad/[0.06] px-3 py-2.5 ring-1 ring-inset ring-bad/40 sm:px-4 text-sm">
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-bad text-on-bad" aria-hidden="true">
+            <CircleAlert size={15} strokeWidth={2.5} />
+          </span>
+          <div className="min-w-0 flex-1 basis-64 leading-snug">
+            <b className="text-ink">Setup incomplete{several ? ` for ${NAME[provider]}` : ''}:</b>{' '}
+            <span className="text-ink-soft">{report.checks.filter((c) => !c.ok && c.severity === 'error').map((e) => e.label).join(' · ')}</span>
           </div>
-          <Link to={`/setup?provider=${provider}`} className="underline text-rose-300 whitespace-nowrap">
+          <Link to={`/setup?provider=${provider}`} className={buttonClass('primary', 'sm', 'whitespace-nowrap')}>
             Fix in Setup →
           </Link>
         </div>

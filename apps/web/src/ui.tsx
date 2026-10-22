@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { Clock, X, type LucideIcon } from 'lucide-react';
 
 export const cn = (...xs: (string | false | null | undefined)[]) => xs.filter(Boolean).join(' ');
 
@@ -467,6 +467,66 @@ export function useAffix<T extends HTMLElement>(): { ref: (el: T | null) => void
 
 export function Empty({ children }: { children: ReactNode }) {
   return <div className="text-sm text-zinc-500 py-8 text-center">{children}</div>;
+}
+
+/** how long ago, in the fewest words: 40 s, 7 min, 3 h, 2 d */
+export function waited(iso: string, now = Date.now()): string {
+  const s = Math.max(0, (now - Date.parse(iso)) / 1000);
+  if (s < 60) return `${Math.floor(s)} s`;
+  if (s < 3600) return `${Math.floor(s / 60)} min`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h`;
+  return `${Math.floor(s / 86400)} d`;
+}
+
+/** the frame of what waits for you: a panel whose head is a YouStrip */
+export const NEEDS_YOU_CARD = 'overflow-hidden rounded-lg bg-panel shadow-[0_0_0_1px_var(--color-line),0_1px_2px_rgb(0_0_0/0.06)]';
+
+/**
+ * The head of what waits for you (an Inbox item, a milestone to look at, a round of questions, a Brief to approve), a
+ * strip in the yellow of the Goals page's signs: the kind's icon, the action in its largest words, how long it has
+ * waited and where it leads; the details and the controls go on the panel under it. `quiet` once it no longer waits
+ * (an answered item): the same head, without the yellow.
+ */
+export function YouStrip({ icon: Icon, title, tags, since, aside, children, quiet = false }: {
+  icon: LucideIcon;
+  title: ReactNode;
+  /** after the title, in its line: small plates, a "?" to the guide */
+  tags?: ReactNode;
+  /** when it began to wait: a "waiting 7 min" chip */
+  since?: string | null;
+  /** its links or its button, at the end of the strip (under the rest on a phone) */
+  aside?: ReactNode;
+  /** lines under the title */
+  children?: ReactNode;
+  quiet?: boolean;
+}) {
+  const waiting = quiet ? null : since;
+  return (
+    <header className={cn('grid grid-cols-[2.25rem_minmax(0,1fr)] sm:grid-cols-[2.75rem_minmax(0,1fr)_auto] items-start gap-x-3 sm:gap-x-4 gap-y-2.5 px-4 py-3.5 sm:px-5 sm:py-4', quiet ? 'border-b border-line' : 'bg-you text-on-you')}>
+      <span className={cn('grid h-9 w-9 sm:h-11 sm:w-11 place-items-center rounded-lg', quiet ? 'ring-[1.5px] ring-inset ring-line-strong text-ink-soft' : 'bg-on-you text-you')} aria-hidden="true">
+        <Icon size={18} strokeWidth={2.25} className="sm:h-[22px] sm:w-[22px]" />
+      </span>
+      <div className="min-w-0 self-center">
+        <h3 className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          <span className={cn('min-w-0 font-extrabold leading-tight tracking-[-0.02em] break-words', quiet ? 'text-lg sm:text-xl text-ink-soft' : 'text-xl sm:text-2xl')}>{title}</span>
+          {/* a "?" link to the guide reads in the strip's ink */}
+          {tags && <span className={cn('flex flex-wrap items-center gap-1.5', !quiet && '[&_a]:text-on-you/60 [&_a:hover]:text-on-you')}>{tags}</span>}
+        </h3>
+        {children}
+      </div>
+      {(waiting || aside) && (
+        <div className="col-start-2 sm:col-start-3 flex flex-wrap items-center gap-x-4 gap-y-2 sm:flex-col sm:items-end">
+          {waiting && (
+            <span className="mono inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-on-you px-2 py-1 text-[12.5px] font-bold text-you" title={new Date(waiting).toLocaleString()}>
+              <Clock size={13} aria-hidden="true" />
+              waiting {waited(waiting)}
+            </span>
+          )}
+          {aside}
+        </div>
+      )}
+    </header>
+  );
 }
 
 export const fmtUsd = (n: number) => `$${n.toFixed(n < 1 ? 3 : 2)}`;

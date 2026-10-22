@@ -1,14 +1,19 @@
 import type { InterviewQuestion } from '@foundry/core/browser';
 import { CheckCheck, Send, SkipForward, X } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
-import { Button, Input, Textarea, cn } from '../../ui.tsx';
+import { Button, Input, Textarea, choiceClass, cn } from '../../ui.tsx';
 
 export type RoundSubmitKind = 'send' | 'all' | 'finish';
+
+/** a small plate after a question or an option's words */
+const PLATE = 'ml-2 inline-block rounded-sm px-1.5 py-[3px] align-[2px] text-[10.5px] font-extrabold uppercase leading-none tracking-[0.08em] whitespace-nowrap';
 
 /**
  * One round of questions as the Clarifier asks them: options with its recommendation first, a free answer per
  * question, a note for what the questions missed, and the three ways to close the round (send, accept all
  * recommended, enough). Used by the interview before the Brief and by a Revise that asks before proposing.
+ * Each question is numbered on a small plate; its options are cards, the chosen one in the accent; the recommended
+ * one says so on a quiet plate, and a blocking question on a yellow one (only you can answer it).
  */
 export function RoundForm({ round, questions, rounds, busy, intro, finishLabel, finishTitle, onSubmit, onCancel }: {
   round: number;
@@ -35,41 +40,41 @@ export function RoundForm({ round, questions, rounds, busy, intro, finishLabel, 
   return (
     <>
       {intro}
-      <ol className="space-y-3">
+      <ol className="divide-y divide-line">
         {questions.map((q, i) => (
-          <li key={q.key} className="rounded border border-zinc-800 bg-zinc-900/50 p-3 space-y-2">
-            <div className="flex items-start gap-2">
-              <span className="mono text-zinc-500 shrink-0">{i + 1}.</span>
+          <li key={q.key} className="py-4 first:pt-1 space-y-3">
+            <div className="flex items-start gap-3">
+              <span className="mono grid h-6 min-w-6 shrink-0 place-items-center rounded-[5px] bg-ink px-1.5 text-xs font-bold text-on-ink">{i + 1}</span>
               <div className="min-w-0 flex-1">
-                <div className="text-sm text-zinc-100 whitespace-pre-wrap">
+                <div className="text-[15px] font-bold leading-snug text-ink whitespace-pre-wrap">
                   {q.text}
-                  {q.blocking && <span className="ml-2 text-[10px] uppercase tracking-wide text-amber-300">blocking</span>}
+                  {q.blocking && <span className={cn(PLATE, 'bg-you text-on-you')}>blocking</span>}
                 </div>
-                {q.reason && <div className="text-[11px] text-zinc-500 mt-1 whitespace-pre-wrap">{q.reason}</div>}
-                {q.dependsOn && <div className="text-[11px] text-zinc-600 mt-0.5">follows from {questionRef(rounds, q.dependsOn, round)}</div>}
+                {q.reason && <div className="text-[13px] leading-snug text-ink-faint mt-1 whitespace-pre-wrap">{q.reason}</div>}
+                {q.dependsOn && <div className="text-xs text-ink-faint mt-1">follows from {questionRef(rounds, q.dependsOn, round)}</div>}
               </div>
             </div>
-            <div className="flex flex-col gap-1 pl-5">
+            <div className="flex flex-col gap-1.5 sm:pl-9">
               {q.options.map((o, j) => (
-                <label key={o} className={cn('flex items-start gap-2 cursor-pointer rounded px-1 py-0.5', answers[q.key] === o && 'bg-emerald-500/10')}>
-                  <input type="radio" name={`${round}-${q.key}`} className="mt-0.5 accent-emerald-500" checked={answers[q.key] === o} onChange={() => setAnswers((a) => ({ ...a, [q.key]: o }))} />
-                  <span className="text-zinc-200">
+                <label key={o} className={cn('flex items-start gap-2.5 cursor-pointer rounded-md border px-3 py-2 text-sm text-ink transition-colors', choiceClass(answers[q.key] === o))}>
+                  <input type="radio" name={`${round}-${q.key}`} className="mt-[3px] shrink-0" checked={answers[q.key] === o} onChange={() => setAnswers((a) => ({ ...a, [q.key]: o }))} />
+                  <span className="min-w-0">
                     {o}
-                    {j === 0 && <span className="ml-2 text-[10px] uppercase tracking-wide text-emerald-300">recommended</span>}
+                    {j === 0 && <span className={cn(PLATE, 'text-ink-soft ring-1 ring-inset ring-line-strong')}>recommended</span>}
                   </span>
                 </label>
               ))}
-              <label className="flex items-center gap-2 cursor-pointer rounded px-1 py-0.5">
-                <input type="radio" name={`${round}-${q.key}`} className="accent-emerald-500" checked={answers[q.key] === '__other__'} onChange={() => setAnswers((a) => ({ ...a, [q.key]: '__other__' }))} />
+              <label className={cn('flex items-center gap-2.5 cursor-pointer rounded-md border px-3 py-1.5 transition-colors', choiceClass(answers[q.key] === '__other__'))}>
+                <input type="radio" name={`${round}-${q.key}`} className="shrink-0" checked={answers[q.key] === '__other__'} onChange={() => setAnswers((a) => ({ ...a, [q.key]: '__other__' }))} />
                 <Input className="flex-1 text-xs" placeholder={q.options.length ? 'something else…' : 'your answer'} value={other[q.key] ?? ''} onFocus={() => setAnswers((a) => ({ ...a, [q.key]: '__other__' }))} onChange={(e) => setOther((o) => ({ ...o, [q.key]: e.target.value }))} />
               </label>
             </div>
           </li>
         ))}
       </ol>
-      <div className="rounded border border-zinc-800 bg-zinc-900/50 p-3 space-y-1">
-        <label className="text-sm text-zinc-100" htmlFor={`round-note-${round}`}>
-          Anything else? <span className="text-[11px] text-zinc-500">optional</span>
+      <div className="border-t border-line pt-4 space-y-1.5">
+        <label className="block text-[15px] font-bold text-ink" htmlFor={`round-note-${round}`}>
+          Anything else? <span className="text-xs font-normal text-ink-faint">optional</span>
         </label>
         <Textarea id={`round-note-${round}`} rows={2} className="text-xs" placeholder="Something the questions missed, or got wrong. It goes with your answers and becomes a Decision every worker receives." value={note} onChange={(e) => setNote(e.target.value)} />
       </div>

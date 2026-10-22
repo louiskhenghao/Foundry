@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import type { GoalRow } from '../src/api.ts';
 import { countMarks, stageMarks, taskMark } from '../src/components/progress.tsx';
-import { boardOf, needOf, waited } from '../src/pages/goal-boards.ts';
+import { boardOf, needOf } from '../src/pages/goal-boards.ts';
+import { waited } from '../src/ui.tsx';
 import { listEntries } from '../src/pages/goal-chains.ts';
 
 const goal = (patch: Partial<GoalRow> & { id: string }) =>
