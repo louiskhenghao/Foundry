@@ -100,7 +100,7 @@ export function Field({ label, help, aside, children, className }: { label: Reac
   return (
     <label className={cn('block min-w-0', className)}>
       <span className="flex items-center gap-2 mb-1">
-        <span className="text-xs text-zinc-300">{label}</span>
+        <span className="text-xs font-semibold text-ink-soft">{label}</span>
         {aside && <span className="ml-auto flex items-center gap-1.5">{aside}</span>}
       </span>
       {children}
@@ -184,7 +184,7 @@ export function Card({ children, className, bodyClassName, title, actions, id, o
     <section id={id} className={cn('rounded-lg border border-line bg-panel shadow-[0_1px_2px_rgb(0_0_0/0.05)]', className)}>
       {(title || actions || onClose) && (
         <header className={cn('relative flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2.5 border-b border-line', onClose && 'pr-12')}>
-          <h3 className="text-sm font-bold text-ink min-w-0 grow shrink basis-56">{title}</h3>
+          <h3 className="text-[12.5px] font-extrabold uppercase tracking-[0.1em] text-ink min-w-0 grow shrink basis-56">{title}</h3>
           {actions && <div className="flex flex-wrap items-center gap-2 shrink-0 max-w-full ml-auto">{actions}</div>}
           {onClose && (
             <button type="button" className="absolute top-2 right-2 rounded p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800" onClick={onClose} aria-label="close">
@@ -278,6 +278,34 @@ export function Page({ children, className, width = 'lg' }: { children: ReactNod
   const max = width === 'sm' ? 'max-w-3xl' : width === 'md' ? 'max-w-4xl' : width === 'lg' ? 'max-w-6xl' : 'max-w-7xl';
   return <div className={cn(max, 'mx-auto p-3 sm:p-4 md:p-6 space-y-4', className)}>{children}</div>;
 }
+
+/**
+ * A page's head, the same on every page: its name in large type (with an optional "?" to the guide), one line on what it
+ * is or where things stand, and its actions on the right.
+ */
+export function PageHeader({ title, help, summary, actions, className }: { title: ReactNode; help?: ReactNode; summary?: ReactNode; actions?: ReactNode; className?: string }) {
+  return (
+    <header className={cn('flex flex-wrap items-end justify-between gap-x-10 gap-y-4 mb-6 md:mb-8', className)}>
+      <div className="min-w-0">
+        <h1 className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[2rem] sm:text-[2.5rem] md:text-5xl font-extrabold leading-none tracking-[-0.035em] text-ink break-words">
+          {title}
+          {help && <span className="text-base font-normal tracking-normal [&_svg]:h-[18px] [&_svg]:w-[18px]">{help}</span>}
+        </h1>
+        {summary && <div className="mt-3 max-w-[80ch] text-[15px] leading-relaxed text-ink-faint">{summary}</div>}
+      </div>
+      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+    </header>
+  );
+}
+
+/** a filter chip in a row of them (all, by kind…): the chosen one filled with the accent */
+export const chipClass = (active: boolean) => cn('rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset transition-colors', active ? 'bg-accent text-on-accent ring-accent' : 'ring-line-strong text-ink-soft hover:text-ink');
+
+/** an option drawn as a card among others (a goal's kind, a delivery mode…): the chosen one outlined in the accent */
+export const choiceClass = (selected: boolean) => (selected ? 'border-accent bg-accent/[0.06] shadow-[inset_0_0_0_1px_var(--color-accent)]' : 'border-line hover:border-line-strong');
+
+/** an item of a page's side list of sections (Settings, the guide, the Brief): the one you are at marked by a bar */
+export const navItemClass = (active: boolean) => cn('block w-full rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors', active ? 'bg-panel font-bold text-ink shadow-[inset_3px_0_0_var(--color-accent),0_0_0_1px_var(--color-line)]' : 'text-ink-soft hover:bg-panel/70 hover:text-ink');
 
 export function CopyButton({ text }: { text: string }) {
   return (

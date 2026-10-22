@@ -11,7 +11,7 @@ import { ProviderBadge, shortCwd } from './agents/rows.tsx';
 import { boardOf, isFinished, needOf, waited, type Need } from './goal-boards.ts';
 import { listEntries, type GoalChain, type ListEntry } from './goal-chains.ts';
 import { useLive } from '../store.ts';
-import { Button, Empty, ago, cn, fmtUsd, stateLabel } from '../ui.tsx';
+import { Button, Empty, PageHeader, ago, cn, fmtUsd, stateLabel } from '../ui.tsx';
 
 /** Trait chip (nature, pace, view mode): quiet, so the state and the signs carry the colour. */
 function Chip({ className, children, title }: { className?: string; children: ReactNode; title?: string }) {
@@ -271,11 +271,12 @@ export function GoalsPage() {
       <div className="mb-3">
         <UsagePausedBanner />
       </div>
-      <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-4 mb-8 md:mb-10">
-        <div>
-          <h1 className="text-[2.5rem] md:text-5xl font-extrabold leading-none tracking-[-0.035em]">Goals</h1>
-          {goals && goals.length > 0 && (
-            <p className="mt-3 text-[15px] text-ink-faint">
+      <PageHeader
+        className="md:mb-10"
+        title="Goals"
+        summary={
+          goals && goals.length > 0 ? (
+            <>
               {goals.length} goal{goals.length === 1 ? '' : 's'}
               {signs.length > 0 && (
                 <>
@@ -285,17 +286,19 @@ export function GoalsPage() {
               )}
               {' · '}
               {workingGoals} working · {all.filter(isFinished).length} finished
-            </p>
-          )}
-        </div>
-        {chains.length > 1 && (
-          <span className="flex items-center gap-2 text-xs text-ink-faint">
-            <button type="button" className="hover:text-ink" onClick={() => setAllChains(false)}>expand all</button>
-            <span className="text-line-strong">·</span>
-            <button type="button" className="hover:text-ink" onClick={() => setAllChains(true)}>collapse all</button>
-          </span>
-        )}
-      </div>
+            </>
+          ) : null
+        }
+        actions={
+          chains.length > 1 && (
+            <span className="flex items-center gap-2 text-xs text-ink-faint">
+              <button type="button" className="hover:text-ink" onClick={() => setAllChains(false)}>expand all</button>
+              <span className="text-line-strong">·</span>
+              <button type="button" className="hover:text-ink" onClick={() => setAllChains(true)}>collapse all</button>
+            </span>
+          )
+        }
+      />
       {!goals ? (
         <Empty>Loading…</Empty>
       ) : goals.length === 0 ? (

@@ -246,6 +246,14 @@ select:not([multiple]):is(:not([size]), [size='1']) {
   }
 }
 
+/* native checkboxes, radios and sliders in the theme's accent */
+input[type='checkbox'],
+input[type='radio'],
+input[type='range'],
+progress {
+  accent-color: var(--color-accent);
+}
+
 html,
 body,
 #root {
