@@ -49,7 +49,7 @@ function Highlight({ text, q }: { text: string; q: string }) {
   const lower = text.toLowerCase();
   let at = 0;
   for (let i = lower.indexOf(q); i >= 0; i = lower.indexOf(q, i + q.length)) {
-    parts.push(text.slice(at, i), <mark key={i} className="rounded-sm bg-yellow-300 text-black">{text.slice(i, i + q.length)}</mark>);
+    parts.push(text.slice(at, i), <mark key={i} className="rounded-sm bg-accent text-on-accent">{text.slice(i, i + q.length)}</mark>);
     at = i + q.length;
   }
   parts.push(text.slice(at));
@@ -100,17 +100,17 @@ export function JsonTree({ value }: { value: Json }) {
     if (typeof v === 'string') {
       const path = looksLikeFilePath(v);
       return (
-        <span className="text-sky-300 whitespace-pre-wrap [overflow-wrap:anywhere]">
+        <span className="text-work-ink whitespace-pre-wrap [overflow-wrap:anywhere]">
           "<Highlight text={v} q={q} />"
           {path && (
-            <button type="button" onClick={() => openFile(v)} className="ml-1.5 inline-flex items-center gap-0.5 rounded border border-zinc-700 px-1 text-[10px] text-zinc-300 hover:text-zinc-100 hover:border-zinc-500 align-middle" title={`Open ${v}`}>
+            <button type="button" onClick={() => openFile(v)} className="ml-1.5 inline-flex items-center gap-0.5 rounded-md px-1 text-[10.5px] font-semibold text-ink-soft ring-1 ring-inset ring-line-strong hover:text-ink hover:bg-sunken align-middle" title={`Open ${v}`}>
               <FileSearch size={10} /> open
             </button>
           )}
         </span>
       );
     }
-    const cls = typeof v === 'number' ? 'text-amber-300' : typeof v === 'boolean' ? 'text-violet-300' : 'text-zinc-500';
+    const cls = typeof v === 'number' ? 'font-semibold text-ink' : typeof v === 'boolean' ? 'text-extra-ink' : 'text-ink-faint';
     return (
       <span className={cls}>
         <Highlight text={String(v)} q={q} />
@@ -120,9 +120,9 @@ export function JsonTree({ value }: { value: Json }) {
 
   const node = (k: string | null, v: Json, path: string, last: boolean): ReactNode => {
     const keyEl = k !== null && (
-      <span className="text-zinc-400">
+      <span className="text-ink-soft">
         <Highlight text={k} q={q} />
-        <span className="text-zinc-600">: </span>
+        <span className="text-ink-faint">: </span>
       </span>
     );
     const comma = last ? '' : ',';
@@ -131,7 +131,7 @@ export function JsonTree({ value }: { value: Json }) {
         <div key={path} className="pl-4">
           {keyEl}
           {leaf(v)}
-          <span className="text-zinc-600">{comma}</span>
+          <span className="text-ink-faint">{comma}</span>
         </div>
       );
     const list = entries(v);
@@ -139,39 +139,39 @@ export function JsonTree({ value }: { value: Json }) {
     const open = isOpen(path);
     return (
       <div key={path} className={k === null ? '' : 'pl-4'}>
-        <button type="button" onClick={() => toggle(path)} className="-ml-4 inline-flex w-4 justify-center text-zinc-500 hover:text-zinc-200 align-[-2px]" aria-label={open ? 'Fold' : 'Unfold'}>
+        <button type="button" onClick={() => toggle(path)} className="-ml-4 inline-flex w-4 justify-center text-ink-faint hover:text-ink align-[-2px]" aria-label={open ? 'Fold' : 'Unfold'}>
           {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         </button>
         {keyEl}
-        <span className="text-zinc-500">{o}</span>
+        <span className="text-ink-faint">{o}</span>
         {open ? (
           <>
             {list.map(([ck, cv], i) => node(Array.isArray(v) ? null : ck, cv, `${path}/${ck}`, i === list.length - 1))}
-            <span className="text-zinc-500">{c}</span>
+            <span className="text-ink-faint">{c}</span>
           </>
         ) : (
-          <button type="button" onClick={() => toggle(path)} className="text-zinc-500 hover:text-zinc-200">
+          <button type="button" onClick={() => toggle(path)} className="text-ink-faint hover:text-ink">
             {' '}
             {list.length} {Array.isArray(v) ? (list.length === 1 ? 'item' : 'items') : list.length === 1 ? 'key' : 'keys'} {c}
           </button>
         )}
-        <span className="text-zinc-600">{comma}</span>
+        <span className="text-ink-faint">{comma}</span>
       </div>
     );
   };
 
   return (
-    <div className="surface-card rounded-md border border-zinc-800 bg-zinc-950/60">
-      <div className="flex flex-wrap items-center gap-2 px-3 py-1.5 border-b border-zinc-800/80">
-        <label className="flex items-center gap-1.5 flex-1 min-w-[160px] rounded border border-zinc-700 bg-zinc-900 px-2 py-0.5">
-          <Search size={11} className="text-zinc-500 shrink-0" />
-          <input autoFocus={focusFirst} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search keys and values" className="w-full bg-transparent text-xs text-zinc-100 placeholder:text-zinc-500 focus:outline-none" />
+    <div className="surface-card rounded-md border border-line bg-page/60">
+      <div className="flex flex-wrap items-center gap-2 px-3 py-1.5 border-b border-line/80">
+        <label className="flex items-center gap-1.5 flex-1 min-w-full sm:min-w-[160px] rounded-md border border-line-strong bg-panel px-2 py-0.5 focus-within:border-accent">
+          <Search size={11} className="text-ink-faint shrink-0" />
+          <input autoFocus={focusFirst} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search keys and values" className="w-full bg-transparent text-xs text-ink placeholder:text-ink-faint focus:outline-none" />
         </label>
-        {matches && <span className={cn('text-[11px]', matches.count ? 'text-zinc-400' : 'text-rose-400')}>{matches.count ? `${matches.count} match${matches.count === 1 ? '' : 'es'}` : 'no match'}</span>}
-        <button type="button" className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-300 hover:text-zinc-100 hover:border-zinc-500" onClick={() => setAll(false)}>
+        {matches && <span className={cn('text-[11px]', matches.count ? 'text-ink-soft' : 'text-bad-ink')}>{matches.count ? `${matches.count} match${matches.count === 1 ? '' : 'es'}` : 'no match'}</span>}
+        <button type="button" className="rounded-md px-2 py-0.5 text-[10.5px] font-semibold text-ink-soft ring-1 ring-inset ring-line-strong hover:text-ink hover:bg-sunken" onClick={() => setAll(false)}>
           Expand all
         </button>
-        <button type="button" className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-300 hover:text-zinc-100 hover:border-zinc-500" onClick={() => setAll(true)}>
+        <button type="button" className="rounded-md px-2 py-0.5 text-[10.5px] font-semibold text-ink-soft ring-1 ring-inset ring-line-strong hover:text-ink hover:bg-sunken" onClick={() => setAll(true)}>
           Collapse all
         </button>
       </div>

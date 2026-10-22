@@ -296,7 +296,7 @@ export function GoalPage() {
         <label className="flex items-start gap-2">
           <input type="checkbox" className="mt-0.5" checked={delBranch} onChange={(e) => setDelBranch(e.target.checked)} />
           <span>
-            Also delete the branch <span className="mono">{g.branch}</span> from the repository {g.delivery.status === 'delivered' ? <span className="text-zinc-500">(already delivered — the remote copy stays)</span> : <span className="text-amber-300">(the goal's work is lost locally unless you pushed it)</span>}
+            Also delete the branch <span className="mono">{g.branch}</span> from the repository {g.delivery.status === 'delivered' ? <span className="text-ink-faint">(already delivered — the remote copy stays)</span> : <span className="text-bad-ink">(the goal's work is lost locally unless you pushed it)</span>}
           </span>
         </label>
       </ConfirmDialog>

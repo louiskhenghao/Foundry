@@ -71,7 +71,7 @@ export function FullTextDialog({ value, onClose }: { value: FullText | null; onC
   // portalled to <body>: it opens from inside the task panel, whose backdrop blur would otherwise pin a fixed overlay to the panel's scroll
   return createPortal(
     <Modal open title={value.title} onClose={onClose} wide>
-      {value.note && <div className="mb-2 text-xs text-amber-300/90">{value.note}</div>}
+      {value.note && <div className="mb-2 text-xs font-semibold text-ink">{value.note}</div>}
       {json !== undefined && (
         // a JSON object or array (a tool call, most tool results) reads as a tree; the text view stays one click away
         <div className="mb-2 flex items-center gap-2">
