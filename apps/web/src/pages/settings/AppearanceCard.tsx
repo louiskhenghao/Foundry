@@ -59,7 +59,7 @@ export function Appearance({ themes, problems, dir, id, mode, light }: Pick<Retu
         </div>
 
         {note && (
-          <div className="rounded-md border border-line bg-inset px-3 py-2 text-xs text-ink-soft space-y-1">
+          <div className="rounded-md border border-line bg-sunken px-3 py-2 text-xs text-ink-soft space-y-1">
             <p>{note.text}</p>
             {note.file && (
               <p className="flex flex-wrap items-center gap-2">

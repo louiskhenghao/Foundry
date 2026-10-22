@@ -44,7 +44,7 @@ function CopyTextButton({ text }: { text: string }) {
     return () => clearTimeout(t);
   }, [copied]);
   return (
-    <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10.5px] font-semibold text-ink-soft ring-1 ring-inset ring-line-strong hover:text-ink hover:bg-inset" onClick={() => void copyText(text).then(setCopied)} title="Copy the full text">
+    <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10.5px] font-semibold text-ink-soft ring-1 ring-inset ring-line-strong hover:text-ink hover:bg-sunken" onClick={() => void copyText(text).then(setCopied)} title="Copy the full text">
       {copied ? <Check size={11} /> : <Copy size={11} />} {copied ? 'Copied' : 'Copy'}
     </button>
   );
@@ -107,7 +107,7 @@ export function FullTextDialog({ value, onClose }: { value: FullText | null; onC
 /** The icon-only "Open full" button every panel uses to open its text in the FullTextDialog. */
 export function OpenFullButton({ onClick, className }: { onClick: () => void; className?: string }) {
   return (
-    <button type="button" className={cn('inline-flex items-center justify-center rounded-md p-1 text-ink-soft ring-1 ring-inset ring-line-strong hover:text-ink hover:bg-inset', className)} onClick={onClick} title="Open full" aria-label="Open full">
+    <button type="button" className={cn('inline-flex items-center justify-center rounded-md p-1 text-ink-soft ring-1 ring-inset ring-line-strong hover:text-ink hover:bg-sunken', className)} onClick={onClick} title="Open full" aria-label="Open full">
       <Maximize2 size={11} />
     </button>
   );

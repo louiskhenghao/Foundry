@@ -113,7 +113,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
                   const r = latestResult(c.id);
                   const res = CHECK_RESULT[r?.status ?? 'none'];
                   return (
-                    <button key={c.id} type="button" onClick={() => setOpenCheck(c.id)} className="-mx-1.5 w-[calc(100%+0.75rem)] flex items-center gap-2.5 rounded-md px-1.5 py-1.5 text-left text-[13px] transition-colors hover:bg-inset focus-visible:outline-2 focus-visible:outline-accent" title="Show what it checks, its output and every run">
+                    <button key={c.id} type="button" onClick={() => setOpenCheck(c.id)} className="-mx-1.5 w-[calc(100%+0.75rem)] flex items-center gap-2.5 rounded-md px-1.5 py-1.5 text-left text-[13px] transition-colors hover:bg-sunken focus-visible:outline-2 focus-visible:outline-accent" title="Show what it checks, its output and every run">
                       <CheckSquare mark={res.mark} />
                       <span className="min-w-0 flex-1 truncate font-semibold text-ink" title={c.name}>
                         {c.name}

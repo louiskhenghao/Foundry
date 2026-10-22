@@ -87,7 +87,7 @@ export function WorkspaceDetails({ goal: g }: { goal: Goal }) {
       <details className="text-[11px]">
         <summary className="cursor-pointer font-semibold text-ink-faint hover:text-ink">Run it yourself</summary>
         <div className="mt-1.5 space-y-1.5">
-          <div className="rounded-md border border-line bg-inset p-2.5 mono text-ink space-y-1">
+          <div className="rounded-md border border-line bg-sunken p-2.5 mono text-ink space-y-1">
             <div className="flex items-center gap-2">
               <span className="truncate">{cd}</span> <CopyButton text={cd} />
             </div>

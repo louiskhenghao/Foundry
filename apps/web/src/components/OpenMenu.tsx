@@ -109,7 +109,7 @@ export function OpenMenu({ goalId, places, size = 'sm', label = 'Open', working 
         <div className="p-0.5 space-y-2">
           {/* each place on an inset box: its name and path, then the apps that open it as small buttons */}
           {places.map((pl) => (
-            <div key={pl.which} className="rounded-lg bg-inset p-2.5">
+            <div key={pl.which} className="rounded-lg bg-sunken p-2.5">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="shrink-0 text-[13px] font-bold text-ink">{pl.label}</span>
                 {pl.hint && <span className="min-w-0 truncate text-ink-faint" title={pl.hint}>{pl.hint}</span>}

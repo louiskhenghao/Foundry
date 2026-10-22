@@ -70,9 +70,9 @@ export function CodeEditor({ value, onChange, name, className }: { value: string
   const style = { height: count * LINE + 16, minWidth: `calc(${longest + 4}ch + 1.5rem)` };
   return (
     // a box inside the page's panel; the line numbers stay put on the inset colour while the code scrolls sideways
-    <div className={cn('rounded-md border border-line bg-inset overflow-auto', className ?? 'max-h-[60vh]')} onClick={() => area.current?.focus()}>
+    <div className={cn('rounded-md border border-line bg-sunken overflow-auto', className ?? 'max-h-[60vh]')} onClick={() => area.current?.focus()}>
       <div className="flex mono text-xs" style={{ lineHeight: `${LINE}px` }}>
-        <div className="select-none py-2 pl-3 pr-3 text-right text-ink-faint sticky left-0 bg-inset border-r border-line z-10" aria-hidden="true">
+        <div className="select-none py-2 pl-3 pr-3 text-right text-ink-faint sticky left-0 bg-sunken border-r border-line z-10" aria-hidden="true">
           {Array.from({ length: count }, (_, i) => (
             <div key={i}>{i + 1}</div>
           ))}

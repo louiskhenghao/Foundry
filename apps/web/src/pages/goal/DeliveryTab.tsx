@@ -273,7 +273,7 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
         </p>
         <DeliveryPolicyForm value={draft} onChange={setDraft} repo={repo} locked={locked} prefill={!started} taskCount={d.tasks.filter((t) => t.origin === 'brief' || t.origin === 'goal-review-fix').length} />
         {plan && (
-          <div className="mt-3 rounded-lg border border-line bg-inset p-3">
+          <div className="mt-3 rounded-lg border border-line bg-sunken p-3">
             <div className={cn(LABEL, 'text-ink-faint mb-2')}>plan</div>
             <ol className="space-y-1.5 text-xs">
               {plan.map((s, i) => (

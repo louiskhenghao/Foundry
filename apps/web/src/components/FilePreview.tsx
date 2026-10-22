@@ -84,7 +84,7 @@ export function CodeView({ text, name, className }: { text: string; name: string
   }, [text, name]);
   const lines = text.split('\n');
   return (
-    <div className={cn('rounded-lg border border-line bg-inset overflow-auto', className ?? 'max-h-[70vh]')}>
+    <div className={cn('rounded-lg border border-line bg-sunken overflow-auto', className ?? 'max-h-[70vh]')}>
       <table className="mono text-xs leading-5">
         <tbody>
           {lines.map((l, i) => (
@@ -162,11 +162,11 @@ export function FilePreviewHost() {
           </div>
           {list.length > 1 && at >= 0 && !media && (
             <span className="flex items-center gap-0.5 mono text-[11px] text-ink-faint shrink-0">
-              <button type="button" className="rounded-md p-1 text-ink-soft hover:bg-inset hover:text-ink disabled:opacity-30" disabled={at === 0} onClick={() => step(-1)} aria-label="previous file" title="Previous file (←)">
+              <button type="button" className="rounded-md p-1 text-ink-soft hover:bg-sunken hover:text-ink disabled:opacity-30" disabled={at === 0} onClick={() => step(-1)} aria-label="previous file" title="Previous file (←)">
                 <ChevronLeft size={14} />
               </button>
               {at + 1} / {list.length}
-              <button type="button" className="rounded-md p-1 text-ink-soft hover:bg-inset hover:text-ink disabled:opacity-30" disabled={at === list.length - 1} onClick={() => step(1)} aria-label="next file" title="Next file (→)">
+              <button type="button" className="rounded-md p-1 text-ink-soft hover:bg-sunken hover:text-ink disabled:opacity-30" disabled={at === list.length - 1} onClick={() => step(1)} aria-label="next file" title="Next file (→)">
                 <ChevronRight size={14} />
               </button>
             </span>
@@ -174,15 +174,15 @@ export function FilePreviewHost() {
           <CopyButton text={info?.path ?? shown} />
           {info && (
             <>
-              <a href={fileUrl(file)} target="_blank" rel="noreferrer" className="rounded-md p-1 text-ink-soft hover:bg-inset hover:text-ink" title="Open in a new tab">
+              <a href={fileUrl(file)} target="_blank" rel="noreferrer" className="rounded-md p-1 text-ink-soft hover:bg-sunken hover:text-ink" title="Open in a new tab">
                 <ExternalLink size={14} />
               </a>
-              <a href={`${fileUrl(file)}&download=1`} className="rounded-md p-1 text-ink-soft hover:bg-inset hover:text-ink" title="Download">
+              <a href={`${fileUrl(file)}&download=1`} className="rounded-md p-1 text-ink-soft hover:bg-sunken hover:text-ink" title="Download">
                 <Download size={14} />
               </a>
             </>
           )}
-          <button className="rounded-md px-1.5 text-lg leading-none text-ink-faint hover:bg-inset hover:text-ink" onClick={close} aria-label="close">
+          <button className="rounded-md px-1.5 text-lg leading-none text-ink-faint hover:bg-sunken hover:text-ink" onClick={close} aria-label="close">
             ×
           </button>
         </header>
@@ -192,8 +192,8 @@ export function FilePreviewHost() {
           ) : info || (media && last) ? (
             <>
               {/* where this copy of the file comes from, on a quiet strip above it */}
-              {last?.commit && <div className="mb-3 rounded-md bg-inset px-3 py-2 text-xs text-ink-soft">From the task's commit <span className="mono text-ink">{last.commit.slice(0, 7)}</span> — the version the task made. Its folders were removed after the work was delivered.</div>}
-              {last?.landed && <div className="mb-3 rounded-md bg-inset px-3 py-2 text-xs text-ink-soft">The task's own folder was removed when it merged; this is the file as it is now in the progress folder.</div>}
+              {last?.commit && <div className="mb-3 rounded-md bg-sunken px-3 py-2 text-xs text-ink-soft">From the task's commit <span className="mono text-ink">{last.commit.slice(0, 7)}</span> — the version the task made. Its folders were removed after the work was delivered.</div>}
+              {last?.landed && <div className="mb-3 rounded-md bg-sunken px-3 py-2 text-xs text-ink-soft">The task's own folder was removed when it merged; this is the file as it is now in the progress folder.</div>}
               {media ? (
                 <div className="space-y-2">
                   <div className="touch-pan-y select-none" {...swipe}>

@@ -169,7 +169,7 @@ export function SourceGroup({ s, busy, updating, running, filter, a, usage, wind
       )}
       {/* the source's skills, a level down: indented on the inset colour, as a chain's goals are on the Goals page */}
       {open && (
-        <ul className="border-t border-line divide-y divide-line bg-inset/60">
+        <ul className="border-t border-line divide-y divide-line bg-sunken/60">
           {rows.map((r) => (
             <Row key={r.invoke} r={r} usage={usage?.get(r.dir)} windowGoals={windowGoals ?? 0} busy={busy} selected={a.selected.has(r.name)} onSelect={(on) => a.onSelect([r.name], on)} onView={() => a.onView(r)} onAdopt={() => a.onAdopt([r.name])} onTrashShadow={() => a.onTrashShadows([r.name])} onUninstall={() => a.onUninstall([r.name])} onUpdate={canUpdate && s.updater.kind !== 'plugin' ? () => a.onUpdate([r.name]) : undefined} />
           ))}

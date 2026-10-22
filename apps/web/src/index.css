@@ -27,15 +27,15 @@
 }
 
 /*
- * The theme's names for its colours (ADR-0066): bg-page, bg-panel, text-ink-soft, border-line, bg-you with text-on-you,
- * text-ok-ink and the rest. These are Classic's, pointed at Tailwind's own ramps. Any other theme replaces them — and the
- * ramps themselves, so every zinc-*, emerald-*, amber-* class follows it — with the stylesheet theme.ts puts in <head>.
- * `on-x` is text on an x fill; `x-ink` is x-coloured text that reads on a panel.
+ * The theme's names for its colours (ADR-0066): bg-page, bg-panel, bg-sunken (a theme file's `inset`), border-line,
+ * text-ink-soft, bg-you with text-on-you, text-ok-ink and the rest. These are Classic's, pointed at Tailwind's own ramps.
+ * Any other theme replaces them — and the ramps themselves, so every zinc-*, emerald-*, amber-* class follows it — with
+ * the stylesheet theme.ts puts in <head>. `on-x` is text on an x fill; `x-ink` is x-coloured text that reads on a panel.
  */
 @theme static {
   --color-page: var(--color-zinc-950);
   --color-panel: var(--color-zinc-900);
-  --color-inset: var(--color-zinc-900);
+  --color-sunken: var(--color-zinc-900);
   --color-line: var(--color-zinc-800);
   --color-line-strong: var(--color-zinc-700);
   --color-ink: var(--color-zinc-100);
@@ -143,7 +143,7 @@ select:not([multiple]):is(:not([size]), [size='1']) {
   --color-teal-200: var(--color-teal-800);
   --color-teal-300: var(--color-teal-700);
   --color-teal-400: var(--color-teal-600);
-  --color-inset: #f4f4f5;
+  --color-sunken: #f4f4f5;
   /* Classic's top bar is white in light mode */
   --color-band: #ffffff;
   --color-band-hover: #f4f4f5;
@@ -175,11 +175,11 @@ select:not([multiple]):is(:not([size]), [size='1']) {
 :root.light .md th,
 :root.light .diff-file-head,
 :root.light .surface-inset {
-  background-color: var(--color-inset);
+  background-color: var(--color-sunken);
 }
 :root.light .surface-card .log-row:hover {
   /* hover:bg-zinc-900 is white in light — invisible on a white card (the Agents log), so rows tint instead (a step past the inset tint, so the "you" rows still react) */
-  background-color: color-mix(in oklab, var(--color-inset), var(--color-ink) 6%);
+  background-color: color-mix(in oklab, var(--color-sunken), var(--color-ink) 6%);
 }
 :root.light ::-webkit-scrollbar-thumb {
   background-color: var(--color-line-strong);
@@ -333,10 +333,10 @@ main {
 /* code in the text is ink on the inset colour, framed by a hairline: a word set apart, not a signal */
 .md code {
   font-family: var(--font-mono);
-  @apply text-[12px] bg-inset border border-line rounded-sm px-1 py-0.5 text-ink;
+  @apply text-[12px] bg-sunken border border-line rounded-sm px-1 py-0.5 text-ink;
 }
 .md pre {
-  @apply bg-inset border border-line rounded-md p-3 overflow-x-auto;
+  @apply bg-sunken border border-line rounded-md p-3 overflow-x-auto;
 }
 .md pre code {
   @apply bg-transparent border-0 p-0 text-ink-soft;
@@ -352,7 +352,7 @@ main {
   @apply border border-line px-2 py-1 text-left align-top;
 }
 .md th {
-  @apply bg-inset text-ink font-bold;
+  @apply bg-sunken text-ink font-bold;
 }
 .md a {
   @apply underline decoration-[1.5px] underline-offset-2 text-work-ink;

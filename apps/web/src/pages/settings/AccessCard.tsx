@@ -88,7 +88,7 @@ export function AccessCard() {
         {made && (
           <div className="space-y-3 text-sm">
             <p className="text-ink-soft">Shown once. Copy it now and hand it over in private; Foundry keeps only a fingerprint of it.</p>
-            <div className="flex items-center gap-2 rounded-md border border-line bg-inset px-3 py-2">
+            <div className="flex items-center gap-2 rounded-md border border-line bg-sunken px-3 py-2">
               <code className="mono font-semibold text-ink break-all">{made.token}</code>
               <CopyButton text={made.token} />
             </div>

@@ -61,7 +61,7 @@ export function CompanionDeliveries({ d }: { d: GoalDetail }) {
   const mine = (d.delegations?.goals ?? []).filter((g) => g.repoPath && g.repoPath !== d.goal.repoPath);
   if (!mine.length) return null;
   return (
-    <div className="mt-3 rounded-lg border border-line bg-inset p-3 text-xs space-y-1.5">
+    <div className="mt-3 rounded-lg border border-line bg-sunken p-3 text-xs space-y-1.5">
       <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink">Companion repositories</div>
       <p className="text-[11px] text-ink-faint">Each is delivered with this goal, the same way, by its delegated goal; its pull request is its own.</p>
       <ul className="space-y-1">

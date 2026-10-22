@@ -90,7 +90,7 @@ function OutputBlock({ goalId, item }: { goalId: string; item: Item }) {
   return (
     <div className="min-w-0">
       <div className="text-[11px] text-ink-faint truncate mb-1">{item.caption}</div>
-      <pre className="mono text-[11px] text-ink-soft bg-inset border border-line rounded-md p-2 max-h-48 overflow-auto whitespace-pre">{text ?? '…'}</pre>
+      <pre className="mono text-[11px] text-ink-soft bg-sunken border border-line rounded-md p-2 max-h-48 overflow-auto whitespace-pre">{text ?? '…'}</pre>
     </div>
   );
 }
@@ -156,7 +156,7 @@ export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evi
             return (
             <button key={m.file} type="button" onClick={open} disabled={why === 'gone'} title={m.caption} className="min-w-0 text-left group disabled:cursor-default">
               {/* media sit on black (a picture of files on the inset grey); a tile is outlined, and darkens its outline under the pointer */}
-              <span className={cn('relative block aspect-video overflow-hidden rounded-md border border-line-strong', why !== 'gone' && 'group-hover:border-ink-soft', files || why ? 'bg-inset' : 'bg-black')}>
+              <span className={cn('relative block aspect-video overflow-hidden rounded-md border border-line-strong', why !== 'gone' && 'group-hover:border-ink-soft', files || why ? 'bg-sunken' : 'bg-black')}>
                 {why === 'gone' ? (
                   <span className="flex h-full w-full items-center justify-center px-2 text-center text-[11px] text-ink-faint">not on this computer</span>
                 ) : why ? (
@@ -248,7 +248,7 @@ export function LikenessView({ goalId, look, subjects, running, fixTitle }: { go
   if (look.status === 'failed' || !look.verdict) return <div className="text-[11px] text-ink-soft">The likeness review gave no verdict{look.detail ? `: ${look.detail}` : ''}.</div>;
   return (
     // rounded-md: the guide's screenshot script finds this box by it
-    <div className="rounded-md border border-line bg-inset p-3 space-y-3">
+    <div className="rounded-md border border-line bg-sunken p-3 space-y-3">
       <div className="text-[11px] text-ink-soft">
         <span className="font-extrabold uppercase tracking-[0.1em] text-ink">Likeness to the pictures</span>
         {look.verdict.summary ? ` · ${look.verdict.summary}` : ''}
@@ -389,7 +389,7 @@ export function MilestonesCard({ d }: { d: GoalDetail }) {
     >
       {err && <div className="mb-2 text-[11px] text-bad-ink">{err}</div>}
       {(finalWalk || finalRunning) && (
-        <div className="mb-3 flex items-center gap-2 rounded-lg border border-line bg-inset px-3 py-2 text-xs">
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-line bg-sunken px-3 py-2 text-xs">
           <span className="font-bold text-ink">Final walkthrough</span>
           <StatusChip status={finalRunning ? 'running' : finalWalk!.passed ? 'pass' : 'fail'} />
           <span className="text-[11px] text-ink-faint truncate">

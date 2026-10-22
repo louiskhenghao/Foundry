@@ -68,11 +68,11 @@ export function OpsDock() {
             </button>
           )}
           {open && (
-            <button type="button" className="p-1 rounded text-ink-soft hover:text-ink hover:bg-inset shrink-0" onClick={() => setWide(tab.id)} title="open this log in a large window" aria-label="expand log">
+            <button type="button" className="p-1 rounded text-ink-soft hover:text-ink hover:bg-sunken shrink-0" onClick={() => setWide(tab.id)} title="open this log in a large window" aria-label="expand log">
               <Maximize2 size={14} />
             </button>
           )}
-          <button type="button" className="p-1 rounded text-ink-soft hover:text-ink hover:bg-inset shrink-0" onClick={() => setOpen(!open)} aria-label={open ? 'fold' : 'unfold'}>
+          <button type="button" className="p-1 rounded text-ink-soft hover:text-ink hover:bg-sunken shrink-0" onClick={() => setOpen(!open)} aria-label={open ? 'fold' : 'unfold'}>
             {open ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
           </button>
         </div>

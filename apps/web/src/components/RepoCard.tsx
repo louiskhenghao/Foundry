@@ -110,7 +110,7 @@ export function RepoCard({ path, info, onPath, onValidation }: { path: string; i
 
       {info && (
         // a usable repository on a quiet inset box, its heading in green (it passed); a folder that cannot be used in red
-        <div className={cn('rounded-lg border p-3 text-xs space-y-1.5', info.ok ? 'border-line bg-inset' : 'border-bad/40 bg-bad/5')}>
+        <div className={cn('rounded-lg border p-3 text-xs space-y-1.5', info.ok ? 'border-line bg-sunken' : 'border-bad/40 bg-bad/5')}>
           {info.ok ? (
             <>
               <div className="flex items-center gap-2 font-bold text-ok-ink">

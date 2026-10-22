@@ -42,7 +42,7 @@ export function GoalTypePresets({ picks, options, onPick, summary, onEdit, selec
     <div className="space-y-3">
       <SectionTitle>Preset per goal type</SectionTitle>
       {MODEL_NATURES.map((n) => (
-        <div key={n} className="rounded-lg border border-line bg-inset p-3 space-y-2">
+        <div key={n} className="rounded-lg border border-line bg-sunken p-3 space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-ink text-sm font-bold w-40">{NATURE_LABEL[n]}</span>
             <span className="w-48">
@@ -137,7 +137,7 @@ export function NatureTabs({ value, onChange }: { value: ModelNature; onChange: 
   return (
     <div className="inline-flex max-w-full flex-wrap gap-0.5 rounded-md bg-panel p-0.5 text-xs ring-1 ring-inset ring-line-strong">
       {MODEL_NATURES.map((n) => (
-        <button key={n} type="button" aria-pressed={value === n} onClick={() => onChange(n)} className={cn('grow rounded-sm px-2.5 py-1 font-semibold whitespace-nowrap', value === n ? 'bg-accent text-on-accent' : 'text-ink-soft hover:bg-inset hover:text-ink')}>
+        <button key={n} type="button" aria-pressed={value === n} onClick={() => onChange(n)} className={cn('grow rounded-sm px-2.5 py-1 font-semibold whitespace-nowrap', value === n ? 'bg-accent text-on-accent' : 'text-ink-soft hover:bg-sunken hover:text-ink')}>
           {NATURE_LABEL[n]}
         </button>
       ))}

@@ -149,7 +149,7 @@ export function ReportView({ report: r }: { report: Report }) {
               </thead>
               <tbody className="divide-y divide-line">
                 {r.repos.map((p) => (
-                  <tr key={p.repoPath} className="transition-colors hover:bg-inset">
+                  <tr key={p.repoPath} className="transition-colors hover:bg-sunken">
                     <td className="px-4 py-2.5">
                       <span className="mono font-bold text-ink" title={p.repoPath}>{p.name}</span>
                     </td>

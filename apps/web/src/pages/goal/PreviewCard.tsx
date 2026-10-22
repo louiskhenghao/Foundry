@@ -499,7 +499,7 @@ function Services({ goalId, svc, onChange, reload }: { goalId: string; svc: Serv
       {!docker && (
         <div className="space-y-1">
           <div className="text-ink">{svc.docker === 'in-container' ? "Foundry runs inside Docker without this computer's Docker shared with it. Run the installer again and allow sharing (foundry update), or start these yourself:" : 'Docker is not installed — install it, or start these yourself:'}</div>
-          <div className="flex items-start gap-2 rounded-md bg-inset border border-line px-2.5 py-1.5">
+          <div className="flex items-start gap-2 rounded-md bg-sunken border border-line px-2.5 py-1.5">
             <span className="mono text-[11px] text-ink break-all grow">{svc.command}</span>
             <CopyButton text={svc.command} />
           </div>
@@ -699,7 +699,7 @@ function EnvDialog({ open, env, goalId, anyRunning, onClose, onSaved, onReload }
           </span>
         </p>
         {env.checkout.files.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap rounded-lg border border-line bg-inset px-3 py-2 text-[11px] text-ink-soft">
+          <div className="flex items-center gap-2 flex-wrap rounded-lg border border-line bg-sunken px-3 py-2 text-[11px] text-ink-soft">
             <span className="min-w-0 flex-1">
               Your checkout has <span className="mono text-ink">{env.checkout.files.join(', ')}</span> ({env.checkout.keys.length} variables), which git keeps out of the goal's folder.
             </span>

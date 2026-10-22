@@ -78,7 +78,7 @@ function ScheduleForm({ initial, editing, busy, error, onClose, onSave }: { init
           </div>
         </Field>
         {/* the switch in the accent every checkbox has; its explanation under it */}
-        <label className="flex items-start gap-2.5 rounded-md bg-inset px-3 py-2.5 text-sm font-semibold text-ink cursor-pointer">
+        <label className="flex items-start gap-2.5 rounded-md bg-sunken px-3 py-2.5 text-sm font-semibold text-ink cursor-pointer">
           <input type="checkbox" className="mt-0.5" checked={autoApprove} onChange={(e) => setAutoApprove(e.target.checked)} />
           <span>
             Approve each run's Brief for me

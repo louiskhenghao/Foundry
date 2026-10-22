@@ -81,7 +81,7 @@ function AreaRow({ area, brief, goalId, editable, draftable, planning, edit, cou
   const empty = counts.tasks === 0;
   return (
     // a box inside the card; an Area left without tasks is outlined in red (not while the planner still fills them in)
-    <div className={cn('rounded-md border bg-inset p-2.5 space-y-1.5', empty && !planning ? 'border-bad/50' : 'border-line')}>
+    <div className={cn('rounded-md border bg-sunken p-2.5 space-y-1.5', empty && !planning ? 'border-bad/50' : 'border-line')}>
       <div className="flex items-center gap-2 flex-wrap">
         <span className="w-2 h-2 rounded-full shrink-0" style={{ background: style.dot }} aria-hidden="true" />
         {editable ? (

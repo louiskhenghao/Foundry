@@ -90,7 +90,7 @@ export function RunCard({ brief, editable, edit, goalId, selfCheck, milestonePau
             </p>
             <ul className="space-y-2">
               {apps.map((a, i) => (
-                <li key={i} className="rounded-md border border-line bg-inset p-2.5">
+                <li key={i} className="rounded-md border border-line bg-sunken p-2.5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,1.4fr)_minmax(0,1fr)] gap-2">
                     <Field label="Name">
                       <Input className="text-xs" disabled={!editable} placeholder="Web app" value={a.name} onChange={(e) => setApp(i, { name: e.target.value })} />

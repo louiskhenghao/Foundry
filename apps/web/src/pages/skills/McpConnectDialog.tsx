@@ -63,7 +63,7 @@ export function McpConnectDialog({ provider = 'claude', name, onClose }: { provi
         <div className="space-y-2">
           <div className="text-sm text-bad-ink">{s.error ?? `${backend} gave no link to connect this connector.`}</div>
           <div className="text-xs text-ink-soft">
-            Or run this in a terminal and open the link it prints: <code className="mono text-ink bg-inset border border-line rounded-sm px-1.5 py-0.5">{s.command}</code> <CopyButton text={s.command} />
+            Or run this in a terminal and open the link it prints: <code className="mono text-ink bg-sunken border border-line rounded-sm px-1.5 py-0.5">{s.command}</code> <CopyButton text={s.command} />
           </div>
         </div>
       ) : s.url ? (
@@ -111,11 +111,11 @@ export function McpConnectDialog({ provider = 'claude', name, onClose }: { provi
         <div className={cn('text-xs rounded-md border px-3 py-2', s.done && !s.ok ? 'border-you/50 bg-you/10 text-ink' : 'border-line text-ink-soft')}>
           <div className="mb-1">{s.done && !s.ok ? 'Sign in from a terminal instead: run this, open the link it prints, and paste back the address when it asks.' : 'Or run it in a terminal yourself:'}</div>
           <div className="flex items-center gap-2">
-            <code className="mono text-ink bg-inset border border-line rounded-sm px-2 py-1 break-all">{s.command}</code>
+            <code className="mono text-ink bg-sunken border border-line rounded-sm px-2 py-1 break-all">{s.command}</code>
             <CopyButton text={s.command} />
           </div>
         </div>
-        {s.lines.length > 0 && <pre className="mono text-[11px] text-ink-faint bg-inset border border-line rounded-md p-2 max-h-32 overflow-auto whitespace-pre-wrap">{s.lines.slice(-8).join('\n')}</pre>}
+        {s.lines.length > 0 && <pre className="mono text-[11px] text-ink-faint bg-sunken border border-line rounded-md p-2 max-h-32 overflow-auto whitespace-pre-wrap">{s.lines.slice(-8).join('\n')}</pre>}
       </div>
     );
   })();

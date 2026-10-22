@@ -87,7 +87,7 @@ export function AccountPoolList({ provider, pool, installed, onChange }: { provi
             // the current account ringed in the accent with a "current" plate, as the theme in use is on Appearance (an
             // inset-ring: with ring-inset the theme's colour named inset would win over ring-accent)
             <li key={a.id} className={cn('flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-panel px-3 py-2.5', a.current ? 'inset-ring-2 inset-ring-accent' : 'inset-ring inset-ring-line')}>
-              <span aria-hidden="true" className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-full border text-xs font-bold uppercase', a.current ? PROVIDER_STYLE[provider].tile : 'border-line-strong bg-inset text-ink-soft')}>
+              <span aria-hidden="true" className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-full border text-xs font-bold uppercase', a.current ? PROVIDER_STYLE[provider].tile : 'border-line-strong bg-sunken text-ink-soft')}>
                 {a.email ? a.email[0] : <Laptop size={15} strokeWidth={1.75} />}
               </span>
               <div className="min-w-0 grow basis-40">

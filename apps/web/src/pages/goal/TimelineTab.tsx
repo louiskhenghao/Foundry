@@ -340,7 +340,7 @@ export function TimelineView({ t, onOpenTask }: { t: GoalTimeline; onOpenTask?: 
                 {t.rows.map((r) => {
                   const head = r.kind === 'goal' || r.kind === 'delegated';
                   return (
-                    <div key={r.id} className={cn('relative h-8 sm:h-7 border-b border-line/70', head && 'bg-inset')}>
+                    <div key={r.id} className={cn('relative h-8 sm:h-7 border-b border-line/70', head && 'bg-sunken')}>
                       {segs.filter((s) => s.folded).map((s) => (
                         <span key={s.start} className="absolute inset-y-0" style={{ left: `${x(s.start)}%`, width: `${x(s.end) - x(s.start)}%`, ...FOLDED }} />
                       ))}
@@ -415,7 +415,7 @@ function Rail({ share, at, onMove, children }: { share: number; at: number; onMo
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round((at / Math.max(1e-6, 1 - share)) * 100)}
-      className="relative h-7 min-w-0 flex-1 cursor-pointer touch-none select-none overflow-hidden rounded-md border border-line bg-inset"
+      className="relative h-7 min-w-0 flex-1 cursor-pointer touch-none select-none overflow-hidden rounded-md border border-line bg-sunken"
       onPointerDown={(e) => {
         const p = pos(e);
         held.current = p >= at && p <= at + share ? p - at : share / 2;

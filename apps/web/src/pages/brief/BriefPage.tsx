@@ -384,7 +384,7 @@ export function BriefPage() {
                 </p>
               )}
               {editable && (
-                <div className="mt-4 rounded-md border border-line bg-inset p-3">
+                <div className="mt-4 rounded-md border border-line bg-sunken p-3">
                   <div className="text-xs text-ink-soft mb-2.5">
                     {isAuto ? (
                       <>

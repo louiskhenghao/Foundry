@@ -225,7 +225,7 @@ function Notices() {
 function Group({ title, marker, count, unit, open, onToggle, children }: { title: string; marker: ReactNode; count: number; unit: string; open: boolean; onToggle: () => void; children: ReactNode }) {
   return (
     <div className={cn(PANEL, 'overflow-hidden')}>
-      <button type="button" onClick={onToggle} aria-expanded={open} className="flex w-full items-center gap-2.5 px-4 py-3 text-left transition-colors hover:bg-inset">
+      <button type="button" onClick={onToggle} aria-expanded={open} className="flex w-full items-center gap-2.5 px-4 py-3 text-left transition-colors hover:bg-sunken">
         <ChevronRight size={14} className={cn('shrink-0 text-ink-faint transition-transform', open && 'rotate-90')} />
         <span className="flex w-4 shrink-0 justify-center">{marker}</span>
         <span className="text-sm font-bold text-ink">{title}</span>
@@ -242,7 +242,7 @@ function NoticeRow({ row, showLicense }: { row: Row; showLicense: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <li>
-      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-inset">
+      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-sunken">
         <span className="min-w-0 truncate text-[13px] font-semibold text-ink sm:w-56 sm:shrink-0">{row.name}</span>
         <span className="mono shrink-0 text-[11px] text-ink-faint sm:w-20">{bare(row.version)}</span>
         <span className="hidden min-w-0 flex-1 truncate text-[11px] text-ink-faint sm:block">{row.copyright?.split('\n')[0]}</span>
@@ -266,6 +266,6 @@ function NoticeRow({ row, showLicense }: { row: Row; showLicense: boolean }) {
 const LicenseText = ({ text, label }: { text: string; label?: string }) => (
   <div>
     {label && <div className="mb-1 text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">{label}</div>}
-    <pre className="mono max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-md border border-line bg-inset p-3 text-[11px] leading-relaxed text-ink-soft">{text}</pre>
+    <pre className="mono max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-md border border-line bg-sunken p-3 text-[11px] leading-relaxed text-ink-soft">{text}</pre>
   </div>
 );

@@ -67,7 +67,7 @@ export function TaskList({ tasks, selected, onSelect }: { tasks: DagTask[]; sele
               type="button"
               onClick={() => onSelect(selected === t.id ? null : t.id)}
               aria-pressed={selected === t.id}
-              className={cn('grid w-full grid-cols-[0.875rem_2rem_minmax(0,1fr)] md:grid-cols-[0.875rem_2rem_minmax(0,1fr)_auto_5.5rem] items-center gap-x-3 gap-y-2 rounded-md px-2 py-3.5 text-left transition-colors hover:bg-inset focus-visible:outline-2 focus-visible:outline-accent', selected === t.id && 'bg-inset')}
+              className={cn('grid w-full grid-cols-[0.875rem_2rem_minmax(0,1fr)] md:grid-cols-[0.875rem_2rem_minmax(0,1fr)_auto_5.5rem] items-center gap-x-3 gap-y-2 rounded-md px-2 py-3.5 text-left transition-colors hover:bg-sunken focus-visible:outline-2 focus-visible:outline-accent', selected === t.id && 'bg-sunken')}
             >
               <i className={cn('block h-3.5 w-3.5 rounded-[3.5px]', markFill[taskMark(t.state)])} aria-hidden="true" />
               <span className="mono text-[13px] font-bold text-ink-faint">T{num.get(t.id)}</span>

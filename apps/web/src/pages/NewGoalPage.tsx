@@ -493,7 +493,7 @@ export function NewGoalPage() {
           <span className="inline-flex items-center gap-1.5 rounded-md bg-panel text-ink text-[13px] font-semibold pl-2.5 pr-1 py-1 max-w-full ring-1 ring-inset ring-line-strong">
             <CornerDownRight size={13} className="shrink-0 text-work-ink" />
             <span className="truncate">Follows: {follow.draft.previous.title}</span>
-            <button type="button" className="rounded p-0.5 text-ink-soft hover:bg-inset hover:text-ink shrink-0" aria-label="Remove follows" title="This goal will not follow it" onClick={() => setFollow(null)}>
+            <button type="button" className="rounded p-0.5 text-ink-soft hover:bg-sunken hover:text-ink shrink-0" aria-label="Remove follows" title="This goal will not follow it" onClick={() => setFollow(null)}>
               <X size={12} />
             </button>
           </span>
@@ -651,7 +651,7 @@ export function NewGoalPage() {
           </div>
         </div>
         {missingPreset && <p role="alert" className="mt-3 text-xs text-bad-ink">The earlier goal’s preset “{selectedPreset}” is no longer available. Choose a preset for this new goal.</p>}
-        {provider === 'codex' && <div className="mt-4 space-y-3 rounded-lg border border-line bg-inset p-3">
+        {provider === 'codex' && <div className="mt-4 space-y-3 rounded-lg border border-line bg-sunken p-3">
           <p className="text-xs text-ink-soft">This goal captures its Codex preset and fallback order when created. An explicit effort above overrides every role; Default uses each role’s preset.</p>
           {nature === 'auto' && !codexPreset && <p className="text-xs text-ink-soft">Auto captures the defaults for every goal type. The preview shows Code roles until classification; the inferred type uses its captured Code (software and CAD), Docs & research or Media table.</p>}
           <label className="flex items-start gap-2 text-xs font-semibold text-ink"><input type="checkbox" className="mt-0.5" checked={codexOverride} onChange={(e) => setCodexOverride(e.target.checked)} />Use one model for every role in this goal</label>
@@ -660,7 +660,7 @@ export function NewGoalPage() {
           {unsupportedCodexChoices.length > 0 && <p role="alert" className="text-xs text-bad-ink">{unsupportedCodexChoices.join('; ')}. Choose a supported goal effort or update the preset in Settings.</p>}
           <p className="text-xs text-work-ink">Codex dollar costs are unavailable; dollar budgets do not stop runs. Use duration and attempt limits.</p>
         </div>}
-        {provider === 'agy' && <div className="mt-4 space-y-2 rounded-lg border border-line bg-inset p-3">
+        {provider === 'agy' && <div className="mt-4 space-y-2 rounded-lg border border-line bg-sunken p-3">
           <p className="text-xs text-ink-soft">Every role of this goal runs on the one model above, kept when the goal is created. Default is the model Settings names; Antigravity default follows the model agy itself is set to. An explicit effort applies to every role.</p>
           <p className="text-xs text-work-ink">Antigravity dollar costs are unavailable; dollar budgets do not stop runs. Use duration and attempt limits.</p>
         </div>}
@@ -719,7 +719,7 @@ export function NewGoalPage() {
                 {issue.read.issue.repo}#{issue.read.issue.number}
               </a>
               <span className="font-normal text-ink-faint">· {issue.read.issue.state}</span>
-              <button type="button" className="rounded p-0.5 hover:bg-inset hover:text-ink shrink-0" style={{ minHeight: 0 }} aria-label="Unlink issue" title="This goal is not made from the issue after all: its thread leaves the attachments; your text stays" onClick={unlinkIssue}>
+              <button type="button" className="rounded p-0.5 hover:bg-sunken hover:text-ink shrink-0" style={{ minHeight: 0 }} aria-label="Unlink issue" title="This goal is not made from the issue after all: its thread leaves the attachments; your text stays" onClick={unlinkIssue}>
                 <X size={12} />
               </button>
             </span>
@@ -882,7 +882,7 @@ function FollowsPicker({ follow, candidates, onPick, onChange }: { follow: Follo
         </Select>
       </div>
       {follow && d && (
-        <div className="rounded-lg border border-line bg-inset p-3 space-y-2 text-xs text-ink">
+        <div className="rounded-lg border border-line bg-sunken p-3 space-y-2 text-xs text-ink">
           <div className="flex items-center gap-2.5 flex-wrap">
             <span className="font-semibold text-ink-soft">Start from</span>
             <ButtonGroup

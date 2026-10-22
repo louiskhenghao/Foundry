@@ -31,7 +31,7 @@ export function ProviderSelector(props: SelectorProps) {
         {providers.map((provider) => (
           <label key={provider} className="relative grow cursor-pointer">
             <input className="peer sr-only" type="radio" name={`provider-${id}`} value={provider} checked={value === provider} onChange={() => select(provider)} aria-controls={controls?.[provider]} />
-            <span className={cn('flex min-h-8 items-center justify-center gap-1.5 rounded-sm px-3 text-[13px] font-semibold whitespace-nowrap transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent', value === provider ? 'bg-accent text-on-accent' : 'text-ink-soft hover:bg-inset hover:text-ink')}>
+            <span className={cn('flex min-h-8 items-center justify-center gap-1.5 rounded-sm px-3 text-[13px] font-semibold whitespace-nowrap transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent', value === provider ? 'bg-accent text-on-accent' : 'text-ink-soft hover:bg-sunken hover:text-ink')}>
               {provider === 'all' ? 'All agents' : PROVIDER_LABEL[provider]}
               {counts?.[provider] != null && <span className="mono tabular-nums opacity-70">{counts[provider]}</span>}
             </span>

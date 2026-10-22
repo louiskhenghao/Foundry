@@ -29,7 +29,7 @@ export function GitHubSignInDialog({ onClose }: { onClose: () => void }) {
         {session && (
           <>
             {/* signed in: green · failed: red · waiting for your approval on GitHub: yellow, it waits for you · asking: quiet */}
-            <div className={cn('rounded-md border p-3', session.done ? (session.ok ? 'border-ok/40 bg-ok/5 text-ok-ink' : 'border-bad/40 bg-bad/5 text-bad-ink') : waitingForCode ? 'border-line bg-inset text-ink-soft' : 'border-you/60 bg-you/10 font-semibold text-ink')}>
+            <div className={cn('rounded-md border p-3', session.done ? (session.ok ? 'border-ok/40 bg-ok/5 text-ok-ink' : 'border-bad/40 bg-bad/5 text-bad-ink') : waitingForCode ? 'border-line bg-sunken text-ink-soft' : 'border-you/60 bg-you/10 font-semibold text-ink')}>
               {session.done ? (session.ok ? `✔ Signed in${session.login ? ` as ${session.login}` : ''}.` : `✘ ${session.error ?? 'Sign-in failed'}`) : waitingForCode ? 'Asking GitHub for a code…' : 'Waiting for you to approve on GitHub…'}
             </div>
             {!session.done && session.code && (
@@ -37,7 +37,7 @@ export function GitHubSignInDialog({ onClose }: { onClose: () => void }) {
                 <li>
                   Copy the one-time code:
                   <div className="mt-1.5 flex items-center gap-2">
-                    <span className="mono text-2xl font-bold tracking-widest text-ink rounded-md bg-inset px-3 py-1 ring-1 ring-inset ring-line-strong">{session.code}</span>
+                    <span className="mono text-2xl font-bold tracking-widest text-ink rounded-md bg-sunken px-3 py-1 ring-1 ring-inset ring-line-strong">{session.code}</span>
                     <CopyButton text={session.code} />
                   </div>
                 </li>
@@ -58,7 +58,7 @@ export function GitHubSignInDialog({ onClose }: { onClose: () => void }) {
             {session.lines.length > 0 && (
               <details className="text-[11px] text-ink-faint">
                 <summary className="cursor-pointer">gh output</summary>
-                <pre className="mono mt-1 bg-inset border border-line rounded-md p-2 max-h-40 overflow-auto whitespace-pre-wrap">{session.lines.slice(-12).join('\n')}</pre>
+                <pre className="mono mt-1 bg-sunken border border-line rounded-md p-2 max-h-40 overflow-auto whitespace-pre-wrap">{session.lines.slice(-12).join('\n')}</pre>
               </details>
             )}
           </>

@@ -128,7 +128,7 @@ export function DeployCard({ d }: { d: GoalDetail }) {
             <span className="text-ink-faint">{scripts ? `(${scripts} script${scripts === 1 ? '' : 's'}; off for production by default, since a script writes what it tries)` : '(the goal has no milestone scripts)'}</span>
           </label>
           {chosen && !chosen.refused && info.plan.length > 0 && (
-            <div className="rounded-lg border border-line bg-inset p-3">
+            <div className="rounded-lg border border-line bg-sunken p-3">
               <div className="text-[11px] text-ink-faint mb-1.5">The exact commands, in a checkout of this goal's commit — nothing else runs:</div>
               <ol className="space-y-0.5">
                 {info.plan.map((s, i) => (
@@ -180,7 +180,7 @@ export function DeployCard({ d }: { d: GoalDetail }) {
                   <div className="mono text-[11px] text-ink-soft break-all">
                     <span className={p.exitCode === 0 ? 'text-ok-ink' : 'text-bad-ink'}>{p.exitCode === 0 ? '✓' : `✗ ${p.exitCode}`}</span> {p.command}
                   </div>
-                  {p.outputTail && <pre className="mono text-[11px] whitespace-pre-wrap text-ink-faint bg-inset border border-line rounded-md p-2 max-h-40 overflow-auto">{p.outputTail}</pre>}
+                  {p.outputTail && <pre className="mono text-[11px] whitespace-pre-wrap text-ink-faint bg-sunken border border-line rounded-md p-2 max-h-40 overflow-auto">{p.outputTail}</pre>}
                 </li>
               );
             })}

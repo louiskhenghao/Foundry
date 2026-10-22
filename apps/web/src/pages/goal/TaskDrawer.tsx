@@ -77,7 +77,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
     <section className="relative h-full flex flex-col overflow-y-auto lg:overflow-hidden rounded-lg border border-line bg-panel shadow-[0_1px_2px_rgb(0_0_0/0.05)]">
       {/* the × stays in the corner while the panel scrolls under it */}
       <div className="sticky top-0 z-10 h-0 shrink-0 flex justify-end">
-        <button type="button" className="mt-3 mr-3 h-fit rounded-md bg-panel/90 p-1.5 text-ink-faint hover:text-ink hover:bg-inset" onClick={onClose} aria-label="close">
+        <button type="button" className="mt-3 mr-3 h-fit rounded-md bg-panel/90 p-1.5 text-ink-faint hover:text-ink hover:bg-sunken" onClick={onClose} aria-label="close">
           <X size={16} />
         </button>
       </div>
@@ -301,7 +301,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
                 .map((r) => (
                   <details key={r.id} className="mt-2">
                     <summary className="text-xs font-semibold text-bad-ink cursor-pointer">✗ {d.checks.find((c) => c.id === r.checkId)?.name}</summary>
-                    <pre className="mono text-xs whitespace-pre-wrap text-ink-soft bg-inset border border-line rounded-md p-2.5 mt-1.5 max-h-64 overflow-auto">{r.summary}</pre>
+                    <pre className="mono text-xs whitespace-pre-wrap text-ink-soft bg-sunken border border-line rounded-md p-2.5 mt-1.5 max-h-64 overflow-auto">{r.summary}</pre>
                   </details>
                 ))}
             </>
@@ -336,7 +336,7 @@ function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; conclude
   );
   return (
     <div className="mb-4 space-y-2.5">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 rounded-lg border border-line bg-inset p-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 rounded-lg border border-line bg-sunken p-3">
         {cell('Result', <span className="flex items-center gap-1.5"><Badge state={running ? 'running' : a.state} />{a.resultSubtype && !running ? <span className="mono font-normal text-ink-faint">{a.resultSubtype}</span> : null}</span>)}
         {cell('Worker model', <span className="mono">{(workerModels.length ? workerModels : [a.model ?? '?']).join(' → ')}</span>, fallbacks.length ? `model fallback(s) on this goal: ${fallbacks.map((f) => `${f.from} → ${f.to}`).join(', ')}` : undefined)}
         {cell('Turns', d.goal.provider === 'codex' ? 'unavailable' : <><span className="mono">{a.numTurns}</span>{a.continuations > 0 ? ` over ${a.continuations + 1} segments` : ''}</>)}

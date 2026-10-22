@@ -231,7 +231,7 @@ function CatalogCard({ provider, c, others, running, onInstall }: { provider: Ag
   const start = () => (e.disclaimer ? setConfirming(true) : onInstall(keys));
   const otherInstalled = others.find((o) => o.installed);
   return (
-    <div className="rounded-md border border-line bg-inset p-3 space-y-1.5">
+    <div className="rounded-md border border-line bg-sunken p-3 space-y-1.5">
       <div className="flex items-center gap-2">
         <Badge state={e.tier} />
         <span className="mono text-sm font-semibold text-ink flex-1 truncate">{e.name}</span>

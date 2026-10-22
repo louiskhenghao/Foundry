@@ -95,7 +95,8 @@ export function paletteVars(p: Palette): Record<string, string> {
   const v: Record<string, string> = {
     page: p.page,
     panel: p.panel,
-    inset: p.inset,
+    // not "inset": Tailwind's ring-inset would then also set the ring's colour to it
+    sunken: p.inset,
     line: p.line,
     'line-strong': p.lineStrong,
     ink: p.ink,

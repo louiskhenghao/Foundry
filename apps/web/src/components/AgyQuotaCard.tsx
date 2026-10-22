@@ -8,7 +8,7 @@ export function AgyQuotaCard({ quota }: { quota?: Quota | null }) {
   return <Card title="Antigravity account quota" actions={quota && <span className="text-xs text-ink-faint">checked {new Date(quota.checkedAt).toLocaleString()}</span>}>
     {!quota ? <p className="text-xs text-ink-soft">Account quota has not been read yet. Refresh quota to read it from agy without running a model.</p> : quota.state !== 'available' ? <p className="text-xs text-ink-soft">{quota.error ?? 'agy reported no quota.'}</p> : <div className="space-y-3">
       <p className="text-xs text-ink-faint">The models of a group share one limit, use outside Foundry included. agy counts it by what the tokens cost, so short tasks and cheaper models make it last longer. A goal runs on one model: only its group's limit stops it.</p>
-      <div className={cn('grid grid-cols-1 gap-3', quota.groups.length > 1 && 'md:grid-cols-2')}>{quota.groups.map((group) => <section key={group.name} className="rounded-lg border border-line bg-inset p-3 min-w-0 space-y-3">
+      <div className={cn('grid grid-cols-1 gap-3', quota.groups.length > 1 && 'md:grid-cols-2')}>{quota.groups.map((group) => <section key={group.name} className="rounded-lg border border-line bg-sunken p-3 min-w-0 space-y-3">
         <div><h3 className="text-sm font-bold text-ink break-words">{group.name}</h3>{group.description && <div className="text-[11px] text-ink-faint">{group.description}</div>}</div>
         {group.buckets.length ? group.buckets.map((bucket) => <Bucket key={bucket.id || bucket.name} bucket={bucket} />) : <p className="text-xs text-ink-faint">No limits were returned for this group.</p>}
       </section>)}</div>

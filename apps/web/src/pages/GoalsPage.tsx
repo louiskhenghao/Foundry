@@ -255,7 +255,7 @@ export function GoalsPage() {
           </div>
         </div>
         {open && (
-          <ul id={panel} className="border-t border-line divide-y divide-line bg-inset/60">
+          <ul id={panel} className="border-t border-line divide-y divide-line bg-sunken/60">
             {/* the first goal's follows line is in the header; a follow-up names its goal only when that is not the row above */}
             {c.members.flatMap((m, i) => withDelegated(m, 1, i === 0 ? null : 'follow-up', i === 0 || m.follows?.goalId === c.members[i - 1]!.id ? null : followsTag(m)))}
           </ul>
@@ -385,7 +385,7 @@ function Tile({ g }: { g: GoalRow }) {
     : g.state === 'clarifying' || g.state === 'draft' ? [LoaderCircle, 'ring-2 ring-inset ring-ink text-ink']
     : g.state === 'failed' ? [X, 'bg-bad text-on-bad']
     : g.state === 'cancelled' ? [Ban, 'ring-1 ring-inset ring-line-strong text-ink-faint']
-    : isFinished(g) ? [Check, 'bg-inset ring-1 ring-inset ring-line-strong text-ink']
+    : isFinished(g) ? [Check, 'bg-sunken ring-1 ring-inset ring-line-strong text-ink']
     : [Hand, 'bg-you text-on-you'];
   return (
     <span className={cn('grid h-9 w-9 place-items-center rounded-lg', look)} aria-hidden="true">

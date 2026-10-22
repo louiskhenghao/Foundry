@@ -218,7 +218,7 @@ function Words({ segments, show }: { segments: DiffSegment[]; show: 'before' | '
 
 type ViewMode = 'inline' | 'split';
 
-const pane = 'rounded-md border border-line bg-inset px-3 py-2 text-sm leading-relaxed text-ink whitespace-pre-wrap break-words';
+const pane = 'rounded-md border border-line bg-sunken px-3 py-2 text-sm leading-relaxed text-ink whitespace-pre-wrap break-words';
 const PaneLabel = ({ children }: { children: ReactNode }) => <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint mb-1">{children}</div>;
 
 /** one field in the item's window: inline marks in one flow, or the old and the new side by side */

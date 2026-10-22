@@ -115,7 +115,7 @@ function CatalogRow({ c, busy, running, onInstall, onInstallTool }: { c: Catalog
   const satisfied = c.status.startsWith('installed');
   const type = c.entry.source.type;
   return (
-    <div className="rounded-md border border-line bg-inset p-2.5">
+    <div className="rounded-md border border-line bg-sunken p-2.5">
       <div className="flex items-center gap-2">
         <Badge state={c.status}>{c.status.replace(/-/g, ' ')}</Badge>
         <button className="mono text-[13px] font-semibold text-ink text-left flex-1 truncate hover:underline" onClick={() => setOpen(!open)} title={c.entry.summary}>
@@ -198,7 +198,7 @@ function CatalogEntryDialog({ c, open, onClose }: { c: CatalogEntryStatus; open:
             <div className="mb-1.5 text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">workflow rules</div>
             <ul className="space-y-1.5">
               {c.entry.workflow.map((w, i) => (
-                <li key={i} className="rounded-md border border-line bg-inset px-2.5 py-1.5">
+                <li key={i} className="rounded-md border border-line bg-sunken px-2.5 py-1.5">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <Badge state={w.mandate}>{w.mandate === 'must' ? 'MUST' : 'Prefer'}</Badge>
                     <span className="font-semibold text-ink">{w.role}</span>
@@ -213,7 +213,7 @@ function CatalogEntryDialog({ c, open, onClose }: { c: CatalogEntryStatus; open:
           </div>
         )}
         {c.manual && (
-          <div className="mono text-ink break-all rounded-md border border-line bg-inset px-2.5 py-1.5">
+          <div className="mono text-ink break-all rounded-md border border-line bg-sunken px-2.5 py-1.5">
             {c.manual.command} <CopyButton text={c.manual.command} />
           </div>
         )}
@@ -265,7 +265,7 @@ function HistoryBody({ runs }: { runs: (EngineEvent & { seq: number })[] }) {
               <span className="text-ink-faint">{p.changed?.length ? `${p.changed.length} changed` : ok ? 'no change' : 'failed'}</span>
             </button>
             {openSeq === e.seq && (
-              <pre className="mono text-[11px] text-ink-soft bg-inset border border-line rounded-md p-2 mt-1 max-h-40 overflow-auto whitespace-pre-wrap">
+              <pre className="mono text-[11px] text-ink-soft bg-sunken border border-line rounded-md p-2 mt-1 max-h-40 overflow-auto whitespace-pre-wrap">
                 $ {p.command?.join(' ')}
                 {'\n'}
                 {p.outputTail}

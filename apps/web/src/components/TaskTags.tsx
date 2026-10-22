@@ -3,7 +3,7 @@ import { cn } from '../ui.tsx';
 /** a task's traits as quiet chips, so its state and the signs carry the colour; only a step done by a goal of its own is violet */
 const CHIP = 'inline-block max-w-full truncate whitespace-nowrap rounded-sm border px-1.5 py-px text-[10.5px] leading-tight';
 const QUIET = 'border-line-strong/70 font-semibold text-ink-soft';
-const KIND = 'border-line-strong/70 bg-inset font-semibold text-ink';
+const KIND = 'border-line-strong/70 bg-sunken font-semibold text-ink';
 /** kind `goal`: done by a Delegated goal of its own, not by a worker session */
 const GOAL_KIND = 'border-extra/40 bg-extra/10 font-semibold text-extra-ink';
 const AREA = QUIET;

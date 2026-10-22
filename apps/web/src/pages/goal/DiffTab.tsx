@@ -90,7 +90,7 @@ function Code({ rows, name }: { rows: Row[]; name: string }) {
   const html = useHighlight(code.map((r) => r.text), name);
   let i = -1;
   return (
-    <div className="rounded-lg border border-line bg-inset overflow-auto max-h-[70vh]">
+    <div className="rounded-lg border border-line bg-sunken overflow-auto max-h-[70vh]">
       <table className="mono text-xs leading-5 w-full">
         <tbody>
           {rows.map((r, k) => {
@@ -171,11 +171,11 @@ function DiffDialog({ files, index, workspace, onIndex, onClose }: { files: File
           <CopyButton text={f.path} />
           {workspace && !deleted && <ButtonGroup label="Show" value={mode} onChange={setMode} options={[{ id: 'changes', label: 'Changes' }, { id: 'file', label: 'Whole file' }]} />}
           <span className="ml-auto flex items-center gap-1 mono text-ink-faint">
-            <button type="button" className="rounded-md p-1 text-ink-soft hover:text-ink hover:bg-inset disabled:opacity-30" disabled={index === 0} onClick={() => onIndex(index - 1)} aria-label="previous file" title="Previous file (←)">
+            <button type="button" className="rounded-md p-1 text-ink-soft hover:text-ink hover:bg-sunken disabled:opacity-30" disabled={index === 0} onClick={() => onIndex(index - 1)} aria-label="previous file" title="Previous file (←)">
               <ChevronLeft size={14} />
             </button>
             {index + 1} / {files.length}
-            <button type="button" className="rounded-md p-1 text-ink-soft hover:text-ink hover:bg-inset disabled:opacity-30" disabled={index === files.length - 1} onClick={() => onIndex(index + 1)} aria-label="next file" title="Next file (→)">
+            <button type="button" className="rounded-md p-1 text-ink-soft hover:text-ink hover:bg-sunken disabled:opacity-30" disabled={index === files.length - 1} onClick={() => onIndex(index + 1)} aria-label="next file" title="Next file (→)">
               <ChevronRight size={14} />
             </button>
           </span>
@@ -227,7 +227,7 @@ export function DiffTab({ goalId, baseBranch, branch, workspace }: { goalId: str
           );
         })}
       </ul>
-      {cut && <div className="rounded-lg border border-line bg-inset px-3 py-2 text-xs text-ink-soft">The diff is too long to show whole: it stops partway, so the last file is cut short and later files are missing.</div>}
+      {cut && <div className="rounded-lg border border-line bg-sunken px-3 py-2 text-xs text-ink-soft">The diff is too long to show whole: it stops partway, so the last file is cut short and later files are missing.</div>}
       {shown !== null && files[shown] && <DiffDialog files={files} index={shown} workspace={workspace} onIndex={setShown} onClose={() => setShown(null)} />}
     </div>
   );

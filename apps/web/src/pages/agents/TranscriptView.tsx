@@ -116,7 +116,7 @@ export function TranscriptView({ sessionId, agentId, className }: { sessionId: s
               </button>
             );
           };
-          if (it.kind === 'user') return line('my-1 py-1 bg-inset font-medium text-ink', oneLine(it.text), <span className={cn(ROLE, 'bg-ink text-on-ink')}>you</span>);
+          if (it.kind === 'user') return line('my-1 py-1 bg-sunken font-medium text-ink', oneLine(it.text), <span className={cn(ROLE, 'bg-ink text-on-ink')}>you</span>);
           if (it.kind === 'command') return line('mono text-[12px] text-ink-soft', it.args && oneLine(it.args), <span className={cn(TOOL, 'inset-ring-extra/50 text-extra-ink')}>/{it.name}</span>);
           if (it.kind === 'notice') return line('italic text-ink-faint', oneLine(it.text));
           if (it.kind === 'assistant') return line('text-ink', oneLine(it.text));

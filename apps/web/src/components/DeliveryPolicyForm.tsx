@@ -81,7 +81,7 @@ export function DeliveryPolicyForm({ value, onChange, repo, taskCount = null, lo
   return (
     <div className="space-y-3">
       {locked && (
-        <div className="flex items-start gap-2 rounded-md border border-line bg-inset px-2.5 py-2 text-xs text-ink-soft">
+        <div className="flex items-start gap-2 rounded-md border border-line bg-sunken px-2.5 py-2 text-xs text-ink-soft">
           <Lock size={12} className="mt-0.5 shrink-0 text-ink-faint" />
           <span>{locked.reason}</span>
         </div>

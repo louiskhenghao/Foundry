@@ -35,7 +35,7 @@ export function CodexModelsCard({ goal }: { goal: ModelGoal }) {
           {/* one table per kind of goal, the current one open; a table's head in the board's small capitals */}
           {MODEL_NATURES.map((nature) => (
             <details key={`${nature}-${currentNature}`} open={nature === currentNature} className="overflow-hidden rounded-lg border border-line">
-              <summary className="cursor-pointer px-3 py-2 font-semibold text-ink hover:bg-inset">{NATURE_LABEL[nature]}{nature === currentNature ? ' · current' : ' · saved table'}</summary>
+              <summary className="cursor-pointer px-3 py-2 font-semibold text-ink hover:bg-sunken">{NATURE_LABEL[nature]}{nature === currentNature ? ' · current' : ' · saved table'}</summary>
               <div className="overflow-x-auto px-3 pb-3">
                 <table className="w-full text-left text-[11px]">
                   <thead className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-faint"><tr><th className="py-1.5 pr-3 font-extrabold">Role</th><th className="py-1.5 pr-3 font-extrabold">Effective model</th><th className="py-1.5 font-extrabold">Reasoning</th></tr></thead>

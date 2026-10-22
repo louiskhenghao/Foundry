@@ -142,7 +142,7 @@ export function HelpPage() {
         {err ? <Empty>{err}</Empty> : !page ? <div className="text-ink-faint text-sm">…</div> : (
           <>
             {title && <PageHeader title={<span id={headingAnchor(title)} className="scroll-mt-16">{title}</span>} />}
-            {lang === 'zh' && page.lang === 'en' && <div className="mb-4 rounded-md border border-line bg-inset px-3 py-2 text-xs text-ink-soft">这一页还没有中文版，下面是英文原文。</div>}
+            {lang === 'zh' && page.lang === 'en' && <div className="mb-4 rounded-md border border-line bg-sunken px-3 py-2 text-xs text-ink-soft">这一页还没有中文版，下面是英文原文。</div>}
             <article className="md guide text-[15px] leading-7">
               <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={components as never}>
                 {markdown}

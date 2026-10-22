@@ -79,7 +79,7 @@ export function UpdateDialog({ open, onClose, status }: { open: boolean; onClose
           You run <span className="mono font-bold text-ink">{status.current}</span> ({cap.mode} install) — <span className="mono font-bold text-ink">{status.latest}</span> is available.
         </p>
         {status.changelog.length > 0 && (
-          <div className="max-h-56 overflow-auto rounded-md border border-line bg-inset p-3 space-y-3">
+          <div className="max-h-56 overflow-auto rounded-md border border-line bg-sunken p-3 space-y-3">
             {status.changelog.map((c) => (
               <div key={c.version}>
                 <div className="text-xs font-bold text-ink mono">{c.version}</div>
@@ -133,7 +133,7 @@ export function UpdateDialog({ open, onClose, status }: { open: boolean; onClose
                 ? 'This container has no watchtower sidecar, so it cannot replace itself — run these on the host (the newest docker-compose.yml adds the sidecar for one-click updates):'
                 : 'This install cannot update itself — run these in the Foundry directory, then restart:'}
             </p>
-            <div className="rounded-md border border-line bg-inset p-3 space-y-1">
+            <div className="rounded-md border border-line bg-sunken p-3 space-y-1">
               {cap.guided.map((cmd) => (
                 <div key={cmd} className="flex items-center gap-2 text-[12px] mono text-ink">
                   <span className="text-ink-faint">$</span> {cmd} <CopyButton text={cmd} />

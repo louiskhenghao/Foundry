@@ -53,7 +53,7 @@ export function TaskCard({ task, brief, goalId, editable, open, onOpen, onClose,
         tabIndex={0}
         onClick={onOpen}
         onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onOpen()}
-        className={cn('rounded-md border bg-inset transition-colors cursor-pointer hover:border-line-strong focus-visible:outline-2 focus-visible:outline-accent', problem && editable ? 'border-bad/50' : 'border-line')}
+        className={cn('rounded-md border bg-sunken transition-colors cursor-pointer hover:border-line-strong focus-visible:outline-2 focus-visible:outline-accent', problem && editable ? 'border-bad/50' : 'border-line')}
       >
         <div className="flex items-center gap-2 flex-wrap p-2.5">
           <span className="mono text-[13px] font-bold text-ink-faint w-7">{task.key}</span>

@@ -226,7 +226,7 @@ function GroupCard({ g, open, onToggle, onOpen, onKill }: { g: SessionGroup; ope
           </span>
         </div>
       </div>
-      {open && <div id={panel} className="border-t border-line bg-inset/60"><SessionList rows={g.rows} inGoal={g.kind === 'goal'} onOpen={onOpen} onKill={onKill} /></div>}
+      {open && <div id={panel} className="border-t border-line bg-sunken/60"><SessionList rows={g.rows} inGoal={g.kind === 'goal'} onOpen={onOpen} onKill={onKill} /></div>}
     </li>
   );
 }

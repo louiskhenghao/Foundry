@@ -292,7 +292,7 @@ function Side({ side, text, name }: { side: 'ours' | 'theirs'; text: string | nu
         <span className={cn('h-2 w-2 rounded-full', side === 'ours' ? 'bg-ok' : 'bg-work')} aria-hidden="true" />
         <span className={LABEL}>{side === 'ours' ? 'Ours · goal branch' : 'Theirs · task branch'}</span>
       </div>
-      {text == null ? <div className="text-xs text-ink-faint italic rounded-md border border-line bg-inset p-3">The file does not exist on this side.</div> : <CodeView text={text} name={name} className="max-h-[40vh]" />}
+      {text == null ? <div className="text-xs text-ink-faint italic rounded-md border border-line bg-sunken p-3">The file does not exist on this side.</div> : <CodeView text={text} name={name} className="max-h-[40vh]" />}
     </div>
   );
 }

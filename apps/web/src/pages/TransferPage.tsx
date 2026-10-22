@@ -103,7 +103,7 @@ export function ExportPanel({ initialGoals }: { initialGoals?: GoalRow[] }) {
         <div className="pl-6 space-y-2">
           <ButtonGroup label="Which goals" value={which} onChange={setWhich} options={[{ id: 'all', label: `All goals${goals ? ` (${goals.length})` : ''}` }, { id: 'pick', label: 'Choose goals' }]} />
           {which === 'pick' && (
-            <div className="max-h-64 overflow-auto rounded-md border border-line bg-inset divide-y divide-line">
+            <div className="max-h-64 overflow-auto rounded-md border border-line bg-sunken divide-y divide-line">
               {(goals ?? []).map((g) => (
                 <div key={g.id} className="px-2.5 py-1.5 flex items-center gap-2 flex-wrap">
                   <Check checked={picked.has(g.id)} onChange={(v) => toggle(g.id, v)}>
@@ -248,7 +248,7 @@ export function ImportPanel({ initial }: { initial?: IncomingReport }) {
           {report.goals.length > 0 && (
             <div className="space-y-1.5">
               <div className={LABEL}>Goals</div>
-              <div className="max-h-64 overflow-auto rounded-md border border-line bg-inset divide-y divide-line">
+              <div className="max-h-64 overflow-auto rounded-md border border-line bg-sunken divide-y divide-line">
                 {report.goals.map((g) => (
                   <div key={g.id} className="px-2.5 py-1.5 flex items-center gap-2 flex-wrap">
                     <Check checked={goals.has(g.id)} disabled={g.status !== 'new'} onChange={(v) => toggle(g.id, v)}>

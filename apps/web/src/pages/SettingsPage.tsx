@@ -329,7 +329,7 @@ export function SettingsPage() {
         </div>
       )}
       {msg && (
-        <div className="flex items-start gap-2 rounded-md border border-line bg-inset px-3 py-2 text-xs text-ink">
+        <div className="flex items-start gap-2 rounded-md border border-line bg-sunken px-3 py-2 text-xs text-ink">
           <Check size={13} className="mt-px shrink-0 text-ok-ink" aria-hidden="true" />
           {msg}
         </div>
@@ -789,7 +789,7 @@ export function SettingsPage() {
           </div>
           {upd?.error && <p className="text-[11px] text-bad-ink">✘ {upd.error}</p>}
           {upd?.updateAvailable && upd.changelog.length > 0 && (
-            <div className="max-h-40 overflow-auto rounded-md border border-line bg-inset p-3 space-y-2">
+            <div className="max-h-40 overflow-auto rounded-md border border-line bg-sunken p-3 space-y-2">
               {upd.changelog.map((c) => (
                 <div key={c.version}>
                   <div className="text-xs font-bold text-ink mono">{c.version}</div>

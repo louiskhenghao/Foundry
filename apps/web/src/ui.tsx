@@ -300,9 +300,9 @@ export function PageHeader({ title, help, summary, actions, className }: { title
 }
 
 /** a board's row: hovering it tints it and raises a bar of ink at its left edge */
-export const BOARD_ROW = 'group relative transition-colors hover:bg-inset before:absolute before:inset-y-0 before:left-0 before:w-1 before:origin-top before:scale-y-0 before:bg-ink before:transition-transform hover:before:scale-y-100';
+export const BOARD_ROW = 'group relative transition-colors hover:bg-sunken before:absolute before:inset-y-0 before:left-0 before:w-1 before:origin-top before:scale-y-0 before:bg-ink before:transition-transform hover:before:scale-y-100';
 /** a board's row of column labels, when it has columns */
-export const BOARD_HEAD = 'border-b border-line bg-inset px-5 py-2.5 text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint';
+export const BOARD_HEAD = 'border-b border-line bg-sunken px-5 py-2.5 text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint';
 
 /**
  * A board of rows (goals, sessions, ports…), as on the Goals page: a heading in capitals with its count and a note, then

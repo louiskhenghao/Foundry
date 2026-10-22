@@ -29,7 +29,7 @@ export function MergeStatus({ goal, className }: { goal: Goal; className?: strin
   };
   return (
     // a box inside the card it sits in (the Delivery tab's, the Simple view's Result)
-    <div className={cn('rounded-md border border-line bg-inset p-3 space-y-2 text-xs', className)}>
+    <div className={cn('rounded-md border border-line bg-sunken p-3 space-y-2 text-xs', className)}>
       {merged ? (
         <Line ok label={`Merged into ${base} on GitHub`} />
       ) : closed.length ? (

@@ -11,7 +11,7 @@ export function CheckRow({ check, brief, editable, context, onChange, onRemove }
   const problem = checkProblem(check);
   return (
     // a box inside the card, outlined in red while the engine would reject it
-    <div className={cn('rounded-md border bg-inset p-2.5 space-y-1.5', problem && editable ? 'border-bad/50' : 'border-line')}>
+    <div className={cn('rounded-md border bg-sunken p-2.5 space-y-1.5', problem && editable ? 'border-bad/50' : 'border-line')}>
       <div className="flex items-center gap-2 flex-wrap">
         <button disabled={!editable} onClick={() => onChange({ ...check, tier: check.tier === 'must' ? 'stretch' : 'must' })} title="Must = what you asked for; Stretch = proposed extra. Click to toggle.">
           <Badge state={check.tier} />

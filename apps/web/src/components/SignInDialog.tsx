@@ -107,7 +107,7 @@ export function SignInDialog({ onClose, provider: selectedProvider, add = false 
               {session.deviceCode ? (
                 <>
                   <p className="text-xs text-ink-soft">Enter this one-time code on the page below (it expires in 15 minutes):</p>
-                  <div className="flex items-center justify-between gap-3 rounded-lg border border-line-strong bg-inset px-4 py-3">
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-line-strong bg-sunken px-4 py-3">
                     <span className="mono text-2xl font-bold tracking-[0.2em] text-ink">{session.deviceCode}</span>
                     <CopyButton text={session.deviceCode} />
                   </div>
@@ -139,7 +139,7 @@ export function SignInDialog({ onClose, provider: selectedProvider, add = false 
           )}
 
           {session?.url && !session.done && (
-            <div className="flex items-center gap-2 rounded-lg border border-line bg-inset px-3 py-2 text-xs">
+            <div className="flex items-center gap-2 rounded-lg border border-line bg-sunken px-3 py-2 text-xs">
               <span className="shrink-0 text-ink-faint">{codex ? 'Open this page, sign in to ChatGPT and enter the code:' : 'If the browser did not open, use this link:'}</span>
               <a className="flex min-w-0 items-center gap-1 truncate font-semibold text-work-ink underline underline-offset-2" href={session.url} target="_blank" rel="noreferrer">
                 <ExternalLink size={12} aria-hidden="true" className="shrink-0" />
@@ -152,12 +152,12 @@ export function SignInDialog({ onClose, provider: selectedProvider, add = false 
           {session && session.lines.length > 0 && (
             <details className="text-xs">
               <summary className="cursor-pointer text-ink-faint hover:text-ink">What the sign-in printed</summary>
-              <pre className="mono mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-line bg-inset p-2 text-[11px] text-ink-faint">{session.lines.slice(-12).join('\n')}</pre>
+              <pre className="mono mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-line bg-sunken p-2 text-[11px] text-ink-faint">{session.lines.slice(-12).join('\n')}</pre>
             </details>
           )}
         </div>
 
-        <footer className="flex justify-end gap-2 border-t border-line bg-inset px-5 py-3">
+        <footer className="flex justify-end gap-2 border-t border-line bg-sunken px-5 py-3">
           {!session && (
             <>
               <Button size="sm" variant="ghost" onClick={onClose}>Cancel</Button>

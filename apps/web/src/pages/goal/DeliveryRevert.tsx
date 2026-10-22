@@ -22,7 +22,7 @@ export function RevertRows({ reverts }: { reverts: DeliveryRevert[] }) {
       {reverts.map((r) => {
         const s = REVERT_STATUS[r.status];
         return (
-          <li key={r.id} className="rounded-lg border border-line bg-inset p-3 space-y-1">
+          <li key={r.id} className="rounded-lg border border-line bg-sunken p-3 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <Undo2 size={13} className="text-ink-faint" />
               <Badge state={s.state}>{s.label}</Badge>

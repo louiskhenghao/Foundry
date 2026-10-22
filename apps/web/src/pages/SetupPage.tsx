@@ -28,7 +28,7 @@ function BundleStatus({ provider, bundle, busy, onInstall }: { provider: AgentPr
     <div className="space-y-2">
       <div className="flex flex-wrap gap-1.5">
         {entries.map((c) => (
-          <span key={c.entry.id} className="inline-flex items-center gap-1 rounded-sm bg-inset px-1.5 py-0.5 text-[11px] ring-1 ring-inset ring-line">
+          <span key={c.entry.id} className="inline-flex items-center gap-1 rounded-sm bg-sunken px-1.5 py-0.5 text-[11px] ring-1 ring-inset ring-line">
             {/* installed: solid green · a loose copy (installed, not by Foundry): hollow green · missing: grey */}
             <span className={cn('h-1.5 w-1.5 rounded-full', c.status === 'installed' || c.status === 'installed-via-plugin' ? 'bg-ok' : c.status === 'installed-unmanaged' ? 'ring-1 ring-inset ring-ok' : 'bg-line-strong')} />
             <span className="mono text-ink">{c.entry.name}</span>
@@ -231,7 +231,7 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
                       </Link>
                     )}
                     {c.fix.command && (
-                      <span className="mono break-all bg-inset ring-1 ring-inset ring-line rounded px-2 py-1 text-ink">
+                      <span className="mono break-all bg-sunken ring-1 ring-inset ring-line rounded px-2 py-1 text-ink">
                         {c.fix.command} <CopyButton text={c.fix.command} />
                       </span>
                     )}
@@ -253,7 +253,7 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
           <p className="text-[11px] text-ink-faint mt-2">{installLog === 'markitdown' ? 'First install downloads Python 3.12 and the converters (1–3 min). Existing attachments can be converted afterwards with "retry" on the Goal page.' : 'Runs the documented install command on this machine; the check above re-runs every few seconds until it passes.'}</p>
         </Card>
       )}
-      {msg && <div className="rounded-md border border-line bg-inset px-3 py-2 text-xs text-ink whitespace-pre-wrap">{msg}</div>}
+      {msg && <div className="rounded-md border border-line bg-sunken px-3 py-2 text-xs text-ink whitespace-pre-wrap">{msg}</div>}
 
       <Card title="Development workflow — Matt Pocock's engineering skills">
         <p className="text-xs text-ink-soft mb-3">
@@ -300,7 +300,7 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
             {cadTools.detail}
             {cadTools.fix?.command ? (
               <>
-                {' '}— <span className="mono break-all bg-inset ring-1 ring-inset ring-line rounded px-2 py-1 text-ink">{cadTools.fix.command} <CopyButton text={cadTools.fix.command} /></span>
+                {' '}— <span className="mono break-all bg-sunken ring-1 ring-inset ring-line rounded px-2 py-1 text-ink">{cadTools.fix.command} <CopyButton text={cadTools.fix.command} /></span>
               </>
             ) : null}
           </p>

@@ -98,7 +98,7 @@ export function FolderPicker({ initial, onPick, onClose }: { initial?: string; o
         </header>
         <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-[220px_1fr]">
           {/* the side list on the inset: recent repositories, then the places to browse from, the one shown marked by a bar */}
-          <aside className="bg-inset border-b md:border-b-0 md:border-r border-line p-2 overflow-auto max-h-40 md:max-h-none">
+          <aside className="bg-sunken border-b md:border-b-0 md:border-r border-line p-2 overflow-auto max-h-40 md:max-h-none">
             {meta?.recent.length ? (
               <>
                 <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint px-2.5 py-1 flex items-center gap-1.5">
@@ -147,7 +147,7 @@ export function FolderPicker({ initial, onPick, onClose }: { initial?: string; o
               {err && <div className="text-xs text-bad-ink p-2">{err}</div>}
               {newName !== null && (
                 <form
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-inset"
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-sunken"
                   onSubmit={(e) => {
                     e.preventDefault();
                     void create();
@@ -164,13 +164,13 @@ export function FolderPicker({ initial, onPick, onClose }: { initial?: string; o
                 </form>
               )}
               {listing?.parent && (
-                <button onClick={() => go(listing.parent!)} className="mono w-full text-left px-2 py-1.5 rounded-md text-xs text-ink-soft hover:bg-inset">
+                <button onClick={() => go(listing.parent!)} className="mono w-full text-left px-2 py-1.5 rounded-md text-xs text-ink-soft hover:bg-sunken">
                   ..
                 </button>
               )}
               {listing?.entries.map((e) => (
                 // the folder in the path field below is outlined in the accent, as a chosen option is
-                <div key={e.path} className={cn('group flex items-center gap-2 px-2 py-1.5 rounded-md text-sm', typed === e.path ? 'bg-accent/[0.06] shadow-[inset_0_0_0_1.5px_var(--color-accent)]' : 'hover:bg-inset')}>
+                <div key={e.path} className={cn('group flex items-center gap-2 px-2 py-1.5 rounded-md text-sm', typed === e.path ? 'bg-accent/[0.06] shadow-[inset_0_0_0_1.5px_var(--color-accent)]' : 'hover:bg-sunken')}>
                   <button className="flex items-center gap-2 flex-1 min-w-0 text-left" onDoubleClick={() => go(e.path)} onClick={() => setTyped(e.path)} title="double-click to open">
                     {e.isGitRepo ? <FolderGit2 size={14} className="text-ink shrink-0" /> : <Folder size={14} className="text-ink-faint shrink-0" />}
                     <span className={cn('truncate text-ink', typed === e.path && 'font-bold')}>{e.name}</span>

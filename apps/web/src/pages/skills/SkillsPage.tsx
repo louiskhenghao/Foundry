@@ -344,7 +344,7 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
                 return (
                   <>
                     {fm && (
-                      <div className="rounded-md border border-line bg-inset p-2.5 text-xs space-y-0.5">
+                      <div className="rounded-md border border-line bg-sunken p-2.5 text-xs space-y-0.5">
                         {fm.split('\n').map((line, i) => {
                           const k = line.match(/^([\w-]+):\s*(.*)$/);
                           return k ? (

@@ -100,7 +100,7 @@ export function DesignPacks({ onInstallStarted, compact, pack = 'design', provid
               {o.entries.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {o.entries.map((e) => (
-                    <span key={e.id} className="inline-flex items-center gap-1 rounded-sm bg-inset px-1.5 py-0.5 text-[11px] ring-1 ring-inset ring-line" title={e.detail}>
+                    <span key={e.id} className="inline-flex items-center gap-1 rounded-sm bg-sunken px-1.5 py-0.5 text-[11px] ring-1 ring-inset ring-line" title={e.detail}>
                       {/* installed: solid green · a loose copy (installed, not by Foundry): hollow green · missing: grey */}
                       <span className={cn('h-1.5 w-1.5 rounded-full', e.status === 'installed' || e.status === 'installed-via-plugin' ? 'bg-ok' : e.status === 'installed-unmanaged' ? 'ring-1 ring-inset ring-ok' : 'bg-line-strong')} />
                       <span className="mono text-ink-soft">{e.invoke}</span>

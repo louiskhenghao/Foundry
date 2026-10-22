@@ -86,7 +86,7 @@ export function LiveLog({ attemptId, className }: { attemptId: string; className
     <>
       {/* a box inside the panel, ink on the inset grey in light and dark alike: what the agent said in ink, its tools in blue,
           failures in red, the rest quiet */}
-      <div ref={ref} className={cn('mono text-[12px] leading-5 text-ink bg-inset border border-line rounded-lg p-3 overflow-auto max-h-[420px]', className)}>
+      <div ref={ref} className={cn('mono text-[12px] leading-5 text-ink bg-sunken border border-line rounded-lg p-3 overflow-auto max-h-[420px]', className)}>
         {items.length === 0 && <div className="text-ink-faint">{loaded ? 'no output recorded yet…' : 'loading…'}</div>}
         {items.map((it, i) => {
           const ev = it.event;

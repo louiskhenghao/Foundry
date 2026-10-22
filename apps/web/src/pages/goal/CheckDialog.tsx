@@ -78,7 +78,7 @@ export function CheckDialog({ goalId, check, results, taskName, initial, onClose
           </div>
           {spec.type === 'command' && (
             <div className="flex items-start gap-2">
-              <pre className="mono flex-1 min-w-0 rounded-md bg-inset border border-line px-2.5 py-2 text-[11.5px] text-ink whitespace-pre-wrap break-all">{spec.cmd}</pre>
+              <pre className="mono flex-1 min-w-0 rounded-md bg-sunken border border-line px-2.5 py-2 text-[11.5px] text-ink whitespace-pre-wrap break-all">{spec.cmd}</pre>
               <CopyButton text={spec.cmd} />
             </div>
           )}
@@ -94,7 +94,7 @@ export function CheckDialog({ goalId, check, results, taskName, initial, onClose
             <ul className="divide-y divide-line overflow-hidden rounded-lg border border-line">
               {runs.map((r) => (
                 <li key={r.id}>
-                  <button type="button" onClick={() => setPicked(r)} className={cn('w-full flex items-center gap-2 px-2.5 py-2 text-left transition-colors hover:bg-inset', picked?.id === r.id && 'bg-inset shadow-[inset_3px_0_0_var(--color-accent)]')}>
+                  <button type="button" onClick={() => setPicked(r)} className={cn('w-full flex items-center gap-2 px-2.5 py-2 text-left transition-colors hover:bg-sunken', picked?.id === r.id && 'bg-sunken shadow-[inset_3px_0_0_var(--color-accent)]')}>
                     <Badge state={r.status} />
                     <span className="mono text-ink-soft">{ago(r.at)}</span>
                     <span className="text-ink-faint">{r.attemptId ? 'task attempt' : 'goal review'}</span>

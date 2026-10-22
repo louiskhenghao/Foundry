@@ -79,7 +79,7 @@ export function AccountsPage() {
         {status?.error && <p className="px-4 sm:px-5 -mt-1 pb-3 text-xs text-ink-faint">{status.error}</p>}
         {provider === 'agy'
           ? <div className="border-t border-line px-4 sm:px-5 py-4 text-[13px] text-ink-soft space-y-1.5">
-              <p>Antigravity signs in from a terminal: run <code className="mono rounded-sm bg-inset px-1 py-0.5 text-[12px] text-ink">agy</code> once (it opens the browser), then refresh. <code className="mono rounded-sm bg-inset px-1 py-0.5 text-[12px] text-ink">/logout</code> inside agy signs out.</p>
+              <p>Antigravity signs in from a terminal: run <code className="mono rounded-sm bg-sunken px-1 py-0.5 text-[12px] text-ink">agy</code> once (it opens the browser), then refresh. <code className="mono rounded-sm bg-sunken px-1 py-0.5 text-[12px] text-ink">/logout</code> inside agy signs out.</p>
               <p className="text-ink-faint">Antigravity holds one account: its CLI has no folder of its own to point at, and on macOS every agy sign-in shares one Keychain item.</p>
             </div>
           : account?.pool && <div className="border-t border-line px-4 sm:px-5 py-4"><AccountPoolList provider={provider} pool={account.pool} installed={account.installed} onChange={load} /></div>}

@@ -85,7 +85,7 @@ export function usePortRelease(onDone: () => void): { ask: (row: PortRow) => voi
 export function PortLine({ row, onRelease, highlight, standalone, plain }: { row: PortRow; onRelease: (row: PortRow) => void; odd?: boolean; highlight?: boolean; standalone?: boolean; plain?: boolean }) {
   const where = [plain ? null : row.addresses.length ? row.addresses.join(', ') : null, row.pid ? `pid ${row.pid}` : null].filter(Boolean).join(' · ');
   return (
-    <li className={cn('py-2.5 grid grid-cols-[3.5rem_minmax(0,1fr)] md:grid-cols-[3.5rem_minmax(0,1fr)_10rem_13rem] gap-x-3 gap-y-1 items-center text-xs', standalone ? 'pl-1 pr-1 sm:pr-2' : cn(BOARD_ROW, 'pl-6 sm:pl-10 pr-4 md:pr-5'), highlight && 'bg-inset shadow-[inset_4px_0_0_var(--color-ink)]')}>
+    <li className={cn('py-2.5 grid grid-cols-[3.5rem_minmax(0,1fr)] md:grid-cols-[3.5rem_minmax(0,1fr)_10rem_13rem] gap-x-3 gap-y-1 items-center text-xs', standalone ? 'pl-1 pr-1 sm:pr-2' : cn(BOARD_ROW, 'pl-6 sm:pl-10 pr-4 md:pr-5'), highlight && 'bg-sunken shadow-[inset_4px_0_0_var(--color-ink)]')}>
       <span className="mono text-[15px] font-bold text-ink tabular-nums text-right">{row.port}</span>
       <div className="min-w-0">
         {/* plain: the card already names the program and its folder, so the row says where it listens */}
@@ -185,7 +185,7 @@ function GroupCard({ g, onRelease, wanted, open, onToggle }: { g: Group; onRelea
         {g.meta.length > 0 && <div className={cn('mt-1 text-xs text-ink-faint truncate pl-6', g.key.startsWith('pid:') && 'mono')} title={g.meta.join(' · ')}>{g.meta.join(' · ')}</div>}
       </div>
       {open && (
-        <ul className="border-t border-line divide-y divide-line bg-inset/60">
+        <ul className="border-t border-line divide-y divide-line bg-sunken/60">
           {g.rows.map((r) => (
             <PortLine key={r.id} row={r} onRelease={onRelease} highlight={r.port === wanted} plain={g.key.startsWith('pid:')} />
           ))}

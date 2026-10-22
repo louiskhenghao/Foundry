@@ -104,7 +104,7 @@ function SubjectRow({ goalId, subject: s, searching, editable, busy, act, onView
           )}
         </div>
         {editable && (
-          <button type="button" className="shrink-0 rounded p-1 text-ink-faint hover:text-bad-ink hover:bg-inset" title="Remove this Subject" aria-label={`Remove ${s.name}`} onClick={() => void act(`rm-${s.key}`, () => api.removeSubject(goalId, s.key))}>
+          <button type="button" className="shrink-0 rounded p-1 text-ink-faint hover:text-bad-ink hover:bg-sunken" title="Remove this Subject" aria-label={`Remove ${s.name}`} onClick={() => void act(`rm-${s.key}`, () => api.removeSubject(goalId, s.key))}>
             <X size={13} />
           </button>
         )}

@@ -46,7 +46,7 @@ export function AttachmentViewer({ a, goalId, onClose }: { a: Attachment; goalId
         <>
           {inline === 'image' && <img src={original} alt={a.name} className="max-h-[70vh] max-w-full rounded border border-line mx-auto" />}
           {inline === 'pdf' && <iframe src={original} title={a.name} className="w-full h-[70vh] rounded border border-line bg-white" />}
-          {inline === 'text' && (text === null ? <div className="text-xs text-ink-faint">loading…</div> : <pre className="mono text-xs text-ink whitespace-pre-wrap max-h-[70vh] overflow-auto rounded-md border border-line bg-inset p-3">{text}</pre>)}
+          {inline === 'text' && (text === null ? <div className="text-xs text-ink-faint">loading…</div> : <pre className="mono text-xs text-ink whitespace-pre-wrap max-h-[70vh] overflow-auto rounded-md border border-line bg-sunken p-3">{text}</pre>)}
           {inline === null && (
             <div className="text-sm text-ink-soft">
               This file type cannot be previewed here.{' '}
@@ -128,7 +128,7 @@ export function AttachmentList({ items, goalId, onRemove, onReconvert, compact }
           </>
         );
         return (
-          <div key={a.id} className="group relative flex items-center gap-2 rounded-md border border-line bg-inset p-1.5 pr-2 hover:border-line-strong">
+          <div key={a.id} className="group relative flex items-center gap-2 rounded-md border border-line bg-sunken p-1.5 pr-2 hover:border-line-strong">
             <button type="button" onClick={() => setView(a)} className="flex items-center gap-2 min-w-0 text-left" title={a.markdown?.status === 'ready' ? 'view the extracted markdown or the original' : 'view'}>
               {inner}
             </button>

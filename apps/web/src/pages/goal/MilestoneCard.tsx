@@ -91,7 +91,7 @@ export function MilestoneCard({ d }: { d: GoalDetail }) {
         <div className="border-t border-line pt-4 space-y-3">
           <Textarea className="w-full text-sm min-h-[72px]" placeholder="What did you see? Anything to change, keep, or that is wrong… (leave empty and press Continue if it looks right)" value={text} onChange={(e) => { setText(e.target.value); setPlan(null); }} disabled={!esc || busy !== null} />
           {plan && (
-            <div className="rounded-md border border-line bg-inset p-3 space-y-2">
+            <div className="rounded-md border border-line bg-sunken p-3 space-y-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <MessageSquare size={13} className="text-work-ink" aria-hidden="true" />
                 <span className="font-semibold text-ink">This becomes:</span>

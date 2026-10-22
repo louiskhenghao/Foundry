@@ -39,7 +39,7 @@ export function ProjectSkillsCard({ d }: { d: GoalDetail }) {
               <dt className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-faint pt-1">{name}</dt>
               <dd className="flex flex-wrap gap-1">
                 {list.map((s) => (
-                  <span key={s} className="mono rounded-sm bg-inset px-1.5 py-px text-[11px] text-ink ring-1 ring-inset ring-line" title={`/${s}`}>
+                  <span key={s} className="mono rounded-sm bg-sunken px-1.5 py-px text-[11px] text-ink ring-1 ring-inset ring-line" title={`/${s}`}>
                     {s}
                   </span>
                 ))}

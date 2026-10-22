@@ -263,7 +263,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
           </div>
         )}
         {open && mcpDenied.length > 0 && e.taskId && mcpAllowed && mcpToAllow.length === 0 && (
-          <div className="rounded-md border border-line bg-inset px-3 py-2 text-xs text-ink-soft">
+          <div className="rounded-md border border-line bg-sunken px-3 py-2 text-xs text-ink-soft">
             Refused MCP server: <span className="mono text-ink">{mcpNames}</span>. It is already allowed in goals, so something else stopped it — often it needs signing in.{' '}
             <Link to={`/skills?provider=${e.provider}#mcp`} className="font-semibold text-work-ink underline">
               Check it under Extensions → MCP servers
@@ -273,7 +273,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
         )}
         {open && mcpDenied.length > 0 && (mcpError || !e.provider) && <p className="text-xs text-bad-ink">{mcpError ?? 'The goal backend is unavailable; MCP permissions cannot be changed here.'}</p>}
         {open && mcpToAllow.length > 0 && e.taskId && mcpAllowed && (
-          <div className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-inset px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-sunken px-3 py-2">
             <span className="text-xs text-ink-soft">
               Refused MCP server: <span className="mono text-ink">{mcpNames}</span> — goals may only use servers you allowed.
             </span>
@@ -319,7 +319,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
       </div>
 
       {/* footer: help from the AI on the left, the answers on the right — or what was answered */}
-      <footer className={cn('flex flex-wrap items-center gap-2 border-t border-line bg-inset py-3', pad)}>
+      <footer className={cn('flex flex-wrap items-center gap-2 border-t border-line bg-sunken py-3', pad)}>
         {open ? (
           <>
             {canSuggest && (

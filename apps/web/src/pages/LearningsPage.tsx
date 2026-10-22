@@ -219,7 +219,7 @@ function FolderCard({ repo, rows, filtering, open, onToggle, startAdding, onSave
         </div>
       </div>
       {open && (
-        <div id={panel} className="border-t border-line bg-inset/60">
+        <div id={panel} className="border-t border-line bg-sunken/60">
           {n === 0 ? (
             <div className="pl-8 sm:pl-12 pr-4 md:pr-5 py-3.5 text-[13px] text-ink-faint">{everywhere ? 'Nothing yet. Add how you like things done in every project: the package manager, the language of comments and commits, a rule for every reviewer.' : 'Nothing yet. Add a command, a path, a convention or a pitfall the next goal here should know.'}</div>
           ) : (
