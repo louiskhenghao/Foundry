@@ -298,6 +298,32 @@ export function PageHeader({ title, help, summary, actions, className }: { title
   );
 }
 
+/** a board's row: hovering it tints it and raises a bar of ink at its left edge */
+export const BOARD_ROW = 'group relative transition-colors hover:bg-inset before:absolute before:inset-y-0 before:left-0 before:w-1 before:origin-top before:scale-y-0 before:bg-ink before:transition-transform hover:before:scale-y-100';
+/** a board's row of column labels, when it has columns */
+export const BOARD_HEAD = 'border-b border-line bg-inset px-5 py-2.5 text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint';
+
+/**
+ * A board of rows (goals, sessions, ports…), as on the Goals page: a heading in capitals with its count and a note, then
+ * the rows on a panel. `head` is an optional row of column labels (styled with BOARD_HEAD); rows are <li>s, with BOARD_ROW.
+ */
+export function Board({ id, icon, title, count, note, head, children, className }: { id?: string; icon?: ReactNode; title: ReactNode; count?: ReactNode; note?: ReactNode; head?: ReactNode; children: ReactNode; className?: string }) {
+  return (
+    <section aria-labelledby={id} className={cn('mt-10 first:mt-0', className)}>
+      <h2 id={id} className="mb-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] font-extrabold uppercase tracking-[0.12em] text-ink">
+        {icon}
+        {title}
+        {count != null && <b className="mono text-[13px] tracking-normal">{count}</b>}
+        {note && <span className="w-full sm:w-auto sm:ml-auto text-[13px] font-semibold normal-case tracking-normal text-ink-faint">{note}</span>}
+      </h2>
+      <div className="overflow-hidden rounded-xl bg-panel shadow-[0_0_0_1px_var(--color-line),0_1px_2px_rgb(0_0_0/0.06)]">
+        {head}
+        <ul className="divide-y divide-line">{children}</ul>
+      </div>
+    </section>
+  );
+}
+
 /** a filter chip in a row of them (all, by kind…): the chosen one filled with the accent */
 export const chipClass = (active: boolean) => cn('rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset transition-colors', active ? 'bg-accent text-on-accent ring-accent' : 'ring-line-strong text-ink-soft hover:text-ink');
 

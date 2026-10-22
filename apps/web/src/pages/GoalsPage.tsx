@@ -11,7 +11,7 @@ import { ProviderBadge, shortCwd } from './agents/rows.tsx';
 import { boardOf, isFinished, needOf, waited, type Need } from './goal-boards.ts';
 import { listEntries, type GoalChain, type ListEntry } from './goal-chains.ts';
 import { useLive } from '../store.ts';
-import { Button, Empty, PageHeader, ago, cn, fmtUsd, stateLabel } from '../ui.tsx';
+import { BOARD_HEAD, BOARD_ROW, Board, Button, Empty, PageHeader, ago, cn, fmtUsd, stateLabel } from '../ui.tsx';
 
 /** Trait chip (nature, pace, view mode): quiet, so the state and the signs carry the colour. */
 function Chip({ className, children, title }: { className?: string; children: ReactNode; title?: string }) {
@@ -322,12 +322,12 @@ export function GoalsPage() {
             </section>
           )}
 
-          <Board id="working" icon={<Play size={14} aria-hidden="true" />} title="Working" count={working.length} note={working.length ? 'nothing needed from you here' : null}>
+          <Board id="working" icon={<Play size={14} aria-hidden="true" />} title="Working" count={working.length} note={working.length ? 'nothing needed from you here' : null} head={HEAD}>
             {working.length ? items(working) : <li className="px-5 py-6 text-sm text-ink-faint">Nothing is under way.</li>}
           </Board>
 
           {finished.length > 0 && (
-            <Board id="finished" icon={<Check size={14} aria-hidden="true" />} title="Finished" count={finished.length} note={null}>
+            <Board id="finished" icon={<Check size={14} aria-hidden="true" />} title="Finished" count={finished.length} head={HEAD}>
               {items(shown)}
             </Board>
           )}
@@ -365,30 +365,17 @@ export function GoalsPage() {
 }
 
 /** a board row's grid: tile, goal, then stage, spend and time, updated (from md up; a phone wraps them under the title) */
-const ROW = 'group relative grid grid-cols-[2.25rem_minmax(0,1fr)] md:grid-cols-[2.25rem_minmax(0,1fr)_10rem_9rem_4.5rem] items-start gap-x-4 gap-y-3 px-4 md:px-5 py-4 transition-colors hover:bg-inset before:absolute before:inset-y-0 before:left-0 before:w-1 before:origin-top before:scale-y-0 before:bg-ink before:transition-transform hover:before:scale-y-100';
-
-function Board({ id, icon, title, count, note, children }: { id: string; icon: ReactNode; title: string; count: number; note: ReactNode; children: ReactNode }) {
-  return (
-    <section aria-labelledby={id} className="mt-10 first:mt-0">
-      <h2 id={id} className="mb-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] font-extrabold uppercase tracking-[0.12em] text-ink">
-        {icon}
-        {title}
-        <b className="mono text-[13px] tracking-normal">{count}</b>
-        {note && <span className="w-full sm:w-auto sm:ml-auto text-[13px] font-semibold normal-case tracking-normal text-ink-faint">{note}</span>}
-      </h2>
-      <div className="overflow-hidden rounded-xl bg-panel shadow-[0_0_0_1px_var(--color-line),0_1px_2px_rgb(0_0_0/0.06)]">
-        <div aria-hidden="true" className="hidden md:grid grid-cols-[2.25rem_minmax(0,1fr)_10rem_9rem_4.5rem] gap-x-4 border-b border-line bg-inset px-5 py-2.5 text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">
-          <span />
-          <span>Goal</span>
-          <span>Stage · tasks</span>
-          <span>Spent · time</span>
-          <span className="text-right">Updated</span>
-        </div>
-        <ul className="divide-y divide-line">{children}</ul>
-      </div>
-    </section>
-  );
-}
+const ROW = cn(BOARD_ROW, 'grid grid-cols-[2.25rem_minmax(0,1fr)] md:grid-cols-[2.25rem_minmax(0,1fr)_10rem_9rem_4.5rem] items-start gap-x-4 gap-y-3 px-4 md:px-5 py-4');
+/** the boards' column labels */
+const HEAD = (
+  <div aria-hidden="true" className={cn(BOARD_HEAD, 'hidden md:grid grid-cols-[2.25rem_minmax(0,1fr)_10rem_9rem_4.5rem] gap-x-4')}>
+    <span />
+    <span>Goal</span>
+    <span>Stage · tasks</span>
+    <span>Spent · time</span>
+    <span className="text-right">Updated</span>
+  </div>
+);
 
 /** the tile at the start of a row: what kind of moment the goal is in, in the shape of the rest of the system */
 function Tile({ g }: { g: GoalRow }) {
