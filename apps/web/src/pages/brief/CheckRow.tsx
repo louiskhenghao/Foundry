@@ -10,12 +10,14 @@ import { assignCheck, checkProblem, convertCheck } from './shared.ts';
 export function CheckRow({ check, brief, editable, context, onChange, onRemove }: { check: BriefCheck; brief: Brief; editable: boolean; context: 'task' | 'goal'; onChange: (c: BriefCheck) => void; onRemove: () => void }) {
   const problem = checkProblem(check);
   return (
-    <div className={cn('rounded-md border bg-zinc-950/50 p-2 space-y-1.5', problem && editable ? 'border-rose-500/40' : 'border-zinc-800')}>
+    // a box inside the card, outlined in red while the engine would reject it
+    <div className={cn('rounded-md border bg-inset p-2.5 space-y-1.5', problem && editable ? 'border-bad/50' : 'border-line')}>
       <div className="flex items-center gap-2 flex-wrap">
         <button disabled={!editable} onClick={() => onChange({ ...check, tier: check.tier === 'must' ? 'stretch' : 'must' })} title="Must = what you asked for; Stretch = proposed extra. Click to toggle.">
           <Badge state={check.tier} />
         </button>
-        <span className="w-24 shrink-0">
+        {/* wide enough for "Command" beside the select's arrow */}
+        <span className="w-28 shrink-0">
           <Select disabled={!editable} className="text-xs py-1" value={check.spec.type === 'reviewer' ? 'reviewer' : 'command'} onChange={(e) => onChange(convertCheck(check, e.target.value as 'command' | 'reviewer'))} title="Command: a shell command that must exit 0. Reviewer: a session with the goal’s backend judges the diff against a rubric.">
             <option value="command">Command</option>
             <option value="reviewer">Reviewer</option>
@@ -68,9 +70,9 @@ export function CheckRow({ check, brief, editable, context, onChange, onRemove }
           return <Input className="text-xs" disabled={!editable} placeholder="rubric: what the reviewer must verify in the diff" value={spec.rubric} onChange={(e) => onChange({ ...check, spec: { ...spec, rubric: e.target.value } })} />;
         })()
       ) : (
-        <div className="text-[11px] text-zinc-500">{check.spec.type === 'selfcheck' ? 'self-check: the engine opens the preview in headless Chromium, screenshots it and fails on console or network errors' : `llm-judge: ${check.spec.prompt}`}</div>
+        <div className="text-xs text-ink-faint">{check.spec.type === 'selfcheck' ? 'self-check: the engine opens the preview in headless Chromium, screenshots it and fails on console or network errors' : `llm-judge: ${check.spec.prompt}`}</div>
       )}
-      {problem && editable && <div className="text-[11px] text-rose-300">{problem}</div>}
+      {problem && editable && <div className="text-xs font-semibold text-bad-ink">{problem}</div>}
     </div>
   );
 }

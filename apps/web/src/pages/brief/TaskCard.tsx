@@ -24,10 +24,10 @@ function DepChip({ taskKey, title, onOpen }: { taskKey: string; title: string; o
         e.stopPropagation();
         onOpen(taskKey);
       }}
-      className="max-w-56 truncate rounded border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-zinc-300 hover:border-zinc-400 hover:text-zinc-100 text-left"
+      className="max-w-56 truncate rounded-sm border border-line-strong bg-panel px-1.5 py-0.5 text-ink-soft hover:border-ink hover:text-ink text-left"
       title={title}
     >
-      <span className="mono text-zinc-500">{taskKey}</span>
+      <span className="mono font-bold text-ink-faint">{taskKey}</span>
       {title !== taskKey && <> {title}</>}
     </button>
   );
@@ -53,17 +53,17 @@ export function TaskCard({ task, brief, goalId, editable, open, onOpen, onClose,
         tabIndex={0}
         onClick={onOpen}
         onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onOpen()}
-        className={cn('rounded-md border bg-zinc-950/50 transition-colors cursor-pointer hover:border-zinc-500', problem && editable ? 'border-rose-500/40' : 'border-zinc-800')}
+        className={cn('rounded-md border bg-inset transition-colors cursor-pointer hover:border-line-strong focus-visible:outline-2 focus-visible:outline-accent', problem && editable ? 'border-bad/50' : 'border-line')}
       >
         <div className="flex items-center gap-2 flex-wrap p-2.5">
-          <span className="mono text-xs text-zinc-500 w-7">{task.key}</span>
-          <span className="text-sm flex-1 min-w-0 truncate">{task.title || <span className="text-zinc-500">(untitled)</span>}</span>
-          {problem && editable && <span className="text-xs text-rose-300 whitespace-nowrap">{problem}</span>}
+          <span className="mono text-[13px] font-bold text-ink-faint w-7">{task.key}</span>
+          <span className="text-sm font-bold text-ink flex-1 min-w-0 truncate">{task.title || <span className="font-normal text-ink-faint">(untitled)</span>}</span>
+          {problem && editable && <span className="text-xs font-semibold text-bad-ink whitespace-nowrap">{problem}</span>}
           <TaskTags kind={task.kind} scenario={task.scenario} difficulty={task.difficulty ?? 'standard'} />
-          {brief.areas.length > 0 && <span className={cn('text-[10px] rounded-full border px-2 py-0.5 whitespace-nowrap', style.chip)}>{area?.name ?? 'unassigned'}</span>}
+          {brief.areas.length > 0 && <span className={style.chip}>{area?.name ?? 'unassigned'}</span>}
           {checks.length > 0 && (
-            <span className="text-[10px] text-zinc-500 flex items-center gap-1 whitespace-nowrap" title="acceptance checks on this task">
-              <ListChecks size={11} /> {checks.length}
+            <span className="mono text-[11px] text-ink-faint flex items-center gap-1 whitespace-nowrap" title="acceptance checks on this task">
+              <ListChecks size={12} /> {checks.length}
             </span>
           )}
           {editable && (
@@ -79,13 +79,13 @@ export function TaskCard({ task, brief, goalId, editable, open, onOpen, onClose,
               <Trash2 size={13} />
             </Button>
           )}
-          <Maximize2 size={12} className="text-zinc-600" />
+          <Maximize2 size={12} className="text-ink-faint" />
         </div>
         {(task.dependsOnKeys.length > 0 || next.length > 0) && (
           <div className="px-2.5 pb-2.5 -mt-1 space-y-1.5 text-[11px]" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             {task.dependsOnKeys.length > 0 && (
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[10px] uppercase tracking-wide text-zinc-500 w-9 shrink-0" title="this task starts only after these are done">After</span>
+                <span className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-faint w-10 shrink-0" title="this task starts only after these are done">After</span>
                 {task.dependsOnKeys.map((k) => (
                   <DepChip key={k} taskKey={k} title={titleOf(brief, k)} onOpen={onOpenTask} />
                 ))}
@@ -93,7 +93,7 @@ export function TaskCard({ task, brief, goalId, editable, open, onOpen, onClose,
             )}
             {next.length > 0 && (
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[10px] uppercase tracking-wide text-zinc-500 w-9 shrink-0" title="these tasks wait for this one">Next</span>
+                <span className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-faint w-10 shrink-0" title="these tasks wait for this one">Next</span>
                 {next.map((t) => (
                   <DepChip key={t.key} taskKey={t.key} title={t.title || t.key} onOpen={onOpenTask} />
                 ))}
@@ -137,8 +137,8 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
     <Modal open wide title={`${task.key} · ${task.title || 'untitled task'}`} onClose={onClose}>
       <div className="space-y-5">
         <div className="flex items-center gap-2">
-          {editable ? <Input className="flex-1 min-w-48" placeholder="imperative title, e.g. add teacher dashboard" value={task.title} onChange={(e) => change({ title: e.target.value })} /> : <span className="text-sm flex-1">{task.title}</span>}
-          {problem && editable && <span className="text-xs text-rose-300 whitespace-nowrap">{problem}</span>}
+          {editable ? <Input className="flex-1 min-w-48" placeholder="imperative title, e.g. add teacher dashboard" value={task.title} onChange={(e) => change({ title: e.target.value })} /> : <span className="text-sm font-bold text-ink flex-1">{task.title}</span>}
+          {problem && editable && <span className="text-xs font-semibold text-bad-ink whitespace-nowrap">{problem}</span>}
           {editable && (
             <Button size="sm" variant="ghost" onClick={onRemove} title="Remove task (and its checks)">
               <Trash2 size={13} />
@@ -164,18 +164,18 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
             width="w-72"
             align="left"
             trigger={({ toggle }) => (
-              <button disabled={!editable || brief.tasks.length <= 1} onClick={toggle} className="rounded border border-zinc-700 px-2 py-0.5 text-zinc-300 hover:border-zinc-500 disabled:opacity-60 disabled:cursor-default text-left">
+              <button disabled={!editable || brief.tasks.length <= 1} onClick={toggle} className="rounded-md border border-line-strong px-2 py-1 font-semibold text-ink hover:border-ink disabled:opacity-60 disabled:cursor-default text-left">
                 {after.length ? (
                   <>
-                    <span className="text-zinc-500">runs after</span> {after.map((t) => t.title || t.key).join(', ')}
+                    <span className="font-normal text-ink-faint">runs after</span> {after.map((t) => t.title || t.key).join(', ')}
                   </>
                 ) : (
-                  <span className="text-zinc-500">runs first (no dependencies)</span>
+                  <span className="font-normal text-ink-faint">runs first (no dependencies)</span>
                 )}
               </button>
             )}
           >
-            <div className="px-1 py-1 text-[11px] text-zinc-500">This task starts only after the ticked tasks are done.</div>
+            <div className="px-1 py-1 text-[11px] text-ink-faint">This task starts only after the ticked tasks are done.</div>
             {brief.tasks
               .filter((t) => t.key !== task.key)
               .map((t) => {
@@ -184,22 +184,22 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
                   <MenuItem key={t.key} onClick={() => change({ dependsOnKeys: on ? task.dependsOnKeys.filter((k) => k !== t.key) : [...task.dependsOnKeys, t.key] })}>
                     <span className="flex items-center gap-2">
                       <input type="checkbox" readOnly checked={on} />
-                      <span className="mono text-zinc-500">{t.key}</span>
+                      <span className="mono font-bold text-ink-faint">{t.key}</span>
                       <span className="truncate">{t.title || '(untitled)'}</span>
                     </span>
                   </MenuItem>
                 );
               })}
           </Menu>
-          <label className="text-zinc-400 flex items-center gap-1 whitespace-nowrap" title="May run at the same time as other ready tasks (in its own worktree)">
+          <label className="text-ink-soft flex items-center gap-1.5 whitespace-nowrap" title="May run at the same time as other ready tasks (in its own worktree)">
             <input type="checkbox" disabled={!editable} checked={task.parallelizable} onChange={(e) => change({ parallelizable: e.target.checked })} /> parallel
           </label>
-          <label className="text-zinc-400 flex items-center gap-1 whitespace-nowrap" title="A feature you can see: when this task lands Foundry records what it shows (by its script when it has one), and every feature is shown again in the final walkthrough">
+          <label className="text-ink-soft flex items-center gap-1.5 whitespace-nowrap" title="A feature you can see: when this task lands Foundry records what it shows (by its script when it has one), and every feature is shown again in the final walkthrough">
             <input type="checkbox" disabled={!editable} checked={task.milestone != null} onChange={(e) => change(e.target.checked ? { milestone: task.milestone ?? '' } : { milestone: null, milestoneScript: null })} /> milestone
           </label>
           {next.length > 0 && (
             <span className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-zinc-500" title="tasks that wait for this one — click to open">→ next</span>
+              <span className="text-ink-faint" title="tasks that wait for this one — click to open">→ next</span>
               {next.map((t) => (
                 <DepChip key={t.key} taskKey={t.key} title={t.title || t.key} onOpen={onOpenTask} />
               ))}
@@ -209,7 +209,7 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
           <label className="block">
-            <span className="text-zinc-500">Area</span>
+            <span className="font-semibold text-ink-soft">Area</span>
             <Select disabled={!editable} className="text-xs py-1 mt-0.5" value={task.areaKey ?? ''} onChange={(e) => change({ areaKey: e.target.value || null })}>
               <option value="">unassigned</option>
               {brief.areas.map((a) => (
@@ -220,7 +220,7 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
             </Select>
           </label>
           <label className="block">
-            <span className="text-zinc-500">Kind</span>
+            <span className="font-semibold text-ink-soft">Kind</span>
             <Select disabled={!editable} className="text-xs py-1 mt-0.5" value={task.kind} onChange={(e) => change({ kind: e.target.value as BriefTask['kind'] })} title="feature / bug (reproduce first) / refactor / research / chore — selects the worker's workflow skills; goal = a delegated goal of its own does this step (its own Clarify and plan), one at a time">
               {TASK_KINDS.map((k) => (
                 <option key={k} value={k}>
@@ -230,7 +230,7 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
             </Select>
           </label>
           <label className="block">
-            <span className="text-zinc-500">Scenario</span>
+            <span className="font-semibold text-ink-soft">Scenario</span>
             <Select disabled={!editable} className="text-xs py-1 mt-0.5" value={task.scenario} onChange={(e) => change({ scenario: e.target.value as BriefTask['scenario'] })} title="Where the work happens — UI tasks get the design skills">
               {TASK_SCENARIOS.map((s) => (
                 <option key={s} value={s}>
@@ -240,7 +240,7 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
             </Select>
           </label>
           <label className="block">
-            <span className="text-zinc-500">difficulty</span>
+            <span className="font-semibold text-ink-soft">difficulty</span>
             <Select disabled={!editable} className="text-xs py-1 mt-0.5" value={task.difficulty ?? 'standard'} onChange={(e) => change({ difficulty: e.target.value as NonNullable<BriefTask['difficulty']> })} title="Picks the model the worker runs on (the Simple / Standard / Complex rows of the goal's preset). Simple: config, copy edits, scaffolding, one small component. Standard: typical feature work. Complex: cross-cutting changes, architecture, migrations, concurrency, large refactors.">
               <option value="simple">simple — config, copy, small component</option>
               <option value="standard">standard — typical feature work</option>
@@ -248,31 +248,31 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
             </Select>
           </label>
           <label className="block">
-            <span className="text-zinc-500">TDD</span>
+            <span className="font-semibold text-ink-soft">TDD</span>
             <Select disabled={!editable} className="text-xs py-1 mt-0.5" value={task.tdd} onChange={(e) => change({ tdd: e.target.value as BriefTask['tdd'] })} title="inherit the goal's discipline, or switch TDD off for this task (docs / infra tasks are off automatically)">
               <option value="inherit">inherit</option>
               <option value="off">off</option>
             </Select>
           </label>
           <label className="block">
-            <span className="text-zinc-500">Commit scope</span>
+            <span className="font-semibold text-ink-soft">Commit scope</span>
             <Input disabled={!editable} className="mono text-xs py-1 mt-0.5" placeholder={area?.slug ?? 'optional'} value={task.scope ?? ''} onChange={(e) => change({ scope: e.target.value || null })} title="Conventional Commits scope: feat(<scope>): … — blank = the Area's slug" />
           </label>
         </div>
 
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[10px] uppercase tracking-wide text-zinc-400">Spec</span>
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">Spec</span>
             {editable && (
               <span className="ml-auto flex items-center gap-1.5">
                 <Input className="text-xs py-1 w-56" placeholder="notes for the AI (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
-                <Button size="sm" disabled={drafting || !task.title.trim()} onClick={() => draft(hasSpec ? 'acceptance' : 'task')} title={hasSpec ? 'Propose acceptance checks for this task (your spec is kept)' : 'Draft the spec, attributes and acceptance checks from the title, the Brief and the repository'}>
+                <Button size="sm" className="shrink-0 whitespace-nowrap" disabled={drafting || !task.title.trim()} onClick={() => draft(hasSpec ? 'acceptance' : 'task')} title={hasSpec ? 'Propose acceptance checks for this task (your spec is kept)' : 'Draft the spec, attributes and acceptance checks from the title, the Brief and the repository'}>
                   <Sparkles size={12} /> {drafting ? 'Drafting…' : hasSpec ? 'Suggest acceptance' : 'Draft with AI'}
                 </Button>
               </span>
             )}
           </div>
-          {err && <div className="text-xs text-rose-300 mb-1">{err}</div>}
+          {err && <div className="text-xs text-bad-ink mb-1">{err}</div>}
           {drafting && <LiveLog attemptId={`draft-${goalId}`} className="max-h-40 mb-2" />}
           {proposal && <div className="mb-2"><DraftPanel proposal={proposal} onApply={edit} onClose={() => setProposal(null)} /></div>}
           {editable ? (
@@ -289,20 +289,20 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
         <Input className="mono text-xs" disabled={!editable} placeholder="delivers: files the tasks after this one read, comma-separated (repo-relative)" value={(task.delivers ?? []).join(', ')} onChange={(e) => change({ delivers: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} title="Deliverables — the files this task leaves for the tasks after it: each is checked when the task lands, and the next tasks are told where they are" />
         {task.kind === 'goal' && (
           <label className="block text-xs">
-            <span className="text-zinc-500">Budget share (USD)</span>
+            <span className="font-semibold text-ink-soft">Budget share (USD)</span>
             <Input type="number" min={1} step={1} className="mono text-xs py-1 mt-0.5 w-40" disabled={!editable} placeholder="even share of what is left" value={task.budgetUsd ?? ''} onChange={(e) => change({ budgetUsd: e.target.value ? Number(e.target.value) : null })} title="What the delegated goal doing this step may spend, within this goal's budget; blank = an even share of what is left among the goal tasks still to run" />
           </label>
         )}
         {task.kind === 'goal' && task.repo && (
-          <div className="text-xs text-zinc-400" title="A companion repository: the delegated goal doing this step works there, on that folder's own branch, and is delivered with this goal">
-            In the companion folder <span className="mono text-zinc-200">{task.repo}</span>: done by a delegated goal there; nothing of it lands on this goal's branch.
+          <div className="text-xs text-ink-soft" title="A companion repository: the delegated goal doing this step works there, on that folder's own branch, and is delivered with this goal">
+            In the companion folder <span className="mono text-ink">{task.repo}</span>: done by a delegated goal there; nothing of it lands on this goal's branch.
           </div>
         )}
 
         <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-[10px] uppercase tracking-wide text-zinc-400 whitespace-nowrap">Acceptance for this task</span>
-            <span className="text-[11px] text-zinc-500">run after every attempt; the task is done when its must checks pass</span>
+          <div className="flex items-center gap-x-2 gap-y-1 flex-wrap mb-1.5">
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint whitespace-nowrap">Acceptance for this task</span>
+            <span className="text-xs text-ink-faint">run after every attempt; the task is done when its must checks pass</span>
             {editable && (
               <Menu
                 className="ml-auto"
@@ -321,7 +321,7 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
               </Menu>
             )}
           </div>
-          {checks.length === 0 && <div className="text-xs text-zinc-500">No task-level checks — only the goal-level ones will judge this task's work.</div>}
+          {checks.length === 0 && <div className="text-xs text-ink-faint">No task-level checks — only the goal-level ones will judge this task's work.</div>}
           <div className="space-y-1.5">
             {checks.map((c) => (
               <CheckRow key={c.key} check={c} brief={brief} editable={editable} context="task" onChange={(nc) => edit((b) => ({ ...b, checks: b.checks.map((x) => (x.key === c.key ? nc : x)) }))} onRemove={() => edit((b) => ({ ...b, checks: b.checks.filter((x) => x.key !== c.key) }))} />

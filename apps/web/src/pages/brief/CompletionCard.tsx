@@ -2,7 +2,7 @@ import type { Brief, DocType } from '@foundry/core/browser';
 import { pendingDecisions } from '@foundry/core/browser';
 import { useEffect, useState } from 'react';
 import { api } from '../../api.ts';
-import { Card, cn } from '../../ui.tsx';
+import { Card, chipClass, cn } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 import { SectionTitle } from './SectionTitle.tsx';
 
@@ -57,35 +57,35 @@ export function CompletionCard({ brief, editable, value, onChange }: { brief: Br
   const toggleDoc = (t: DocType) => onChange({ ...v, docs: v.docs.includes(t) ? v.docs.filter((x) => x !== t) : [...v.docs, t] });
   return (
     <Card title={<><SectionTitle section="completion">Completion</SectionTitle><HelpLink to="approving-the-brief#completion" className="ml-1.5" /></>}>
-      <p className="text-[11px] text-zinc-500 mb-2">
+      <p className="text-xs text-ink-faint mb-3">
         Runs automatically when the goal finishes: documents are generated after the review passes and committed to the goal branch (they ship with the code); the knowledge graph refreshes after delivery. Defaults follow the kind of work planned{value ? '' : ' — a changelog entry is added automatically when the repository keeps a CHANGELOG.md'}.
       </p>
-      <label className="flex items-start gap-2 text-sm mb-2">
+      <label className="flex items-start gap-2 text-sm text-ink mb-2">
         <input type="checkbox" className="mt-1" disabled={!editable} checked={v.graphRefresh} onChange={(e) => onChange({ ...v, graphRefresh: e.target.checked })} />
         <span>
-          Refresh the knowledge graph <span className="text-zinc-500">(graphify, and gitnexus when installed)</span>
+          Refresh the knowledge graph <span className="text-ink-faint">(graphify, and gitnexus when installed)</span>
         </span>
       </label>
-      <label className="flex items-start gap-2 text-sm mb-2" title="Once every task is done, ponytail-audit maps the finished branch and ranks what to fix. Must-fix findings in the code this goal touched become fix tasks before the final review; the rest is listed on the goal page for a follow-up. One pass, the same cost cap as the final review. Needs the ponytail-audit skill (Setup page).">
+      <label className="flex items-start gap-2 text-sm text-ink mb-2" title="Once every task is done, ponytail-audit maps the finished branch and ranks what to fix. Must-fix findings in the code this goal touched become fix tasks before the final review; the rest is listed on the goal page for a follow-up. One pass, the same cost cap as the final review. Needs the ponytail-audit skill (Setup page).">
         <input type="checkbox" className="mt-1" disabled={!editable} checked={v.audit} onChange={(e) => onChange({ ...v, audit: e.target.checked })} />
         <span>
-          Audit the repository at the end <span className="text-zinc-500">(ponytail-audit: must-fix findings in the code this goal touched become fix tasks)</span>
+          Audit the repository at the end <span className="text-ink-faint">(ponytail-audit: must-fix findings in the code this goal touched become fix tasks)</span>
         </span>
       </label>
-      <label className={cn('flex items-start gap-2 text-sm mb-2', !hasApp && 'opacity-60')} title={hasApp ? 'Once every task is done, one session opens the finished app in Chromium and tries each acceptance check the way you would, with Playwright scripts it writes in a scratch folder. A must check that fails becomes a fix task before the final review; everything it tried is shown with screenshots. The session changes no code. Needs Chromium for Playwright (Settings → Preview & self-check).' : 'The Brief names no app to run: there is nothing to open in a browser.'}>
+      <label className={cn('flex items-start gap-2 text-sm text-ink mb-2', !hasApp && 'opacity-60')} title={hasApp ? 'Once every task is done, one session opens the finished app in Chromium and tries each acceptance check the way you would, with Playwright scripts it writes in a scratch folder. A must check that fails becomes a fix task before the final review; everything it tried is shown with screenshots. The session changes no code. Needs Chromium for Playwright (Settings → Preview & self-check).' : 'The Brief names no app to run: there is nothing to open in a browser.'}>
         <input type="checkbox" className="mt-1" disabled={!editable || !hasApp} checked={v.qa} onChange={(e) => onChange({ ...v, qa: e.target.checked })} />
         <span>
-          Test it in a browser at the end <span className="text-zinc-500">(each acceptance check tried in Chromium; a must check that fails becomes a fix task)</span>
+          Test it in a browser at the end <span className="text-ink-faint">(each acceptance check tried in Chromium; a must check that fails becomes a fix task)</span>
         </span>
       </label>
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-1.5 pt-1">
         {DOC_LABELS.map((d) => (
           <button
             key={d.type}
             type="button"
             disabled={!editable}
             title={d.hint}
-            className={cn('text-[11px] rounded-full border px-2 py-0.5', v.docs.includes(d.type) ? 'border-emerald-500 text-emerald-300 bg-emerald-500/10' : 'border-zinc-700 text-zinc-400 hover:border-zinc-500')}
+            className={chipClass(v.docs.includes(d.type))}
             onClick={() => toggleDoc(d.type)}
           >
             {d.label}

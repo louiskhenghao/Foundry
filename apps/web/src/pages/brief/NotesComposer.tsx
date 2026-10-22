@@ -23,11 +23,12 @@ export function NotesComposer({ brief, editable, edit, compact = false }: { brie
       {compact && notes.length > 0 && (
         <ul className="space-y-1 text-sm">
           {notes.map((n) => (
-            <li key={n.id} className="flex gap-2 items-start text-zinc-200">
-              <span className={cn('mt-1.5 w-1.5 h-1.5 rounded-full shrink-0', n.applied ? 'bg-emerald-400' : 'bg-amber-400')} title={n.applied ? 'applied to the plan' : 'not yet applied to the plan'} />
+            <li key={n.id} className="flex gap-2 items-start text-ink">
+              {/* as in the Decisions card: green once the plan follows it, yellow while it waits for you to Revise */}
+              <span className={cn('mt-1.5 w-2 h-2 rounded-full shrink-0', n.applied ? 'bg-ok' : 'bg-you ring-1 ring-inset ring-on-you/40')} title={n.applied ? 'applied to the plan' : 'not yet applied to the plan'} />
               <span className="flex-1 whitespace-pre-wrap">{n.text}</span>
               {editable && (
-                <button type="button" className="text-zinc-500 hover:text-rose-300 shrink-0" title="Remove this note" onClick={() => remove(n.id)}>
+                <button type="button" className="text-ink-faint hover:text-bad-ink shrink-0" title="Remove this note" onClick={() => remove(n.id)}>
                   <X size={12} />
                 </button>
               )}
@@ -42,7 +43,7 @@ export function NotesComposer({ brief, editable, edit, compact = false }: { brie
             <Button size="sm" disabled={!draft.trim()} onClick={add} title="Keep this note with the Brief's Decisions (saved with the Brief)">
               <MessageSquarePlus size={12} /> Add note
             </Button>
-            <span className="text-[11px] text-zinc-500">Saved with the Brief. Press Revise with answers to have the plan follow it.</span>
+            <span className="text-xs text-ink-faint">Saved with the Brief. Press Revise with answers to have the plan follow it.</span>
           </div>
         </div>
       )}

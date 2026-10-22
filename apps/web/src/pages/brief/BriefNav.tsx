@@ -1,12 +1,5 @@
 import { useEffect, useState } from 'react';
-import { cn } from '../../ui.tsx';
-import { SECTION_STYLE, sectionOfNav } from './shared.ts';
-
-/** the section's hue, as a dot before its name */
-const Dot = ({ id }: { id: string }) => {
-  const s = sectionOfNav(id);
-  return <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', s ? SECTION_STYLE[s].dot : 'bg-zinc-600')} aria-hidden="true" />;
-};
+import { chipClass, cn, navItemClass } from '../../ui.tsx';
 
 export interface BriefNavItem {
   id: string;
@@ -15,6 +8,12 @@ export interface BriefNavItem {
   status?: string | null;
   /** the section needs attention (blocking questions, decisions not applied, areas without tasks) */
   warn?: boolean;
+}
+
+/** how a section stands, in mono: on a yellow plate when it needs you (as the Overview tab's count), else quiet */
+function Status({ item, onAccent = false }: { item: BriefNavItem; /** drawn on the chosen chip's accent fill */ onAccent?: boolean }) {
+  if (!item.status) return null;
+  return <span className={cn('mono shrink-0 whitespace-nowrap text-[11px] leading-[1.125rem]', item.warn ? 'rounded-[5px] bg-you px-1.5 font-bold text-on-you' : onAccent ? 'text-on-accent/75' : 'text-ink-faint')}>{item.status}</span>;
 }
 
 /** the section nearest the top of the page; the scroller is <main>, not the window */
@@ -42,17 +41,19 @@ const go = (id: string) => document.getElementById(id)?.scrollIntoView({ behavio
 
 /**
  * The Brief's sections as a list beside it (wide screens) or a row of tabs above it (narrow ones): click one to jump
- * there; the one you are reading is highlighted, and each says how it stands.
+ * there; the one you are reading is marked, and each says how it stands.
  */
 export function BriefSideNav({ items }: { items: BriefNavItem[] }) {
   const active = useActiveSection(items.map((i) => i.id));
   return (
-    <nav aria-label="Brief sections" className="hidden lg:block sticky top-0 self-start max-h-screen overflow-auto py-1 space-y-0.5">
+    // pinned a little under the top bar while the Brief scrolls beside it
+    <nav aria-label="Brief sections" className="hidden lg:block sticky top-4 self-start max-h-[calc(100dvh-5.5rem)] overflow-auto py-1 space-y-0.5">
       {items.map((i) => (
-        <button key={i.id} type="button" onClick={() => go(i.id)} aria-current={active === i.id ? 'location' : undefined} className={cn('flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs', active === i.id ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900')}>
-          <Dot id={i.id} />
-          <span className="min-w-0 flex-1 truncate">{i.label}</span>
-          {i.status && <span className={cn('shrink-0 text-[10px] tabular-nums', i.warn ? 'text-amber-300' : 'text-zinc-500')}>{i.status}</span>}
+        <button key={i.id} type="button" onClick={() => go(i.id)} aria-current={active === i.id ? 'location' : undefined} className={navItemClass(active === i.id)}>
+          <span className="flex items-center gap-2">
+            <span className="min-w-0 flex-1">{i.label}</span>
+            <Status item={i} />
+          </span>
         </button>
       ))}
     </nav>
@@ -62,12 +63,12 @@ export function BriefSideNav({ items }: { items: BriefNavItem[] }) {
 export function BriefChipNav({ items }: { items: BriefNavItem[] }) {
   const active = useActiveSection(items.map((i) => i.id));
   return (
-    <nav aria-label="Brief sections" className="lg:hidden sticky top-0 z-20 -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6 py-2 bg-zinc-950/95 backdrop-blur flex gap-1.5 overflow-x-auto whitespace-nowrap">
+    // on the page's own colour with a hairline under it: the sections scroll beneath it
+    <nav aria-label="Brief sections" className="lg:hidden sticky top-0 z-20 -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6 py-2 bg-page border-b border-line flex gap-1.5 overflow-x-auto whitespace-nowrap">
       {items.map((i) => (
-        <button key={i.id} type="button" onClick={() => go(i.id)} aria-current={active === i.id ? 'location' : undefined} className={cn('shrink-0 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px]', active === i.id ? 'border-zinc-500 bg-zinc-800 text-zinc-100' : 'border-zinc-800 text-zinc-400')}>
-          <Dot id={i.id} />
+        <button key={i.id} type="button" onClick={() => go(i.id)} aria-current={active === i.id ? 'location' : undefined} className={cn(chipClass(active === i.id), 'shrink-0 inline-flex items-center gap-1.5')}>
           {i.label}
-          {i.status && <span className={cn('ml-1.5', i.warn ? 'text-amber-300' : 'text-zinc-500')}>{i.status}</span>}
+          <Status item={i} onAccent={active === i.id} />
         </button>
       ))}
     </nav>

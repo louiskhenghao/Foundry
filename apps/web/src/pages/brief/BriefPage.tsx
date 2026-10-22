@@ -1,15 +1,16 @@
 import { PROVIDER_LABEL, reportsDollars } from '@foundry/core/browser';
 import type { Brief } from '@foundry/core/browser';
 import { calibratedEstimate, decisionsOf, describeCalibration, pendingDecisions, proposeBudgetFromEstimate, topoSort, uncoveredAreas } from '@foundry/core/browser';
-import { Loader2, RotateCcw } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, Folder, GitBranch, Loader2, RotateCcw, Settings2 } from 'lucide-react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, type GoalDetail } from '../../api.ts';
 import { FollowLinks } from '../goal/FollowUps.tsx';
 import { OpenFull } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
+import { StageRail, StatePlate, stageMarks, taskMark, type Mark } from '../../components/progress.tsx';
 import { useLive } from '../../store.ts';
-import { Badge, Button, Card, Empty, Input, Textarea, cn, fmtLimitMin, fmtLimitUsd } from '../../ui.tsx';
+import { Badge, Button, Card, CopyButton, Empty, Input, Textarea, chipClass, cn, fmtLimitMin, fmtLimitUsd, stateLabel } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { ReferenceCard } from './ReferenceCard.tsx';
 import { AreasCard } from './AreasCard.tsx';
@@ -99,16 +100,17 @@ export function BriefPage() {
   const g = detail.goal;
   /** the Clarifier's Brief without its tasks: read and edit it while the planner works; approval and the AI buttons wait for the plan */
   const skeleton = g.state === 'clarifying' && !!detail.brief?.skeleton;
+  const simple = (expert ?? g.mode !== 'simple') === false;
 
   if ((g.state === 'clarifying' && !skeleton) || !brief) {
     return (
-      <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
-        <Header detail={detail} />
+      <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-6">
+        <Header detail={detail} simple={simple} />
         {g.interview ? (
           <InterviewPanel goal={g} events={detail.events} />
         ) : (
           <Card title="Clarifying…">
-            <p className="text-sm text-zinc-400 mb-3">The Clarifier is exploring the repository, listing the Areas the goal covers and drafting the Brief. This page shows the Brief as soon as its skeleton is written, and updates by itself.</p>
+            <p className="text-sm text-ink-soft mb-3">The Clarifier is exploring the repository, listing the Areas the goal covers and drafting the Brief. This page shows the Brief as soon as its skeleton is written, and updates by itself.</p>
             <div className="mb-3 text-xs">
               <ClarifyProgress goal={g} writingBrief events={detail.events} />
             </div>
@@ -184,10 +186,10 @@ export function BriefPage() {
     }
   };
 
-  const simple = (expert ?? g.mode !== 'simple') === false;
   if (simple) {
     return (
       <SimpleBrief
+        head={<Header detail={detail} simple onView={() => setView(true)} />}
         brief={brief}
         goal={g}
         editable={editable}
@@ -205,7 +207,6 @@ export function BriefPage() {
         onApprove={approve}
         onSave={save}
         onCancel={() => api.cancelGoal(id).then(() => nav('/'))}
-        onExpert={() => setView(true)}
         edit={edit}
         subjects={subjectsCard}
       />
@@ -232,22 +233,22 @@ export function BriefPage() {
   const sec = 'scroll-mt-14 lg:scroll-mt-4';
 
   return (
-    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
-      <Header detail={detail} onSimple={() => setView(false)} beforeReclarify={dirty ? save : undefined} />
-      <div className="grid lg:grid-cols-[11rem_minmax(0,1fr)] gap-x-6">
+    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-6">
+      <Header detail={detail} onView={() => setView(false)} beforeReclarify={dirty ? save : undefined} />
+      <div className="grid lg:grid-cols-[12rem_minmax(0,1fr)] gap-x-8">
         <BriefSideNav items={navItems} />
         <div className="min-w-0 space-y-4">
           <BriefChipNav items={navItems} />
           <section id="brief-understanding" className={sec}>
             <Card title={<><SectionTitle section="understanding">Understanding</SectionTitle><HelpLink to="approving-the-brief#understanding" className="ml-1.5" /></>}>
-              <div className="mb-3">
-                <label className="text-[11px] text-zinc-500">
-                  pull request title <span className="text-zinc-600">· Conventional Commits header for the whole goal (one-PR delivery); per-task PRs use each task's header</span>
+              <div className="mb-4">
+                <label className="block mb-1 text-xs font-semibold text-ink-soft">
+                  pull request title <span className="font-normal text-ink-faint">· Conventional Commits header for the whole goal (one-PR delivery); per-task PRs use each task's header</span>
                 </label>
                 {editable ? (
                   <Input className="mono" value={brief.title ?? ''} onChange={(e) => update({ title: e.target.value })} placeholder="feat(scope): what this goal adds" />
                 ) : (
-                  <div className="mono text-sm text-zinc-200">{brief.title || <span className="text-zinc-500">derived from the goal title</span>}</div>
+                  <div className="mono text-sm text-ink">{brief.title || <span className="text-ink-faint">derived from the goal title</span>}</div>
                 )}
               </div>
               {editable ? (
@@ -264,27 +265,28 @@ export function BriefPage() {
           {asked.length > 0 && (
             <section id="brief-questions" className={sec}>
               <Card title={<><SectionTitle section="questions">{`Questions (${blockingUnanswered.length} blocking unanswered)`}</SectionTitle><HelpLink to="approving-the-brief#questions" className="ml-1.5" /></>}>
-                <div className="space-y-3">
+                <div className="space-y-5">
                   {brief.questions.map((q, i) => {
                     if (q.kind === 'note') return null;
                     const area = areaOf(brief, q.areaKey);
                     if (q.kind === 'style' && brief.styleOptions.length) return <StyleCards key={q.id} goalId={id} brief={brief} question={q} editable={editable} update={update} />;
                     return (
                       <div key={q.id}>
-                        <div className="text-sm text-zinc-200 mb-1 flex items-start gap-2 flex-wrap">
+                        <div className="text-sm font-semibold text-ink mb-2 flex items-start gap-2 flex-wrap">
                           {q.blocking && <Badge state="must">blocking</Badge>}
-                          {area && <span className={cn('text-[10px] rounded-full border px-2 py-0.5', areaStyle(brief, q.areaKey).chip)}>{area.name}</span>}
+                          {area && <span className={areaStyle(brief, q.areaKey).chip}>{area.name}</span>}
                           <span>{q.text}</span>
                         </div>
                         {q.options.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mb-1.5">
+                          <div className="flex flex-wrap gap-1.5 mb-2">
+                            {/* an answer picked is filled with the accent, as a chosen chip anywhere */}
                             {q.options.map((opt, oi) => (
                               <button
                                 key={opt}
                                 type="button"
                                 disabled={!editable}
                                 title={oi === 0 ? 'Recommended by the Clarifier' : undefined}
-                                className={cn('text-[11px] text-left rounded-xl border px-2 py-0.5', (q.answer ?? '') === opt ? 'border-emerald-500 text-emerald-300 bg-emerald-500/10' : 'border-zinc-700 text-zinc-300 hover:border-zinc-500')}
+                                className={cn(chipClass((q.answer ?? '') === opt), 'text-left')}
                                 onClick={() => update({ questions: brief.questions.map((x, j) => (j === i ? { ...x, answer: opt, applied: false } : x)) })}
                               >
                                 {opt}
@@ -310,12 +312,12 @@ export function BriefPage() {
 
           <section id="brief-assumptions" className={sec}>
             <Card title={<><SectionTitle section="assumptions">Assumptions (accepted unless you uncheck)</SectionTitle><HelpLink to="approving-the-brief#assumptions" className="ml-1.5" /></>}>
-              {brief.assumptions.length === 0 && <div className="text-sm text-zinc-500">None.</div>}
+              {brief.assumptions.length === 0 && <div className="text-sm text-ink-faint">None.</div>}
               <div className="space-y-1.5">
                 {brief.assumptions.map((a, i) => (
-                  <label key={a.id} className="flex items-start gap-2 text-sm">
+                  <label key={a.id} className="flex items-start gap-2 text-sm text-ink">
                     <input type="checkbox" className="mt-1" disabled={!editable} checked={a.accepted} onChange={(e) => update({ assumptions: brief.assumptions.map((x, j) => (j === i ? { ...x, accepted: e.target.checked, applied: false } : x)) })} />
-                    <span className={cn(!a.accepted && 'line-through text-zinc-500')}>{a.text}</span>
+                    <span className={cn(!a.accepted && 'line-through text-ink-faint')}>{a.text}</span>
                   </label>
                 ))}
               </div>
@@ -340,8 +342,8 @@ export function BriefPage() {
               <Card title={<><SectionTitle section="plan">Plan</SectionTitle><HelpLink to="approving-the-brief#while-the-planner-works" className="ml-1.5" /></>}>
                 <div className="text-xs space-y-3">
                   <ClarifyProgress goal={g} writingBrief skeleton events={detail.events} />
-                  <p className="text-zinc-400">
-                    The tasks, their checks and the estimate appear here by themselves. Read and edit the rest meanwhile: what you change is kept, and the plan fills in around it. <b>Save edits</b> hands your changes to the planner's result even if you leave the page.
+                  <p className="text-ink-soft">
+                    The tasks, their checks and the estimate appear here by themselves. Read and edit the rest meanwhile: what you change is kept, and the plan fills in around it. <b className="text-ink">Save edits</b> hands your changes to the planner's result even if you leave the page.
                   </p>
                   <LiveLog attemptId={clarifyChannel(g)} className="max-h-48" />
                 </div>
@@ -367,43 +369,42 @@ export function BriefPage() {
 
           <section id="brief-budget" className={sec}>
             <Card title={<SectionTitle section="budget">{isAuto && editable ? 'Estimate → proposed budget' : 'Estimate & budget'}</SectionTitle>}>
-              {skeleton && <p className="text-xs text-sky-300 mb-2">The estimate arrives with the plan.</p>}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                {costAvailable ? <div>
-                  Estimated cost <span className="mono">${brief.costEstimateUsd}</span>
-                  <span className={cn('ml-1', overCost ? 'text-amber-300' : 'text-zinc-500')}>(budget {fmtLimitUsd(g.budgets.maxCostUsd)})</span>
-                </div> : <p className="text-zinc-400">{PROVIDER_LABEL[g.provider ?? 'claude']} dollar costs are unavailable. Time and attempt limits apply.</p>}
-                <div>
-                  Estimated time <span className="mono">{brief.timeEstimateMin} min</span>
-                  <span className={cn('ml-1', overTime ? 'text-amber-300' : 'text-zinc-500')}>(budget {fmtLimitMin(g.budgets.maxDurationMin)})</span>
-                </div>
+              {skeleton && <p className="text-xs text-work-ink mb-3">The estimate arrives with the plan.</p>}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {costAvailable ? (
+                  <Figure label="Estimated cost" value={`$${brief.costEstimateUsd}`} dim={skeleton} note={<span className={overCost ? 'font-semibold text-you-ink' : 'text-ink-faint'}>(budget {fmtLimitUsd(g.budgets.maxCostUsd)})</span>} />
+                ) : (
+                  <p className="text-sm text-ink-soft">{PROVIDER_LABEL[g.provider ?? 'claude']} dollar costs are unavailable. Time and attempt limits apply.</p>
+                )}
+                <Figure label="Estimated time" value={`${brief.timeEstimateMin} min`} dim={skeleton} note={<span className={overTime ? 'font-semibold text-you-ink' : 'text-ink-faint'}>(budget {fmtLimitMin(g.budgets.maxDurationMin)})</span>} />
               </div>
               {calibration && !skeleton && (
-                <p className="mt-2 text-xs text-zinc-400" title={detail.calibration?.samples.map((s) => `${s.title}: ${s.actualUsd != null ? `$${s.actualUsd.toFixed(2)} of $${s.estimateUsd}` : 'no cost'}, ${s.actualMin != null ? `${Math.round(s.actualMin)} of ${s.estimateMin} min` : 'no time'}`).join('\n')}>
+                <p className="mt-3 text-xs text-ink-soft" title={detail.calibration?.samples.map((s) => `${s.title}: ${s.actualUsd != null ? `$${s.actualUsd.toFixed(2)} of $${s.estimateUsd}` : 'no cost'}, ${s.actualMin != null ? `${Math.round(s.actualMin)} of ${s.estimateMin} min` : 'no time'}`).join('\n')}>
                   {calibration.text}
                 </p>
               )}
               {editable && (
-                <div className="mt-3 rounded-md border border-zinc-800 bg-zinc-950/50 p-3">
-                  <div className="text-xs text-zinc-400 mb-2">
+                <div className="mt-4 rounded-md border border-line bg-inset p-3">
+                  <div className="text-xs text-ink-soft mb-2.5">
                     {isAuto ? (
                       <>
-                        <span className="text-emerald-300">Auto budget preset:</span> no cap was set while clarifying; this proposal ({calibration ? 'the calibrated estimate ×2' : 'estimate ×2'}) becomes the goal's budget when you approve. Edit it, or keep it unlimited — the engine pauses and asks you if a limit is reached.
+                        <span className="font-semibold text-ink">Auto budget preset:</span> no cap was set while clarifying; this proposal ({calibration ? 'the calibrated estimate ×2' : 'estimate ×2'}) becomes the goal's budget when you approve. Edit it, or keep it unlimited — the engine pauses and asks you if a limit is reached.
                       </>
                     ) : overCost || overTime ? (
-                      <span className="text-amber-300">The estimate exceeds the budget you set. Raise it here or approve anyway (the engine will pause when it is reached).</span>
+                      <span className="font-semibold text-you-ink">The estimate exceeds the budget you set. Raise it here or approve anyway (the engine will pause when it is reached).</span>
                     ) : (
                       'Budget applied when you approve. Blank = no limit.'
                     )}
                   </div>
                   <div className="flex flex-wrap items-end gap-3">
-                    {costAvailable && <label className="text-xs text-zinc-400">
+                    {/* the label sets the field's width: the field itself fills it */}
+                    {costAvailable && <label className="block w-28 text-xs font-semibold text-ink-soft">
                       max cost $
-                      <Input type="number" min={0.5} step={0.5} className="w-28 mt-1" value={budgetDraft.maxCostUsd ?? ''} placeholder="∞" onChange={(e) => setBudgetEdit({ ...budgetDraft, maxCostUsd: e.target.value === '' ? null : Number(e.target.value) })} />
+                      <Input type="number" min={0.5} step={0.5} className="mt-1 mono" value={budgetDraft.maxCostUsd ?? ''} placeholder="∞" onChange={(e) => setBudgetEdit({ ...budgetDraft, maxCostUsd: e.target.value === '' ? null : Number(e.target.value) })} />
                     </label>}
-                    <label className="text-xs text-zinc-400">
+                    <label className="block w-28 text-xs font-semibold text-ink-soft">
                       max minutes
-                      <Input type="number" min={5} step={5} className="w-28 mt-1" value={budgetDraft.maxDurationMin ?? ''} placeholder="∞" onChange={(e) => setBudgetEdit({ ...budgetDraft, maxDurationMin: e.target.value === '' ? null : Number(e.target.value) })} />
+                      <Input type="number" min={5} step={5} className="mt-1 mono" value={budgetDraft.maxDurationMin ?? ''} placeholder="∞" onChange={(e) => setBudgetEdit({ ...budgetDraft, maxDurationMin: e.target.value === '' ? null : Number(e.target.value) })} />
                     </label>
                     {(overCost || overTime || budgetChanged) && (
                       <Button size="sm" variant="ghost" onClick={() => setBudgetEdit(proposed)}>
@@ -415,28 +416,29 @@ export function BriefPage() {
                         Keep unlimited
                       </Button>
                     )}
-                    {budgetChanged && <span className="text-[11px] text-emerald-300">will be applied on approve</span>}
+                    {budgetChanged && <span className="text-xs font-semibold text-accent-ink">will be applied on approve</span>}
                   </div>
                 </div>
               )}
             </Card>
           </section>
 
-          {err && <div className="text-sm text-rose-400">{err}</div>}
+          {err && <div className="rounded-md border border-bad/40 bg-bad/5 px-3 py-2 text-sm text-bad-ink">{err}</div>}
           {editable ? (
-            <div className="flex items-center justify-end gap-2 flex-wrap sticky bottom-0 py-3 bg-zinc-950/90 backdrop-blur">
+            // the actions follow you down the page, on the page's own colour under a hairline
+            <div className="flex items-center justify-end gap-2 flex-wrap sticky bottom-0 py-3 bg-page border-t border-line">
               {skeleton && (
-                <span className="text-[11px] text-sky-300 mr-auto inline-flex items-center gap-1.5">
-                  <Loader2 size={12} className="animate-spin" /> The planner is splitting the goal into tasks. Read and edit meanwhile; approval opens when the plan is in.
+                <span className="text-xs text-work-ink mr-auto inline-flex items-center gap-1.5">
+                  <Loader2 size={12} className="animate-spin shrink-0" /> The planner is splitting the goal into tasks. Read and edit meanwhile; approval opens when the plan is in.
                 </span>
               )}
               {!skeleton && (gaps.length > 0 || pending.length > 0) && (
-                <span className="text-[11px] text-amber-300 mr-auto">
+                <span className="text-xs font-semibold text-you-ink mr-auto">
                   {gaps.length > 0 && <span title="Areas without tasks will simply not be built">{gaps.map((a) => a.name).join(', ')} {gaps.length > 1 ? 'have' : 'has'} no tasks. </span>}
                   {pending.length > 0 && <span title="Workers receive your decisions, but the tasks and checks were planned before them">{pending.length} decision{pending.length > 1 ? 's' : ''} not applied to the plan — Revise, or approve anyway.</span>}
                 </span>
               )}
-              {blockers.length > 0 && <span className="text-[11px] text-zinc-500">{blockers.join(' · ')}</span>}
+              {blockers.length > 0 && <span className="text-xs text-ink-faint">{blockers.join(' · ')}</span>}
               <Button variant="danger" onClick={() => api.cancelGoal(id).then(() => nav('/'))}>
                 Cancel goal
               </Button>
@@ -448,8 +450,8 @@ export function BriefPage() {
               </Button>
             </div>
           ) : (
-            <div className="text-sm text-zinc-400">
-              This brief was {detail.brief?.approved ? `approved${detail.goal.approvedBy ? ` by ${detail.goal.approvedBy}` : ''}` : 'superseded'}. <Link className="underline" to={`/goals/${id}`}>Go to run view</Link>.
+            <div className="text-sm text-ink-soft">
+              This brief was {detail.brief?.approved ? `approved${detail.goal.approvedBy ? ` by ${detail.goal.approvedBy}` : ''}` : 'superseded'}. <Link className="font-semibold text-ink underline underline-offset-[3px]" to={`/goals/${id}`}>Go to run view</Link>.
             </div>
           )}
         </div>
@@ -458,7 +460,47 @@ export function BriefPage() {
   );
 }
 
-function Header({ detail, onSimple, beforeReclarify }: { detail: GoalDetail; onSimple?: () => void; /** saves the page's edits first, so answers and notes typed here reach the new Clarify as Decisions */ beforeReclarify?: () => Promise<void> }) {
+/** a figure of the estimate: its label in small capitals, the figure large in mono, the budget beside it */
+function Figure({ label, value, note, dim }: { label: string; value: string; note: ReactNode; /** not known yet (the plan is still coming) */ dim?: boolean }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">{label}</div>
+      <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <b className={cn('mono text-2xl font-bold', dim ? 'text-ink-faint' : 'text-ink')}>{value}</b>
+        <span className="text-xs">{note}</span>
+      </div>
+    </div>
+  );
+}
+
+/** what each delivery policy does, as the Deliver stage says it on the goal page */
+const DELIVER_NOTE: Record<string, string> = { local: 'kept on its branch', push: 'pushed', pr: 'a pull request', 'pr-automerge': 'a pull request, auto-merged' };
+
+/**
+ * What each stage says under its name, as the goal page words it; while the planner works, Clarify is planning the tasks
+ * and the Brief's skeleton is out to read.
+ */
+function stageNotes(d: GoalDetail, marks: Mark[], skeleton: boolean): ReactNode[] {
+  const g = d.goal;
+  const total = d.tasks.length;
+  const done = d.tasks.filter((t) => t.state === 'done').length;
+  const rounds = g.interview?.rounds.length ?? 0;
+  const prs = g.delivery.prs.length;
+  return [
+    g.state === 'clarifying' ? (skeleton ? 'planning the tasks' : g.interview?.status === 'awaiting_answers' ? 'questions for you' : 'reading the project') : rounds ? `${rounds} round${rounds === 1 ? '' : 's'} of questions` : 'no questions needed',
+    g.state === 'awaiting_brief_approval' ? 'waiting for you' : skeleton ? 'skeleton ready' : marks[1] === 'done' ? (g.approvedBy ? `approved by ${g.approvedBy}` : 'approved') : 'not written yet',
+    total ? `${done} of ${total} tasks` : 'no tasks yet',
+    g.state === 'goal_review' ? 'reviewing the whole' : marks[3] === 'done' ? 'passed' : 'the whole goal',
+    g.delivery.status === 'delivered' ? `delivered${prs ? ` · ${prs} PR${prs === 1 ? '' : 's'}` : ''}` : (DELIVER_NOTE[g.delivery.policy.mode] ?? g.delivery.policy.mode),
+  ];
+}
+
+/**
+ * The Brief's head, read as the goal page's: the way back, the goal's state as a plate, its title in large type, its facts
+ * as small plates, how the Brief was made, the view switch and Re-run Clarify on the right; then the five stages, and the
+ * goal as it was asked.
+ */
+function Header({ detail, simple = false, onView, beforeReclarify }: { detail: GoalDetail; /** the Brief shows in its Simple view: the switch leads to Expert, and the stages lead nowhere (the goal page shows no tabs then) */ simple?: boolean; /** switches between the views; none while there is no Brief to show */ onView?: () => void; /** saves the page's edits first, so answers and notes typed here reach the new Clarify as Decisions */ beforeReclarify?: () => Promise<void> }) {
   const g = detail.goal;
   const nav = useNavigate();
   const [busy, setBusy] = useState(false);
@@ -476,50 +518,119 @@ function Header({ detail, onSimple, beforeReclarify }: { detail: GoalDetail; onS
     }
   };
   const sync = g.baseSync;
+  const awaiting = g.state === 'awaiting_brief_approval';
+  // the Simple view of the Brief leaves Re-run Clarify out, as it always has
+  const canReclarify = awaiting && !(simple && onView);
+  const repoName = g.repoPath.replace(/\/+$/, '').split('/').pop() || g.repoPath;
+  const marks = stageMarks(g, detail.tasks.length > 0);
+  // in Expert, each stage opens where its work shows on the goal page; the Brief's is this page
+  const links = simple
+    ? undefined
+    : [
+        { to: `/goals/${g.id}#activity`, title: 'open the Activity tab (Clarify session log)' },
+        null,
+        { to: `/goals/${g.id}#tasks`, title: 'open the Tasks tab' },
+        { to: `/goals/${g.id}#activity`, title: 'open the Activity tab (review sessions)' },
+        { to: `/goals/${g.id}#delivery`, title: 'open the Delivery tab' },
+      ];
+  /** a fact about the goal, as a small plate in the row under its title (as on the goal page) */
+  const fact = 'inline-flex items-center gap-1.5 min-w-0 max-w-full rounded-md bg-panel px-2.5 py-1 text-[13px] font-semibold text-ink-soft ring-1 ring-inset ring-line';
   return (
-    <div>
-      <Link to={`/goals/${g.id}`} className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-200 mb-1" title="Back to the goal's run view">
-        ← Goal
-      </Link>
-      <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-lg font-semibold">{g.title}</h1>
-        <Badge state={g.state} />
-        {g.workflow.profile && <span className="text-[10px] rounded-full border border-violet-800 text-violet-300 px-1.5" title="Workflow suite: whose skills the roles follow for this goal">Powered by {g.workflow.profile}</span>}
-        <HelpLink to="approving-the-brief" label="How to read and approve the Brief (new tab)" />
-        {onSimple && (
-          <Button size="sm" variant="ghost" className="ml-auto" onClick={onSimple} title="Back to the plain-language view">
-            Simple view
-          </Button>
-        )}
-        {g.state === 'awaiting_brief_approval' && (
-          <Button size="sm" variant="ghost" className={onSimple ? '' : 'ml-auto'} disabled={busy} onClick={reclarify} title="Throw this Brief away, fetch the base branch again and let the Clarifier explore the fresh tip (attachments, budget and delivery policy are kept)">
-            <RotateCcw size={13} /> {busy ? 'Starting…' : 'Re-run Clarify'}
-          </Button>
-        )}
-      </div>
-      <div className="flex items-center gap-2 flex-wrap"><ProviderBadge provider={g.provider} /><span className="text-xs text-zinc-500 mono">{g.repoPath} · {g.baseBranch} → {g.branch}</span></div>
-      <FollowLinks d={detail} />
-      {g.state === 'awaiting_brief_approval' && (
-        <div className="text-[11px] text-zinc-500 mt-1">
-          {sync ? (
-            sync.startedFrom === 'remote' ? (
-              <>
-                Explored <span className="mono text-zinc-300">{sync.remote}/{sync.base}</span> (your local {sync.base} was {sync.behind} behind).
-              </>
-            ) : sync.startedFrom === 'previous' ? (
-              <>Explored the previous goal's branch — {sync.detail}.</>
-            ) : (
-              <>Explored local {sync.base} — {sync.detail}.</>
-            )
-          ) : (
-            <span className="text-amber-300">This Brief was produced from your local checkout without fetching the remote; if upstream moved, re-run Clarify.</span>
+    <div className="space-y-5">
+      <nav aria-label="Breadcrumb" className="flex items-center gap-2.5 text-sm text-ink-faint min-w-0">
+        <Link to="/" className="inline-flex shrink-0 items-center gap-1.5 font-bold text-ink hover:underline underline-offset-[3px]">
+          <ArrowLeft size={14} aria-hidden="true" /> Goals
+        </Link>
+        <span aria-hidden="true">/</span>
+        <span className="mono truncate" title={g.repoPath}>{repoName}</span>
+        <span aria-hidden="true">/</span>
+        <Link to={`/goals/${g.id}`} className="shrink-0 font-bold text-ink hover:underline underline-offset-[3px]" title="Back to the goal's run view">
+          Goal
+        </Link>
+      </nav>
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:gap-8 md:items-start">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
+            <StatePlate state={g.state} label={stateLabel(g.state)} />
+            <HelpLink to="approving-the-brief" label="How to read and approve the Brief (new tab)" />
+          </div>
+          <h1 className="text-[1.75rem] sm:text-4xl lg:text-[2.75rem] font-extrabold leading-[1.05] tracking-[-0.035em] line-clamp-3 break-words" title={g.title}>
+            {g.title}
+          </h1>
+          <ul className="mt-4 flex flex-wrap gap-2" aria-label="About this goal">
+            <li className={fact}>
+              <Folder size={13} className="shrink-0" aria-hidden="true" />
+              <span className="mono font-medium truncate max-w-[14rem]" title={g.repoPath}>{repoName}</span>
+              <CopyButton text={g.repoPath} />
+            </li>
+            <li className={fact} title={`${g.baseBranch} → ${g.branch}`}>
+              <GitBranch size={13} className="shrink-0" aria-hidden="true" />
+              <span className="mono font-medium truncate">{g.baseBranch} → {g.branch}</span>
+            </li>
+            <li className="inline-flex items-center">
+              <ProviderBadge provider={g.provider} />
+            </li>
+            {g.workflow.profile && (
+              <li className={fact} title="Workflow suite: whose skills the roles follow for this goal">
+                <span className="font-medium text-ink-faint">Powered by</span> {g.workflow.profile}
+              </li>
+            )}
+            {g.workflow.pace === 'fast' && (
+              <li className={fact}>
+                <span className="font-medium text-ink-faint">pace</span> fast
+              </li>
+            )}
+            <li className={fact}>
+              <span className="font-medium text-ink-faint">delivery</span> {g.delivery.policy.mode}
+            </li>
+            {(g.companions?.length ?? 0) > 0 && (
+              <li className={fact} title={`Also changes: ${g.companions!.map((c) => c.repoPath).join(', ')}`}>
+                +{g.companions!.length} folder{g.companions!.length === 1 ? '' : 's'}
+              </li>
+            )}
+          </ul>
+          {awaiting && (
+            <p className="mt-2.5 text-xs text-ink-faint">
+              {sync ? (
+                sync.startedFrom === 'remote' ? (
+                  <>
+                    Explored <span className="mono text-ink-soft">{sync.remote}/{sync.base}</span> (your local {sync.base} was {sync.behind} behind).
+                  </>
+                ) : sync.startedFrom === 'previous' ? (
+                  <>Explored the previous goal's branch — {sync.detail}.</>
+                ) : (
+                  <>Explored local {sync.base} — {sync.detail}.</>
+                )
+              ) : (
+                <span className="font-semibold text-ink-soft">This Brief was produced from your local checkout without fetching the remote; if upstream moved, re-run Clarify.</span>
+              )}
+            </p>
           )}
+          <FollowLinks d={detail} />
+          {err && <div className="text-xs text-bad-ink mt-1.5">{err}</div>}
         </div>
-      )}
-      {err && <div className="text-xs text-rose-300 mt-1">{err}</div>}
-      <div className="mt-2">
-        <MarkdownPanel title="goal" source={g.prompt} maxHeight={220} actions={<OpenFull value={{ title: g.title, text: g.prompt }} />} />
+        {(onView || canReclarify) && (
+          <div className="flex items-center gap-2 flex-wrap md:justify-end">
+            {onView &&
+              (simple ? (
+                <Button size="sm" onClick={onView} title="Show every control: Areas, task graph, acceptance checks, Draft and Revise">
+                  <Settings2 size={13} /> Expert view
+                </Button>
+              ) : (
+                <Button size="sm" onClick={onView} title="Back to the plain-language view">
+                  Simple view
+                </Button>
+              ))}
+            {canReclarify && (
+              <Button size="sm" disabled={busy} onClick={reclarify} title="Throw this Brief away, fetch the base branch again and let the Clarifier explore the fresh tip (attachments, budget and delivery policy are kept)">
+                <RotateCcw size={13} /> {busy ? 'Starting…' : 'Re-run Clarify'}
+              </Button>
+            )}
+          </div>
+        )}
       </div>
+      <StageRail marks={marks} notes={stageNotes(detail, marks, g.state === 'clarifying' && !!detail.brief?.skeleton)} tasks={detail.tasks.map((t) => taskMark(t.state))} links={links} />
+      <MarkdownPanel title="goal" source={g.prompt} maxHeight={220} actions={<OpenFull value={{ title: g.title, text: g.prompt }} />} />
     </div>
   );
 }

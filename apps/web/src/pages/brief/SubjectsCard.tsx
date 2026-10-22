@@ -43,10 +43,10 @@ export function SubjectsCard({ goalId, subjects, searching, editable }: { goalId
   });
   return (
     <Card title={<><SectionTitle section="subjects">Looks like</SectionTitle><HelpLink to="approving-the-brief#looks-like" className="ml-1.5" /></>}>
-      <p className="text-xs text-zinc-500 mb-3">
+      <p className="text-xs text-ink-faint mb-3">
         Real things the result must look like. Workers build from these pictures and every review compares against them; the pictures stay on this computer and are never part of the result.
       </p>
-      {subjects.length === 0 && <div className="text-sm text-zinc-500 mb-2">Nothing real to match.</div>}
+      {subjects.length === 0 && <div className="text-sm text-ink-faint mb-2">Nothing real to match.</div>}
       <div className="space-y-4">
         {subjects.map((s) => (
           <SubjectRow key={s.key} goalId={goalId} subject={s} searching={searching.includes(s.key)} editable={editable} busy={busy} act={act} onView={(picture) => setViewing({ key: s.key, index: Math.max(0, s.pictures.findIndex((p) => p.file === picture.file)) })} />
@@ -54,7 +54,7 @@ export function SubjectsCard({ goalId, subjects, searching, editable }: { goalId
       </div>
       {editable && subjects.length < SUBJECT_LIMITS.subjects && (
         <form
-          className="mt-4 pt-3 border-t border-zinc-800 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto]"
+          className="mt-4 pt-3 border-t border-line grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto]"
           onSubmit={(e) => {
             e.preventDefault();
             if (adding.name.trim()) void add();
@@ -67,7 +67,7 @@ export function SubjectsCard({ goalId, subjects, searching, editable }: { goalId
           </Button>
         </form>
       )}
-      {err && <div className="text-xs text-rose-400 mt-2">{err}</div>}
+      {err && <div className="text-xs text-bad-ink mt-2">{err}</div>}
       {viewing && (() => {
         const s = subjects.find((x) => x.key === viewing.key);
         return s ? <MediaLightbox items={subjectLightbox(goalId, s)} index={Math.min(viewing.index, s.pictures.length - 1)} onIndex={(index) => setViewing({ ...viewing, index })} onClose={() => setViewing(null)} title={s.name} /> : null;
@@ -84,9 +84,9 @@ function SubjectRow({ goalId, subject: s, searching, editable, busy, act, onView
     <div className="space-y-1.5">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium text-zinc-100">{s.name}</div>
+          <div className="text-sm font-bold text-ink">{s.name}</div>
           {lookFor === null ? (
-            <button type="button" disabled={!editable} onClick={() => setLookFor(s.lookFor)} className="block text-left text-[11px] text-zinc-400 enabled:hover:text-zinc-200" title={editable ? 'Change what must match' : undefined}>
+            <button type="button" disabled={!editable} onClick={() => setLookFor(s.lookFor)} className="block text-left text-xs text-ink-soft enabled:hover:text-ink" title={editable ? 'Change what must match' : undefined}>
               {s.lookFor || (editable ? 'Say what must match…' : '')}
             </button>
           ) : (
@@ -104,7 +104,7 @@ function SubjectRow({ goalId, subject: s, searching, editable, busy, act, onView
           )}
         </div>
         {editable && (
-          <button type="button" className="shrink-0 rounded p-1 text-zinc-500 hover:text-rose-300 hover:bg-zinc-800" title="Remove this Subject" aria-label={`Remove ${s.name}`} onClick={() => void act(`rm-${s.key}`, () => api.removeSubject(goalId, s.key))}>
+          <button type="button" className="shrink-0 rounded p-1 text-ink-faint hover:text-bad-ink hover:bg-inset" title="Remove this Subject" aria-label={`Remove ${s.name}`} onClick={() => void act(`rm-${s.key}`, () => api.removeSubject(goalId, s.key))}>
             <X size={13} />
           </button>
         )}
@@ -114,11 +114,11 @@ function SubjectRow({ goalId, subject: s, searching, editable, busy, act, onView
           {s.pictures.map((p) => (
             <div key={p.file} className="relative shrink-0 w-36 group">
               <button type="button" onClick={() => onView(p)} className="block w-full" title={p.caption || 'View full size'}>
-                <img src={api.subjectPictureUrl(goalId, p.file)} alt={p.caption || s.name} loading="lazy" className="h-24 w-36 object-cover rounded border border-zinc-700 group-hover:border-zinc-500" />
+                <img src={api.subjectPictureUrl(goalId, p.file)} alt={p.caption || s.name} loading="lazy" className="h-24 w-36 object-cover rounded border border-line group-hover:border-line-strong" />
               </button>
-              <div className="text-[10px] text-zinc-500 truncate mt-0.5">{[p.caption, p.source === 'person' ? 'yours' : host(p.url)].filter(Boolean).join(' · ')}</div>
+              <div className="text-[11px] text-ink-faint truncate mt-0.5">{[p.caption, p.source === 'person' ? 'yours' : host(p.url)].filter(Boolean).join(' · ')}</div>
               {editable && (
-                <button type="button" className="absolute top-1 right-1 rounded bg-black/70 p-0.5 text-zinc-300 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-rose-300" title="Remove this picture" aria-label={`Remove ${p.caption || p.file}`} onClick={() => void act(`pic-${p.file}`, () => api.removeSubjectPicture(goalId, s.key, p.file))}>
+                <button type="button" className="absolute top-1 right-1 rounded bg-ink/80 p-0.5 text-on-ink opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-bad hover:text-on-bad" title="Remove this picture" aria-label={`Remove ${p.caption || p.file}`} onClick={() => void act(`pic-${p.file}`, () => api.removeSubjectPicture(goalId, s.key, p.file))}>
                   <X size={12} />
                 </button>
               )}
@@ -126,17 +126,17 @@ function SubjectRow({ goalId, subject: s, searching, editable, busy, act, onView
           ))}
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
         {searching ? (
-          <span className="inline-flex items-center gap-1.5 text-zinc-400">
-            <Loader2 size={11} className="animate-spin" /> Finding pictures… (a minute or two)
+          <span className="inline-flex items-center gap-1.5 text-ink-soft">
+            <Loader2 size={12} className="animate-spin shrink-0" /> Finding pictures… (a minute or two)
           </span>
         ) : s.search?.status === 'failed' ? (
-          <span className="text-rose-300/90">The search failed: {s.search.detail}</span>
+          <span className="font-semibold text-bad-ink">The search failed: {s.search.detail}</span>
         ) : s.search && s.pictures.length === 0 ? (
-          <span className="text-amber-300/90">No picture found{s.search.detail ? ` (${s.search.detail})` : ''}: search again, or add your own.</span>
+          <span className="font-semibold text-ink-soft">No picture found{s.search.detail ? ` (${s.search.detail})` : ''}: search again, or add your own.</span>
         ) : s.pictures.length === 0 && !editable ? (
-          <span className="text-zinc-500">No picture: workers go by the name.</span>
+          <span className="text-ink-faint">No picture: workers go by the name.</span>
         ) : null}
         {editable && (
           <>

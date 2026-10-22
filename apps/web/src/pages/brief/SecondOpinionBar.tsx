@@ -1,11 +1,11 @@
 import type { Brief } from '@foundry/core/browser';
 import { diffIsEmpty } from '@foundry/core/browser';
-import { Eye } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, type DraftProposal, type SecondOpinionFailure, type SecondOpinionView } from '../../api.ts';
 import { Button, Card, ago } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { DraftPanel } from './DraftPanel.tsx';
+import { SectionTitle } from './SectionTitle.tsx';
 
 /**
  * A second opinion on the Brief (ADR-0051): a reviewer that did not write it reads it against the repository and
@@ -46,11 +46,7 @@ export function SecondOpinionBar({ goalId, stored, failed, running, editable, ed
   const noChanges = !!proposal?.revision && diffIsEmpty(proposal.revision.diff);
   return (
     <Card
-      title={
-        <span className="inline-flex items-center gap-1.5">
-          <Eye size={14} className="text-sky-300" /> Second opinion
-        </span>
-      }
+      title={<SectionTitle section="opinion">Second opinion</SectionTitle>}
       actions={
         editable ? (
           <Button size="sm" disabled={live} onClick={() => void run()} title="A reviewer that did not write the Brief reads it against the repository and proposes what to change (goal reviewer's model, read-only)">
@@ -59,34 +55,34 @@ export function SecondOpinionBar({ goalId, stored, failed, running, editable, ed
         ) : undefined
       }
     >
-      <p className="text-xs text-zinc-500">A reviewer that did not write this Brief reads it against the repository and proposes what to change. You apply what you take; nothing changes by itself.</p>
-      {err && <p className="mt-2 text-xs text-rose-300">{err}</p>}
+      <p className="text-xs text-ink-faint">A reviewer that did not write this Brief reads it against the repository and proposes what to change. You apply what you take; nothing changes by itself.</p>
+      {err && <p className="mt-2 text-xs text-bad-ink">{err}</p>}
       {failed && !live && !err && (
-        <p className="mt-2 text-xs text-rose-300" data-testid="second-opinion-failed">
+        <p className="mt-2 text-xs font-semibold text-bad-ink" data-testid="second-opinion-failed">
           The second opinion {failed.auto ? 'written by itself' : 'asked for'} {ago(failed.at)} could not finish: {failed.reason}.{editable ? ' Ask again when you like.' : ''}
         </p>
       )}
       {live && (
         <div className="mt-3">
-          <p className="text-xs text-zinc-500 mb-1">The reviewer is reading the Brief and the repository — its live output below. It goes on while you leave the page: a few minutes on a small project, up to twenty on a large one.</p>
+          <p className="text-xs text-ink-faint mb-1">The reviewer is reading the Brief and the repository — its live output below. It goes on while you leave the page: a few minutes on a small project, up to twenty on a large one.</p>
           <LiveLog attemptId={`draft-${goalId}`} className="max-h-56" />
         </div>
       )}
       {proposal && !live && (
         <div className="mt-3">
           {stored && stored.at === shownAt && (
-            <p className="text-[11px] text-zinc-500 mb-2">
+            <p className="text-xs text-ink-faint mb-2">
               {stored.auto ? 'Written by itself' : 'Asked for'} {ago(stored.at)}
               {stored.costAvailable === false ? '' : ` · $${stored.costUsd.toFixed(2)}`}
               {stored.stale ? ' · the Brief changed since: these rows were made against the earlier one' : ''}
             </p>
           )}
           {noChanges ? (
-            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs text-zinc-300">The reviewer found nothing to change: {proposal.revision!.changeSummary}</div>
+            <div className="rounded-md border border-ok/30 bg-ok/5 p-3 text-xs text-ink-soft">The reviewer found nothing to change: {proposal.revision!.changeSummary}</div>
           ) : editable ? (
             <DraftPanel key={shownAt ?? 'fresh'} proposal={proposal} onApply={(fn) => edit(fn)} onClose={() => setProposal(null)} />
           ) : (
-            <p className="text-xs text-zinc-400">{proposal.revision?.changeSummary ?? proposal.rationale}</p>
+            <p className="text-xs text-ink-soft">{proposal.revision?.changeSummary ?? proposal.rationale}</p>
           )}
         </div>
       )}

@@ -82,7 +82,7 @@ export function RunCard({ brief, editable, edit, goalId, selfCheck, milestonePau
         ) : null
       }
     >
-      <div className="text-xs text-zinc-400 space-y-2">
+      <div className="text-xs text-ink-soft space-y-3">
         {apps ? (
           <>
             <p>
@@ -90,7 +90,7 @@ export function RunCard({ brief, editable, edit, goalId, selfCheck, milestonePau
             </p>
             <ul className="space-y-2">
               {apps.map((a, i) => (
-                <li key={i} className="rounded-md border border-zinc-800 p-2">
+                <li key={i} className="rounded-md border border-line bg-inset p-2.5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,1.4fr)_minmax(0,1fr)] gap-2">
                     <Field label="Name">
                       <Input className="text-xs" disabled={!editable} placeholder="Web app" value={a.name} onChange={(e) => setApp(i, { name: e.target.value })} />
@@ -108,12 +108,12 @@ export function RunCard({ brief, editable, edit, goalId, selfCheck, milestonePau
                       <Input className="mono text-xs" disabled={!editable} placeholder={MOCK_PLACEHOLDER} title={MOCK_HELP} value={a.mock ?? ''} onChange={(e) => setApp(i, { mock: e.target.value || null })} />
                     </Field>
                   </div>
-                  <div className="mt-1.5 flex items-center gap-2 text-[11px] text-zinc-500">
+                  <div className="mt-1.5 flex items-center gap-2 text-xs text-ink-faint">
                     <span className="mono truncate" title="the app's key and the variable the other apps read its address from">
                       {a.key || 'app'} · FOUNDRY_APP_{(a.key || 'app').toUpperCase().replace(/[^A-Z0-9]+/g, '_')}_URL
                     </span>
-                    {i === 0 && <span className="text-zinc-400">· opened first</span>}
-                    {!a.command && <span className="text-amber-300">· no start command: skipped</span>}
+                    {i === 0 && <span className="text-ink-soft">· opened first</span>}
+                    {!a.command && <span className="font-semibold text-ink-soft">· no start command: skipped</span>}
                     {editable && (
                       <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setApps((list) => list.filter((_, j) => j !== i))} title="Remove this app" aria-label={`Remove ${a.name || 'this app'}`}>
                         <X size={12} /> Remove
@@ -157,43 +157,43 @@ export function RunCard({ brief, editable, edit, goalId, selfCheck, milestonePau
             </div>
           </>
         )}
-        <label className="flex items-center gap-2 text-[11px] text-zinc-400 cursor-pointer pt-1" title="A smoke test after every task lands: the engine opens the preview's first page in headless Chromium, takes a screenshot and fails a must check on console, page or network errors, which then get fixed. No AI, so no tokens. Unlike Have a look, it never pauses. Needs Playwright's Chromium (Settings → Preview & self-check).">
-          <input
-            type="checkbox"
-            className="accent-emerald-500"
-            checked={selfCheck}
-            onChange={(e) => {
-              setSelfCheckErr(null);
-              api.setSelfCheck(goalId, e.target.checked).catch((err) => setSelfCheckErr(err.message));
-            }}
-          />
-          Self-check after each task (screenshot + console errors)
-        </label>
-        <label className="flex items-center gap-2 text-[11px] text-zinc-400 cursor-pointer" title="On: once every task is done the goal pauses for the final walkthrough (and at a milestone without a script, when it lands), so you can look before it goes on. Off: it goes on, and what each milestone shows is sent to your notification channels.">
-          <input
-            type="checkbox"
-            className="accent-emerald-500"
-            checked={milestonePause}
-            onChange={(e) => {
-              setSelfCheckErr(null);
-              api.setMilestonePause(goalId, e.target.checked).catch((err) => setSelfCheckErr(err.message));
-            }}
-          />
-          Have a look: pause at milestones
-        </label>
-        <label className="flex items-center gap-2 text-[11px] text-zinc-400 cursor-pointer" title="Ponytail, the lazy senior dev: workers check whether the code needs to exist and whether the repository, the standard library or an installed dependency already has it before writing the smallest complete change; the planner plans lean; ponytail-review reviews each task and the goal. TDD still decides how tests are written.">
-          <input
-            type="checkbox"
-            className="accent-emerald-500"
-            checked={ponytail}
-            onChange={(e) => {
-              setSelfCheckErr(null);
-              api.setPonytail(goalId, e.target.checked).catch((err) => setSelfCheckErr(err.message));
-            }}
-          />
-          Ponytail: the smallest change that fully solves the task
-        </label>
-        {selfCheckErr && <div className="text-rose-300">{selfCheckErr}</div>}
+        {/* the goal's switches: each applies at once, with or without the Brief */}
+        <div className="space-y-2 border-t border-line pt-3">
+          <label className="flex items-center gap-2 text-xs text-ink-soft cursor-pointer" title="A smoke test after every task lands: the engine opens the preview's first page in headless Chromium, takes a screenshot and fails a must check on console, page or network errors, which then get fixed. No AI, so no tokens. Unlike Have a look, it never pauses. Needs Playwright's Chromium (Settings → Preview & self-check).">
+            <input
+              type="checkbox"
+              checked={selfCheck}
+              onChange={(e) => {
+                setSelfCheckErr(null);
+                api.setSelfCheck(goalId, e.target.checked).catch((err) => setSelfCheckErr(err.message));
+              }}
+            />
+            Self-check after each task (screenshot + console errors)
+          </label>
+          <label className="flex items-center gap-2 text-xs text-ink-soft cursor-pointer" title="On: once every task is done the goal pauses for the final walkthrough (and at a milestone without a script, when it lands), so you can look before it goes on. Off: it goes on, and what each milestone shows is sent to your notification channels.">
+            <input
+              type="checkbox"
+              checked={milestonePause}
+              onChange={(e) => {
+                setSelfCheckErr(null);
+                api.setMilestonePause(goalId, e.target.checked).catch((err) => setSelfCheckErr(err.message));
+              }}
+            />
+            Have a look: pause at milestones
+          </label>
+          <label className="flex items-center gap-2 text-xs text-ink-soft cursor-pointer" title="Ponytail, the lazy senior dev: workers check whether the code needs to exist and whether the repository, the standard library or an installed dependency already has it before writing the smallest complete change; the planner plans lean; ponytail-review reviews each task and the goal. TDD still decides how tests are written.">
+            <input
+              type="checkbox"
+              checked={ponytail}
+              onChange={(e) => {
+                setSelfCheckErr(null);
+                api.setPonytail(goalId, e.target.checked).catch((err) => setSelfCheckErr(err.message));
+              }}
+            />
+            Ponytail: the smallest change that fully solves the task
+          </label>
+          {selfCheckErr && <div className="text-bad-ink">{selfCheckErr}</div>}
+        </div>
       </div>
     </Card>
   );
