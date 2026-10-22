@@ -323,6 +323,10 @@ _Avoid_: login (the page, not the feature), user account (no passwords, roles or
 **Settings**
 The engine's user-editable configuration: concurrency, models, session caps, Workflow suite, Design Pack, autoskills, review and delivery defaults, tools, safety limits. A saved value beats an environment variable, which beats the default; most changes apply immediately, a few only after the engine restarts.
 
+**Theme**
+How the web UI looks in one browser: its colours in light and dark mode, its fonts and the shape of its corners — never what a page shows or where. Two are built in, *Wayfinding* (the default: concrete grey and graphite, signal yellow only for what waits for the user) and *Classic* (the zinc and emerald look from before themes); a user adds their own as a file in the data folder's `themes/`, usually starting from a copy. Each browser picks its Theme and light or dark for itself. The signal colours a Theme names mean the same on every page: *you* is what waits for the user, *work* an agent at work, *ok* done, *bad* failed.
+_Avoid_: skin, style; Appearance is the Settings section that picks a Theme, not the Theme
+
 **MCP Server**
 A program that gives a coding agent extra tools (library docs, a browser, web search). Each coding agent owns its native configuration and independent Allowed in goals policy. Foundry manages Claude servers/connectors and Codex user-configured stdio/HTTP servers through their respective native clients. Only work-performing sessions receive the selected coding agent's allowed prefixes. A catalog server may carry a disclaimer, confirmed once before it installs, and the names of its tools that run or change things; those are denied in sessions until Settings opens them.
 
