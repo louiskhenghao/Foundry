@@ -27,8 +27,8 @@ export function flowOf(state: TaskState): [Mark, Mark, Mark] {
 
 /** a step chip's leaning plate (behind the label, so a hatch never dims the word) and its label's colour */
 const STEP: Record<Mark, { plate: string; text: string }> = {
-  done: { plate: 'bg-ink/12', text: 'text-ink' },
-  run: { plate: 'hatch text-ink/25 ring-[1.5px] ring-inset ring-ink', text: 'text-ink' },
+  done: { plate: 'bg-ok/15 ring-1 ring-inset ring-ok/45', text: 'text-ok-ink' },
+  run: { plate: 'hatch text-work/30 ring-[1.5px] ring-inset ring-work', text: 'text-work-ink' },
   you: { plate: 'bg-you', text: 'text-on-you' },
   bad: { plate: 'bg-bad/15 ring-1 ring-inset ring-bad', text: 'text-bad-ink' },
   next: { plate: 'ring-1 ring-inset ring-line-strong', text: 'text-ink-faint' },
@@ -37,7 +37,7 @@ const STEP: Record<Mark, { plate: string; text: string }> = {
 
 /**
  * The Tasks tab as a list, the other way to see what the graph shows: one row per task in the order they were planned,
- * its square (solid done, hatched under way, yellow waiting for you, red failed, hollow not started), what it is and what it
+ * its square (green done, a blue hatch under way, yellow waiting for you, red failed, hollow not started), what it is and what it
  * waits for, how far it is through work, review and merge, and its time and cost. A row opens the task, as a card in the
  * graph does.
  */

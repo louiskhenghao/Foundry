@@ -6,8 +6,9 @@ import { useLayout } from '../theme.ts';
 import { cn } from '../ui.tsx';
 
 /**
- * How Foundry draws progress, in every theme: done is solid ink, under way is a flowing hatch, waiting on you is signal
- * yellow, failed is red, not started is hollow. Goals move through five stages; tasks are small squares.
+ * How Foundry draws progress, in every theme, in its signal colours: done is solid green, under way is a flowing blue
+ * hatch, waiting on you is signal yellow, failed is red, not started is hollow. Goals move through five stages; tasks
+ * are small squares.
  */
 export type Mark = 'done' | 'run' | 'you' | 'bad' | 'next' | 'off';
 
@@ -104,8 +105,8 @@ export function countMarks(counts: Record<string, number>): Mark[] {
 
 /** a mark's fill: the shape around it (square, segment, plate) is the caller's */
 export const markFill: Record<Mark, string> = {
-  done: 'bg-ink',
-  run: 'hatch text-ink ring-[1.5px] ring-inset ring-ink',
+  done: 'bg-ok',
+  run: 'hatch text-work ring-[1.5px] ring-inset ring-work',
   you: 'bg-you ring-[1.5px] ring-inset ring-on-you/70',
   bad: 'bg-bad',
   next: 'ring-[1.5px] ring-inset ring-line-strong',
@@ -143,12 +144,13 @@ export function MiniRail({ marks, className }: { marks: Mark[]; className?: stri
 
 type StageLinks = ({ to: string; title: string } | null)[];
 
-/** the word on the current stage's tag */
+/** the word on the current stage's tag, and its colours: blue at work, yellow waiting for you, red failed */
 const tagOf = (m: Mark) => (m === 'you' ? 'You' : m === 'bad' ? 'Failed' : 'Now');
+const TAG: Partial<Record<Mark, string>> = { you: 'bg-you text-on-you', bad: 'bg-bad text-on-bad', run: 'bg-work text-on-work' };
 
-/** a stage's number disc in the steps layout: solid done, blue at work, yellow waiting for you, red failed, hollow ahead */
+/** a stage's number disc in the steps layout: green done, blue at work, yellow waiting for you, red failed, hollow ahead */
 const STEP_DISC: Record<Mark, string> = {
-  done: 'bg-ink text-on-ink',
+  done: 'bg-ok text-on-ok',
   run: 'bg-work text-on-work',
   you: 'bg-you text-on-you',
   bad: 'bg-bad text-on-bad',
@@ -177,7 +179,7 @@ export function StageRail({ marks, notes, tasks, links }: { marks: Mark[]; notes
       )}
       {now >= 0 && (
         <p className="mt-3 flex min-w-0 items-center gap-2 text-[13px] sm:hidden">
-          <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em] leading-none', marks[now] === 'you' ? 'bg-you text-on-you' : marks[now] === 'bad' ? 'bg-bad text-on-bad' : 'bg-ink text-on-ink')}>{tagOf(marks[now]!)}</span>
+          <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em] leading-none', TAG[marks[now]!] ?? 'bg-ink text-on-ink')}>{tagOf(marks[now]!)}</span>
           <b className="shrink-0 font-extrabold text-ink">{STAGES[now]}</b>
           <span className="min-w-0 truncate text-ink-faint">{notes[now]}</span>
         </p>
@@ -228,12 +230,12 @@ function StageSteps({ marks, notes, links, now }: { marks: Mark[]; notes: ReactN
               <StageLink link={links?.[i]} label={label} className={cn('mono grid h-7 w-7 sm:h-8 sm:w-8 shrink-0 place-items-center rounded-full text-xs sm:text-[13px] font-bold', STEP_DISC[m], i === now && 'shadow-[0_0_0_4px_color-mix(in_oklab,var(--color-ink)_14%,transparent)]')}>
                 {m === 'done' ? <Check size={15} strokeWidth={3} aria-hidden="true" /> : m === 'bad' ? <X size={15} strokeWidth={3} aria-hidden="true" /> : i + 1}
               </StageLink>
-              {!last && <span className={cn('mx-1.5 sm:mx-2.5 h-0.5 flex-1 rounded-full', m === 'done' ? 'bg-ink' : 'bg-line-strong')} aria-hidden="true" />}
+              {!last && <span className={cn('mx-1.5 sm:mx-2.5 h-0.5 flex-1 rounded-full', m === 'done' ? 'bg-ok' : 'bg-line-strong')} aria-hidden="true" />}
             </span>
             <span className="mt-2 block min-w-0 pr-2">
               <b className={cn('flex items-center gap-1.5 text-[11px] sm:text-sm leading-tight', i === now ? 'font-extrabold text-ink' : m === 'done' ? 'font-semibold text-ink-soft' : 'font-semibold text-ink-faint')}>
                 <span className="truncate">{label}</span>
-                {i === now && (m === 'you' || m === 'bad') && <span className={cn('hidden sm:inline rounded px-1 py-px text-[10px] font-extrabold uppercase tracking-[0.08em] leading-none', m === 'you' ? 'bg-you text-on-you' : 'bg-bad text-on-bad')}>{tagOf(m)}</span>}
+                {i === now && TAG[m] && <span className={cn('hidden sm:inline rounded px-1 py-px text-[10px] font-extrabold uppercase tracking-[0.08em] leading-none', TAG[m])}>{tagOf(m)}</span>}
               </b>
               <span className="hidden sm:block truncate text-xs leading-snug text-ink-faint">{notes[i]}</span>
             </span>
@@ -245,8 +247,8 @@ function StageSteps({ marks, notes, links, now }: { marks: Mark[]; notes: ReactN
 }
 
 /**
- * The five stages as large leaning plates (wide screens): done ones filled, the current one outlined heavily with its
- * note, and the Run plate carrying the tasks as a bar while it is the current one.
+ * The five stages as large leaning plates (wide screens): done ones filled green, the current one outlined heavily (in
+ * blue while Foundry works on it) with its note, and the Run plate carrying the tasks as a bar while it is the current one.
  */
 function StagePlates({ marks, notes, tasks, links, now }: { marks: Mark[]; notes: ReactNode[]; tasks: Mark[]; links?: StageLinks; now: number }) {
   return (
@@ -256,8 +258,8 @@ function StagePlates({ marks, notes, tasks, links, now }: { marks: Mark[]; notes
         const current = i === now;
         const Icon = m === 'done' ? Check : STAGE_ICONS[i]!;
         return (
-          <li key={label} aria-current={current ? 'step' : undefined} className={cn('relative flex min-h-[4.5rem] min-w-0 items-center', m === 'done' ? 'text-on-ink' : current ? 'text-ink' : 'text-ink-faint')}>
-            <span aria-hidden="true" className={cn('absolute inset-0 overflow-hidden rounded-md slant', m === 'done' ? 'bg-ink' : m === 'you' ? 'bg-you' : m === 'bad' ? 'bg-panel ring-[3px] ring-inset ring-bad' : current ? 'bg-panel ring-[3px] ring-inset ring-ink shadow-[0_16px_28px_-18px_rgb(0_0_0/0.55)]' : 'bg-panel ring-[1.5px] ring-inset ring-line-strong')}>
+          <li key={label} aria-current={current ? 'step' : undefined} className={cn('relative flex min-h-[4.5rem] min-w-0 items-center', m === 'done' ? 'text-on-ok' : current ? 'text-ink' : 'text-ink-faint')}>
+            <span aria-hidden="true" className={cn('absolute inset-0 overflow-hidden rounded-md slant', m === 'done' ? 'bg-ok' : m === 'you' ? 'bg-you' : m === 'bad' ? 'bg-panel ring-[3px] ring-inset ring-bad' : current ? cn('bg-panel ring-[3px] ring-inset shadow-[0_16px_28px_-18px_rgb(0_0_0/0.55)]', m === 'run' ? 'ring-work' : 'ring-ink') : 'bg-panel ring-[1.5px] ring-inset ring-line-strong')}>
               {current && i === 2 && tasks.length > 0 && (
                 <span className="absolute bottom-2 left-4 right-4 flex h-1.5 gap-[3px]">
                   {tasks.map((t, j) => (
@@ -268,7 +270,7 @@ function StagePlates({ marks, notes, tasks, links, now }: { marks: Mark[]; notes
             </span>
             {links?.[i] && <Link to={links[i]!.to} title={links[i]!.title} aria-label={`${label}: ${links[i]!.title}`} className="absolute inset-0 z-10 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" />}
             <span className={cn('relative flex min-w-0 items-center gap-3 pb-3 pl-6 pr-3 pt-2', current && i === 2 && 'pb-5', m === 'you' && 'text-on-you')}>
-              <span className={cn('hidden lg:inline-grid h-7 w-7 shrink-0 place-items-center rounded-md', m === 'done' ? 'bg-on-ink text-ink' : current && m === 'run' ? 'bg-ink text-on-ink' : 'ring-[1.5px] ring-inset ring-current')}>
+              <span className={cn('hidden lg:inline-grid h-7 w-7 shrink-0 place-items-center rounded-md', m === 'done' ? 'bg-on-ok text-ok' : current && m === 'run' ? 'bg-work text-on-work' : 'ring-[1.5px] ring-inset ring-current')}>
                 <Icon size={15} aria-hidden="true" />
               </span>
               <span className="flex min-w-0 flex-col items-start">
@@ -277,7 +279,7 @@ function StagePlates({ marks, notes, tasks, links, now }: { marks: Mark[]; notes
               </span>
             </span>
             {current && (
-              <span className={cn('absolute -top-2.5 right-5 rounded px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em]', m === 'you' ? 'bg-on-you text-you' : m === 'bad' ? 'bg-bad text-on-bad' : 'bg-ink text-on-ink')}>{tagOf(m)}</span>
+              <span className={cn('absolute -top-2.5 right-5 rounded px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em]', m === 'you' ? 'bg-on-you text-you' : TAG[m] ?? 'bg-ink text-on-ink')}>{tagOf(m)}</span>
             )}
           </li>
         );
@@ -286,12 +288,28 @@ function StagePlates({ marks, notes, tasks, links, now }: { marks: Mark[]; notes
   );
 }
 
-/** A goal's state as a plate: graphite while Foundry works, yellow while it waits for you, red when it failed. */
+/**
+ * A goal's state as a plate, in its signal colour: blue while Foundry works (tinted while it clarifies), violet while it
+ * reviews, green once done, yellow while it waits for you, red when it failed, hollow when cancelled.
+ */
 export function StatePlate({ state, label }: { state: GoalState; label: string }) {
   const you = state === 'awaiting_brief_approval' || state === 'awaiting_feedback' || state === 'blocked';
   const Icon = state === 'running' ? Play : state === 'goal_review' ? Eye : state === 'clarifying' || state === 'draft' ? MessageSquare : state === 'failed' ? X : state === 'cancelled' ? Ban : you ? Hand : Check;
+  const look = you
+    ? 'bg-you text-on-you'
+    : state === 'failed'
+      ? 'bg-bad text-on-bad'
+      : state === 'cancelled'
+        ? 'ring-[1.5px] ring-inset ring-line-strong text-ink-faint'
+        : state === 'running'
+          ? 'bg-work text-on-work'
+          : state === 'goal_review'
+            ? 'bg-extra text-on-extra'
+            : state === 'clarifying' || state === 'draft'
+              ? 'bg-work/15 text-work-ink ring-[1.5px] ring-inset ring-work/60'
+              : 'bg-ok text-on-ok';
   return (
-    <span className={cn('inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-[12.5px] font-extrabold caps leading-none', you ? 'bg-you text-on-you' : state === 'failed' ? 'bg-bad text-on-bad' : state === 'cancelled' ? 'ring-[1.5px] ring-inset ring-line-strong text-ink-faint' : 'bg-ink text-on-ink')}>
+    <span className={cn('inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-[12.5px] font-extrabold caps leading-none', look)}>
       <Icon size={13} strokeWidth={2.5} aria-hidden="true" />
       {label}
     </span>

@@ -377,15 +377,15 @@ const HEAD = (
   </div>
 );
 
-/** the tile at the start of a row: what kind of moment the goal is in, in the shape of the rest of the system */
+/** the tile at the start of a row: what kind of moment the goal is in, in its signal colour (blue at work, violet in review, green done) */
 function Tile({ g }: { g: GoalRow }) {
   const [Icon, look]: [typeof Play, string] =
-    g.state === 'running' ? [Play, 'bg-ink text-on-ink']
-    : g.state === 'goal_review' ? [Eye, 'ring-2 ring-inset ring-ink text-ink']
-    : g.state === 'clarifying' || g.state === 'draft' ? [LoaderCircle, 'ring-2 ring-inset ring-ink text-ink']
+    g.state === 'running' ? [Play, 'bg-work text-on-work']
+    : g.state === 'goal_review' ? [Eye, 'ring-2 ring-inset ring-extra text-extra-ink']
+    : g.state === 'clarifying' || g.state === 'draft' ? [LoaderCircle, 'ring-2 ring-inset ring-work text-work-ink']
     : g.state === 'failed' ? [X, 'bg-bad text-on-bad']
     : g.state === 'cancelled' ? [Ban, 'ring-1 ring-inset ring-line-strong text-ink-faint']
-    : isFinished(g) ? [Check, 'bg-sunken ring-1 ring-inset ring-line-strong text-ink']
+    : isFinished(g) ? [Check, 'bg-ok/15 ring-1 ring-inset ring-ok/50 text-ok-ink']
     : [Hand, 'bg-you text-on-you'];
   return (
     <span className={cn('grid h-9 w-9 place-items-center rounded-lg', look)} aria-hidden="true">
