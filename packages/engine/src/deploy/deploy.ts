@@ -16,6 +16,7 @@ import type { Engine } from '../engine.ts';
 import { exec, git } from '../git/git.ts';
 import { goalWorkspacePath } from '../workspace.ts';
 import { type Deployability, deployability } from './detect.ts';
+import { keepDeployFiles } from './keep-files.ts';
 import { CLI, PROVIDER_LABEL, SUPPORTS, type DeployCredentials, configured, deploySteps, deployedUrl, failureHint, lastWords, plain, projectName, redact, wentToProduction } from './providers.ts';
 import { runSmoke, smokeScripts, type SmokeTarget } from './smoke.ts';
 
@@ -188,6 +189,8 @@ async function run(engine: Engine, goal: Goal, dir: string, req: DeployRequest):
     store.append({ type: 'deploy.finished', goalId: goal.id, payload: { provider, production: live, url } });
     const moved = live && !production;
     if (moved) store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `deploy: ${PROVIDER_LABEL[provider]} put this deploy in production although a preview was asked for: a new project’s first deploy goes to production there; the next ones are previews` } });
+    // what the host's CLI added to the project goes to GitHub as the goal did, before a smoke writes its own files here
+    await keepDeployFiles(engine, getGoal(store.db, goal.id) ?? goal, dir, { provider, outputDirs: [join(d.app.dir, d.app.outputDir), join(d.app.dir, findOutput(cwd, d.app.outputDir))] });
     // the smoke (ADR-0058): the milestone scripts against the address, in this checkout; it records its own end
     if (!(req.smoke ?? smokeByDefault(production))) return;
     // a smoke asked for a preview never writes into production
